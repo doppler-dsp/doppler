@@ -150,10 +150,10 @@ CF32 IQ phasors at ~96 dBc SFDR.
 #include <stdio.h>
 
 int main(void) {
-    lo_state_t *lo = lo_create(0.25);  // quarter-rate tone
+    dp_lo_state_t *lo = dp_lo_create(0.25);  // quarter-rate tone
 
     float complex out[8];
-    lo_steps(lo, 8, out, 8);
+    dp_lo_steps(lo, 8, out, 8);
 
     for (int i = 0; i < 8; i++)
         printf("out[%d]: %.3f + %.3fi\n", i, crealf(out[i]), cimagf(out[i]));
@@ -164,7 +164,7 @@ int main(void) {
     // out[4]:  1.000 + 0.000i  (repeats every 4 samples)
     // ...
 
-    lo_destroy(lo);
+    dp_lo_destroy(lo);
     return 0;
 }
 ```
@@ -177,16 +177,16 @@ int main(void) {
 #include <math.h>
 
 int main(void) {
-    lo_state_t *lo = lo_create(0.1);   // base freq f_n = 0.1
+    dp_lo_state_t *lo = dp_lo_create(0.1);   // base freq f_n = 0.1
 
     double ctrl[1024];
     for (int i = 0; i < 1024; i++)
         ctrl[i] = 0.002 * sin(2.0 * M_PI * 0.01 * i);
 
     float complex out[1024];
-    lo_steps_ctrl(lo, ctrl, 1024, out, 1024);
+    dp_lo_steps_ctrl(lo, ctrl, 1024, out, 1024);
     // base freq unchanged; reset restores clean phase
-    lo_destroy(lo);
+    dp_lo_destroy(lo);
     return 0;
 }
 ```
@@ -216,20 +216,20 @@ int main(void) {
 #include <stdio.h>
 
 int main(void) {
-    awgn_state_t *g = awgn_create(42, 1.0f);   /* seed, amplitude */
+    dp_awgn_state_t *g = dp_awgn_create(42, 1.0f);   /* seed, amplitude */
 
     float complex buf[4096];
-    awgn_generate(g, 4096, buf, 4096);                /* fill buf */
+    dp_awgn_generate(g, 4096, buf, 4096);                /* fill buf */
 
     /* Retune amplitude without disturbing RNG state */
-    awgn_set_amplitude(g, 0.5f);
-    awgn_generate(g, 4096, buf, 4096);
+    dp_awgn_set_amplitude(g, 0.5f);
+    dp_awgn_generate(g, 4096, buf, 4096);
 
     /* Deterministic replay */
-    awgn_reset(g);
-    awgn_generate(g, 4096, buf, 4096);               /* identical to first call */
+    dp_awgn_reset(g);
+    dp_awgn_generate(g, 4096, buf, 4096);               /* identical to first call */
 
-    awgn_destroy(g);
+    dp_awgn_destroy(g);
     return 0;
 }
 ```
@@ -245,18 +245,18 @@ int main(void) {
 #define N 4096
 
 int main(void) {
-    lo_state_t   *lo   = lo_create(0.1f);
-    awgn_state_t *noise = awgn_create(0, 0.3f);   /* σ=0.3 per component */
+    dp_lo_state_t   *lo   = dp_lo_create(0.1f);
+    dp_awgn_state_t *noise = dp_awgn_create(0, 0.3f);   /* σ=0.3 per component */
 
     float complex carrier[N], n[N], rx[N];
-    lo_steps(lo, N, carrier, N);
-    awgn_generate(noise, N, n, N);
+    dp_lo_steps(lo, N, carrier, N);
+    dp_awgn_generate(noise, N, n, N);
     for (size_t i = 0; i < N; i++)
         rx[i] = carrier[i] + n[i];
     printf("rx[0]: %.3f + %.3fi\n", crealf(rx[0]), cimagf(rx[0]));
 
-    lo_destroy(lo);
-    awgn_destroy(noise);
+    dp_lo_destroy(lo);
+    dp_awgn_destroy(noise);
     return 0;
 }
 ```
@@ -274,14 +274,14 @@ a polyphase resampler clock or generating carry events.
 #include <doppler/nco/nco_core.h>
 
 int main(void) {
-    nco_state_t *nco = nco_create(0.25, 0);  // nmax=0 → raw [0, 2^32)
+    dp_nco_state_t *nco = dp_nco_create(0.25, 0);  // nmax=0 → raw [0, 2^32)
 
     uint32_t phase[16];
     uint8_t  carry[16];
-    nco_steps_u32_ovf(nco, 16, phase, carry, 16);
+    dp_nco_steps_u32_ovf(nco, 16, phase, carry, 16);
     // carry fires at indices 3, 7, 11, 15 (once per full cycle)
 
-    nco_destroy(nco);
+    dp_nco_destroy(nco);
     return 0;
 }
 ```
@@ -303,18 +303,18 @@ int main(void) {
     int half = N_TAPS / 2;
     for (int k = 0; k < N_TAPS; k++) {
         int    n    = k - half;
-        double sinc = (n == 0) ? 1.0
-                                : sin(M_PI * 0.2 * n) / (M_PI * 0.2 * n);
+        double h    = (n == 0) ? 1.0
+                             : sin(M_PI * 0.2 * n) / (M_PI * 0.2 * n);
         double win  = 0.5 * (1.0 - cos(2.0 * M_PI * k / (N_TAPS - 1)));
-        taps[k] = (float)(sinc * win);
+        taps[k] = (float)(h * win);
     }
 
-    fir_state_t *fir = fir_create_real(taps, N_TAPS);
+    dp_fir_state_t *fir = fir_create_real(taps, N_TAPS);
 
     float complex in[1024], out[1024];
-    fir_execute(fir, in, 1024, out);
+    dp_fir_execute(fir, in, 1024, out);
 
-    fir_destroy(fir);
+    dp_fir_destroy(fir);
     return 0;
 }
 ```
@@ -336,16 +336,16 @@ CF32 is ~2× faster than CF64 for the same transform length.
 
 int main(void) {
     const size_t N = 1024;
-    fft_state_t *fft = fft_create(N, -1, 1);
+    dp_fft_state_t *fft = dp_fft_create(N, -1, 1);
 
     double complex in[N], out[N];
     for (size_t i = 0; i < N; i++)
         in[i] = cos(2.0 * M_PI * 10.0 * i / N) + 0.0 * I;
 
-    fft_execute_cf64(fft, in, N, out, N);
+    dp_fft_execute_cf64(fft, in, N, out, N);
     printf("DC bin: %.4f + %.4fi\n", creal(out[0]), cimag(out[0]));
 
-    fft_destroy(fft);
+    dp_fft_destroy(fft);
     return 0;
 }
 ```
@@ -359,16 +359,16 @@ int main(void) {
 
 int main(void) {
     const size_t N = 1024;
-    fft_state_t *fft = fft_create(N, -1, 1);
+    dp_fft_state_t *fft = dp_fft_create(N, -1, 1);
 
     float complex in32[N], out32[N], out32b[N];
     for (size_t i = 0; i < N; i++)
         in32[i] = cosf(2.0f * M_PI * 10.0f * i / N) + 0.0f * I;
 
-    fft_execute_cf32(fft, in32, N, out32, N);           // out-of-place
-    fft_execute_inplace_cf32(fft, in32, N, out32b, N);  // copy in -> out32b, then transform
+    dp_fft_execute_cf32(fft, in32, N, out32, N);           // out-of-place
+    dp_fft_execute_inplace_cf32(fft, in32, N, out32b, N);  // copy in -> out32b, then transform
 
-    fft_destroy(fft);
+    dp_fft_destroy(fft);
     return 0;
 }
 ```
@@ -380,15 +380,15 @@ int main(void) {
 #include <complex.h>
 
 int main(void) {
-    fft2d_state_t *fft2d = fft2d_create(64, 64, -1, 1);
+    dp_fft2d_state_t *fft2d = dp_fft2d_create(64, 64, -1, 1);
 
     double complex in2d[64 * 64], out2d[64 * 64];
-    fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d, 64 * 64);
+    dp_fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d, 64 * 64);
 
     float complex in32_2d[64 * 64], out32_2d[64 * 64];
-    fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d, 64 * 64);
+    dp_fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d, 64 * 64);
 
-    fft2d_destroy(fft2d);
+    dp_fft2d_destroy(fft2d);
     return 0;
 }
 ```
@@ -412,17 +412,17 @@ output length is exactly `n_in / 2`.
 static const float H_FIR[N_TAPS] = { -0.2122f, 0.6366f, 0.6366f, -0.2122f };
 
 int main(void) {
-    HalfbandDecimator_state_t *dec = HalfbandDecimator_create(H_FIR, N_TAPS);
+    dp_HalfbandDecimator_state_t *dec = dp_HalfbandDecimator_create(H_FIR, N_TAPS);
 
     float _Complex in[N_IN], out[N_IN / 2];
     /* ... fill in[] with your signal ... */
 
     /* Last argument is out's capacity, not the input count: a 2:1
        decimator emits N_IN/2, which is exactly how out is sized. */
-    size_t n_out = HalfbandDecimator_execute(dec, in, N_IN, out, N_IN / 2);
+    size_t n_out = dp_HalfbandDecimator_execute(dec, in, N_IN, out, N_IN / 2);
     printf("output samples: %zu\n", n_out);   /* 16 */
 
-    HalfbandDecimator_destroy(dec);
+    dp_HalfbandDecimator_destroy(dec);
     return 0;
 }
 ```
@@ -439,7 +439,7 @@ ______________________________________________________________________
 ## AGC — automatic gain control
 
 The AGC drives output power to `ref_db` using a first-order loop filter.
-`agc_step()` processes one sample at a time; the loop is linear in the
+`dp_agc_step()` processes one sample at a time; the loop is linear in the
 dB domain so settling time is independent of the step size.
 
 ```c
@@ -453,7 +453,7 @@ dB domain so settling time is independent of the step size.
 #define F_TONE 0.02
 
 int main(void) {
-    agc_state_t *agc = agc_create(
+    dp_agc_state_t *agc = dp_agc_create(
         0.0,      /* ref_db  — target output power */
         0.00125,  /* loop_bw — noise bandwidth, cycles/sample */
         0.02      /* alpha   — power-detector EMA coefficient */
@@ -463,12 +463,12 @@ int main(void) {
         double amp = (n < N_STEP) ? pow(10, -10.0/20) : pow(10, 10.0/20);
         float _Complex x = (float)(amp * cos(2*M_PI*F_TONE*n))
                          + (float)(amp * sin(2*M_PI*F_TONE*n)) * I;
-        float _Complex y = agc_step(agc, x);
+        float _Complex y = dp_agc_step(agc, x);
         (void)y;
     }
 
     printf("gain_db = %.2f\n", agc->gain_db);
-    agc_destroy(agc);
+    dp_agc_destroy(agc);
     return 0;
 }
 ```

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef WFM_CORE_H
-#define WFM_CORE_H
+#ifndef DP_WFM_CORE_H
+#define DP_WFM_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -18,21 +18,21 @@
 extern "C" {
 #endif
 
-void bpsk_map(const uint8_t *bits, size_t bits_len, float _Complex *out);
+void dp_bpsk_map(const uint8_t *bits, size_t bits_len, float _Complex *out);
 
-void qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
+void dp_qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
 
-float wfm_awgn_amplitude(float snr_db, float signal_power);
+float dp_wfm_awgn_amplitude(float snr_db, float signal_power);
 
-float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol);
+float dp_wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol);
 
-uint64_t mls_poly(uint32_t n);
+uint64_t dp_mls_poly(uint32_t n);
 
-uint16_t crc16(const uint8_t *bits, size_t bits_len);
-void rrc_taps(double beta, int sps, int span, float *out);
-void dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
-void rrc_h(const double *t, size_t t_len, double *out, double beta);
-void rc_h(const double *t, size_t t_len, double *out, double beta);
+uint16_t dp_crc16(const uint8_t *bits, size_t bits_len);
+void dp_rrc_taps(double beta, int sps, int span, float *out);
+void dp_dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
+void dp_rrc_h(const double *t, size_t t_len, double *out, double beta);
+void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
 #ifdef __cplusplus
 }
 #endif

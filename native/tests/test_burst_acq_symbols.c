@@ -23,13 +23,13 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_burst_acq[] = {
-    (jm_any_fn)burst_acq_create,
-    (jm_any_fn)burst_acq_destroy,
-    (jm_any_fn)burst_acq_reset,
-    (jm_any_fn)burst_acq_push,
-    (jm_any_fn)burst_acq_configure_search_raw,
-    (jm_any_fn)burst_acq_set_max_peaks,
-    (jm_any_fn)burst_acq_state_bytes,
-    (jm_any_fn)burst_acq_get_state,
-    (jm_any_fn)burst_acq_set_state,
+    (jm_any_fn)dp_burst_acq_create,
+    (jm_any_fn)dp_burst_acq_destroy,
+    (jm_any_fn)dp_burst_acq_reset,
+    (jm_any_fn)dp_burst_acq_push,
+    (jm_any_fn)dp_burst_acq_configure_search_raw,
+    (jm_any_fn)dp_burst_acq_set_max_peaks,
+    (jm_any_fn)dp_burst_acq_state_bytes,
+    (jm_any_fn)dp_burst_acq_get_state,
+    (jm_any_fn)dp_burst_acq_set_state,
 };

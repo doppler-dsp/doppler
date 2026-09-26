@@ -61,8 +61,8 @@
  * [-1.0, 1.0]
  * @endcode
  */
-#ifndef U8_TO_F32_CORE_H
-#define U8_TO_F32_CORE_H
+#ifndef DP_U8_TO_F32_CORE_H
+#define DP_U8_TO_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -84,12 +84,12 @@ typedef enum {
 /**
  * @brief U8ToF32 state.
  *
- * Allocate with u8_to_f32_create().
+ * Allocate with dp_u8_to_f32_create().
  */
 typedef struct {
     int   mode;   /* u8_to_f32_mode_t, validated at create */
     float iscale; /* 1/127.5, pre-computed for the midpoint multiply */
-} u8_to_f32_state_t;
+} dp_u8_to_f32_state_t;
 
 /**
  * @brief Create a u8_to_f32 instance.
@@ -99,15 +99,15 @@ typedef struct {
  * @return Heap-allocated state, or NULL for an unknown @p mode.  The
  *         allocation itself cannot fail visibly: it aborts on out-of-memory
  *         (dp_xcalloc), as every fixed-size internal allocation does.
- * @note Caller must call u8_to_f32_destroy() when done.
+ * @note Caller must call dp_u8_to_f32_destroy() when done.
  */
-u8_to_f32_state_t *u8_to_f32_create(int mode);
+dp_u8_to_f32_state_t *dp_u8_to_f32_create(int mode);
 
 /**
  * @brief Destroy a u8_to_f32 instance and release all memory.
  * @param state  May be NULL.
  */
-void u8_to_f32_destroy(u8_to_f32_state_t *state);
+void dp_u8_to_f32_destroy(dp_u8_to_f32_state_t *state);
 
 /**
  * @brief No-op reset, provided only for lifecycle symmetry.
@@ -128,7 +128,7 @@ void u8_to_f32_destroy(u8_to_f32_state_t *state);
  *
  * @endcode
  */
-void u8_to_f32_reset(u8_to_f32_state_t *state);
+void dp_u8_to_f32_reset(dp_u8_to_f32_state_t *state);
 
 /**
  * @brief The `shift` mapping of one code: `(x - 128) * 2^-7`, exactly.
@@ -157,7 +157,7 @@ u8_to_f32_shift(uint8_t x)
  * @return `(x - 127.5) / 127.5` to within the last bit, in `[-1, +1]`.
  */
 JM_FORCEINLINE float
-u8_to_f32_midpoint(const u8_to_f32_state_t *state, uint8_t x)
+u8_to_f32_midpoint(const dp_u8_to_f32_state_t *state, uint8_t x)
 {
     return ((float)x - 127.5f) * state->iscale;
 }
@@ -184,7 +184,7 @@ u8_to_f32_midpoint(const u8_to_f32_state_t *state, uint8_t x)
  * @endcode
  */
 JM_FORCEINLINE JM_HOT float
-u8_to_f32_step(const u8_to_f32_state_t *state, uint8_t x)
+dp_u8_to_f32_step(const dp_u8_to_f32_state_t *state, uint8_t x)
 {
     return state->mode == U8_TO_F32_MIDPOINT ? u8_to_f32_midpoint(state, x)
                                              : u8_to_f32_shift(x);
@@ -212,8 +212,8 @@ u8_to_f32_step(const u8_to_f32_state_t *state, uint8_t x)
  *
  * @endcode
  */
-void u8_to_f32_steps(
-    u8_to_f32_state_t *state,
+void dp_u8_to_f32_steps(
+    dp_u8_to_f32_state_t *state,
     const uint8_t    *input,
     float          *output,
     size_t               n);

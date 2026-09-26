@@ -254,7 +254,7 @@ def test_iandd_at_m2_is_documented_as_too_coarse():
     # Pin the stated reason for the m >= 4 guidance so the doc cannot quietly
     # drift from the behaviour.
     #
-    # The reason is an EVM argument, and mpsk_receiver_create()'s own m_out
+    # The reason is an EVM argument, and dp_mpsk_receiver_create()'s own m_out
     # documentation makes it in those terms: the rectangle is one symbol
     # wide, so its matched filter is an m_out-tap sum spanning it, and a
     # smaller m_out samples the same integral more coarsely.

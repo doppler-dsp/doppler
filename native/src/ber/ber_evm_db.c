@@ -11,8 +11,8 @@
 #endif
 
 double
-ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo, size_t hi,
-            int m)
+dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo, size_t hi,
+               int m)
 {
   size_t n;
   double smr = 0.0, smi = 0.0, p = 0.0, scale, phi, cr, sr, step, errsq = 0.0;

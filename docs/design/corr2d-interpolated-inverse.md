@@ -93,16 +93,16 @@ main (void)
      ny_out/nx_out trail dwell/nthreads and col_out trails those, and every
      one of those five is an integer, so a stale parameter ORDER would still
      compile at the call site and silently misconfigure the correlator. */
-  corr2d_state_t *(*create) (const float complex *, size_t, size_t, size_t,
+  dp_corr2d_state_t *(*create) (const float complex *, size_t, size_t, size_t,
                              int, size_t, size_t, int)
-      = corr2d_create;
+      = dp_corr2d_create;
   /* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx.
      col_out: emit only that correlation lag, one value per row; < 0 for
      the whole map. */
-  size_t (*execute) (corr2d_state_t *, const float complex *, size_t,
+  size_t (*execute) (dp_corr2d_state_t *, const float complex *, size_t,
                      float complex *, size_t)
-      = corr2d_execute; /* writes min(ny_out*nx_out, max_out) */
-  size_t (*max_out) (corr2d_state_t *) = corr2d_execute_max_out;
+      = dp_corr2d_execute; /* writes min(ny_out*nx_out, max_out) */
+  size_t (*max_out) (dp_corr2d_state_t *) = dp_corr2d_execute_max_out;
 
   printf ("corr2d API: %d\n",
           (create != 0) + (execute != 0) + (max_out != 0));
@@ -125,7 +125,7 @@ default = "0"   # 0 => nx (native)
 ```
 
 `execute` is already `variable_output`, so the binding sizes the returned array
-to `corr2d_execute_max_out` = `ny_out*nx_out` automatically. New read-only
+to `dp_corr2d_execute_max_out` = `ny_out*nx_out` automatically. New read-only
 properties `ny_out`, `nx_out`. Python: `Corr2D(ref, dwell=1, nthreads=1, ny_out=0, nx_out=0)` — the `(ny, nx)`-shaped `execute` input is unchanged; the returned
 surface is flat, `ny_out·nx_out` long, row-major over `(ny_out, nx_out)`.
 
@@ -161,7 +161,7 @@ State (sizes, as designed; as built the accumulator is `accum`, there is no
 `n_out = ny_out·nx_out`.
 
 ```
-corr2d_execute(in):
+dp_corr2d_execute(in):
     FFT2_{ny,nx}(in)        -> work_fft          # forward (native, unchanged)
     work_fft *= ref_spec                          # product P            (ny,nx)
     accum_P  += work_fft ;  count++               # coherent accum in FREQ domain
@@ -173,9 +173,9 @@ corr2d_execute(in):
     return 0
 ```
 
-`corr2d_create`: `ny_out = ny_out ? ny_out : ny` (same for `nx_out`); validate
+`dp_corr2d_create`: `ny_out = ny_out ? ny_out : ny` (same for `nx_out`); validate
 `ny_out ≥ ny`, `nx_out ≥ nx`; build `inv` at `(ny_out, nx_out)`; allocate the
-`n_out` buffers. `corr2d_reset` clears `accum_P`/`count`. The `zeropad2d` helper
+`n_out` buffers. `dp_corr2d_reset` clears `accum_P`/`count`. The `zeropad2d` helper
 (per-axis low/zeros/high with even-`n` Nyquist split) is a small internal static.
 
 ______________________________________________________________________
@@ -247,7 +247,7 @@ P2 (prime-length forward FFT).
 **Why.** `acq_core.c` (and, since, `burst_capture_core.c`) build a reference
 with energy only in row 0 — the flat-in-slow-time row spectrum turns the row
 axis into a pass-through, and `acq_core.c` relies on this, doing its own
-Doppler-axis FFT by hand before calling `corr2d_execute`. (`detector2d_core.c`
+Doppler-axis FFT by hand before calling `dp_corr2d_execute`. (`detector2d_core.c`
 passes its caller's arbitrary `(ny, nx)` reference through, so it takes the
 fast path only when that reference happens to be single-row.) For such a
 reference, `ref_spec[u,v] = conj(FFT_nx(ref_row0))[v]` is independent of the
@@ -260,13 +260,13 @@ the existing test suite happened to check:
 R(i,j) = (1/nx) * IFFT_nx( FFT_nx(row_i_of_input) * conj(FFT_nx(ref_row0)) )(j)
 ```
 
-i.e. `corr2d_execute`, for a single-row reference with `ny_out == ny` (no
+i.e. `dp_corr2d_execute`, for a single-row reference with `ny_out == ny` (no
 Doppler-axis interpolation — see below), reduces to `ny` independent
 length-`nx` circular cross-correlations. The general 2-D path was silently
 paying for a full `(ny,nx)` FFT2 forward *and* inverse every frame when
 only the `nx`-axis (code) transform does real work.
 
-**Eligibility** (decided once, at `corr2d_create`, fixed for the object's
+**Eligibility** (decided once, at `dp_corr2d_create`, fixed for the object's
 lifetime): reference nonzero only in row 0, **and** `ny_out == ny`. The
 `ny_out == ny` condition is required because the identity relies on the
 forward and inverse row-axis transforms being the *same length* — a
@@ -279,9 +279,9 @@ inverse.
 
 **Implementation** (`native/src/corr2d/corr2d_core.c`): `corr2d_is_single_row_ref`
 detects eligibility at `create`/`set_ref` time; the fast branch replaces
-the `(ny,nx)` `fft2d_state_t` plans with a pair of length-`nx`/`nx_out`
-`fft_state_t` 1-D plans and a length-`nx` `row_ref_spec` (replacing the
-full `(ny,nx)` `ref_spec` — smaller, not larger). `corr2d_execute` branches
+the `(ny,nx)` `dp_fft2d_state_t` plans with a pair of length-`nx`/`nx_out`
+`dp_fft_state_t` 1-D plans and a length-`nx` `row_ref_spec` (replacing the
+full `(ny,nx)` `ref_spec` — smaller, not larger). `dp_corr2d_execute` branches
 on `state->fast_path` at the top; the general path is completely
 untouched. `corr2d_set_ref` now returns `int` (0/-1): on a fast-path
 object it rejects a subsequently-supplied non-single-row reference rather
@@ -291,17 +291,17 @@ re-derived per call.
 **Serialization is unaffected.** `accum`/`work_fft` keep their existing
 `(ny,nx)`-sized allocation in both modes — the fast path just reinterprets
 them as `ny` independent length-`nx` row spectra instead of one flat 2-D
-spectrum. Same byte count, same layout, so `corr2d_state_bytes`/
+spectrum. Same byte count, same layout, so `dp_corr2d_state_bytes`/
 `get_state`/`set_state` needed zero changes.
 
 **Measured** (see `native/benchmarks/bench_corr2d_core.c`,
 `ny=16, nx=2046` — the acquisition grid from §1/`dsss-acquisition.md` §7):
 single-row (fast path) ~86 MSa/s vs. multi-row (general path) ~54 MSa/s at
 that grid. The much larger end-to-end win is in the small-grid regime
-`acq_push` actually runs at (`ny=16, nx=14`): the composed `DsssReceiver`'s
+`dp_acq_push` actually runs at (`ny=16, nx=14`): the composed `DsssReceiver`'s
 "search" (acquisition) benchmark went from ~28-59 MSa/s to ~133 MSa/s,
 now roughly matching its "track" regime (~135 MSa/s) instead of trailing
-it 3-5x — `corr2d_execute` was ~75% of `acq_push`'s per-frame cost, split
+it 3-5x — `dp_corr2d_execute` was ~75% of `dp_acq_push`'s per-frame cost, split
 almost evenly between the forward and inverse FFT2, confirming the row
 axis really was paying for a full transform pair every frame.
 

@@ -266,14 +266,14 @@ typedef struct
      dropping lock mid-record both redden the tally first, and neither could
      make the duty gate fire on its own. A gate that cannot fail
      independently is one nobody can trust the day it goes green. */
-  double      lock_duty;      /**< share where `locked` was asserted        */
-  double      lock_stat_duty; /**< share where the lock statistic was > 0   */
-  unsigned    bursts;     /**< bursts consumed — the headroom, see below    */
-  int         clipped;    /**< the front end clipped: nothing here is real  */
-  int         unsettled;  /**< bursts whose window never settled             */
-  int         unaligned;  /**< bursts settled, marker never detected         */
-  size_t      frame_bits; /**< bits in one frame                             */
-  const char *refused;    /**< non-NULL: not measurable, and WHY            */
+  double   lock_duty;      /**< share where `locked` was asserted        */
+  double   lock_stat_duty; /**< share where the lock statistic was > 0   */
+  unsigned bursts;         /**< bursts consumed — the headroom, see below    */
+  int      clipped;        /**< the front end clipped: nothing here is real  */
+  int      unsettled;   /**< bursts whose window never settled             */
+  int      unaligned;   /**< bursts settled, marker never detected         */
+  size_t   frame_nbits; /**< bits in one frame                             */
+  const char *refused;  /**< non-NULL: not measurable, and WHY            */
 } dp_rx_result_t;
 
 /* ── 4. The named points — the battery ──────────────────────────────────── */
@@ -464,18 +464,18 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
              double *err, double *nf_out, long *lt_out, double *zeta_out,
              int *clipped)
 {
-  int                      isps  = (int)pt->sps;
-  double                   beta  = pt->beta > 0.0 ? pt->beta : DP_RX_BETA;
-  int                      span  = pt->span > 0 ? pt->span : DP_RX_SPAN;
-  size_t                   ntaps = wfm_rrc_ntaps (isps, span);
-  size_t                   nsamp = nsym * (size_t)isps;
-  float                   *taps  = (float *)malloc (ntaps * sizeof *taps);
-  float _Complex          *x    = (float _Complex *)malloc (nsamp * sizeof *x);
-  float _Complex          *imp  = NULL;
-  wfm_synth_state_t       *tx   = NULL;
-  doppler_channel_state_t *ch   = NULL;
-  void                    *r    = NULL;
-  size_t                   nout = 0, navail = nsamp;
+  int                         isps  = (int)pt->sps;
+  double                      beta  = pt->beta > 0.0 ? pt->beta : DP_RX_BETA;
+  int                         span  = pt->span > 0 ? pt->span : DP_RX_SPAN;
+  size_t                      ntaps = wfm_rrc_ntaps (isps, span);
+  size_t                      nsamp = nsym * (size_t)isps;
+  float                      *taps  = (float *)malloc (ntaps * sizeof *taps);
+  float _Complex             *x = (float _Complex *)malloc (nsamp * sizeof *x);
+  float _Complex             *imp  = NULL;
+  dp_wfm_synth_state_t       *tx   = NULL;
+  dp_doppler_channel_state_t *ch   = NULL;
+  void                       *r    = NULL;
+  size_t                      nout = 0, navail = nsamp;
   /* A real front end takes Re{}, halving signal AND noise, but its convention
      counts the real noise against the halved Es — 3 dB less noise. Asking the
      complex generator for 3 dB more delivers what was requested (§8.4). */
@@ -491,27 +491,27 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
      against the library's own estimator. Read at the sample stream instead it
      appears 10*log10(sps) low, which is what makes a wrong convention here
      look like a plausible receiver result. */
-  tx = wfm_synth_create (WFM_SYNTH_BITS, 1.0, pt->fc, esn0, 3, seed, isps, 7,
-                         0, 0, 0.0);
+  tx = dp_wfm_synth_create (WFM_SYNTH_BITS, 1.0, pt->fc, esn0, 3, seed, isps,
+                            7, 0, 0, 0.0);
   if (!tx)
     goto done;
   if (wfm_synth_set_bits (tx, bits, nbits, mpsk_bps (pt->m)) != 0
       || wfm_synth_set_rrc (tx, taps, ntaps) != 0)
     goto done;
-  wfm_synth_steps (tx, x, nsamp); /* the pattern CYCLES: many frames, one
+  dp_wfm_synth_steps (tx, x, nsamp); /* the pattern CYCLES: many frames, one
                                      descriptor */
 
   /* Stage 3 — IMPAIR. One parameter moves the carrier AND every clock,
      because a Doppler shift dilates the whole received time base. */
   if (pt->doppler_ppm != 0.0 || pt->doppler_rate_ppm_s != 0.0)
     {
-      ch  = doppler_channel_create (pt->fs_hz > 0.0 ? pt->fs_hz : 1.0,
-                                    pt->carrier_hz, pt->doppler_ppm,
-                                    pt->doppler_rate_ppm_s);
+      ch  = dp_doppler_channel_create (pt->fs_hz > 0.0 ? pt->fs_hz : 1.0,
+                                       pt->carrier_hz, pt->doppler_ppm,
+                                       pt->doppler_rate_ppm_s);
       imp = (float _Complex *)malloc (nsamp * sizeof *imp);
       if (!ch || !imp)
         goto done;
-      navail = doppler_channel_execute (ch, x, nsamp, imp, nsamp);
+      navail = dp_doppler_channel_execute (ch, x, nsamp, imp, nsamp);
     }
 
   r = rx->create (pt);
@@ -571,9 +571,9 @@ done:
   if (r)
     rx->destroy (r);
   if (ch)
-    doppler_channel_destroy (ch);
+    dp_doppler_channel_destroy (ch);
   if (tx)
-    wfm_synth_destroy (tx);
+    dp_wfm_synth_destroy (tx);
   free (taps);
   free (x);
   free (imp);
@@ -655,7 +655,7 @@ static inline void
 dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
                     const float _Complex *out, size_t n, const uint8_t *truth,
                     size_t nsym, long lag, double phase, size_t lo,
-                    frame_meter_state_t *fm, uint8_t *rxbits)
+                    dp_frame_meter_state_t *fm, uint8_t *rxbits)
 {
   /* Shift whichever array needs it so the residual lag is zero, because
      ber_align_detect searches around lag 0 and has no centre argument. After
@@ -714,8 +714,8 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
 
       /* Sync: the DETECTOR's own decision, in a tracking-mode window. Never a
          threshold applied afterwards to a statistic — that is what
-         `frame_meter_add` asks for and what makes the miss rate a measurement
-         of the sync word rather than of our post-processing. */
+         `dp_frame_meter_add` asks for and what makes the miss rate a
+         measurement of the sync word rather than of our post-processing. */
       m1.sym    = NULL;
       m1.n      = slen;
       m1.t0     = t0_a;
@@ -740,7 +740,7 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
             rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
         }
       crc = wfm_frame_crc_ok (f, rxbits);
-      frame_meter_add (fm, s1.ok, crc);
+      dp_frame_meter_add (fm, s1.ok, crc);
     }
 }
 
@@ -759,19 +759,19 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
 static inline dp_rx_result_t
 dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
 {
-  dp_rx_result_t       r;
-  wfm_frame_t          f = dp_frame_named (pt->frame);
-  wfm_frame_layout_t   l;
-  dp_ber_t             acc;
-  size_t               nbits = wfm_frame_nbits (&f), nsym;
-  size_t               bps   = (size_t)mpsk_bps (pt->m);
-  uint8_t             *bits = NULL, *truth = NULL, *rxbits = NULL;
-  float _Complex      *out = NULL;
-  unsigned char       *lc = NULL, *tk = NULL;
-  double              *err = NULL;
-  frame_meter_state_t *fm  = NULL;
-  size_t               lo = 0, hi = 0, settle = 0;
-  int                  settled = 0;
+  dp_rx_result_t          r;
+  wfm_frame_t             f = dp_frame_named (pt->frame);
+  wfm_frame_layout_t      l;
+  dp_ber_t                acc;
+  size_t                  nbits = wfm_frame_nbits (&f), nsym;
+  size_t                  bps   = (size_t)mpsk_bps (pt->m);
+  uint8_t                *bits = NULL, *truth = NULL, *rxbits = NULL;
+  float _Complex         *out = NULL;
+  unsigned char          *lc = NULL, *tk = NULL;
+  double                 *err = NULL;
+  dp_frame_meter_state_t *fm  = NULL;
+  size_t                  lo = 0, hi = 0, settle = 0;
+  int                     settled = 0;
 
   memset (&r, 0, sizeof r);
   r.point    = pt;
@@ -818,11 +818,11 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
      check. Without either there is no truth-free outcome, and reporting one
      anyway is the failure this instrument exists to refuse — which is why
      `framed == 0` prints n/a rather than an FER of 0.0. */
-  r.framed     = (l.sync_bits >= 8 && l.crc_bits > 0);
-  r.prot_bits  = l.payload_bits + l.crc_bits;
-  r.frame_bits = nbits;
+  r.framed      = (l.sync_bits >= 8 && l.crc_bits > 0);
+  r.prot_bits   = l.payload_bits + l.crc_bits;
+  r.frame_nbits = nbits;
 
-  fm     = frame_meter_create (DP_RX_TARGET_FRAME_ERRORS, DP_BER_CONF);
+  fm     = dp_frame_meter_create (DP_RX_TARGET_FRAME_ERRORS, DP_BER_CONF);
   rxbits = (uint8_t *)malloc (nbits);
   bits   = (uint8_t *)malloc (nbits);
   truth  = (uint8_t *)malloc (nsym);
@@ -861,7 +861,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
        target and stops on the first. */
     for (burst = 0; burst < DP_RX_MAX_BURSTS
                     && !(dp_ber_enough (&acc)
-                         && (!r.framed || frame_meter_get_enough (fm)));
+                         && (!r.framed || dp_frame_meter_get_enough (fm)));
          burst++)
       {
         dp_ber_marker_t mk;
@@ -1003,12 +1003,12 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   else if (!r.rep.aligned)
     r.refused = "no burst aligned — the marker never detected";
 
-  r.frames        = frame_meter_get_frames (fm);
-  r.sync_detected = frame_meter_get_sync_detected (fm);
-  r.crc_passed    = frame_meter_get_crc_passed (fm);
-  r.frame_enough  = frame_meter_get_enough (fm);
-  r.fer           = frame_meter_fer (fm);
-  r.sync_miss     = frame_meter_sync_miss (fm);
+  r.frames        = dp_frame_meter_get_frames (fm);
+  r.sync_detected = dp_frame_meter_get_sync_detected (fm);
+  r.crc_passed    = dp_frame_meter_get_crc_passed (fm);
+  r.frame_enough  = dp_frame_meter_get_enough (fm);
+  r.fer           = dp_frame_meter_fer (fm);
+  r.sync_miss     = dp_frame_meter_sync_miss (fm);
 
   /* Accumulated per burst above; a mean over the bursts that produced
      numbers, so it is a rate over exactly the record the trio scored. */
@@ -1028,12 +1028,12 @@ done:
                                : NAN;
   r.crc_fail_pred
       = (r.rep.ber.symbols && r.prot_bits)
-            ? complement_power (r.rep.ber.p_hat, (double)r.prot_bits)
+            ? dp_complement_power (r.rep.ber.p_hat, (double)r.prot_bits)
             : NAN;
   r.fer_pred = r.sync_miss.p_hat + (1.0 - r.sync_miss.p_hat) * r.crc_fail_pred;
 
   dp_ber_free (&acc);
-  frame_meter_destroy (fm);
+  dp_frame_meter_destroy (fm);
   free (bits);
   free (truth);
   free (out);

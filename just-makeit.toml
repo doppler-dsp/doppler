@@ -5,6 +5,11 @@ jm_version = "0.92.0"
 name = "doppler"
 version = "0.57.0"
 build = "cmake"
+# c_prefix (jm#1591, #1545): every C symbol jm derives carries dp_, so two
+# installed jm libraries that share a component name (fir, fft, agc) link
+# and include together. Names we spelled ourselves (fn =, create_fn, our
+# macros) and every Python name are untouched.
+c_prefix = "dp"
 # c_style / c_format_command (gh-265, gh-745): jm formats the C it generates
 # with the project's OWN pinned clang-format, so its render and the committed
 # bytes agree instead of differing by style forever.
@@ -73,7 +78,7 @@ c_deps = ["hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs"]
 # execute_ci8, which are hand-written and never had a stub at all).
 # resample.pyi came OFF this list with the RateConverter flavor migration:
 # its fragment was entirely hand-written (ctor dispatch between
-# RateConverter_create and _create_matched, a `stages` getset, `bank_shape`,
+# dp_RateConverter_create and _create_matched, a `stages` getset, `bank_shape`,
 # the growth/ping-pong logic) and is now fully manifest-generated — the
 # dispatch is a `[[RateConverter.views]]` flavor (gh-504), `stages` and
 # `bank_shape` are container properties over count/value accessors (gh-543),
@@ -835,7 +840,7 @@ name = "design_lowpass"
 doc = "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps)."
 out_type = "float"
 variable_output = true
-out_size = "kaiser_num_taps(1, atten_db, fpass / 2.0, fstop / 2.0) | 1"
+out_size = "dp_kaiser_num_taps(1, atten_db, fpass / 2.0, fstop / 2.0) | 1"
 
 [[module.filter.functions.params]]
 name = "fpass"

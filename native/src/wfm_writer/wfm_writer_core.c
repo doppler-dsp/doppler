@@ -147,7 +147,7 @@ struct wfm_writer_state
  * exactly which samples saturate, so the count is taken from its sticky
  * `clipped` flag at the point of conversion instead of predicted here. */
 static inline void
-track_peak (wfm_writer_state_t *w, float re, float im)
+track_peak (dp_wfm_writer_state_t *w, float re, float im)
 {
   float ar = fabsf (re), ai = fabsf (im);
   float m = ar > ai ? ar : ai;
@@ -159,7 +159,7 @@ track_peak (wfm_writer_state_t *w, float re, float im)
    is also what every cvt converter defaults to. 1.0 for a float format,
    which needs no conversion and cannot clip. */
 static inline float
-wire_scale (const wfm_writer_state_t *w)
+wire_scale (const dp_wfm_writer_state_t *w)
 {
   return (float)dp_format_full_scale (STYPE_FMT[w->stype]);
 }
@@ -174,7 +174,7 @@ wire_scale (const wfm_writer_state_t *w)
    answers "did THIS component saturate". That makes the clip count the
    converter's own verdict rather than a threshold this file predicts. */
 static inline long
-quantise (wfm_writer_state_t *w, int kind, float fs, float v)
+quantise (dp_wfm_writer_state_t *w, int kind, float fs, float v)
 {
   long code = 0;
   int  hit  = 0;
@@ -182,23 +182,23 @@ quantise (wfm_writer_state_t *w, int kind, float fs, float v)
     {
     case EK_I32:
       {
-        f32_to_i32_state_t q = { .scale = fs, .clipped = 0 };
-        code                 = f32_to_i32_step (&q, v);
-        hit                  = q.clipped;
+        dp_f32_to_i32_state_t q = { .scale = fs, .clipped = 0 };
+        code                    = dp_f32_to_i32_step (&q, v);
+        hit                     = q.clipped;
         break;
       }
     case EK_I16:
       {
-        f32_to_i16_state_t q = { .scale = fs, .clipped = 0 };
-        code                 = f32_to_i16_step (&q, v);
-        hit                  = q.clipped;
+        dp_f32_to_i16_state_t q = { .scale = fs, .clipped = 0 };
+        code                    = dp_f32_to_i16_step (&q, v);
+        hit                     = q.clipped;
         break;
       }
     default:
       {
-        f32_to_i8_state_t q = { .scale = fs, .clipped = 0 };
-        code                = f32_to_i8_step (&q, v);
-        hit                 = q.clipped;
+        dp_f32_to_i8_state_t q = { .scale = fs, .clipped = 0 };
+        code                   = dp_f32_to_i8_step (&q, v);
+        hit                    = q.clipped;
         break;
       }
     }
@@ -232,7 +232,7 @@ put_at (uint8_t *h, size_t off, const void *src, size_t sz, int be)
 }
 
 static int
-grow (wfm_writer_state_t *w, size_t need)
+grow (dp_wfm_writer_state_t *w, size_t need)
 {
   if (w->cap >= need)
     return 0;
@@ -340,7 +340,7 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
    it. Callers decide what a non-fit means; nothing here silently drops a
    keyword without telling them. */
 static int
-hcb_kw_append (wfm_writer_state_t *w, const char *tag, const char *value,
+hcb_kw_append (dp_wfm_writer_state_t *w, const char *tag, const char *value,
                size_t count)
 {
   size_t tl = strlen (tag);
@@ -382,7 +382,7 @@ hcb_kw_append (wfm_writer_state_t *w, const char *tag, const char *value,
    fc == 0.0 writes nothing -- it is also the default for "not supplied", and
    the two are indistinguishable at this layer. */
 static void
-emit_fc_keyword (wfm_writer_state_t *w, double fc)
+emit_fc_keyword (dp_wfm_writer_state_t *w, double fc)
 {
   (void)wfm_writer_add_keyword (w, "FREQ", 'D', &fc, 1);
   /* Seed the keyword area with exactly the bytes wfm_blue_write_hcb has just
@@ -391,7 +391,7 @@ emit_fc_keyword (wfm_writer_state_t *w, double fc)
   w->hcbkwlen = fc_hcb_pair (w->hcbkw, sizeof w->hcbkw, fc);
 }
 
-wfm_writer_state_t *
+dp_wfm_writer_state_t *
 wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
                  double fs, double fc, size_t total_samples,
                  double t0_unix_sec)
@@ -399,7 +399,7 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
   if (!fp || sample_type < 0 || sample_type >= (int)N_STYPES || ft < 0
       || ft > 3)
     return NULL;
-  wfm_writer_state_t *w = calloc (1, sizeof (*w));
+  dp_wfm_writer_state_t *w = calloc (1, sizeof (*w));
   if (!w)
     return NULL;
   w->fp    = fp;
@@ -424,7 +424,7 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
 
 /* CSV: one sample per line -- `I,Q` in complex mode, one value in scalar. */
 static size_t
-write_csv (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
+write_csv (dp_wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
   const int      k     = KIND[w->stype];
   const unsigned comps = stype_comps (w->stype);
@@ -480,7 +480,7 @@ is_hcb_keyword (const char *tag)
    are -- a second switch for the scalar case would be the same five
    encodings written twice, and the two copies would drift. */
 static size_t
-write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
+write_binary (dp_wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
   const int      k     = KIND[w->stype];
   const size_t   elem  = ELEM[k];
@@ -536,7 +536,8 @@ write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 }
 
 size_t
-wfm_writer_write (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
+dp_wfm_writer_write (dp_wfm_writer_state_t *w, const float _Complex *iq,
+                     size_t n)
 {
   if (!w || (n && !iq))
     return 0;
@@ -547,7 +548,7 @@ wfm_writer_write (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 }
 
 int
-wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
+wfm_writer_add_keyword (dp_wfm_writer_state_t *w, const char *tag, char type,
                         const void *value, size_t count)
 {
   if (!w || w->ft != WFM_FT_BLUE) /* only BLUE has an extended header */
@@ -599,7 +600,7 @@ wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
    extended header, though unlike that one it needs no new blocks -- the area
    is part of the 512-byte header that is already on disk. */
 static int
-write_hcb_keywords (wfm_writer_state_t *w)
+write_hcb_keywords (dp_wfm_writer_state_t *w)
 {
   uint8_t  b[4];
   int32_t  klen = (int32_t)w->hcbkwlen;
@@ -619,7 +620,7 @@ write_hcb_keywords (wfm_writer_state_t *w)
    The extended header must begin on a 512-byte boundary, so the gap is zero-
    filled -- also §3.3's suggested use for that slack. */
 static int
-write_ext_header (wfm_writer_state_t *w)
+write_ext_header (dp_wfm_writer_state_t *w)
 {
   if (fseek (w->fp, 0, SEEK_END) != 0)
     return -1;
@@ -648,20 +649,20 @@ write_ext_header (wfm_writer_state_t *w)
 /* Property accessors for the generated binding's computed properties. Keeping
    these means the state layout stays private to this file. */
 double
-wfm_writer_get_clip_fraction (const wfm_writer_state_t *w)
+dp_wfm_writer_get_clip_fraction (const dp_wfm_writer_state_t *w)
 {
   return wfm_writer_clip_fraction (w);
 }
 
 double
-wfm_writer_get_peak_dbfs (const wfm_writer_state_t *w)
+dp_wfm_writer_get_peak_dbfs (const dp_wfm_writer_state_t *w)
 {
   double p = wfm_writer_peak (w);
   return (p > 0.0) ? 20.0 * log10 (p) : -INFINITY;
 }
 
 bool
-wfm_writer_get_clipped (const wfm_writer_state_t *w)
+dp_wfm_writer_get_clipped (const dp_wfm_writer_state_t *w)
 {
   /* What actually saturated, not what a threshold predicts would have.
      This used to be `peak > 1.0 && stype >= 2`, which was wrong twice: the
@@ -700,7 +701,7 @@ wfm_writer_get_clipped (const wfm_writer_state_t *w)
    empty; wfmgen and Composer pass their segments and get the labelled version.
    Returns 0 on success. */
 static int
-write_sigmf_sidecar (wfm_writer_state_t *w)
+write_sigmf_sidecar (dp_wfm_writer_state_t *w)
 {
   char meta_path[1024];
   wfm_meta_path (w->path, meta_path, sizeof meta_path);
@@ -731,7 +732,7 @@ write_sigmf_sidecar (wfm_writer_state_t *w)
    partial sample. An implicit stdio flush, triggered mid-fwrite when the
    buffer fills, does not. See docs/design/end-of-capture.md. */
 int
-wfm_writer_flush (wfm_writer_state_t *w)
+dp_wfm_writer_flush (dp_wfm_writer_state_t *w)
 {
   if (!w || !w->fp)
     return -1;
@@ -741,7 +742,7 @@ wfm_writer_flush (wfm_writer_state_t *w)
 }
 
 int
-wfm_writer_close (wfm_writer_state_t *w)
+wfm_writer_close (dp_wfm_writer_state_t *w)
 {
   int rc = 0;
   if (w)
@@ -803,7 +804,7 @@ wfm_writer_close (wfm_writer_state_t *w)
    the caller. wfm_writer_close() is the implementation; C callers use it
    directly. */
 int
-wfm_writer_destroy (wfm_writer_state_t *w)
+dp_wfm_writer_destroy (dp_wfm_writer_state_t *w)
 {
   return wfm_writer_close (w);
 }
@@ -813,10 +814,10 @@ wfm_writer_destroy (wfm_writer_state_t *w)
  * release the FILE (the old CPython capsule owned it). Opens the file,
  * delegates to wfm_writer_open, and marks the FILE owned so wfm_writer_close
  * fclose's it. */
-wfm_writer_state_t *
-wfm_writer_create (const char *path, double fs, int file_type, int sample_type,
-                   int endian, double fc, size_t total, double headroom,
-                   double t0, bool sidecar)
+dp_wfm_writer_state_t *
+dp_wfm_writer_create (const char *path, double fs, int file_type,
+                      int sample_type, int endian, double fc, size_t total,
+                      double headroom, double t0, bool sidecar)
 {
   /* A SigMF capture is a PAIR whose two halves are found by name:
      `<base>.sigmf-data` holds the samples, `<base>.sigmf-meta` holds the
@@ -832,7 +833,7 @@ wfm_writer_create (const char *path, double fs, int file_type, int sample_type,
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return NULL;
-  wfm_writer_state_t *w = wfm_writer_open (
+  dp_wfm_writer_state_t *w = wfm_writer_open (
       fp, (wfm_filetype_t)file_type, sample_type, endian, fs, fc, total, t0);
   if (!w)
     {
@@ -864,27 +865,27 @@ wfm_writer_create (const char *path, double fs, int file_type, int sample_type,
 }
 
 void
-wfm_writer_track_clipping (wfm_writer_state_t *w, int on)
+dp_wfm_writer_track_clipping (dp_wfm_writer_state_t *w, int on)
 {
   if (w)
     w->track = on ? 1 : 0;
 }
 
 void
-wfm_writer_set_gain (wfm_writer_state_t *w, double gain)
+wfm_writer_set_gain (dp_wfm_writer_state_t *w, double gain)
 {
   if (w)
     w->gain = (float)gain;
 }
 
 double
-wfm_writer_peak (const wfm_writer_state_t *w)
+wfm_writer_peak (const dp_wfm_writer_state_t *w)
 {
   return w ? (double)w->peak : 0.0;
 }
 
 double
-wfm_writer_clip_fraction (const wfm_writer_state_t *w)
+wfm_writer_clip_fraction (const dp_wfm_writer_state_t *w)
 {
   if (!w || w->written == 0)
     return 0.0;

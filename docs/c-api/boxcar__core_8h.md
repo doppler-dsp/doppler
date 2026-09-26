@@ -32,7 +32,7 @@ _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**boxcar\_state\_t**](structboxcar__state__t.md) <br>_Boxcar moving-average state (cf32)._  |
+| struct | [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) <br>_Boxcar moving-average state (cf32)._  |
 
 
 
@@ -59,17 +59,17 @@ _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-|  [**boxcar\_state\_t**](structboxcar__state__t.md) \* | [**boxcar\_create**](#function-boxcar_create) (size\_t len, double gain) <br>_Create a boxcar instance._  |
-|  void | [**boxcar\_destroy**](#function-boxcar_destroy) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Destroy a boxcar instance._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**boxcar\_get\_gain**](#function-boxcar_get_gain) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Current output gain._  |
-|  void | [**boxcar\_get\_state**](#function-boxcar_get_state) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s, void \* blob) <br>_Serialize the full state into_ `blob` _._ |
-|  void | [**boxcar\_init**](#function-boxcar_init) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, size\_t len, double gain) <br>_Initialise a boxcar in place (no allocation)._  |
-|  void | [**boxcar\_reset**](#function-boxcar_reset) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Clear the window (zero the ring and the running sum); keep the configured length and gain._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**boxcar\_set\_gain**](#function-boxcar_set_gain) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, double gain) <br>_Set the output gain; refresh the cached scale._  |
-|  int | [**boxcar\_set\_state**](#function-boxcar_set_state) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
-|  size\_t | [**boxcar\_state\_bytes**](#function-boxcar_state_bytes) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Serialized-state byte size._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**boxcar\_step**](#function-boxcar_step) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, float \_Complex x) <br>_Slide the window by one sample; return the gained moving average._  |
-|  void | [**boxcar\_steps**](#function-boxcar_steps) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const float \_Complex \* x, float \_Complex \* out, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
+|  void | [**boxcar\_init**](#function-boxcar_init) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, size\_t len, double gain) <br>_Initialise a boxcar in place (no allocation)._  |
+|  [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* | [**dp\_boxcar\_create**](#function-dp_boxcar_create) (size\_t len, double gain) <br>_Create a boxcar instance._  |
+|  void | [**dp\_boxcar\_destroy**](#function-dp_boxcar_destroy) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Destroy a boxcar instance._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_boxcar\_get\_gain**](#function-dp_boxcar_get_gain) (const [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Current output gain._  |
+|  void | [**dp\_boxcar\_get\_state**](#function-dp_boxcar_get_state) (const [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, void \* blob) <br>_Serialize the full state into_ `blob` _._ |
+|  void | [**dp\_boxcar\_reset**](#function-dp_boxcar_reset) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Clear the window (zero the ring and the running sum); keep the configured length and gain._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_boxcar\_set\_gain**](#function-dp_boxcar_set_gain) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, double gain) <br>_Set the output gain; refresh the cached scale._  |
+|  int | [**dp\_boxcar\_set\_state**](#function-dp_boxcar_set_state) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
+|  size\_t | [**dp\_boxcar\_state\_bytes**](#function-dp_boxcar_state_bytes) (const [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Serialized-state byte size._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_boxcar\_step**](#function-dp_boxcar_step) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, float \_Complex x) <br>_Slide the window by one sample; return the gained moving average._  |
+|  void | [**dp\_boxcar\_steps**](#function-dp_boxcar_steps) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, const float \_Complex \* x, float \_Complex \* out, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
 
 
 
@@ -137,11 +137,42 @@ Until the ring fills (the first `len-1` samples after a reset) the ring holds ze
 
 
 
-### function boxcar\_create 
+### function boxcar\_init 
+
+_Initialise a boxcar in place (no allocation)._ 
+```C++
+void boxcar_init (
+    dp_boxcar_state_t * s,
+    size_t len,
+    double gain
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` State to initialise. Must be non-NULL. 
+* `len` Window length; clamped to `[1, BOXCAR_MAX_LEN]`. 
+* `gain` Output gain (folded into the averaging scale). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_boxcar\_create 
 
 _Create a boxcar instance._ 
 ```C++
-boxcar_state_t * boxcar_create (
+dp_boxcar_state_t * dp_boxcar_create (
     size_t len,
     double gain
 ) 
@@ -168,7 +199,7 @@ Heap state, or NULL on invalid length / allocation failure.
 
 **Note:**
 
-Caller must call [**boxcar\_destroy()**](boxcar__core_8h.md#function-boxcar_destroy) when done. 
+Caller must call [**dp\_boxcar\_destroy()**](boxcar__core_8h.md#function-dp_boxcar_destroy) when done. 
 
 
 
@@ -180,12 +211,12 @@ Caller must call [**boxcar\_destroy()**](boxcar__core_8h.md#function-boxcar_dest
 
 
 
-### function boxcar\_destroy 
+### function dp\_boxcar\_destroy 
 
 _Destroy a boxcar instance._ 
 ```C++
-void boxcar_destroy (
-    boxcar_state_t * s
+void dp_boxcar_destroy (
+    dp_boxcar_state_t * s
 ) 
 ```
 
@@ -207,12 +238,12 @@ void boxcar_destroy (
 
 
 
-### function boxcar\_get\_gain 
+### function dp\_boxcar\_get\_gain 
 
 _Current output gain._ 
 ```C++
-JM_FORCEINLINE double boxcar_get_gain (
-    const boxcar_state_t * s
+JM_FORCEINLINE double dp_boxcar_get_gain (
+    const dp_boxcar_state_t * s
 ) 
 ```
 
@@ -223,12 +254,12 @@ JM_FORCEINLINE double boxcar_get_gain (
 
 
 
-### function boxcar\_get\_state 
+### function dp\_boxcar\_get\_state 
 
 _Serialize the full state into_ `blob` _._
 ```C++
-void boxcar_get_state (
-    const boxcar_state_t * s,
+void dp_boxcar_get_state (
+    const dp_boxcar_state_t * s,
     void * blob
 ) 
 ```
@@ -240,43 +271,12 @@ void boxcar_get_state (
 
 
 
-### function boxcar\_init 
-
-_Initialise a boxcar in place (no allocation)._ 
-```C++
-void boxcar_init (
-    boxcar_state_t * s,
-    size_t len,
-    double gain
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `s` State to initialise. Must be non-NULL. 
-* `len` Window length; clamped to `[1, BOXCAR_MAX_LEN]`. 
-* `gain` Output gain (folded into the averaging scale). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function boxcar\_reset 
+### function dp\_boxcar\_reset 
 
 _Clear the window (zero the ring and the running sum); keep the configured length and gain._ 
 ```C++
-void boxcar_reset (
-    boxcar_state_t * s
+void dp_boxcar_reset (
+    dp_boxcar_state_t * s
 ) 
 ```
 
@@ -311,12 +311,12 @@ Returns the filter to its just-constructed state: the delay ring and the running
 
 
 
-### function boxcar\_set\_gain 
+### function dp\_boxcar\_set\_gain 
 
 _Set the output gain; refresh the cached scale._ 
 ```C++
-JM_FORCEINLINE void boxcar_set_gain (
-    boxcar_state_t * s,
+JM_FORCEINLINE void dp_boxcar_set_gain (
+    dp_boxcar_state_t * s,
     double gain
 ) 
 ```
@@ -340,12 +340,12 @@ JM_FORCEINLINE void boxcar_set_gain (
 
 
 
-### function boxcar\_set\_state 
+### function dp\_boxcar\_set\_state 
 
 _Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._ 
 ```C++
-int boxcar_set_state (
-    boxcar_state_t * s,
+int dp_boxcar_set_state (
+    dp_boxcar_state_t * s,
     const void * blob
 ) 
 ```
@@ -357,12 +357,12 @@ int boxcar_set_state (
 
 
 
-### function boxcar\_state\_bytes 
+### function dp\_boxcar\_state\_bytes 
 
 _Serialized-state byte size._ 
 ```C++
-size_t boxcar_state_bytes (
-    const boxcar_state_t * s
+size_t dp_boxcar_state_bytes (
+    const dp_boxcar_state_t * s
 ) 
 ```
 
@@ -373,12 +373,12 @@ size_t boxcar_state_bytes (
 
 
 
-### function boxcar\_step 
+### function dp\_boxcar\_step 
 
 _Slide the window by one sample; return the gained moving average._ 
 ```C++
-JM_FORCEINLINE  JM_HOT float _Complex boxcar_step (
-    boxcar_state_t * s,
+JM_FORCEINLINE  JM_HOT float _Complex dp_boxcar_step (
+    dp_boxcar_state_t * s,
     float _Complex x
 ) 
 ```
@@ -419,12 +419,12 @@ The gained window mean after admitting `x`.
 
 
 
-### function boxcar\_steps 
+### function dp\_boxcar\_steps 
 
 _Filter a block: write the gained moving average of each sample._ 
 ```C++
-void boxcar_steps (
-    boxcar_state_t * s,
+void dp_boxcar_steps (
+    dp_boxcar_state_t * s,
     const float _Complex * x,
     float _Complex * out,
     size_t n
@@ -433,7 +433,7 @@ void boxcar_steps (
 
 
 
-Applies [**boxcar\_step()**](boxcar__core_8h.md#function-boxcar_step) to each input sample in turn, so the window sum and ring carry across the block exactly as they would sample by sample — a stream can be processed in frames of any size with no seam. Immediately after a reset the first `len-1` outputs average over a partial (still filling) window and ramp in.
+Applies [**dp\_boxcar\_step()**](boxcar__core_8h.md#function-dp_boxcar_step) to each input sample in turn, so the window sum and ring carry across the block exactly as they would sample by sample — a stream can be processed in frames of any size with no seam. Immediately after a reset the first `len-1` outputs average over a partial (still filling) window and ramp in.
 
 
 

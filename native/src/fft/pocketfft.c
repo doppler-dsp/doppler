@@ -348,20 +348,20 @@ pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
  * calling them.  This used to be four hand-written multiplies whose comment
  * asserted they "match the cvt module's convention" -- an agreement nothing
  * checked, which is the shape of doppler#1117 (three such copies in wfm, one
- * of which had drifted).  i8_to_f32_step/i16_to_f32_step are always_inline,
- * so the generated loop is unchanged, and every value is identical: the
- * inverse scales are powers of two and an int8/int16 converts to float
- * exactly, so neither the float nor the double path loses a bit by going
- * through them. */
+ * of which had drifted).  dp_i8_to_f32_step/dp_i16_to_f32_step are
+ * always_inline, so the generated loop is unchanged, and every value is
+ * identical: the inverse scales are powers of two and an int8/int16 converts
+ * to float exactly, so neither the float nor the double path loses a bit by
+ * going through them. */
 static void
 exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
 {
-  size_t            n = p->n, n2 = 2 * n;
-  const int8_t     *s8  = (const int8_t *)in;
-  const int16_t    *s16 = (const int16_t *)in;
-  i8_to_f32_state_t c8
+  size_t               n = p->n, n2 = 2 * n;
+  const int8_t        *s8  = (const int8_t *)in;
+  const int16_t       *s16 = (const int16_t *)in;
+  dp_i8_to_f32_state_t c8
       = { .iscale = 1.0f / (float)dp_format_full_scale (CI8) };
-  i16_to_f32_state_t c16
+  dp_i16_to_f32_state_t c16
       = { .iscale = 1.0f / (float)dp_format_full_scale (CI16) };
 
   if (p->pf)
@@ -369,10 +369,10 @@ exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
       float *fa = p->fa;
       if (is8)
         for (size_t i = 0; i < n2; ++i)
-          fa[i] = i8_to_f32_step (&c8, s8[i]);
+          fa[i] = dp_i8_to_f32_step (&c8, s8[i]);
       else
         for (size_t i = 0; i < n2; ++i)
-          fa[i] = i16_to_f32_step (&c16, s16[i]);
+          fa[i] = dp_i16_to_f32_step (&c16, s16[i]);
 
       pffft_direction_t dir = pf_dir (p->sign);
       if (aligned16 (out))
@@ -390,10 +390,10 @@ exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
   double *d = p->promote;
   if (is8)
     for (size_t i = 0; i < n2; ++i)
-      d[i] = (double)i8_to_f32_step (&c8, s8[i]);
+      d[i] = (double)dp_i8_to_f32_step (&c8, s8[i]);
   else
     for (size_t i = 0; i < n2; ++i)
-      d[i] = (double)i16_to_f32_step (&c16, s16[i]);
+      d[i] = (double)dp_i16_to_f32_step (&c16, s16[i]);
   xform (p->row, p->sign, d, n);
   float _Complex *fout = (float _Complex *)out;
   for (size_t i = 0; i < n; ++i)

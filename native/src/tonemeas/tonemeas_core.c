@@ -41,14 +41,14 @@ parabolic_delta (double ym1, double y0, double yp1)
   return d;
 }
 
-tonemeas_state_t *
-tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
-                 size_t bits, double dynamic_range_db, size_t dc_guard)
+dp_tonemeas_state_t *
+dp_tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
+                    size_t bits, double dynamic_range_db, size_t dc_guard)
 {
   if (n < 2 || fs <= 0.0)
     return NULL;
 
-  tonemeas_state_t *s = (tonemeas_state_t *)calloc (1, sizeof (*s));
+  dp_tonemeas_state_t *s = (dp_tonemeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -56,18 +56,18 @@ tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
    * requested dynamic range, so window leakage never caps SFDR/SNR while the
    * resolution bandwidth stays as fine as `n` allows. */
   double dr   = measure_resolve_dr (dynamic_range_db, bits);
-  double beta = kaiser_beta_for_sidelobe (dr);
+  double beta = dp_kaiser_beta_for_sidelobe (dr);
 
   /* The shared PSD core owns the window, the zero-padded FFT, the (single-
    * frame mean) averager AND the dBFS reference (full_scale / bits): the
    * metric kernels read it back as s->psd->full_scale, so the 0-dBFS
    * reference is defined exactly once, in the core.  (The linear accessors
    * stay cg^2-normalised; the kernels apply full_scale^2 themselves.) */
-  s->psd = psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
-                       full_scale, bits, ACC_TRACE_MEAN, 0.0);
+  s->psd = dp_psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
+                          full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
-      tonemeas_destroy (s);
+      dp_tonemeas_destroy (s);
       return NULL;
     }
 
@@ -83,7 +83,7 @@ tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
   s->excl = (unsigned char *)malloc (s->nfft * sizeof (unsigned char));
   if (!s->pwr || !s->excl)
     {
-      tonemeas_destroy (s);
+      dp_tonemeas_destroy (s);
       return NULL;
     }
 
@@ -105,19 +105,19 @@ tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
 }
 
 void
-tonemeas_destroy (tonemeas_state_t *state)
+dp_tonemeas_destroy (dp_tonemeas_state_t *state)
 {
   if (!state)
     return;
   if (state->psd)
-    psd_destroy (state->psd);
+    dp_psd_destroy (state->psd);
   free (state->pwr);
   free (state->excl);
   free (state);
 }
 
 void
-tonemeas_reset (tonemeas_state_t *state)
+dp_tonemeas_reset (dp_tonemeas_state_t *state)
 {
   (void)state; /* each analyze() is independent; nothing to reset */
 }
@@ -126,21 +126,22 @@ tonemeas_reset (tonemeas_state_t *state)
  * s->pwr[0..nfft/2].  Returns the bin count (nfft/2 + 1), or 0 if the capture
  * holds no full frame. */
 static size_t
-build_real (tonemeas_state_t *s, const float *x, size_t n_in)
+build_real (dp_tonemeas_state_t *s, const float *x, size_t n_in)
 {
-  psd_reset (s->psd);
-  psd_accumulate_real (s->psd, x, n_in);
-  return psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr, s->nfft / 2 + 1);
+  dp_psd_reset (s->psd);
+  dp_psd_accumulate_real (s->psd, x, n_in);
+  return dp_psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr,
+                                s->nfft / 2 + 1);
 }
 
 /* Average a complex capture over its segments, return the DC-centred two-sided
  * power into s->pwr[0..nfft).  Returns nfft, or 0 if no full frame. */
 static size_t
-build_complex (tonemeas_state_t *s, const float _Complex *x, size_t n_in)
+build_complex (dp_tonemeas_state_t *s, const float _Complex *x, size_t n_in)
 {
-  psd_reset (s->psd);
-  psd_accumulate (s->psd, x, n_in);
-  return psd_power_twosided (s->psd, s->nfft, s->pwr, s->nfft);
+  dp_psd_reset (s->psd);
+  dp_psd_accumulate (s->psd, x, n_in);
+  return dp_psd_power_twosided (s->psd, s->nfft, s->pwr, s->nfft);
 }
 
 /* Fold harmonic frequency k*f0 into the analysed band.
@@ -158,7 +159,7 @@ fold_harmonic (double f, double fs, int is_real)
 /* Integrate pwr over [c-L, c+L] (clamped); optionally mark the exclusion mask.
  */
 static double
-lobe_power (const tonemeas_state_t *s, size_t nbins, long c, int mark)
+lobe_power (const dp_tonemeas_state_t *s, size_t nbins, long c, int mark)
 {
   long L  = (long)s->lobe_bins;
   long lo = c - L, hi = c + L;
@@ -178,7 +179,7 @@ lobe_power (const tonemeas_state_t *s, size_t nbins, long c, int mark)
 
 /* The shared metric kernel over the prepared power array s->pwr[0..nbins). */
 static void
-compute_metrics (tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
+compute_metrics (dp_tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
                  double ref, int is_real, tone_meas_t *out)
 {
   memset (out, 0, sizeof (*out));
@@ -321,7 +322,7 @@ compute_metrics (tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
 }
 
 tone_meas_t
-tonemeas_analyze (tonemeas_state_t *state, const float *x, size_t n_in)
+dp_tonemeas_analyze (dp_tonemeas_state_t *state, const float *x, size_t n_in)
 {
   tone_meas_t r;
   size_t      nbins = build_real (state, x, n_in);
@@ -333,8 +334,8 @@ tonemeas_analyze (tonemeas_state_t *state, const float *x, size_t n_in)
 }
 
 tone_meas_t
-tonemeas_analyze_complex (tonemeas_state_t *state, const float _Complex *x,
-                          size_t n_in)
+dp_tonemeas_analyze_complex (dp_tonemeas_state_t  *state,
+                             const float _Complex *x, size_t n_in)
 {
   tone_meas_t r;
   size_t      nbins = build_complex (state, x, n_in);
@@ -346,7 +347,8 @@ tonemeas_analyze_complex (tonemeas_state_t *state, const float _Complex *x,
 }
 
 time_stats_t
-tonemeas_time_stats (tonemeas_state_t *state, const float *x, size_t n_in)
+dp_tonemeas_time_stats (dp_tonemeas_state_t *state, const float *x,
+                        size_t n_in)
 {
   time_stats_t r;
   size_t       n   = n_in;
@@ -382,21 +384,21 @@ tonemeas_time_stats (tonemeas_state_t *state, const float *x, size_t n_in)
 }
 
 size_t
-tonemeas_spectrum_dbfs_max_out (tonemeas_state_t *state)
+dp_tonemeas_spectrum_dbfs_max_out (dp_tonemeas_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-tonemeas_spectrum_dbfs (tonemeas_state_t *state, const float *x, size_t x_len,
-                        float *out, size_t max_out)
+dp_tonemeas_spectrum_dbfs (dp_tonemeas_state_t *state, const float *x,
+                           size_t x_len, float *out, size_t max_out)
 {
   /* DC-centred two-sided dBFS view of a real capture (analyzer display):
    * the same averaged PSD the metrics use, scaled to the 0-dBFS reference. */
-  psd_reset (state->psd);
-  psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft
-      = psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
+  dp_psd_reset (state->psd);
+  dp_psd_accumulate_real (state->psd, x, x_len);
+  size_t nfft = dp_psd_power_twosided (state->psd, state->nfft, state->pwr,
+                                       state->nfft);
   if (nfft == 0)
     return 0;
   /* Emission stops at the caller's capacity (jm gh-138). The count

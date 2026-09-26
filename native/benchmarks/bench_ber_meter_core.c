@@ -2,7 +2,7 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891).
  *
- * `ber_meter_score` is what every BER sweep point runs after the receiver
+ * `dp_ber_meter_score` is what every BER sweep point runs after the receiver
  * has produced symbols: strip the alignment, compare against truth, count.
  * It is O(n) over the scored window, and a sweep runs it once per point per
  * seed -- so it sits beside `ber_evm_db` (bench_ber_core.c) as a cost the
@@ -69,8 +69,8 @@ main (void)
   for (int i = 0; i < NSYM; i += 997)
     rx[i] = -rx[i];
 
-  ber_meter_state_t *b = ber_meter_create (M, 200, 0.99);
-  if (!b || ber_meter_set_truth (b, truth, NSYM) != 0)
+  dp_ber_meter_state_t *b = dp_ber_meter_create (M, 200, 0.99);
+  if (!b || dp_ber_meter_set_truth (b, truth, NSYM) != 0)
     {
       (void)fprintf (stderr, "bench_ber_meter: create/set_truth failed\n");
       return 1;
@@ -79,7 +79,7 @@ main (void)
   printf ("=== ber_meter benchmark ===\n");
   printf ("M=%d, %d symbols, %d rounds\n\n", M, NSYM, ITERATIONS);
 
-  size_t got = ber_meter_score (b, rx, NSYM, 0, NSYM);
+  size_t got = dp_ber_meter_score (b, rx, NSYM, 0, NSYM);
   if (got == 0)
     {
       (void)fprintf (stderr,
@@ -93,9 +93,9 @@ main (void)
   w0 = jm_bench_now_ns ();
   do
     {
-      ber_meter_reset (b);
-      (void)ber_meter_set_truth (b, truth, NSYM);
-      sink += ber_meter_score (b, rx, NSYM, 0, NSYM);
+      dp_ber_meter_reset (b);
+      (void)dp_ber_meter_set_truth (b, truth, NSYM);
+      sink += dp_ber_meter_score (b, rx, NSYM, 0, NSYM);
       w1 = jm_bench_now_ns ();
     }
   while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -103,10 +103,10 @@ main (void)
   static double t_sc[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      ber_meter_reset (b);
-      (void)ber_meter_set_truth (b, truth, NSYM);
+      dp_ber_meter_reset (b);
+      (void)dp_ber_meter_set_truth (b, truth, NSYM);
       t0 = jm_bench_now_ns ();
-      sink += ber_meter_score (b, rx, NSYM, 0, NSYM);
+      sink += dp_ber_meter_score (b, rx, NSYM, 0, NSYM);
       t1      = jm_bench_now_ns ();
       t_sc[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -120,10 +120,10 @@ main (void)
   static double t_al[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      ber_meter_reset (b);
-      (void)ber_meter_set_truth (b, truth, NSYM);
+      dp_ber_meter_reset (b);
+      (void)dp_ber_meter_set_truth (b, truth, NSYM);
       t0 = jm_bench_now_ns ();
-      sink += (size_t)ber_meter_align (b, rx, NSYM, 1000, 256, 0, 200, 0.0);
+      sink += (size_t)dp_ber_meter_align (b, rx, NSYM, 1000, 256, 0, 200, 0.0);
       t1      = jm_bench_now_ns ();
       t_al[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -142,7 +142,7 @@ main (void)
           min_sec (t_al, ITERATIONS) / min_sec (t_sc, ITERATIONS));
 
   (void)sink;
-  ber_meter_destroy (b);
+  dp_ber_meter_destroy (b);
   free (truth);
   free (rx);
   jm_bench_write_json (&_bench, "ber_meter");

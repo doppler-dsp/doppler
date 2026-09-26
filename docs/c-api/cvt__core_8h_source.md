@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CVT_CORE_H
-#define CVT_CORE_H
+#ifndef DP_CVT_CORE_H
+#define DP_CVT_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -39,12 +39,12 @@ extern "C" {
     return (bitorder == DP_BITORDER_BIG) ? i : (width - 1u - i);
   }
 
-size_t int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, int bitorder);
-size_t hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
-uint64_t bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
-size_t bin_to_hex(const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out_len, int bitorder);
-size_t bin_to_nrz(const uint8_t *bits, size_t bits_len, float *out, size_t out_len);
-size_t nrz_to_bin(const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len);
+size_t dp_int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, int bitorder);
+size_t dp_hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
+uint64_t dp_bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
+size_t dp_bin_to_hex(const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out_len, int bitorder);
+size_t dp_bin_to_nrz(const uint8_t *bits, size_t bits_len, float *out, size_t out_len);
+size_t dp_nrz_to_bin(const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len);
 #ifdef __cplusplus
 }
 #endif

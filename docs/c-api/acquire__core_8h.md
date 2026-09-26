@@ -52,7 +52,7 @@ _Acquire module — public C API._
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**bin\_to\_signed**](#function-bin_to_signed) (size\_t bin, size\_t n\_bins) <br>_Map an FFT bin index to its SIGNED frequency index._  |
+|  int | [**dp\_bin\_to\_signed**](#function-dp_bin_to_signed) (size\_t bin, size\_t n\_bins) <br>_Map an FFT bin index to its SIGNED frequency index._  |
 
 
 
@@ -86,11 +86,11 @@ _Acquire module — public C API._
 
 
 
-### function bin\_to\_signed 
+### function dp\_bin\_to\_signed 
 
 _Map an FFT bin index to its SIGNED frequency index._ 
 ```C++
-int bin_to_signed (
+int dp_bin_to_signed (
     size_t bin,
     size_t n_bins
 ) 

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only measure_ext.c is compiled.
  */
 /* ======================================================== */
-/* ToneMeasureObject — wraps tonemeas_state_t *       */
+/* ToneMeasureObject — wraps dp_tonemeas_state_t *       */
 /* ======================================================== */
 
 #include "doppler/tonemeas/tonemeas_core.h"
 
 typedef struct
 {
-  PyObject_HEAD tonemeas_state_t *handle;
+  PyObject_HEAD dp_tonemeas_state_t *handle;
 } ToneMeasureObject;
 
 static void
 ToneMeasureObj_dealloc (ToneMeasureObject *self)
 {
   if (self->handle)
-    tonemeas_destroy (self->handle);
+    dp_tonemeas_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -55,11 +55,11 @@ ToneMeasureObj_init (ToneMeasureObject *self, PyObject *args, PyObject *kwds)
   size_t n_harmonics = (size_t)n_harmonics_raw;
   size_t bits        = (size_t)bits_raw;
   size_t dc_guard    = (size_t)dc_guard_raw;
-  self->handle       = tonemeas_create (n, fs, n_harmonics, full_scale, bits,
-                                        dynamic_range_db, dc_guard);
+  self->handle = dp_tonemeas_create (n, fs, n_harmonics, full_scale, bits,
+                                     dynamic_range_db, dc_guard);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "tonemeas_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_tonemeas_create returned NULL");
       return -1;
     }
   return 0;
@@ -73,7 +73,7 @@ ToneMeasureObj_reset (ToneMeasureObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  tonemeas_reset (self->handle);
+  dp_tonemeas_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -145,7 +145,7 @@ ToneMeasureObj_analyze (ToneMeasureObject *self, PyObject *args)
   const float *_ng0 = (const float *)PyArray_DATA (in_arr);
   tone_meas_t  _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = tonemeas_analyze (self->handle, _ng0, n_in);
+    _r = dp_tonemeas_analyze (self->handle, _ng0, n_in);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (ToneMeasureObj_analyze_type);
@@ -249,7 +249,7 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   tone_meas_t           _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = tonemeas_analyze_complex (self->handle, _ng0, n_in);
+    _r = dp_tonemeas_analyze_complex (self->handle, _ng0, n_in);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (ToneMeasureObj_analyze_complex_type);
@@ -328,7 +328,7 @@ ToneMeasureObj_time_stats (ToneMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
-  time_stats_t _r = tonemeas_time_stats (
+  time_stats_t _r = dp_tonemeas_time_stats (
       self->handle, (const float *)PyArray_DATA (in_arr), n_in);
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (ToneMeasureObj_time_stats_type);
@@ -352,7 +352,7 @@ ToneMeasureObj_spectrum_dbfs_max_out (ToneMeasureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (tonemeas_spectrum_dbfs_max_out (self->handle));
+  return PyLong_FromSize_t (dp_tonemeas_spectrum_dbfs_max_out (self->handle));
 }
 
 static PyObject *
@@ -398,7 +398,7 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = tonemeas_spectrum_dbfs_max_out (self->handle);
+      size_t _omax    = dp_tonemeas_spectrum_dbfs_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -410,7 +410,7 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t n_out = tonemeas_spectrum_dbfs (
+      size_t n_out = dp_tonemeas_spectrum_dbfs (
           self->handle, (const float *)PyArray_DATA (x_arr),
           (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
@@ -432,7 +432,7 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = tonemeas_spectrum_dbfs_max_out (self->handle);
+  size_t _cap  = dp_tonemeas_spectrum_dbfs_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -443,7 +443,7 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = tonemeas_spectrum_dbfs (
+  size_t n_out = dp_tonemeas_spectrum_dbfs (
       self->handle, (const float *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
@@ -596,7 +596,7 @@ ToneMeasureObj_destroy (ToneMeasureObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      tonemeas_destroy (self->handle);
+      dp_tonemeas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -615,7 +615,7 @@ ToneMeasureObj_exit (ToneMeasureObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      tonemeas_destroy (self->handle);
+      dp_tonemeas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

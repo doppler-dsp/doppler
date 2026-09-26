@@ -18,4 +18,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern double saturate (double v, double lo, double hi, double nan_to);
+extern double dp_saturate (double v, double lo, double hi, double nan_to);

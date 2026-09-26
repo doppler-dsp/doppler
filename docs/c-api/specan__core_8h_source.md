@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef SPECAN_CORE_H
-#define SPECAN_CORE_H
+#ifndef DP_SPECAN_CORE_H
+#define DP_SPECAN_CORE_H
 
 #include "doppler/ddc/ddc_core.h"
 #include "doppler/psd/psd_core.h"
@@ -37,8 +37,8 @@ extern "C"
 
   typedef struct
   {
-    ddc_state_t   *ddc;      
-    psd_state_t *psd;      
+    dp_ddc_state_t   *ddc;      
+    dp_psd_state_t *psd;      
     float _Complex *scratch;  
     size_t scratch_cap;      
     float _Complex *pend;     
@@ -58,32 +58,32 @@ extern "C"
     size_t navg;          
     size_t disp_n;        
     size_t disp_lo;       
-  } specan_state_t;
+  } dp_specan_state_t;
 
-  specan_state_t *specan_create (double fs, double span, double rbw,
+  dp_specan_state_t *dp_specan_create (double fs, double span, double rbw,
                                  double src_center, double center,
                                  double offset_db, double full_scale,
                                  size_t bits, int window, size_t navg);
 
-  void specan_destroy (specan_state_t *state);
+  void dp_specan_destroy (dp_specan_state_t *state);
 
-  void specan_reset (specan_state_t *state);
+  void dp_specan_reset (dp_specan_state_t *state);
 
-  size_t specan_execute_max_out (specan_state_t *state);
+  size_t dp_specan_execute_max_out (dp_specan_state_t *state);
 
-  size_t specan_execute (specan_state_t *state, const float _Complex *x,
+  size_t dp_specan_execute (dp_specan_state_t *state, const float _Complex *x,
                          size_t x_len, float *out, size_t max_out);
 
-  void specan_retune (specan_state_t *state, double center);
+  void dp_specan_retune (dp_specan_state_t *state, double center);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * ddc + psd children + the pending decimated samples (sized to n*navg);
  * display/rate config restored by create. */
 #define SPECAN_STATE_MAGIC DP_FOURCC ('S','P','A','N')
 #define SPECAN_STATE_VERSION 1u
-size_t specan_state_bytes (const specan_state_t *state);
-void specan_get_state (const specan_state_t *state, void *blob);
-int specan_set_state (specan_state_t *state, const void *blob);
+size_t dp_specan_state_bytes (const dp_specan_state_t *state);
+void dp_specan_get_state (const dp_specan_state_t *state, void *blob);
+int dp_specan_set_state (dp_specan_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,321 @@
+
+
+# Struct dp\_ppe\_state\_t
+
+
+
+[**ClassList**](annotated.md) **>** [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md)
+
+
+
+_PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._ [More...](#detailed-description)
+
+* `#include <ppe_core.h>`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Public Attributes
+
+| Type | Name |
+| ---: | :--- |
+|  float \_Complex \* | [**buf**](#variable-buf)  <br> |
+|  double | [**drate**](#variable-drate)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
+|  float \* | [**mag**](#variable-mag)  <br> |
+|  size\_t | [**max\_len**](#variable-max_len)  <br> |
+|  double | [**max\_rate**](#variable-max_rate)  <br> |
+|  size\_t | [**n\_rate**](#variable-n_rate)  <br> |
+|  size\_t | [**nfft**](#variable-nfft)  <br> |
+|  double \* | [**rowfrq**](#variable-rowfrq)  <br> |
+|  double \* | [**rowpk**](#variable-rowpk)  <br> |
+|  float \_Complex \* | [**spec**](#variable-spec)  <br> |
+|  float \* | [**win**](#variable-win)  <br> |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Detailed Description
+
+
+Allocate with [**dp\_ppe\_create()**](ppe__core_8h.md#function-dp_ppe_create). 
+
+
+    
+## Public Attributes Documentation
+
+
+
+
+### variable buf 
+
+```C++
+float _Complex* dp_ppe_state_t::buf;
+```
+
+
+
+windowed, dechirped, zero-padded input, nfft. 
+
+
+        
+
+<hr>
+
+
+
+### variable drate 
+
+```C++
+double dp_ppe_state_t::drate;
+```
+
+
+
+chirp-rate grid step. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fft 
+
+```C++
+dp_fft_state_t* dp_ppe_state_t::fft;
+```
+
+
+
+forward plan, size nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable mag 
+
+```C++
+float* dp_ppe_state_t::mag;
+```
+
+
+
+dB magnitude scratch, nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable max\_len 
+
+```C++
+size_t dp_ppe_state_t::max_len;
+```
+
+
+
+max input length (sizes the plan/scratch). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable max\_rate 
+
+```C++
+double dp_ppe_state_t::max_rate;
+```
+
+
+
+chirp-rate search half-span (cycles/sample^2). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_rate 
+
+```C++
+size_t dp_ppe_state_t::n_rate;
+```
+
+
+
+number of chirp-rate hypotheses (1 if max\_rate=0). 
+
+
+        
+
+<hr>
+
+
+
+### variable nfft 
+
+```C++
+size_t dp_ppe_state_t::nfft;
+```
+
+
+
+zero-padded transform length: 4 \* next\_pow\_two (max\_len). The 4x is deliberate  a finer frequency grid before the parabolic peak refinement, which matters because the input is often short (preamble partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so the footprint is 4x what a bare next-pow2 would suggest. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rowfrq 
+
+```C++
+double* dp_ppe_state_t::rowfrq;
+```
+
+
+
+per-rate winning frequency, n\_rate. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rowpk 
+
+```C++
+double* dp_ppe_state_t::rowpk;
+```
+
+
+
+per-rate winning peak dB, n\_rate. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable spec 
+
+```C++
+float _Complex* dp_ppe_state_t::spec;
+```
+
+
+
+FFT output, nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable win 
+
+```C++
+float* dp_ppe_state_t::win;
+```
+
+
+
+window scratch, max\_len. 
+ 
+
+
+        
+
+<hr>
+
+------------------------------
+The documentation for this class was generated from the following file `native/inc/doppler/ppe/ppe_core.h`
+

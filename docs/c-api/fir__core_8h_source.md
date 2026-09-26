@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef FIR_CORE_H
-#define FIR_CORE_H
+#ifndef DP_FIR_CORE_H
+#define DP_FIR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -32,10 +32,10 @@ extern "C"
     float _Complex *scratch; /* [delay | input] workspace, grown on demand  */
     size_t scratch_cap;
     size_t num_taps;
-  } fir_state_t;
+  } dp_fir_state_t;
 
   JM_FORCEINLINE JM_HOT float _Complex
-  fir_step (fir_state_t *s, float _Complex x)
+  fir_step (dp_fir_state_t *s, float _Complex x)
   {
     size_t               M = s->num_taps;
     const float _Complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
@@ -57,32 +57,32 @@ extern "C"
     return CMPLXF (re, im);
   }
 
-  fir_state_t *fir_create (const float _Complex *taps, size_t taps_len);
+  dp_fir_state_t *dp_fir_create (const float _Complex *taps, size_t taps_len);
 
-  fir_state_t *fir_create_real (const float *taps, size_t num_taps);
+  dp_fir_state_t *fir_create_real (const float *taps, size_t num_taps);
 
-  void fir_reset (fir_state_t *state);
+  void dp_fir_reset (dp_fir_state_t *state);
 
   /* Serializable state (standard bytes interface; see dp_state.h): the delay
    * line (num_taps-1 samples) after the envelope; taps/scratch are config. */
 #define FIR_STATE_MAGIC DP_FOURCC ('F', 'I', 'R', '_')
 #define FIR_STATE_VERSION 1u
 
-  size_t fir_state_bytes (const fir_state_t *state);
-  void fir_get_state (const fir_state_t *state, void *blob);
-  int fir_set_state (fir_state_t *state, const void *blob);
+  size_t dp_fir_state_bytes (const dp_fir_state_t *state);
+  void dp_fir_get_state (const dp_fir_state_t *state, void *blob);
+  int dp_fir_set_state (dp_fir_state_t *state, const void *blob);
 
-  void fir_destroy (fir_state_t *state);
+  void dp_fir_destroy (dp_fir_state_t *state);
 
-  size_t fir_get_num_taps (const fir_state_t *state);
+  size_t fir_get_num_taps (const dp_fir_state_t *state);
 
-  int fir_get_is_real (const fir_state_t *state);
+  int dp_fir_get_is_real (const dp_fir_state_t *state);
 
-  double fir_dc_gain (const fir_state_t *state);
+  double fir_dc_gain (const dp_fir_state_t *state);
 
-  size_t fir_execute_max_out (fir_state_t *state);
+  size_t dp_fir_execute_max_out (dp_fir_state_t *state);
 
-  size_t fir_execute (fir_state_t *state, const float _Complex *in, size_t n_in,
+  size_t dp_fir_execute (dp_fir_state_t *state, const float _Complex *in, size_t n_in,
                       float _Complex *out);
 
 #ifdef __cplusplus

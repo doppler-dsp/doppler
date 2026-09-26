@@ -140,7 +140,7 @@ dp_frame_label (dp_frame_name_t name)
 }
 
 /* The CCSDS Command Link preferred pair (CCSDS 415.0-G-1 5.2.2.4), which is
-   gold_create()'s documented default and the one whose three-valued
+   dp_gold_create()'s documented default and the one whose three-valued
    correlation set test_gold_core.c verifies. Register width 10. */
 #define DP_FRAME_GOLD_TAPS_A 934u
 #define DP_FRAME_GOLD_TAPS_B 567u

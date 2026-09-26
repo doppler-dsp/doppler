@@ -67,7 +67,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 | ---: | :--- |
 |  size\_t | [**ccsds\_tm\_frame\_decode**](#function-ccsds_tm_frame_decode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, const uint8\_t \* cadu, size\_t n\_cadu, uint8\_t \* frame, size\_t max\_frame, [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) \* rx) <br>_Recover a Transfer Frame from the bits of one CADU._  |
 |  int | [**ccsds\_tm\_frame\_desc\_of**](#function-ccsds_tm_frame_desc_of) (const [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) \* s, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Turn those choices into a description: fields, stages, covers._  |
-|  int | [**ccsds\_tm\_frame\_describe**](#function-ccsds_tm_frame_describe) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, const uint8\_t \* frame\_bits, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— the standard as DATA._ |
+|  int | [**ccsds\_tm\_frame\_describe**](#function-ccsds_tm_frame_describe) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, const uint8\_t \* tf\_bits, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— the standard as DATA._ |
 |  size\_t | [**ccsds\_tm\_frame\_encode**](#function-ccsds_tm_frame_encode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, [**conv\_enc\_t**](structconv__enc__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
 |  size\_t | [**ccsds\_tm\_frame\_layout**](#function-ccsds_tm_frame_layout) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
 |  void | [**ccsds\_tm\_frame\_ops**](#function-ccsds_tm_frame_ops) ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* out, [**conv\_enc\_t**](structconv__enc__t.md) \* conv) <br>_The kernels a described CADU is assembled with._  |
@@ -300,7 +300,7 @@ _This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— 
 int ccsds_tm_frame_describe (
     const ccsds_tm_frame_cfg_t * cfg,
     size_t frame_len,
-    const uint8_t * frame_bits,
+    const uint8_t * tf_bits,
     wfm_frame_desc_t * out
 ) 
 ```
@@ -320,7 +320,7 @@ The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing about C
 
 * `cfg` the coding to apply. 
 * `frame_len` Transfer Frame length in **octets**. 
-* `frame_bits` `frame_len * 8` **unpacked** Transfer Frame bits, MSB-first — the representation the description works in, so the packed/unpacked boundary is crossed by the caller and is visible rather than hidden in a kernel. May be `NULL` to describe the geometry alone. 
+* `tf_bits` `frame_len * 8` **unpacked** Transfer Frame bits, MSB-first — the representation the description works in, so the packed/unpacked boundary is crossed by the caller and is visible rather than hidden in a kernel. May be `NULL` to describe the geometry alone. 
 * `out` receives the description. 
 
 

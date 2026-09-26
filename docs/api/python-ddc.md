@@ -1,7 +1,7 @@
 # DDC
 
 Digital Down-Converter — shifts a carrier to baseband and decimates in
-one call, backed by `ddc_state_t` and `ddcr_state_t`.
+one call, backed by `dp_ddc_state_t` and `dp_ddcr_state_t`.
 
 Source:
 [`src/doppler/ddc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/ddc/__init__.py)
@@ -157,7 +157,7 @@ promote is charged to `DDC`); the half rate pays in a whole receiver, where it
 halves the rate ahead of the matched filter (1.13–1.69× for `MpskReceiverR`,
 see `ddcr_core.h`).
 
-`Ddcr` wraps `ddcr_state_t`. `execute()` returns its own array, or fills a
+`Ddcr` wraps `dp_ddcr_state_t`. `execute()` returns its own array, or fills a
 **caller-provided writable `complex64` buffer** and returns the trimmed view
 `out[:n_out]` when one is passed — so allocation and buffer reuse can be made
 explicit for streaming and sharded-worker designs.
@@ -336,11 +336,11 @@ Three stages, each optional or reorderable:
 
 | Stage              | C type            | Purpose                                        |
 | ------------------ | ----------------- | ---------------------------------------------- |
-| LO mix             | `lo_state_t`      | Multiply by e^{j2πf_n·t} — shift carrier to DC |
+| LO mix             | `dp_lo_state_t`   | Multiply by e^{j2πf_n·t} — shift carrier to DC |
 | Halfband ÷2        | `hbdecim_state_t` | Cheap factor-of-2 decimation                   |
 | Polyphase resample | `resamp_state_t`  | Continuously-variable rate conversion          |
 
-`ddc_create(norm_freq, rate)` chains the LO and a RateConverter with built-in
+`dp_ddc_create(norm_freq, rate)` chains the LO and a RateConverter with built-in
 Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
 rejection); `ddc_create_matched(norm_freq, rate, pulse, …)` puts a
 matched-filter bank on the terminal stage instead — see
@@ -354,7 +354,7 @@ ______________________________________________________________________
 CF32 in ──► LO ──► RateConverter (0.4/0.6, rate r) ──► CF32 out
 ```
 
-`ddc_create(norm_freq, rate)` with built-in Kaiser bank. No design step
+`dp_ddc_create(norm_freq, rate)` with built-in Kaiser bank. No design step
 required. The RateConverter already picks a CIC + halfband + polyphase
 cascade for large ratios, so this is the halfband-first structure below
 whenever it is cheaper.
@@ -471,10 +471,10 @@ int main(void)
   float _Complex in[4096]  = { 0 };   /* fill with your samples */
   float _Complex out[4096];
 
-  ddc_state_t *ddc = ddc_create(-0.1, 0.25);
-  size_t n = ddc_execute(ddc, in, 4096, out, 4096);
+  dp_ddc_state_t *ddc = dp_ddc_create(-0.1, 0.25);
+  size_t n = dp_ddc_execute(ddc, in, 4096, out, 4096);
   (void)n;
-  ddc_destroy(ddc);
+  dp_ddc_destroy(ddc);
   return 0;
 }
 ```
@@ -490,17 +490,17 @@ step to keep the shape of the composition visible:
 
 ```c
 hbdecim_state_t *hb  = hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
-ddc_state_t     *ddc = ddc_create(norm_freq, rate * 2.0);
+dp_ddc_state_t     *ddc = dp_ddc_create(norm_freq, rate * 2.0);
 
 float _Complex mid[num_in / 2 + 32];
 float _Complex out[num_in];
 
 size_t n_mid = hbdecim_execute(hb, in, num_in, mid,
                                sizeof mid / sizeof mid[0]);
-size_t n_out = ddc_execute(ddc, mid, n_mid, out, num_in);
+size_t n_out = dp_ddc_execute(ddc, mid, n_mid, out, num_in);
 
 hbdecim_destroy(hb);
-ddc_destroy(ddc);
+dp_ddc_destroy(ddc);
 ```
 
 ## Related pages

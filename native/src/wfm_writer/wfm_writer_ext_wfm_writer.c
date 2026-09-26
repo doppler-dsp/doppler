@@ -6,14 +6,14 @@
  * Do NOT compile this file directly — only wfm_writer_ext.c is compiled.
  */
 /* ======================================================== */
-/* WriterObject — wraps wfm_writer_state_t *       */
+/* WriterObject — wraps dp_wfm_writer_state_t *       */
 /* ======================================================== */
 
 #include "doppler/wfm_writer/wfm_writer_core.h"
 
 typedef struct
 {
-  PyObject_HEAD wfm_writer_state_t *handle;
+  PyObject_HEAD dp_wfm_writer_state_t *handle;
 } WriterObject;
 
 static void
@@ -26,7 +26,7 @@ WriterObj_dealloc (WriterObject *self)
          must not be clobbered. Discarding the status is the
          only correct choice here; the explicit teardown and
          __exit__ paths do report it. */
-      (void)wfm_writer_destroy (self->handle);
+      (void)dp_wfm_writer_destroy (self->handle);
     }
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -129,9 +129,9 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
     }
   size_t total   = (size_t)total_raw;
   bool   sidecar = (int)sidecar_raw;
-  self->handle   = wfm_writer_create (PyBytes_AS_STRING (path), fs, file_type,
-                                      sample_type, endian, fc, total, headroom,
-                                      t0, sidecar);
+  self->handle = dp_wfm_writer_create (PyBytes_AS_STRING (path), fs, file_type,
+                                       sample_type, endian, fc, total,
+                                       headroom, t0, sidecar);
   Py_XDECREF (path);
   if (!self->handle)
     {
@@ -167,7 +167,7 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t                y     = wfm_writer_write (self->handle, x, x_len);
+  size_t                y     = dp_wfm_writer_write (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -180,7 +180,7 @@ WriterObj_flush (WriterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = wfm_writer_flush (self->handle);
+  int _rc = dp_wfm_writer_flush (self->handle);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "flush failed",
@@ -202,7 +202,7 @@ WriterObj_track_clipping (WriterObject *self, PyObject *args, PyObject *kwds)
   int          on        = 1;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", _kwlist, &on))
     return NULL;
-  wfm_writer_track_clipping (self->handle, on);
+  dp_wfm_writer_track_clipping (self->handle, on);
   Py_RETURN_NONE;
 }
 
@@ -394,7 +394,7 @@ Writer_getprop_clip_fraction (WriterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (wfm_writer_get_clip_fraction (self->handle));
+  return PyFloat_FromDouble (dp_wfm_writer_get_clip_fraction (self->handle));
 }
 static PyObject *
 Writer_getprop_peak_dbfs (WriterObject *self, void *Py_UNUSED (closure))
@@ -405,7 +405,7 @@ Writer_getprop_peak_dbfs (WriterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (wfm_writer_get_peak_dbfs (self->handle));
+  return PyFloat_FromDouble (dp_wfm_writer_get_peak_dbfs (self->handle));
 }
 static PyObject *
 Writer_getprop_clipped (WriterObject *self, void *Py_UNUSED (closure))
@@ -416,7 +416,7 @@ Writer_getprop_clipped (WriterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(wfm_writer_get_clipped (self->handle)));
+  return PyBool_FromLong ((long)(dp_wfm_writer_get_clipped (self->handle)));
 }
 
 static PyGetSetDef Writer_getset[] = {
@@ -446,7 +446,7 @@ WriterObj_destroy (WriterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      int rc = wfm_writer_destroy (self->handle);
+      int rc = dp_wfm_writer_destroy (self->handle);
       /* gh-541: clear the handle before reporting, so a second
          call is a no-op rather than a double free — the state is
          released whatever the status says. */
@@ -475,7 +475,7 @@ WriterObj_exit (WriterObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      int rc = wfm_writer_destroy (self->handle);
+      int rc = dp_wfm_writer_destroy (self->handle);
       /* gh-541: clear the handle before reporting, so a second
          call is a no-op rather than a double free — the state is
          released whatever the status says. */

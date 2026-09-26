@@ -5,11 +5,11 @@
  * Two independent, pure (no persistent state) estimators over a block of
  * complex baseband samples:
  *
- * - snr_data_aided_db(): known-symbol estimator. Strip the known
+ * - dp_snr_data_aided_db(): known-symbol estimator. Strip the known
  *   transmitted sign, then Es/N0 = (mean signal amplitude)^2 / (mean
  *   residual power) -- the classic pilot/known-sequence SNR estimate.
  *   Needs ground truth (or trusted decisions), but is simple and unbiased.
- * - snr_m2m4_db(): moment-based (M2M4) blind estimator (Pauluzzi &
+ * - dp_snr_m2m4_db(): moment-based (M2M4) blind estimator (Pauluzzi &
  *   Beaulieu, "A comparison of SNR estimation techniques for the AWGN
  *   channel", IEEE Trans. Commun. 48(10), 2000) for a constant-modulus
  *   signal (BPSK/QPSK/M-PSK) in circular complex AWGN. No known symbols
@@ -26,8 +26,8 @@
  * double blind = snr_m2m4_db(x, n);
  * @endcode
  */
-#ifndef SNR_CORE_H
-#define SNR_CORE_H
+#ifndef DP_SNR_CORE_H
+#define DP_SNR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
@@ -68,7 +68,7 @@ extern "C"
    * 17.1
    * @endcode
    */
-  double snr_data_aided_db (const float _Complex *soft, size_t soft_len,
+  double dp_snr_data_aided_db (const float _Complex *soft, size_t soft_len,
                             const uint8_t *sign_bits, size_t sign_bits_len);
 
   /**
@@ -97,12 +97,12 @@ extern "C"
    * 17.1
    * @endcode
    */
-  double snr_m2m4_db (const float _Complex *x, size_t x_len);
+  double dp_snr_m2m4_db (const float _Complex *x, size_t x_len);
 
   /**
    * @brief Sliding-window data-aided Es/N0 (dB), one estimate per index.
    *
-   * Same estimator as snr_data_aided_db(), applied to a
+   * Same estimator as dp_snr_data_aided_db(), applied to a
    * ``[i - window/2, i + window/2]`` window centered (clamped at the
    * edges) on each output index -- for visualizing SNR drift vs
    * time/index rather than reading one block-average scalar.
@@ -116,7 +116,7 @@ extern "C"
    * @param window        Window width in samples.
    * @param out           Output, length @p soft_len.
    */
-  void snr_data_aided_db_series (const float _Complex *soft, size_t soft_len,
+  void dp_snr_data_aided_db_series (const float _Complex *soft, size_t soft_len,
                                  const uint8_t *sign_bits,
                                  size_t sign_bits_len, size_t window,
                                  double *out);
@@ -124,7 +124,7 @@ extern "C"
   /**
    * @brief Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index.
    *
-   * Same estimator as snr_m2m4_db(), applied to a
+   * Same estimator as dp_snr_m2m4_db(), applied to a
    * ``[i - window/2, i + window/2]`` window centered (clamped at the
    * edges) on each output index.
    *
@@ -133,7 +133,7 @@ extern "C"
    * @param window  Window width in samples.
    * @param out     Output, length @p x_len.
    */
-  void snr_m2m4_db_series (const float _Complex *x, size_t x_len,
+  void dp_snr_m2m4_db_series (const float _Complex *x, size_t x_len,
                            size_t window, double *out);
 
 #ifdef __cplusplus

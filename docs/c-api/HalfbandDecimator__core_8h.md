@@ -32,7 +32,7 @@ _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-| typedef [**hbdecim\_state\_t**](structhbdecim__state__t.md) | [**HalfbandDecimator\_state\_t**](#typedef-halfbanddecimator_state_t)  <br> |
+| typedef [**hbdecim\_state\_t**](structhbdecim__state__t.md) | [**dp\_HalfbandDecimator\_state\_t**](#typedef-dp_halfbanddecimator_state_t)  <br> |
 
 
 
@@ -57,16 +57,16 @@ _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* | [**HalfbandDecimator\_create**](#function-halfbanddecimator_create) (const float \* h, size\_t h\_len) <br>_Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use_ `doppler.resample.kaiser_num_taps(2, atten, pb, sb)` _to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x\_len / 2 per execute() call._ |
-|  void | [**HalfbandDecimator\_destroy**](#function-halfbanddecimator_destroy) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br> |
-|  size\_t | [**HalfbandDecimator\_execute**](#function-halfbanddecimator_execute) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x\_len / 2)._  |
-|  size\_t | [**HalfbandDecimator\_execute\_max\_out**](#function-halfbanddecimator_execute_max_out) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br> |
-|  size\_t | [**HalfbandDecimator\_get\_num\_taps**](#function-halfbanddecimator_get_num_taps) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Number of FIR branch taps as passed to create. The all-pass (even-phase) branch has no taps; only the odd-phase FIR branch has length num\_taps. The total prototype length is 2 \* num\_taps - 1._  |
-|  double | [**HalfbandDecimator\_get\_rate**](#function-halfbanddecimator_get_rate) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter._  |
-|  void | [**HalfbandDecimator\_get\_state**](#function-halfbanddecimator_get_state) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, void \* blob) <br>_Serialize the decimator's delay-line state into_ `blob` _._ |
-|  void | [**HalfbandDecimator\_reset**](#function-halfbanddecimator_reset) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Zero all delay lines. Coefficients and num\_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input._  |
-|  int | [**HalfbandDecimator\_set\_state**](#function-halfbanddecimator_set_state) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._ |
-|  size\_t | [**HalfbandDecimator\_state\_bytes**](#function-halfbanddecimator_state_bytes) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Serialized-state byte size (forwarded to the hbdecim leaf)._  |
+|  [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* | [**dp\_HalfbandDecimator\_create**](#function-dp_halfbanddecimator_create) (const float \* h, size\_t h\_len) <br>_Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use_ `doppler.resample.kaiser_num_taps(2, atten, pb, sb)` _to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x\_len / 2 per execute() call._ |
+|  void | [**dp\_HalfbandDecimator\_destroy**](#function-dp_halfbanddecimator_destroy) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br> |
+|  size\_t | [**dp\_HalfbandDecimator\_execute**](#function-dp_halfbanddecimator_execute) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x\_len / 2)._  |
+|  size\_t | [**dp\_HalfbandDecimator\_execute\_max\_out**](#function-dp_halfbanddecimator_execute_max_out) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br> |
+|  size\_t | [**dp\_HalfbandDecimator\_get\_num\_taps**](#function-dp_halfbanddecimator_get_num_taps) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Number of FIR branch taps as passed to create. The all-pass (even-phase) branch has no taps; only the odd-phase FIR branch has length num\_taps. The total prototype length is 2 \* num\_taps - 1._  |
+|  double | [**dp\_HalfbandDecimator\_get\_rate**](#function-dp_halfbanddecimator_get_rate) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter._  |
+|  void | [**dp\_HalfbandDecimator\_get\_state**](#function-dp_halfbanddecimator_get_state) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state, void \* blob) <br>_Serialize the decimator's delay-line state into_ `blob` _._ |
+|  void | [**dp\_HalfbandDecimator\_reset**](#function-dp_halfbanddecimator_reset) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Zero all delay lines. Coefficients and num\_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input._  |
+|  int | [**dp\_HalfbandDecimator\_set\_state**](#function-dp_halfbanddecimator_set_state) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._ |
+|  size\_t | [**dp\_HalfbandDecimator\_state\_bytes**](#function-dp_halfbanddecimator_state_bytes) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Serialized-state byte size (forwarded to the hbdecim leaf)._  |
 
 
 
@@ -109,11 +109,11 @@ Thin adapter over [**hbdecim\_state\_t**](structhbdecim__state__t.md). The calle
 Lifecycle: 
 ```C++
 float h[] = { ... };  // num_taps FIR branch coefficients
-HalfbandDecimator_state_t *r =
-    HalfbandDecimator_create(h, num_taps);
+dp_HalfbandDecimator_state_t *r =
+    dp_HalfbandDecimator_create(h, num_taps);
 float _Complex out[512];
-size_t n = HalfbandDecimator_execute(r, in, 1024, out, 1024);
-HalfbandDecimator_destroy(r);
+size_t n = dp_HalfbandDecimator_execute(r, in, 1024, out, 1024);
+dp_HalfbandDecimator_destroy(r);
 ```
  
 
@@ -124,10 +124,10 @@ HalfbandDecimator_destroy(r);
 
 
 
-### typedef HalfbandDecimator\_state\_t 
+### typedef dp\_HalfbandDecimator\_state\_t 
 
 ```C++
-typedef hbdecim_state_t HalfbandDecimator_state_t;
+typedef hbdecim_state_t dp_HalfbandDecimator_state_t;
 ```
 
 
@@ -139,11 +139,11 @@ typedef hbdecim_state_t HalfbandDecimator_state_t;
 
 
 
-### function HalfbandDecimator\_create 
+### function dp\_HalfbandDecimator\_create 
 
 _Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use_ `doppler.resample.kaiser_num_taps(2, atten, pb, sb)` _to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x\_len / 2 per execute() call._
 ```C++
-HalfbandDecimator_state_t * HalfbandDecimator_create (
+dp_HalfbandDecimator_state_t * dp_HalfbandDecimator_create (
     const float * h,
     size_t h_len
 ) 
@@ -185,11 +185,11 @@ Non-NULL on success, NULL on invalid args or OOM.
 
 
 
-### function HalfbandDecimator\_destroy 
+### function dp\_HalfbandDecimator\_destroy 
 
 ```C++
-void HalfbandDecimator_destroy (
-    HalfbandDecimator_state_t * state
+void dp_HalfbandDecimator_destroy (
+    dp_HalfbandDecimator_state_t * state
 ) 
 ```
 
@@ -204,12 +204,12 @@ Free all resources. NULL is a no-op.
 
 
 
-### function HalfbandDecimator\_execute 
+### function dp\_HalfbandDecimator\_execute 
 
 _Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x\_len / 2)._ 
 ```C++
-size_t HalfbandDecimator_execute (
-    HalfbandDecimator_state_t * state,
+size_t dp_HalfbandDecimator_execute (
+    dp_HalfbandDecimator_state_t * state,
     const float _Complex * x,
     size_t x_len,
     float _Complex * out,
@@ -224,7 +224,7 @@ size_t HalfbandDecimator_execute (
 **Parameters:**
 
 
-* `state` Pointer to a valid HalfbandDecimator\_state\_t. 
+* `state` Pointer to a valid dp\_HalfbandDecimator\_state\_t. 
 * `x` CF32 input array. Length must be even for exact half-rate output; odd lengths write floor(x\_len/2). 
 * `x_len` Number of input samples. 
 * `out` Output buffer; must hold at least floor(x\_len/2) samples. 
@@ -257,11 +257,11 @@ CF32 decimated output; length is min(floor(x\_len / 2), max\_out).
 
 
 
-### function HalfbandDecimator\_execute\_max\_out 
+### function dp\_HalfbandDecimator\_execute\_max\_out 
 
 ```C++
-size_t HalfbandDecimator_execute_max_out (
-    HalfbandDecimator_state_t * state
+size_t dp_HalfbandDecimator_execute_max_out (
+    dp_HalfbandDecimator_state_t * state
 ) 
 ```
 
@@ -276,12 +276,12 @@ Always returns HBDECIM\_MAX\_OUT.
 
 
 
-### function HalfbandDecimator\_get\_num\_taps 
+### function dp\_HalfbandDecimator\_get\_num\_taps 
 
 _Number of FIR branch taps as passed to create. The all-pass (even-phase) branch has no taps; only the odd-phase FIR branch has length num\_taps. The total prototype length is 2 \* num\_taps - 1._ 
 ```C++
-size_t HalfbandDecimator_get_num_taps (
-    const HalfbandDecimator_state_t * state
+size_t dp_HalfbandDecimator_get_num_taps (
+    const dp_HalfbandDecimator_state_t * state
 ) 
 ```
 
@@ -305,12 +305,12 @@ size_t HalfbandDecimator_get_num_taps (
 
 
 
-### function HalfbandDecimator\_get\_rate 
+### function dp\_HalfbandDecimator\_get\_rate 
 
 _Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter._ 
 ```C++
-double HalfbandDecimator_get_rate (
-    const HalfbandDecimator_state_t * state
+double dp_HalfbandDecimator_get_rate (
+    const dp_HalfbandDecimator_state_t * state
 ) 
 ```
 
@@ -334,12 +334,12 @@ double HalfbandDecimator_get_rate (
 
 
 
-### function HalfbandDecimator\_get\_state 
+### function dp\_HalfbandDecimator\_get\_state 
 
 _Serialize the decimator's delay-line state into_ `blob` _._
 ```C++
-void HalfbandDecimator_get_state (
-    const HalfbandDecimator_state_t * state,
+void dp_HalfbandDecimator_get_state (
+    const dp_HalfbandDecimator_state_t * state,
     void * blob
 ) 
 ```
@@ -351,12 +351,12 @@ void HalfbandDecimator_get_state (
 
 
 
-### function HalfbandDecimator\_reset 
+### function dp\_HalfbandDecimator\_reset 
 
 _Zero all delay lines. Coefficients and num\_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input._ 
 ```C++
-void HalfbandDecimator_reset (
-    HalfbandDecimator_state_t * state
+void dp_HalfbandDecimator_reset (
+    dp_HalfbandDecimator_state_t * state
 ) 
 ```
 
@@ -383,12 +383,12 @@ void HalfbandDecimator_reset (
 
 
 
-### function HalfbandDecimator\_set\_state 
+### function dp\_HalfbandDecimator\_set\_state 
 
 _Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._
 ```C++
-int HalfbandDecimator_set_state (
-    HalfbandDecimator_state_t * state,
+int dp_HalfbandDecimator_set_state (
+    dp_HalfbandDecimator_state_t * state,
     const void * blob
 ) 
 ```
@@ -400,12 +400,12 @@ int HalfbandDecimator_set_state (
 
 
 
-### function HalfbandDecimator\_state\_bytes 
+### function dp\_HalfbandDecimator\_state\_bytes 
 
 _Serialized-state byte size (forwarded to the hbdecim leaf)._ 
 ```C++
-size_t HalfbandDecimator_state_bytes (
-    const HalfbandDecimator_state_t * state
+size_t dp_HalfbandDecimator_state_bytes (
+    const dp_HalfbandDecimator_state_t * state
 ) 
 ```
 

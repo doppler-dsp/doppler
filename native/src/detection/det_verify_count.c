@@ -3,7 +3,7 @@
 #include <math.h>
 
 int
-det_verify_count (double p_look, double p_target)
+dp_det_verify_count (double p_look, double p_target)
 {
   /* Consecutive independent looks compound: n looks at per-look
    * probability p reach p^n, so the smallest n with p^n <= p_target is

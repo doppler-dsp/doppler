@@ -6,14 +6,14 @@
  *
  * Example:
  * @code
- * acc_f32_state_t *obj = acc_f32_create(0.0f);
- * acc_f32_step(obj, 1.0f);
- * float v = acc_f32_get(obj);   // v == 1.0
- * acc_f32_destroy(obj);
+ * dp_acc_f32_state_t *obj = dp_acc_f32_create(0.0f);
+ * dp_acc_f32_step(obj, 1.0f);
+ * float v = dp_acc_f32_get(obj);   // v == 1.0
+ * dp_acc_f32_destroy(obj);
  * @endcode
  */
-#ifndef ACC_F32_CORE_H
-#define ACC_F32_CORE_H
+#ifndef DP_ACC_F32_CORE_H
+#define DP_ACC_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -27,12 +27,12 @@ extern "C"
   /**
    * @brief AccF32 state.
    *
-   * Allocate with acc_f32_create().
+   * Allocate with dp_acc_f32_create().
    */
   typedef struct
   {
     float acc;
-  } acc_f32_state_t;
+  } dp_acc_f32_state_t;
 
   /**
    * @brief Single-precision floating-point scalar accumulator.
@@ -43,7 +43,7 @@ extern "C"
    *
    * @param acc  Initial accumulator value (default: 0.0).
    * @return Heap-allocated state, or NULL on allocation failure.
-   * @note Caller must call acc_f32_destroy() when done.
+   * @note Caller must call dp_acc_f32_destroy() when done.
    * @code
    * >>> from doppler.accumulator import AccF32
    * >>> obj = AccF32(0.0)
@@ -57,19 +57,19 @@ extern "C"
    * 0.0
    * @endcode
    */
-  acc_f32_state_t *acc_f32_create (float acc);
+  dp_acc_f32_state_t *dp_acc_f32_create (float acc);
 
   /**
    * @brief Release all memory owned by an AccF32 instance.
    * Passing NULL is safe; the function is a no-op in that case.
    * After this call the pointer must not be used.
    */
-  void acc_f32_destroy (acc_f32_state_t *state);
+  void dp_acc_f32_destroy (dp_acc_f32_state_t *state);
 
   /**
    * @brief Zero the accumulator, restoring the same state as a fresh
    * ``AccF32(0.0)`` — regardless of the value supplied to
-   * ``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return
+   * ``dp_acc_f32_create``. Subsequent ``get`` / ``dump`` calls return
    * ``0.0`` until new samples are processed.
    * @code
    * >>> from doppler.accumulator import AccF32
@@ -80,12 +80,12 @@ extern "C"
    * 0.0
    * @endcode
    */
-  void acc_f32_reset (acc_f32_state_t *state);
+  void dp_acc_f32_reset (dp_acc_f32_state_t *state);
 
   /**
    * @brief Add one sample to the running sum (``acc += x``).
    * This is the hot-path entry point for sample-by-sample processing.
-   * For block inputs prefer ``acc_f32_steps`` to amortise call overhead
+   * For block inputs prefer ``dp_acc_f32_steps`` to amortise call overhead
    * and allow auto-vectorisation.
    *
    * @param state  Must be non-NULL.
@@ -99,14 +99,14 @@ extern "C"
    * @endcode
    */
   JM_FORCEINLINE JM_HOT void
-  acc_f32_step (acc_f32_state_t *state, float x)
+  dp_acc_f32_step (dp_acc_f32_state_t *state, float x)
   {
     state->acc += x;
   }
 
   /**
    * @brief Add all samples in ``input`` to the running sum.
-   * Equivalent to calling ``acc_f32_step`` for each element, but
+   * Equivalent to calling ``dp_acc_f32_step`` for each element, but
    * SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2).
    * The loop uses JM_RESTRICT so the compiler can assume no aliasing
    * between ``state`` and ``input``.
@@ -123,13 +123,13 @@ extern "C"
    * 6.0
    * @endcode
    */
-  void acc_f32_steps (acc_f32_state_t *state, const float *input, size_t n);
+  void dp_acc_f32_steps (dp_acc_f32_state_t *state, const float *input, size_t n);
 
   /**
    * @brief Return the current accumulator value without modifying state.
    * Use this when you need to read the running sum mid-accumulation
    * without disturbing it. For a read-and-reset in one call use
-   * ``acc_f32_dump``.
+   * ``dp_acc_f32_dump``.
    *
    * @return Current value of ``acc`` (float).
    * @code
@@ -143,7 +143,7 @@ extern "C"
    *
    * @endcode
    */
-  float acc_f32_get_acc (const acc_f32_state_t *state);
+  float dp_acc_f32_get_acc (const dp_acc_f32_state_t *state);
 
   /**
    * @brief Overwrite the accumulator with a new value.
@@ -163,7 +163,7 @@ extern "C"
    *
    * @endcode
    */
-  void acc_f32_set_acc (acc_f32_state_t *state, float value);
+  void dp_acc_f32_set_acc (dp_acc_f32_state_t *state, float value);
 
   /**
    * @brief Return the current accumulated sum without resetting state.
@@ -181,7 +181,7 @@ extern "C"
    * 5.0
    * @endcode
    */
-  float acc_f32_get (acc_f32_state_t *state);
+  float dp_acc_f32_get (dp_acc_f32_state_t *state);
 
   /**
    * @brief Return the accumulated sum and atomically reset it to zero.
@@ -201,7 +201,7 @@ extern "C"
    * 0.0
    * @endcode
    */
-  float acc_f32_dump (acc_f32_state_t *state);
+  float dp_acc_f32_dump (dp_acc_f32_state_t *state);
 
   /**
    * @brief Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for
@@ -226,7 +226,7 @@ extern "C"
    * 5.0
    * @endcode
    */
-  void acc_f32_madd (acc_f32_state_t *state, const float *x, size_t x_len,
+  void dp_acc_f32_madd (dp_acc_f32_state_t *state, const float *x, size_t x_len,
                      const float *h, size_t h_len);
 
   /**
@@ -248,7 +248,7 @@ extern "C"
    * 10.0
    * @endcode
    */
-  void acc_f32_add2d (acc_f32_state_t *state, const float *x, size_t x_len);
+  void dp_acc_f32_add2d (dp_acc_f32_state_t *state, const float *x, size_t x_len);
 
   /**
    * @brief Dot-product accumulate over a flat 2-D buffer:
@@ -274,7 +274,7 @@ extern "C"
    * 5.0
    * @endcode
    */
-  void acc_f32_madd2d (acc_f32_state_t *state, const float *x, size_t x_len,
+  void dp_acc_f32_madd2d (dp_acc_f32_state_t *state, const float *x, size_t x_len,
                        const float *h, size_t h_len);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -282,9 +282,9 @@ extern "C"
    * identically-built instance. */
 #define ACC_F32_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', 'F')
 #define ACC_F32_STATE_VERSION 1u
-  size_t acc_f32_state_bytes (const acc_f32_state_t *state);
-  void    acc_f32_get_state (const acc_f32_state_t *state, void *blob);
-  int     acc_f32_set_state (acc_f32_state_t *state, const void *blob);
+  size_t dp_acc_f32_state_bytes (const dp_acc_f32_state_t *state);
+  void    dp_acc_f32_get_state (const dp_acc_f32_state_t *state, void *blob);
+  int     dp_acc_f32_set_state (dp_acc_f32_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -23,14 +23,14 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_fir[] = {
-    (jm_any_fn)fir_create,
+    (jm_any_fn)dp_fir_create,
     (jm_any_fn)fir_create_real,
-    (jm_any_fn)fir_reset,
-    (jm_any_fn)fir_state_bytes,
-    (jm_any_fn)fir_get_state,
-    (jm_any_fn)fir_set_state,
-    (jm_any_fn)fir_destroy,
-    (jm_any_fn)fir_get_is_real,
-    (jm_any_fn)fir_execute_max_out,
-    (jm_any_fn)fir_execute,
+    (jm_any_fn)dp_fir_reset,
+    (jm_any_fn)dp_fir_state_bytes,
+    (jm_any_fn)dp_fir_get_state,
+    (jm_any_fn)dp_fir_set_state,
+    (jm_any_fn)dp_fir_destroy,
+    (jm_any_fn)dp_fir_get_is_real,
+    (jm_any_fn)dp_fir_execute_max_out,
+    (jm_any_fn)dp_fir_execute,
 };

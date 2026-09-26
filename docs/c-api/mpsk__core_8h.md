@@ -55,18 +55,18 @@ _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**mpsk\_bits\_per\_symbol**](#function-mpsk_bits_per_symbol) (int m) <br>_Bits per M-PSK symbol = log2(M)._  |
+|  int | [**dp\_mpsk\_bits\_per\_symbol**](#function-dp_mpsk_bits_per_symbol) (int m) <br>_Bits per M-PSK symbol = log2(M)._  |
+|  void | [**dp\_mpsk\_demap**](#function-dp_mpsk_demap) (const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Hard-decide M-PSK symbols to their Gray-coded label bytes._  |
+|  void | [**dp\_mpsk\_diff\_demap**](#function-dp_mpsk_diff_demap) (const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Differential M-PSK demap: decide from the phase DIFFERENCE._  |
+|  void | [**dp\_mpsk\_diff\_map**](#function-dp_mpsk_diff_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Differential M-PSK map: the label selects a phase INCREMENT._  |
+|  void | [**dp\_mpsk\_map**](#function-dp_mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
+|  void | [**dp\_mpsk\_soft\_demap**](#function-dp_mpsk_soft_demap) (const float \_Complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**mpsk\_bps**](#function-mpsk_bps) (int m) <br>_Bits per M-PSK symbol = log2(M); M in {2,4,8} -&gt; {1,2,3}, else 0._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**mpsk\_constellation**](#function-mpsk_constellation) (unsigned g, int m) <br>_Constellation point for Gray label_ `g` _(M-PSK), unit amplitude._ |
-|  void | [**mpsk\_demap**](#function-mpsk_demap) (const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Hard-decide M-PSK symbols to their Gray-coded label bytes._  |
-|  void | [**mpsk\_diff\_demap**](#function-mpsk_diff_demap) (const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Differential M-PSK demap: decide from the phase DIFFERENCE._  |
-|  void | [**mpsk\_diff\_map**](#function-mpsk_diff_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Differential M-PSK map: the label selects a phase INCREMENT._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_decode**](#function-mpsk_gray_decode) (unsigned g) <br>_Gray code -&gt; binary index (inverse of mpsk\_gray\_encode)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_encode**](#function-mpsk_gray_encode) (unsigned k) <br>_Binary index -&gt; Gray code (k ^ k&gt;&gt;1)._  |
-|  void | [**mpsk\_map**](#function-mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_phi0**](#function-mpsk_phi0) (int m) <br>_Constellation phase offset (radians): pi/4 for QPSK, else 0._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_slice**](#function-mpsk_slice) (float \_Complex y, int m, float \_Complex \* ahat) <br>_Hard-decide_ `y` _to the nearest M-PSK point; return its Gray label._ |
-|  void | [**mpsk\_soft\_demap**](#function-mpsk_soft_demap) (const float \_Complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
 
 
 
@@ -132,11 +132,11 @@ unsigned g = mpsk_slice((1.0f + 1.0f*I) * 0.70710678f, 4, &ahat); // -> 0
 
 
 
-### function mpsk\_bits\_per\_symbol 
+### function dp\_mpsk\_bits\_per\_symbol 
 
 _Bits per M-PSK symbol = log2(M)._ 
 ```C++
-int mpsk_bits_per_symbol (
+int dp_mpsk_bits_per_symbol (
     int m
 ) 
 ```
@@ -162,6 +162,256 @@ int mpsk_bits_per_symbol (
 >>> from doppler.mpsk import mpsk_bits_per_symbol
 >>> [mpsk_bits_per_symbol(m) for m in (2, 4, 8)]
 [1, 2, 3]
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_demap 
+
+_Hard-decide M-PSK symbols to their Gray-coded label bytes._ 
+```C++
+void dp_mpsk_demap (
+    const float _Complex * x,
+    size_t x_len,
+    uint8_t * out,
+    int m
+) 
+```
+
+
+
+Element-wise inverse of [**dp\_mpsk\_map()**](mpsk__core_8h.md#function-dp_mpsk_map): each cf32 symbol is sliced to the nearest constellation point and its Gray label (0..M-1) is written out. A slip to an adjacent point flips exactly one bit (Gray). `out` must hold `x_len` bytes.
+
+
+
+
+**Parameters:**
+
+
+* `x` Received symbols (any amplitude; phase only). 
+* `x_len` Number of symbols. 
+* `out` Out: `x_len` Gray label bytes. 
+* `m` M in {2,4,8}.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_demap
+>>> x = np.array([1+0j, 1j, -1+0j, -1j], dtype=np.complex64)  # 8PSK
+>>> mpsk_demap(x, 8).tolist()   # Gray labels of indices 0, 2, 4, 6
+[0, 3, 6, 5]
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_diff\_demap 
+
+_Differential M-PSK demap: decide from the phase DIFFERENCE._ 
+```C++
+void dp_mpsk_diff_demap (
+    const float _Complex * x,
+    size_t x_len,
+    uint8_t * out,
+    int m
+) 
+```
+
+
+
+Inverse of [**dp\_mpsk\_diff\_map()**](mpsk__core_8h.md#function-dp_mpsk_diff_map): the Gray label of each symbol is decided from the phase difference between consecutive sliced indices (the first references an implicit zero-phase start). Invariant to an unknown constant carrier phase.
+
+
+
+
+**Parameters:**
+
+
+* `x` Received symbols (any amplitude; phase only). 
+* `x_len` Number of symbols. 
+* `out` Out: `x_len` Gray label bytes. 
+* `m` M in {2,4,8}.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_diff_demap, mpsk_diff_map
+>>> sym = np.array([2, 2, 1, 0], dtype=np.uint8)
+>>> np.array_equal(mpsk_diff_demap(mpsk_diff_map(sym, 8), 8), sym)
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_diff\_map 
+
+_Differential M-PSK map: the label selects a phase INCREMENT._ 
+```C++
+void dp_mpsk_diff_map (
+    const uint8_t * sym,
+    size_t sym_len,
+    float _Complex * out,
+    int m
+) 
+```
+
+
+
+Information rides on phase _differences_: the running constellation index accumulates `gray_decode(label)` each symbol (starting from an implicit zero-phase reference), so an unknown constant carrier phase cancels at the receiver (mpsk\_diff\_demap) — resolving the M-fold ambiguity. Sequential over the array.
+
+
+The cost is up to **2x the symbol-error rate** of coherent map(). That factor is a high-SNR asymptote, not a constant: measured, BPSK and QPSK reach it by ~8 dB Es/N0 while 8PSK pays only 1.44x at 4 dB and 2.03x by 14 dB. A caller sizing a link at low Es/N0 is charged less than the round number suggests (native/validation/mpsk\_diff\_penalty.c).
+
+
+
+
+**Parameters:**
+
+
+* `sym` Gray label bytes (0..M-1), one per symbol. 
+* `sym_len` Number of symbols. 
+* `out` Out: `sym_len` constellation points. 
+* `m` M in {2,4,8}.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_diff_map, mpsk_diff_demap
+>>> sym = np.array([1, 0, 3, 2, 1], dtype=np.uint8)
+>>> pts = mpsk_diff_map(sym, 4)
+>>> np.array_equal(mpsk_diff_demap(pts, 4), sym)   # exact round-trip
+True
+>>> rot = (pts * np.exp(1j * np.pi / 2)).astype(np.complex64)  # slip
+>>> np.array_equal(mpsk_diff_demap(rot, 4)[1:], sym[1:])  # invariant
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_map 
+
+_Map Gray-coded M-PSK labels to unit-amplitude constellation points._ 
+```C++
+void dp_mpsk_map (
+    const uint8_t * sym,
+    size_t sym_len,
+    float _Complex * out,
+    int m
+) 
+```
+
+
+
+Element-wise inverse of [**dp\_mpsk\_demap()**](mpsk__core_8h.md#function-dp_mpsk_demap): each input byte is one symbol's log2(M) Gray-coded bits (0..M-1), each output is its cf32 point. Memoryless (absolute phase). `out` must hold `sym_len` points.
+
+
+
+
+**Parameters:**
+
+
+* `sym` Gray label bytes (0..M-1), one per symbol. 
+* `sym_len` Number of symbols. 
+* `out` Out: `sym_len` constellation points. 
+* `m` M in {2,4,8}.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_map, mpsk_demap
+>>> sym = np.array([0, 1, 2, 3], dtype=np.uint8)   # QPSK labels
+>>> pts = mpsk_map(sym, 4)
+>>> np.round(np.abs(pts), 5)
+array([1., 1., 1., 1.], dtype=float32)
+>>> np.array_equal(mpsk_demap(pts, 4), sym)
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_soft\_demap 
+
+_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._ 
+```C++
+void dp_mpsk_soft_demap (
+    const float _Complex * x,
+    size_t x_len,
+    float * llr,
+    size_t llr_len,
+    int m,
+    float n0
+) 
+```
+
+
+
+The soft counterpart of [**dp\_mpsk\_demap()**](mpsk__core_8h.md#function-dp_mpsk_demap): instead of one label byte per symbol it writes `log2(M)` LLRs, one per bit, which is what a soft-input decoder (a Viterbi, for the CCSDS inner code) needs. A hard decision throws away roughly 2 dB of the coding gain such a decoder exists to deliver.
+
+
+The convention, which every consumer has to agree with:  so **positive means bit 0** and the hard decision is `L < 0`. That is not a separate rule: `dp_mpsk_demap()` is what this reproduces, and the sign agreeing with it at every M and every SNR is asserted in test\_mpsk\_core.c rather than assumed. The repository has ONE decision rule; this is a second view of it, not a second copy.
+
+
+Bits are LSB-first within a symbol, matching how the Gray label packs them, and symbols run in order: `llr[i * log2(M) + b]` is bit `b` of symbol `i`.
+
+
+Computed by the max-log rule over the constellation `L_i = (min_{b_i=1} |y-a|^2 - min_{b_i=0} |y-a|^2) / n0`. For BPSK and QPSK this is EXACT — QPSK's `phi0 = pi/4` grid is axis-separable, so its two bits are independent BPSK decisions and each subset holds one point. Only 8PSK is an approximation; what that costs in dB is not measured yet and is therefore not claimed here (docs/design/mpsk.md §9.7).
+
+
+`n0` is the noise power `E[|n|^2]` for unit-amplitude symbols, and it scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is invariant to it**, since scaling every branch metric by a positive constant cannot move the maximum-likelihood path — so a caller with no SNR estimate may pass 1.0 and get correctly ordered, unscaled soft values.
+
+
+
+
+**Parameters:**
+
+
+* `x` Received symbols (amplitude matters here — unlike the hard path, which uses phase only). 
+* `x_len` Number of symbols. 
+* `llr` Out: `x_len` \* log2(M) LLRs. 
+* `llr_len` Capacity of `llr`. Nothing is written if it is short, or if `m` is unsupported. 
+* `m` M in {2,4,8}. 
+* `n0` Noise power `E[|n|^2]`; must be positive.
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_soft_demap, mpsk_demap
+>>> x = np.array([0.9+0.1j, -0.8-0.2j], dtype=np.complex64)   # BPSK
+>>> llr = np.empty(2, dtype=np.float32)
+>>> mpsk_soft_demap(x, llr, 2, 1.0)
+>>> np.round(llr, 3)                       # 4*Re(y)/n0
+array([ 3.6, -3.2], dtype=float32)
+>>> np.array_equal((llr < 0).astype(np.uint8), mpsk_demap(x, 2))
+True
 ```
  
 
@@ -227,145 +477,6 @@ Unit-amplitude constellation point.
 
 
 
-### function mpsk\_demap 
-
-_Hard-decide M-PSK symbols to their Gray-coded label bytes._ 
-```C++
-void mpsk_demap (
-    const float _Complex * x,
-    size_t x_len,
-    uint8_t * out,
-    int m
-) 
-```
-
-
-
-Element-wise inverse of [**mpsk\_map()**](mpsk__core_8h.md#function-mpsk_map): each cf32 symbol is sliced to the nearest constellation point and its Gray label (0..M-1) is written out. A slip to an adjacent point flips exactly one bit (Gray). `out` must hold `x_len` bytes.
-
-
-
-
-**Parameters:**
-
-
-* `x` Received symbols (any amplitude; phase only). 
-* `x_len` Number of symbols. 
-* `out` Out: `x_len` Gray label bytes. 
-* `m` M in {2,4,8}.
-
-
-```C++
->>> import numpy as np
->>> from doppler.mpsk import mpsk_demap
->>> x = np.array([1+0j, 1j, -1+0j, -1j], dtype=np.complex64)  # 8PSK
->>> mpsk_demap(x, 8).tolist()   # Gray labels of indices 0, 2, 4, 6
-[0, 3, 6, 5]
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_diff\_demap 
-
-_Differential M-PSK demap: decide from the phase DIFFERENCE._ 
-```C++
-void mpsk_diff_demap (
-    const float _Complex * x,
-    size_t x_len,
-    uint8_t * out,
-    int m
-) 
-```
-
-
-
-Inverse of [**mpsk\_diff\_map()**](mpsk__core_8h.md#function-mpsk_diff_map): the Gray label of each symbol is decided from the phase difference between consecutive sliced indices (the first references an implicit zero-phase start). Invariant to an unknown constant carrier phase.
-
-
-
-
-**Parameters:**
-
-
-* `x` Received symbols (any amplitude; phase only). 
-* `x_len` Number of symbols. 
-* `out` Out: `x_len` Gray label bytes. 
-* `m` M in {2,4,8}.
-
-
-```C++
->>> import numpy as np
->>> from doppler.mpsk import mpsk_diff_demap, mpsk_diff_map
->>> sym = np.array([2, 2, 1, 0], dtype=np.uint8)
->>> np.array_equal(mpsk_diff_demap(mpsk_diff_map(sym, 8), 8), sym)
-True
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_diff\_map 
-
-_Differential M-PSK map: the label selects a phase INCREMENT._ 
-```C++
-void mpsk_diff_map (
-    const uint8_t * sym,
-    size_t sym_len,
-    float _Complex * out,
-    int m
-) 
-```
-
-
-
-Information rides on phase _differences_: the running constellation index accumulates `gray_decode(label)` each symbol (starting from an implicit zero-phase reference), so an unknown constant carrier phase cancels at the receiver (mpsk\_diff\_demap) — resolving the M-fold ambiguity. Sequential over the array.
-
-
-The cost is up to **2x the symbol-error rate** of coherent map(). That factor is a high-SNR asymptote, not a constant: measured, BPSK and QPSK reach it by ~8 dB Es/N0 while 8PSK pays only 1.44x at 4 dB and 2.03x by 14 dB. A caller sizing a link at low Es/N0 is charged less than the round number suggests (native/validation/mpsk\_diff\_penalty.c).
-
-
-
-
-**Parameters:**
-
-
-* `sym` Gray label bytes (0..M-1), one per symbol. 
-* `sym_len` Number of symbols. 
-* `out` Out: `sym_len` constellation points. 
-* `m` M in {2,4,8}.
-
-
-```C++
->>> import numpy as np
->>> from doppler.mpsk import mpsk_diff_map, mpsk_diff_demap
->>> sym = np.array([1, 0, 3, 2, 1], dtype=np.uint8)
->>> pts = mpsk_diff_map(sym, 4)
->>> np.array_equal(mpsk_diff_demap(pts, 4), sym)   # exact round-trip
-True
->>> rot = (pts * np.exp(1j * np.pi / 2)).astype(np.complex64)  # slip
->>> np.array_equal(mpsk_diff_demap(rot, 4)[1:], sym[1:])  # invariant
-True
-```
- 
-
-
-        
-
-<hr>
-
-
-
 ### function mpsk\_gray\_decode 
 
 _Gray code -&gt; binary index (inverse of mpsk\_gray\_encode)._ 
@@ -393,53 +504,6 @@ JM_FORCEINLINE unsigned mpsk_gray_encode (
 
 
 
-
-<hr>
-
-
-
-### function mpsk\_map 
-
-_Map Gray-coded M-PSK labels to unit-amplitude constellation points._ 
-```C++
-void mpsk_map (
-    const uint8_t * sym,
-    size_t sym_len,
-    float _Complex * out,
-    int m
-) 
-```
-
-
-
-Element-wise inverse of [**mpsk\_demap()**](mpsk__core_8h.md#function-mpsk_demap): each input byte is one symbol's log2(M) Gray-coded bits (0..M-1), each output is its cf32 point. Memoryless (absolute phase). `out` must hold `sym_len` points.
-
-
-
-
-**Parameters:**
-
-
-* `sym` Gray label bytes (0..M-1), one per symbol. 
-* `sym_len` Number of symbols. 
-* `out` Out: `sym_len` constellation points. 
-* `m` M in {2,4,8}.
-
-
-```C++
->>> import numpy as np
->>> from doppler.mpsk import mpsk_map, mpsk_demap
->>> sym = np.array([0, 1, 2, 3], dtype=np.uint8)   # QPSK labels
->>> pts = mpsk_map(sym, 4)
->>> np.round(np.abs(pts), 5)
-array([1., 1., 1., 1.], dtype=float32)
->>> np.array_equal(mpsk_demap(pts, 4), sym)
-True
-```
- 
-
-
-        
 
 <hr>
 
@@ -494,70 +558,6 @@ Gray-coded label (0..M-1).
 
 
 
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_soft\_demap 
-
-_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._ 
-```C++
-void mpsk_soft_demap (
-    const float _Complex * x,
-    size_t x_len,
-    float * llr,
-    size_t llr_len,
-    int m,
-    float n0
-) 
-```
-
-
-
-The soft counterpart of [**mpsk\_demap()**](mpsk__core_8h.md#function-mpsk_demap): instead of one label byte per symbol it writes `log2(M)` LLRs, one per bit, which is what a soft-input decoder (a Viterbi, for the CCSDS inner code) needs. A hard decision throws away roughly 2 dB of the coding gain such a decoder exists to deliver.
-
-
-The convention, which every consumer has to agree with:  so **positive means bit 0** and the hard decision is `L < 0`. That is not a separate rule: `mpsk_demap()` is what this reproduces, and the sign agreeing with it at every M and every SNR is asserted in test\_mpsk\_core.c rather than assumed. The repository has ONE decision rule; this is a second view of it, not a second copy.
-
-
-Bits are LSB-first within a symbol, matching how the Gray label packs them, and symbols run in order: `llr[i * log2(M) + b]` is bit `b` of symbol `i`.
-
-
-Computed by the max-log rule over the constellation `L_i = (min_{b_i=1} |y-a|^2 - min_{b_i=0} |y-a|^2) / n0`. For BPSK and QPSK this is EXACT — QPSK's `phi0 = pi/4` grid is axis-separable, so its two bits are independent BPSK decisions and each subset holds one point. Only 8PSK is an approximation; what that costs in dB is not measured yet and is therefore not claimed here (docs/design/mpsk.md §9.7).
-
-
-`n0` is the noise power `E[|n|^2]` for unit-amplitude symbols, and it scales the output exactly: `L(n0) = L(1) / n0`. A **Viterbi is invariant to it**, since scaling every branch metric by a positive constant cannot move the maximum-likelihood path — so a caller with no SNR estimate may pass 1.0 and get correctly ordered, unscaled soft values.
-
-
-
-
-**Parameters:**
-
-
-* `x` Received symbols (amplitude matters here — unlike the hard path, which uses phase only). 
-* `x_len` Number of symbols. 
-* `llr` Out: `x_len` \* log2(M) LLRs. 
-* `llr_len` Capacity of `llr`. Nothing is written if it is short, or if `m` is unsupported. 
-* `m` M in {2,4,8}. 
-* `n0` Noise power `E[|n|^2]`; must be positive.
-
-
-```C++
->>> import numpy as np
->>> from doppler.mpsk import mpsk_soft_demap, mpsk_demap
->>> x = np.array([0.9+0.1j, -0.8-0.2j], dtype=np.complex64)   # BPSK
->>> llr = np.empty(2, dtype=np.float32)
->>> mpsk_soft_demap(x, llr, 2, 1.0)
->>> np.round(llr, 3)                       # 4*Re(y)/n0
-array([ 3.6, -3.2], dtype=float32)
->>> np.array_equal((llr < 0).astype(np.uint8), mpsk_demap(x, 2))
-True
-```
- 
 
 
         

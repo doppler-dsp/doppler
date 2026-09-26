@@ -9,7 +9,7 @@ serializable = "true"
 # A NULL create() here is an ARGUMENT error, never an allocation one -- the
 # guard rejects a parameter set that cannot build a receiver. Without this it
 # surfaced as a blanket MemoryError, and `sps = 1` did not even get that far:
-# it passed the old `sps < 1` guard, reached mpsk_receiver_create(), and its
+# it passed the old `sps < 1` guard, reached dp_mpsk_receiver_create(), and its
 # argument-error NULL went through dp_xnn() and ABORTED the interpreter with
 # no exception at all (gh-782).
 create_error = "ValueError"

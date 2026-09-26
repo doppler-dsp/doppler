@@ -23,10 +23,10 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_nprmeas[] = {
-    (jm_any_fn)nprmeas_create,
-    (jm_any_fn)nprmeas_destroy,
-    (jm_any_fn)nprmeas_reset,
-    (jm_any_fn)nprmeas_analyze,
-    (jm_any_fn)nprmeas_spectrum_dbfs_max_out,
-    (jm_any_fn)nprmeas_spectrum_dbfs,
+    (jm_any_fn)dp_nprmeas_create,
+    (jm_any_fn)dp_nprmeas_destroy,
+    (jm_any_fn)dp_nprmeas_reset,
+    (jm_any_fn)dp_nprmeas_analyze,
+    (jm_any_fn)dp_nprmeas_spectrum_dbfs_max_out,
+    (jm_any_fn)dp_nprmeas_spectrum_dbfs,
 };

@@ -6,7 +6,7 @@
  * de-rotates the input with the integer-phase `lo` NCO (carrier wipe-off); every
  * `tsamps` samples it dumps the coherent integrate-and-dump prompt, runs a
  * **decision-directed M-PSK** phase discriminator, filters the error through an
- * embedded 2nd-order @ref loop_filter_state_t, and steers the NCO frequency +
+ * embedded 2nd-order @ref dp_loop_filter_state_t, and steers the NCO frequency +
  * phase. It tracks a small *residual* carrier (bulk Doppler is removed upstream
  * by acquisition); the steering NCO is `lo`, so the phase is bounded and exactly
  * reproducible.
@@ -21,21 +21,21 @@
  * phase. Resolve it downstream with differential demapping (mpsk_diff_demap) or
  * a sync word; this loop only recovers the carrier and emits the prompts.
  *
- * The block API (carrier_mpsk_steps) is the Python face; the JM_FORCEINLINE
+ * The block API (dp_carrier_mpsk_steps) is the Python face; the JM_FORCEINLINE
  * carrier_mpsk_wipeoff()/carrier_mpsk_update() are the C composition API a
  * receiver inlines into its own sample loop.
  *
  * @code
  * // QPSK carrier loop, 64 samples/symbol, FLL-assisted
- * carrier_mpsk_state_t *c = carrier_mpsk_create(0.05, 0.707, 0.0, 64, 0.01, 4);
+ * dp_carrier_mpsk_state_t *c = dp_carrier_mpsk_create(0.05, 0.707, 0.0, 64, 0.01, 4);
  * float _Complex sym[16];
- * size_t k = carrier_mpsk_steps(c, rx, rx_len, sym, 16);
+ * size_t k = dp_carrier_mpsk_steps(c, rx, rx_len, sym, 16);
  * double f = c->nco.norm_freq;                 // tracked residual carrier
- * carrier_mpsk_destroy(c);
+ * dp_carrier_mpsk_destroy(c);
  * @endcode
  */
-#ifndef CARRIER_MPSK_CORE_H
-#define CARRIER_MPSK_CORE_H
+#ifndef DP_CARRIER_MPSK_CORE_H
+#define DP_CARRIER_MPSK_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -56,14 +56,14 @@ extern "C" {
 /**
  * @brief M-PSK carrier loop state.
  *
- * Allocate with carrier_mpsk_create(), or embed by value and
+ * Allocate with dp_carrier_mpsk_create(), or embed by value and
  * carrier_mpsk_init(). The carrier NCO (`nco`) and PI loop (`lf`) are public
  * sub-components so the inline composition helpers can drive them; treat the
  * integrate-and-dump and diagnostic fields as internal.
  */
 typedef struct {
-    lo_state_t nco;          /**< integer carrier NCO (uint32 phase).      */
-    loop_filter_state_t lf;  /**< 2nd-order carrier PI loop (PLL).         */
+    dp_lo_state_t nco;          /**< integer carrier NCO (uint32 phase).      */
+    dp_loop_filter_state_t lf;  /**< 2nd-order carrier PI loop (PLL).         */
     size_t tsamps;           /**< samples per symbol (integrate-and-dump). */
     double seed_norm_freq;   /**< create-time carrier freq, for reset.     */
     double bn;               /**< PLL loop noise bandwidth (retained).     */
@@ -78,7 +78,7 @@ typedef struct {
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of Re(P conj a)/|P| (1 = locked).    */
     double last_error;       /**< last PLL discriminator (loop stress).    */
-} carrier_mpsk_state_t;
+} dp_carrier_mpsk_state_t;
 
 /**
  * @brief Initialise an M-PSK carrier loop in place (no allocation).
@@ -94,7 +94,7 @@ typedef struct {
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  * @param m               Constellation order M (2, 4, 8).
  */
-void carrier_mpsk_init(carrier_mpsk_state_t *s, double bn, double zeta,
+void carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
                        int m);
 
@@ -109,7 +109,7 @@ void carrier_mpsk_init(carrier_mpsk_state_t *s, double bn, double zeta,
  * @return The de-rotated sample to feed the integrator.
  */
 JM_FORCEINLINE JM_HOT float _Complex
-carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float _Complex x)
+carrier_mpsk_wipeoff(dp_carrier_mpsk_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
@@ -127,7 +127,7 @@ carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float _Complex x)
  * @param P  The dumped integrate-and-dump prompt for this symbol.
  */
 JM_FORCEINLINE JM_HOT void
-carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
+carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
 {
     float _Complex ahat;
     mpsk_slice(P, s->m, &ahat);          /* nearest unit constellation point */
@@ -150,10 +150,10 @@ carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
     s->prev = d;
     s->prev_abs = aP;
     s->have_prev = 1;
-    loop_filter_step(&s->lf, e);
+    dp_loop_filter_step(&s->lf, e);
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
-    lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
+    dp_lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
      * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
@@ -173,15 +173,15 @@ carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
  * @param bn_fll          FLL-assist bandwidth (default 0.0 = pure PLL).
  * @param m               Constellation order M, 2/4/8 (default 4 = QPSK).
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call carrier_mpsk_destroy() when done.
+ * @note Caller must call dp_carrier_mpsk_destroy() when done.
  */
-carrier_mpsk_state_t *carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
+dp_carrier_mpsk_state_t *dp_carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
 
 /**
  * @brief Destroy an M-PSK carrier loop instance and release all memory.
  * @param state  May be NULL.
  */
-void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_destroy(dp_carrier_mpsk_state_t *state);
 
 /**
  * @brief Re-seed the loop to its create-time frequency/phase; keep config.
@@ -189,7 +189,7 @@ void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
  * Returns the NCO to the seed carrier passed at construction, zeroes the
  * integrate-and-dump accumulator, the FLL history, and the lock/error
  * diagnostics, and re-primes the loop integrator to the matching per-symbol
- * frequency — the exact state a fresh carrier_mpsk_create() leaves. The tuning
+ * frequency — the exact state a fresh dp_carrier_mpsk_create() leaves. The tuning
  * (bn, zeta, bn_fll, tsamps, m) is untouched. Call it at a capture boundary so
  * a lock reached on one segment does not bias an unrelated next one.
  *
@@ -215,7 +215,7 @@ void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
  *
  * @endcode
  */
-void carrier_mpsk_reset(carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_reset(dp_carrier_mpsk_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop exactly.
@@ -224,13 +224,13 @@ void carrier_mpsk_reset(carrier_mpsk_state_t *state);
 #define CARRIER_MPSK_STATE_VERSION 1u
 
 /** @brief Serialized-state byte size. */
-size_t carrier_mpsk_state_bytes(const carrier_mpsk_state_t *state);
+size_t dp_carrier_mpsk_state_bytes(const dp_carrier_mpsk_state_t *state);
 /** @brief Serialize the full loop state into @p blob. */
-void carrier_mpsk_get_state(const carrier_mpsk_state_t *state, void *blob);
+void dp_carrier_mpsk_get_state(const dp_carrier_mpsk_state_t *state, void *blob);
 /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
-int carrier_mpsk_set_state(carrier_mpsk_state_t *state, const void *blob);
+int dp_carrier_mpsk_set_state(dp_carrier_mpsk_state_t *state, const void *blob);
 
-size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
+size_t dp_carrier_mpsk_steps_max_out(dp_carrier_mpsk_state_t *state);
 
 /**
  * @brief Track the residual carrier over a block, one prompt per symbol.
@@ -279,7 +279,7 @@ size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
  *
  * @endcode
  */
-size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /**
  * @brief Recompute the loop gains for a new (bn, zeta); keep the estimate.
@@ -307,16 +307,16 @@ size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float _Complex *x, 
  *
  * @endcode
  */
-void carrier_mpsk_configure(carrier_mpsk_state_t *state, double bn, double zeta);
-double carrier_mpsk_get_bn(const carrier_mpsk_state_t *state);
-void carrier_mpsk_set_bn(carrier_mpsk_state_t *state, double val);
-double carrier_mpsk_get_norm_freq(const carrier_mpsk_state_t *state);
-void carrier_mpsk_set_norm_freq(carrier_mpsk_state_t *state, double val);
-double carrier_mpsk_get_lock_metric(const carrier_mpsk_state_t *state);
-double carrier_mpsk_get_last_error(const carrier_mpsk_state_t *state);
-double carrier_mpsk_get_bn_fll(const carrier_mpsk_state_t *state);
-void carrier_mpsk_set_bn_fll(carrier_mpsk_state_t *state, double val);
-int carrier_mpsk_get_m(const carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
+double dp_carrier_mpsk_get_bn(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
+double dp_carrier_mpsk_get_norm_freq(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);
+double dp_carrier_mpsk_get_lock_metric(const dp_carrier_mpsk_state_t *state);
+double dp_carrier_mpsk_get_last_error(const dp_carrier_mpsk_state_t *state);
+double dp_carrier_mpsk_get_bn_fll(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
+int dp_carrier_mpsk_get_m(const dp_carrier_mpsk_state_t *state);
 #ifdef __cplusplus
 }
 #endif

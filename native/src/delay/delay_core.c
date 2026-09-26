@@ -4,15 +4,15 @@
 
 /* Round n up to the next power of two (returns 1 for n==0). */
 
-delay_state_t *
-delay_create (size_t num_taps)
+dp_delay_state_t *
+dp_delay_create (size_t num_taps)
 {
-  delay_state_t *state = calloc (1, sizeof (*state));
+  dp_delay_state_t *state = calloc (1, sizeof (*state));
   if (!state)
     return NULL;
 
   state->num_taps = num_taps;
-  state->capacity = next_pow_two (num_taps > 0 ? num_taps : 1);
+  state->capacity = dp_next_pow_two (num_taps > 0 ? num_taps : 1);
   state->mask     = state->capacity - 1;
   state->head     = 0;
 
@@ -27,7 +27,7 @@ delay_create (size_t num_taps)
 }
 
 void
-delay_destroy (delay_state_t *state)
+dp_delay_destroy (dp_delay_state_t *state)
 {
   if (!state)
     return;
@@ -36,7 +36,7 @@ delay_destroy (delay_state_t *state)
 }
 
 void
-delay_reset (delay_state_t *state)
+dp_delay_reset (dp_delay_state_t *state)
 {
   memset (state->buf, 0, 2 * state->capacity * sizeof (double _Complex));
   state->head = 0;
@@ -44,31 +44,33 @@ delay_reset (delay_state_t *state)
 
 /* Serializable state — running ring + head; config restored by create(). */
 size_t
-delay_state_bytes (const delay_state_t *s)
+dp_delay_state_bytes (const dp_delay_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
          + 2 * s->capacity * sizeof (double _Complex);
 }
 
 void
-delay_get_state (const delay_state_t *s, void *blob)
+dp_delay_get_state (const dp_delay_state_t *s, void *blob)
 {
-  DP_GET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes (s));
+  DP_GET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION,
+               dp_delay_state_bytes (s));
   dp_w_u64 (&_w, s->head);
   dp_w_bytes (&_w, s->buf, 2 * s->capacity * sizeof (double _Complex));
 }
 
 int
-delay_set_state (delay_state_t *s, const void *blob)
+dp_delay_set_state (dp_delay_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes (s));
+  DP_SET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION,
+               dp_delay_state_bytes (s));
   s->head = (size_t)dp_r_u64 (&_r);
   dp_r_bytes (&_r, s->buf, 2 * s->capacity * sizeof (double _Complex));
   return DP_OK;
 }
 
 void
-delay_push (delay_state_t *state, double _Complex x)
+dp_delay_push (dp_delay_state_t *state, double _Complex x)
 {
   /* Decrement head (wrapping), then write to both halves so the
    * window starting at head is always a contiguous run. */
@@ -78,9 +80,9 @@ delay_push (delay_state_t *state, double _Complex x)
 }
 
 size_t
-delay_ptr_max_out (delay_state_t *state, size_t n)
+dp_delay_ptr_max_out (dp_delay_state_t *state, size_t n)
 {
-  /* gh-607: delay_ptr() returns min(n, num_taps) samples, so report that
+  /* gh-607: dp_delay_ptr() returns min(n, num_taps) samples, so report that
      tight per-call bound.  The generated binding sizes its output array and
      checks an out= buffer against exactly this, so ptr(count=k, out=...)
      needs only k elements, not num_taps. */
@@ -88,8 +90,8 @@ delay_ptr_max_out (delay_state_t *state, size_t n)
 }
 
 size_t
-delay_ptr (delay_state_t *state, size_t n, double _Complex *out,
-           size_t max_out)
+dp_delay_ptr (dp_delay_state_t *state, size_t n, double _Complex *out,
+              size_t max_out)
 {
   size_t actual = n < state->num_taps ? n : state->num_taps;
   if (actual > max_out)
@@ -99,26 +101,26 @@ delay_ptr (delay_state_t *state, size_t n, double _Complex *out,
 }
 
 size_t
-delay_push_ptr_max_out (delay_state_t *state)
+dp_delay_push_ptr_max_out (dp_delay_state_t *state)
 {
   return state->num_taps;
 }
 
 size_t
-delay_push_ptr (delay_state_t *state, double _Complex x, double _Complex *out,
-                size_t max_out)
+dp_delay_push_ptr (dp_delay_state_t *state, double _Complex x,
+                   double _Complex *out, size_t max_out)
 {
   /* The push lands unconditionally: the ring is a running window, and
      skipping the insert to fit a short buffer would desynchronise it from
      the sample stream.  Only the snapshot handed back is truncated. */
-  delay_push (state, x);
+  dp_delay_push (state, x);
   size_t actual = state->num_taps < max_out ? state->num_taps : max_out;
   memcpy (out, &state->buf[state->head], actual * sizeof (double _Complex));
   return actual;
 }
 
 void
-delay_write (delay_state_t *state, double _Complex x)
+dp_delay_write (dp_delay_state_t *state, double _Complex x)
 {
-  delay_push (state, x);
+  dp_delay_push (state, x);
 }

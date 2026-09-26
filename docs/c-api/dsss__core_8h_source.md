@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DSSS_CORE_H
-#define DSSS_CORE_H
+#ifndef DP_DSSS_CORE_H
+#define DP_DSSS_CORE_H
 
 #include "doppler/clib_common.h"
 

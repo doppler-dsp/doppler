@@ -89,7 +89,7 @@ main (void)
   wfm_compose_destroy (c);
 
   /* The samples carry the DESCRIPTION's bits. `wfm_frame_assemble` builds
-     them independently; bpsk_map's convention is 0 -> +1, 1 -> -1, so with a
+     them independently; dp_bpsk_map's convention is 0 -> +1, 1 -> -1, so with a
      clean rectangular source at zero offset the sign is the bit. */
   uint8_t want[NBITS], got[NBITS];
   if (wfm_frame_assemble (&d, NULL, want, NBITS) != NBITS)

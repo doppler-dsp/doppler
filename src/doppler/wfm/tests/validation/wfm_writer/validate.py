@@ -712,7 +712,7 @@ def measure_reach(d: Data) -> None:
     d.unreachable = [
         (
             "`wfm_writer_open` -- the `FILE*`-taking constructor. Python "
-            "gets `wfm_writer_create`, which owns the file; a caller who "
+            "gets `dp_wfm_writer_create`, which owns the file; a caller who "
             "already has a stream is a C caller."
         ),
         (
@@ -726,7 +726,7 @@ def measure_reach(d: Data) -> None:
             "magnitude is C-only."
         ),
         (
-            "`wfm_writer_destroy` -- the same function as `close()` under "
+            "`dp_wfm_writer_destroy` -- the same function as `close()` under "
             "the binding's name, so Python reaches the behaviour through "
             "`close()` and the C test covers the identity."
         ),
@@ -788,9 +788,9 @@ def review(d: Data) -> None:
         "F2",
         "FIXED",
         "**The three properties the Python face exposes were untested in "
-        "C.** `wfm_writer_get_peak_dbfs`, `wfm_writer_get_clipped` and "
-        "`wfm_writer_get_clip_fraction` had zero mentions in any C test in "
-        "the tree, and so did `wfm_writer_destroy` -- the binding's "
+        "C.** `dp_wfm_writer_get_peak_dbfs`, `dp_wfm_writer_get_clipped` and "
+        "`dp_wfm_writer_get_clip_fraction` had zero mentions in any C test in "
+        "the tree, and so did `dp_wfm_writer_destroy` -- the binding's "
         "fallible destructor, whose non-zero return is what makes "
         "`Writer.close()` raise out of a `with` block. The accessors are "
         "where a derivation hides: one is a log, one is a rule about which "

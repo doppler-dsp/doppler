@@ -100,7 +100,7 @@ The property that makes a decimated path comparable to an undecimated one: the c
 | 0.5 | 0 | 0 |
 
 
-The direct form's error grows without bound as the average lengthens; the shipped form is exact at every coefficient tried. `agc_steps` now forms its detector pole with `ema_alpha_decim` and therefore sits in the right-hand column — §3 F2, fixed.
+The direct form's error grows without bound as the average lengthens; the shipped form is exact at every coefficient tried. `dp_agc_steps` now forms its detector pole with `ema_alpha_decim` and therefore sits in the right-hand column — §3 F2, fixed.
 
 ![ulps off at d = 1](decim_d1.png)
 
@@ -162,7 +162,7 @@ Findings, with verdicts. Limits are section 4.
 
 - **F1 · FIXED** — Every historical call site now calls the shared primitive: `acc_trace_core.c`, `agc_core.c`, `async_dsss_receiver_core.c`. So the properties below are statements about the library's behaviour and not only about `ema_step` — which is what this finding existed to deny until it was true. (`det_ema_alpha` sizes the recursion and never runs it, so there was nothing there to migrate.) Verdict READ from those files rather than asserted here, so it cannot outlive the state it describes.
 
-- **F2 · FIXED** — `agc_steps` forms its detector pole with `ema_alpha_decim`, so `decim = 1` is now bit-for-bit the undecimated recursion. It previously used a repeated multiply of `(1 - alpha)`, off by up to 136763029 ulps at d == 1 across the coefficients §2.3 sweeps. Note what this did NOT buy: `agc_steps(decim=1)` and `agc_step` still differ, because the two apply GAIN differently (a first-order-hold ramp across the chunk against a per-period refresh) — the pole was never that gap's cause. Verdict READ from `agc_core.c`.
+- **F2 · FIXED** — `dp_agc_steps` forms its detector pole with `ema_alpha_decim`, so `decim = 1` is now bit-for-bit the undecimated recursion. It previously used a repeated multiply of `(1 - alpha)`, off by up to 136763029 ulps at d == 1 across the coefficients §2.3 sweeps. Note what this did NOT buy: `dp_agc_steps(decim=1)` and `dp_agc_step` still differ, because the two apply GAIN differently (a first-order-hold ramp across the chunk against a per-period refresh) — the pole was never that gap's cause. Verdict READ from `agc_core.c`.
 
 - **F3 · BY DESIGN** — `ema_step` is not total in `x`: a non-finite observation poisons the state permanently, and there is no guard. That is the same decision `saturate` exists to serve — an EMA remembers, so its input is the boundary where an untrusted value first becomes persistent state, and one guard there makes the whole downstream chain total where a clamp at each stage is several chances to miss one. The caller places it because only the caller knows which end is safe. The AGC's history is the argument: one non-finite sample destroyed its loop permanently, and the fix was a single `saturate` at the detector's input, not a defensive recursion.
 

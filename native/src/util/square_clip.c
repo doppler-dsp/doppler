@@ -7,7 +7,7 @@
 #include "doppler/dp_complex.h"
 #include <math.h>
 
-float _Complex square_clip (float _Complex y, float lin)
+float _Complex dp_square_clip (float _Complex y, float lin)
 {
   float r = fminf (fmaxf (crealf (y), -lin), lin);
   float i = fminf (fmaxf (cimagf (y), -lin), lin);

@@ -23,9 +23,9 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_syncword[] = {
-    (jm_any_fn)syncword_create,
-    (jm_any_fn)syncword_destroy,
-    (jm_any_fn)syncword_find,
-    (jm_any_fn)syncword_pfa,
-    (jm_any_fn)syncword_max_errors_for,
+    (jm_any_fn)dp_syncword_create,
+    (jm_any_fn)dp_syncword_destroy,
+    (jm_any_fn)dp_syncword_find,
+    (jm_any_fn)dp_syncword_pfa,
+    (jm_any_fn)dp_syncword_max_errors_for,
 };

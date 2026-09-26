@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only detection_ext.c is compiled.
  */
 /* ======================================================== */
-/* SyncFinderObject — wraps syncword_state_t *       */
+/* SyncFinderObject — wraps dp_syncword_state_t *       */
 /* ======================================================== */
 
 #include "doppler/syncword/syncword_core.h"
 
 typedef struct
 {
-  PyObject_HEAD syncword_state_t *handle;
+  PyObject_HEAD dp_syncword_state_t *handle;
 } SyncFinderObject;
 
 static void
 SyncFinderObj_dealloc (SyncFinderObject *self)
 {
   if (self->handle)
-    syncword_destroy (self->handle);
+    dp_syncword_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -48,8 +48,8 @@ SyncFinderObj_init (SyncFinderObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t marker_len = (size_t)PyArray_SIZE (marker_arr);
-  self->handle = syncword_create ((const uint8_t *)PyArray_DATA (marker_arr),
-                                  marker_len);
+  self->handle      = dp_syncword_create (
+      (const uint8_t *)PyArray_DATA (marker_arr), marker_len);
   Py_DECREF (marker_arr);
   if (!self->handle)
     {
@@ -120,7 +120,7 @@ SyncFinderObj_find (SyncFinderObject *self, PyObject *args, PyObject *kwds)
    * state/buffers and the caller's input. */
   syncword_hit_t _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = syncword_find (self->handle, bits, bits_len, max_errors);
+    _r = dp_syncword_find (self->handle, bits, bits_len, max_errors);
   Py_END_ALLOW_THREADS
   Py_DECREF (bits_arr);
   PyObject *_o = PyStructSequence_New (SyncFinderObj_find_type);
@@ -148,7 +148,7 @@ SyncFinderObj_pfa (SyncFinderObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "k", _kwlist, &max_errors_raw))
     return NULL;
   uint32_t max_errors = (uint32_t)max_errors_raw;
-  double   y          = syncword_pfa (self->handle, max_errors);
+  double   y          = dp_syncword_pfa (self->handle, max_errors);
   return PyFloat_FromDouble (y);
 }
 
@@ -168,7 +168,7 @@ SyncFinderObj_max_errors_for (SyncFinderObject *self, PyObject *args,
                                     &window_bits_raw, &pfa))
     return NULL;
   size_t window_bits = (size_t)window_bits_raw;
-  int    y = syncword_max_errors_for (self->handle, window_bits, pfa);
+  int    y = dp_syncword_max_errors_for (self->handle, window_bits, pfa);
   return PyLong_FromLong ((long)y);
 }
 static PyObject *
@@ -192,7 +192,7 @@ SyncFinderObj_destroy (SyncFinderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      syncword_destroy (self->handle);
+      dp_syncword_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -211,7 +211,7 @@ SyncFinderObj_exit (SyncFinderObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      syncword_destroy (self->handle);
+      dp_syncword_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

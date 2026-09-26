@@ -31,7 +31,7 @@ _int32-to-float converter with configurable inverse scale._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) <br>_I32ToF32 state._  |
+| struct | [**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) <br>_I32ToF32 state._  |
 
 
 
@@ -58,11 +58,11 @@ _int32-to-float converter with configurable inverse scale._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
-|  [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* | [**i32\_to\_f32\_create**](#function-i32_to_f32_create) (float scale) <br>_Create a i32\_to\_f32 instance._  |
-|  void | [**i32\_to\_f32\_destroy**](#function-i32_to_f32_destroy) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state) <br>_Destroy a i32\_to\_f32 instance and release all memory._  |
-|  void | [**i32\_to\_f32\_reset**](#function-i32_to_f32_reset) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i32\_to\_f32\_step**](#function-i32_to_f32_step) (const [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state, int32\_t x) <br>_Convert one signed int32 sample to a normalised float via_ `1/scale` _._ |
-|  void | [**i32\_to\_f32\_steps**](#function-i32_to_f32_steps) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state, const int32\_t \* input, float \* output, size\_t n) <br>_Process a block of int32 samples to float32._  |
+|  [**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) \* | [**dp\_i32\_to\_f32\_create**](#function-dp_i32_to_f32_create) (float scale) <br>_Create a i32\_to\_f32 instance._  |
+|  void | [**dp\_i32\_to\_f32\_destroy**](#function-dp_i32_to_f32_destroy) ([**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) \* state) <br>_Destroy a i32\_to\_f32 instance and release all memory._  |
+|  void | [**dp\_i32\_to\_f32\_reset**](#function-dp_i32_to_f32_reset) ([**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_i32\_to\_f32\_step**](#function-dp_i32_to_f32_step) (const [**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) \* state, int32\_t x) <br>_Convert one signed int32 sample to a normalised float via_ `1/scale` _._ |
+|  void | [**dp\_i32\_to\_f32\_steps**](#function-dp_i32_to_f32_steps) ([**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) \* state, const int32\_t \* input, float \* output, size\_t n) <br>_Process a block of int32 samples to float32._  |
 
 
 
@@ -122,11 +122,11 @@ Lifecycle: create -&gt; `[step / steps / reset]*` -&gt; destroy
 
 
 
-### function i32\_to\_f32\_create 
+### function dp\_i32\_to\_f32\_create 
 
 _Create a i32\_to\_f32 instance._ 
 ```C++
-i32_to_f32_state_t * i32_to_f32_create (
+dp_i32_to_f32_state_t * dp_i32_to_f32_create (
     float scale
 ) 
 ```
@@ -154,7 +154,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**i32\_to\_f32\_destroy()**](i32__to__f32__core_8h.md#function-i32_to_f32_destroy) when done. 
+Caller must call [**dp\_i32\_to\_f32\_destroy()**](i32__to__f32__core_8h.md#function-dp_i32_to_f32_destroy) when done. 
 
 
 
@@ -166,12 +166,12 @@ Caller must call [**i32\_to\_f32\_destroy()**](i32__to__f32__core_8h.md#function
 
 
 
-### function i32\_to\_f32\_destroy 
+### function dp\_i32\_to\_f32\_destroy 
 
 _Destroy a i32\_to\_f32 instance and release all memory._ 
 ```C++
-void i32_to_f32_destroy (
-    i32_to_f32_state_t * state
+void dp_i32_to_f32_destroy (
+    dp_i32_to_f32_state_t * state
 ) 
 ```
 
@@ -193,12 +193,12 @@ void i32_to_f32_destroy (
 
 
 
-### function i32\_to\_f32\_reset 
+### function dp\_i32\_to\_f32\_reset 
 
 _No-op reset, provided only for lifecycle symmetry._ 
 ```C++
-void i32_to_f32_reset (
-    i32_to_f32_state_t * state
+void dp_i32_to_f32_reset (
+    dp_i32_to_f32_state_t * state
 ) 
 ```
 
@@ -231,12 +231,12 @@ No mutable state exists beyond the immutable `iscale`, so there is nothing to cl
 
 
 
-### function i32\_to\_f32\_step 
+### function dp\_i32\_to\_f32\_step 
 
 _Convert one signed int32 sample to a normalised float via_ `1/scale` _._
 ```C++
-JM_FORCEINLINE  JM_HOT float i32_to_f32_step (
-    const i32_to_f32_state_t * state,
+JM_FORCEINLINE  JM_HOT float dp_i32_to_f32_step (
+    const dp_i32_to_f32_state_t * state,
     int32_t x
 ) 
 ```
@@ -279,12 +279,12 @@ Normalised float, `x / scale`.
 
 
 
-### function i32\_to\_f32\_steps 
+### function dp\_i32\_to\_f32\_steps 
 
 _Process a block of int32 samples to float32._ 
 ```C++
-void i32_to_f32_steps (
-    i32_to_f32_state_t * state,
+void dp_i32_to_f32_steps (
+    dp_i32_to_f32_state_t * state,
     const int32_t * input,
     float * output,
     size_t n

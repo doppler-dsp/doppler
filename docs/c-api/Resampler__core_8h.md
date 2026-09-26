@@ -32,7 +32,7 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 
 | Type | Name |
 | ---: | :--- |
-| typedef [**resamp\_state\_t**](structresamp__state__t.md) | [**Resampler\_state\_t**](#typedef-resampler_state_t)  <br> |
+| typedef [**resamp\_state\_t**](structresamp__state__t.md) | [**dp\_Resampler\_state\_t**](#typedef-dp_resampler_state_t)  <br> |
 
 
 
@@ -57,23 +57,23 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 
 | Type | Name |
 | ---: | :--- |
-|  [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* | [**Resampler\_create**](#function-resampler_create) (double rate) <br>_Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**Resampler\_create\_custom()**_](Resampler__core_8h.md#function-resampler_create_custom) _instead._ |
-|  [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* | [**Resampler\_create\_custom**](#function-resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
-|  void | [**Resampler\_destroy**](#function-resampler_destroy) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
-|  size\_t | [**Resampler\_execute**](#function-resampler_execute) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate &gt;= 1 (interpolation), input-driven transposed-form for rate &lt; 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block._  |
-|  size\_t | [**Resampler\_execute\_ctrl**](#function-resampler_execute_ctrl) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
-|  size\_t | [**Resampler\_execute\_ctrl\_max\_out**](#function-resampler_execute_ctrl_max_out) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
-|  size\_t | [**Resampler\_execute\_max\_out**](#function-resampler_execute_max_out) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
-|  double | [**Resampler\_get\_ctrl\_acc**](#function-resampler_get_ctrl_acc) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
-|  double | [**Resampler\_get\_delay**](#function-resampler_get_delay) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples._  |
-|  size\_t | [**Resampler\_get\_num\_phases**](#function-resampler_get_num_phases) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
-|  size\_t | [**Resampler\_get\_num\_taps**](#function-resampler_get_num_taps) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
-|  double | [**Resampler\_get\_rate**](#function-resampler_get_rate) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()._  |
-|  void | [**Resampler\_get\_state**](#function-resampler_get_state) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, void \* blob) <br>_Serialize the resampler's phase + delay-line state into_ `blob` _._ |
-|  void | [**Resampler\_reset**](#function-resampler_reset) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst._  |
-|  void | [**Resampler\_set\_rate**](#function-resampler_set_rate) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, double rate) <br> |
-|  int | [**Resampler\_set\_state**](#function-resampler_set_state) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._ |
-|  size\_t | [**Resampler\_state\_bytes**](#function-resampler_state_bytes) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Serialized-state byte size (forwarded to the resamp leaf)._  |
+|  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**Resampler\_create\_custom**](#function-resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
+|  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**dp\_Resampler\_create**](#function-dp_resampler_create) (double rate) <br>_Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**Resampler\_create\_custom()**_](Resampler__core_8h.md#function-resampler_create_custom) _instead._ |
+|  void | [**dp\_Resampler\_destroy**](#function-dp_resampler_destroy) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
+|  size\_t | [**dp\_Resampler\_execute**](#function-dp_resampler_execute) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate &gt;= 1 (interpolation), input-driven transposed-form for rate &lt; 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block._  |
+|  size\_t | [**dp\_Resampler\_execute\_ctrl**](#function-dp_resampler_execute_ctrl) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
+|  size\_t | [**dp\_Resampler\_execute\_ctrl\_max\_out**](#function-dp_resampler_execute_ctrl_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
+|  size\_t | [**dp\_Resampler\_execute\_max\_out**](#function-dp_resampler_execute_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
+|  double | [**dp\_Resampler\_get\_ctrl\_acc**](#function-dp_resampler_get_ctrl_acc) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
+|  double | [**dp\_Resampler\_get\_delay**](#function-dp_resampler_get_delay) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples._  |
+|  size\_t | [**dp\_Resampler\_get\_num\_phases**](#function-dp_resampler_get_num_phases) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
+|  size\_t | [**dp\_Resampler\_get\_num\_taps**](#function-dp_resampler_get_num_taps) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
+|  double | [**dp\_Resampler\_get\_rate**](#function-dp_resampler_get_rate) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()._  |
+|  void | [**dp\_Resampler\_get\_state**](#function-dp_resampler_get_state) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, void \* blob) <br>_Serialize the resampler's phase + delay-line state into_ `blob` _._ |
+|  void | [**dp\_Resampler\_reset**](#function-dp_resampler_reset) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst._  |
+|  void | [**dp\_Resampler\_set\_rate**](#function-dp_resampler_set_rate) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, double rate) <br> |
+|  int | [**dp\_Resampler\_set\_state**](#function-dp_resampler_set_state) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._ |
+|  size\_t | [**dp\_Resampler\_state\_bytes**](#function-dp_resampler_state_bytes) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Serialized-state byte size (forwarded to the resamp leaf)._  |
 
 
 
@@ -115,15 +115,15 @@ Thin adapter over resamp\_core ([**resamp\_state\_t**](structresamp__state__t.md
 
 Lifecycle: 
 ```C++
-Resampler_state_t *r = Resampler_create(0.5);
+dp_Resampler_state_t *r = dp_Resampler_create(0.5);
 float _Complex out[4096];
-size_t n = Resampler_execute(r, in, 1024, out, 1024);
-Resampler_destroy(r);
+size_t n = dp_Resampler_execute(r, in, 1024, out, 1024);
+dp_Resampler_destroy(r);
 ```
 
 
 
-Output buffer sizing: execute: allocate [**Resampler\_execute\_max\_out()**](Resampler__core_8h.md#function-resampler_execute_max_out) samples. execute\_ctrl: same. 
+Output buffer sizing: execute: allocate [**dp\_Resampler\_execute\_max\_out()**](Resampler__core_8h.md#function-dp_resampler_execute_max_out) samples. execute\_ctrl: same. 
 
 
     
@@ -132,10 +132,10 @@ Output buffer sizing: execute: allocate [**Resampler\_execute\_max\_out()**](Res
 
 
 
-### typedef Resampler\_state\_t 
+### typedef dp\_Resampler\_state\_t 
 
 ```C++
-typedef resamp_state_t Resampler_state_t;
+typedef resamp_state_t dp_Resampler_state_t;
 ```
 
 
@@ -147,11 +147,51 @@ typedef resamp_state_t Resampler_state_t;
 
 
 
-### function Resampler\_create 
+### function Resampler\_create\_custom 
+
+_Create a Resampler with a user-supplied polyphase bank._ 
+```C++
+dp_Resampler_state_t * Resampler_create_custom (
+    size_t num_phases,
+    size_t num_taps,
+    const float * bank,
+    double rate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `num_phases` Number of polyphase branches (must be power of two). 
+* `num_taps` Taps per branch. 
+* `bank` Row-major float32 array, shape num\_phases × num\_taps. 
+* `rate` Initial resample ratio. 
+
+
+
+**Returns:**
+
+Non-NULL on success, NULL on invalid args or OOM. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_Resampler\_create 
 
 _Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**Resampler\_create\_custom()**_](Resampler__core_8h.md#function-resampler_create_custom) _instead._
 ```C++
-Resampler_state_t * Resampler_create (
+dp_Resampler_state_t * dp_Resampler_create (
     double rate
 ) 
 ```
@@ -191,51 +231,11 @@ Non-NULL on success, NULL on OOM.
 
 
 
-### function Resampler\_create\_custom 
-
-_Create a Resampler with a user-supplied polyphase bank._ 
-```C++
-Resampler_state_t * Resampler_create_custom (
-    size_t num_phases,
-    size_t num_taps,
-    const float * bank,
-    double rate
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `num_phases` Number of polyphase branches (must be power of two). 
-* `num_taps` Taps per branch. 
-* `bank` Row-major float32 array, shape num\_phases × num\_taps. 
-* `rate` Initial resample ratio. 
-
-
-
-**Returns:**
-
-Non-NULL on success, NULL on invalid args or OOM. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function Resampler\_destroy 
+### function dp\_Resampler\_destroy 
 
 ```C++
-void Resampler_destroy (
-    Resampler_state_t * state
+void dp_Resampler_destroy (
+    dp_Resampler_state_t * state
 ) 
 ```
 
@@ -250,12 +250,12 @@ Free all resources. NULL is a no-op.
 
 
 
-### function Resampler\_execute 
+### function dp\_Resampler\_execute 
 
 _Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate &gt;= 1 (interpolation), input-driven transposed-form for rate &lt; 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block._ 
 ```C++
-size_t Resampler_execute (
-    Resampler_state_t * state,
+size_t dp_Resampler_execute (
+    dp_Resampler_state_t * state,
     const float _Complex * x,
     size_t x_len,
     float _Complex * out,
@@ -270,7 +270,7 @@ size_t Resampler_execute (
 **Parameters:**
 
 
-* `state` Pointer to a valid Resampler\_state\_t. 
+* `state` Pointer to a valid dp\_Resampler\_state\_t. 
 * `x` CF32 input samples. 
 * `x_len` Number of input samples. 
 * `out` Output buffer; must hold at least RESAMPLER\_MAX\_OUT samples. 
@@ -301,12 +301,12 @@ CF32 output array; length is approximately x\_len \* rate, capped at max\_out.
 
 
 
-### function Resampler\_execute\_ctrl 
+### function dp\_Resampler\_execute\_ctrl 
 
 _Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._
 ```C++
-size_t Resampler_execute_ctrl (
-    Resampler_state_t * state,
+size_t dp_Resampler_execute_ctrl (
+    dp_Resampler_state_t * state,
     const float _Complex * x,
     size_t x_len,
     const double * ctrl,
@@ -323,7 +323,7 @@ size_t Resampler_execute_ctrl (
 **Parameters:**
 
 
-* `state` Pointer to a valid Resampler\_state\_t. 
+* `state` Pointer to a valid dp\_Resampler\_state\_t. 
 * `x` CF32 input samples. 
 * `x_len` Number of input samples. 
 * `ctrl` Real float64 array, same length as x; the per-sample rate addend. Anything numpy can safely widen to float64 is accepted (float32, a plain list); a complex array is refused rather than truncated. 
@@ -358,11 +358,11 @@ CF32 output array; length depends on accumulated rate deviations, capped at max\
 
 
 
-### function Resampler\_execute\_ctrl\_max\_out 
+### function dp\_Resampler\_execute\_ctrl\_max\_out 
 
 ```C++
-size_t Resampler_execute_ctrl_max_out (
-    Resampler_state_t * state
+size_t dp_Resampler_execute_ctrl_max_out (
+    dp_Resampler_state_t * state
 ) 
 ```
 
@@ -377,11 +377,11 @@ Always returns RESAMPLER\_MAX\_OUT.
 
 
 
-### function Resampler\_execute\_max\_out 
+### function dp\_Resampler\_execute\_max\_out 
 
 ```C++
-size_t Resampler_execute_max_out (
-    Resampler_state_t * state
+size_t dp_Resampler_execute_max_out (
+    dp_Resampler_state_t * state
 ) 
 ```
 
@@ -396,12 +396,12 @@ Always returns RESAMPLER\_MAX\_OUT.
 
 
 
-### function Resampler\_get\_ctrl\_acc 
+### function dp\_Resampler\_get\_ctrl\_acc 
 
 _Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._ 
 ```C++
-double Resampler_get_ctrl_acc (
-    const Resampler_state_t * state
+double dp_Resampler_get_ctrl_acc (
+    const dp_Resampler_state_t * state
 ) 
 ```
 
@@ -440,12 +440,12 @@ Reports the CONTROL accumulator, so it stays 0.0 unless you are driving this obj
 
 
 
-### function Resampler\_get\_delay 
+### function dp\_Resampler\_get\_delay 
 
 _Group delay of the interpolator, in input samples._ 
 ```C++
-double Resampler_get_delay (
-    const Resampler_state_t * state
+double dp_Resampler_get_delay (
+    const dp_Resampler_state_t * state
 ) 
 ```
 
@@ -469,11 +469,11 @@ The prototype's centre plus the one input the pipeline holds back ([**resamp\_ge
 
 
 
-### function Resampler\_get\_num\_phases 
+### function dp\_Resampler\_get\_num\_phases 
 
 ```C++
-size_t Resampler_get_num_phases (
-    const Resampler_state_t * state
+size_t dp_Resampler_get_num_phases (
+    const dp_Resampler_state_t * state
 ) 
 ```
 
@@ -484,12 +484,12 @@ size_t Resampler_get_num_phases (
 
 
 
-### function Resampler\_get\_num\_taps 
+### function dp\_Resampler\_get\_num\_taps 
 
 _Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._ 
 ```C++
-size_t Resampler_get_num_taps (
-    const Resampler_state_t * state
+size_t dp_Resampler_get_num_taps (
+    const dp_Resampler_state_t * state
 ) 
 ```
 
@@ -510,12 +510,12 @@ size_t Resampler_get_num_taps (
 
 
 
-### function Resampler\_get\_rate 
+### function dp\_Resampler\_get\_rate 
 
 _Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()._ 
 ```C++
-double Resampler_get_rate (
-    const Resampler_state_t * state
+double dp_Resampler_get_rate (
+    const dp_Resampler_state_t * state
 ) 
 ```
 
@@ -540,12 +540,12 @@ double Resampler_get_rate (
 
 
 
-### function Resampler\_get\_state 
+### function dp\_Resampler\_get\_state 
 
 _Serialize the resampler's phase + delay-line state into_ `blob` _._
 ```C++
-void Resampler_get_state (
-    const Resampler_state_t * state,
+void dp_Resampler_get_state (
+    const dp_Resampler_state_t * state,
     void * blob
 ) 
 ```
@@ -557,12 +557,12 @@ void Resampler_get_state (
 
 
 
-### function Resampler\_reset 
+### function dp\_Resampler\_reset 
 
 _Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst._ 
 ```C++
-void Resampler_reset (
-    Resampler_state_t * state
+void dp_Resampler_reset (
+    dp_Resampler_state_t * state
 ) 
 ```
 
@@ -587,11 +587,11 @@ void Resampler_reset (
 
 
 
-### function Resampler\_set\_rate 
+### function dp\_Resampler\_set\_rate 
 
 ```C++
-void Resampler_set_rate (
-    Resampler_state_t * state,
+void dp_Resampler_set_rate (
+    dp_Resampler_state_t * state,
     double rate
 ) 
 ```
@@ -603,12 +603,12 @@ void Resampler_set_rate (
 
 
 
-### function Resampler\_set\_state 
+### function dp\_Resampler\_set\_state 
 
 _Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._
 ```C++
-int Resampler_set_state (
-    Resampler_state_t * state,
+int dp_Resampler_set_state (
+    dp_Resampler_state_t * state,
     const void * blob
 ) 
 ```
@@ -620,12 +620,12 @@ int Resampler_set_state (
 
 
 
-### function Resampler\_state\_bytes 
+### function dp\_Resampler\_state\_bytes 
 
 _Serialized-state byte size (forwarded to the resamp leaf)._ 
 ```C++
-size_t Resampler_state_bytes (
-    const Resampler_state_t * state
+size_t dp_Resampler_state_bytes (
+    const dp_Resampler_state_t * state
 ) 
 ```
 

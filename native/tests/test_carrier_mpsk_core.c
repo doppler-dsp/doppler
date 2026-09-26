@@ -77,16 +77,16 @@ nearest_label (float _Complex y, int m)
  * symbol-error count over the converged tail (min over the m global
  * phase rotations the loop may have locked onto). */
 static void
-run (carrier_mpsk_state_t *c, const float _Complex *rx, const int *labels,
+run (dp_carrier_mpsk_state_t *c, const float _Complex *rx, const int *labels,
      size_t nsym, size_t tsamps, int m, double *out_freq, double *out_lock,
      int *out_symerr)
 {
   float _Complex *sym = malloc (nsym * sizeof (*sym));
-  size_t          k   = carrier_mpsk_steps (c, rx, nsym * tsamps, sym, nsym);
-  *out_freq           = carrier_mpsk_get_norm_freq (c);
-  *out_lock           = carrier_mpsk_get_lock_metric (c);
-  size_t tail0        = k / 2;
-  int    best         = (int)(k - tail0) + 1;
+  size_t          k = dp_carrier_mpsk_steps (c, rx, nsym * tsamps, sym, nsym);
+  *out_freq         = dp_carrier_mpsk_get_norm_freq (c);
+  *out_lock         = dp_carrier_mpsk_get_lock_metric (c);
+  size_t tail0      = k / 2;
+  int    best       = (int)(k - tail0) + 1;
   for (int r = 0; r < m; r++)
     {
       float _Complex rot
@@ -110,34 +110,34 @@ main (void)
    * 1. Lifecycle, gain math, init==create parity, m validation       *
    * ---------------------------------------------------------------- */
   {
-    carrier_mpsk_state_t *c
-        = carrier_mpsk_create (0.05, 0.707, 0.01, 16, 0.0, 4);
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.05, 0.707, 0.01, 16, 0.0, 4);
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
     DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
-    DP_CHECK (fabs (carrier_mpsk_get_norm_freq (c) - 0.01) < 1e-12);
-    DP_CHECK (carrier_mpsk_get_m (c) == 4);
+    DP_CHECK (fabs (dp_carrier_mpsk_get_norm_freq (c) - 0.01) < 1e-12);
+    DP_CHECK (dp_carrier_mpsk_get_m (c) == 4);
 
-    carrier_mpsk_state_t v;
+    dp_carrier_mpsk_state_t v;
     carrier_mpsk_init (&v, 0.05, 0.707, 0.01, 16, 0.0, 4);
     DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     DP_CHECK (v.nco.phase_inc == c->nco.phase_inc);
-    carrier_mpsk_destroy (c);
+    dp_carrier_mpsk_destroy (c);
 
     /* only M in {2,4,8} is a valid constellation order */
     /* The ACCEPTING cases hand back a state, so the test that proves
        they are accepted also has to release it; only the rejecting
        ones below have nothing to free. */
-    carrier_mpsk_state_t *ok;
-    ok = carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 2);
+    dp_carrier_mpsk_state_t *ok;
+    ok = dp_carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 2);
     DP_CHECK (ok != NULL);
-    carrier_mpsk_destroy (ok);
-    ok = carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 8);
+    dp_carrier_mpsk_destroy (ok);
+    ok = dp_carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 8);
     DP_CHECK (ok != NULL);
-    carrier_mpsk_destroy (ok);
-    DP_CHECK (carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 3) == NULL);
-    DP_CHECK (carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 16) == NULL);
+    dp_carrier_mpsk_destroy (ok);
+    DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 3) == NULL);
+    DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 16, 0.0, 16) == NULL);
   }
 
   /* ---------------------------------------------------------------- *
@@ -154,15 +154,15 @@ main (void)
         {
           int m = ms[mi];
           make_signal (rx, labels, nsym, tsamps, m, f0s[t], 0.0, 0.0f, 13u);
-          carrier_mpsk_state_t *c
-              = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.0, m);
+          dp_carrier_mpsk_state_t *c
+              = dp_carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.0, m);
           double f, lk;
           int    se;
           run (c, rx, labels, nsym, tsamps, m, &f, &lk, &se);
           DP_CHECK (fabs (f - f0s[t]) < 3e-4);
           DP_CHECK (lk > 0.9);
           DP_CHECK (se == 0);
-          carrier_mpsk_destroy (c);
+          dp_carrier_mpsk_destroy (c);
         }
     free (rx);
     free (labels);
@@ -177,15 +177,15 @@ main (void)
     float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
     int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 8, 0.0015, 0.0, 0.0f, 71u);
-    carrier_mpsk_state_t *c
-        = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.01, 8);
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.01, 8);
     double f, lk;
     int    se;
     run (c, rx, labels, nsym, tsamps, 8, &f, &lk, &se);
     DP_CHECK (fabs (f - 0.0015) < 5e-4);
     DP_CHECK (lk > 0.9);
     DP_CHECK (se == 0);
-    carrier_mpsk_destroy (c);
+    dp_carrier_mpsk_destroy (c);
     free (rx);
     free (labels);
   }
@@ -199,14 +199,14 @@ main (void)
     float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
     int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 4, 0.002, 0.0, 0.0f, 909u);
-    carrier_mpsk_state_t *c
-        = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.0, 4);
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.0, 4);
     double f, lk;
     int    se;
     run (c, rx, labels, nsym, tsamps, 4, &f, &lk, &se);
     DP_CHECK (se == 0); /* min over the 4 rotations is exact */
     DP_CHECK (lk > 0.9);
-    carrier_mpsk_destroy (c);
+    dp_carrier_mpsk_destroy (c);
     free (rx);
     free (labels);
   }
@@ -220,15 +220,15 @@ main (void)
     float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
     int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 4, 0.0015, 0.0, 0.6f, 2024u);
-    carrier_mpsk_state_t *c
-        = carrier_mpsk_create (0.03, 0.707, 0.0, tsamps, 0.0, 4);
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.03, 0.707, 0.0, tsamps, 0.0, 4);
     double f, lk;
     int    se;
     run (c, rx, labels, nsym, tsamps, 4, &f, &lk, &se);
     DP_CHECK (fabs (f - 0.0015) < 5e-4);
     DP_CHECK (lk > 0.7);
     DP_CHECK (se == 0);
-    carrier_mpsk_destroy (c);
+    dp_carrier_mpsk_destroy (c);
     free (rx);
     free (labels);
   }
@@ -245,20 +245,20 @@ main (void)
     double f, lk;
     int    se;
 
-    carrier_mpsk_state_t *pll
-        = carrier_mpsk_create (0.01, 0.707, 0.0, tsamps, 0.0, 4);
+    dp_carrier_mpsk_state_t *pll
+        = dp_carrier_mpsk_create (0.01, 0.707, 0.0, tsamps, 0.0, 4);
     run (pll, rx, labels, nsym, tsamps, 4, &f, &lk, &se);
     int pll_locked = (fabs (f - f0) < 5e-4) && (lk > 0.9);
     DP_CHECK (!pll_locked); /* the bare narrow PLL does NOT acquire it */
-    carrier_mpsk_destroy (pll);
+    dp_carrier_mpsk_destroy (pll);
 
-    carrier_mpsk_state_t *fll
-        = carrier_mpsk_create (0.01, 0.707, 0.0, tsamps, 0.03, 4);
+    dp_carrier_mpsk_state_t *fll
+        = dp_carrier_mpsk_create (0.01, 0.707, 0.0, tsamps, 0.03, 4);
     run (fll, rx, labels, nsym, tsamps, 4, &f, &lk, &se);
     DP_CHECK (fabs (f - f0) < 5e-4);
     DP_CHECK (lk > 0.9);
     DP_CHECK (se == 0);
-    carrier_mpsk_destroy (fll);
+    dp_carrier_mpsk_destroy (fll);
     free (rx);
     free (labels);
   }
@@ -271,17 +271,17 @@ main (void)
     float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
     int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 8, 0.001, 0.0, 0.0f, 55u);
-    carrier_mpsk_state_t *c
-        = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.01, 8);
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.01, 8);
     double f1, lk1;
     int    se1;
     run (c, rx, labels, nsym, tsamps, 8, &f1, &lk1, &se1);
-    carrier_mpsk_reset (c);
+    dp_carrier_mpsk_reset (c);
     double f2, lk2;
     int    se2;
     run (c, rx, labels, nsym, tsamps, 8, &f2, &lk2, &se2);
     DP_CHECK (f1 == f2 && lk1 == lk2 && se1 == se2);
-    carrier_mpsk_destroy (c);
+    dp_carrier_mpsk_destroy (c);
     free (rx);
     free (labels);
   }
@@ -301,27 +301,27 @@ main (void)
     for (size_t i = 0; i < L; i++)
       rx[i] = cosf (0.02f * (float)i) + I * sinf (0.02f * (float)i);
 
-    carrier_mpsk_state_t *a
-        = carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
-    size_t nA = carrier_mpsk_steps (a, rx, L, outA, CAP);
-    carrier_mpsk_destroy (a);
+    dp_carrier_mpsk_state_t *a
+        = dp_carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
+    size_t nA = dp_carrier_mpsk_steps (a, rx, L, outA, CAP);
+    dp_carrier_mpsk_destroy (a);
 
-    carrier_mpsk_state_t *r1
-        = carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
-    size_t nB   = carrier_mpsk_steps (r1, rx, CUT, outB, CAP);
-    size_t sb   = carrier_mpsk_state_bytes (r1);
+    dp_carrier_mpsk_state_t *r1
+        = dp_carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
+    size_t nB   = dp_carrier_mpsk_steps (r1, rx, CUT, outB, CAP);
+    size_t sb   = dp_carrier_mpsk_state_bytes (r1);
     void  *blob = malloc (sb);
-    carrier_mpsk_get_state (r1, blob);
-    carrier_mpsk_destroy (r1);
+    dp_carrier_mpsk_get_state (r1, blob);
+    dp_carrier_mpsk_destroy (r1);
 
-    carrier_mpsk_state_t *r2
-        = carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
-    DP_CHECK (carrier_mpsk_set_state (r2, blob) == DP_OK);
+    dp_carrier_mpsk_state_t *r2
+        = dp_carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
+    DP_CHECK (dp_carrier_mpsk_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
-    DP_CHECK (carrier_mpsk_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_mpsk_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += carrier_mpsk_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
-    carrier_mpsk_destroy (r2);
+    nB += dp_carrier_mpsk_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
+    dp_carrier_mpsk_destroy (r2);
     free (blob);
 
     DP_CHECK (nA == nB);

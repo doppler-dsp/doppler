@@ -549,14 +549,14 @@ def measure_lifecycle(d: Data) -> None:
     R.md("### 2.4 Defaulting, reset and resume")
     R.md()
     R.md(
-        "**`poly = 0` is not a polynomial.** At the C level `pn_create` "
+        "**`poly = 0` is not a polynomial.** At the C level `dp_pn_create` "
         "takes the mask verbatim, so a zero tap mask is a register with "
         "no feedback: it shifts the seed out and emits zeros forever -- "
         '"a constant field that still looks like a field". Every caller '
         "that lets a user say *default* therefore resolves it as "
         "`poly ? poly : pn_mls_poly(n)`. That resolution was audited "
         "across the tree for this report and all three production call "
-        "sites do it: `wfm_synth_create` on both its branches (and it "
+        "sites do it: `dp_wfm_synth_create` on both its branches (and it "
         "rejects a width the table has no entry for), `wfm_frame`'s PN "
         "sequence kind, and the `PN` binding itself (guarded at "
         "`length >= 2`, since the table starts at n=2)."
@@ -566,7 +566,7 @@ def measure_lifecycle(d: Data) -> None:
         "So from Python `PN(seed=1, length=7)`, `PN(poly=0, ...)` and "
         "`PN(poly=mls_poly(7), ...)` are one sequence. The unresolved "
         "C-level behaviour is **C-ONLY** -- the binding resolves it "
-        "before `pn_create` sees it, so Python cannot reach the zeros; "
+        "before `dp_pn_create` sees it, so Python cannot reach the zeros; "
         "it is pinned in `test_pn_core.c` (F3)."
     )
     R.md()
@@ -633,11 +633,11 @@ def review(d: Data) -> None:
         "**Three claims the Python face cannot reach**, now pinned in "
         "`native/tests/test_pn_core.c`. (1) `poly = 0` emitting zeros "
         "forever once the seed shifts out -- the binding resolves the "
-        "default before `pn_create` sees it, so Python cannot observe "
+        "default before `dp_pn_create` sees it, so Python cannot observe "
         "the unresolved behaviour the header warns about, and it is "
         "exactly what every caller's resolution exists to avoid. "
-        "(2) `pn_create` rejecting a zero seed or a zero length. "
-        "(3) `pn_destroy(NULL)` as a documented no-op. Proving the last "
+        "(2) `dp_pn_create` rejecting a zero seed or a zero length. "
+        "(3) `dp_pn_destroy(NULL)` as a documented no-op. Proving the last "
         "took two attempts worth recording: a store to `state->reg` "
         "before `free()` is a dead store and gcc deletes it, so the "
         "sabotage never dereferenced anything and the test passed "
@@ -646,7 +646,7 @@ def review(d: Data) -> None:
     R.find(
         "F4",
         "FIXED",
-        "**`pn_reset` was called with nothing asserted after it.** The C "
+        "**`dp_pn_reset` was called with nothing asserted after it.** The C "
         "test invoked it between other work and checked no consequence, "
         "so a reset that reloaded nothing at all passed -- the same "
         "shape `validation.md` records against resamp. Python covered "

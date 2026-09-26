@@ -37,13 +37,13 @@
 
 /* Run the loop over a built signal; report tracked freq + lock. */
 static void
-run (carrier_nda_state_t *c, const float _Complex *rx, size_t n, double *f,
+run (dp_carrier_nda_state_t *c, const float _Complex *rx, size_t n, double *f,
      double *lk)
 {
   float _Complex *o = malloc (n * sizeof (*o));
-  carrier_nda_steps (c, rx, n, o, n);
-  *f  = carrier_nda_get_norm_freq (c);
-  *lk = carrier_nda_get_lock (c);
+  dp_carrier_nda_steps (c, rx, n, o, n);
+  *f  = dp_carrier_nda_get_norm_freq (c);
+  *lk = dp_carrier_nda_get_lock (c);
   free (o);
 }
 
@@ -64,14 +64,15 @@ track_settle (size_t sps, int n, int m, double bn, double f0,
               const float _Complex *rx, size_t N, double tol_frac, size_t step,
               int last)
 {
-  carrier_nda_state_t *c     = carrier_nda_create (bn, 0.707, 0.0, sps, n, m);
-  float _Complex      *o     = malloc (step * sizeof (*o));
-  size_t               first = N, out_at = 0;
-  int                  ever_in = 0;
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (bn, 0.707, 0.0, sps, n, m);
+  float _Complex *o     = malloc (step * sizeof (*o));
+  size_t          first = N, out_at = 0;
+  int             ever_in = 0;
   for (size_t i = 0; i + step <= N; i += step)
     {
-      carrier_nda_steps (c, rx + i, step, o, step);
-      int in = fabs (carrier_nda_get_norm_freq (c) - f0) < tol_frac * f0;
+      dp_carrier_nda_steps (c, rx + i, step, o, step);
+      int in = fabs (dp_carrier_nda_get_norm_freq (c) - f0) < tol_frac * f0;
       if (in && first == N)
         first = i;
       if (in)
@@ -79,7 +80,7 @@ track_settle (size_t sps, int n, int m, double bn, double f0,
       else
         out_at = i + step;
     }
-  carrier_nda_destroy (c);
+  dp_carrier_nda_destroy (c);
   free (o);
   if (!ever_in)
     return N; /* never arrived at all */
@@ -102,40 +103,41 @@ main (void)
    * 1. Lifecycle, param validation, init==create parity              *
    * ---------------------------------------------------------------- */
   {
-    carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.01, 8, 4, 4);
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.01, 8, 4, 4);
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
     DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
-    DP_CHECK (fabs (carrier_nda_get_norm_freq (c) - 0.01) < 1e-12);
-    DP_CHECK (carrier_nda_get_m (c) == 4);
-    DP_CHECK (carrier_nda_get_n (c) == 4);
-    DP_CHECK (carrier_nda_get_sps (c) == 8);
+    DP_CHECK (fabs (dp_carrier_nda_get_norm_freq (c) - 0.01) < 1e-12);
+    DP_CHECK (dp_carrier_nda_get_m (c) == 4);
+    DP_CHECK (dp_carrier_nda_get_n (c) == 4);
+    DP_CHECK (dp_carrier_nda_get_sps (c) == 8);
     DP_CHECK (c->arm_len == 2); /* sps/n = 8/4 */
 
-    carrier_nda_state_t v;
+    dp_carrier_nda_state_t v;
     carrier_nda_init (&v, 0.01, 0.707, 0.01, 8, 4, 4);
     DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     DP_CHECK (v.nco.phase_inc == c->nco.phase_inc);
     DP_CHECK (v.arm_len == c->arm_len && v.m == c->m);
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
 
     /* M in {2,4,8}; sps % n == 0; n > 0; sps > 0 */
     /* The ACCEPTING cases hand back a state, so the test that proves
        they are accepted also has to release it; only the rejecting
        ones below have nothing to free. */
-    carrier_nda_state_t *ok;
-    ok = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 2);
+    dp_carrier_nda_state_t *ok;
+    ok = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 2);
     DP_CHECK (ok != NULL);
-    carrier_nda_destroy (ok);
-    ok = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 8);
+    dp_carrier_nda_destroy (ok);
+    ok = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 8);
     DP_CHECK (ok != NULL);
-    carrier_nda_destroy (ok);
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 3) == NULL);
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 3, 4)
+    dp_carrier_nda_destroy (ok);
+    DP_CHECK (dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 3) == NULL);
+    DP_CHECK (dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 3, 4)
               == NULL); /* 8%3 */
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 8, 0, 4) == NULL);
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 0, 4, 4) == NULL);
+    DP_CHECK (dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 0, 4) == NULL);
+    DP_CHECK (dp_carrier_nda_create (0.01, 0.707, 0.0, 0, 4, 4) == NULL);
   }
 
   /* ---------------------------------------------------------------- *
@@ -144,9 +146,10 @@ main (void)
    *    arm_len samples.                                                *
    * ---------------------------------------------------------------- */
   {
-    int                  sps = 8, n = 4; /* arm_len = sps/n = 2 */
-    carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, sps, n, 4);
-    int                  outs = 0;
+    int                     sps = 8, n = 4; /* arm_len = sps/n = 2 */
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, sps, n, 4);
+    int outs = 0;
     for (int i = 0; i < sps; i++) /* ramp 1..8 through the boxcar */
       {
         double pe, lk;
@@ -157,14 +160,14 @@ main (void)
     /* boxcar window = last arm_len=2 samples: 7 + 8 = 15 (running sum) */
     DP_CHECK (fabs (crealf (c->arm.acc) - 15.0f) < 1e-4);
     DP_CHECK (fabs (cimagf (c->arm.acc)) < 1e-6);
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
 
     /* arm_len > BOXCAR_MAX_LEN is rejected (fixed in-struct ring) */
-    DP_CHECK (carrier_nda_create (0.01, 0.707, 0.0, 128, 1, 4) == NULL);
-    carrier_nda_state_t *cmax
-        = carrier_nda_create (0.01, 0.707, 0.0, BOXCAR_MAX_LEN, 1, 4);
+    DP_CHECK (dp_carrier_nda_create (0.01, 0.707, 0.0, 128, 1, 4) == NULL);
+    dp_carrier_nda_state_t *cmax
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, BOXCAR_MAX_LEN, 1, 4);
     DP_CHECK (cmax != NULL); /* arm_len == BOXCAR_MAX_LEN is allowed */
-    carrier_nda_destroy (cmax);
+    dp_carrier_nda_destroy (cmax);
   }
 
   /* ---------------------------------------------------------------- *
@@ -215,13 +218,13 @@ main (void)
             rx[k] = (float _Complex)cexp (I * TWOPI * f0 * (double)k) + n_re
                     + n_im * I;
           }
-        carrier_nda_state_t *c
-            = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, ms[mi]);
+        dp_carrier_nda_state_t *c
+            = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, ms[mi]);
         double f, lk;
         run (c, rx, N, &f, &lk);
         DP_CHECK (fabs (f - f0) < 5e-4); /* acquired the bare carrier */
         DP_CHECK (lk > 0.3);             /* locked (normalised: ~1)   */
-        carrier_nda_destroy (c);
+        dp_carrier_nda_destroy (c);
       }
     free (rx);
   }
@@ -252,13 +255,13 @@ main (void)
                         + n_re + n_im * I;
               }
           }
-        carrier_nda_state_t *c
-            = carrier_nda_create (0.01, 0.707, 0.0, sps, 4, m);
+        dp_carrier_nda_state_t *c
+            = dp_carrier_nda_create (0.01, 0.707, 0.0, sps, 4, m);
         double f, lk;
         run (c, rx, N, &f, &lk);
         DP_CHECK (fabs (f - f0) < 5e-4); /* locked despite NO timing  */
         DP_CHECK (lk > 0.3);
-        carrier_nda_destroy (c);
+        dp_carrier_nda_destroy (c);
       }
     free (rx);
   }
@@ -277,13 +280,14 @@ main (void)
         rx[k] = (float _Complex)cexp (I * TWOPI * 0.0012 * (double)k) + n_re
                 + n_im * I;
       }
-    carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
-    double               f1, lk1, f2, lk2;
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    double f1, lk1, f2, lk2;
     run (c, rx, N, &f1, &lk1);
-    carrier_nda_reset (c);
+    dp_carrier_nda_reset (c);
     run (c, rx, N, &f2, &lk2);
     DP_CHECK (f1 == f2 && lk1 == lk2);
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
     free (rx);
   }
 
@@ -302,24 +306,27 @@ main (void)
     for (size_t i = 0; i < L; i++)
       rx[i] = cosf (0.02f * (float)i) + I * sinf (0.02f * (float)i);
 
-    carrier_nda_state_t *a  = carrier_nda_create (0.01, 0.707, 0.0, 4, 2, 4);
-    size_t               nA = carrier_nda_steps (a, rx, L, outA, CAP);
-    carrier_nda_destroy (a);
+    dp_carrier_nda_state_t *a
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 4, 2, 4);
+    size_t nA = dp_carrier_nda_steps (a, rx, L, outA, CAP);
+    dp_carrier_nda_destroy (a);
 
-    carrier_nda_state_t *r1   = carrier_nda_create (0.01, 0.707, 0.0, 4, 2, 4);
-    size_t               nB   = carrier_nda_steps (r1, rx, CUT, outB, CAP);
-    size_t               sb   = carrier_nda_state_bytes (r1);
-    void                *blob = malloc (sb);
-    carrier_nda_get_state (r1, blob);
-    carrier_nda_destroy (r1);
+    dp_carrier_nda_state_t *r1
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 4, 2, 4);
+    size_t nB   = dp_carrier_nda_steps (r1, rx, CUT, outB, CAP);
+    size_t sb   = dp_carrier_nda_state_bytes (r1);
+    void  *blob = malloc (sb);
+    dp_carrier_nda_get_state (r1, blob);
+    dp_carrier_nda_destroy (r1);
 
-    carrier_nda_state_t *r2 = carrier_nda_create (0.01, 0.707, 0.0, 4, 2, 4);
-    DP_CHECK (carrier_nda_set_state (r2, blob) == DP_OK);
+    dp_carrier_nda_state_t *r2
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 4, 2, 4);
+    DP_CHECK (dp_carrier_nda_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
-    DP_CHECK (carrier_nda_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += carrier_nda_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
-    carrier_nda_destroy (r2);
+    nB += dp_carrier_nda_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
+    dp_carrier_nda_destroy (r2);
     free (blob);
 
     DP_CHECK (nA == nB);
@@ -361,12 +368,13 @@ main (void)
    * 8. set_bn reconfigures the loop filter.                           *
    * ---------------------------------------------------------------- */
   {
-    carrier_nda_state_t *c   = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
-    double               kp0 = c->lf.kp;
-    carrier_nda_set_bn (c, 0.02);
-    DP_CHECK (carrier_nda_get_bn (c) == 0.02);
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    double kp0 = c->lf.kp;
+    dp_carrier_nda_set_bn (c, 0.02);
+    DP_CHECK (dp_carrier_nda_get_bn (c) == 0.02);
     DP_CHECK (c->lf.kp != kp0);
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
   }
 
   /* ---------------------------------------------------------------- *
@@ -476,14 +484,14 @@ main (void)
           {
             for (size_t k = 0; k < N; k++)
               rs[k] = (float)scales[si] * rx[k];
-            carrier_nda_state_t *c
-                = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, m);
+            dp_carrier_nda_state_t *c
+                = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, m);
             double f, lk;
             run (c, rs, N, &f, &lk);
             DP_CHECK (fabs (f - f0) < 5e-4); /* converges at any scale */
             DP_CHECK (lk > 0.3);             /* lock metric level-invariant */
             fs[si] = f;
-            carrier_nda_destroy (c);
+            dp_carrier_nda_destroy (c);
           }
         for (int si = 0; si < NS; si++)
           DP_CHECK (fabs (fs[si] - fs[NS / 2]) < 1e-4); /* same carrier */
@@ -503,10 +511,11 @@ main (void)
     dp_tlm_rec_t recs[8192];
     for (int i = 0; i < N; i++)
       rx[i] = (float _Complex)cexp (I * TWOPI * 0.005 * (double)i);
-    dp_tlm_t            *tlm = dp_tlm_create (1 << 13);
-    carrier_nda_state_t *c   = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_tlm_t               *tlm = dp_tlm_create (1 << 13);
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     DP_CHECK (tlm != NULL && c != NULL);
-    DP_CHECK (carrier_nda_set_telemetry (c, tlm, "car", 1) == DP_OK);
+    DP_CHECK (dp_carrier_nda_set_telemetry (c, tlm, "car", 1) == DP_OK);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.lock") == c->tlm.id_lock);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.e") == c->tlm.id_e);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
@@ -514,7 +523,7 @@ main (void)
     /* The retired arm AGC used to forward a fifth probe here (gh-657). */
     DP_CHECK (dp_tlm_probe_count (tlm) == 4);
 
-    size_t k = carrier_nda_steps (c, rx, N, out, N);
+    size_t k = dp_carrier_nda_steps (c, rx, N, out, N);
     DP_CHECK (k == N);
     size_t n_rec = dp_tlm_read (tlm, 8192, recs, 8192);
     DP_CHECK (n_rec == 4 * N); /* four per sample, nothing else */
@@ -527,24 +536,25 @@ main (void)
 
     /* Blobs zero the attachment (deterministic) and set_state into an
      * attached instance preserves that instance's live attachment. */
-    size_t sb = carrier_nda_state_bytes (c);
+    size_t sb = dp_carrier_nda_state_bytes (c);
     void  *b1 = malloc (sb), *b2 = malloc (sb);
-    carrier_nda_get_state (c, b1);
-    carrier_nda_state_t *d = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_carrier_nda_get_state (c, b1);
+    dp_carrier_nda_state_t *d
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     DP_CHECK (d != NULL);
-    DP_CHECK (carrier_nda_set_telemetry (d, tlm, "car2", 4) == DP_OK);
-    DP_CHECK (carrier_nda_set_state (d, b1) == DP_OK);
+    DP_CHECK (dp_carrier_nda_set_telemetry (d, tlm, "car2", 4) == DP_OK);
+    DP_CHECK (dp_carrier_nda_set_state (d, b1) == DP_OK);
     DP_CHECK (d->tlm.ctx == tlm);
     DP_CHECK (d->tlm.id_e == dp_tlm_probe_id (tlm, "car2.e"));
-    carrier_nda_get_state (d, b2);
+    dp_carrier_nda_get_state (d, b2);
     DP_CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
     free (b1);
     free (b2);
-    carrier_nda_destroy (d);
+    dp_carrier_nda_destroy (d);
 
-    DP_CHECK (carrier_nda_set_telemetry (c, NULL, "car", 1) == DP_OK);
+    DP_CHECK (dp_carrier_nda_set_telemetry (c, NULL, "car", 1) == DP_OK);
     DP_CHECK (c->tlm.ctx == NULL);
-    (void)carrier_nda_steps (c, rx, N, out, N);
+    (void)dp_carrier_nda_steps (c, rx, N, out, N);
     DP_CHECK (dp_tlm_read (tlm, 8192, recs, 8192) == 0);
 
     /* A full probe table fails the attach whole. */
@@ -554,9 +564,10 @@ main (void)
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm, pname, 1);
       }
-    DP_CHECK (carrier_nda_set_telemetry (c, tlm, "nope", 1) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_telemetry (c, tlm, "nope", 1)
+              == DP_ERR_INVALID);
     DP_CHECK (c->tlm.ctx == NULL);
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
     dp_tlm_destroy (tlm);
   }
 
@@ -652,11 +663,12 @@ main (void)
        symbol its own reader cannot reach -- and a test that hard-coded 0.5
        would not notice create() installing something else. What matters to
        a caller is the threshold the object actually runs with. */
-    carrier_nda_state_t *cd = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_carrier_nda_state_t *cd
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     DP_CHECK (cd != NULL);
     const double eta = cd->lockdet.up_thresh / CARRIER_NDA_LOCK_NORM_SD;
     DP_CHECK (fabs (eta - 4.416) < 5e-3);
-    carrier_nda_destroy (cd);
+    dp_carrier_nda_destroy (cd);
   }
 
   /* ---------------------------------------------------------------- *

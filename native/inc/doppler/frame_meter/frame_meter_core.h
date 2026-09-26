@@ -41,8 +41,8 @@
  *
  * @see docs/design/rx-test.md section 2.5
  */
-#ifndef FRAME_METER_CORE_H
-#define FRAME_METER_CORE_H
+#ifndef DP_FRAME_METER_CORE_H
+#define DP_FRAME_METER_CORE_H
 
 #include "doppler/ber/ber_core.h"
 #include "doppler/dp_state.h"
@@ -60,7 +60,7 @@ extern "C"
 #define FRAME_METER_STATE_MAGIC   DP_FOURCC ('F', 'R', 'M', 'M')
 #define FRAME_METER_STATE_VERSION 1u
 
-  /** @brief Frame-outcome accumulator. Allocate with frame_meter_create(). */
+  /** @brief Frame-outcome accumulator. Allocate with dp_frame_meter_create(). */
   typedef struct
   {
     size_t target_errors; /**< config: stop-on-errors target             */
@@ -69,7 +69,7 @@ extern "C"
     size_t sync_detected; /**< running: frames whose sync was found      */
     size_t crc_passed;    /**< running: frames whose CRC checked         */
     size_t errors;        /**< running: frames not delivered             */
-  } frame_meter_state_t;
+  } dp_frame_meter_state_t;
 
   /**
    * @brief Create an accumulator.
@@ -79,10 +79,10 @@ extern "C"
    * @param conf           confidence level in (0, 1); 0 is taken as BER_CONF.
    * @return the meter, or NULL if @p conf is outside (0, 1).
    */
-  frame_meter_state_t *frame_meter_create (size_t target_errors, double conf);
+  dp_frame_meter_state_t *dp_frame_meter_create (size_t target_errors, double conf);
 
   /** @brief Release the meter. */
-  void frame_meter_destroy (frame_meter_state_t *state);
+  void dp_frame_meter_destroy (dp_frame_meter_state_t *state);
 
   /**
    * @brief Clear every counter; the configuration is untouched.
@@ -105,7 +105,7 @@ extern "C"
    *
    * @endcode
    */
-  void frame_meter_reset (frame_meter_state_t *state);
+  void dp_frame_meter_reset (dp_frame_meter_state_t *state);
 
   /**
    * @brief Record one frame's outcome.
@@ -134,16 +134,16 @@ extern "C"
    *
    * @endcode
    */
-  void frame_meter_add (frame_meter_state_t *state, int sync_ok, int crc);
+  void dp_frame_meter_add (dp_frame_meter_state_t *state, int sync_ok, int crc);
 
   /** @brief Frames attempted. */
-  size_t frame_meter_get_frames (const frame_meter_state_t *state);
+  size_t dp_frame_meter_get_frames (const dp_frame_meter_state_t *state);
   /** @brief Frames whose sync word was detected. */
-  size_t frame_meter_get_sync_detected (const frame_meter_state_t *state);
+  size_t dp_frame_meter_get_sync_detected (const dp_frame_meter_state_t *state);
   /** @brief Frames whose CRC checked. */
-  size_t frame_meter_get_crc_passed (const frame_meter_state_t *state);
+  size_t dp_frame_meter_get_crc_passed (const dp_frame_meter_state_t *state);
   /** @brief Frames not delivered: no sync, or a failed CRC. */
-  size_t frame_meter_get_errors (const frame_meter_state_t *state);
+  size_t dp_frame_meter_get_errors (const dp_frame_meter_state_t *state);
 
   /**
    * @brief Non-zero once `target_errors` frame errors have accumulated.
@@ -152,7 +152,7 @@ extern "C"
    * has the precision it asked for rather than until a frame count someone
    * guessed.
    */
-  int frame_meter_get_enough (const frame_meter_state_t *state);
+  int dp_frame_meter_get_enough (const dp_frame_meter_state_t *state);
 
   /**
    * @brief Frame error rate with its exact interval.
@@ -176,7 +176,7 @@ extern "C"
    *
    * @endcode
    */
-  ber_interval_t frame_meter_fer (const frame_meter_state_t *state);
+  ber_interval_t dp_frame_meter_fer (const dp_frame_meter_state_t *state);
 
   /**
    * @brief Sync MISS rate with its exact interval.
@@ -203,14 +203,14 @@ extern "C"
    *
    * @endcode
    */
-  ber_interval_t frame_meter_sync_miss (const frame_meter_state_t *state);
+  ber_interval_t dp_frame_meter_sync_miss (const dp_frame_meter_state_t *state);
 
   /** @brief Serialized-state byte size. */
-  size_t frame_meter_state_bytes (const frame_meter_state_t *state);
+  size_t dp_frame_meter_state_bytes (const dp_frame_meter_state_t *state);
   /** @brief Serialize the running counters into @p blob. */
-  void frame_meter_get_state (const frame_meter_state_t *state, void *blob);
+  void dp_frame_meter_get_state (const dp_frame_meter_state_t *state, void *blob);
   /** @brief Restore; DP_OK, or DP_ERR_INVALID if the blob is rejected. */
-  int frame_meter_set_state (frame_meter_state_t *state, const void *blob);
+  int dp_frame_meter_set_state (dp_frame_meter_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

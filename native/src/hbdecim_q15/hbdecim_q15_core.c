@@ -16,7 +16,7 @@
 /* ================================================================== */
 
 static inline void
-push_even (hbdecim_q15_state_t *r, int16_t i, int16_t q)
+push_even (dp_hbdecim_q15_state_t *r, int16_t i, int16_t q)
 {
   r->even_head                     = (r->even_head - 1) & r->mask;
   r->even_I[r->even_head]          = i;
@@ -26,7 +26,7 @@ push_even (hbdecim_q15_state_t *r, int16_t i, int16_t q)
 }
 
 static inline void
-push_odd (hbdecim_q15_state_t *r, int16_t i, int16_t q)
+push_odd (dp_hbdecim_q15_state_t *r, int16_t i, int16_t q)
 {
   r->odd_head                    = (r->odd_head - 1) & r->mask;
   r->odd_I[r->odd_head]          = i;
@@ -130,7 +130,8 @@ fir_q15_scalar (const int16_t *a, size_t N, const int16_t *coeffs, size_t K)
 /* ================================================================== */
 
 static inline void
-compute_output (const hbdecim_q15_state_t *r, int16_t *out_I, int16_t *out_Q)
+compute_output (const dp_hbdecim_q15_state_t *r, int16_t *out_I,
+                int16_t *out_Q)
 {
   const int16_t *fi, *fq; /* FIR-branch delay line (I and Q)   */
   const int16_t *di, *dq; /* Delay-branch delay line (I and Q) */
@@ -200,13 +201,13 @@ compute_output (const hbdecim_q15_state_t *r, int16_t *out_I, int16_t *out_Q)
 /* Lifecycle                                                           */
 /* ================================================================== */
 
-hbdecim_q15_state_t *
-hbdecim_q15_create (size_t num_taps, const float *h)
+dp_hbdecim_q15_state_t *
+dp_hbdecim_q15_create (size_t num_taps, const float *h)
 {
   if (!num_taps || !h)
     return NULL;
 
-  hbdecim_q15_state_t *r = calloc (1, sizeof (*r));
+  dp_hbdecim_q15_state_t *r = calloc (1, sizeof (*r));
   if (!r)
     return NULL;
 
@@ -278,7 +279,7 @@ fail:
 }
 
 void
-hbdecim_q15_destroy (hbdecim_q15_state_t *r)
+dp_hbdecim_q15_destroy (dp_hbdecim_q15_state_t *r)
 {
   if (!r)
     return;
@@ -295,7 +296,7 @@ hbdecim_q15_destroy (hbdecim_q15_state_t *r)
 }
 
 void
-hbdecim_q15_reset (hbdecim_q15_state_t *r)
+dp_hbdecim_q15_reset (dp_hbdecim_q15_state_t *r)
 {
   r->even_head   = 0;
   r->odd_head    = 0;
@@ -309,17 +310,17 @@ hbdecim_q15_reset (hbdecim_q15_state_t *r)
 /* Serializable state — four dual-write rings + heads + pending byte; coeffs
  * (config) are restored by create(). */
 size_t
-hbdecim_q15_state_bytes (const hbdecim_q15_state_t *s)
+dp_hbdecim_q15_state_bytes (const dp_hbdecim_q15_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t) + sizeof (uint32_t)
          + 2 * sizeof (int16_t) + 4 * 2 * s->cap * sizeof (int16_t);
 }
 
 void
-hbdecim_q15_get_state (const hbdecim_q15_state_t *s, void *blob)
+dp_hbdecim_q15_get_state (const dp_hbdecim_q15_state_t *s, void *blob)
 {
   DP_GET_OPEN (HBDECIM_Q15_STATE_MAGIC, HBDECIM_Q15_STATE_VERSION,
-               hbdecim_q15_state_bytes (s));
+               dp_hbdecim_q15_state_bytes (s));
   dp_w_u64 (&_w, s->even_head);
   dp_w_u64 (&_w, s->odd_head);
   dp_w_u32 (&_w, (uint32_t)s->has_pending);
@@ -333,10 +334,10 @@ hbdecim_q15_get_state (const hbdecim_q15_state_t *s, void *blob)
 }
 
 int
-hbdecim_q15_set_state (hbdecim_q15_state_t *s, const void *blob)
+dp_hbdecim_q15_set_state (dp_hbdecim_q15_state_t *s, const void *blob)
 {
   DP_SET_OPEN (HBDECIM_Q15_STATE_MAGIC, HBDECIM_Q15_STATE_VERSION,
-               hbdecim_q15_state_bytes (s));
+               dp_hbdecim_q15_state_bytes (s));
   s->even_head   = (size_t)dp_r_u64 (&_r);
   s->odd_head    = (size_t)dp_r_u64 (&_r);
   s->has_pending = (int)dp_r_u32 (&_r);
@@ -355,7 +356,7 @@ hbdecim_q15_set_state (hbdecim_q15_state_t *s, const void *blob)
 /* ================================================================== */
 
 size_t
-hbdecim_q15_execute_max_out (hbdecim_q15_state_t *r)
+dp_hbdecim_q15_execute_max_out (dp_hbdecim_q15_state_t *r)
 {
   (void)r;
   /* Return 0 → Python glue sizes output to n_in (safe for 2:1 decim). */
@@ -363,14 +364,14 @@ hbdecim_q15_execute_max_out (hbdecim_q15_state_t *r)
 }
 
 double
-hbdecim_q15_get_rate (const hbdecim_q15_state_t *r)
+dp_hbdecim_q15_get_rate (const dp_hbdecim_q15_state_t *r)
 {
   (void)r;
   return 0.5;
 }
 
 size_t
-hbdecim_q15_get_num_taps (const hbdecim_q15_state_t *r)
+dp_hbdecim_q15_get_num_taps (const dp_hbdecim_q15_state_t *r)
 {
   return r->num_taps;
 }
@@ -380,8 +381,8 @@ hbdecim_q15_get_num_taps (const hbdecim_q15_state_t *r)
 /* ================================================================== */
 
 size_t
-hbdecim_q15_execute (hbdecim_q15_state_t *r, const int16_t *in, size_t n_in,
-                     int16_t *out, size_t max_out)
+dp_hbdecim_q15_execute (dp_hbdecim_q15_state_t *r, const int16_t *in,
+                        size_t n_in, int16_t *out, size_t max_out)
 {
   if (!n_in || !max_out)
     return 0;

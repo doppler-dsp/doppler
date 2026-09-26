@@ -11,7 +11,7 @@
  * four kinds of preamble, the same way:
  *
  *   one frame of D = 8 repetitions per trial, the grid pinned at D = 8 and
- *   one look (acq_configure_search_raw), the Doppler uniform over the
+ *   one look (dp_acq_configure_search_raw), the Doppler uniform over the
  *   native span +/- fs/(2n), the delay uniform and CONTINUOUS, AWGN from
  *   the shipped awgn at the design C/N0; a trial hits when the frame
  *   reports any detection.
@@ -152,11 +152,11 @@ templates (tmpl_t *out)
 /* The grid every row is measured on: D repetitions, one look. A harness
    that cannot pin it has nothing to measure, so it stops. */
 static void
-pin (acq_state_t *a)
+pin (dp_acq_state_t *a)
 {
-  if (acq_configure_search_raw (a, D, 1) != 0)
+  if (dp_acq_configure_search_raw (a, D, 1) != 0)
     {
-      fprintf (stderr, "acq_configure_search_raw (D=%u, 1) refused\n", D);
+      fprintf (stderr, "dp_acq_configure_search_raw (D=%u, 1) refused\n", D);
       abort ();
     }
 }
@@ -197,7 +197,7 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   /* The control's preamble is the code's samples (bin_to_nrz, held spc),
      the way every burst engine is built now (doppler#1470). */
   float _Complex *cpre = code ? dp_code_preamble (code, 31, spc) : NULL;
-  acq_state_t    *a
+  dp_acq_state_t *a
       = dp_xnn (acq_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
                                   0.0, PFA, 0.9, 0, gm->rate_arg));
   free (cpre);
@@ -208,17 +208,17 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   r.pred  = a->pd_predicted;
   r.depth = a->coherent_bins;
 
-  const size_t    len  = a->coherent_bins * n;
-  float _Complex *x    = dp_xmalloc (len * sizeof *x);
-  float _Complex *per  = dp_xmalloc (n * sizeof *per);
-  float _Complex *nz   = dp_xmalloc (len * sizeof *nz);
-  const double    span = fs / (2.0 * (double)n); /* Hz, as the engine */
-  awgn_state_t   *g    = dp_xnn (awgn_create (
+  const size_t     len  = a->coherent_bins * n;
+  float _Complex  *x    = dp_xmalloc (len * sizeof *x);
+  float _Complex  *per  = dp_xmalloc (n * sizeof *per);
+  float _Complex  *nz   = dp_xmalloc (len * sizeof *nz);
+  const double     span = fs / (2.0 * (double)n); /* Hz, as the engine */
+  dp_awgn_state_t *g    = dp_xnn (dp_awgn_create (
       seed, awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs)), 1.0f)));
-  uint32_t        st   = seed;
-  int             hits = 0;
-  double          derr = 0.0;
-  acq_result_t    h[16];
+  uint32_t         st   = seed;
+  int              hits = 0;
+  double           derr = 0.0;
+  acq_result_t     h[16];
 
   for (int trial = 0; trial < gm->trials; trial++)
     {
@@ -252,11 +252,11 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
                    * (float _Complex)cexp (I * 2.0 * M_PI
                                            * (f * t + 0.5 * gm->ramp * t * t));
           }
-      awgn_generate (g, len, nz, len);
+      dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
-      acq_reset (a);
-      size_t nh = acq_push (a, x, len, h, 16);
+      dp_acq_reset (a);
+      size_t nh = dp_acq_push (a, x, len, h, 16);
       if (nh > 0)
         {
           hits++;
@@ -270,11 +270,11 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   r.se        = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / gm->trials);
   r.delay_err = hits ? derr / hits : NAN;
   r.ok        = r.meas >= r.pred - 2.0 * r.se && r.meas - r.pred <= 0.15;
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   free (nz);
   free (per);
   free (x);
-  acq_destroy (a);
+  dp_acq_destroy (a);
   return r;
 }
 
@@ -290,22 +290,22 @@ cn0_for (const float _Complex *pre, size_t n, double fs, double target)
      the scan alone put the spot check over its CI budget (doppler#1498). */
   int lo = 0, hi = 280;
   {
-    acq_state_t *a = dp_xnn (acq_create_burst (
+    dp_acq_state_t *a = dp_xnn (acq_create_burst (
         pre, n, D, fs, 30.0 + 0.25 * (double)hi, 0.0, PFA, 0.9, 0, 0.0));
     pin (a);
     const double p = a->pd_predicted;
-    acq_destroy (a);
+    dp_acq_destroy (a);
     if (!(p >= target))
       return NAN;
   }
   while (lo < hi)
     {
-      const int    mid = (lo + hi) / 2;
-      acq_state_t *a   = dp_xnn (acq_create_burst (
+      const int       mid = (lo + hi) / 2;
+      dp_acq_state_t *a   = dp_xnn (acq_create_burst (
           pre, n, D, fs, 30.0 + 0.25 * (double)mid, 0.0, PFA, 0.9, 0, 0.0));
       pin (a);
       const double p = a->pd_predicted;
-      acq_destroy (a);
+      dp_acq_destroy (a);
       if (p >= target)
         hi = mid;
       else
@@ -351,21 +351,21 @@ drift_rows (const tmpl_t *zc, int check)
      the step a linear scan finds, in ~8 constructions rather than ~95. */
   int lo = 0, hi = 160; /* steps down from 70 dB-Hz */
   {
-    acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
-                                               70.0 - 0.25 * (double)hi, 0.0,
-                                               PFA, 0.9, 0, 0.0));
-    const int    deep = a->coherent_bins >= 10;
-    acq_destroy (a);
+    dp_acq_state_t *a    = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
+                                                     70.0 - 0.25 * (double)hi,
+                                                     0.0, PFA, 0.9, 0, 0.0));
+    const int       deep = a->coherent_bins >= 10;
+    dp_acq_destroy (a);
     DP_REQUIRE (deep);
   }
   while (lo < hi)
     {
-      const int    mid  = (lo + hi) / 2;
-      acq_state_t *a    = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
+      const int       mid = (lo + hi) / 2;
+      dp_acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
                                                     70.0 - 0.25 * (double)mid,
                                                     0.0, PFA, 0.9, 0, 0.0));
-      const int    deep = a->coherent_bins >= 10;
-      acq_destroy (a);
+      const int       deep = a->coherent_bins >= 10;
+      dp_acq_destroy (a);
       if (deep)
         hi = mid;
       else

@@ -96,7 +96,7 @@ void
 mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
 {
   ratesync_loop_reset (&l->timing);
-  loop_filter_reset (&l->car_lf);
+  dp_loop_filter_reset (&l->car_lf);
   l->freq_ctrl     = 0.0;
   l->car_error     = 0.0;
   l->lock          = 0.0;
@@ -104,7 +104,7 @@ mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
   l->lock_time     = -1;
   l->have_prev_idx = 0;
   l->prev_idx      = 0;
-  lockdet_reset (&l->car_lock);
+  dp_lockdet_reset (&l->car_lock);
 }
 
 double
@@ -240,7 +240,7 @@ mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
          + DP_MRX_U64S * sizeof (uint64_t)
          + 2 * sizeof (uint32_t) /* car_lock cnt/locked */
          + ratesync_loop_state_bytes (&l->timing)
-         + loop_filter_state_bytes (&l->car_lf);
+         + dp_loop_filter_state_bytes (&l->car_lf);
 }
 
 void
@@ -263,7 +263,7 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   char *p = (char *)blob + w.off;
   ratesync_loop_get_state (&l->timing, p);
   p += ratesync_loop_state_bytes (&l->timing);
-  loop_filter_get_state (&l->car_lf, p);
+  dp_loop_filter_get_state (&l->car_lf, p);
 }
 
 int
@@ -294,7 +294,7 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   if (rc != DP_OK)
     return rc;
   p += ratesync_loop_state_bytes (&l->timing);
-  rc = loop_filter_set_state (&l->car_lf, p);
+  rc = dp_loop_filter_set_state (&l->car_lf, p);
   if (rc != DP_OK)
     return rc;
   return DP_OK;
@@ -307,8 +307,8 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
 /* The cascade both front ends own, reached without knowing which one it is.
    Every accessor that only wants the RateConverter goes through here, so the
    tag is read in one place rather than copied into each of them. */
-static RateConverter_state_t *
-mpsk_rx_fe_rc (const mpsk_receiver_state_t *s)
+static dp_RateConverter_state_t *
+mpsk_rx_fe_rc (const dp_mpsk_receiver_state_t *s)
 {
   return s->real ? s->fe.r->rc : s->fe.c->rc;
 }
@@ -319,7 +319,7 @@ mpsk_rx_fe_rc (const mpsk_receiver_state_t *s)
    derivation, every validator and the whole loop setup is shared — which is
    the point of the collapse, because a rule that exists twice is a rule free
    to drift (docs/design/mpsk.md §12.1). */
-static mpsk_receiver_state_t *
+static dp_mpsk_receiver_state_t *
 mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
                      double rrc_beta, int rrc_span, double bn_carrier,
                      double zeta, double bn_timing, double lock_thresh,
@@ -369,7 +369,7 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
       || !(bn_agc_ratio > 0.0) || !(bn_agc_ratio < 1.0))
     return NULL;
 
-  mpsk_receiver_state_t *rx = calloc (1, sizeof (*rx));
+  dp_mpsk_receiver_state_t *rx = calloc (1, sizeof (*rx));
   if (!rx)
     return NULL;
   rx->real = real ? 1 : 0;
@@ -427,12 +427,12 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
   return rx;
 }
 
-mpsk_receiver_state_t *
-mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
-                      double rrc_beta, int rrc_span, double bn_carrier,
-                      double zeta, double bn_timing, double lock_thresh,
-                      double init_norm_freq, int differential,
-                      size_t num_phases, int agc, double bn_agc_ratio)
+dp_mpsk_receiver_state_t *
+dp_mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
+                         double rrc_beta, int rrc_span, double bn_carrier,
+                         double zeta, double bn_timing, double lock_thresh,
+                         double init_norm_freq, int differential,
+                         size_t num_phases, int agc, double bn_agc_ratio)
 {
   return mpsk_rx_create_impl (0, m, sps, m_out, pulse, rrc_beta, rrc_span,
                               bn_carrier, zeta, bn_timing, lock_thresh,
@@ -440,7 +440,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                               bn_agc_ratio);
 }
 
-mpsk_receiver_state_t *
+dp_mpsk_receiver_state_t *
 mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                            double rrc_beta, int rrc_span, double bn_carrier,
                            double zeta, double bn_timing, double lock_thresh,
@@ -454,7 +454,7 @@ mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
 }
 
 double
-mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state)
 {
   return RateConverter_agc_gain_db (mpsk_rx_fe_rc (state));
 }
@@ -470,7 +470,7 @@ mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state)
    undefined or negative, and a carrier outside Nyquist is a mis-stated
    capture rather than a tuning request -- returning NULL for either says so
    at construction instead of at the first strobe that lands nowhere. */
-mpsk_receiver_state_t *
+dp_mpsk_receiver_state_t *
 mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
                            double carrier_freq_hz, int pulse, double rrc_beta,
                            int rrc_span, double bn_carrier, double bn_timing,
@@ -480,7 +480,7 @@ mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
     return NULL;
   if (fabs (carrier_freq_hz) >= 0.5 * sample_rate_hz)
     return NULL;
-  return mpsk_receiver_create (
+  return dp_mpsk_receiver_create (
       2,                                          /* m -- the type says it */
       sample_rate_hz / symbol_rate_hz, 0u,        /* m_out        -> derived */
       pulse, rrc_beta, rrc_span, bn_carrier, 0.0, /* zeta  -> derived */
@@ -490,24 +490,24 @@ mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
 }
 
 void
-mpsk_receiver_destroy (mpsk_receiver_state_t *state)
+dp_mpsk_receiver_destroy (dp_mpsk_receiver_state_t *state)
 {
   if (!state)
     return;
   if (state->real)
-    ddcr_destroy (state->fe.r);
+    dp_ddcr_destroy (state->fe.r);
   else
-    ddc_destroy (state->fe.c);
+    dp_ddc_destroy (state->fe.c);
   free (state);
 }
 
 void
-mpsk_receiver_reset (mpsk_receiver_state_t *state)
+dp_mpsk_receiver_reset (dp_mpsk_receiver_state_t *state)
 {
   if (state->real)
-    ddcr_reset (state->fe.r);
+    dp_ddcr_reset (state->fe.r);
   else
-    ddc_reset (state->fe.c);
+    dp_ddc_reset (state->fe.c);
   mpsk_rx_loops_reset (&state->l);
 }
 
@@ -520,7 +520,7 @@ mpsk_receiver_reset (mpsk_receiver_state_t *state)
  * removes: the previous real-input twin's steps() had already grown its own
  * telemetry hoist, its own capacity guard and its own comment about both. */
 JM_FORCEINLINE static int
-mpsk_rx_step_at (mpsk_receiver_state_t *s, const void *x, size_t i,
+mpsk_rx_step_at (dp_mpsk_receiver_state_t *s, const void *x, size_t i,
                  float _Complex *y, int real)
 {
   return real ? mpsk_receiver_step_real_ted (s, ((const float *)x)[i], y,
@@ -530,8 +530,9 @@ mpsk_rx_step_at (mpsk_receiver_state_t *s, const void *x, size_t i,
 }
 
 JM_FORCEINLINE static size_t
-mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
-                    float _Complex *out, size_t max_out, int real)
+mpsk_rx_steps_impl (dp_mpsk_receiver_state_t *state, const void *x,
+                    size_t x_len, float _Complex *out, size_t max_out,
+                    int real)
 {
   size_t emitted = 0;
   /* Telemetry hoisted to loop entry (attach is setup-time only): the detached
@@ -564,8 +565,8 @@ mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
 }
 
 JM_FORCEINLINE static size_t
-mpsk_rx_bits_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
-                   uint8_t *out, size_t max_out, int real)
+mpsk_rx_bits_impl (dp_mpsk_receiver_state_t *state, const void *x,
+                   size_t x_len, uint8_t *out, size_t max_out, int real)
 {
   size_t emitted = 0;
   /* Guarded in-loop flush (not the steps() split): this loop already makes a
@@ -586,56 +587,58 @@ mpsk_rx_bits_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
 }
 
 size_t
-mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state)
+dp_mpsk_receiver_steps_max_out (dp_mpsk_receiver_state_t *state)
 {
   (void)state;
   return 0; /* sps >= m_out >= 2, so symbols <= inputs */
 }
 
 size_t
-mpsk_receiver_steps (mpsk_receiver_state_t *state, const float _Complex *x,
-                     size_t x_len, float _Complex *out, size_t max_out)
+dp_mpsk_receiver_steps (dp_mpsk_receiver_state_t *state,
+                        const float _Complex *x, size_t x_len,
+                        float _Complex *out, size_t max_out)
 {
   return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 0);
 }
 
 size_t
-mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state)
+mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state)
 {
   (void)state;
   return 0; /* sps > 2*m_out, so symbols <= inputs */
 }
 
 size_t
-mpsk_receiver_steps_real (mpsk_receiver_state_t *state, const float *x,
+mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state, const float *x,
                           size_t x_len, float _Complex *out, size_t max_out)
 {
   return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 1);
 }
 
 size_t
-mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state)
+dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state)
 {
   (void)state;
   return 0; /* one bit per symbol, and symbols <= inputs */
 }
 
 size_t
-mpsk_receiver_bits (mpsk_receiver_state_t *state, const float _Complex *x,
-                    size_t x_len, uint8_t *out, size_t max_out)
+dp_mpsk_receiver_bits (dp_mpsk_receiver_state_t *state,
+                       const float _Complex *x, size_t x_len, uint8_t *out,
+                       size_t max_out)
 {
   return mpsk_rx_bits_impl (state, x, x_len, out, max_out, 0);
 }
 
 size_t
-mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state)
+mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state)
 {
   (void)state;
   return 0; /* one bit per symbol, and symbols <= inputs */
 }
 
 size_t
-mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,
+mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
                          size_t x_len, uint8_t *out, size_t max_out)
 {
   return mpsk_rx_bits_impl (state, x, x_len, out, max_out, 1);
@@ -648,20 +651,20 @@ mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,
  * frequency on this object is quoted in. That factor is the ONLY thing the
  * tag buys here — the estimate itself is the shared loop's. */
 static double
-mpsk_rx_lo_to_input (const mpsk_receiver_state_t *s)
+mpsk_rx_lo_to_input (const dp_mpsk_receiver_state_t *s)
 {
   return s->real ? 0.5 : 1.0;
 }
 
 double
-mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state)
 {
   return state->centre_freq
          + mpsk_rx_lo_to_input (state) * mpsk_rx_freq_est (&state->l);
 }
 
 double
-mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state)
+mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state)
 {
   /* The instantaneous command includes the proportional nudge, and is held in
      the front end's (conjugate) convention — report the receiver's. */
@@ -669,43 +672,43 @@ mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state)
 }
 
 void
-mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val)
+dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val)
 {
   state->centre_freq = val;
   if (state->real)
-    ddcr_set_norm_freq (state->fe.r, -(2.0 * val + 0.5));
+    dp_ddcr_set_norm_freq (state->fe.r, -(2.0 * val + 0.5));
   else
-    ddc_set_norm_freq (state->fe.c, -val);
+    dp_ddc_set_norm_freq (state->fe.c, -val);
   mpsk_rx_set_freq_est (&state->l, 0.0);
 }
 
 double
-mpsk_receiver_get_lock (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_lock (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.lock;
 }
 
 int
-mpsk_receiver_get_locked (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.car_lock.locked;
 }
 
 int64_t
-mpsk_receiver_get_lock_time (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.lock_time;
 }
 
 double
-mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state)
+mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.car_error;
 }
 
 int
-mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
-                             const char *prefix, uint32_t decim)
+dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
+                                const char *prefix, uint32_t decim)
 {
   int rc = mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
   if (rc != DP_OK)
@@ -728,25 +731,25 @@ mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
 }
 
 double
-mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_timing_rate (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.timing.rate_est;
 }
 
 int
-mpsk_receiver_get_m (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_m (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.m;
 }
 
 double
-mpsk_receiver_get_sps (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_sps (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.sps;
 }
 
 size_t
-mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_m_out (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.m_out;
 }
@@ -756,52 +759,53 @@ mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state)
    read back what was chosen can check it. Without these, `0` would be an
    instruction whose result nobody can see. */
 double
-mpsk_receiver_get_zeta (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_zeta (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.zeta;
 }
 
 double
-mpsk_receiver_get_bn_agc_ratio (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_bn_agc_ratio (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.bn_agc_ratio;
 }
 
 double
-mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_lock_thresh (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.car_lock.up_thresh;
 }
 
 double
-mpsk_receiver_get_lock_drop_thresh (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_lock_drop_thresh (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.car_lock.down_thresh;
 }
 
 double
-mpsk_receiver_get_sync_lock_thresh (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_sync_lock_thresh (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.timing.lock.up_thresh;
 }
 
 double
-mpsk_receiver_get_sync_lock_drop_thresh (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_sync_lock_drop_thresh (
+    const dp_mpsk_receiver_state_t *state)
 {
   return state->l.timing.lock.down_thresh;
 }
 
 size_t
-mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_num_phases (const dp_mpsk_receiver_state_t *state)
 {
   return mpsk_rx_fe_rc (state)->num_phases;
 }
 
 int
-mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_clipped (const dp_mpsk_receiver_state_t *state)
 {
-  return (state->real ? ddcr_get_clipped (state->fe.r)
-                      : ddc_get_clipped (state->fe.c))
+  return (state->real ? dp_ddcr_get_clipped (state->fe.r)
+                      : dp_ddc_get_clipped (state->fe.c))
              ? 1
              : 0;
 }
@@ -816,55 +820,57 @@ mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state)
  * name here rather than reinterpreted or caught three levels down. */
 
 static size_t
-mpsk_rx_fe_state_bytes (const mpsk_receiver_state_t *s)
+mpsk_rx_fe_state_bytes (const dp_mpsk_receiver_state_t *s)
 {
-  return s->real ? ddcr_state_bytes (s->fe.r) : ddc_state_bytes (s->fe.c);
+  return s->real ? dp_ddcr_state_bytes (s->fe.r)
+                 : dp_ddc_state_bytes (s->fe.c);
 }
 
 static uint32_t
-mpsk_rx_state_magic (const mpsk_receiver_state_t *s)
+mpsk_rx_state_magic (const dp_mpsk_receiver_state_t *s)
 {
   return s->real ? MPSK_RECEIVER_R_STATE_MAGIC : MPSK_RECEIVER_STATE_MAGIC;
 }
 
 static uint16_t
-mpsk_rx_state_version (const mpsk_receiver_state_t *s)
+mpsk_rx_state_version (const dp_mpsk_receiver_state_t *s)
 {
   return s->real ? MPSK_RECEIVER_R_STATE_VERSION : MPSK_RECEIVER_STATE_VERSION;
 }
 
 size_t
-mpsk_receiver_state_bytes (const mpsk_receiver_state_t *s)
+dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + mpsk_rx_fe_state_bytes (s)
          + mpsk_rx_loops_state_bytes (&s->l);
 }
 
 void
-mpsk_receiver_get_state (const mpsk_receiver_state_t *s, void *blob)
+dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *s, void *blob)
 {
-  const size_t total = mpsk_receiver_state_bytes (s);
+  const size_t total = dp_mpsk_receiver_state_bytes (s);
   dp_writer_t  w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, mpsk_rx_state_magic (s), mpsk_rx_state_version (s), total);
   char *p = (char *)blob + w.off;
   if (s->real)
-    ddcr_get_state (s->fe.r, p);
+    dp_ddcr_get_state (s->fe.r, p);
   else
-    ddc_get_state (s->fe.c, p);
+    dp_ddc_get_state (s->fe.c, p);
   p += mpsk_rx_fe_state_bytes (s);
   mpsk_rx_loops_get_state (&s->l, p);
 }
 
 int
-mpsk_receiver_set_state (mpsk_receiver_state_t *s, const void *blob)
+dp_mpsk_receiver_set_state (dp_mpsk_receiver_state_t *s, const void *blob)
 {
-  const size_t total = mpsk_receiver_state_bytes (s);
+  const size_t total = dp_mpsk_receiver_state_bytes (s);
   int          rc    = dp_state_validate (blob, total, mpsk_rx_state_magic (s),
                                           mpsk_rx_state_version (s));
   if (rc != DP_OK)
     return rc;
   const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
-  rc = s->real ? ddcr_set_state (s->fe.r, p) : ddc_set_state (s->fe.c, p);
+  rc            = s->real ? dp_ddcr_set_state (s->fe.r, p)
+                          : dp_ddc_set_state (s->fe.c, p);
   if (rc != DP_OK)
     return rc;
   p += mpsk_rx_fe_state_bytes (s);

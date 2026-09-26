@@ -7,7 +7,7 @@
  * file-type, SigMF, writes its samples as `raw` (into `<base>.sigmf-data`) and
  * pairs with a sidecar `<base>.sigmf-meta` JSON from wfm_sigmf_meta_json().
  *
- * A writer opened by PATH (wfm_writer_create) emits that sidecar itself, at
+ * A writer opened by PATH (dp_wfm_writer_create) emits that sidecar itself, at
  * close, so `sigmf` produces a readable pair with no further work — and for
  * that reason it REQUIRES a path ending in `.sigmf-data`, since both halves
  * of a SigMF capture are found by name. A writer opened on a FILE*
@@ -35,9 +35,9 @@
  * // ..., fs, fc, total, t0 — 0.0 for t0 means "no capture time known",
  * // which leaves the BLUE timecode field unset rather than dating the
  * // capture to 1970.
- * wfm_writer_state_t *w =
+ * dp_wfm_writer_state_t *w =
  *     wfm_writer_open(fp, WFM_FT_BLUE, 3, 0, 1e6, 2.4e9, 4096, 0.0);
- * wfm_writer_write(w, iq, 4096);
+ * dp_wfm_writer_write(w, iq, 4096);
  * wfm_writer_close(w);   // patches the BLUE data_size from the actual count
  * @endcode
  */
@@ -63,7 +63,7 @@ typedef enum {
 } wfm_filetype_t;
 
 /** Opaque writer. */
-typedef struct wfm_writer_state wfm_writer_state_t;
+typedef struct wfm_writer_state dp_wfm_writer_state_t;
 
 
 /**
@@ -76,7 +76,7 @@ typedef struct wfm_writer_state wfm_writer_state_t;
  *                      "not known", which writes xdelta 0 and omits SigMF's
  *                      core:sample_rate rather than claiming a rate.
  * @param fc            centre frequency (Hz). BLUE records it as a `FREQ`
- *                      keyword — see wfm_writer_create; raw and CSV have
+ *                      keyword — see dp_wfm_writer_create; raw and CSV have
  *                      nowhere to put it and drop it.
  * @param total_samples expected complex-sample count for the BLUE header
  *                      (0 if unknown; close() patches the actual count when fp
@@ -89,7 +89,7 @@ typedef struct wfm_writer_state wfm_writer_state_t;
  * @return Writer handle, or NULL on bad args / allocation. BLUE writes its
  *         512-byte header here.
  */
-wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
+dp_wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
                              int endian, double fs, double fc,
                              size_t total_samples, double t0_unix_sec);
 
@@ -121,7 +121,7 @@ wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type
  * >>> tmp.cleanup()   # directory and contents removed
  * @endcode
  */
-size_t wfm_writer_write(wfm_writer_state_t *state, const float _Complex *x, size_t x_len);
+size_t dp_wfm_writer_write(dp_wfm_writer_state_t *state, const float _Complex *x, size_t x_len);
 
 /**
  * @brief Attach a BLUE extended-header keyword (a tag/value pair).
@@ -155,7 +155,7 @@ size_t wfm_writer_write(wfm_writer_state_t *state, const float _Complex *x, size
  * wfm_writer_close(w);   // keywords land after the data, HCB patched
  * @endcode
  */
-int wfm_writer_add_keyword(wfm_writer_state_t *w, const char *tag, char type,
+int wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
                           const void *value, size_t count);
 
 /**
@@ -164,7 +164,7 @@ int wfm_writer_add_keyword(wfm_writer_state_t *w, const char *tag, char type,
  *        (does not close the FILE*).
  * @return 0 on success, non-zero on a write/seek error.
  */
-int wfm_writer_close(wfm_writer_state_t *w);
+int wfm_writer_close(dp_wfm_writer_state_t *w);
 
 /**
  * @brief Finalise and free — the object binding's fallible destructor.
@@ -176,7 +176,7 @@ int wfm_writer_close(wfm_writer_state_t *w);
  *
  * @return 0 on success, non-zero on a write/seek error during finalisation.
  */
-int wfm_writer_destroy(wfm_writer_state_t *state);
+int dp_wfm_writer_destroy(dp_wfm_writer_state_t *state);
 
 /* ── clip detection ───────────────────────────────────────────────────────
  * Full-scale is ±1.0 per axis; integer wire types saturate to it. The writer
@@ -184,11 +184,11 @@ int wfm_writer_destroy(wfm_writer_state_t *state);
  * so peak > 1.0 means an integer capture clipped — and the remedy is exactly
  * ceil(20*log10(peak)) dB of headroom. The per-component clipped *fraction* is
  * the one extra per-sample compare, so it is opt-in via
- * wfm_writer_track_clipping(); off, clip_fraction() returns 0. Float types
+ * dp_wfm_writer_track_clipping(); off, clip_fraction() returns 0. Float types
  * (cf32/cf64) never clip but still report a peak. Call after writing. */
 
 /** Enable the per-component clip *counter* (off by default; peak is always on). */
-void wfm_writer_track_clipping(wfm_writer_state_t *state, int on);
+void dp_wfm_writer_track_clipping(dp_wfm_writer_state_t *state, int on);
 
 /* ── headroom ──────────────────────────────────────────────────────────────
  * A common output gain applied to every sample just before quantisation, so
@@ -200,15 +200,15 @@ void wfm_writer_track_clipping(wfm_writer_state_t *state, int on);
  * values. */
 
 /** Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). */
-void wfm_writer_set_gain(wfm_writer_state_t *w, double gain);
+void wfm_writer_set_gain(dp_wfm_writer_state_t *w, double gain);
 
 /** Largest per-axis magnitude max(|I|,|Q|) written so far (pre-clip, full-scale
  *  1.0). > 1.0 ⇒ integer output clipped; peak_dBFS = 20*log10(peak). */
-double wfm_writer_peak(const wfm_writer_state_t *w);
+double wfm_writer_peak(const dp_wfm_writer_state_t *w);
 
 /** Fraction (0..1) of I/Q components that saturated (|v| > 1). Always 0 unless
- *  wfm_writer_track_clipping() was enabled. */
-double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
+ *  dp_wfm_writer_track_clipping() was enabled. */
+double wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
 
 /**
  * @brief Open a capture for writing.
@@ -311,7 +311,7 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
  * >>> tmp.cleanup()
  * @endcode
  */
-wfm_writer_state_t *wfm_writer_create(const char *path, double fs, int file_type, int sample_type, int endian, double fc, size_t total, double headroom, double t0, bool sidecar);
+dp_wfm_writer_state_t *dp_wfm_writer_create(const char *path, double fs, int file_type, int sample_type, int endian, double fc, size_t total, double headroom, double t0, bool sidecar);
 
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
@@ -421,10 +421,10 @@ char *wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
    reset() binding and no call site. A writer has nothing coherent to reset --
    the samples are on disk and the written count drives the BLUE data_size patch
    -- so the method is absent rather than a no-op or a raise. */
-double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
-double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
-bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
-int write_blue_header(const char *path, double fs, int sample_type, int endian, double fc, double data_start, size_t total, int detached, double t0);
+double dp_wfm_writer_get_clip_fraction(const dp_wfm_writer_state_t *state);
+double dp_wfm_writer_get_peak_dbfs(const dp_wfm_writer_state_t *state);
+bool dp_wfm_writer_get_clipped(const dp_wfm_writer_state_t *state);
+int dp_write_blue_header(const char *path, double fs, int sample_type, int endian, double fc, double data_start, size_t total, int detached, double t0);
 /**
  * @brief Make written samples durable and observable, without finishing.
  *
@@ -448,7 +448,7 @@ int write_blue_header(const char *path, double fs, int sample_type, int endian, 
  * >>> tmp.cleanup()
  * @endcode
  */
-int wfm_writer_flush(wfm_writer_state_t *state);
+int dp_wfm_writer_flush(dp_wfm_writer_state_t *state);
 #ifdef __cplusplus
 }
 #endif

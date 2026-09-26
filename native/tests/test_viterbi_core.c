@@ -56,21 +56,22 @@ main (void)
 {
   /* ── 1. the declared constructor, and what it refuses ──────────────────*/
   {
-    DP_CHECK_MSG (viterbi_create (NULL, 0, 7u, 0u, 35u) == NULL,
+    DP_CHECK_MSG (dp_viterbi_create (NULL, 0, 7u, 0u, 35u) == NULL,
                   "a NULL polynomial array is not a code");
-    DP_CHECK_MSG (viterbi_create (POLY, 0, 7u, 0u, 35u) == NULL,
+    DP_CHECK_MSG (dp_viterbi_create (POLY, 0, 7u, 0u, 35u) == NULL,
                   "zero polynomials is not a code");
-    DP_CHECK_MSG (viterbi_create (POLY, CONV_N_MAX + 1u, 7u, 0u, 35u) == NULL,
+    DP_CHECK_MSG (dp_viterbi_create (POLY, CONV_N_MAX + 1u, 7u, 0u, 35u)
+                      == NULL,
                   "more polynomials than the code family admits");
 
-    viterbi_state_t *v = viterbi_create (POLY, 2, 7u, 0u, 35u);
+    dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 35u);
     DP_REQUIRE_MSG (v != NULL, "the CCSDS inner code is constructible");
     DP_CHECK (viterbi_depth (v) == 35u);
     DP_CHECK_MSG (viterbi_code (v)->k == 7u, "k survives the constructor");
     DP_CHECK_MSG (viterbi_code (v)->n == 2u, "n comes from the array length");
     DP_CHECK (viterbi_code (v)->poly[0] == POLY[0]);
     DP_CHECK (viterbi_code (v)->poly[1] == POLY[1]);
-    viterbi_destroy (v);
+    dp_viterbi_destroy (v);
   }
 
   /* ── 2. the declared constructor agrees with the struct one ────────────
@@ -81,18 +82,18 @@ main (void)
    * callers, which is the kind of divergence nobody would look for.
    */
   {
-    const conv_code_t c = { 7u, 2u, { 0171u, 0133u }, 0u };
-    viterbi_state_t  *a = viterbi_create (POLY, 2, 7u, 0u, 60u);
-    viterbi_state_t  *b = viterbi_create_code (&c, 60u);
+    const conv_code_t   c = { 7u, 2u, { 0171u, 0133u }, 0u };
+    dp_viterbi_state_t *a = dp_viterbi_create (POLY, 2, 7u, 0u, 60u);
+    dp_viterbi_state_t *b = viterbi_create_code (&c, 60u);
     DP_REQUIRE (a != NULL && b != NULL);
     DP_CHECK (viterbi_depth (a) == viterbi_depth (b));
     DP_CHECK (viterbi_code (a)->k == viterbi_code (b)->k);
     DP_CHECK (viterbi_code (a)->n == viterbi_code (b)->n);
     DP_CHECK (viterbi_code (a)->poly[0] == viterbi_code (b)->poly[0]);
     DP_CHECK (viterbi_code (a)->poly[1] == viterbi_code (b)->poly[1]);
-    DP_CHECK (viterbi_state_bytes (a) == viterbi_state_bytes (b));
-    viterbi_destroy (a);
-    viterbi_destroy (b);
+    DP_CHECK (dp_viterbi_state_bytes (a) == dp_viterbi_state_bytes (b));
+    dp_viterbi_destroy (a);
+    dp_viterbi_destroy (b);
   }
 
   /* ── 3. noiseless round trip, through the DECLARED constructor ─────────
@@ -118,18 +119,18 @@ main (void)
     for (size_t i = 0; i < ns; i++)
       llr[i] = sym[i] ? -8.0f : 8.0f;
 
-    viterbi_state_t *v = viterbi_create (POLY, 2, 7u, 0u, 60u);
+    dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 60u);
     DP_REQUIRE (v != NULL);
-    const size_t cap = viterbi_decode_max_out (v, ns);
+    const size_t cap = dp_viterbi_decode_max_out (v, ns);
     DP_REQUIRE (cap <= sizeof dec);
-    const size_t nb = viterbi_decode (v, llr, ns, dec, cap);
+    const size_t nb = dp_viterbi_decode (v, llr, ns, dec, cap);
     DP_REQUIRE_MSG (nb > 0, "the decoder emitted nothing");
 
     size_t errs = 0;
     for (size_t i = 0; i < nb; i++)
       errs += (dec[i] != in[i]);
     DP_CHECK_MSG (errs == 0, "a noiseless round trip is bit-for-bit");
-    viterbi_destroy (v);
+    dp_viterbi_destroy (v);
   }
 
   /* ── 4. the decoder returns what was encoded, for EVERY code tried ─────
@@ -172,13 +173,13 @@ main (void)
         DP_REQUIRE (ns == (size_t)N * c->n);
         to_llr (sym, ns, llr, 8.0f);
 
-        viterbi_state_t *v = viterbi_create_code (c, depth);
+        dp_viterbi_state_t *v = viterbi_create_code (c, depth);
         DP_REQUIRE (v != NULL);
         DP_CHECK (viterbi_depth (v) == depth);
         DP_CHECK (viterbi_code (v)->k == c->k);
 
-        const size_t want = viterbi_decode_max_out (v, ns);
-        const size_t got  = viterbi_decode (v, llr, ns, dec, sizeof dec);
+        const size_t want = dp_viterbi_decode_max_out (v, ns);
+        const size_t got  = dp_viterbi_decode (v, llr, ns, dec, sizeof dec);
         DP_CHECK_MSG (got == want,
                       "decode must emit exactly what max_out predicted");
 
@@ -191,7 +192,7 @@ main (void)
         DP_CHECK_MSG (bad == 0, "noiseless decode must be exact, every code");
         DP_CHECK_MSG (got + depth - 1u == (size_t)N,
                       "and the only bits owed are the traceback's");
-        viterbi_destroy (v);
+        dp_viterbi_destroy (v);
       }
   }
 
@@ -226,20 +227,20 @@ main (void)
         l2[i]             = 137.0f * l1[i];
       }
 
-    viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
+    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
-    const size_t g1 = viterbi_decode (v, l1, 2u * N, d1, sizeof d1);
-    viterbi_reset (v);
-    const size_t g2 = viterbi_decode (v, l2, 2u * N, d2, sizeof d2);
+    const size_t g1 = dp_viterbi_decode (v, l1, 2u * N, d1, sizeof d1);
+    dp_viterbi_reset (v);
+    const size_t g2 = dp_viterbi_decode (v, l2, 2u * N, d2, sizeof d2);
     DP_CHECK (g1 == g2);
     DP_CHECK_MSG (memcmp (d1, d2, g1) == 0,
                   "scaling every LLR cannot move the maximum-likelihood path");
-    viterbi_destroy (v);
+    dp_viterbi_destroy (v);
   }
 
   /* ── 5b. the LLR sign convention, against something outside this file ──
    *
-   * `viterbi_decode`'s header fixes the convention — "positive means symbol
+   * `dp_viterbi_decode`'s header fixes the convention — "positive means symbol
    * 0" — and claims the decoder "agrees with `mpsk_demap` on hard decisions
    * by construction". Nothing here could see that: every section above feeds
    * LLRs through this file's own `to_llr`, which shares the convention, so a
@@ -278,17 +279,17 @@ main (void)
           llr[i] = 0.25f;
       }
 
-    viterbi_state_t *v = viterbi_create_code (&ident, DEPTH);
+    dp_viterbi_state_t *v = viterbi_create_code (&ident, DEPTH);
     DP_REQUIRE (v != NULL);
-    const size_t got = viterbi_decode (v, llr, N, dec, sizeof dec);
-    viterbi_destroy (v);
+    const size_t got = dp_viterbi_decode (v, llr, N, dec, sizeof dec);
+    dp_viterbi_destroy (v);
 
     /* The latency, against a LITERAL rather than against the sizing
-       function. §4 already pins `viterbi_decode == viterbi_decode_max_out`,
-       so the two agree with each other by construction and neither could
-       see that the header's prose said `depth` where the traceback walks
-       `depth - 1` — measured here as 493 bits from 500 symbols at depth 8,
-       and the prose is what moved. */
+       function. §4 already pins `dp_viterbi_decode ==
+       dp_viterbi_decode_max_out`, so the two agree with each other by
+       construction and neither could see that the header's prose said `depth`
+       where the traceback walks `depth - 1` — measured here as 493 bits from
+       500 symbols at depth 8, and the prose is what moved. */
     DP_CHECK_MSG (got == (size_t)N - (DEPTH - 1),
                   "a decision needs depth-1 branches behind it, and the "
                   "header says so");
@@ -341,16 +342,16 @@ main (void)
       }
     DP_REQUIRE (flipped > 15);
 
-    viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
+    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
-    const size_t got = viterbi_decode (v, llr, 2u * N, dec, sizeof dec);
+    const size_t got = dp_viterbi_decode (v, llr, 2u * N, dec, sizeof dec);
     int          bad = 0;
     for (size_t i = 0; i < got; i++)
       if (dec[i] != in[i])
         bad++;
     DP_CHECK_MSG (bad == 0,
                   "isolated channel errors must be CORRECTED, not carried");
-    viterbi_destroy (v);
+    dp_viterbi_destroy (v);
   }
 
   /* ── 6b. node synchronization: the re-encoding metric ──────────────────
@@ -401,7 +402,7 @@ main (void)
         const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
         to_llr (sym, ns, llr, 4.0f);
 
-        viterbi_state_t *v = viterbi_create_code (c, 60u);
+        dp_viterbi_state_t *v = viterbi_create_code (c, 60u);
         DP_REQUIRE (v != NULL);
 
         /* On a clean stream the aligned score is the channel's error count,
@@ -457,7 +458,7 @@ main (void)
         for (size_t i = 0; i < ns; i++)
           llr[i] = -llr[i];
 
-        viterbi_destroy (v);
+        dp_viterbi_destroy (v);
       }
   }
 
@@ -496,10 +497,10 @@ main (void)
         put++;
       }
 
-    viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
+    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
     const size_t got = node_sync_score (v, llr, 2u * N);
-    viterbi_destroy (v);
+    dp_viterbi_destroy (v);
 
     DP_CHECK_MSG (got * 5u >= put * 4u && got * 4u <= put * 5u,
                   "the aligned count must track the channel's symbol errors");
@@ -613,20 +614,20 @@ main (void)
     DP_CHECK (viterbi_create_code (&bad, 60u) == NULL);
     DP_CHECK_MSG (viterbi_create_code (&CCSDS, 0u) == NULL,
                   "depth 0 is not a decoder");
-    viterbi_destroy (NULL); /* a no-op, not a crash */
+    dp_viterbi_destroy (NULL); /* a no-op, not a crash */
 
-    viterbi_state_t *v = viterbi_create_code (&CCSDS, 4u);
+    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 4u);
     DP_REQUIRE (v != NULL);
     for (size_t i = 0; i < 16; i++)
       llr[i] = 1.0f;
     memset (out, 0xAA, sizeof out);
-    DP_CHECK_MSG (viterbi_decode (v, llr, 15u, out, sizeof out) == 0,
+    DP_CHECK_MSG (dp_viterbi_decode (v, llr, 15u, out, sizeof out) == 0,
                   "a symbol count that is not a multiple of n must refuse");
-    DP_CHECK_MSG (viterbi_decode (v, llr, 16u, out, 1u) == 0,
+    DP_CHECK_MSG (dp_viterbi_decode (v, llr, 16u, out, 1u) == 0,
                   "a short output buffer must refuse");
     for (size_t i = 0; i < sizeof out; i++)
       DP_CHECK (out[i] == 0xAAu);
-    viterbi_destroy (v);
+    dp_viterbi_destroy (v);
   }
 
   /* ── 8. the state bytes interface: resume is bit-exact ─────────────────
@@ -658,54 +659,55 @@ main (void)
     conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
     to_llr (sym, 2u * N, llr, 3.0f);
 
-    viterbi_state_t *a = viterbi_create_code (&CCSDS, DEPTH);
+    dp_viterbi_state_t *a = viterbi_create_code (&CCSDS, DEPTH);
     DP_REQUIRE (a != NULL);
-    const size_t n_ref = viterbi_decode (a, llr, 2u * N, ref, sizeof ref);
+    const size_t n_ref = dp_viterbi_decode (a, llr, 2u * N, ref, sizeof ref);
     DP_REQUIRE (n_ref == (size_t)N - (DEPTH - 1u));
 
     /* In SYMBOLS: 200 steps (steady state) and 20 steps (fill < depth). */
     const size_t cuts[] = { 400u, 40u };
     for (size_t ci = 0; ci < sizeof cuts / sizeof *cuts; ci++)
       {
-        const size_t     cut = cuts[ci];
-        viterbi_state_t *b   = viterbi_create_code (&CCSDS, DEPTH);
+        const size_t        cut = cuts[ci];
+        dp_viterbi_state_t *b   = viterbi_create_code (&CCSDS, DEPTH);
         DP_REQUIRE (b != NULL);
-        const size_t n1 = viterbi_decode (b, llr, cut, got, sizeof got);
+        const size_t n1 = dp_viterbi_decode (b, llr, cut, got, sizeof got);
 
-        void *blob = malloc (viterbi_state_bytes (b));
+        void *blob = malloc (dp_viterbi_state_bytes (b));
         DP_REQUIRE (blob != NULL);
-        viterbi_get_state (b, blob);
-        viterbi_destroy (b); /* the sender is GONE: only the blob carries it */
+        dp_viterbi_get_state (b, blob);
+        dp_viterbi_destroy (
+            b); /* the sender is GONE: only the blob carries it */
 
-        viterbi_state_t *c = viterbi_create_code (&CCSDS, DEPTH);
+        dp_viterbi_state_t *c = viterbi_create_code (&CCSDS, DEPTH);
         DP_REQUIRE (c != NULL);
-        DP_CHECK (viterbi_set_state (c, blob) == DP_OK);
+        DP_CHECK (dp_viterbi_set_state (c, blob) == DP_OK);
 
-        const size_t owed = viterbi_decode_max_out (c, 2u * N - cut);
-        const size_t n2 = viterbi_decode (c, llr + cut, 2u * N - cut, got + n1,
-                                          sizeof got - n1);
+        const size_t owed = dp_viterbi_decode_max_out (c, 2u * N - cut);
+        const size_t n2   = dp_viterbi_decode (c, llr + cut, 2u * N - cut,
+                                               got + n1, sizeof got - n1);
         DP_CHECK_MSG (n2 == owed,
                       "a resumed decoder must owe exactly what its fill says");
         DP_CHECK_MSG (n1 + n2 == n_ref,
                       "a split stream must emit as many bits as one decode");
         DP_CHECK_MSG (memcmp (got, ref, n_ref) == 0,
                       "resume from a blob must be bit-exact");
-        viterbi_destroy (c);
+        dp_viterbi_destroy (c);
         free (blob);
       }
 
     /* The shared round-trip: fidelity (b re-serializes to a's bytes) plus
        the envelope reject. */
-    viterbi_state_t *r2 = viterbi_create_code (&CCSDS, DEPTH);
+    dp_viterbi_state_t *r2 = viterbi_create_code (&CCSDS, DEPTH);
     DP_REQUIRE (r2 != NULL);
-    DP_STATE_ROUNDTRIP_TEST (viterbi, a, r2);
+    DP_STATE_ROUNDTRIP_TEST (dp_viterbi, a, r2);
 
     /* Config identity, which the envelope's SIZE check cannot supply. Each
        of these decoders is built for a different code, and the first two
        produce a blob of exactly the same length as a's. */
-    void *cb = malloc (viterbi_state_bytes (a));
+    void *cb = malloc (dp_viterbi_state_bytes (a));
     DP_REQUIRE (cb != NULL);
-    viterbi_get_state (a, cb);
+    dp_viterbi_get_state (a, cb);
 
     conv_code_t uninverted = CCSDS;
     uninverted.invert      = 0u;
@@ -726,16 +728,17 @@ main (void)
     };
     for (size_t i = 0; i < sizeof rejects / sizeof *rejects; i++)
       {
-        viterbi_state_t *w
+        dp_viterbi_state_t *w
             = viterbi_create_code (rejects[i].code, rejects[i].depth);
         DP_REQUIRE (w != NULL);
         if (i < 2u)
-          DP_REQUIRE_MSG (viterbi_state_bytes (w) == viterbi_state_bytes (a),
+          DP_REQUIRE_MSG (dp_viterbi_state_bytes (w)
+                              == dp_viterbi_state_bytes (a),
                           "this reject must be the SAME size, or it proves "
                           "only that the envelope checks length");
-        DP_CHECK_MSG (viterbi_set_state (w, cb) == DP_ERR_INVALID,
+        DP_CHECK_MSG (dp_viterbi_set_state (w, cb) == DP_ERR_INVALID,
                       rejects[i].why);
-        viterbi_destroy (w);
+        dp_viterbi_destroy (w);
       }
 
     /* A cursor out of range would be traced back through memory the ring
@@ -758,12 +761,12 @@ main (void)
           = { "head must be inside the ring", "fill must not exceed depth" };
       for (size_t i = 0; i < 2u; i++)
         {
-          void *poison = malloc (viterbi_state_bytes (a));
+          void *poison = malloc (dp_viterbi_state_bytes (a));
           DP_REQUIRE (poison != NULL);
-          memcpy (poison, cb, viterbi_state_bytes (a));
+          memcpy (poison, cb, dp_viterbi_state_bytes (a));
           memcpy ((uint8_t *)poison + base + (i + 1u) * sizeof (uint64_t),
                   &bad_cursor[i], sizeof (uint64_t));
-          DP_CHECK_MSG (viterbi_set_state (r2, poison) == DP_ERR_INVALID,
+          DP_CHECK_MSG (dp_viterbi_set_state (r2, poison) == DP_ERR_INVALID,
                         why[i]);
           free (poison);
         }
@@ -771,11 +774,11 @@ main (void)
 
     /* And the guard is not simply refusing everything: the same blob still
        restores into the decoder it came from. */
-    DP_CHECK (viterbi_set_state (r2, cb) == DP_OK);
+    DP_CHECK (dp_viterbi_set_state (r2, cb) == DP_OK);
 
     free (cb);
-    viterbi_destroy (r2);
-    viterbi_destroy (a);
+    dp_viterbi_destroy (r2);
+    dp_viterbi_destroy (a);
   }
 
   DP_TEST_END ("test_viterbi_core");

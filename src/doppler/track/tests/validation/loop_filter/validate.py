@@ -76,7 +76,7 @@ def _prose(path: Path) -> str:
 
 
 def header_says_control_converges() -> bool:
-    """Does `loop_filter_step`'s doxygen still claim convergence?
+    """Does `dp_loop_filter_step`'s doxygen still claim convergence?
 
     Open-loop on a constant error the control RAMPS without bound; the
     convergence it describes is a closed-loop property. Measured in §2.6.
@@ -85,7 +85,7 @@ def header_says_control_converges() -> bool:
 
 
 def header_says_vectorized() -> bool:
-    """Does `loop_filter_steps`' doxygen still call itself vectorized?"""
+    """Does `dp_loop_filter_steps`' doxygen still call itself vectorized?"""
     return "the vectorized path" in _prose(HEADER)
 
 
@@ -96,12 +96,14 @@ def steps_is_a_scalar_loop() -> bool:
     vectorizing it flips this finding instead of leaving a stale one.
     """
     body = re.sub(r"/\*.*?\*/", "", _text(CORE_C), flags=re.S)
-    m = re.search(r"loop_filter_steps\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S)
-    return bool(m) and "loop_filter_step (state, x[i])" in m.group(1)
+    m = re.search(
+        r"dp_loop_filter_steps\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S
+    )
+    return bool(m) and "dp_loop_filter_step (state, x[i])" in m.group(1)
 
 
 def create_validates_domain() -> bool:
-    """Does `loop_filter_create` reject the declared domain's violations?
+    """Does `dp_loop_filter_create` reject the declared domain's violations?
 
     Enforcement lives at `create()` and deliberately not at `init()`
     (gh-740): `create()` is the untrusted boundary — `LoopFilter(...)`
@@ -116,7 +118,9 @@ def create_validates_domain() -> bool:
     forever and be quietly wrong.
     """
     body = re.sub(r"/\*.*?\*/", "", _text(CORE_C), flags=re.S)
-    m = re.search(r"loop_filter_create\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S)
+    m = re.search(
+        r"dp_loop_filter_create\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S
+    )
     if not m:
         return False
     return "isfinite" in m.group(1) and "return NULL" in m.group(1)
@@ -651,7 +655,7 @@ def review(d: Data) -> None:
     R.find(
         "F4",
         "GAP" if converges else "FIXED",
-        "**`loop_filter_step`'s doxygen says the control 'converges to the "
+        "**`dp_loop_filter_step`'s doxygen says the control 'converges to the "
         "steady-state estimate' on a constant error. Open-loop it ramps** — "
         f"measured at {d.ramp_ratio:.3f}x between updates 200 and 400, a "
         "straight line (§2.6). Convergence is a closed-loop property and "
@@ -666,8 +670,8 @@ def review(d: Data) -> None:
     R.find(
         "F5",
         "GAP" if (vec and scalar) else "FIXED",
-        "**`loop_filter_steps` calls itself 'the vectorized path' and is a "
-        "plain scalar `for` loop** over `loop_filter_step`. Harmless as "
+        "**`dp_loop_filter_steps` calls itself 'the vectorized path' and is a "
+        "plain scalar `for` loop** over `dp_loop_filter_step`. Harmless as "
         "arithmetic — §2.10 shows it matches the scalar path exactly — but "
         "it is a performance claim the code does not make good on, and a "
         "recursive PI loop is not straightforwardly vectorizable anyway. "
@@ -686,7 +690,7 @@ def review(d: Data) -> None:
         "and `t = inf` or any NaN argument yielded NaN gains, which poison "
         "every later update permanently. That was reachable from Python in "
         "one line, because `LoopFilter(...)` passes a caller's arbitrary "
-        "doubles straight through. `loop_filter_create` now rejects "
+        "doubles straight through. `dp_loop_filter_create` now rejects "
         "`bn < 0`, `zeta <= 0`, `t <= 0` and any non-finite argument, and "
         "the binding raises `ValueError` rather than a blanket "
         "`MemoryError` (§2.8). Validating there also makes the arithmetic "

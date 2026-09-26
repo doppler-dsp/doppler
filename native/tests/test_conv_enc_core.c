@@ -33,26 +33,26 @@ main (void)
 {
   /* ── 1. the declared constructor, and what it refuses ──────────────────*/
   {
-    DP_CHECK_MSG (conv_enc_create (NULL, 0, 7u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (NULL, 0, 7u, 0u) == NULL,
                   "a NULL polynomial array is not a code");
-    DP_CHECK_MSG (conv_enc_create (POLY, 0, 7u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 0, 7u, 0u) == NULL,
                   "zero polynomials is not a code");
-    DP_CHECK_MSG (conv_enc_create (POLY, CONV_N_MAX + 1u, 7u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, CONV_N_MAX + 1u, 7u, 0u) == NULL,
                   "more polynomials than the code family admits");
-    DP_CHECK_MSG (conv_enc_create (POLY, 2, 1u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, 1u, 0u) == NULL,
                   "k below the smallest register");
-    DP_CHECK_MSG (conv_enc_create (POLY, 2, CONV_K_MAX + 1u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, CONV_K_MAX + 1u, 0u) == NULL,
                   "k past the largest the family admits");
     {
       const uint32_t zero[2] = { 0171u, 0u };
-      DP_CHECK_MSG (conv_enc_create (zero, 2, 7u, 0u) == NULL,
+      DP_CHECK_MSG (dp_conv_enc_create (zero, 2, 7u, 0u) == NULL,
                     "a zero polynomial is an output carrying nothing");
       const uint32_t wide[2] = { 0171u, 0400u };
-      DP_CHECK_MSG (conv_enc_create (wide, 2, 7u, 0u) == NULL,
+      DP_CHECK_MSG (dp_conv_enc_create (wide, 2, 7u, 0u) == NULL,
                     "a polynomial wider than the register");
     }
 
-    conv_enc_state_t *e = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE_MSG (e != NULL, "the CCSDS inner code is constructible");
     DP_CHECK_MSG (conv_enc_code (e)->k == 7u, "k survives the constructor");
     DP_CHECK_MSG (conv_enc_code (e)->n == 2u, "n comes from the array length");
@@ -60,8 +60,8 @@ main (void)
     DP_CHECK (conv_enc_code (e)->poly[1] == POLY[1]);
     DP_CHECK_MSG (conv_enc_code (e)->invert == 0x2u,
                   "the inversion mask is the caller's, not a default");
-    conv_enc_destroy (e);
-    conv_enc_destroy (NULL); /* a no-op, not a crash */
+    dp_conv_enc_destroy (e);
+    dp_conv_enc_destroy (NULL); /* a no-op, not a crash */
   }
 
   /* ── 2. the object encodes what the kernel encodes ─────────────────────
@@ -87,15 +87,15 @@ main (void)
     DP_REQUIRE (conv_encode (&raw, &c, in, N, want, sizeof want)
                 == (size_t)N * 2u);
 
-    conv_enc_state_t *e = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE (e != NULL);
-    const size_t n = conv_enc_encode (e, in, N, got, sizeof got);
-    DP_CHECK_MSG (n == conv_enc_encode_max_out (e, N),
+    const size_t n = dp_conv_enc_encode (e, in, N, got, sizeof got);
+    DP_CHECK_MSG (n == dp_conv_enc_encode_max_out (e, N),
                   "encode must write exactly what max_out predicted");
     DP_CHECK_MSG (n == (size_t)N * 2u, "and that is n_in * n, with no fill");
     DP_CHECK_MSG (memcmp (want, got, n) == 0,
                   "the object adds nothing to the kernel it calls");
-    conv_enc_destroy (e);
+    dp_conv_enc_destroy (e);
   }
 
   /* ── 3. the register carries, which is the whole reason for the object ─
@@ -116,32 +116,32 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    conv_enc_state_t *a = conv_enc_create (POLY, 2, 7u, 0x2u);
-    conv_enc_state_t *b = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *a = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *b = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE (a != NULL && b != NULL);
 
-    conv_enc_encode (a, in, N, whole, sizeof whole);
-    conv_enc_encode (b, in, CUT, split, 2u * CUT);
-    conv_enc_encode (b, in + CUT, N - CUT, split + 2u * CUT,
-                     sizeof split - 2u * CUT);
+    dp_conv_enc_encode (a, in, N, whole, sizeof whole);
+    dp_conv_enc_encode (b, in, CUT, split, 2u * CUT);
+    dp_conv_enc_encode (b, in + CUT, N - CUT, split + 2u * CUT,
+                        sizeof split - 2u * CUT);
     DP_CHECK_MSG (memcmp (whole, split, 2u * N) == 0,
                   "a chunked encode must equal one call");
 
     /* ...and the check is not vacuous: a RESET encoder at the same cut point
        must differ, or the register was never carrying anything. */
-    conv_enc_state_t *d = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *d = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE (d != NULL);
     uint8_t restarted[N * 2];
-    conv_enc_encode (d, in, CUT, restarted, 2u * CUT);
-    conv_enc_reset (d);
-    conv_enc_encode (d, in + CUT, N - CUT, restarted + 2u * CUT,
-                     sizeof restarted - 2u * CUT);
+    dp_conv_enc_encode (d, in, CUT, restarted, 2u * CUT);
+    dp_conv_enc_reset (d);
+    dp_conv_enc_encode (d, in + CUT, N - CUT, restarted + 2u * CUT,
+                        sizeof restarted - 2u * CUT);
     DP_CHECK_MSG (memcmp (whole, restarted, 2u * N) != 0,
                   "restarting the register MUST change the stream, or this "
                   "test proves nothing");
-    conv_enc_destroy (a);
-    conv_enc_destroy (b);
-    conv_enc_destroy (d);
+    dp_conv_enc_destroy (a);
+    dp_conv_enc_destroy (b);
+    dp_conv_enc_destroy (d);
   }
 
   /* ── 4. reset returns to the state a fresh encoder is in ───────────────*/
@@ -155,30 +155,31 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    conv_enc_state_t *e = conv_enc_create (POLY, 2, 7u, 0u);
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0u);
     DP_REQUIRE (e != NULL);
-    conv_enc_encode (e, in, N, first, sizeof first);
-    conv_enc_encode (e, in, N, again, sizeof again); /* dirty the register */
+    dp_conv_enc_encode (e, in, N, first, sizeof first);
+    dp_conv_enc_encode (e, in, N, again,
+                        sizeof again); /* dirty the register */
     DP_CHECK_MSG (memcmp (first, again, sizeof first) != 0,
                   "the second block must differ, or the register is dead");
-    conv_enc_reset (e);
-    conv_enc_encode (e, in, N, again, sizeof again);
+    dp_conv_enc_reset (e);
+    dp_conv_enc_encode (e, in, N, again, sizeof again);
     DP_CHECK_MSG (memcmp (first, again, sizeof first) == 0,
                   "after a reset the same input must give the same stream");
-    conv_enc_destroy (e);
+    dp_conv_enc_destroy (e);
   }
 
   /* ── 5. the refusals, verified by a poisoned buffer ────────────────────*/
   {
-    uint8_t           in[8] = { 0 }, out[16];
-    conv_enc_state_t *e     = conv_enc_create (POLY, 2, 7u, 0u);
+    uint8_t              in[8] = { 0 }, out[16];
+    dp_conv_enc_state_t *e     = dp_conv_enc_create (POLY, 2, 7u, 0u);
     DP_REQUIRE (e != NULL);
     memset (out, 0xAA, sizeof out);
-    DP_CHECK_MSG (conv_enc_encode (e, in, 8, out, 15) == 0,
+    DP_CHECK_MSG (dp_conv_enc_encode (e, in, 8, out, 15) == 0,
                   "one symbol short of the output must refuse");
     for (size_t i = 0; i < sizeof out; i++)
       DP_CHECK_MSG (out[i] == 0xAAu, "...leaving the buffer untouched");
-    conv_enc_destroy (e);
+    dp_conv_enc_destroy (e);
   }
 
   /* ── 6. the state bytes interface: resume, and refuse a foreign blob ───
@@ -200,33 +201,33 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    conv_enc_state_t *a = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *a = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE (a != NULL);
-    conv_enc_encode (a, in, N, whole, sizeof whole);
+    dp_conv_enc_encode (a, in, N, whole, sizeof whole);
 
-    conv_enc_state_t *b = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *b = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE (b != NULL);
-    conv_enc_encode (b, in, CUT, resumed, 2u * CUT);
+    dp_conv_enc_encode (b, in, CUT, resumed, 2u * CUT);
 
-    void *blob = malloc (conv_enc_state_bytes (b));
+    void *blob = malloc (dp_conv_enc_state_bytes (b));
     DP_REQUIRE (blob != NULL);
-    conv_enc_get_state (b, blob);
+    dp_conv_enc_get_state (b, blob);
 
-    conv_enc_state_t *r = conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *r = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE (r != NULL);
-    DP_CHECK (conv_enc_set_state (r, blob) == DP_OK);
-    conv_enc_encode (r, in + CUT, N - CUT, resumed + 2u * CUT,
-                     sizeof resumed - 2u * CUT);
+    DP_CHECK (dp_conv_enc_set_state (r, blob) == DP_OK);
+    dp_conv_enc_encode (r, in + CUT, N - CUT, resumed + 2u * CUT,
+                        sizeof resumed - 2u * CUT);
     DP_CHECK_MSG (memcmp (whole, resumed, 2u * N) == 0,
                   "a resumed encoder must continue bit-for-bit");
 
     /* The envelope: a clobbered magic is refused rather than reinterpreted. */
     {
-      uint8_t *poison = malloc (conv_enc_state_bytes (b));
+      uint8_t *poison = malloc (dp_conv_enc_state_bytes (b));
       DP_REQUIRE (poison != NULL);
-      memcpy (poison, blob, conv_enc_state_bytes (b));
+      memcpy (poison, blob, dp_conv_enc_state_bytes (b));
       poison[0] ^= 0xFFu;
-      DP_CHECK_MSG (conv_enc_set_state (r, poison) == DP_ERR_INVALID,
+      DP_CHECK_MSG (dp_conv_enc_set_state (r, poison) == DP_ERR_INVALID,
                     "a clobbered envelope must be refused");
       free (poison);
     }
@@ -234,24 +235,24 @@ main (void)
     /* A different code, same k and n, so the blob is the same LENGTH. Only a
        field-by-field comparison can see this one. */
     {
-      const uint32_t    other[2] = { 0133u, 0171u }; /* swapped */
-      conv_enc_state_t *o        = conv_enc_create (other, 2, 7u, 0x2u);
+      const uint32_t       other[2] = { 0133u, 0171u }; /* swapped */
+      dp_conv_enc_state_t *o        = dp_conv_enc_create (other, 2, 7u, 0x2u);
       DP_REQUIRE (o != NULL);
-      DP_CHECK_MSG (conv_enc_state_bytes (o) == conv_enc_state_bytes (r),
+      DP_CHECK_MSG (dp_conv_enc_state_bytes (o) == dp_conv_enc_state_bytes (r),
                     "the two blobs are the same size, so length cannot tell "
                     "them apart");
-      DP_CHECK_MSG (conv_enc_set_state (o, blob) == DP_ERR_INVALID,
+      DP_CHECK_MSG (dp_conv_enc_set_state (o, blob) == DP_ERR_INVALID,
                     "a blob from another code must be refused");
-      conv_enc_destroy (o);
+      dp_conv_enc_destroy (o);
     }
 
     /* ...and the guard is not simply refusing everything. */
-    DP_CHECK (conv_enc_set_state (r, blob) == DP_OK);
+    DP_CHECK (dp_conv_enc_set_state (r, blob) == DP_OK);
 
     free (blob);
-    conv_enc_destroy (a);
-    conv_enc_destroy (b);
-    conv_enc_destroy (r);
+    dp_conv_enc_destroy (a);
+    dp_conv_enc_destroy (b);
+    dp_conv_enc_destroy (r);
   }
 
   DP_TEST_END ("test_conv_enc_core");

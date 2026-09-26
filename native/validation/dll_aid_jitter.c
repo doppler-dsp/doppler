@@ -4,7 +4,7 @@
  *        look-back: closed-loop jitter and pull-in at the continuous
  *        async-DSSS operating point.
  *
- * `dll_set_symbol_period()` (docs/design/async-dsss-receiver.md §3.7) lifts
+ * `dp_dll_set_symbol_period()` (docs/design/async-dsss-receiver.md §3.7) lifts
  * the DLL's max-power window search to the symbol scale. Its first use was
  * the lock detector's looks (§12.4); this harness measures its second: the
  * code discriminator itself runs on the winning window -- six of the 7.24
@@ -100,7 +100,7 @@ typedef struct
 typedef struct
 {
   double   cn0_dbhz;  /* >= 100 renders clean                          */
-  int      aided;     /* dll_set_symbol_period on                       */
+  int      aided;     /* dp_dll_set_symbol_period on                       */
   double   init_chip; /* the DLL's starting code phase, chips           */
   double   ref;       /* converged phase to measure against; NAN = own  */
   uint32_t seed;
@@ -110,25 +110,25 @@ typedef struct
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 /* The emitter: the shipped continuous-DSSS synth, clean (no AWGN child),
    PRBS data from its own PN register, seeded per trial. */
-static wfm_synth_state_t *
+static dp_wfm_synth_state_t *
 make_emitter (const uint8_t *code, uint32_t seed)
 {
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                          seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                             seed, (int)SPC, 15, 0, 0, 0.0);
   if (syn
       && wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
                                   WFM_DSSS_DATA_PRBS, NULL, 0)
              != 0)
     {
-      wfm_synth_destroy (syn);
+      dp_wfm_synth_destroy (syn);
       syn = NULL;
     }
   return syn;
@@ -149,21 +149,22 @@ static int
 run (const uint8_t *code, const cfg_t *c, run_t *out)
 {
   memset (out, 0, sizeof *out);
-  out->pull_ep           = -1;
-  wfm_synth_state_t *syn = make_emitter (code, c->seed);
+  out->pull_ep              = -1;
+  dp_wfm_synth_state_t *syn = make_emitter (code, c->seed);
   /* C/N0 to SNR over fs is the one conversion; the amplitude is the
      library's answer to "per rail or total", not a sigma derived here. */
-  awgn_state_t *g
+  dp_awgn_state_t *g
       = c->cn0_dbhz < WFM_SYNTH_SNR_CLEAN
-            ? awgn_create (c->seed * 7919u + 1u,
-                           awgn_amplitude_for_snr (
-                               (float)(c->cn0_dbhz - 10.0 * log10 (FS)), 1.0f))
+            ? dp_awgn_create (
+                  c->seed * 7919u + 1u,
+                  awgn_amplitude_for_snr (
+                      (float)(c->cn0_dbhz - 10.0 * log10 (FS)), 1.0f))
             : NULL;
-  dll_state_t *d
-      = dll_create (code, SF, SPC, c->init_chip, BN, 0.707, 0.5, SEGMENTS);
+  dp_dll_state_t *d
+      = dp_dll_create (code, SF, SPC, c->init_chip, BN, 0.707, 0.5, SEGMENTS);
   if (!syn || !d || (c->cn0_dbhz < WFM_SYNTH_SNR_CLEAN && !g))
     return 1;
-  if (c->aided && dll_set_symbol_period (d, P_SYM) != DP_OK)
+  if (c->aided && dp_dll_set_symbol_period (d, P_SYM) != DP_OK)
     return 1;
   float complex *blk = malloc (TE * sizeof *blk);
   float complex *nz  = malloc (TE * sizeof *nz);
@@ -176,18 +177,19 @@ run (const uint8_t *code, const cfg_t *c, run_t *out)
   uint64_t   fed   = 0; /* samples the DLL has consumed */
   for (long b = 0; b < total; b++)
     {
-      wfm_synth_steps (syn, blk, TE);
+      dp_wfm_synth_steps (syn, blk, TE);
       if (g)
         {
-          awgn_generate (g, TE, nz, TE);
+          dp_awgn_generate (g, TE, nz, TE);
           for (size_t i = 0; i < TE; i++)
             blk[i] += nz[i];
         }
-      (void)dll_steps (d, blk, TE, prt, TE);
+      (void)dp_dll_steps (d, blk, TE, prt, TE);
       fed += TE;
       /* The truth the generator implies at this sample count: samples fed
          over samples per chip. */
-      err[b] = wrap_chips (dll_get_code_phase (d) - (double)fed / (double)SPC);
+      err[b]
+          = wrap_chips (dp_dll_get_code_phase (d) - (double)fed / (double)SPC);
     }
   /* Statistics over the measured tail. */
   double m = 0.0, m2 = 0.0;
@@ -212,7 +214,7 @@ run (const uint8_t *code, const cfg_t *c, run_t *out)
   out->mean   = wrap_chips (m);
   out->sigma  = sqrt (m2 / (double)c->meas_ep);
   out->p_lost = (double)lost / (double)c->meas_ep;
-  out->rate   = dll_get_code_rate (d);
+  out->rate   = dp_dll_get_code_rate (d);
   /* Pull-in: the first epoch after the last one outside PULL_TOL. */
   long last_out = -1;
   for (long b = 0; b < total; b++)
@@ -224,9 +226,9 @@ run (const uint8_t *code, const cfg_t *c, run_t *out)
   free (prt);
   free (nz);
   free (blk);
-  dll_destroy (d);
-  awgn_destroy (g);
-  wfm_synth_destroy (syn);
+  dp_dll_destroy (d);
+  dp_awgn_destroy (g);
+  dp_wfm_synth_destroy (syn);
   return 0;
 }
 

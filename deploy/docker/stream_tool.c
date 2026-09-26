@@ -49,10 +49,10 @@ env_long (const char *name, long dflt)
 static void
 pn_frame (uint64_t idx, size_t n, uint8_t *chips, float complex *iq)
 {
-  pn_state_t *pn = pn_create (PN_POLY, (uint64_t)(idx % PN_PERIOD) + 1, PN_LEN,
-                              PN_GALOIS);
-  pn_generate (pn, n, chips);
-  pn_destroy (pn);
+  dp_pn_state_t *pn = dp_pn_create (PN_POLY, (uint64_t)(idx % PN_PERIOD) + 1,
+                                    PN_LEN, PN_GALOIS);
+  dp_pn_generate (pn, n, chips);
+  dp_pn_destroy (pn);
   for (size_t j = 0; j < n; j++)
     iq[j] = (float)(2 * chips[j] - 1) + 0.0f * I;
 }
@@ -109,10 +109,10 @@ run_consume (void)
       /* Regenerate the PN for this frame's wire sequence and bit-compare. */
       const float complex *got = (const float complex *)dp_msg_data (m);
       size_t               n   = dp_msg_num_samples (m);
-      pn_state_t          *pn  = pn_create (
+      dp_pn_state_t       *pn  = dp_pn_create (
           PN_POLY, (uint64_t)(h.sequence % PN_PERIOD) + 1, PN_LEN, PN_GALOIS);
-      pn_generate (pn, n, chips);
-      pn_destroy (pn);
+      dp_pn_generate (pn, n, chips);
+      dp_pn_destroy (pn);
       int bad = 0;
       for (size_t j = 0; j < n; j++)
         if (crealf (got[j]) != (float)(2 * chips[j] - 1))

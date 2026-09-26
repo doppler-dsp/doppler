@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef BER_CORE_H
-#define BER_CORE_H
+#ifndef DP_BER_CORE_H
+#define DP_BER_CORE_H
 
 #include "doppler/dp_state.h"
 #include "doppler/dp_complex.h"
@@ -67,23 +67,23 @@ extern "C"
 
   double ber_qfunc (double x);
 
-  double ber_theory_ser (int m, double esn0);
+  double dp_ber_theory_ser (int m, double esn0);
 
-  double ber_theory_ber (int m, double esn0);
+  double dp_ber_theory_ber (int m, double esn0);
 
-  double ber_esn0_db_for_ser (int m, double ser);
+  double dp_ber_esn0_db_for_ser (int m, double ser);
 
-  double ber_evm_scatter_floor_db (int m);
+  double dp_ber_evm_scatter_floor_db (int m);
 
-  size_t ber_settle_syms (double bn_timing, double bn_carrier);
+  size_t dp_ber_settle_syms (double bn_timing, double bn_carrier);
 
-  int ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
+  int dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
                         double min_frac);
 
-  double ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
+  double dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 
-  size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
+  size_t dp_ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
 
   ber_interval_t ber_confidence (size_t errors, size_t symbols, double conf);
 

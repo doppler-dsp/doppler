@@ -5,8 +5,8 @@
  * Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude conversion,
  * and peak finding.  These are pure functions with no persistent state.
  */
-#ifndef SPECTRAL_CORE_H
-#define SPECTRAL_CORE_H
+#ifndef DP_SPECTRAL_CORE_H
+#define DP_SPECTRAL_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -16,7 +16,7 @@ extern "C"
 #endif
 
   /**
-   * @brief One spectral peak returned by find_peaks_f32().
+   * @brief One spectral peak returned by dp_find_peaks_f32().
    *
    * freq_norm is the DC-centred normalised frequency in `[−0.5, +0.5)`.
    * amplitude_db is the parabola-corrected peak value in the same dB units
@@ -46,7 +46,7 @@ extern "C"
    * 1.7143
    * @endcode
    */
-float kaiser_enbw(const float *w, size_t w_len);
+float dp_kaiser_enbw(const float *w, size_t w_len);
 
   /**
    * @brief Kaiser beta achieving a target *window* peak-sidelobe attenuation.
@@ -74,7 +74,7 @@ float kaiser_enbw(const float *w, size_t w_len);
    * 0.0
    * @endcode
    */
-  double kaiser_beta_for_sidelobe(double atten_db);
+  double dp_kaiser_beta_for_sidelobe(double atten_db);
 
   /**
    * @brief Fill @p w with a Kaiser window of shape parameter @p beta.
@@ -95,7 +95,7 @@ float kaiser_enbw(const float *w, size_t w_len);
    * [0.0149, 0.1998, 0.5913, 0.9454, 0.9454, 0.5913, 0.1998, 0.0149]
    * @endcode
    */
-void kaiser_window(float *w, size_t w_len, float beta);
+void dp_kaiser_window(float *w, size_t w_len, float beta);
 
   /**
    * @brief Fill @p w with a Hann (raised-cosine) window.
@@ -114,7 +114,7 @@ void kaiser_window(float *w, size_t w_len, float beta);
    * [0.0, 0.1883, 0.6113, 0.9505, 0.9505, 0.6113, 0.1883, 0.0]
    * @endcode
    */
-void hann_window(float *w, size_t w_len);
+void dp_hann_window(float *w, size_t w_len);
 
   /**
    * @brief Fill @p w with a 4-term Blackman-Harris window.
@@ -138,7 +138,7 @@ void hann_window(float *w, size_t w_len);
    * [0.0001, 0.0334, 0.3328, 0.8894, 0.8894, 0.3328, 0.0334, 0.0001]
    * @endcode
    */
-void blackman_harris_window(float *w, size_t w_len);
+void dp_blackman_harris_window(float *w, size_t w_len);
 
   /**
    * @brief Convert a CF32 complex spectrum to F32 dB magnitudes.
@@ -160,11 +160,11 @@ void blackman_harris_window(float *w, size_t w_len);
    * [0.0, -20.0, -240.0]
    * @endcode
    */
-void magnitude_db_cf32(const float _Complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
+void dp_magnitude_db_cf32(const float _Complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
 
   /**
    * @brief Convert a CF64 complex spectrum to F32 dB magnitudes.
-   * Double-precision variant of magnitude_db_cf32().  Accepts a CF64 input
+   * Double-precision variant of dp_magnitude_db_cf32().  Accepts a CF64 input
    * array and a double @p lin_floor; output is still F32 because downstream
    * display code typically works in single precision.  The formula and
    * @p offset_db semantics are identical.
@@ -182,7 +182,7 @@ void magnitude_db_cf32(const float _Complex *x, size_t x_len, float *out, float 
    * [0.0, 20.0]
    * @endcode
    */
-void magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
+void dp_magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
 
   /**
    * @brief Find up to @p n_peaks local maxima in a DC-centred F32 dB spectrum.
@@ -210,10 +210,10 @@ void magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, doubl
    * [(-0.25, -10.0)]
    * @endcode
    */
-size_t find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
+size_t dp_find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
 
-double obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
-double noise_floor_db(const float *db, size_t db_len);
+double dp_obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
+double dp_noise_floor_db(const float *db, size_t db_len);
 #ifdef __cplusplus
 }
 #endif

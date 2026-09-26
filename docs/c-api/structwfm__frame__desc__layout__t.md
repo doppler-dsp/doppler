@@ -38,7 +38,7 @@ _Where every field and every stage landed._
 | ---: | :--- |
 |  size\_t | [**field\_bits**](#variable-field_bits)  <br> |
 |  size\_t | [**field\_off**](#variable-field_off)  <br> |
-|  size\_t | [**frame\_bits**](#variable-frame_bits)  <br> |
+|  size\_t | [**frame\_nbits**](#variable-frame_nbits)  <br> |
 |  unsigned | [**n\_fields**](#variable-n_fields)  <br> |
 |  unsigned | [**n\_stages**](#variable-n_stages)  <br> |
 |  size\_t | [**out\_bits**](#variable-out_bits)  <br> |
@@ -128,10 +128,10 @@ bit offset per field
 
 
 
-### variable frame\_bits 
+### variable frame\_nbits 
 
 ```C++
-size_t wfm_frame_desc_layout_t::frame_bits;
+size_t wfm_frame_desc_layout_t::frame_nbits;
 ```
 
 

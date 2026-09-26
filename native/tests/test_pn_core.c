@@ -14,7 +14,7 @@
 static long
 pn_period (uint64_t poly, uint32_t n, int lfsr)
 {
-  pn_state_t *p = pn_create (poly, 1, n, lfsr);
+  dp_pn_state_t *p = dp_pn_create (poly, 1, n, lfsr);
   if (!p)
     return -1;
   long per = 0;
@@ -30,22 +30,23 @@ pn_period (uint64_t poly, uint32_t n, int lfsr)
         }
     }
   while (p->reg != 1u);
-  pn_destroy (p);
+  dp_pn_destroy (p);
   return per;
 }
 
 int
 main (void)
 {
-  pn_state_t *obj = pn_create (96, 1, 7, PN_GALOIS);
+  dp_pn_state_t *obj = dp_pn_create (96, 1, 7, PN_GALOIS);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* ── 64-bit register: length up to 64, mask + no truncation ── */
-  DP_CHECK (pn_create (0, 1, 65, PN_GALOIS)
+  DP_CHECK (dp_pn_create (0, 1, 65, PN_GALOIS)
             == NULL); /* length > 64 rejected */
-  pn_state_t *p64 = pn_create (wfm_synth_mls_poly (64), 1, 64, PN_GALOIS);
+  dp_pn_state_t *p64
+      = dp_pn_create (wfm_synth_mls_poly (64), 1, 64, PN_GALOIS);
   DP_CHECK (p64 != NULL);
   if (p64)
     {
@@ -60,7 +61,7 @@ main (void)
           DP_CHECK (p64->reg != 0); /* never collapses to 0 */
         }
       DP_CHECK (hi);
-      pn_destroy (p64);
+      dp_pn_destroy (p64);
     }
 
   /* ── MLS table: maximal period (Galois), incl. the n > 32 path ── */
@@ -80,15 +81,16 @@ main (void)
 
   /* ── Galois and Fibonacci are distinct realizations (different chips) ── */
   {
-    pn_state_t *g    = pn_create (wfm_synth_mls_poly (9), 1, 9, PN_GALOIS);
-    pn_state_t *f    = pn_create (wfm_synth_mls_poly (9), 1, 9, PN_FIBONACCI);
-    int         diff = 0;
+    dp_pn_state_t *g = dp_pn_create (wfm_synth_mls_poly (9), 1, 9, PN_GALOIS);
+    dp_pn_state_t *f
+        = dp_pn_create (wfm_synth_mls_poly (9), 1, 9, PN_FIBONACCI);
+    int diff = 0;
     for (int i = 0; i < 511; i++)
       if (pn_step (g) != pn_step (f))
         diff = 1;
     DP_CHECK (diff); /* same period, different sequence/phase */
-    pn_destroy (g);
-    pn_destroy (f);
+    dp_pn_destroy (g);
+    dp_pn_destroy (f);
   }
 
   /* ── table coverage: nonzero for 2..64, zero outside ── */
@@ -98,47 +100,47 @@ main (void)
     DP_CHECK (wfm_synth_mls_poly (n) != 0);
 
   /* reset */
-  pn_reset (obj);
+  dp_pn_reset (obj);
 
-  pn_destroy (obj);
+  dp_pn_destroy (obj);
 
   /* serializable state — advance the LFSR, serialize, restore into a fresh
    * generator, and the chip stream continues identically; clobber rejects. */
   {
-    pn_state_t *a = pn_create (96, 1, 7, PN_GALOIS);
-    uint8_t     ref[64], got[64];
-    pn_generate (a, 9, ref, 9); /* advance */
-    size_t sb   = pn_state_bytes (a);
+    dp_pn_state_t *a = dp_pn_create (96, 1, 7, PN_GALOIS);
+    uint8_t        ref[64], got[64];
+    dp_pn_generate (a, 9, ref, 9); /* advance */
+    size_t sb   = dp_pn_state_bytes (a);
     void  *blob = malloc (sb);
-    pn_get_state (a, blob);
-    pn_generate (a, 64, ref, 64); /* reference continuation */
+    dp_pn_get_state (a, blob);
+    dp_pn_generate (a, 64, ref, 64); /* reference continuation */
 
-    pn_state_t *b = pn_create (96, 1, 7, PN_GALOIS);
-    DP_CHECK (pn_set_state (b, blob) == DP_OK);
+    dp_pn_state_t *b = dp_pn_create (96, 1, 7, PN_GALOIS);
+    DP_CHECK (dp_pn_set_state (b, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
-    DP_CHECK (pn_set_state (b, blob) == DP_ERR_INVALID);
-    pn_generate (b, 64, got, 64);
+    DP_CHECK (dp_pn_set_state (b, blob) == DP_ERR_INVALID);
+    dp_pn_generate (b, 64, got, 64);
     for (int i = 0; i < 64; i++)
       DP_CHECK (got[i] == ref[i]);
-    pn_destroy (a);
-    pn_destroy (b);
+    dp_pn_destroy (a);
+    dp_pn_destroy (b);
     free (blob);
   }
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
   {
-    pn_state_t *g = pn_create (0, 1, 7, 0);
-    uint8_t     out[16];
+    dp_pn_state_t *g = dp_pn_create (0, 1, 7, 0);
+    uint8_t        out[16];
     memset (out, 0xAA, sizeof out);
     /* Ask for 16, allow 5: exactly 5 written, the rest untouched. */
-    DP_CHECK (pn_generate (g, 16, out, 5) == 5);
+    DP_CHECK (dp_pn_generate (g, 16, out, 5) == 5);
     for (int i = 5; i < 16; i++)
       DP_CHECK (out[i] == 0xAA);
     /* Zero capacity emits nothing and does not advance the register. */
     uint64_t reg_before = g->reg;
-    DP_CHECK (pn_generate (g, 16, out, 0) == 0);
+    DP_CHECK (dp_pn_generate (g, 16, out, 0) == 0);
     DP_CHECK (g->reg == reg_before);
-    pn_destroy (g);
+    dp_pn_destroy (g);
   }
 
   /* ── the MLS table, verified rather than assumed ───────────────────────
@@ -161,7 +163,7 @@ main (void)
 
       for (int kind = PN_GALOIS; kind <= PN_FIBONACCI; kind++)
         {
-          pn_state_t *p = pn_create (poly, 1, n, kind);
+          dp_pn_state_t *p = dp_pn_create (poly, 1, n, kind);
           DP_CHECK (p != NULL);
           if (!p)
             continue;
@@ -180,7 +182,7 @@ main (void)
              because the register visits every nonzero state once and half
              of those have LSB set. A non-primitive poly fails this too. */
           DP_CHECK (ones == (1L << (n - 1)));
-          pn_destroy (p);
+          dp_pn_destroy (p);
         }
     }
 
@@ -212,11 +214,11 @@ main (void)
           free (f);
           continue;
         }
-      pn_state_t *pg = pn_create (poly, 1, n, PN_GALOIS);
-      pn_state_t *pf = pn_create (poly, 1, n, PN_FIBONACCI);
+      dp_pn_state_t *pg = dp_pn_create (poly, 1, n, PN_GALOIS);
+      dp_pn_state_t *pf = dp_pn_create (poly, 1, n, PN_FIBONACCI);
       DP_CHECK (pg && pf);
-      pn_generate (pg, period, g, period);
-      pn_generate (pf, period, f, period);
+      dp_pn_generate (pg, period, g, period);
+      dp_pn_generate (pf, period, f, period);
 
       int reversed_ok = 1, identical = 1;
       for (size_t i = 0; i < period; i++)
@@ -229,39 +231,39 @@ main (void)
       DP_CHECK (reversed_ok); /* one sequence, read the other way */
       DP_CHECK (!identical);  /* and genuinely not the same order */
 
-      pn_destroy (pg);
-      pn_destroy (pf);
+      dp_pn_destroy (pg);
+      dp_pn_destroy (pf);
       free (g);
       free (f);
     }
 
   /* ── reset actually restarts the sequence ──────────────────────────────
-   * `pn_reset (obj)` was CALLED above with nothing asserted after it -- a
+   * `dp_pn_reset (obj)` was CALLED above with nothing asserted after it -- a
    * reset that reloaded nothing at all passed. Python covers this; C did
    * not, and C is the only face the sanitisers run. Advance first, so the
    * register is provably not already at the seed when reset is called. */
   {
-    pn_state_t *r = pn_create (pn_mls_poly (7), 1, 7, PN_GALOIS);
-    uint8_t     first[32], again[32];
-    DP_CHECK (pn_generate (r, 32, first, 32) == 32);
+    dp_pn_state_t *r = dp_pn_create (pn_mls_poly (7), 1, 7, PN_GALOIS);
+    uint8_t        first[32], again[32];
+    DP_CHECK (dp_pn_generate (r, 32, first, 32) == 32);
     DP_CHECK (r->reg != r->seed); /* precondition: state really moved */
-    pn_reset (r);
+    dp_pn_reset (r);
     DP_CHECK (r->reg == r->seed);
-    DP_CHECK (pn_generate (r, 32, again, 32) == 32);
+    DP_CHECK (dp_pn_generate (r, 32, again, 32) == 32);
     for (int i = 0; i < 32; i++)
       DP_CHECK (again[i] == first[i]);
-    pn_destroy (r);
+    dp_pn_destroy (r);
   }
 
   /* ── the constructor's documented rejects, and the NULL no-op ──────────
    * "seed must be non-zero (the all-zero state is a fixed point)" and
    * "length 1..64" are contract, and neither was exercised here. */
-  DP_CHECK (pn_create (pn_mls_poly (7), 0, 7, PN_GALOIS) == NULL);
-  DP_CHECK (pn_create (pn_mls_poly (7), 1, 0, PN_GALOIS) == NULL);
-  pn_destroy (NULL); /* documented no-op; a crash here is the test */
+  DP_CHECK (dp_pn_create (pn_mls_poly (7), 0, 7, PN_GALOIS) == NULL);
+  DP_CHECK (dp_pn_create (pn_mls_poly (7), 1, 0, PN_GALOIS) == NULL);
+  dp_pn_destroy (NULL); /* documented no-op; a crash here is the test */
 
   /* ── "A zero poly is not a polynomial" ─────────────────────────────────
-   * The header's own warning: pn_create takes the mask verbatim, so poly=0
+   * The header's own warning: dp_pn_create takes the mask verbatim, so poly=0
    * is a register with no feedback -- it shifts the seed out and then emits
    * zeros forever, giving "a constant field that still looks like a field".
    * Pinned because it is what every caller's `poly ? poly : pn_mls_poly(n)`
@@ -269,12 +271,12 @@ main (void)
    * resolution would be silently dead code. */
   {
     const uint32_t n = 7;
-    pn_state_t    *z = pn_create (0, 0x7F, n, PN_GALOIS);
+    dp_pn_state_t *z = dp_pn_create (0, 0x7F, n, PN_GALOIS);
     DP_CHECK (z != NULL);
     if (z)
       {
         uint8_t chips[128];
-        DP_CHECK (pn_generate (z, 128, chips, 128) == 128);
+        DP_CHECK (dp_pn_generate (z, 128, chips, 128) == 128);
         /* The seed shifts out over the first `n` chips ... */
         int any_one = 0;
         for (uint32_t i = 0; i < n; i++)
@@ -284,7 +286,7 @@ main (void)
         for (size_t i = n; i < 128; i++)
           DP_CHECK (chips[i] == 0);
         DP_CHECK (z->reg == 0);
-        pn_destroy (z);
+        dp_pn_destroy (z);
       }
   }
 

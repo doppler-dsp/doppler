@@ -121,7 +121,7 @@ the accumulator composable in two ways that matter:
     no signal consequence — which is what lets a caller pick buffer sizes
     freely, and what makes the streaming and batch paths the same path.
 - **The single-sample form is a drop-in.** `nco_step_u32()` is exactly one
-    iteration of the block loop, so a module embedding an `nco_state_t` by
+    iteration of the block loop, so a module embedding an `dp_nco_state_t` by
     value gets bit-identical output to one calling the block API. Every batch
     stepper has a matching single-sample primitive for this reason.
 
@@ -129,11 +129,11 @@ the accumulator composable in two ways that matter:
 
 The accumulator is one thing; what a caller wants read off it is not.
 
-| mapping                | expression                   | answers                                                                        |
-| ---------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
-| `nco_steps_u32`        | the phase word itself        | *where in the cycle am I* — full 32-bit position                               |
-| `nco_steps_u32_scaled` | `(uint64)phase * nmax >> 32` | *which of `nmax` slots am I in* — the polyphase arm, i.e. μ quantised (§2.5.1) |
-| `nco_steps_u32_ovf`    | phase, plus a boundary flag  | *did a period just complete*                                                   |
+| mapping                   | expression                   | answers                                                                        |
+| ------------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
+| `dp_nco_steps_u32`        | the phase word itself        | *where in the cycle am I* — full 32-bit position                               |
+| `dp_nco_steps_u32_scaled` | `(uint64)phase * nmax >> 32` | *which of `nmax` slots am I in* — the polyphase arm, i.e. μ quantised (§2.5.1) |
+| `dp_nco_steps_u32_ovf`    | phase, plus a boundary flag  | *did a period just complete*                                                   |
 
 The scaled form is a fixed-point multiply, not a division or a modulo:
 `(phase * nmax) >> 32` is exactly `floor(phase / 2^32 * nmax)`, which maps the
@@ -179,7 +179,7 @@ input interval".
 
 **This is what the third output mapping is for.** Quantising μ to `P`
 polyphase arms is `floor(mu · P)`, which is precisely
-`nco_steps_u32_scaled` with `nmax = P` — and in `resamp`'s hot loop, the same
+`dp_nco_steps_u32_scaled` with `nmax = P` — and in `resamp`'s hot loop, the same
 thing as a shift:
 
 ```text
@@ -236,7 +236,7 @@ of §2.5.
 flowchart TB
     CONV["nco_core.h — the ONE double to integer conversion<br/>nco_phase_units / nco_norm_fold_ / nco_steer_scale"]
 
-    CONV ==> ACC["nco_state_t<br/>phase += phase_inc + fold(ctrl), mod 2^32"]
+    CONV ==> ACC["dp_nco_state_t<br/>phase += phase_inc + fold(ctrl), mod 2^32"]
 
     ACC ==> SYNTH{{"read as a POSITION"}}
     ACC ==> STROBE{{"read as an EVENT (ovf)"}}

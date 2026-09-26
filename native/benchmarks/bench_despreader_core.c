@@ -48,16 +48,16 @@ main (void)
   printf ("=== despreader benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  despreader_state_t *ch = despreader_create (code, SF, SPS, 0.0, 0.0, 0.05,
-                                              0.005, 0.0, 0.707, 0.5, 1);
-  despreader_steps (ch, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
+  dp_despreader_state_t *ch = dp_despreader_create (
+      code, SF, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
+  dp_despreader_steps (ch, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
 
   double times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      despreader_reset (ch);
+      dp_despreader_reset (ch);
       t0 = jm_bench_now_ns ();
-      despreader_steps (ch, rx, BENCH_N, out, BENCH_N);
+      dp_despreader_steps (ch, rx, BENCH_N, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -69,7 +69,7 @@ main (void)
           (double)BENCH_N / (sum / ITERATIONS) / 1e6);
 
   jm_bench_write_json (&_bench, "despreader");
-  despreader_destroy (ch);
+  dp_despreader_destroy (ch);
   free (rx);
   free (out);
   return 0;

@@ -1,0 +1,371 @@
+
+
+# Struct dp\_psd\_state\_t
+
+
+
+[**ClassList**](annotated.md) **>** [**dp\_psd\_state\_t**](structdp__psd__state__t.md)
+
+
+
+_PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _._
+
+* `#include <psd_core.h>`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Public Attributes
+
+| Type | Name |
+| ---: | :--- |
+|  [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* | [**avg**](#variable-avg)  <br> |
+|  size\_t | [**bits**](#variable-bits)  <br> |
+|  double | [**cg**](#variable-cg)  <br> |
+|  float \* | [**dbbuf**](#variable-dbbuf)  <br> |
+|  double | [**enbw**](#variable-enbw)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
+|  float \_Complex \* | [**frame**](#variable-frame)  <br> |
+|  double | [**fs**](#variable-fs)  <br> |
+|  double | [**full\_scale**](#variable-full_scale)  <br> |
+|  size\_t | [**n**](#variable-n)  <br> |
+|  size\_t | [**nfft**](#variable-nfft)  <br> |
+|  float \* | [**pwr**](#variable-pwr)  <br> |
+|  double | [**s2**](#variable-s2)  <br> |
+|  float \_Complex \* | [**spec**](#variable-spec)  <br> |
+|  float \* | [**w**](#variable-w)  <br> |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Public Attributes Documentation
+
+
+
+
+### variable avg 
+
+```C++
+dp_acc_trace_state_t* dp_psd_state_t::avg;
+```
+
+
+
+Per-bin power averager, length nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable bits 
+
+```C++
+size_t dp_psd_state_t::bits;
+```
+
+
+
+ADC depth that set full\_scale, else 0. 
+
+
+        
+
+<hr>
+
+
+
+### variable cg 
+
+```C++
+double dp_psd_state_t::cg;
+```
+
+
+
+Window coherent gain, sum(w). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable dbbuf 
+
+```C++
+float* dp_psd_state_t::dbbuf;
+```
+
+
+
+dB-trace scratch, length nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable enbw 
+
+```C++
+double dp_psd_state_t::enbw;
+```
+
+
+
+Equivalent noise bandwidth, bins. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fft 
+
+```C++
+dp_fft_state_t* dp_psd_state_t::fft;
+```
+
+
+
+Forward cf32 plan, size nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable frame 
+
+```C++
+float _Complex* dp_psd_state_t::frame;
+```
+
+
+
+Windowed + zero-padded, length nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fs 
+
+```C++
+double dp_psd_state_t::fs;
+```
+
+
+
+Sample rate, Hz. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable full\_scale 
+
+```C++
+double dp_psd_state_t::full_scale;
+```
+
+
+
+Amplitude that reads 0 dBFS. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n 
+
+```C++
+size_t dp_psd_state_t::n;
+```
+
+
+
+Window / frame length (samples). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable nfft 
+
+```C++
+size_t dp_psd_state_t::nfft;
+```
+
+
+
+Zero-padded transform length. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pwr 
+
+```C++
+float* dp_psd_state_t::pwr;
+```
+
+
+
+DC-centred power scratch, length nfft. 
+
+
+        
+
+<hr>
+
+
+
+### variable s2 
+
+```C++
+double dp_psd_state_t::s2;
+```
+
+
+
+Window power, sum(w^2). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable spec 
+
+```C++
+float _Complex* dp_psd_state_t::spec;
+```
+
+
+
+FFT output scratch, length nfft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable w 
+
+```C++
+float* dp_psd_state_t::w;
+```
+
+
+
+Window, length n. 
+ 
+
+
+        
+
+<hr>
+
+------------------------------
+The documentation for this class was generated from the following file `native/inc/doppler/psd/psd_core.h`
+

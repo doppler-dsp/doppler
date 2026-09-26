@@ -9,7 +9,7 @@
 #include "doppler/mpsk/mpsk_core.h"
 
 void
-mpsk_diff_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)
+dp_mpsk_diff_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)
 {
   float _Complex ahat;
   unsigned mask   = (unsigned)(m - 1);

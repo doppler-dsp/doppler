@@ -37,8 +37,8 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**frame\_check\_t**](structframe__check__t.md) <br>_What_ [_**frame\_check**_](frame__core_8h.md#function-frame_check) _found, summed across the stages it reversed._ |
-| struct | [**frame\_state\_t**](structframe__state__t.md) <br>_Frame state._  |
+| struct | [**dp\_frame\_state\_t**](structdp__frame__state__t.md) <br>_Frame state._  |
+| struct | [**frame\_check\_t**](structframe__check__t.md) <br>_What_ [_**dp\_frame\_check**_](frame__core_8h.md#function-dp_frame_check) _found, summed across the stages it reversed._ |
 
 
 
@@ -65,31 +65,31 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**frame\_add\_derived**](#function-frame_add_derived) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, size\_t bits) <br>_Append a named field a stage will fill. Returns its index; -1 in C,_ `ValueError` _from Python._ |
-|  int | [**frame\_add\_field**](#function-frame_add_field) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* lit, size\_t lit\_len, int kind, size\_t gen\_len, size\_t reps, uint64\_t poly, uint64\_t seed, uint32\_t reg\_bits, int lfsr, uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t derived\_by, size\_t derived\_bits) <br>_Append one field to a description._  |
-|  int | [**frame\_add\_hex**](#function-frame_add_hex) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, const char \* hex, size\_t reps) <br>_Append a named field from a hex literal. Returns its index; -1 in C,_ `ValueError` _from Python._ |
-|  int | [**frame\_add\_stage**](#function-frame_add_stage) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den, uint32\_t unit\_bits) <br>_Append one stage, and the span of fields it covers._  |
-|  int | [**frame\_add\_stage\_over**](#function-frame_add_stage_over) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, const char \* first, const char \* last, uint32\_t depth, uint32\_t unit\_bits) <br>_Append a stage covering_ `[first .. last]` _by name._ |
-|  int | [**frame\_add\_value**](#function-frame_add_value) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, uint64\_t value, uint32\_t bits, size\_t reps) <br>_Append a named field from an integer. Returns its index; -1 in C,_ `ValueError` _from Python._ |
-|  size\_t | [**frame\_bits**](#function-frame_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Materialise_ `n` _consecutive frames, one bit per byte._ |
-|  size\_t | [**frame\_bits\_max\_out**](#function-frame_bits_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n) <br>_Bits_ [_**frame\_bits**_](frame__core_8h.md#function-frame_bits) _will write for_`n` _frames —_`n * nbits` _._ |
-|  int | [**frame\_build**](#function-frame_build) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Lay out and materialise a described frame._  |
-|  [**frame\_check\_t**](structframe__check__t.md) | [**frame\_check**](#function-frame_check) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len) <br>_Undo the description's stages over a received frame, and report._  |
-|  int | [**frame\_crc\_ok**](#function-frame_crc_ok) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len) <br>_Check one received frame's CRC._  |
-|  [**frame\_state\_t**](structframe__state__t.md) \* | [**frame\_create**](#function-frame_create) (int preamble\_kind, const uint8\_t \* preamble, size\_t preamble\_len, size\_t preamble\_nbits, size\_t preamble\_reps, uint64\_t preamble\_poly, uint64\_t preamble\_seed, uint32\_t preamble\_reg\_bits, int preamble\_lfsr, uint64\_t preamble\_taps\_a, uint64\_t preamble\_seed\_a, uint64\_t preamble\_taps\_b, uint64\_t preamble\_seed\_b, int sync\_kind, const uint8\_t \* sync, size\_t sync\_len, size\_t sync\_nbits, uint64\_t sync\_poly, uint64\_t sync\_seed, uint32\_t sync\_reg\_bits, int sync\_lfsr, uint64\_t sync\_taps\_a, uint64\_t sync\_seed\_a, uint64\_t sync\_taps\_b, uint64\_t sync\_seed\_b, int payload\_kind, const uint8\_t \* payload, size\_t payload\_len, size\_t payload\_nbits, uint64\_t payload\_poly, uint64\_t payload\_seed, uint32\_t payload\_reg\_bits, int payload\_lfsr, uint64\_t payload\_taps\_a, uint64\_t payload\_seed\_a, uint64\_t payload\_taps\_b, uint64\_t payload\_seed\_b, int crc) <br>_Create a frame instance._  |
-|  [**frame\_state\_t**](structframe__state__t.md) \* | [**frame\_create\_desc**](#function-frame_create_desc) (int preamble\_kind, const uint8\_t \* preamble, size\_t preamble\_len, size\_t preamble\_nbits, size\_t preamble\_reps, uint64\_t preamble\_poly, uint64\_t preamble\_seed, uint32\_t preamble\_reg\_bits, int preamble\_lfsr, uint64\_t preamble\_taps\_a, uint64\_t preamble\_seed\_a, uint64\_t preamble\_taps\_b, uint64\_t preamble\_seed\_b, int sync\_kind, const uint8\_t \* sync, size\_t sync\_len, size\_t sync\_nbits, uint64\_t sync\_poly, uint64\_t sync\_seed, uint32\_t sync\_reg\_bits, int sync\_lfsr, uint64\_t sync\_taps\_a, uint64\_t sync\_seed\_a, uint64\_t sync\_taps\_b, uint64\_t sync\_seed\_b, int payload\_kind, const uint8\_t \* payload, size\_t payload\_len, size\_t payload\_nbits, uint64\_t payload\_poly, uint64\_t payload\_seed, uint32\_t payload\_reg\_bits, int payload\_lfsr, uint64\_t payload\_taps\_a, uint64\_t payload\_seed\_a, uint64\_t payload\_taps\_b, uint64\_t payload\_seed\_b, int crc) <br>_The same frame, DEFERRED — a description a caller can extend._  |
-|  size\_t | [**frame\_deframe**](#function-frame_deframe) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len, uint8\_t \* out, size\_t max\_out) <br>_Undo this description's stages over a received frame — DEFRAME it._  |
-|  size\_t | [**frame\_deframe\_max\_out**](#function-frame_deframe_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t rx\_bits\_len) <br>_Max bits_ [_**frame\_deframe()**_](frame__core_8h.md#function-frame_deframe) _writes: the frame's own length._ |
-|  void | [**frame\_destroy**](#function-frame_destroy) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Destroy a frame instance and release all memory._  |
-|  size\_t | [**frame\_field\_bits**](#function-frame_field_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bits in field_ `i` _, or 0 if there is no such field._ |
-|  int | [**frame\_field\_index**](#function-frame_field_index) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
-|  size\_t | [**frame\_field\_off**](#function-frame_field_off) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bit offset of field_ `i` _, or 0 if there is no such field._ |
-|  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**frame\_layout**](#function-frame_layout) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Where each field lands, in bits from the start of the frame._  |
-|  size\_t | [**frame\_n\_fields**](#function-frame_n_fields) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Fields in the description._  |
-|  size\_t | [**frame\_n\_stages**](#function-frame_n_stages) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Stages in the description._  |
-|  int | [**frame\_name\_field**](#function-frame_name_field) ([**frame\_state\_t**](structframe__state__t.md) \* state, uint32\_t index, const char \* name) <br>_Give an already-appended field a name, or clear it with_ `""` _._ |
-|  size\_t | [**frame\_stage\_bits**](#function-frame_stage_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_Bits stage_ `i` _covers; 0 for a stage that did not run._ |
-|  size\_t | [**frame\_stage\_first**](#function-frame_stage_first) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t i) <br>_First CADU bit stage_ `i` _covers; 0 for a stage that did not run._ |
+|  int | [**dp\_frame\_add\_derived**](#function-dp_frame_add_derived) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name, size\_t bits) <br>_Append a named field a stage will fill. Returns its index; -1 in C,_ `ValueError` _from Python._ |
+|  int | [**dp\_frame\_add\_field**](#function-dp_frame_add_field) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const uint8\_t \* lit, size\_t lit\_len, int kind, size\_t gen\_len, size\_t reps, uint64\_t poly, uint64\_t seed, uint32\_t reg\_bits, int lfsr, uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t derived\_by, size\_t derived\_bits) <br>_Append one field to a description._  |
+|  int | [**dp\_frame\_add\_hex**](#function-dp_frame_add_hex) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name, const char \* hex, size\_t reps) <br>_Append a named field from a hex literal. Returns its index; -1 in C,_ `ValueError` _from Python._ |
+|  int | [**dp\_frame\_add\_stage**](#function-dp_frame_add_stage) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den, uint32\_t unit\_bits) <br>_Append one stage, and the span of fields it covers._  |
+|  int | [**dp\_frame\_add\_stage\_over**](#function-dp_frame_add_stage_over) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, int kind, const char \* first, const char \* last, uint32\_t depth, uint32\_t unit\_bits) <br>_Append a stage covering_ `[first .. last]` _by name._ |
+|  int | [**dp\_frame\_add\_value**](#function-dp_frame_add_value) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name, uint64\_t value, uint32\_t bits, size\_t reps) <br>_Append a named field from an integer. Returns its index; -1 in C,_ `ValueError` _from Python._ |
+|  size\_t | [**dp\_frame\_bits**](#function-dp_frame_bits) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Materialise_ `n` _consecutive frames, one bit per byte._ |
+|  size\_t | [**dp\_frame\_bits\_max\_out**](#function-dp_frame_bits_max_out) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t n) <br>_Bits_ [_**dp\_frame\_bits**_](frame__core_8h.md#function-dp_frame_bits) _will write for_`n` _frames —_`n * nbits` _._ |
+|  int | [**dp\_frame\_build**](#function-dp_frame_build) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Lay out and materialise a described frame._  |
+|  [**frame\_check\_t**](structframe__check__t.md) | [**dp\_frame\_check**](#function-dp_frame_check) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len) <br>_Undo the description's stages over a received frame, and report._  |
+|  int | [**dp\_frame\_crc\_ok**](#function-dp_frame_crc_ok) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len) <br>_Check one received frame's CRC._  |
+|  [**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* | [**dp\_frame\_create**](#function-dp_frame_create) (int preamble\_kind, const uint8\_t \* preamble, size\_t preamble\_len, size\_t preamble\_nbits, size\_t preamble\_reps, uint64\_t preamble\_poly, uint64\_t preamble\_seed, uint32\_t preamble\_reg\_bits, int preamble\_lfsr, uint64\_t preamble\_taps\_a, uint64\_t preamble\_seed\_a, uint64\_t preamble\_taps\_b, uint64\_t preamble\_seed\_b, int sync\_kind, const uint8\_t \* sync, size\_t sync\_len, size\_t sync\_nbits, uint64\_t sync\_poly, uint64\_t sync\_seed, uint32\_t sync\_reg\_bits, int sync\_lfsr, uint64\_t sync\_taps\_a, uint64\_t sync\_seed\_a, uint64\_t sync\_taps\_b, uint64\_t sync\_seed\_b, int payload\_kind, const uint8\_t \* payload, size\_t payload\_len, size\_t payload\_nbits, uint64\_t payload\_poly, uint64\_t payload\_seed, uint32\_t payload\_reg\_bits, int payload\_lfsr, uint64\_t payload\_taps\_a, uint64\_t payload\_seed\_a, uint64\_t payload\_taps\_b, uint64\_t payload\_seed\_b, int crc) <br>_Create a frame instance._  |
+|  size\_t | [**dp\_frame\_deframe**](#function-dp_frame_deframe) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const uint8\_t \* rx\_bits, size\_t rx\_bits\_len, uint8\_t \* out, size\_t max\_out) <br>_Undo this description's stages over a received frame — DEFRAME it._  |
+|  size\_t | [**dp\_frame\_deframe\_max\_out**](#function-dp_frame_deframe_max_out) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t rx\_bits\_len) <br>_Max bits_ [_**dp\_frame\_deframe()**_](frame__core_8h.md#function-dp_frame_deframe) _writes: the frame's own length._ |
+|  void | [**dp\_frame\_destroy**](#function-dp_frame_destroy) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Destroy a frame instance and release all memory._  |
+|  size\_t | [**dp\_frame\_field\_bits**](#function-dp_frame_field_bits) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_Bits in field_ `i` _, or 0 if there is no such field._ |
+|  int | [**dp\_frame\_field\_index**](#function-dp_frame_field_index) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
+|  size\_t | [**dp\_frame\_field\_off**](#function-dp_frame_field_off) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_Bit offset of field_ `i` _, or 0 if there is no such field._ |
+|  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**dp\_frame\_layout**](#function-dp_frame_layout) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Where each field lands, in bits from the start of the frame._  |
+|  size\_t | [**dp\_frame\_n\_fields**](#function-dp_frame_n_fields) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Fields in the description._  |
+|  size\_t | [**dp\_frame\_n\_stages**](#function-dp_frame_n_stages) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Stages in the description._  |
+|  int | [**dp\_frame\_name\_field**](#function-dp_frame_name_field) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, uint32\_t index, const char \* name) <br>_Give an already-appended field a name, or clear it with_ `""` _._ |
+|  size\_t | [**dp\_frame\_stage\_bits**](#function-dp_frame_stage_bits) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_Bits stage_ `i` _covers; 0 for a stage that did not run._ |
+|  size\_t | [**dp\_frame\_stage\_first**](#function-dp_frame_stage_first) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_First CADU bit stage_ `i` _covers; 0 for a stage that did not run._ |
+|  [**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* | [**frame\_create\_desc**](#function-frame_create_desc) (int preamble\_kind, const uint8\_t \* preamble, size\_t preamble\_len, size\_t preamble\_nbits, size\_t preamble\_reps, uint64\_t preamble\_poly, uint64\_t preamble\_seed, uint32\_t preamble\_reg\_bits, int preamble\_lfsr, uint64\_t preamble\_taps\_a, uint64\_t preamble\_seed\_a, uint64\_t preamble\_taps\_b, uint64\_t preamble\_seed\_b, int sync\_kind, const uint8\_t \* sync, size\_t sync\_len, size\_t sync\_nbits, uint64\_t sync\_poly, uint64\_t sync\_seed, uint32\_t sync\_reg\_bits, int sync\_lfsr, uint64\_t sync\_taps\_a, uint64\_t sync\_seed\_a, uint64\_t sync\_taps\_b, uint64\_t sync\_seed\_b, int payload\_kind, const uint8\_t \* payload, size\_t payload\_len, size\_t payload\_nbits, uint64\_t payload\_poly, uint64\_t payload\_seed, uint32\_t payload\_reg\_bits, int payload\_lfsr, uint64\_t payload\_taps\_a, uint64\_t payload\_seed\_a, uint64\_t payload\_taps\_b, uint64\_t payload\_seed\_b, int crc) <br>_The same frame, DEFERRED — a description a caller can extend._  |
 
 
 
@@ -144,7 +144,7 @@ A field is either a literal array or a handful of numbers a receiver can REGENER
 
 
 
-`frame_create()` builds the bits immediately and returns NULL if the descriptor cannot produce them (a literal kind with no array, a PN with no register width, an empty geometry). A descriptor that cannot be materialised is not a frame, and finding that out at construction is what lets the binding raise something better than a failure three calls later.
+`dp_frame_create()` builds the bits immediately and returns NULL if the descriptor cannot produce them (a literal kind with no array, a PN with no register width, an empty geometry). A descriptor that cannot be materialised is not a frame, and finding that out at construction is what lets the binding raise something better than a failure three calls later.
 
 
 
@@ -152,16 +152,16 @@ A field is either a literal array or a handful of numbers a receiver can REGENER
 // Barker-13 sync over a 16-bit literal payload, with a CRC-16 trailer.
 static const uint8_t sync[13]  = {1,1,1,1,1,0,0,1,1,0,1,0,1};
 static const uint8_t pay[16]   = {0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1};
-frame_state_t *f = frame_create(
+dp_frame_state_t *f = dp_frame_create(
     0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // no preamble
     0, sync, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,     // literal sync
     0, pay, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0,      // literal payload
     1);                                          // crc16
-uint8_t *b = malloc(frame_bits_max_out(f, 1));
+uint8_t *b = malloc(dp_frame_bits_max_out(f, 1));
 size_t   n = frame_bits(f, 1, b, f->nbits);      // 13 + 16 + 16 == 45
-frame_crc_ok(f, b, n);                           // 1 — it is its own truth
+dp_frame_crc_ok(f, b, n);                           // 1 — it is its own truth
 free(b);
-frame_destroy(f);
+dp_frame_destroy(f);
 ```
 
 
@@ -179,12 +179,12 @@ frame_destroy(f);
 
 
 
-### function frame\_add\_derived 
+### function dp\_frame\_add\_derived 
 
 _Append a named field a stage will fill. Returns its index; -1 in C,_ `ValueError` _from Python._
 ```C++
-int frame_add_derived (
-    frame_state_t * state,
+int dp_frame_add_derived (
+    dp_frame_state_t * state,
     const char * name,
     size_t bits
 ) 
@@ -192,7 +192,7 @@ int frame_add_derived (
 
 
 
-A field with a declared length and no source: a CRC trailer, a block of check symbols. Its producer is wired by [**frame\_add\_stage\_over**](frame__core_8h.md#function-frame_add_stage_over) rather than named here, because no stage exists yet when the field it derives is appended — fields are ordered by POSITION and stages by APPLICATION.
+A field with a declared length and no source: a CRC trailer, a block of check symbols. Its producer is wired by [**dp\_frame\_add\_stage\_over**](frame__core_8h.md#function-dp_frame_add_stage_over) rather than named here, because no stage exists yet when the field it derives is appended — fields are ordered by POSITION and stages by APPLICATION.
 
 
 
@@ -225,12 +225,12 @@ A field with a declared length and no source: a CRC trailer, a block of check sy
 
 
 
-### function frame\_add\_field 
+### function dp\_frame\_add\_field 
 
 _Append one field to a description._ 
 ```C++
-int frame_add_field (
-    frame_state_t * state,
+int dp_frame_add_field (
+    dp_frame_state_t * state,
     const uint8_t * lit,
     size_t lit_len,
     int kind,
@@ -314,12 +314,12 @@ on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
 
 
 
-### function frame\_add\_hex 
+### function dp\_frame\_add\_hex 
 
 _Append a named field from a hex literal. Returns its index; -1 in C,_ `ValueError` _from Python._
 ```C++
-int frame_add_hex (
-    frame_state_t * state,
+int dp_frame_add_hex (
+    dp_frame_state_t * state,
     const char * name,
     const char * hex,
     size_t reps
@@ -362,12 +362,12 @@ Four bits per digit, MSB-first, so an odd number of digits gives a 4-bit tail. T
 
 
 
-### function frame\_add\_stage 
+### function dp\_frame\_add\_stage 
 
 _Append one stage, and the span of fields it covers._ 
 ```C++
-int frame_add_stage (
-    frame_state_t * state,
+int dp_frame_add_stage (
+    dp_frame_state_t * state,
     int kind,
     uint32_t first_field,
     uint32_t n_fields,
@@ -438,12 +438,12 @@ which is the whole reason a CADU is describable here:
 
 
 
-### function frame\_add\_stage\_over 
+### function dp\_frame\_add\_stage\_over 
 
 _Append a stage covering_ `[first .. last]` _by name._
 ```C++
-int frame_add_stage_over (
-    frame_state_t * state,
+int dp_frame_add_stage_over (
+    dp_frame_state_t * state,
     int kind,
     const char * first,
     const char * last,
@@ -502,12 +502,12 @@ the new stage's index, or -1 on NULL, a full description, a name neither field c
 
 
 
-### function frame\_add\_value 
+### function dp\_frame\_add\_value 
 
 _Append a named field from an integer. Returns its index; -1 in C,_ `ValueError` _from Python._
 ```C++
-int frame_add_value (
-    frame_state_t * state,
+int dp_frame_add_value (
+    dp_frame_state_t * state,
     const char * name,
     uint64_t value,
     uint32_t bits,
@@ -517,7 +517,7 @@ int frame_add_value (
 
 
 
-The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider ones want [**frame\_add\_hex**](frame__core_8h.md#function-frame_add_hex).
+The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider ones want [**dp\_frame\_add\_hex**](frame__core_8h.md#function-dp_frame_add_hex).
 
 
 
@@ -552,12 +552,12 @@ The form to reach for when a literal fits in 64 bits: exact, and with no failure
 
 
 
-### function frame\_bits 
+### function dp\_frame\_bits 
 
 _Materialise_ `n` _consecutive frames, one bit per byte._
 ```C++
-size_t frame_bits (
-    frame_state_t * state,
+size_t dp_frame_bits (
+    dp_frame_state_t * state,
     size_t n,
     uint8_t * out,
     size_t max_out
@@ -609,12 +609,12 @@ Bits written.
 
 
 
-### function frame\_bits\_max\_out 
+### function dp\_frame\_bits\_max\_out 
 
-_Bits_ [_**frame\_bits**_](frame__core_8h.md#function-frame_bits) _will write for_`n` _frames —_`n * nbits` _._
+_Bits_ [_**dp\_frame\_bits**_](frame__core_8h.md#function-dp_frame_bits) _will write for_`n` _frames —_`n * nbits` _._
 ```C++
-size_t frame_bits_max_out (
-    frame_state_t * state,
+size_t dp_frame_bits_max_out (
+    dp_frame_state_t * state,
     size_t n
 ) 
 ```
@@ -638,18 +638,18 @@ size_t frame_bits_max_out (
 
 
 
-### function frame\_build 
+### function dp\_frame\_build 
 
 _Lay out and materialise a described frame._ 
 ```C++
-int frame_build (
-    frame_state_t * state
+int dp_frame_build (
+    dp_frame_state_t * state
 ) 
 ```
 
 
 
-The point at which a description is checked, which for [**frame\_create**](frame__core_8h.md#function-frame_create) happens inside the constructor: a description that cannot produce its own bits is not a frame. It is separate here only because the description arrives over several calls and there is no earlier moment at which it is complete.
+The point at which a description is checked, which for [**dp\_frame\_create**](frame__core_8h.md#function-dp_frame_create) happens inside the constructor: a description that cannot produce its own bits is not a frame. It is separate here only because the description arrives over several calls and there is no earlier moment at which it is complete.
 
 
 The CRC, the outer code, the randomiser and the inner code are all runnable: `ccsds_tm` has no Python binding and is not getting one, so this object is where a caller meets them. A stage naming a kernel nothing here carries is refused rather than skipped, because a stage that quietly did not run produces a frame that still assembles and syncs to nothing.
@@ -701,12 +701,12 @@ ValueError: cannot build: the description is empty, unbuildable, ...
 
 
 
-### function frame\_check 
+### function dp\_frame\_check 
 
 _Undo the description's stages over a received frame, and report._ 
 ```C++
-frame_check_t frame_check (
-    frame_state_t * state,
+frame_check_t dp_frame_check (
+    dp_frame_state_t * state,
     const uint8_t * rx_bits,
     size_t rx_bits_len
 ) 
@@ -714,7 +714,7 @@ frame_check_t frame_check (
 
 
 
-The receive mirror of [**frame\_bits**](frame__core_8h.md#function-frame_bits), reading the same description — so a transmitter and a receiver holding the same `Frame` cannot disagree about which stage covered what.
+The receive mirror of [**dp\_frame\_bits**](frame__core_8h.md#function-dp_frame_bits), reading the same description — so a transmitter and a receiver holding the same `Frame` cannot disagree about which stage covered what.
 
 
 **This is the truth-free frame error rate on a coded link.** It needs the description and the received bits and no payload truth at all, so it works on a real capture, and unlike a self-referenced EVM it still catches a false lock.
@@ -777,12 +777,12 @@ Carrying no check is NOT passing one -- both are reported, separately:
 
 
 
-### function frame\_crc\_ok 
+### function dp\_frame\_crc\_ok 
 
 _Check one received frame's CRC._ 
 ```C++
-int frame_crc_ok (
-    frame_state_t * state,
+int dp_frame_crc_ok (
+    dp_frame_state_t * state,
     const uint8_t * rx_bits,
     size_t rx_bits_len
 ) 
@@ -800,7 +800,7 @@ int frame_crc_ok (
 
 * `state` The frame the bits are laid out by. 
 * `rx_bits` Received bits, one per byte. 
-* `rx_bits_len` How many; must be at least [**frame\_state\_t::nbits**](structframe__state__t.md#variable-nbits). 
+* `rx_bits_len` How many; must be at least [**dp\_frame\_state\_t::nbits**](structdp__frame__state__t.md#variable-nbits). 
 
 
 
@@ -834,11 +834,11 @@ int frame_crc_ok (
 
 
 
-### function frame\_create 
+### function dp\_frame\_create 
 
 _Create a frame instance._ 
 ```C++
-frame_state_t * frame_create (
+dp_frame_state_t * dp_frame_create (
     int preamble_kind,
     const uint8_t * preamble,
     size_t preamble_len,
@@ -940,7 +940,7 @@ Heap-allocated state, or NULL if the geometry is empty or a field cannot be buil
 
 **Note:**
 
-Caller must call [**frame\_destroy()**](frame__core_8h.md#function-frame_destroy) when done.
+Caller must call [**dp\_frame\_destroy()**](frame__core_8h.md#function-dp_frame_destroy) when done.
 
 
 
@@ -974,113 +974,12 @@ A payload a receiver can REGENERATE, rather than one it must be handed:
 
 
 
-### function frame\_create\_desc 
-
-_The same frame, DEFERRED — a description a caller can extend._ 
-```C++
-frame_state_t * frame_create_desc (
-    int preamble_kind,
-    const uint8_t * preamble,
-    size_t preamble_len,
-    size_t preamble_nbits,
-    size_t preamble_reps,
-    uint64_t preamble_poly,
-    uint64_t preamble_seed,
-    uint32_t preamble_reg_bits,
-    int preamble_lfsr,
-    uint64_t preamble_taps_a,
-    uint64_t preamble_seed_a,
-    uint64_t preamble_taps_b,
-    uint64_t preamble_seed_b,
-    int sync_kind,
-    const uint8_t * sync,
-    size_t sync_len,
-    size_t sync_nbits,
-    uint64_t sync_poly,
-    uint64_t sync_seed,
-    uint32_t sync_reg_bits,
-    int sync_lfsr,
-    uint64_t sync_taps_a,
-    uint64_t sync_seed_a,
-    uint64_t sync_taps_b,
-    uint64_t sync_seed_b,
-    int payload_kind,
-    const uint8_t * payload,
-    size_t payload_len,
-    size_t payload_nbits,
-    uint64_t payload_poly,
-    uint64_t payload_seed,
-    uint32_t payload_reg_bits,
-    int payload_lfsr,
-    uint64_t payload_taps_a,
-    uint64_t payload_seed_a,
-    uint64_t payload_taps_b,
-    uint64_t payload_seed_b,
-    int crc
-) 
-```
-
-
-
-Every argument [**frame\_create**](frame__core_8h.md#function-frame_create) takes, and the flavor is what it does with them: this one stops before materialising, so the four fields are a STARTING POINT rather than a finished frame. Append with [**frame\_add\_field**](frame__core_8h.md#function-frame_add_field) and [**frame\_add\_stage**](frame__core_8h.md#function-frame_add_stage), then [**frame\_build**](frame__core_8h.md#function-frame_build). Pass empty arrays for all three to begin from nothing.
-
-
-That is what makes a frame doppler has never heard of describable — a CCSDS CADU among them — without a constructor argument per field of a fixed list. The thirty-odd arguments both constructors take exist because a field count baked into a prototype forces every field's every parameter into it; appending is how a fifth field is added without a signature change.
-
-
-It is also what makes the CCSDS coding reachable from Python at all. `ccsds_tm` has no binding and is not getting one, so a caller meets the outer code, the randomiser and the inner code by DESCRIBING a CADU rather than through a CCSDS entry point added here.
-
-
-An empty description is legal here and refused by [**frame\_create**](frame__core_8h.md#function-frame_create), and the difference is where completeness can be judged: that constructor's description is complete when it returns, and this one is not complete until [**frame\_build**](frame__core_8h.md#function-frame_build) is called.
-
-
-[**frame\_layout**](frame__core_8h.md#function-frame_layout)'s NAMED view reports nothing for a description, on purpose — it would go stale the moment a fifth field is appended, and a stale offset is worse than an absent one. Read a description through [**frame\_field\_off**](frame__core_8h.md#function-frame_field_off) and its siblings.
-
-
-
-
-**Returns:**
-
-An unbuilt description, or NULL on allocation failure or a field that cannot be copied.
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.wfm import FrameDesc
->>> empty = np.empty(0, np.uint8)
->>> d = FrameDesc(empty, empty, empty)          # begin from nothing
->>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
->>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
->>> d.add_field(sync)                           # returns its index
-0
->>> d.add_field(payload)
-1
->>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
-2
->>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
-0
->>> d.build()
->>> d.nbits                                     # 13 + 16 + 16
-45
->>> d.crc_ok(d.bits())        # its own bits are its own truth
-1
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function frame\_deframe 
+### function dp\_frame\_deframe 
 
 _Undo this description's stages over a received frame — DEFRAME it._ 
 ```C++
-size_t frame_deframe (
-    frame_state_t * state,
+size_t dp_frame_deframe (
+    dp_frame_state_t * state,
     const uint8_t * rx_bits,
     size_t rx_bits_len,
     uint8_t * out,
@@ -1093,7 +992,7 @@ size_t frame_deframe (
 The receive counterpart of building one, and the layer a receiver stops short of: `DsssBurstReceiver` and friends hand back hard and soft decisions for a frame's symbols and make no claim about what they mean, because knowing that needs a description — this one (doppler#1022).
 
 
-Returns the frame with every reversible stage undone, in place order: a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked. The payload is then a slice, at [**frame\_field\_off**](frame__core_8h.md#function-frame_field_off) of the payload field — which is the caller's arithmetic because a description does not privilege one field over another.
+Returns the frame with every reversible stage undone, in place order: a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked. The payload is then a slice, at [**dp\_frame\_field\_off**](frame__core_8h.md#function-dp_frame_field_off) of the payload field — which is the caller's arithmetic because a description does not privilege one field over another.
 
 
 The verdict comes back as read-backs (`ok`, `units`, `checked`, `symbols`), not as a return value, since the return is the bits. Read them exactly as [**frame\_check\_t**](structframe__check__t.md)'s, including the distinction that matters most: `checked == 0` says the description carries no reversible stage at all, which is a different fact from a check that failed.
@@ -1111,7 +1010,7 @@ A stage with no `undo` kernel — a convolutional inner code, which a receiver c
 * `rx_bits` Received bits, `frame_bits` of them; treated as a capture and never modified. 
 * `rx_bits_len` How many were supplied. 
 * `out` Receives the corrected frame. 
-* `max_out` Capacity of `out`; see [**frame\_deframe\_max\_out()**](frame__core_8h.md#function-frame_deframe_max_out). 
+* `max_out` Capacity of `out`; see [**dp\_frame\_deframe\_max\_out()**](frame__core_8h.md#function-dp_frame_deframe_max_out). 
 
 
 
@@ -1149,12 +1048,12 @@ True
 
 
 
-### function frame\_deframe\_max\_out 
+### function dp\_frame\_deframe\_max\_out 
 
-_Max bits_ [_**frame\_deframe()**_](frame__core_8h.md#function-frame_deframe) _writes: the frame's own length._
+_Max bits_ [_**dp\_frame\_deframe()**_](frame__core_8h.md#function-dp_frame_deframe) _writes: the frame's own length._
 ```C++
-size_t frame_deframe_max_out (
-    frame_state_t * state,
+size_t dp_frame_deframe_max_out (
+    dp_frame_state_t * state,
     size_t rx_bits_len
 ) 
 ```
@@ -1188,12 +1087,12 @@ The frame's length in bits, or 0 for an empty description.
 
 
 
-### function frame\_destroy 
+### function dp\_frame\_destroy 
 
 _Destroy a frame instance and release all memory._ 
 ```C++
-void frame_destroy (
-    frame_state_t * state
+void dp_frame_destroy (
+    dp_frame_state_t * state
 ) 
 ```
 
@@ -1215,12 +1114,12 @@ void frame_destroy (
 
 
 
-### function frame\_field\_bits 
+### function dp\_frame\_field\_bits 
 
 _Bits in field_ `i` _, or 0 if there is no such field._
 ```C++
-size_t frame_field_bits (
-    frame_state_t * state,
+size_t dp_frame_field_bits (
+    dp_frame_state_t * state,
     size_t i
 ) 
 ```
@@ -1263,12 +1162,12 @@ The field's length in bits.
 
 
 
-### function frame\_field\_index 
+### function dp\_frame\_field\_index 
 
 _Index of the field called_ `name` _, or -1._
 ```C++
-int frame_field_index (
-    frame_state_t * state,
+int dp_frame_field_index (
+    dp_frame_state_t * state,
     const char * name
 ) 
 ```
@@ -1315,12 +1214,12 @@ the index, or -1 on NULL or a name no field carries. This is the one verb whose 
 
 
 
-### function frame\_field\_off 
+### function dp\_frame\_field\_off 
 
 _Bit offset of field_ `i` _, or 0 if there is no such field._
 ```C++
-size_t frame_field_off (
-    frame_state_t * state,
+size_t dp_frame_field_off (
+    dp_frame_state_t * state,
     size_t i
 ) 
 ```
@@ -1369,12 +1268,12 @@ indices a caller passed to `add_field` keep meaning what they meant.
 
 
 
-### function frame\_layout 
+### function dp\_frame\_layout 
 
 _Where each field lands, in bits from the start of the frame._ 
 ```C++
-wfm_frame_layout_t frame_layout (
-    frame_state_t * state
+wfm_frame_layout_t dp_frame_layout (
+    dp_frame_state_t * state
 ) 
 ```
 
@@ -1423,12 +1322,12 @@ read with `field_off()` / `field_bits()` instead.
 
 
 
-### function frame\_n\_fields 
+### function dp\_frame\_n\_fields 
 
 _Fields in the description._ 
 ```C++
-size_t frame_n_fields (
-    frame_state_t * state
+size_t dp_frame_n_fields (
+    dp_frame_state_t * state
 ) 
 ```
 
@@ -1468,12 +1367,12 @@ How many fields the description carries.
 
 
 
-### function frame\_n\_stages 
+### function dp\_frame\_n\_stages 
 
 _Stages in the description._ 
 ```C++
-size_t frame_n_stages (
-    frame_state_t * state
+size_t dp_frame_n_stages (
+    dp_frame_state_t * state
 ) 
 ```
 
@@ -1514,12 +1413,12 @@ How many stages the description carries.
 
 
 
-### function frame\_name\_field 
+### function dp\_frame\_name\_field 
 
 _Give an already-appended field a name, or clear it with_ `""` _._
 ```C++
-int frame_name_field (
-    frame_state_t * state,
+int dp_frame_name_field (
+    dp_frame_state_t * state,
     uint32_t index,
     const char * name
 ) 
@@ -1564,12 +1463,12 @@ int frame_name_field (
 
 
 
-### function frame\_stage\_bits 
+### function dp\_frame\_stage\_bits 
 
 _Bits stage_ `i` _covers; 0 for a stage that did not run._
 ```C++
-size_t frame_stage_bits (
-    frame_state_t * state,
+size_t dp_frame_stage_bits (
+    dp_frame_state_t * state,
     size_t i
 ) 
 ```
@@ -1612,12 +1511,12 @@ The covered span, in bits.
 
 
 
-### function frame\_stage\_first 
+### function dp\_frame\_stage\_first 
 
 _First CADU bit stage_ `i` _covers; 0 for a stage that did not run._
 ```C++
-size_t frame_stage_first (
-    frame_state_t * state,
+size_t dp_frame_stage_first (
+    dp_frame_state_t * state,
     size_t i
 ) 
 ```
@@ -1650,6 +1549,107 @@ Bits from the start of the frame.
 >>> d.build()
 >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
 13
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function frame\_create\_desc 
+
+_The same frame, DEFERRED — a description a caller can extend._ 
+```C++
+dp_frame_state_t * frame_create_desc (
+    int preamble_kind,
+    const uint8_t * preamble,
+    size_t preamble_len,
+    size_t preamble_nbits,
+    size_t preamble_reps,
+    uint64_t preamble_poly,
+    uint64_t preamble_seed,
+    uint32_t preamble_reg_bits,
+    int preamble_lfsr,
+    uint64_t preamble_taps_a,
+    uint64_t preamble_seed_a,
+    uint64_t preamble_taps_b,
+    uint64_t preamble_seed_b,
+    int sync_kind,
+    const uint8_t * sync,
+    size_t sync_len,
+    size_t sync_nbits,
+    uint64_t sync_poly,
+    uint64_t sync_seed,
+    uint32_t sync_reg_bits,
+    int sync_lfsr,
+    uint64_t sync_taps_a,
+    uint64_t sync_seed_a,
+    uint64_t sync_taps_b,
+    uint64_t sync_seed_b,
+    int payload_kind,
+    const uint8_t * payload,
+    size_t payload_len,
+    size_t payload_nbits,
+    uint64_t payload_poly,
+    uint64_t payload_seed,
+    uint32_t payload_reg_bits,
+    int payload_lfsr,
+    uint64_t payload_taps_a,
+    uint64_t payload_seed_a,
+    uint64_t payload_taps_b,
+    uint64_t payload_seed_b,
+    int crc
+) 
+```
+
+
+
+Every argument [**dp\_frame\_create**](frame__core_8h.md#function-dp_frame_create) takes, and the flavor is what it does with them: this one stops before materialising, so the four fields are a STARTING POINT rather than a finished frame. Append with [**dp\_frame\_add\_field**](frame__core_8h.md#function-dp_frame_add_field) and [**dp\_frame\_add\_stage**](frame__core_8h.md#function-dp_frame_add_stage), then [**dp\_frame\_build**](frame__core_8h.md#function-dp_frame_build). Pass empty arrays for all three to begin from nothing.
+
+
+That is what makes a frame doppler has never heard of describable — a CCSDS CADU among them — without a constructor argument per field of a fixed list. The thirty-odd arguments both constructors take exist because a field count baked into a prototype forces every field's every parameter into it; appending is how a fifth field is added without a signature change.
+
+
+It is also what makes the CCSDS coding reachable from Python at all. `ccsds_tm` has no binding and is not getting one, so a caller meets the outer code, the randomiser and the inner code by DESCRIBING a CADU rather than through a CCSDS entry point added here.
+
+
+An empty description is legal here and refused by [**dp\_frame\_create**](frame__core_8h.md#function-dp_frame_create), and the difference is where completeness can be judged: that constructor's description is complete when it returns, and this one is not complete until [**dp\_frame\_build**](frame__core_8h.md#function-dp_frame_build) is called.
+
+
+[**dp\_frame\_layout**](frame__core_8h.md#function-dp_frame_layout)'s NAMED view reports nothing for a description, on purpose — it would go stale the moment a fifth field is appended, and a stale offset is worse than an absent one. Read a description through [**dp\_frame\_field\_off**](frame__core_8h.md#function-dp_frame_field_off) and its siblings.
+
+
+
+
+**Returns:**
+
+An unbuilt description, or NULL on allocation failure or a field that cannot be copied.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc
+>>> empty = np.empty(0, np.uint8)
+>>> d = FrameDesc(empty, empty, empty)          # begin from nothing
+>>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
+>>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
+>>> d.add_field(sync)                           # returns its index
+0
+>>> d.add_field(payload)
+1
+>>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
+2
+>>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
+0
+>>> d.build()
+>>> d.nbits                                     # 13 + 16 + 16
+45
+>>> d.crc_ok(d.bits())        # its own bits are its own truth
+1
 ```
  
 

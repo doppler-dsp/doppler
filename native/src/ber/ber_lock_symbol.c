@@ -12,8 +12,8 @@
 #endif
 
 int
-ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
-                 double min_frac)
+dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
+                    double min_frac)
 {
   size_t total = 0, before = 0, z = 0;
   if (!flags || flags_len == 0)

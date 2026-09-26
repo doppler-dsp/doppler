@@ -39,7 +39,7 @@ extern "C"
    * @brief Opaque capture handle.
    *
    * Hand-written (`no_state = "true"` in the manifest) because it wraps
-   * doppler's own opaque `wfm_reader_state_t *`, which just-makeit has no way
+   * doppler's own opaque `dp_wfm_reader_state_t *`, which just-makeit has no way
    * to infer. The layout stays private to `capture_core.c`; callers —
    * including the generated binding — only ever hold the pointer.
    */

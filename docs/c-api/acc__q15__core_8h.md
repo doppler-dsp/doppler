@@ -32,7 +32,7 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**acc\_q15\_state\_t**](structacc__q15__state__t.md) <br>_AccQ15 state._  |
+| struct | [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) <br>_AccQ15 state._  |
 
 
 
@@ -59,19 +59,19 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 
 | Type | Name |
 | ---: | :--- |
-|  [**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* | [**acc\_q15\_create**](#function-acc_q15_create) (int64\_t acc) <br>_Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload._  |
-|  void | [**acc\_q15\_destroy**](#function-acc_q15_destroy) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Destroy an AccQ15 instance and release all memory. Safe to call with NULL._  |
-|  int64\_t | [**acc\_q15\_dump**](#function-acc_q15_dump) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Ideal for block-based processing where each block hands off its sum and then starts fresh, avoiding a separate reset() call._  |
-|  int64\_t | [**acc\_q15\_get**](#function-acc_q15_get) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Identical to reading the acc field directly; exists as a named method so the Python binding can expose it consistently with dump()._  |
-|  int64\_t | [**acc\_q15\_get\_acc**](#function-acc_q15_get_acc) (const [**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward._  |
-|  void | [**acc\_q15\_get\_state**](#function-acc_q15_get_state) (const [**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, void \* blob) <br> |
-|  void | [**acc\_q15\_madd**](#function-acc_q15_madd) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, const int16\_t \* a, size\_t a\_len, const int16\_t \* b, size\_t b\_len) <br>_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), using SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._ |
-|  void | [**acc\_q15\_reset**](#function-acc_q15_reset) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep._  |
-|  void | [**acc\_q15\_set\_acc**](#function-acc_q15_set_acc) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, int64\_t val) <br>_Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value._  |
-|  int | [**acc\_q15\_set\_state**](#function-acc_q15_set_state) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**acc\_q15\_state\_bytes**](#function-acc_q15_state_bytes) (const [**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_q15\_step**](#function-acc_q15_step) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, int16\_t x) <br>_Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap._  |
-|  void | [**acc\_q15\_steps**](#function-acc_q15_steps) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, const int16\_t \* input, size\_t n) <br>_Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler._  |
+|  [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* | [**dp\_acc\_q15\_create**](#function-dp_acc_q15_create) (int64\_t acc) <br>_Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload._  |
+|  void | [**dp\_acc\_q15\_destroy**](#function-dp_acc_q15_destroy) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Destroy an AccQ15 instance and release all memory. Safe to call with NULL._  |
+|  int64\_t | [**dp\_acc\_q15\_dump**](#function-dp_acc_q15_dump) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Ideal for block-based processing where each block hands off its sum and then starts fresh, avoiding a separate reset() call._  |
+|  int64\_t | [**dp\_acc\_q15\_get**](#function-dp_acc_q15_get) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Identical to reading the acc field directly; exists as a named method so the Python binding can expose it consistently with dump()._  |
+|  int64\_t | [**dp\_acc\_q15\_get\_acc**](#function-dp_acc_q15_get_acc) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward._  |
+|  void | [**dp\_acc\_q15\_get\_state**](#function-dp_acc_q15_get_state) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_q15\_madd**](#function-dp_acc_q15_madd) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const int16\_t \* a, size\_t a\_len, const int16\_t \* b, size\_t b\_len) <br>_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), using SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._ |
+|  void | [**dp\_acc\_q15\_reset**](#function-dp_acc_q15_reset) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep._  |
+|  void | [**dp\_acc\_q15\_set\_acc**](#function-dp_acc_q15_set_acc) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, int64\_t val) <br>_Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value._  |
+|  int | [**dp\_acc\_q15\_set\_state**](#function-dp_acc_q15_set_state) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_acc\_q15\_state\_bytes**](#function-dp_acc_q15_state_bytes) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dp\_acc\_q15\_step**](#function-dp_acc_q15_step) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, int16\_t x) <br>_Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap._  |
+|  void | [**dp\_acc\_q15\_steps**](#function-dp_acc_q15_steps) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const int16\_t \* input, size\_t n) <br>_Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler._  |
 
 
 
@@ -128,11 +128,11 @@ Lifecycle: create -&gt; `[step / steps / madd / reset]*` -&gt; `[get / dump]*` -
 
 
 
-### function acc\_q15\_create 
+### function dp\_acc\_q15\_create 
 
 _Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload._ 
 ```C++
-acc_q15_state_t * acc_q15_create (
+dp_acc_q15_state_t * dp_acc_q15_create (
     int64_t acc
 ) 
 ```
@@ -157,7 +157,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**acc\_q15\_destroy()**](acc__q15__core_8h.md#function-acc_q15_destroy) when done.
+Caller must call [**dp\_acc\_q15\_destroy()**](acc__q15__core_8h.md#function-dp_acc_q15_destroy) when done.
 
 
 
@@ -176,12 +176,12 @@ Caller must call [**acc\_q15\_destroy()**](acc__q15__core_8h.md#function-acc_q15
 
 
 
-### function acc\_q15\_destroy 
+### function dp\_acc\_q15\_destroy 
 
 _Destroy an AccQ15 instance and release all memory. Safe to call with NULL._ 
 ```C++
-void acc_q15_destroy (
-    acc_q15_state_t * state
+void dp_acc_q15_destroy (
+    dp_acc_q15_state_t * state
 ) 
 ```
 
@@ -209,12 +209,12 @@ void acc_q15_destroy (
 
 
 
-### function acc\_q15\_dump 
+### function dp\_acc\_q15\_dump 
 
 _Return the accumulated value and atomically reset it to zero. Ideal for block-based processing where each block hands off its sum and then starts fresh, avoiding a separate reset() call._ 
 ```C++
-int64_t acc_q15_dump (
-    acc_q15_state_t * state
+int64_t dp_acc_q15_dump (
+    dp_acc_q15_state_t * state
 ) 
 ```
 
@@ -254,12 +254,12 @@ Accumulator value before the reset (int64\_t).
 
 
 
-### function acc\_q15\_get 
+### function dp\_acc\_q15\_get 
 
 _Return the current accumulated value without resetting it. Identical to reading the acc field directly; exists as a named method so the Python binding can expose it consistently with dump()._ 
 ```C++
-int64_t acc_q15_get (
-    acc_q15_state_t * state
+int64_t dp_acc_q15_get (
+    dp_acc_q15_state_t * state
 ) 
 ```
 
@@ -297,12 +297,12 @@ Current accumulator value (int64\_t).
 
 
 
-### function acc\_q15\_get\_acc 
+### function dp\_acc\_q15\_get\_acc 
 
 _Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward._ 
 ```C++
-int64_t acc_q15_get_acc (
-    const acc_q15_state_t * state
+int64_t dp_acc_q15_get_acc (
+    const dp_acc_q15_state_t * state
 ) 
 ```
 
@@ -335,11 +335,11 @@ int64_t acc_q15_get_acc (
 
 
 
-### function acc\_q15\_get\_state 
+### function dp\_acc\_q15\_get\_state 
 
 ```C++
-void acc_q15_get_state (
-    const acc_q15_state_t * state,
+void dp_acc_q15_get_state (
+    const dp_acc_q15_state_t * state,
     void * blob
 ) 
 ```
@@ -351,12 +351,12 @@ void acc_q15_get_state (
 
 
 
-### function acc\_q15\_madd 
+### function dp\_acc\_q15\_madd 
 
 _Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), using SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._
 ```C++
-void acc_q15_madd (
-    acc_q15_state_t * state,
+void dp_acc_q15_madd (
+    dp_acc_q15_state_t * state,
     const int16_t * a,
     size_t a_len,
     const int16_t * b,
@@ -397,12 +397,12 @@ void acc_q15_madd (
 
 
 
-### function acc\_q15\_reset 
+### function dp\_acc\_q15\_reset 
 
 _Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep._ 
 ```C++
-void acc_q15_reset (
-    acc_q15_state_t * state
+void dp_acc_q15_reset (
+    dp_acc_q15_state_t * state
 ) 
 ```
 
@@ -433,12 +433,12 @@ void acc_q15_reset (
 
 
 
-### function acc\_q15\_set\_acc 
+### function dp\_acc\_q15\_set\_acc 
 
 _Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value._ 
 ```C++
-void acc_q15_set_acc (
-    acc_q15_state_t * state,
+void dp_acc_q15_set_acc (
+    dp_acc_q15_state_t * state,
     int64_t val
 ) 
 ```
@@ -470,11 +470,11 @@ void acc_q15_set_acc (
 
 
 
-### function acc\_q15\_set\_state 
+### function dp\_acc\_q15\_set\_state 
 
 ```C++
-int acc_q15_set_state (
-    acc_q15_state_t * state,
+int dp_acc_q15_set_state (
+    dp_acc_q15_state_t * state,
     const void * blob
 ) 
 ```
@@ -486,11 +486,11 @@ int acc_q15_set_state (
 
 
 
-### function acc\_q15\_state\_bytes 
+### function dp\_acc\_q15\_state\_bytes 
 
 ```C++
-size_t acc_q15_state_bytes (
-    const acc_q15_state_t * state
+size_t dp_acc_q15_state_bytes (
+    const dp_acc_q15_state_t * state
 ) 
 ```
 
@@ -501,12 +501,12 @@ size_t acc_q15_state_bytes (
 
 
 
-### function acc\_q15\_step 
+### function dp\_acc\_q15\_step 
 
 _Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap._ 
 ```C++
-JM_FORCEINLINE  JM_HOT void acc_q15_step (
-    acc_q15_state_t * state,
+JM_FORCEINLINE  JM_HOT void dp_acc_q15_step (
+    dp_acc_q15_state_t * state,
     int16_t x
 ) 
 ```
@@ -539,12 +539,12 @@ JM_FORCEINLINE  JM_HOT void acc_q15_step (
 
 
 
-### function acc\_q15\_steps 
+### function dp\_acc\_q15\_steps 
 
 _Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler._ 
 ```C++
-void acc_q15_steps (
-    acc_q15_state_t * state,
+void dp_acc_q15_steps (
+    dp_acc_q15_state_t * state,
     const int16_t * input,
     size_t n
 ) 

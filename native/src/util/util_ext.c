@@ -23,8 +23,8 @@ _bind_square_clip (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Df", _kwlist, &y_raw, &lin))
     return NULL;
   float _Complex y = (float)y_raw.real + (float)y_raw.imag * I;
-  return PyComplex_FromDoubles ((double)crealf (square_clip (y, lin)),
-                                (double)cimagf (square_clip (y, lin)));
+  return PyComplex_FromDoubles ((double)crealf (dp_square_clip (y, lin)),
+                                (double)cimagf (dp_square_clip (y, lin)));
 }
 
 static PyObject *
@@ -36,7 +36,7 @@ _bind_next_pow_two (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
     return NULL;
   size_t n = (size_t)n_raw;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)next_pow_two (n));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)dp_next_pow_two (n));
 }
 
 static PyObject *
@@ -51,7 +51,7 @@ _bind_saturate (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &v, &lo, &hi,
                                     &nan_to))
     return NULL;
-  return PyFloat_FromDouble (saturate (v, lo, hi, nan_to));
+  return PyFloat_FromDouble (dp_saturate (v, lo, hi, nan_to));
 }
 
 static PyObject *
@@ -65,7 +65,7 @@ _bind_ema_step (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &state, &x,
                                     &alpha))
     return NULL;
-  return PyFloat_FromDouble (ema_step (state, x, alpha));
+  return PyFloat_FromDouble (dp_ema_step (state, x, alpha));
 }
 
 static PyObject *
@@ -78,7 +78,7 @@ _bind_ema_alpha_decim (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK", _kwlist, &alpha, &d_raw))
     return NULL;
   size_t d = (size_t)d_raw;
-  return PyFloat_FromDouble (ema_alpha_decim (alpha, d));
+  return PyFloat_FromDouble (dp_ema_alpha_decim (alpha, d));
 }
 
 static PyObject *
@@ -90,7 +90,7 @@ _bind_complement_power (PyObject *self, PyObject *args, PyObject *kwds)
   double       x         = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &p, &x))
     return NULL;
-  return PyFloat_FromDouble (complement_power (p, x));
+  return PyFloat_FromDouble (dp_complement_power (p, x));
 }
 
 static PyObject *
@@ -101,7 +101,7 @@ _bind_sinc (PyObject *self, PyObject *args, PyObject *kwds)
   double       u         = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &u))
     return NULL;
-  return PyFloat_FromDouble (sinc (u));
+  return PyFloat_FromDouble (dp_sinc (u));
 }
 
 static PyObject *
@@ -112,7 +112,7 @@ _bind_mean_sinc (PyObject *self, PyObject *args, PyObject *kwds)
   double       umax      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &umax))
     return NULL;
-  return PyFloat_FromDouble (mean_sinc (umax));
+  return PyFloat_FromDouble (dp_mean_sinc (umax));
 }
 
 static PyObject *
@@ -142,11 +142,11 @@ _bind_simpson_weights (PyObject *self, PyObject *args, PyObject *kwds)
     }
   double *w     = (double *)PyArray_DATA (w_arr);
   size_t  w_len = (size_t)PyArray_SIZE (w_arr);
-  int     _rc   = simpson_weights (w, w_len);
+  int     _rc   = dp_simpson_weights (w, w_len);
   Py_DECREF (w_arr);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_RuntimeError, "simpson_weights failed (rc=%d)",
+      PyErr_Format (PyExc_RuntimeError, "dp_simpson_weights failed (rc=%d)",
                     (int)_rc);
       return NULL;
     }
@@ -180,7 +180,7 @@ _bind_midpoint_nodes (PyObject *self, PyObject *args, PyObject *kwds)
     }
   double *u     = (double *)PyArray_DATA (u_arr);
   size_t  u_len = (size_t)PyArray_SIZE (u_arr);
-  midpoint_nodes (u, u_len);
+  dp_midpoint_nodes (u, u_len);
   Py_DECREF (u_arr);
   Py_RETURN_NONE;
 }
@@ -234,12 +234,12 @@ _bind_gauss_hermite (PyObject *self, PyObject *args, PyObject *kwds)
     }
   double *p     = (double *)PyArray_DATA (p_arr);
   size_t  p_len = (size_t)PyArray_SIZE (p_arr);
-  int     _rc   = gauss_hermite (z, z_len, p, p_len);
+  int     _rc   = dp_gauss_hermite (z, z_len, p, p_len);
   Py_DECREF (z_arr);
   Py_DECREF (p_arr);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_RuntimeError, "gauss_hermite failed (rc=%d)",
+      PyErr_Format (PyExc_RuntimeError, "dp_gauss_hermite failed (rc=%d)",
                     (int)_rc);
       return NULL;
     }
@@ -459,9 +459,9 @@ static PyMethodDef util_module_methods[] = {
     "NOT total in `x`: a non-finite observation poisons the state\n"
     "permanently, because an EMA remembers. That is deliberate — the guard\n"
     "belongs at the boundary where an untrusted value first becomes\n"
-    "persistent state, which is this function's input. Use ::saturate there,\n"
-    "as `agc_steps` does. See `agc_core.h` for what one unguarded non-finite\n"
-    "sample cost.\n"
+    "persistent state, which is this function's input. Use ::dp_saturate\n"
+    "there, as `dp_agc_steps` does. See `agc_core.h` for what one unguarded\n"
+    "non-finite sample cost.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -498,11 +498,11 @@ static PyMethodDef util_module_methods[] = {
     "| 0.05    | 6 ulps off             | exact         |\n"
     "| 1e-5    | 26865 ulps off         | exact         |\n"
     "\n"
-    "`agc_steps` used the repeated-multiply form and had this defect; it now\n"
-    "forms BOTH its per-chunk coefficients with this function. Being exact\n"
-    "at `d == 1` is the property that lets a caller set `decim = 1` and get\n"
-    "bit-for-bit the undecimated recursion, so the decimated and per-sample\n"
-    "paths can be compared at all.\n"
+    "`dp_agc_steps` used the repeated-multiply form and had this defect; it\n"
+    "now forms BOTH its per-chunk coefficients with this function. Being\n"
+    "exact at `d == 1` is the property that lets a caller set `decim = 1`\n"
+    "and get bit-for-bit the undecimated recursion, so the decimated and\n"
+    "per-sample paths can be compared at all.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -608,8 +608,8 @@ static PyMethodDef util_module_methods[] = {
     "The average amplitude loss of a signal whose offset from the nearest\n"
     "bin centre is uniform over `umax` bins: the scalloping a Pd model\n"
     "averages over, where sinc(umax) would be only the worst case.\n"
-    "64-interval Simpson (simpson_weights()) over segments of at most half a\n"
-    "bin: within 3e-10 at any umax, far below any model this feeds.\n"
+    "64-interval Simpson (dp_simpson_weights()) over segments of at most\n"
+    "half a bin: within 3e-10 at any umax, far below any model this feeds.\n"
     "\n"
     "Parameters\n"
     "----------\n"

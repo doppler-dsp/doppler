@@ -4,7 +4,7 @@
  *
  * Phase 4 of the lifecycle spine covers `push()`; this file covers what
  * phase 2/3 built, and deliberately does NOT pretend to cover more. The
- * three stages are unimplemented (see `dsss_burst_receiver_push`), so the
+ * three stages are unimplemented (see `dp_dsss_burst_receiver_push`), so the
  * only honest claims here are about construction, refusal, derived
  * geometry and reset.
  *
@@ -59,10 +59,10 @@ acq_code (void)
   static int     built = 0;
   if (!built)
     {
-      pn_state_t *pn = pn_create (pn_mls_poly (5), 1u, 5u, 0);
+      dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5), 1u, 5u, 0);
       for (size_t i = 0; i < ACQ_SF; i++)
         c[i] = pn_step (pn);
-      pn_destroy (pn);
+      dp_pn_destroy (pn);
       built = 1;
     }
   return c;
@@ -191,15 +191,15 @@ build_capture (float _Complex *cap, size_t n_cap, size_t at, double f0,
     cap[at + i] += burst[i];
 }
 
-static dsss_burst_receiver_state_t *
+static dp_dsss_burst_receiver_state_t *
 make_rx (void)
 {
-  return dsss_burst_receiver_create (
+  return dp_dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
       SPC, 1.0e6, FRAME_SYMS, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
 
-static dsss_burst_receiver_state_t *
+static dp_dsss_burst_receiver_state_t *
 make (void)
 {
   uint8_t acq[ACQ_SF], data[DATA_SF], sync[SYNC_LEN];
@@ -209,9 +209,9 @@ make (void)
     data[i] = (uint8_t)((i >> 1) & 1u);
   for (size_t i = 0; i < SYNC_LEN; i++)
     sync[i] = (uint8_t)((i * 3u) & 1u);
-  return dsss_burst_receiver_create (acq, ACQ_SF, data, DATA_SF, sync,
-                                     SYNC_LEN, REPS, SPC, 1.0e6, FRAME_SYMS,
-                                     50.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+  return dp_dsss_burst_receiver_create (acq, ACQ_SF, data, DATA_SF, sync,
+                                        SYNC_LEN, REPS, SPC, 1.0e6, FRAME_SYMS,
+                                        50.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
 
 /* A valid parameter set builds, and the codes are COPIED -- the caller's
@@ -221,7 +221,7 @@ make (void)
 static int
 test_create_copies_and_derives (void)
 {
-  dsss_burst_receiver_state_t *s = make ();
+  dp_dsss_burst_receiver_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
   DP_CHECK (s->acq_code_len == ACQ_SF);
@@ -253,7 +253,7 @@ test_create_copies_and_derives (void)
   DP_CHECK (s->cap->acq != NULL);
   DP_CHECK (s->demod != NULL);
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -270,9 +270,9 @@ test_refuses_bad_arguments (void)
     sync[i] = 0u;
 
 #define MK(ac, acl, dc, dcl, sy, syl, rp, sp, cr, pl, cn, du, fa, pdv)        \
-  dsss_burst_receiver_create ((ac), (acl), (dc), (dcl), (sy), (syl), (rp),    \
-                              (sp), (cr), (pl), (cn), (du), (fa), (pdv), 0.0, \
-                              0.0, 10)
+  dp_dsss_burst_receiver_create ((ac), (acl), (dc), (dcl), (sy), (syl), (rp), \
+                                 (sp), (cr), (pl), (cn), (du), (fa), (pdv),   \
+                                 0.0, 0.0, 10)
 
   DP_CHECK (MK (NULL, 0, code, DATA_SF, sync, SYNC_LEN, REPS, SPC, 1e6,
                 FRAME_SYMS, 50.0, 0.0, 1e-3, 0.9)
@@ -305,11 +305,11 @@ test_refuses_bad_arguments (void)
   /* The control: the same call with every field valid DOES build, so the
    * nine NULLs above are attributable to the field each varied and not to
    * a constructor that refuses everything. */
-  dsss_burst_receiver_state_t *ok
+  dp_dsss_burst_receiver_state_t *ok
       = MK (code, ACQ_SF, code, DATA_SF, sync, SYNC_LEN, REPS, SPC, 1e6,
             FRAME_SYMS, 50.0, 0.0, 1e-3, 0.9);
   DP_CHECK (ok != NULL);
-  dsss_burst_receiver_destroy (ok);
+  dp_dsss_burst_receiver_destroy (ok);
 #undef MK
   return 0;
 }
@@ -321,7 +321,7 @@ test_refuses_bad_arguments (void)
 static int
 test_decodes_a_burst_from_a_stream (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
   const size_t AT    = 5000;
@@ -334,16 +334,16 @@ test_decodes_a_burst_from_a_stream (void)
   for (size_t off = 0; off < N_CAP && got == 0; off += 777)
     {
       size_t n = (off + 777 <= N_CAP) ? 777 : (N_CAP - off);
-      got      = dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
+      got = dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
     }
 
   DP_CHECK (got == FRAME_SYMS);
   DP_CHECK (frame_ok (out));
-  DP_CHECK (dsss_burst_receiver_get_n_bursts (s) == 1);
+  DP_CHECK (dp_dsss_burst_receiver_get_n_bursts (s) == 1);
 
   /* The field a caller cannot compute: recovered to the SAMPLE, from an
      acquisition that reports only an end anchor and a residue. */
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
   DP_CHECK_MSG (frame_ok (out),
                 "the frame it handed back checks out against its own "
                 "trailer — computed here, because this object stops at "
@@ -358,8 +358,8 @@ test_decodes_a_burst_from_a_stream (void)
     errs += (out[SYNC_LEN + i] != want[i]);
   DP_CHECK (errs == 0);
 
-  DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
-  dsss_burst_receiver_destroy (s);
+  DP_CHECK (dp_dsss_burst_receiver_get_dropped (s) == 0);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -379,11 +379,11 @@ test_decodes_a_burst_from_a_stream (void)
 static int
 test_decodes_under_residual_doppler (void)
 {
-  dsss_burst_receiver_state_t *probe = make_rx ();
+  dp_dsss_burst_receiver_state_t *probe = make_rx ();
   DP_REQUIRE (probe != NULL);
   double res_hz = probe->cap->acq->engine->doppler_res_hz;
   double fs     = 1.0e6 * (double)SPC;
-  dsss_burst_receiver_destroy (probe);
+  dp_dsss_burst_receiver_destroy (probe);
 
   const size_t AT      = 5000;
   const size_t N_CAP   = 40000;
@@ -395,19 +395,19 @@ test_decodes_under_residual_doppler (void)
       static float _Complex cap[40000];
       build_capture (cap, N_CAP, AT, f_hz / fs, 0.02, 999u);
 
-      dsss_burst_receiver_state_t *s = make_rx ();
+      dp_dsss_burst_receiver_state_t *s = make_rx ();
       DP_REQUIRE (s != NULL);
       uint8_t out[FRAME_SYMS];
       size_t  got = 0;
       for (size_t off = 0; off < N_CAP && got == 0; off += 777)
         {
           size_t n = (off + 777 <= N_CAP) ? 777 : (N_CAP - off);
-          got = dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
+          got = dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
         }
       DP_CHECK (got == FRAME_SYMS);
-      DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+      DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
       DP_CHECK (frame_ok (out));
-      dsss_burst_receiver_destroy (s);
+      dp_dsss_burst_receiver_destroy (s);
     }
   return 0;
 }
@@ -431,13 +431,13 @@ test_decodes_under_residual_doppler (void)
 static int
 test_true_burst_once_and_false_alarms_marked (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
   /* The grid this scene is timed for: one frame = the whole preamble. The
      sizer picks from the burst's alignment (doppler#1498) and may choose
      shallower; this test is about the claim rule and the false alarm seed 11
      carries on it, not the sizer. */
-  DP_REQUIRE (burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
+  DP_REQUIRE (dp_burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
 
   const size_t AT = 5000;
   static float _Complex cap[40000];
@@ -449,12 +449,12 @@ test_true_burst_once_and_false_alarms_marked (void)
   for (size_t off = 0; off < 40000; off += 777)
     {
       size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
-      if (!dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS))
+      if (!dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS))
         continue;
       if (frame_ok (out))
         {
           n_valid++;
-          DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+          DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
         }
       else
         {
@@ -465,7 +465,7 @@ test_true_burst_once_and_false_alarms_marked (void)
   /* The real burst, claimed exactly once despite firing on every frame of
      its own preamble. */
   DP_CHECK (n_valid == 1);
-  DP_CHECK (dsss_burst_receiver_get_n_bursts (s) >= 1);
+  DP_CHECK (dp_dsss_burst_receiver_get_n_bursts (s) >= 1);
 
   /* Non-vacuous: this capture really does contain a false alarm, so the
      CRC is separating two populations rather than one. */
@@ -473,7 +473,7 @@ test_true_burst_once_and_false_alarms_marked (void)
                 "no false alarm in this capture -- the CRC claim above "
                 "would be vacuous");
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -482,7 +482,7 @@ test_true_burst_once_and_false_alarms_marked (void)
 static int
 test_silence_yields_no_burst (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
   static float _Complex cap[20000];
@@ -499,13 +499,13 @@ test_silence_yields_no_burst (void)
   for (size_t off = 0; off < 20000; off += 1024)
     {
       size_t n = (off + 1024 <= 20000) ? 1024 : (20000 - off);
-      total += dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
+      total += dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
     }
   DP_CHECK (total == 0);
-  DP_CHECK (dsss_burst_receiver_get_n_bursts (s) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_get_n_bursts (s) == 0);
   /* no burst, so nothing to check */
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -515,7 +515,7 @@ test_silence_yields_no_burst (void)
 static int
 test_one_giant_push_finds_the_same_burst (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
   DP_REQUIRE (40000
               > s->cap->hist->capacity); /* genuinely larger than the ring */
@@ -529,17 +529,17 @@ test_one_giant_push_finds_the_same_burst (void)
      through the scalar read-backs -- those describe the LAST burst returned,
      which need not be the real one when a capture also carries a false
      alarm. */
-  size_t   cap_bits = dsss_burst_receiver_push_max_out (s, 40000);
+  size_t   cap_bits = dp_dsss_burst_receiver_push_max_out (s, 40000);
   uint8_t *out      = malloc (cap_bits);
   DP_REQUIRE (out != NULL);
-  size_t got = dsss_burst_receiver_push (s, cap, 40000, out, cap_bits);
+  size_t got = dp_dsss_burst_receiver_push (s, cap, 40000, out, cap_bits);
   DP_CHECK (got >= FRAME_SYMS);
   DP_CHECK (got % FRAME_SYMS == 0);
 
-  size_t           n_ev = dsss_burst_receiver_events_max_out (s);
+  size_t           n_ev = dp_dsss_burst_receiver_events_max_out (s);
   dsss_br_event_t *evs  = malloc (n_ev * sizeof *evs);
   DP_REQUIRE (evs != NULL);
-  DP_CHECK (dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
+  DP_CHECK (dp_dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
   DP_CHECK (n_ev == got / FRAME_SYMS);
 
   int found = 0;
@@ -557,11 +557,11 @@ test_one_giant_push_finds_the_same_burst (void)
   DP_CHECK (found);
 
   /* The whole point: consuming the entire input costs nothing. */
-  DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_get_dropped (s) == 0);
 
   free (evs);
   free (out);
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -580,7 +580,7 @@ test_one_giant_push_finds_the_same_burst (void)
 static int
 test_a_burst_near_the_stream_start (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
   /* Inside the clamp's reach: the refine span cannot be taken in full. */
@@ -598,13 +598,13 @@ test_a_burst_near_the_stream_start (void)
   for (size_t off = 0; off < 40000 && got == 0; off += 777)
     {
       size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
-      got      = dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
+      got = dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
     }
   DP_CHECK (got == FRAME_SYMS);
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
   DP_CHECK (frame_ok (out));
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -620,9 +620,9 @@ test_a_burst_near_the_stream_start (void)
 static int
 test_one_burst_many_detections_is_claimed_once (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
-  DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == 0);
+  DP_REQUIRE (dp_dsss_burst_receiver_configure_search_raw (s, 1, 1) == 0);
   /* The frame really is one code period now -- otherwise the preamble would
      not span several frames and this test would prove nothing. */
   DP_REQUIRE (s->cap->acq->engine->n == s->cap->code_period);
@@ -636,17 +636,17 @@ test_one_burst_many_detections_is_claimed_once (void)
   for (size_t off = 0; off < 40000; off += 777)
     {
       size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
-      if (!dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS))
+      if (!dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS))
         continue;
       if (frame_ok (out))
         {
           n_valid++;
-          DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+          DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
         }
     }
   DP_CHECK_MSG (n_valid == 1, "the same burst was decoded more than once");
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -682,7 +682,7 @@ test_one_burst_many_detections_is_claimed_once (void)
 static int
 test_a_weak_decoy_does_not_cost_the_burst (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
   const size_t AT    = 5000;
@@ -706,13 +706,13 @@ test_a_weak_decoy_does_not_cost_the_burst (void)
   for (size_t off = 0; off < N_CAP && got == 0; off += 777)
     {
       size_t n = (off + 777 <= N_CAP) ? 777 : (N_CAP - off);
-      got      = dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
+      got = dp_dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS);
     }
 
   /* The burst survives the decoy, exactly: same start, same bits, valid. */
   DP_CHECK (got == FRAME_SYMS);
   DP_CHECK (frame_ok (out));
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
 
   /* The payload sits inside the frame push() returned: sync word, then
      payload, then the trailer. Slicing it is the caller's arithmetic --
@@ -723,7 +723,7 @@ test_a_weak_decoy_does_not_cost_the_burst (void)
     errs += (out[SYNC_LEN + i] != want[i]);
   DP_CHECK (errs == 0);
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -749,22 +749,22 @@ test_every_burst_survives_any_block_size (void)
 
   size_t at[3];
   {
-    dsss_burst_receiver_state_t *g = make_rx ();
+    dp_dsss_burst_receiver_state_t *g = make_rx ();
     DP_REQUIRE (g != NULL);
     at[0] = 5000;
     at[1] = at[0] + g->burst_len + GAP;
     at[2] = at[1] + g->burst_len + GAP;
     DP_REQUIRE (at[2] + g->burst_len < N_CAP);
-    dsss_burst_receiver_destroy (g);
+    dp_dsss_burst_receiver_destroy (g);
   }
   build_capture_multi (cap, N_CAP, at, 3, 0.02, 4242u);
 
   const size_t blocks[] = { 333, 777, 4096, N_CAP };
   for (size_t b = 0; b < sizeof blocks / sizeof blocks[0]; b++)
     {
-      dsss_burst_receiver_state_t *s = make_rx ();
+      dp_dsss_burst_receiver_state_t *s = make_rx ();
       DP_REQUIRE (s != NULL);
-      size_t   cap_bits = dsss_burst_receiver_push_max_out (s, N_CAP);
+      size_t   cap_bits = dp_dsss_burst_receiver_push_max_out (s, N_CAP);
       uint8_t *out      = malloc (cap_bits);
       DP_REQUIRE (out != NULL);
 
@@ -773,15 +773,16 @@ test_every_burst_survives_any_block_size (void)
         {
           size_t n = (off + blocks[b] <= N_CAP) ? blocks[b] : (N_CAP - off);
           size_t got
-              = dsss_burst_receiver_push (s, cap + off, n, out, cap_bits);
-          size_t n_ev = dsss_burst_receiver_events_max_out (s);
+              = dp_dsss_burst_receiver_push (s, cap + off, n, out, cap_bits);
+          size_t n_ev = dp_dsss_burst_receiver_events_max_out (s);
           DP_CHECK (n_ev == got / FRAME_SYMS);
           if (!n_ev)
             continue;
 
           dsss_br_event_t *evs = malloc (n_ev * sizeof *evs);
           DP_REQUIRE (evs != NULL);
-          DP_CHECK (dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
+          DP_CHECK (dp_dsss_burst_receiver_events (s, n_ev, evs, n_ev)
+                    == n_ev);
           const uint8_t *want = payload_bits ();
           for (size_t i = 0; i < n_ev; i++)
             for (size_t k = 0; k < 3; k++)
@@ -800,19 +801,19 @@ test_every_burst_survives_any_block_size (void)
       /* Every burst, at every block size. Losing one here is doppler#1008. */
       DP_CHECK (found[0] && found[1] && found[2]);
       /* And consuming the whole input costs nothing. */
-      DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
+      DP_CHECK (dp_dsss_burst_receiver_get_dropped (s) == 0);
 
       free (out);
-      dsss_burst_receiver_destroy (s);
+      dp_dsss_burst_receiver_destroy (s);
     }
   return 0;
 }
 
-/* acq_push() stops once it has filled the caller's result array and abandons
- * the rest of its input (acq_core.c:925). push() slices at chunk_max, so a
- * chunk can easily carry more than BURST_CAPTURE_HITS dumps -- and a single
- * burst_acq_push() per chunk then leaves acq un-fed over samples this object
- * is holding, losing detections rather than samples.
+/* dp_acq_push() stops once it has filled the caller's result array and
+ * abandons the rest of its input (acq_core.c:925). push() slices at chunk_max,
+ * so a chunk can easily carry more than BURST_CAPTURE_HITS dumps -- and a
+ * single dp_burst_acq_push() per chunk then leaves acq un-fed over samples
+ * this object is holding, losing detections rather than samples.
  *
  * Pinning the grid to one coherent bin makes the acquisition frame ONE code
  * period, so a chunk spans ~92 frames and saturation is certain.
@@ -828,11 +829,11 @@ test_acq_saturation_does_not_lose_bursts (void)
      enough that one batch of BURST_CAPTURE_HITS cannot hold a chunk's
      detections. Saturation is the condition under test; leaving it to chance
      would make this test pass for the wrong reason. */
-  dsss_burst_receiver_state_t *s = dsss_burst_receiver_create (
+  dp_dsss_burst_receiver_state_t *s = dp_dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
       SPC, 1.0e6, FRAME_SYMS, 55.0, 0.0, 0.2, 0.9, 0.0, 0.0, 10);
   DP_REQUIRE (s != NULL);
-  DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == DP_OK);
+  DP_REQUIRE (dp_dsss_burst_receiver_configure_search_raw (s, 1, 1) == DP_OK);
 
   size_t at[3] = { 5000, 0, 0 };
   at[1]        = at[0] + s->burst_len + GAP;
@@ -842,15 +843,15 @@ test_acq_saturation_does_not_lose_bursts (void)
   DP_REQUIRE (s->cap->chunk_max / s->cap->code_period > BURST_CAPTURE_HITS);
   build_capture_multi (cap, N_CAP, at, 3, 0.02, 909u);
 
-  size_t   cap_bits = dsss_burst_receiver_push_max_out (s, N_CAP);
+  size_t   cap_bits = dp_dsss_burst_receiver_push_max_out (s, N_CAP);
   uint8_t *out      = malloc (cap_bits);
   DP_REQUIRE (out != NULL);
-  size_t got = dsss_burst_receiver_push (s, cap, N_CAP, out, cap_bits);
+  size_t got = dp_dsss_burst_receiver_push (s, cap, N_CAP, out, cap_bits);
 
-  size_t           n_ev = dsss_burst_receiver_events_max_out (s);
+  size_t           n_ev = dp_dsss_burst_receiver_events_max_out (s);
   dsss_br_event_t *evs  = malloc ((n_ev ? n_ev : 1) * sizeof *evs);
   DP_REQUIRE (evs != NULL);
-  DP_CHECK (dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
+  DP_CHECK (dp_dsss_burst_receiver_events (s, n_ev, evs, n_ev) == n_ev);
   DP_CHECK (n_ev == got / FRAME_SYMS);
 
   int found = 0;
@@ -859,20 +860,20 @@ test_acq_saturation_does_not_lose_bursts (void)
       if (evs[i].preamble_start == at[k] && frame_ok (out + i * FRAME_SYMS))
         found++;
   DP_CHECK (found == 3);
-  DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_get_dropped (s) == 0);
   /* Dropped samples mean the history ring refused a chunk: something held
      the tail further back than retain_span, which this geometry is sized to
      rule out. It has only ever happened on Windows (doppler#1360), never on
      Linux across 400 noise seeds, so a failure reports the numbers that
      decide it rather than a bare count. */
-  if (dsss_burst_receiver_get_dropped (s) != 0)
+  if (dp_dsss_burst_receiver_get_dropped (s) != 0)
     {
-      const burst_capture_state_t *c = s->cap;
+      const dp_burst_capture_state_t *c = s->cap;
       fprintf (stderr,
                "  dropped=%llu cap=%zu retain=%zu chunk_max=%zu period=%zu"
                " burst_len=%zu detections=%zu events=%zu pending=%zu"
                " theta=%g\n",
-               (unsigned long long)dsss_burst_receiver_get_dropped (s),
+               (unsigned long long)dp_dsss_burst_receiver_get_dropped (s),
                (size_t)c->hist->capacity, (size_t)c->retain_span,
                (size_t)c->chunk_max, (size_t)c->code_period,
                (size_t)s->burst_len, (size_t)c->det_len, n_ev,
@@ -881,7 +882,7 @@ test_acq_saturation_does_not_lose_bursts (void)
 
   free (evs);
   free (out);
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -923,32 +924,32 @@ test_a_burst_split_across_two_pushes_survives (void)
 
   for (size_t c = 0; c < sizeof cuts / sizeof *cuts; c++)
     {
-      dsss_burst_receiver_state_t *s = make_rx ();
+      dp_dsss_burst_receiver_state_t *s = make_rx ();
       DP_REQUIRE (s != NULL);
       uint8_t bits[4u * PAYLOAD];
 
       size_t n1
-          = dsss_burst_receiver_push (s, cap, cuts[c], bits, sizeof bits);
+          = dp_dsss_burst_receiver_push (s, cap, cuts[c], bits, sizeof bits);
       DP_CHECK (n1 == 0); /* incomplete: emit nothing rather than guess */
       /* Through the ACCESSOR, not `s->cap->pending`. The field and the getter
          are different surfaces: Python reads the getter, and a getter
          hardwired to 0 passes every test in this file that reads the field
          directly. Verified by sabotage -- it did. */
-      DP_CHECK (dsss_burst_receiver_get_pending (s) == 1u);
+      DP_CHECK (dp_dsss_burst_receiver_get_pending (s) == 1u);
 
-      size_t n2 = dsss_burst_receiver_push (
+      size_t n2 = dp_dsss_burst_receiver_push (
           s, cap + cuts[c], (sizeof cap / sizeof *cap) - cuts[c], bits,
           sizeof bits);
       /* the whole FRAME, from the second call */
       DP_CHECK (n2 == FRAME_SYMS);
       DP_CHECK_MSG (frame_ok (bits),
                     "a burst split across two pushes still checks out");
-      DP_CHECK (dsss_burst_receiver_get_pending (s) == 0u);
+      DP_CHECK (dp_dsss_burst_receiver_get_pending (s) == 0u);
       DP_CHECK (frame_ok (bits));
       for (size_t i = 0; i < PAYLOAD; i++)
         DP_CHECK (bits[SYNC_LEN + i] == payload_bits ()[i]);
 
-      dsss_burst_receiver_destroy (s);
+      dp_dsss_burst_receiver_destroy (s);
     }
   return 0;
 }
@@ -956,20 +957,20 @@ test_a_burst_split_across_two_pushes_survives (void)
 static int
 test_push_max_out_scales_with_input (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
   /* The bound scales with the input, because push() returns every burst the
      call completed. A constant payload_len would under-size the buffer the
      moment one call carried two bursts -- which is doppler#1008. */
-  DP_CHECK (dsss_burst_receiver_push_max_out (s, 1) >= PAYLOAD);
-  DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20)
-            > dsss_burst_receiver_push_max_out (s, 1));
+  DP_CHECK (dp_dsss_burst_receiver_push_max_out (s, 1) >= PAYLOAD);
+  DP_CHECK (dp_dsss_burst_receiver_push_max_out (s, 1u << 20)
+            > dp_dsss_burst_receiver_push_max_out (s, 1));
   {
     size_t n = (1u << 20) / s->burst_len + 1u + s->cap->q_cap;
-    DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20)
+    DP_CHECK (dp_dsss_burst_receiver_push_max_out (s, 1u << 20)
               == n * FRAME_SYMS);
   }
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -980,7 +981,7 @@ test_push_max_out_scales_with_input (void)
 static int
 test_reset_clears_the_event_but_not_the_counters (void)
 {
-  dsss_burst_receiver_state_t *s = make ();
+  dp_dsss_burst_receiver_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
   /* Stand in for a completed burst. Written directly because push() cannot
@@ -995,21 +996,21 @@ test_reset_clears_the_event_but_not_the_counters (void)
 
   DP_REQUIRE (s->preamble_start == 4096 && s->doppler_hz_est != 0.0);
 
-  dsss_burst_receiver_reset (s);
+  dp_dsss_burst_receiver_reset (s);
 
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == 0);
   /* no burst, so nothing to check */
-  DP_CHECK (dsss_burst_receiver_get_doppler_hz_est (s) == 0.0);
-  DP_CHECK (dsss_burst_receiver_get_demod_cn0_dbhz (s) == 0.0);
-  DP_CHECK (dsss_burst_receiver_get_pending (s) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_get_doppler_hz_est (s) == 0.0);
+  DP_CHECK (dp_dsss_burst_receiver_get_demod_cn0_dbhz (s) == 0.0);
+  DP_CHECK (dp_dsss_burst_receiver_get_pending (s) == 0);
   DP_CHECK (s->cap->samples_fed == 0);
 
   /* Lifetime, on purpose: a reset that zeroed these could hide that the
    * receiver had already lost samples. */
-  DP_CHECK (dsss_burst_receiver_get_n_bursts (s) == 7);
-  DP_CHECK (dsss_burst_receiver_get_dropped (s) == 3);
+  DP_CHECK (dp_dsss_burst_receiver_get_n_bursts (s) == 7);
+  DP_CHECK (dp_dsss_burst_receiver_get_dropped (s) == 3);
 
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -1030,46 +1031,46 @@ test_state_resumes_mid_burst (void)
   static float _Complex cap[40000];
   build_capture (cap, N_CAP, AT, 0.0, 0.02, 12345u);
 
-  dsss_burst_receiver_state_t *a = make_rx ();
-  dsss_burst_receiver_state_t *b = make_rx ();
+  dp_dsss_burst_receiver_state_t *a = make_rx ();
+  dp_dsss_burst_receiver_state_t *b = make_rx ();
   DP_REQUIRE (a != NULL && b != NULL);
 
   uint8_t out[FRAME_SYMS];
   for (size_t off = 0; off < CUT; off += 777)
     {
       size_t n = (off + 777 <= CUT) ? 777 : (CUT - off);
-      DP_CHECK (dsss_burst_receiver_push (a, cap + off, n, out, FRAME_SYMS)
+      DP_CHECK (dp_dsss_burst_receiver_push (a, cap + off, n, out, FRAME_SYMS)
                 == 0);
     }
 
   /* Differently loaded, identical size -- the contract. */
-  DP_CHECK (dsss_burst_receiver_state_bytes (a)
-            == dsss_burst_receiver_state_bytes (b));
+  DP_CHECK (dp_dsss_burst_receiver_state_bytes (a)
+            == dp_dsss_burst_receiver_state_bytes (b));
 
-  size_t   nb   = dsss_burst_receiver_state_bytes (a);
+  size_t   nb   = dp_dsss_burst_receiver_state_bytes (a);
   uint8_t *blob = malloc (nb);
   DP_REQUIRE (blob != NULL);
-  dsss_burst_receiver_get_state (a, blob);
-  DP_CHECK (dsss_burst_receiver_set_state (b, blob) == DP_OK);
+  dp_dsss_burst_receiver_get_state (a, blob);
+  DP_CHECK (dp_dsss_burst_receiver_set_state (b, blob) == DP_OK);
 
   size_t got = 0;
   for (size_t off = CUT; off < N_CAP && got == 0; off += 777)
     {
       size_t n = (off + 777 <= N_CAP) ? 777 : (N_CAP - off);
-      got      = dsss_burst_receiver_push (b, cap + off, n, out, FRAME_SYMS);
+      got = dp_dsss_burst_receiver_push (b, cap + off, n, out, FRAME_SYMS);
     }
   DP_CHECK (got == FRAME_SYMS);
   DP_CHECK (frame_ok (out));
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (b) == AT);
+  DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (b) == AT);
 
   /* Envelope reject: clobber the magic and the restore must refuse, not
      reinterpret. Same length, so only the header can catch it. */
   blob[0] = (uint8_t)(blob[0] ^ 0xFFu);
-  DP_CHECK (dsss_burst_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_dsss_burst_receiver_set_state (b, blob) == DP_ERR_INVALID);
 
   free (blob);
-  dsss_burst_receiver_destroy (a);
-  dsss_burst_receiver_destroy (b);
+  dp_dsss_burst_receiver_destroy (a);
+  dp_dsss_burst_receiver_destroy (b);
   return 0;
 }
 
@@ -1088,23 +1089,23 @@ test_state_resumes_mid_burst (void)
 static int
 test_the_spans_forward_from_the_capture (void)
 {
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
-  DP_CHECK (dsss_burst_receiver_get_min_gap (s)
+  DP_CHECK (dp_dsss_burst_receiver_get_min_gap (s)
             == burst_capture_get_min_gap (s->cap));
-  DP_CHECK (dsss_burst_receiver_get_refine_span (s) == s->cap->refine_span);
-  DP_CHECK (dsss_burst_receiver_get_retain_span (s) == s->cap->retain_span);
+  DP_CHECK (dp_dsss_burst_receiver_get_refine_span (s) == s->cap->refine_span);
+  DP_CHECK (dp_dsss_burst_receiver_get_retain_span (s) == s->cap->retain_span);
   /* And the gap is the one a caller must leave: derived, non-zero here, and
      bigger than the reach-minus-burst formula it replaced (doppler#1172). */
-  DP_CHECK (dsss_burst_receiver_get_min_gap (s) > 0);
-  dsss_burst_receiver_destroy (s);
+  DP_CHECK (dp_dsss_burst_receiver_get_min_gap (s) > 0);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
 static int
 test_destroy_null_is_safe (void)
 {
-  dsss_burst_receiver_destroy (NULL);
+  dp_dsss_burst_receiver_destroy (NULL);
   DP_CHECK (1);
   return 0;
 }
@@ -1136,39 +1137,39 @@ test_a_failed_frame_gives_its_span_back (void)
       cap[AT - LEAD + i] += 0.35f * burst[i];
   }
 
-  dsss_burst_receiver_state_t *s = make_rx ();
+  dp_dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
   /* The grid this scene is timed for: one frame = the whole preamble. The
      sizer picks from the burst's alignment (doppler#1498) and may choose
      shallower; this test is about the span a failed frame gives back, not the
      sizer. */
-  DP_REQUIRE (burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
+  DP_REQUIRE (dp_burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
   uint8_t out[4 * FRAME_SYMS];
 
   /* The decoy's window: demodulated, and its frame fails. */
-  size_t n = dsss_burst_receiver_push (s, cap, CUT, out, sizeof out);
+  size_t n = dp_dsss_burst_receiver_push (s, cap, CUT, out, sizeof out);
   DP_CHECK (n == FRAME_SYMS);
-  DP_CHECK (!dsss_burst_receiver_get_frame_valid (s));
+  DP_CHECK (!dp_dsss_burst_receiver_get_frame_valid (s));
   DP_CHECK (!frame_ok (out));
   {
     dsss_br_event_t ev[4];
-    DP_REQUIRE (dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
+    DP_REQUIRE (dp_dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
     DP_CHECK (ev[0].frame_valid == 0);
     DP_CHECK (ev[0].preamble_start == AT - LEAD);
   }
 
   /* ...and because it failed, the real burst behind it is still found. */
-  n = dsss_burst_receiver_push (s, cap + CUT, 40000 - CUT, out, sizeof out);
+  n = dp_dsss_burst_receiver_push (s, cap + CUT, 40000 - CUT, out, sizeof out);
   DP_CHECK (n == FRAME_SYMS);
-  DP_CHECK (dsss_burst_receiver_get_frame_valid (s));
+  DP_CHECK (dp_dsss_burst_receiver_get_frame_valid (s));
   DP_CHECK (frame_ok (out));
-  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (s) == AT);
   {
     dsss_br_event_t ev[4];
-    DP_REQUIRE (dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
+    DP_REQUIRE (dp_dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
     DP_CHECK (ev[0].frame_valid == 1);
   }
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return 0;
 }
 
@@ -1181,16 +1182,16 @@ test_max_rate_bounds_the_acquisition (void)
 {
   const double fs = 1.0e6 * (double)SPC;
   const double r  = 1.0e-7; /* cycles/sample^2: 1.6 MHz/s at 4 MS/s */
-  dsss_burst_receiver_state_t *rx = dsss_burst_receiver_create (
+  dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
       SPC, 1.0e6, FRAME_SYMS, 55.0, 0.0, 1e-3, 0.9, 0.0, r, 10);
-  dsss_burst_receiver_state_t *r0 = make_rx ();
+  dp_dsss_burst_receiver_state_t *r0 = make_rx ();
   DP_REQUIRE (rx != NULL && r0 != NULL);
-  DP_CHECK (fabs (burst_capture_get_doppler_rate (rx->cap) - r * fs * fs)
+  DP_CHECK (fabs (dp_burst_capture_get_doppler_rate (rx->cap) - r * fs * fs)
             <= 1e-9 * r * fs * fs);
-  DP_CHECK (burst_capture_get_doppler_rate (r0->cap) == 0.0);
-  dsss_burst_receiver_destroy (rx);
-  dsss_burst_receiver_destroy (r0);
+  DP_CHECK (dp_burst_capture_get_doppler_rate (r0->cap) == 0.0);
+  dp_dsss_burst_receiver_destroy (rx);
+  dp_dsss_burst_receiver_destroy (r0);
   return 0;
 }
 
@@ -1249,25 +1250,25 @@ main (void)
    * version word leaves every other byte valid, so this fails if and only if
    * the version is actually consulted. */
   {
-    dsss_burst_receiver_state_t *s = make_rx ();
+    dp_dsss_burst_receiver_state_t *s = make_rx ();
     DP_REQUIRE (s != NULL);
-    size_t cb = dsss_burst_receiver_state_bytes (s);
+    size_t cb = dp_dsss_burst_receiver_state_bytes (s);
     DP_REQUIRE (cb > sizeof (dp_state_hdr_t));
     unsigned char *blob = malloc (cb);
     DP_REQUIRE (blob != NULL);
-    dsss_burst_receiver_get_state (s, blob);
-    DP_CHECK (dsss_burst_receiver_set_state (s, blob) == DP_OK);
+    dp_dsss_burst_receiver_get_state (s, blob);
+    DP_CHECK (dp_dsss_burst_receiver_set_state (s, blob) == DP_OK);
     dp_state_hdr_t hdr;
     memcpy (&hdr, blob, sizeof hdr);
     DP_CHECK (hdr.version == DSSS_BURST_RECEIVER_STATE_VERSION);
     hdr.version = (uint16_t)(DSSS_BURST_RECEIVER_STATE_VERSION - 1u);
     memcpy (blob, &hdr, sizeof hdr);
-    DP_CHECK (dsss_burst_receiver_set_state (s, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_dsss_burst_receiver_set_state (s, blob) == DP_ERR_INVALID);
     hdr.version = (uint16_t)(DSSS_BURST_RECEIVER_STATE_VERSION + 1u);
     memcpy (blob, &hdr, sizeof hdr);
-    DP_CHECK (dsss_burst_receiver_set_state (s, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_dsss_burst_receiver_set_state (s, blob) == DP_ERR_INVALID);
     free (blob);
-    dsss_burst_receiver_destroy (s);
+    dp_dsss_burst_receiver_destroy (s);
   }
 
   DP_TEST_END ("test_dsss_burst_receiver_core");

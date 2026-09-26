@@ -26,8 +26,8 @@
  * [-1.0, 0.0, 1.0]
  * @endcode
  */
-#ifndef I32_TO_F32_CORE_H
-#define I32_TO_F32_CORE_H
+#ifndef DP_I32_TO_F32_CORE_H
+#define DP_I32_TO_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -38,11 +38,11 @@ extern "C" {
 /**
  * @brief I32ToF32 state.
  *
- * Allocate with i32_to_f32_create().
+ * Allocate with dp_i32_to_f32_create().
  */
 typedef struct {
     float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
-} i32_to_f32_state_t;
+} dp_i32_to_f32_state_t;
 
 /**
  * @brief Create a i32_to_f32 instance.
@@ -54,15 +54,15 @@ typedef struct {
  *               (default: 2147483648.0f).  Use 2^31 to recover normalised
  *               floats from a full-range int32 stream.
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call i32_to_f32_destroy() when done.
+ * @note Caller must call dp_i32_to_f32_destroy() when done.
  */
-i32_to_f32_state_t *i32_to_f32_create(float scale);
+dp_i32_to_f32_state_t *dp_i32_to_f32_create(float scale);
 
 /**
  * @brief Destroy a i32_to_f32 instance and release all memory.
  * @param state  May be NULL.
  */
-void i32_to_f32_destroy(i32_to_f32_state_t *state);
+void dp_i32_to_f32_destroy(dp_i32_to_f32_state_t *state);
 
 /**
  * @brief No-op reset, provided only for lifecycle symmetry.
@@ -82,7 +82,7 @@ void i32_to_f32_destroy(i32_to_f32_state_t *state);
  *
  * @endcode
  */
-void i32_to_f32_reset(i32_to_f32_state_t *state);
+void dp_i32_to_f32_reset(dp_i32_to_f32_state_t *state);
 
 /**
  * @brief Convert one signed int32 sample to a normalised float via @c 1/scale.
@@ -107,7 +107,7 @@ void i32_to_f32_reset(i32_to_f32_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT float
-i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
+dp_i32_to_f32_step(const dp_i32_to_f32_state_t *state, int32_t x)
 {
     return (float)x * state->iscale;
 }
@@ -132,8 +132,8 @@ i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
  *
  * @endcode
  */
-void i32_to_f32_steps(
-    i32_to_f32_state_t *state,
+void dp_i32_to_f32_steps(
+    dp_i32_to_f32_state_t *state,
     const int32_t    *input,
     float          *output,
     size_t               n);

@@ -10,7 +10,7 @@
  *
  * 1. **Is it SETTLED?** A second-order loop needs ~5/Bn symbols; two cascaded
  *    loops ADD their budgets; joint tracking DOUBLES the sum. So the floor is
- *    `2*(5/bn_timing + 5/bn_carrier)` — ber_settle_syms() — and the window
+ *    `2*(5/bn_timing + 5/bn_carrier)` — dp_ber_settle_syms() — and the window
  *    must additionally clear every lock indicator the receiver publishes, plus
  *    the handover instant again when one is enabled. Measuring inside that
  *    window measures settling and reports it as steady state: measured cost,
@@ -26,8 +26,8 @@
  *    variation in the receiver and is not.
  *
  * 3. **Does it MAKE SENSE?** Cross-check against measurements that cannot fail
- *    the same way: the truth-free EVM (ber_evm_scatter_floor_db() bounds what
- *    it can prove) and the coherent theory curve (ber_theory_ser()).
+ *    the same way: the truth-free EVM (dp_ber_evm_scatter_floor_db() bounds what
+ *    it can prove) and the coherent theory curve (dp_ber_theory_ser()).
  *
  * ## The alignment is DETECTED, never searched
  *
@@ -39,7 +39,7 @@
  * Both have shipped here — a committed "~12 dB floor" that was really ~5 dB,
  * and an "SER 0.48" on a receiver running at 0.0000 that needed lag -34.
  *
- * ber_meter_align() *detects* the alignment instead, correlating against a
+ * dp_ber_meter_align() *detects* the alignment instead, correlating against a
  * known marker (a sync word, a PN code period, or — in a simulation, where
  * truth exists — a stretch of the truth sequence itself). It returns the lag
  * and the absolute carrier phase from the correlation peak, gated by a
@@ -52,15 +52,15 @@
  * ## Reuse, not re-derivation
  *
  * Nothing numeric is invented here. The confidence interval is the exact
- * Gamma/chi-square one and its quantiles come from `det_threshold()` /
- * `det_threshold_noncoherent()` — doppler's own inverse regularized incomplete
+ * Gamma/chi-square one and its quantiles come from `dp_det_threshold()` /
+ * `dp_det_threshold_noncoherent()` — doppler's own inverse regularized incomplete
  * gamma, already validated in the detection module — rather than a second copy
  * of a series/continued-fraction kernel. Verified bit-identical to SciPy's
  * `chi2.ppf` at r = 1, 2, 20, 200 and 1000. Gray coding comes from `mpsk`, the
  * blind SNR from `snr`.
  */
-#ifndef BER_CORE_H
-#define BER_CORE_H
+#ifndef DP_BER_CORE_H
+#define DP_BER_CORE_H
 
 #include "doppler/dp_state.h"
 #include "doppler/dp_complex.h"
@@ -154,12 +154,12 @@ extern "C"
    * differential measurement with this curve invents a factor of two of
    * "implementation loss".
    */
-  double ber_theory_ser (int m, double esn0);
+  double dp_ber_theory_ser (int m, double esn0);
 
   /** @brief Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR).
    *  BPSK and Gray QPSK are exactly `Q(sqrt(2 Eb/N0))`; 8PSK uses `SER/log2 M`,
    *  exact in the high-Es/N0 limit where an error lands on a neighbour. */
-  double ber_theory_ber (int m, double esn0);
+  double dp_ber_theory_ber (int m, double esn0);
 
   /**
    * @brief Es/N0 (dB) at which the coherent bound equals @p ser.
@@ -168,12 +168,12 @@ extern "C"
    * the Es/N0 theory would need to produce it, and subtract. A loss in dB is
    * comparable across M and across operating points; a ratio of rates is not.
    *
-   * Bisects ber_theory_ser(), which is monotone decreasing, over
+   * Bisects dp_ber_theory_ser(), which is monotone decreasing, over
    * -10 to 40 dB and clamps to that range: 40.0 for a rate below the bound
    * at 40 dB, -10.0 for one at or above the bound at -10 dB. A rate that is
    * not positive also returns -10.0.
    */
-  double ber_esn0_db_for_ser (int m, double ser);
+  double dp_ber_esn0_db_for_ser (int m, double ser);
 
   /**
    * @brief EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation.
@@ -193,7 +193,7 @@ extern "C"
    * "completely broken" collapses as M grows: 5.4 dB at BPSK, 3.3 at QPSK,
    * 2.8 at 8PSK, so at high M the EVM cannot carry a verdict by itself.
    */
-  double ber_evm_scatter_floor_db (int m);
+  double dp_ber_evm_scatter_floor_db (int m);
 
   /**
    * @brief Symbols to discard before a steady-state measurement means anything.
@@ -210,7 +210,7 @@ extern "C"
    * indicator the receiver publishes, plus the handover instant again if one is
    * enabled. Pass a loop's `bn` as 0 if it is not running.
    */
-  size_t ber_settle_syms (double bn_timing, double bn_carrier);
+  size_t dp_ber_settle_syms (double bn_timing, double bn_carrier);
 
   /**
    * @brief First symbol from which a verify-counted flag is SUSTAINED.
@@ -225,7 +225,7 @@ extern "C"
    * @return The symbol index, or -1 for "never locked" — the honest answer,
    *         which forces the caller to say so rather than measure a transient.
    */
-  int ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
+  int dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
                         double min_frac);
 
   /**
@@ -249,7 +249,7 @@ extern "C"
    *
    * @return EVM in dB, or 0.0 ("no lock") for a window under 20 symbols.
    */
-  double ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
+  double dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 
   /**
@@ -271,16 +271,16 @@ extern "C"
    * argument that could only be passed -1.
    *
    * Pass -1 for any indicator the receiver does not publish (which is what
-   * ber_lock_symbol() returns for "never locked"). **A -1 timing or carrier
+   * dp_ber_lock_symbol() returns for "never locked"). **A -1 timing or carrier
    * lock means there is NO valid steady-state window** — check that yourself
    * before trusting the return.
    *
-   * @param budget       ber_settle_syms() of the loops in use.
-   * @param timing_lock  ber_lock_symbol() of the timing flag, or -1.
-   * @param carrier_lock ber_lock_symbol() of the carrier flag, or -1.
+   * @param budget       dp_ber_settle_syms() of the loops in use.
+   * @param timing_lock  dp_ber_lock_symbol() of the timing flag, or -1.
+   * @param carrier_lock dp_ber_lock_symbol() of the carrier flag, or -1.
    * @return             First symbol of the measurement window.
    */
-  size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
+  size_t dp_ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
 
   /**
    * @brief Exact confidence interval for a run stopped on an ERROR count.

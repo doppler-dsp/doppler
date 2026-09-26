@@ -8,7 +8,7 @@ impl = """
 float _Complex sym;
 if (state->shaper) {
     /* Polyphase RRC pulse shaping (power-of-two sps). The single shaping
-     * kernel wfm_synth_steps() also drives, one output at a time, so step()
+     * kernel dp_wfm_synth_steps() also drives, one output at a time, so step()
      * and the block path agree bit-for-bit (the resampler is block-boundary
      * invariant). Covers every shaped type — the symbol source is dispatched
      * inside wfm_synth_next_symbol(). */
@@ -25,7 +25,7 @@ if (state->shaper) {
             state->cur_im = 0.0f;
         } else if (state->bits && state->n_bits) {
             /* ONE bits->symbol map for every order, shared with
-             * wfm_synth_next_symbol() and wfm_synth_steps(). Inlining it
+             * wfm_synth_next_symbol() and dp_wfm_synth_steps(). Inlining it
              * here is what let the QPSK copy drift into a different label
              * assignment than mpsk_constellation() -- see
              * wfm_synth_bit_symbol(). */
@@ -42,7 +42,7 @@ if (state->shaper) {
         float _Complex imp = (state->sym_pos == 0)
                                 ? (state->cur_re + state->cur_im * I)
                                 : (0.0f + 0.0f * I);
-        fir_execute(state->fir, &imp, 1, &sym);
+        dp_fir_execute(state->fir, &imp, 1, &sym);
     } else {
         sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
     }
@@ -64,7 +64,7 @@ if (state->shaper) {
         float _Complex imp = (state->sym_pos == 0)
                                 ? (state->cur_re + state->cur_im * I)
                                 : (0.0f + 0.0f * I);
-        fir_execute(state->fir, &imp, 1, &sym);
+        dp_fir_execute(state->fir, &imp, 1, &sym);
     } else {
         sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
     }
@@ -92,7 +92,7 @@ if (state->shaper) {
         float _Complex imp = (state->sym_pos == 0)
                                 ? (state->cur_re + state->cur_im * I)
                                 : (0.0f + 0.0f * I);
-        fir_execute(state->fir, &imp, 1, &sym);
+        dp_fir_execute(state->fir, &imp, 1, &sym);
     } else {
         sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
     }
@@ -103,13 +103,13 @@ if (state->shaper) {
 }
 float _Complex carrier = 1.0f + 0.0f * I;
 if (state->lo) {
-    lo_steps(state->lo, 1, &carrier, 1);
+    dp_lo_steps(state->lo, 1, &carrier, 1);
 } else if (state->wtype == WFM_SYNTH_CHIRP) {
     /* Sweeping carrier: f(n) = f0 + k*n (normalised cycles/sample), held at
      * f_end once the span is reached. Phase accumulates in cycles, wrapped to
      * [0,1) each step so the double keeps precision over a long sweep. The
      * fused sym*carrier + noise below is the *same* expression the tone path
-     * (and wfm_synth_steps) uses, so step()/steps() stay byte-identical. */
+     * (and dp_wfm_synth_steps) uses, so step()/steps() stay byte-identical. */
     double nf = (state->chirp_span && state->chirp_n >= state->chirp_span)
                     ? (double)state->chirp_span
                     : (double)state->chirp_n;
@@ -121,7 +121,7 @@ if (state->lo) {
 }
 float _Complex noise = 0.0f + 0.0f * I;
 if (state->awgn)
-    awgn_generate(state->awgn, 1, &noise, 1);
+    dp_awgn_generate(state->awgn, 1, &noise, 1);
 return sym * carrier + noise;
 """
 create_impl = """
@@ -134,7 +134,7 @@ obj->fir = NULL; /* RRC pulse-shaping FIR, attached via set_rrc() */
 
 /* Chirp: store the normalised start/end frequencies (freq is the start, i.e.
  * the instantaneous frequency at t=0). The per-sample slope chirp_k locks when
- * wfm_synth_set_chirp_span() is called (the composer passes the declared span
+ * dp_wfm_synth_set_chirp_span() is called (the composer passes the declared span
  * or the segment length); until then a chirp holds its start frequency. */
 obj->chirp_f0 = (fs != 0.0) ? freq / fs : 0.0;
 obj->chirp_fend = (fs != 0.0) ? f_end / fs : 0.0;
@@ -146,7 +146,7 @@ obj->chirp_span = 0;
 /* LO carrier for everything but pure noise (freq is Hz → cycles/sample).
  * Chirp synthesises its own swept carrier, so it never builds a static LO. */
 if (type != WFM_SYNTH_NOISE && type != WFM_SYNTH_CHIRP && freq != 0.0) {
-    obj->lo = lo_create(fs != 0.0 ? freq / fs : 0.0);
+    obj->lo = dp_lo_create(fs != 0.0 ? freq / fs : 0.0);
     if (!obj->lo) {
         free(obj);
         return NULL;
@@ -169,14 +169,14 @@ if (type >= WFM_SYNTH_PN && type <= WFM_SYNTH_QPSK) {
     uint64_t poly = pn_poly ? pn_poly : wfm_synth_mls_poly((uint32_t)pn_length);
     if (poly == 0) { /* no MLS table entry for this length */
         if (obj->lo)
-            lo_destroy(obj->lo);
+            dp_lo_destroy(obj->lo);
         free(obj);
         return NULL;
     }
-    obj->pn = pn_create(poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
+    obj->pn = dp_pn_create(poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
     if (!obj->pn) {
         if (obj->lo)
-            lo_destroy(obj->lo);
+            dp_lo_destroy(obj->lo);
         free(obj);
         return NULL;
     }
@@ -187,7 +187,7 @@ if (type >= WFM_SYNTH_PN && type <= WFM_SYNTH_QPSK) {
  * snr < WFM_SYNTH_SNR_CLEAN (a clean waveform skips AWGN entirely). */
 int want_noise = (type == WFM_SYNTH_NOISE) || (snr < WFM_SYNTH_SNR_CLEAN);
 if (type == WFM_SYNTH_NOISE) {
-    obj->awgn = awgn_create((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
+    obj->awgn = dp_awgn_create((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
 } else if (snr < WFM_SYNTH_SNR_CLEAN) {
     int mode = snr_mode;
     if (mode == 0)
@@ -204,13 +204,13 @@ if (type == WFM_SYNTH_NOISE) {
     double snr_fs = wfm_synth_snr_over_fs(mode, wfm_synth_bps(type),
                                           (double)obj->nsps, snr);
     float amp = sqrtf(1.0f / (2.0f * powf(10.0f, (float)snr_fs / 10.0f)));
-    obj->awgn = awgn_create((uint64_t)seed, amp);
+    obj->awgn = dp_awgn_create((uint64_t)seed, amp);
 }
 if (want_noise && !obj->awgn) {
     if (obj->pn)
-        pn_destroy(obj->pn);
+        dp_pn_destroy(obj->pn);
     if (obj->lo)
-        lo_destroy(obj->lo);
+        dp_lo_destroy(obj->lo);
     free(obj);
     return NULL;
 }
@@ -227,46 +227,46 @@ state->sym_read_idx = 0; /* rewind the complex-symbol stream */
 state->chirp_ph = 0.0; /* rewind the sweep; chirp_span/chirp_k stay locked */
 state->chirp_n = 0;
 if (state->lo)
-    lo_reset(state->lo);
+    dp_lo_reset(state->lo);
 if (state->awgn)
-    awgn_reset(state->awgn);
+    dp_awgn_reset(state->awgn);
 if (state->pn)
-    pn_reset(state->pn);
+    dp_pn_reset(state->pn);
 if (state->fir)
-    fir_reset(state->fir); /* clear the RRC delay line */
+    dp_fir_reset(state->fir); /* clear the RRC delay line */
 """
 destroy_impl = """
 free(state->bits);
 free(state->symbols);
 if (state->lo)
-    lo_destroy(state->lo);
+    dp_lo_destroy(state->lo);
 if (state->awgn)
-    awgn_destroy(state->awgn);
+    dp_awgn_destroy(state->awgn);
 if (state->pn)
-    pn_destroy(state->pn);
+    dp_pn_destroy(state->pn);
 if (state->fir)
-    fir_destroy(state->fir);
+    dp_fir_destroy(state->fir);
 """
 serializable = "true"
 
 [[wfm_synth.state]]
 name = "fir"
-type = "fir_state_t *"
+type = "dp_fir_state_t *"
 opaque = true
 
 [[wfm_synth.state]]
 name = "lo"
-type = "lo_state_t *"
+type = "dp_lo_state_t *"
 opaque = true
 
 [[wfm_synth.state]]
 name = "awgn"
-type = "awgn_state_t *"
+type = "dp_awgn_state_t *"
 opaque = true
 
 [[wfm_synth.state]]
 name = "pn"
-type = "pn_state_t *"
+type = "dp_pn_state_t *"
 opaque = true
 
 [[wfm_synth.state]]

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
-/* BurstCaptureObject — wraps burst_capture_state_t *       */
+/* BurstCaptureObject — wraps dp_burst_capture_state_t *       */
 /* ======================================================== */
 
 #include "doppler/burst_capture/burst_capture_core.h"
 
 typedef struct
 {
-  PyObject_HEAD burst_capture_state_t *handle;
+  PyObject_HEAD dp_burst_capture_state_t *handle;
 } BurstCaptureObject;
 
 static void
 BurstCaptureObj_dealloc (BurstCaptureObject *self)
 {
   if (self->handle)
-    burst_capture_destroy (self->handle);
+    dp_burst_capture_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -81,7 +81,7 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t preamble_len = (size_t)PyArray_SIZE (preamble_arr);
-  self->handle        = burst_capture_create (
+  self->handle        = dp_burst_capture_create (
       (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len,
       burst_len, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
       doppler_rate);
@@ -123,7 +123,7 @@ BurstCaptureObj_push_max_out (BurstCaptureObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &x_len))
     return NULL;
   return PyLong_FromSize_t (
-      burst_capture_push_max_out (self->handle, (size_t)x_len));
+      dp_burst_capture_push_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -169,8 +169,8 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = burst_capture_push_max_out (self->handle,
-                                                 (size_t)PyArray_SIZE (x_arr));
+      size_t _omax = dp_burst_capture_push_max_out (
+          self->handle, (size_t)PyArray_SIZE (x_arr));
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -190,7 +190,7 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = burst_capture_push (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_burst_capture_push (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -211,8 +211,8 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = burst_capture_push_max_out (self->handle,
-                                             (size_t)PyArray_SIZE (x_arr));
+  size_t _cap  = dp_burst_capture_push_max_out (self->handle,
+                                                (size_t)PyArray_SIZE (x_arr));
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
@@ -230,7 +230,7 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = burst_capture_push (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_burst_capture_push (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -261,7 +261,7 @@ BurstCaptureObj_detections_max_out (BurstCaptureObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
   return PyLong_FromSize_t (
-      burst_capture_detections_max_out (self->handle, (size_t)n));
+      dp_burst_capture_detections_max_out (self->handle, (size_t)n));
 }
 
 static PyArray_Descr *BurstCaptureObj_detections_dtype = NULL;
@@ -371,7 +371,7 @@ BurstCaptureObj_detections (BurstCaptureObject *self, PyObject *args,
       Py_INCREF (out_arr);
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
       size_t _omax
-          = burst_capture_detections_max_out (self->handle, (size_t)n);
+          = dp_burst_capture_detections_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -380,7 +380,7 @@ BurstCaptureObj_detections (BurstCaptureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = burst_capture_detections (
+      size_t n_out = dp_burst_capture_detections (
           self->handle, (size_t)n,
           (burst_capture_detection_t *)PyArray_DATA (out_arr), _cap);
       npy_intp       _odim   = (npy_intp)n_out;
@@ -408,7 +408,7 @@ BurstCaptureObj_detections (BurstCaptureObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = burst_capture_detections_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_burst_capture_detections_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp       _adim  = (npy_intp)_cap;
   PyArray_Descr *_descr = BurstCaptureObj_detections_get_dtype ();
@@ -424,7 +424,8 @@ BurstCaptureObj_detections (BurstCaptureObject *self, PyObject *args,
     }
   burst_capture_detection_t *_d0
       = (burst_capture_detection_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = burst_capture_detections (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out
+      = dp_burst_capture_detections (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -453,7 +454,7 @@ BurstCaptureObj_events_max_out (BurstCaptureObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
   return PyLong_FromSize_t (
-      burst_capture_events_max_out (self->handle, (size_t)n));
+      dp_burst_capture_events_max_out (self->handle, (size_t)n));
 }
 
 static PyArray_Descr *BurstCaptureObj_events_dtype = NULL;
@@ -559,8 +560,8 @@ BurstCaptureObj_events (BurstCaptureObject *self, PyObject *args,
       }
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = burst_capture_events_max_out (self->handle, (size_t)n);
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = dp_burst_capture_events_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -569,7 +570,7 @@ BurstCaptureObj_events (BurstCaptureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = burst_capture_events (
+      size_t n_out = dp_burst_capture_events (
           self->handle, (size_t)n,
           (burst_capture_event_t *)PyArray_DATA (out_arr), _cap);
       npy_intp       _odim   = (npy_intp)n_out;
@@ -597,7 +598,7 @@ BurstCaptureObj_events (BurstCaptureObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = burst_capture_events_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_burst_capture_events_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp       _adim  = (npy_intp)_cap;
   PyArray_Descr *_descr = BurstCaptureObj_events_get_dtype ();
@@ -613,7 +614,7 @@ BurstCaptureObj_events (BurstCaptureObject *self, PyObject *args,
     }
   burst_capture_event_t *_d0
       = (burst_capture_event_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = burst_capture_events (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_burst_capture_events (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -647,7 +648,7 @@ BurstCaptureObj_configure_search_raw (BurstCaptureObject *self, PyObject *args,
     return NULL;
   size_t doppler_bins = (size_t)doppler_bins_raw;
   size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int    _rc = burst_capture_configure_search_raw (self->handle, doppler_bins,
+  int _rc = dp_burst_capture_configure_search_raw (self->handle, doppler_bins,
                                                    n_noncoh);
   if (_rc != 0)
     {
@@ -672,7 +673,7 @@ BurstCaptureObj_release (BurstCaptureObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
     return NULL;
   size_t i   = (size_t)i_raw;
-  int    _rc = burst_capture_release (self->handle, i);
+  int    _rc = dp_burst_capture_release (self->handle, i);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "release failed",
@@ -690,7 +691,7 @@ BurstCaptureObj_reset (BurstCaptureObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  burst_capture_reset (self->handle);
+  dp_burst_capture_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -703,7 +704,7 @@ BurstCaptureObj_state_bytes (BurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (burst_capture_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_burst_capture_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -715,11 +716,11 @@ BurstCaptureObj_get_state (BurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = burst_capture_state_bytes (self->handle);
+  size_t    _n = dp_burst_capture_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  burst_capture_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_burst_capture_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -737,12 +738,12 @@ BurstCaptureObj_set_state (BurstCaptureObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != burst_capture_state_bytes (self->handle))
+      != dp_burst_capture_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (burst_capture_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_burst_capture_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -760,7 +761,7 @@ BurstCapture_getprop_preamble_start (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_preamble_start (self->handle));
+      (unsigned long long)dp_burst_capture_get_preamble_start (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_doppler_hz_est (BurstCaptureObject *self,
@@ -772,7 +773,8 @@ BurstCapture_getprop_doppler_hz_est (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_doppler_hz_est (self->handle));
+  return PyFloat_FromDouble (
+      dp_burst_capture_get_doppler_hz_est (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_doppler_res_hz (BurstCaptureObject *self,
@@ -784,7 +786,8 @@ BurstCapture_getprop_doppler_res_hz (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_doppler_res_hz (self->handle));
+  return PyFloat_FromDouble (
+      dp_burst_capture_get_doppler_res_hz (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_cn0_dbhz_est (BurstCaptureObject *self,
@@ -796,7 +799,7 @@ BurstCapture_getprop_cn0_dbhz_est (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_cn0_dbhz_est (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_burst_len (BurstCaptureObject *self,
@@ -867,7 +870,7 @@ BurstCapture_getprop_doppler_rate (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_doppler_rate (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_doppler_rate (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_pd_predicted (BurstCaptureObject *self,
@@ -879,7 +882,7 @@ BurstCapture_getprop_pd_predicted (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_pd_predicted (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_pd_predicted (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_pd_burst (BurstCaptureObject *self,
@@ -891,7 +894,7 @@ BurstCapture_getprop_pd_burst (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_pd_burst (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_pd_burst (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_eta (BurstCaptureObject *self, void *Py_UNUSED (closure))
@@ -902,7 +905,7 @@ BurstCapture_getprop_eta (BurstCaptureObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_eta (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_eta (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_eta_nc (BurstCaptureObject *self,
@@ -914,7 +917,7 @@ BurstCapture_getprop_eta_nc (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_eta_nc (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_eta_nc (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_straddle_loss (BurstCaptureObject *self,
@@ -926,7 +929,8 @@ BurstCapture_getprop_straddle_loss (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_straddle_loss (self->handle));
+  return PyFloat_FromDouble (
+      dp_burst_capture_get_straddle_loss (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_doppler_bins (BurstCaptureObject *self,
@@ -939,7 +943,7 @@ BurstCapture_getprop_doppler_bins (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_doppler_bins (self->handle));
+      (unsigned long long)dp_burst_capture_get_doppler_bins (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_n_noncoh (BurstCaptureObject *self,
@@ -952,7 +956,7 @@ BurstCapture_getprop_n_noncoh (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_n_noncoh (self->handle));
+      (unsigned long long)dp_burst_capture_get_n_noncoh (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_code_bins (BurstCaptureObject *self,
@@ -965,7 +969,7 @@ BurstCapture_getprop_code_bins (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_code_bins (self->handle));
+      (unsigned long long)dp_burst_capture_get_code_bins (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_doppler_span_hz (BurstCaptureObject *self,
@@ -977,7 +981,8 @@ BurstCapture_getprop_doppler_span_hz (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_doppler_span_hz (self->handle));
+  return PyFloat_FromDouble (
+      dp_burst_capture_get_doppler_span_hz (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_pending (BurstCaptureObject *self,
@@ -990,7 +995,7 @@ BurstCapture_getprop_pending (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_pending (self->handle));
+      (unsigned long long)dp_burst_capture_get_pending (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_dropped (BurstCaptureObject *self,
@@ -1003,7 +1008,7 @@ BurstCapture_getprop_dropped (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_dropped (self->handle));
+      (unsigned long long)dp_burst_capture_get_dropped (self->handle));
 }
 static PyObject *
 BurstCapture_getprop_n_bursts (BurstCaptureObject *self,
@@ -1016,7 +1021,7 @@ BurstCapture_getprop_n_bursts (BurstCaptureObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)burst_capture_get_n_bursts (self->handle));
+      (unsigned long long)dp_burst_capture_get_n_bursts (self->handle));
 }
 
 static PyObject *
@@ -1029,7 +1034,7 @@ BurstCapture_getprop_psl_db (BurstCaptureObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (burst_capture_get_psl_db (self->handle));
+  return PyFloat_FromDouble (dp_burst_capture_get_psl_db (self->handle));
 }
 
 static PyGetSetDef BurstCapture_getset[] = {
@@ -1218,7 +1223,7 @@ BurstCaptureObj_destroy (BurstCaptureObject *self,
 {
   if (self->handle)
     {
-      burst_capture_destroy (self->handle);
+      dp_burst_capture_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -1237,7 +1242,7 @@ BurstCaptureObj_exit (BurstCaptureObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      burst_capture_destroy (self->handle);
+      dp_burst_capture_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

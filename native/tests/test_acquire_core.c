@@ -35,34 +35,34 @@ main (void)
     /* n = 8 (even): 0 1 2 3 -4 -3 -2 -1 */
     static const int want8[8] = { 0, 1, 2, 3, -4, -3, -2, -1 };
     for (size_t b = 0; b < 8; b++)
-      DP_CHECK (bin_to_signed (b, 8) == want8[b]);
+      DP_CHECK (dp_bin_to_signed (b, 8) == want8[b]);
 
     /* n = 7 (odd): 0 1 2 3 -3 -2 -1  — no ambiguous index exists */
     static const int want7[7] = { 0, 1, 2, 3, -3, -2, -1 };
     for (size_t b = 0; b < 7; b++)
-      DP_CHECK (bin_to_signed (b, 7) == want7[b]);
+      DP_CHECK (dp_bin_to_signed (b, 7) == want7[b]);
 
     /* n = 4 and n = 2, the smallest even grids */
     static const int want4[4] = { 0, 1, -2, -1 };
     for (size_t b = 0; b < 4; b++)
-      DP_CHECK (bin_to_signed (b, 4) == want4[b]);
+      DP_CHECK (dp_bin_to_signed (b, 4) == want4[b]);
     static const int want2[2] = { 0, -1 };
     for (size_t b = 0; b < 2; b++)
-      DP_CHECK (bin_to_signed (b, 2) == want2[b]);
+      DP_CHECK (dp_bin_to_signed (b, 2) == want2[b]);
 
     /* n = 1: the only bin is DC. */
-    DP_CHECK (bin_to_signed (0, 1) == 0);
+    DP_CHECK (dp_bin_to_signed (0, 1) == 0);
   }
 
   /* ── the wrapper and the inline are the same function ─────────────────
    *
-   * bin_to_signed() exists only so Python reaches dp_fftfreq_index(); if
+   * dp_bin_to_signed() exists only so Python reaches dp_fftfreq_index(); if
    * they ever diverged, the duplication this whole exercise removed would
    * be back with an extra step. */
   {
     for (size_t n = 1; n <= 33; n++)
       for (size_t b = 0; b < n; b++)
-        DP_CHECK ((long)bin_to_signed (b, n) == dp_fftfreq_index (b, n));
+        DP_CHECK ((long)dp_bin_to_signed (b, n) == dp_fftfreq_index (b, n));
   }
 
   /* ── dp_fftfreq() takes fs, not numpy's sample SPACING ────────────────

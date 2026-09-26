@@ -12,8 +12,8 @@
 #include <math.h>
 
 double
-snr_data_aided_db (const float _Complex *soft, size_t soft_len,
-                   const uint8_t *sign_bits, size_t sign_bits_len)
+dp_snr_data_aided_db (const float _Complex *soft, size_t soft_len,
+                      const uint8_t *sign_bits, size_t sign_bits_len)
 {
   size_t n = (soft_len < sign_bits_len) ? soft_len : sign_bits_len;
   if (n == 0)

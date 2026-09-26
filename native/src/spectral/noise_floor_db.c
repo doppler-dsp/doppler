@@ -17,7 +17,7 @@ cmp_float (const void *a, const void *b)
 }
 
 double
-noise_floor_db (const float *db, size_t db_len)
+dp_noise_floor_db (const float *db, size_t db_len)
 {
   if (db_len == 0)
     return 0.0;

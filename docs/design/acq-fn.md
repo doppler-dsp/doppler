@@ -20,10 +20,10 @@ live socket.
 
 **Two faces over the one engine, both first-class:**
 
-| face                                                      | what it is                                                                      | for                                                 |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **OO object** (`Acquisition`, `Ddcr`)                     | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
-| **pure run** (`acq_run`, `ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
+| face                                                         | what it is                                                                      | for                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **OO object** (`Acquisition`, `Ddcr`)                        | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
+| **pure run** (`acq_run`, `dp_ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
 
 The two faces are the *same* engine: the OO object owns its state; the pure
 `*_run` face takes `state_in` / `state_out` blobs so a fresh engine (rebuilt
@@ -41,13 +41,13 @@ alongside** the OO API, never a replacement.
 - **state** — the serializable flat **POD** that *is* "everything a fresh pod
     needs." Threaded in → out each call via `state_in` / `state_out`.
 - **scratch** — per-worker workspace; holds no meaning (reused, never state).
-    In the shipped engine this lives inside `acq_state_t` alongside the mutable
+    In the shipped engine this lives inside `dp_acq_state_t` alongside the mutable
     state; the descriptor (the `acq_create_burst`/`acq_create_continuous` args)
     plays the **config** role.
 
 ## State blobs (flat, versioned POD)
 
-- **`acq_fn` state** (`acq_state_bytes` / `acq_get_state` in
+- **`acq_fn` state** (`dp_acq_state_bytes` / `dp_acq_get_state` in
     `native/src/acq/acq_core.c`): the unconsumed ring samples (the partial
     frame; the region is sized for the whole ring and zero-filled past them) +
     the running sample offset (the code-phase anchor, carried so a resumed pod
@@ -63,7 +63,7 @@ alongside** the OO API, never a replacement.
 
 ## C API shape (acq)
 
-The engine stays one opaque `acq_state_t` (descriptor = config, built by
+The engine stays one opaque `dp_acq_state_t` (descriptor = config, built by
 `acq_create_burst` or `acq_create_continuous`; scratch + mutable state live
 inside it). The pure face is the
 serializable triplet + `acq_run`, mirroring `ddcr`:
@@ -85,24 +85,24 @@ main (void)
      epochs. (There is no bare acq_create, and no max_noncoh: the continuous
      engine auto-selects its non-coherent looks against the internal
      ACQ_N_NONCOH_SAFETY_CEILING; a burst engine never adds any.) */
-  acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
+  dp_acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
                                 double, double, double, double, double, int,
                                 double)
       = acq_create_burst;
-  acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
+  dp_acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
                                double, double, double, double, double, int,
                                size_t, double)
       = acq_create_continuous;
 
   /* serializable state (jm `serializable` flag generates the Python
      triplet). */
-  size_t (*bytes) (const acq_state_t *) = acq_state_bytes;
-  void (*get) (const acq_state_t *, void *) = acq_get_state;
-  int (*set) (acq_state_t *, const void *) = acq_set_state; /* 0 ok / -1 */
+  size_t (*bytes) (const dp_acq_state_t *) = dp_acq_state_bytes;
+  void (*get) (const dp_acq_state_t *, void *) = dp_acq_get_state;
+  int (*set) (dp_acq_state_t *, const void *) = dp_acq_set_state; /* 0 ok / -1 */
 
   /* pure run: (state_in, input) -> (state_out, hits). Either blob may be
      NULL (NULL in = fresh; NULL out = discard). */
-  size_t (*run) (acq_state_t *, const void *, void *, const float complex *,
+  size_t (*run) (dp_acq_state_t *, const void *, void *, const float complex *,
                  size_t, acq_result_t *, size_t)
       = acq_run;
 
@@ -113,8 +113,8 @@ main (void)
 }
 ```
 
-`Acquisition` (the object) owns one `acq_state_t` and forwards `push` →
-`acq_push`; the pure `acq_run` face reuses the same engine with explicit
+`Acquisition` (the object) owns one `dp_acq_state_t` and forwards `push` →
+`dp_acq_push`; the pure `acq_run` face reuses the same engine with explicit
 `state_in`/`state_out`. Bit-identical to an uninterrupted run.
 
 ## Elastic fan-out
@@ -131,11 +131,11 @@ main (void)
 1. **(done — PR #259)** physics sizing API; the foundation.
 1. **(done — PR #260)** `acq_fn` serializable state + `acq_run` — flat-POD state
     (unconsumed ring samples + nc surface + counters) on the existing
-    `acq_state_t`; `acq_state_bytes`/`get_state`/`set_state` + `acq_run`.
+    `dp_acq_state_t`; `dp_acq_state_bytes`/`get_state`/`set_state` + `acq_run`.
     **Bit-exact vs an uninterrupted run + state round-trip**, verified in
     `test_acq_core.c`. (`serializable = true` on `acq.toml` for the
     `Acquisition` Python triplet landed same-day, PR #268.)
-1. **(done — PRs #261, #265)** `ddc_fn` serializable state — `ddcr_run` + the
+1. **(done — PRs #261, #265)** `ddc_fn` serializable state — `dp_ddcr_run` + the
     heterogeneous leaf serializers (lo/cic/fir/resamp/hbdecim/hbdecim_r2c +
     RateConverter), adopted on `LO`/`CIC`/`FIR` via the `serializable` flag.
 1. **(done — PRs #270, #297)** Orchestrator over the two pure kernels —

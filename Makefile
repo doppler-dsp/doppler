@@ -325,8 +325,8 @@ LINT_retired-names = $(UV) run python scripts/check_retired_names.py
 # -Werror against libdoppler.a; a header's is rendered by doxygen, published
 # to docs/c-api/**, and -- for a constructor -- transplanted by jm into the
 # .pyi a Python user reads, and not one of those paths type-checks it. So
-# mpsk_receiver_create()'s example passed SIXTEEN arguments to a fifteen-
-# parameter function, and ber_meter_score()'s passes eleven to five. This is
+# dp_mpsk_receiver_create()'s example passed SIXTEEN arguments to a fifteen-
+# parameter function, and dp_ber_meter_score()'s passes eleven to five. This is
 # the cheap half of #1082: arity only, no compiler, no stand-in preamble for
 # the locals an example fragment references. Python doctest blocks are
 # skipped on their `>>>` -- they carry the binding's arity, not the C one.
@@ -640,7 +640,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-all test-sweep test-stubs test-api-docs test-snippets \
                 test-rust \
                 abi-check link-check installed-headers-check \
-                exported-link-check \
+                exported-link-check symbol-prefix-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
@@ -1376,7 +1376,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 apt-stall-config deps-budget-check cargo-floor-check \
                 bench-coverage-check kwarg-parity-check issues \
                 doc-sections-check \
-                installed-headers-check exported-link-check \
+                installed-headers-check exported-link-check symbol-prefix-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
                 container-mount-check \
@@ -1531,6 +1531,14 @@ installed-headers-check: build ## Verify installed headers declare only what the
 # Plain `python3` for the same reason as installed-headers-check above.
 exported-link-check: build ## Verify the exported CMake link interface names no absolute path
 	@python3 scripts/check_exported_link_paths.py $(BUILD_DIR)
+
+# c_prefix = "dp" (#1545) put every jm-derived symbol under dp_, so two jm
+# libraries sharing a component name link together. Names we spelled ourselves
+# and vendored code linked whole are out of jm's reach: 1092 bare exports on the
+# day it landed, ratcheted in scripts/.symbol-prefix-ratchet (may only shrink,
+# burn-down #1565). Reads `nm`, so it needs the build; plain python3 as above.
+symbol-prefix-check: build ## Verify no new exported symbol lacks the dp_ prefix (ratchet)
+	@DOPPLER_BUILD_DIR=$(BUILD_DIR) python3 scripts/check_symbol_prefix.py
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is

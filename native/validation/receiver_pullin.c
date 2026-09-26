@@ -72,9 +72,9 @@ static const double CHECK_OFFSETS[] = { 0.0, 400.0, 800.0 };
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 /* One draw's stream: the synth from a random frame position through the
@@ -95,19 +95,19 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
     (void)dp_xs32 (&rng);
   d->ppm        = -20.0 + 40.0 * (double)(dp_xs32 (&rng) >> 8) / 16777216.0;
   d->doppler_hz = d->ppm * 1e-6 * CARRIER_HZ;
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                          seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                             seed, (int)SPC, 15, 0, 0, 0.0);
   DP_REQUIRE (syn != NULL);
   DP_REQUIRE (
       wfm_synth_set_dsss_cont (syn, code, SF, CPS, WFM_DSSS_DATA_PRBS, NULL, 0)
       == 0);
   DP_REQUIRE (wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) == 0);
-  doppler_channel_state_t *ch
-      = doppler_channel_create (FS, CARRIER_HZ, d->ppm, 0.0);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (FS, CARRIER_HZ, d->ppm, 0.0);
   DP_REQUIRE (ch != NULL);
-  d->delay        = doppler_channel_get_delay_samples (ch);
-  awgn_state_t *g = awgn_create (
+  d->delay           = dp_doppler_channel_get_delay_samples (ch);
+  dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
       awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   DP_REQUIRE (g != NULL);
@@ -125,8 +125,8 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
   size_t         pend = 0, out = 0, dropped = 0;
   while (out < d->n)
     {
-      wfm_synth_steps (syn, sig, TE);
-      pend += doppler_channel_execute (ch, sig, TE, fifo + pend, 2 * TE);
+      dp_wfm_synth_steps (syn, sig, TE);
+      pend += dp_doppler_channel_execute (ch, sig, TE, fifo + pend, 2 * TE);
       size_t take = pend;
       if (dropped < DISCARD)
         {
@@ -138,7 +138,7 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
         }
       if (out + take > d->n)
         take = d->n - out;
-      awgn_generate (g, take, nz, 2 * TE);
+      dp_awgn_generate (g, take, nz, 2 * TE);
       for (size_t i = 0; i < take; i++)
         d->x[out + i] = fifo[i] + nz[i];
       out += take;
@@ -148,9 +148,9 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
   free (nz);
   free (fifo);
   free (sig);
-  awgn_destroy (g);
-  doppler_channel_destroy (ch);
-  wfm_synth_destroy (syn);
+  dp_awgn_destroy (g);
+  dp_doppler_channel_destroy (ch);
+  dp_wfm_synth_destroy (syn);
   return 0;
 }
 
@@ -171,7 +171,7 @@ static int
 pullin (const draw_t *d, const uint8_t *code, double cn0_dbhz, double off_hz,
         size_t at, double *t_lock)
 {
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, PFA, PD, SEGMENTS,
       RX_SPS, 0, CARRIER_HZ, 0.0, D_OP, ASYNC_DSSS_RX_CELL_GAIN,
       ASYNC_DSSS_RX_CELL_PULLIN);
@@ -179,7 +179,7 @@ pullin (const draw_t *d, const uint8_t *code, double cn0_dbhz, double off_hz,
   const double phase
       = dp_fmod_pos (truth_chips (d, (double)at) + SEED_U0, (double)SF);
   DP_REQUIRE (
-      async_dsss_receiver_seed (rx, phase, d->doppler_hz + off_hz, cn0_dbhz)
+      dp_async_dsss_receiver_seed (rx, phase, d->doppler_hz + off_hz, cn0_dbhz)
       == DP_OK);
   const size_t   n_feed = (size_t)(PULLIN_S * FS);
   float complex *out    = dp_xmalloc (TE * sizeof *out);
@@ -187,20 +187,20 @@ pullin (const draw_t *d, const uint8_t *code, double cn0_dbhz, double off_hz,
   size_t pos            = at;
   while (pos + TE <= at + n_feed && pos + TE <= d->n)
     {
-      (void)async_dsss_receiver_steps (rx, d->x + pos, TE, out, TE);
+      (void)dp_async_dsss_receiver_steps (rx, d->x + pos, TE, out, TE);
       pos += TE;
       if (*t_lock < 0.0)
         {
-          async_dsss_receiver_status_t st = async_dsss_receiver_status (rx);
+          async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
           if (st.code_locked && st.locked)
             *t_lock = (double)(pos - at) / FS;
         }
     }
-  async_dsss_receiver_status_t st = async_dsss_receiver_status (rx);
+  async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
   const int ok = st.code_locked && st.locked
                  && fabs (st.doppler_hz - d->doppler_hz) < 31.7;
   free (out);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return ok;
 }
 

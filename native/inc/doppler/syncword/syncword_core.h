@@ -42,8 +42,8 @@
  * (1, 96, 0, 0)
  * @endcode
  */
-#ifndef SYNCWORD_CORE_H
-#define SYNCWORD_CORE_H
+#ifndef DP_SYNCWORD_CORE_H
+#define DP_SYNCWORD_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_syncword.h"
@@ -54,7 +54,7 @@ extern "C" {
 #endif
 
 /**
- * @brief What @ref syncword_find found.
+ * @brief What @ref dp_syncword_find found.
  *
  * A record rather than an out-parameter and a status, because offset,
  * polarity and distance are ONE answer: a receiver that took the offset
@@ -81,27 +81,27 @@ typedef struct
  * Opaque and heap-allocated: it owns a copy of the marker, so a caller may
  * free or reuse the array it constructed from.
  *
- * Allocate with syncword_create().
+ * Allocate with dp_syncword_create().
  */
 typedef struct
 {
   uint8_t *marker; /**< the pattern, unpacked, one bit per byte    */
   /*<<property_struct_fields>>*/
   size_t nbits;
-} syncword_state_t;
+} dp_syncword_state_t;
 
 /**
  * @brief Create a searcher for @p marker.
  *
  * The marker is COPIED. A searcher outlives the array it was built from,
  * which is what lets a caller construct one from a temporary — the CCSDS
- * marker arrives from `asm_bits()` as exactly that.
+ * marker arrives from `dp_asm_bits()` as exactly that.
  *
  * @param marker      Unpacked bits, one per byte; only the LSB is used.
  * @param marker_len  Marker length in bits; must be non-zero.
  * @return Heap-allocated state, or NULL for an empty marker or on
  *         allocation failure.
- * @note Caller must call syncword_destroy() when done.
+ * @note Caller must call dp_syncword_destroy() when done.
  *
  * @code
  * >>> import numpy as np
@@ -117,13 +117,13 @@ typedef struct
  * (1, 96, 0)
  * @endcode
  */
-syncword_state_t *syncword_create (const uint8_t *marker, size_t marker_len);
+dp_syncword_state_t *dp_syncword_create (const uint8_t *marker, size_t marker_len);
 
 /**
  * @brief Destroy a searcher and release all memory.
  * @param state  May be NULL.
  */
-void syncword_destroy (syncword_state_t *state);
+void dp_syncword_destroy (dp_syncword_state_t *state);
 
 /**
  * @brief Find the first marker in @p bits, either polarity.
@@ -153,7 +153,7 @@ void syncword_destroy (syncword_state_t *state);
  * (1, 20, 1)
  * @endcode
  */
-syncword_hit_t syncword_find (syncword_state_t *state, const uint8_t *bits,
+syncword_hit_t dp_syncword_find (dp_syncword_state_t *state, const uint8_t *bits,
                               size_t bits_len, uint32_t max_errors);
 
 /**
@@ -186,7 +186,7 @@ syncword_hit_t syncword_find (syncword_state_t *state, const uint8_t *bits,
  * 66
  * @endcode
  */
-double syncword_pfa (syncword_state_t *state, uint32_t max_errors);
+double dp_syncword_pfa (dp_syncword_state_t *state, uint32_t max_errors);
 
 /**
  * @brief The largest tolerance whose false-frame rate over a search window
@@ -217,7 +217,7 @@ double syncword_pfa (syncword_state_t *state, uint32_t max_errors);
  * 0
  * @endcode
  */
-int syncword_max_errors_for (syncword_state_t *state, size_t window_bits,
+int dp_syncword_max_errors_for (dp_syncword_state_t *state, size_t window_bits,
                              double pfa);
 #ifdef __cplusplus
 }

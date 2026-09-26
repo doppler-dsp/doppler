@@ -92,9 +92,9 @@ A ring exists to avoid copies, so an input that would need casting, flattening o
 
 | width | samples across | frames wrong | refused | MSa/s |
 |---|---|---|---|---|
-| f32 | 409,600 | 0 | 0 | 0.1 |
+| f32 | 409,600 | 0 | 0 | 0.0 |
 | f64 | 409,600 | 0 | 0 | 0.0 |
-| i16 | 409,600 | 0 | 0 | 0.1 |
+| i16 | 409,600 | 0 | 0 | 0.0 |
 
 
 The producer waits for `space` and closes in `finally`; the consumer blocks in `wait()` and ends on `EOFError`. The rate column is this machine's and the GIL's, not the ring's — C moves two orders of magnitude more (measurements §6) — and it is reported, not gated.

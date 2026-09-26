@@ -35,8 +35,8 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 
 | Type | Name |
 | ---: | :--- |
+| typedef struct wfm\_writer\_state | [**dp\_wfm\_writer\_state\_t**](#typedef-dp_wfm_writer_state_t)  <br> |
 | enum  | [**wfm\_filetype\_t**](#enum-wfm_filetype_t)  <br> |
-| typedef struct wfm\_writer\_state | [**wfm\_writer\_state\_t**](#typedef-wfm_writer_state_t)  <br> |
 
 
 
@@ -61,24 +61,24 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 
 | Type | Name |
 | ---: | :--- |
+|  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**dp\_wfm\_writer\_create**](#function-dp_wfm_writer_create) (const char \* path, double fs, int file\_type, int sample\_type, int endian, double fc, size\_t total, double headroom, double t0, bool sidecar) <br>_Open a capture for writing._  |
+|  int | [**dp\_wfm\_writer\_destroy**](#function-dp_wfm_writer_destroy) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Finalise and free — the object binding's fallible destructor._  |
+|  int | [**dp\_wfm\_writer\_flush**](#function-dp_wfm_writer_flush) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Make written samples durable and observable, without finishing._  |
+|  double | [**dp\_wfm\_writer\_get\_clip\_fraction**](#function-dp_wfm_writer_get_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
+|  bool | [**dp\_wfm\_writer\_get\_clipped**](#function-dp_wfm_writer_get_clipped) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
+|  double | [**dp\_wfm\_writer\_get\_peak\_dbfs**](#function-dp_wfm_writer_get_peak_dbfs) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
+|  void | [**dp\_wfm\_writer\_track\_clipping**](#function-dp_wfm_writer_track_clipping) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, int on) <br> |
+|  size\_t | [**dp\_wfm\_writer\_write**](#function-dp_wfm_writer_write) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Convert and write a block of samples._  |
+|  int | [**dp\_write\_blue\_header**](#function-dp_write_blue_header) (const char \* path, double fs, int sample\_type, int endian, double fc, double data\_start, size\_t total, int detached, double t0) <br> |
 |  int | [**wfm\_blue\_write\_hcb**](#function-wfm_blue_write_hcb) (FILE \* fp, int sample\_type, int endian, double fs, double fc, double data\_start, size\_t total\_samples, int detached, double t0\_unix\_sec) <br>_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._  |
 |  char \* | [**wfm\_sigmf\_meta\_json**](#function-wfm_sigmf_meta_json) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._ |
 |  char \* | [**wfm\_sigmf\_meta\_json\_ex**](#function-wfm_sigmf_meta_json_ex) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, const char \* extra\_global\_json, const char \*const \* annotations, size\_t n\_ann) <br>[_**wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) _plus the two things a caller can add to it._ |
-|  int | [**wfm\_writer\_add\_keyword**](#function-wfm_writer_add_keyword) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
-|  double | [**wfm\_writer\_clip\_fraction**](#function-wfm_writer_clip_fraction) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br> |
-|  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
-|  [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* | [**wfm\_writer\_create**](#function-wfm_writer_create) (const char \* path, double fs, int file\_type, int sample\_type, int endian, double fc, size\_t total, double headroom, double t0, bool sidecar) <br>_Open a capture for writing._  |
-|  int | [**wfm\_writer\_destroy**](#function-wfm_writer_destroy) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br>_Finalise and free — the object binding's fallible destructor._  |
-|  int | [**wfm\_writer\_flush**](#function-wfm_writer_flush) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br>_Make written samples durable and observable, without finishing._  |
-|  double | [**wfm\_writer\_get\_clip\_fraction**](#function-wfm_writer_get_clip_fraction) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br> |
-|  bool | [**wfm\_writer\_get\_clipped**](#function-wfm_writer_get_clipped) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br> |
-|  double | [**wfm\_writer\_get\_peak\_dbfs**](#function-wfm_writer_get_peak_dbfs) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state) <br> |
-|  [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* | [**wfm\_writer\_open**](#function-wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer__core_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples, double t0\_unix\_sec) <br>_Open a writer on an already-open stream._  |
-|  double | [**wfm\_writer\_peak**](#function-wfm_writer_peak) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br> |
-|  void | [**wfm\_writer\_set\_gain**](#function-wfm_writer_set_gain) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w, double gain) <br> |
-|  void | [**wfm\_writer\_track\_clipping**](#function-wfm_writer_track_clipping) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state, int on) <br> |
-|  size\_t | [**wfm\_writer\_write**](#function-wfm_writer_write) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Convert and write a block of samples._  |
-|  int | [**write\_blue\_header**](#function-write_blue_header) (const char \* path, double fs, int sample\_type, int endian, double fc, double data\_start, size\_t total, int detached, double t0) <br> |
+|  int | [**wfm\_writer\_add\_keyword**](#function-wfm_writer_add_keyword) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
+|  double | [**wfm\_writer\_clip\_fraction**](#function-wfm_writer_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
+|  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
+|  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**wfm\_writer\_open**](#function-wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer__core_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples, double t0\_unix\_sec) <br>_Open a writer on an already-open stream._  |
+|  double | [**wfm\_writer\_peak**](#function-wfm_writer_peak) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
+|  void | [**wfm\_writer\_set\_gain**](#function-wfm_writer_set_gain) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, double gain) <br> |
 
 
 
@@ -113,7 +113,7 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 A streaming writer over a FILE\* that serialises cf32 blocks into one of three on-disk file types, in the chosen wire sample type and byte order. The fourth file-type, SigMF, writes its samples as `raw` (into `<base>.sigmf-data`) and pairs with a sidecar `<base>.sigmf-meta` JSON from [**wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json).
 
 
-A writer opened by PATH (wfm\_writer\_create) emits that sidecar itself, at close, so `sigmf` produces a readable pair with no further work — and for that reason it REQUIRES a path ending in `.sigmf-data`, since both halves of a SigMF capture are found by name. A writer opened on a FILE\* (wfm\_writer\_open) has no name to derive the sidecar's from, so the caller owns it — that is the path wfmgen and Composer take, and it is also how they attach their per-segment annotations.
+A writer opened by PATH (dp\_wfm\_writer\_create) emits that sidecar itself, at close, so `sigmf` produces a readable pair with no further work — and for that reason it REQUIRES a path ending in `.sigmf-data`, since both halves of a SigMF capture are found by name. A writer opened on a FILE\* (wfm\_writer\_open) has no name to derive the sidecar's from, so the caller owns it — that is the path wfmgen and Composer take, and it is also how they attach their per-segment annotations.
 
 
 The same mechanism keeps `raw` and `csv` interpretable. Both containers take `fs`, `fc` and `t0` at construction and have nowhere to store them, and until now simply discarded them — handing back a file that not even its author could interpret afterwards. A path-opened raw/CSV writer therefore gets a `<path>.sigmf-meta` sidecar too (`sidecar=false` opts out). It is SigMF-SHAPED, not a SigMF capture: the name is appended rather than swapped so it cannot collide with a real pair's metadata (see wfm\_meta\_path), and for CSV `core:datatype` names the value domain the samples were quantised to rather than a byte layout. BLUE gets none — its header already carries all three, and a second copy is only somewhere for them to drift.
@@ -131,9 +131,9 @@ Axes (orthogonal to the file type):
 // ..., fs, fc, total, t0 — 0.0 for t0 means "no capture time known",
 // which leaves the BLUE timecode field unset rather than dating the
 // capture to 1970.
-wfm_writer_state_t *w =
+dp_wfm_writer_state_t *w =
     wfm_writer_open(fp, WFM_FT_BLUE, 3, 0, 1e6, 2.4e9, 4096, 0.0);
-wfm_writer_write(w, iq, 4096);
+dp_wfm_writer_write(w, iq, 4096);
 wfm_writer_close(w);   // patches the BLUE data_size from the actual count
 ```
  
@@ -142,6 +142,23 @@ wfm_writer_close(w);   // patches the BLUE data_size from the actual count
     
 ## Public Types Documentation
 
+
+
+
+### typedef dp\_wfm\_writer\_state\_t 
+
+```C++
+typedef struct wfm_writer_state dp_wfm_writer_state_t;
+```
+
+
+
+Opaque writer. 
+
+
+        
+
+<hr>
 
 
 
@@ -164,25 +181,301 @@ Output file type.
         
 
 <hr>
+## Public Functions Documentation
 
 
 
-### typedef wfm\_writer\_state\_t 
 
+### function dp\_wfm\_writer\_create 
+
+_Open a capture for writing._ 
 ```C++
-typedef struct wfm_writer_state wfm_writer_state_t;
+dp_wfm_writer_state_t * dp_wfm_writer_create (
+    const char * path,
+    double fs,
+    int file_type,
+    int sample_type,
+    int endian,
+    double fc,
+    size_t total,
+    double headroom,
+    double t0,
+    bool sidecar
+) 
 ```
 
 
 
-Opaque writer. 
+Streams `complex64` blocks to disk in the chosen file type, wire sample type and byte order, quantising to full scale (±1.0) for the integer types. Finish with close(): a BLUE capture's `data_size` and extended header are only written there, so a capture that is never closed is incomplete.
+
+
+
+
+**Parameters:**
+
+
+* `path` where to write  a `str` or any `os.PathLike` from Python. For `file_type="sigmf"` this MUST end in `.sigmf-data`: a SigMF capture is a `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by name, and close() writes the sidecar beside it. 
+* `file_type` `"raw"` (headerless interleaved I/Q), `"csv"` (one `I,Q` line per sample), `"blue"` (self-describing X-Midas/REDHAWK type-1000) or `"sigmf"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture itself; raw and CSV have nowhere to put them and keep them in the `sidecar` instead. 
+* `sample_type` wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. The integer types quantise ±1.0 to full scale and can clip  see track\_clipping()/peak\_dbfs. 
+* `endian` `"le"` or `"be"`; ignored for CSV, which is text. 
+* `fs` sample rate (Hz), and REQUIRED  there is no default. BLUE stores it as `xdelta = 1/fs`, SigMF and the raw/CSV `sidecar` as `core:sample_rate`. Pass 0.0 to say the rate is not known: that writes `xdelta = 0` and omits `core:sample_rate`, where a defaulted value would have written a rate nobody supplied into a file that outlives the process. 
+* `fc` centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF as `captures[0]["core:frequency"]`, raw and CSV in the `sidecar`. 0.0 writes nothing, in every one of them  absent is how this library says "not
+                   stated", which is what `Reader.fc_source` reports back. 
+* `total` expected sample count, for the BLUE header; close() patches the real count, so 0 is fine when unknown. 
+* `headroom` dB of output backoff (gain = 10^(-H/20)) applied before quantisation. A single scale, so it does not change any power ratio  only the absolute level. 0 is a bit-exact no-op. 
+* `t0` capture start, seconds since the UNIX epoch. Optional where `fs` is required, because a capture with no wall-clock anchor is still readable and one with no rate is not. BLUE stores it as a J1950 timecode, SigMF as `captures[0]["core:datetime"]`, raw and CSV in the `sidecar`. 0.0 means unset and stays unset  it is never written as 1970. `Reader.t0` / `Reader.t0_source` read it back. 
+* `sidecar` write a `<path>.sigmf-meta` JSON beside a `"raw"` or `"csv"` capture, recording the `fs`, `fc` and `t0` those containers have nowhere to keep. On by default: the caller already supplied the values at construction, and dropping them on the floor left a file nobody  its own author included  could interpret. Only what was actually stated is written; nothing is invented. It is SigMF-SHAPED, not a SigMF capture: the spec pairs `.sigmf-data`, so the name is APPENDED rather than swapped (`cap.raw` -&gt; `cap.raw.sigmf-meta`), which keeps it 1:1 with its data file and unable to collide with a real capture's metadata. Ignored for `"blue"` (its header already carries all three) and for `"sigmf"`, where the sidecar is half the capture and cannot be turned off. Pass false when an extra file beside the capture would break a downstream glob. 
+
+
+
+**Returns:**
+
+a writer, or NULL if the path cannot be opened for writing (or is a SigMF path not ending in `.sigmf-data`).
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Reader, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.blue"
+>>> x = np.arange(1024, dtype=np.complex64) / 1024.0
+>>> with Writer(p, file_type="blue", sample_type="cf32",
+...             fs=2.4e6, fc=1.2e9) as w:
+...     w.write(x)                              # samples in
+...     w.add_keyword("COMMENT", "A", "demo")   # tag the header
+1024
+>>> p.exists()
+True
+>>> with Reader(p) as r:                    # everything round-trips
+...     back = r.read(len(x))
+...     r.fs, r.fc, r.num_samples, r.keywords["COMMENT"]
+(2400000.0, 1200000000.0, 1024, 'demo')
+>>> bool(np.array_equal(back, x))
+True
+
+A raw capture has nowhere to put `fs`/`fc`, so they go beside it:
+
+>>> q = pathlib.Path(tmp.name) / "capture.raw"
+>>> with Writer(q, fs=2.4e6, fc=1.2e9) as w:
+...     w.write(x)
+1024
+>>> (q.parent / "capture.raw.sigmf-meta").exists()
+True
+>>> tmp.cleanup()
+```
+ 
 
 
         
 
 <hr>
-## Public Functions Documentation
 
+
+
+### function dp\_wfm\_writer\_destroy 
+
+_Finalise and free — the object binding's fallible destructor._ 
+```C++
+int dp_wfm_writer_destroy (
+    dp_wfm_writer_state_t * state
+) 
+```
+
+
+
+Identical to [**wfm\_writer\_close()**](wfm__writer__core_8h.md#function-wfm_writer_close); the object shape (gh-541) generates a Python close() from this that raises when it returns non-zero, so the finaliser's status reaches the caller and out of a `with` block. C callers may use either name.
+
+
+
+
+**Returns:**
+
+0 on success, non-zero on a write/seek error during finalisation. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_flush 
+
+_Make written samples durable and observable, without finishing._ 
+```C++
+int dp_wfm_writer_flush (
+    dp_wfm_writer_state_t * state
+) 
+```
+
+
+
+Leaves the file on a sample boundary  write() emits whole samples, so a flush BETWEEN write calls is what lets a follower read the capture without meeting a partial one. Raises `OSError` if this or any earlier write failed; a capture is not complete until close().
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Reader, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "live.blue"
+>>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
+>>> _ = w.write(np.zeros(16, dtype=np.complex64))
+>>> w.flush()                    # the samples are on disk now
+>>> Reader(p).read_follow(16).size
+16
+>>> w.close()
+>>> tmp.cleanup()
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_get\_clip\_fraction 
+
+```C++
+double dp_wfm_writer_get_clip_fraction (
+    const dp_wfm_writer_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_get\_clipped 
+
+```C++
+bool dp_wfm_writer_get_clipped (
+    const dp_wfm_writer_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_get\_peak\_dbfs 
+
+```C++
+double dp_wfm_writer_get_peak_dbfs (
+    const dp_wfm_writer_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_track\_clipping 
+
+```C++
+void dp_wfm_writer_track_clipping (
+    dp_wfm_writer_state_t * state,
+    int on
+) 
+```
+
+
+
+Enable the per-component clip _counter_ (off by default; peak is always on). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_write 
+
+_Convert and write a block of samples._ 
+```C++
+size_t dp_wfm_writer_write (
+    dp_wfm_writer_state_t * state,
+    const float _Complex * x,
+    size_t x_len
+) 
+```
+
+
+
+Takes `complex64` at unit scale and emits it in the writer's wire type. Call as many times as you like; the capture is the concatenation.
+
+
+
+
+**Returns:**
+
+the number of samples that actually landed — equal to what you passed on success, fewer if the write was short (a full disk, a quota). A short return is the per-block signal; close() reports the same failure for the capture as a whole.
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> from doppler.wfm import Composer, Reader, Segment, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.blue"
+>>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+>>> with Writer(p, file_type="blue", sample_type="ci16",
+...             fs=2.4e6, fc=1.2e9) as w:
+...     w.write(x)
+1024
+>>> r = Reader(p)
+>>> r.fs, r.fc, r.num_samples
+(2400000.0, 1200000000.0, 1024)
+>>> r.close()
+>>> tmp.cleanup()   # directory and contents removed
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_write\_blue\_header 
+
+```C++
+int dp_write_blue_header (
+    const char * path,
+    double fs,
+    int sample_type,
+    int endian,
+    double fc,
+    double data_start,
+    size_t total,
+    int detached,
+    double t0
+) 
+```
+
+
+
+
+<hr>
 
 
 
@@ -351,7 +644,7 @@ malloc'd JSON string (caller frees), or NULL on allocation failure.
 _Attach a BLUE extended-header keyword (a tag/value pair)._ 
 ```C++
 int wfm_writer_add_keyword (
-    wfm_writer_state_t * w,
+    dp_wfm_writer_state_t * w,
     const char * tag,
     char type,
     const void * value,
@@ -402,13 +695,13 @@ wfm_writer_close(w);   // keywords land after the data, HCB patched
 
 ```C++
 double wfm_writer_clip_fraction (
-    const wfm_writer_state_t * w
+    const dp_wfm_writer_state_t * w
 ) 
 ```
 
 
 
-Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless [**wfm\_writer\_track\_clipping()**](wfm__writer__core_8h.md#function-wfm_writer_track_clipping) was enabled. 
+Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless [**dp\_wfm\_writer\_track\_clipping()**](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) was enabled. 
 
 
         
@@ -422,7 +715,7 @@ Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless
 _Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._ 
 ```C++
 int wfm_writer_close (
-    wfm_writer_state_t * w
+    dp_wfm_writer_state_t * w
 ) 
 ```
 
@@ -444,212 +737,11 @@ int wfm_writer_close (
 
 
 
-### function wfm\_writer\_create 
-
-_Open a capture for writing._ 
-```C++
-wfm_writer_state_t * wfm_writer_create (
-    const char * path,
-    double fs,
-    int file_type,
-    int sample_type,
-    int endian,
-    double fc,
-    size_t total,
-    double headroom,
-    double t0,
-    bool sidecar
-) 
-```
-
-
-
-Streams `complex64` blocks to disk in the chosen file type, wire sample type and byte order, quantising to full scale (±1.0) for the integer types. Finish with close(): a BLUE capture's `data_size` and extended header are only written there, so a capture that is never closed is incomplete.
-
-
-
-
-**Parameters:**
-
-
-* `path` where to write  a `str` or any `os.PathLike` from Python. For `file_type="sigmf"` this MUST end in `.sigmf-data`: a SigMF capture is a `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by name, and close() writes the sidecar beside it. 
-* `file_type` `"raw"` (headerless interleaved I/Q), `"csv"` (one `I,Q` line per sample), `"blue"` (self-describing X-Midas/REDHAWK type-1000) or `"sigmf"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture itself; raw and CSV have nowhere to put them and keep them in the `sidecar` instead. 
-* `sample_type` wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. The integer types quantise ±1.0 to full scale and can clip  see track\_clipping()/peak\_dbfs. 
-* `endian` `"le"` or `"be"`; ignored for CSV, which is text. 
-* `fs` sample rate (Hz), and REQUIRED  there is no default. BLUE stores it as `xdelta = 1/fs`, SigMF and the raw/CSV `sidecar` as `core:sample_rate`. Pass 0.0 to say the rate is not known: that writes `xdelta = 0` and omits `core:sample_rate`, where a defaulted value would have written a rate nobody supplied into a file that outlives the process. 
-* `fc` centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF as `captures[0]["core:frequency"]`, raw and CSV in the `sidecar`. 0.0 writes nothing, in every one of them  absent is how this library says "not
-                   stated", which is what `Reader.fc_source` reports back. 
-* `total` expected sample count, for the BLUE header; close() patches the real count, so 0 is fine when unknown. 
-* `headroom` dB of output backoff (gain = 10^(-H/20)) applied before quantisation. A single scale, so it does not change any power ratio  only the absolute level. 0 is a bit-exact no-op. 
-* `t0` capture start, seconds since the UNIX epoch. Optional where `fs` is required, because a capture with no wall-clock anchor is still readable and one with no rate is not. BLUE stores it as a J1950 timecode, SigMF as `captures[0]["core:datetime"]`, raw and CSV in the `sidecar`. 0.0 means unset and stays unset  it is never written as 1970. `Reader.t0` / `Reader.t0_source` read it back. 
-* `sidecar` write a `<path>.sigmf-meta` JSON beside a `"raw"` or `"csv"` capture, recording the `fs`, `fc` and `t0` those containers have nowhere to keep. On by default: the caller already supplied the values at construction, and dropping them on the floor left a file nobody  its own author included  could interpret. Only what was actually stated is written; nothing is invented. It is SigMF-SHAPED, not a SigMF capture: the spec pairs `.sigmf-data`, so the name is APPENDED rather than swapped (`cap.raw` -&gt; `cap.raw.sigmf-meta`), which keeps it 1:1 with its data file and unable to collide with a real capture's metadata. Ignored for `"blue"` (its header already carries all three) and for `"sigmf"`, where the sidecar is half the capture and cannot be turned off. Pass false when an extra file beside the capture would break a downstream glob. 
-
-
-
-**Returns:**
-
-a writer, or NULL if the path cannot be opened for writing (or is a SigMF path not ending in `.sigmf-data`).
-
-
-
-```C++
->>> import pathlib, tempfile
->>> import numpy as np
->>> from doppler.wfm import Reader, Writer
->>> tmp = tempfile.TemporaryDirectory()
->>> p = pathlib.Path(tmp.name) / "capture.blue"
->>> x = np.arange(1024, dtype=np.complex64) / 1024.0
->>> with Writer(p, file_type="blue", sample_type="cf32",
-...             fs=2.4e6, fc=1.2e9) as w:
-...     w.write(x)                              # samples in
-...     w.add_keyword("COMMENT", "A", "demo")   # tag the header
-1024
->>> p.exists()
-True
->>> with Reader(p) as r:                    # everything round-trips
-...     back = r.read(len(x))
-...     r.fs, r.fc, r.num_samples, r.keywords["COMMENT"]
-(2400000.0, 1200000000.0, 1024, 'demo')
->>> bool(np.array_equal(back, x))
-True
-
-A raw capture has nowhere to put `fs`/`fc`, so they go beside it:
-
->>> q = pathlib.Path(tmp.name) / "capture.raw"
->>> with Writer(q, fs=2.4e6, fc=1.2e9) as w:
-...     w.write(x)
-1024
->>> (q.parent / "capture.raw.sigmf-meta").exists()
-True
->>> tmp.cleanup()
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_destroy 
-
-_Finalise and free — the object binding's fallible destructor._ 
-```C++
-int wfm_writer_destroy (
-    wfm_writer_state_t * state
-) 
-```
-
-
-
-Identical to [**wfm\_writer\_close()**](wfm__writer__core_8h.md#function-wfm_writer_close); the object shape (gh-541) generates a Python close() from this that raises when it returns non-zero, so the finaliser's status reaches the caller and out of a `with` block. C callers may use either name.
-
-
-
-
-**Returns:**
-
-0 on success, non-zero on a write/seek error during finalisation. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_flush 
-
-_Make written samples durable and observable, without finishing._ 
-```C++
-int wfm_writer_flush (
-    wfm_writer_state_t * state
-) 
-```
-
-
-
-Leaves the file on a sample boundary  write() emits whole samples, so a flush BETWEEN write calls is what lets a follower read the capture without meeting a partial one. Raises `OSError` if this or any earlier write failed; a capture is not complete until close().
-
-
-
-```C++
->>> import pathlib, tempfile
->>> import numpy as np
->>> from doppler.wfm import Reader, Writer
->>> tmp = tempfile.TemporaryDirectory()
->>> p = pathlib.Path(tmp.name) / "live.blue"
->>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
->>> _ = w.write(np.zeros(16, dtype=np.complex64))
->>> w.flush()                    # the samples are on disk now
->>> Reader(p).read_follow(16).size
-16
->>> w.close()
->>> tmp.cleanup()
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_get\_clip\_fraction 
-
-```C++
-double wfm_writer_get_clip_fraction (
-    const wfm_writer_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_writer\_get\_clipped 
-
-```C++
-bool wfm_writer_get_clipped (
-    const wfm_writer_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_writer\_get\_peak\_dbfs 
-
-```C++
-double wfm_writer_get_peak_dbfs (
-    const wfm_writer_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function wfm\_writer\_open 
 
 _Open a writer on an already-open stream._ 
 ```C++
-wfm_writer_state_t * wfm_writer_open (
+dp_wfm_writer_state_t * wfm_writer_open (
     FILE * fp,
     wfm_filetype_t ft,
     int sample_type,
@@ -673,7 +765,7 @@ wfm_writer_state_t * wfm_writer_open (
 * `sample_type` wire type (wavegen order); see file header. 
 * `endian` 0 little, 1 big (ignored for csv). 
 * `fs` sample rate (Hz) — BLUE xdelta = 1/fs. Pass 0.0 for "not known", which writes xdelta 0 and omits SigMF's core:sample\_rate rather than claiming a rate. 
-* `fc` centre frequency (Hz). BLUE records it as a `FREQ` keyword — see wfm\_writer\_create; raw and CSV have nowhere to put it and drop it. 
+* `fc` centre frequency (Hz). BLUE records it as a `FREQ` keyword — see dp\_wfm\_writer\_create; raw and CSV have nowhere to put it and drop it. 
 * `total_samples` expected complex-sample count for the BLUE header (0 if unknown; close() patches the actual count when fp is seekable). 
 * `t0_unix_sec` capture start, seconds since the UNIX epoch, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset) (0.0) if unknown. BLUE stores it as a J1950 timecode, SigMF as `core:datetime`; raw and CSV have nowhere to put it and drop it. A zero stays an unset field — it is never written as 1970. 
 
@@ -697,7 +789,7 @@ Writer handle, or NULL on bad args / allocation. BLUE writes its 512-byte header
 
 ```C++
 double wfm_writer_peak (
-    const wfm_writer_state_t * w
+    const dp_wfm_writer_state_t * w
 ) 
 ```
 
@@ -716,7 +808,7 @@ Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, full-scale
 
 ```C++
 void wfm_writer_set_gain (
-    wfm_writer_state_t * w,
+    dp_wfm_writer_state_t * w,
     double gain
 ) 
 ```
@@ -727,98 +819,6 @@ Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20).
 
 
         
-
-<hr>
-
-
-
-### function wfm\_writer\_track\_clipping 
-
-```C++
-void wfm_writer_track_clipping (
-    wfm_writer_state_t * state,
-    int on
-) 
-```
-
-
-
-Enable the per-component clip _counter_ (off by default; peak is always on). 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_write 
-
-_Convert and write a block of samples._ 
-```C++
-size_t wfm_writer_write (
-    wfm_writer_state_t * state,
-    const float _Complex * x,
-    size_t x_len
-) 
-```
-
-
-
-Takes `complex64` at unit scale and emits it in the writer's wire type. Call as many times as you like; the capture is the concatenation.
-
-
-
-
-**Returns:**
-
-the number of samples that actually landed — equal to what you passed on success, fewer if the write was short (a full disk, a quota). A short return is the per-block signal; close() reports the same failure for the capture as a whole.
-
-
-
-```C++
->>> import pathlib, tempfile
->>> from doppler.wfm import Composer, Reader, Segment, Writer
->>> tmp = tempfile.TemporaryDirectory()
->>> p = pathlib.Path(tmp.name) / "capture.blue"
->>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
->>> with Writer(p, file_type="blue", sample_type="ci16",
-...             fs=2.4e6, fc=1.2e9) as w:
-...     w.write(x)
-1024
->>> r = Reader(p)
->>> r.fs, r.fc, r.num_samples
-(2400000.0, 1200000000.0, 1024)
->>> r.close()
->>> tmp.cleanup()   # directory and contents removed
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function write\_blue\_header 
-
-```C++
-int write_blue_header (
-    const char * path,
-    double fs,
-    int sample_type,
-    int endian,
-    double fc,
-    double data_start,
-    size_t total,
-    int detached,
-    double t0
-) 
-```
-
-
-
 
 <hr>
 

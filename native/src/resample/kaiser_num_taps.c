@@ -10,7 +10,7 @@
 #endif
 
 int
-kaiser_num_taps (int num_phases, double atten, double pb, double sb)
+dp_kaiser_num_taps (int num_phases, double atten, double pb, double sb)
 {
   /* A bank has at least one branch. Without this the final division is an
      INTEGER divide by num_phases, so num_phases == 0 is not a wrong answer

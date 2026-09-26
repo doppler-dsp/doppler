@@ -23,11 +23,11 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_detector[] = {
-    (jm_any_fn)detector_create,
-    (jm_any_fn)detector_destroy,
-    (jm_any_fn)detector_reset,
-    (jm_any_fn)detector_push,
-    (jm_any_fn)detector_state_bytes,
-    (jm_any_fn)detector_get_state,
-    (jm_any_fn)detector_set_state,
+    (jm_any_fn)dp_detector_create,
+    (jm_any_fn)dp_detector_destroy,
+    (jm_any_fn)dp_detector_reset,
+    (jm_any_fn)dp_detector_push,
+    (jm_any_fn)dp_detector_state_bytes,
+    (jm_any_fn)dp_detector_get_state,
+    (jm_any_fn)dp_detector_set_state,
 };

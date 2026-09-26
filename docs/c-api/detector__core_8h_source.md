@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DETECTOR_CORE_H
-#define DETECTOR_CORE_H
+#ifndef DP_DETECTOR_CORE_H
+#define DP_DETECTOR_CORE_H
 
 #include "doppler/buffer/buffer.h"
 #include "doppler/corr/corr_core.h"
@@ -47,7 +47,7 @@ typedef struct
 
 typedef struct
 {
-  corr_state_t *corr;       
+  dp_corr_state_t *corr;       
   dp_f32_t *ring;             
   float _Complex *out_buf;   
   float *mag_buf;           
@@ -64,28 +64,28 @@ typedef struct
   float noise_est;
   float test_stat;
   int _last_corr_valid;     
-} detector_state_t;
+} dp_detector_state_t;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector_state_t *detector_create (const float _Complex *ref,
+dp_detector_state_t *dp_detector_create (const float _Complex *ref,
                                    size_t ref_len,
                                    size_t dwell, size_t noise_lo,
                                    size_t noise_hi,
                                    det_noise_mode_t noise_mode,
                                    float threshold, int nthreads);
 
-void detector_destroy (detector_state_t *state);
+void dp_detector_destroy (dp_detector_state_t *state);
 
-void detector_reset (detector_state_t *state);
+void dp_detector_reset (dp_detector_state_t *state);
 
-void detector_set_ref (detector_state_t *state, const float _Complex *ref);
+void detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
 
-void detector_set_threshold (detector_state_t *state, float threshold);
+void detector_set_threshold (dp_detector_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
-size_t detector_push (detector_state_t *state, const float _Complex *in,
+size_t dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -93,9 +93,9 @@ size_t detector_push (detector_state_t *state, const float _Complex *in,
  * + the last-dump result fields; scratch is config (rebuilt by create). */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
 #define DETECTOR_STATE_VERSION 1u
-size_t detector_state_bytes (const detector_state_t *state);
-void detector_get_state (const detector_state_t *state, void *blob);
-int detector_set_state (detector_state_t *state, const void *blob);
+size_t dp_detector_state_bytes (const dp_detector_state_t *state);
+void dp_detector_get_state (const dp_detector_state_t *state, void *blob);
+int dp_detector_set_state (dp_detector_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

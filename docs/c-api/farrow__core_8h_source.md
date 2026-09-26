@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef FARROW_CORE_H
-#define FARROW_CORE_H
+#ifndef DP_FARROW_CORE_H
+#define DP_FARROW_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -33,17 +33,17 @@ enum {
 typedef struct {
     float _Complex d[4]; 
     int order;          
-} farrow_state_t;
+} dp_farrow_state_t;
 
 JM_FORCEINLINE void
-farrow_init (farrow_state_t *s, int order)
+farrow_init (dp_farrow_state_t *s, int order)
 {
     s->d[0] = s->d[1] = s->d[2] = s->d[3] = 0.0f;
     s->order = order;
 }
 
 JM_FORCEINLINE JM_HOT void
-farrow_push (farrow_state_t *s, float _Complex x)
+farrow_push (dp_farrow_state_t *s, float _Complex x)
 {
     s->d[0] = s->d[1];
     s->d[1] = s->d[2];
@@ -52,7 +52,7 @@ farrow_push (farrow_state_t *s, float _Complex x)
 }
 
 JM_FORCEINLINE JM_HOT float _Complex
-farrow_eval (const farrow_state_t *s, float mu)
+farrow_eval (const dp_farrow_state_t *s, float mu)
 {
     float _Complex d0 = s->d[0], d1 = s->d[1], d2 = s->d[2], d3 = s->d[3];
     if (s->order == FARROW_LINEAR)
@@ -74,23 +74,23 @@ farrow_eval (const farrow_state_t *s, float mu)
     return ((c3 * mu + c2) * mu + c1) * mu + d1;
 }
 
-farrow_state_t *farrow_create(int order);
+dp_farrow_state_t *dp_farrow_create(int order);
 
-void farrow_destroy(farrow_state_t *state);
+void dp_farrow_destroy(dp_farrow_state_t *state);
 
-void farrow_reset(farrow_state_t *state);
+void dp_farrow_reset(dp_farrow_state_t *state);
 
-size_t farrow_delay_max_out(farrow_state_t *state);
-size_t farrow_delay(farrow_state_t *state, const float _Complex *x, size_t x_len, double mu, float _Complex *out, size_t max_out);
-size_t farrow_get_group_delay(const farrow_state_t *state);
+size_t dp_farrow_delay_max_out(dp_farrow_state_t *state);
+size_t dp_farrow_delay(dp_farrow_state_t *state, const float _Complex *x, size_t x_len, double mu, float _Complex *out, size_t max_out);
+size_t dp_farrow_get_group_delay(const dp_farrow_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the 4-tap delay line + order resume exactly into an
  * identically-built instance. */
 #define FARROW_STATE_MAGIC DP_FOURCC ('F', 'R', 'R', 'W')
 #define FARROW_STATE_VERSION 1u
-size_t farrow_state_bytes (const farrow_state_t *state);
-void   farrow_get_state (const farrow_state_t *state, void *blob);
-int    farrow_set_state (farrow_state_t *state, const void *blob);
+size_t dp_farrow_state_bytes (const dp_farrow_state_t *state);
+void   dp_farrow_get_state (const dp_farrow_state_t *state, void *blob);
+int    dp_farrow_set_state (dp_farrow_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -15,8 +15,8 @@
 #include "doppler/agc/agc_core.h"
 
 size_t
-settling_samples (double loop_bw, double alpha, double gain_err_db,
-                  double tol_db)
+dp_settling_samples (double loop_bw, double alpha, double gain_err_db,
+                     double tol_db)
 {
   return agc_settling_samples (loop_bw, alpha, gain_err_db, tol_db);
 }

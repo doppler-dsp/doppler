@@ -84,7 +84,7 @@ why, and how the pipeline handles them.
 ### How `push()` actually buffers and frames samples
 
 Worth walking through in full, since it's *why* the sweep above is written
-the way it is (`acq_push` in `native/src/acq/acq_core.c`):
+the way it is (`dp_acq_push` in `native/src/acq/acq_core.c`):
 
 - It's a **ring-buffer FIFO**, not an accumulate-then-process call. Each
     call writes as many input samples as currently fit, drains every

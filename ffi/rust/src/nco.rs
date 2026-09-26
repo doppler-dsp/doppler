@@ -21,24 +21,24 @@ pub struct NcoStateRaw {
 }
 
 extern "C" {
-    pub fn nco_create(norm_freq: f64, nmax: c_uint) -> *mut NcoStateRaw;
-    pub fn nco_destroy(nco: *mut NcoStateRaw);
-    pub fn nco_reset(nco: *mut NcoStateRaw);
-    pub fn nco_set_norm_freq(nco: *mut NcoStateRaw, norm_freq: f64);
-    pub fn nco_get_norm_freq(nco: *const NcoStateRaw) -> f64;
-    pub fn nco_steps_u32(
+    pub fn dp_nco_create(norm_freq: f64, nmax: c_uint) -> *mut NcoStateRaw;
+    pub fn dp_nco_destroy(nco: *mut NcoStateRaw);
+    pub fn dp_nco_reset(nco: *mut NcoStateRaw);
+    pub fn dp_nco_set_norm_freq(nco: *mut NcoStateRaw, norm_freq: f64);
+    pub fn dp_nco_get_norm_freq(nco: *const NcoStateRaw) -> f64;
+    pub fn dp_nco_steps_u32(
         nco: *mut NcoStateRaw,
         n: usize,
         out: *mut u32,
         max_out: usize,
     ) -> usize;
-    pub fn nco_steps_u32_scaled(
+    pub fn dp_nco_steps_u32_scaled(
         nco: *mut NcoStateRaw,
         n: usize,
         out: *mut u32,
         max_out: usize,
     ) -> usize;
-    pub fn nco_steps_u32_ovf(
+    pub fn dp_nco_steps_u32_ovf(
         nco: *mut NcoStateRaw,
         n: usize,
         out: *mut u32,
@@ -47,7 +47,7 @@ extern "C" {
     ) -> usize;
 }
 
-/// RAII wrapper around `nco_state_t`.
+/// RAII wrapper around `dp_nco_state_t`.
 ///
 /// Generates raw 32-bit phase accumulator values.  For complex CF32 phasors,
 /// use [`crate::lo::Lo`] instead.
@@ -64,49 +64,49 @@ impl Nco {
     /// Pass `0` to always return the raw accumulator.
     ///
     /// # Panics
-    /// Panics if `nco_create` returns null.
+    /// Panics if `dp_nco_create` returns null.
     pub fn new(norm_freq: f64) -> Self {
-        let ptr = unsafe { nco_create(norm_freq, 0) };
-        assert!(!ptr.is_null(), "nco_create returned null");
+        let ptr = unsafe { dp_nco_create(norm_freq, 0) };
+        assert!(!ptr.is_null(), "dp_nco_create returned null");
         Nco { ptr }
     }
 
     /// Create an NCO with a scaled output range `[0, nmax)`.
     ///
     /// # Panics
-    /// Panics if `nco_create` returns null.
+    /// Panics if `dp_nco_create` returns null.
     pub fn new_scaled(norm_freq: f64, nmax: u32) -> Self {
-        let ptr = unsafe { nco_create(norm_freq, nmax) };
-        assert!(!ptr.is_null(), "nco_create returned null");
+        let ptr = unsafe { dp_nco_create(norm_freq, nmax) };
+        assert!(!ptr.is_null(), "dp_nco_create returned null");
         Nco { ptr }
     }
 
     /// Zero the phase accumulator.
     pub fn reset(&mut self) {
-        unsafe { nco_reset(self.ptr) }
+        unsafe { dp_nco_reset(self.ptr) }
     }
 
     /// Update the normalised frequency without disturbing the phase.
     pub fn set_norm_freq(&mut self, norm_freq: f64) {
-        unsafe { nco_set_norm_freq(self.ptr, norm_freq) }
+        unsafe { dp_nco_set_norm_freq(self.ptr, norm_freq) }
     }
 
     /// Return the current normalised frequency.
     pub fn get_norm_freq(&self) -> f64 {
-        unsafe { nco_get_norm_freq(self.ptr) }
+        unsafe { dp_nco_get_norm_freq(self.ptr) }
     }
 
     /// Write `n` raw 32-bit accumulator values into `out`.
     pub fn steps_u32(&mut self, out: &mut [u32]) {
         unsafe {
-            nco_steps_u32(self.ptr, out.len(), out.as_mut_ptr(), out.len())
+            dp_nco_steps_u32(self.ptr, out.len(), out.as_mut_ptr(), out.len())
         };
     }
 
     /// Write `n` accumulator values scaled to `[0, nmax)` into `out`.
     pub fn steps_u32_scaled(&mut self, out: &mut [u32]) {
         unsafe {
-            nco_steps_u32_scaled(
+            dp_nco_steps_u32_scaled(
                 self.ptr,
                 out.len(),
                 out.as_mut_ptr(),
@@ -129,7 +129,7 @@ impl Nco {
             "out and carry must have the same length"
         );
         unsafe {
-            nco_steps_u32_ovf(
+            dp_nco_steps_u32_ovf(
                 self.ptr,
                 out.len(),
                 out.as_mut_ptr(),
@@ -142,7 +142,7 @@ impl Nco {
 
 impl Drop for Nco {
     fn drop(&mut self) {
-        unsafe { nco_destroy(self.ptr) }
+        unsafe { dp_nco_destroy(self.ptr) }
     }
 }
 
@@ -212,13 +212,13 @@ mod tests {
 
 // Serializable state — the dp_state.h bytes interface.
 extern "C" {
-    fn nco_state_bytes(s: *const NcoStateRaw) -> usize;
-    fn nco_get_state(s: *const NcoStateRaw, blob: *mut u8);
-    fn nco_set_state(s: *mut NcoStateRaw, blob: *const u8) -> i32;
+    fn dp_nco_state_bytes(s: *const NcoStateRaw) -> usize;
+    fn dp_nco_get_state(s: *const NcoStateRaw, blob: *mut u8);
+    fn dp_nco_set_state(s: *mut NcoStateRaw, blob: *const u8) -> i32;
 }
 impl_serializable!(
     Nco,
-    nco_state_bytes,
-    nco_get_state,
-    nco_set_state
+    dp_nco_state_bytes,
+    dp_nco_get_state,
+    dp_nco_set_state
 );

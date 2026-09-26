@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CORR2D_CORE_H
-#define CORR2D_CORE_H
+#ifndef DP_CORR2D_CORE_H
+#define DP_CORR2D_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -22,8 +22,8 @@ extern "C" {
 #endif
 
 typedef struct {
-  fft2d_state_t *fwd;       
-  fft2d_state_t *inv;       
+  dp_fft2d_state_t *fwd;       
+  dp_fft2d_state_t *inv;       
   float _Complex *ref_spec;  
   float _Complex *work_fft;  
   float _Complex *accum;     
@@ -42,8 +42,8 @@ typedef struct {
    * fixed for the object's lifetime; set_ref() may only refresh within the
    * same mode (see corr2d_set_ref doc comment). */
   int             fast_path;    
-  fft_state_t    *fwd1d;         
-  fft_state_t    *inv1d;         
+  dp_fft_state_t    *fwd1d;         
+  dp_fft_state_t    *inv1d;         
   float _Complex  *row_ref_spec;  
   size_t ny;                
   size_t nx;                
@@ -53,7 +53,7 @@ typedef struct {
   size_t n_out;             
   size_t dwell;             
   size_t count;             
-  /* Known-column output (see corr2d_create's @p col_out).  A caller that
+  /* Known-column output (see dp_corr2d_create's @p col_out).  A caller that
    * already knows the correlation lag it wants does not need the other
    * nx_out-1 columns, and evaluating the inverse at one bin is a dot
    * product against the conjugated reference, with NO transform in either
@@ -63,21 +63,21 @@ typedef struct {
   int             col_out;   
   float _Complex *col_ref;   
   float _Complex *work_trunc;
-} corr2d_state_t;
+} dp_corr2d_state_t;
 
-corr2d_state_t *corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
+dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
                               size_t nx_out, int col_out);
 
-void corr2d_destroy(corr2d_state_t *state);
+void dp_corr2d_destroy(dp_corr2d_state_t *state);
 
-void corr2d_reset(corr2d_state_t *state);
+void dp_corr2d_reset(dp_corr2d_state_t *state);
 
-int corr2d_set_ref(corr2d_state_t *state, const float _Complex *ref);
+int corr2d_set_ref(dp_corr2d_state_t *state, const float _Complex *ref);
 
-size_t corr2d_execute_max_out(corr2d_state_t *state);
+size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
 
-size_t corr2d_execute(corr2d_state_t *state, const float _Complex *in,
+size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
                       size_t n_in, float _Complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -85,9 +85,9 @@ size_t corr2d_execute(corr2d_state_t *state, const float _Complex *in,
  * FFT plans + ref_spec are config, rebuilt by create. */
 #define CORR2D_STATE_MAGIC DP_FOURCC ('C','R','2','D')
 #define CORR2D_STATE_VERSION 1u
-size_t corr2d_state_bytes (const corr2d_state_t *state);
-void corr2d_get_state (const corr2d_state_t *state, void *blob);
-int corr2d_set_state (corr2d_state_t *state, const void *blob);
+size_t dp_corr2d_state_bytes (const dp_corr2d_state_t *state);
+void dp_corr2d_get_state (const dp_corr2d_state_t *state, void *blob);
+int dp_corr2d_set_state (dp_corr2d_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

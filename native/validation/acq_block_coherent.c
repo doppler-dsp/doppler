@@ -13,7 +13,7 @@
  *
  *   floor        one clean emitter in an ALIGNED block -- pure code for the
  *                whole block, the window's interior -- at the operating
- *                point: the surface read back through acq_surface() (§2.4,
+ *                point: the surface read back through dp_acq_surface() (§2.4,
  *                the gate's own units) and binned by Doppler-row distance
  *                from the peak; the worst cell at another code phase is the
  *                floor a second emitter competes with. Expected the
@@ -111,9 +111,9 @@ code_only_epochs_for (double chip_rate)
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 typedef enum
@@ -138,13 +138,13 @@ typedef struct
 /* One engine at chip_rate with the depth its window buys (or a chosen
    code_only_epochs when `epochs` > 0), the surface kept. The caller
    requires ONE_LOOK of it: this harness reads one block per decision. */
-static acq_state_t *
+static dp_acq_state_t *
 engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
 {
-  size_t       W = epochs ? epochs : code_only_epochs_for (chip_rate);
-  acq_state_t *a = acq_create_continuous (code, SF, SPC, chip_rate,
-                                          SYMBOL_RATE, SIZING_CN0, DU, pfa, PD,
-                                          0, W, epochs ? 0.0 : RATE);
+  size_t          W = epochs ? epochs : code_only_epochs_for (chip_rate);
+  dp_acq_state_t *a = acq_create_continuous (code, SF, SPC, chip_rate,
+                                             SYMBOL_RATE, SIZING_CN0, DU, pfa,
+                                             PD, 0, W, epochs ? 0.0 : RATE);
   if (a)
     a->keep_surface = 1;
   return a;
@@ -157,8 +157,8 @@ engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
    row, code phase TAU0, at cn0_dbhz (0 = clean), rendered by the shipped
    synth; pushed; the surface read back and binned. */
 static int
-measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
-         double cn0_dbhz, uint32_t seed, block_t *out)
+measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
+         double frac, double cn0_dbhz, uint32_t seed, block_t *out)
 {
   const size_t D = a->coherent_bins, tiles = a->window_bins;
   const size_t nx   = a->code_bins;
@@ -171,9 +171,9 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
   const double f_norm = ((double)r + frac / (double)D) / (double)nx;
   const double snr_fs
       = cn0_dbhz > 0.0 ? cn0_dbhz - 10.0 * log10 (fs) : WFM_SYNTH_SNR_CLEAN;
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, fs, f_norm * fs, snr_fs, 1, seed,
-                          (int)SPC, 7, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs, f_norm * fs, snr_fs, 1, seed,
+                             (int)SPC, 7, 0, 0, 0.0);
   static const uint8_t two_bits[2] = { 0, 1 };
   int                  rc          = -1;
   size_t               discard     = TAU0; /* samples before the block */
@@ -213,12 +213,12 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
   if (kind == BLK_NOISE)
     wfm_synth_noise_steps (syn, raw, discard + blk);
   else
-    wfm_synth_steps (syn, raw, discard + blk);
+    dp_wfm_synth_steps (syn, raw, discard + blk);
   acq_result_t hit[4];
-  acq_reset (a);
-  size_t nh = acq_push (a, raw + discard, blk, hit, 4);
+  dp_acq_reset (a);
+  size_t nh = dp_acq_push (a, raw + discard, blk, hit, 4);
   float *s  = dp_xmalloc (a->n_surf * sizeof *s);
-  DP_REQUIRE_MSG (acq_surface (a, s, a->n_surf) == a->n_surf,
+  DP_REQUIRE_MSG (dp_acq_surface (a, s, a->n_surf) == a->n_surf,
                   "the surface tap reads the decided block");
   out->D         = D;
   out->tiles     = tiles;
@@ -263,7 +263,7 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
   out->max_other_db = db (mx_other / out->peak_stat);
   free (s);
   free (raw);
-  wfm_synth_destroy (syn);
+  dp_wfm_synth_destroy (syn);
   return 0;
 }
 
@@ -284,16 +284,18 @@ typedef struct
    carrier, the chips dilated with it (`dilate` 1). Noise, when cn0_dbhz >
    0, from the shipped awgn after the channel, as a receiver sees it. */
 static int
-measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
-                 int comp, double cn0_dbhz, uint32_t seed, dil_t *out)
+measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
+                 int dilate, int comp, double cn0_dbhz, uint32_t seed,
+                 dil_t *out)
 {
   /* `comp`: the engine told the carrier, so every tile carries its own
      code-rate hypothesis and the hand-off its half-dwell advance. */
-  DP_REQUIRE (acq_set_carrier_freq_hz (a, comp ? CARRIER_HZ : 0.0) == DP_OK);
-  const size_t       D = a->coherent_bins, nx = a->code_bins;
-  const double       fs  = a->fs;
-  const double       f   = ppm * 1e-6 * CARRIER_HZ;
-  wfm_synth_state_t *syn = wfm_synth_create (
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, comp ? CARRIER_HZ : 0.0)
+              == DP_OK);
+  const size_t          D = a->coherent_bins, nx = a->code_bins;
+  const double          fs  = a->fs;
+  const double          f   = ppm * 1e-6 * CARRIER_HZ;
+  dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
       WFM_SYNTH_DSSS, fs, dilate ? 0.0 : f, WFM_SYNTH_SNR_CLEAN, 1, seed,
       (int)SPC, 7, 0, 0, 0.0);
   DP_REQUIRE_MSG (syn
@@ -305,17 +307,17 @@ measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
   float complex *raw = dp_xmalloc ((need + 8192) * sizeof *raw);
   if (dilate)
     {
-      doppler_channel_state_t *ch
-          = doppler_channel_create (fs, CARRIER_HZ, ppm, 0.0);
+      dp_doppler_channel_state_t *ch
+          = dp_doppler_channel_create (fs, CARRIER_HZ, ppm, 0.0);
       DP_REQUIRE_MSG (ch != NULL, "the channel opens");
-      const size_t   chunk = 8192, cap = doppler_channel_execute_max_out (ch);
+      const size_t chunk = 8192, cap = dp_doppler_channel_execute_max_out (ch);
       float complex *in   = dp_xmalloc (chunk * sizeof *in);
       float complex *tmp  = dp_xmalloc (cap * sizeof *tmp);
       size_t         have = 0;
       while (have < need)
         {
-          wfm_synth_steps (syn, in, chunk);
-          size_t n = doppler_channel_execute (ch, in, chunk, tmp, cap);
+          dp_wfm_synth_steps (syn, in, chunk);
+          size_t n = dp_doppler_channel_execute (ch, in, chunk, tmp, cap);
           if (have + n > need + 8192)
             n = need + 8192 - have;
           memcpy (raw + have, tmp, n * sizeof *tmp);
@@ -323,27 +325,27 @@ measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
         }
       free (tmp);
       free (in);
-      doppler_channel_destroy (ch);
+      dp_doppler_channel_destroy (ch);
     }
   else
-    wfm_synth_steps (syn, raw, need);
+    dp_wfm_synth_steps (syn, raw, need);
   if (cn0_dbhz > 0.0)
     {
-      awgn_state_t *g = awgn_create (
+      dp_awgn_state_t *g = dp_awgn_create (
           seed * 7919u + 1u, awgn_amplitude_for_snr (
                                  (float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
       float complex *nz = dp_xmalloc (blk * sizeof *nz);
-      awgn_generate (g, blk, nz, blk);
+      dp_awgn_generate (g, blk, nz, blk);
       for (size_t i = 0; i < blk; i++)
         raw[discard + i] += nz[i];
       free (nz);
-      awgn_destroy (g);
+      dp_awgn_destroy (g);
     }
   acq_result_t hit[4];
-  acq_reset (a);
-  size_t nh = acq_push (a, raw + discard, blk, hit, 4);
+  dp_acq_reset (a);
+  size_t nh = dp_acq_push (a, raw + discard, blk, hit, 4);
   float *s  = dp_xmalloc (a->n_surf * sizeof *s);
-  DP_REQUIRE_MSG (acq_surface (a, s, a->n_surf) == a->n_surf,
+  DP_REQUIRE_MSG (dp_acq_surface (a, s, a->n_surf) == a->n_surf,
                   "the surface tap reads the decided block");
   out->D         = D;
   out->hit       = nh > 0;
@@ -365,17 +367,17 @@ measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
                            : (acq_result_t){ .doppler_bin = a->peak_row,
                                              .code_phase  = a->peak_col };
   acq_handoff_t ho;
-  DP_REQUIRE (acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
   acq_build_handoff (a, &h, SF, SPC, &ho);
   out->doppler_hz_est = ho.doppler_hz_est;
   out->chip_raw       = ho.chip_phase;
-  DP_REQUIRE (acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
   acq_build_handoff (a, &h, SF, SPC, &ho);
   out->chip_adv = ho.chip_phase;
-  DP_REQUIRE (acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
   free (s);
   free (raw);
-  wfm_synth_destroy (syn);
+  dp_wfm_synth_destroy (syn);
   return 0;
 }
 
@@ -385,44 +387,44 @@ measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
    from the truth, and the worst |error| of the rest, Hz. One look per
    block (ONE_LOOK), so a decision per block. */
 static int
-measure_edge (const uint8_t *code, acq_state_t *a, double hz, double cn0_dbhz,
-              uint32_t seed, int blocks, int *n_hits, int *n_off,
-              double *worst_hz)
+measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
+              double cn0_dbhz, uint32_t seed, int blocks, int *n_hits,
+              int *n_off, double *worst_hz)
 {
-  DP_REQUIRE (acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
-  const size_t       D = a->coherent_bins, nx = a->code_bins;
-  const double       fs = a->fs, span = fs / (double)nx;
-  const double       ppm = hz / CARRIER_HZ * 1e6;
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                          seed, (int)SPC, 7, 0, 0, 0.0);
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
+  const size_t          D = a->coherent_bins, nx = a->code_bins;
+  const double          fs = a->fs, span = fs / (double)nx;
+  const double          ppm = hz / CARRIER_HZ * 1e6;
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                             seed, (int)SPC, 7, 0, 0, 0.0);
   DP_REQUIRE_MSG (syn
                       && wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
                                                   WFM_DSSS_DATA_NONE, NULL, 0)
                              == 0,
                   "the synth takes the edge emitter");
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, CARRIER_HZ, ppm, 0.0);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, CARRIER_HZ, ppm, 0.0);
   DP_REQUIRE_MSG (ch != NULL, "the channel opens");
-  awgn_state_t *g = awgn_create (
+  dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
       awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
-  const size_t   cap = doppler_channel_execute_max_out (ch);
+  const size_t   cap = dp_doppler_channel_execute_max_out (ch);
   float complex *in  = dp_xmalloc (nx * sizeof *in);
   float complex *tmp = dp_xmalloc (cap * sizeof *tmp);
   float complex *nz  = dp_xmalloc (cap * sizeof *nz);
   acq_result_t   hit[4];
-  acq_reset (a);
+  dp_acq_reset (a);
   *n_hits = *n_off = 0;
   *worst_hz        = 0.0;
   for (size_t e = 0; e < (size_t)blocks * D; e++)
     {
-      wfm_synth_steps (syn, in, nx);
-      size_t n = doppler_channel_execute (ch, in, nx, tmp, cap);
-      awgn_generate (g, n, nz, cap);
+      dp_wfm_synth_steps (syn, in, nx);
+      size_t n = dp_doppler_channel_execute (ch, in, nx, tmp, cap);
+      dp_awgn_generate (g, n, nz, cap);
       for (size_t i = 0; i < n; i++)
         tmp[i] += nz[i];
-      size_t nh = acq_push (a, tmp, n, hit, 4);
+      size_t nh = dp_acq_push (a, tmp, n, hit, 4);
       for (size_t h = 0; h < nh; h++)
         {
           acq_handoff_t ho;
@@ -438,10 +440,10 @@ measure_edge (const uint8_t *code, acq_state_t *a, double hz, double cn0_dbhz,
   free (nz);
   free (tmp);
   free (in);
-  awgn_destroy (g);
-  doppler_channel_destroy (ch);
-  wfm_synth_destroy (syn);
-  DP_REQUIRE (acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  dp_awgn_destroy (g);
+  dp_doppler_channel_destroy (ch);
+  dp_wfm_synth_destroy (syn);
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
   return 0;
 }
 
@@ -470,7 +472,7 @@ main (int argc, char **argv)
   block_t      aligned[2];
   for (int i = 0; i < (check ? 1 : 2); i++)
     {
-      acq_state_t *a = engine_open (code, rates[i], 0, 1e-3);
+      dp_acq_state_t *a = engine_open (code, rates[i], 0, 1e-3);
       ONE_LOOK (a);
       printf ("\n%.0f Mcps: %zu tiles x D = %zu rows (%zu whole code-only "
               "epochs, rate %.0f Hz/s), %.1f Hz per row, %zu surface rows\n",
@@ -513,16 +515,16 @@ main (int argc, char **argv)
                 }
             }
         }
-      acq_destroy (a);
+      dp_acq_destroy (a);
     }
   printf ("  (dB below the peak, cells outside the exclusion zone, by "
           "Doppler-row distance; `other` = at another code phase)\n");
 
   /* ── pfa per block: pure noise at D = 16 ───────────────────────────── */
   {
-    const double pfa    = check ? 0.2 : 0.1;
-    const int    blocks = check ? 100 : 300;
-    acq_state_t *a      = engine_open (code, 5.0e6, 31, pfa);
+    const double    pfa    = check ? 0.2 : 0.1;
+    const int       blocks = check ? 100 : 300;
+    dp_acq_state_t *a      = engine_open (code, 5.0e6, 31, pfa);
     ONE_LOOK (a);
     int fired = 0;
     for (int t = 0; t < blocks; t++)
@@ -551,7 +553,7 @@ main (int argc, char **argv)
                     "the realized pfa is the configured one over the "
                     "interpolated cells (#1064): the CFAR counts every row "
                     "of every tile");
-    acq_destroy (a);
+    dp_acq_destroy (a);
   }
 
   /* ── sensitivity: realized Pd against C/N0, per depth ──────────────── */
@@ -570,7 +572,7 @@ main (int argc, char **argv)
                                     D = 1 at 0.8x -- robust both ways */
     for (int e = 0; e < 3; e++)
       {
-        acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
+        dp_acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
         ONE_LOOK (a);
         printf ("  %-6zu", a->coherent_bins);
         for (int c = 0; c < (check ? 2 : 4); c++)
@@ -597,7 +599,7 @@ main (int argc, char **argv)
               pd_d154_chk = pd;
           }
         printf ("\n");
-        acq_destroy (a);
+        dp_acq_destroy (a);
       }
     if (check)
       {
@@ -622,7 +624,7 @@ main (int argc, char **argv)
         = { "still", "dilated", "dilated+c" }; /* +c: the carrier told */
     for (int e = 0; e < 3; e++)
       {
-        acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
+        dp_acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
         ONE_LOOK (a);
         DP_REQUIRE (
             measure_dilated (code, a, SPEC_PPM, 0, 0, 0.0, 11u, &still[e])
@@ -641,7 +643,7 @@ main (int argc, char **argv)
                     b->chip_adv,
                     w ? SPEC_PPM * 1e-6 * (double)b->D * (double)SF : 0.0);
           }
-        acq_destroy (a);
+        dp_acq_destroy (a);
       }
     printf ("  (peak/gate in the gate's units; chip phases are the "
             "hand-off's, at the block's end: the still block's is the "
@@ -649,9 +651,9 @@ main (int argc, char **argv)
             "delay plus a whole block's drift)\n");
 
     /* The depth's sensitivity both ways: realized Pd at D = 154. */
-    const double cn0s[3] = { 34.0, 38.0, 42.0 };
-    const int    trials  = check ? 5 : 20;
-    acq_state_t *a       = engine_open (code, 5.0e6, 0, 1e-3);
+    const double    cn0s[3] = { 34.0, 38.0, 42.0 };
+    const int       trials  = check ? 5 : 20;
+    dp_acq_state_t *a       = engine_open (code, 5.0e6, 0, 1e-3);
     ONE_LOOK (a);
     printf ("\nD = %zu, one look, realized Pd over %d trials (mean "
             "peak/gate):\n  %-9s",
@@ -683,7 +685,7 @@ main (int argc, char **argv)
           }
         printf ("\n");
       }
-    acq_destroy (a);
+    dp_acq_destroy (a);
     if (check)
       {
         /* Pinned where the measurement put them (design §12.12): the
@@ -716,7 +718,7 @@ main (int argc, char **argv)
   }
   /* ── the tile edge (#1270): the pick asked at the row's frequency ── */
   {
-    acq_state_t *a = engine_open (code, 5.0e6, 0, 1e-3);
+    dp_acq_state_t *a = engine_open (code, 5.0e6, 0, 1e-3);
     ONE_LOOK (a);
     const double span    = a->fs / (double)a->code_bins;
     const double hzs[2]  = { 2.5 * span, 2.5 * span + 68.0 };
@@ -747,7 +749,7 @@ main (int argc, char **argv)
           }
         printf ("\n");
       }
-    acq_destroy (a);
+    dp_acq_destroy (a);
     if (check)
       DP_CHECK_MSG (hits_total >= 2 * blocks - 2 && off_total == 0,
                     "an emitter on a tile's edge is handed off in its own "

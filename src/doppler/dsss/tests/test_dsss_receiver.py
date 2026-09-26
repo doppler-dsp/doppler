@@ -190,7 +190,7 @@ def test_state_roundtrip_while_searching():
 def test_sps_below_two_is_refused_not_aborted(sps):
     """An unbuildable ``sps`` raises, and does not take the process with it.
 
-    ``sps = 1`` used to reach ``mpsk_receiver_create()``, whose
+    ``sps = 1`` used to reach ``dp_mpsk_receiver_create()``, whose
     argument-error NULL went through the abort-on-OOM helper ``dp_xnn()``
     and **SIGABRTed the interpreter** — exit 134, no exception, no
     traceback, nothing on stderr (gh-782). A library that aborts its host

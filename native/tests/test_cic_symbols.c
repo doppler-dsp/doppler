@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_cic[] = {
-    (jm_any_fn)cic_create,
-    (jm_any_fn)cic_destroy,
-    (jm_any_fn)cic_reset,
-    (jm_any_fn)cic_state_bytes,
-    (jm_any_fn)cic_get_state,
-    (jm_any_fn)cic_set_state,
-    (jm_any_fn)cic_decimate_max_out,
-    (jm_any_fn)cic_reconfigure,
+    (jm_any_fn)dp_cic_create,
+    (jm_any_fn)dp_cic_destroy,
+    (jm_any_fn)dp_cic_reset,
+    (jm_any_fn)dp_cic_state_bytes,
+    (jm_any_fn)dp_cic_get_state,
+    (jm_any_fn)dp_cic_set_state,
+    (jm_any_fn)dp_cic_decimate_max_out,
+    (jm_any_fn)dp_cic_reconfigure,
 };

@@ -37,7 +37,7 @@ _bind_kaiser_enbw (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float *w     = (const float *)PyArray_DATA (w_arr);
   size_t       w_len = (size_t)PyArray_SIZE (w_arr);
-  float        _r    = kaiser_enbw (w, w_len);
+  float        _r    = dp_kaiser_enbw (w, w_len);
   Py_DECREF (w_arr);
   return PyFloat_FromDouble ((double)_r);
 }
@@ -70,7 +70,7 @@ _bind_kaiser_window (PyObject *self, PyObject *args, PyObject *kwds)
     }
   float *w     = (float *)PyArray_DATA (w_arr);
   size_t w_len = (size_t)PyArray_SIZE (w_arr);
-  kaiser_window (w, w_len, beta);
+  dp_kaiser_window (w, w_len, beta);
   Py_DECREF (w_arr);
   Py_RETURN_NONE;
 }
@@ -83,7 +83,7 @@ _bind_kaiser_beta_for_sidelobe (PyObject *self, PyObject *args, PyObject *kwds)
   double       atten_db  = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &atten_db))
     return NULL;
-  return PyFloat_FromDouble (kaiser_beta_for_sidelobe (atten_db));
+  return PyFloat_FromDouble (dp_kaiser_beta_for_sidelobe (atten_db));
 }
 
 static PyObject *
@@ -113,7 +113,7 @@ _bind_hann_window (PyObject *self, PyObject *args, PyObject *kwds)
     }
   float *w     = (float *)PyArray_DATA (w_arr);
   size_t w_len = (size_t)PyArray_SIZE (w_arr);
-  hann_window (w, w_len);
+  dp_hann_window (w, w_len);
   Py_DECREF (w_arr);
   Py_RETURN_NONE;
 }
@@ -145,7 +145,7 @@ _bind_blackman_harris_window (PyObject *self, PyObject *args, PyObject *kwds)
     }
   float *w     = (float *)PyArray_DATA (w_arr);
   size_t w_len = (size_t)PyArray_SIZE (w_arr);
-  blackman_harris_window (w, w_len);
+  dp_blackman_harris_window (w, w_len);
   Py_DECREF (w_arr);
   Py_RETURN_NONE;
 }
@@ -176,8 +176,9 @@ _bind_magnitude_db_cf32 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  magnitude_db_cf32 (x, x_len, (float *)PyArray_DATA ((PyArrayObject *)_out),
-                     lin_floor, offset_db);
+  dp_magnitude_db_cf32 (x, x_len,
+                        (float *)PyArray_DATA ((PyArrayObject *)_out),
+                        lin_floor, offset_db);
   Py_DECREF (x_arr);
   return _out;
 }
@@ -208,8 +209,9 @@ _bind_magnitude_db_cf64 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  magnitude_db_cf64 (x, x_len, (float *)PyArray_DATA ((PyArrayObject *)_out),
-                     lin_floor, offset_db);
+  dp_magnitude_db_cf64 (x, x_len,
+                        (float *)PyArray_DATA ((PyArrayObject *)_out),
+                        lin_floor, offset_db);
   Py_DECREF (x_arr);
   return _out;
 }
@@ -241,7 +243,7 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (db_arr);
       return PyErr_NoMemory ();
     }
-  size_t _n = find_peaks_f32 (db, db_len, n_peaks, min_db, _results);
+  size_t _n = dp_find_peaks_f32 (db, db_len, n_peaks, min_db, _results);
   Py_DECREF (db_arr);
   PyObject *_lst = PyList_New ((Py_ssize_t)_n);
   if (!_lst)
@@ -285,7 +287,7 @@ _bind_obw_from_power (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const double *pwr     = (const double *)PyArray_DATA (pwr_arr);
   size_t        pwr_len = (size_t)PyArray_SIZE (pwr_arr);
-  double        _r      = obw_from_power (pwr, pwr_len, fs, frac);
+  double        _r      = dp_obw_from_power (pwr, pwr_len, fs, frac);
   Py_DECREF (pwr_arr);
   return PyFloat_FromDouble (_r);
 }
@@ -306,7 +308,7 @@ _bind_noise_floor_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float *db     = (const float *)PyArray_DATA (db_arr);
   size_t       db_len = (size_t)PyArray_SIZE (db_arr);
-  double       _r     = noise_floor_db (db, db_len);
+  double       _r     = dp_noise_floor_db (db, db_len);
   Py_DECREF (db_arr);
   return PyFloat_FromDouble (_r);
 }
@@ -475,10 +477,10 @@ static PyMethodDef spectral_module_methods[] = {
   { "magnitude_db_cf64", (PyCFunction)(void *)_bind_magnitude_db_cf64,
     METH_VARARGS | METH_KEYWORDS,
     "Convert a CF64 complex spectrum to F32 dB magnitudes.\n"
-    "Double-precision variant of magnitude_db_cf32(). Accepts a CF64 input\n"
-    "array and a double lin_floor; output is still F32 because downstream\n"
-    "display code typically works in single precision. The formula and\n"
-    "offset_db semantics are identical.\n"
+    "Double-precision variant of dp_magnitude_db_cf32(). Accepts a CF64\n"
+    "input array and a double lin_floor; output is still F32 because\n"
+    "downstream display code typically works in single precision. The\n"
+    "formula and offset_db semantics are identical.\n"
     "\n"
     "Parameters\n"
     "----------\n"

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only source_ext.c is compiled.
  */
 /* ======================================================== */
-/* NCOObject — wraps nco_state_t *       */
+/* NCOObject — wraps dp_nco_state_t *       */
 /* ======================================================== */
 
 #include "doppler/nco/nco_core.h"
 
 typedef struct
 {
-  PyObject_HEAD nco_state_t *handle;
+  PyObject_HEAD dp_nco_state_t *handle;
 } NCOObject;
 
 static void
 NCOObj_dealloc (NCOObject *self)
 {
   if (self->handle)
-    nco_destroy (self->handle);
+    dp_nco_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -44,10 +44,10 @@ NCOObj_init (NCOObject *self, PyObject *args, PyObject *kwds)
                                     &nmax_raw))
     return -1;
   uint32_t nmax = (uint32_t)nmax_raw;
-  self->handle  = nco_create (norm_freq, nmax);
+  self->handle  = dp_nco_create (norm_freq, nmax);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "nco_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_nco_create returned NULL");
       return -1;
     }
   return 0;
@@ -61,7 +61,7 @@ NCOObj_reset (NCOObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  nco_reset (self->handle);
+  dp_nco_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -73,7 +73,7 @@ NCOObj_steps_u32_max_out (NCOObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (nco_steps_u32_max_out (self->handle));
+  return PyLong_FromSize_t (dp_nco_steps_u32_max_out (self->handle));
 }
 
 static PyObject *
@@ -110,7 +110,7 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = nco_steps_u32_max_out (self->handle);
+      size_t _omax    = dp_nco_steps_u32_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -119,8 +119,8 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = nco_steps_u32 (self->handle, (size_t)n,
-                                    (uint32_t *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_nco_steps_u32 (
+          self->handle, (size_t)n, (uint32_t *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
                                                     PyArray_DATA (out_arr));
@@ -139,7 +139,7 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = nco_steps_u32_max_out (self->handle);
+  size_t _cap  = dp_nco_steps_u32_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -149,7 +149,7 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out = nco_steps_u32 (self->handle, (size_t)n, _d0, _cap);
+  size_t    n_out = dp_nco_steps_u32 (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -175,7 +175,7 @@ NCOObj_steps_u32_scaled_max_out (NCOObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (nco_steps_u32_scaled_max_out (self->handle));
+  return PyLong_FromSize_t (dp_nco_steps_u32_scaled_max_out (self->handle));
 }
 
 static PyObject *
@@ -212,7 +212,7 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = nco_steps_u32_scaled_max_out (self->handle);
+      size_t _omax    = dp_nco_steps_u32_scaled_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -221,7 +221,7 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = nco_steps_u32_scaled (
+      size_t n_out = dp_nco_steps_u32_scaled (
           self->handle, (size_t)n, (uint32_t *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
@@ -241,7 +241,7 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = nco_steps_u32_scaled_max_out (self->handle);
+  size_t _cap  = dp_nco_steps_u32_scaled_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -250,8 +250,8 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out = nco_steps_u32_scaled (self->handle, (size_t)n, _d0, _cap);
+  uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out  = dp_nco_steps_u32_scaled (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -280,7 +280,7 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
   size_t _need = (size_t)n;
-  size_t _cap  = nco_steps_u32_ovf_max_out (self->handle);
+  size_t _cap  = dp_nco_steps_u32_ovf_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -294,7 +294,8 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   uint8_t  *_d1 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1);
-  size_t n_out  = nco_steps_u32_ovf (self->handle, (size_t)n, _d0, _d1, _cap);
+  size_t    n_out
+      = dp_nco_steps_u32_ovf (self->handle, (size_t)n, _d0, _d1, _cap);
   if ((size_t)n_out == _cap)
     {
       PyObject *_exact = PyTuple_Pack (2, arr0, arr1);
@@ -335,7 +336,7 @@ NCOObj_steps_u32_ctrl_max_out (NCOObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (nco_steps_u32_ctrl_max_out (self->handle));
+  return PyLong_FromSize_t (dp_nco_steps_u32_ctrl_max_out (self->handle));
 }
 
 static PyObject *
@@ -380,7 +381,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = nco_steps_u32_ctrl_max_out (self->handle);
+      size_t _omax    = dp_nco_steps_u32_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (ctrl_arr));
@@ -392,7 +393,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t n_out = nco_steps_u32_ctrl (
+      size_t n_out = dp_nco_steps_u32_ctrl (
           self->handle, (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr),
           _cap);
@@ -415,7 +416,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
-  size_t _cap  = nco_steps_u32_ctrl_max_out (self->handle);
+  size_t _cap  = dp_nco_steps_u32_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -426,7 +427,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out = nco_steps_u32_ctrl (
+  size_t    n_out = dp_nco_steps_u32_ctrl (
       self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
@@ -455,7 +456,8 @@ NCOObj_steps_u32_scaled_ctrl_max_out (NCOObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (nco_steps_u32_scaled_ctrl_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_nco_steps_u32_scaled_ctrl_max_out (self->handle));
 }
 
 static PyObject *
@@ -500,7 +502,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = nco_steps_u32_scaled_ctrl_max_out (self->handle);
+      size_t _omax    = dp_nco_steps_u32_scaled_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (ctrl_arr));
@@ -512,7 +514,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t n_out = nco_steps_u32_scaled_ctrl (
+      size_t n_out = dp_nco_steps_u32_scaled_ctrl (
           self->handle, (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr),
           _cap);
@@ -535,7 +537,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
-  size_t _cap  = nco_steps_u32_scaled_ctrl_max_out (self->handle);
+  size_t _cap  = dp_nco_steps_u32_scaled_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -546,7 +548,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out = nco_steps_u32_scaled_ctrl (
+  size_t    n_out = dp_nco_steps_u32_scaled_ctrl (
       self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
@@ -584,7 +586,7 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   if (!ctrl_arr)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
-  size_t _cap  = nco_steps_u32_ovf_ctrl_max_out (self->handle);
+  size_t _cap  = dp_nco_steps_u32_ovf_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -599,7 +601,7 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   uint8_t  *_d1   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1);
-  size_t    n_out = nco_steps_u32_ovf_ctrl (
+  size_t    n_out = dp_nco_steps_u32_ovf_ctrl (
       self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _d1, _cap);
   Py_DECREF (ctrl_arr);
@@ -643,7 +645,7 @@ NCOObj_state_bytes (NCOObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (nco_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_nco_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -654,11 +656,11 @@ NCOObj_get_state (NCOObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = nco_state_bytes (self->handle);
+  size_t    _n = dp_nco_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  nco_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_nco_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -675,12 +677,12 @@ NCOObj_set_state (NCOObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != nco_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_nco_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (nco_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_nco_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -696,7 +698,7 @@ NCO_getprop_norm_freq (NCOObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (nco_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_nco_get_norm_freq (self->handle));
 }
 static int
 NCO_setprop_norm_freq (NCOObject *self, PyObject *value,
@@ -710,7 +712,7 @@ NCO_setprop_norm_freq (NCOObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  nco_set_norm_freq (self->handle, v);
+  dp_nco_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -722,7 +724,8 @@ NCO_getprop_phase (NCOObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLong ((unsigned long)nco_get_phase (self->handle));
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_nco_get_phase (self->handle));
 }
 static int
 NCO_setprop_phase (NCOObject *self, PyObject *value, void *Py_UNUSED (closure))
@@ -736,7 +739,7 @@ NCO_setprop_phase (NCOObject *self, PyObject *value, void *Py_UNUSED (closure))
   if (!PyArg_Parse (value, "k", &v_raw))
     return -1;
   uint32_t v = (uint32_t)v_raw;
-  nco_set_phase (self->handle, v);
+  dp_nco_set_phase (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -749,7 +752,7 @@ NCO_getprop_phase_inc (NCOObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLong (
-      (unsigned long)nco_get_phase_inc (self->handle));
+      (unsigned long)dp_nco_get_phase_inc (self->handle));
 }
 
 static PyGetSetDef NCO_getset[] = {
@@ -777,7 +780,7 @@ NCOObj_destroy (NCOObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      nco_destroy (self->handle);
+      dp_nco_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -796,7 +799,7 @@ NCOObj_exit (NCOObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      nco_destroy (self->handle);
+      dp_nco_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -805,7 +808,8 @@ NCOObj_exit (NCOObject *self, PyObject *args)
 static PyMethodDef NCOObj_methods[] = {
   { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
     "Zero the phase accumulator. Sets phase to 0 so the next\n"
-    "nco_steps_u32 call starts from the beginning of the cycle. norm_freq,\n"
+    "dp_nco_steps_u32 call starts from the beginning of the cycle. "
+    "norm_freq,\n"
     "phase_inc, and nmax are unchanged; the NCO is ready to generate samples\n"
     "again immediately.\n"
     "\n"
@@ -882,7 +886,8 @@ static PyMethodDef NCOObj_methods[] = {
     "fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the\n"
     "full accumulator range uniformly onto [0, nmax) without a modulo\n"
     "operation. When nmax == 0 falls back to the raw accumulator (identical\n"
-    "to nco_steps_u32). Useful for polyphase filter bank indexing and direct\n"
+    "to dp_nco_steps_u32). Useful for polyphase filter bank indexing and "
+    "direct\n"
     "LUT addressing. Returns n.\n"
     "\n"
     "Parameters\n"
@@ -929,7 +934,7 @@ static PyMethodDef NCOObj_methods[] = {
     "steps_u32_ovf(count=1) -> tuple[ndarray, ndarray]\n"
     "\n"
     "Advance n samples; write raw phase values and per-sample carry.\n"
-    "Identical to nco_steps_u32 for the phase array, but simultaneously\n"
+    "Identical to dp_nco_steps_u32 for the phase array, but simultaneously\n"
     "fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that\n"
     "produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The\n"
     "carry marks the exact boundary of one input period and is the primitive\n"
@@ -972,11 +977,12 @@ static PyMethodDef NCOObj_methods[] = {
     "+ ctrl_inc` each sample -- so a loop filter can drive the NCO with its\n"
     "full per-sample output (integrator + proportional term) without the\n"
     "caller ever touching the NCO's own configured rate. Mirrors\n"
-    "`lo_step_ctrl`/`lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which "
+    "`lo_step_ctrl`/`dp_lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), "
+    "which "
     "does\n"
     "this for the CF32 phasor output; this is the same control-port pattern\n"
     "for NCO's raw phase output. With every `ctrl[i] == 0` this is\n"
-    "bit-identical to nco_steps_u32(). Returns ctrl_len.\n"
+    "bit-identical to dp_nco_steps_u32(). Returns ctrl_len.\n"
     "\n"
     "Python's `out=` keyword writes into a caller-supplied buffer instead of\n"
     "allocating a fresh one. This used to claim it was \"essential for a hot\n"
@@ -1047,12 +1053,14 @@ static PyMethodDef NCOObj_methods[] = {
     "Advance ctrl_len samples; values scaled to `[0, nmax)`, with a\n"
     "per-sample control offset added on top of phase_inc.\n"
     "\n"
-    "The nco_steps_u32_scaled output mapping (nmax=0 falls back to the raw\n"
-    "accumulator) driven by the nco_steps_u32_ctrl control port -- every\n"
+    "The dp_nco_steps_u32_scaled output mapping (nmax=0 falls back to the "
+    "raw\n"
+    "accumulator) driven by the dp_nco_steps_u32_ctrl control port -- every\n"
     "stepper has a matching control-input counterpart, so a tracking loop\n"
     "can drive LUT-indexed output (nmax = table length) exactly as it would\n"
     "raw phase output, without ever touching phase_inc/norm_freq. With every\n"
-    "`ctrl[i] == 0` this is bit-identical to nco_steps_u32_scaled(). Returns\n"
+    "`ctrl[i] == 0` this is bit-identical to dp_nco_steps_u32_scaled(). "
+    "Returns\n"
     "ctrl_len.\n"
     "\n"
     "Parameters\n"
@@ -1106,9 +1114,9 @@ static PyMethodDef NCOObj_methods[] = {
     "Advance ctrl_len samples; raw phase + per-sample carry, with a\n"
     "per-sample control offset added on top of phase_inc.\n"
     "\n"
-    "The nco_steps_u32_ovf output mapping (raw phase plus a flag marking\n"
+    "The dp_nco_steps_u32_ovf output mapping (raw phase plus a flag marking\n"
     "each sample whose advance crossed a cycle boundary) driven by the\n"
-    "nco_steps_u32_ctrl control port -- every stepper has a matching\n"
+    "dp_nco_steps_u32_ctrl control port -- every stepper has a matching\n"
     "control-input counterpart. The flag reflects THIS sample's true SIGNED\n"
     "advance (`norm_freq + ctrl`, formed in cycles before either term is\n"
     "folded into the accumulator), not just phase_inc alone -- needed by any\n"
@@ -1119,7 +1127,7 @@ static PyMethodDef NCOObj_methods[] = {
     "(one EXTRA output/load), a backward one a borrow (one FEWER); see\n"
     "nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the\n"
     "fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and\n"
-    "`norm_freq` in [0, 1) this is bit-identical to nco_steps_u32_ovf().\n"
+    "`norm_freq` in [0, 1) this is bit-identical to dp_nco_steps_u32_ovf().\n"
     "Returns ctrl_len.\n"
     "\n"
     "Parameters\n"
@@ -1245,8 +1253,9 @@ static PyTypeObject NCOObjType = {
     "to zero, converts norm_freq to the integer phase_inc =\n"
     "floor(frac(norm_freq) × 2^32), and stores nmax for scaled output. The "
     "NCO\n"
-    "is immediately ready to call nco_steps_u32 / nco_steps_u32_scaled /\n"
-    "nco_steps_u32_ovf.\n"
+    "is immediately ready to call dp_nco_steps_u32 / dp_nco_steps_u32_scaled "
+    "/\n"
+    "dp_nco_steps_u32_ovf.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1255,7 +1264,7 @@ static PyTypeObject NCOObjType = {
     "    fractional part matters. Negative values fold correctly (−0.25 →\n"
     "    3×2^30).\n"
     "nmax : int, default 0\n"
-    "    Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw "
+    "    Wrap target for dp_nco_steps_u32_scaled. Pass 0 to return the raw "
     "32-bit\n"
     "    accumulator.\n"
     "\n"

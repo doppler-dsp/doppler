@@ -1,7 +1,7 @@
 #include "doppler/detection/detection_core.h"
 #include <math.h>
 double
-det_threshold (double pfa)
+dp_det_threshold (double pfa)
 {
   /* A NaN threshold never fires: every comparison against it is false. */
   if (!(pfa > 0.0 && pfa < 1.0))

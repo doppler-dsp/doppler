@@ -1,6 +1,6 @@
 # Python FIR Filter API
 
-Direct-form FIR filter backed by `fir_state_t`.
+Direct-form FIR filter backed by `dp_fir_state_t`.
 Accepts real (`float32`) or complex (`complex64`) taps; input must be `complex64`.
 
 Source:

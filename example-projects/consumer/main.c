@@ -13,7 +13,7 @@
  * linker resolves them from what the consumer was handed, never from
  * libdoppler's own dependencies:
  *
- *   - an inline `agc_step()`, whose body calls libm;
+ *   - an inline `dp_agc_step()`, whose body calls libm;
  *   - a `dp_thread.h` thread, which is pthread on POSIX;
  *   - a ring buffer, which maps its own pages.
  *
@@ -56,13 +56,13 @@ inline_surface (int n)
 
   /* An AGC driven by a constant converges on its target level: the inline
    * step() ran, and its libm calls resolved. */
-  agc_state_t *agc = agc_create (0.0, 0.0025, 0.05);
+  dp_agc_state_t *agc = dp_agc_create (0.0, 0.0025, 0.05);
   if (!agc)
     return 1;
   float _Complex y = 0.0f;
   for (int i = 0; i < 4000 * n; i++)
-    y = agc_step (agc, 0.1f);
-  agc_destroy (agc);
+    y = dp_agc_step (agc, 0.1f);
+  dp_agc_destroy (agc);
   if (fabsf (cabsf (y) - 1.0f) > 0.05f)
     {
       fprintf (stderr, "agc settled at %f, want 1.0\n", (double)cabsf (y));
@@ -97,15 +97,15 @@ main (int argc, char **argv)
   static const float want_re[4] = { 1.0f, 0.0f, -1.0f, 0.0f };
   static const float want_im[4] = { 0.0f, 1.0f, 0.0f, -1.0f };
 
-  lo_state_t *lo = lo_create (0.25);
+  dp_lo_state_t *lo = dp_lo_create (0.25);
   if (!lo)
     {
-      fprintf (stderr, "lo_create failed\n");
+      fprintf (stderr, "dp_lo_create failed\n");
       return 1;
     }
   float _Complex x[N];
-  lo_steps (lo, N, x, N);
-  lo_destroy (lo);
+  dp_lo_steps (lo, N, x, N);
+  dp_lo_destroy (lo);
 
   int bad = 0;
   for (int i = 0; i < N; i++)

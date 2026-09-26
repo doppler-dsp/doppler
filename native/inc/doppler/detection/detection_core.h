@@ -23,8 +23,8 @@
  *
  * All functions are stateless and thread-safe.
  */
-#ifndef DETECTION_CORE_H
-#define DETECTION_CORE_H
+#ifndef DP_DETECTION_CORE_H
+#define DP_DETECTION_CORE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,7 +80,7 @@ extern "C" {
  *
  * @endcode
  */
-double marcum_q(int m, double a, double b);
+double dp_marcum_q(int m, double a, double b);
 
 /**
  * @brief Threshold eta for a given false-alarm probability.
@@ -102,7 +102,7 @@ double marcum_q(int m, double a, double b);
  *
  * @endcode
  */
-double det_threshold(double pfa);
+double dp_det_threshold(double pfa);
 
 /**
  * @brief Detection probability for given per-sample amplitude SNR and dwell.
@@ -115,7 +115,7 @@ double det_threshold(double pfa);
  * @param snr        Per-sample amplitude SNR (signal / noise amplitude,
  *                   linear).  snr = 0 gives Pd = Pfa.
  * @param dwell      Coherent integration depth; must be >= 1.
- * @param threshold  Test-stat threshold eta, e.g. from det_threshold().
+ * @param threshold  Test-stat threshold eta, e.g. from dp_det_threshold().
  * @return           Detection probability in &#91;0, 1&#93;.
  *
  * @code
@@ -128,12 +128,12 @@ double det_threshold(double pfa);
  *
  * @endcode
  */
-double det_pd(double snr, int dwell, double threshold);
+double dp_det_pd(double snr, int dwell, double threshold);
 
 /**
  * @brief Minimum dwell such that Pd >= pd_min for the given SNR and Pfa.
  *
- * Iterates dwell = 1, 2, ..., max_dwell, computing det_pd() at each step.
+ * Iterates dwell = 1, 2, ..., max_dwell, computing dp_det_pd() at each step.
  * Returns the first dwell that satisfies the Pd requirement, or -1 if none
  * is found within max_dwell iterations.
  *
@@ -151,7 +151,7 @@ double det_pd(double snr, int dwell, double threshold);
  *
  * @endcode
  */
-int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
+int dp_det_dwell(double snr, double pd_min, double pfa, int max_dwell);
 
 /**
  * @brief Minimum per-sample amplitude SNR achieving Pd >= pd_min.
@@ -177,7 +177,7 @@ int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
  *
  * @endcode
  */
-double det_snr(int dwell, double pd_min, double pfa);
+double dp_det_snr(int dwell, double pd_min, double pfa);
 
 /* ── Non-coherent integration ────────────────────────────────────────────── */
 /*                                                                            */
@@ -211,7 +211,7 @@ double det_snr(int dwell, double pd_min, double pfa);
  *
  * @endcode
  */
-double det_threshold_noncoherent(double pfa, int n_noncoh);
+double dp_det_threshold_noncoherent(double pfa, int n_noncoh);
 
 /* ── Gaussian test statistic ─────────────────────────────────────────────── */
 /*                                                                            */
@@ -222,9 +222,9 @@ double det_threshold_noncoherent(double pfa, int n_noncoh);
 /* dll's code lock, the carrier NDA lock) share one sizing chain, and it      */
 /* lives here so they cannot drift apart.                                     */
 /*                                                                            */
-/* Do NOT reach for det_threshold() on a Gaussian statistic. It inverts       */
+/* Do NOT reach for dp_det_threshold() on a Gaussian statistic. It inverts       */
 /* Pfa = exp(-eta^2/2), the envelope law, and returns 4.9409 where            */
-/* det_q_inv() returns 4.4172 at the same pfa = 5e-6 -- two plausible small   */
+/* dp_det_q_inv() returns 4.4172 at the same pfa = 5e-6 -- two plausible small   */
 /* numbers near 5, only one of which is a sigma count.                        */
 
 /**
@@ -235,7 +235,7 @@ double det_threshold_noncoherent(double pfa, int n_noncoh);
  * zero-mean Gaussian statistic wants `det_q_inv(pfa) * sd_H0`.
  *
  * **Signed, and that matters.** Above the median the quantile is negative,
- * which is exactly why det_dwell_gauss()'s `Q_inv(pfa) - Q_inv(pd)` is a sum
+ * which is exactly why dp_det_dwell_gauss()'s `Q_inv(pfa) - Q_inv(pd)` is a sum
  * of two tails rather than a difference: every caller's `pd` is above 0.5.
  * Clamping it to zero there halves the dwell without failing anything.
  *
@@ -257,7 +257,7 @@ double det_threshold_noncoherent(double pfa, int n_noncoh);
  *
  * @endcode
  */
-double det_q_inv(double p);
+double dp_det_q_inv(double p);
 
 /**
  * @brief Looks a Gaussian statistic must average to separate H1 from H0.
@@ -289,7 +289,7 @@ double det_q_inv(double p);
  *
  * @endcode
  */
-int det_dwell_gauss(double mean, double var, double pd, double pfa);
+int dp_det_dwell_gauss(double mean, double var, double pd, double pfa);
 
 /**
  * @brief Declare threshold for a Gaussian statistic sized by det_dwell_gauss.
@@ -316,7 +316,7 @@ int det_dwell_gauss(double mean, double var, double pd, double pfa);
  *
  * @endcode
  */
-double det_threshold_gauss(double mean, double pd, double pfa);
+double dp_det_threshold_gauss(double mean, double pd, double pfa);
 
 /**
  * @brief EMA coefficient for a target estimator SNR (DC level in noise).
@@ -350,7 +350,7 @@ double det_threshold_gauss(double mean, double pd, double pfa);
  *
  * @endcode
  */
-double det_ema_alpha(double snr_in_db, double snr_out_db);
+double dp_det_ema_alpha(double snr_in_db, double snr_out_db);
 
 /**
  * @brief Verify count: consecutive looks needed to compound to a budget.
@@ -364,7 +364,7 @@ double det_ema_alpha(double snr_in_db, double snr_out_db);
  * (lockdet_core.h), which is lower, so sizing on p^n over-provisions n
  * rather than under. The gap is ~p -- negligible where a detector is
  * really sized, 10% at p = 0.1 -- so pick n here and predict what a
- * caller will observe with det_verify_delay().
+ * caller will observe with dp_det_verify_delay().
  *
  * One function serves
  * both sides of a lock detector (lockdet_core.h): the declare count from
@@ -391,7 +391,7 @@ double det_ema_alpha(double snr_in_db, double snr_out_db);
  *
  * @endcode
  */
-int det_verify_count(double p_look, double p_target);
+int dp_det_verify_count(double p_look, double p_target);
 
 /**
  * @brief Expected looks until a run of n consecutive successes completes.
@@ -422,7 +422,7 @@ int det_verify_count(double p_look, double p_target);
  *
  * @endcode
  */
-double det_verify_delay(double p_look, int n);
+double dp_det_verify_delay(double p_look, int n);
 
 /**
  * @brief Upper quantile of F(n, n) — the exact H0 law for a ratio test
@@ -456,7 +456,7 @@ double det_verify_delay(double p_look, int n);
  *
  * @endcode
  */
-double det_threshold_f(double pfa, int n);
+double dp_det_threshold_f(double pfa, int n);
 
 /**
  * @brief Detection probability for n_noncoh non-coherent looks.
@@ -468,7 +468,7 @@ double det_threshold_f(double pfa, int n);
  * @param snr        Per-sample amplitude SNR (signal / noise amplitude).
  * @param n_coh      Coherent integration length in samples (dwell * N).
  * @param n_noncoh   Number of non-coherent looks; must be >= 1.
- * @param threshold  Threshold eta_nc, e.g. from det_threshold_noncoherent().
+ * @param threshold  Threshold eta_nc, e.g. from dp_det_threshold_noncoherent().
  * @return           Detection probability in &#91;0, 1&#93;.
  *
  * @code
@@ -486,7 +486,7 @@ double det_threshold_f(double pfa, int n);
  *
  * @endcode
  */
-double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
+double dp_det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
                           double threshold);
 
 /**
@@ -513,7 +513,7 @@ double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
  *
  * @endcode
  */
-int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
+int dp_det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
                  int max_n_noncoh);
 
 /* ── Power detector ──────────────────────────────────────────────────────── */
@@ -553,7 +553,7 @@ int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
  *
  * @endcode
  */
-double det_threshold_power(double pfa);
+double dp_det_threshold_power(double pfa);
 
 /**
  * @brief Detection probability for the power detector.
@@ -563,7 +563,7 @@ double det_threshold_power(double pfa);
  * @param snr_power       Per-sample power SNR (signal power / noise power at
  *                        the correlator output, linear).  0 gives Pd = Pfa.
  * @param dwell           Coherent integration depth; must be >= 1.
- * @param power_threshold Threshold p, e.g. from det_threshold_power().
+ * @param power_threshold Threshold p, e.g. from dp_det_threshold_power().
  * @return                Detection probability in &#91;0, 1&#93;.
  *
  * @code
@@ -574,10 +574,10 @@ double det_threshold_power(double pfa);
  * 0.9
  *
  * @endcode
- * The result equals det_pd() at the equivalent amplitude SNR: power SNR
+ * The result equals dp_det_pd() at the equivalent amplitude SNR: power SNR
  * `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments match.
  */
-double det_pd_power(double snr_power, int dwell, double power_threshold);
+double dp_det_pd_power(double snr_power, int dwell, double power_threshold);
 
 /**
  * @brief Minimum dwell such that Pd >= pd_min for the power detector.
@@ -597,7 +597,7 @@ double det_pd_power(double snr_power, int dwell, double power_threshold);
  *
  * @endcode
  */
-int det_dwell_power (double snr_power, double pd_min, double pfa,
+int dp_det_dwell_power (double snr_power, double pd_min, double pfa,
                      int max_dwell);
 
 /**
@@ -622,7 +622,7 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
  *
  * @endcode
  */
-double det_snr_power(int dwell, double pd_min, double pfa);
+double dp_det_snr_power(int dwell, double pd_min, double pfa);
 
 /* ── Search-level quantities ─────────────────────────────────────────────── */
 /* A detector searches many cells, measures its noise from some of them, and */
@@ -635,7 +635,7 @@ double det_snr_power(int dwell, double pd_min, double pfa);
  *
  * The search false-alarms when ANY cell does, so n cells each at pc miss
  * together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa gives
- * pc = 1 - (1 - pfa)^(1/n), computed through complement_power() because
+ * pc = 1 - (1 - pfa)^(1/n), computed through dp_complement_power() because
  * the direct form cancels at the small pfa every search uses.
  *
  * Exact for independent cells, and for Gaussian noise an upper bound on the
@@ -661,14 +661,14 @@ double det_snr_power(int dwell, double pd_min, double pfa);
  *
  * @endcode
  */
-double det_pfa_cell(double pfa, double n_cells);
+double dp_det_pfa_cell(double pfa, double n_cells);
 
 /**
  * @brief The per-sample amplitude SNR this module's functions take, from a
  * C/N0 and a sample rate.
  *
  * Power SNR per sample is (C/N0)/fs, and snr is its square root: the
- * convention of det_pd(), det_dwell() and every coherent function here.
+ * convention of dp_det_pd(), dp_det_dwell() and every coherent function here.
  *
  * @param cn0_dbhz  Carrier-to-noise density, dB-Hz.
  * @param fs        Sample rate, Hz.
@@ -683,11 +683,11 @@ double det_pfa_cell(double pfa, double n_cells);
  *
  * @endcode
  */
-double det_cn0_to_snr(double cn0_dbhz, double fs);
+double dp_det_cn0_to_snr(double cn0_dbhz, double fs);
 
 /**
  * @brief The C/N0, dB-Hz, of a per-sample amplitude SNR at a sample rate:
- * the inverse of det_cn0_to_snr().
+ * the inverse of dp_det_cn0_to_snr().
  *
  * @param snr  Per-sample amplitude SNR (linear, > 0).
  * @param fs   Sample rate, Hz.
@@ -700,14 +700,14 @@ double det_cn0_to_snr(double cn0_dbhz, double fs);
  *
  * @endcode
  */
-double det_snr_to_cn0(double snr, double fs);
+double dp_det_snr_to_cn0(double snr, double fs);
 
 /**
- * @brief Pd of a cell-averaging CFAR test: the gate is det_pd()'s threshold
+ * @brief Pd of a cell-averaging CFAR test: the gate is dp_det_pd()'s threshold
  * scaled by a noise reference MEASURED as the mean magnitude of k cells,
  * the test cell's own included.
  *
- * det_pd() prices the noise as known. A detector that measures it pays
+ * dp_det_pd() prices the noise as known. A detector that measures it pays
  * twice: the reference is noisy, and it contains the signal. With T =
  * threshold*sqrt(2/pi) in mean-magnitude units, the test fires when the
  * peak R clears T times the mean of the k cells; moving the peak's own
@@ -718,18 +718,18 @@ double det_snr_to_cn0(double snr, double fs);
  * (sidelobes, and what a straddle slid out of the peak), spread over
  * @p leak_cells of them: a cell holding non-centrality nu^2 has mean
  * magnitude ~ sqrt(pi/2 + nu^2), exact at 0 and for a large one. The
- * expectation over S is 2-point Gauss-Hermite (gauss_hermite()), within
+ * expectation over S is 2-point Gauss-Hermite (dp_gauss_hermite()), within
  * 5e-5 of 6 points.
  *
- * k -> infinity is det_pd() at @p threshold exactly, and a reference too
- * small to hold the gate (k <= T + 1) is answered as det_pd().
+ * k -> infinity is dp_det_pd() at @p threshold exactly, and a reference too
+ * small to hold the gate (k <= T + 1) is answered as dp_det_pd().
  *
  * @param snr         Per-sample amplitude SNR of the test cell.
- * @param dwell       Coherent integration length M, as in det_pd().
- * @param threshold   The known-noise threshold eta, as det_threshold().
+ * @param dwell       Coherent integration length M, as in dp_det_pd().
+ * @param threshold   The known-noise threshold eta, as dp_det_threshold().
  * @param k           Reference cells, the test cell included.
  * @param leak        Signal non-centrality energy in the other k-1 cells,
- *                    in the units of det_pd()'s a^2 = 2 M snr^2; <= 0 is
+ *                    in the units of dp_det_pd()'s a^2 = 2 M snr^2; <= 0 is
  *                    none.
  * @param leak_cells  Cells that energy is spread over, at most k-1; <= 0
  *                    spreads it over all of them.
@@ -749,7 +749,7 @@ double det_snr_to_cn0(double snr, double fs);
  *
  * @endcode
  */
-double det_pd_cfar(double snr, int dwell, double threshold, double k,
+double dp_det_pd_cfar(double snr, int dwell, double threshold, double k,
                    double leak, double leak_cells);
 
 #ifdef __cplusplus

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef ADC_CORE_H
-#define ADC_CORE_H
+#ifndef DP_ADC_CORE_H
+#define DP_ADC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -29,16 +29,16 @@ typedef struct {
     int      dithering; /* 0 = off; non-zero = TPDF     */
     uint8_t  clipped;   /* sticky saturation flag       */
     uint32_t rng;       /* xorshift32 PRNG state        */
-} adc_state_t;
+} dp_adc_state_t;
 
-adc_state_t *adc_create(int bits, float dbfs, int dithering);
+dp_adc_state_t *dp_adc_create(int bits, float dbfs, int dithering);
 
-void adc_destroy(adc_state_t *state);
+void dp_adc_destroy(dp_adc_state_t *state);
 
-void adc_reset(adc_state_t *state);
+void dp_adc_reset(dp_adc_state_t *state);
 
 JM_FORCEINLINE JM_HOT int64_t
-adc_step(adc_state_t *state, float x)
+dp_adc_step(dp_adc_state_t *state, float x)
 {
     /* jm: body sourced from [adc] impl/impl_file in objects/adc.toml — edit
      * there, not here; `jm apply` overwrites this. */
@@ -61,8 +61,8 @@ adc_step(adc_state_t *state, float x)
         return (int64_t)v;
 }
 
-void adc_steps(
-    adc_state_t       *state,
+void dp_adc_steps(
+    dp_adc_state_t       *state,
     const float       *input,
     int64_t           *output,
     size_t             n);
@@ -72,9 +72,9 @@ void adc_steps(
  * identically-built instance. */
 #define ADC_STATE_MAGIC DP_FOURCC ('A','D','C',' ')
 #define ADC_STATE_VERSION 1u
-size_t adc_state_bytes (const adc_state_t *state);
-void adc_get_state (const adc_state_t *state, void *blob);
-int adc_set_state (adc_state_t *state, const void *blob);
+size_t dp_adc_state_bytes (const dp_adc_state_t *state);
+void dp_adc_get_state (const dp_adc_state_t *state, void *blob);
+int dp_adc_set_state (dp_adc_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

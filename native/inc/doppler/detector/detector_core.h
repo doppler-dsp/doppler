@@ -3,7 +3,7 @@
  * @brief 1-D streaming signal detector with FFT-based correlation,
  *        integrate-and-dump, and configurable noise-referenced threshold.
  *
- * Wraps a corr_state_t (FFT correlator + coherent int-dump) behind a
+ * Wraps a dp_corr_state_t (FFT correlator + coherent int-dump) behind a
  * double-mapped ring buffer so that arbitrary-length sample streams can be
  * fed in any chunk size.  After every int-dump a test statistic is computed:
  *
@@ -15,25 +15,25 @@
  * threshold == 0.0, which means "always fire").
  *
  * The detector operates as a single-threaded object; do not call
- * detector_push() concurrently from multiple threads.
+ * dp_detector_push() concurrently from multiple threads.
  *
  * Lifecycle:
  * @code
  * float _Complex ref[N] = { ... };
- * detector_state_t *det = detector_create(ref, N, 1,
+ * dp_detector_state_t *det = dp_detector_create(ref, N, 1,
  *     1, N-1, DET_NOISE_MEAN, 0.0f, 1);
  * det_result_t results[64];
  * // stream loop
  * while (recv(chunk, CHUNK_SZ)) {
- *     size_t n = detector_push(det, chunk, CHUNK_SZ, results, 64);
+ *     size_t n = dp_detector_push(det, chunk, CHUNK_SZ, results, 64);
  *     for (size_t i = 0; i < n; i++)
  *         printf("lag=%zu stat=%.2f\n", results[i].lag, results[i].test_stat);
  * }
- * detector_destroy(det);
+ * dp_detector_destroy(det);
  * @endcode
  */
-#ifndef DETECTOR_CORE_H
-#define DETECTOR_CORE_H
+#ifndef DP_DETECTOR_CORE_H
+#define DP_DETECTOR_CORE_H
 
 #include "doppler/buffer/buffer.h"
 #include "doppler/corr/corr_core.h"
@@ -66,7 +66,7 @@ typedef enum
 /* ── Per-detection result ───────────────────────────────────────────────── */
 
 /**
- * @brief Detection event returned by detector_push().
+ * @brief Detection event returned by dp_detector_push().
  *
  * Fields are filled on every int-dump that passes the threshold test.
  */
@@ -83,11 +83,11 @@ typedef struct
 /**
  * @brief 1-D signal detector state.
  *
- * Allocate with detector_create(); never stack-allocate.
+ * Allocate with dp_detector_create(); never stack-allocate.
  */
 typedef struct
 {
-  corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
+  dp_corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
   dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
   float _Complex *out_buf;   /**< Corr output buffer (n complex samples).    */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, n floats.                   */
@@ -104,13 +104,13 @@ typedef struct
   float noise_est;
   float test_stat;
   int _last_corr_valid;     /**< 1 after the first dump, else 0.           */
-} detector_state_t;
+} dp_detector_state_t;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 /**
  * @brief Allocate a 1-D streaming signal detector backed by an FFT correlator.
- * Combines a corr_state_t with a double-mapped ring buffer so that arbitrary
+ * Combines a dp_corr_state_t with a double-mapped ring buffer so that arbitrary
  * chunk sizes can be pushed.  After every int-dump the peak-to-noise test
  * statistic is compared against @p threshold; a det_result_t is emitted when
  * it passes.  Setting @p threshold to 0.0 unconditionally fires on every dump.
@@ -137,7 +137,7 @@ typedef struct
  * (8, 1, 512)
  * @endcode
  */
-detector_state_t *detector_create (const float _Complex *ref,
+dp_detector_state_t *dp_detector_create (const float _Complex *ref,
                                    size_t ref_len,
                                    size_t dwell, size_t noise_lo,
                                    size_t noise_hi,
@@ -145,7 +145,7 @@ detector_state_t *detector_create (const float _Complex *ref,
                                    float threshold, int nthreads);
 
 /** @brief Destroy and free a detector instance.  @param state May be NULL. */
-void detector_destroy (detector_state_t *state);
+void dp_detector_destroy (dp_detector_state_t *state);
 
 /**
  * @brief Reset the correlator, ring buffer, and last-corr flag.
@@ -165,18 +165,18 @@ void detector_destroy (detector_state_t *state);
  * 0
  * @endcode
  */
-void detector_reset (detector_state_t *state);
+void dp_detector_reset (dp_detector_state_t *state);
 
 /**
  * @brief Replace the reference signal and recompute conj(FFT(ref)).
  *
- * Also resets (see detector_reset()).  The new reference must have the same
- * length @p n that was passed to detector_create().
+ * Also resets (see dp_detector_reset()).  The new reference must have the same
+ * length @p n that was passed to dp_detector_create().
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, CF32, length state->n.
  */
-void detector_set_ref (detector_state_t *state, const float _Complex *ref);
+void detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
 
 /**
  * @brief Change the threshold without rebuilding the object.
@@ -184,7 +184,7 @@ void detector_set_ref (detector_state_t *state, const float _Complex *ref);
  * @param state     Must be non-NULL.
  * @param threshold New threshold; 0.0 = always fire.
  */
-void detector_set_threshold (detector_state_t *state, float threshold);
+void detector_set_threshold (dp_detector_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
@@ -217,7 +217,7 @@ void detector_set_threshold (detector_state_t *state, float threshold);
  * (0, 1.0, 1.0, 1.0)
  * @endcode
  */
-size_t detector_push (detector_state_t *state, const float _Complex *in,
+size_t dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -225,9 +225,9 @@ size_t detector_push (detector_state_t *state, const float _Complex *in,
  * + the last-dump result fields; scratch is config (rebuilt by create). */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
 #define DETECTOR_STATE_VERSION 1u
-size_t detector_state_bytes (const detector_state_t *state);
-void detector_get_state (const detector_state_t *state, void *blob);
-int detector_set_state (detector_state_t *state, const void *blob);
+size_t dp_detector_state_bytes (const dp_detector_state_t *state);
+void dp_detector_get_state (const dp_detector_state_t *state, void *blob);
+int dp_detector_set_state (dp_detector_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

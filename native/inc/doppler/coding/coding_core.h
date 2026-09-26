@@ -2,8 +2,8 @@
  * @file coding_core.h
  * @brief Coding module — public C API.
  */
-#ifndef CODING_CORE_H
-#define CODING_CORE_H
+#ifndef DP_CODING_CORE_H
+#define DP_CODING_CORE_H
 
 #include "doppler/clib_common.h"
 

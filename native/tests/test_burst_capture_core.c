@@ -60,12 +60,12 @@ acq_code (void)
       /* DP_REQUIRE returns 1, so it cannot appear in a pointer-returning
          helper; a NULL generator would surface as an all-zero code, which
          every detection assertion below would fail on. */
-      pn_state_t *pn = pn_create (pn_mls_poly (5), 1u, 5u, 0);
+      dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5), 1u, 5u, 0);
       if (pn)
         {
           for (size_t i = 0; i < ACQ_SF; i++)
             c[i] = pn_step (pn);
-          pn_destroy (pn);
+          dp_pn_destroy (pn);
         }
       built = 1;
     }
@@ -82,10 +82,10 @@ data_code (void)
 }
 
 /* A capture from a PN code: the preamble is the code's samples, mapped by
- * bin_to_nrz() and held `spc` a chip (dp_preamble_test.h), at
+ * dp_bin_to_nrz() and held `spc` a chip (dp_preamble_test.h), at
  * fs = chip_rate * spc -- how a caller builds one. A missing or empty code
  * still reaches the constructor, so its refusal is what is tested. */
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 capture_from_code_impl (int backed, const char *path, const uint8_t *code,
                         size_t code_len, size_t burst_len, size_t reps,
                         size_t spc, double chip_rate, double cn0_dbhz,
@@ -95,19 +95,19 @@ capture_from_code_impl (int backed, const char *path, const uint8_t *code,
   const double    fs  = chip_rate * (double)spc;
   const size_t    n   = (code && code_len && spc) ? code_len * spc : 0;
   float _Complex *pre = n ? dp_code_preamble (code, code_len, spc) : NULL;
-  burst_capture_state_t *s
+  dp_burst_capture_state_t *s
       = backed
             ? burst_capture_create_backed (path, pre, n, burst_len, reps, fs,
                                            cn0_dbhz, doppler_uncertainty, pfa,
                                            pd, noise_mode, doppler_rate)
-            : burst_capture_create (pre, n, burst_len, reps, fs, cn0_dbhz,
-                                    doppler_uncertainty, pfa, pd, noise_mode,
-                                    doppler_rate);
+            : dp_burst_capture_create (pre, n, burst_len, reps, fs, cn0_dbhz,
+                                       doppler_uncertainty, pfa, pd,
+                                       noise_mode, doppler_rate);
   free (pre);
   return s;
 }
 
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 capture_from_code (const uint8_t *code, size_t code_len, size_t burst_len,
                    size_t reps, size_t spc, double chip_rate, double cn0_dbhz,
                    double doppler_uncertainty, double pfa, double pd,
@@ -118,7 +118,7 @@ capture_from_code (const uint8_t *code, size_t code_len, size_t burst_len,
                                  pd, noise_mode, doppler_rate);
 }
 
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 capture_from_code_backed (const char *path, const uint8_t *code,
                           size_t code_len, size_t burst_len, size_t reps,
                           size_t spc, double chip_rate, double cn0_dbhz,
@@ -176,7 +176,7 @@ build_capture (float _Complex *cap, size_t n_cap, const size_t *at,
  * there is no target to be under. 55 dB-Hz used to sit here and was "met"
  * only through a second non-coherent look the burst could not fill
  * (doppler#1181); under the honest model it is underpowered at this depth. */
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 make (void)
 {
   return capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
@@ -194,7 +194,7 @@ make (void)
  * than against the number transmitted.
  */
 static int
-real_windows_once (const burst_capture_state_t *s, const size_t *at,
+real_windows_once (const dp_burst_capture_state_t *s, const size_t *at,
                    size_t n_at)
 {
   for (size_t k = 0; k < n_at; k++)
@@ -219,7 +219,7 @@ test_create_copies_and_derives (void)
   uint8_t code[ACQ_SF];
   for (size_t i = 0; i < ACQ_SF; i++)
     code[i] = (uint8_t)(i & 1u);
-  burst_capture_state_t *s = capture_from_code (
+  dp_burst_capture_state_t *s = capture_from_code (
       code, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
 
@@ -245,8 +245,8 @@ test_create_copies_and_derives (void)
      a property of the configured search, and a composing bank sizes its
      cross-channel dedup from it at construction. Read through the
      last-event mirror it was 0.0 here. */
-  DP_CHECK (burst_capture_get_doppler_res_hz (s) > 0.0);
-  DP_CHECK (burst_capture_get_doppler_res_hz (s)
+  DP_CHECK (dp_burst_capture_get_doppler_res_hz (s) > 0.0);
+  DP_CHECK (dp_burst_capture_get_doppler_res_hz (s)
             == s->acq->engine->doppler_res_hz);
 
   /* The ring holds twice the retained span, so chunk_max is never zero: a
@@ -260,16 +260,16 @@ test_create_copies_and_derives (void)
      actually says is that the depth MOVES with the geometry, so the test is
      two objects whose burst_len differs by an order of magnitude. */
   {
-    burst_capture_state_t *big
+    dp_burst_capture_state_t *big
         = capture_from_code (code, ACQ_SF, 20u * BURST_LEN, REPS, SPC, 1.0e6,
                              55.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (big != NULL);
     DP_CHECK (big->q_cap > s->q_cap);
     DP_CHECK (s->q_cap >= 8u); /* ...and the floor still holds */
-    burst_capture_destroy (big);
+    dp_burst_capture_destroy (big);
   }
 
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -330,12 +330,12 @@ test_window_starts_at_the_burst (void)
   const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
   static float _Complex out[4 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
 
   DP_CHECK (n == BURST_LEN);
   DP_CHECK (burst_capture_ready (s) == 1u);
@@ -365,7 +365,7 @@ test_window_starts_at_the_burst (void)
 
   DP_CHECK (s->dropped == 0);
   DP_CHECK (s->n_bursts == 1u);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -381,12 +381,12 @@ test_every_burst_is_emitted_once (void)
   const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
   static float _Complex out[8 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
 
   /* Every transmitted burst comes back EXACTLY once. Windows beyond those
      are the design pfa doing what it says -- this scene carries one, at
@@ -424,7 +424,7 @@ test_every_burst_is_emitted_once (void)
   DP_CHECK (s->dropped == 0);
   DP_CHECK (s->n_bursts == ready);
   DP_CHECK (s->pending == 0);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -441,21 +441,21 @@ test_block_size_does_not_change_the_answer (void)
   const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, at, 3u, 0.02, 11u);
 
-  burst_capture_state_t *a = make ();
-  burst_capture_state_t *b = make ();
+  dp_burst_capture_state_t *a = make ();
+  dp_burst_capture_state_t *b = make ();
   DP_REQUIRE (a != NULL && b != NULL);
 
   static float _Complex out_a[8 * BURST_LEN];
   static float _Complex out_b[8 * BURST_LEN];
-  size_t na = burst_capture_push (a, cap, n_cap, out_a,
-                                  sizeof out_a / sizeof *out_a);
+  size_t na = dp_burst_capture_push (a, cap, n_cap, out_a,
+                                     sizeof out_a / sizeof *out_a);
 
   size_t nb = 0;
   for (size_t off = 0; off < n_cap; off += 333u)
     {
       size_t blk = n_cap - off < 333u ? n_cap - off : 333u;
-      nb += burst_capture_push (b, cap + off, blk, out_b + nb,
-                                sizeof out_b / sizeof *out_b - nb);
+      nb += dp_burst_capture_push (b, cap + off, blk, out_b + nb,
+                                   sizeof out_b / sizeof *out_b - nb);
     }
 
   DP_CHECK (na == nb);
@@ -464,8 +464,8 @@ test_block_size_does_not_change_the_answer (void)
       real_windows_once (a, at, 3u)); /* b's events are its LAST push's */
   DP_CHECK (memcmp (out_a, out_b, na * sizeof *out_a) == 0);
   DP_CHECK (a->n_bursts == b->n_bursts);
-  burst_capture_destroy (a);
-  burst_capture_destroy (b);
+  dp_burst_capture_destroy (a);
+  dp_burst_capture_destroy (b);
   return 0;
 }
 
@@ -483,12 +483,12 @@ static int
 test_block_size_below_min_gap (void)
 {
   static float _Complex cap[120000];
-  const size_t           n_cap = sizeof cap / sizeof *cap;
-  burst_capture_state_t *probe = make ();
+  const size_t              n_cap = sizeof cap / sizeof *cap;
+  dp_burst_capture_state_t *probe = make ();
   DP_REQUIRE (probe != NULL);
   const size_t gap = burst_capture_get_min_gap (probe) / 4u;
   DP_REQUIRE (gap > 0u && BURST_LEN + gap < probe->refine_span);
-  burst_capture_destroy (probe);
+  dp_burst_capture_destroy (probe);
 
   size_t at[4];
   for (size_t k = 0; k < 4u; k++)
@@ -501,17 +501,17 @@ test_block_size_below_min_gap (void)
   size_t       n_got[3] = { 0 };
   for (size_t b = 0; b < 3u; b++)
     {
-      burst_capture_state_t *s = make ();
+      dp_burst_capture_state_t *s = make ();
       DP_REQUIRE (s != NULL);
       for (size_t off = 0; off < n_cap; off += blocks[b])
         {
           size_t blk = n_cap - off < blocks[b] ? n_cap - off : blocks[b];
-          (void)burst_capture_push (s, cap + off, blk, NULL, 0);
+          (void)dp_burst_capture_push (s, cap + off, blk, NULL, 0);
           for (size_t i = 0; i < burst_capture_ready (s) && n_got[b] < 16u;
                i++)
             got[b][n_got[b]++] = burst_capture_event_at (s, i)->preamble_start;
         }
-      burst_capture_destroy (s);
+      dp_burst_capture_destroy (s);
     }
 
   for (size_t b = 1; b < 3u; b++)
@@ -579,7 +579,7 @@ test_a_held_head_does_not_stall_long_bursts (void)
   const size_t blocks[2] = { n_cap, 333u };
   for (size_t v = 0; v < 2u; v++)
     {
-      burst_capture_state_t *s
+      dp_burst_capture_state_t *s
           = capture_from_code (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC, 1.0e6,
                                ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
       DP_REQUIRE (s != NULL);
@@ -588,7 +588,7 @@ test_a_held_head_does_not_stall_long_bursts (void)
       for (size_t off = 0; off < n_cap; off += blocks[v])
         {
           size_t blk = n_cap - off < blocks[v] ? n_cap - off : blocks[v];
-          (void)burst_capture_push (s, cap + off, blk, NULL, 0);
+          (void)dp_burst_capture_push (s, cap + off, blk, NULL, 0);
           for (size_t i = 0; i < burst_capture_ready (s); i++)
             for (size_t b = 0; b < N; b++)
               seen[b]
@@ -597,7 +597,7 @@ test_a_held_head_does_not_stall_long_bursts (void)
       DP_CHECK (s->dropped == 0);
       for (size_t b = 0; b < N; b++)
         DP_CHECK (seen[b] == 1u);
-      burst_capture_destroy (s);
+      dp_burst_capture_destroy (s);
     }
   return 0;
 }
@@ -614,13 +614,14 @@ test_never_returns_a_partial_window (void)
   const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
   static float _Complex out[8 * BURST_LEN];
   /* Room for 1.5 windows. */
   size_t room = BURST_LEN + BURST_LEN / 2u;
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out, room);
+  size_t n
+      = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out, room);
   DP_CHECK (n == BURST_LEN);
   DP_CHECK (n % BURST_LEN == 0);
   /* The bursts still HAPPENED — the events describe all three, so a caller
@@ -628,7 +629,7 @@ test_never_returns_a_partial_window (void)
      the stream was quiet. */
   DP_CHECK (burst_capture_ready (s) >= 3u);
   DP_CHECK (real_windows_once (s, at, 3u));
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -650,19 +651,21 @@ test_short_trailing_context_holds_the_burst (void)
   DP_REQUIRE (n_cap <= sizeof cap / sizeof *cap);
   build_capture (cap, n_cap, &at, 1u, 0.02, 5u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[4 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+  size_t n
+      = dp_burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n == 0);
   DP_CHECK (s->pending == 1u);
   /* ...and one more sample completes it, which is what makes the check above
      a boundary rather than a claim that the burst was never seen. */
-  n = burst_capture_push (s, cap + n_cap, 1u, out, sizeof out / sizeof *out);
+  n = dp_burst_capture_push (s, cap + n_cap, 1u, out,
+                             sizeof out / sizeof *out);
   DP_CHECK (n == BURST_LEN);
   DP_CHECK (s->preamble_start == at);
   DP_CHECK (s->pending == 0);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -678,15 +681,15 @@ test_reset_clears_position_not_history (void)
   const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[4 * BURST_LEN];
-  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                      sizeof out / sizeof *out);
+  dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                         sizeof out / sizeof *out);
   DP_REQUIRE (s->n_bursts == 1u);
 
   const size_t span = s->refine_span;
-  burst_capture_reset (s);
+  dp_burst_capture_reset (s);
   DP_CHECK (s->samples_fed == 0);
   DP_CHECK (s->pending == 0);
   DP_CHECK (s->suppress_until == 0);
@@ -696,11 +699,11 @@ test_reset_clears_position_not_history (void)
   DP_CHECK (s->n_bursts == 1u);
 
   /* And the same stream is found again from a clean position. */
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
   DP_CHECK (n == BURST_LEN);
   DP_CHECK (s->preamble_start == at);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -718,27 +721,28 @@ test_state_resumes_mid_burst (void)
   const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
 
-  burst_capture_state_t *a = make ();
+  dp_burst_capture_state_t *a = make ();
   DP_REQUIRE (a != NULL);
   static float _Complex out[4 * BURST_LEN];
   /* Split INSIDE the preamble: the detection has fired (or is about to) and
      the window has certainly not arrived. */
   const size_t cut = at + 2u * ACQ_SF * SPC;
-  size_t n0 = burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
+  size_t       n0
+      = dp_burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
   DP_CHECK (n0 == 0);
 
-  burst_capture_state_t *b = make ();
+  dp_burst_capture_state_t *b = make ();
   DP_REQUIRE (b != NULL);
-  DP_STATE_ROUNDTRIP_TEST (burst_capture, a, b);
+  DP_STATE_ROUNDTRIP_TEST (dp_burst_capture, a, b);
 
   /* `b` was restored from `a` and must now find the burst `a` was holding. */
-  size_t n = burst_capture_push (b, cap + cut, n_cap - cut, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (b, cap + cut, n_cap - cut, out,
+                                    sizeof out / sizeof *out);
   DP_CHECK (n == BURST_LEN);
   DP_CHECK (b->preamble_start == at);
 
-  burst_capture_destroy (a);
-  burst_capture_destroy (b);
+  dp_burst_capture_destroy (a);
+  dp_burst_capture_destroy (b);
   return 0;
 }
 
@@ -755,11 +759,11 @@ test_state_resumes_mid_burst (void)
 static int
 test_push_max_out_bounds_a_real_push (void)
 {
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
-  size_t small = burst_capture_push_max_out (s, 1000u);
-  size_t large = burst_capture_push_max_out (s, 1000000u);
+  size_t small = dp_burst_capture_push_max_out (s, 1000u);
+  size_t large = dp_burst_capture_push_max_out (s, 1000000u);
   DP_CHECK (large > small);
   DP_CHECK (small % BURST_LEN == 0);
 
@@ -769,12 +773,13 @@ test_push_max_out_bounds_a_real_push (void)
   build_capture (cap, n_cap, at, 3u, 0.02, 11u);
 
   static float _Complex out[8 * BURST_LEN];
-  size_t bound = burst_capture_push_max_out (s, n_cap);
-  size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+  size_t bound = dp_burst_capture_push_max_out (s, n_cap);
+  size_t n
+      = dp_burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n <= bound);
   DP_CHECK (n == burst_capture_ready (s) * BURST_LEN);
   DP_CHECK (real_windows_once (s, at, 3u));
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -793,21 +798,21 @@ test_events_describe_the_last_push (void)
   const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[8 * BURST_LEN];
-  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                      sizeof out / sizeof *out);
+  dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                         sizeof out / sizeof *out);
 
   /* Four rows, not three: this scene carries one false alarm (at 21298,
      the design pfa at work -- see test_every_burst_is_emitted_once), and
      it has a row like any other window. */
-  const size_t ready = burst_capture_events_max_out (s, 0);
+  const size_t ready = dp_burst_capture_events_max_out (s, 0);
   DP_CHECK (ready >= 3u);
-  DP_CHECK (burst_capture_events_max_out (s, 99u) == ready); /* n ignored */
+  DP_CHECK (dp_burst_capture_events_max_out (s, 99u) == ready); /* n ignored */
 
   burst_capture_event_t ev[8];
-  size_t                got = burst_capture_events (s, 0, ev, 8u);
+  size_t                got = dp_burst_capture_events (s, 0, ev, 8u);
   DP_CHECK (got == ready);
   for (size_t k = 0; k < 3u; k++)
     {
@@ -819,21 +824,21 @@ test_events_describe_the_last_push (void)
 
   /* A short buffer truncates rather than overruns. */
   burst_capture_event_t one[1];
-  DP_CHECK (burst_capture_events (s, 0, one, 1u) == 1u);
+  DP_CHECK (dp_burst_capture_events (s, 0, one, 1u) == 1u);
   DP_CHECK (one[0].preamble_start == ev[0].preamble_start);
 
   /* A push that completes nothing clears them -- events() describes THIS
      call, so a stale row would attribute an old burst to a quiet block. */
   static float _Complex quiet[8000];
   build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
-  burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
-                      sizeof out / sizeof *out);
-  DP_CHECK (burst_capture_events_max_out (s, 0) == 0);
+  dp_burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
+                         sizeof out / sizeof *out);
+  DP_CHECK (dp_burst_capture_events_max_out (s, 0) == 0);
   DP_CHECK (burst_capture_ready (s) == 0);
   DP_CHECK (burst_capture_event_at (s, 0) == NULL);
   DP_CHECK (burst_capture_window (s, 0) == NULL);
 
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -850,22 +855,22 @@ test_accessors_agree_with_the_event (void)
   const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[4 * BURST_LEN];
-  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                      sizeof out / sizeof *out);
+  dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                         sizeof out / sizeof *out);
 
   const burst_capture_event_t *e = burst_capture_event_at (s, 0);
   DP_REQUIRE (e != NULL);
-  DP_CHECK (burst_capture_get_preamble_start (s) == e->preamble_start);
-  DP_CHECK (burst_capture_get_doppler_hz_est (s) == e->doppler_hz_est);
-  DP_CHECK (burst_capture_get_doppler_res_hz (s) == e->doppler_res_hz);
-  DP_CHECK (burst_capture_get_cn0_dbhz_est (s) == e->cn0_dbhz_est);
-  DP_CHECK (burst_capture_get_pending (s) == s->pending);
-  DP_CHECK (burst_capture_get_dropped (s) == s->dropped);
-  DP_CHECK (burst_capture_get_n_bursts (s) == 1u);
-  burst_capture_destroy (s);
+  DP_CHECK (dp_burst_capture_get_preamble_start (s) == e->preamble_start);
+  DP_CHECK (dp_burst_capture_get_doppler_hz_est (s) == e->doppler_hz_est);
+  DP_CHECK (dp_burst_capture_get_doppler_res_hz (s) == e->doppler_res_hz);
+  DP_CHECK (dp_burst_capture_get_cn0_dbhz_est (s) == e->cn0_dbhz_est);
+  DP_CHECK (dp_burst_capture_get_pending (s) == s->pending);
+  DP_CHECK (dp_burst_capture_get_dropped (s) == s->dropped);
+  DP_CHECK (dp_burst_capture_get_n_bursts (s) == 1u);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -894,16 +899,17 @@ test_detections_are_what_the_search_found (void)
   const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[8 * BURST_LEN];
-  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                      sizeof out / sizeof *out);
-  const size_t ne = burst_capture_events_max_out (s, 0);
+  dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                         sizeof out / sizeof *out);
+  const size_t ne = dp_burst_capture_events_max_out (s, 0);
   DP_REQUIRE (ne >= 3u); /* the three bursts, plus the scene's false alarm */
 
-  const size_t nd = burst_capture_detections_max_out (s, 0);
-  DP_CHECK (burst_capture_detections_max_out (s, 99u) == nd); /* n ignored */
+  const size_t nd = dp_burst_capture_detections_max_out (s, 0);
+  DP_CHECK (dp_burst_capture_detections_max_out (s, 99u)
+            == nd); /* n ignored */
   DP_CHECK (nd >= ne);
   /* Measured 5 against 4 at this geometry: more rows than windows is the
      evidence that nothing filtered them. A `detections()` that returned the
@@ -912,10 +918,10 @@ test_detections_are_what_the_search_found (void)
 
   burst_capture_detection_t det[64];
   DP_REQUIRE (nd <= sizeof det / sizeof *det);
-  DP_CHECK (burst_capture_detections (s, 0, det, 64u) == nd);
+  DP_CHECK (dp_burst_capture_detections (s, 0, det, 64u) == nd);
 
   burst_capture_event_t ev[8];
-  DP_REQUIRE (burst_capture_events (s, 0, ev, 8u) == ne);
+  DP_REQUIRE (dp_burst_capture_events (s, 0, ev, 8u) == ne);
   for (size_t k = 0; k < ne; k++)
     {
       int named = 0;
@@ -938,17 +944,17 @@ test_detections_are_what_the_search_found (void)
 
   /* A short buffer truncates rather than overruns. */
   burst_capture_detection_t one[1];
-  DP_CHECK (burst_capture_detections (s, 0, one, 1u) == 1u);
+  DP_CHECK (dp_burst_capture_detections (s, 0, one, 1u) == 1u);
   DP_CHECK (one[0].epoch == det[0].epoch);
 
   /* A quiet push clears them: the rows describe THIS call. */
   static float _Complex quiet[8000];
   build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
-  burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
-                      sizeof out / sizeof *out);
-  DP_CHECK (burst_capture_detections_max_out (s, 0) == 0);
+  dp_burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
+                         sizeof out / sizeof *out);
+  DP_CHECK (dp_burst_capture_detections_max_out (s, 0) == 0);
 
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -972,7 +978,7 @@ test_one_look_and_the_design_point_is_optional (void)
   static float _Complex out[8 * BURST_LEN];
 
   /* No design point: the whole preamble, one look, nothing to be under. */
-  burst_capture_state_t *s
+  dp_burst_capture_state_t *s
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
                            ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
@@ -980,12 +986,12 @@ test_one_look_and_the_design_point_is_optional (void)
   DP_CHECK (s->acq->engine->coherent_bins == REPS);
   DP_CHECK (!s->underpowered);
   DP_CHECK (isnan (s->acq->engine->pd_predicted));
-  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                      sizeof out / sizeof *out);
+  dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                         sizeof out / sizeof *out);
   /* Each transmitted burst exactly once, at its exact sample; the scene's
      false alarm (21298, the design pfa) is a fourth row and not the point. */
   burst_capture_event_t ev[8];
-  size_t                got = burst_capture_events (s, 0, ev, 8u);
+  size_t                got = dp_burst_capture_events (s, 0, ev, 8u);
   DP_CHECK (got >= 3u);
   for (size_t k = 0; k < 3u; k++)
     {
@@ -994,12 +1000,12 @@ test_one_look_and_the_design_point_is_optional (void)
         seen += ev[i].preamble_start == at[k];
       DP_CHECK (seen == 1u);
     }
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
 
   /* A design point the ceiling cannot meet: still one look, and it says so.
      The scene is strong, so the bursts are still found -- and found where
      they are, which the escalated grid could not do. */
-  burst_capture_state_t *low
+  dp_burst_capture_state_t *low
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
                            40.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (low != NULL);
@@ -1007,9 +1013,9 @@ test_one_look_and_the_design_point_is_optional (void)
   DP_CHECK (low->acq->engine->coherent_bins == REPS);
   DP_CHECK (low->underpowered);
   DP_CHECK (!isnan (low->acq->engine->pd_predicted));
-  burst_capture_push (low, cap, sizeof cap / sizeof *cap, out,
-                      sizeof out / sizeof *out);
-  got = burst_capture_events (low, 0, ev, 8u);
+  dp_burst_capture_push (low, cap, sizeof cap / sizeof *cap, out,
+                         sizeof out / sizeof *out);
+  got = dp_burst_capture_events (low, 0, ev, 8u);
   DP_CHECK (got >= 3u);
   for (size_t k = 0; k < 3u; k++)
     {
@@ -1018,7 +1024,7 @@ test_one_look_and_the_design_point_is_optional (void)
         seen += ev[i].preamble_start == at[k];
       DP_CHECK (seen == 1u);
     }
-  burst_capture_destroy (low);
+  dp_burst_capture_destroy (low);
 
   /* An infinite C/N0 is an argument error -- refused by the ENGINE, whose
      rule this composer no longer copies (doppler#1484) -- and a negative one
@@ -1027,11 +1033,11 @@ test_one_look_and_the_design_point_is_optional (void)
                                1.0e6, -INFINITY, 0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   {
-    burst_capture_state_t *neg
+    dp_burst_capture_state_t *neg
         = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
                              -1.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_CHECK (neg != NULL && neg->underpowered);
-    burst_capture_destroy (neg);
+    dp_burst_capture_destroy (neg);
   }
   return 0;
 }
@@ -1045,18 +1051,18 @@ test_one_look_and_the_design_point_is_optional (void)
 static int
 test_configure_search_raw_refuses_a_grid_beyond_reach (void)
 {
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   const size_t k_lo = s->k_lo;
   const size_t db0  = s->acq->engine->coherent_bins;
   const size_t nc0  = s->acq->engine->n_noncoh;
-  DP_CHECK (burst_capture_configure_search_raw (s, REPS, k_lo / REPS + 1u)
+  DP_CHECK (dp_burst_capture_configure_search_raw (s, REPS, k_lo / REPS + 1u)
             == DP_ERR_INVALID);
   DP_CHECK (s->acq->engine->coherent_bins == db0);
   DP_CHECK (s->acq->engine->n_noncoh == nc0);
-  DP_CHECK (burst_capture_configure_search_raw (s, 2u, k_lo / 2u) == DP_OK);
+  DP_CHECK (dp_burst_capture_configure_search_raw (s, 2u, k_lo / 2u) == DP_OK);
   DP_CHECK (s->acq->engine->n_noncoh == k_lo / 2u);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1096,21 +1102,22 @@ test_release_gives_back_a_shadowed_burst (void)
 
   /* Released: the burst comes out. */
   {
-    burst_capture_state_t *s = make ();
+    dp_burst_capture_state_t *s = make ();
     DP_REQUIRE (s != NULL);
-    burst_capture_push (s, cap, CUT, out, sizeof out / sizeof *out);
+    dp_burst_capture_push (s, cap, CUT, out, sizeof out / sizeof *out);
     DP_REQUIRE (burst_capture_ready (s) == 1u); /* the decoy's window */
     DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT - LEAD);
-    DP_CHECK (burst_capture_release (s, 1u) == DP_ERR_INVALID); /* no such */
-    DP_CHECK (burst_capture_release (s, 0u) == DP_OK);
+    DP_CHECK (dp_burst_capture_release (s, 1u)
+              == DP_ERR_INVALID); /* no such */
+    DP_CHECK (dp_burst_capture_release (s, 0u) == DP_OK);
     size_t n
-        = burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT,
-                              out, sizeof out / sizeof *out);
+        = dp_burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT,
+                                 out, sizeof out / sizeof *out);
     DP_CHECK (n == BURST_LEN);
     DP_REQUIRE (burst_capture_ready (s) == 1u);
     DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT);
-    DP_CHECK (burst_capture_get_pending (s) == 0);
-    burst_capture_destroy (s);
+    DP_CHECK (dp_burst_capture_get_pending (s) == 0);
+    dp_burst_capture_destroy (s);
   }
 
   /* Not released: the hit is never emitted, and `pending` never counted it,
@@ -1122,23 +1129,23 @@ test_release_gives_back_a_shadowed_burst (void)
      released path is the long-burst block below, where the shadowing
      window is emitted by the same push. */
   {
-    burst_capture_state_t *s = make ();
+    dp_burst_capture_state_t *s = make ();
     DP_REQUIRE (s != NULL);
-    burst_capture_push (s, cap, CUT, out, sizeof out / sizeof *out);
+    dp_burst_capture_push (s, cap, CUT, out, sizeof out / sizeof *out);
     DP_REQUIRE (burst_capture_ready (s) == 1u);
-    burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT, out,
-                        sizeof out / sizeof *out);
+    dp_burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT, out,
+                           sizeof out / sizeof *out);
     DP_CHECK (burst_capture_ready (s) == 0);
-    DP_CHECK (burst_capture_get_pending (s) == 0); /* not counted */
+    DP_CHECK (dp_burst_capture_get_pending (s) == 0); /* not counted */
     static float _Complex quiet[8000];
     build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
-    burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
-                        sizeof out / sizeof *out);
+    dp_burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
+                           sizeof out / sizeof *out);
     DP_CHECK (burst_capture_ready (s) == 0);
     DP_CHECK (s->pending == 0); /* dropped when the next push began */
     /* A late release names a window of a push that is gone. */
-    DP_CHECK (burst_capture_release (s, 0u) == DP_ERR_INVALID);
-    burst_capture_destroy (s);
+    DP_CHECK (dp_burst_capture_release (s, 0u) == DP_ERR_INVALID);
+    dp_burst_capture_destroy (s);
   }
 
   /* A LONG burst -- the link geometry, where `burst_len` is several times
@@ -1149,8 +1156,8 @@ test_release_gives_back_a_shadowed_burst (void)
   {
     /* Not LONG and FAR: <windows.h> typedefs LONG and #defines FAR to
        nothing, so `AT - FAR` became `AT - ` on every Windows build. */
-    const size_t           LONG_LEN = 4u * BURST_LEN, DECOY_LEAD = 3000u;
-    burst_capture_state_t *s
+    const size_t              LONG_LEN = 4u * BURST_LEN, DECOY_LEAD = 3000u;
+    dp_burst_capture_state_t *s
         = capture_from_code (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC, 1.0e6,
                              ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (s != NULL);
@@ -1169,21 +1176,21 @@ test_release_gives_back_a_shadowed_burst (void)
        past the real preamble's first frame, so both hits are queued before the
        drain emits the decoy over the real one. */
     const size_t first = AT - DECOY_LEAD + LONG_LEN + 500u;
-    burst_capture_push (s, scene, first, big, sizeof big / sizeof *big);
+    dp_burst_capture_push (s, scene, first, big, sizeof big / sizeof *big);
     DP_REQUIRE (burst_capture_ready (s) == 1u);
     DP_CHECK (burst_capture_event_at (s, 0)->preamble_start
               == AT - DECOY_LEAD);
-    DP_CHECK (burst_capture_get_pending (s) == 0); /* shadowed, uncounted */
+    DP_CHECK (dp_burst_capture_get_pending (s) == 0); /* shadowed, uncounted */
     DP_CHECK (s->pending >= 1u);
-    DP_CHECK (burst_capture_release (s, 0u) == DP_OK);
-    DP_CHECK (burst_capture_get_pending (s) >= 1u); /* given back */
-    size_t n = burst_capture_push (s, scene + first,
-                                   sizeof scene / sizeof *scene - first, big,
-                                   sizeof big / sizeof *big);
+    DP_CHECK (dp_burst_capture_release (s, 0u) == DP_OK);
+    DP_CHECK (dp_burst_capture_get_pending (s) >= 1u); /* given back */
+    size_t n = dp_burst_capture_push (s, scene + first,
+                                      sizeof scene / sizeof *scene - first,
+                                      big, sizeof big / sizeof *big);
     DP_CHECK (n == LONG_LEN);
     DP_REQUIRE (burst_capture_ready (s) == 1u);
     DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT);
-    burst_capture_destroy (s);
+    dp_burst_capture_destroy (s);
   }
   return 0;
 }
@@ -1192,7 +1199,7 @@ test_release_gives_back_a_shadowed_burst (void)
  * `configure_search_raw` reaches the engine, and re-reads the blob bound it
  * invalidated.
  *
- * It is the one call that can legitimately move `acq_state_bytes()` under a
+ * It is the one call that can legitimately move `dp_acq_state_bytes()` under a
  * `state_bytes()` that promises to be a pure function of configuration. If
  * the bound were not re-read, a blob taken after this call could exceed the
  * region reserved for it.
@@ -1200,30 +1207,31 @@ test_release_gives_back_a_shadowed_burst (void)
 static int
 test_configure_search_raw_reaches_the_engine (void)
 {
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   /* A coherent depth of 2 against a sized 4: the grid is the one ASKED for,
      not the one the auto-sizer picked, which is the whole point of the
      escape hatch. */
   DP_CHECK (s->acq->engine->coherent_bins == REPS);
-  DP_CHECK (burst_capture_configure_search_raw (s, 2u, 1u) == DP_OK);
+  DP_CHECK (dp_burst_capture_configure_search_raw (s, 2u, 1u) == DP_OK);
   DP_CHECK (s->acq->engine->coherent_bins == 2u);
   /* And a grid the engine cannot honour is REFUSED, not silently clamped: a
      coherent depth deeper than the preamble has no frames to integrate.
      Measured: reps=4 accepts 1, 2 and 4 and rejects 8. */
-  DP_CHECK (burst_capture_configure_search_raw (s, 8u, 1u) == DP_ERR_INVALID);
+  DP_CHECK (dp_burst_capture_configure_search_raw (s, 8u, 1u)
+            == DP_ERR_INVALID);
   DP_CHECK (s->acq->engine->coherent_bins
             == 2u); /* unchanged by the refusal */
   /* ...and the blob bound it invalidated was re-read. */
-  DP_CHECK (s->acq_blob_max == acq_state_bytes (s->acq->engine));
-  size_t after = burst_capture_state_bytes (s);
+  DP_CHECK (s->acq_blob_max == dp_acq_state_bytes (s->acq->engine));
+  size_t after = dp_burst_capture_state_bytes (s);
   /* ...so a blob taken NOW fits the region reserved for it. */
   void *blob = malloc (after);
   DP_REQUIRE (blob != NULL);
-  burst_capture_get_state (s, blob);
-  DP_CHECK (burst_capture_set_state (s, blob) == DP_OK);
+  dp_burst_capture_get_state (s, blob);
+  DP_CHECK (dp_burst_capture_set_state (s, blob) == DP_OK);
   free (blob);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1232,7 +1240,7 @@ test_configure_search_raw_reaches_the_engine (void)
 static int
 test_destroy_null_is_safe (void)
 {
-  burst_capture_destroy (NULL);
+  dp_burst_capture_destroy (NULL);
   DP_CHECK (1);
   return 0;
 }
@@ -1254,17 +1262,18 @@ test_state_bytes_does_not_move_with_the_stream (void)
   const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  size_t empty = burst_capture_state_bytes (s);
+  size_t empty = dp_burst_capture_state_bytes (s);
   static float _Complex out[8 * BURST_LEN];
-  burst_capture_push (s, cap, 40000u, out, sizeof out / sizeof *out);
-  DP_CHECK (burst_capture_state_bytes (s) == empty);
-  burst_capture_push (s, cap + 40000u, 40000u, out, sizeof out / sizeof *out);
-  DP_CHECK (burst_capture_state_bytes (s) == empty);
-  burst_capture_reset (s);
-  DP_CHECK (burst_capture_state_bytes (s) == empty);
-  burst_capture_destroy (s);
+  dp_burst_capture_push (s, cap, 40000u, out, sizeof out / sizeof *out);
+  DP_CHECK (dp_burst_capture_state_bytes (s) == empty);
+  dp_burst_capture_push (s, cap + 40000u, 40000u, out,
+                         sizeof out / sizeof *out);
+  DP_CHECK (dp_burst_capture_state_bytes (s) == empty);
+  dp_burst_capture_reset (s);
+  DP_CHECK (dp_burst_capture_state_bytes (s) == empty);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1278,11 +1287,11 @@ test_state_bytes_does_not_move_with_the_stream (void)
 static int
 test_a_push_larger_than_the_ring_is_sliced (void)
 {
-  burst_capture_state_t *probe = make ();
+  dp_burst_capture_state_t *probe = make ();
   DP_REQUIRE (probe != NULL);
   const size_t chunk_max = probe->chunk_max;
   const size_t ring      = probe->hist->capacity;
-  burst_capture_destroy (probe);
+  dp_burst_capture_destroy (probe);
 
   static float _Complex cap[200000];
   const size_t n_cap = sizeof cap / sizeof *cap;
@@ -1290,16 +1299,17 @@ test_a_push_larger_than_the_ring_is_sliced (void)
   const size_t at[2] = { 9000u, 60000u };
   build_capture (cap, n_cap, at, 2u, 0.02, 11u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[8 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+  size_t n
+      = dp_burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n_cap > chunk_max); /* the slicing path really was taken */
   DP_CHECK (n == burst_capture_ready (s) * BURST_LEN);
   DP_CHECK (real_windows_once (s, at, 2u));
   DP_CHECK (s->dropped == 0);
   DP_CHECK (s->samples_fed == (uint64_t)n_cap);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1318,11 +1328,11 @@ test_a_captured_burst_suppresses_its_own_payload (void)
   const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[8 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
 
   DP_CHECK (n == BURST_LEN); /* ONE window for one burst */
   DP_CHECK (s->n_bursts == 1u);
@@ -1330,7 +1340,7 @@ test_a_captured_burst_suppresses_its_own_payload (void)
   /* Nothing is left queued: a detection inside the span was dropped rather
      than held, which is what the compaction after an emit is for. */
   DP_CHECK (s->pending == 0);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1352,7 +1362,7 @@ test_a_captured_burst_suppresses_its_own_payload (void)
 static int
 test_min_gap_is_derived_and_sufficient (void)
 {
-  burst_capture_state_t *probe = make ();
+  dp_burst_capture_state_t *probe = make ();
   DP_REQUIRE (probe != NULL);
   /* Through the ACCESSOR, which is the C consumer's face -- a composing
      object reads that, not the struct, and a field-only test leaves the
@@ -1368,17 +1378,17 @@ test_min_gap_is_derived_and_sufficient (void)
   DP_CHECK (gap > 0);
   /* ...and it is bigger than the formula it replaced, which is the defect. */
   DP_CHECK (gap > (span > BURST_LEN ? span - BURST_LEN : 0u));
-  burst_capture_destroy (probe);
+  dp_burst_capture_destroy (probe);
 
   static float _Complex cap[200000];
   const size_t at[2] = { 9000u, 9000u + BURST_LEN + gap };
   build_capture (cap, sizeof cap / sizeof *cap, at, 2u, 0.02, 13u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[8 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
 
   /* Both transmitted bursts come back. NOT `n == 2 * BURST_LEN`: at
      pfa = 1e-3 a spurious window is expected, and asserting the count would
@@ -1390,7 +1400,7 @@ test_min_gap_is_derived_and_sufficient (void)
       if (burst_capture_event_at (s, i)->preamble_start == (uint64_t)at[k])
         found[k] = 1;
   DP_CHECK (found[0] && found[1]);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1407,10 +1417,10 @@ test_min_gap_is_derived_and_sufficient (void)
 static int
 test_refine_span_bounds_start_to_start (void)
 {
-  burst_capture_state_t *probe = make ();
+  dp_burst_capture_state_t *probe = make ();
   DP_REQUIRE (probe != NULL);
   const size_t span = probe->refine_span;
-  burst_capture_destroy (probe);
+  dp_burst_capture_destroy (probe);
 
   static float _Complex cap[200000];
   /* Start-to-start just past `refine_span`, which leaves the two bursts
@@ -1427,11 +1437,11 @@ test_refine_span_bounds_start_to_start (void)
   DP_CHECK (at[1] - at[0] - BURST_LEN < span); /* dead air is far LESS */
   build_capture (cap, sizeof cap / sizeof *cap, at, 2u, 0.02, 13u);
 
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   static float _Complex out[8 * BURST_LEN];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
 
   /* BOTH transmitted bursts come back, at their exact starts. NOT
      `n == 2 * BURST_LEN`: at pfa = 1e-3 over a surface this size a spurious
@@ -1447,7 +1457,7 @@ test_refine_span_bounds_start_to_start (void)
       if (burst_capture_event_at (s, i)->preamble_start == (uint64_t)at[k])
         found[k] = 1;
   DP_CHECK (found[0] && found[1]);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1479,8 +1489,8 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
-  burst_capture_state_t *ram = make ();
-  burst_capture_state_t *dsk
+  dp_burst_capture_state_t *ram = make ();
+  dp_burst_capture_state_t *dsk
       = capture_from_code_backed (path, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (ram != NULL && dsk != NULL);
@@ -1489,10 +1499,10 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
 
   static float _Complex out_a[4 * BURST_LEN];
   static float _Complex out_b[4 * BURST_LEN];
-  size_t na = burst_capture_push (ram, cap, sizeof cap / sizeof *cap, out_a,
-                                  sizeof out_a / sizeof *out_a);
-  size_t nb = burst_capture_push (dsk, cap, sizeof cap / sizeof *cap, out_b,
-                                  sizeof out_b / sizeof *out_b);
+  size_t na = dp_burst_capture_push (ram, cap, sizeof cap / sizeof *cap, out_a,
+                                     sizeof out_a / sizeof *out_a);
+  size_t nb = dp_burst_capture_push (dsk, cap, sizeof cap / sizeof *cap, out_b,
+                                     sizeof out_b / sizeof *out_b);
 
   /* Bit-identical: where the pages live is not a DSP parameter. */
   DP_CHECK (na == BURST_LEN);
@@ -1500,8 +1510,8 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   DP_CHECK (memcmp (out_a, out_b, na * sizeof *out_a) == 0);
   DP_CHECK (ram->preamble_start == dsk->preamble_start);
 
-  size_t cb_ram = burst_capture_state_bytes (ram);
-  size_t cb_dsk = burst_capture_state_bytes (dsk);
+  size_t cb_ram = dp_burst_capture_state_bytes (ram);
+  size_t cb_dsk = dp_burst_capture_state_bytes (dsk);
   /* The EXACT difference, not a ratio: the ring's capacity rounds up to a
      whole page, so a "backed is 4x smaller" assertion measures the host's
      page size as much as the feature -- it passed on 4 kB pages and failed on
@@ -1510,8 +1520,8 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   DP_CHECK (cb_ram - cb_dsk == ram->retain_span * sizeof (float _Complex));
   DP_CHECK (cb_dsk < cb_ram);
 
-  burst_capture_destroy (ram);
-  burst_capture_destroy (dsk);
+  dp_burst_capture_destroy (ram);
+  dp_burst_capture_destroy (dsk);
   remove (path);
   return 0;
 }
@@ -1543,36 +1553,37 @@ test_history_survives_destroying_the_capture (void)
   void  *blob = NULL;
   size_t cb   = 0;
   {
-    burst_capture_state_t *a
+    dp_burst_capture_state_t *a
         = capture_from_code_backed (path, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->recovered == 0); /* the file did not exist yet */
-    DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
-              == 0);
-    cb   = burst_capture_state_bytes (a);
+    DP_CHECK (
+        dp_burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
+        == 0);
+    cb   = dp_burst_capture_state_bytes (a);
     blob = malloc (cb);
     DP_REQUIRE (blob != NULL);
-    burst_capture_get_state (a, blob);
-    burst_capture_destroy (a); /* the ring's memory is gone with it */
+    dp_burst_capture_get_state (a, blob);
+    dp_burst_capture_destroy (a); /* the ring's memory is gone with it */
   }
 
-  burst_capture_state_t *b
+  dp_burst_capture_state_t *b
       = capture_from_code_backed (path, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (b != NULL);
   /* The file was adopted rather than re-made, which is what carries the
      samples across. */
   DP_CHECK (b->recovered == 1);
-  DP_CHECK (burst_capture_set_state (b, blob) == DP_OK);
+  DP_CHECK (dp_burst_capture_set_state (b, blob) == DP_OK);
 
-  size_t n = burst_capture_push (b, cap + cut, n_cap - cut, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (b, cap + cut, n_cap - cut, out,
+                                    sizeof out / sizeof *out);
   DP_CHECK (n == BURST_LEN);
   DP_CHECK (b->preamble_start == at);
 
   free (blob);
-  burst_capture_destroy (b);
+  dp_burst_capture_destroy (b);
   remove (path);
   return 0;
 }
@@ -1603,45 +1614,46 @@ test_the_live_capture_restores_its_own_checkpoint (void)
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
   const size_t cut = at + 2u * ACQ_SF * SPC; /* inside the preamble */
 
-  burst_capture_state_t *a
+  dp_burst_capture_state_t *a
       = capture_from_code_backed (path, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (a != NULL);
   DP_CHECK (a->recovered == 0); /* the file did not exist yet */
 
-  size_t cb    = burst_capture_state_bytes (a);
+  size_t cb    = dp_burst_capture_state_bytes (a);
   void  *empty = malloc (cb);
   void  *blob  = malloc (cb);
   DP_REQUIRE (empty != NULL && blob != NULL);
-  burst_capture_get_state (a, empty); /* before any push */
+  dp_burst_capture_get_state (a, empty); /* before any push */
 
   static float _Complex out[4 * BURST_LEN];
-  DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
+  DP_CHECK (dp_burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
             == 0);
-  burst_capture_get_state (a, blob); /* mid-preamble, history in the file */
+  dp_burst_capture_get_state (a, blob); /* mid-preamble, history in the file */
   /* The issue's case: the same object, its own post-push blob, at once --
      then the burst is found at the right start, from the bytes this object
      wrote. */
-  DP_CHECK (burst_capture_set_state (a, blob) == DP_OK);
+  DP_CHECK (dp_burst_capture_set_state (a, blob) == DP_OK);
   DP_CHECK (a->samples_fed == cut);
-  DP_CHECK (burst_capture_push (a, cap + cut, n_cap - cut, out,
-                                sizeof out / sizeof *out)
+  DP_CHECK (dp_burst_capture_push (a, cap + cut, n_cap - cut, out,
+                                   sizeof out / sizeof *out)
             == BURST_LEN);
   DP_CHECK (a->preamble_start == at);
   /* A checkpoint after the capture, restored after a further push that
      stays inside the ring: the same object, later in its life. */
-  burst_capture_get_state (a, blob);
-  DP_CHECK (burst_capture_push (a, cap, 1000u, out, sizeof out / sizeof *out)
-            == 0);
-  DP_CHECK (burst_capture_set_state (a, blob) == DP_OK);
+  dp_burst_capture_get_state (a, blob);
+  DP_CHECK (
+      dp_burst_capture_push (a, cap, 1000u, out, sizeof out / sizeof *out)
+      == 0);
+  DP_CHECK (dp_burst_capture_set_state (a, blob) == DP_OK);
   DP_CHECK (a->samples_fed == n_cap);
   /* And the pre-push checkpoint, which names no history, still restores. */
-  DP_CHECK (burst_capture_set_state (a, empty) == DP_OK);
+  DP_CHECK (dp_burst_capture_set_state (a, empty) == DP_OK);
   DP_CHECK (a->samples_fed == 0);
 
   free (empty);
   free (blob);
-  burst_capture_destroy (a);
+  dp_burst_capture_destroy (a);
   remove (path);
   return 0;
 }
@@ -1668,26 +1680,26 @@ test_a_span_the_ring_wrapped_past_is_refused (void)
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
   const size_t cut = at + 2u * ACQ_SF * SPC;
 
-  burst_capture_state_t *a
+  dp_burst_capture_state_t *a
       = capture_from_code_backed (path, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (a != NULL);
   static float _Complex out[4 * BURST_LEN];
-  burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
-  size_t cb   = burst_capture_state_bytes (a);
+  dp_burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
+  size_t cb   = dp_burst_capture_state_bytes (a);
   void  *blob = malloc (cb);
   DP_REQUIRE (blob != NULL);
-  burst_capture_get_state (a, blob);
+  dp_burst_capture_get_state (a, blob);
 
   /* Push on past the ring's capacity from the checkpoint's span. */
   const size_t capacity = a->hist->capacity;
   DP_REQUIRE (n_cap - cut > capacity);
-  burst_capture_push (a, cap + cut, n_cap - cut, out,
-                      sizeof out / sizeof *out);
-  DP_CHECK (burst_capture_set_state (a, blob) == DP_ERR_INVALID);
+  dp_burst_capture_push (a, cap + cut, n_cap - cut, out,
+                         sizeof out / sizeof *out);
+  DP_CHECK (dp_burst_capture_set_state (a, blob) == DP_ERR_INVALID);
 
   free (blob);
-  burst_capture_destroy (a);
+  dp_burst_capture_destroy (a);
   remove (path);
   return 0;
 }
@@ -1713,32 +1725,32 @@ test_a_blob_without_its_file_is_refused (void)
   const size_t at = 60000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 3u);
 
-  burst_capture_state_t *a
+  dp_burst_capture_state_t *a
       = capture_from_code_backed (src, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (a != NULL);
   static float _Complex out[4 * BURST_LEN];
-  burst_capture_push (a, cap, at + 2u * ACQ_SF * SPC, out,
-                      sizeof out / sizeof *out);
+  dp_burst_capture_push (a, cap, at + 2u * ACQ_SF * SPC, out,
+                         sizeof out / sizeof *out);
   /* What makes the blob refusable is that it CLAIMS retained history, which
      any push leaves behind -- not that a detection happened to fire yet. */
   DP_REQUIRE (a->samples_fed > 0);
 
-  size_t cb   = burst_capture_state_bytes (a);
+  size_t cb   = dp_burst_capture_state_bytes (a);
   void  *blob = malloc (cb);
   DP_REQUIRE (blob != NULL);
-  burst_capture_get_state (a, blob);
+  dp_burst_capture_get_state (a, blob);
 
-  burst_capture_state_t *b
+  dp_burst_capture_state_t *b
       = capture_from_code_backed (dst, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (b != NULL);
   DP_CHECK (b->recovered == 0);
-  DP_CHECK (burst_capture_set_state (b, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_burst_capture_set_state (b, blob) == DP_ERR_INVALID);
 
   free (blob);
-  burst_capture_destroy (a);
-  burst_capture_destroy (b);
+  dp_burst_capture_destroy (a);
+  dp_burst_capture_destroy (b);
   remove (src);
   remove (dst);
   return 0;
@@ -1766,16 +1778,16 @@ test_backed_rejects_a_bad_path (void)
 static int
 test_state_rejects_a_foreign_blob (void)
 {
-  burst_capture_state_t *s = make ();
+  dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  size_t cb   = burst_capture_state_bytes (s);
+  size_t cb   = dp_burst_capture_state_bytes (s);
   void  *blob = malloc (cb);
   DP_REQUIRE (blob != NULL);
-  burst_capture_get_state (s, blob);
+  dp_burst_capture_get_state (s, blob);
   ((unsigned char *)blob)[0] ^= 0xFFu;
-  DP_CHECK (burst_capture_set_state (s, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_burst_capture_set_state (s, blob) == DP_ERR_INVALID);
   free (blob);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1787,28 +1799,28 @@ test_doppler_rate_caps_the_depth (void)
 {
   const double f_epoch = 1.0e6 / (double)ACQ_SF;
   const double rate    = f_epoch * f_epoch / (2.0 * 2.5 * 2.5); /* cap: 2 */
-  burst_capture_state_t *free_
+  dp_burst_capture_state_t *free_
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
                            ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
-  burst_capture_state_t *held
+  dp_burst_capture_state_t *held
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
                            ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, rate);
   DP_REQUIRE (free_ != NULL && held != NULL);
-  DP_CHECK (burst_capture_get_doppler_bins (free_) == REPS);
-  DP_CHECK (burst_capture_get_doppler_bins (held) == 2);
-  DP_CHECK (burst_capture_get_doppler_rate (held) == rate);
-  burst_capture_destroy (free_);
-  burst_capture_destroy (held);
+  DP_CHECK (dp_burst_capture_get_doppler_bins (free_) == REPS);
+  DP_CHECK (dp_burst_capture_get_doppler_bins (held) == 2);
+  DP_CHECK (dp_burst_capture_get_doppler_rate (held) == rate);
+  dp_burst_capture_destroy (free_);
+  dp_burst_capture_destroy (held);
 
   char path[256];
   scratch_path (path, sizeof path, "rate");
   remove (path);
-  burst_capture_state_t *dsk = capture_from_code_backed (
+  dp_burst_capture_state_t *dsk = capture_from_code_backed (
       path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, ACQ_CN0_NONE,
       0.0, 1e-3, 0.9, 0, rate);
   DP_REQUIRE (dsk != NULL);
-  DP_CHECK (burst_capture_get_doppler_bins (dsk) == 2);
-  burst_capture_destroy (dsk);
+  DP_CHECK (dp_burst_capture_get_doppler_bins (dsk) == 2);
+  dp_burst_capture_destroy (dsk);
   remove (path);
 
   DP_CHECK (capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
@@ -1858,7 +1870,7 @@ build_zc_capture (float _Complex *cap, size_t n_cap, size_t at, double f,
     }
 }
 
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 make_zc (double doppler_rate)
 {
   float _Complex zc[ZC_N];
@@ -1866,8 +1878,9 @@ make_zc (double doppler_rate)
   /* pfa 1e-6: at 1e-3 the engine's known ~1.5x over-delivery (acq F7)
      puts a false capture in ~6% of these 39-frame streams, measured over
      200 seeds -- a property of the configured rate, not of the preamble. */
-  return burst_capture_create (zc, ZC_N, ZC_BURST, ZC_REPS, 1.0, ACQ_CN0_NONE,
-                               0.0, 1e-6, 0.9, 0, doppler_rate);
+  return dp_burst_capture_create (zc, ZC_N, ZC_BURST, ZC_REPS, 1.0,
+                                  ACQ_CN0_NONE, 0.0, 1e-6, 0.9, 0,
+                                  doppler_rate);
 }
 
 /** A Zadoff-Chu burst is captured, and its window starts at the preamble:
@@ -1879,18 +1892,18 @@ test_captures_a_zadoff_chu_burst (void)
   const size_t at = 9001u;
   build_zc_capture (cap, sizeof cap / sizeof *cap, at, 0.0, 1470u);
 
-  burst_capture_state_t *s = make_zc (0.0);
+  dp_burst_capture_state_t *s = make_zc (0.0);
   DP_REQUIRE (s != NULL);
   DP_CHECK (s->code_period == ZC_N);
 
   static float _Complex out[4 * ZC_BURST];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
   DP_CHECK (n == ZC_BURST);
   const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
   DP_REQUIRE (ev != NULL);
   DP_CHECK (ev->preamble_start == at);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -1911,17 +1924,17 @@ test_zadoff_chu_capture_under_doppler (void)
       const double f = fr[j] * period / 2.0;
       build_zc_capture (cap, sizeof cap / sizeof *cap, at, f,
                         1471u + (uint32_t)j);
-      burst_capture_state_t *s = make_zc (0.0);
+      dp_burst_capture_state_t *s = make_zc (0.0);
       DP_REQUIRE (s != NULL);
-      size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                     sizeof out / sizeof *out);
+      size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                        sizeof out / sizeof *out);
       const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
       DP_CHECK (n == ZC_BURST);
       DP_REQUIRE (ev != NULL);
       DP_CHECK (ev->preamble_start == at);
       double e = remainder (ev->doppler_hz_est - f, period);
       DP_CHECK (fabs (e) <= ev->doppler_res_hz);
-      burst_capture_destroy (s);
+      dp_burst_capture_destroy (s);
     }
   return 0;
 }
@@ -1931,14 +1944,14 @@ static int
 test_rejects_a_bad_preamble (void)
 {
   float _Complex z[4] = { 0 };
-  DP_CHECK (burst_capture_create (NULL, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
-                                  0.9, 0, 0.0)
+  DP_CHECK (dp_burst_capture_create (NULL, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0,
+                                     1e-3, 0.9, 0, 0.0)
             == NULL);
-  DP_CHECK (burst_capture_create (z, 0, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
-                                  0.9, 0, 0.0)
+  DP_CHECK (dp_burst_capture_create (z, 0, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
+                                     0.9, 0, 0.0)
             == NULL);
-  DP_CHECK (burst_capture_create (z, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
-                                  0.9, 0, 0.0)
+  DP_CHECK (dp_burst_capture_create (z, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
+                                     0.9, 0, 0.0)
             == NULL);
   return 0;
 }
@@ -1952,7 +1965,7 @@ test_backed_captures_a_zadoff_chu_burst (void)
   remove (path);
   float _Complex zc[ZC_N];
   zadoff_chu (zc);
-  burst_capture_state_t *s
+  dp_burst_capture_state_t *s
       = burst_capture_create_backed (path, zc, ZC_N, ZC_BURST, ZC_REPS, 1.0,
                                      ACQ_CN0_NONE, 0.0, 1e-6, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
@@ -1960,14 +1973,14 @@ test_backed_captures_a_zadoff_chu_burst (void)
   static float _Complex cap[40000];
   build_zc_capture (cap, sizeof cap / sizeof *cap, 9001u, 0.0, 1470u);
   static float _Complex out[4 * ZC_BURST];
-  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
-                                 sizeof out / sizeof *out);
+  size_t n = dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                    sizeof out / sizeof *out);
   DP_CHECK (n == ZC_BURST && s->preamble_start == 9001u);
   DP_CHECK (burst_capture_create_backed (NULL, zc, ZC_N, ZC_BURST, ZC_REPS,
                                          1.0, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0,
                                          0.0)
             == NULL);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   remove (path);
   return 0;
 }
@@ -1998,11 +2011,11 @@ test_refine_wraps_its_doppler_cells (void)
   for (size_t k = 0; k < NZ; k++)
     zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
                                   / (double)NZ);
-  const size_t           burst = RZ * NZ + 400, at = 3 * NZ + 17;
-  burst_capture_state_t *s = burst_capture_create (zc, NZ, burst, RZ, 1.0, 0.0,
-                                                   0.0, 1e-3, 0.9, 0, 0.0);
+  const size_t              burst = RZ * NZ + 400, at = 3 * NZ + 17;
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      zc, NZ, burst, RZ, 1.0, 0.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
-  DP_REQUIRE (burst_capture_configure_search_raw (s, 2, 1) == 0);
+  DP_REQUIRE (dp_burst_capture_configure_search_raw (s, 2, 1) == 0);
 
   const size_t    len = at + burst + 2 * s->refine_span + 4 * NZ;
   float _Complex *x   = dp_xmalloc (len * sizeof *x);
@@ -2022,14 +2035,14 @@ test_refine_wraps_its_doppler_cells (void)
     x[at + i]
         += zc[i % NZ] * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
 
-  const size_t    cap = burst_capture_push_max_out (s, len);
+  const size_t    cap = dp_burst_capture_push_max_out (s, len);
   float _Complex *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
-  (void)burst_capture_push (s, x, len, out, cap);
+  (void)dp_burst_capture_push (s, x, len, out, cap);
   DP_REQUIRE (burst_capture_ready (s) >= 1);
   DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == at);
   free (out);
   free (x);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -2067,10 +2080,10 @@ test_refine_scores_every_detected_phase (void)
   for (size_t j = 0; j < sizeof fr / sizeof *fr; j++)
     for (size_t a = 0; a < sizeof ats / sizeof *ats; a++)
       {
-        burst_capture_state_t *s = burst_capture_create (
+        dp_burst_capture_state_t *s = dp_burst_capture_create (
             zc, NZ, burst, RZ, 1.0, 0.0, 0.0, 1e-3, 0.9, 0, 0.0);
         DP_REQUIRE (s != NULL);
-        DP_REQUIRE (burst_capture_configure_search_raw (s, 1, 1) == 0);
+        DP_REQUIRE (dp_burst_capture_configure_search_raw (s, 1, 1) == 0);
         const size_t    at  = ats[a];
         const size_t    len = at + burst + 2 * s->refine_span + 4 * NZ;
         float _Complex *x   = dp_xmalloc (len * sizeof *x);
@@ -2085,16 +2098,16 @@ test_refine_scores_every_detected_phase (void)
         for (size_t i = 0; i < RZ * NZ; i++)
           x[at + i] += zc[i % NZ]
                        * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
-        const size_t    cap = burst_capture_push_max_out (s, len);
+        const size_t    cap = dp_burst_capture_push_max_out (s, len);
         float _Complex *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
-        (void)burst_capture_push (s, x, len, out, cap);
+        (void)dp_burst_capture_push (s, x, len, out, cap);
         total++;
         if (burst_capture_ready (s) >= 1
             && burst_capture_event_at (s, 0)->preamble_start == at)
           exact++;
         free (out);
         free (x);
-        burst_capture_destroy (s);
+        dp_burst_capture_destroy (s);
       }
   DP_CHECK (exact == total);
   if (exact != total)
@@ -2119,7 +2132,7 @@ test_refine_scores_every_detected_phase (void)
  * and no capture could make it: its delay-Doppler ridge correlates at FULL
  * magnitude at (k tiles, k*u^-1 samples) for every k, so beyond the native
  * span its Doppler tile and its delay are one unknown. That is documented
- * on burst_capture_create(), not a defect to pin.
+ * on dp_burst_capture_create(), not a defect to pin.
  */
 static int
 test_a_wide_doppler_search_is_searched (void)
@@ -2130,12 +2143,12 @@ test_a_wide_doppler_search_is_searched (void)
     RP  = 8,
     PAY = 400
   };
-  uint8_t     code[NP];
-  pn_state_t *pn = pn_create (pn_mls_poly (7), 1u, 7u, 0);
+  uint8_t        code[NP];
+  dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (7), 1u, 7u, 0);
   DP_REQUIRE (pn != NULL);
   for (size_t i = 0; i < NP; i++)
     code[i] = pn_step (pn);
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
   float _Complex *pre = dp_code_preamble (code, NP, 1);
 
   static float _Complex cap[40000];
@@ -2158,23 +2171,23 @@ test_a_wide_doppler_search_is_searched (void)
         cap[at + i] += pre[i % NP]
                        * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
 
-      burst_capture_state_t *s
-          = burst_capture_create (pre, NP, RP * NP + PAY, RP, 1.0,
-                                  ACQ_CN0_NONE, 2.5 * span, 1e-6, 0.9, 0, 0.0);
+      dp_burst_capture_state_t *s = dp_burst_capture_create (
+          pre, NP, RP * NP + PAY, RP, 1.0, ACQ_CN0_NONE, 2.5 * span, 1e-6, 0.9,
+          0, 0.0);
       DP_REQUIRE (s != NULL);
       /* The read-back is the grid the engine searches. */
-      DP_CHECK (burst_capture_get_doppler_bins (s)
+      DP_CHECK (dp_burst_capture_get_doppler_bins (s)
                 == acq_grid_bins (s->acq->engine));
-      DP_CHECK (burst_capture_get_doppler_bins (s) > 1);
-      size_t n
-          = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+      DP_CHECK (dp_burst_capture_get_doppler_bins (s) > 1);
+      size_t n = dp_burst_capture_push (s, cap, n_cap, out,
+                                        sizeof out / sizeof *out);
       const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
       DP_CHECK (n == RP * NP + PAY);
       DP_REQUIRE (ev != NULL);
       DP_CHECK (ev->preamble_start == at);
       /* Absolute, not modulo 1/P: the tile is part of the answer. */
       DP_CHECK (fabs (ev->doppler_hz_est - f) <= ev->doppler_res_hz);
-      burst_capture_destroy (s);
+      dp_burst_capture_destroy (s);
     }
   free (pre);
   return 0;
@@ -2279,29 +2292,29 @@ main (void)
    * is for. Rewriting only the version word leaves every other byte valid, so
    * this fails if and only if the version is actually consulted. */
   {
-    burst_capture_state_t *s = make ();
+    dp_burst_capture_state_t *s = make ();
     DP_REQUIRE (s != NULL);
-    size_t cb = burst_capture_state_bytes (s);
+    size_t cb = dp_burst_capture_state_bytes (s);
     DP_REQUIRE (cb > sizeof (dp_state_hdr_t));
     unsigned char *blob = malloc (cb);
     DP_REQUIRE (blob != NULL);
-    burst_capture_get_state (s, blob);
+    dp_burst_capture_get_state (s, blob);
     /* Unmodified, it restores. */
-    DP_CHECK (burst_capture_set_state (s, blob) == DP_OK);
+    DP_CHECK (dp_burst_capture_set_state (s, blob) == DP_OK);
     /* One version back -- every other byte still valid. */
     dp_state_hdr_t hdr;
     memcpy (&hdr, blob, sizeof hdr);
     DP_CHECK (hdr.version == BURST_CAPTURE_STATE_VERSION);
     hdr.version = (uint16_t)(BURST_CAPTURE_STATE_VERSION - 1u);
     memcpy (blob, &hdr, sizeof hdr);
-    DP_CHECK (burst_capture_set_state (s, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_burst_capture_set_state (s, blob) == DP_ERR_INVALID);
     /* ...and one version FORWARD is refused too, so the check is not a
        >= comparison that would accept anything newer. */
     hdr.version = (uint16_t)(BURST_CAPTURE_STATE_VERSION + 1u);
     memcpy (blob, &hdr, sizeof hdr);
-    DP_CHECK (burst_capture_set_state (s, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_burst_capture_set_state (s, blob) == DP_ERR_INVALID);
     free (blob);
-    burst_capture_destroy (s);
+    dp_burst_capture_destroy (s);
   }
 
   DP_TEST_END ("test_burst_capture_core");

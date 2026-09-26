@@ -21,9 +21,9 @@
    signature is jm's to decide (it generates the call positionally and injects
    the prototype); the shim follows it. */
 int
-write_blue_header (const char *path, double fs, int sample_type, int endian,
-                   double fc, double data_start, size_t total_samples,
-                   int detached, double t0)
+dp_write_blue_header (const char *path, double fs, int sample_type, int endian,
+                      double fc, double data_start, size_t total_samples,
+                      int detached, double t0)
 {
   FILE *fp = fopen (path, "wb");
   if (!fp)

@@ -23,7 +23,7 @@ ______________________________________________________________________
 
 ## 1. The file type is decided by CONTENT
 
-`wfm_reader_create` looks at the bytes: the BLUE magic at byte 0, a first
+`dp_wfm_reader_create` looks at the bytes: the BLUE magic at byte 0, a first
 line that scans as `I,Q`, otherwise raw. A CSV called `capture.dat` reads
 as CSV and a BLUE file called `capture.csv` reads as BLUE, so misnaming a
 capture costs nothing.
@@ -239,7 +239,7 @@ ______________________________________________________________________
 
 ## 9. The writer streams, and that decides everything about endings
 
-`wfm_writer_write` may be called any number of times; the capture is the
+`dp_wfm_writer_write` may be called any number of times; the capture is the
 concatenation. Nothing buffers the whole thing, because a capture may be
 larger than memory.
 

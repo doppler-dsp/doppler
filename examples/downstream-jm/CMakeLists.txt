@@ -88,9 +88,9 @@ target_sources(iqtools_lib_static PRIVATE $<TARGET_OBJECTS:capture_core>)
 # the version of the last release, so `VERSION_GREATER <that>` would reject the
 # very build tree CI consumes.
 #
-# `wfm_reader_get_fc` has existed for a long time, so a too-old doppler LINKS
+# `dp_wfm_reader_get_fc` has existed for a long time, so a too-old doppler LINKS
 # and then silently reports 0.0 — the example built, and only its test failed,
-# at `capture_get_fc (obj) == FC`. `wfm_reader_get_fc_source` arrived with the
+# at `capture_get_fc (obj) == FC`. `dp_wfm_reader_get_fc_source` arrived with the
 # reader that actually reads the keyword, so its presence is the capability
 # itself. Verified both ways: absent from the released 0.39.0 archive, present
 # in a current build tree.
@@ -99,14 +99,14 @@ get_target_property(_dp_inc doppler::doppler-static
                     INTERFACE_INCLUDE_DIRECTORIES)
 set(CMAKE_REQUIRED_INCLUDES ${_dp_inc})
 set(CMAKE_REQUIRED_LIBRARIES doppler::doppler-static)
-check_symbol_exists(wfm_reader_get_fc_source
+check_symbol_exists(dp_wfm_reader_get_fc_source
                     "doppler/wfm_reader/wfm_reader_core.h" IQTOOLS_HAVE_FC_SOURCE)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_REQUIRED_LIBRARIES)
 if(NOT IQTOOLS_HAVE_FC_SOURCE)
   message(FATAL_ERROR
           "This doppler is too old for iqtools: its reader cannot resolve a "
-          "capture's centre frequency (no wfm_reader_get_fc_source), so "
+          "capture's centre frequency (no dp_wfm_reader_get_fc_source), so "
           "Capture.fc would silently read 0.0.\n"
           "  Found doppler ${doppler_VERSION} at ${doppler_DIR}.\n"
           "  Use a release that post-dates it, or build doppler from source "

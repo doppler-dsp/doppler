@@ -25,7 +25,8 @@
    — the Python binding declares it the same way (wfm_compose_ext.c) — and the
    unspread-frame section below asserts it refuses exactly what the composer's
    path refuses, which is the only way "they share the attach" is checkable. */
-extern wfm_synth_state_t *wfm_source_to_synth (const wfm_source_t *, double);
+extern dp_wfm_synth_state_t *wfm_source_to_synth (const wfm_source_t *,
+                                                  double);
 
 /* ── the SEAM functions, whose whole job is that two faces agree ─────────
  *
@@ -76,7 +77,7 @@ test_the_create_snr_seam (void)
   }
 
   /* ── a dsss source is pre-referred to fs, because create() cannot ────
-     wfm_synth_create() runs before the codes attach, so it cannot know the
+     dp_wfm_synth_create() runs before the codes attach, so it cannot know the
      spreading factor its own esno would need. The composer does, and hands
      over an already-fs figure. Scored against the arithmetic the header
      states -- snr - 10log10(span) - not against wfm_snr_over_fs(), which
@@ -114,7 +115,7 @@ test_the_create_snr_seam (void)
   }
 
   /* ── a CLEAN dsss source passes through, or the no-AWGN shortcut dies ─
-     wfm_synth_create() skips AWGN entirely at snr >= WFM_SYNTH_SNR_CLEAN.
+     dp_wfm_synth_create() skips AWGN entirely at snr >= WFM_SYNTH_SNR_CLEAN.
      Pre-referring a clean figure would push it below the threshold and
      make every clean dsss source pay for noise it did not ask for. */
   {
@@ -161,12 +162,12 @@ test_the_two_faces_agree (void)
         s.snr          = noisy ? 9.0 : 100.0;
         s.snr_mode     = noisy ? 3 : 0;
 
-        wfm_synth_state_t *comp = wfm_compose_build_synth (
+        dp_wfm_synth_state_t *comp = wfm_compose_build_synth (
             &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
-        wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+        dp_wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
         DP_REQUIRE_MSG (comp && bridge, "both faces build");
-        wfm_synth_steps (comp, a, n);
-        wfm_synth_steps (bridge, b, n);
+        dp_wfm_synth_steps (comp, a, n);
+        dp_wfm_synth_steps (bridge, b, n);
         DP_REQUIRE_MSG (memcmp (a, b, n * sizeof *a) == 0,
                         "the composer's synth and the standalone bridge's "
                         "are byte-identical");
@@ -176,35 +177,35 @@ test_the_two_faces_agree (void)
         for (size_t i = 0; i < n; i++)
           p += (double)(crealf (a[i]) * crealf (a[i]));
         DP_REQUIRE_MSG (p > 0.0, "precondition: the face produced signal");
-        wfm_synth_destroy (comp);
-        wfm_synth_destroy (bridge);
+        dp_wfm_synth_destroy (comp);
+        dp_wfm_synth_destroy (bridge);
       }
   /* ── a chirp: the span is declared, never read off the first block ────
    *
-   * #1115. The bridge used to leave the span to wfm_synth_steps()'s first
+   * #1115. The bridge used to leave the span to dp_wfm_synth_steps()'s first
    * block, so the standalone face swept over whatever the caller read first.
    * A declared span must reach BOTH faces, and must beat the on-time. */
   {
-    wfm_source_t s          = { 0 };
-    s.type                  = WFM_SYNTH_CHIRP;
-    s.freq                  = 1e5;
-    s.f_end                 = 3e5;
-    s.snr                   = 100.0;
-    s.span                  = n / 4; /* deliberately not the on-time */
-    wfm_synth_state_t *comp = wfm_compose_build_synth (
+    wfm_source_t s             = { 0 };
+    s.type                     = WFM_SYNTH_CHIRP;
+    s.freq                     = 1e5;
+    s.f_end                    = 3e5;
+    s.snr                      = 100.0;
+    s.span                     = n / 4; /* deliberately not the on-time */
+    dp_wfm_synth_state_t *comp = wfm_compose_build_synth (
         &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
-    wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+    dp_wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
     DP_REQUIRE_MSG (comp && bridge, "both faces build a declared chirp");
     DP_REQUIRE_MSG (comp->chirp_span == n / 4 && bridge->chirp_span == n / 4,
                     "the declared span beats the on-time on both faces");
-    wfm_synth_steps (comp, a, n);
+    dp_wfm_synth_steps (comp, a, n);
     for (size_t off = 0; off < n; off += 16) /* chunked: must not matter */
-      wfm_synth_steps (bridge, b + off, 16);
+      dp_wfm_synth_steps (bridge, b + off, 16);
     DP_REQUIRE_MSG (memcmp (a, b, n * sizeof *a) == 0,
                     "a declared chirp is byte-identical across faces and "
                     "read chunkings");
-    wfm_synth_destroy (comp);
-    wfm_synth_destroy (bridge);
+    dp_wfm_synth_destroy (comp);
+    dp_wfm_synth_destroy (bridge);
 
     /* undeclared: the composer lends the on-time, the bridge has none */
     s.span = 0;
@@ -212,13 +213,13 @@ test_the_two_faces_agree (void)
                                       0);
     DP_REQUIRE_MSG (comp && comp->chirp_span == n,
                     "an undeclared span falls back to the on-time");
-    wfm_synth_destroy (comp);
+    dp_wfm_synth_destroy (comp);
     DP_REQUIRE_MSG (!wfm_source_to_synth (&s, 1e6),
                     "a standalone sweep with no span is refused, not guessed");
     s.f_end = s.freq; /* flat: no slope to lose */
     bridge  = wfm_source_to_synth (&s, 1e6);
     DP_REQUIRE_MSG (bridge != NULL, "a flat chirp needs no span");
-    wfm_synth_destroy (bridge);
+    dp_wfm_synth_destroy (bridge);
   }
   /* ── and the case where the shared helper actually DOES work ─────────
    *
@@ -253,12 +254,12 @@ test_the_two_faces_agree (void)
     float _Complex *da = malloc (n * sizeof *da);
     float _Complex *db = malloc (n * sizeof *db);
     DP_REQUIRE_MSG (da && db, "dsss faces: alloc");
-    wfm_synth_state_t *comp = wfm_compose_build_synth (
+    dp_wfm_synth_state_t *comp = wfm_compose_build_synth (
         &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
-    wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+    dp_wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
     DP_REQUIRE_MSG (comp && bridge, "both faces build a dsss burst");
-    wfm_synth_steps (comp, da, n);
-    wfm_synth_steps (bridge, db, n);
+    dp_wfm_synth_steps (comp, da, n);
+    dp_wfm_synth_steps (bridge, db, n);
     DP_REQUIRE_MSG (memcmp (da, db, n * sizeof *da) == 0,
                     "the two faces agree on a dsss source, where the "
                     "shared SNR referral actually runs");
@@ -271,8 +272,8 @@ test_the_two_faces_agree (void)
     DP_REQUIRE_MSG (p / (double)n > 1.5,
                     "precondition: the source is genuinely noisy, so the "
                     "referral is in the answer");
-    wfm_synth_destroy (comp);
-    wfm_synth_destroy (bridge);
+    dp_wfm_synth_destroy (comp);
+    dp_wfm_synth_destroy (bridge);
     free (da);
     free (db);
   }
@@ -788,7 +789,8 @@ main (void)
     wfm_compose_destroy (cb);
   }
 
-  /* ── 1 source ≡ bundled: a noisy single source == direct wfm_synth_steps ──
+  /* ── 1 source ≡ bundled: a noisy single source == direct dp_wfm_synth_steps
+   * ──
    */
   {
     wfm_source_t  src = { .type      = 4, /* qpsk */
@@ -803,16 +805,17 @@ main (void)
     wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
     DP_REQUIRE_MSG (wfm_compose_execute (c, viac, 200) == 200, "1src execute");
     wfm_compose_destroy (c);
-    wfm_synth_state_t *s
-        = wfm_synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0, 0.0);
-    wfm_synth_steps (s, direct, 200);
-    wfm_synth_destroy (s);
+    dp_wfm_synth_state_t *s
+        = dp_wfm_synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0, 0.0);
+    dp_wfm_synth_steps (s, direct, 200);
+    dp_wfm_synth_destroy (s);
     int ok = 1;
     for (int i = 0; i < 200; i++)
-      if (viac[i] != direct[i]) /* same wfm_synth_steps call → bit-identical */
+      if (viac[i]
+          != direct[i]) /* same dp_wfm_synth_steps call → bit-identical */
         ok = 0;
-    DP_REQUIRE_MSG (ok,
-                    "1-source segment == bundled wfm_synth_steps (bit-exact)");
+    DP_REQUIRE_MSG (
+        ok, "1-source segment == bundled dp_wfm_synth_steps (bit-exact)");
   }
 
   /* ── 2-source accumulate: segment sum == g0*synth0 + g1*synth1 ── */
@@ -832,15 +835,15 @@ main (void)
     DP_REQUIRE_MSG (wfm_compose_execute (c, sum, 100) == 100, "2src execute");
     wfm_compose_destroy (c);
     /* reference: render each source and add with the same gains + order. */
-    wfm_synth_state_t *sa
-        = wfm_synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0, 0.0);
-    wfm_synth_state_t *sb
-        = wfm_synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0, 0.0);
+    dp_wfm_synth_state_t *sa
+        = dp_wfm_synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0, 0.0);
+    dp_wfm_synth_state_t *sb
+        = dp_wfm_synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0, 0.0);
     float _Complex ba[100], bb[100];
-    wfm_synth_steps (sa, ba, 100);
-    wfm_synth_steps (sb, bb, 100);
-    wfm_synth_destroy (sa);
-    wfm_synth_destroy (sb);
+    dp_wfm_synth_steps (sa, ba, 100);
+    dp_wfm_synth_steps (sb, bb, 100);
+    dp_wfm_synth_destroy (sa);
+    dp_wfm_synth_destroy (sb);
     float gb = (float)pow (10.0, -6.020599913 / 20.0);
     int   ok = 1;
     for (int i = 0; i < 100; i++)
@@ -1654,13 +1657,13 @@ main (void)
                     "gap noise power is the resolved floor");
     /* continuity: the gap is the seamless continuation of the on-time
      * stream — byte-identical to hand-driving the same synth. */
-    wfm_synth_state_t *ref = wfm_compose_build_synth (
+    dp_wfm_synth_state_t *ref = wfm_compose_build_synth (
         &nsy, 1e6, 200, nsy.freq, nsy.snr, nsy.f_end, 0, 0, 0);
     DP_REQUIRE_MSG (ref, "reference synth");
     static float _Complex rr[512];
-    wfm_synth_steps (ref, rr, 200);
+    dp_wfm_synth_steps (ref, rr, 200);
     wfm_synth_noise_steps (ref, rr + 200, 300);
-    wfm_synth_destroy (ref);
+    dp_wfm_synth_destroy (ref);
     DP_REQUIRE_MSG (memcmp (gna, rr, 500 * sizeof (float _Complex)) == 0,
                     "gap is the byte-exact continuation of the on-time noise");
     /* the escape hatch restores hard zeros */
@@ -1878,14 +1881,14 @@ main (void)
 
     /* noise_steps guards: NULL state / zero n are no-ops */
     wfm_synth_noise_steps (NULL, buf, 4);
-    wfm_synth_state_t *g1s = wfm_compose_build_synth (
+    dp_wfm_synth_state_t *g1s = wfm_compose_build_synth (
         &cln, 1e6, 100, cln.freq, cln.snr, cln.f_end, 0, 0, 0);
     DP_REQUIRE_MSG (g1s, "guard synth");
     wfm_synth_noise_steps (g1s, buf, 0);
     buf[0] = 1.0f;
     wfm_synth_noise_steps (g1s, buf, 1); /* clean → writes exact zeros */
     DP_REQUIRE_MSG (buf[0] == 0.0f, "clean noise_steps writes zeros");
-    wfm_synth_destroy (g1s);
+    dp_wfm_synth_destroy (g1s);
 
     /* sum form emits delay/gap_noise keys too */
     wfm_segment_t gse        = gsum2;
@@ -1976,7 +1979,7 @@ main (void)
   /* ── the resolved floor reproduces the bundled noise power ──────────────
    *
    * wfm_snr_over_fs() decides where a multi-source segment's shared noise
-   * floor sits; wfm_synth_create() decides how much noise a single bundled
+   * floor sits; dp_wfm_synth_create() decides how much noise a single bundled
    * source makes. If those two disagree, the same requested SNR means two
    * different things depending on how many sources happen to share a segment
    * — and nothing else in the tree would say so, because each is internally
@@ -2111,9 +2114,9 @@ main (void)
     DP_REQUIRE_MSG (wfm_source_frame_error (&framed_pn) == NULL,
                     "a bounded payload is what a framed PN-sourced waveform "
                     "was ever missing");
-    wfm_synth_state_t *psy = wfm_source_to_synth (&framed_pn, 1e6);
+    dp_wfm_synth_state_t *psy = wfm_source_to_synth (&framed_pn, 1e6);
     DP_REQUIRE_MSG (psy, "and it BUILDS on the standalone face");
-    wfm_synth_destroy (psy);
+    dp_wfm_synth_destroy (psy);
 
     /* The same source with a GENERATED payload -- the shape --payload-len
        resolves to, and what makes a 100k-bit frame six numbers in a record. */
@@ -2123,11 +2126,11 @@ main (void)
     DP_REQUIRE_MSG (wfm_source_frame_error (&framed_gen) == NULL,
                     "a generated payload is a payload -- tested on LENGTH, "
                     "never on the array a generated kind does not have");
-    wfm_synth_state_t *gsy = wfm_source_to_synth (&framed_gen, 1e6);
+    dp_wfm_synth_state_t *gsy = wfm_source_to_synth (&framed_gen, 1e6);
     DP_REQUIRE_MSG (gsy, "a framed waveform whose payload is GENERATED "
                          "builds -- the last place gh-762's flattening "
                          "survived was this descriptor's payload field");
-    wfm_synth_destroy (gsy);
+    dp_wfm_synth_destroy (gsy);
 
     wfm_source_t framed_empty = framed;
     framed_empty.payload.bits = NULL;
@@ -2164,13 +2167,13 @@ main (void)
     /* wfm_compose_build_synth is THE single synth-construction path (the
        standalone Synth reaches the same attach through the shared bridge —
        covered from Python, where that face actually lives). */
-    wfm_synth_state_t *sp
+    dp_wfm_synth_state_t *sp
         = wfm_compose_build_synth (&plain, 1.0, nb, 0.0, 100.0, 0.0, 0, 0, 0);
-    wfm_synth_state_t *sf
+    dp_wfm_synth_state_t *sf
         = wfm_compose_build_synth (&framed, 1.0, nb, 0.0, 100.0, 0.0, 0, 0, 0);
     DP_REQUIRE_MSG (sp && sf, "both sources build");
-    wfm_synth_steps (sp, a, nb);
-    wfm_synth_steps (sf, b, nb);
+    dp_wfm_synth_steps (sp, a, nb);
+    dp_wfm_synth_steps (sf, b, nb);
     DP_REQUIRE_MSG (memcmp (a, b, nb * sizeof *a) != 0,
                     "a framed source must not emit the unframed waveform");
 
@@ -2202,11 +2205,11 @@ main (void)
       }
     /* One frame, then it CYCLES — which is what turns a one-frame description
        into a multi-frame record without a repeat count in the descriptor. */
-    float _Complex    *c2 = malloc (2 * nb * sizeof *c2);
-    wfm_synth_state_t *sc = wfm_compose_build_synth (&framed, 1.0, 2 * nb, 0.0,
-                                                     100.0, 0.0, 0, 0, 0);
+    float _Complex       *c2 = malloc (2 * nb * sizeof *c2);
+    dp_wfm_synth_state_t *sc = wfm_compose_build_synth (
+        &framed, 1.0, 2 * nb, 0.0, 100.0, 0.0, 0, 0, 0);
     DP_REQUIRE_MSG (c2 && sc, "cycle alloc");
-    wfm_synth_steps (sc, c2, 2 * nb);
+    dp_wfm_synth_steps (sc, c2, 2 * nb);
     DP_REQUIRE_MSG (memcmp (c2, c2 + nb, nb * sizeof *c2) == 0,
                     "the frame repeats verbatim");
 
@@ -2238,9 +2241,9 @@ main (void)
                     "and the standalone bridge agrees — they share the attach "
                     "for exactly this reason");
 
-    wfm_synth_destroy (sp);
-    wfm_synth_destroy (sf);
-    wfm_synth_destroy (sc);
+    dp_wfm_synth_destroy (sp);
+    dp_wfm_synth_destroy (sf);
+    dp_wfm_synth_destroy (sc);
     free (a);
     free (b);
     free (c2);
@@ -2459,7 +2462,7 @@ main (void)
    * descriptor could see it. The source now carries `wfm_seq_t` (step 1) and
    * the bridge passes it through, which is the whole change.
    *
-   * The truth is `pn_generate` over the same three numbers -- an EXTERNAL
+   * The truth is `dp_pn_generate` over the same three numbers -- an EXTERNAL
    * one. A round trip through the frame would agree with itself perfectly
    * while regenerating the wrong sequence, which is exactly the shape that
    * let a Gold field sit differentially-checked and wrong.
@@ -2504,13 +2507,15 @@ main (void)
                     "and the frame assembles");
 
     static uint8_t want[31];
-    pn_state_t    *pn = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
-    DP_REQUIRE_MSG (pn != NULL, "pn_create");
-    DP_REQUIRE_MSG (pn_generate (pn, 31u, want, 31u) == 31u, "pn_generate");
-    pn_destroy (pn);
-    DP_REQUIRE_MSG (memcmp (got + l.field_off[i], want, 31u) == 0,
-                    "a PN sync declared on the SOURCE is pn_generate of its "
-                    "own three numbers, at the offset the layout promised");
+    dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE_MSG (pn != NULL, "dp_pn_create");
+    DP_REQUIRE_MSG (dp_pn_generate (pn, 31u, want, 31u) == 31u,
+                    "dp_pn_generate");
+    dp_pn_destroy (pn);
+    DP_REQUIRE_MSG (
+        memcmp (got + l.field_off[i], want, 31u) == 0,
+        "a PN sync declared on the SOURCE is dp_pn_generate of its "
+        "own three numbers, at the offset the layout promised");
 
     /* A literal source still describes a literal, unchanged. Both
        directions: a bridge that stamped PN on everything would pass the
@@ -2579,7 +2584,7 @@ main (void)
     DP_REQUIRE_MSG (jc, "from_json");
 
     /* The bits the reloaded description assembles must equal the original's,
-       and must equal pn_generate -- an EXTERNAL truth, so a record that
+       and must equal dp_pn_generate -- an EXTERNAL truth, so a record that
        round-tripped its own mistake perfectly would still fail. */
     wfm_frame_desc_t d;
     DP_REQUIRE_MSG (wfm_source_describe_frame (&src, &d) == 0, "describe");
@@ -2591,12 +2596,13 @@ main (void)
     DP_REQUIRE (wfm_frame_assemble (&d, NULL, got, sizeof got) == l.out_bits);
 
     static uint8_t want[31];
-    pn_state_t    *pn = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5u), 3u, 5u, 0);
     DP_REQUIRE (pn != NULL);
-    DP_REQUIRE (pn_generate (pn, 31u, want, 31u) == 31u);
-    pn_destroy (pn);
-    DP_REQUIRE_MSG (memcmp (got + l.field_off[i], want, 31u) == 0,
-                    "the recorded PN sync is pn_generate of its own numbers");
+    DP_REQUIRE (dp_pn_generate (pn, 31u, want, 31u) == 31u);
+    dp_pn_destroy (pn);
+    DP_REQUIRE_MSG (
+        memcmp (got + l.field_off[i], want, 31u) == 0,
+        "the recorded PN sync is dp_pn_generate of its own numbers");
 
     wfm_compose_destroy (jc);
     free (js);
@@ -2605,7 +2611,7 @@ main (void)
        spreading code, so every branch of the codec is driven by a test
        rather than by one kind standing in for three. The Gold taps are the
        header's own worked example, and the check is again EXTERNAL --
-       gold_generate of the same five numbers. */
+       dp_gold_generate of the same five numbers. */
     {
       wfm_source_t g;
       memset (&g, 0, sizeof g);
@@ -2647,7 +2653,7 @@ main (void)
       wfm_compose_destroy (gc);
       free (gjs);
 
-      /* The Gold sync's bits, against gold_generate of the same numbers. */
+      /* The Gold sync's bits, against dp_gold_generate of the same numbers. */
       wfm_frame_desc_t gd;
       DP_REQUIRE (wfm_source_describe_frame (&g, &gd) == 0);
       const int gi = wfm_frame_field_index (&gd, "sync");
@@ -2657,13 +2663,13 @@ main (void)
       static uint8_t gbits[4096];
       DP_REQUIRE (wfm_frame_assemble (&gd, NULL, gbits, sizeof gbits)
                   == gl.out_bits);
-      static uint8_t gwant[16];
-      gold_state_t  *gs = gold_create (934u, 350u, 567u, 73u, 10u);
+      static uint8_t   gwant[16];
+      dp_gold_state_t *gs = dp_gold_create (934u, 350u, 567u, 73u, 10u);
       DP_REQUIRE (gs != NULL);
-      DP_REQUIRE (gold_generate (gs, 16u, gwant, 16u) == 16u);
-      gold_destroy (gs);
+      DP_REQUIRE (dp_gold_generate (gs, 16u, gwant, 16u) == 16u);
+      dp_gold_destroy (gs);
       DP_REQUIRE_MSG (memcmp (gbits + gl.field_off[gi], gwant, 16u) == 0,
-                      "a recorded Gold sync IS gold_generate of its own "
+                      "a recorded Gold sync IS dp_gold_generate of its own "
                       "five numbers");
     }
 
@@ -2707,7 +2713,7 @@ main (void)
             "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
             "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"gold\",\"len\":8,"
             "\"reg_bits\":65}}]}"),
-        "a Gold register wider than the 64 bits gold_create() holds is "
+        "a Gold register wider than the 64 bits dp_gold_create() holds is "
         "refused, not silently masked down");
     DP_REQUIRE_MSG (
         !wfm_compose_from_json (
@@ -2741,29 +2747,29 @@ main (void)
             .pn_length   = 7,
             .symbol_rate = 1e4,
             .data_code   = { .kind = WFM_SEQ_PN, .len = 31, .reg_bits = 5 } };
-    wfm_synth_state_t *cs = wfm_source_to_synth (&cgen, 1e6);
+    dp_wfm_synth_state_t *cs = wfm_source_to_synth (&cgen, 1e6);
     DP_REQUIRE_MSG (cs,
                     "a continuous stream spread by a GENERATED code builds -- "
                     "a generated code carries no array, so a pointer test "
                     "refused every recorded data_code_gen on this face");
-    wfm_synth_destroy (cs);
+    dp_wfm_synth_destroy (cs);
 
     /* A burst with NO acquisition preamble. The expansion still runs over the
        absent field and must yield nothing rather than invent one. */
-    wfm_source_t       nopre = { .type         = WFM_SYNTH_DSSS,
-                                 .snr          = 40.0,
-                                 .snr_mode     = 1,
-                                 .seed         = 7,
-                                 .sps          = 2,
-                                 .pn_length    = 7,
-                                 .data_code    = { .bits = dcode4, .len = 4 },
-                                 .sync         = { .bits = sync2, .len = 2 },
-                                 .payload.bits = pay5,
-                                 .payload.len  = 5,
-                                 .crc          = 1 };
-    wfm_synth_state_t *ns    = wfm_source_to_synth (&nopre, 1e6);
+    wfm_source_t          nopre = { .type      = WFM_SYNTH_DSSS,
+                                    .snr       = 40.0,
+                                    .snr_mode  = 1,
+                                    .seed      = 7,
+                                    .sps       = 2,
+                                    .pn_length = 7,
+                                    .data_code = { .bits = dcode4, .len = 4 },
+                                    .sync      = { .bits = sync2, .len = 2 },
+                                    .payload.bits = pay5,
+                                    .payload.len  = 5,
+                                    .crc          = 1 };
+    dp_wfm_synth_state_t *ns    = wfm_source_to_synth (&nopre, 1e6);
     DP_REQUIRE_MSG (ns, "a burst with a sync word and no preamble is a burst");
-    wfm_synth_destroy (ns);
+    dp_wfm_synth_destroy (ns);
 
     /* A code that is DECLARED and unbuildable -- a length with no array -- is
        refused on BOTH chip paths. Spreading whatever the fresh buffer held

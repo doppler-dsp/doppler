@@ -33,13 +33,13 @@ main (void)
     const int16_t one[4] = { 1, -1, Q15_MAX, Q15_MIN };
     int16_t       out[4] = { 0 };
 
-    add_q15 (big, 4, one, 4, out);
+    dp_add_q15 (big, 4, one, 4, out);
     DP_CHECK (out[0] == Q15_MAX); /* 32767 + 1 clamps, does not wrap */
     DP_CHECK (out[1] == Q15_MIN);
     DP_CHECK (out[2] == Q15_MAX); /* max + max is still max */
     DP_CHECK (out[3] == Q15_MIN);
 
-    sub_q15 (big, 4, one, 4, out);
+    dp_sub_q15 (big, 4, one, 4, out);
     DP_CHECK (out[0] == Q15_MAX - 1);
     DP_CHECK (out[1] == Q15_MIN + 1); /* min - (-1) rises by one, no wrap */
     DP_CHECK (out[2] == 0);
@@ -51,7 +51,7 @@ main (void)
       const int16_t lo[2]  = { Q15_MIN, Q15_MAX };
       const int16_t hi[2]  = { Q15_MAX, Q15_MIN };
       int16_t       sat[2] = { 0 };
-      sub_q15 (lo, 2, hi, 2, sat);
+      dp_sub_q15 (lo, 2, hi, 2, sat);
       DP_CHECK (sat[0] == Q15_MIN);
       DP_CHECK (sat[1] == Q15_MAX);
     }
@@ -63,7 +63,7 @@ main (void)
     const int16_t b[3]   = { Q15_MAX, 16384, Q15_MIN };
     int16_t       out[3] = { 0 };
 
-    mul_q15 (a, 3, b, 3, out);
+    dp_mul_q15 (a, 3, b, 3, out);
     /* 0.5 * 0.5 = 0.25 -> 8192, exactly representable. */
     DP_CHECK (out[1] == 8192);
     /* (1-eps)^2 stays inside the range and near full scale. */
@@ -84,7 +84,7 @@ main (void)
         a[i] = Q15_MAX;
         b[i] = Q15_MAX;
       }
-    const int64_t d = dot_q15 (a, 8, b, 8);
+    const int64_t d = dp_dot_q15 (a, 8, b, 8);
     DP_CHECK (d == 8LL * (int64_t)Q15_MAX * (int64_t)Q15_MAX);
     DP_CHECK (d > 0); /* the sign is what a narrow accumulator loses */
   }
@@ -94,13 +94,13 @@ main (void)
     const int16_t a[4]   = { 16384, -16384, 1, -1 };
     int16_t       out[4] = { 0 };
 
-    shl_q15 (a, 4, out, 1);
+    dp_shl_q15 (a, 4, out, 1);
     DP_CHECK (out[0] == Q15_MAX); /* 0.5 << 1 = 1.0, not representable */
     DP_CHECK (out[1] == Q15_MIN);
     DP_CHECK (out[2] == 2);
     DP_CHECK (out[3] == -2);
 
-    shr_q15 (a, 4, out, 1);
+    dp_shr_q15 (a, 4, out, 1);
     DP_CHECK (out[0] == 8192);
     DP_CHECK (out[1] == -8192);
     /* A right shift of a negative odd value must not round toward zero
@@ -110,7 +110,7 @@ main (void)
     DP_CHECK (out[3] == 0 || out[3] == -1);
 
     /* Shifting by zero is the identity. */
-    shl_q15 (a, 4, out, 0);
+    dp_shl_q15 (a, 4, out, 0);
     for (int i = 0; i < 4; i++)
       DP_CHECK (out[i] == a[i]);
   }
@@ -121,13 +121,13 @@ main (void)
     const int8_t one[4] = { 1, -1, Q8_MAX, Q8_MIN };
     int8_t       out[4] = { 0 };
 
-    add_q8 (big, 4, one, 4, out);
+    dp_add_q8 (big, 4, one, 4, out);
     DP_CHECK (out[0] == Q8_MAX);
     DP_CHECK (out[1] == Q8_MIN);
     DP_CHECK (out[2] == Q8_MAX);
     DP_CHECK (out[3] == Q8_MIN);
 
-    sub_q8 (big, 4, one, 4, out);
+    dp_sub_q8 (big, 4, one, 4, out);
     DP_CHECK (out[0] == Q8_MAX - 1);
     DP_CHECK (out[1] == Q8_MIN + 1);
     DP_CHECK (out[2] == 0);
@@ -137,7 +137,7 @@ main (void)
       const int8_t lo[2]  = { Q8_MIN, Q8_MAX };
       const int8_t hi[2]  = { Q8_MAX, Q8_MIN };
       int8_t       sat[2] = { 0 };
-      sub_q8 (lo, 2, hi, 2, sat);
+      dp_sub_q8 (lo, 2, hi, 2, sat);
       DP_CHECK (sat[0] == Q8_MIN);
       DP_CHECK (sat[1] == Q8_MAX);
     }
@@ -148,7 +148,7 @@ main (void)
     const int8_t b[3]   = { Q8_MAX, 64, Q8_MIN };
     int8_t       out[3] = { 0 };
 
-    mul_q8 (a, 3, b, 3, out);
+    dp_mul_q8 (a, 3, b, 3, out);
     DP_CHECK (out[1] == 32); /* 0.5 * 0.5 = 0.25 */
     DP_CHECK (out[0] > 120 && out[0] <= Q8_MAX);
     DP_CHECK (out[2] == Q8_MAX); /* (-1)^2 saturates, as in Q15 */
@@ -161,7 +161,7 @@ main (void)
         a[i] = Q8_MAX;
         b[i] = Q8_MAX;
       }
-    const int32_t d = dot_q8 (a, 8, b, 8);
+    const int32_t d = dp_dot_q8 (a, 8, b, 8);
     DP_CHECK (d == 8 * Q8_MAX * Q8_MAX);
     DP_CHECK (d > 0);
   }
@@ -170,16 +170,16 @@ main (void)
     const int8_t a[4]   = { 64, -64, 1, -1 };
     int8_t       out[4] = { 0 };
 
-    shl_q8 (a, 4, out, 1);
+    dp_shl_q8 (a, 4, out, 1);
     DP_CHECK (out[0] == Q8_MAX);
     DP_CHECK (out[1] == Q8_MIN);
     DP_CHECK (out[2] == 2);
 
-    shr_q8 (a, 4, out, 1);
+    dp_shr_q8 (a, 4, out, 1);
     DP_CHECK (out[0] == 32);
     DP_CHECK (out[1] == -32);
 
-    shl_q8 (a, 4, out, 0);
+    dp_shl_q8 (a, 4, out, 0);
     for (int i = 0; i < 4; i++)
       DP_CHECK (out[i] == a[i]);
   }
@@ -189,15 +189,15 @@ main (void)
     const int64_t a[3]   = { 1, -1, 1LL << 40 };
     int64_t       out[3] = { 0 };
 
-    shl_i64 (a, 3, out, 4);
+    dp_shl_i64 (a, 3, out, 4);
     DP_CHECK (out[0] == 16);
     DP_CHECK (out[1] == -16);
     DP_CHECK (out[2] == (1LL << 44));
 
-    shr_i64 (a, 3, out, 4);
+    dp_shr_i64 (a, 3, out, 4);
     DP_CHECK (out[2] == (1LL << 36));
 
-    shl_i64 (a, 3, out, 0);
+    dp_shl_i64 (a, 3, out, 0);
     for (int i = 0; i < 3; i++)
       DP_CHECK (out[i] == a[i]);
   }
@@ -208,7 +208,7 @@ main (void)
     const int16_t b[2]   = { 1, 2 };
     int16_t       out[4] = { -1, -1, -1, -1 };
 
-    add_q15 (a, 4, b, 2, out);
+    dp_add_q15 (a, 4, b, 2, out);
     DP_CHECK (out[0] == 101);
     DP_CHECK (out[1] == 202);
     /* Whatever the kernel does past the short operand, it must not have

@@ -25,10 +25,10 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
            const float _Complex *x, float _Complex *out, jm_bench_t *bench)
 {
   /* Write the capture once (kept warm in the page cache). */
-  FILE               *fp = fopen (path, "wb");
-  wfm_writer_state_t *w
+  FILE                  *fp = fopen (path, "wb");
+  dp_wfm_writer_state_t *w
       = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
-  wfm_writer_write (w, x, BENCH_N);
+  dp_wfm_writer_write (w, x, BENCH_N);
   wfm_writer_close (w);
   fclose (fp);
 
@@ -36,14 +36,14 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
   double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      t0                        = jm_bench_now_ns ();
-      wfm_reader_state_t *rd    = wfm_reader_create (path, stype, 0);
-      size_t              total = 0, n;
-      while ((n = wfm_reader_read (rd, BENCH_N - total, out + total,
-                                   BENCH_N - total))
+      t0                           = jm_bench_now_ns ();
+      dp_wfm_reader_state_t *rd    = dp_wfm_reader_create (path, stype, 0);
+      size_t                 total = 0, n;
+      while ((n = dp_wfm_reader_read (rd, BENCH_N - total, out + total,
+                                      BENCH_N - total))
              > 0)
         total += n;
-      wfm_reader_destroy (rd);
+      dp_wfm_reader_destroy (rd);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -66,28 +66,28 @@ static void
 bench_seek (const char *name, const char *path, int ft, int stype,
             size_t batch, const float _Complex *x, jm_bench_t *bench)
 {
-  FILE               *fp = fopen (path, "wb");
-  wfm_writer_state_t *w
+  FILE                  *fp = fopen (path, "wb");
+  dp_wfm_writer_state_t *w
       = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
-  wfm_writer_write (w, x, BENCH_N);
+  dp_wfm_writer_write (w, x, BENCH_N);
   wfm_writer_close (w);
   fclose (fp);
 
-  wfm_reader_state_t *rd = wfm_reader_create (path, stype, 0);
-  uint64_t            t0, t1;
-  double              times[ITERATIONS];
+  dp_wfm_reader_state_t *rd = dp_wfm_reader_create (path, stype, 0);
+  uint64_t               t0, t1;
+  double                 times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
       for (size_t i = 0; i < batch; i++)
         {
-          wfm_reader_seek (rd, (int64_t)(BENCH_N / 2));
-          wfm_reader_seek (rd, 0);
+          dp_wfm_reader_seek (rd, (int64_t)(BENCH_N / 2));
+          dp_wfm_reader_seek (rd, 0);
         }
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  wfm_reader_destroy (rd);
+  dp_wfm_reader_destroy (rd);
   printf ("  %-26s %8.1f kseek/s\n", name,
           (double)(2 * batch) / (times[0] > 0 ? times[0] : 1e-9) / 1e3);
   jm_bench_add (bench, name, times, ITERATIONS, 2 * batch);

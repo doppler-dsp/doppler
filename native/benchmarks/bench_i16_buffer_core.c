@@ -18,11 +18,11 @@
 int
 main (void)
 {
-  i16_buffer_state_t *ab     = dp_i16_create (16 * FRAME);
-  jm_bench_t          _bench = { 0 };
-  static dp_iq16_t    x[FRAME];
-  static double       times[ITERATIONS];
-  size_t              sink = 0;
+  dp_i16_buffer_state_t *ab     = dp_i16_create (16 * FRAME);
+  jm_bench_t             _bench = { 0 };
+  static dp_iq16_t       x[FRAME];
+  static double          times[ITERATIONS];
+  size_t                 sink = 0;
 
   if (!ab)
     return 1;

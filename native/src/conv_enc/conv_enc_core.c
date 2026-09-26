@@ -2,7 +2,7 @@
  * conv_enc_core.c — the convolutional encoder as an object over `conv`.
  *
  * Every line here is lifecycle and bookkeeping. The encoding itself is
- * `conv_encode`'s, one call in `conv_enc_encode`, because a second
+ * `conv_encode`'s, one call in `dp_conv_enc_encode`, because a second
  * implementation of a code family is how an inversion or an output order
  * comes to differ between the two and interoperate with neither.
  */
@@ -11,13 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-conv_enc_state_t *
+dp_conv_enc_state_t *
 conv_enc_create_code (const conv_code_t *c)
 {
   if (!conv_code_valid (c))
     return NULL;
 
-  conv_enc_state_t *s = calloc (1, sizeof *s);
+  dp_conv_enc_state_t *s = calloc (1, sizeof *s);
   if (!s)
     return NULL;
   s->code = *c;
@@ -25,9 +25,9 @@ conv_enc_create_code (const conv_code_t *c)
   return s;
 }
 
-conv_enc_state_t *
-conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
-                 uint32_t invert)
+dp_conv_enc_state_t *
+dp_conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
+                    uint32_t invert)
 {
   /* Assembled here rather than by the caller: the manifest cannot express a
      conv_code_t, so the declared constructor takes the polynomials and the
@@ -46,32 +46,32 @@ conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
 }
 
 void
-conv_enc_destroy (conv_enc_state_t *state)
+dp_conv_enc_destroy (dp_conv_enc_state_t *state)
 {
   free (state);
 }
 
 void
-conv_enc_reset (conv_enc_state_t *state)
+dp_conv_enc_reset (dp_conv_enc_state_t *state)
 {
   conv_enc_init (&state->enc);
 }
 
 const conv_code_t *
-conv_enc_code (const conv_enc_state_t *s)
+conv_enc_code (const dp_conv_enc_state_t *s)
 {
   return &s->code;
 }
 
 size_t
-conv_enc_encode_max_out (const conv_enc_state_t *state, size_t n_in)
+dp_conv_enc_encode_max_out (const dp_conv_enc_state_t *state, size_t n_in)
 {
   return n_in * (size_t)state->code.n;
 }
 
 size_t
-conv_enc_encode (conv_enc_state_t *state, const uint8_t *in, size_t n_in,
-                 uint8_t *out, size_t max_out)
+dp_conv_enc_encode (dp_conv_enc_state_t *state, const uint8_t *in, size_t n_in,
+                    uint8_t *out, size_t max_out)
 {
   return conv_encode (&state->enc, &state->code, in, n_in, out, max_out);
 }
@@ -94,17 +94,17 @@ typedef struct
 } conv_enc_extra_t;
 
 size_t
-conv_enc_state_bytes (const conv_enc_state_t *s)
+dp_conv_enc_state_bytes (const dp_conv_enc_state_t *s)
 {
   (void)s;
   return sizeof (dp_state_hdr_t) + sizeof (conv_enc_extra_t);
 }
 
 void
-conv_enc_get_state (const conv_enc_state_t *s, void *blob)
+dp_conv_enc_get_state (const dp_conv_enc_state_t *s, void *blob)
 {
   DP_GET_OPEN (CONV_ENC_STATE_MAGIC, CONV_ENC_STATE_VERSION,
-               conv_enc_state_bytes (s));
+               dp_conv_enc_state_bytes (s));
 
   /* memset rather than a designated initializer: the padding one leaves
      unspecified (C11 6.7.9p10) would be written to the blob whole, which
@@ -125,10 +125,10 @@ conv_enc_get_state (const conv_enc_state_t *s, void *blob)
 }
 
 int
-conv_enc_set_state (conv_enc_state_t *s, const void *blob)
+dp_conv_enc_set_state (dp_conv_enc_state_t *s, const void *blob)
 {
   DP_SET_OPEN (CONV_ENC_STATE_MAGIC, CONV_ENC_STATE_VERSION,
-               conv_enc_state_bytes (s));
+               dp_conv_enc_state_bytes (s));
 
   conv_enc_extra_t extra;
   dp_r_bytes (&_r, &extra, sizeof extra);

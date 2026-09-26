@@ -12,7 +12,7 @@
  * soft demapper, not this.
  */
 size_t
-nrz_to_bin (const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len)
+dp_nrz_to_bin (const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len)
 {
   if (!nrz || !out || nrz_len == 0u || nrz_len > out_len)
     return 0;

@@ -119,10 +119,10 @@ add_test(NAME test_wfm_plan COMMAND test_wfm_plan)
 # wfm_dsp_core is spreading and RRC taps -- which every receiver links for a
 # matched filter and which must not start dragging in a Gold LFSR because a
 # frame somewhere might use one. (Measured: folding them together put
-# gold_create into eight targets, four of them jm-generated.)
+# dp_gold_create into eight targets, four of them jm-generated.)
 #
-# pn/gold are here because the generated sequence kinds ARE pn_create /
-# gold_create -- the descriptor references the generators rather than adding
+# pn/gold are here because the generated sequence kinds ARE dp_pn_create /
+# dp_gold_create -- the descriptor references the generators rather than adding
 # one, which is what lets a receiver regenerate a long record's truth from a
 # handful of numbers instead of carrying the array.
 add_library(wfm_frame_core OBJECT

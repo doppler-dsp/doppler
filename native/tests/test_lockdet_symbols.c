@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_lockdet[] = {
-    (jm_any_fn)lockdet_create,
-    (jm_any_fn)lockdet_destroy,
-    (jm_any_fn)lockdet_configure,
-    (jm_any_fn)lockdet_reset,
-    (jm_any_fn)lockdet_state_bytes,
-    (jm_any_fn)lockdet_get_state,
-    (jm_any_fn)lockdet_set_state,
-    (jm_any_fn)lockdet_steps,
+    (jm_any_fn)dp_lockdet_create,
+    (jm_any_fn)dp_lockdet_destroy,
+    (jm_any_fn)dp_lockdet_configure,
+    (jm_any_fn)dp_lockdet_reset,
+    (jm_any_fn)dp_lockdet_state_bytes,
+    (jm_any_fn)dp_lockdet_get_state,
+    (jm_any_fn)dp_lockdet_set_state,
+    (jm_any_fn)dp_lockdet_steps,
 };

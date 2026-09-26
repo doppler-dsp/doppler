@@ -3,7 +3,7 @@
  * Benchmarks the two ways to run the loop over a sample block:
  *   step   — the inline composition hot path a receiver inlines per sample
  *            (carrier_nda_wipeoff -> _arm_step -> _steer)
- *   steps  — the block carrier_nda_steps() (the Python face)
+ *   steps  — the block dp_carrier_nda_steps() (the Python face)
  *
  * Both do identical per-sample work (steps() is the same three inline calls in
  * a loop); the pair captures any block-call overhead vs the inlined path.
@@ -53,8 +53,9 @@ main (void)
   /* --- step: the inline composition hot path (receiver per-sample loop). ---
    */
   {
-    carrier_nda_state_t *c    = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
-    volatile float       sink = 0.0f;
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    volatile float sink = 0.0f;
     for (int i = 0; i < 16; i++) /* warmup */
       {
         float _Complex d = carrier_nda_wipeoff (c, in[i]);
@@ -82,24 +83,25 @@ main (void)
     jm_bench_add (&_bench, "step", times, ITERATIONS, BENCH_N);
     report ("step", times);
     (void)sink;
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
   }
 
   /* --- steps: the block API (Python face). --- */
   {
-    carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
-    carrier_nda_steps (c, in, 16, out, 16); /* warmup */
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_carrier_nda_steps (c, in, 16, out, 16); /* warmup */
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        carrier_nda_steps (c, in, BENCH_N, out, BENCH_N);
+        dp_carrier_nda_steps (c, in, BENCH_N, out, BENCH_N);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "steps", times, ITERATIONS, BENCH_N);
     report ("steps", times);
-    carrier_nda_destroy (c);
+    dp_carrier_nda_destroy (c);
   }
 
   jm_bench_write_json (&_bench, "carrier_nda");

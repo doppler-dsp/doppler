@@ -20,10 +20,10 @@
  *    `p^n_up * (1 - p) / (1 - p^n_up)`, whose reciprocal is exactly
  *    det_verify_delay(p, n_up), the mean looks to a declare. `p^n_up`
  *    alone is the **p -> 0 limit** of that, and is what
- *    det_verify_count() sizes against -- correct to 0.001% at p = 1e-5,
+ *    dp_det_verify_count() sizes against -- correct to 0.001% at p = 1e-5,
  *    10% at p = 0.1, and **+87% at p = 0.5 with n_up = 4**. Use it as the
  *    budget (it errs high, so it over-provisions n_up) and
- *    det_verify_delay() for the number a caller actually observes.
+ *    dp_det_verify_delay() for the number a caller actually observes.
  *    Measured across p from 0.1 to 0.5 and n_up from 1 to 4:
  *    native/validation/lockdet_verify.c.
  *
@@ -38,34 +38,34 @@
  *    other miss, so a metric that goes NaN drops the lock after @c n_down
  *    rather than holding it lit. An unknown lock is not a lock. The policy is
  *    not implemented here: the look is passed through util_core.h's
- *    saturate(), whose @c nan_to parameter documents a lock statistic as the
+ *    dp_saturate(), whose @c nan_to parameter documents a lock statistic as the
  *    caller that wants the floor. Only NaN is unordered — the infinities are
  *    ordinary looks (+inf a hit, -inf a miss), and the exclusive edges are
  *    unchanged.
  *
  * The state struct is **public** so a tracker embeds it by value (no heap)
- * and drives it with lockdet_init()/lockdet_step() — e.g. the DLL steps one
+ * and drives it with lockdet_init()/dp_lockdet_step() — e.g. the DLL steps one
  * on its CFAR statistic each N-look decision, the MPSK receiver steps one on
- * the carrier lock metric each recovered symbol. lockdet_create() is the
+ * the carrier lock metric each recovered symbol. dp_lockdet_create() is the
  * heap path used by the Python wrapper. Pointer-free POD: it rides an
  * embedding composer's whole-struct state snapshot with no extra packing.
  *
  * Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
  *
  * @code
- * lockdet_state_t d;
+ * dp_lockdet_state_t d;
  * lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
- * lockdet_reset (&d);                      // cnt = 0, locked = 0
- * int locked = lockdet_step (&d, metric);  // one look -> current flag
+ * dp_lockdet_reset (&d);                      // cnt = 0, locked = 0
+ * int locked = dp_lockdet_step (&d, metric);  // one look -> current flag
  * @endcode
  */
-#ifndef LOCKDET_CORE_H
-#define LOCKDET_CORE_H
+#ifndef DP_LOCKDET_CORE_H
+#define DP_LOCKDET_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
-#include "doppler/util/util_core.h" /* saturate() — the NaN policy, shared */
+#include "doppler/util/util_core.h" /* dp_saturate() — the NaN policy, shared */
 #include <math.h>
 #ifdef __cplusplus
 extern "C"
@@ -83,7 +83,7 @@ extern "C"
     uint32_t n_down;    /**< consecutive misses required to drop (>= 1).  */
     uint32_t cnt;       /**< running consecutive-look verify counter.     */
     int locked;         /**< current decision (1 = locked).               */
-  } lockdet_state_t;
+  } dp_lockdet_state_t;
 
   /**
    * @brief Initialise a lock detector in place (no allocation).
@@ -91,8 +91,8 @@ extern "C"
    * Stores the thresholds and verify counts (each count clamped to >= 1; a
    * count of 1 means no time hysteresis on that side). Does **not** touch
    * @c cnt / @c locked, so it doubles as a reconfigure that preserves the
-   * current decision. Use this for a `lockdet_state_t` embedded by value;
-   * lockdet_create() is calloc + lockdet_init().
+   * current decision. Use this for a `dp_lockdet_state_t` embedded by value;
+   * dp_lockdet_create() is calloc + lockdet_init().
    *
    * @param state        Must be non-NULL.
    * @param up_thresh    Declare threshold (hit when metric > up_thresh).
@@ -101,7 +101,7 @@ extern "C"
    * @param n_up         Consecutive hits to declare; clamped to >= 1.
    * @param n_down       Consecutive misses to drop; clamped to >= 1.
    */
-  void lockdet_init(lockdet_state_t *state, double up_thresh,
+  void lockdet_init(dp_lockdet_state_t *state, double up_thresh,
                     double down_thresh, uint32_t n_up, uint32_t n_down);
 
   /**
@@ -111,16 +111,16 @@ extern "C"
    * @param n_up         Consecutive hits to declare; clamped >= 1 (default 1).
    * @param n_down       Consecutive misses to drop; clamped >= 1 (default 1).
    * @return Heap-allocated state, or NULL on allocation failure.
-   * @note Caller must call lockdet_destroy() when done.
+   * @note Caller must call dp_lockdet_destroy() when done.
    */
-  lockdet_state_t *lockdet_create(double up_thresh, double down_thresh,
+  dp_lockdet_state_t *dp_lockdet_create(double up_thresh, double down_thresh,
                                   uint32_t n_up, uint32_t n_down);
 
   /**
    * @brief Destroy a lockdet instance and release all memory.
    * @param state  May be NULL.
    */
-  void lockdet_destroy(lockdet_state_t *state);
+  void dp_lockdet_destroy(dp_lockdet_state_t *state);
 
   /**
    * @brief Re-tune thresholds and verify counts; preserve the decision.
@@ -145,7 +145,7 @@ extern "C"
    *
    * @endcode
    */
-  void lockdet_configure(lockdet_state_t *state, double up_thresh,
+  void dp_lockdet_configure(dp_lockdet_state_t *state, double up_thresh,
                          double down_thresh, uint32_t n_up, uint32_t n_down);
 
   /**
@@ -165,7 +165,7 @@ extern "C"
    *
    * @endcode
    */
-  void lockdet_reset(lockdet_state_t *state);
+  void dp_lockdet_reset(dp_lockdet_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Whole-struct POD snapshot (pointer-free); the decision flag and the
@@ -175,11 +175,11 @@ extern "C"
 #define LOCKDET_STATE_VERSION 1u
 
   /** @brief Serialized-state byte size. */
-  size_t lockdet_state_bytes(const lockdet_state_t *state);
+  size_t dp_lockdet_state_bytes(const dp_lockdet_state_t *state);
   /** @brief Serialize the detector state into @p blob. */
-  void lockdet_get_state(const lockdet_state_t *state, void *blob);
+  void dp_lockdet_get_state(const dp_lockdet_state_t *state, void *blob);
   /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
-  int lockdet_set_state(lockdet_state_t *state, const void *blob);
+  int dp_lockdet_set_state(dp_lockdet_state_t *state, const void *blob);
 
   /**
    * @brief Feed one look of the lock metric; return the current decision.
@@ -214,7 +214,7 @@ extern "C"
    * @endcode
    */
   JM_FORCEINLINE JM_HOT int
-  lockdet_step (lockdet_state_t *state, double x)
+  dp_lockdet_step (dp_lockdet_state_t *state, double x)
   {
     /* An unknown lock is not a lock. Send a non-finite look to the floor
        through the SHARED primitive rather than encoding the policy here:
@@ -229,7 +229,7 @@ extern "C"
        forever on a dead metric.
        The bounds are infinite because the substitution is the only job:
        every finite look, and both infinities, pass through untouched. */
-    x = saturate (x, -INFINITY, INFINITY, -INFINITY);
+    x = dp_saturate (x, -INFINITY, INFINITY, -INFINITY);
 
     if (!state->locked)
       {
@@ -262,7 +262,7 @@ extern "C"
 
   /**
    * @brief Run a block of lock-metric looks through the detector.
-   * Applies lockdet_step() to each look in turn, so the decision flag and the
+   * Applies dp_lockdet_step() to each look in turn, so the decision flag and the
    * in-flight verify run carry across the block exactly as they would look by
    * look — a signal can be processed in frames of any size with no seam.
    * @param state  Component state (mutated). Must be non-NULL.
@@ -279,7 +279,7 @@ extern "C"
    *
    * @endcode
    */
-  void lockdet_steps (lockdet_state_t *state, const double *x, int *out,
+  void dp_lockdet_steps (dp_lockdet_state_t *state, const double *x, int *out,
                       size_t n);
 
 #ifdef __cplusplus

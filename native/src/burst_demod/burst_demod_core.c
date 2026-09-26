@@ -26,15 +26,15 @@ wrap_pi (double ph)
   return ph - 2.0 * M_PI * round (ph / (2.0 * M_PI));
 }
 
-burst_demod_state_t *
-burst_demod_create (const uint8_t *data_code, size_t data_code_len, size_t spc,
-                    double chip_rate, double carrier_hz, double max_rate,
-                    size_t frame_syms, size_t est_segments)
+dp_burst_demod_state_t *
+dp_burst_demod_create (const uint8_t *data_code, size_t data_code_len,
+                       size_t spc, double chip_rate, double carrier_hz,
+                       double max_rate, size_t frame_syms, size_t est_segments)
 {
   if (!data_code || data_code_len == 0 || spc == 0 || chip_rate <= 0.0
       || max_rate < 0.0 || est_segments == 0)
     return NULL;
-  burst_demod_state_t *s = calloc (1, sizeof (*s));
+  dp_burst_demod_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
   s->data_code = malloc (data_code_len);
@@ -55,12 +55,12 @@ burst_demod_create (const uint8_t *data_code, size_t data_code_len, size_t spc,
 }
 
 void
-burst_demod_destroy (burst_demod_state_t *s)
+dp_burst_demod_destroy (dp_burst_demod_state_t *s)
 {
   if (!s)
     return;
   if (s->ppe)
-    ppe_destroy (s->ppe);
+    dp_ppe_destroy (s->ppe);
   free (s->data_code);
   free (s->acq_code);
   free (s->sync);
@@ -71,7 +71,7 @@ burst_demod_destroy (burst_demod_state_t *s)
 }
 
 void
-burst_demod_reset (burst_demod_state_t *s)
+dp_burst_demod_reset (dp_burst_demod_state_t *s)
 {
   s->frame_offset     = 0;
   s->n_symbols        = 0;
@@ -82,8 +82,9 @@ burst_demod_reset (burst_demod_state_t *s)
 }
 
 void
-burst_demod_set_preamble (burst_demod_state_t *s, const uint8_t *acq_code,
-                          size_t acq_code_len, size_t reps)
+dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
+                             const uint8_t *acq_code, size_t acq_code_len,
+                             size_t reps)
 {
   if (!acq_code || acq_code_len == 0 || reps == 0)
     return;
@@ -108,13 +109,13 @@ burst_demod_set_preamble (burst_demod_state_t *s, const uint8_t *acq_code,
   double lseg         = (double)(lseg_chips * s->spc);
   double ppe_max_rate = s->max_rate * lseg * lseg;
   if (s->ppe)
-    ppe_destroy (s->ppe);
-  s->ppe = ppe_create (s->n_part, ppe_max_rate);
+    dp_ppe_destroy (s->ppe);
+  s->ppe = dp_ppe_create (s->n_part, ppe_max_rate);
 }
 
 void
-burst_demod_set_sync (burst_demod_state_t *s, const uint8_t *sync,
-                      size_t sync_len)
+dp_burst_demod_set_sync (dp_burst_demod_state_t *s, const uint8_t *sync,
+                         size_t sync_len)
 {
   if (!sync || sync_len == 0)
     return;
@@ -128,21 +129,22 @@ burst_demod_set_sync (burst_demod_state_t *s, const uint8_t *sync,
 }
 
 void
-burst_demod_set_prior (burst_demod_state_t *s, double f0_coarse, size_t start)
+dp_burst_demod_set_prior (dp_burst_demod_state_t *s, double f0_coarse,
+                          size_t start)
 {
   s->f0_prior = f0_coarse;
   s->start    = start;
 }
 
 size_t
-burst_demod_llrs_max_out (burst_demod_state_t *s, size_t n)
+dp_burst_demod_llrs_max_out (dp_burst_demod_state_t *s, size_t n)
 {
   (void)n; /* the count is the last demod()'s frame, not a request */
   return s ? s->frame_syms : 0u;
 }
 
 size_t
-burst_demod_symbols_max_out (burst_demod_state_t *s, size_t n)
+dp_burst_demod_symbols_max_out (dp_burst_demod_state_t *s, size_t n)
 {
   (void)n; /* the count is the last demod()'s frame, not a request */
   /* frame_syms, matching llrs_max_out: this sizes the caller's buffer, and
@@ -151,8 +153,8 @@ burst_demod_symbols_max_out (burst_demod_state_t *s, size_t n)
 }
 
 size_t
-burst_demod_symbols (burst_demod_state_t *s, size_t n, float _Complex *out,
-                     size_t max_out)
+dp_burst_demod_symbols (dp_burst_demod_state_t *s, size_t n,
+                        float _Complex *out, size_t max_out)
 {
   (void)n;
   if (!s || !out || s->n_sym == 0)
@@ -163,7 +165,8 @@ burst_demod_symbols (burst_demod_state_t *s, size_t n, float _Complex *out,
 }
 
 size_t
-burst_demod_llrs (burst_demod_state_t *s, size_t n, float *out, size_t max_out)
+dp_burst_demod_llrs (dp_burst_demod_state_t *s, size_t n, float *out,
+                     size_t max_out)
 {
   (void)n; /* the count is the last demod()'s frame, not a request */
   if (!s || !out || s->n_llr == 0)
@@ -174,7 +177,7 @@ burst_demod_llrs (burst_demod_state_t *s, size_t n, float *out, size_t max_out)
 }
 
 size_t
-burst_demod_demod_max_out (burst_demod_state_t *s)
+dp_burst_demod_demod_max_out (dp_burst_demod_state_t *s)
 {
   return s->frame_syms;
 }
@@ -184,7 +187,7 @@ burst_demod_demod_max_out (burst_demod_state_t *s)
  * estimates.  Iterating with the running (f0, mu) drives the residual to zero.
  */
 static void
-form_partials (const burst_demod_state_t *s, const float _Complex *x,
+form_partials (const dp_burst_demod_state_t *s, const float _Complex *x,
                size_t start, double f0, double mu, size_t lseg_chips,
                float _Complex *part)
 {
@@ -228,7 +231,7 @@ form_partials (const burst_demod_state_t *s, const float _Complex *x,
  * one is negligible -- so timing can be searched without first knowing the
  * frequency to better than the segment rate. */
 static double
-partial_energy (const burst_demod_state_t *s, const float _Complex *x,
+partial_energy (const dp_burst_demod_state_t *s, const float _Complex *x,
                 size_t start, double f0, double mu, size_t lseg_chips,
                 float _Complex *part)
 {
@@ -243,7 +246,7 @@ partial_energy (const burst_demod_state_t *s, const float _Complex *x,
 /* Dechirp the data section by (f0, mu) and prompt-despread to soft BPSK
  * symbols (one per data code period). Returns the symbol count (<= cap). */
 static size_t
-despread_data (const burst_demod_state_t *s, const float _Complex *x,
+despread_data (const dp_burst_demod_state_t *s, const float _Complex *x,
                size_t x_len, size_t data0, size_t npre, double f0, double mu,
                float _Complex *sym, size_t cap)
 {
@@ -278,10 +281,10 @@ despread_data (const burst_demod_state_t *s, const float _Complex *x,
 }
 
 size_t
-burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
-                   size_t x_len, uint8_t *out, size_t max_out)
+dp_burst_demod_demod (dp_burst_demod_state_t *s, const float _Complex *x,
+                      size_t x_len, uint8_t *out, size_t max_out)
 {
-  burst_demod_reset (s);
+  dp_burst_demod_reset (s);
   if (!s->ppe || !s->sync || s->frame_syms == 0)
     return 0;
 
@@ -303,7 +306,7 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
   for (int it = 0; it < BURST_DEMOD_EST_ITERS; it++)
     {
       form_partials (s, x, start, f0, mu, lseg_chips, s->part);
-      ppe_result_t est = ppe_estimate (s->ppe, s->part, s->n_part);
+      ppe_result_t est = dp_ppe_estimate (s->ppe, s->part, s->n_part);
       f0 += est.freq_norm / lseg;
       mu += est.rate_norm / (lseg * lseg);
     }
@@ -414,7 +417,7 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
         for (int it = 0; it < BURST_DEMOD_EST_ITERS; it++)
           {
             form_partials (s, x, start, f0, mu, lseg_chips, s->part);
-            ppe_result_t est = ppe_estimate (s->ppe, s->part, s->n_part);
+            ppe_result_t est = dp_ppe_estimate (s->ppe, s->part, s->n_part);
             f0 += est.freq_norm / lseg;
             mu += est.rate_norm / (lseg * lseg);
           }
@@ -446,7 +449,7 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
    * (per data-symbol period tsym) *before* doubling — true here by
    * construction: the residual is bounded by the preamble estimator's own
    * (small) variance, not by an a priori Doppler search span the way
-   * max_rate's rate search is. ppe_create with max_rate=0 collapses to a
+   * max_rate's rate search is. dp_ppe_create with max_rate=0 collapses to a
    * single FFT (rate_norm always 0), so this refines frequency alone when
    * the caller configured Doppler-only, and both when max_rate>0.
    */
@@ -469,13 +472,13 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
       double t = (double)tsym;
       double rm
           = (s->max_rate > 0.0) ? fmin (s->max_rate * t * t * 2.0, 0.02) : 0.0;
-      ppe_state_t *pr = ppe_create (nsym, rm);
+      dp_ppe_state_t *pr = dp_ppe_create (nsym, rm);
       if (pr)
         {
-          ppe_result_t e2 = ppe_estimate (pr, sym2, nsym);
+          ppe_result_t e2 = dp_ppe_estimate (pr, sym2, nsym);
           f0 += (e2.freq_norm * 0.5) / t;       /* squared -> halve */
           mu += (e2.rate_norm * 0.5) / (t * t); /* squared -> halve */
-          ppe_destroy (pr);
+          dp_ppe_destroy (pr);
           nsym = despread_data (s, x, x_len, data0, npre, f0, mu, sym,
                                 nsym_max);
           s->est_freq_hz = f0 * fs;
@@ -601,7 +604,7 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
       if (a > 0.0)
         for (size_t k = 0; k < frame; k++)
           unit[k] /= (float)a;
-      mpsk_soft_demap (unit, frame, s->llr, frame, 2, (float)n0);
+      dp_mpsk_soft_demap (unit, frame, s->llr, frame, 2, (float)n0);
       s->n_llr = frame;
       s->n_sym = frame;
     }

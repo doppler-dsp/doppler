@@ -33,8 +33,8 @@ _Frame synchronisation: find a known marker in a bit stream, and choose the thre
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**syncword\_hit\_t**](structsyncword__hit__t.md) <br>_What_ [_**syncword\_find**_](syncword__core_8h.md#function-syncword_find) _found._ |
-| struct | [**syncword\_state\_t**](structsyncword__state__t.md) <br>_A searcher for one marker._  |
+| struct | [**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) <br>_A searcher for one marker._  |
+| struct | [**syncword\_hit\_t**](structsyncword__hit__t.md) <br>_What_ [_**dp\_syncword\_find**_](syncword__core_8h.md#function-dp_syncword_find) _found._ |
 
 
 
@@ -61,11 +61,11 @@ _Frame synchronisation: find a known marker in a bit stream, and choose the thre
 
 | Type | Name |
 | ---: | :--- |
-|  [**syncword\_state\_t**](structsyncword__state__t.md) \* | [**syncword\_create**](#function-syncword_create) (const uint8\_t \* marker, size\_t marker\_len) <br>_Create a searcher for_ `marker` _._ |
-|  void | [**syncword\_destroy**](#function-syncword_destroy) ([**syncword\_state\_t**](structsyncword__state__t.md) \* state) <br>_Destroy a searcher and release all memory._  |
-|  [**syncword\_hit\_t**](structsyncword__hit__t.md) | [**syncword\_find**](#function-syncword_find) ([**syncword\_state\_t**](structsyncword__state__t.md) \* state, const uint8\_t \* bits, size\_t bits\_len, uint32\_t max\_errors) <br>_Find the first marker in_ `bits` _, either polarity._ |
-|  int | [**syncword\_max\_errors\_for**](#function-syncword_max_errors_for) ([**syncword\_state\_t**](structsyncword__state__t.md) \* state, size\_t window\_bits, double pfa) <br>_The largest tolerance whose false-frame rate over a search window still meets_ `pfa` _._ |
-|  double | [**syncword\_pfa**](#function-syncword_pfa) ([**syncword\_state\_t**](structsyncword__state__t.md) \* state, uint32\_t max\_errors) <br>_Probability that ONE random offset false-hits this marker at a tolerance of_ `max_errors` _._ |
+|  [**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) \* | [**dp\_syncword\_create**](#function-dp_syncword_create) (const uint8\_t \* marker, size\_t marker\_len) <br>_Create a searcher for_ `marker` _._ |
+|  void | [**dp\_syncword\_destroy**](#function-dp_syncword_destroy) ([**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) \* state) <br>_Destroy a searcher and release all memory._  |
+|  [**syncword\_hit\_t**](structsyncword__hit__t.md) | [**dp\_syncword\_find**](#function-dp_syncword_find) ([**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) \* state, const uint8\_t \* bits, size\_t bits\_len, uint32\_t max\_errors) <br>_Find the first marker in_ `bits` _, either polarity._ |
+|  int | [**dp\_syncword\_max\_errors\_for**](#function-dp_syncword_max_errors_for) ([**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) \* state, size\_t window\_bits, double pfa) <br>_The largest tolerance whose false-frame rate over a search window still meets_ `pfa` _._ |
+|  double | [**dp\_syncword\_pfa**](#function-dp_syncword_pfa) ([**dp\_syncword\_state\_t**](structdp__syncword__state__t.md) \* state, uint32\_t max\_errors) <br>_Probability that ONE random offset false-hits this marker at a tolerance of_ `max_errors` _._ |
 
 
 
@@ -138,11 +138,11 @@ Lifecycle: `create -> [find / pfa / max_errors_for]* -> destroy`.
 
 
 
-### function syncword\_create 
+### function dp\_syncword\_create 
 
 _Create a searcher for_ `marker` _._
 ```C++
-syncword_state_t * syncword_create (
+dp_syncword_state_t * dp_syncword_create (
     const uint8_t * marker,
     size_t marker_len
 ) 
@@ -150,7 +150,7 @@ syncword_state_t * syncword_create (
 
 
 
-The marker is COPIED. A searcher outlives the array it was built from, which is what lets a caller construct one from a temporary — the CCSDS marker arrives from `asm_bits()` as exactly that.
+The marker is COPIED. A searcher outlives the array it was built from, which is what lets a caller construct one from a temporary — the CCSDS marker arrives from `dp_asm_bits()` as exactly that.
 
 
 
@@ -172,7 +172,7 @@ Heap-allocated state, or NULL for an empty marker or on allocation failure.
 
 **Note:**
 
-Caller must call [**syncword\_destroy()**](syncword__core_8h.md#function-syncword_destroy) when done.
+Caller must call [**dp\_syncword\_destroy()**](syncword__core_8h.md#function-dp_syncword_destroy) when done.
 
 
 
@@ -198,12 +198,12 @@ Caller must call [**syncword\_destroy()**](syncword__core_8h.md#function-syncwor
 
 
 
-### function syncword\_destroy 
+### function dp\_syncword\_destroy 
 
 _Destroy a searcher and release all memory._ 
 ```C++
-void syncword_destroy (
-    syncword_state_t * state
+void dp_syncword_destroy (
+    dp_syncword_state_t * state
 ) 
 ```
 
@@ -225,12 +225,12 @@ void syncword_destroy (
 
 
 
-### function syncword\_find 
+### function dp\_syncword\_find 
 
 _Find the first marker in_ `bits` _, either polarity._
 ```C++
-syncword_hit_t syncword_find (
-    syncword_state_t * state,
+syncword_hit_t dp_syncword_find (
+    dp_syncword_state_t * state,
     const uint8_t * bits,
     size_t bits_len,
     uint32_t max_errors
@@ -281,12 +281,12 @@ A record whose `found` says whether the rest of it means anything; a miss return
 
 
 
-### function syncword\_max\_errors\_for 
+### function dp\_syncword\_max\_errors\_for 
 
 _The largest tolerance whose false-frame rate over a search window still meets_ `pfa` _._
 ```C++
-int syncword_max_errors_for (
-    syncword_state_t * state,
+int dp_syncword_max_errors_for (
+    dp_syncword_state_t * state,
     size_t window_bits,
     double pfa
 ) 
@@ -332,12 +332,12 @@ Tolerance in bits, or -1 when even an exact match exceeds `pfa` over that window
 
 
 
-### function syncword\_pfa 
+### function dp\_syncword\_pfa 
 
 _Probability that ONE random offset false-hits this marker at a tolerance of_ `max_errors` _._
 ```C++
-double syncword_pfa (
-    syncword_state_t * state,
+double dp_syncword_pfa (
+    dp_syncword_state_t * state,
     uint32_t max_errors
 ) 
 ```

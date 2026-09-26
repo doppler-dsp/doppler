@@ -92,8 +92,8 @@ disc_gain (const uint8_t *code, const float complex *sig)
   double       e[2];
   for (int s = 0; s < 2; s++)
     {
-      double      off = s ? +tau : -tau;
-      dll_state_t d;
+      double         off = s ? +tau : -tau;
+      dp_dll_state_t d;
       dll_init (&d, code, SF, SPS, off, 1e-9, 0.707, SPACING);
       for (int p = 0; p < 6; p++)
         {
@@ -102,7 +102,7 @@ disc_gain (const uint8_t *code, const float complex *sig)
           dll_update (&d);
           d.acc_e = d.acc_p = d.acc_l = 0.0f;
         }
-      e[s] = dll_get_last_error (&d);
+      e[s] = dp_dll_get_last_error (&d);
     }
   return (e[0] - e[1]) / (2.0 * tau); /* (e(-tau) - e(+tau)) / 2tau > 0 */
 }
@@ -114,9 +114,9 @@ static double
 disc_var (double gamma, const uint8_t *code, const float complex *sig,
           long ndump)
 {
-  awgn_state_t  *g  = awgn_create (7, noise_std (gamma));
-  float complex *nb = malloc ((size_t)NBLK * sizeof (*nb));
-  dll_state_t    d;
+  dp_awgn_state_t *g  = dp_awgn_create (7, noise_std (gamma));
+  float complex   *nb = malloc ((size_t)NBLK * sizeof (*nb));
+  dp_dll_state_t   d;
   dll_init (&d, code, SF, SPS, 0.0, 1e-9, 0.707, SPACING);
   long   pos = NBLK;
   double m = 0, m2 = 0;
@@ -127,20 +127,20 @@ disc_var (double gamma, const uint8_t *code, const float complex *sig,
         {
           if (pos >= NBLK)
             {
-              awgn_generate (g, NBLK, nb, NBLK);
+              dp_awgn_generate (g, NBLK, nb, NBLK);
               pos = 0;
             }
           dll_accumulate (&d, sig[i] + nb[pos++]);
         }
       dll_update (&d); /* one discriminator per epoch */
       d.acc_e = d.acc_p = d.acc_l = 0.0f;
-      double e                    = dll_get_last_error (&d);
+      double e                    = dp_dll_get_last_error (&d);
       m += e;
       m2 += e * e;
       n++;
     }
   free (nb);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   return m2 / n - (m / n) * (m / n);
 }
 
@@ -155,9 +155,9 @@ static double
 phase_var (double gamma, double bn, const uint8_t *code,
            const float complex *sig, long ndump)
 {
-  awgn_state_t  *g  = awgn_create (7, noise_std (gamma));
-  float complex *nb = malloc ((size_t)NBLK * sizeof (*nb));
-  dll_state_t    d;
+  dp_awgn_state_t *g  = dp_awgn_create (7, noise_std (gamma));
+  float complex   *nb = malloc ((size_t)NBLK * sizeof (*nb));
+  dp_dll_state_t   d;
   dll_init (&d, code, SF, SPS, 0.0, bn, 0.707, SPACING);
   const double inv_sps = 1.0 / (double)SPS;
   long         pos = NBLK, warm = ndump / 4, dumps = 0;
@@ -177,7 +177,7 @@ phase_var (double gamma, double bn, const uint8_t *code,
         {
           if (pos >= NBLK)
             {
-              awgn_generate (g, NBLK, nb, NBLK);
+              dp_awgn_generate (g, NBLK, nb, NBLK);
               pos = 0;
             }
           int wrapped = dll_accumulate (&d, sig[i] + nb[pos++]);
@@ -198,7 +198,7 @@ phase_var (double gamma, double bn, const uint8_t *code,
         }
     }
   free (nb);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   if (n
       == 0) /* hit the sample cap without converging: fail the caller loudly */
     return 1e9;

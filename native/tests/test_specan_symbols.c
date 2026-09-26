@@ -23,13 +23,13 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_specan[] = {
-    (jm_any_fn)specan_create,
-    (jm_any_fn)specan_destroy,
-    (jm_any_fn)specan_reset,
-    (jm_any_fn)specan_execute_max_out,
-    (jm_any_fn)specan_execute,
-    (jm_any_fn)specan_retune,
-    (jm_any_fn)specan_state_bytes,
-    (jm_any_fn)specan_get_state,
-    (jm_any_fn)specan_set_state,
+    (jm_any_fn)dp_specan_create,
+    (jm_any_fn)dp_specan_destroy,
+    (jm_any_fn)dp_specan_reset,
+    (jm_any_fn)dp_specan_execute_max_out,
+    (jm_any_fn)dp_specan_execute,
+    (jm_any_fn)dp_specan_retune,
+    (jm_any_fn)dp_specan_state_bytes,
+    (jm_any_fn)dp_specan_get_state,
+    (jm_any_fn)dp_specan_set_state,
 };

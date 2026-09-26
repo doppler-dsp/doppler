@@ -93,9 +93,10 @@ class FFT:
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Compute an out-of-place 1-D DFT on a single-precision complex input.
-        Identical to fft_execute_cf64() but operates on float _Complex (CF32)
-        buffers, halving memory bandwidth relative to the double-precision
-        variant. Output is unnormalised; in and out must not alias.
+        Identical to dp_fft_execute_cf64() but operates on float _Complex
+        (CF32) buffers, halving memory bandwidth relative to the
+        double-precision variant. Output is unnormalised; in and out must not
+        alias.
 
         Parameters
         ----------
@@ -136,9 +137,9 @@ class FFT:
     ) -> NDArray[np.complex128]:
         """Copy in into out, then transform out in-place (CF64). The copy step
         lets callers preserve their input while keeping the output buffer hot
-        in cache. Semantically identical to fft_execute_cf64() for separate in
-        / out pointers; use this variant when the caller already owns out and
-        wants the result there without a second allocation.
+        in cache. Semantically identical to dp_fft_execute_cf64() for separate
+        in / out pointers; use this variant when the caller already owns out
+        and wants the result there without a second allocation.
 
         Parameters
         ----------
@@ -178,8 +179,8 @@ class FFT:
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32).
-        Single-precision variant of fft_execute_inplace_cf64(). Copies state->n
-        CF32 samples from in to out, then transforms out with the CF32
+        Single-precision variant of dp_fft_execute_inplace_cf64(). Copies
+        state->n CF32 samples from in to out, then transforms out with the CF32
         pocketfft plan. in is left unmodified.
 
         Parameters
@@ -393,9 +394,9 @@ class FFT2D:
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Compute an out-of-place 2-D DFT on a single-precision complex grid.
-        Single-precision variant of fft2d_execute_cf64(). Accepts and returns
-        flat row-major CF32 arrays of length ny*nx. Output is unnormalised; in
-        and out must not alias.
+        Single-precision variant of dp_fft2d_execute_cf64(). Accepts and
+        returns flat row-major CF32 arrays of length ny*nx. Output is
+        unnormalised; in and out must not alias.
 
         Parameters
         ----------
@@ -481,8 +482,8 @@ class FFT2D:
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32 2-D).
-        Single-precision variant of fft2d_execute_inplace_cf64(). Copies ny*nx
-        CF32 samples then applies the CF32 2-D pocketfft plan to out.
+        Single-precision variant of dp_fft2d_execute_inplace_cf64(). Copies
+        ny*nx CF32 samples then applies the CF32 2-D pocketfft plan to out.
 
         Parameters
         ----------
@@ -809,7 +810,7 @@ class Corr:
 @final
 class Corr2D:
     """Allocate a 2-D FFT correlator with coherent integrate-and-dump.
-    Two-dimensional extension of corr_create(). The reference is a flat
+    Two-dimensional extension of dp_corr_create(). The reference is a flat
     row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so
     each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. The
     Python wrapper requires ref to be a 2-D ndarray with shape (ny, nx); it
@@ -928,8 +929,8 @@ class Corr2D:
         """
 
     def execute_max_out(self) -> int:
-        """Maximum output samples per execute call (corr2d_state_t::n_out --
-        ny*nx_out normally, or ny when a single corr2d_state_t::col_out was
+        """Maximum output samples per execute call (dp_corr2d_state_t::n_out --
+        ny*nx_out normally, or ny when a single dp_corr2d_state_t::col_out was
         selected).
 
         Returns
@@ -1072,11 +1073,11 @@ class Corr2D:
 @final
 class CorrDetector:
     """Allocate a 1-D streaming signal detector backed by an FFT correlator.
-    Combines a corr_state_t with a double-mapped ring buffer so that arbitrary
-    chunk sizes can be pushed. After every int-dump the peak-to-noise test
-    statistic is compared against threshold; a det_result_t is emitted when it
-    passes. Setting threshold to 0.0 unconditionally fires on every dump. The
-    ring capacity is next_pow_two(max(n, 512)) complex samples.
+    Combines a dp_corr_state_t with a double-mapped ring buffer so that
+    arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise
+    test statistic is compared against threshold; a det_result_t is emitted
+    when it passes. Setting threshold to 0.0 unconditionally fires on every
+    dump. The ring capacity is next_pow_two(max(n, 512)) complex samples.
 
     Parameters
     ----------
@@ -1314,7 +1315,7 @@ class CorrDetector:
 @final
 class CorrDetector2D:
     """Allocate a 2-D streaming signal detector backed by a 2-D correlator.
-    Two-dimensional extension of detector_create(). Input frames are flat
+    Two-dimensional extension of dp_detector_create(). Input frames are flat
     row-major CF32 arrays of length ny*nx streamed through a ring buffer. On
     every int-dump the peak flat index is decomposed into (row, col) and a
     det_result2d_t is emitted when test_stat > threshold. The Python wrapper
@@ -1382,7 +1383,7 @@ class CorrDetector2D:
 
     def push(self, x: complex) -> list[tuple[int, int, float, float, float]]:
         """Stream an arbitrary-length CF32 chunk through the 2-D detector.
-        Identical to detector_push() except frames are ny*nx complex samples
+        Identical to dp_detector_push() except frames are ny*nx complex samples
         and each detection event carries (row, col) for the peak location
         instead of a single lag index. In Python the result is always a list of
         (row, col, peak_mag, noise_est, test_stat) tuples.
@@ -1753,7 +1754,7 @@ class PSD:
         """
 
     def power_twosided_max_out(self) -> int:
-        """Output capacity hint for psd_power_twosided(); equals nfft.
+        """Output capacity hint for dp_psd_power_twosided(); equals nfft.
 
         Returns
         -------
@@ -1785,7 +1786,7 @@ class PSD:
         """
 
     def power_onesided_max_out(self) -> int:
-        """Output capacity hint for psd_power_onesided(); equals nfft/2+1.
+        """Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1.
 
         Returns
         -------
@@ -2213,10 +2214,10 @@ def magnitude_db_cf64(
     offset_db: float,
 ) -> NDArray[np.float32]:
     """Convert a CF64 complex spectrum to F32 dB magnitudes.
-    Double-precision variant of magnitude_db_cf32(). Accepts a CF64 input
-    array and a double lin_floor; output is still F32 because downstream
-    display code typically works in single precision. The formula and
-    offset_db semantics are identical.
+    Double-precision variant of dp_magnitude_db_cf32(). Accepts a CF64
+    input array and a double lin_floor; output is still F32 because
+    downstream display code typically works in single precision. The
+    formula and offset_db semantics are identical.
 
     Parameters
     ----------

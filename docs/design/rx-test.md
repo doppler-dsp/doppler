@@ -120,7 +120,7 @@ Nine waveform types:
 
 Attach functions: `wfm_synth_set_bits`, `wfm_synth_set_dsss`,
 `wfm_synth_set_dsss_cont`, `wfm_synth_set_symbols`, `wfm_synth_set_rrc`,
-`wfm_synth_set_chirp_span`. Noise: `wfm_synth_noise_steps`,
+`dp_wfm_synth_set_chirp_span`. Noise: `wfm_synth_noise_steps`,
 `wfm_synth_reseed_noise`, with `snr_mode` selecting an Es/N0 convention.
 
 ### 1.2 The application
@@ -160,7 +160,7 @@ Barker-13 is not a library constant. It appears as the literal
 
 ### 1.4 Sequence primitives
 
-`pn_create(poly, seed, length, lfsr)` / `pn_generate` (`native/inc/doppler/pn/`) and
+`dp_pn_create(poly, seed, length, lfsr)` / `dp_pn_generate` (`native/inc/doppler/pn/`) and
 `gold_core` are the sequence sources. A PN payload is therefore reproducible
 from three numbers rather than a stored array.
 
@@ -203,15 +203,15 @@ itself. `ber_settle_syms` / `ber_settle_from` define the settled window;
 ### 2.2 `ber_meter_core.h` — alignment and accumulation
 
 ```
-ber_align_detect   ber_align_t        ber_meter_create   ber_meter_set_truth
-ber_meter_detect   ber_meter_align    ber_meter_score    ber_meter_set_align
-ber_meter_get_enough                  ber_meter_interval
-ber_meter_ser      ber_meter_ber      ber_meter_get_errors
+ber_align_detect   ber_align_t        dp_ber_meter_create   dp_ber_meter_set_truth
+ber_meter_detect   dp_ber_meter_align    dp_ber_meter_score    ber_meter_set_align
+dp_ber_meter_get_enough                  dp_ber_meter_interval
+dp_ber_meter_ser      dp_ber_meter_ber      dp_ber_meter_get_errors
 ```
 
 `ber_align_detect` is the primitive that decides where the received stream
-sits against truth. `ber_meter_get_enough` answers "have I run enough trials",
-and `ber_meter_interval` gives the confidence interval.
+sits against truth. `dp_ber_meter_get_enough` answers "have I run enough trials",
+and `dp_ber_meter_interval` gives the confidence interval.
 
 **This layer is shipped, which is what makes goal 9 reachable.**
 `doppler.ber.BerMeter` exposes the whole alignment decision — `align`,
@@ -260,7 +260,7 @@ is that **they fail differently**. Each already exists in the library:
 
 | metric        | needs                                            | primitive                                                                     | test-layer wrapper                |
 | ------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------- |
-| **BER / SER** | external truth **and** alignment                 | `ber_meter_score`, `ber_align_detect`                                         | `dp_ber_measure`                  |
+| **BER / SER** | external truth **and** alignment                 | `dp_ber_meter_score`, `ber_align_detect`                                      | `dp_ber_measure`                  |
 | **EVM**       | nothing — self-referenced against hard decisions | `ber_evm_db`                                                                  | `dp_test_evm_db_hard{,_m,_range}` |
 | **M2M4**      | nothing — blind, from 2nd/4th moments            | `snr_m2m4_db` (`native/inc/doppler/snr/snr_core.h`, Pauluzzi & Beaulieu 2000) | `dp_test_m2m4_snr_db{,_range}`    |
 
@@ -312,7 +312,7 @@ What exists today:
     header-only.
 - `wfmgen --crc none|crc16` emits the trailer; `wfm_frame_dsss_chips()`
     assembles `[preamble | sync | payload | CRC-16]`.
-- `burst_demod_state_t` exposes per-frame read-backs after `demod()`:
+- `dp_burst_demod_state_t` exposes per-frame read-backs after `demod()`:
     `frame_valid` (CRC matched), `frame_offset` (sync word symbol offset),
     `n_symbols`, `est_freq_hz`, `est_rate_hz`, `est_cn0_dbhz`,
     `est_timing_chips`.
@@ -630,7 +630,7 @@ a wire-format decision, and there is nothing asking for one.
 than inline one generator's parameters, the frame is built from a small
 sequence descriptor reused for the preamble, the sync word and the payload
 alike. That makes "a Gold-code sync" a configuration rather than a feature,
-and it keeps `pn_create()` / `gold_create()` as the only implementations.
+and it keeps `dp_pn_create()` / `dp_gold_create()` as the only implementations.
 
 <!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
@@ -639,8 +639,8 @@ and it keeps `pn_create()` / `gold_create()` as the only implementations.
 typedef enum
 {
   WFM_SEQ_LITERAL = 0, /**< a 0/1 array the caller owns                     */
-  WFM_SEQ_PN      = 1, /**< pn_create()   — m-sequence, one LFSR           */
-  WFM_SEQ_GOLD    = 2, /**< gold_create() — two LFSRs, a Gold family       */
+  WFM_SEQ_PN      = 1, /**< dp_pn_create()   — m-sequence, one LFSR           */
+  WFM_SEQ_GOLD    = 2, /**< dp_gold_create() — two LFSRs, a Gold family       */
   WFM_SEQ_DOTTED  = 3  /**< alternating 1010...; a line at Rs/2 to settle on */
 } wfm_seq_kind_t;
 
@@ -648,8 +648,8 @@ typedef enum
  * @brief A run of bits, however it is produced.
  *
  * `len` is always the OUTPUT length in bits. For the generated kinds it is
- * independent of the register width -- pn_create()'s `length` argument is the
- * register width (period 2^n-1), while `pn_generate(state, n, ...)` decides
+ * independent of the register width -- dp_pn_create()'s `length` argument is the
+ * register width (period 2^n-1), while `dp_pn_generate(state, n, ...)` decides
  * how many bits come out. Conflating the two is easy and wrong, so they are
  * named apart here.
  */
@@ -660,13 +660,13 @@ typedef struct
 
   const uint8_t *bits;  /**< LITERAL only; NULL otherwise                   */
 
-  /* PN: pn_create (poly, seed, reg_bits, lfsr) */
+  /* PN: dp_pn_create (poly, seed, reg_bits, lfsr) */
   uint64_t poly;
   uint64_t seed;
   uint32_t reg_bits;    /**< register width 1..64; period 2^reg_bits - 1    */
   int      lfsr;        /**< PN_GALOIS (0) or PN_FIBONACCI (1)              */
 
-  /* GOLD: gold_create (taps_a, seed_a, taps_b, seed_b) */
+  /* GOLD: dp_gold_create (taps_a, seed_a, taps_b, seed_b) */
   uint64_t taps_a, seed_a, taps_b, seed_b;
 } wfm_seq_t;
 
@@ -694,7 +694,7 @@ typedef struct
 a caller with real data has. A PN or Gold descriptor is a handful of numbers a
 receiver can *regenerate*, which is what makes a long-record BER practical —
 truth for a million-symbol run without a million-symbol array, and a capture
-reproducible from its metadata alone. `pn_create()` and `gold_create()` both
+reproducible from its metadata alone. `dp_pn_create()` and `dp_gold_create()` both
 already exist (§1.4), so this references them rather than adding a generator.
 
 **Why Gold is in from the start.** A Gold family gives many sequences with
@@ -834,19 +834,19 @@ own payload, and that Barker-13 matches the literal every caller types.
 `wfm_frame_dsss_chips()` now assembles the frame and spreads it, with the
 existing DSSS round-trips passing unchanged, which is the regression check
 §7.3 promised. `native/tests/test_wfm_frame.c` pins the layout against the
-bits it writes, the repeated preamble, PN regeneration against `pn_generate`
+bits it writes, the repeated preamble, PN regeneration against `dp_pn_generate`
 directly, and the CRC's truth-free reject.
 
 One thing the design did not anticipate, found by building it: **the frame
 layer's dependencies are not the DSSS core's.** The generated kinds call
-`pn_create`/`gold_create`, and folding the frame into `wfm_dsp_core` — the
+`dp_pn_create`/`dp_gold_create`, and folding the frame into `wfm_dsp_core` — the
 "spreading + RRC taps" library every receiver links for a matched filter —
-put `gold_create` into eight link targets, four of them jm-generated. So the
+put `dp_gold_create` into eight link targets, four of them jm-generated. So the
 DSSS burst assembler MOVED to `wfm_frame.c`: assembling a frame is what it
 does, and the split follows the function rather than the file.
 
 **A defect the named set found, which the descriptor's own test could not.**
-`WFM_SEQ_PN` passed its `poly` straight to `pn_create()`, which takes the tap
+`WFM_SEQ_PN` passed its `poly` straight to `dp_pn_create()`, which takes the tap
 mask verbatim — so `poly = 0`, the natural "default" and the value
 `wfm_synth`'s `--pn-poly` already resolves, meant a register with **no
 feedback**: it shifts the seed out and then emits zeros for ever. Measured, a
@@ -854,7 +854,7 @@ feedback**: it shifts the seed out and then emits zeros for ever. Measured, a
 field in the tree was a constant that still looked like a field.
 
 `test_wfm_frame.c` did not catch it because its check was a **consistency**
-test: it compared `wfm_frame_bits()` against `pn_generate()` with `poly = 0` on
+test: it compared `wfm_frame_bits()` against `dp_pn_generate()` with `poly = 0` on
 both sides, and the two agreed perfectly — on two all-zero sequences. The gate
 that catches it is a property no agreement between two halves can establish:
 one period of a length-n MLS carries exactly `2^(n-1)` ones, so a **balance
@@ -865,7 +865,7 @@ mutually-consistent comparison restored.
 The fix applies the resolution the project already had
 (`poly ? poly : pn_mls_poly (reg_bits)`), and the table moved from
 `wfm_synth_core.h` to **`pn_core.h`** where the convention belongs — it is
-`pn_create()`'s tap mask, not the synth's. `wfm_synth_mls_poly()` remains as a
+`dp_pn_create()`'s tap mask, not the synth's. `wfm_synth_mls_poly()` remains as a
 forwarder so no call site changed and no second table exists.
 
 **Built since:** the §7.4 named starter set, and the frame-statistics

@@ -2,10 +2,10 @@
 
 #include <stdlib.h>
 
-farrow_state_t *
-farrow_create (int order)
+dp_farrow_state_t *
+dp_farrow_create (int order)
 {
-  farrow_state_t *obj = calloc (1, sizeof (*obj));
+  dp_farrow_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   farrow_init (obj, order);
@@ -13,24 +13,24 @@ farrow_create (int order)
 }
 
 void
-farrow_destroy (farrow_state_t *state)
+dp_farrow_destroy (dp_farrow_state_t *state)
 {
   free (state);
 }
 
 void
-farrow_reset (farrow_state_t *state)
+dp_farrow_reset (dp_farrow_state_t *state)
 {
   state->d[0] = state->d[1] = state->d[2] = state->d[3] = 0.0f;
 }
 
 /* Serializable state — whole-struct POD snapshot, pointer-free (see
  * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (farrow, farrow_state_t, FARROW_STATE_MAGIC,
+DP_DEFINE_POD_STATE (dp_farrow, dp_farrow_state_t, FARROW_STATE_MAGIC,
                      FARROW_STATE_VERSION)
 
 size_t
-farrow_get_group_delay (const farrow_state_t *state)
+dp_farrow_get_group_delay (const dp_farrow_state_t *state)
 {
   (void)state;
   return FARROW_GROUP_DELAY;
@@ -39,7 +39,7 @@ farrow_get_group_delay (const farrow_state_t *state)
 /* Output is one sample per input (same length); the binding sizes the buffer
  * to the input length, so 0 (== "caller sizes") is the right sentinel. */
 size_t
-farrow_delay_max_out (farrow_state_t *state)
+dp_farrow_delay_max_out (dp_farrow_state_t *state)
 {
   (void)state;
   return 0; /* delay() emits one sample per input sample */
@@ -49,8 +49,8 @@ farrow_delay_max_out (farrow_state_t *state)
  * evaluate at `mu`.  out[i] is the input interpolated at i - group_delay + mu;
  * the first group_delay samples are the delay-line filling transient. */
 size_t
-farrow_delay (farrow_state_t *state, const float _Complex *x, size_t x_len,
-              double mu, float _Complex *out, size_t max_out)
+dp_farrow_delay (dp_farrow_state_t *state, const float _Complex *x,
+                 size_t x_len, double mu, float _Complex *out, size_t max_out)
 {
   float  m = (float)mu;
   size_t k = 0;

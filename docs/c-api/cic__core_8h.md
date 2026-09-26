@@ -32,7 +32,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**cic\_state\_t**](structcic__state__t.md) <br>_CIC filter state._  |
+| struct | [**dp\_cic\_state\_t**](structdp__cic__state__t.md) <br>_CIC filter state._  |
 
 
 
@@ -59,16 +59,16 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-|  [**cic\_state\_t**](structcic__state__t.md) \* | [**cic\_create**](#function-cic_create) (uint32\_t R) <br>_Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: \|Re\| and \|Im\| &lt;= 1.0. A component beyond +-1.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky_ `clipped` _flag. Unlike doppler's floating-point blocks this one is not scale-free_ _scale the input into range first._ |
-|  double | [**cic\_dc\_gain**](#function-cic_dc_gain) (const [**cic\_state\_t**](structcic__state__t.md) \* state) <br>_The filter's response to a constant input, from its own geometry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
-|  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
-|  void | [**cic\_destroy**](#function-cic_destroy) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br> |
-|  void | [**cic\_get\_state**](#function-cic_get_state) (const [**cic\_state\_t**](structcic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state into_ `blob` _._ |
-|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
-|  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._  |
-|  int | [**cic\_set\_state**](#function-cic_set_state) ([**cic\_state\_t**](structcic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state from_ `blob` _._ |
-|  size\_t | [**cic\_state\_bytes**](#function-cic_state_bytes) (const [**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Bytes_ [_**cic\_get\_state()**_](cic__core_8h.md#function-cic_get_state) _writes (envelope + payload)._ |
+|  double | [**cic\_dc\_gain**](#function-cic_dc_gain) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The filter's response to a constant input, from its own geometry._  |
+|  [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* | [**dp\_cic\_create**](#function-dp_cic_create) (uint32\_t R) <br>_Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: \|Re\| and \|Im\| &lt;= 1.0. A component beyond +-1.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky_ `clipped` _flag. Unlike doppler's floating-point blocks this one is not scale-free_ _scale the input into range first._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
+|  size\_t | [**dp\_cic\_decimate\_max\_out**](#function-dp_cic_decimate_max_out) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
+|  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br> |
+|  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state into_ `blob` _._ |
+|  void | [**dp\_cic\_reconfigure**](#function-dp_cic_reconfigure) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
+|  void | [**dp\_cic\_reset**](#function-dp_cic_reset) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._  |
+|  int | [**dp\_cic\_set\_state**](#function-dp_cic_set_state) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state from_ `blob` _._ |
+|  size\_t | [**dp\_cic\_state\_bytes**](#function-dp_cic_state_bytes) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Bytes_ [_**dp\_cic\_get\_state()**_](cic__core_8h.md#function-dp_cic_get_state) _writes (envelope + payload)._ |
 
 
 
@@ -115,7 +115,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 The bound is `CIC_PAPR_HEADROOM` (2.0, i.e. 6 dB) and not 1.0 because that headroom is exactly what it buys: the encode scale is `32768 / CIC_PAPR_HEADROOM`, so full scale sits 6 dB above unity amplitude and a signal whose PEAKS exceed its unit average — every pulse-shaped waveform — has somewhere to put them. Budgeting the DC gain alone left the peaks clipping against a bound the average never approached.
 
 
-\*\*So check `clipped**` — a sticky flag raised by any saturating component and cleared only by [**cic\_reset()**](cic__core_8h.md#function-cic_reset), following the same convention as the quantizing `cvt` converters (adc, f32\_to\_uq15, ...). It is free: the four boundary comparisons run on every sample regardless, so recording that one fired costs a register OR. There is no reason to run a CIC without checking it at least once against real input.
+\*\*So check `clipped**` — a sticky flag raised by any saturating component and cleared only by [**dp\_cic\_reset()**](cic__core_8h.md#function-dp_cic_reset), following the same convention as the quantizing `cvt` converters (adc, f32\_to\_uq15, ...). It is free: the four boundary comparisons run on every sample regardless, so recording that one fired costs a register OR. There is no reason to run a CIC without checking it at least once against real input.
 
 
 (Why the input is bounded at all: the pipeline is integer, so the CF32 boundary is quantized. That is an implementation detail — the input constraint above is the whole of what a caller needs. See `docs/design/QUANTIZATION.md` for the encoding and the headroom budget.)
@@ -141,9 +141,9 @@ Alias rejection : ~77 dB at f\_p = 0.1 \* f\_out (independent of R) Passband dro
 
 
 ```C++
-cic_state_t *cic = cic_create(16);   // R=16, N=4, M=1
-size_t n_out = cic_decimate(cic, in, 1024, out, 1024);
-cic_destroy(cic);
+dp_cic_state_t *cic = dp_cic_create(16);   // R=16, N=4, M=1
+size_t n_out = dp_cic_decimate(cic, in, 1024, out, 1024);
+dp_cic_destroy(cic);
 ```
  
 
@@ -154,11 +154,54 @@ cic_destroy(cic);
 
 
 
-### function cic\_create 
+### function cic\_dc\_gain 
+
+_The filter's response to a constant input, from its own geometry._ 
+```C++
+double cic_dc_gain (
+    const dp_cic_state_t * state
+) 
+```
+
+
+
+A CIC's pipeline gain is `R^N`, and this implementation removes it with a right-shift of `N*log2(R)` bits, so the DC gain is `R^N / 2^shift` — one exactly, whenever the shift matches R. Computed from `R` and the stored shift rather than measured, so a mismatch between the two is visible without running a signal through the filter.
+
+
+
+
+**Parameters:**
+
+
+* `state` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The DC gain. 1.0 for every power-of-two R the filter accepts.
+
+
+
+```C++
+dp_cic_state_t *c = dp_cic_create (32);
+printf ("%.4f\n", cic_dc_gain (c));   // 1.0000
+dp_cic_destroy (c);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_cic\_create 
 
 _Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: \|Re\| and \|Im\| &lt;= 1.0. A component beyond +-1.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky_ `clipped` _flag. Unlike doppler's floating-point blocks this one is not scale-free_ _scale the input into range first._
 ```C++
-cic_state_t * cic_create (
+dp_cic_state_t * dp_cic_create (
     uint32_t R
 ) 
 ```
@@ -195,55 +238,12 @@ Heap-allocated state, or NULL on invalid R or OOM.
 
 
 
-### function cic\_dc\_gain 
-
-_The filter's response to a constant input, from its own geometry._ 
-```C++
-double cic_dc_gain (
-    const cic_state_t * state
-) 
-```
-
-
-
-A CIC's pipeline gain is `R^N`, and this implementation removes it with a right-shift of `N*log2(R)` bits, so the DC gain is `R^N / 2^shift` — one exactly, whenever the shift matches R. Computed from `R` and the stored shift rather than measured, so a mismatch between the two is visible without running a signal through the filter.
-
-
-
-
-**Parameters:**
-
-
-* `state` State. Must be non-NULL. 
-
-
-
-**Returns:**
-
-The DC gain. 1.0 for every power-of-two R the filter accepts.
-
-
-
-```C++
-cic_state_t *c = cic_create (32);
-printf ("%.4f\n", cic_dc_gain (c));   // 1.0000
-cic_destroy (c);
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function cic\_decimate 
+### function dp\_cic\_decimate 
 
 _Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._ 
 ```C++
-JM_FORCEINLINE  JM_HOT size_t cic_decimate (
-    cic_state_t * state,
+JM_FORCEINLINE  JM_HOT size_t dp_cic_decimate (
+    dp_cic_state_t * state,
     const float _Complex * in,
     size_t n_in,
     float _Complex * out,
@@ -265,7 +265,7 @@ JM_FORCEINLINE  JM_HOT size_t cic_decimate (
 **Parameters:**
 
 
-* `state` Pointer to a valid [**cic\_state\_t**](structcic__state__t.md). 
+* `state` Pointer to a valid [**dp\_cic\_state\_t**](structdp__cic__state__t.md). 
 * `in` CF32 input block, \|Re\| and \|Im\| &lt;= 1.0 (clipped otherwise). 
 * `n_in` Number of input samples. 
 * `out` Output buffer; must hold at least max\_out elements. 
@@ -298,12 +298,12 @@ CF32 output array; length is min(floor((phase + n\_in) / R), max\_out).
 
 
 
-### function cic\_decimate\_max\_out 
+### function dp\_cic\_decimate\_max\_out 
 
 _Upper bound on decimate output — returns 0 (lazy-alloc signal)._ 
 ```C++
-size_t cic_decimate_max_out (
-    cic_state_t * state
+size_t dp_cic_decimate_max_out (
+    dp_cic_state_t * state
 ) 
 ```
 
@@ -318,11 +318,11 @@ The Python extension allocates n\_in elements on the first call. Since n\_in &gt
 
 
 
-### function cic\_destroy 
+### function dp\_cic\_destroy 
 
 ```C++
-void cic_destroy (
-    cic_state_t * state
+void dp_cic_destroy (
+    dp_cic_state_t * state
 ) 
 ```
 
@@ -337,12 +337,12 @@ Free resources. NULL is a no-op.
 
 
 
-### function cic\_get\_state 
+### function dp\_cic\_get\_state 
 
 _Serialize the integrator/comb/phase state into_ `blob` _._
 ```C++
-void cic_get_state (
-    const cic_state_t * state,
+void dp_cic_get_state (
+    const dp_cic_state_t * state,
     void * blob
 ) 
 ```
@@ -354,12 +354,12 @@ void cic_get_state (
 
 
 
-### function cic\_reconfigure 
+### function dp\_cic\_reconfigure 
 
 _Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._
 ```C++
-void cic_reconfigure (
-    cic_state_t * state,
+void dp_cic_reconfigure (
+    dp_cic_state_t * state,
     uint32_t R
 ) 
 ```
@@ -371,8 +371,8 @@ void cic_reconfigure (
 **Parameters:**
 
 
-* `state` Pointer to a valid [**cic\_state\_t**](structcic__state__t.md). 
-* `R` New decimation ratio. Same constraints as [**cic\_create()**](cic__core_8h.md#function-cic_create).
+* `state` Pointer to a valid [**dp\_cic\_state\_t**](structdp__cic__state__t.md). 
+* `R` New decimation ratio. Same constraints as [**dp\_cic\_create()**](cic__core_8h.md#function-dp_cic_create).
 
 
 ```C++
@@ -391,12 +391,12 @@ void cic_reconfigure (
 
 
 
-### function cic\_reset 
+### function dp\_cic\_reset 
 
 _Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._ 
 ```C++
-void cic_reset (
-    cic_state_t * state
+void dp_cic_reset (
+    dp_cic_state_t * state
 ) 
 ```
 
@@ -419,12 +419,12 @@ void cic_reset (
 
 
 
-### function cic\_set\_state 
+### function dp\_cic\_set\_state 
 
 _Restore the integrator/comb/phase state from_ `blob` _._
 ```C++
-int cic_set_state (
-    cic_state_t * state,
+int dp_cic_set_state (
+    dp_cic_state_t * state,
     const void * blob
 ) 
 ```
@@ -447,12 +447,12 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects.
 
 
 
-### function cic\_state\_bytes 
+### function dp\_cic\_state\_bytes 
 
-_Bytes_ [_**cic\_get\_state()**_](cic__core_8h.md#function-cic_get_state) _writes (envelope + payload)._
+_Bytes_ [_**dp\_cic\_get\_state()**_](cic__core_8h.md#function-dp_cic_get_state) _writes (envelope + payload)._
 ```C++
-size_t cic_state_bytes (
-    const cic_state_t * state
+size_t dp_cic_state_bytes (
+    const dp_cic_state_t * state
 ) 
 ```
 

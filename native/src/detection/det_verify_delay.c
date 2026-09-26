@@ -2,7 +2,7 @@
 #include <math.h>
 
 double
-det_verify_delay (double p_look, int n)
+dp_det_verify_delay (double p_look, int n)
 {
   /* Expected waiting time (in looks) for the first run of n consecutive
    * successes at per-look success probability p — the standard

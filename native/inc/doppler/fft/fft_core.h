@@ -8,14 +8,14 @@
  *
  * Lifecycle:
  * @code
- * fft_state_t *fft = fft_create(1024, -1, 1);
+ * dp_fft_state_t *fft = dp_fft_create(1024, -1, 1);
  * double _Complex out[1024];
- * fft_execute_cf64(fft, in, 1024, out, 1024);
- * fft_destroy(fft);
+ * dp_fft_execute_cf64(fft, in, 1024, out, 1024);
+ * dp_fft_destroy(fft);
  * @endcode
  */
-#ifndef FFT_CORE_H
-#define FFT_CORE_H
+#ifndef DP_FFT_CORE_H
+#define DP_FFT_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/pocketfft/pocketfft.h"
@@ -38,7 +38,7 @@ extern "C"
      *  Allocated lazily -- max_out is n on every sized call, which is
      *  everything the Python binding and every in-tree caller does. */
     double _Complex *work_trunc;
-  } fft_state_t;
+  } dp_fft_state_t;
 
   /**
    * @brief Allocate a reusable 1-D FFT engine for a fixed length and sign.
@@ -63,16 +63,16 @@ extern "C"
    * [(1+0j), (1+0j), (1+0j), (1+0j)]
    * @endcode
    */
-  fft_state_t *fft_create (size_t n, int sign, int nthreads);
+  dp_fft_state_t *dp_fft_create (size_t n, int sign, int nthreads);
 
   /** @brief Destroy and free an fft instance. @param state May be NULL. */
-  void fft_destroy (fft_state_t *state);
+  void dp_fft_destroy (dp_fft_state_t *state);
 
   /** @brief No-op reset (plans are immutable after creation). */
-  void fft_reset (fft_state_t *state);
+  void dp_fft_reset (dp_fft_state_t *state);
 
   /** @brief Maximum output samples per execute call (always == n). */
-  size_t fft_execute_cf64_max_out (fft_state_t *state);
+  size_t dp_fft_execute_cf64_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT on a double-precision complex input.
@@ -97,15 +97,15 @@ extern "C"
    * [(1+0j), (1+0j), (1+0j), (1+0j)]
    * @endcode
    */
-  size_t fft_execute_cf64 (fft_state_t *state, const double _Complex *in,
+  size_t dp_fft_execute_cf64 (dp_fft_state_t *state, const double _Complex *in,
                            size_t n_in, double _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for CF32 execute (always == n). */
-  size_t fft_execute_cf32_max_out (fft_state_t *state);
+  size_t dp_fft_execute_cf32_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT on a single-precision complex input.
-   * Identical to fft_execute_cf64() but operates on float _Complex (CF32)
+   * Identical to dp_fft_execute_cf64() but operates on float _Complex (CF32)
    * buffers, halving memory bandwidth relative to the double-precision variant.
    * Output is unnormalised; @p in and @p out must not alias.
    *
@@ -126,16 +126,16 @@ extern "C"
    * [(4+0j), 0j, 0j, 0j]
    * @endcode
    */
-  size_t fft_execute_cf32 (fft_state_t *state, const float _Complex *in,
+  size_t dp_fft_execute_cf32 (dp_fft_state_t *state, const float _Complex *in,
                            size_t n_in, float _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF64 (always == n). */
-  size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
+  size_t dp_fft_execute_inplace_cf64_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Copy @p in into @p out, then transform @p out in-place (CF64).
    * The copy step lets callers preserve their input while keeping the output
-   * buffer hot in cache.  Semantically identical to fft_execute_cf64() for
+   * buffer hot in cache.  Semantically identical to dp_fft_execute_cf64() for
    * separate @p in / @p out pointers; use this variant when the caller already
    * owns @p out and wants the result there without a second allocation.
    *
@@ -156,16 +156,16 @@ extern "C"
    * [(1+0j), (1+0j), (1+0j), (1+0j)]
    * @endcode
    */
-  size_t fft_execute_inplace_cf64 (fft_state_t *state,
+  size_t dp_fft_execute_inplace_cf64 (dp_fft_state_t *state,
                                    const double _Complex *in, size_t n_in,
                                    double _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF32 (always == n). */
-  size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
+  size_t dp_fft_execute_inplace_cf32_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Copy @p in into @p out, then transform @p out in-place (CF32).
-   * Single-precision variant of fft_execute_inplace_cf64().  Copies
+   * Single-precision variant of dp_fft_execute_inplace_cf64().  Copies
    * state->n CF32 samples from @p in to @p out, then transforms @p out
    * with the CF32 pocketfft plan.  @p in is left unmodified.
    *
@@ -186,12 +186,12 @@ extern "C"
    * [(1+0j), (1+0j), (1+0j), (1+0j)]
    * @endcode
    */
-  size_t fft_execute_inplace_cf32 (fft_state_t *state, const float _Complex *in,
+  size_t dp_fft_execute_inplace_cf32 (dp_fft_state_t *state, const float _Complex *in,
                                    size_t n_in, float _Complex *out,
                                    size_t max_out);
 
   /** @brief Maximum output samples for the ci16 execute (always == n). */
-  size_t fft_execute_ci16_max_out (fft_state_t *state);
+  size_t fft_execute_ci16_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci16).
@@ -199,7 +199,7 @@ extern "C"
    * the result is float _Complex (CF32).  The int->float scale (v/32768,
    * full-scale ±1.0, matching the cvt module) is folded into the transform's
    * input read, so this is a single fused pass — faster than a separate
-   * i16_to_f32 conversion followed by fft_execute_cf32().  Output is
+   * i16_to_f32 conversion followed by dp_fft_execute_cf32().  Output is
    * unnormalised.
    *
    * @param state  Allocated FFT engine (non-NULL).
@@ -216,11 +216,11 @@ extern "C"
    * [1.0, 0.0, 0.0, 0.0]
    * @endcode
    */
-  size_t fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
+  size_t fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
                            float _Complex *out);
 
   /** @brief Maximum output samples for the ci8 execute (always == n). */
-  size_t fft_execute_ci8_max_out (fft_state_t *state);
+  size_t fft_execute_ci8_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci8).
@@ -240,7 +240,7 @@ extern "C"
    * [1.0, 0.0, 0.0, 0.0]
    * @endcode
    */
-  size_t fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
+  size_t fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
                           float _Complex *out);
 
 #ifdef __cplusplus

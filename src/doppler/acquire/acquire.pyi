@@ -34,7 +34,7 @@ class CarrierAcquisition:
         Target detection probability.
     design_snr : float, default 2.0
         Assumed per-sample amplitude SNR used ONLY to precompute dwell_target
-        via det_n_noncoh(); not a live measurement. An optimistic guess only
+        via dp_det_n_noncoh(); not a live measurement. An optimistic guess only
         affects NON-sequential mode (which trusts this one-shot wait count
         outright) -- sequential mode's own give-up bound is max_n_blocks, not
         dwell_target, precisely so a wrong design_snr can't stop it from trying
@@ -298,9 +298,9 @@ class Acquisition:
         Chip rate in Hz (> 0).
     symbol_rate : float, default 1000.0
         Continuous data-symbol rate in Hz; <= 0 means no known clock.
-        Diagnostic only (exposed via acq_state_t::epochs_per_symbol), doesn't
-        feed sizing: this engine never coherently combines regardless of the
-        data-modulation clock.
+        Diagnostic only (exposed via dp_acq_state_t::epochs_per_symbol),
+        doesn't feed sizing: this engine never coherently combines regardless
+        of the data-modulation clock.
     cn0_dbhz : float, default 50.0
         Carrier-to-noise density in dB-Hz: any finite value. A continuous
         engine needs one -- its non-coherent looks cannot be chosen without a
@@ -519,11 +519,11 @@ class Acquisition:
         transition inside the epoch splits one emitter into twins at its own
         code phase on other tiles, so such a peak is held for one dwell and
         listed only if it was there, at the same tile, on the previous one.
-        Each listed peak is one acq_result_t from acq_push(), all of a dwell's
-        sharing its `samples_consumed` and `noise_est`. A held twin takes a
-        slot of the `n` for that dwell but is not reported. The threshold does
-        not change: a second peak is another draw from the same cells against
-        the same union bound. Clears the held candidates.
+        Each listed peak is one acq_result_t from dp_acq_push(), all of a
+        dwell's sharing its `samples_consumed` and `noise_est`. A held twin
+        takes a slot of the `n` for that dwell but is not reported. The
+        threshold does not change: a second peak is another draw from the same
+        cells against the same union bound. Clears the held candidates.
 
         Parameters
         ----------
@@ -673,9 +673,9 @@ class Acquisition:
         hit fired), "<prefix>.noise" (the CFAR reference `noise_est`),
         "<prefix>.peak" (the strongest cell's raw value), "<prefix>.row" and
         "<prefix>.col" (its native Doppler row and code-phase column — a
-        surface coordinate, not a physical unit; acq_surface_doppler_hz() and
-        acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in the
-        dwell, held twins included), "<prefix>.n_held" (picks held as
+        surface coordinate, not a physical unit; dp_acq_surface_doppler_hz()
+        and dp_acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in
+        the dwell, held twins included), "<prefix>.n_held" (picks held as
         same-code-phase twins rather than listed, §7.1), "<prefix>.conc" (the
         strongest pick's concentration — see `peak_conc`: its main lobe's power
         over its whole column's, near 1 for one clean emitter even when it
@@ -772,7 +772,7 @@ class Acquisition:
         One value per surface row, the fold and scale a hit's `doppler_hz_est`
         uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated
         grid where the slow-time axis is interpolated), so a plot of
-        acq_surface() carries the same axis a DetectionEvent reports on.
+        dp_acq_surface() carries the same axis a DetectionEvent reports on.
 
         Parameters
         ----------
@@ -839,7 +839,7 @@ class Acquisition:
         phase per cell, before the magnitude the gate reads.
 
         Copies the coherent sum the last dwell was decided on into out,
-        row-major `surface_rows` x `code_bins` like acq_surface(), in the
+        row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the
         correlation's own units rather than the gate's. A cell's phase is the
         carrier at the block's middle, relative to its tile's centre; its
         neighbours along the code axis are complex early and late arms, so a
@@ -949,9 +949,9 @@ class Acquisition:
 
         Copies the `coherent_bins * code_bins` samples the block-coherent
         engine gathered for its last whole block into out, epoch by epoch in
-        stream order — the samples acq_push() consumed, untouched. Kept for the
-        tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker can
-        re-correlate them at any code phase, rate or symbol boundary the
+        stream order — the samples dp_acq_push() consumed, untouched. Kept for
+        the tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker
+        can re-correlate them at any code phase, rate or symbol boundary the
         engine's own grid does not have — a symbol-rate despreader at the
         tracked timing runs on exactly this
         (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a
@@ -1370,10 +1370,11 @@ class BurstAcquisition:
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
 
-        Forwards to acq_reset() on the embedded engine: discards any buffered
-        samples that have not yet completed a frame and clears the non-coherent
-        power accumulator and dwell bookkeeping, so the next push() begins a
-        fresh search from an empty ring. Construction parameters are untouched.
+        Forwards to dp_acq_reset() on the embedded engine: discards any
+        buffered samples that have not yet completed a frame and clears the
+        non-coherent power accumulator and dwell bookkeeping, so the next
+        push() begins a fresh search from an empty ring. Construction
+        parameters are untouched.
 
         Examples
         --------
@@ -1399,8 +1400,8 @@ class BurstAcquisition:
     ) -> list[tuple[int, int, float, float, float, float, int]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
-        Forwards to acq_push() on the embedded engine (see its doc comment in
-        acq_core.h for the framing/CFAR mechanics). Each event carries the
+        Forwards to dp_acq_push() on the embedded engine (see its doc comment
+        in acq_core.h for the framing/CFAR mechanics). Each event carries the
         peak's Doppler bin and code phase (the two search axes), its CFAR
         statistic, and an estimated C/N0 — see acq_result_t.
 
@@ -1443,11 +1444,11 @@ class BurstAcquisition:
         ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside
         [1, 256] (the internal non-coherent-look safety-valve ceiling).
 
-        Forwards to acq_configure_search_raw() on the embedded engine (see its
-        doc comment in acq_core.h): resizes every grid-dependent buffer/plan,
-        re-derives the threshold ladder for the pinned grid, and clears
-        in-flight accumulation — call between push() calls, never a substitute
-        for one.
+        Forwards to dp_acq_configure_search_raw() on the embedded engine (see
+        its doc comment in acq_core.h): resizes every grid-dependent
+        buffer/plan, re-derives the threshold ladder for the pinned grid, and
+        clears in-flight accumulation — call between push() calls, never a
+        substitute for one.
 
         Parameters
         ----------
@@ -1498,7 +1499,7 @@ class BurstAcquisition:
         that dwell but is not reported. The threshold does not change with n.
         Raises ValueError outside 1..64. Clears the held candidates.
 
-        Forwards to acq_set_max_peaks() on the embedded engine (see its doc
+        Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc
         comment in acq_core.h): one is the classic gated maximum; more is the
         list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
         same gate, strongest first, an exclusion zone of one Doppler bin by the
@@ -2564,54 +2565,38 @@ class PersistentBurstCapture:
         stream and is never reset between bursts, so a burst whose tail falls
         outside one call is completed by a later one.
 
-        Windows are concatenated: burst `i` occupies `burst_len` samples
-        starting at `i*burst_len`, and events() returns the matching record for
-        each. Every sample of x is consumed. An empty return is normal -- it
-        means no burst completed in this call.
-
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input samples, x_len long.
+            Input.
         out : NDArray[np.complex64] | None
-            Written with the completed windows; may be NULL to drop.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            Samples written -- always a multiple of `burst_len`.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.acquire import BurstCapture
-        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
-        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
-        >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
-        >>> win.size % cap.burst_len        # whole windows, never a partial
-        0
-        >>> win.size                        # silence, so no burst completed
-        0
-
+            Output.
         """
 
     def push_max_out(self, x_len: int) -> int:
-        """Upper bound on samples push() can return for x_len input.
+        """Largest number of samples push() can return for x_len inputs.
 
-        Distinct bursts cannot overlap, so `x_len` samples complete at most
-
-        `x_len/burst_len + 1` of them, plus whatever is already queued.
+        Size an `out=` buffer with this before calling push(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on push_max_out()
+        replaces this text.
 
         Parameters
         ----------
         x_len : int
-            Input.
+            Number of input samples push() will be given.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def detections(
@@ -2630,11 +2615,6 @@ class PersistentBurstCapture:
         that survived and whose windows arrived. Valid until the next push(),
         reset() or set_state().
 
-        BEFORE the claim rule and the suppression window: several rows can name
-        one preamble, and a row can be a false alarm. That is the point -- this
-        is what acquisition FOUND, and `events()` is what survived. Valid until
-        the next push(), reset() or set_state().
-
         Parameters
         ----------
         count : int
@@ -2650,33 +2630,25 @@ class PersistentBurstCapture:
         -------
         NDArray[Any]
             Output.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.acquire import BurstCapture
-        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
-        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
-        >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
-        >>> # what the search found, against what became a burst
-        >>> len(cap.detections()) >= len(cap.events())
-        True
-
         """
 
     def detections_max_out(self, n: int) -> int:
-        """Raw detections available from the last push(). n is ignored.
+        """Largest number of samples detections() can return for n inputs.
+
+        Size an `out=` buffer with this before calling detections(), or use it
+        to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        detections_max_out() replaces this text.
 
         Parameters
         ----------
         n : int
-            Input.
+            Number of input samples detections() will be given.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def events(
@@ -2688,9 +2660,6 @@ class PersistentBurstCapture:
         describes the window at samples[i*burst_len ...] of that push. Valid
         until the next push(), reset() or set_state().
 
-        Row `i` describes the window at `i*burst_len`. Valid until the next
-        push(), reset() or set_state().
-
         Parameters
         ----------
         count : int
@@ -2706,48 +2675,31 @@ class PersistentBurstCapture:
         -------
         NDArray[Any]
             Output.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.acquire import BurstCapture
-        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
-        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
-        >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
-        >>> len(cap.events()) == win.size // cap.burst_len
-        True
-
         """
 
     def events_max_out(self, n: int) -> int:
-        """Records available from the last push(). n is ignored.
+        """Largest number of samples events() can return for n inputs.
+
+        Size an `out=` buffer with this before calling events(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        events_max_out() replaces this text.
 
         Parameters
         ----------
         n : int
-            Input.
+            Number of input samples events() will be given.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the embedded BurstAcquisition's search grid directly, bypassing
         the auto-sizing -- the escape hatch for a caller who wants a specific
         (doppler_bins, n_noncoh). Forwards to the engine unchanged.
-
-        The escape hatch for a caller who wants a specific (doppler_bins,
-        n_noncoh). Forwards to the engine, with one refusal of this object's
-        own: a grid whose anchor can lag the preamble by more than refine
-        reaches -- `n_noncoh * doppler_bins` code periods against `k_lo` -- is
-        rejected rather than accepted and silently mis-refined. Acquisition
-        stamps a hit at the end of the LAST accumulated look, so every look
-        past the one holding the preamble moves the anchor a whole frame later;
-        a burst has one frame of preamble, so `n_noncoh = 1` is the grid a
-        capture wants and the sizer now always picks (doppler#1181).
 
         Parameters
         ----------
@@ -2762,16 +2714,6 @@ class PersistentBurstCapture:
             If the C call returns a non-zero status. The exception message is
             ``configure_search_raw failed``, with the return code appended
             (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.acquire import BurstCapture
-        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
-        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
-        >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
-
         """
 
     def release(self, i: int) -> None:
@@ -2783,24 +2725,6 @@ class PersistentBurstCapture:
         next push(). Unreleased, they are dropped when the next push() begins.
         Raises ValueError if `i` is not a window of the last push().
 
-        An emitted window owns its whole span: a detection inside it is the
-        payload firing against the acquisition code, not a new burst, so it is
-        HELD rather than reported. Whether the window WAS a burst is a verdict
-        this object cannot reach -- it stops at samples; error detection,
-        whatever form the frame gives it, is the consumer's -- so a consumer
-        that knows better calls this for that window, and the held detections
-        are searched again on the next push(). Unreleased, they are dropped
-        when the next push() begins, which is exactly the behaviour a consumer
-        with no verdict always had.
-
-        What it prevents (doppler#1181): a spurious window ending just after a
-        real burst begins used to swallow that burst's first detections -- the
-        receiver's own design says only a DECODED burst may own a span (§10.3,
-        doppler#1004), and the capture underneath had been owning it on
-        emission.
-
-        Must be called BEFORE the next push(): `i` indexes THIS push's windows.
-
         Parameters
         ----------
         i : int
@@ -2811,20 +2735,6 @@ class PersistentBurstCapture:
         ValueError
             If the C call returns a non-zero status. The exception message is
             ``release failed``, with the return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.acquire import BurstCapture
-        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
-        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
-        >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
-        >>> cap.release(0)   # no window 0 in a quiet push
-        Traceback (most recent call last):
-          ...
-        ValueError: release failed (rc=-4)
-
         """
 
     def reset(self) -> None:
@@ -2832,25 +2742,6 @@ class PersistentBurstCapture:
         drops the history ring's contents, clears every queued detection and
         every read-back, so a fresh stream cannot inherit the previous one's
         position. Construction parameters are untouched.
-
-        Resets the embedded acquisition, rewinds the history ring, clears every
-        queued detection and every read-back. Construction parameters are
-        untouched; `dropped` deliberately survives, because a lost burst stays
-        lost.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.acquire import BurstCapture
-        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
-        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
-        >>> cap.push(np.zeros(4096, dtype=np.complex64)).size
-        0
-        >>> cap.reset()
-        >>> cap.pending
-        0
-
         """
 
     def state_bytes(self) -> int:

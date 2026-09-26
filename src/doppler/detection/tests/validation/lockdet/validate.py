@@ -55,14 +55,14 @@ def _text(p: Path) -> str:
 
 
 def nan_policy_is_shared() -> bool:
-    """Does `lockdet_step` route its NaN policy through `saturate()`?
+    """Does `dp_lockdet_step` route its NaN policy through `saturate()`?
 
     Derived rather than asserted, so that re-inlining the policy — the
     thing this object already got wrong once — flips the finding back to a
     GAP without anyone remembering to edit this file.
     """
     body = re.sub(r"/\*.*?\*/", "", _text(HEADER), flags=re.S)
-    m = re.search(r"lockdet_step\s*\([^)]*\)\s*\{(.*?)\n  \}", body, re.S)
+    m = re.search(r"dp_lockdet_step\s*\([^)]*\)\s*\{(.*?)\n  \}", body, re.S)
     return bool(m) and "saturate (" in m.group(1)
 
 
@@ -420,7 +420,7 @@ def review(d: Data) -> None:
         "F3",
         "BY DESIGN" if shared else "GAP",
         "**The non-finite policy is the shared primitive's, not this "
-        "object's.** `lockdet_step` routes its look through "
+        "object's.** `dp_lockdet_step` routes its look through "
         "`saturate(x, -inf, +inf, -inf)`, whose documentation names a lock "
         "statistic as the caller that wants NaN at the floor — and which "
         "no lock detector had ever called, so that rationale described a "
@@ -455,8 +455,8 @@ def review(d: Data) -> None:
         "F6",
         "C-ONLY",
         "**The by-value embedding path has no Python face.** Seven objects "
-        "embed a `lockdet_state_t` directly and drive it with "
-        "`lockdet_init`/`lockdet_step`; the binding exposes only the heap "
+        "embed a `dp_lockdet_state_t` directly and drive it with "
+        "`lockdet_init`/`dp_lockdet_step`; the binding exposes only the heap "
         "instance. That is correct — an embedded detector belongs to its "
         "owner — but it means this report cannot cover the path most of "
         "the library actually takes, and the C test is the only evidence "

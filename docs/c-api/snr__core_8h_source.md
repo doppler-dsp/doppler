@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef SNR_CORE_H
-#define SNR_CORE_H
+#ifndef DP_SNR_CORE_H
+#define DP_SNR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
@@ -20,17 +20,17 @@ extern "C"
 {
 #endif
 
-  double snr_data_aided_db (const float _Complex *soft, size_t soft_len,
+  double dp_snr_data_aided_db (const float _Complex *soft, size_t soft_len,
                             const uint8_t *sign_bits, size_t sign_bits_len);
 
-  double snr_m2m4_db (const float _Complex *x, size_t x_len);
+  double dp_snr_m2m4_db (const float _Complex *x, size_t x_len);
 
-  void snr_data_aided_db_series (const float _Complex *soft, size_t soft_len,
+  void dp_snr_data_aided_db_series (const float _Complex *soft, size_t soft_len,
                                  const uint8_t *sign_bits,
                                  size_t sign_bits_len, size_t window,
                                  double *out);
 
-  void snr_m2m4_db_series (const float _Complex *x, size_t x_len,
+  void dp_snr_m2m4_db_series (const float _Complex *x, size_t x_len,
                            size_t window, double *out);
 
 #ifdef __cplusplus

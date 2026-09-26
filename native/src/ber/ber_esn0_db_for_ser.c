@@ -12,17 +12,17 @@
 #endif
 
 double
-ber_esn0_db_for_ser (int m, double ser)
+dp_ber_esn0_db_for_ser (int m, double ser)
 {
   double lo = -10.0, hi = 40.0;
-  if (!(ser > 0.0) || ser >= ber_theory_ser (m, pow (10.0, lo / 10.0)))
+  if (!(ser > 0.0) || ser >= dp_ber_theory_ser (m, pow (10.0, lo / 10.0)))
     return lo;
-  if (ser <= ber_theory_ser (m, pow (10.0, hi / 10.0)))
+  if (ser <= dp_ber_theory_ser (m, pow (10.0, hi / 10.0)))
     return hi;
   for (int i = 0; i < 200; i++)
     {
       double mid = 0.5 * (lo + hi);
-      if (ber_theory_ser (m, pow (10.0, mid / 10.0)) > ser)
+      if (dp_ber_theory_ser (m, pow (10.0, mid / 10.0)) > ser)
         lo = mid;
       else
         hi = mid;

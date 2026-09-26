@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DLL_CORE_H
-#define DLL_CORE_H
+#ifndef DP_DLL_CORE_H
+#define DP_DLL_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -52,8 +52,8 @@ typedef struct {
 } dll_tlm_t;
 
 typedef struct {
-    loop_filter_state_t lf;  
-    nco_state_t code_nco;    
+    dp_loop_filter_state_t lf;  
+    dp_nco_state_t code_nco;    
     const uint8_t *code;     
     size_t sf;               
     size_t sps;              
@@ -68,7 +68,7 @@ typedef struct {
     double rate_aid;         
     int coast;               
     uint32_t held_inc;       
-    loop_filter_state_t held_lf; 
+    dp_loop_filter_state_t held_lf; 
     /* The steer's gain table: how the loop filter's integrator and
        proportional term reach phase_inc (cycles per sample) and code_rate
        (a ratio), set once by segments in set_segments(). ONE steer,
@@ -128,7 +128,7 @@ typedef struct {
     size_t n_looks;          
     double lock_stat;        
     size_t lock_nz;          
-    lockdet_state_t lock;    
+    dp_lockdet_state_t lock;    
     /* ── symbol-timing aid (segments>1 only; period 0 = off).
      *    The same max-power search the per-epoch look-back runs, lifted to
      *    the SYMBOL scale: with the data-symbol period known in partials,
@@ -139,7 +139,7 @@ typedef struct {
      *    and the code discriminator's windows -- coherent over most of a
      *    symbol instead of a quarter-epoch partial, and the loop steers
      *    once per symbol on them (the filter re-timed to that interval,
-     *    `inv_upd`). See dll_set_symbol_period(). Rings are heap-owned,
+     *    `inv_upd`). See dp_dll_set_symbol_period(). Rings are heap-owned,
      *    sized at set time, packed field-wise in the state blob like the
      *    chunk buffers. */
     double  sym_period;      
@@ -157,7 +157,7 @@ typedef struct {
     double        *aid_power;  
     int owns_code;           
     dll_tlm_t tlm;           
-} dll_state_t;
+} dp_dll_state_t;
 
 JM_FORCEINLINE float
 dll_chip_sign(uint8_t c)
@@ -166,7 +166,7 @@ dll_chip_sign(uint8_t c)
 }
 
 JM_FORCEINLINE float
-dll_replica(const dll_state_t *s, double c)
+dll_replica(const dp_dll_state_t *s, double c)
 {
     double sfd2 = 2.0 * (double)s->sf;
     double p = dp_fmod_pos(c * 2.0 - 0.5, sfd2);
@@ -185,18 +185,18 @@ dll_replica(const dll_state_t *s, double c)
  * see nco_norm_freq_to_inc()'s own doc comment for why duplicates of this
  * conversion keep drifting). */
 
-void dll_init(dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
+void dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
               double init_chip, double bn, double zeta, double spacing);
 
 JM_FORCEINLINE double
-dll_dwell_center_chip_pos(const dll_state_t *s)
+dll_dwell_center_chip_pos(const dp_dll_state_t *s)
 {
     uint32_t mid = s->code_nco.phase + (s->code_nco.phase_inc >> 1);
     return ((double)mid / 4294967296.0) * (double)s->sf;
 }
 
 JM_FORCEINLINE JM_HOT int
-dll_accumulate(dll_state_t *s, float _Complex d)
+dll_accumulate(dp_dll_state_t *s, float _Complex d)
 {
     double sfd = (double)s->sf;
     double cp = dll_dwell_center_chip_pos(s);
@@ -219,7 +219,7 @@ dll_accumulate(dll_state_t *s, float _Complex d)
 }
 
 JM_FORCEINLINE JM_HOT void
-dll_lock_accumulate(dll_state_t *s, float _Complex d)
+dll_lock_accumulate(dp_dll_state_t *s, float _Complex d)
 {
     double co = dll_dwell_center_chip_pos(s) + s->off_chips;
     if (co >= (double)s->sf)
@@ -227,12 +227,12 @@ dll_lock_accumulate(dll_state_t *s, float _Complex d)
     s->acc_o += d * dll_replica(s, co);
 }
 
-void dll_lock_look(dll_state_t *s, double norm);
+void dll_lock_look(dp_dll_state_t *s, double norm);
 
-void dll_lock_epoch(dll_state_t *s);
+void dll_lock_epoch(dp_dll_state_t *s);
 
 JM_FORCEINLINE JM_HOT void
-dll_steer(dll_state_t *s, double ep, double lp, double pp)
+dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
 {
     double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
     if (e > DLL_DISC_CLAMP)
@@ -248,7 +248,7 @@ dll_steer(dll_state_t *s, double ep, double lp, double pp)
                    (dll_set_coast) -- a holder coasting on another clock
                    reads where the signal sits against the held phase, which
                    is what it corrects on */
-    (void)loop_filter_step(&s->lf, e);
+    (void)dp_loop_filter_step(&s->lf, e);
     double integ = s->lf.integ;
     double pe    = s->lf.kp * e;
     double u     = s->inv_upd;
@@ -259,65 +259,65 @@ dll_steer(dll_state_t *s, double ep, double lp, double pp)
 }
 
 JM_FORCEINLINE JM_HOT void
-dll_update(dll_state_t *s)
+dll_update(dp_dll_state_t *s)
 {
     float me = cabsf(s->acc_e), ml = cabsf(s->acc_l), mp = cabsf(s->acc_p);
     dll_steer(s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
 
-dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
+dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 size_t dll_lookback_segments(size_t tsamps, double max_error_db);
 
-void dll_destroy(dll_state_t *state);
+void dp_dll_destroy(dp_dll_state_t *state);
 
-void dll_reset(dll_state_t *state);
+void dp_dll_reset(dp_dll_state_t *state);
 
-size_t dll_steps_max_out(dll_state_t *state);
+size_t dp_dll_steps_max_out(dp_dll_state_t *state);
 
-size_t dll_steps(dll_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-void dll_configure(dll_state_t *state, double bn, double zeta);
-double dll_get_bn(const dll_state_t *state);
-void dll_set_bn(dll_state_t *state, double val);
+void dp_dll_configure(dp_dll_state_t *state, double bn, double zeta);
+double dp_dll_get_bn(const dp_dll_state_t *state);
+void dp_dll_set_bn(dp_dll_state_t *state, double val);
 
-void dll_set_rate_aid(dll_state_t *state, double rate_aid);
+void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
 
-void dll_set_coast(dll_state_t *state, int coast);
+void dll_set_coast(dp_dll_state_t *state, int coast);
 
-void dll_hold_here(dll_state_t *state);
+void dll_hold_here(dp_dll_state_t *state);
 
-int dll_set_symbol_period(dll_state_t *state, double partials_per_symbol);
+int dp_dll_set_symbol_period(dp_dll_state_t *state, double partials_per_symbol);
 
-size_t dll_get_symbol_window(const dll_state_t *state);
+size_t dp_dll_get_symbol_window(const dp_dll_state_t *state);
 
-int dll_set_lock_verify(dll_state_t *state, uint32_t n_up, uint32_t n_down);
-double dll_get_code_phase(const dll_state_t *state);
+int dp_dll_set_lock_verify(dp_dll_state_t *state, uint32_t n_up, uint32_t n_down);
+double dp_dll_get_code_phase(const dp_dll_state_t *state);
 
-void dll_set_code_phase(dll_state_t *state, double chips);
-double dll_get_code_rate(const dll_state_t *state);
+void dp_dll_set_code_phase(dp_dll_state_t *state, double chips);
+double dp_dll_get_code_rate(const dp_dll_state_t *state);
 
-size_t dll_take_error(dll_state_t *state, double *sum);
+size_t dll_take_error(dp_dll_state_t *state, double *sum);
 
-double dll_take_error_mean(dll_state_t *state);
-double dll_get_last_error(const dll_state_t *state);
-size_t dll_get_segments(const dll_state_t *state);
+double dp_dll_take_error_mean(dp_dll_state_t *state);
+double dp_dll_get_last_error(const dp_dll_state_t *state);
+size_t dp_dll_get_segments(const dp_dll_state_t *state);
 
-int dll_configure_lock(dll_state_t *state, double pfa, size_t n_looks, double ref_snr_db);
+int dp_dll_configure_lock(dp_dll_state_t *state, double pfa, size_t n_looks, double ref_snr_db);
 
-void dll_configure_lock_raw(dll_state_t *state, double up_thresh,
+void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
                             double down_thresh, size_t n_looks, double alpha,
                             uint32_t n_up, uint32_t n_down);
 
-int dll_get_locked(const dll_state_t *state);
+int dp_dll_get_locked(const dp_dll_state_t *state);
 
-double dll_get_lock_stat(const dll_state_t *state);
+double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 
-double dll_get_noise_est(const dll_state_t *state);
+double dp_dll_get_noise_est(const dp_dll_state_t *state);
 
-void dll_tlm_flush(const dll_state_t *s);
+void dll_tlm_flush(const dp_dll_state_t *s);
 
-int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition+field-wise: loop_filter child (POD-embedded) + embedded NCO
@@ -334,16 +334,16 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
                                 (whole-struct snapshot, so the blob grew).
                                 v6: `sums` scratch field added to the
                                 struct (pure epoch-local scratch, not
-                                serialized -- grows sizeof(dll_state_t)
+                                serialized -- grows sizeof(dp_dll_state_t)
                                 regardless, so the version marks the
                                 layout change) (v5: precomputed
                                 inv_tsamps/inv_tsamps2/inv_tsamps_sf
                                 fields added to the struct; v4: fixed-
                                 point code_nco + segments>1 chunked
                                 lookback buffers; see dll_core.c) */
-size_t dll_state_bytes (const dll_state_t *state);
-void dll_get_state (const dll_state_t *state, void *blob);
-int dll_set_state (dll_state_t *state, const void *blob);
+size_t dp_dll_state_bytes (const dp_dll_state_t *state);
+void dp_dll_get_state (const dp_dll_state_t *state, void *blob);
+int dp_dll_set_state (dp_dll_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

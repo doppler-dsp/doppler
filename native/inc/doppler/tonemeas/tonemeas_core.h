@@ -13,13 +13,13 @@
  *
  * @code
  * // 16-bit ADC: window auto-picked for ~100 dB dynamic range.
- * tonemeas_state_t *m = tonemeas_create(8192, 1.0, 8, 1.0, 16, 0.0, 0);
- * tone_meas_t r = tonemeas_analyze(m, capture, 8192);  // r.enob, r.sfdr_dbc...
- * tonemeas_destroy(m);
+ * dp_tonemeas_state_t *m = dp_tonemeas_create(8192, 1.0, 8, 1.0, 16, 0.0, 0);
+ * tone_meas_t r = dp_tonemeas_analyze(m, capture, 8192);  // r.enob, r.sfdr_dbc...
+ * dp_tonemeas_destroy(m);
  * @endcode
  */
-#ifndef TONEMEAS_CORE_H
-#define TONEMEAS_CORE_H
+#ifndef DP_TONEMEAS_CORE_H
+#define DP_TONEMEAS_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -37,7 +37,7 @@ extern "C" {
 /**
  * @brief ToneMeasure state: owned window, FFT plan and analysis scratch.
  *
- * Allocate with tonemeas_create().  `nfft = next_pow_two(n * MEASURE_PAD)` is the
+ * Allocate with dp_tonemeas_create().  `nfft = next_pow_two(n * MEASURE_PAD)` is the
  * zero-padded transform length; `enbw` is the window's equivalent-noise
  * bandwidth (bins); `lobe_bins` is the main-lobe half-width L over which a
  * component's power is integrated; `spur_guard_bins` (>= L) is the wider
@@ -45,7 +45,7 @@ extern "C" {
  * sidelobes are never reported as a spur.
  */
 typedef struct {
-    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
     double enbw;            /**< Window equivalent noise bandwidth, bins.    */
@@ -57,7 +57,7 @@ typedef struct {
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
     double fs;              /**< Sample rate, Hz.                            */
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
-} tonemeas_state_t;
+} dp_tonemeas_state_t;
 
 /**
  * @brief Create a ToneMeasure analyser (auto Kaiser window).
@@ -80,14 +80,14 @@ typedef struct {
  *                         default when both are 0).
  * @param dc_guard         Extra bins excluded beyond L around DC.
  * @return Heap state, or NULL on bad args / allocation failure.
- * @note Caller must tonemeas_destroy() when done.
+ * @note Caller must dp_tonemeas_destroy() when done.
  */
-tonemeas_state_t *tonemeas_create(size_t n, double fs, size_t n_harmonics,
+dp_tonemeas_state_t *dp_tonemeas_create(size_t n, double fs, size_t n_harmonics,
                                   double full_scale, size_t bits,
                                   double dynamic_range_db, size_t dc_guard);
 
 /** @brief Destroy a ToneMeasure analyser. @param state May be NULL. */
-void tonemeas_destroy(tonemeas_state_t *state);
+void dp_tonemeas_destroy(dp_tonemeas_state_t *state);
 
 /**
  * @brief Reset the analyser (a no-op: it holds no state between calls).
@@ -109,7 +109,7 @@ void tonemeas_destroy(tonemeas_state_t *state);
  *
  * @endcode
  */
-void tonemeas_reset(tonemeas_state_t *state);
+void dp_tonemeas_reset(dp_tonemeas_state_t *state);
 
 /**
  * @brief Analyse a real capture into the single-tone metric bag.
@@ -130,7 +130,7 @@ void tonemeas_reset(tonemeas_state_t *state);
  *
  * @endcode
  */
-tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
+tone_meas_t dp_tonemeas_analyze(dp_tonemeas_state_t *state, const float *x,
                              size_t n_in);
 
 /**
@@ -147,7 +147,7 @@ tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
  *
  * @endcode
  */
-tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
+tone_meas_t dp_tonemeas_analyze_complex(dp_tonemeas_state_t *state,
                                      const float _Complex *x, size_t n_in);
 
 /**
@@ -164,11 +164,11 @@ tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
  *
  * @endcode
  */
-time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
+time_stats_t dp_tonemeas_time_stats(dp_tonemeas_state_t *state, const float *x,
                                  size_t n_in);
 
 /** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
-size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);
+size_t dp_tonemeas_spectrum_dbfs_max_out(dp_tonemeas_state_t *state);
 
 /**
  * @brief DC-centred dBFS magnitude spectrum of a real capture (length nfft).
@@ -198,7 +198,7 @@ size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);
  *
  * @endcode
  */
-size_t tonemeas_spectrum_dbfs(tonemeas_state_t *state, const float *x,
+size_t dp_tonemeas_spectrum_dbfs(dp_tonemeas_state_t *state, const float *x,
                               size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus

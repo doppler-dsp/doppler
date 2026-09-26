@@ -23,11 +23,11 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_boxcar[] = {
-    (jm_any_fn)boxcar_create,
-    (jm_any_fn)boxcar_destroy,
-    (jm_any_fn)boxcar_reset,
-    (jm_any_fn)boxcar_steps,
-    (jm_any_fn)boxcar_state_bytes,
-    (jm_any_fn)boxcar_get_state,
-    (jm_any_fn)boxcar_set_state,
+    (jm_any_fn)dp_boxcar_create,
+    (jm_any_fn)dp_boxcar_destroy,
+    (jm_any_fn)dp_boxcar_reset,
+    (jm_any_fn)dp_boxcar_steps,
+    (jm_any_fn)dp_boxcar_state_bytes,
+    (jm_any_fn)dp_boxcar_get_state,
+    (jm_any_fn)dp_boxcar_set_state,
 };

@@ -94,7 +94,7 @@ _A run of bits, however it is produced._ [More...](#detailed-description)
 ## Detailed Description
 
 
-`len` is always the OUTPUT length in bits. For the generated kinds it is independent of the register width — `pn_create()`'s `length` argument is the register width (period `2^n - 1`), while `pn_generate(state, n, …)` decides how many bits come out. Conflating the two is easy and costly, so they are named apart here: `reg_bits` against `len`. 
+`len` is always the OUTPUT length in bits. For the generated kinds it is independent of the register width — `dp_pn_create()`'s `length` argument is the register width (period `2^n - 1`), while `dp_pn_generate(state, n, …)` decides how many bits come out. Conflating the two is easy and costly, so they are named apart here: `reg_bits` against `len`. 
 
 
     
@@ -178,7 +178,7 @@ uint64_t wfm_seq_t::poly;
 
 
 
-0 selects `pn_mls_poly(reg_bits)` — the same "default" `wfm_synth`'s `--pn-poly` means. A literal 0 reaching [**pn\_create()**](pn__core_8h.md#function-pn_create) is a register with no feedback: it emits the seed and then zeros, which is a CONSTANT field that still looks like a field. 
+0 selects `pn_mls_poly(reg_bits)` — the same "default" `wfm_synth`'s `--pn-poly` means. A literal 0 reaching [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create) is a register with no feedback: it emits the seed and then zeros, which is a CONSTANT field that still looks like a field. 
  
 
 

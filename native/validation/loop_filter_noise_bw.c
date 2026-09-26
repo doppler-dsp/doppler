@@ -13,7 +13,7 @@
  * detector, the filter, and an oscillator that integrates the control.
  *
  *     e[n] = w[n] - phi[n]
- *     c[n] = loop_filter_step (e[n])
+ *     c[n] = dp_loop_filter_step (e[n])
  *     phi[n+1] = phi[n] + c[n]
  *
  * **Parseval, on the real code.** Drive that loop with a unit impulse and
@@ -22,7 +22,7 @@
  *     sum h[n]^2  =  integral of |H(f)|^2 over (-1/2, 1/2]  =  2 * Bn
  *
  * so `Bn = 0.5 * sum h[n]^2`, exactly, with no RNG, no spectral grid and no
- * fitting — and it runs `loop_filter_step()` itself, not a model of it.
+ * fitting — and it runs `dp_loop_filter_step()` itself, not a model of it.
  *
  * **Spectral, on the derived transfer function.** With `u = exp(-j2*pi*f)`,
  * the same loop has
@@ -89,7 +89,7 @@
 static double
 bn_parseval (double bn, double zeta, double t, double *tail)
 {
-  loop_filter_state_t lf;
+  dp_loop_filter_state_t lf;
   memset (&lf, 0, sizeof lf);
   loop_filter_init (&lf, bn, zeta, t);
 
@@ -109,7 +109,7 @@ bn_parseval (double bn, double zeta, double t, double *tail)
         half = sum2;
       sum2 += phi * phi;
       double e = ((n == 0) ? 1.0 : 0.0) - phi;
-      phi += loop_filter_step (&lf, e);
+      phi += dp_loop_filter_step (&lf, e);
     }
 
   *tail = (sum2 > 0.0) ? (sum2 - half) / sum2 : 0.0;
@@ -121,7 +121,7 @@ bn_parseval (double bn, double zeta, double t, double *tail)
 static double
 bn_spectral (double bn, double zeta, double t)
 {
-  loop_filter_state_t lf;
+  dp_loop_filter_state_t lf;
   memset (&lf, 0, sizeof lf);
   loop_filter_init (&lf, bn, zeta, t);
 

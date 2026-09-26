@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef ASYNC_DSSS_RECEIVER_CORE_H
-#define ASYNC_DSSS_RECEIVER_CORE_H
+#ifndef DP_ASYNC_DSSS_RECEIVER_CORE_H
+#define DP_ASYNC_DSSS_RECEIVER_CORE_H
 
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/acq/acq_core.h"
@@ -93,7 +93,7 @@ extern "C"
   (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
   /* Dll's own bn: the validated stable code-loop bandwidth for the
    * one-update-per-partial tracking geometry -- same value DsssReceiver's
-   * own Dll uses, not dll_create()'s own default of 0.01. (A wider 0.005 was
+   * own Dll uses, not dp_dll_create()'s own default of 0.01. (A wider 0.005 was
    * tried to chase sustained code-rate Doppler, but with the FLL removed the
    * carrier-driven slips are gone and the narrower 0.002 keeps its noise
    * immunity at the low-Es/N0 floor.) */
@@ -142,14 +142,14 @@ extern "C"
 
   typedef struct
   {
-    acq_state_t *acq; 
+    dp_acq_state_t *acq; 
     /* Refine stage: a frozen-carrier collection Dll feeding
      * CarrierAcquisition via a RateConverter. Rebuilt on every real
      * acquisition hit and on reset(); otherwise untouched. */
-    costas_state_t         car_frozen;
-    dll_state_t           *refine_dll;
-    RateConverter_state_t *refine_rc;
-    carrier_acq_state_t   *ca;
+    dp_costas_state_t         car_frozen;
+    dp_dll_state_t           *refine_dll;
+    dp_RateConverter_state_t *refine_rc;
+    dp_carrier_acq_state_t   *ca;
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
     /* Scratch, not state -- sized once per refine-chain (re)build (no
@@ -165,10 +165,10 @@ extern "C"
      * one whole code period, and the pre-despread carrier loop updates once
      * per period from a non-data-aided (squaring) combine of that period's
      * coherent-I&D partials (see adr_track_period() in the .c file). */
-    costas_state_t         car;
-    dll_state_t           *dll;
-    RateConverter_state_t *rc;
-    mpsk_receiver_state_t *rx;
+    dp_costas_state_t         car;
+    dp_dll_state_t           *dll;
+    dp_RateConverter_state_t *rc;
+    dp_mpsk_receiver_state_t *rx;
     /* Scratch, not state -- sized at every track-chain (re)build and never
      * in the steps() hot path (#1192, the section 11.5 rule): the live
      * Dll's partials for ONE code period, then rc's resampled output for
@@ -188,7 +188,7 @@ extern "C"
     size_t         car_carry_len;
 
     /* Own copy of the spreading code (same rationale as DsssReceiver's
-     * own copy -- neither acq_create_continuous() nor dll_create()'s
+     * own copy -- neither acq_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
     uint8_t *code;
     size_t   code_len;
@@ -225,7 +225,7 @@ extern "C"
     uint64_t both_down_samples;    
     int      had_lock;             
     int      car_coasting;         
-    costas_state_t car_held;       
+    dp_costas_state_t car_held;       
     /* The cell mode (async_dsss_receiver_create_cell()): the receiver a
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
@@ -254,10 +254,10 @@ extern "C"
     double          lock_den;
     double          lock_metric;
     double          lock_alpha; 
-    lockdet_state_t sym_lockdet;
-  } async_dsss_receiver_state_t;
+    dp_lockdet_state_t sym_lockdet;
+  } dp_async_dsss_receiver_state_t;
 
-  async_dsss_receiver_state_t *async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create (
       const uint8_t *code, size_t code_len, double chip_rate,
       double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
       double pd, double doppler_uncertainty, size_t segments, size_t sps,
@@ -267,24 +267,24 @@ extern "C"
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s);
 
-  async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
       const uint8_t *code, size_t code_len, double chip_rate,
       double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
       double pd, size_t segments, size_t sps, int differential,
       double carrier_freq_hz, double lost_confirm_s, size_t correct_periods,
       double gain, size_t pullin_intervals);
 
-  void async_dsss_receiver_destroy (async_dsss_receiver_state_t *state);
+  void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 
-  void async_dsss_receiver_reset (async_dsss_receiver_state_t *state);
+  void dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state);
 
-  size_t async_dsss_receiver_steps_max_out (async_dsss_receiver_state_t *state);
+  size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
 
-  size_t async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
+  size_t dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
                                     const float _Complex *x, size_t x_len,
                                     float _Complex *out, size_t max_out);
 
-  int async_dsss_receiver_seed (async_dsss_receiver_state_t *state,
+  int dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
                                 double chip_phase, double doppler_hz_est,
                                 double cn0_dbhz_est);
 
@@ -305,65 +305,65 @@ extern "C"
     uint64_t both_down_samples; 
   } async_dsss_receiver_status_t;
 
-  async_dsss_receiver_status_t async_dsss_receiver_status (
-      const async_dsss_receiver_state_t *state);
+  async_dsss_receiver_status_t dp_async_dsss_receiver_status (
+      const dp_async_dsss_receiver_state_t *state);
 
-  int async_dsss_receiver_get_idle (const async_dsss_receiver_state_t *state);
+  int dp_async_dsss_receiver_get_idle (const dp_async_dsss_receiver_state_t *state);
 
-  int async_dsss_receiver_get_lost (const async_dsss_receiver_state_t *state);
+  int dp_async_dsss_receiver_get_lost (const dp_async_dsss_receiver_state_t *state);
 
-  int async_dsss_receiver_configure_search_raw (
-      async_dsss_receiver_state_t *state, size_t doppler_bins,
+  int dp_async_dsss_receiver_configure_search_raw (
+      dp_async_dsss_receiver_state_t *state, size_t doppler_bins,
       size_t n_noncoh);
 
-  int async_dsss_receiver_set_refine_min_blocks (
-      async_dsss_receiver_state_t *state, size_t n_blocks);
+  int dp_async_dsss_receiver_set_refine_min_blocks (
+      dp_async_dsss_receiver_state_t *state, size_t n_blocks);
 
-  void async_dsss_receiver_configure_lock_raw (
-      async_dsss_receiver_state_t *state, double up_thresh,
+  void dp_async_dsss_receiver_configure_lock_raw (
+      dp_async_dsss_receiver_state_t *state, double up_thresh,
       double down_thresh, size_t n_looks, double alpha, uint32_t n_up,
       uint32_t n_down);
 
-  int async_dsss_receiver_configure_chain_raw (
-      async_dsss_receiver_state_t *state, size_t segments, size_t sps,
+  int dp_async_dsss_receiver_configure_chain_raw (
+      dp_async_dsss_receiver_state_t *state, size_t segments, size_t sps,
       int n);
 
-  int    async_dsss_receiver_get_tracking (
-      const async_dsss_receiver_state_t *state);
-  int    async_dsss_receiver_get_refining (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_doppler_hz (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_cn0_dbhz_est (
-      const async_dsss_receiver_state_t *state);
-  size_t async_dsss_receiver_get_segments (
-      const async_dsss_receiver_state_t *state);
-  size_t async_dsss_receiver_get_sps (const async_dsss_receiver_state_t *state);
-  int    async_dsss_receiver_get_n (const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_chip_phase (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_code_rate (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_lock (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_norm_freq (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_nco_freq (
-      const async_dsss_receiver_state_t *state);
-  int async_dsss_receiver_get_locked (
-      const async_dsss_receiver_state_t *state);
-  int async_dsss_receiver_get_code_locked (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_car_last_error (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_car_nco_freq (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_mpsk_last_error (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_lock_metric (
-      const async_dsss_receiver_state_t *state);
-  double async_dsss_receiver_get_lock_threshold (
-      const async_dsss_receiver_state_t *state);
+  int    dp_async_dsss_receiver_get_tracking (
+      const dp_async_dsss_receiver_state_t *state);
+  int    dp_async_dsss_receiver_get_refining (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_doppler_hz (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_cn0_dbhz_est (
+      const dp_async_dsss_receiver_state_t *state);
+  size_t dp_async_dsss_receiver_get_segments (
+      const dp_async_dsss_receiver_state_t *state);
+  size_t dp_async_dsss_receiver_get_sps (const dp_async_dsss_receiver_state_t *state);
+  int    dp_async_dsss_receiver_get_n (const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_chip_phase (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_code_rate (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_lock (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_norm_freq (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_nco_freq (
+      const dp_async_dsss_receiver_state_t *state);
+  int dp_async_dsss_receiver_get_locked (
+      const dp_async_dsss_receiver_state_t *state);
+  int dp_async_dsss_receiver_get_code_locked (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_car_last_error (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_car_nco_freq (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_mpsk_last_error (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_lock_metric (
+      const dp_async_dsss_receiver_state_t *state);
+  double dp_async_dsss_receiver_get_lock_threshold (
+      const dp_async_dsss_receiver_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
@@ -396,7 +396,7 @@ extern "C"
     double   lock_num;  
     double   lock_den;  
     double   lock_metric;         
-    lockdet_state_t sym_lockdet;  
+    dp_lockdet_state_t sym_lockdet;  
     double   held_phase;          
     double   cell_rate_bias;
     uint64_t period_count;
@@ -406,11 +406,11 @@ extern "C"
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 #define ASYNC_DSSS_RECEIVER_STATE_VERSION 7u /* v7: no hand-off flavor; v6: the cell pull-in */
 
-  size_t async_dsss_receiver_state_bytes (
-      const async_dsss_receiver_state_t *state);
-  void   async_dsss_receiver_get_state (
-      const async_dsss_receiver_state_t *state, void *blob);
-  int async_dsss_receiver_set_state (async_dsss_receiver_state_t *state,
+  size_t dp_async_dsss_receiver_state_bytes (
+      const dp_async_dsss_receiver_state_t *state);
+  void   dp_async_dsss_receiver_get_state (
+      const dp_async_dsss_receiver_state_t *state, void *blob);
+  int dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *state,
                                      const void *blob);
 
 #ifdef __cplusplus

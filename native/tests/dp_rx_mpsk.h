@@ -30,7 +30,7 @@ dp_rx_mpsk_create (const dp_rx_point_t *pt)
   /* Five construction parameters are 0 on purpose — that asks the object to
      DERIVE them (doppler#644, design/mpsk.md §8.1). The battery states the
      link; it does not re-derive what the receiver already knows. */
-  return mpsk_receiver_create (
+  return dp_mpsk_receiver_create (
       pt->m, pt->sps, pt->m_out, MPSK_RX_PULSE_RRC, pt->beta, pt->span,
       pt->bn_carrier, 0.0 /* zeta */, pt->bn_timing, 0.0 /* lock_thresh */,
       /* foff is cycles per SYMBOL (so one value
@@ -45,45 +45,46 @@ dp_rx_mpsk_create (const dp_rx_point_t *pt)
 static void
 dp_rx_mpsk_destroy (void *h)
 {
-  mpsk_receiver_destroy ((mpsk_receiver_state_t *)h);
+  dp_mpsk_receiver_destroy ((dp_mpsk_receiver_state_t *)h);
 }
 
 static int
 dp_rx_mpsk_step (void *h, float _Complex x, float _Complex *y)
 {
-  return mpsk_receiver_step_ted ((mpsk_receiver_state_t *)h, x, y,
+  return mpsk_receiver_step_ted ((dp_mpsk_receiver_state_t *)h, x, y,
                                  RATESYNC_TED_GARDNER);
 }
 
 static double
 dp_rx_mpsk_norm_freq (const void *h)
 {
-  return mpsk_receiver_get_norm_freq ((const mpsk_receiver_state_t *)h);
+  return dp_mpsk_receiver_get_norm_freq ((const dp_mpsk_receiver_state_t *)h);
 }
 static double
 dp_rx_mpsk_last_error (const void *h)
 {
-  return mpsk_receiver_get_last_error ((const mpsk_receiver_state_t *)h);
+  return mpsk_receiver_get_last_error ((const dp_mpsk_receiver_state_t *)h);
 }
 static double
 dp_rx_mpsk_lock (const void *h)
 {
-  return mpsk_receiver_get_lock ((const mpsk_receiver_state_t *)h);
+  return dp_mpsk_receiver_get_lock ((const dp_mpsk_receiver_state_t *)h);
 }
 static int
 dp_rx_mpsk_locked (const void *h)
 {
-  return mpsk_receiver_get_locked ((const mpsk_receiver_state_t *)h);
+  return dp_mpsk_receiver_get_locked ((const dp_mpsk_receiver_state_t *)h);
 }
 static long
 dp_rx_mpsk_lock_time (const void *h)
 {
-  return (long)mpsk_receiver_get_lock_time ((const mpsk_receiver_state_t *)h);
+  return (long)dp_mpsk_receiver_get_lock_time (
+      (const dp_mpsk_receiver_state_t *)h);
 }
 static int
 dp_rx_mpsk_clipped (const void *h)
 {
-  return mpsk_receiver_get_clipped ((const mpsk_receiver_state_t *)h);
+  return dp_mpsk_receiver_get_clipped ((const dp_mpsk_receiver_state_t *)h);
 }
 /* Read back rather than restated. `create()` above passes 0 and asks the
    receiver to DERIVE its damping; the ramp law is a function of it, so the
@@ -92,7 +93,7 @@ dp_rx_mpsk_clipped (const void *h)
 static double
 dp_rx_mpsk_zeta (const void *h)
 {
-  return mpsk_receiver_get_zeta ((const mpsk_receiver_state_t *)h);
+  return dp_mpsk_receiver_get_zeta ((const dp_mpsk_receiver_state_t *)h);
 }
 
 /** @brief `MpskReceiver`, the general flavor: every knob a point sets. */

@@ -74,7 +74,7 @@ main (void)
       lfsr   = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
       sym[i] = (uint8_t)(lfsr & 3u);
     }
-  mpsk_map (sym, BENCH_N, rx, 4);
+  dp_mpsk_map (sym, BENCH_N, rx, 4);
   for (int i = 0; i < BENCH_N; i++)
     rx[i] += (float)(0.05 * sin (i * 0.7)) + (float)(0.05 * cos (i * 1.3)) * I;
 
@@ -82,7 +82,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += ber_evm_db (rx, BENCH_N, 0, BENCH_N, 4);
+      sink += dp_ber_evm_db (rx, BENCH_N, 0, BENCH_N, 4);
       t1       = jm_bench_now_ns ();
       t_evm[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -99,7 +99,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < SCALAR_N; i++)
-        sink += ber_theory_ser (4, 1.0 + (double)(i & 15) * 0.5);
+        sink += dp_ber_theory_ser (4, 1.0 + (double)(i & 15) * 0.5);
       t1       = jm_bench_now_ns ();
       t_ser[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -109,7 +109,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < SCALAR_N; i++)
-        sink += ber_theory_ber (4, 1.0 + (double)(i & 15) * 0.5);
+        sink += dp_ber_theory_ber (4, 1.0 + (double)(i & 15) * 0.5);
       t1       = jm_bench_now_ns ();
       t_ber[r] = jm_bench_elapsed_sec (t0, t1);
     }

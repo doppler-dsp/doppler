@@ -239,7 +239,7 @@ the average lengthens:
 exact at `d = 1` at every coefficient tried, and answers `alpha = 0` and
 `alpha = 1` directly rather than through `log1p(-1) = -inf`.
 
-`agc_steps` forms its detector pole by repeated multiplication —
+`dp_agc_steps` forms its detector pole by repeated multiplication —
 `ac *= a1` `d` times, then `1 - ac` — and therefore carries exactly this
 defect today. See §8.
 
@@ -251,9 +251,9 @@ This section exists because the distinction is invisible in code that
 sits three lines apart, and getting it wrong produced a measured,
 long-standing anomaly in the AGC.
 
-`agc_steps` computes **two** decimated coefficients per chunk:
+`dp_agc_steps` computes **two** decimated coefficients per chunk:
 
-<!-- docs-snippet: skip=a two-line excerpt quoted from agc_steps' chunk loop, not a standalone program — ac, d and state are its locals -->
+<!-- docs-snippet: skip=a two-line excerpt quoted from dp_agc_steps' chunk loop, not a standalone program — ac, d and state are its locals -->
 
 ```c
 double alpha_d = 1.0 - ac;                         /* detector pole   */
@@ -509,7 +509,7 @@ of the *rate requirement*, not of the CIC.
 
 Two places, both deliberate:
 
-- **Inside `agc_steps` itself.** The chunk power — `JM_SUMSQ_F32` over the
+- **Inside `dp_agc_steps` itself.** The chunk power — `JM_SUMSQ_F32` over the
     chunk followed by `* inv_c` — **is** a first-order CIC decimator at
     `R = decim`, computed as a direct block sum so it needs no integrator
     state at all. It supplies the short average; the EMA supplies the long

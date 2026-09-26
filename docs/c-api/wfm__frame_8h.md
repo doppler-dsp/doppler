@@ -148,7 +148,7 @@ Not chips, not samples, not levels. Spreading, pulse shaping, oversampling, carr
 
 
 The preamble, the sync word and the payload are all `wfm_seq_t`, so "a Gold
-sync" is a configuration rather than a feature, and `pn_create()` / `gold_create()` stay the only implementations of those sequences.
+sync" is a configuration rather than a feature, and `dp_pn_create()` / `dp_gold_create()` stay the only implementations of those sequences.
 
 
 **The generated kinds are the ones that matter.** A literal array is what a caller with real data has; a PN or Gold descriptor is a handful of numbers a receiver can REGENERATE, which is what makes a long-record BER practical — truth for a million-symbol run without a million-symbol array, and a capture reproducible from its metadata alone.

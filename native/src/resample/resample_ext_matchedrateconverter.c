@@ -7,21 +7,21 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* MatchedRateConverterObject — wraps RateConverter_state_t *       */
+/* MatchedRateConverterObject — wraps dp_RateConverter_state_t *       */
 /* ======================================================== */
 
 #include "doppler/RateConverter/RateConverter_core.h"
 
 typedef struct
 {
-  PyObject_HEAD RateConverter_state_t *handle;
+  PyObject_HEAD dp_RateConverter_state_t *handle;
 } MatchedRateConverterObject;
 
 static void
 MatchedRateConverterObj_dealloc (MatchedRateConverterObject *self)
 {
   if (self->handle)
-    RateConverter_destroy (self->handle);
+    dp_RateConverter_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -103,7 +103,7 @@ MatchedRateConverterObj_execute_max_out (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (RateConverter_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_RateConverter_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -150,7 +150,7 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = RateConverter_execute_max_out (self->handle);
+      size_t _omax    = dp_RateConverter_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -162,7 +162,7 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t n_out = RateConverter_execute (
+      size_t n_out = dp_RateConverter_execute (
           self->handle, (const float _Complex *)PyArray_DATA (x_arr),
           (size_t)PyArray_SIZE (x_arr),
           (float _Complex *)PyArray_DATA (out_arr), _cap);
@@ -179,7 +179,7 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = RateConverter_execute_max_out (self->handle);
+  size_t _cap  = dp_RateConverter_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -190,7 +190,7 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = RateConverter_execute (
+  size_t          n_out = dp_RateConverter_execute (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
@@ -230,7 +230,7 @@ MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
   if (!x_arr)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = RateConverter_execute_ctrl_max_out (self->handle);
+  size_t _cap  = dp_RateConverter_execute_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -241,7 +241,7 @@ MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = RateConverter_execute_ctrl (
+  size_t          n_out = dp_RateConverter_execute_ctrl (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), ctrl, _d0, _cap);
   Py_DECREF (x_arr);
@@ -271,7 +271,7 @@ MatchedRateConverterObj_execute_ctrl_push_max_out (
       return NULL;
     }
   return PyLong_FromSize_t (
-      RateConverter_execute_ctrl_push_max_out (self->handle));
+      dp_RateConverter_execute_ctrl_push_max_out (self->handle));
 }
 
 static PyObject *
@@ -313,11 +313,11 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
           return NULL;
         }
       size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = RateConverter_execute_ctrl_push_max_out (self->handle);
+      size_t _omax = dp_RateConverter_execute_ctrl_push_max_out (self->handle);
       size_t _min_cap
-          = _omax > RateConverter_execute_ctrl_push_max_out (self->handle)
+          = _omax > dp_RateConverter_execute_ctrl_push_max_out (self->handle)
                 ? _omax
-                : (RateConverter_execute_ctrl_push_max_out (self->handle));
+                : (dp_RateConverter_execute_ctrl_push_max_out (self->handle));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -325,7 +325,7 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = RateConverter_execute_ctrl_push (
+      size_t n_out = dp_RateConverter_execute_ctrl_push (
           self->handle, x, ctrl, (float _Complex *)PyArray_DATA (out_arr),
           _cap);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -339,8 +339,8 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = RateConverter_execute_ctrl_push_max_out (self->handle);
-  size_t _cap  = RateConverter_execute_ctrl_push_max_out (self->handle);
+  size_t _need = dp_RateConverter_execute_ctrl_push_max_out (self->handle);
+  size_t _cap  = dp_RateConverter_execute_ctrl_push_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -351,7 +351,7 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t          n_out
-      = RateConverter_execute_ctrl_push (self->handle, x, ctrl, _d0, _cap);
+      = dp_RateConverter_execute_ctrl_push (self->handle, x, ctrl, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -377,7 +377,7 @@ MatchedRateConverterObj_reset (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  RateConverter_reset (self->handle);
+  dp_RateConverter_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -390,7 +390,7 @@ MatchedRateConverterObj_state_bytes (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (RateConverter_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_RateConverter_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -402,11 +402,11 @@ MatchedRateConverterObj_get_state (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = RateConverter_state_bytes (self->handle);
+  size_t    _n = dp_RateConverter_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  RateConverter_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_RateConverter_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -425,12 +425,12 @@ MatchedRateConverterObj_set_state (MatchedRateConverterObject *self,
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != RateConverter_state_bytes (self->handle))
+      != dp_RateConverter_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (RateConverter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_RateConverter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -447,7 +447,7 @@ MatchedRateConverter_getprop_rate (MatchedRateConverterObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (RateConverter_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_RateConverter_get_rate (self->handle));
 }
 static int
 MatchedRateConverter_setprop_rate (MatchedRateConverterObject *self,
@@ -461,7 +461,7 @@ MatchedRateConverter_setprop_rate (MatchedRateConverterObject *self,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  RateConverter_set_rate (self->handle, v);
+  dp_RateConverter_set_rate (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -474,7 +474,7 @@ MatchedRateConverter_getprop_clipped (MatchedRateConverterObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(RateConverter_get_clipped (self->handle)));
+  return PyBool_FromLong ((long)(dp_RateConverter_get_clipped (self->handle)));
 }
 static PyObject *
 MatchedRateConverter_getprop_narrow_pulse (MatchedRateConverterObject *self,
@@ -487,7 +487,7 @@ MatchedRateConverter_getprop_narrow_pulse (MatchedRateConverterObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
-      (long)(RateConverter_get_narrow_pulse (self->handle)));
+      (long)(dp_RateConverter_get_narrow_pulse (self->handle)));
 }
 static PyObject *
 MatchedRateConverter_getprop_stages (MatchedRateConverterObject *self,
@@ -504,13 +504,13 @@ MatchedRateConverter_getprop_stages (MatchedRateConverterObject *self,
     return NULL;
   for (size_t _i = 0; _i < _n; _i++)
     {
-      const char *_r = RateConverter_stages_value (self->handle, _i);
+      const char *_r = dp_RateConverter_stages_value (self->handle, _i);
       if (!_r)
         {
-          PyErr_Format (
-              PyExc_RuntimeError,
-              "stages: RateConverter_stages_value returned NULL at index %zu",
-              _i);
+          PyErr_Format (PyExc_RuntimeError,
+                        "stages: dp_RateConverter_stages_value returned NULL "
+                        "at index %zu",
+                        _i);
           Py_DECREF (_c);
           return NULL;
         }
@@ -540,8 +540,8 @@ MatchedRateConverter_getprop_bank_shape (MatchedRateConverterObject *self,
   for (size_t _i = 0; _i < _n; _i++)
     {
       PyObject *_v = PyLong_FromUnsignedLongLong (
-          (unsigned long long)RateConverter_bank_shape_value (self->handle,
-                                                              _i));
+          (unsigned long long)dp_RateConverter_bank_shape_value (self->handle,
+                                                                 _i));
       if (!_v)
         {
           Py_DECREF (_c);
@@ -600,7 +600,7 @@ MatchedRateConverterObj_destroy (MatchedRateConverterObject *self,
 {
   if (self->handle)
     {
-      RateConverter_destroy (self->handle);
+      dp_RateConverter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -620,7 +620,7 @@ MatchedRateConverterObj_exit (MatchedRateConverterObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      RateConverter_destroy (self->handle);
+      dp_RateConverter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -677,12 +677,12 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
     "\n"
     "Convert a block, steering the cascade's fractional stage by ctrl.\n"
     "\n"
-    "The control-port form of RateConverter_execute(): the fixed integer\n"
+    "The control-port form of dp_RateConverter_execute(): the fixed integer\n"
     "stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate\n"
     "deviation ctrl is forwarded to the **terminal polyphase Resampler\n"
     "stage's** accumulator (via resamp_execute_ctrl_push) — so its effective\n"
     "rate becomes `stage_rate + ctrl` for this call. This exposes the\n"
-    "fractional tail's control port that RateConverter_execute() hides: a\n"
+    "fractional tail's control port that dp_RateConverter_execute() hides: a\n"
     "timing/rate-tracking loop can decimate a high input rate cheaply\n"
     "through the HB/CIC stages and then arbitrary-rate + strobe-align in the\n"
     "last stage, updating ctrl per block.\n"
@@ -691,7 +691,7 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
     "not the overall rate. It is meaningful only when the cascade actually\n"
     "ends in a Resampler stage; a pure integer HB/CIC cascade has no\n"
     "fractional stage to steer, so this **falls through to\n"
-    "RateConverter_execute()** (ctrl ignored).\n"
+    "dp_RateConverter_execute()** (ctrl ignored).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -723,11 +723,13 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
     "\n"
     "Push ONE input sample; emit whatever outputs it completes.\n"
     "\n"
-    "The per-input streaming form of RateConverter_execute_ctrl(), and the\n"
+    "The per-input streaming form of dp_RateConverter_execute_ctrl(), and "
+    "the\n"
     "only form a closed loop can use: a block call must know its whole\n"
     "`ctrl` history up front, whereas a timing loop computes each correction\n"
     "*from* the outputs already emitted. Feeding a stream one sample at a\n"
-    "time through this reproduces RateConverter_execute_ctrl() on the same\n"
+    "time through this reproduces dp_RateConverter_execute_ctrl() on the "
+    "same\n"
     "block bit-for-bit when ctrl is held constant (the cascade is\n"
     "block-boundary invariant), so the cheap block form stays correct for\n"
     "open-loop use.\n"
@@ -900,7 +902,7 @@ static PyTypeObject MatchedRateConverterObjType = {
     "    appended as a stage).\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"rrc\"\n"
     "    RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use\n"
-    "    RateConverter_create() for a plain conversion.\n"
+    "    dp_RateConverter_create() for a plain conversion.\n"
     "beta : float, default 0.35\n"
     "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"
     "span : int, default 8\n"

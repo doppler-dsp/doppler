@@ -11,9 +11,9 @@
 int
 main (void)
 {
-  delay_state_t *obj = delay_create (1);
-  uint64_t       t0, t1;
-  jm_bench_t     _bench = { 0 };
+  dp_delay_state_t *obj = dp_delay_create (1);
+  uint64_t          t0, t1;
+  jm_bench_t        _bench = { 0 };
 
   printf ("=== delay benchmark ===\n");
   printf ("  (no step(); methods below)\n");
@@ -23,12 +23,12 @@ main (void)
   {
     double _times_push[ITERATIONS];
     for (int i = 0; i < 16; i++)
-      delay_push (obj, 0.0 + 0.0 * I);
+      dp_delay_push (obj, 0.0 + 0.0 * I);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          delay_push (obj, 0.0 + 0.0 * I);
+          dp_delay_push (obj, 0.0 + 0.0 * I);
         t1             = jm_bench_now_ns ();
         _times_push[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -46,12 +46,12 @@ main (void)
   {
     double _times_write[ITERATIONS];
     for (int i = 0; i < 16; i++)
-      delay_write (obj, 0.0 + 0.0 * I);
+      dp_delay_write (obj, 0.0 + 0.0 * I);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          delay_write (obj, 0.0 + 0.0 * I);
+          dp_delay_write (obj, 0.0 + 0.0 * I);
         t1              = jm_bench_now_ns ();
         _times_write[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -65,6 +65,6 @@ main (void)
     }
   }
   jm_bench_write_json (&_bench, "delay");
-  delay_destroy (obj);
+  dp_delay_destroy (obj);
   return 0;
 }

@@ -32,14 +32,14 @@ main (void)
   const char *names[3] = { "delay_linear", "delay_parabolic", "delay_cubic" };
   for (int order = 0; order <= 2; order++)
     {
-      farrow_state_t *f = farrow_create (order);
-      farrow_delay (f, x, 64, 0.5, out, BENCH_N); /* warmup */
+      dp_farrow_state_t *f = dp_farrow_create (order);
+      dp_farrow_delay (f, x, 64, 0.5, out, BENCH_N); /* warmup */
       double times[ITERATIONS];
       for (int r = 0; r < ITERATIONS; r++)
         {
-          farrow_reset (f);
+          dp_farrow_reset (f);
           t0 = jm_bench_now_ns ();
-          farrow_delay (f, x, BENCH_N, 0.5, out, BENCH_N);
+          dp_farrow_delay (f, x, BENCH_N, 0.5, out, BENCH_N);
           t1       = jm_bench_now_ns ();
           times[r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -49,7 +49,7 @@ main (void)
         sum += times[r];
       printf ("  %-16s %8.1f MSa/s\n", names[order],
               (double)BENCH_N / (sum / ITERATIONS) / 1e6);
-      farrow_destroy (f);
+      dp_farrow_destroy (f);
     }
 
   jm_bench_write_json (&_bench, "farrow");

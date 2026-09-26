@@ -21,11 +21,11 @@ main (void)
   for (int i = 0; i < BENCH_N; i++)
     in[i] = (double)(i) + 0.0 * I;
 
-  acc_cf64_state_t *obj = acc_cf64_create (0.0 + 0.0 * I);
+  dp_acc_cf64_state_t *obj = dp_acc_cf64_create (0.0 + 0.0 * I);
 
   /* warmup */
   for (int i = 0; i < 16; i++)
-    acc_cf64_step (obj, in[i]);
+    dp_acc_cf64_step (obj, in[i]);
 
   uint64_t   t0, t1;
   jm_bench_t _bench = { 0 };
@@ -38,7 +38,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        acc_cf64_step (obj, in[i]);
+        dp_acc_cf64_step (obj, in[i]);
       t1             = jm_bench_now_ns ();
       _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -54,7 +54,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      acc_cf64_steps (obj, in, BENCH_N);
+      dp_acc_cf64_steps (obj, in, BENCH_N);
       t1              = jm_bench_now_ns ();
       _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -72,12 +72,12 @@ main (void)
     double _times_get[ITERATIONS];
     volatile double _Complex get_sink;
     for (int i = 0; i < 16; i++)
-      get_sink = acc_cf64_get (obj);
+      get_sink = dp_acc_cf64_get (obj);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          get_sink = acc_cf64_get (obj);
+          get_sink = dp_acc_cf64_get (obj);
         t1            = jm_bench_now_ns ();
         _times_get[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -96,12 +96,12 @@ main (void)
     double _times_dump[ITERATIONS];
     volatile double _Complex dump_sink;
     for (int i = 0; i < 16; i++)
-      dump_sink = acc_cf64_dump (obj);
+      dump_sink = dp_acc_cf64_dump (obj);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          dump_sink = acc_cf64_dump (obj);
+          dump_sink = dp_acc_cf64_dump (obj);
         t1             = jm_bench_now_ns ();
         _times_dump[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -119,12 +119,12 @@ main (void)
   {
     double _times_madd[ITERATIONS];
     for (int i = 0; i < 16; i++)
-      acc_cf64_madd (obj, NULL, 0, NULL, 0);
+      dp_acc_cf64_madd (obj, NULL, 0, NULL, 0);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          acc_cf64_madd (obj, NULL, 0, NULL, 0);
+          dp_acc_cf64_madd (obj, NULL, 0, NULL, 0);
         t1             = jm_bench_now_ns ();
         _times_madd[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -142,12 +142,12 @@ main (void)
   {
     double _times_add2d[ITERATIONS];
     for (int i = 0; i < 16; i++)
-      acc_cf64_add2d (obj, NULL, 0);
+      dp_acc_cf64_add2d (obj, NULL, 0);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          acc_cf64_add2d (obj, NULL, 0);
+          dp_acc_cf64_add2d (obj, NULL, 0);
         t1              = jm_bench_now_ns ();
         _times_add2d[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -165,12 +165,12 @@ main (void)
   {
     double _times_madd2d[ITERATIONS];
     for (int i = 0; i < 16; i++)
-      acc_cf64_madd2d (obj, NULL, 0, NULL, 0);
+      dp_acc_cf64_madd2d (obj, NULL, 0, NULL, 0);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          acc_cf64_madd2d (obj, NULL, 0, NULL, 0);
+          dp_acc_cf64_madd2d (obj, NULL, 0, NULL, 0);
         t1               = jm_bench_now_ns ();
         _times_madd2d[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -184,7 +184,7 @@ main (void)
     }
   }
   jm_bench_write_json (&_bench, "acc_cf64");
-  acc_cf64_destroy (obj);
+  dp_acc_cf64_destroy (obj);
   free (in);
 
   return 0;

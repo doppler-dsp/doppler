@@ -11,9 +11,9 @@
 int
 main (void)
 {
-  Resampler_state_t *obj = Resampler_create (0.0);
-  uint64_t           t0, t1;
-  jm_bench_t         _bench = { 0 };
+  dp_Resampler_state_t *obj = dp_Resampler_create (0.0);
+  uint64_t              t0, t1;
+  jm_bench_t            _bench = { 0 };
 
   printf ("=== Resampler benchmark ===\n");
   printf ("  (no step(); methods below)\n");
@@ -23,12 +23,12 @@ main (void)
   {
     double _times_reset[ITERATIONS];
     for (int i = 0; i < 16; i++)
-      Resampler_reset (obj);
+      dp_Resampler_reset (obj);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
-          Resampler_reset (obj);
+          dp_Resampler_reset (obj);
         t1              = jm_bench_now_ns ();
         _times_reset[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -42,6 +42,6 @@ main (void)
     }
   }
   jm_bench_write_json (&_bench, "Resampler");
-  Resampler_destroy (obj);
+  dp_Resampler_destroy (obj);
   return 0;
 }

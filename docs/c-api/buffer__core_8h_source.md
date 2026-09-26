@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef BUFFER_CORE_H
-#define BUFFER_CORE_H
+#ifndef DP_BUFFER_CORE_H
+#define DP_BUFFER_CORE_H
 
 #include "doppler/clib_common.h"
 

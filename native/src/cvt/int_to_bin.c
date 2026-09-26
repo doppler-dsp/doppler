@@ -12,8 +12,8 @@
    place they could drift, and it is the place a marker would then be
    expanded two ways. */
 size_t
-int_to_bin (uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len,
-            int bitorder)
+dp_int_to_bin (uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len,
+               int bitorder)
 {
   if (!out || n_bits == 0u || n_bits > 64u || n_bits > out_len)
     return 0;

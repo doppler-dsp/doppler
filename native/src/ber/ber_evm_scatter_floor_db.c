@@ -12,7 +12,7 @@
 #endif
 
 double
-ber_evm_scatter_floor_db (int m)
+dp_ber_evm_scatter_floor_db (int m)
 {
   double t;
   if (m < 2)

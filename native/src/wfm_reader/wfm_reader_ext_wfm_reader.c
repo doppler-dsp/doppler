@@ -6,7 +6,7 @@
  * Do NOT compile this file directly — only wfm_reader_ext.c is compiled.
  */
 /* ======================================================== */
-/* ReaderObject — wraps wfm_reader_state_t *       */
+/* ReaderObject — wraps dp_wfm_reader_state_t *       */
 /* ======================================================== */
 
 #include "doppler/wfm_reader/wfm_reader_core.h"
@@ -22,14 +22,14 @@
 
 typedef struct
 {
-  PyObject_HEAD wfm_reader_state_t *handle;
+  PyObject_HEAD dp_wfm_reader_state_t *handle;
 } ReaderObject;
 
 static void
 ReaderObj_dealloc (ReaderObject *self)
 {
   if (self->handle)
-    wfm_reader_destroy (self->handle);
+    dp_wfm_reader_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -113,7 +113,7 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   self->handle
-      = wfm_reader_create (PyBytes_AS_STRING (path), sample_type, endian);
+      = dp_wfm_reader_create (PyBytes_AS_STRING (path), sample_type, endian);
   Py_XDECREF (path);
   if (!self->handle)
     {
@@ -146,7 +146,7 @@ ReaderObj_reset (ReaderObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  wfm_reader_reset (self->handle);
+  dp_wfm_reader_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -223,7 +223,8 @@ ReaderObj_read_max_out (ReaderObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
-  return PyLong_FromSize_t (wfm_reader_read_max_out (self->handle, (size_t)n));
+  return PyLong_FromSize_t (
+      dp_wfm_reader_read_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -261,7 +262,7 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = wfm_reader_read_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_wfm_reader_read_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -270,9 +271,9 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out
-          = wfm_reader_read (self->handle, (size_t)n,
-                             (float _Complex *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_wfm_reader_read (
+          self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
+          _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -285,7 +286,7 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = wfm_reader_read_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_wfm_reader_read_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
@@ -294,7 +295,7 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = wfm_reader_read (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_wfm_reader_read (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -323,7 +324,7 @@ ReaderObj_read_follow_max_out (ReaderObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
   return PyLong_FromSize_t (
-      wfm_reader_read_follow_max_out (self->handle, (size_t)n));
+      dp_wfm_reader_read_follow_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -360,8 +361,9 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = wfm_reader_read_follow_max_out (self->handle, (size_t)n);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax
+          = dp_wfm_reader_read_follow_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -377,7 +379,8 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = wfm_reader_read_follow (self->handle, (size_t)n, _ng0, _cap);
+        n_out
+            = dp_wfm_reader_read_follow (self->handle, (size_t)n, _ng0, _cap);
       Py_END_ALLOW_THREADS
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -391,7 +394,7 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = wfm_reader_read_follow_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_wfm_reader_read_follow_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
@@ -406,7 +409,7 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
    * state/buffers and the caller's input. */
   size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = wfm_reader_read_follow (self->handle, (size_t)n, _d0, _cap);
+    n_out = dp_wfm_reader_read_follow (self->handle, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
   if ((size_t)n_out == _cap)
     {
@@ -434,7 +437,7 @@ Reader_getprop_follow_timeout_ms (ReaderObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLong (
-      (unsigned long)wfm_reader_get_follow_timeout_ms (self->handle));
+      (unsigned long)dp_wfm_reader_get_follow_timeout_ms (self->handle));
 }
 static int
 Reader_setprop_follow_timeout_ms (ReaderObject *self, PyObject *value,
@@ -449,7 +452,7 @@ Reader_setprop_follow_timeout_ms (ReaderObject *self, PyObject *value,
   if (!PyArg_Parse (value, "k", &v_raw))
     return -1;
   uint32_t v = (uint32_t)v_raw;
-  wfm_reader_set_follow_timeout_ms (self->handle, v);
+  dp_wfm_reader_set_follow_timeout_ms (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -462,7 +465,7 @@ Reader_getprop_follow_grace_ms (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLong (
-      (unsigned long)wfm_reader_get_follow_grace_ms (self->handle));
+      (unsigned long)dp_wfm_reader_get_follow_grace_ms (self->handle));
 }
 static int
 Reader_setprop_follow_grace_ms (ReaderObject *self, PyObject *value,
@@ -477,7 +480,7 @@ Reader_setprop_follow_grace_ms (ReaderObject *self, PyObject *value,
   if (!PyArg_Parse (value, "k", &v_raw))
     return -1;
   uint32_t v = (uint32_t)v_raw;
-  wfm_reader_set_follow_grace_ms (self->handle, v);
+  dp_wfm_reader_set_follow_grace_ms (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -489,7 +492,7 @@ Reader_getprop_ending (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_ending (self->handle));
+  long _v = (long)(dp_wfm_reader_get_ending (self->handle));
   if (_v < 0 || _v >= 4)
     {
       PyErr_Format (PyExc_ValueError,
@@ -509,7 +512,7 @@ Reader_getprop_file_type (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_file_type (self->handle));
+  long _v = (long)(dp_wfm_reader_get_file_type (self->handle));
   if (_v < 0 || _v >= 4)
     {
       PyErr_Format (PyExc_ValueError,
@@ -529,7 +532,7 @@ Reader_getprop_sample_type (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_sample_type (self->handle));
+  long _v = (long)(dp_wfm_reader_get_sample_type (self->handle));
   if (_v < 0 || _v >= 10)
     {
       PyErr_Format (PyExc_ValueError,
@@ -549,7 +552,7 @@ Reader_getprop_mode (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_mode (self->handle));
+  long _v = (long)(dp_wfm_reader_get_mode (self->handle));
   if (_v < 0 || _v >= 2)
     {
       PyErr_Format (PyExc_ValueError,
@@ -569,7 +572,7 @@ Reader_getprop_endian (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_endian (self->handle));
+  long _v = (long)(dp_wfm_reader_get_endian (self->handle));
   if (_v < 0 || _v >= 2)
     {
       PyErr_Format (PyExc_ValueError,
@@ -589,7 +592,7 @@ Reader_getprop_fs (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (wfm_reader_get_fs (self->handle));
+  return PyFloat_FromDouble (dp_wfm_reader_get_fs (self->handle));
 }
 static PyObject *
 Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
@@ -600,7 +603,7 @@ Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (wfm_reader_get_fc (self->handle));
+  return PyFloat_FromDouble (dp_wfm_reader_get_fc (self->handle));
 }
 static PyObject *
 Reader_getprop_fs_source (ReaderObject *self, void *Py_UNUSED (closure))
@@ -611,7 +614,7 @@ Reader_getprop_fs_source (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_fs_source (self->handle));
+  long _v = (long)(dp_wfm_reader_get_fs_source (self->handle));
   if (_v < 0 || _v >= 3)
     {
       PyErr_Format (PyExc_ValueError,
@@ -631,7 +634,7 @@ Reader_getprop_t0 (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (wfm_reader_get_t0 (self->handle));
+  return PyFloat_FromDouble (dp_wfm_reader_get_t0 (self->handle));
 }
 static PyObject *
 Reader_getprop_t0_source (ReaderObject *self, void *Py_UNUSED (closure))
@@ -642,7 +645,7 @@ Reader_getprop_t0_source (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_t0_source (self->handle));
+  long _v = (long)(dp_wfm_reader_get_t0_source (self->handle));
   if (_v < 0 || _v >= 2)
     {
       PyErr_Format (PyExc_ValueError,
@@ -663,7 +666,7 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)wfm_reader_get_num_samples (self->handle));
+      (unsigned long long)dp_wfm_reader_get_num_samples (self->handle));
 }
 static PyObject *
 Reader_getprop_fc_source (ReaderObject *self, void *Py_UNUSED (closure))
@@ -674,7 +677,7 @@ Reader_getprop_fc_source (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  long _v = (long)(wfm_reader_get_fc_source (self->handle));
+  long _v = (long)(dp_wfm_reader_get_fc_source (self->handle));
   if (_v < 0 || _v >= 6)
     {
       PyErr_Format (PyExc_ValueError,
@@ -695,7 +698,7 @@ Reader_getprop_trailing_bytes (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)wfm_reader_get_trailing_bytes (self->handle));
+      (unsigned long long)dp_wfm_reader_get_trailing_bytes (self->handle));
 }
 static PyObject *
 Reader_decode_keywords (const wfm_keyword_t *_e)
@@ -1047,7 +1050,7 @@ Reader_getprop_position (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)wfm_reader_get_position (self->handle));
+      (unsigned long long)dp_wfm_reader_get_position (self->handle));
 }
 
 static PyGetSetDef Reader_getset[] = {
@@ -1214,7 +1217,7 @@ ReaderObj_destroy (ReaderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      wfm_reader_destroy (self->handle);
+      dp_wfm_reader_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -1233,7 +1236,7 @@ ReaderObj_exit (ReaderObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      wfm_reader_destroy (self->handle);
+      dp_wfm_reader_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -1252,7 +1255,7 @@ ReaderObj_seek (ReaderObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &index_raw))
     return NULL;
   int64_t index = (int64_t)index_raw;
-  int     _rc   = wfm_reader_seek (self->handle, index);
+  int     _rc   = dp_wfm_reader_seek (self->handle, index);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -1276,7 +1279,7 @@ ReaderObj_seek_time (ReaderObject *self, PyObject *args, PyObject *kwds)
   double       seconds   = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &seconds))
     return NULL;
-  int _rc = wfm_reader_seek_time (self->handle, seconds);
+  int _rc = dp_wfm_reader_seek_time (self->handle, seconds);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -1384,10 +1387,11 @@ static PyMethodDef ReaderObj_methods[] = {
     "mid-sample cannot desynchronise the stream.\n"
     "\n"
     "Blocks until whole samples arrive. A short or empty result does not\n"
-    "mean end-of-file the way ::wfm_reader_read's does -- the reader waits.\n"
+    "mean end-of-file the way ::dp_wfm_reader_read's does -- the reader "
+    "waits.\n"
     "**Zero means the capture ENDED**, because with the default unbounded\n"
     "budgets the call does not come back for \"not yet\";\n"
-    "::wfm_reader_get_ending says which way it ended.\n"
+    "::dp_wfm_reader_get_ending says which way it ended.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1684,7 +1688,8 @@ static PyTypeObject ReaderObjType = {
     "    there is none. A NAMED type still wins over the sidecar, so a stale "
     "one\n"
     "    can be overridden. A wrong hint does not fail, and\n"
-    "    ::wfm_reader_get_trailing_bytes is NOT the way to notice -- see what "
+    "    ::dp_wfm_reader_get_trailing_bytes is NOT the way to notice -- see "
+    "what "
     "it\n"
     "    says about itself.\n"
     "endian : Literal[\"le\", \"be\"], default \"le\"\n"

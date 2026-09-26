@@ -291,7 +291,7 @@ main (void)
   wfm_frame_desc_layout_t lay;
   check (wfm_frame_desc_layout (&d, &lay) == 0,
          "wfm_frame_desc_layout accepts it");
-  check (lay.frame_bits == FRAME_BITS,
+  check (lay.frame_nbits == FRAME_BITS,
          "the frame is header + payload + CRC, exactly");
   printf ("  hdr     %2zu bits @ %2zu\n", lay.field_bits[0], lay.field_off[0]);
   printf ("  payload %2zu bits @ %2zu\n", lay.field_bits[1], lay.field_off[1]);

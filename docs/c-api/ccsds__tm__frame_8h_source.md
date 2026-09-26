@@ -73,7 +73,7 @@ extern "C"
                            ccsds_tm_frame_rx_t *rx);
 
   int ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
-                               size_t frame_len, const uint8_t *frame_bits,
+                               size_t frame_len, const uint8_t *tf_bits,
                                wfm_frame_desc_t *out);
 
   typedef struct

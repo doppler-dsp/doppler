@@ -76,8 +76,8 @@ main (void)
   for (int mi = 0; mi < 3; mi++)
     for (int f = 0; f < 2; f++)
       {
-        carrier_mpsk_state_t *c
-            = carrier_mpsk_create (0.01, 0.707, 0.0, TSAMPS, fll[f], ms[mi]);
+        dp_carrier_mpsk_state_t *c = dp_carrier_mpsk_create (
+            0.01, 0.707, 0.0, TSAMPS, fll[f], ms[mi]);
         if (!c)
           {
             (void)fprintf (stderr,
@@ -85,11 +85,11 @@ main (void)
                            ms[mi], fll[f]);
             return 1;
           }
-        size_t cap = carrier_mpsk_steps_max_out (c);
+        size_t cap = dp_carrier_mpsk_steps_max_out (c);
         if (cap == 0 || cap > BENCH_N)
           cap = BENCH_N;
 
-        size_t got = carrier_mpsk_steps (c, x, BENCH_N, out, cap);
+        size_t got = dp_carrier_mpsk_steps (c, x, BENCH_N, out, cap);
         if (got == 0)
           {
             (void)fprintf (stderr,
@@ -108,7 +108,7 @@ main (void)
           w0 = jm_bench_now_ns ();
           do
             {
-              sink += carrier_mpsk_steps (c, x, BENCH_N, out, cap);
+              sink += dp_carrier_mpsk_steps (c, x, BENCH_N, out, cap);
               w1 = jm_bench_now_ns ();
             }
           while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -117,7 +117,7 @@ main (void)
         for (int r = 0; r < ITERATIONS; r++)
           {
             t0 = jm_bench_now_ns ();
-            sink += carrier_mpsk_steps (c, x, BENCH_N, out, cap);
+            sink += dp_carrier_mpsk_steps (c, x, BENCH_N, out, cap);
             t1             = jm_bench_now_ns ();
             t_st[mi][f][r] = jm_bench_elapsed_sec (t0, t1);
           }
@@ -127,7 +127,7 @@ main (void)
         double sec = min_sec (t_st[mi][f], ITERATIONS);
         printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", name,
                 sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6);
-        carrier_mpsk_destroy (c);
+        dp_carrier_mpsk_destroy (c);
       }
 
   printf (

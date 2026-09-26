@@ -29,7 +29,7 @@ main (void)
     /* Poisoned, so a function that writes only a prefix is caught rather
        than reading back whatever the stack happened to hold. */
     memset (bits, 0xAA, sizeof bits);
-    asm_bits (bits);
+    dp_asm_bits (bits);
     for (int i = 0; i < 32; i++)
       {
         DP_CHECK (bits[i] == 0 || bits[i] == 1);
@@ -46,7 +46,7 @@ main (void)
 
     memset (here, 0xAA, sizeof here);
     memset (there, 0x55, sizeof there);
-    asm_bits (here);
+    dp_asm_bits (here);
     ccsds_tm_asm_bits (there);
     /* The whole reason this is a call and not a constant: two expansions
        of 0x1ACFFC1D can disagree, and a receiver that disagrees with the

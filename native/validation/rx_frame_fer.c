@@ -158,7 +158,7 @@ typedef struct
   int             unaligned; /**< Bursts settled but never aligned.     */
   int             framed;    /**< The frame can carry frame statistics. */
   int             frame_enough; /**< The FRAME error target was reached.  */
-  size_t          frame_bits;   /**< Bits in one frame.                    */
+  size_t          frame_nbits;  /**< Bits in one frame.                    */
   size_t          sync_bits;    /**< Symbols in the sync word, 0 if none.  */
   size_t          prot_bits;    /**< Bits the CRC protects (payload+CRC).  */
   size_t          frames;       /**< Frames attempted.                     */
@@ -187,14 +187,14 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
                 double esn0_db, uint32_t seed, size_t nsym, float complex *out,
                 unsigned char *lock_c, int *clipped)
 {
-  int                    isps  = (int)c->sps;
-  size_t                 ntaps = wfm_rrc_ntaps (isps, RX_FRAME_SPAN);
-  size_t                 nsamp = nsym * (size_t)isps;
-  float                 *taps  = malloc (ntaps * sizeof *taps);
-  float complex         *x     = malloc (nsamp * sizeof *x);
-  wfm_synth_state_t     *tx    = NULL;
-  mpsk_receiver_state_t *rx    = NULL;
-  size_t                 nout  = 0;
+  int                       isps  = (int)c->sps;
+  size_t                    ntaps = wfm_rrc_ntaps (isps, RX_FRAME_SPAN);
+  size_t                    nsamp = nsym * (size_t)isps;
+  float                    *taps  = malloc (ntaps * sizeof *taps);
+  float complex            *x     = malloc (nsamp * sizeof *x);
+  dp_wfm_synth_state_t     *tx    = NULL;
+  dp_mpsk_receiver_state_t *rx    = NULL;
+  size_t                    nout  = 0;
 
   *clipped = 0;
   if (!taps || !x)
@@ -207,8 +207,8 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
      Es/N0 (docs/design/rx-test.md 8.4). Read at the SAMPLE stream instead it
      appears 10*log10(sps) low, which is what makes a wrong convention here
      look like a plausible receiver result. */
-  tx = wfm_synth_create (WFM_SYNTH_BITS, 1.0, c->fc, esn0_db, 3, seed, isps, 7,
-                         0, 0, 0.0);
+  tx = dp_wfm_synth_create (WFM_SYNTH_BITS, 1.0, c->fc, esn0_db, 3, seed, isps,
+                            7, 0, 0, 0.0);
   if (!tx)
     goto done;
   if (wfm_synth_set_bits (tx, bits, nbits, 1 /* bpsk */) != 0
@@ -217,12 +217,12 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
   /* The pattern CYCLES, so one call yields a multi-frame record from a
      one-frame descriptor — the repeat count the descriptor deliberately does
      not carry (section 7.5) falls out of the generator instead. */
-  wfm_synth_steps (tx, x, nsamp);
+  dp_wfm_synth_steps (tx, x, nsamp);
 
-  rx = mpsk_receiver_create (c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC,
-                             RX_FRAME_BETA, RX_FRAME_SPAN, c->bn_carrier,
-                             0.707, c->bn_timing, 0.3, c->fc - c->foff, 0,
-                             MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
+  rx = dp_mpsk_receiver_create (c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC,
+                                RX_FRAME_BETA, RX_FRAME_SPAN, c->bn_carrier,
+                                0.707, c->bn_timing, 0.3, c->fc - c->foff, 0,
+                                MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     goto done;
 
@@ -234,17 +234,17 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
           && nout < nsym)
         {
           out[nout]    = y;
-          lock_c[nout] = (unsigned char)mpsk_receiver_get_locked (rx);
+          lock_c[nout] = (unsigned char)dp_mpsk_receiver_get_locked (rx);
           nout++;
         }
     }
-  *clipped = mpsk_receiver_get_clipped (rx);
+  *clipped = dp_mpsk_receiver_get_clipped (rx);
 
 done:
   if (rx)
-    mpsk_receiver_destroy (rx);
+    dp_mpsk_receiver_destroy (rx);
   if (tx)
-    wfm_synth_destroy (tx);
+    dp_wfm_synth_destroy (tx);
   free (taps);
   free (x);
   return nout;
@@ -263,24 +263,24 @@ done:
 static rx_frame_result_t
 rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
 {
-  rx_frame_result_t    r;
-  dp_ber_t             acc;
-  wfm_frame_t          f = dp_frame_named (c->frame);
-  wfm_frame_layout_t   l;
-  frame_meter_state_t *fm   = NULL;
-  size_t               nsym = RX_FRAME_NSYM, nbits;
-  uint8_t             *bits = NULL, *truth = NULL, *rxbits = NULL;
-  float complex       *out = NULL;
-  unsigned char       *lc  = NULL;
-  size_t               lo = 0, hi = 0;
-  int                  settled_any = 0;
+  rx_frame_result_t       r;
+  dp_ber_t                acc;
+  wfm_frame_t             f = dp_frame_named (c->frame);
+  wfm_frame_layout_t      l;
+  dp_frame_meter_state_t *fm   = NULL;
+  size_t                  nsym = RX_FRAME_NSYM, nbits;
+  uint8_t                *bits = NULL, *truth = NULL, *rxbits = NULL;
+  float complex          *out = NULL;
+  unsigned char          *lc  = NULL;
+  size_t                  lo = 0, hi = 0;
+  int                     settled_any = 0;
 
   memset (&r, 0, sizeof r);
   wfm_frame_layout (&f, &l);
-  nbits        = l.total_bits;
-  r.frame_bits = nbits;
-  r.sync_bits  = l.sync_bits;
-  r.prot_bits  = l.payload_bits + l.crc_bits;
+  nbits         = l.total_bits;
+  r.frame_nbits = nbits;
+  r.sync_bits   = l.sync_bits;
+  r.prot_bits   = l.payload_bits + l.crc_bits;
   /* A frame can carry frame statistics only if it has a sync word to detect
      and a CRC to check. Without both there is no truth-free outcome, and
      reporting one anyway is the failure this harness exists to refuse. */
@@ -305,7 +305,7 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   truth  = malloc (nsym);
   out    = malloc (nsym * sizeof *out);
   lc     = malloc (nsym);
-  fm     = frame_meter_create (RX_FRAME_TARGET_FRAME_ERRORS, DP_BER_CONF);
+  fm     = dp_frame_meter_create (RX_FRAME_TARGET_FRAME_ERRORS, DP_BER_CONF);
   if (!bits || !rxbits || !truth || !out || !lc || !fm
       || wfm_frame_bits (&f, bits, nbits) != nbits)
     goto done;
@@ -317,9 +317,9 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   for (size_t i = 0; i < nsym; i++)
     truth[i] = bits[i % nbits];
 
-  while (
-      r.bursts < MPSK_BER_MAX_BURSTS
-      && !(dp_ber_enough (&acc) && (!r.framed || frame_meter_get_enough (fm))))
+  while (r.bursts < MPSK_BER_MAX_BURSTS
+         && !(dp_ber_enough (&acc)
+              && (!r.framed || dp_frame_meter_get_enough (fm))))
     {
       int             clip = 0, ok = 0;
       size_t          n, settle;
@@ -415,12 +415,12 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
       }
     }
 
-  r.frames        = frame_meter_get_frames (fm);
-  r.sync_detected = frame_meter_get_sync_detected (fm);
-  r.crc_passed    = frame_meter_get_crc_passed (fm);
-  r.frame_enough  = frame_meter_get_enough (fm);
-  r.fer           = frame_meter_fer (fm);
-  r.sync_miss     = frame_meter_sync_miss (fm);
+  r.frames        = dp_frame_meter_get_frames (fm);
+  r.sync_detected = dp_frame_meter_get_sync_detected (fm);
+  r.crc_passed    = dp_frame_meter_get_crc_passed (fm);
+  r.frame_enough  = dp_frame_meter_get_enough (fm);
+  r.fer           = dp_frame_meter_fer (fm);
+  r.sync_miss     = dp_frame_meter_sync_miss (fm);
 
 done:
   /* Every scored burst left its report in `r.rep`; a run that never scored one
@@ -434,7 +434,7 @@ done:
                                : NAN;
   r.crc_fail_pred
       = (r.rep.ber.symbols && r.prot_bits)
-            ? complement_power (r.rep.ber.p_hat, (double)r.prot_bits)
+            ? dp_complement_power (r.rep.ber.p_hat, (double)r.prot_bits)
             : NAN;
   /* A frame is delivered when its sync was found AND its CRC checked, so the
      FER those two imply is the miss rate plus what the bit errors do to the
@@ -443,7 +443,7 @@ done:
   r.fer_pred = r.sync_miss.p_hat + (1.0 - r.sync_miss.p_hat) * r.crc_fail_pred;
 
   dp_ber_free (&acc);
-  frame_meter_destroy (fm);
+  dp_frame_meter_destroy (fm);
   free (bits);
   free (rxbits);
   free (truth);
@@ -469,14 +469,14 @@ rx_frame_print (const rx_frame_cfg_t *c, const rx_frame_result_t *r)
   printf ("%-24s   %d burst(s), %d unsettled, %d unaligned, clipped=%d, "
           "frame=%zu bits\n",
           "", r->bursts, r->unsettled, r->unaligned, r->clipped,
-          r->frame_bits);
+          r->frame_nbits);
 
   if (!r->framed)
     {
       /* The refusal, with the reason. An FER of 0.0 here would read as a
          perfect receiver and would mean "nothing was checked". */
       printf ("%-24s   FER  n/a — %s\n\n", "",
-              r->frame_bits == 0 ? "no frame"
+              r->frame_nbits == 0 ? "no frame"
               : (r->prot_bits == 0)
                   ? "preamble only: nothing to demodulate, nothing to check"
                   : "no sync word and no CRC: no truth-free frame outcome");
@@ -524,7 +524,8 @@ rx_frame_check (const rx_frame_cfg_t *c, const rx_frame_result_t *r,
                 int gate_sync)
 {
   const char *nm = dp_frame_label (c->frame);
-  double loss_lo = r->rep.esn0_db - ber_esn0_db_for_ser (c->m, r->rep.ser.lo);
+  double      loss_lo
+      = r->rep.esn0_db - dp_ber_esn0_db_for_ser (c->m, r->rep.ser.lo);
 
   if (r->refused)
     {
@@ -627,7 +628,7 @@ int
 main (int argc, char **argv)
 {
   int    check   = (argc > 1 && strcmp (argv[1], "--check") == 0);
-  double esn0_db = ber_esn0_db_for_ser (2, DP_BER_TARGET_SER);
+  double esn0_db = dp_ber_esn0_db_for_ser (2, DP_BER_TARGET_SER);
   int    rc      = 0;
 
   printf ("MpskReceiver, end to end on a named frame: BER, EVM, M2M4 and "

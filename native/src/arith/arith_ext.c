@@ -50,8 +50,8 @@ _bind_add_q15 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (b_arr);
       return NULL;
     }
-  add_q15 (a, a_len, b, b_len,
-           (int16_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_add_q15 (a, a_len, b, b_len,
+              (int16_t *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return _out;
@@ -91,8 +91,8 @@ _bind_sub_q15 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (b_arr);
       return NULL;
     }
-  sub_q15 (a, a_len, b, b_len,
-           (int16_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_sub_q15 (a, a_len, b, b_len,
+              (int16_t *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return _out;
@@ -132,8 +132,8 @@ _bind_mul_q15 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (b_arr);
       return NULL;
     }
-  mul_q15 (a, a_len, b, b_len,
-           (int16_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_mul_q15 (a, a_len, b, b_len,
+              (int16_t *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return _out;
@@ -165,7 +165,7 @@ _bind_dot_q15 (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const int16_t *b     = (const int16_t *)PyArray_DATA (b_arr);
   size_t         b_len = (size_t)PyArray_SIZE (b_arr);
-  int64_t        _r    = dot_q15 (a, a_len, b, b_len);
+  int64_t        _r    = dp_dot_q15 (a, a_len, b, b_len);
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return PyLong_FromLongLong ((long long)_r);
@@ -195,7 +195,7 @@ _bind_shl_q15 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (a_arr);
       return NULL;
     }
-  shl_q15 (a, a_len, (int16_t *)PyArray_DATA ((PyArrayObject *)_out), n);
+  dp_shl_q15 (a, a_len, (int16_t *)PyArray_DATA ((PyArrayObject *)_out), n);
   Py_DECREF (a_arr);
   return _out;
 }
@@ -224,7 +224,7 @@ _bind_shr_q15 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (a_arr);
       return NULL;
     }
-  shr_q15 (a, a_len, (int16_t *)PyArray_DATA ((PyArrayObject *)_out), n);
+  dp_shr_q15 (a, a_len, (int16_t *)PyArray_DATA ((PyArrayObject *)_out), n);
   Py_DECREF (a_arr);
   return _out;
 }
@@ -263,7 +263,8 @@ _bind_add_q8 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (b_arr);
       return NULL;
     }
-  add_q8 (a, a_len, b, b_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_add_q8 (a, a_len, b, b_len,
+             (int8_t *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return _out;
@@ -303,7 +304,8 @@ _bind_sub_q8 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (b_arr);
       return NULL;
     }
-  sub_q8 (a, a_len, b, b_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_sub_q8 (a, a_len, b, b_len,
+             (int8_t *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return _out;
@@ -343,7 +345,8 @@ _bind_mul_q8 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (b_arr);
       return NULL;
     }
-  mul_q8 (a, a_len, b, b_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_mul_q8 (a, a_len, b, b_len,
+             (int8_t *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return _out;
@@ -375,7 +378,7 @@ _bind_dot_q8 (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const int8_t *b     = (const int8_t *)PyArray_DATA (b_arr);
   size_t        b_len = (size_t)PyArray_SIZE (b_arr);
-  int32_t       _r    = dot_q8 (a, a_len, b, b_len);
+  int32_t       _r    = dp_dot_q8 (a, a_len, b, b_len);
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   return PyLong_FromLong ((long)_r);
@@ -405,7 +408,7 @@ _bind_shl_q8 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (a_arr);
       return NULL;
     }
-  shl_q8 (a, a_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out), n);
+  dp_shl_q8 (a, a_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out), n);
   Py_DECREF (a_arr);
   return _out;
 }
@@ -434,7 +437,7 @@ _bind_shr_q8 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (a_arr);
       return NULL;
     }
-  shr_q8 (a, a_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out), n);
+  dp_shr_q8 (a, a_len, (int8_t *)PyArray_DATA ((PyArrayObject *)_out), n);
   Py_DECREF (a_arr);
   return _out;
 }
@@ -463,7 +466,7 @@ _bind_shl_i64 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (a_arr);
       return NULL;
     }
-  shl_i64 (a, a_len, (int64_t *)PyArray_DATA ((PyArrayObject *)_out), n);
+  dp_shl_i64 (a, a_len, (int64_t *)PyArray_DATA ((PyArrayObject *)_out), n);
   Py_DECREF (a_arr);
   return _out;
 }
@@ -492,7 +495,7 @@ _bind_shr_i64 (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (a_arr);
       return NULL;
     }
-  shr_i64 (a, a_len, (int64_t *)PyArray_DATA ((PyArrayObject *)_out), n);
+  dp_shr_i64 (a, a_len, (int64_t *)PyArray_DATA ((PyArrayObject *)_out), n);
   Py_DECREF (a_arr);
   return _out;
 }

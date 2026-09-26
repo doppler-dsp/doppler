@@ -3,12 +3,12 @@
 
 #define ADC_RNG_SEED 0x12345678u
 
-adc_state_t *
-adc_create (int bits, float dbfs, int dithering)
+dp_adc_state_t *
+dp_adc_create (int bits, float dbfs, int dithering)
 {
   if (bits < 1 || bits > 64 || dithering < 0)
     return NULL;
-  adc_state_t *obj = calloc (1, sizeof (*obj));
+  dp_adc_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   obj->bits      = bits;
@@ -32,13 +32,13 @@ adc_create (int bits, float dbfs, int dithering)
 }
 
 void
-adc_destroy (adc_state_t *state)
+dp_adc_destroy (dp_adc_state_t *state)
 {
   free (state);
 }
 
 void
-adc_reset (adc_state_t *state)
+dp_adc_reset (dp_adc_state_t *state)
 {
   state->clipped = 0;
   state->rng     = ADC_RNG_SEED;
@@ -46,10 +46,12 @@ adc_reset (adc_state_t *state)
 
 /* Serializable state — whole-struct POD snapshot, pointer-free (see
  * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (adc, adc_state_t, ADC_STATE_MAGIC, ADC_STATE_VERSION)
+DP_DEFINE_POD_STATE (dp_adc, dp_adc_state_t, ADC_STATE_MAGIC,
+                     ADC_STATE_VERSION)
 
 JM_HOT void
-adc_steps (adc_state_t *state, const float *input, int64_t *output, size_t n)
+dp_adc_steps (dp_adc_state_t *state, const float *input, int64_t *output,
+              size_t n)
 {
   if (!state->dithering)
     {
@@ -84,10 +86,10 @@ adc_steps (adc_state_t *state, const float *input, int64_t *output, size_t n)
         }
 #endif
       for (; i < n; i++)
-        output[i] = adc_step (state, input[i]);
+        output[i] = dp_adc_step (state, input[i]);
       return;
     }
   /* Dither path: sequential PRNG — scalar loop preserves state ordering. */
   for (size_t i = 0; i < n; i++)
-    output[i] = adc_step (state, input[i]);
+    output[i] = dp_adc_step (state, input[i]);
 }

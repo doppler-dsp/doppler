@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
-/* ReedSolomonObject — wraps rs_codec_state_t *       */
+/* ReedSolomonObject — wraps dp_rs_codec_state_t *       */
 /* ======================================================== */
 
 #include "doppler/rs_codec/rs_codec_core.h"
 
 typedef struct
 {
-  PyObject_HEAD rs_codec_state_t *handle;
+  PyObject_HEAD dp_rs_codec_state_t *handle;
 } ReedSolomonObject;
 
 static void
 ReedSolomonObj_dealloc (ReedSolomonObject *self)
 {
   if (self->handle)
-    rs_codec_destroy (self->handle);
+    dp_rs_codec_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -53,8 +53,8 @@ ReedSolomonObj_init (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
   uint32_t field_poly  = (uint32_t)field_poly_raw;
   uint32_t first_root  = (uint32_t)first_root_raw;
   uint32_t root_stride = (uint32_t)root_stride_raw;
-  self->handle = rs_codec_create (nroots, symbol_bits, field_poly, first_root,
-                                  root_stride);
+  self->handle         = dp_rs_codec_create (nroots, symbol_bits, field_poly,
+                                             first_root, root_stride);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -79,7 +79,7 @@ ReedSolomonObj_encode_max_out (ReedSolomonObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      rs_codec_encode_max_out (self->handle, (size_t)n_in));
+      dp_rs_codec_encode_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -124,7 +124,7 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = rs_codec_encode_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_rs_codec_encode_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -134,7 +134,7 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = rs_codec_encode (
+      size_t n_out = dp_rs_codec_encode (
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -150,7 +150,7 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = rs_codec_encode_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_rs_codec_encode_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -159,10 +159,10 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out
-      = rs_codec_encode (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
-                         (size_t)n, _d0, _cap);
+  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t   n_out = dp_rs_codec_encode (self->handle,
+                                       (const uint8_t *)PyArray_DATA (in_arr),
+                                       (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -212,7 +212,7 @@ ReedSolomonObj_decode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *codeword     = (uint8_t *)PyArray_DATA (codeword_arr);
   size_t   codeword_len = (size_t)PyArray_SIZE (codeword_arr);
-  int      y = rs_codec_decode (self->handle, codeword, codeword_len);
+  int      y = dp_rs_codec_decode (self->handle, codeword, codeword_len);
   Py_DECREF (codeword_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -229,7 +229,7 @@ ReedSolomonObj_syndromes_max_out (ReedSolomonObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      rs_codec_syndromes_max_out (self->handle, (size_t)n_in));
+      dp_rs_codec_syndromes_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -274,8 +274,8 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = rs_codec_syndromes_max_out (self->handle, (size_t)n);
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = dp_rs_codec_syndromes_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -285,7 +285,7 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = rs_codec_syndromes (
+      size_t n_out = dp_rs_codec_syndromes (
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -301,7 +301,7 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = rs_codec_syndromes_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_rs_codec_syndromes_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -310,10 +310,10 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
       Py_DECREF (in_arr);
       return NULL;
     }
-  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = rs_codec_syndromes (self->handle,
-                                       (const uint8_t *)PyArray_DATA (in_arr),
-                                       (size_t)n, _d0, _cap);
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = dp_rs_codec_syndromes (self->handle,
+                                        (const uint8_t *)PyArray_DATA (in_arr),
+                                        (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -352,7 +352,7 @@ ReedSolomonObj_codeword_ok (ReedSolomonObject *self, PyObject *args,
     }
   const uint8_t *codeword     = (const uint8_t *)PyArray_DATA (codeword_arr);
   size_t         codeword_len = (size_t)PyArray_SIZE (codeword_arr);
-  int y = rs_codec_codeword_ok (self->handle, codeword, codeword_len);
+  int y = dp_rs_codec_codeword_ok (self->handle, codeword, codeword_len);
   Py_DECREF (codeword_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -389,7 +389,7 @@ ReedSolomonObj_generator (ReedSolomonObject *self, PyObject *args,
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t   y       = rs_codec_generator (self->handle, out, out_len);
+  size_t   y       = dp_rs_codec_generator (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -403,7 +403,7 @@ ReedSolomon_getprop_n (ReedSolomonObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)rs_codec_get_n (self->handle));
+      (unsigned long long)dp_rs_codec_get_n (self->handle));
 }
 static PyObject *
 ReedSolomon_getprop_k (ReedSolomonObject *self, void *Py_UNUSED (closure))
@@ -415,7 +415,7 @@ ReedSolomon_getprop_k (ReedSolomonObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)rs_codec_get_k (self->handle));
+      (unsigned long long)dp_rs_codec_get_k (self->handle));
 }
 static PyObject *
 ReedSolomon_getprop_e (ReedSolomonObject *self, void *Py_UNUSED (closure))
@@ -427,7 +427,7 @@ ReedSolomon_getprop_e (ReedSolomonObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)rs_codec_get_e (self->handle));
+      (unsigned long long)dp_rs_codec_get_e (self->handle));
 }
 static PyObject *
 ReedSolomon_getprop_nroots (ReedSolomonObject *self, void *Py_UNUSED (closure))
@@ -439,7 +439,7 @@ ReedSolomon_getprop_nroots (ReedSolomonObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)rs_codec_get_nroots (self->handle));
+      (unsigned long long)dp_rs_codec_get_nroots (self->handle));
 }
 static PyObject *
 ReedSolomon_getprop_symbol_bits (ReedSolomonObject *self,
@@ -452,7 +452,7 @@ ReedSolomon_getprop_symbol_bits (ReedSolomonObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)rs_codec_get_symbol_bits (self->handle));
+      (unsigned long long)dp_rs_codec_get_symbol_bits (self->handle));
 }
 
 static PyGetSetDef ReedSolomon_getset[]
@@ -473,7 +473,7 @@ ReedSolomonObj_destroy (ReedSolomonObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      rs_codec_destroy (self->handle);
+      dp_rs_codec_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -492,7 +492,7 @@ ReedSolomonObj_exit (ReedSolomonObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      rs_codec_destroy (self->handle);
+      dp_rs_codec_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -511,13 +511,15 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "transmitted in. `rs_encode` computes the parity; this places it.\n"
     "\n"
     "The WHOLE codeword rather than the parity alone, because that is the\n"
-    "unit every other method here takes — rs_codec_decode,\n"
-    "rs_codec_syndromes and rs_codec_codeword_ok all read `n` symbols, and a\n"
+    "unit every other method here takes — dp_rs_codec_decode,\n"
+    "dp_rs_codec_syndromes and dp_rs_codec_codeword_ok all read `n` symbols, "
+    "and a\n"
     "caller who wants the parity by itself can take the last `nroots` of the\n"
     "answer. (`rs_encode` is the other split, and is still there for a frame\n"
     "assembler that has already placed the information.)\n"
     "\n"
-    "out may alias in — `rs_codec_encode (rs, buf, k, buf, n)` appends the\n"
+    "out may alias in — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends "
+    "the\n"
     "parity to a buffer that already holds the information, which is the\n"
     "call a frame assembler makes and the one `rs_encode` exists for.\n"
     "\n"
@@ -549,7 +551,7 @@ static PyMethodDef ReedSolomonObj_methods[] = {
   { "encode_max_out", (PyCFunction)ReedSolomonObj_encode_max_out, METH_VARARGS,
     "encode_max_out(n_in) -> int\n"
     "\n"
-    "Symbols rs_codec_encode writes for n_in information symbols: a whole\n"
+    "Symbols dp_rs_codec_encode writes for n_in information symbols: a whole\n"
     "codeword, `n`.\n"
     "\n"
     "Parameters\n"
@@ -573,7 +575,7 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "\n"
     "**It either refuses or leaves a codeword.** On success the key equation\n"
     "has zeroed every syndrome by construction, so the result passes\n"
-    "rs_codec_codeword_ok. On refusal codeword is untouched.\n"
+    "dp_rs_codec_codeword_ok. On refusal codeword is untouched.\n"
     "\n"
     "A refusal is not the same claim as \"more than `E` errors\". Beyond `E` "
     "a\n"
@@ -616,7 +618,8 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "\n"
     "All zero is the DEFINING property of the code: it needs no encoder and\n"
     "no decoder to check, which is what makes it usable both as a test\n"
-    "oracle and as a receiver's error detector. rs_codec_codeword_ok is this\n"
+    "oracle and as a receiver's error detector. dp_rs_codec_codeword_ok is "
+    "this\n"
     "reduced to the one bit most callers want.\n"
     "\n"
     "Parameters\n"
@@ -646,7 +649,7 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     METH_VARARGS,
     "syndromes_max_out(n_in) -> int\n"
     "\n"
-    "Syndromes rs_codec_syndromes writes: `nroots`.\n"
+    "Syndromes dp_rs_codec_syndromes writes: `nroots`.\n"
     "\n"
     "Parameters\n"
     "----------\n"

@@ -23,16 +23,16 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_acc_q8[] = {
-    (jm_any_fn)acc_q8_create,
-    (jm_any_fn)acc_q8_destroy,
-    (jm_any_fn)acc_q8_reset,
-    (jm_any_fn)acc_q8_steps,
-    (jm_any_fn)acc_q8_get_acc,
-    (jm_any_fn)acc_q8_set_acc,
-    (jm_any_fn)acc_q8_get,
-    (jm_any_fn)acc_q8_dump,
-    (jm_any_fn)acc_q8_madd,
-    (jm_any_fn)acc_q8_state_bytes,
-    (jm_any_fn)acc_q8_get_state,
-    (jm_any_fn)acc_q8_set_state,
+    (jm_any_fn)dp_acc_q8_create,
+    (jm_any_fn)dp_acc_q8_destroy,
+    (jm_any_fn)dp_acc_q8_reset,
+    (jm_any_fn)dp_acc_q8_steps,
+    (jm_any_fn)dp_acc_q8_get_acc,
+    (jm_any_fn)dp_acc_q8_set_acc,
+    (jm_any_fn)dp_acc_q8_get,
+    (jm_any_fn)dp_acc_q8_dump,
+    (jm_any_fn)dp_acc_q8_madd,
+    (jm_any_fn)dp_acc_q8_state_bytes,
+    (jm_any_fn)dp_acc_q8_get_state,
+    (jm_any_fn)dp_acc_q8_set_state,
 };

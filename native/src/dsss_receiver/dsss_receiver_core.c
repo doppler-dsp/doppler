@@ -13,7 +13,7 @@
  * drift here happened, and the retired copy's own comment was a monument
  * to it (gh-782).
  *
- * The complex twin's bound is `sps`, inclusive: mpsk_receiver_create()
+ * The complex twin's bound is `sps`, inclusive: dp_mpsk_receiver_create()
  * requires sps >= m_out. */
 
 /* Allocate a fresh Dll/RateConverter/MpskReceiver triple (+ seed the
@@ -28,18 +28,19 @@ static void
 dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
                      size_t code_len, size_t spc, int m, int differential,
                      double chip_phase, double doppler_hz_est, size_t segments,
-                     size_t sps, int n, costas_state_t *car_out,
-                     dll_state_t **dll_out, RateConverter_state_t **rc_out,
-                     mpsk_receiver_state_t **rx_out)
+                     size_t sps, int n, dp_costas_state_t *car_out,
+                     dp_dll_state_t           **dll_out,
+                     dp_RateConverter_state_t **rc_out,
+                     dp_mpsk_receiver_state_t **rx_out)
 {
   double partial_rate = chip_rate * (double)segments / (double)code_len;
   double target_rate  = (double)sps * symbol_rate;
 
-  dll_state_t *dll = dp_xnn (dll_create (code, code_len, spc, chip_phase,
-                                         0.002, 0.707, 0.5, segments));
+  dp_dll_state_t *dll = dp_xnn (dp_dll_create (code, code_len, spc, chip_phase,
+                                               0.002, 0.707, 0.5, segments));
 
-  RateConverter_state_t *rc
-      = dp_xnn (RateConverter_create (target_rate / partial_rate, 0));
+  dp_RateConverter_state_t *rc
+      = dp_xnn (dp_RateConverter_create (target_rate / partial_rate, 0));
 
   /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est --
    * the pre-despread Costas loop below (FLL-assisted, seeded correctly at
@@ -91,7 +92,7 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
      bn_timing stays at 0.01), so it keeps its value. EVM and the
      rotation-blind M2M4 agree within ~1-3 dB, so the residual is not a
      phase fault. */
-  mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
+  dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
       m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 0.3, 0.0, differential, MPSK_RX_NUM_PHASES, 1,
       MPSK_RX_AGC_BW_RATIO));
@@ -117,11 +118,11 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
 }
 
 static void
-dsss_rx_free_chain (dsss_receiver_state_t *s)
+dsss_rx_free_chain (dp_dsss_receiver_state_t *s)
 {
-  mpsk_receiver_destroy (s->rx);
-  RateConverter_destroy (s->rc);
-  dll_destroy (s->dll);
+  dp_mpsk_receiver_destroy (s->rx);
+  dp_RateConverter_destroy (s->rc);
+  dp_dll_destroy (s->dll);
   s->rx  = NULL;
   s->rc  = NULL;
   s->dll = NULL;
@@ -133,14 +134,14 @@ dsss_rx_free_chain (dsss_receiver_state_t *s)
  * dsss_rx_build_chain. Cannot fail (the sub-object allocations are trusted).
  */
 static void
-dsss_rx_rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
+dsss_rx_rebuild_chain (dp_dsss_receiver_state_t *s, double chip_phase,
                        double doppler_hz_est, size_t segments, size_t sps,
                        int n)
 {
-  costas_state_t         car;
-  dll_state_t           *dll = NULL;
-  RateConverter_state_t *rc  = NULL;
-  mpsk_receiver_state_t *rx  = NULL;
+  dp_costas_state_t         car;
+  dp_dll_state_t           *dll = NULL;
+  dp_RateConverter_state_t *rc  = NULL;
+  dp_mpsk_receiver_state_t *rx  = NULL;
   dsss_rx_build_chain (s->chip_rate, s->symbol_rate, s->code, s->code_len,
                        s->spc, s->m, s->differential, chip_phase,
                        doppler_hz_est, segments, sps, n, &car, &dll, &rc, &rx);
@@ -155,10 +156,10 @@ dsss_rx_rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
   s->car_carry_len = 0; /* fresh chain: no leftover partial-period tail */
 }
 
-/* Sum whatever dll_steps() just emitted for one wiped period into a single
+/* Sum whatever dp_dll_steps() just emitted for one wiped period into a single
  * DATA-WIPED pseudo-coherent prompt and steer the carrier loop from it,
  * once per period (matching costas_init's own tsamps=one-period
- * calibration, see dsss_rx_build_chain). dll_steps() emits `segments`-many
+ * calibration, see dsss_rx_build_chain). dp_dll_steps() emits `segments`-many
  * PARTIAL prompts per period, and a data-bit transition can land inside
  * the period -- at SPEC's own async ratio (periods/symbol ~= 1.111) this
  * happens in the large majority of periods, not as a rare edge case, so
@@ -175,7 +176,7 @@ dsss_rx_rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
  * here as it already is inside costas_update() itself.
  *
  * This decision has to live here, in the consumer, not inside
- * dll_steps() itself: `partials` (== `dsss_rx_track_carrier_dll`'s own
+ * dp_dll_steps() itself: `partials` (== `dsss_rx_track_carrier_dll`'s own
  * dll_out) is the actual despread symbol stream this object also hands
  * straight to RateConverter/mpsk_receiver, not scratch, and a natural period
  * that straddles a transition genuinely carries two different data bits in its
@@ -184,7 +185,7 @@ dsss_rx_rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
  * emit-block comment). A single (or all-zero-magnitude) partial degenerates
  * harmlessly to a plain pass-through / no-op sum. */
 static void
-dsss_rx_carrier_update_from_partials (costas_state_t       *car,
+dsss_rx_carrier_update_from_partials (dp_costas_state_t    *car,
                                       const float _Complex *partials, size_t n)
 {
   if (n == 0)
@@ -200,8 +201,8 @@ dsss_rx_carrier_update_from_partials (costas_state_t       *car,
 
 /* Pre-despread carrier stage: wipe raw samples with the carrier loop's
  * CURRENT held frequency, exactly one code period (`s->tsamps` samples) at
- * a time, run the UNMODIFIED dll_steps() on each wiped period (segments>1
- * lookback fully intact -- dll_steps() may emit up to `segments` partial
+ * a time, run the UNMODIFIED dp_dll_steps() on each wiped period (segments>1
+ * lookback fully intact -- dp_dll_steps() may emit up to `segments` partial
  * prompts for that one period, all written straight into `dll_out`, the
  * same shape RateConverter downstream already expects), and
  * costas_update() the carrier from the period's summed partials BEFORE
@@ -214,9 +215,9 @@ dsss_rx_carrier_update_from_partials (costas_state_t       *car,
  * prompts written to `dll_out` (capped at max_out, a generous
  * caller-supplied bound). */
 static size_t
-dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float _Complex *x,
-                           size_t x_len, float _Complex *dll_out,
-                           size_t max_out)
+dsss_rx_track_carrier_dll (dp_dsss_receiver_state_t *s,
+                           const float _Complex *x, size_t x_len,
+                           float _Complex *dll_out, size_t max_out)
 {
   size_t emitted = 0;
   size_t pos     = 0; /* index into x of the next unconsumed raw sample */
@@ -233,8 +234,8 @@ dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float _Complex *x,
 
       for (size_t i = 0; i < s->tsamps; i++)
         s->car_wiped_buf[i] = costas_wipeoff (&s->car, s->car_carry_buf[i]);
-      size_t n_out = dll_steps (s->dll, s->car_wiped_buf, s->tsamps,
-                                dll_out + emitted, max_out - emitted);
+      size_t n_out = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps,
+                                   dll_out + emitted, max_out - emitted);
       dsss_rx_carrier_update_from_partials (&s->car, dll_out + emitted, n_out);
       emitted += n_out;
       s->car_carry_len = 0;
@@ -245,8 +246,8 @@ dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float _Complex *x,
       const float _Complex *chunk = x + pos;
       for (size_t i = 0; i < s->tsamps; i++)
         s->car_wiped_buf[i] = costas_wipeoff (&s->car, chunk[i]);
-      size_t n_out = dll_steps (s->dll, s->car_wiped_buf, s->tsamps,
-                                dll_out + emitted, max_out - emitted);
+      size_t n_out = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps,
+                                   dll_out + emitted, max_out - emitted);
       dsss_rx_carrier_update_from_partials (&s->car, dll_out + emitted, n_out);
       emitted += n_out;
       pos += s->tsamps;
@@ -266,7 +267,7 @@ dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float _Complex *x,
  * ratio) rather than relying on a *_max_out() call that would need to
  * know x_len in advance. */
 static size_t
-dsss_rx_track_chain (dsss_receiver_state_t *s, const float _Complex *x,
+dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
                      size_t x_len, float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
@@ -277,19 +278,21 @@ dsss_rx_track_chain (dsss_receiver_state_t *s, const float _Complex *x,
 
   size_t          rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
   float _Complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
-  size_t n_rc = RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
+  size_t          n_rc
+      = dp_RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
   free (dll_out);
 
-  size_t n_out = mpsk_receiver_steps (s->rx, rc_out, n_rc, out, max_out);
+  size_t n_out = dp_mpsk_receiver_steps (s->rx, rc_out, n_rc, out, max_out);
   free (rc_out);
   return n_out;
 }
 
-dsss_receiver_state_t *
-dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
-                      double symbol_rate, size_t spc, int m, double cn0_dbhz,
-                      double pfa, double pd, double doppler_uncertainty,
-                      size_t segments, size_t sps, int differential)
+dp_dsss_receiver_state_t *
+dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
+                         double chip_rate, double symbol_rate, size_t spc,
+                         int m, double cn0_dbhz, double pfa, double pd,
+                         double doppler_uncertainty, size_t segments,
+                         size_t sps, int differential)
 {
   if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
       || spc < 1 || (m != 2 && m != 4 && m != 8)
@@ -297,14 +300,14 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
       /* sps < 2 cannot carry an m_out at all: the smallest legal terminal
          count is 2 and MpskReceiver requires sps >= m_out, so sps = 1 has
          no receiver to build. It used to pass this guard and reach
-         mpsk_receiver_create(), whose argument-error NULL then went
+         dp_mpsk_receiver_create(), whose argument-error NULL then went
          through dp_xnn() and ABORTED the interpreter with no exception and
          no message (gh-782). Refusing here is the honest answer, and it is
          the range mpsk_rx_derive_m_out() already documents. */
       || sps < 2)
     return NULL;
 
-  dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
+  dp_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
 
   obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
@@ -345,25 +348,25 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
 }
 
 void
-dsss_receiver_destroy (dsss_receiver_state_t *state)
+dp_dsss_receiver_destroy (dp_dsss_receiver_state_t *state)
 {
   if (!state)
     return;
   dsss_rx_free_chain (state);
   free (state->car_wiped_buf);
   free (state->car_carry_buf);
-  acq_destroy (state->acq);
+  dp_acq_destroy (state->acq);
   free (state->code);
   free (state);
 }
 
 void
-dsss_receiver_reset (dsss_receiver_state_t *state)
+dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state)
 {
-  acq_reset (state->acq);
+  dp_acq_reset (state->acq);
   /* Best-effort: on OOM, leave the current chain in place rather than
    * signal a failure this void-returning lifecycle function can't report
-   * (matches dll_reset()/mpsk_receiver_reset()'s own void contract). */
+   * (matches dp_dll_reset()/dp_mpsk_receiver_reset()'s own void contract). */
   dsss_rx_rebuild_chain (state, 0.0, 0.0, state->segments, state->sps,
                          state->n);
   state->tracking       = 0;
@@ -373,7 +376,7 @@ dsss_receiver_reset (dsss_receiver_state_t *state)
 }
 
 size_t
-dsss_receiver_steps_max_out (dsss_receiver_state_t *state)
+dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state)
 {
   (void)state;
   return 0; /* caller falls back to allocating x_len -- always sufficient,
@@ -381,8 +384,9 @@ dsss_receiver_steps_max_out (dsss_receiver_state_t *state)
 }
 
 size_t
-dsss_receiver_steps (dsss_receiver_state_t *state, const float _Complex *x,
-                     size_t x_len, float _Complex *out, size_t max_out)
+dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
+                        const float _Complex *x, size_t x_len,
+                        float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
@@ -392,17 +396,17 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float _Complex *x,
       uint64_t     before = state->samples_fed;
       acq_result_t hit;
       state->samples_fed += x_len;
-      size_t n_hits = acq_push (state->acq, x, x_len, &hit, 1);
+      size_t n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
       if (n_hits == 0)
         return 0;
 
-      /* Everything acq_push has framed so far (state->acq->samples_consumed)
-       * minus everything DsssReceiver has ever fed it (before + x_len) is
-       * still ring-resident, unprocessed -- and, since every PRIOR call
-       * always drained the ring below one frame before returning (it never
-       * short-circuits on max_results until this hit), that remainder is
-       * guaranteed to be a suffix of THIS call's own x, never a previous
-       * call's (already-freed) buffer. */
+      /* Everything dp_acq_push has framed so far
+       * (state->acq->samples_consumed) minus everything DsssReceiver has ever
+       * fed it (before + x_len) is still ring-resident, unprocessed -- and,
+       * since every PRIOR call always drained the ring below one frame before
+       * returning (it never short-circuits on max_results until this hit),
+       * that remainder is guaranteed to be a suffix of THIS call's own x,
+       * never a previous call's (already-freed) buffer. */
       uint64_t total_after = before + (uint64_t)x_len;
       uint64_t consumed    = state->acq->samples_consumed;
       uint64_t tail64
@@ -431,91 +435,91 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float _Complex *x,
 }
 
 int
-dsss_receiver_configure_search_raw (dsss_receiver_state_t *state,
-                                    size_t doppler_bins, size_t n_noncoh)
+dp_dsss_receiver_configure_search_raw (dp_dsss_receiver_state_t *state,
+                                       size_t doppler_bins, size_t n_noncoh)
 {
-  return acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  return dp_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
 }
 
 void
-dsss_receiver_configure_lock_raw (dsss_receiver_state_t *state,
-                                  double up_thresh, double down_thresh,
-                                  size_t n_looks, double alpha, uint32_t n_up,
-                                  uint32_t n_down)
+dp_dsss_receiver_configure_lock_raw (dp_dsss_receiver_state_t *state,
+                                     double up_thresh, double down_thresh,
+                                     size_t n_looks, double alpha,
+                                     uint32_t n_up, uint32_t n_down)
 {
-  dll_configure_lock_raw (state->dll, up_thresh, down_thresh, n_looks, alpha,
-                          n_up, n_down);
+  dp_dll_configure_lock_raw (state->dll, up_thresh, down_thresh, n_looks,
+                             alpha, n_up, n_down);
 }
 
 int
-dsss_receiver_configure_chain_raw (dsss_receiver_state_t *state,
-                                   size_t segments, size_t sps, int n)
+dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
+                                      size_t segments, size_t sps, int n)
 {
   if (segments < 1 || sps < 2 || n < 1 || (int)(sps % (size_t)n) != 0)
     return -1;
 
-  double chip_phase      = dll_get_code_phase (state->dll);
+  double chip_phase      = dp_dll_get_code_phase (state->dll);
   double old_target_rate = (double)state->sps * state->symbol_rate;
   double doppler_hz_now
-      = mpsk_receiver_get_norm_freq (state->rx) * old_target_rate;
+      = dp_mpsk_receiver_get_norm_freq (state->rx) * old_target_rate;
 
   dsss_rx_rebuild_chain (state, chip_phase, doppler_hz_now, segments, sps, n);
   return 0;
 }
 
 int
-dsss_receiver_get_tracking (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_tracking (const dp_dsss_receiver_state_t *state)
 {
   return state->tracking;
 }
 double
-dsss_receiver_get_doppler_hz (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_doppler_hz (const dp_dsss_receiver_state_t *state)
 {
   return state->doppler_hz_est;
 }
 double
-dsss_receiver_get_cn0_dbhz_est (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_cn0_dbhz_est (const dp_dsss_receiver_state_t *state)
 {
   return state->cn0_dbhz_est;
 }
 size_t
-dsss_receiver_get_segments (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_segments (const dp_dsss_receiver_state_t *state)
 {
   return state->segments;
 }
 size_t
-dsss_receiver_get_sps (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_sps (const dp_dsss_receiver_state_t *state)
 {
   return state->sps;
 }
 int
-dsss_receiver_get_n (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_n (const dp_dsss_receiver_state_t *state)
 {
   return state->n;
 }
 double
-dsss_receiver_get_chip_phase (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_chip_phase (const dp_dsss_receiver_state_t *state)
 {
-  return dll_get_code_phase (state->dll);
+  return dp_dll_get_code_phase (state->dll);
 }
 double
-dsss_receiver_get_code_rate (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_code_rate (const dp_dsss_receiver_state_t *state)
 {
-  return dll_get_code_rate (state->dll);
+  return dp_dll_get_code_rate (state->dll);
 }
 double
-dsss_receiver_get_lock (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_lock (const dp_dsss_receiver_state_t *state)
 {
-  return mpsk_receiver_get_lock (state->rx);
+  return dp_mpsk_receiver_get_lock (state->rx);
 }
 double
-dsss_receiver_get_norm_freq (const dsss_receiver_state_t *state)
+dp_dsss_receiver_get_norm_freq (const dp_dsss_receiver_state_t *state)
 {
-  return mpsk_receiver_get_norm_freq (state->rx);
+  return dp_mpsk_receiver_get_norm_freq (state->rx);
 }
 
 size_t
-dsss_receiver_state_bytes (const dsss_receiver_state_t *s)
+dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *s)
 {
   /* A fixed shape (all five children always present -- see the state
    * struct's own doc comment) so this never depends on `tracking`. The
@@ -531,17 +535,17 @@ dsss_receiver_state_bytes (const dsss_receiver_state_t *s)
    * current one. Always pack the full tsamps-capacity buffer; only the
    * first car_carry_len samples are meaningful (see the struct doc). */
   return sizeof (dp_state_hdr_t) + sizeof (dsss_receiver_extra_t)
-         + acq_state_bytes (s->acq) + costas_state_bytes (&s->car)
-         + dll_state_bytes (s->dll) + RateConverter_state_bytes (s->rc)
-         + mpsk_receiver_state_bytes (s->rx)
+         + dp_acq_state_bytes (s->acq) + dp_costas_state_bytes (&s->car)
+         + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
+         + dp_mpsk_receiver_state_bytes (s->rx)
          + s->tsamps * sizeof (float _Complex);
 }
 
 void
-dsss_receiver_get_state (const dsss_receiver_state_t *s, void *blob)
+dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *s, void *blob)
 {
   DP_GET_OPEN (DSSS_RECEIVER_STATE_MAGIC, DSSS_RECEIVER_STATE_VERSION,
-               dsss_receiver_state_bytes (s));
+               dp_dsss_receiver_state_bytes (s));
   dsss_receiver_extra_t extra = {
     .tracking       = (uint8_t)s->tracking,
     .doppler_hz_est = s->doppler_hz_est,
@@ -552,19 +556,19 @@ dsss_receiver_get_state (const dsss_receiver_state_t *s, void *blob)
     .car_carry_len  = (uint64_t)s->car_carry_len,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
-  DP_W_CHILD (&_w, acq, s->acq);
-  DP_W_CHILD (&_w, costas, &s->car);
-  DP_W_CHILD (&_w, dll, s->dll);
-  DP_W_CHILD (&_w, RateConverter, s->rc);
-  DP_W_CHILD (&_w, mpsk_receiver, s->rx);
+  DP_W_CHILD (&_w, dp_acq, s->acq);
+  DP_W_CHILD (&_w, dp_costas, &s->car);
+  DP_W_CHILD (&_w, dp_dll, s->dll);
+  DP_W_CHILD (&_w, dp_RateConverter, s->rc);
+  DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
   dp_w_cf32 (&_w, s->car_carry_buf, s->tsamps);
 }
 
 int
-dsss_receiver_set_state (dsss_receiver_state_t *s, const void *blob)
+dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DSSS_RECEIVER_STATE_MAGIC, DSSS_RECEIVER_STATE_VERSION,
-               dsss_receiver_state_bytes (s));
+               dp_dsss_receiver_state_bytes (s));
   dsss_receiver_extra_t extra;
   dp_r_bytes (&_r, &extra, sizeof extra);
   /* segments/sps/n are the layout key -- the blob's grid must match the
@@ -580,11 +584,11 @@ dsss_receiver_set_state (dsss_receiver_state_t *s, const void *blob)
       || extra.n != (uint64_t)s->n
       || extra.car_carry_len > (uint64_t)s->tsamps)
     return DP_ERR_INVALID;
-  DP_R_CHILD (&_r, acq, s->acq);
-  DP_R_CHILD (&_r, costas, &s->car);
-  DP_R_CHILD (&_r, dll, s->dll);
-  DP_R_CHILD (&_r, RateConverter, s->rc);
-  DP_R_CHILD (&_r, mpsk_receiver, s->rx);
+  DP_R_CHILD (&_r, dp_acq, s->acq);
+  DP_R_CHILD (&_r, dp_costas, &s->car);
+  DP_R_CHILD (&_r, dp_dll, s->dll);
+  DP_R_CHILD (&_r, dp_RateConverter, s->rc);
+  DP_R_CHILD (&_r, dp_mpsk_receiver, s->rx);
   dp_r_cf32 (&_r, s->car_carry_buf, s->tsamps);
   s->tracking       = extra.tracking;
   s->doppler_hz_est = extra.doppler_hz_est;

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* CorrDetectorObject — wraps detector_state_t *       */
+/* CorrDetectorObject — wraps dp_detector_state_t *       */
 /* ======================================================== */
 
 #include "doppler/detector/detector_core.h"
 
 typedef struct
 {
-  PyObject_HEAD detector_state_t *handle;
+  PyObject_HEAD dp_detector_state_t *handle;
 } CorrDetectorObject;
 
 static void
 CorrDetectorObj_dealloc (CorrDetectorObject *self)
 {
   if (self->handle)
-    detector_destroy (self->handle);
+    dp_detector_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -77,13 +77,13 @@ CorrDetectorObj_init (CorrDetectorObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t ref_len = (size_t)PyArray_SIZE (ref_arr);
-  self->handle   = detector_create (
+  self->handle   = dp_detector_create (
       (const float _Complex *)PyArray_DATA (ref_arr), ref_len, dwell, noise_lo,
       noise_hi, noise_mode, threshold, nthreads);
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "detector_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_detector_create returned NULL");
       return -1;
     }
   return 0;
@@ -97,7 +97,7 @@ CorrDetectorObj_reset (CorrDetectorObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  detector_reset (self->handle);
+  dp_detector_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -118,9 +118,9 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
     return NULL;
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   det_result_t results[64];
-  size_t n_out = detector_push (self->handle,
-                                (const float _Complex *)PyArray_DATA (in_arr),
-                                n_in, results, 64);
+  size_t       n_out = dp_detector_push (
+      self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
+      results, 64);
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)
@@ -152,7 +152,7 @@ CorrDetectorObj_state_bytes (CorrDetectorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (detector_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_detector_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -164,11 +164,11 @@ CorrDetectorObj_get_state (CorrDetectorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = detector_state_bytes (self->handle);
+  size_t    _n = dp_detector_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  detector_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_detector_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -185,12 +185,12 @@ CorrDetectorObj_set_state (CorrDetectorObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != detector_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_detector_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (detector_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_detector_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -332,7 +332,7 @@ CorrDetectorObj_destroy (CorrDetectorObject *self,
 {
   if (self->handle)
     {
-      detector_destroy (self->handle);
+      dp_detector_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -351,7 +351,7 @@ CorrDetectorObj_exit (CorrDetectorObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      detector_destroy (self->handle);
+      dp_detector_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -504,7 +504,7 @@ static PyTypeObject CorrDetectorObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate a 1-D streaming signal detector backed by an FFT correlator.\n"
-    "Combines a corr_state_t with a double-mapped ring buffer so that "
+    "Combines a dp_corr_state_t with a double-mapped ring buffer so that "
     "arbitrary\n"
     "chunk sizes can be pushed. After every int-dump the peak-to-noise test\n"
     "statistic is compared against threshold; a det_result_t is emitted when "

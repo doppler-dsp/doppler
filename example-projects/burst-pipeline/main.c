@@ -32,13 +32,13 @@
  *      the whole record, gaps included, and search for the frame's sync
  *      marker. The marker is rebuilt from the frame's own declaration rather
  *      than held as a second copy, and the search tolerance is derived by
- *      `syncword_max_errors_for` rather than guessed. Each frame found is
+ *      `dp_syncword_max_errors_for` rather than guessed. Each frame found is
  *      checked with `wfm_frame_desc_crc_ok`, which needs no payload truth —
  *      a frame error rate a receiver could compute on someone else's capture.
  *
  * Measurement comes from the library where the library has it:
- * `snr_data_aided_db` / `snr_m2m4_db` for SNR, `syncword_*` for the search
- * and its threshold arithmetic. Every number printed is measured on the
+ * `dp_snr_data_aided_db` / `dp_snr_m2m4_db` for SNR, `syncword_*` for the
+ * search and its threshold arithmetic. Every number printed is measured on the
  * machine that runs it and carries its units.
  *
  * Builds against either link mode; see CMakeLists.txt (find_package) and the
@@ -84,7 +84,7 @@
    chance anywhere in the window searched, which is 2^-63 here and 2^-31 at
    half the length. (An m-sequence's two-valued autocorrelation is why it
    suits a sample-domain correlator; that is not what this is.)
-   `syncword_max_errors_for` puts a number on it — see section 7. */
+   `dp_syncword_max_errors_for` puts a number on it — see section 7. */
 #define SYNC_BITS 63u
 #define SYNC_REG_BITS 6u
 #define FRAME_BITS (SYNC_BITS + HDR_BITS + PAY_BITS + WFM_FRAME_CRC_BITS)
@@ -179,11 +179,12 @@ main (void)
     return 1;
 
   wfm_frame_desc_layout_t lay;
-  check (wfm_frame_desc_layout (&d, &lay) == 0 && lay.frame_bits == FRAME_BITS,
+  check (wfm_frame_desc_layout (&d, &lay) == 0
+             && lay.frame_nbits == FRAME_BITS,
          "the description lays out at the length the burst is sized from");
   printf ("  %zu frame bits x %d sps = %u samples of burst, "
           "%u samples of gap\n\n",
-          lay.frame_bits, SPS, BURST_ON, BURST_OFF);
+          lay.frame_nbits, SPS, BURST_ON, BURST_OFF);
 
   float complex *listed   = calloc (TOTAL, sizeof *listed);
   float complex *declared = calloc (TOTAL, sizeof *declared);
@@ -287,10 +288,10 @@ main (void)
   printf ("--- 3. Where the declared %.0f dB SNR actually shows up ---\n",
           SNR_DB);
 
-  /* Two estimators, for the two situations a caller is in: `snr_m2m4_db` is
+  /* Two estimators, for the two situations a caller is in: `dp_snr_m2m4_db` is
      blind (moments only, nothing known about what was sent), while
-     `snr_data_aided_db` strips the known transmitted sign. Both read symbols,
-     which at one sample per symbol is the burst as composed. */
+     `dp_snr_data_aided_db` strips the known transmitted sign. Both read
+     symbols, which at one sample per symbol is the burst as composed. */
   static uint8_t       tx_bits[FRAME_BITS];
   const float complex *tx_sym = declared + burst0; /* a sample IS a symbol */
 
@@ -298,15 +299,16 @@ main (void)
   check (n_tx == FRAME_BITS,
          "the description assembles the bits the burst carries");
 
-  const double snr_blind = snr_m2m4_db (tx_sym, N_SYMS);
-  const double snr_da    = snr_data_aided_db (tx_sym, N_SYMS, tx_bits, n_tx);
+  const double snr_blind = dp_snr_m2m4_db (tx_sym, N_SYMS);
+  const double snr_da = dp_snr_data_aided_db (tx_sym, N_SYMS, tx_bits, n_tx);
 
   /* THE GAP IS NOT SILENCE, and the estimator is what says so: it returns
      NaN for a block with zero power, so a digitally silent gap would fail
      this check rather than quietly reading as a very good SNR. What the gap
      actually holds is the segment's noise floor — the source's AWGN keeps
      running while the signal stops. */
-  const double snr_gap = snr_m2m4_db (declared + burst0 + BURST_ON, BURST_OFF);
+  const double snr_gap
+      = dp_snr_m2m4_db (declared + burst0 + BURST_ON, BURST_OFF);
   check (!isnan (snr_gap),
          "the GAP is not silent — it carries the segment's noise floor");
   check (snr_gap < snr_blind - 6.0,
@@ -421,10 +423,10 @@ main (void)
   /* sample_type 0 is cf32 — the composer's own type, so the file is a
      lossless copy and the readback below can be compared exactly. `total`
      lets the 512-byte header carry the length up front. */
-  wfm_writer_state_t *w = wfm_writer_create (path, FS, WFM_FT_BLUE, 0, 0, 0.0,
-                                             TOTAL, 0.0, 0.0, false);
-  size_t              wrote = w ? wfm_writer_write (w, declared, TOTAL) : 0;
-  /* close() FINALISES AND FREES, and `wfm_writer_destroy` is the same
+  dp_wfm_writer_state_t *w = dp_wfm_writer_create (
+      path, FS, WFM_FT_BLUE, 0, 0, 0.0, TOTAL, 0.0, 0.0, false);
+  size_t wrote = w ? dp_wfm_writer_write (w, declared, TOTAL) : 0;
+  /* close() FINALISES AND FREES, and `dp_wfm_writer_destroy` is the same
      function under a second name -- "C callers may use either". Calling both,
      as a create/destroy pair invites, closes the FILE twice; it segfaults in
      ferror() on the second pass. One call, and check its status: BLUE patches
@@ -439,10 +441,10 @@ main (void)
   /* ── 6. a consumer, reading as fast as it is given samples ──────────── */
   printf ("--- 6. A consumer reading it back, block by block ---\n");
 
-  t0                      = now_s ();
-  wfm_reader_state_t *r   = wfm_reader_create (path, 0, 0);
-  size_t              got = 0, bursts = 0;
-  double              acc = 0.0;
+  t0                         = now_s ();
+  dp_wfm_reader_state_t *r   = dp_wfm_reader_create (path, 0, 0);
+  size_t                 got = 0, bursts = 0;
+  double                 acc = 0.0;
   if (r)
     {
       /* Read in blocks and do the work IN the loop, so the timing below
@@ -450,8 +452,9 @@ main (void)
          here is running total energy — trivial, but real: drop it and the
          number becomes the reader's throughput rather than a consumer's. */
       size_t n;
-      while ((n = wfm_reader_read (r, READ_BLOCK, readback + got, TOTAL - got))
-             > 0)
+      while (
+          (n = dp_wfm_reader_read (r, READ_BLOCK, readback + got, TOTAL - got))
+          > 0)
         {
           for (size_t i = 0; i < n; i++)
             {
@@ -463,7 +466,7 @@ main (void)
           if (got >= TOTAL)
             break;
         }
-      wfm_reader_destroy (r);
+      dp_wfm_reader_destroy (r);
     }
   const double t_read = now_s () - t0;
 
@@ -478,10 +481,10 @@ main (void)
 
   /* Demap the WHOLE record, gaps included: the gaps demap to noise bits,
      which is the point — on a real capture nothing announces a burst, and the
-     searcher has to survive the space between them. `mpsk_demap` at m=2 is
+     searcher has to survive the space between them. `dp_mpsk_demap` at m=2 is
      the element-wise inverse of the BPSK mapping the source used. */
   static uint8_t rx_bits[TOTAL_BITS];
-  mpsk_demap (readback, TOTAL_BITS, rx_bits, 2);
+  dp_mpsk_demap (readback, TOTAL_BITS, rx_bits, 2);
 
   /* THE MARKER COMES FROM THE DESCRIPTION, not from a constant here. The
      field declared a generated sequence, so the receiver materialises the
@@ -491,10 +494,10 @@ main (void)
   check (wfm_seq_bits (&sy, marker, SYNC_BITS) == SYNC_BITS,
          "the receiver rebuilds the marker from the frame's own declaration");
 
-  syncword_state_t *sw = syncword_create (marker, SYNC_BITS);
+  dp_syncword_state_t *sw = dp_syncword_create (marker, SYNC_BITS);
   if (!sw)
     {
-      fprintf (stderr, "syncword_create failed\n");
+      fprintf (stderr, "dp_syncword_create failed\n");
       return 1;
     }
 
@@ -505,7 +508,7 @@ main (void)
      frame probability and let the library answer. */
   const size_t window_bits = PERIOD / (size_t)SPS;
   const double pfa_target  = 1e-6;
-  const int    max_err = syncword_max_errors_for (sw, window_bits, pfa_target);
+  const int max_err = dp_syncword_max_errors_for (sw, window_bits, pfa_target);
   /* -1 means no tolerance clears the target — the marker is too short for
      the window. It is a REFUSAL, and casting it to the unsigned tolerance
      the search takes would turn "impossible" into "accept anything", which
@@ -517,14 +520,14 @@ main (void)
       printf ("  %u-bit marker is too short to search %zu bits at Pfa "
               "%.0e\n\n",
               SYNC_BITS, window_bits, pfa_target);
-      syncword_destroy (sw);
+      dp_syncword_destroy (sw);
       goto done;
     }
   printf ("  %u-bit marker, %zu-bit window, Pfa <= %.0e  ->  tolerate %d "
           "bit error(s)\n",
           SYNC_BITS, window_bits, pfa_target, max_err);
   printf ("  (at that tolerance the actual Pfa is %.2e)\n",
-          syncword_pfa (sw, (uint32_t)max_err));
+          dp_syncword_pfa (sw, (uint32_t)max_err));
 
   /* Walk the record one burst at a time, and CHECK each frame the search
      lands on. wfm_frame_desc_crc_ok needs the description and the received
@@ -536,7 +539,7 @@ main (void)
 
   for (unsigned k = 0; k < N_BURSTS && pos < TOTAL_BITS; k++)
     {
-      const syncword_hit_t hit = syncword_find (
+      const syncword_hit_t hit = dp_syncword_find (
           sw, rx_bits + pos, TOTAL_BITS - pos, (uint32_t)max_err);
       if (!hit.found)
         break;
@@ -562,7 +565,7 @@ main (void)
       bursts++;
       pos = at + FRAME_BITS;
     }
-  syncword_destroy (sw);
+  dp_syncword_destroy (sw);
 
   check (bursts == N_BURSTS, "every burst is found by its marker");
   check (at_expected == N_BURSTS,

@@ -85,8 +85,8 @@ def snr_data_aided_db_series(
 ) -> NDArray[np.float64]:
     """Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift.
 
-    Same estimator as snr_data_aided_db(), applied to a ``[i - window/2, i
-    + window/2]`` window centered (clamped at the edges) on each output
+    Same estimator as dp_snr_data_aided_db(), applied to a ``[i - window/2,
+    i + window/2]`` window centered (clamped at the edges) on each output
     index -- for visualizing SNR drift vs time/index rather than reading
     one block-average scalar.
 
@@ -111,7 +111,7 @@ def snr_m2m4_db_series(
 ) -> NDArray[np.float64]:
     """Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing drift.
 
-    Same estimator as snr_m2m4_db(), applied to a ``[i - window/2, i +
+    Same estimator as dp_snr_m2m4_db(), applied to a ``[i - window/2, i +
     window/2]`` window centered (clamped at the edges) on each output
     index.
 

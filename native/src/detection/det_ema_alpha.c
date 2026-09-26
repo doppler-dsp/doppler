@@ -2,7 +2,7 @@
 #include <math.h>
 
 double
-det_ema_alpha (double snr_in_db, double snr_out_db)
+dp_det_ema_alpha (double snr_in_db, double snr_out_db)
 {
   double gin  = pow (10.0, snr_in_db / 10.0);
   double gout = pow (10.0, snr_out_db / 10.0);

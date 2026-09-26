@@ -304,8 +304,8 @@ cascade_error_seed (int ted, int rs_pulse, int tx_pulse, double beta,
   float complex *x = dp_tx_make (&cfg, NULL, &n);
   if (!x)
     return 0.0;
-  ratesync_state_t *rs = ratesync_create (sps, rs_pulse, beta, SPAN, (size_t)m,
-                                          1024, 0.0, 0.707, ted);
+  dp_ratesync_state_t *rs = dp_ratesync_create (
+      sps, rs_pulse, beta, SPAN, (size_t)m, 1024, 0.0, 0.707, ted);
   if (!rs)
     {
       free (x);
@@ -326,7 +326,7 @@ cascade_error_seed (int ted, int rs_pulse, int tx_pulse, double beta,
           }
       }
   double mean = used ? sum / (double)used : 0.0;
-  ratesync_destroy (rs);
+  dp_ratesync_destroy (rs);
   free (x);
   return mean;
 }
@@ -378,7 +378,7 @@ cascade_eye (int ted, int rs_pulse, int tx_pulse, double beta, double sps,
       float complex *x = dp_tx_make (&cfg, NULL, &n);
       if (!x)
         continue;
-      ratesync_state_t *rs = ratesync_create (
+      dp_ratesync_state_t *rs = dp_ratesync_create (
           sps, rs_pulse, beta, SPAN, (size_t)m, 1024, 0.0, 0.707, ted);
       if (!rs)
         {
@@ -396,7 +396,7 @@ cascade_eye (int ted, int rs_pulse, int tx_pulse, double beta, double sps,
               used++;
             }
       acc += used ? sum / (double)used : 0.0;
-      ratesync_destroy (rs);
+      dp_ratesync_destroy (rs);
       free (x);
     }
   return acc / (double)nseed;
@@ -681,12 +681,12 @@ main (int argc, char **argv)
      validates the FORMULA, this one validates that create() reaches it with
      the right arguments -- a correct formula wired to the wrong pulse, beta
      or detector would pass the sweep and still mis-scale every loop. */
-  printf ("  what ratesync_create() installs (sps 4, rrc, beta 0.35, "
+  printf ("  what dp_ratesync_create() installs (sps 4, rrc, beta 0.35, "
           "span %d, m 2):\n",
           SPAN);
   for (size_t t = 0; t < 2; t++)
     {
-      ratesync_state_t *rs = ratesync_create (
+      dp_ratesync_state_t *rs = dp_ratesync_create (
           4.0, RATESYNC_PULSE_RRC, 0.35, SPAN, 2, 1024, 0.01, 0.707, teds[t]);
       if (!rs)
         {
@@ -706,7 +706,7 @@ main (int argc, char **argv)
                    names[t], installed, want);
           fail = 1;
         }
-      ratesync_destroy (rs);
+      dp_ratesync_destroy (rs);
     }
 
   /* ── Phase 3: the same slope THROUGH the cascade ──────────────────────

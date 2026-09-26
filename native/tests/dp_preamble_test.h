@@ -2,10 +2,10 @@
  * @file dp_preamble_test.h
  * @brief A PN code as preamble SAMPLES, for the burst engines' tests.
  *
- * The burst constructors -- acq_create_burst(), burst_acq_create(),
- * burst_capture_create() -- take a preamble as its samples (doppler#1470):
+ * The burst constructors -- acq_create_burst(), dp_burst_acq_create(),
+ * dp_burst_capture_create() -- take a preamble as its samples (doppler#1470):
  * one period, at `fs`. A PN code is one such preamble, built the way a
- * caller builds it: chips mapped by bin_to_nrz(), the library's one
+ * caller builds it: chips mapped by dp_bin_to_nrz(), the library's one
  * chip -> +-1 rule, each held `spc` samples, at `fs = chip_rate * spc`.
  *
  * One builder, so a test cannot quietly grow its own mapping: before this
@@ -28,7 +28,7 @@
 #include <stdlib.h>
 
 /**
- * @brief One period of @p code, mapped by bin_to_nrz() and held @p spc
+ * @brief One period of @p code, mapped by dp_bin_to_nrz() and held @p spc
  *        samples a chip: `code_len * spc` samples, heap-allocated.
  *
  * @param code      PN chips (0/1), length @p code_len.
@@ -41,7 +41,7 @@ dp_code_preamble (const uint8_t *code, size_t code_len, size_t spc)
 {
   float          *nrz = dp_xmalloc (code_len * sizeof *nrz);
   float _Complex *pre = dp_xmalloc (code_len * spc * sizeof *pre);
-  (void)bin_to_nrz (code, code_len, nrz, code_len);
+  (void)dp_bin_to_nrz (code, code_len, nrz, code_len);
   for (size_t i = 0; i < code_len * spc; i++)
     pre[i] = nrz[i / spc];
   free (nrz);
@@ -72,11 +72,11 @@ dp_preamble_shift (const float _Complex *t, size_t n, double tau,
 {
   double _Complex *in   = dp_xmalloc (n * sizeof *in);
   double _Complex *spec = dp_xmalloc (n * sizeof *spec);
-  fft_state_t     *fwd  = dp_xnn (fft_create (n, -1, 1));
-  fft_state_t     *inv  = dp_xnn (fft_create (n, +1, 1));
+  dp_fft_state_t  *fwd  = dp_xnn (dp_fft_create (n, -1, 1));
+  dp_fft_state_t  *inv  = dp_xnn (dp_fft_create (n, +1, 1));
   for (size_t i = 0; i < n; i++)
     in[i] = (double)crealf (t[i]) + I * (double)cimagf (t[i]);
-  fft_execute_cf64 (fwd, in, n, spec, n);
+  dp_fft_execute_cf64 (fwd, in, n, spec, n);
   for (size_t k = 0; k < n; k++)
     {
       if ((n & 1u) == 0 && k == n / 2)
@@ -87,11 +87,11 @@ dp_preamble_shift (const float _Complex *t, size_t n, double tau,
       double f = (k <= n / 2) ? (double)k : (double)k - (double)n;
       spec[k] *= cexp (-I * 2.0 * M_PI * f * tau / (double)n);
     }
-  fft_execute_cf64 (inv, spec, n, in, n);
+  dp_fft_execute_cf64 (inv, spec, n, in, n);
   for (size_t i = 0; i < n; i++)
     out[i] = (float _Complex) (in[i] / (double)n);
-  fft_destroy (fwd);
-  fft_destroy (inv);
+  dp_fft_destroy (fwd);
+  dp_fft_destroy (inv);
   free (spec);
   free (in);
 }

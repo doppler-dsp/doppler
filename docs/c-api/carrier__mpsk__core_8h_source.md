@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CARRIER_MPSK_CORE_H
-#define CARRIER_MPSK_CORE_H
+#ifndef DP_CARRIER_MPSK_CORE_H
+#define DP_CARRIER_MPSK_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -29,8 +29,8 @@ extern "C" {
 #define CARRIER_MPSK_LOCK_ALPHA 0.1
 
 typedef struct {
-    lo_state_t nco;          
-    loop_filter_state_t lf;  
+    dp_lo_state_t nco;          
+    dp_loop_filter_state_t lf;  
     size_t tsamps;           
     double seed_norm_freq;   
     double bn;               
@@ -45,20 +45,20 @@ typedef struct {
     int have_prev;           
     double lock_metric;      
     double last_error;       
-} carrier_mpsk_state_t;
+} dp_carrier_mpsk_state_t;
 
-void carrier_mpsk_init(carrier_mpsk_state_t *s, double bn, double zeta,
+void carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
                        int m);
 
 JM_FORCEINLINE JM_HOT float _Complex
-carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float _Complex x)
+carrier_mpsk_wipeoff(dp_carrier_mpsk_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
 
 JM_FORCEINLINE JM_HOT void
-carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
+carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
 {
     float _Complex ahat;
     mpsk_slice(P, s->m, &ahat);          /* nearest unit constellation point */
@@ -81,10 +81,10 @@ carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
     s->prev = d;
     s->prev_abs = aP;
     s->have_prev = 1;
-    loop_filter_step(&s->lf, e);
+    dp_loop_filter_step(&s->lf, e);
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
-    lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
+    dp_lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
      * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
@@ -94,11 +94,11 @@ carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
     s->lock_metric += CARRIER_MPSK_LOCK_ALPHA * (inst - s->lock_metric);
 }
 
-carrier_mpsk_state_t *carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
+dp_carrier_mpsk_state_t *dp_carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
 
-void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_destroy(dp_carrier_mpsk_state_t *state);
 
-void carrier_mpsk_reset(carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_reset(dp_carrier_mpsk_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop exactly.
@@ -106,24 +106,24 @@ void carrier_mpsk_reset(carrier_mpsk_state_t *state);
 #define CARRIER_MPSK_STATE_MAGIC DP_FOURCC('C', 'M', 'P', 'K')
 #define CARRIER_MPSK_STATE_VERSION 1u
 
-size_t carrier_mpsk_state_bytes(const carrier_mpsk_state_t *state);
-void carrier_mpsk_get_state(const carrier_mpsk_state_t *state, void *blob);
-int carrier_mpsk_set_state(carrier_mpsk_state_t *state, const void *blob);
+size_t dp_carrier_mpsk_state_bytes(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_get_state(const dp_carrier_mpsk_state_t *state, void *blob);
+int dp_carrier_mpsk_set_state(dp_carrier_mpsk_state_t *state, const void *blob);
 
-size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
+size_t dp_carrier_mpsk_steps_max_out(dp_carrier_mpsk_state_t *state);
 
-size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-void carrier_mpsk_configure(carrier_mpsk_state_t *state, double bn, double zeta);
-double carrier_mpsk_get_bn(const carrier_mpsk_state_t *state);
-void carrier_mpsk_set_bn(carrier_mpsk_state_t *state, double val);
-double carrier_mpsk_get_norm_freq(const carrier_mpsk_state_t *state);
-void carrier_mpsk_set_norm_freq(carrier_mpsk_state_t *state, double val);
-double carrier_mpsk_get_lock_metric(const carrier_mpsk_state_t *state);
-double carrier_mpsk_get_last_error(const carrier_mpsk_state_t *state);
-double carrier_mpsk_get_bn_fll(const carrier_mpsk_state_t *state);
-void carrier_mpsk_set_bn_fll(carrier_mpsk_state_t *state, double val);
-int carrier_mpsk_get_m(const carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
+double dp_carrier_mpsk_get_bn(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
+double dp_carrier_mpsk_get_norm_freq(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);
+double dp_carrier_mpsk_get_lock_metric(const dp_carrier_mpsk_state_t *state);
+double dp_carrier_mpsk_get_last_error(const dp_carrier_mpsk_state_t *state);
+double dp_carrier_mpsk_get_bn_fll(const dp_carrier_mpsk_state_t *state);
+void dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
+int dp_carrier_mpsk_get_m(const dp_carrier_mpsk_state_t *state);
 #ifdef __cplusplus
 }
 #endif

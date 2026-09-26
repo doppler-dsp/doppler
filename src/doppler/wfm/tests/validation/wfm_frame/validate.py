@@ -491,7 +491,7 @@ def review(d: Data) -> None:
         "through it and the DSSS chip builder expands a sequence through "
         "it. The hazard it guards is stated in the header and was "
         'unasserted: `poly = 0` must mean "the maximal-length polynomial '
-        'for this register", because a literal 0 reaching `pn_create()` '
+        'for this register", because a literal 0 reaching `dp_pn_create()` '
         "is a register with NO FEEDBACK -- it emits the seed and then "
         "zeros, a constant field that still looks like a field. Closed by "
         "a section that counts ones over a full period (an m-sequence of "

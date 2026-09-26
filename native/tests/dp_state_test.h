@@ -44,7 +44,7 @@
  * The fidelity check compares two blobs from two fresh `malloc`s, and a fresh
  * allocation is usually a zeroed page -- so a `get_state` that left bytes of
  * its own blob unwritten produced two identical, all-zero gaps and passed.
- * acq_get_state did exactly that with its ring's unused tail: the blob's
+ * dp_acq_get_state did exactly that with its ring's unused tail: the blob's
  * bytes depended on whatever the caller's buffer held, and a blob shipped to
  * another pod carried that heap along with it.
  *

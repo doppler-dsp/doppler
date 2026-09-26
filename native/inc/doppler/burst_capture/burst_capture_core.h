@@ -34,17 +34,17 @@
  * bin_to_nrz (code, 31, nrz, 31);
  * float _Complex pre[124];
  * for (size_t i = 0; i < 124; i++) pre[i] = nrz[i / 4];
- * burst_capture_state_t *cap = burst_capture_create (
+ * dp_burst_capture_state_t *cap = dp_burst_capture_create (
  *     pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
  * float _Complex x[2048] = { 0 };
  * float _Complex win[4096];
- * size_t n = burst_capture_push (cap, x, 2048, win, 4096);
+ * size_t n = dp_burst_capture_push (cap, x, 2048, win, 4096);
  * // n is a multiple of burst_len: burst i starts at i*burst_len
- * burst_capture_destroy (cap);
+ * dp_burst_capture_destroy (cap);
  * @endcode
  */
-#ifndef BURST_CAPTURE_CORE_H
-#define BURST_CAPTURE_CORE_H
+#ifndef DP_BURST_CAPTURE_CORE_H
+#define DP_BURST_CAPTURE_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -64,7 +64,7 @@
  *
  * A BATCHING parameter, never a correctness one: push() loops until acq has
  * absorbed the whole chunk, so a smaller array means more iterations and
- * nothing else. Growing it to "be safe" would hide the fact that acq_push()
+ * nothing else. Growing it to "be safe" would hide the fact that dp_acq_push()
  * stops once its result array is full and abandons the rest of its input.
  */
 #define BURST_CAPTURE_HITS 16u
@@ -190,7 +190,7 @@ typedef struct
   int      shadowed;   /**< Inside the span of a window already EMITTED.
                             Held rather than dropped, because whether that
                             window was a burst is a consumer's verdict (a
-                            CRC), not this object's: burst_capture_release()
+                            CRC), not this object's: dp_burst_capture_release()
                             gives the span back, and the next push() drops
                             whatever is still shadowed (doppler#1181).      */
 } burst_capture_pending_t;
@@ -198,7 +198,7 @@ typedef struct
 /**
  * @brief BurstCapture state.
  *
- * Allocate with burst_capture_create().
+ * Allocate with dp_burst_capture_create().
  */
 typedef struct
 {
@@ -218,7 +218,7 @@ typedef struct
                            length is what gets captured.                   */
 
   /* ── The composed child ─────────────────────────────────────────────── */
-  burst_acq_state_t *acq; /**< Search stage, certified separately.         */
+  dp_burst_acq_state_t *acq; /**< Search stage, certified separately.         */
 
   /* ── Look-back (docs/design/dsss-burst-receiver.md §7.1) ────────────── */
   dp_f32_t *hist;      /**< History ring. Double-mapped, so a window that
@@ -426,7 +426,7 @@ typedef struct
                           a statistic -- lifetime, survives reset().       */
   uint64_t n_bursts; /**< Windows emitted, lifetime.                       */
 /*<<property_struct_fields>>*/
-} burst_capture_state_t;
+} dp_burst_capture_state_t;
 
 /**
  * @brief Create a burst capture: acquisition, refine and retention behind
@@ -449,7 +449,7 @@ typedef struct
  * a caller handed a way to lose bursts silently.
  *
  * Any repeated preamble: a chirp, a Zadoff-Chu sequence, shaped PSK, or a
- * PN code mapped by bin_to_nrz() and held `spc` samples a chip (at
+ * PN code mapped by dp_bin_to_nrz() and held `spc` samples a chip (at
  * `fs = chip_rate*spc`). One chip is one sample: a period is
  * @p preamble_len samples.
  * Refine correlates each candidate position against the acquisition
@@ -487,7 +487,7 @@ typedef struct
  * True
  * @endcode
  */
-burst_capture_state_t *burst_capture_create (
+dp_burst_capture_state_t *dp_burst_capture_create (
     const float _Complex *preamble, size_t preamble_len, size_t burst_len,
     size_t reps,
     double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
@@ -559,14 +559,14 @@ burst_capture_state_t *burst_capture_create (
  * True
  * @endcode
  */
-burst_capture_state_t *burst_capture_create_backed (
+dp_burst_capture_state_t *burst_capture_create_backed (
     const char *path, const float _Complex *preamble, size_t preamble_len,
     size_t burst_len, size_t reps, double fs, double cn0_dbhz,
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
     double doppler_rate);
 
 /** @brief Release a capture and everything it owns. NULL-safe. */
-void burst_capture_destroy (burst_capture_state_t *state);
+void dp_burst_capture_destroy (dp_burst_capture_state_t *state);
 
 /**
  * @brief Return to the searching state.
@@ -589,7 +589,7 @@ void burst_capture_destroy (burst_capture_state_t *state);
  * 0
  * @endcode
  */
-void burst_capture_reset (burst_capture_state_t *state);
+void dp_burst_capture_reset (dp_burst_capture_state_t *state);
 
 /**
  * @brief Upper bound on samples push() can return for @p x_len input.
@@ -597,7 +597,7 @@ void burst_capture_reset (burst_capture_state_t *state);
  * Distinct bursts cannot overlap, so `x_len` samples complete at most
  * `x_len/burst_len + 1` of them, plus whatever is already queued.
  */
-size_t burst_capture_push_max_out (burst_capture_state_t *state,
+size_t dp_burst_capture_push_max_out (dp_burst_capture_state_t *state,
                                    size_t x_len);
 
 /**
@@ -628,12 +628,12 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
  * 0
  * @endcode
  */
-size_t burst_capture_push (burst_capture_state_t *state,
+size_t dp_burst_capture_push (dp_burst_capture_state_t *state,
                            const float _Complex *x, size_t x_len,
                            float _Complex *out, size_t max_out);
 
 /** @brief Raw detections available from the last push(). @p n is ignored. */
-size_t burst_capture_detections_max_out (burst_capture_state_t *state,
+size_t dp_burst_capture_detections_max_out (dp_burst_capture_state_t *state,
                                          size_t n);
 
 /**
@@ -656,12 +656,12 @@ size_t burst_capture_detections_max_out (burst_capture_state_t *state,
  * True
  * @endcode
  */
-size_t burst_capture_detections (burst_capture_state_t *state, size_t n,
+size_t dp_burst_capture_detections (dp_burst_capture_state_t *state, size_t n,
                                  burst_capture_detection_t *out,
                                  size_t max_out);
 
 /** @brief Records available from the last push(). @p n is ignored. */
-size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
+size_t dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t n);
 
 /**
  * @brief The event record for each burst the last push() returned.
@@ -680,7 +680,7 @@ size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
  * True
  * @endcode
  */
-size_t burst_capture_events (burst_capture_state_t *state, size_t n,
+size_t dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
                              burst_capture_event_t *out, size_t max_out);
 
 /**
@@ -690,7 +690,7 @@ size_t burst_capture_events (burst_capture_state_t *state, size_t n,
  * copy: burst_capture_window() borrows straight out of the scratch that
  * push() filled.
  */
-size_t burst_capture_ready (const burst_capture_state_t *state);
+size_t burst_capture_ready (const dp_burst_capture_state_t *state);
 
 /**
  * @brief Borrow window @p i of the last push(), or NULL if out of range.
@@ -698,12 +698,12 @@ size_t burst_capture_ready (const burst_capture_state_t *state);
  * Contiguous, `burst_len` samples, valid until the next push(), reset() or
  * set_state(). The caller must not free it.
  */
-const float _Complex *burst_capture_window (const burst_capture_state_t *state,
+const float _Complex *burst_capture_window (const dp_burst_capture_state_t *state,
                                            size_t i);
 
 /** @brief Borrow event @p i of the last push(), or NULL if out of range. */
 const burst_capture_event_t *
-burst_capture_event_at (const burst_capture_state_t *state, size_t i);
+burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
 
 /**
  * @brief Give back the span that window @p i of the last push() claimed.
@@ -740,7 +740,7 @@ burst_capture_event_at (const burst_capture_state_t *state, size_t i);
  * ValueError: release failed (rc=-4)
  * @endcode
  */
-int burst_capture_release (burst_capture_state_t *state, size_t i);
+int dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i);
 
 /**
  * @brief Pin the embedded acquisition's search grid directly.
@@ -767,7 +767,7 @@ int burst_capture_release (burst_capture_state_t *state, size_t i);
  * >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
  * @endcode
  */
-int burst_capture_configure_search_raw (burst_capture_state_t *state,
+int dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
                                         size_t doppler_bins,
                                         size_t n_noncoh);
 
@@ -785,17 +785,17 @@ int burst_capture_configure_search_raw (burst_capture_state_t *state,
  * moves them. */
 
 /** @brief Dead air a caller must leave between bursts, edge to edge. */
-size_t burst_capture_get_min_gap (const burst_capture_state_t *state);
+size_t burst_capture_get_min_gap (const dp_burst_capture_state_t *state);
 
 /** @brief Coherent detection gate; in force when `n_noncoh == 1`. */
-double burst_capture_get_eta (const burst_capture_state_t *state);
+double dp_burst_capture_get_eta (const dp_burst_capture_state_t *state);
 /** @brief Non-coherent gate; in force only when `n_noncoh > 1`, which a
  *  burst search never chooses (it reads 0 unless a pin sets looks). */
-double burst_capture_get_eta_nc (const burst_capture_state_t *state);
+double dp_burst_capture_get_eta_nc (const dp_burst_capture_state_t *state);
 /** @brief Correlation kept, worst case, by a burst landing between bins. */
-double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
+double dp_burst_capture_get_straddle_loss (const dp_burst_capture_state_t *state);
 /** @brief Detection probability of one dwell wholly inside the preamble. */
-double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
+double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state);
 /** @brief Detection probability of one burst: any dwell its preamble spans,
  *         at a uniform alignment (doppler#1498). What `underpowered` reads.
  *
@@ -806,29 +806,29 @@ double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
  * about 2% of trials (native/validation/capture_dwell_pd.c; validation
  * report §2.8). Until doppler#1519 it also lost a code phase along the ZC
  * delay-Doppler ridge and fell 0.026 short at 0.9. */
-double burst_capture_get_pd_burst (const burst_capture_state_t *state);
+double dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state);
 /** @brief The preamble's peak sidelobe level, dB: acq_psl_db() of the
  *         engine. A burst clearing the threshold by more than `-psl_db`
  *         also detects its own sidelobe, outside the peak zone; -INFINITY
  *         for a perfect sequence. */
-double burst_capture_get_psl_db (const burst_capture_state_t *state);
+double dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */
-double burst_capture_get_doppler_rate (const burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state);
 /** @brief Doppler hypotheses searched: the coherent depth, or the window-tile
  *         count past the native span -- acq_grid_bins() (doppler#1512). */
-size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
+size_t dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state);
 /** @brief Non-coherent looks combined per decision. */
-size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);
+size_t dp_burst_capture_get_n_noncoh (const dp_burst_capture_state_t *state);
 /** @brief Code-phase hypotheses per Doppler row. */
-size_t burst_capture_get_code_bins (const burst_capture_state_t *state);
+size_t dp_burst_capture_get_code_bins (const dp_burst_capture_state_t *state);
 /** @brief Unambiguous Doppler half-range, Hz (+/- this). */
-double burst_capture_get_doppler_span_hz (const burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state);
 
 /** @brief Bytes one blob occupies: a pure function of CONFIGURATION. */
-size_t burst_capture_state_bytes (const burst_capture_state_t *state);
+size_t dp_burst_capture_state_bytes (const dp_burst_capture_state_t *state);
 /** @brief Serialize into @p blob, which must be state_bytes() long. */
-void burst_capture_get_state (const burst_capture_state_t *state, void *blob);
+void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *blob);
 /**
  * @brief Restore from @p blob. @return DP_OK or DP_ERR_INVALID.
  *
@@ -844,15 +844,15 @@ void burst_capture_get_state (const burst_capture_state_t *state, void *blob);
  * `set_state(blob) -> push(chunk) -> get_state()` per call is a service
  * shape this object supports, on both flavours.
  */
-int burst_capture_set_state (burst_capture_state_t *state, const void *blob);
+int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 
-uint64_t burst_capture_get_preamble_start(const burst_capture_state_t *state);
-double burst_capture_get_doppler_hz_est(const burst_capture_state_t *state);
-double burst_capture_get_doppler_res_hz(const burst_capture_state_t *state);
-double burst_capture_get_cn0_dbhz_est(const burst_capture_state_t *state);
-size_t burst_capture_get_pending(const burst_capture_state_t *state);
-uint64_t burst_capture_get_dropped(const burst_capture_state_t *state);
-uint64_t burst_capture_get_n_bursts(const burst_capture_state_t *state);
+uint64_t dp_burst_capture_get_preamble_start(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_hz_est(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_res_hz(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_cn0_dbhz_est(const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_get_pending(const dp_burst_capture_state_t *state);
+uint64_t dp_burst_capture_get_dropped(const dp_burst_capture_state_t *state);
+uint64_t dp_burst_capture_get_n_bursts(const dp_burst_capture_state_t *state);
 #ifdef __cplusplus
 }
 #endif

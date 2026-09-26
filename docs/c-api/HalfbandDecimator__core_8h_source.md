@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef HALFBANDDECIMATOR_CORE_H
-#define HALFBANDDECIMATOR_CORE_H
+#ifndef DP_HALFBANDDECIMATOR_CORE_H
+#define DP_HALFBANDDECIMATOR_CORE_H
 
 #include "doppler/hbdecim/hbdecim_core.h"
 
@@ -19,7 +19,7 @@ extern "C"
 {
 #endif
 
-  typedef hbdecim_state_t HalfbandDecimator_state_t;
+  typedef hbdecim_state_t dp_HalfbandDecimator_state_t;
 
 /* Maximum output samples per call (pre-allocated by ext.c at init). */
 #define HBDECIM_MAX_OUT 32768
@@ -28,26 +28,26 @@ extern "C"
   /* Lifecycle                                                           */
   /* ------------------------------------------------------------------ */
 
-  HalfbandDecimator_state_t *HalfbandDecimator_create (const float *h,
+  dp_HalfbandDecimator_state_t *dp_HalfbandDecimator_create (const float *h,
                                                        size_t h_len);
 
-  void HalfbandDecimator_destroy (HalfbandDecimator_state_t *state);
+  void dp_HalfbandDecimator_destroy (dp_HalfbandDecimator_state_t *state);
 
-  void HalfbandDecimator_reset (HalfbandDecimator_state_t *state);
+  void dp_HalfbandDecimator_reset (dp_HalfbandDecimator_state_t *state);
 
-  size_t HalfbandDecimator_state_bytes (const HalfbandDecimator_state_t *state);
-  void HalfbandDecimator_get_state (const HalfbandDecimator_state_t *state,
+  size_t dp_HalfbandDecimator_state_bytes (const dp_HalfbandDecimator_state_t *state);
+  void dp_HalfbandDecimator_get_state (const dp_HalfbandDecimator_state_t *state,
                                     void *blob);
-  int HalfbandDecimator_set_state (HalfbandDecimator_state_t *state,
+  int dp_HalfbandDecimator_set_state (dp_HalfbandDecimator_state_t *state,
                                    const void *blob);
 
   /* ------------------------------------------------------------------ */
   /* Execute                                                             */
   /* ------------------------------------------------------------------ */
 
-  size_t HalfbandDecimator_execute_max_out (HalfbandDecimator_state_t *state);
+  size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state);
 
-  size_t HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
+  size_t dp_HalfbandDecimator_execute (dp_HalfbandDecimator_state_t *state,
                                     const float _Complex *x, size_t x_len,
                                     float _Complex *out, size_t max_out);
 
@@ -55,10 +55,10 @@ extern "C"
   /* Properties                                                          */
   /* ------------------------------------------------------------------ */
 
-  double HalfbandDecimator_get_rate (const HalfbandDecimator_state_t *state);
+  double dp_HalfbandDecimator_get_rate (const dp_HalfbandDecimator_state_t *state);
 
   size_t
-  HalfbandDecimator_get_num_taps (const HalfbandDecimator_state_t *state);
+  dp_HalfbandDecimator_get_num_taps (const dp_HalfbandDecimator_state_t *state);
 
 #ifdef __cplusplus
 }

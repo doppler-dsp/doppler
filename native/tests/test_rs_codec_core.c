@@ -38,24 +38,25 @@ main (void)
   /* ── 1. the five arguments become the code the caller named ───────────────
    */
   {
-    rs_codec_state_t *rs = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *rs
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (rs != NULL);
-    DP_CHECK_MSG (rs_codec_get_n (rs) == 255u, "n = 2^J - 1");
-    DP_CHECK_MSG (rs_codec_get_k (rs) == 223u, "k = n - nroots");
-    DP_CHECK_MSG (rs_codec_get_e (rs) == 16u, "E = nroots / 2");
-    DP_CHECK (rs_codec_get_nroots (rs) == 32u);
-    DP_CHECK (rs_codec_get_symbol_bits (rs) == 8u);
-    rs_codec_destroy (rs);
+    DP_CHECK_MSG (dp_rs_codec_get_n (rs) == 255u, "n = 2^J - 1");
+    DP_CHECK_MSG (dp_rs_codec_get_k (rs) == 223u, "k = n - nroots");
+    DP_CHECK_MSG (dp_rs_codec_get_e (rs) == 16u, "E = nroots / 2");
+    DP_CHECK (dp_rs_codec_get_nroots (rs) == 32u);
+    DP_CHECK (dp_rs_codec_get_symbol_bits (rs) == 8u);
+    dp_rs_codec_destroy (rs);
 
     /* A different field entirely: J = 4 is GF(16), n = 15. If create() had
        hardcoded the byte-wide case anywhere -- in the table build, in a
        length, in a mask -- every assertion above still passes. */
-    rs_codec_state_t *s = rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
+    dp_rs_codec_state_t *s = dp_rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
     DP_REQUIRE (s != NULL);
-    DP_CHECK_MSG (rs_codec_get_n (s) == 15u && rs_codec_get_k (s) == 11u,
+    DP_CHECK_MSG (dp_rs_codec_get_n (s) == 15u && dp_rs_codec_get_k (s) == 11u,
                   "GF(16) gives RS(15,11)");
-    DP_CHECK (rs_codec_get_symbol_bits (s) == 4u);
-    rs_codec_destroy (s);
+    DP_CHECK (dp_rs_codec_get_symbol_bits (s) == 4u);
+    dp_rs_codec_destroy (s);
   }
 
   /* ── 2. the two arguments that must be VALIDATED, not trusted ─────────────
@@ -68,21 +69,21 @@ main (void)
   {
     /* 0x1C is x^8 + x^4 + x^3 + x^2, not primitive -- it generates a
        subgroup rather than the field. */
-    DP_CHECK_MSG (rs_codec_create (32u, 8u, 0x1Cu, 1u, 1u) == NULL,
+    DP_CHECK_MSG (dp_rs_codec_create (32u, 8u, 0x1Cu, 1u, 1u) == NULL,
                   "a non-primitive field polynomial must be refused");
 
     /* gcd(5, 255) = 5, so the 32 'roots' are not distinct and the code
        corrects fewer errors than its parity count claims. */
-    DP_CHECK_MSG (rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 5u) == NULL,
+    DP_CHECK_MSG (dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 5u) == NULL,
                   "a root stride sharing a factor with n must be refused");
 
     /* And the plain range refusals, so a caller gets an exception rather
        than a codec that cannot work. */
-    DP_CHECK_MSG (rs_codec_create (31u, 8u, POLY_DEFAULT, 1u, 1u) == NULL,
+    DP_CHECK_MSG (dp_rs_codec_create (31u, 8u, POLY_DEFAULT, 1u, 1u) == NULL,
                   "an odd nroots is not 2E");
-    DP_CHECK_MSG (rs_codec_create (0u, 8u, POLY_DEFAULT, 1u, 1u) == NULL,
+    DP_CHECK_MSG (dp_rs_codec_create (0u, 8u, POLY_DEFAULT, 1u, 1u) == NULL,
                   "a code with no parity is not a code");
-    DP_CHECK_MSG (rs_codec_create (32u, 4u, 0x3u, 1u, 1u) == NULL,
+    DP_CHECK_MSG (dp_rs_codec_create (32u, 4u, 0x3u, 1u, 1u) == NULL,
                   "nroots must leave at least one information symbol");
   }
 
@@ -94,9 +95,10 @@ main (void)
    * decoder and matches no other implementation of this code.
    */
   {
-    rs_codec_state_t *rs = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *rs
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (rs != NULL);
-    const size_t n = rs_codec_get_n (rs), k = rs_codec_get_k (rs);
+    const size_t n = dp_rs_codec_get_n (rs), k = dp_rs_codec_get_k (rs);
 
     uint8_t *info = malloc (k), *word = malloc (n);
     DP_REQUIRE (info && word);
@@ -104,7 +106,7 @@ main (void)
     for (size_t i = 0; i < k; i++)
       info[i] = (uint8_t)(dp_xs32 (&st) & 0xFFu);
 
-    DP_REQUIRE (rs_codec_encode (rs, info, k, word, n) == n);
+    DP_REQUIRE (dp_rs_codec_encode (rs, info, k, word, n) == n);
     DP_CHECK_MSG (memcmp (word, info, k) == 0,
                   "systematic: the information is carried through untouched");
 
@@ -116,12 +118,12 @@ main (void)
     DP_CHECK_MSG (memcmp (word + k, parity, 32u) == 0,
                   "the parity is rs_encode's, placed after the information");
 
-    DP_CHECK_MSG (rs_codec_codeword_ok (rs, word, n),
+    DP_CHECK_MSG (dp_rs_codec_codeword_ok (rs, word, n),
                   "...and the whole thing is therefore a codeword");
 
     free (info);
     free (word);
-    rs_codec_destroy (rs);
+    dp_rs_codec_destroy (rs);
   }
 
   /* ── 4. decode corrects IN PLACE, and reports the count ────────────────────
@@ -131,37 +133,38 @@ main (void)
    * return the right count and leave the caller's data wrong.
    */
   {
-    rs_codec_state_t *rs = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *rs
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (rs != NULL);
-    const size_t n = rs_codec_get_n (rs), k = rs_codec_get_k (rs),
-                 e = rs_codec_get_e (rs);
+    const size_t n = dp_rs_codec_get_n (rs), k = dp_rs_codec_get_k (rs),
+                 e = dp_rs_codec_get_e (rs);
 
     uint8_t *info = malloc (k), *word = malloc (n), *clean = malloc (n);
     DP_REQUIRE (info && word && clean);
     uint32_t st = 777u;
     for (size_t i = 0; i < k; i++)
       info[i] = (uint8_t)(dp_xs32 (&st) & 0xFFu);
-    DP_REQUIRE (rs_codec_encode (rs, info, k, clean, n) == n);
+    DP_REQUIRE (dp_rs_codec_encode (rs, info, k, clean, n) == n);
 
     /* Exactly E errors: the decoder's radius, so this must succeed and must
        report every one of them. */
     memcpy (word, clean, n);
     for (size_t i = 0; i < e; i++)
       word[i * 7u] ^= 0xA5u;
-    DP_CHECK_MSG (rs_codec_decode (rs, word, n) == (int)e,
+    DP_CHECK_MSG (dp_rs_codec_decode (rs, word, n) == (int)e,
                   "E errors are corrected, and counted");
     DP_CHECK_MSG (memcmp (word, clean, n) == 0,
                   "...in the CALLER's buffer, which now holds the codeword");
 
     /* A clean codeword: zero corrected, not a refusal and not a repair. */
     memcpy (word, clean, n);
-    DP_CHECK_MSG (rs_codec_decode (rs, word, n) == 0,
+    DP_CHECK_MSG (dp_rs_codec_decode (rs, word, n) == 0,
                   "an already-valid codeword costs no corrections");
 
     free (info);
     free (word);
     free (clean);
-    rs_codec_destroy (rs);
+    dp_rs_codec_destroy (rs);
   }
 
   /* ── 5. the length contract ────────────────────────────────────────────────
@@ -173,33 +176,34 @@ main (void)
    * channel's answer, -2 is the caller's mistake.
    */
   {
-    rs_codec_state_t *rs = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *rs
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (rs != NULL);
-    const size_t n = rs_codec_get_n (rs), k = rs_codec_get_k (rs);
+    const size_t n = dp_rs_codec_get_n (rs), k = dp_rs_codec_get_k (rs);
 
     static uint8_t buf[255], out[255];
     memset (buf, 0, sizeof buf);
 
-    DP_CHECK_MSG (rs_codec_encode (rs, buf, k - 1u, out, n) == 0,
+    DP_CHECK_MSG (dp_rs_codec_encode (rs, buf, k - 1u, out, n) == 0,
                   "fewer than k information symbols is not a message");
-    DP_CHECK_MSG (rs_codec_encode (rs, buf, k + 1u, out, n) == 0,
+    DP_CHECK_MSG (dp_rs_codec_encode (rs, buf, k + 1u, out, n) == 0,
                   "...and neither is more");
-    DP_CHECK_MSG (rs_codec_encode (rs, buf, k, out, n - 1u) == 0,
+    DP_CHECK_MSG (dp_rs_codec_encode (rs, buf, k, out, n - 1u) == 0,
                   "a buffer too small is refused, never truncated");
 
-    DP_CHECK_MSG (rs_codec_decode (rs, buf, n - 1u) == -2,
+    DP_CHECK_MSG (dp_rs_codec_decode (rs, buf, n - 1u) == -2,
                   "a word of the wrong length is the CALLER's mistake (-2)");
-    DP_CHECK_MSG (rs_codec_syndromes (rs, buf, n - 1u, out, 32u) == 0,
+    DP_CHECK_MSG (dp_rs_codec_syndromes (rs, buf, n - 1u, out, 32u) == 0,
                   "syndromes of a wrong-length word are not syndromes");
-    DP_CHECK_MSG (!rs_codec_codeword_ok (rs, buf, n - 1u),
+    DP_CHECK_MSG (!dp_rs_codec_codeword_ok (rs, buf, n - 1u),
                   "a word of the wrong length is not a codeword of this code");
 
     /* All-zero IS a codeword of every linear code, so the length refusal
        above is doing real work: without it this call would say yes. */
-    DP_CHECK_MSG (rs_codec_codeword_ok (rs, buf, n),
+    DP_CHECK_MSG (dp_rs_codec_codeword_ok (rs, buf, n),
                   "...while the all-zero word at the RIGHT length is one");
 
-    rs_codec_destroy (rs);
+    dp_rs_codec_destroy (rs);
   }
 
   /* ── 6. syndromes and the generator are the kernel's, in full ──────────────
@@ -210,15 +214,16 @@ main (void)
    * bytes, from the right code.
    */
   {
-    rs_codec_state_t *rs = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *rs
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (rs != NULL);
-    const size_t n = rs_codec_get_n (rs), k = rs_codec_get_k (rs);
+    const size_t n = dp_rs_codec_get_n (rs), k = dp_rs_codec_get_k (rs);
 
     static uint8_t word[255], syn[64], gen[65];
     static uint8_t info[223];
     for (size_t i = 0; i < k; i++)
       info[i] = (uint8_t)(i * 13u + 7u);
-    DP_REQUIRE (rs_codec_encode (rs, info, k, word, n) == n);
+    DP_REQUIRE (dp_rs_codec_encode (rs, info, k, word, n) == n);
 
     /* The IN-PLACE call, which is the one a frame assembler makes: the same
        buffer as source and destination, so the parity is appended to
@@ -227,24 +232,24 @@ main (void)
        no-op, so this is a real path and not a courtesy. */
     static uint8_t inplace[255];
     memcpy (inplace, info, k);
-    DP_REQUIRE (rs_codec_encode (rs, inplace, k, inplace, n) == n);
+    DP_REQUIRE (dp_rs_codec_encode (rs, inplace, k, inplace, n) == n);
     DP_CHECK_MSG (memcmp (inplace, word, n) == 0,
                   "encoding in place gives the same codeword");
 
-    DP_REQUIRE (rs_codec_syndromes (rs, word, n, syn, sizeof syn) == 32u);
+    DP_REQUIRE (dp_rs_codec_syndromes (rs, word, n, syn, sizeof syn) == 32u);
     unsigned nz = 0;
     for (unsigned i = 0; i < 32u; i++)
       nz += (syn[i] != 0u);
     DP_CHECK_MSG (nz == 0u, "every syndrome of a codeword is zero");
 
     word[9] ^= 0x40u;
-    DP_REQUIRE (rs_codec_syndromes (rs, word, n, syn, sizeof syn) == 32u);
+    DP_REQUIRE (dp_rs_codec_syndromes (rs, word, n, syn, sizeof syn) == 32u);
     nz = 0;
     for (unsigned i = 0; i < 32u; i++)
       nz += (syn[i] != 0u);
     DP_CHECK_MSG (nz > 0u, "...and an error shows in them");
 
-    DP_REQUIRE (rs_codec_generator (rs, gen, sizeof gen) == 33u);
+    DP_REQUIRE (dp_rs_codec_generator (rs, gen, sizeof gen) == 33u);
     DP_CHECK_MSG (memcmp (gen, rs_generator (&rs->rs), 33u) == 0,
                   "the generator is the kernel's, whole");
     DP_CHECK_MSG (gen[32] == 1u, "g(x) is monic in its highest coefficient");
@@ -253,11 +258,11 @@ main (void)
        generator would compare unequal to a published one for a reason that
        looks like a wrong code. */
     memset (gen, 0xEEu, sizeof gen);
-    DP_CHECK_MSG (rs_codec_generator (rs, gen, 32u) == 0u,
+    DP_CHECK_MSG (dp_rs_codec_generator (rs, gen, 32u) == 0u,
                   "a buffer shorter than nroots + 1 is refused");
     DP_CHECK_MSG (gen[0] == 0xEEu, "...and left untouched");
 
-    rs_codec_destroy (rs);
+    dp_rs_codec_destroy (rs);
   }
 
   /* ── 7. every one of the five reaches the arithmetic ──────────────────────
@@ -297,37 +302,39 @@ main (void)
       { "nroots (superset roots)", 64u, 8u, POLY_DEFAULT, 1u, 1u, 0 },
     };
 
-    rs_codec_state_t *base = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *base
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (base != NULL);
-    const size_t n = rs_codec_get_n (base), k = rs_codec_get_k (base);
+    const size_t n = dp_rs_codec_get_n (base), k = dp_rs_codec_get_k (base);
 
     static uint8_t info[223], word[255], gbase[65], gother[65];
     uint32_t       st = 31337u;
     for (size_t i = 0; i < k; i++)
       info[i] = (uint8_t)(dp_xs32 (&st) & 0xFFu);
-    DP_REQUIRE (rs_codec_encode (base, info, k, word, n) == n);
-    DP_REQUIRE (rs_codec_generator (base, gbase, sizeof gbase) == 33u);
+    DP_REQUIRE (dp_rs_codec_encode (base, info, k, word, n) == n);
+    DP_REQUIRE (dp_rs_codec_generator (base, gbase, sizeof gbase) == 33u);
 
     for (size_t c = 0; c < sizeof OTHER / sizeof OTHER[0]; c++)
       {
-        rs_codec_state_t *alt = rs_codec_create (
+        dp_rs_codec_state_t *alt = dp_rs_codec_create (
             OTHER[c].nroots, OTHER[c].symbol_bits, OTHER[c].field_poly,
             OTHER[c].first_root, OTHER[c].root_stride);
         DP_REQUIRE_MSG (alt != NULL, OTHER[c].what);
 
-        const size_t gn = rs_codec_get_nroots (alt) + 1u;
-        DP_REQUIRE (rs_codec_generator (alt, gother, sizeof gother) == gn);
+        const size_t gn = dp_rs_codec_get_nroots (alt) + 1u;
+        DP_REQUIRE (dp_rs_codec_generator (alt, gother, sizeof gother) == gn);
         DP_CHECK_MSG (gn != 33u || memcmp (gbase, gother, 33u) != 0,
                       "changing one parameter must change the code");
 
         /* The claim that matters to a caller: whether the two interoperate,
            each case carrying the answer its own algebra gives. */
-        DP_CHECK_MSG (rs_codec_codeword_ok (alt, word, n) == OTHER[c].interops,
+        DP_CHECK_MSG (dp_rs_codec_codeword_ok (alt, word, n)
+                          == OTHER[c].interops,
                       OTHER[c].what);
 
-        rs_codec_destroy (alt);
+        dp_rs_codec_destroy (alt);
       }
-    rs_codec_destroy (base);
+    dp_rs_codec_destroy (base);
   }
 
   /* ── 8. the *_max_out functions ARE the allocation contract ───────────────
@@ -344,38 +351,39 @@ main (void)
    * literal would just be the same arithmetic typed twice.
    */
   {
-    rs_codec_state_t *rs = rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
+    dp_rs_codec_state_t *rs
+        = dp_rs_codec_create (32u, 8u, POLY_DEFAULT, 1u, 1u);
     DP_REQUIRE (rs != NULL);
-    const size_t n = rs_codec_get_n (rs), k = rs_codec_get_k (rs);
+    const size_t n = dp_rs_codec_get_n (rs), k = dp_rs_codec_get_k (rs);
 
     static uint8_t info[223], word[255], big[512];
     memset (info, 0x5Au, sizeof info);
 
-    DP_CHECK_MSG (rs_codec_encode_max_out (rs, k)
-                      == rs_codec_encode (rs, info, k, word, n),
+    DP_CHECK_MSG (dp_rs_codec_encode_max_out (rs, k)
+                      == dp_rs_codec_encode (rs, info, k, word, n),
                   "encode_max_out must equal what encode writes");
-    DP_CHECK_MSG (rs_codec_syndromes_max_out (rs, n)
-                      == rs_codec_syndromes (rs, word, n, big, sizeof big),
+    DP_CHECK_MSG (dp_rs_codec_syndromes_max_out (rs, n)
+                      == dp_rs_codec_syndromes (rs, word, n, big, sizeof big),
                   "syndromes_max_out must equal what syndromes writes");
-    DP_CHECK_MSG (rs_codec_generator (rs, big, sizeof big)
-                      == rs_codec_get_nroots (rs) + 1u,
+    DP_CHECK_MSG (dp_rs_codec_generator (rs, big, sizeof big)
+                      == dp_rs_codec_get_nroots (rs) + 1u,
                   "generator writes nroots + 1 coefficients");
 
     /* And they must not depend on the caller's count, because the binding
        may not pass one: a bound that shrank with `n_in` would under-allocate
        the moment somebody called it the other way. */
-    DP_CHECK (rs_codec_encode_max_out (rs, 0u) == n);
-    DP_CHECK (rs_codec_syndromes_max_out (rs, 0u) == 32u);
+    DP_CHECK (dp_rs_codec_encode_max_out (rs, 0u) == n);
+    DP_CHECK (dp_rs_codec_syndromes_max_out (rs, 0u) == 32u);
 
     /* At a second, smaller code too -- a bound that had been hardcoded to
        the 255-symbol case would pass everything above. */
-    rs_codec_state_t *s = rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
+    dp_rs_codec_state_t *s = dp_rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
     DP_REQUIRE (s != NULL);
-    DP_CHECK (rs_codec_encode_max_out (s, 0u) == 15u);
-    DP_CHECK (rs_codec_syndromes_max_out (s, 0u) == 4u);
-    rs_codec_destroy (s);
+    DP_CHECK (dp_rs_codec_encode_max_out (s, 0u) == 15u);
+    DP_CHECK (dp_rs_codec_syndromes_max_out (s, 0u) == 4u);
+    dp_rs_codec_destroy (s);
 
-    rs_codec_destroy (rs);
+    dp_rs_codec_destroy (rs);
   }
 
   DP_TEST_END ("rs_codec_core");

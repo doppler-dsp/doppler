@@ -45,15 +45,15 @@ main (void)
   printf ("=== dll benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  dll_state_t *d = dll_create (code, SF, SPS, 0.0, 0.005, 0.707, 0.5, 1);
-  dll_steps (d, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
+  dp_dll_state_t *d = dp_dll_create (code, SF, SPS, 0.0, 0.005, 0.707, 0.5, 1);
+  dp_dll_steps (d, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
 
   double times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      dll_reset (d);
+      dp_dll_reset (d);
       t0 = jm_bench_now_ns ();
-      dll_steps (d, rx, BENCH_N, out, BENCH_N);
+      dp_dll_steps (d, rx, BENCH_N, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -65,7 +65,7 @@ main (void)
           (double)BENCH_N / (sum / ITERATIONS) / 1e6);
 
   jm_bench_write_json (&_bench, "dll");
-  dll_destroy (d);
+  dp_dll_destroy (d);
   free (rx);
   free (out);
   return 0;

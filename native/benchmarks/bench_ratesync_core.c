@@ -75,9 +75,9 @@ main (void)
   for (int d = 0; d < 2; d++)
     for (int p = 0; p < 2; p++)
       {
-        ratesync_state_t *s
-            = ratesync_create (spss[p], RATESYNC_PULSE_RRC, 0.35, SPAN, M_ARMS,
-                               NUM_PHASES, 0.01, 0.707, teds[d]);
+        dp_ratesync_state_t *s
+            = dp_ratesync_create (spss[p], RATESYNC_PULSE_RRC, 0.35, SPAN,
+                                  M_ARMS, NUM_PHASES, 0.01, 0.707, teds[d]);
         if (!s)
           {
             (void)fprintf (stderr,
@@ -87,11 +87,11 @@ main (void)
           }
         /* Capacity is the INPUT length, as the tests pass it -- the
            object emits at most one symbol per input sample and clamps
-           itself. Sizing it from ratesync_steps_max_out() instead made
+           itself. Sizing it from dp_ratesync_steps_max_out() instead made
            every call return 0 and the benchmark report 3.2 THz, which is
            the bail-out path wearing a throughput number. */
         const size_t cap     = BENCH_N;
-        size_t       got     = ratesync_steps (s, x, BENCH_N, y, cap);
+        size_t       got     = dp_ratesync_steps (s, x, BENCH_N, y, cap);
         const size_t want_lo = (size_t)((double)BENCH_N / spss[p] * 0.5);
         if (got < want_lo)
           {
@@ -105,7 +105,7 @@ main (void)
         for (int r = 0; r < ITERATIONS; r++)
           {
             t0 = jm_bench_now_ns ();
-            sink += ratesync_steps (s, x, BENCH_N, y, cap);
+            sink += dp_ratesync_steps (s, x, BENCH_N, y, cap);
             t1            = jm_bench_now_ns ();
             t_st[d][p][r] = jm_bench_elapsed_sec (t0, t1);
           }
@@ -117,7 +117,7 @@ main (void)
         printf ("  %-24s %7.2f ns/sample  %8.1f MSa/s  %8.2f Msym/s\n", name,
                 sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6,
                 (double)BENCH_N / spss[p] / sec / 1e6);
-        ratesync_destroy (s);
+        dp_ratesync_destroy (s);
       }
 
   printf ("\n  Read the Msym/s column, not MSa/s, when sizing a link: the\n"

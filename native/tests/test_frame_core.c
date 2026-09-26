@@ -34,23 +34,23 @@ static const uint8_t PAY[16]
     = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1 };
 static const uint8_t PRE[4] = { 1, 0, 1, 0 };
 
-/* frame_create() with every generator argument zeroed — the literal case,
+/* dp_frame_create() with every generator argument zeroed — the literal case,
    which is what a caller with real data has. Keeps the 37-argument call out
    of each test's way without hiding which fields are set. */
-static frame_state_t *
+static dp_frame_state_t *
 lit_frame (const uint8_t *pre, size_t n_pre, size_t reps, const uint8_t *sync,
            size_t n_sync, const uint8_t *pay, size_t n_pay, int crc)
 {
-  return frame_create (0, pre, n_pre, 0, reps, 0, 0, 0, 0, 0, 0, 0, 0, 0, sync,
-                       n_sync, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, pay, n_pay, 0, 0,
-                       0, 0, 0, 0, 0, 0, 0, crc);
+  return dp_frame_create (0, pre, n_pre, 0, reps, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                          sync, n_sync, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, pay,
+                          n_pay, 0, 0, 0, 0, 0, 0, 0, 0, 0, crc);
 }
 
 /* An empty description: the same thirty-eight arguments `Frame` takes, with
    every field left empty. `FrameDesc`'s flavor is that it stops before
    materialising, so "nothing yet" is a legal starting point here and a
    refusal in the other constructor. */
-static frame_state_t *
+static dp_frame_state_t *
 empty_desc (void)
 {
   return frame_create_desc (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL,
@@ -67,7 +67,7 @@ main (void)
    * its own layout arithmetic, the two would part company and the receiver
    * would score a capture against a frame the generator never sent. */
   {
-    frame_state_t *f = lit_frame (PRE, 4, 3, SYNC, 13, PAY, 16, 1);
+    dp_frame_state_t *f = lit_frame (PRE, 4, 3, SYNC, 13, PAY, 16, 1);
     DP_REQUIRE_MSG (f, "a literal frame builds");
 
     wfm_frame_t w   = { 0 };
@@ -91,31 +91,31 @@ main (void)
     uint8_t *got  = malloc (nb);
     DP_REQUIRE_MSG (want && got, "alloc");
     DP_REQUIRE_MSG (wfm_frame_bits (&w, want, nb) == nb, "reference bits");
-    DP_REQUIRE_MSG (frame_bits (f, 1, got, nb) == nb, "object bits");
+    DP_REQUIRE_MSG (dp_frame_bits (f, 1, got, nb) == nb, "object bits");
     DP_REQUIRE_MSG (memcmp (want, got, nb) == 0,
                     "the object's bits ARE wfm_frame_bits of the same "
                     "descriptor");
 
     /* The layout is handed back, not recomputed. */
-    wfm_frame_layout_t l = frame_layout (f);
+    wfm_frame_layout_t l = dp_frame_layout (f);
     wfm_frame_layout_t r;
     wfm_frame_layout (&w, &r);
     DP_REQUIRE_MSG (memcmp (&l, &r, sizeof l) == 0,
                     "and so is the layout, field for field");
 
     /* Its own bits pass its own CRC — the truth-free check, on truth. */
-    DP_REQUIRE_MSG (frame_crc_ok (f, got, nb) == 1, "a clean frame checks");
+    DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, nb) == 1, "a clean frame checks");
     got[l.payload_off + 3] ^= 1u;
-    DP_REQUIRE_MSG (frame_crc_ok (f, got, nb) == 0,
+    DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, nb) == 0,
                     "one flipped payload bit fails the CRC");
     got[l.payload_off + 3] ^= 1u;
-    DP_REQUIRE_MSG (frame_crc_ok (f, got, nb - 1) == -1,
+    DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, nb - 1) == -1,
                     "and short input is refused, not scored on a partial "
                     "frame");
 
     free (want);
     free (got);
-    frame_destroy (f);
+    dp_frame_destroy (f);
   }
 
   /* ── the DESCRIPTOR stays valid after construction ─────────────────────
@@ -134,7 +134,7 @@ main (void)
     uint8_t *scratch = malloc (13);
     DP_REQUIRE_MSG (scratch, "alloc");
     memcpy (scratch, SYNC, 13);
-    frame_state_t *f = lit_frame (NULL, 0, 0, scratch, 13, PAY, 16, 0);
+    dp_frame_state_t *f = lit_frame (NULL, 0, 0, scratch, 13, PAY, 16, 0);
     DP_REQUIRE_MSG (f, "builds from a scratch buffer");
     DP_REQUIRE_MSG (f->f.sync.bits != scratch,
                     "the sync word was copied, not borrowed");
@@ -148,7 +148,7 @@ main (void)
     DP_REQUIRE_MSG (memcmp (got, SYNC, 13) == 0,
                     "and its sync word outlived the buffer it came from");
     free (got);
-    frame_destroy (f);
+    dp_frame_destroy (f);
   }
 
   /* ── an unbuildable descriptor is REFUSED at construction ──────────────
@@ -160,10 +160,11 @@ main (void)
                     "an empty geometry is not a frame");
     DP_REQUIRE_MSG (!lit_frame (NULL, 4, 3, SYNC, 13, PAY, 16, 1),
                     "a literal preamble with a length but no array");
-    /* A PN field with no register width: pn_create() cannot be given one. */
-    DP_REQUIRE_MSG (!frame_create (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                   NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, NULL,
-                                   0, 64, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+    /* A PN field with no register width: dp_pn_create() cannot be given one.
+     */
+    DP_REQUIRE_MSG (!dp_frame_create (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                      0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                                      NULL, 0, 64, 0, 0, 0, 0, 0, 0, 0, 0, 1),
                     "a PN payload with no register width");
     /* A CRC over nothing protects nothing, so it is not a frame either. */
     DP_REQUIRE_MSG (!lit_frame (NULL, 0, 0, NULL, 0, NULL, 0, 1),
@@ -179,125 +180,127 @@ main (void)
    * and the second is already closed there (seq_bits creates and destroys its
    * LFSR per call), so what this pins is the first. */
   {
-    frame_state_t *f = frame_create (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-                                     NULL, 0, 64, 0, 0, 7, 0, 0, 0, 0, 0, 1);
+    dp_frame_state_t *f = dp_frame_create (
+        0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, NULL, 0, 64, 0, 0, 7, 0, 0, 0, 0, 0, 1);
     DP_REQUIRE_MSG (f, "a PN payload with a 7-bit register builds");
     DP_REQUIRE_MSG (f->nbits == 64 + 16, "64 payload bits plus the crc");
 
     size_t   n2  = 2 * f->nbits;
     uint8_t *two = malloc (n2);
-    DP_REQUIRE_MSG (two && frame_bits (f, 2, two, n2) == n2, "two frames");
+    DP_REQUIRE_MSG (two && dp_frame_bits (f, 2, two, n2) == n2, "two frames");
     DP_REQUIRE_MSG (memcmp (two, two + f->nbits, f->nbits) == 0,
                     "the second frame is the first, bit for bit — the "
                     "generator does not advance between them");
 
     /* Whole frames only: a partial one would misalign every frame after it. */
-    DP_REQUIRE_MSG (frame_bits (f, 2, two, n2 - 1) == f->nbits,
+    DP_REQUIRE_MSG (dp_frame_bits (f, 2, two, n2 - 1) == f->nbits,
                     "a buffer one bit short of two frames carries one");
-    DP_REQUIRE_MSG (frame_bits (f, 2, two, f->nbits - 1) == 0,
+    DP_REQUIRE_MSG (dp_frame_bits (f, 2, two, f->nbits - 1) == 0,
                     "and one too small for any whole frame carries none");
-    DP_REQUIRE_MSG (frame_bits_max_out (f, 3) == 3 * f->nbits,
+    DP_REQUIRE_MSG (dp_frame_bits_max_out (f, 3) == 3 * f->nbits,
                     "max_out counts frames");
 
     free (two);
-    frame_destroy (f);
+    dp_frame_destroy (f);
   }
 
   /* ── a dotted preamble: the kind that needs no array at all ────────────*/
   {
-    frame_state_t *f = frame_create (3, NULL, 0, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     0, SYNC, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     PAY, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    dp_frame_state_t *f = dp_frame_create (
+        3, NULL, 0, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, SYNC, 13, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, PAY, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     DP_REQUIRE_MSG (f, "a dotted preamble builds with no array");
     DP_REQUIRE_MSG (f->nbits == 8 * 2 + 13 + 16, "16 + 13 + 16, no crc");
     uint8_t *got = malloc (f->nbits);
-    DP_REQUIRE_MSG (got && frame_bits (f, 1, got, f->nbits) == f->nbits, "ok");
+    DP_REQUIRE_MSG (got && dp_frame_bits (f, 1, got, f->nbits) == f->nbits,
+                    "ok");
     DP_REQUIRE_MSG (got[0] == 1 && got[1] == 0 && got[2] == 1,
                     "1010… — it starts high, so a one-bit field is not "
                     "silently zeros");
-    DP_REQUIRE_MSG (frame_crc_ok (f, got, f->nbits) == -1,
+    DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, f->nbits) == -1,
                     "a frame with no CRC says so, rather than passing");
     free (got);
-    frame_destroy (f);
+    dp_frame_destroy (f);
   }
 
-  frame_destroy (NULL); /* NULL is a no-op, as the header says */
+  dp_frame_destroy (NULL); /* NULL is a no-op, as the header says */
 
   /* ── the builder: the same object, described field by field ──────────
    *
-   * frame_create() takes the four fields wfm_frame_t names. This takes one
+   * dp_frame_create() takes the four fields wfm_frame_t names. This takes one
    * field at a time, and the two must produce the SAME frame where both can
    * express it -- otherwise there are two descriptors again, which is what
    * the generalization exists to end.
    */
   {
-    frame_state_t *b = empty_desc ();
+    dp_frame_state_t *b = empty_desc ();
     DP_REQUIRE_MSG (b != NULL, "an empty description allocates");
-    DP_CHECK_MSG (frame_n_fields (b) == 0 && frame_n_stages (b) == 0,
+    DP_CHECK_MSG (dp_frame_n_fields (b) == 0 && dp_frame_n_stages (b) == 0,
                   "...and starts with nothing in it");
 
     DP_CHECK (
-        frame_add_field (b, SYNC, 13, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        dp_frame_add_field (b, SYNC, 13, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         == 0);
     DP_CHECK (
-        frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        dp_frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         == 1);
     /* The trailer: derived by stage 0, hence `derived_by = 0 + 1`. */
-    DP_CHECK (frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-                               WFM_FRAME_CRC_BITS)
+    DP_CHECK (dp_frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                  1, WFM_FRAME_CRC_BITS)
               == 2);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 1, 2, 0, 0, 0, 0) == 0);
-    DP_REQUIRE_MSG (frame_build (b) == 0, "the description builds");
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_CRC16, 1, 2, 0, 0, 0, 0) == 0);
+    DP_REQUIRE_MSG (dp_frame_build (b) == 0, "the description builds");
 
     DP_CHECK_MSG (b->nbits == 13 + 16 + 16, "13 + 16 + 16");
-    DP_CHECK_MSG (frame_field_off (b, 1) == 13
-                      && frame_field_bits (b, 1) == 16,
+    DP_CHECK_MSG (dp_frame_field_off (b, 1) == 13
+                      && dp_frame_field_bits (b, 1) == 16,
                   "the payload lands behind the sync word");
-    DP_CHECK_MSG (frame_stage_first (b, 0) == 13
-                      && frame_stage_bits (b, 0) == 32,
+    DP_CHECK_MSG (dp_frame_stage_first (b, 0) == 13
+                      && dp_frame_stage_bits (b, 0) == 32,
                   "the CRC stage covers the payload AND its own trailer");
 
     /* The configured path, same frame, and the bits must agree. */
-    frame_state_t *c = frame_create (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     0, SYNC, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     PAY, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+    dp_frame_state_t *c = dp_frame_create (
+        0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, SYNC, 13, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, PAY, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
     DP_REQUIRE (c != NULL && c->nbits == b->nbits);
     uint8_t *bb = malloc (b->nbits);
     uint8_t *cb = malloc (c->nbits);
     DP_REQUIRE (bb && cb);
-    DP_REQUIRE (frame_bits (b, 1, bb, b->nbits) == b->nbits);
-    DP_REQUIRE (frame_bits (c, 1, cb, c->nbits) == c->nbits);
+    DP_REQUIRE (dp_frame_bits (b, 1, bb, b->nbits) == b->nbits);
+    DP_REQUIRE (dp_frame_bits (c, 1, cb, c->nbits) == c->nbits);
     DP_CHECK_MSG (memcmp (bb, cb, b->nbits) == 0,
                   "described and configured must be the SAME frame");
-    DP_CHECK_MSG (frame_crc_ok (b, bb, b->nbits) == 1,
+    DP_CHECK_MSG (dp_frame_crc_ok (b, bb, b->nbits) == 1,
                   "a described frame is its own truth, like a configured one");
 
     /* The named view belongs to the configured path alone: a described frame
        has no field called "payload", and saying so beats inventing offsets
        for fields that do not exist. */
-    DP_CHECK_MSG (frame_layout (b).total_bits == 0,
+    DP_CHECK_MSG (dp_frame_layout (b).total_bits == 0,
                   "layout()'s NAMED view is empty for a described frame");
-    DP_CHECK_MSG (frame_layout (c).total_bits == c->nbits,
+    DP_CHECK_MSG (dp_frame_layout (c).total_bits == c->nbits,
                   "...and populated for a configured one");
 
     /* A description is closed once built. */
     DP_CHECK (
-        frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        dp_frame_add_field (b, PAY, 16, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         == -1);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_CRC16, 0, 1, 0, 0, 0, 0) == -1);
-    DP_CHECK_MSG (frame_build (b) == -1, "and cannot be built twice");
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_CRC16, 0, 1, 0, 0, 0, 0) == -1);
+    DP_CHECK_MSG (dp_frame_build (b) == -1, "and cannot be built twice");
 
     free (bb);
     free (cb);
-    frame_destroy (b);
-    frame_destroy (c);
+    dp_frame_destroy (b);
+    dp_frame_destroy (c);
 
     /* An empty description is not a frame. */
-    frame_state_t *e = empty_desc ();
+    dp_frame_state_t *e = empty_desc ();
     DP_REQUIRE (e != NULL);
-    DP_CHECK_MSG (frame_build (e) == -1, "an empty description cannot build");
-    frame_destroy (e);
+    DP_CHECK_MSG (dp_frame_build (e) == -1,
+                  "an empty description cannot build");
+    dp_frame_destroy (e);
   }
 
   /* ── a CCSDS CADU, described from Python's side of the ABI ───────────
@@ -334,36 +337,38 @@ main (void)
         = ccsds_tm_frame_encode (&cfg, NULL, frame, octets, want, sizeof want);
     DP_REQUIRE (n != 0);
 
-    uint8_t asm_bits[CCSDS_TM_ASM_BITS];
-    ccsds_tm_asm_bits (asm_bits);
+    uint8_t asm_pattern[CCSDS_TM_ASM_BITS];
+    ccsds_tm_asm_bits (asm_pattern);
 
-    frame_state_t *b = empty_desc ();
+    dp_frame_state_t *b = empty_desc ();
     DP_REQUIRE (b != NULL);
     /* [ ASM | Transfer Frame | R-S check symbols ] */
-    DP_CHECK (frame_add_field (b, asm_bits, CCSDS_TM_ASM_BITS, 0, 0, 1, 0, 0,
-                               0, 0, 0, 0, 0, 0, 0, 0)
+    DP_CHECK (dp_frame_add_field (b, asm_pattern, CCSDS_TM_ASM_BITS, 0, 0, 1,
+                                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
               == 0);
-    DP_CHECK (frame_add_field (b, fbits, octets * 8u, 0, 0, 1, 0, 0, 0, 0, 0,
-                               0, 0, 0, 0, 0)
+    DP_CHECK (dp_frame_add_field (b, fbits, octets * 8u, 0, 0, 1, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0)
               == 1);
-    DP_CHECK (frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-                               (size_t)CCSDS_TM_RS_2E * DEPTH * 8u)
+    DP_CHECK (dp_frame_add_field (b, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                  1, (size_t)CCSDS_TM_RS_2E * DEPTH * 8u)
               == 2);
     /* The three covers ARE the coverage table: the outer code and the
        randomiser start behind the marker, the inner code does not. */
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_RS, 1, 2, DEPTH, 0, 0, 0) == 0);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_RANDOMISE, 1, 2, 0, 0, 0, 0) == 1);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_CONV, 0, 3, 0, 2, 1, 0) == 2);
-    DP_REQUIRE_MSG (frame_build (b) == 0, "a CADU builds from a description");
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_RS, 1, 2, DEPTH, 0, 0, 0) == 0);
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_RANDOMISE, 1, 2, 0, 0, 0, 0)
+              == 1);
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_CONV, 0, 3, 0, 2, 1, 0) == 2);
+    DP_REQUIRE_MSG (dp_frame_build (b) == 0,
+                    "a CADU builds from a description");
 
     DP_CHECK_MSG (b->nbits == n, "the CADU is the length the encoder says");
     uint8_t *got = malloc (b->nbits);
-    DP_REQUIRE (got && frame_bits (b, 1, got, b->nbits) == b->nbits);
+    DP_REQUIRE (got && dp_frame_bits (b, 1, got, b->nbits) == b->nbits);
     DP_CHECK_MSG (memcmp (got, want, n) == 0,
                   "...and the SAME bits as ccsds_tm_frame_encode, byte for "
                   "byte");
     free (got);
-    frame_destroy (b);
+    dp_frame_destroy (b);
   }
 
   /* ── the block interleaver as a stage (doppler#1031) ──────────────────
@@ -384,22 +389,22 @@ main (void)
     /* [ sync | payload ], interleaving the PAYLOAD only. A sync word is what
        a receiver correlates to find the frame, so permuting it would destroy
        the thing that makes the frame findable. */
-    frame_state_t *b = empty_desc ();
+    dp_frame_state_t *b = empty_desc ();
     DP_REQUIRE (b != NULL);
     DP_CHECK (
-        frame_add_field (b, sync, 13, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        dp_frame_add_field (b, sync, 13, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         == 0);
-    DP_CHECK (
-        frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-        == 1);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_INTERLEAVE, 1, 1, 8, 0, 0, 0)
+    DP_CHECK (dp_frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0)
+              == 1);
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_INTERLEAVE, 1, 1, 8, 0, 0, 0)
               == 0);
-    DP_REQUIRE (frame_build (b) == 0);
+    DP_REQUIRE (dp_frame_build (b) == 0);
 
     /* Length-preserving, and the sync word is untouched. */
     DP_CHECK_MSG (b->nbits == 13 + 64, "a permutation adds no bits");
     uint8_t *tx = malloc (b->nbits);
-    DP_REQUIRE (tx && frame_bits (b, 1, tx, b->nbits) == b->nbits);
+    DP_REQUIRE (tx && dp_frame_bits (b, 1, tx, b->nbits) == b->nbits);
     DP_CHECK_MSG (memcmp (tx, sync, 13) == 0,
                   "the sync word is outside the stage's cover");
     DP_CHECK_MSG (memcmp (tx + 13, payload, 64) != 0,
@@ -408,13 +413,13 @@ main (void)
     /* deframe() reverses it, which is the whole receive path. */
     uint8_t *rx = malloc (b->nbits);
     DP_REQUIRE (rx);
-    DP_REQUIRE (frame_deframe (b, tx, b->nbits, rx, b->nbits) == b->nbits);
+    DP_REQUIRE (dp_frame_deframe (b, tx, b->nbits, rx, b->nbits) == b->nbits);
     DP_CHECK_MSG (memcmp (rx + 13, payload, 64) == 0,
                   "de-interleaving recovers the payload exactly");
     DP_CHECK (b->rx_checked == 1);
     free (tx);
     free (rx);
-    frame_destroy (b);
+    dp_frame_destroy (b);
   }
 
   /* A span the geometry cannot tile is REFUSED, not padded and not
@@ -422,21 +427,21 @@ main (void)
      nowhere to go. 64 bits with depth 8 and unit 8 needs a multiple of 64 and
      64 is one -- so this uses depth 5, where 64 % 40 != 0. */
   {
-    uint8_t        payload[64] = { 0 };
-    frame_state_t *b           = empty_desc ();
+    uint8_t           payload[64] = { 0 };
+    dp_frame_state_t *b           = empty_desc ();
     DP_REQUIRE (b != NULL);
-    DP_CHECK (
-        frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-        == 0);
-    DP_CHECK (frame_add_stage (b, WFM_STAGE_INTERLEAVE, 0, 1, 5, 0, 0, 8)
+    DP_CHECK (dp_frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0)
               == 0);
-    /* At BUILD, not at bits(): frame_build materialises the frame, so a
+    DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_INTERLEAVE, 0, 1, 5, 0, 0, 8)
+              == 0);
+    /* At BUILD, not at bits(): dp_frame_build materialises the frame, so a
        stage that cannot run refuses "at the point the caller can still do
        something about it" -- its own comment. Earlier than this test first
        assumed, and better. */
-    DP_CHECK_MSG (frame_build (b) != 0,
+    DP_CHECK_MSG (dp_frame_build (b) != 0,
                   "a span that does not tile is refused, not padded");
-    frame_destroy (b);
+    dp_frame_destroy (b);
   }
 
   /* unit_bits is carried on the stage and CHANGES the permutation -- depth 8
@@ -450,17 +455,17 @@ main (void)
     uint8_t bit_out[64], oct_out[64];
     for (unsigned pass = 0; pass < 2; pass++)
       {
-        frame_state_t *b = empty_desc ();
+        dp_frame_state_t *b = empty_desc ();
         DP_REQUIRE (b != NULL);
-        DP_CHECK (frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-                                   0, 0, 0, 0)
+        DP_CHECK (dp_frame_add_field (b, payload, 64, 0, 0, 1, 0, 0, 0, 0, 0,
+                                      0, 0, 0, 0, 0)
                   == 0);
-        DP_CHECK (frame_add_stage (b, WFM_STAGE_INTERLEAVE, 0, 1, 8, 0, 0,
-                                   pass ? 8u : 1u)
+        DP_CHECK (dp_frame_add_stage (b, WFM_STAGE_INTERLEAVE, 0, 1, 8, 0, 0,
+                                      pass ? 8u : 1u)
                   == 0);
-        DP_REQUIRE (frame_build (b) == 0);
-        DP_REQUIRE (frame_bits (b, 1, pass ? oct_out : bit_out, 64) == 64);
-        frame_destroy (b);
+        DP_REQUIRE (dp_frame_build (b) == 0);
+        DP_REQUIRE (dp_frame_bits (b, 1, pass ? oct_out : bit_out, 64) == 64);
+        dp_frame_destroy (b);
       }
     DP_CHECK_MSG (memcmp (bit_out, oct_out, 64) != 0,
                   "unit_bits selects a different permutation");
@@ -468,9 +473,9 @@ main (void)
 
   /* ── the by-name builder, through the object that owns the storage ────
    *
-   * frame_add_hex and frame_add_value are where a literal becomes bits, and
-   * the object is the right home for them because it already owns a copy of
-   * every literal field -- the descriptor keeps borrowed pointers on
+   * dp_frame_add_hex and dp_frame_add_value are where a literal becomes bits,
+   * and the object is the right home for them because it already owns a copy
+   * of every literal field -- the descriptor keeps borrowed pointers on
    * purpose. The expansion itself is cvt's, not a second parser here.
    *
    * The falsification is the one that matters for a builder: the same frame
@@ -480,82 +485,83 @@ main (void)
    */
   {
     /* 0x1ACFFC1D expanded by hand, MSB first -- the published ASM. */
-    static const uint8_t asm_bits[32]
+    static const uint8_t asm_pattern[32]
         = { 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1 };
     const uint8_t empty[1] = { 0 };
 
-    frame_state_t *a = frame_create_desc (
+    dp_frame_state_t *a = frame_create_desc (
         0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-    frame_state_t *b = frame_create_desc (
+    dp_frame_state_t *b = frame_create_desc (
         0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     DP_REQUIRE (a != NULL && b != NULL);
 
     /* a: by hex. b: the same 32 bits as a literal array. */
-    DP_CHECK (frame_add_hex (a, "asm", "1ACFFC1D", 0) == 0);
-    DP_CHECK (frame_add_field (b, asm_bits, 32u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                               0, 0, 0)
+    DP_CHECK (dp_frame_add_hex (a, "asm", "1ACFFC1D", 0) == 0);
+    DP_CHECK (dp_frame_add_field (b, asm_pattern, 32u, 0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0)
               == 0);
-    DP_CHECK (frame_build (a) == 0 && frame_build (b) == 0);
+    DP_CHECK (dp_frame_build (a) == 0 && dp_frame_build (b) == 0);
     DP_CHECK_MSG (a->nbits == 32u && b->nbits == 32u,
                   "four bits per hex digit");
 
     uint8_t ba[64], bb[64];
-    DP_CHECK (frame_bits (a, 1u, ba, sizeof ba) == 32u);
-    DP_CHECK (frame_bits (b, 1u, bb, sizeof bb) == 32u);
+    DP_CHECK (dp_frame_bits (a, 1u, ba, sizeof ba) == 32u);
+    DP_CHECK (dp_frame_bits (b, 1u, bb, sizeof bb) == 32u);
     DP_CHECK_MSG (memcmp (ba, bb, 32u) == 0,
                   "a hex literal and a hand-expanded one are the same bits");
-    DP_CHECK_MSG (memcmp (ba, asm_bits, 32u) == 0,
+    DP_CHECK_MSG (memcmp (ba, asm_pattern, 32u) == 0,
                   "...and both are the PUBLISHED expansion, MSB first");
-    frame_destroy (a);
-    frame_destroy (b);
+    dp_frame_destroy (a);
+    dp_frame_destroy (b);
   }
 
   {
-    const uint8_t  empty[1] = { 0 };
-    frame_state_t *d        = frame_create_desc (
+    const uint8_t     empty[1] = { 0 };
+    dp_frame_state_t *d        = frame_create_desc (
         0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     DP_REQUIRE (d != NULL);
 
     /* A whole frame by name: a value marker, a payload, a derived CRC, and
        a stage that covers the pair -- the shape a caller actually writes. */
-    DP_CHECK (frame_add_value (d, "sync", 0xABCu, 12u, 0) == 0);
+    DP_CHECK (dp_frame_add_value (d, "sync", 0xABCu, 12u, 0) == 0);
     const uint8_t pay[8] = { 0, 1, 1, 0, 1, 0, 0, 1 };
     DP_CHECK (
-        frame_add_field (d, pay, 8u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        dp_frame_add_field (d, pay, 8u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         == 1);
-    DP_CHECK (frame_name_field (d, 1u, "payload") == 0);
-    DP_CHECK (frame_add_derived (d, "crc", 16u) == 2);
-    DP_CHECK (frame_add_stage_over (d, 0 /* crc16 */, "payload", "crc", 0, 0)
-              == 0);
-    DP_CHECK (frame_build (d) == 0);
+    DP_CHECK (dp_frame_name_field (d, 1u, "payload") == 0);
+    DP_CHECK (dp_frame_add_derived (d, "crc", 16u) == 2);
+    DP_CHECK (
+        dp_frame_add_stage_over (d, 0 /* crc16 */, "payload", "crc", 0, 0)
+        == 0);
+    DP_CHECK (dp_frame_build (d) == 0);
     DP_CHECK_MSG (d->nbits == 12u + 8u + 16u,
                   "12 + 8 + 16 -- the CRC trailer is a FIELD");
 
     /* Names resolve, and to the right fields. */
-    DP_CHECK (frame_field_index (d, "sync") == 0);
-    DP_CHECK (frame_field_index (d, "payload") == 1);
-    DP_CHECK (frame_field_index (d, "crc") == 2);
-    DP_CHECK (frame_field_index (d, "nope") == -1);
-    DP_CHECK_MSG (frame_field_off (d, 1u) == 12u,
+    DP_CHECK (dp_frame_field_index (d, "sync") == 0);
+    DP_CHECK (dp_frame_field_index (d, "payload") == 1);
+    DP_CHECK (dp_frame_field_index (d, "crc") == 2);
+    DP_CHECK (dp_frame_field_index (d, "nope") == -1);
+    DP_CHECK_MSG (dp_frame_field_off (d, 1u) == 12u,
                   "the payload starts after the 12-bit sync");
 
     /* The stage really covers payload..crc, so the CRC it wrote verifies. */
     uint8_t rx[64];
-    DP_CHECK (frame_bits (d, 1u, rx, sizeof rx) == 36u);
-    DP_CHECK_MSG (frame_crc_ok (d, rx, 36u) == 1,
+    DP_CHECK (dp_frame_bits (d, 1u, rx, sizeof rx) == 36u);
+    DP_CHECK_MSG (dp_frame_crc_ok (d, rx, 36u) == 1,
                   "the frame's own bits pass its own check");
     rx[12] ^= 1u;
-    DP_CHECK_MSG (frame_crc_ok (d, rx, 36u) == 0,
+    DP_CHECK_MSG (dp_frame_crc_ok (d, rx, 36u) == 0,
                   "...and a flipped payload bit fails it");
 
     /* Refusals: a duplicate name, and a cover naming nothing. */
-    DP_CHECK_MSG (frame_name_field (d, 0u, "payload") == -1,
+    DP_CHECK_MSG (dp_frame_name_field (d, 0u, "payload") == -1,
                   "a rename onto a taken name is refused");
-    frame_destroy (d);
+    dp_frame_destroy (d);
   }
 
   DP_TEST_END ("frame_core");

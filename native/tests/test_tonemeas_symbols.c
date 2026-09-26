@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_tonemeas[] = {
-    (jm_any_fn)tonemeas_create,
-    (jm_any_fn)tonemeas_destroy,
-    (jm_any_fn)tonemeas_reset,
-    (jm_any_fn)tonemeas_analyze,
-    (jm_any_fn)tonemeas_analyze_complex,
-    (jm_any_fn)tonemeas_time_stats,
-    (jm_any_fn)tonemeas_spectrum_dbfs_max_out,
-    (jm_any_fn)tonemeas_spectrum_dbfs,
+    (jm_any_fn)dp_tonemeas_create,
+    (jm_any_fn)dp_tonemeas_destroy,
+    (jm_any_fn)dp_tonemeas_reset,
+    (jm_any_fn)dp_tonemeas_analyze,
+    (jm_any_fn)dp_tonemeas_analyze_complex,
+    (jm_any_fn)dp_tonemeas_time_stats,
+    (jm_any_fn)dp_tonemeas_spectrum_dbfs_max_out,
+    (jm_any_fn)dp_tonemeas_spectrum_dbfs,
 };

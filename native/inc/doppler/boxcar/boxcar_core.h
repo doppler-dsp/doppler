@@ -34,8 +34,8 @@
  * [1.0, 2.0, 2.0]
  * @endcode
  */
-#ifndef BOXCAR_CORE_H
-#define BOXCAR_CORE_H
+#ifndef DP_BOXCAR_CORE_H
+#define DP_BOXCAR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -53,7 +53,7 @@ extern "C"
   /**
    * @brief Boxcar moving-average state (cf32).
    *
-   * Pointer-free POD. Allocate with boxcar_create(), or embed by value and
+   * Pointer-free POD. Allocate with dp_boxcar_create(), or embed by value and
    * boxcar_init(). The accumulator and ring are internal; read `len`/`gain`
    * for the configured window and output gain.
    */
@@ -67,7 +67,7 @@ extern "C"
                             applied multiply.                            */
     float _Complex acc; /**< running sum over the window.                 */
     float _Complex ring[BOXCAR_MAX_LEN]; /**< delay line.                 */
-  } boxcar_state_t;
+  } dp_boxcar_state_t;
 
   /**
    * @brief Slide the window by one sample; return the gained moving average.
@@ -87,7 +87,7 @@ extern "C"
    * @endcode
    */
   JM_FORCEINLINE JM_HOT float _Complex
-  boxcar_step (boxcar_state_t *s, float _Complex x)
+  dp_boxcar_step (dp_boxcar_state_t *s, float _Complex x)
   {
     s->acc += x - s->ring[s->pos];
     s->ring[s->pos] = x;
@@ -102,7 +102,7 @@ extern "C"
    * @param gain  New output gain (folded into `scale = gain / len`).
    */
   JM_FORCEINLINE void
-  boxcar_set_gain (boxcar_state_t *s, double gain)
+  dp_boxcar_set_gain (dp_boxcar_state_t *s, double gain)
   {
     s->gain  = gain;
     s->scale = (float)(gain * s->inv_len);
@@ -110,7 +110,7 @@ extern "C"
 
   /** @brief Current output gain. */
   JM_FORCEINLINE double
-  boxcar_get_gain (const boxcar_state_t *s)
+  dp_boxcar_get_gain (const dp_boxcar_state_t *s)
   {
     return s->gain;
   }
@@ -121,19 +121,19 @@ extern "C"
    * @param len   Window length; clamped to `[1, BOXCAR_MAX_LEN]`.
    * @param gain  Output gain (folded into the averaging scale).
    */
-  void boxcar_init (boxcar_state_t *s, size_t len, double gain);
+  void boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
 
   /**
    * @brief Create a boxcar instance.
    * @param len   Window length (1 .. BOXCAR_MAX_LEN; default 4).
    * @param gain  Output gain (default 1.0).
    * @return Heap state, or NULL on invalid length / allocation failure.
-   * @note Caller must call boxcar_destroy() when done.
+   * @note Caller must call dp_boxcar_destroy() when done.
    */
-  boxcar_state_t *boxcar_create (size_t len, double gain);
+  dp_boxcar_state_t *dp_boxcar_create (size_t len, double gain);
 
   /** @brief Destroy a boxcar instance. @param s May be NULL. */
-  void boxcar_destroy (boxcar_state_t *s);
+  void dp_boxcar_destroy (dp_boxcar_state_t *s);
 
   /**
    * @brief Clear the window (zero the ring and the running sum); keep the
@@ -157,12 +157,12 @@ extern "C"
    *
    * @endcode
    */
-  void boxcar_reset (boxcar_state_t *s);
+  void dp_boxcar_reset (dp_boxcar_state_t *s);
 
   /**
    * @brief Filter a block: write the gained moving average of each sample.
    *
-   * Applies boxcar_step() to each input sample in turn, so the window sum and
+   * Applies dp_boxcar_step() to each input sample in turn, so the window sum and
    * ring carry across the block exactly as they would sample by sample — a
    * stream can be processed in frames of any size with no seam. Immediately
    * after a reset the first @c len-1 outputs average over a partial (still
@@ -182,7 +182,7 @@ extern "C"
    *
    * @endcode
    */
-  void boxcar_steps (boxcar_state_t *s, const float _Complex *x,
+  void dp_boxcar_steps (dp_boxcar_state_t *s, const float _Complex *x,
                      float _Complex *out, size_t n);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h)
@@ -192,12 +192,12 @@ extern "C"
 #define BOXCAR_STATE_VERSION 1u
 
   /** @brief Serialized-state byte size. */
-  size_t boxcar_state_bytes (const boxcar_state_t *s);
+  size_t dp_boxcar_state_bytes (const dp_boxcar_state_t *s);
   /** @brief Serialize the full state into @p blob. */
-  void boxcar_get_state (const boxcar_state_t *s, void *blob);
+  void dp_boxcar_get_state (const dp_boxcar_state_t *s, void *blob);
   /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
    */
-  int boxcar_set_state (boxcar_state_t *s, const void *blob);
+  int dp_boxcar_set_state (dp_boxcar_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

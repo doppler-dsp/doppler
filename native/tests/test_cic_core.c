@@ -9,7 +9,7 @@
  *   - Zero input: output is exactly 0+0j throughout
  *   - Reset: second run with same input produces byte-identical output
  *   - Reconfigure: output count and DC response correct after R change
- *   - cic_destroy(NULL): no crash
+ *   - dp_cic_destroy(NULL): no crash
  *   - Alias rejection: stopband tone ≥ 20 dB below passband reference
  */
 #include "doppler/cic/cic_core.h"
@@ -28,14 +28,14 @@
  * `out` must hold at least ceil(n_in / R) elements.
  * Caller guarantees n_in is large enough that the filter has settled.
  */
-static float _Complex dc_last (cic_state_t    *obj, float _Complex sample,
+static float _Complex dc_last (dp_cic_state_t *obj, float _Complex sample,
                                float _Complex *out, size_t n_in, size_t cap)
 {
   float _Complex *in
       = (float _Complex *)malloc (n_in * sizeof (float _Complex));
   for (size_t i = 0; i < n_in; i++)
     in[i] = sample;
-  size_t n = cic_decimate (obj, in, n_in, out, cap);
+  size_t n = dp_cic_decimate (obj, in, n_in, out, cap);
   free (in);
   return out[n - 1];
 }
@@ -45,48 +45,48 @@ main (void)
 {
 
   /* ── Invalid constructor args → NULL ─────────────────────────────────── */
-  DP_CHECK (cic_create (0) == NULL);    /* R = 0 */
-  DP_CHECK (cic_create (1) == NULL);    /* R = 1: < 2 */
-  DP_CHECK (cic_create (3) == NULL);    /* non-power-of-two */
-  DP_CHECK (cic_create (8192) == NULL); /* R > 4096 */
+  DP_CHECK (dp_cic_create (0) == NULL);    /* R = 0 */
+  DP_CHECK (dp_cic_create (1) == NULL);    /* R = 1: < 2 */
+  DP_CHECK (dp_cic_create (3) == NULL);    /* non-power-of-two */
+  DP_CHECK (dp_cic_create (8192) == NULL); /* R > 4096 */
 
   /* NULL destroy is a documented no-op */
-  cic_destroy (NULL);
+  dp_cic_destroy (NULL);
 
   /* ── shift field: CIC_N * log2(R) ────────────────────────────────────── */
   {
-    cic_state_t *obj = cic_create (16);
+    dp_cic_state_t *obj = dp_cic_create (16);
     DP_CHECK (obj != NULL);
     DP_CHECK (obj->R == 16);
     DP_CHECK (obj->shift == 16); /* CIC_N=4, log2(16)=4 → 4*4=16 */
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
   {
-    cic_state_t *obj = cic_create (8);
+    dp_cic_state_t *obj = dp_cic_create (8);
     DP_CHECK (obj != NULL);
     DP_CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 → 4*3=12 */
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── Output sample count ─────────────────────────────────────────────── */
   /* For a fresh filter, n_in = k*R must produce exactly k outputs. */
   {
-    uint32_t     R   = 8;
-    cic_state_t *obj = cic_create (R);
+    uint32_t        R   = 8;
+    dp_cic_state_t *obj = dp_cic_create (R);
     DP_CHECK (obj != NULL);
     float _Complex in[256] = { 0 }, out[256];
     for (int k = 1; k <= 4; k++)
       {
-        cic_reset (obj);
-        size_t n = cic_decimate (obj, in, (size_t)k * R, out, 256);
+        dp_cic_reset (obj);
+        size_t n = dp_cic_decimate (obj, in, (size_t)k * R, out, 256);
         DP_CHECK (n == (size_t)k);
       }
     /* Partial block: R-1 inputs → 0 outputs */
-    cic_reset (obj);
-    DP_CHECK (cic_decimate (obj, in, R - 1, out, 256) == 0);
+    dp_cic_reset (obj);
+    DP_CHECK (dp_cic_decimate (obj, in, R - 1, out, 256) == 0);
     /* Then 1 more input completes the first decimation cycle */
-    DP_CHECK (cic_decimate (obj, in, 1, out, 256) == 1);
-    cic_destroy (obj);
+    DP_CHECK (dp_cic_decimate (obj, in, 1, out, 256) == 1);
+    dp_cic_destroy (obj);
   }
 
   /* ── Zero input → zero settled output ───────────────────────────────── */
@@ -95,21 +95,21 @@ main (void)
    * comb delay chain fills.  From output index CIC_N onward the output is
    * exactly 0+0j. */
   {
-    cic_state_t *obj = cic_create (4);
+    dp_cic_state_t *obj = dp_cic_create (4);
     DP_CHECK (obj != NULL);
     float _Complex in[64] = { 0 }, out[64];
-    size_t n              = cic_decimate (obj, in, 64, out, 64);
+    size_t n              = dp_cic_decimate (obj, in, 64, out, 64);
     DP_CHECK (n == 16);
     for (size_t i = CIC_N; i < n; i++)
       DP_CHECK (dp_cnearf (out[i], 0.0f, 0.0f));
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── DC response: +1.0 real ──────────────────────────────────────────── */
   /* Transient ≈ CIC_N*(R-1) input samples; 8*R*CIC_N ensures full settling. */
   {
-    uint32_t     R   = 4;
-    cic_state_t *obj = cic_create (R);
+    uint32_t        R   = 4;
+    dp_cic_state_t *obj = dp_cic_create (R);
     DP_CHECK (obj != NULL);
     size_t          n_in = 8 * R * CIC_N;
     float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
@@ -117,13 +117,13 @@ main (void)
         = dc_last (obj, 1.0f + 0.0f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, 1.0f + 0.0f * I, 4e-5f));
     free (out);
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── DC response: −1.0 real (tests signed two's-complement path) ─────── */
   {
-    uint32_t     R   = 4;
-    cic_state_t *obj = cic_create (R);
+    uint32_t        R   = 4;
+    dp_cic_state_t *obj = dp_cic_create (R);
     DP_CHECK (obj != NULL);
     size_t          n_in = 8 * R * CIC_N;
     float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
@@ -131,13 +131,13 @@ main (void)
         = dc_last (obj, -1.0f + 0.0f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, -1.0f + 0.0f * I, 4e-5f));
     free (out);
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── DC response: +j (imaginary path independent of real) ────────────── */
   {
-    uint32_t     R   = 4;
-    cic_state_t *obj = cic_create (R);
+    uint32_t        R   = 4;
+    dp_cic_state_t *obj = dp_cic_create (R);
     DP_CHECK (obj != NULL);
     size_t          n_in = 8 * R * CIC_N;
     float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
@@ -145,14 +145,14 @@ main (void)
         = dc_last (obj, 0.0f + 1.0f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, 0.0f + 1.0f * I, 4e-5f));
     free (out);
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── DC response: (0.5 + 0.5j) — typical SDR config R=32 ────────────── */
   /* Transient ≈ CIC_N*(32-1) = 124 inputs; 12*R outputs ensures settling. */
   {
-    uint32_t     R   = 32;
-    cic_state_t *obj = cic_create (R);
+    uint32_t        R   = 32;
+    dp_cic_state_t *obj = dp_cic_create (R);
     DP_CHECK (obj != NULL);
     size_t          n_in = 12 * R * CIC_N;
     float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
@@ -160,13 +160,13 @@ main (void)
         = dc_last (obj, 0.5f + 0.5f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, 0.5f + 0.5f * I, 4e-5f));
     free (out);
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── Reset: second run produces byte-identical output ────────────────── */
   {
-    uint32_t     R   = 4;
-    cic_state_t *obj = cic_create (R);
+    uint32_t        R   = 4;
+    dp_cic_state_t *obj = dp_cic_create (R);
     DP_CHECK (obj != NULL);
     size_t          n_in = 64;
     float _Complex *in   = malloc (n_in * sizeof (float _Complex));
@@ -176,54 +176,54 @@ main (void)
     for (size_t i = 0; i < n_in; i++)
       in[i] = (float)i * 0.01f + 0.5f * I;
 
-    size_t n1 = cic_decimate (obj, in, n_in, out1, n_in);
-    cic_reset (obj);
-    size_t n2 = cic_decimate (obj, in, n_in, out2, n_in);
+    size_t n1 = dp_cic_decimate (obj, in, n_in, out1, n_in);
+    dp_cic_reset (obj);
+    size_t n2 = dp_cic_decimate (obj, in, n_in, out2, n_in);
     DP_CHECK (n1 == n2);
     DP_CHECK (memcmp (out1, out2, n1 * sizeof (float _Complex)) == 0);
 
     free (in);
     free (out1);
     free (out2);
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── Reconfigure: output count and DC response update correctly ──────── */
   {
-    cic_state_t *obj = cic_create (4);
+    dp_cic_state_t *obj = dp_cic_create (4);
     DP_CHECK (obj != NULL);
     float _Complex in[256], out[256];
     for (int i = 0; i < 256; i++)
       in[i] = 1.0f;
 
     /* warm up with R=4 */
-    cic_decimate (obj, in, 32, out, 256);
+    dp_cic_decimate (obj, in, 32, out, 256);
 
     /* reconfigure to R=8 */
-    cic_reconfigure (obj, 8);
+    dp_cic_reconfigure (obj, 8);
     DP_CHECK (obj->R == 8);
     DP_CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 */
 
     /* output count must reflect new R */
-    size_t n = cic_decimate (obj, in, 8 * 8 * CIC_N, out, 256);
+    size_t n = dp_cic_decimate (obj, in, 8 * 8 * CIC_N, out, 256);
     DP_CHECK (n == (size_t)(8 * CIC_N));
 
     /* settled output must be 1.0 */
     DP_CHECK (dp_cnearf (out[n - 1], 1.0f + 0.0f * I, 4e-5f));
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── Reconfigure: invalid args are silently ignored ─────────────────── */
   {
-    cic_state_t *obj = cic_create (8);
+    dp_cic_state_t *obj = dp_cic_create (8);
     DP_CHECK (obj != NULL);
-    cic_reconfigure (obj, 0); /* R=0: invalid, ignored */
+    dp_cic_reconfigure (obj, 0); /* R=0: invalid, ignored */
     DP_CHECK (obj->R == 8);
-    cic_reconfigure (obj, 3); /* non-power-of-two: invalid, ignored */
+    dp_cic_reconfigure (obj, 3); /* non-power-of-two: invalid, ignored */
     DP_CHECK (obj->R == 8);
-    cic_reconfigure (obj, 8192); /* R > 4096: invalid, ignored */
+    dp_cic_reconfigure (obj, 8192); /* R > 4096: invalid, ignored */
     DP_CHECK (obj->R == 8);
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── Streaming: split block across two calls ─────────────────────────── */
@@ -234,22 +234,22 @@ main (void)
     for (int i = 0; i < 64; i++)
       in[i] = 0.7f - 0.3f * I;
 
-    cic_state_t *a = cic_create (R);
-    cic_state_t *b = cic_create (R);
+    dp_cic_state_t *a = dp_cic_create (R);
+    dp_cic_state_t *b = dp_cic_create (R);
     DP_CHECK (a && b);
 
     /* whole: 2R in one call */
-    cic_decimate (b, in, 2 * R, out_whole, 4);
+    dp_cic_decimate (b, in, 2 * R, out_whole, 4);
 
     /* split: R then R */
-    cic_decimate (a, in, R, out_split, 4);
-    cic_decimate (a, in + R, R, out_split + 1, 3);
+    dp_cic_decimate (a, in, R, out_split, 4);
+    dp_cic_decimate (a, in + R, R, out_split + 1, 3);
 
     DP_CHECK (dp_cnearf (out_split[0], out_whole[0], 0.0f));
     DP_CHECK (dp_cnearf (out_split[1], out_whole[1], 0.0f));
 
-    cic_destroy (a);
-    cic_destroy (b);
+    dp_cic_destroy (a);
+    dp_cic_destroy (b);
   }
 
   /* ── Alias rejection: stopband tone must be heavily attenuated ───────── */
@@ -269,19 +269,19 @@ main (void)
     /* passband reference: DC input → should be ~1.0 at output */
     for (size_t i = 0; i < n_in; i++)
       in[i] = 1.0f + 0.0f * I;
-    cic_state_t *obj = cic_create (R);
-    cic_decimate (obj, in, n_in, out, n_out);
+    dp_cic_state_t *obj = dp_cic_create (R);
+    dp_cic_decimate (obj, in, n_in, out, n_out);
     double pwr_pass = 0.0;
     for (size_t i = n_drop; i < n_out; i++)
       pwr_pass += (double)cabsf (out[i]) * cabsf (out[i]);
     pwr_pass /= (double)n_meas;
 
     /* alias-zone tone */
-    cic_reset (obj);
+    dp_cic_reset (obj);
     for (size_t i = 0; i < n_in; i++)
       in[i] = CMPLXF ((float)cos (2 * M_PI * f_alias * i),
                       (float)sin (2 * M_PI * f_alias * i));
-    cic_decimate (obj, in, n_in, out, n_out);
+    dp_cic_decimate (obj, in, n_in, out, n_out);
     double pwr_alias = 0.0;
     for (size_t i = n_drop; i < n_out; i++)
       pwr_alias += (double)cabsf (out[i]) * cabsf (out[i]);
@@ -290,7 +290,7 @@ main (void)
     double rejection_db = 10.0 * log10 (pwr_pass / (pwr_alias + 1e-300));
     DP_CHECK (rejection_db >= 20.0);
 
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
     free (in);
     free (out);
   }
@@ -306,14 +306,14 @@ main (void)
       in[i] = (float)(i % 7) - 3.0f + I * ((float)(i % 5) - 2.0f);
     float _Complex outA[64], outB[64];
 
-    cic_state_t *ra = cic_create (R);
-    size_t       nA = cic_decimate (ra, in, L, outA, 64);
-    cic_destroy (ra);
+    dp_cic_state_t *ra = dp_cic_create (R);
+    size_t          nA = dp_cic_decimate (ra, in, L, outA, 64);
+    dp_cic_destroy (ra);
 
-    const size_t cut = 173; /* not a multiple of R → mid-cycle phase */
-    cic_state_t *r1  = cic_create (R);
-    size_t       nB  = cic_decimate (r1, in, cut, outB, 64);
-    size_t       sb  = cic_state_bytes (r1);
+    const size_t    cut = 173; /* not a multiple of R → mid-cycle phase */
+    dp_cic_state_t *r1  = dp_cic_create (R);
+    size_t          nB  = dp_cic_decimate (r1, in, cut, outB, 64);
+    size_t          sb  = dp_cic_state_bytes (r1);
     DP_CHECK (sb
               == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
                      + sizeof (uint32_t) + sizeof (uint8_t));
@@ -322,19 +322,19 @@ main (void)
        resumed stream that forgot it had clipped would answer wrongly. */
     DP_CHECK (r1->clipped == 1);
     void *blob = malloc (sb);
-    cic_get_state (r1, blob);
-    cic_destroy (r1);
+    dp_cic_get_state (r1, blob);
+    dp_cic_destroy (r1);
 
-    cic_state_t *r2 = cic_create (R);
+    dp_cic_state_t *r2 = dp_cic_create (R);
     DP_CHECK (r2->clipped == 0);
-    DP_CHECK (cic_set_state (r2, blob) == DP_OK);
+    DP_CHECK (dp_cic_set_state (r2, blob) == DP_OK);
     DP_CHECK (r2->clipped == 1);
     /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
     ((char *)blob)[0] ^= (char)0xFF;
-    DP_CHECK (cic_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_cic_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += cic_decimate (r2, in + cut, L - cut, outB + nB, 64 - nB);
-    cic_destroy (r2);
+    nB += dp_cic_decimate (r2, in + cut, L - cut, outB + nB, 64 - nB);
+    dp_cic_destroy (r2);
     free (blob);
 
     DP_CHECK (nA == nB);
@@ -346,7 +346,7 @@ main (void)
   /* ── sticky clip flag: the only signal that the +-1.0 input bound was
    *    exceeded, since the sample stream stays finite and plausible ────── */
   {
-    cic_state_t *obj = cic_create (16);
+    dp_cic_state_t *obj = dp_cic_create (16);
     float _Complex in[64];
     DP_CHECK (obj->clipped == 0);
     /* The bound is CIC_PAPR_HEADROOM, not 1.0: the encoder reserves that
@@ -357,25 +357,25 @@ main (void)
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.9f + 0.9f * I;
     float _Complex out[8];
-    cic_decimate (obj, in, 64, out, 8);
+    dp_cic_decimate (obj, in, 64, out, 8);
     DP_CHECK (obj->clipped == 0); /* in range — no false positive */
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 1.5f + 0.0f * I;
-    cic_decimate (obj, in, 64, out, 8);
+    dp_cic_decimate (obj, in, 64, out, 8);
     DP_CHECK (obj->clipped == 0); /* inside the PAPR headroom */
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 1.05f * CIC_PAPR_HEADROOM + 0.0f * I;
-    cic_decimate (obj, in, 64, out, 8);
+    dp_cic_decimate (obj, in, 64, out, 8);
     DP_CHECK (obj->clipped == 1);
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.1f + 0.0f * I;
-    cic_decimate (obj, in, 64, out, 8);
+    dp_cic_decimate (obj, in, 64, out, 8);
     DP_CHECK (obj->clipped == 1); /* sticky across later in-range blocks */
 
-    cic_reset (obj);
+    dp_cic_reset (obj);
     DP_CHECK (obj->clipped == 0); /* cleared only by reset() */
 
     /* every component and sign is caught */
@@ -383,13 +383,13 @@ main (void)
     const float _Complex bad[4] = { B, -B, B * I, -B * I };
     for (size_t k = 0; k < 4; k++)
       {
-        cic_reset (obj);
+        dp_cic_reset (obj);
         for (size_t i = 0; i < 64; i++)
           in[i] = bad[k];
-        cic_decimate (obj, in, 64, out, 8);
+        dp_cic_decimate (obj, in, 64, out, 8);
         DP_CHECK (obj->clipped == 1);
       }
-    cic_destroy (obj);
+    dp_cic_destroy (obj);
   }
 
   /* ── short out: the filter still runs, only emission truncates ──────
@@ -409,13 +409,13 @@ main (void)
     const float _Complex CANARY = -1234.0f - 567.0f * I;
     const size_t K              = 5;
 
-    cic_state_t *a = cic_create (R);
-    DP_CHECK (cic_decimate (a, in, n_in, full, n_full) == n_full);
+    dp_cic_state_t *a = dp_cic_create (R);
+    DP_CHECK (dp_cic_decimate (a, in, n_in, full, n_full) == n_full);
 
-    cic_state_t *b = cic_create (R);
+    dp_cic_state_t *b = dp_cic_create (R);
     for (size_t k = 0; k < n_full; k++)
       part[k] = CANARY;
-    DP_CHECK (cic_decimate (b, in, n_in, part, K) == K);
+    DP_CHECK (dp_cic_decimate (b, in, n_in, part, K) == K);
     /* what was written is the true prefix ... */
     for (size_t k = 0; k < K; k++)
       DP_CHECK (dp_cnearf (part[k], full[k], 0.0f));
@@ -424,14 +424,14 @@ main (void)
       DP_CHECK (dp_cnearf (part[k], CANARY, 0.0f));
     /* ... and both filters are in the SAME state: the next block agrees. */
     float _Complex nextA[16], nextB[16];
-    size_t nA = cic_decimate (a, in, n_in, nextA, n_full);
-    size_t nB = cic_decimate (b, in, n_in, nextB, n_full);
+    size_t nA = dp_cic_decimate (a, in, n_in, nextA, n_full);
+    size_t nB = dp_cic_decimate (b, in, n_in, nextB, n_full);
     DP_CHECK (nA == nB);
     for (size_t k = 0; k < nA; k++)
       DP_CHECK (dp_cnearf (nextA[k], nextB[k], 0.0f));
 
-    cic_destroy (a);
-    cic_destroy (b);
+    dp_cic_destroy (a);
+    dp_cic_destroy (b);
   }
 
   DP_TEST_END ("test_cic_core");

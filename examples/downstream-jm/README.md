@@ -218,7 +218,7 @@ are doppler's only runtime dependencies.
 > Nothing here names a version, so nothing here goes stale.
 >
 > The probe is by symbol rather than by version, because a too-old doppler
-> **links perfectly well**: `wfm_reader_get_fc` has existed for ages and simply
+> **links perfectly well**: `dp_wfm_reader_get_fc` has existed for ages and simply
 > returns 0.0. Before the check, the example built clean and failed a test at
 > `capture_get_fc (obj) == FC`, which tells a newcomer nothing.
 

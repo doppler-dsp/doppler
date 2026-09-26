@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef FRAME_METER_CORE_H
-#define FRAME_METER_CORE_H
+#ifndef DP_FRAME_METER_CORE_H
+#define DP_FRAME_METER_CORE_H
 
 #include "doppler/ber/ber_core.h"
 #include "doppler/dp_state.h"
@@ -36,30 +36,30 @@ extern "C"
     size_t sync_detected; 
     size_t crc_passed;    
     size_t errors;        
-  } frame_meter_state_t;
+  } dp_frame_meter_state_t;
 
-  frame_meter_state_t *frame_meter_create (size_t target_errors, double conf);
+  dp_frame_meter_state_t *dp_frame_meter_create (size_t target_errors, double conf);
 
-  void frame_meter_destroy (frame_meter_state_t *state);
+  void dp_frame_meter_destroy (dp_frame_meter_state_t *state);
 
-  void frame_meter_reset (frame_meter_state_t *state);
+  void dp_frame_meter_reset (dp_frame_meter_state_t *state);
 
-  void frame_meter_add (frame_meter_state_t *state, int sync_ok, int crc);
+  void dp_frame_meter_add (dp_frame_meter_state_t *state, int sync_ok, int crc);
 
-  size_t frame_meter_get_frames (const frame_meter_state_t *state);
-  size_t frame_meter_get_sync_detected (const frame_meter_state_t *state);
-  size_t frame_meter_get_crc_passed (const frame_meter_state_t *state);
-  size_t frame_meter_get_errors (const frame_meter_state_t *state);
+  size_t dp_frame_meter_get_frames (const dp_frame_meter_state_t *state);
+  size_t dp_frame_meter_get_sync_detected (const dp_frame_meter_state_t *state);
+  size_t dp_frame_meter_get_crc_passed (const dp_frame_meter_state_t *state);
+  size_t dp_frame_meter_get_errors (const dp_frame_meter_state_t *state);
 
-  int frame_meter_get_enough (const frame_meter_state_t *state);
+  int dp_frame_meter_get_enough (const dp_frame_meter_state_t *state);
 
-  ber_interval_t frame_meter_fer (const frame_meter_state_t *state);
+  ber_interval_t dp_frame_meter_fer (const dp_frame_meter_state_t *state);
 
-  ber_interval_t frame_meter_sync_miss (const frame_meter_state_t *state);
+  ber_interval_t dp_frame_meter_sync_miss (const dp_frame_meter_state_t *state);
 
-  size_t frame_meter_state_bytes (const frame_meter_state_t *state);
-  void frame_meter_get_state (const frame_meter_state_t *state, void *blob);
-  int frame_meter_set_state (frame_meter_state_t *state, const void *blob);
+  size_t dp_frame_meter_state_bytes (const dp_frame_meter_state_t *state);
+  void dp_frame_meter_get_state (const dp_frame_meter_state_t *state, void *blob);
+  int dp_frame_meter_set_state (dp_frame_meter_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

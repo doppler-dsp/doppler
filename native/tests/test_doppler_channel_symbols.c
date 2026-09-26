@@ -23,15 +23,15 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_doppler_channel[] = {
-    (jm_any_fn)doppler_channel_create,
-    (jm_any_fn)doppler_channel_destroy,
-    (jm_any_fn)doppler_channel_reset,
-    (jm_any_fn)doppler_channel_state_bytes,
-    (jm_any_fn)doppler_channel_get_state,
-    (jm_any_fn)doppler_channel_set_state,
-    (jm_any_fn)doppler_channel_execute_max_out,
-    (jm_any_fn)doppler_channel_execute,
-    (jm_any_fn)doppler_channel_get_elapsed_s,
-    (jm_any_fn)doppler_channel_get_offset_hz,
-    (jm_any_fn)doppler_channel_get_delay_samples,
+    (jm_any_fn)dp_doppler_channel_create,
+    (jm_any_fn)dp_doppler_channel_destroy,
+    (jm_any_fn)dp_doppler_channel_reset,
+    (jm_any_fn)dp_doppler_channel_state_bytes,
+    (jm_any_fn)dp_doppler_channel_get_state,
+    (jm_any_fn)dp_doppler_channel_set_state,
+    (jm_any_fn)dp_doppler_channel_execute_max_out,
+    (jm_any_fn)dp_doppler_channel_execute,
+    (jm_any_fn)dp_doppler_channel_get_elapsed_s,
+    (jm_any_fn)dp_doppler_channel_get_offset_hz,
+    (jm_any_fn)dp_doppler_channel_get_delay_samples,
 };

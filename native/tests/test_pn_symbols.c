@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_pn[] = {
-    (jm_any_fn)pn_create,
-    (jm_any_fn)pn_destroy,
-    (jm_any_fn)pn_reset,
-    (jm_any_fn)pn_state_bytes,
-    (jm_any_fn)pn_get_state,
-    (jm_any_fn)pn_set_state,
-    (jm_any_fn)pn_generate_max_out,
-    (jm_any_fn)pn_generate,
+    (jm_any_fn)dp_pn_create,
+    (jm_any_fn)dp_pn_destroy,
+    (jm_any_fn)dp_pn_reset,
+    (jm_any_fn)dp_pn_state_bytes,
+    (jm_any_fn)dp_pn_get_state,
+    (jm_any_fn)dp_pn_set_state,
+    (jm_any_fn)dp_pn_generate_max_out,
+    (jm_any_fn)dp_pn_generate,
 };

@@ -51,8 +51,8 @@
  * [-128, -64, 0, 64, 127]
  * @endcode
  */
-#ifndef ADC_CORE_H
-#define ADC_CORE_H
+#ifndef DP_ADC_CORE_H
+#define DP_ADC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -65,7 +65,7 @@ extern "C" {
 /**
  * @brief ADC state.
  *
- * Allocate with adc_create().
+ * Allocate with dp_adc_create().
  *
  * @c clipped is sticky — set on any sample that saturates; cleared only
  * by reset().
@@ -79,7 +79,7 @@ typedef struct {
     int      dithering; /* 0 = off; non-zero = TPDF     */
     uint8_t  clipped;   /* sticky saturation flag       */
     uint32_t rng;       /* xorshift32 PRNG state        */
-} adc_state_t;
+} dp_adc_state_t;
 
 /**
  * @brief Create an ADC instance.
@@ -94,15 +94,15 @@ typedef struct {
  *                  the converter's integer range exactly.
  * @param dithering 0 = no dither; non-zero = TPDF dither before rounding.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
- * @note Caller must call adc_destroy() when done.
+ * @note Caller must call dp_adc_destroy() when done.
  */
-adc_state_t *adc_create(int bits, float dbfs, int dithering);
+dp_adc_state_t *dp_adc_create(int bits, float dbfs, int dithering);
 
 /**
  * @brief Destroy an ADC instance and release all memory.
  * @param state  May be NULL.
  */
-void adc_destroy(adc_state_t *state);
+void dp_adc_destroy(dp_adc_state_t *state);
 
 /**
  * @brief Clear the clip flag and re-seed the dither PRNG for a reproducible run.
@@ -125,7 +125,7 @@ void adc_destroy(adc_state_t *state);
  *
  * @endcode
  */
-void adc_reset(adc_state_t *state);
+void dp_adc_reset(dp_adc_state_t *state);
 
 /**
  * @brief Quantise one float sample to a signed N-bit ADC code.
@@ -153,7 +153,7 @@ void adc_reset(adc_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT int64_t
-adc_step(adc_state_t *state, float x)
+dp_adc_step(dp_adc_state_t *state, float x)
 {
     /* jm: body sourced from [adc] impl/impl_file in objects/adc.toml — edit
      * there, not here; `jm apply` overwrites this. */
@@ -200,8 +200,8 @@ adc_step(adc_state_t *state, float x)
  *
  * @endcode
  */
-void adc_steps(
-    adc_state_t       *state,
+void dp_adc_steps(
+    dp_adc_state_t       *state,
     const float       *input,
     int64_t           *output,
     size_t             n);
@@ -211,9 +211,9 @@ void adc_steps(
  * identically-built instance. */
 #define ADC_STATE_MAGIC DP_FOURCC ('A','D','C',' ')
 #define ADC_STATE_VERSION 1u
-size_t adc_state_bytes (const adc_state_t *state);
-void adc_get_state (const adc_state_t *state, void *blob);
-int adc_set_state (adc_state_t *state, const void *blob);
+size_t dp_adc_state_bytes (const dp_adc_state_t *state);
+void dp_adc_get_state (const dp_adc_state_t *state, void *blob);
+int dp_adc_set_state (dp_adc_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -42,16 +42,16 @@ main (void)
   printf ("=== symsync benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  symsync_state_t *s
-      = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-  symsync_steps (s, x, SPS * 64, out, BENCH_N); /* warmup */
+  dp_symsync_state_t *s = dp_symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC,
+                                             SYMSYNC_TED_GARDNER);
+  dp_symsync_steps (s, x, SPS * 64, out, BENCH_N); /* warmup */
 
   double times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      symsync_reset (s);
+      dp_symsync_reset (s);
       t0 = jm_bench_now_ns ();
-      symsync_steps (s, x, BENCH_N, out, BENCH_N);
+      dp_symsync_steps (s, x, BENCH_N, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -63,7 +63,7 @@ main (void)
           (double)BENCH_N / (sum / ITERATIONS) / 1e6);
 
   jm_bench_write_json (&_bench, "symsync");
-  symsync_destroy (s);
+  dp_symsync_destroy (s);
   free (x);
   free (out);
   return 0;

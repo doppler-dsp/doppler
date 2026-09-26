@@ -51,13 +51,13 @@ valid_R (uint32_t R)
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
-cic_state_t *
-cic_create (uint32_t R)
+dp_cic_state_t *
+dp_cic_create (uint32_t R)
 {
   if (!valid_R (R))
     return NULL;
 
-  cic_state_t *s = (cic_state_t *)calloc (1, sizeof (*s));
+  dp_cic_state_t *s = (dp_cic_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -67,13 +67,13 @@ cic_create (uint32_t R)
 }
 
 void
-cic_destroy (cic_state_t *state)
+dp_cic_destroy (dp_cic_state_t *state)
 {
   free (state);
 }
 
 void
-cic_reset (cic_state_t *state)
+dp_cic_reset (dp_cic_state_t *state)
 {
   memset (state->integ_re, 0, sizeof (state->integ_re));
   memset (state->integ_im, 0, sizeof (state->integ_im));
@@ -87,7 +87,7 @@ cic_reset (cic_state_t *state)
  * Order: integ_re, integ_im, comb_re, comb_im (each CIC_N u64), then phase. */
 
 size_t
-cic_state_bytes (const cic_state_t *state)
+dp_cic_state_bytes (const dp_cic_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
@@ -95,11 +95,12 @@ cic_state_bytes (const cic_state_t *state)
 }
 
 void
-cic_get_state (const cic_state_t *state, void *blob)
+dp_cic_get_state (const dp_cic_state_t *state, void *blob)
 {
   const size_t ab = CIC_N * sizeof (uint64_t);
-  dp_writer_t  w  = dp_writer_init (blob, cic_state_bytes (state));
-  dp_w_hdr (&w, CIC_STATE_MAGIC, CIC_STATE_VERSION, cic_state_bytes (state));
+  dp_writer_t  w  = dp_writer_init (blob, dp_cic_state_bytes (state));
+  dp_w_hdr (&w, CIC_STATE_MAGIC, CIC_STATE_VERSION,
+            dp_cic_state_bytes (state));
   dp_w_bytes (&w, state->integ_re, ab);
   dp_w_bytes (&w, state->integ_im, ab);
   dp_w_bytes (&w, state->comb_re, ab);
@@ -109,14 +110,14 @@ cic_get_state (const cic_state_t *state, void *blob)
 }
 
 int
-cic_set_state (cic_state_t *state, const void *blob)
+dp_cic_set_state (dp_cic_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, cic_state_bytes (state), CIC_STATE_MAGIC,
-                              CIC_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_cic_state_bytes (state),
+                              CIC_STATE_MAGIC, CIC_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
   const size_t ab = CIC_N * sizeof (uint64_t);
-  dp_reader_t  r  = dp_reader_init (blob, cic_state_bytes (state));
+  dp_reader_t  r  = dp_reader_init (blob, dp_cic_state_bytes (state));
   r.off           = sizeof (dp_state_hdr_t);
   dp_r_bytes (&r, state->integ_re, ab);
   dp_r_bytes (&r, state->integ_im, ab);
@@ -130,29 +131,29 @@ cic_set_state (cic_state_t *state, const void *blob)
 /* ── decimate ──────────────────────────────────────────────────────────── */
 
 double
-cic_dc_gain (const cic_state_t *state)
+cic_dc_gain (const dp_cic_state_t *state)
 {
   return pow ((double)state->R, (double)CIC_N)
          / ldexp (1.0, (int)state->shift);
 }
 
 size_t
-cic_decimate_max_out (cic_state_t *state)
+dp_cic_decimate_max_out (dp_cic_state_t *state)
 {
   (void)state;
   return 0; /* one output per decim >= 1 inputs, so outputs <= inputs */
 }
 
-/* cic_decimate is a static inline defined in cic_core.h. */
+/* dp_cic_decimate is a static inline defined in cic_core.h. */
 
 /* ── reconfigure ───────────────────────────────────────────────────────── */
 
 void
-cic_reconfigure (cic_state_t *state, uint32_t R)
+dp_cic_reconfigure (dp_cic_state_t *state, uint32_t R)
 {
   if (!valid_R (R))
     return;
   state->R     = R;
   state->shift = CIC_N * log2_pow2 (R);
-  cic_reset (state);
+  dp_cic_reset (state);
 }

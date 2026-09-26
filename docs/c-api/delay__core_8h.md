@@ -32,7 +32,7 @@ _Delay component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**delay\_state\_t**](structdelay__state__t.md) <br>_Delay state._  |
+| struct | [**dp\_delay\_state\_t**](structdp__delay__state__t.md) <br>_Delay state._  |
 
 
 
@@ -59,18 +59,18 @@ _Delay component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**delay\_state\_t**](structdelay__state__t.md) \* | [**delay\_create**](#function-delay_create) (size\_t num\_taps) <br>_Create a dual-buffer circular delay line of length num\_taps. The internal capacity is rounded up to the next power of two so that modular indexing reduces to a single bitwise AND. Any window of num\_taps consecutive samples is always contiguous in the backing store; no wrap-around copy is ever needed._  |
-|  void | [**delay\_destroy**](#function-delay_destroy) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Destroy a delay instance and release all memory. Frees the internal dual buffer and the state struct itself. Safe to call with a NULL pointer (no-op). After this call the pointer must not be used; the Python binding raises RuntimeError on any subsequent method call._  |
-|  void | [**delay\_get\_state**](#function-delay_get_state) (const [**delay\_state\_t**](structdelay__state__t.md) \* state, void \* blob) <br> |
-|  size\_t | [**delay\_ptr**](#function-delay_ptr) ([**delay\_state\_t**](structdelay__state__t.md) \* state, size\_t n, double \_Complex \* out, size\_t max\_out) <br>_Snapshot the n most recent samples. Copies at most min(n, num\_taps) samples starting from_ `buf[head]` _into out. Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num\_taps elements; no wrap-around logic is needed. The Python binding returns an independent NumPy array per call, so an earlier snapshot is never overwritten by a later one; pass_`out=` _to fill a caller-owned buffer instead of allocating._ |
-|  size\_t | [**delay\_ptr\_max\_out**](#function-delay_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state, size\_t n) <br>_Maximum samples_ [_**delay\_ptr()**_](delay__core_8h.md#function-delay_ptr) _writes for a request of n. Returns min(n, num\_taps) — the tight per-call bound (gh-607)._ |
-|  void | [**delay\_push**](#function-delay_push) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double \_Complex x) <br>_Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that_ `buf[head]` _always holds the most recent sample. The same value is simultaneously written at_`buf[head + capacity]` _to keep the mirror half in sync; this ensures any num\_taps-length window starting at head is contiguous without an extra copy._ |
-|  size\_t | [**delay\_push\_ptr**](#function-delay_push_ptr) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double \_Complex x, double \_Complex \* out, size\_t max\_out) <br>_Atomically push a sample and snapshot the current window. Equivalent to calling_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _then delay\_ptr(num\_taps), but avoids the overhead of a second function call. Always writes exactly num\_taps samples to out. The Python binding returns an independent NumPy array per call; pass_`out=` _to reuse one buffer across pushes._ |
-|  size\_t | [**delay\_push\_ptr\_max\_out**](#function-delay_push_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Return the maximum output capacity for_ [_**delay\_push\_ptr()**_](delay__core_8h.md#function-delay_push_ptr) _. Returns num\_taps; the Python binding sizes each call's output array with it, and checks a caller's_`out=` _buffer against it._ |
-|  void | [**delay\_reset**](#function-delay_reset) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Reset the delay line to its post-create state. Zeroes the entire dual buffer and resets the write pointer to 0, discarding all previously pushed samples. The num\_taps and capacity are preserved; only the sample history is cleared._  |
-|  int | [**delay\_set\_state**](#function-delay_set_state) ([**delay\_state\_t**](structdelay__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**delay\_state\_bytes**](#function-delay_state_bytes) (const [**delay\_state\_t**](structdelay__state__t.md) \* state) <br> |
-|  void | [**delay\_write**](#function-delay_write) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double \_Complex x) <br>_Alias for_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**delay\_push()**_](delay__core_8h.md#function-delay_push) _with no additional overhead._ |
+|  [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* | [**dp\_delay\_create**](#function-dp_delay_create) (size\_t num\_taps) <br>_Create a dual-buffer circular delay line of length num\_taps. The internal capacity is rounded up to the next power of two so that modular indexing reduces to a single bitwise AND. Any window of num\_taps consecutive samples is always contiguous in the backing store; no wrap-around copy is ever needed._  |
+|  void | [**dp\_delay\_destroy**](#function-dp_delay_destroy) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Destroy a delay instance and release all memory. Frees the internal dual buffer and the state struct itself. Safe to call with a NULL pointer (no-op). After this call the pointer must not be used; the Python binding raises RuntimeError on any subsequent method call._  |
+|  void | [**dp\_delay\_get\_state**](#function-dp_delay_get_state) (const [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_delay\_ptr**](#function-dp_delay_ptr) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, size\_t n, double \_Complex \* out, size\_t max\_out) <br>_Snapshot the n most recent samples. Copies at most min(n, num\_taps) samples starting from_ `buf[head]` _into out. Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num\_taps elements; no wrap-around logic is needed. The Python binding returns an independent NumPy array per call, so an earlier snapshot is never overwritten by a later one; pass_`out=` _to fill a caller-owned buffer instead of allocating._ |
+|  size\_t | [**dp\_delay\_ptr\_max\_out**](#function-dp_delay_ptr_max_out) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, size\_t n) <br>_Maximum samples_ [_**dp\_delay\_ptr()**_](delay__core_8h.md#function-dp_delay_ptr) _writes for a request of n. Returns min(n, num\_taps) — the tight per-call bound (gh-607)._ |
+|  void | [**dp\_delay\_push**](#function-dp_delay_push) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, double \_Complex x) <br>_Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that_ `buf[head]` _always holds the most recent sample. The same value is simultaneously written at_`buf[head + capacity]` _to keep the mirror half in sync; this ensures any num\_taps-length window starting at head is contiguous without an extra copy._ |
+|  size\_t | [**dp\_delay\_push\_ptr**](#function-dp_delay_push_ptr) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, double \_Complex x, double \_Complex \* out, size\_t max\_out) <br>_Atomically push a sample and snapshot the current window. Equivalent to calling_ [_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _then dp\_delay\_ptr(num\_taps), but avoids the overhead of a second function call. Always writes exactly num\_taps samples to out. The Python binding returns an independent NumPy array per call; pass_`out=` _to reuse one buffer across pushes._ |
+|  size\_t | [**dp\_delay\_push\_ptr\_max\_out**](#function-dp_delay_push_ptr_max_out) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Return the maximum output capacity for_ [_**dp\_delay\_push\_ptr()**_](delay__core_8h.md#function-dp_delay_push_ptr) _. Returns num\_taps; the Python binding sizes each call's output array with it, and checks a caller's_`out=` _buffer against it._ |
+|  void | [**dp\_delay\_reset**](#function-dp_delay_reset) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Reset the delay line to its post-create state. Zeroes the entire dual buffer and resets the write pointer to 0, discarding all previously pushed samples. The num\_taps and capacity are preserved; only the sample history is cleared._  |
+|  int | [**dp\_delay\_set\_state**](#function-dp_delay_set_state) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_delay\_state\_bytes**](#function-dp_delay_state_bytes) (const [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br> |
+|  void | [**dp\_delay\_write**](#function-dp_delay_write) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, double \_Complex x) <br>_Alias for_ [_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _with no additional overhead._ |
 
 
 
@@ -113,9 +113,9 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 Example: 
 ```C++
-delay_state_t *obj = delay_create();
+dp_delay_state_t *obj = dp_delay_create();
 float _Complex y = delay_step(obj, 0.0f + 0.0f * I);
-delay_destroy(obj);
+dp_delay_destroy(obj);
 ```
  
 
@@ -126,11 +126,11 @@ delay_destroy(obj);
 
 
 
-### function delay\_create 
+### function dp\_delay\_create 
 
 _Create a dual-buffer circular delay line of length num\_taps. The internal capacity is rounded up to the next power of two so that modular indexing reduces to a single bitwise AND. Any window of num\_taps consecutive samples is always contiguous in the backing store; no wrap-around copy is ever needed._ 
 ```C++
-delay_state_t * delay_create (
+dp_delay_state_t * dp_delay_create (
     size_t num_taps
 ) 
 ```
@@ -169,12 +169,12 @@ Heap-allocated state, or NULL on allocation failure.
 
 
 
-### function delay\_destroy 
+### function dp\_delay\_destroy 
 
 _Destroy a delay instance and release all memory. Frees the internal dual buffer and the state struct itself. Safe to call with a NULL pointer (no-op). After this call the pointer must not be used; the Python binding raises RuntimeError on any subsequent method call._ 
 ```C++
-void delay_destroy (
-    delay_state_t * state
+void dp_delay_destroy (
+    dp_delay_state_t * state
 ) 
 ```
 
@@ -208,11 +208,11 @@ destroyed
 
 
 
-### function delay\_get\_state 
+### function dp\_delay\_get\_state 
 
 ```C++
-void delay_get_state (
-    const delay_state_t * state,
+void dp_delay_get_state (
+    const dp_delay_state_t * state,
     void * blob
 ) 
 ```
@@ -224,12 +224,12 @@ void delay_get_state (
 
 
 
-### function delay\_ptr 
+### function dp\_delay\_ptr 
 
 _Snapshot the n most recent samples. Copies at most min(n, num\_taps) samples starting from_ `buf[head]` _into out. Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num\_taps elements; no wrap-around logic is needed. The Python binding returns an independent NumPy array per call, so an earlier snapshot is never overwritten by a later one; pass_`out=` _to fill a caller-owned buffer instead of allocating._
 ```C++
-size_t delay_ptr (
-    delay_state_t * state,
+size_t dp_delay_ptr (
+    dp_delay_state_t * state,
     size_t n,
     double _Complex * out,
     size_t max_out
@@ -246,7 +246,7 @@ size_t delay_ptr (
 * `state` Must be non-NULL. 
 * `n` Number of samples to copy; clamped to num\_taps. 
 * `out` Output buffer; must hold at least max\_out elements. 
-* `max_out` Capacity of `out` in samples. Normally num\_taps (what [**delay\_ptr\_max\_out()**](delay__core_8h.md#function-delay_ptr_max_out) reports); a smaller value truncates the snapshot instead of overrunning the buffer. 
+* `max_out` Capacity of `out` in samples. Normally num\_taps (what [**dp\_delay\_ptr\_max\_out()**](delay__core_8h.md#function-dp_delay_ptr_max_out) reports); a smaller value truncates the snapshot instead of overrunning the buffer. 
 
 
 
@@ -278,12 +278,12 @@ dtype('complex128')
 
 
 
-### function delay\_ptr\_max\_out 
+### function dp\_delay\_ptr\_max\_out 
 
-_Maximum samples_ [_**delay\_ptr()**_](delay__core_8h.md#function-delay_ptr) _writes for a request of n. Returns min(n, num\_taps) — the tight per-call bound (gh-607)._
+_Maximum samples_ [_**dp\_delay\_ptr()**_](delay__core_8h.md#function-dp_delay_ptr) _writes for a request of n. Returns min(n, num\_taps) — the tight per-call bound (gh-607)._
 ```C++
-size_t delay_ptr_max_out (
-    delay_state_t * state,
+size_t dp_delay_ptr_max_out (
+    dp_delay_state_t * state,
     size_t n
 ) 
 ```
@@ -296,7 +296,7 @@ size_t delay_ptr_max_out (
 
 
 * `state` Must be non-NULL. 
-* `n` Number of samples the matching [**delay\_ptr()**](delay__core_8h.md#function-delay_ptr) call requests. 
+* `n` Number of samples the matching [**dp\_delay\_ptr()**](delay__core_8h.md#function-dp_delay_ptr) call requests. 
 
 
 
@@ -314,12 +314,12 @@ min(n, num\_taps).
 
 
 
-### function delay\_push 
+### function dp\_delay\_push 
 
 _Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that_ `buf[head]` _always holds the most recent sample. The same value is simultaneously written at_`buf[head + capacity]` _to keep the mirror half in sync; this ensures any num\_taps-length window starting at head is contiguous without an extra copy._
 ```C++
-void delay_push (
-    delay_state_t * state,
+void dp_delay_push (
+    dp_delay_state_t * state,
     double _Complex x
 ) 
 ```
@@ -352,12 +352,12 @@ void delay_push (
 
 
 
-### function delay\_push\_ptr 
+### function dp\_delay\_push\_ptr 
 
-_Atomically push a sample and snapshot the current window. Equivalent to calling_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _then delay\_ptr(num\_taps), but avoids the overhead of a second function call. Always writes exactly num\_taps samples to out. The Python binding returns an independent NumPy array per call; pass_`out=` _to reuse one buffer across pushes._
+_Atomically push a sample and snapshot the current window. Equivalent to calling_ [_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _then dp\_delay\_ptr(num\_taps), but avoids the overhead of a second function call. Always writes exactly num\_taps samples to out. The Python binding returns an independent NumPy array per call; pass_`out=` _to reuse one buffer across pushes._
 ```C++
-size_t delay_push_ptr (
-    delay_state_t * state,
+size_t dp_delay_push_ptr (
+    dp_delay_state_t * state,
     double _Complex x,
     double _Complex * out,
     size_t max_out
@@ -401,12 +401,12 @@ min(num\_taps, max\_out) samples.
 
 
 
-### function delay\_push\_ptr\_max\_out 
+### function dp\_delay\_push\_ptr\_max\_out 
 
-_Return the maximum output capacity for_ [_**delay\_push\_ptr()**_](delay__core_8h.md#function-delay_push_ptr) _. Returns num\_taps; the Python binding sizes each call's output array with it, and checks a caller's_`out=` _buffer against it._
+_Return the maximum output capacity for_ [_**dp\_delay\_push\_ptr()**_](delay__core_8h.md#function-dp_delay_push_ptr) _. Returns num\_taps; the Python binding sizes each call's output array with it, and checks a caller's_`out=` _buffer against it._
 ```C++
-size_t delay_push_ptr_max_out (
-    delay_state_t * state
+size_t dp_delay_push_ptr_max_out (
+    dp_delay_state_t * state
 ) 
 ```
 
@@ -423,7 +423,7 @@ size_t delay_push_ptr_max_out (
 
 **Returns:**
 
-num\_taps (number of samples [**delay\_push\_ptr()**](delay__core_8h.md#function-delay_push_ptr) will write). 
+num\_taps (number of samples [**dp\_delay\_push\_ptr()**](delay__core_8h.md#function-dp_delay_push_ptr) will write). 
 
 
 
@@ -435,12 +435,12 @@ num\_taps (number of samples [**delay\_push\_ptr()**](delay__core_8h.md#function
 
 
 
-### function delay\_reset 
+### function dp\_delay\_reset 
 
 _Reset the delay line to its post-create state. Zeroes the entire dual buffer and resets the write pointer to 0, discarding all previously pushed samples. The num\_taps and capacity are preserved; only the sample history is cleared._ 
 ```C++
-void delay_reset (
-    delay_state_t * state
+void dp_delay_reset (
+    dp_delay_state_t * state
 ) 
 ```
 
@@ -474,11 +474,11 @@ void delay_reset (
 
 
 
-### function delay\_set\_state 
+### function dp\_delay\_set\_state 
 
 ```C++
-int delay_set_state (
-    delay_state_t * state,
+int dp_delay_set_state (
+    dp_delay_state_t * state,
     const void * blob
 ) 
 ```
@@ -490,11 +490,11 @@ int delay_set_state (
 
 
 
-### function delay\_state\_bytes 
+### function dp\_delay\_state\_bytes 
 
 ```C++
-size_t delay_state_bytes (
-    const delay_state_t * state
+size_t dp_delay_state_bytes (
+    const dp_delay_state_t * state
 ) 
 ```
 
@@ -505,12 +505,12 @@ size_t delay_state_bytes (
 
 
 
-### function delay\_write 
+### function dp\_delay\_write 
 
-_Alias for_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**delay\_push()**_](delay__core_8h.md#function-delay_push) _with no additional overhead._
+_Alias for_ [_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _with no additional overhead._
 ```C++
-void delay_write (
-    delay_state_t * state,
+void dp_delay_write (
+    dp_delay_state_t * state,
     double _Complex x
 ) 
 ```

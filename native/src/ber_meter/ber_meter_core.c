@@ -41,15 +41,15 @@ ber_confidence (size_t errors, size_t symbols, double conf)
     {
       /* Exact one-sided: P(0 errors) = (1-p)^N <= alpha <=> p <= -ln(a)/N,
          which is det_threshold(alpha)^2 / 2 over N. */
-      eta     = det_threshold (alpha);
+      eta     = dp_det_threshold (alpha);
       c.p_hat = 0.0;
       c.hi    = 0.5 * eta * eta / (double)symbols;
       return c;
     }
   r     = (errors > (size_t)INT_MAX) ? INT_MAX : (int)errors;
-  eta   = det_threshold_noncoherent (1.0 - 0.5 * alpha, r);
+  eta   = dp_det_threshold_noncoherent (1.0 - 0.5 * alpha, r);
   c.lo  = 0.5 * eta * eta / (double)symbols;
-  eta   = det_threshold_noncoherent (0.5 * alpha, r);
+  eta   = dp_det_threshold_noncoherent (0.5 * alpha, r);
   c.hi  = 0.5 * eta * eta / (double)symbols;
   c.rel = 1.0 / sqrt ((double)errors);
   /* The unbiased estimator degenerates to exactly 0 at r = 1, which would be
@@ -63,10 +63,10 @@ ber_confidence (size_t errors, size_t symbols, double conf)
 
 /* ── the meter ──────────────────────────────────────────────────────────── */
 
-ber_meter_state_t *
-ber_meter_create (int m, size_t target_errors, double conf)
+dp_ber_meter_state_t *
+dp_ber_meter_create (int m, size_t target_errors, double conf)
 {
-  ber_meter_state_t *s;
+  dp_ber_meter_state_t *s;
   if (m != 2 && m != 4 && m != 8)
     return NULL;
   if (conf != 0.0 && (conf <= 0.0 || conf >= 1.0))
@@ -80,7 +80,7 @@ ber_meter_create (int m, size_t target_errors, double conf)
 }
 
 void
-ber_meter_destroy (ber_meter_state_t *s)
+dp_ber_meter_destroy (dp_ber_meter_state_t *s)
 {
   if (!s)
     return;
@@ -89,15 +89,15 @@ ber_meter_destroy (ber_meter_state_t *s)
 }
 
 void
-ber_meter_reset (ber_meter_state_t *s)
+dp_ber_meter_reset (dp_ber_meter_state_t *s)
 {
   s->errors = s->symbols = s->bit_errors = s->bits = 0;
   s->skipped = s->bursts = 0;
 }
 
 int
-ber_meter_set_truth (ber_meter_state_t *s, const uint8_t *truth,
-                     size_t truth_len)
+dp_ber_meter_set_truth (dp_ber_meter_state_t *s, const uint8_t *truth,
+                        size_t truth_len)
 {
   if (!truth || truth_len == 0)
     return DP_ERR_INVALID;
@@ -244,9 +244,9 @@ ber_align_detect (const float _Complex *rx, size_t rx_len,
       /* Normalize to the unit-variance-per-quadrature convention the detection
          module's thresholds use: R^2 = sum_k |C_k|^2 / (sigma^2/2), whose null
          distribution is exactly marcum_q(K, 0, R). */
-      a.stat = sqrt (2.0 * stat[best] / floor_pk);
-      a.threshold
-          = det_threshold_noncoherent (det_pfa_cell (pfa, (double)nl), ki);
+      a.stat      = sqrt (2.0 * stat[best] / floor_pk);
+      a.threshold = dp_det_threshold_noncoherent (
+          dp_det_pfa_cell (pfa, (double)nl), ki);
       a.runner_db
           = (runner > 0.0) ? 10.0 * log10 (stat[best] / runner) : INFINITY;
       a.occurrences = K;
@@ -292,7 +292,7 @@ ber_align_detect (const float _Complex *rx, size_t rx_len,
 }
 
 ber_align_t
-ber_meter_detect (const ber_meter_state_t *s, const float _Complex *rx,
+ber_meter_detect (const dp_ber_meter_state_t *s, const float _Complex *rx,
                   size_t rx_len, size_t t0, size_t n_marker, size_t period,
                   int lag_span, double pfa)
 {
@@ -301,9 +301,9 @@ ber_meter_detect (const ber_meter_state_t *s, const float _Complex *rx,
 }
 
 int
-ber_meter_align (ber_meter_state_t *s, const float _Complex *rx, size_t rx_len,
-                 size_t t0, size_t n_marker, size_t period, int lag_span,
-                 double pfa)
+dp_ber_meter_align (dp_ber_meter_state_t *s, const float _Complex *rx,
+                    size_t rx_len, size_t t0, size_t n_marker, size_t period,
+                    int lag_span, double pfa)
 {
   s->last
       = ber_meter_detect (s, rx, rx_len, t0, n_marker, period, lag_span, pfa);
@@ -314,8 +314,8 @@ ber_meter_align (ber_meter_state_t *s, const float _Complex *rx, size_t rx_len,
 }
 
 size_t
-ber_meter_score (ber_meter_state_t *s, const float _Complex *rx, size_t rx_len,
-                 size_t lo, size_t hi)
+dp_ber_meter_score (dp_ber_meter_state_t *s, const float _Complex *rx,
+                    size_t rx_len, size_t lo, size_t hi)
 {
   double phi0     = mpsk_phi0 (s->m);
   double step     = 2.0 * M_PI / (double)s->m;
@@ -367,7 +367,7 @@ ber_meter_score (ber_meter_state_t *s, const float _Complex *rx, size_t rx_len,
 }
 
 void
-ber_meter_set_align (ber_meter_state_t *s, ber_align_t align, size_t t0,
+ber_meter_set_align (dp_ber_meter_state_t *s, ber_align_t align, size_t t0,
                      size_t n_marker, size_t period)
 {
   s->last      = align;
@@ -377,66 +377,67 @@ ber_meter_set_align (ber_meter_state_t *s, ber_align_t align, size_t t0,
 }
 
 int
-ber_meter_get_enough (const ber_meter_state_t *s)
+dp_ber_meter_get_enough (const dp_ber_meter_state_t *s)
 {
   return s->errors >= s->target_errors;
 }
 
 ber_interval_t
-ber_meter_interval (const ber_meter_state_t *s, size_t errors, size_t symbols)
+dp_ber_meter_interval (const dp_ber_meter_state_t *s, size_t errors,
+                       size_t symbols)
 {
   return ber_confidence (errors, symbols, s->conf);
 }
 
 ber_interval_t
-ber_meter_ser (const ber_meter_state_t *s)
+dp_ber_meter_ser (const dp_ber_meter_state_t *s)
 {
   return ber_confidence (s->errors, s->symbols, s->conf);
 }
 
 ber_interval_t
-ber_meter_ber (const ber_meter_state_t *s)
+dp_ber_meter_ber (const dp_ber_meter_state_t *s)
 {
   return ber_confidence (s->bit_errors, s->bits, s->conf);
 }
 
 size_t
-ber_meter_get_errors (const ber_meter_state_t *s)
+dp_ber_meter_get_errors (const dp_ber_meter_state_t *s)
 {
   return s->errors;
 }
 size_t
-ber_meter_get_symbols (const ber_meter_state_t *s)
+dp_ber_meter_get_symbols (const dp_ber_meter_state_t *s)
 {
   return s->symbols;
 }
 size_t
-ber_meter_get_bit_errors (const ber_meter_state_t *s)
+dp_ber_meter_get_bit_errors (const dp_ber_meter_state_t *s)
 {
   return s->bit_errors;
 }
 size_t
-ber_meter_get_bits (const ber_meter_state_t *s)
+dp_ber_meter_get_bits (const dp_ber_meter_state_t *s)
 {
   return s->bits;
 }
 size_t
-ber_meter_get_skipped (const ber_meter_state_t *s)
+dp_ber_meter_get_skipped (const dp_ber_meter_state_t *s)
 {
   return s->skipped;
 }
 int
-ber_meter_get_m (const ber_meter_state_t *s)
+dp_ber_meter_get_m (const dp_ber_meter_state_t *s)
 {
   return s->m;
 }
 size_t
-ber_meter_get_target_errors (const ber_meter_state_t *s)
+dp_ber_meter_get_target_errors (const dp_ber_meter_state_t *s)
 {
   return s->target_errors;
 }
 double
-ber_meter_get_conf (const ber_meter_state_t *s)
+dp_ber_meter_get_conf (const dp_ber_meter_state_t *s)
 {
   return s->conf;
 }
@@ -448,18 +449,18 @@ ber_meter_get_conf (const ber_meter_state_t *s)
  * independent of however many symbols the reference happens to be. */
 
 size_t
-ber_meter_state_bytes (const ber_meter_state_t *s)
+dp_ber_meter_state_bytes (const dp_ber_meter_state_t *s)
 {
   (void)s;
   return sizeof (dp_state_hdr_t) + 6 * sizeof (uint64_t);
 }
 
 void
-ber_meter_get_state (const ber_meter_state_t *s, void *blob)
+dp_ber_meter_get_state (const dp_ber_meter_state_t *s, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, ber_meter_state_bytes (s));
+  dp_writer_t w = dp_writer_init (blob, dp_ber_meter_state_bytes (s));
   dp_w_hdr (&w, BER_METER_STATE_MAGIC, BER_METER_STATE_VERSION,
-            ber_meter_state_bytes (s));
+            dp_ber_meter_state_bytes (s));
   dp_w_u64 (&w, (uint64_t)s->errors);
   dp_w_u64 (&w, (uint64_t)s->symbols);
   dp_w_u64 (&w, (uint64_t)s->bit_errors);
@@ -469,14 +470,14 @@ ber_meter_get_state (const ber_meter_state_t *s, void *blob)
 }
 
 int
-ber_meter_set_state (ber_meter_state_t *s, const void *blob)
+dp_ber_meter_set_state (dp_ber_meter_state_t *s, const void *blob)
 {
   dp_reader_t r;
-  int rc = dp_state_validate (blob, ber_meter_state_bytes (s),
+  int rc = dp_state_validate (blob, dp_ber_meter_state_bytes (s),
                               BER_METER_STATE_MAGIC, BER_METER_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  r             = dp_reader_init (blob, ber_meter_state_bytes (s));
+  r             = dp_reader_init (blob, dp_ber_meter_state_bytes (s));
   r.off         = sizeof (dp_state_hdr_t); /* past the envelope */
   s->errors     = (size_t)dp_r_u64 (&r);
   s->symbols    = (size_t)dp_r_u64 (&r);
@@ -488,47 +489,47 @@ ber_meter_set_state (ber_meter_state_t *s, const void *blob)
 }
 
 int
-ber_meter_get_lag (const ber_meter_state_t *s)
+dp_ber_meter_get_lag (const dp_ber_meter_state_t *s)
 {
   return s->last.lag;
 }
 double
-ber_meter_get_phase (const ber_meter_state_t *s)
+dp_ber_meter_get_phase (const dp_ber_meter_state_t *s)
 {
   return s->last.phase;
 }
 double
-ber_meter_get_align_stat (const ber_meter_state_t *s)
+dp_ber_meter_get_align_stat (const dp_ber_meter_state_t *s)
 {
   return s->last.stat;
 }
 double
-ber_meter_get_align_margin_db (const ber_meter_state_t *s)
+dp_ber_meter_get_align_margin_db (const dp_ber_meter_state_t *s)
 {
   return s->last.margin_db;
 }
 double
-ber_meter_get_align_runner_db (const ber_meter_state_t *s)
+dp_ber_meter_get_align_runner_db (const dp_ber_meter_state_t *s)
 {
   return s->last.runner_db;
 }
 size_t
-ber_meter_get_align_occurrences (const ber_meter_state_t *s)
+dp_ber_meter_get_align_occurrences (const dp_ber_meter_state_t *s)
 {
   return s->last.occurrences;
 }
 size_t
-ber_meter_get_align_slips (const ber_meter_state_t *s)
+dp_ber_meter_get_align_slips (const dp_ber_meter_state_t *s)
 {
   return s->last.slips;
 }
 int
-ber_meter_get_align_saturated (const ber_meter_state_t *s)
+dp_ber_meter_get_align_saturated (const dp_ber_meter_state_t *s)
 {
   return s->last.saturated;
 }
 int
-ber_meter_get_align_ok (const ber_meter_state_t *s)
+dp_ber_meter_get_align_ok (const dp_ber_meter_state_t *s)
 {
   return s->last.ok;
 }

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef BURST_CAPTURE_CORE_H
-#define BURST_CAPTURE_CORE_H
+#ifndef DP_BURST_CAPTURE_CORE_H
+#define DP_BURST_CAPTURE_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -78,7 +78,7 @@ typedef struct
   size_t code_period; 
   size_t burst_len;   
   /* ── The composed child ─────────────────────────────────────────────── */
-  burst_acq_state_t *acq; 
+  dp_burst_acq_state_t *acq; 
   /* ── Look-back (docs/design/dsss-burst-receiver.md §7.1) ────────────── */
   dp_f32_t *hist;      
   uint64_t samples_fed; 
@@ -146,54 +146,54 @@ typedef struct
   uint64_t dropped;  
   uint64_t n_bursts; 
 /*<<property_struct_fields>>*/
-} burst_capture_state_t;
+} dp_burst_capture_state_t;
 
-burst_capture_state_t *burst_capture_create (
+dp_burst_capture_state_t *dp_burst_capture_create (
     const float _Complex *preamble, size_t preamble_len, size_t burst_len,
     size_t reps,
     double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
     double pd, int noise_mode, double doppler_rate);
 
-burst_capture_state_t *burst_capture_create_backed (
+dp_burst_capture_state_t *burst_capture_create_backed (
     const char *path, const float _Complex *preamble, size_t preamble_len,
     size_t burst_len, size_t reps, double fs, double cn0_dbhz,
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
     double doppler_rate);
 
-void burst_capture_destroy (burst_capture_state_t *state);
+void dp_burst_capture_destroy (dp_burst_capture_state_t *state);
 
-void burst_capture_reset (burst_capture_state_t *state);
+void dp_burst_capture_reset (dp_burst_capture_state_t *state);
 
-size_t burst_capture_push_max_out (burst_capture_state_t *state,
+size_t dp_burst_capture_push_max_out (dp_burst_capture_state_t *state,
                                    size_t x_len);
 
-size_t burst_capture_push (burst_capture_state_t *state,
+size_t dp_burst_capture_push (dp_burst_capture_state_t *state,
                            const float _Complex *x, size_t x_len,
                            float _Complex *out, size_t max_out);
 
-size_t burst_capture_detections_max_out (burst_capture_state_t *state,
+size_t dp_burst_capture_detections_max_out (dp_burst_capture_state_t *state,
                                          size_t n);
 
-size_t burst_capture_detections (burst_capture_state_t *state, size_t n,
+size_t dp_burst_capture_detections (dp_burst_capture_state_t *state, size_t n,
                                  burst_capture_detection_t *out,
                                  size_t max_out);
 
-size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
+size_t dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t n);
 
-size_t burst_capture_events (burst_capture_state_t *state, size_t n,
+size_t dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
                              burst_capture_event_t *out, size_t max_out);
 
-size_t burst_capture_ready (const burst_capture_state_t *state);
+size_t burst_capture_ready (const dp_burst_capture_state_t *state);
 
-const float _Complex *burst_capture_window (const burst_capture_state_t *state,
+const float _Complex *burst_capture_window (const dp_burst_capture_state_t *state,
                                            size_t i);
 
 const burst_capture_event_t *
-burst_capture_event_at (const burst_capture_state_t *state, size_t i);
+burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
 
-int burst_capture_release (burst_capture_state_t *state, size_t i);
+int dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i);
 
-int burst_capture_configure_search_raw (burst_capture_state_t *state,
+int dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
                                         size_t doppler_bins,
                                         size_t n_noncoh);
 
@@ -210,31 +210,31 @@ int burst_capture_configure_search_raw (burst_capture_state_t *state,
  * the parameters above, and `configure_search_raw()` is the one call that
  * moves them. */
 
-size_t burst_capture_get_min_gap (const burst_capture_state_t *state);
+size_t burst_capture_get_min_gap (const dp_burst_capture_state_t *state);
 
-double burst_capture_get_eta (const burst_capture_state_t *state);
-double burst_capture_get_eta_nc (const burst_capture_state_t *state);
-double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
-double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
-double burst_capture_get_pd_burst (const burst_capture_state_t *state);
-double burst_capture_get_psl_db (const burst_capture_state_t *state);
-double burst_capture_get_doppler_rate (const burst_capture_state_t *state);
-size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
-size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);
-size_t burst_capture_get_code_bins (const burst_capture_state_t *state);
-double burst_capture_get_doppler_span_hz (const burst_capture_state_t *state);
+double dp_burst_capture_get_eta (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_eta_nc (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_straddle_loss (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_get_n_noncoh (const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_get_code_bins (const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state);
 
-size_t burst_capture_state_bytes (const burst_capture_state_t *state);
-void burst_capture_get_state (const burst_capture_state_t *state, void *blob);
-int burst_capture_set_state (burst_capture_state_t *state, const void *blob);
+size_t dp_burst_capture_state_bytes (const dp_burst_capture_state_t *state);
+void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *blob);
+int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 
-uint64_t burst_capture_get_preamble_start(const burst_capture_state_t *state);
-double burst_capture_get_doppler_hz_est(const burst_capture_state_t *state);
-double burst_capture_get_doppler_res_hz(const burst_capture_state_t *state);
-double burst_capture_get_cn0_dbhz_est(const burst_capture_state_t *state);
-size_t burst_capture_get_pending(const burst_capture_state_t *state);
-uint64_t burst_capture_get_dropped(const burst_capture_state_t *state);
-uint64_t burst_capture_get_n_bursts(const burst_capture_state_t *state);
+uint64_t dp_burst_capture_get_preamble_start(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_hz_est(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_res_hz(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_cn0_dbhz_est(const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_get_pending(const dp_burst_capture_state_t *state);
+uint64_t dp_burst_capture_get_dropped(const dp_burst_capture_state_t *state);
+uint64_t dp_burst_capture_get_n_bursts(const dp_burst_capture_state_t *state);
 #ifdef __cplusplus
 }
 #endif

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* AsyncDsssPoolObject — wraps async_dsss_pool_state_t *       */
+/* AsyncDsssPoolObject — wraps dp_async_dsss_pool_state_t *       */
 /* ======================================================== */
 
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 
 typedef struct
 {
-  PyObject_HEAD async_dsss_pool_state_t *handle;
+  PyObject_HEAD dp_async_dsss_pool_state_t *handle;
 } AsyncDsssPoolObject;
 
 static void
 AsyncDsssPoolObj_dealloc (AsyncDsssPoolObject *self)
 {
   if (self->handle)
-    async_dsss_pool_destroy (self->handle);
+    dp_async_dsss_pool_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -105,7 +105,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = async_dsss_pool_create (
+  self->handle    = dp_async_dsss_pool_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
       symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty,
       code_only_epochs, doppler_rate, max_peaks, n_slots, threads,
@@ -138,7 +138,7 @@ AsyncDsssPoolObj_reset (AsyncDsssPoolObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  async_dsss_pool_reset (self->handle);
+  dp_async_dsss_pool_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -163,7 +163,7 @@ AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t                y     = async_dsss_pool_push (self->handle, x, x_len);
+  size_t                y = dp_async_dsss_pool_push (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -220,7 +220,7 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
           return NULL;
         }
     }
-  async_dsss_pool_slot_t _r = async_dsss_pool_status (self->handle, slot);
+  async_dsss_pool_slot_t _r = dp_async_dsss_pool_status (self->handle, slot);
   PyObject *_o = PyStructSequence_New (AsyncDsssPoolObj_status_type);
   if (!_o)
     return NULL;
@@ -261,7 +261,7 @@ AsyncDsssPoolObj_symbols_max_out (AsyncDsssPoolObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (async_dsss_pool_symbols_max_out (self->handle));
+  return PyLong_FromSize_t (dp_async_dsss_pool_symbols_max_out (self->handle));
 }
 
 static PyObject *
@@ -301,11 +301,12 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = async_dsss_pool_symbols_max_out (self->handle);
-      size_t _min_cap = _omax > async_dsss_pool_symbols_max_out (self->handle)
-                            ? _omax
-                            : (async_dsss_pool_symbols_max_out (self->handle));
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = dp_async_dsss_pool_symbols_max_out (self->handle);
+      size_t _min_cap
+          = _omax > dp_async_dsss_pool_symbols_max_out (self->handle)
+                ? _omax
+                : (dp_async_dsss_pool_symbols_max_out (self->handle));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -313,7 +314,7 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = async_dsss_pool_symbols (
+      size_t n_out = dp_async_dsss_pool_symbols (
           self->handle, slot, (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -326,8 +327,8 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = async_dsss_pool_symbols_max_out (self->handle);
-  size_t _cap  = async_dsss_pool_symbols_max_out (self->handle);
+  size_t _need = dp_async_dsss_pool_symbols_max_out (self->handle);
+  size_t _cap  = dp_async_dsss_pool_symbols_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -337,7 +338,7 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = async_dsss_pool_symbols (self->handle, slot, _d0, _cap);
+  size_t n_out = dp_async_dsss_pool_symbols (self->handle, slot, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -385,7 +386,7 @@ AsyncDsssPoolObj_set_event_log (AsyncDsssPoolObject *self, PyObject *args,
       if (!log)
         return NULL;
     }
-  int _rc = async_dsss_pool_set_event_log (self->handle, log);
+  int _rc = dp_async_dsss_pool_set_event_log (self->handle, log);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_event_log failed",
@@ -404,7 +405,7 @@ AsyncDsssPoolObj_state_bytes (AsyncDsssPoolObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (async_dsss_pool_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_async_dsss_pool_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -416,11 +417,11 @@ AsyncDsssPoolObj_get_state (AsyncDsssPoolObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = async_dsss_pool_state_bytes (self->handle);
+  size_t    _n = dp_async_dsss_pool_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  async_dsss_pool_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_async_dsss_pool_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -438,12 +439,13 @@ AsyncDsssPoolObj_set_state (AsyncDsssPoolObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != async_dsss_pool_state_bytes (self->handle))
+      != dp_async_dsss_pool_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (async_dsss_pool_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_async_dsss_pool_set_state (self->handle, PyBytes_AS_STRING (arg))
+      != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -565,7 +567,7 @@ AsyncDsssPoolObj_destroy (AsyncDsssPoolObject *self,
 {
   if (self->handle)
     {
-      async_dsss_pool_destroy (self->handle);
+      dp_async_dsss_pool_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -585,7 +587,7 @@ AsyncDsssPoolObj_exit (AsyncDsssPoolObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      async_dsss_pool_destroy (self->handle);
+      dp_async_dsss_pool_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

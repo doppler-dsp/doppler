@@ -42,7 +42,7 @@ Step 1 of `docs/dev/contributing/validation.md`. The C test is `test_detector2d_
 | the last-dump fields update on every dump **regardless of threshold** | **was nothing** — now C | §2.5 |
 | `set_ref` replaces the reference, always resets, and returns -1 when refused | **was nothing** — C-ONLY, no binding | C §set_ref |
 | `set_threshold` changes the gate without rebuilding | C — **C-ONLY**, the property is read-only in Python | C §set_threshold |
-| `dwell` must be >= 1 | C, refusal inherited from `corr2d_create` | §2.7 |
+| `dwell` must be >= 1 | C, refusal inherited from `dp_corr2d_create` | §2.7 |
 | `reset` drains the ring and the accumulator | C + Python | §2.6 |
 | the state triplet round-trips | C + Python | §2.6 |
 
@@ -135,7 +135,7 @@ The second row is the precondition for every other measurement in §2.1: if the 
 
 - **F4 · C-ONLY** — Two entry points have no Python face and are certified in `native/tests/test_detector2d_core.c`: `detector2d_set_ref` (F2 above) and `detector2d_set_threshold` — the `threshold` property is read-only from Python, so a caller who wants to re-gate a running detector must rebuild it or drop to C. The last-dump scalars (`peak_row`, `peak_col`, `peak_mag`, `noise_est`, `test_stat`) are likewise C-only as scalars, though `last_corr` exposes the surface they are derived from, which is what §2.5 uses to reach F3's claim from Python.
 
-- **F5 · BY DESIGN** — `dwell = 0` is refused as `MemoryError` rather than `ValueError`. That reads wrong until you find the convention: `docs/dev/contributing/error-convention.md` makes NULL the `create()` return for an invalid argument as well as an allocation failure, and jm's generated NULL check raises `MemoryError` — explicitly called "correct for the pointer convention". The refusal itself is new: it was added to `corr2d_create` during that object's certification, and this one inherits it by forwarding rather than by carrying a second copy of the rule.
+- **F5 · BY DESIGN** — `dwell = 0` is refused as `MemoryError` rather than `ValueError`. That reads wrong until you find the convention: `docs/dev/contributing/error-convention.md` makes NULL the `create()` return for an invalid argument as well as an allocation failure, and jm's generated NULL check raises `MemoryError` — explicitly called "correct for the pointer convention". The refusal itself is new: it was added to `dp_corr2d_create` during that object's certification, and this one inherits it by forwarding rather than by carrying a second copy of the rule.
 
 ## 4. Limits — the certified envelope
 

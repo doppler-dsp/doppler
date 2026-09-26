@@ -11,22 +11,22 @@
    set_state() restores only running state, per the state-serialization rule.
  */
 static inline double
-doppler_channel_ratio (const doppler_channel_state_t *s, double t)
+doppler_channel_ratio (const dp_doppler_channel_state_t *s, double t)
 {
   return 1.0 / doppler_channel_scale (s, t);
 }
 
-doppler_channel_state_t *
-doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
-                        double doppler_rate_ppm_s)
+dp_doppler_channel_state_t *
+dp_doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
+                           double doppler_rate_ppm_s)
 {
   if (!(fs > 0.0))
     return NULL;
-  doppler_channel_state_t *obj = dp_xcalloc (1, sizeof (*obj));
-  obj->fs                      = fs;
-  obj->carrier_hz              = carrier_hz;
-  obj->doppler_ppm             = doppler_ppm;
-  obj->doppler_rate_ppm_s      = doppler_rate_ppm_s;
+  dp_doppler_channel_state_t *obj = dp_xcalloc (1, sizeof (*obj));
+  obj->fs                         = fs;
+  obj->carrier_hz                 = carrier_hz;
+  obj->doppler_ppm                = doppler_ppm;
+  obj->doppler_rate_ppm_s         = doppler_rate_ppm_s;
 
   /* A scale of zero or less would mean time stopping or running backwards --
    * a reachable invalid configuration (a doppler_ppm at or past -1e6). */
@@ -43,7 +43,7 @@ doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
 }
 
 void
-doppler_channel_destroy (doppler_channel_state_t *state)
+dp_doppler_channel_destroy (dp_doppler_channel_state_t *state)
 {
   if (!state)
     return;
@@ -53,7 +53,7 @@ doppler_channel_destroy (doppler_channel_state_t *state)
 }
 
 void
-doppler_channel_reset (doppler_channel_state_t *state)
+dp_doppler_channel_reset (dp_doppler_channel_state_t *state)
 {
   resamp_reset (state->rs);
   state->n_in  = 0;
@@ -61,11 +61,11 @@ doppler_channel_reset (doppler_channel_state_t *state)
 }
 
 size_t
-doppler_channel_execute_max_out (doppler_channel_state_t *state)
+dp_doppler_channel_execute_max_out (dp_doppler_channel_state_t *state)
 {
   /* The binding sizes its buffer from this alone — it never sees the input
      length — so the bound assumes a full DOPPLER_CHANNEL_MAX_BLOCK input, the
-     same convention RateConverter_execute_max_out uses.
+     same convention dp_RateConverter_execute_max_out uses.
 
      Output count is input/(1+d), maximised where d is smallest, so evaluate
      the scale at both ends of the block the next call could span and take the
@@ -82,9 +82,9 @@ doppler_channel_execute_max_out (doppler_channel_state_t *state)
 }
 
 size_t
-doppler_channel_execute (doppler_channel_state_t *state,
-                         const float _Complex *x, size_t x_len,
-                         float _Complex *out, size_t max_out)
+dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
+                            const float _Complex *x, size_t x_len,
+                            float _Complex *out, size_t max_out)
 {
   size_t n_out = 0;
   /* Chip away at the input in ctrl-buffer-sized pieces. resamp_execute_ctrl is
@@ -142,21 +142,21 @@ doppler_channel_execute (doppler_channel_state_t *state,
 }
 
 double
-doppler_channel_get_elapsed_s (const doppler_channel_state_t *state)
+dp_doppler_channel_get_elapsed_s (const dp_doppler_channel_state_t *state)
 {
   return (double)state->n_out / state->fs;
 }
 
 double
-doppler_channel_get_offset_hz (const doppler_channel_state_t *state)
+dp_doppler_channel_get_offset_hz (const dp_doppler_channel_state_t *state)
 {
-  double t = doppler_channel_get_elapsed_s (state);
+  double t = dp_doppler_channel_get_elapsed_s (state);
   return state->carrier_hz
          * (state->doppler_ppm + state->doppler_rate_ppm_s * t) * 1e-6;
 }
 
 double
-doppler_channel_get_delay_samples (const doppler_channel_state_t *state)
+dp_doppler_channel_get_delay_samples (const dp_doppler_channel_state_t *state)
 {
   return resamp_get_delay (state->rs);
 }
@@ -168,16 +168,17 @@ doppler_channel_get_delay_samples (const doppler_channel_state_t *state)
    create(), so none of fs/carrier_hz/doppler_* is packed here. */
 
 size_t
-doppler_channel_state_bytes (const doppler_channel_state_t *state)
+dp_doppler_channel_state_bytes (const dp_doppler_channel_state_t *state)
 {
   return sizeof (dp_state_hdr_t) + 2u * sizeof (uint64_t)
          + resamp_state_bytes (state->rs);
 }
 
 void
-doppler_channel_get_state (const doppler_channel_state_t *state, void *blob)
+dp_doppler_channel_get_state (const dp_doppler_channel_state_t *state,
+                              void                             *blob)
 {
-  size_t      total = doppler_channel_state_bytes (state);
+  size_t      total = dp_doppler_channel_state_bytes (state);
   dp_writer_t w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, DOPPLER_CHANNEL_STATE_MAGIC, DOPPLER_CHANNEL_STATE_VERSION,
             total);
@@ -189,9 +190,10 @@ doppler_channel_get_state (const doppler_channel_state_t *state, void *blob)
 }
 
 int
-doppler_channel_set_state (doppler_channel_state_t *state, const void *blob)
+dp_doppler_channel_set_state (dp_doppler_channel_state_t *state,
+                              const void                 *blob)
 {
-  size_t total = doppler_channel_state_bytes (state);
+  size_t total = dp_doppler_channel_state_bytes (state);
   int    rc    = dp_state_validate (blob, total, DOPPLER_CHANNEL_STATE_MAGIC,
                                     DOPPLER_CHANNEL_STATE_VERSION);
   if (rc != DP_OK)

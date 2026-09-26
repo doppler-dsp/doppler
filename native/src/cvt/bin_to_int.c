@@ -9,7 +9,7 @@
    WIDTH the caller chose (0, or over 64) or the bit order it named, never a
    property of the data. Validate the width, then trust the result. */
 uint64_t
-bin_to_int (const uint8_t *bits, size_t bits_len, int bitorder)
+dp_bin_to_int (const uint8_t *bits, size_t bits_len, int bitorder)
 {
   if (!bits || bits_len == 0u || bits_len > 64u)
     return 0;

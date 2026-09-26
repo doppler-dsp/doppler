@@ -27,19 +27,19 @@
 static int
 test_create_refuses_a_degenerate_geometry (void)
 {
-  DP_CHECK (interleaver_create (0, 4, 1) == NULL);
-  DP_CHECK (interleaver_create (4, 0, 1) == NULL);
-  DP_CHECK (interleaver_create (4, 4, 0) == NULL);
+  DP_CHECK (dp_interleaver_create (0, 4, 1) == NULL);
+  DP_CHECK (dp_interleaver_create (4, 0, 1) == NULL);
+  DP_CHECK (dp_interleaver_create (4, 4, 0) == NULL);
   /* and the overflow guard, which is a division rather than a multiply --
      multiplying to test for overflow is the test overflowing */
-  DP_CHECK (interleaver_create ((size_t)-1, 2, 1) == NULL);
-  DP_CHECK (interleaver_create (2, (size_t)-1, 1) == NULL);
+  DP_CHECK (dp_interleaver_create ((size_t)-1, 2, 1) == NULL);
+  DP_CHECK (dp_interleaver_create (2, (size_t)-1, 1) == NULL);
   /* Each factor fits and only the product overflows: half of size_t's own
      width, so the case is the same on a 32-bit target, where a fixed
      `(size_t)1 << 40` is itself an out-of-range shift. */
   {
     const size_t half = (size_t)1 << (sizeof (size_t) * CHAR_BIT / 2);
-    DP_CHECK (interleaver_create (half, half, 8) == NULL);
+    DP_CHECK (dp_interleaver_create (half, half, 8) == NULL);
   }
   return 0;
 }
@@ -49,12 +49,12 @@ test_create_refuses_a_degenerate_geometry (void)
 static int
 test_geometry_readbacks (void)
 {
-  interleaver_state_t *il = interleaver_create (8, 32, 8);
+  dp_interleaver_state_t *il = dp_interleaver_create (8, 32, 8);
   DP_REQUIRE (il != NULL);
   DP_CHECK (il->rows == 8 && il->cols == 32 && il->unit_bits == 8);
-  DP_CHECK (interleaver_get_block_bits (il) == 8u * 32u * 8u);
-  DP_CHECK (interleaver_get_burst_len (il) == 8);
-  DP_CHECK (interleaver_get_separation (il) == 32);
+  DP_CHECK (dp_interleaver_get_block_bits (il) == 8u * 32u * 8u);
+  DP_CHECK (dp_interleaver_get_burst_len (il) == 8);
+  DP_CHECK (dp_interleaver_get_separation (il) == 32);
   /* max_out is the identity: a permutation neither adds nor removes. Swept
      rather than pinned at one length, because the binding asks this to SIZE
      an output buffer and asks it for whatever length arrived -- including
@@ -64,12 +64,12 @@ test_geometry_readbacks (void)
   static const size_t lens[] = { 0, 1, 7, 2047, 2048, 2049, 12345 };
   for (size_t i = 0; i < sizeof lens / sizeof *lens; i++)
     {
-      DP_CHECK (interleaver_interleave_max_out (il, lens[i]) == lens[i]);
-      DP_CHECK (interleaver_deinterleave_max_out (il, lens[i]) == lens[i]);
-      DP_CHECK (interleaver_deinterleave_soft_max_out (il, lens[i])
+      DP_CHECK (dp_interleaver_interleave_max_out (il, lens[i]) == lens[i]);
+      DP_CHECK (dp_interleaver_deinterleave_max_out (il, lens[i]) == lens[i]);
+      DP_CHECK (dp_interleaver_deinterleave_soft_max_out (il, lens[i])
                 == lens[i]);
     }
-  interleaver_destroy (il);
+  dp_interleaver_destroy (il);
   return 0;
 }
 
@@ -79,17 +79,17 @@ test_geometry_readbacks (void)
 static int
 test_round_trips_over_several_blocks (void)
 {
-  interleaver_state_t *il = interleaver_create (4, 6, 2);
+  dp_interleaver_state_t *il = dp_interleaver_create (4, 6, 2);
   DP_REQUIRE (il != NULL);
-  const size_t blk = interleaver_get_block_bits (il); /* 48 */
+  const size_t blk = dp_interleaver_get_block_bits (il); /* 48 */
   const size_t n   = blk * 5;
   uint8_t     *in = malloc (n), *mid = malloc (n), *back = malloc (n);
   DP_REQUIRE (in && mid && back);
   for (size_t i = 0; i < n; i++)
     in[i] = (uint8_t)(i * 31u + 7u);
 
-  DP_CHECK (interleaver_interleave (il, in, n, mid, n) == n);
-  DP_CHECK (interleaver_deinterleave (il, mid, n, back, n) == n);
+  DP_CHECK (dp_interleaver_interleave (il, in, n, mid, n) == n);
+  DP_CHECK (dp_interleaver_deinterleave (il, mid, n, back, n) == n);
   DP_CHECK (memcmp (back, in, n) == 0);
   DP_CHECK (memcmp (mid, in, n) != 0); /* something actually moved */
 
@@ -97,13 +97,14 @@ test_round_trips_over_several_blocks (void)
      block b of the input and on nothing else. Checked by interleaving one
      block alone and finding it at the same offset. */
   uint8_t one[48];
-  DP_CHECK (interleaver_interleave (il, in + 2 * blk, blk, one, blk) == blk);
+  DP_CHECK (dp_interleaver_interleave (il, in + 2 * blk, blk, one, blk)
+            == blk);
   DP_CHECK (memcmp (one, mid + 2 * blk, blk) == 0);
 
   free (in);
   free (mid);
   free (back);
-  interleaver_destroy (il);
+  dp_interleaver_destroy (il);
   return 0;
 }
 
@@ -113,7 +114,7 @@ test_round_trips_over_several_blocks (void)
 static int
 test_soft_deinterleave_matches_the_hard_one (void)
 {
-  interleaver_state_t *il = interleaver_create (5, 7, 1);
+  dp_interleaver_state_t *il = dp_interleaver_create (5, 7, 1);
   DP_REQUIRE (il != NULL);
   const size_t n = 35;
   uint8_t      hard_in[35], hard_out[35];
@@ -123,13 +124,14 @@ test_soft_deinterleave_matches_the_hard_one (void)
       hard_in[i] = (uint8_t)(i * 13u % 251u);
       soft_in[i] = (float)hard_in[i];
     }
-  DP_CHECK (interleaver_deinterleave (il, hard_in, n, hard_out, n) == n);
-  DP_CHECK (interleaver_deinterleave_soft (il, soft_in, n, soft_out, n) == n);
+  DP_CHECK (dp_interleaver_deinterleave (il, hard_in, n, hard_out, n) == n);
+  DP_CHECK (dp_interleaver_deinterleave_soft (il, soft_in, n, soft_out, n)
+            == n);
   /* Same permutation, two element types -- the property that makes the soft
      path usable with a description written for the hard one. */
   for (size_t i = 0; i < n; i++)
     DP_CHECK (soft_out[i] == (float)hard_out[i]);
-  interleaver_destroy (il);
+  dp_interleaver_destroy (il);
   return 0;
 }
 
@@ -139,29 +141,33 @@ test_soft_deinterleave_matches_the_hard_one (void)
 static int
 test_a_partial_block_is_refused (void)
 {
-  interleaver_state_t *il = interleaver_create (3, 4, 1);
+  dp_interleaver_state_t *il = dp_interleaver_create (3, 4, 1);
   DP_REQUIRE (il != NULL);
   uint8_t      in[24] = { 0 }, out[24] = { 0 };
-  const size_t blk = interleaver_get_block_bits (il); /* 12 */
+  const size_t blk = dp_interleaver_get_block_bits (il); /* 12 */
 
-  DP_CHECK (interleaver_interleave (il, in, blk, out, blk) == blk); /* one */
-  DP_CHECK (interleaver_interleave (il, in, 2 * blk, out, 2 * blk)
-            == 2 * blk);                                             /* two */
-  DP_CHECK (interleaver_interleave (il, in, blk + 1, out, 24) == 0); /* 1.08 */
-  DP_CHECK (interleaver_interleave (il, in, blk - 1, out, 24) == 0); /* 0.92 */
-  DP_CHECK (interleaver_interleave (il, in, 0, out, 24) == 0);       /* none */
+  DP_CHECK (dp_interleaver_interleave (il, in, blk, out, blk)
+            == blk); /* one */
+  DP_CHECK (dp_interleaver_interleave (il, in, 2 * blk, out, 2 * blk)
+            == 2 * blk); /* two */
+  DP_CHECK (dp_interleaver_interleave (il, in, blk + 1, out, 24)
+            == 0); /* 1.08 */
+  DP_CHECK (dp_interleaver_interleave (il, in, blk - 1, out, 24)
+            == 0);                                                /* 0.92 */
+  DP_CHECK (dp_interleaver_interleave (il, in, 0, out, 24) == 0); /* none */
   /* and an output with no room for the whole input */
-  DP_CHECK (interleaver_interleave (il, in, blk, out, blk - 1) == 0);
+  DP_CHECK (dp_interleaver_interleave (il, in, blk, out, blk - 1) == 0);
   /* every method refuses identically -- a guard on one of three is the shape
      where the soft path silently keeps working after the hard one is fixed */
-  DP_CHECK (interleaver_deinterleave (il, in, blk + 1, out, 24) == 0);
+  DP_CHECK (dp_interleaver_deinterleave (il, in, blk + 1, out, 24) == 0);
   float sin_[24] = { 0 }, sout[24] = { 0 };
-  DP_CHECK (interleaver_deinterleave_soft (il, sin_, blk + 1, sout, 24) == 0);
+  DP_CHECK (dp_interleaver_deinterleave_soft (il, sin_, blk + 1, sout, 24)
+            == 0);
   /* NULL is refused rather than dereferenced */
-  DP_CHECK (interleaver_interleave (il, NULL, blk, out, blk) == 0);
-  DP_CHECK (interleaver_interleave (il, in, blk, NULL, blk) == 0);
-  DP_CHECK (interleaver_interleave (NULL, in, blk, out, blk) == 0);
-  interleaver_destroy (il);
+  DP_CHECK (dp_interleaver_interleave (il, NULL, blk, out, blk) == 0);
+  DP_CHECK (dp_interleaver_interleave (il, in, blk, NULL, blk) == 0);
+  DP_CHECK (dp_interleaver_interleave (NULL, in, blk, out, blk) == 0);
+  dp_interleaver_destroy (il);
   return 0;
 }
 
@@ -171,15 +177,15 @@ test_a_partial_block_is_refused (void)
 static int
 test_reset_changes_nothing (void)
 {
-  interleaver_state_t *il = interleaver_create (2, 3, 1);
+  dp_interleaver_state_t *il = dp_interleaver_create (2, 3, 1);
   DP_REQUIRE (il != NULL);
   uint8_t in[6] = { 1, 2, 3, 4, 5, 6 }, a[6], b[6];
-  DP_CHECK (interleaver_interleave (il, in, 6, a, 6) == 6);
-  interleaver_reset (il);
-  DP_CHECK (interleaver_get_block_bits (il) == 6);
-  DP_CHECK (interleaver_interleave (il, in, 6, b, 6) == 6);
+  DP_CHECK (dp_interleaver_interleave (il, in, 6, a, 6) == 6);
+  dp_interleaver_reset (il);
+  DP_CHECK (dp_interleaver_get_block_bits (il) == 6);
+  DP_CHECK (dp_interleaver_interleave (il, in, 6, b, 6) == 6);
   DP_CHECK (memcmp (a, b, 6) == 0);
-  interleaver_destroy (il);
+  dp_interleaver_destroy (il);
   return 0;
 }
 
@@ -204,9 +210,9 @@ test_the_object_applies_the_kernels_permutation (void)
   /* Non-square, so the transposed geometry is a DIFFERENT permutation --
      over a square block this test would pass on a transposed object and
      prove nothing, which is the vacuous-reject shape. */
-  const size_t         rows = 3, cols = 4;
-  interleaver_state_t *bits = interleaver_create (rows, cols, 1);
-  interleaver_state_t *oct  = interleaver_create (rows, cols, 8);
+  const size_t            rows = 3, cols = 4;
+  dp_interleaver_state_t *bits = dp_interleaver_create (rows, cols, 1);
+  dp_interleaver_state_t *oct  = dp_interleaver_create (rows, cols, 8);
   DP_REQUIRE (bits && oct);
 
   uint8_t in[96], obj[96], ker[96], alt[96];
@@ -215,15 +221,15 @@ test_the_object_applies_the_kernels_permutation (void)
 
   /* Both units, because `unit_bits` is the argument the object holds on the
      caller's behalf and a wrong one is invisible to a round trip. */
-  const size_t         units[2] = { 1, 8 };
-  interleaver_state_t *st[2]    = { bits, oct };
+  const size_t            units[2] = { 1, 8 };
+  dp_interleaver_state_t *st[2]    = { bits, oct };
   for (size_t u = 0; u < 2; u++)
     {
       const size_t unit = units[u];
-      const size_t blk  = interleaver_get_block_bits (st[u]);
+      const size_t blk  = dp_interleaver_get_block_bits (st[u]);
       DP_CHECK (blk == rows * cols * unit);
 
-      DP_CHECK (interleaver_interleave (st[u], in, blk, obj, blk) == blk);
+      DP_CHECK (dp_interleaver_interleave (st[u], in, blk, obj, blk) == blk);
       dp_interleave_u8 (in, ker, rows, cols, unit);
       DP_CHECK (memcmp (obj, ker, blk) == 0);
       /* and the comparison DISCRIMINATES: the transposed geometry is a
@@ -231,7 +237,7 @@ test_the_object_applies_the_kernels_permutation (void)
       dp_interleave_u8 (in, alt, cols, rows, unit);
       DP_CHECK (memcmp (obj, alt, blk) != 0);
 
-      DP_CHECK (interleaver_deinterleave (st[u], in, blk, obj, blk) == blk);
+      DP_CHECK (dp_interleaver_deinterleave (st[u], in, blk, obj, blk) == blk);
       dp_deinterleave_u8 (in, ker, rows, cols, unit);
       DP_CHECK (memcmp (obj, ker, blk) == 0);
       dp_deinterleave_u8 (in, alt, cols, rows, unit);
@@ -241,11 +247,11 @@ test_the_object_applies_the_kernels_permutation (void)
   /* The soft path is a third call site and gets its own comparison: a fix
      applied to two of three is the shape the refusal test already guards. */
   {
-    const size_t blk = interleaver_get_block_bits (bits);
+    const size_t blk = dp_interleaver_get_block_bits (bits);
     float        sin_[12], sobj[12], sker[12], salt[12];
     for (size_t i = 0; i < blk; i++)
       sin_[i] = (float)((double)i * -0.375 + 1.25);
-    DP_CHECK (interleaver_deinterleave_soft (bits, sin_, blk, sobj, blk)
+    DP_CHECK (dp_interleaver_deinterleave_soft (bits, sin_, blk, sobj, blk)
               == blk);
     dp_deinterleave_f32 (sin_, sker, rows, cols, 1);
     DP_CHECK (memcmp (sobj, sker, blk * sizeof (float)) == 0);
@@ -253,8 +259,8 @@ test_the_object_applies_the_kernels_permutation (void)
     DP_CHECK (memcmp (sobj, salt, blk * sizeof (float)) != 0);
   }
 
-  interleaver_destroy (bits);
-  interleaver_destroy (oct);
+  dp_interleaver_destroy (bits);
+  dp_interleaver_destroy (oct);
   return 0;
 }
 
@@ -267,17 +273,18 @@ test_the_object_applies_the_kernels_permutation (void)
 static int
 test_the_receive_face_is_the_same_geometry (void)
 {
-  const size_t         rows = 3, cols = 4, unit = 2;
-  interleaver_state_t *tx = interleaver_create (rows, cols, unit);
-  interleaver_state_t *rx = interleaver_create_rx (rows, cols, unit);
+  const size_t            rows = 3, cols = 4, unit = 2;
+  dp_interleaver_state_t *tx = dp_interleaver_create (rows, cols, unit);
+  dp_interleaver_state_t *rx = interleaver_create_rx (rows, cols, unit);
   DP_REQUIRE (tx && rx);
 
   /* the same three numbers, read back through the same accessors */
-  DP_CHECK (interleaver_get_block_bits (rx)
-            == interleaver_get_block_bits (tx));
-  DP_CHECK (interleaver_get_burst_len (rx) == interleaver_get_burst_len (tx));
-  DP_CHECK (interleaver_get_separation (rx)
-            == interleaver_get_separation (tx));
+  DP_CHECK (dp_interleaver_get_block_bits (rx)
+            == dp_interleaver_get_block_bits (tx));
+  DP_CHECK (dp_interleaver_get_burst_len (rx)
+            == dp_interleaver_get_burst_len (tx));
+  DP_CHECK (dp_interleaver_get_separation (rx)
+            == dp_interleaver_get_separation (tx));
 
   /* the same refusals -- a second constructor is a second place to forget
      them, which is exactly what a delegating one-liner exists to prevent */
@@ -290,17 +297,17 @@ test_the_receive_face_is_the_same_geometry (void)
   /* and the link: what the transmit face interleaved, the receive face
      undoes. Non-square, so a receive face built on a transposed geometry
      fails here rather than silently agreeing. */
-  const size_t blk = interleaver_get_block_bits (tx);
+  const size_t blk = dp_interleaver_get_block_bits (tx);
   uint8_t      in[24], wire[24], back[24];
   for (size_t i = 0; i < blk; i++)
     in[i] = (uint8_t)(i * 11u + 5u);
-  DP_CHECK (interleaver_interleave (tx, in, blk, wire, blk) == blk);
-  DP_CHECK (interleaver_deinterleave (rx, wire, blk, back, blk) == blk);
+  DP_CHECK (dp_interleaver_interleave (tx, in, blk, wire, blk) == blk);
+  DP_CHECK (dp_interleaver_deinterleave (rx, wire, blk, back, blk) == blk);
   DP_CHECK (memcmp (back, in, blk) == 0);
   DP_CHECK (memcmp (wire, in, blk) != 0); /* something moved to be undone */
 
-  interleaver_destroy (tx);
-  interleaver_destroy (rx);
+  dp_interleaver_destroy (tx);
+  dp_interleaver_destroy (rx);
   return 0;
 }
 
@@ -320,13 +327,13 @@ test_the_receive_face_is_the_same_geometry (void)
 static int
 test_a_burst_of_burst_len_hits_each_codeword_once (void)
 {
-  const size_t         rows = 5, cols = 7, unit = 8;
-  interleaver_state_t *il = interleaver_create (rows, cols, unit);
+  const size_t            rows = 5, cols = 7, unit = 8;
+  dp_interleaver_state_t *il = dp_interleaver_create (rows, cols, unit);
   DP_REQUIRE (il != NULL);
   const size_t nunits = rows * cols;
-  const size_t blk    = interleaver_get_block_bits (il);
-  const size_t depth  = interleaver_get_burst_len (il);
-  const size_t span   = interleaver_get_separation (il);
+  const size_t blk    = dp_interleaver_get_block_bits (il);
+  const size_t depth  = dp_interleaver_get_burst_len (il);
+  const size_t span   = dp_interleaver_get_separation (il);
   DP_CHECK (depth == rows && span == cols && blk == nunits * unit);
 
   uint8_t wire[280], back[280]; /* 5 * 7 * 8 */
@@ -342,7 +349,8 @@ test_a_burst_of_burst_len_hits_each_codeword_once (void)
         memset (wire, 0, blk);
         for (size_t k = 0; k < n; k++)
           memset (wire + (start + k) * unit, 1, unit);
-        DP_CHECK (interleaver_deinterleave (il, wire, blk, back, blk) == blk);
+        DP_CHECK (dp_interleaver_deinterleave (il, wire, blk, back, blk)
+                  == blk);
 
         size_t worst = 0;
         for (size_t r = 0; r < rows; r++)
@@ -380,7 +388,7 @@ test_a_burst_of_burst_len_hits_each_codeword_once (void)
     }
   DP_CHECK (worst_without == depth);
 
-  interleaver_destroy (il);
+  dp_interleaver_destroy (il);
   return 0;
 }
 
@@ -394,10 +402,10 @@ test_a_burst_of_burst_len_hits_each_codeword_once (void)
 static int
 test_nothing_survives_between_calls (void)
 {
-  interleaver_state_t *fresh = interleaver_create (4, 6, 2);
-  interleaver_state_t *used  = interleaver_create (4, 6, 2);
+  dp_interleaver_state_t *fresh = dp_interleaver_create (4, 6, 2);
+  dp_interleaver_state_t *used  = dp_interleaver_create (4, 6, 2);
   DP_REQUIRE (fresh && used);
-  const size_t blk = interleaver_get_block_bits (fresh);
+  const size_t blk = dp_interleaver_get_block_bits (fresh);
   uint8_t      a[48], b[48], first[48], again[48], scratch[48];
   for (size_t i = 0; i < blk; i++)
     {
@@ -405,24 +413,24 @@ test_nothing_survives_between_calls (void)
       b[i] = (uint8_t)(i * 13u + 9u);
     }
 
-  DP_CHECK (interleaver_interleave (fresh, b, blk, first, blk) == blk);
+  DP_CHECK (dp_interleaver_interleave (fresh, b, blk, first, blk) == blk);
 
   /* the same input through an object that has already done work: a
      successful call, a REFUSED one, a de-interleave, and a reset */
-  DP_CHECK (interleaver_interleave (used, a, blk, scratch, blk) == blk);
-  DP_CHECK (interleaver_interleave (used, a, blk - 1, scratch, blk) == 0);
-  DP_CHECK (interleaver_deinterleave (used, a, blk, scratch, blk) == blk);
-  interleaver_reset (used);
-  DP_CHECK (interleaver_interleave (used, b, blk, again, blk) == blk);
+  DP_CHECK (dp_interleaver_interleave (used, a, blk, scratch, blk) == blk);
+  DP_CHECK (dp_interleaver_interleave (used, a, blk - 1, scratch, blk) == 0);
+  DP_CHECK (dp_interleaver_deinterleave (used, a, blk, scratch, blk) == blk);
+  dp_interleaver_reset (used);
+  DP_CHECK (dp_interleaver_interleave (used, b, blk, again, blk) == blk);
   DP_CHECK (memcmp (again, first, blk) == 0);
 
   /* and repeating on the SAME object is idempotent, which is what a caller
      re-sending a frame relies on */
-  DP_CHECK (interleaver_interleave (used, b, blk, scratch, blk) == blk);
+  DP_CHECK (dp_interleaver_interleave (used, b, blk, scratch, blk) == blk);
   DP_CHECK (memcmp (scratch, first, blk) == 0);
 
-  interleaver_destroy (fresh);
-  interleaver_destroy (used);
+  dp_interleaver_destroy (fresh);
+  dp_interleaver_destroy (used);
   return 0;
 }
 
@@ -451,7 +459,7 @@ main (void)
     return 1;
 
   /* destroy(NULL) is a no-op, like free() */
-  interleaver_destroy (NULL);
+  dp_interleaver_destroy (NULL);
 
   DP_TEST_END ("test_interleaver_core");
 }

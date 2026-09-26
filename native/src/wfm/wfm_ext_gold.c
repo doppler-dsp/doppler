@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
-/* GoldObject — wraps gold_state_t *       */
+/* GoldObject — wraps dp_gold_state_t *       */
 /* ======================================================== */
 
 #include "doppler/gold/gold_core.h"
 
 typedef struct
 {
-  PyObject_HEAD gold_state_t *handle;
+  PyObject_HEAD dp_gold_state_t *handle;
 } GoldObject;
 
 static void
 GoldObj_dealloc (GoldObject *self)
 {
   if (self->handle)
-    gold_destroy (self->handle);
+    dp_gold_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -53,10 +53,10 @@ GoldObj_init (GoldObject *self, PyObject *args, PyObject *kwds)
   uint64_t taps_b = (uint64_t)taps_b_raw;
   uint64_t seed_b = (uint64_t)seed_b_raw;
   uint32_t length = (uint32_t)length_raw;
-  self->handle    = gold_create (taps_a, seed_a, taps_b, seed_b, length);
+  self->handle    = dp_gold_create (taps_a, seed_a, taps_b, seed_b, length);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "gold_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_gold_create returned NULL");
       return -1;
     }
   return 0;
@@ -70,7 +70,7 @@ GoldObj_reset (GoldObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  gold_reset (self->handle);
+  dp_gold_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -82,7 +82,7 @@ GoldObj_generate_max_out (GoldObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (gold_generate_max_out (self->handle));
+  return PyLong_FromSize_t (dp_gold_generate_max_out (self->handle));
 }
 
 static PyObject *
@@ -119,7 +119,7 @@ GoldObj_generate (GoldObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = gold_generate_max_out (self->handle);
+      size_t _omax    = dp_gold_generate_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -128,9 +128,9 @@ GoldObj_generate (GoldObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t   n_out = gold_generate (self->handle, (size_t)n,
-                                      (uint8_t *)PyArray_DATA (out_arr), _cap);
-      npy_intp _odim = (npy_intp)n_out;
+      size_t n_out = dp_gold_generate (
+          self->handle, (size_t)n, (uint8_t *)PyArray_DATA (out_arr), _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
       if (!_oview)
@@ -142,7 +142,7 @@ GoldObj_generate (GoldObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = gold_generate_max_out (self->handle);
+  size_t _cap  = dp_gold_generate_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -152,7 +152,7 @@ GoldObj_generate (GoldObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = gold_generate (self->handle, (size_t)n, _d0, _cap);
+  size_t   n_out = dp_gold_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -177,7 +177,7 @@ GoldObj_state_bytes (GoldObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (gold_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_gold_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -188,11 +188,11 @@ GoldObj_get_state (GoldObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = gold_state_bytes (self->handle);
+  size_t    _n = dp_gold_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  gold_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_gold_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -209,12 +209,12 @@ GoldObj_set_state (GoldObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != gold_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_gold_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (gold_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_gold_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -227,7 +227,7 @@ GoldObj_destroy (GoldObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      gold_destroy (self->handle);
+      dp_gold_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -246,7 +246,7 @@ GoldObj_exit (GoldObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      gold_destroy (self->handle);
+      dp_gold_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

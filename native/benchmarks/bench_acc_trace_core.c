@@ -2,7 +2,7 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891). This is the
  * analyzer's per-frame reducer: every FFT frame a spectrum display shows
- * goes through `acc_trace_accumulate`, so its cost is paid at the frame
+ * goes through `dp_acc_trace_accumulate`, so its cost is paid at the frame
  * rate for as long as the display is open.
  *
  * The four modes do different arithmetic per bin, and a caller picks one:
@@ -85,7 +85,7 @@ main (void)
 
   for (int m = 0; m < 4; m++)
     {
-      acc_trace_state_t *a = acc_trace_create (NBINS, modes[m], 0.1);
+      dp_acc_trace_state_t *a = dp_acc_trace_create (NBINS, modes[m], 0.1);
       if (!a)
         {
           (void)fprintf (stderr, "bench_acc_trace: create(mode=%d) NULL\n",
@@ -94,10 +94,10 @@ main (void)
         }
       for (int r = 0; r < ITERATIONS; r++)
         {
-          acc_trace_reset (a);
+          dp_acc_trace_reset (a);
           t0 = jm_bench_now_ns ();
           for (int f = 0; f < FRAMES; f++)
-            acc_trace_accumulate (a, frames + (size_t)f * NBINS, NBINS);
+            dp_acc_trace_accumulate (a, frames + (size_t)f * NBINS, NBINS);
           t1          = jm_bench_now_ns ();
           t_acc[m][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -105,26 +105,26 @@ main (void)
       double s = min_sec (t_acc[m], ITERATIONS) / (FRAMES * (double)NBINS);
       printf ("  %-22s %7.3f ns/bin  %8.1f Mbin/s\n", mname[m], s * 1e9,
               1.0 / s / 1e6);
-      acc_trace_destroy (a);
+      dp_acc_trace_destroy (a);
     }
 
-  acc_trace_state_t *a = acc_trace_create (NBINS, ACC_TRACE_MEAN, 0.1);
+  dp_acc_trace_state_t *a = dp_acc_trace_create (NBINS, ACC_TRACE_MEAN, 0.1);
   if (!a)
     return 1;
   for (int f = 0; f < FRAMES; f++)
-    acc_trace_accumulate (a, frames + (size_t)f * NBINS, NBINS);
+    dp_acc_trace_accumulate (a, frames + (size_t)f * NBINS, NBINS);
   static double t_val[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += (double)acc_trace_value (a, NBINS, out, NBINS);
+      sink += (double)dp_acc_trace_value (a, NBINS, out, NBINS);
       t1       = jm_bench_now_ns ();
       t_val[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "value", t_val, ITERATIONS, NBINS);
   printf ("  %-22s %7.3f ns/bin  (read-out, once per display refresh)\n",
           "value", min_sec (t_val, ITERATIONS) / NBINS * 1e9);
-  acc_trace_destroy (a);
+  dp_acc_trace_destroy (a);
 
   printf ("\n  maxhold/mean = %.2fx, minhold/mean = %.2fx -- a\n"
           "  compare-and-conditional-store against an unconditional\n"

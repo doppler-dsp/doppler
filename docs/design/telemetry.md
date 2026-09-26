@@ -141,18 +141,18 @@ typedef struct
   int32_t   _pad;
 } agc_tlm_t;
 
-/* ... last member of agc_state_t: */
+/* ... last member of dp_agc_state_t: */
 agc_tlm_t tlm; /* live attachment; zeroed in blobs */
 ```
 
 **2. Attach function** — registers the object's probes under a caller prefix
 (setup path, in `agc_core.c`):
 
-<!-- docs-snippet: skip=illustrative excerpt from agc_core.c, not standalone (needs the full agc_state_t/agc_core.h context) -->
+<!-- docs-snippet: skip=illustrative excerpt from agc_core.c, not standalone (needs the full dp_agc_state_t/agc_core.h context) -->
 
 ```c
 int
-agc_set_telemetry (agc_state_t *s, dp_tlm_t *t, const char *prefix,
+dp_agc_set_telemetry (dp_agc_state_t *s, dp_tlm_t *t, const char *prefix,
                    uint32_t decim)
 {
   if (!t) /* detach */
@@ -227,7 +227,7 @@ bump the object's state version (the struct grew):
 <!-- docs-snippet: skip=usage excerpt (real macro invocation, but not a standalone compilable program) -->
 
 ```c
-DP_DEFINE_POD_STATE_TLM (agc, agc_state_t, AGC_STATE_MAGIC,
+DP_DEFINE_POD_STATE_TLM (dp_agc, dp_agc_state_t, AGC_STATE_MAGIC,
                          AGC_STATE_VERSION, tlm)
 ```
 
@@ -245,7 +245,7 @@ so a live attachment survives a state hand-off. Telemetry is observation; it
 is not part of the DSP state that migrates.
 
 Compositions that embed instrumented children by value (e.g. `mpsk_receiver`
-holding a `symsync_state_t`) inherit this automatically through the children's
+holding a `dp_symsync_state_t`) inherit this automatically through the children's
 triplets, and forward their attach with a prefixed name
 (`"rx.sync.timing_err"`).
 
@@ -529,7 +529,7 @@ fact that nothing conformant will look for the file anyway:
     directory the same sidecar name, so writing one capture would silently
     retype the other. Appending keeps it 1:1 with its data file — which is
     also what would make an exact-name probe safe on the read side, where
-    `wfm_reader_create` deliberately refuses to sniff `<base>.sigmf-meta`
+    `dp_wfm_reader_create` deliberately refuses to sniff `<base>.sigmf-meta`
     beside an arbitrary file (it hijacked two unrelated files the first time
     that was tried). The derivation lives once, in `wfm_meta_path`.
 - **For CSV, `core:datatype` names the value domain** the samples were
@@ -659,7 +659,7 @@ searched for and found; the design above is corrected accordingly.
 | time base `(fs, t0)`, `t = t0 + n/fs` | `dp_sample_clock_t` + `dp_sample_clock_stamp_at`, exposed as `wfm.SampleClock`                                    | pass a clock by reference         |
 | anchoring a replayed capture          | `dp_sample_clock_track()`                                                                                         | one `track()` call                |
 | auto `.sigmf-meta` sidecar            | **`write_sigmf_sidecar()`** (`wfm_writer_core.c`) over the public `wfm_sigmf_meta_json()`; wired for `sigmf` only | call it on the raw/CSV close path |
-| `fs_source` / `t0_source`             | `wfm_fc_source_t` + `wfm_reader_get_fc_source()`, both faces                                                      | follow the sibling                |
+| `fs_source` / `t0_source`             | `wfm_fc_source_t` + `dp_wfm_reader_get_fc_source()`, both faces                                                   | follow the sibling                |
 | a capture record that round-trips     | `--record` JSON, "one canonical, sample-exact schema", `--record` → `--from-file`                                 | reuse                             |
 
 Genuinely missing, verified absent by search: **J1950 → Unix** (no
@@ -692,8 +692,8 @@ different shape — raw records plus a `<path>-meta` JSON sidecar rather than
 one framed container, which keeps `np.fromfile` working with no reader
 library. And **`capture(**objects)` is not being built**: doppler is
 C-first, and there is no C face for it to bind. Every instrumented object's
-attach takes its own concrete state type (`mpsk_receiver_state_t *`,
-`symsync_state_t *`, …) — they share a shape, not a type — so an attach
+attach takes its own concrete state type (`dp_mpsk_receiver_state_t *`,
+`dp_symsync_state_t *`, …) — they share a shape, not a type — so an attach
 list would be a `void *` vtable invented to serve a Python sketch, and the
 per-object attach is already bound as `rx.set_telemetry(tlm, "rx", 1)`.
 The sketch below is kept as the design record that led there.

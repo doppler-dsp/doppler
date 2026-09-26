@@ -119,55 +119,55 @@ static void
 test_invalid_params (void)
 {
   /* Every knob rejects rather than silently coercing. */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 1.5, 8, 2, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 1.5, 8, 2, 1024, 0.01,
+                                0.707, RATESYNC_TED_GARDNER)
             == NULL); /* beta > 1 */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, -0.1, 8, 2, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, -0.1, 8, 2, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 0, 2, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 0, 2, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL); /* span 0 */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 1, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 1, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL); /* m < 2: no half-symbol gate exists */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 3, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 3, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL); /* m odd: the gate would not land on m/2 */
-  DP_CHECK (ratesync_create (40.0, RATESYNC_PULSE_RRC, 0.35, 8,
-                             RATESYNC_MAX_M + 2u, 1024, 0.01, 0.707,
-                             RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (40.0, RATESYNC_PULSE_RRC, 0.35, 8,
+                                RATESYNC_MAX_M + 2u, 1024, 0.01, 0.707,
+                                RATESYNC_TED_GARDNER)
             == NULL); /* m beyond the in-struct ring */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1000, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1000,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL); /* num_phases not a power of two */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024, -0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                -0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024, 0.01,
-                             0.0, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                0.01, 0.0, RATESYNC_TED_GARDNER)
             == NULL);
-  DP_CHECK (ratesync_create (4.0, 7, 0.35, 8, 2, 1024, 0.01, 0.707,
-                             RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, 7, 0.35, 8, 2, 1024, 0.01, 0.707,
+                                RATESYNC_TED_GARDNER)
             == NULL); /* unknown pulse */
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024, 0.01,
-                             0.707, 9)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                0.01, 0.707, 9)
             == NULL); /* unknown TED */
   /* sps < m would make the terminal stage interpolate, and one input could
      then complete several strobes — which the single-symbol step() contract
      cannot express. */
-  DP_CHECK (ratesync_create (1.5, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (1.5, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);
   /* NaN must be rejected, not accepted by a comparison that happens to be
      false. */
-  DP_CHECK (ratesync_create (NAN, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (NAN, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);
-  DP_CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, NAN, 8, 2, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, NAN, 8, 2, 1024, 0.01,
+                                0.707, RATESYNC_TED_GARDNER)
             == NULL);
-  ratesync_destroy (NULL); /* documented no-op */
+  dp_ratesync_destroy (NULL); /* documented no-op */
 }
 
 static void
@@ -181,9 +181,9 @@ test_owns_a_matched_cascade (void)
   char         buf[64];
   for (size_t i = 0; i < 3; i++)
     {
-      ratesync_state_t *s
-          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (s != NULL);
       if (!s)
         continue;
@@ -202,7 +202,7 @@ test_owns_a_matched_cascade (void)
       DP_CHECK (
           resamp_get_num_taps ((const resamp_state_t *)s->mf->stage_ptrs[last])
           < 4u * _SPAN * 2u + 16u);
-      ratesync_destroy (s);
+      dp_ratesync_destroy (s);
     }
 }
 
@@ -225,23 +225,24 @@ _lock_sweep (double sps, double evm_max_db, const char *label)
           free (y);
           return;
         }
-      ratesync_state_t *s
-          = ratesync_create (sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (s != NULL);
       if (s)
         {
-          size_t ns = ratesync_steps (s, x, n, y, n);
+          size_t ns = dp_ratesync_steps (s, x, n, y, n);
           double ev = _evm_db_bn (y, ns, 0.01);
           if (ev > worst)
             worst = ev;
           /* lock_stat, not EVM, is the lock decision: a single acquisition
              cycle slip drags a windowed EVM by 20 dB with the eye wide
              open. */
-          if (ratesync_get_lock_stat (s) > 0.55)
+          if (dp_ratesync_get_lock_stat (s) > 0.55)
             locked++;
-          DP_CHECK (ratesync_get_clipped (s) == 0); /* drive stayed in range */
-          ratesync_destroy (s);
+          DP_CHECK (dp_ratesync_get_clipped (s)
+                    == 0); /* drive stayed in range */
+          dp_ratesync_destroy (s);
         }
       free (x);
       free (y);
@@ -287,19 +288,19 @@ test_tracks_a_clock_offset (void)
           free (y);
           continue;
         }
-      ratesync_state_t *s
-          = ratesync_create (nominal, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                             1024, 0.005, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (nominal, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.005, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (s != NULL);
       if (s)
         {
-          (void)ratesync_steps (s, x, n, y, n);
-          double est = ratesync_get_rate (s);
+          (void)dp_ratesync_steps (s, x, n, y, n);
+          double est = dp_ratesync_get_rate (s);
           DP_CHECK (fabs (est - actual[i]) < 0.01);
           if (!(fabs (est - actual[i]) < 0.01))
             fprintf (stderr, "  clock offset: true %.4f, est %.4f\n",
                      actual[i], est);
-          ratesync_destroy (s);
+          dp_ratesync_destroy (s);
         }
       free (x);
       free (y);
@@ -326,19 +327,19 @@ test_step_equals_steps (void)
       return;
     }
 
-  ratesync_state_t *s1
-      = ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                         1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
-  ratesync_state_t *s2
-      = ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                         1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
-  ratesync_state_t *s3
-      = ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                         1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s1
+      = dp_ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                            1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s2
+      = dp_ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                            1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s3
+      = dp_ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                            1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s1 && s2 && s3);
   if (s1 && s2 && s3)
     {
-      size_t na = ratesync_steps (s1, x, n, a, n);
+      size_t na = dp_ratesync_steps (s1, x, n, a, n);
 
       size_t nb = 0;
       for (size_t i = 0; i < n; i++)
@@ -346,17 +347,17 @@ test_step_equals_steps (void)
           nb++;
 
       size_t cut = n / 3;
-      size_t nc  = ratesync_steps (s3, x, cut, c, n);
-      nc += ratesync_steps (s3, x + cut, n - cut, c + nc, n - nc);
+      size_t nc  = dp_ratesync_steps (s3, x, cut, c, n);
+      nc += dp_ratesync_steps (s3, x + cut, n - cut, c + nc, n - nc);
 
       DP_CHECK (na == nb && na == nc);
       DP_CHECK (na > 0);
       DP_CHECK (memcmp (a, b, na * sizeof (float _Complex)) == 0);
       DP_CHECK (memcmp (a, c, na * sizeof (float _Complex)) == 0);
     }
-  ratesync_destroy (s1);
-  ratesync_destroy (s2);
-  ratesync_destroy (s3);
+  dp_ratesync_destroy (s1);
+  dp_ratesync_destroy (s2);
+  dp_ratesync_destroy (s3);
   free (x);
   free (a);
   free (b);
@@ -378,22 +379,22 @@ test_reset (void)
       free (b);
       return;
     }
-  ratesync_state_t *s
-      = ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
-                         0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s != NULL);
   if (s)
     {
-      size_t na = ratesync_steps (s, x, n, a, n);
-      ratesync_reset (s);
+      size_t na = dp_ratesync_steps (s, x, n, a, n);
+      dp_ratesync_reset (s);
       /* Post-reset the object must behave exactly as freshly created — the
          prime countdown re-arms along with the cascade's delay lines. */
-      DP_CHECK (ratesync_get_ctrl (s) == 0.0);
-      DP_CHECK (ratesync_get_locked (s) == 0);
-      size_t nb = ratesync_steps (s, x, n, b, n);
+      DP_CHECK (dp_ratesync_get_ctrl (s) == 0.0);
+      DP_CHECK (dp_ratesync_get_locked (s) == 0);
+      size_t nb = dp_ratesync_steps (s, x, n, b, n);
       DP_CHECK (na == nb);
       DP_CHECK (na > 0 && memcmp (a, b, na * sizeof (float _Complex)) == 0);
-      ratesync_destroy (s);
+      dp_ratesync_destroy (s);
     }
   free (x);
   free (a);
@@ -415,25 +416,25 @@ test_state_roundtrip (void)
       free (b);
       return;
     }
-  ratesync_state_t *s1
-      = ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                         1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
-  ratesync_state_t *s2
-      = ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                         1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s1
+      = dp_ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                            1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s2
+      = dp_ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                            1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s1 && s2);
   if (s1 && s2)
     {
       size_t cut = n / 2;
-      (void)ratesync_steps (s1, x, cut, a, n);
+      (void)dp_ratesync_steps (s1, x, cut, a, n);
 
-      size_t sb   = ratesync_state_bytes (s1);
+      size_t sb   = dp_ratesync_state_bytes (s1);
       void  *blob = malloc (sb);
       DP_CHECK (blob != NULL);
       if (blob)
         {
-          ratesync_get_state (s1, blob);
-          DP_CHECK (ratesync_set_state (s2, blob) == DP_OK);
+          dp_ratesync_get_state (s1, blob);
+          DP_CHECK (dp_ratesync_set_state (s2, blob) == DP_OK);
 
           /* Compare the BLOBS too, not just the symbols: a size miscount
              leaves uninitialised trailing bytes that a symbol comparison
@@ -443,13 +444,13 @@ test_state_roundtrip (void)
           DP_CHECK (blob2 != NULL);
           if (blob2)
             {
-              ratesync_get_state (s2, blob2);
+              dp_ratesync_get_state (s2, blob2);
               DP_CHECK (memcmp (blob, blob2, sb) == 0);
               free (blob2);
             }
 
-          size_t na = ratesync_steps (s1, x + cut, n - cut, a, n);
-          size_t nb = ratesync_steps (s2, x + cut, n - cut, b, n);
+          size_t na = dp_ratesync_steps (s1, x + cut, n - cut, a, n);
+          size_t nb = dp_ratesync_steps (s2, x + cut, n - cut, b, n);
           DP_CHECK (na == nb);
           DP_CHECK (na > 0
                     && memcmp (a, b, na * sizeof (float _Complex)) == 0);
@@ -457,12 +458,12 @@ test_state_roundtrip (void)
           /* Standard envelope: a clobbered blob is rejected, never
              reinterpreted. */
           ((char *)blob)[0] ^= (char)0xFF;
-          DP_CHECK (ratesync_set_state (s2, blob) == DP_ERR_INVALID);
+          DP_CHECK (dp_ratesync_set_state (s2, blob) == DP_ERR_INVALID);
           free (blob);
         }
     }
-  ratesync_destroy (s1);
-  ratesync_destroy (s2);
+  dp_ratesync_destroy (s1);
+  dp_ratesync_destroy (s2);
   free (x);
   free (a);
   free (b);
@@ -470,10 +471,10 @@ test_state_roundtrip (void)
 
 /* ── §8 — the prime countdown, and where its length comes from ───────────
  *
- * C8: "the loop stays open until the cascade is primed ... ratesync_create()
- * computes the prime length from the terminal bank's own geometry."
- * C25: "the loop discards `prime_taps + 1` outputs."
- * C20: `term` is NULL when the geometry was bound by hand.
+ * C8: "the loop stays open until the cascade is primed ...
+ * dp_ratesync_create() computes the prime length from the terminal bank's own
+ * geometry." C25: "the loop discards `prime_taps + 1` outputs." C20: `term` is
+ * NULL when the geometry was bound by hand.
  *
  * Nothing ran any of the three. The prime length is not a free parameter —
  * it is the terminal bank's tap count, read off the stage — so both halves
@@ -484,9 +485,9 @@ test_prime_geometry (void)
   const double sps[] = { 4.0, 17.333333333, 64.0 };
   for (size_t i = 0; i < 3; i++)
     {
-      ratesync_state_t *s
-          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (s != NULL);
       if (!s)
         continue;
@@ -505,9 +506,9 @@ test_prime_geometry (void)
       for (size_t k = 0; k < 64; k++)
         (void)ratesync_step (s, 0.1f, &y);
       DP_CHECK (s->loop.prime_left < taps + 1u); /* it really counted down */
-      ratesync_reset (s);
+      dp_ratesync_reset (s);
       DP_CHECK (s->loop.prime_left == taps + 1u);
-      ratesync_destroy (s);
+      dp_ratesync_destroy (s);
     }
 
   /* Geometry given by hand: prime_left follows the stated tap count, and the
@@ -546,9 +547,9 @@ test_two_outputs_per_input (void)
       DP_CHECK (x != NULL);
       if (!x)
         continue;
-      ratesync_state_t *s
-          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (s != NULL);
       if (s)
         {
@@ -556,7 +557,7 @@ test_two_outputs_per_input (void)
           for (size_t k = 0; k < n; k++)
             {
               float _Complex ys[4];
-              size_t got = RateConverter_execute_ctrl_push (
+              size_t got = dp_RateConverter_execute_ctrl_push (
                   s->mf, x[k], s->loop.ctrl, ys, 4);
               if (got > most)
                 most = got;
@@ -581,7 +582,7 @@ test_two_outputs_per_input (void)
             }
           else
             DP_CHECK (doubles == 0);
-          ratesync_destroy (s);
+          dp_ratesync_destroy (s);
         }
       free (x);
     }
@@ -613,22 +614,22 @@ test_dttl_detector (void)
         }
       float _Complex *yg = calloc (n, sizeof *yg);
       DP_CHECK (yg != NULL);
-      ratesync_state_t *d
-          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_DTTL);
-      ratesync_state_t *g
-          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *d
+          = dp_ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.01, 0.707, RATESYNC_TED_DTTL);
+      dp_ratesync_state_t *g
+          = dp_ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (d && g && yg);
       if (d && g && yg)
         {
-          size_t ns = ratesync_steps (d, x, n, y, n);
+          size_t ns = dp_ratesync_steps (d, x, n, y, n);
           double ev = _evm_db_bn (y, ns, 0.01);
-          DP_CHECK (ratesync_get_lock_stat (d) > 0.55);
+          DP_CHECK (dp_ratesync_get_lock_stat (d) > 0.55);
           DP_CHECK (ev < -35.0);
-          if (!(ratesync_get_lock_stat (d) > 0.55) || !(ev < -35.0))
+          if (!(dp_ratesync_get_lock_stat (d) > 0.55) || !(ev < -35.0))
             fprintf (stderr, "  DTTL sps=%g: lock %.3f EVM %.1f dB\n", sps[i],
-                     ratesync_get_lock_stat (d), ev);
+                     dp_ratesync_get_lock_stat (d), ev);
           /* The two detectors have different slopes against the same pulse,
              so the construct-time reciprocal must differ between them. */
           d_scale = d->loop.ted_scale;
@@ -636,7 +637,7 @@ test_dttl_detector (void)
           DP_CHECK (d_scale > 0.0 && g_scale > 0.0);
           DP_CHECK (d_scale != g_scale);
 
-          size_t ng = ratesync_steps (g, x, n, yg, n);
+          size_t ng = dp_ratesync_steps (g, x, n, yg, n);
           DP_CHECK (ng > 0 && ns > 0);
           /* Gardner locks on this stream too, so "the DTTL run locks well"
              is vacuous as a check on the DISPATCH. Comparing the two whole
@@ -678,8 +679,8 @@ test_dttl_detector (void)
                      "the take_output dispatch is not reaching both bodies\n",
                      sps[i]);
         }
-      ratesync_destroy (d);
-      ratesync_destroy (g);
+      dp_ratesync_destroy (d);
+      dp_ratesync_destroy (g);
       free (x);
       free (y);
       free (yg);
@@ -713,14 +714,14 @@ test_loop_without_the_object (void)
       return;
     }
 
-  ratesync_state_t *s
-      = ratesync_create (sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
-                         0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s != NULL);
-  size_t na = s ? ratesync_steps (s, x, n, a, n) : 0;
+  size_t na = s ? dp_ratesync_steps (s, x, n, a, n) : 0;
 
   /* The same cascade RateSync builds, owned here instead. */
-  RateConverter_state_t *rc = RateConverter_create_matched (
+  dp_RateConverter_state_t *rc = RateConverter_create_matched (
       2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
   DP_CHECK (rc != NULL);
   ratesync_loop_t l;
@@ -738,7 +739,8 @@ test_loop_without_the_object (void)
     for (size_t k = 0; k < n; k++)
       {
         float _Complex ys[4];
-        size_t got = RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
+        size_t got
+            = dp_RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
         for (size_t oi = 0; oi < got; oi++)
           if (ratesync_loop_take_output (&l, ys[oi], &b[nb],
                                          RATESYNC_TED_GARDNER))
@@ -748,12 +750,12 @@ test_loop_without_the_object (void)
   DP_CHECK (na && memcmp (a, b, na * sizeof (float _Complex)) == 0);
   if (s)
     {
-      DP_CHECK (l.lock_stat == ratesync_get_lock_stat (s));
-      DP_CHECK (l.rate_est == ratesync_get_rate (s));
+      DP_CHECK (l.lock_stat == dp_ratesync_get_lock_stat (s));
+      DP_CHECK (l.rate_est == dp_ratesync_get_rate (s));
     }
 
-  RateConverter_destroy (rc);
-  ratesync_destroy (s);
+  dp_RateConverter_destroy (rc);
+  dp_ratesync_destroy (s);
   free (x);
   free (a);
   free (b);
@@ -785,7 +787,7 @@ test_ctrl_scale_is_the_terminal_rate (void)
   double lock[2] = { 0.0, 0.0 }, evm[2] = { 0.0, 0.0 };
   for (int wrong = 0; wrong < 2; wrong++)
     {
-      RateConverter_state_t *rc = RateConverter_create_matched (
+      dp_RateConverter_state_t *rc = RateConverter_create_matched (
           2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
       DP_CHECK (rc != NULL);
       if (!rc)
@@ -800,7 +802,7 @@ test_ctrl_scale_is_the_terminal_rate (void)
         {
           float _Complex ys[4];
           size_t got
-              = RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
+              = dp_RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
           for (size_t oi = 0; oi < got; oi++)
             if (ratesync_loop_take_output (&l, ys[oi], &y[ns],
                                            RATESYNC_TED_GARDNER))
@@ -808,7 +810,7 @@ test_ctrl_scale_is_the_terminal_rate (void)
         }
       lock[wrong] = l.lock_stat;
       evm[wrong]  = _evm_db_bn (y, ns, 0.01);
-      RateConverter_destroy (rc);
+      dp_RateConverter_destroy (rc);
     }
   DP_CHECK (lock[0] > 0.55); /* terminal rate: locks and demodulates */
   DP_CHECK (evm[0] < -30.0);
@@ -829,9 +831,8 @@ test_ctrl_scale_is_the_terminal_rate (void)
 
 /* ── §13 — `clipped` reports over-drive, and only where a CIC exists ─────
  *
- * C36: "Over-driving ... IS reported, by ratesync_get_clipped(): a CIC bounds
- * its input to +-1.0."
- * C57: "Always 0 when the plan has no CIC stage."
+ * C36: "Over-driving ... IS reported, by dp_ratesync_get_clipped(): a CIC
+ * bounds its input to +-1.0." C57: "Always 0 when the plan has no CIC stage."
  *
  * The lock sweep asserts clipped == 0 on a stream that does not over-drive,
  * which passes whether or not the flag can ever fire. Both directions are
@@ -855,14 +856,14 @@ test_clipped_reports_overdrive (void)
             free (y);
             continue;
           }
-        ratesync_state_t *s
-            = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
-                               1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+        dp_ratesync_state_t *s
+            = dp_ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                  1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
         DP_CHECK (s != NULL);
         if (s)
           {
-            (void)ratesync_steps (s, x, n, y, n);
-            int c = ratesync_get_clipped (s);
+            (void)dp_ratesync_steps (s, x, n, y, n);
+            int c = dp_ratesync_get_clipped (s);
             /* Unit amplitude never clips on any plan — the pulse's 1.582x
                PAPR is inside the CIC's budgeted headroom. */
             int want = over && has_cic[i];
@@ -873,10 +874,10 @@ test_clipped_reports_overdrive (void)
             /* reset() clears the flag along with everything else. */
             if (c)
               {
-                ratesync_reset (s);
-                DP_CHECK (ratesync_get_clipped (s) == 0);
+                dp_ratesync_reset (s);
+                DP_CHECK (dp_ratesync_get_clipped (s) == 0);
               }
-            ratesync_destroy (s);
+            dp_ratesync_destroy (s);
           }
         free (x);
         free (y);
@@ -905,27 +906,27 @@ test_iandd_needs_m4 (void)
           free (y);
           continue;
         }
-      ratesync_state_t *s
-          = ratesync_create (4.0, RATESYNC_PULSE_IANDD, 0.0, 1, m, 1024, 0.01,
-                             0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_state_t *s
+          = dp_ratesync_create (4.0, RATESYNC_PULSE_IANDD, 0.0, 1, m, 1024,
+                                0.01, 0.707, RATESYNC_TED_GARDNER);
       DP_CHECK (s != NULL);
       if (s)
         {
-          (void)ratesync_steps (s, x, n, y, n);
-          lock[m] = ratesync_get_lock_stat (s);
+          (void)dp_ratesync_steps (s, x, n, y, n);
+          lock[m] = dp_ratesync_get_lock_stat (s);
           if (m == 4)
             {
               DP_CHECK (lock[m] > 0.55);
-              DP_CHECK (ratesync_get_locked (s) == 1);
+              DP_CHECK (dp_ratesync_get_locked (s) == 1);
             }
           else
             {
               /* Below the 0.311 declare threshold: the eye never opens, and
                  the detector correctly declines to call it a lock. */
               DP_CHECK (lock[m] < 0.311);
-              DP_CHECK (ratesync_get_locked (s) == 0);
+              DP_CHECK (dp_ratesync_get_locked (s) == 0);
             }
-          ratesync_destroy (s);
+          dp_ratesync_destroy (s);
         }
       free (x);
       free (y);
@@ -966,9 +967,9 @@ _loop_state_roundtrip_at_parity (int parity)
       return;
     }
 
-  RateConverter_state_t *rc1 = RateConverter_create_matched (
+  dp_RateConverter_state_t *rc1 = RateConverter_create_matched (
       2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
-  RateConverter_state_t *rc2 = RateConverter_create_matched (
+  dp_RateConverter_state_t *rc2 = RateConverter_create_matched (
       2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
   ratesync_loop_t l1, l2;
   ratesync_loop_init (&l1, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
@@ -991,7 +992,7 @@ _loop_state_roundtrip_at_parity (int parity)
             }
           float _Complex ys[4];
           size_t got
-              = RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl, ys, 4);
+              = dp_RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl, ys, 4);
           for (size_t oi = 0; oi < got; oi++)
             if (ratesync_loop_take_output (&l1, ys[oi], &a[na],
                                            RATESYNC_TED_GARDNER))
@@ -1017,13 +1018,13 @@ _loop_state_roundtrip_at_parity (int parity)
             }
           /* The cascade is the loop's peer, not its child: carry it across
              by hand so the resumed pair is genuinely identical. */
-          size_t rb    = RateConverter_state_bytes (rc1);
+          size_t rb    = dp_RateConverter_state_bytes (rc1);
           void  *rblob = malloc (rb);
           DP_CHECK (rblob != NULL);
           if (rblob)
             {
-              RateConverter_get_state (rc1, rblob);
-              DP_CHECK (RateConverter_set_state (rc2, rblob) == DP_OK);
+              dp_RateConverter_get_state (rc1, rblob);
+              DP_CHECK (dp_RateConverter_set_state (rc2, rblob) == DP_OK);
               free (rblob);
             }
 
@@ -1031,14 +1032,14 @@ _loop_state_roundtrip_at_parity (int parity)
           for (size_t k = cut; k < n; k++)
             {
               float _Complex ys[4];
-              size_t got = RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl,
-                                                            ys, 4);
+              size_t got = dp_RateConverter_execute_ctrl_push (rc1, x[k],
+                                                               l1.ctrl, ys, 4);
               for (size_t oi = 0; oi < got; oi++)
                 if (ratesync_loop_take_output (&l1, ys[oi], &a[ka],
                                                RATESYNC_TED_GARDNER))
                   ka++;
-              got = RateConverter_execute_ctrl_push (rc2, x[k], l2.ctrl, ys,
-                                                     4);
+              got = dp_RateConverter_execute_ctrl_push (rc2, x[k], l2.ctrl, ys,
+                                                        4);
               for (size_t oi = 0; oi < got; oi++)
                 if (ratesync_loop_take_output (&l2, ys[oi], &b[kb],
                                                RATESYNC_TED_GARDNER))
@@ -1060,8 +1061,8 @@ _loop_state_roundtrip_at_parity (int parity)
           free (blob);
         }
     }
-  RateConverter_destroy (rc1);
-  RateConverter_destroy (rc2);
+  dp_RateConverter_destroy (rc1);
+  dp_RateConverter_destroy (rc2);
   free (x);
   free (a);
   free (b);
@@ -1085,19 +1086,19 @@ test_loop_state_roundtrip (void)
 static void
 test_telemetry_attach_is_atomic (void)
 {
-  ratesync_state_t *s
-      = ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
-                         0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
   dp_tlm_t *t = dp_tlm_create (1 << 12);
   DP_CHECK (s && t);
   if (s && t)
     {
-      DP_CHECK (ratesync_set_telemetry (s, t, "ok", 1) == DP_OK);
+      DP_CHECK (dp_ratesync_set_telemetry (s, t, "ok", 1) == DP_OK);
       DP_CHECK (dp_tlm_probe_count (t) == 6);
       DP_CHECK (s->loop.tlm.ctx == t);
 
       /* NULL detaches, and detaching cannot fail. */
-      DP_CHECK (ratesync_set_telemetry (s, NULL, NULL, 1) == DP_OK);
+      DP_CHECK (dp_ratesync_set_telemetry (s, NULL, NULL, 1) == DP_OK);
       DP_CHECK (s->loop.tlm.ctx == NULL);
 
       /* Fill the table so that fewer than six slots remain, then attach from
@@ -1111,16 +1112,16 @@ test_telemetry_attach_is_atomic (void)
           (void)snprintf (nm, sizeof nm, "filler.%zu", dp_tlm_probe_count (t));
           DP_CHECK (dp_tlm_probe (t, nm, 1) >= 0);
         }
-      DP_CHECK (ratesync_set_telemetry (s, t, "nope", 1) == DP_ERR_INVALID);
+      DP_CHECK (dp_ratesync_set_telemetry (s, t, "nope", 1) == DP_ERR_INVALID);
       DP_CHECK (s->loop.tlm.ctx == NULL); /* the attach failed WHOLE */
     }
   dp_tlm_destroy (t);
-  ratesync_destroy (s);
+  dp_ratesync_destroy (s);
 }
 
 /* ── §17 — retune keeps the lock; a lock retune drops it ─────────────────
  *
- * C28: ratesync_configure "preserves the integrator (and so the lock)".
+ * C28: dp_ratesync_configure "preserves the integrator (and so the lock)".
  * C29/C58: configure_lock_raw "clears the in-flight block sum and drops the
  * lock", and avgs is "clamped >= 1".
  *
@@ -1139,42 +1140,42 @@ test_configure_semantics (void)
       free (y);
       return;
     }
-  ratesync_state_t *s
-      = ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
-                         0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s != NULL);
   if (s)
     {
-      (void)ratesync_steps (s, x, n, y, n);
-      DP_CHECK (ratesync_get_locked (s) == 1);
-      double integ = s->loop.lf.integ, rate = ratesync_get_rate (s);
+      (void)dp_ratesync_steps (s, x, n, y, n);
+      DP_CHECK (dp_ratesync_get_locked (s) == 1);
+      double integ = s->loop.lf.integ, rate = dp_ratesync_get_rate (s);
 
-      ratesync_configure (s, 0.002, 0.707);
-      DP_CHECK (ratesync_get_bn (s) == 0.002);
+      dp_ratesync_configure (s, 0.002, 0.707);
+      DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
       DP_CHECK (s->loop.lf.integ == integ); /* the rate memory survives */
-      DP_CHECK (ratesync_get_rate (s) == rate);
-      DP_CHECK (ratesync_get_locked (s) == 1); /* and so does the lock */
+      DP_CHECK (dp_ratesync_get_rate (s) == rate);
+      DP_CHECK (dp_ratesync_get_locked (s) == 1); /* and so does the lock */
 
       /* An invalid retune is ignored rather than applied destructively. */
-      ratesync_configure (s, -1.0, 0.707);
-      DP_CHECK (ratesync_get_bn (s) == 0.002);
-      ratesync_configure (s, 0.002, 0.0);
-      DP_CHECK (ratesync_get_bn (s) == 0.002);
+      dp_ratesync_configure (s, -1.0, 0.707);
+      DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
+      dp_ratesync_configure (s, 0.002, 0.0);
+      DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
 
       /* set_bn is the property face of the same call. */
-      ratesync_set_bn (s, 0.004);
-      DP_CHECK (ratesync_get_bn (s) == 0.004);
-      DP_CHECK (ratesync_get_locked (s) == 1);
+      dp_ratesync_set_bn (s, 0.004);
+      DP_CHECK (dp_ratesync_get_bn (s) == 0.004);
+      DP_CHECK (dp_ratesync_get_locked (s) == 1);
 
       /* A lock retune drops the decision and the in-flight block. */
-      ratesync_configure_lock_raw (s, 0, 0.5, 0.4, 2, 4);
+      dp_ratesync_configure_lock_raw (s, 0, 0.5, 0.4, 2, 4);
       DP_CHECK (s->loop.avgs == 1); /* clamped up from 0 */
-      DP_CHECK (ratesync_get_locked (s) == 0);
-      DP_CHECK (ratesync_get_lock_stat (s) == 0.0);
+      DP_CHECK (dp_ratesync_get_locked (s) == 0);
+      DP_CHECK (dp_ratesync_get_lock_stat (s) == 0.0);
       DP_CHECK (s->loop.lock_count == 0);
       /* but not the timing estimate */
-      DP_CHECK (ratesync_get_rate (s) == rate);
-      ratesync_destroy (s);
+      DP_CHECK (dp_ratesync_get_rate (s) == rate);
+      dp_ratesync_destroy (s);
     }
   free (x);
   free (y);
@@ -1197,22 +1198,22 @@ test_max_out (void)
       free (y);
       return;
     }
-  ratesync_state_t *s
-      = ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
-                         0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s != NULL);
   if (s)
     {
-      DP_CHECK (ratesync_steps_max_out (s) == 0);
-      size_t full = ratesync_steps (s, x, n, y, n);
+      DP_CHECK (dp_ratesync_steps_max_out (s) == 0);
+      size_t full = dp_ratesync_steps (s, x, n, y, n);
       DP_CHECK (full > 0);
       DP_CHECK (full
                 <= n); /* symbols can never exceed inputs: sps >= m >= 2 */
-      ratesync_reset (s);
-      DP_CHECK (ratesync_steps (s, x, n, y, 10) == 10);
-      ratesync_reset (s);
-      DP_CHECK (ratesync_steps (s, x, n, y, 0) == 0);
-      ratesync_destroy (s);
+      dp_ratesync_reset (s);
+      DP_CHECK (dp_ratesync_steps (s, x, n, y, 10) == 10);
+      dp_ratesync_reset (s);
+      DP_CHECK (dp_ratesync_steps (s, x, n, y, 0) == 0);
+      dp_ratesync_destroy (s);
     }
   free (x);
   free (y);
@@ -1227,26 +1228,26 @@ test_max_out (void)
 static void
 test_sps_equals_m_boundary (void)
 {
-  ratesync_state_t *s
-      = ratesync_create (2.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
-                         0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (2.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                            0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s != NULL); /* rate = m/sps = 1.0 exactly: allowed */
   if (s)
     {
       DP_CHECK (s->loop.term_rate <= 1.0);
-      ratesync_destroy (s);
+      dp_ratesync_destroy (s);
     }
   /* One ulp below is not. */
-  DP_CHECK (ratesync_create (1.999, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER)
+  DP_CHECK (dp_ratesync_create (1.999, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);
   /* The same edge at the other supported m. */
-  s = ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 8, 1024, 0.01,
-                       0.707, RATESYNC_TED_GARDNER);
+  s = dp_ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 8, 1024, 0.01,
+                          0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (s != NULL);
-  ratesync_destroy (s);
-  DP_CHECK (ratesync_create (7.999, RATESYNC_PULSE_RRC, _BETA, _SPAN, 8, 1024,
-                             0.01, 0.707, RATESYNC_TED_GARDNER)
+  dp_ratesync_destroy (s);
+  DP_CHECK (dp_ratesync_create (7.999, RATESYNC_PULSE_RRC, _BETA, _SPAN, 8,
+                                1024, 0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);
 }
 
@@ -1321,7 +1322,7 @@ test_amplitude_law (void)
   const int    sym[2]  = { SYMSYNC_TED_GARDNER, SYMSYNC_TED_DTTL };
   for (int i = 0; i < 2; i++)
     {
-      ratesync_state_t *s = ratesync_create (
+      dp_ratesync_state_t *s = dp_ratesync_create (
           4.0, RATESYNC_PULSE_RRC, beta, _SPAN, 2, 1024, 0.01, 0.707, teds[i]);
       DP_CHECK (s != NULL);
       if (!s)
@@ -1329,7 +1330,7 @@ test_amplitude_law (void)
       double want = symsync_ted_slope (sym[i], SYMSYNC_PULSE_RRC, beta, _SPAN);
       DP_CHECK (want > 0.0);
       DP_CHECK (fabs (1.0 / s->loop.ted_scale - want) <= 1e-9 * want);
-      ratesync_destroy (s);
+      dp_ratesync_destroy (s);
     }
 }
 

@@ -11,7 +11,7 @@
  *   6. Overflow flag — carry fires exactly once per full cycle
  *   7. Property accessors — get/set norm_freq, phase, phase_inc
  *   8. ctrl-port FM shift — steps_u32_ctrl deviates phase per sample
- *      without touching phase_inc/norm_freq (mirrors lo_steps_ctrl)
+ *      without touching phase_inc/norm_freq (mirrors dp_lo_steps_ctrl)
  *   9. steps_u32_scaled_ctrl — nmax scaling + ctrl port combined
  *  10. steps_u32_ovf_ctrl — carry detection + ctrl port combined,
  *      including a ctrl large enough to force >1 wrap in one sample
@@ -85,8 +85,8 @@ crossings_oracle (double base, const double *ctrl, size_t n)
 static long
 events_u32 (double base, const double *ctrl, size_t n)
 {
-  nco_state_t *s = nco_create (base, 0);
-  long         c = 0;
+  dp_nco_state_t *s = dp_nco_create (base, 0);
+  long            c = 0;
   for (size_t i = 0; i < n; i++)
     {
       uint8_t e;
@@ -95,7 +95,7 @@ events_u32 (double base, const double *ctrl, size_t n)
       if (e)
         c += (d > 0.0) ? 1 : ((d < 0.0) ? -1 : 0);
     }
-  nco_destroy (s);
+  dp_nco_destroy (s);
   return c;
 }
 
@@ -144,25 +144,25 @@ main (void)
    * 1. Lifecycle
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.0, 0);
+    dp_nco_state_t *nco = dp_nco_create (0.0, 0);
     DP_CHECK (nco != NULL);
     if (!nco)
       return 1;
-    nco_reset (nco);
-    DP_CHECK (nco_get_phase (nco) == 0);
-    nco_destroy (nco);
+    dp_nco_reset (nco);
+    DP_CHECK (dp_nco_get_phase (nco) == 0);
+    dp_nco_destroy (nco);
   }
 
   /* ----------------------------------------------------------------
    * 2. Zero frequency — phase_inc = 0, accumulator stays at 0
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.0, 0);
-    uint32_t     out[8];
-    nco_steps_u32 (nco, 8, out, 8);
+    dp_nco_state_t *nco = dp_nco_create (0.0, 0);
+    uint32_t        out[8];
+    dp_nco_steps_u32 (nco, 8, out, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (out[i] == 0u);
-    nco_destroy (nco);
+    dp_nco_destroy (nco);
   }
 
   /* ----------------------------------------------------------------
@@ -175,15 +175,15 @@ main (void)
    *   out[3] = 0xC0000000
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.25, 0);
-    DP_CHECK (nco_get_phase_inc (nco) == 0x40000000u);
+    dp_nco_state_t *nco = dp_nco_create (0.25, 0);
+    DP_CHECK (dp_nco_get_phase_inc (nco) == 0x40000000u);
     uint32_t out[4];
-    nco_steps_u32 (nco, 4, out, 4);
+    dp_nco_steps_u32 (nco, 4, out, 4);
     DP_CHECK (out[0] == 0x00000000u);
     DP_CHECK (out[1] == 0x40000000u);
     DP_CHECK (out[2] == 0x80000000u);
     DP_CHECK (out[3] == 0xC0000000u);
-    nco_destroy (nco);
+    dp_nco_destroy (nco);
   }
 
   /* ----------------------------------------------------------------
@@ -193,18 +193,18 @@ main (void)
    * two consecutive calls of length N.
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *a = nco_create (0.1, 0);
-    nco_state_t *b = nco_create (0.1, 0);
-    uint32_t     ref[16], blk[8];
-    nco_steps_u32 (a, 16, ref, 16);
-    nco_steps_u32 (b, 8, blk, 8);
+    dp_nco_state_t *a = dp_nco_create (0.1, 0);
+    dp_nco_state_t *b = dp_nco_create (0.1, 0);
+    uint32_t        ref[16], blk[8];
+    dp_nco_steps_u32 (a, 16, ref, 16);
+    dp_nco_steps_u32 (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (blk[i] == ref[i]);
-    nco_steps_u32 (b, 8, blk, 8);
+    dp_nco_steps_u32 (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (blk[i] == ref[8 + i]);
-    nco_destroy (a);
-    nco_destroy (b);
+    dp_nco_destroy (a);
+    dp_nco_destroy (b);
   }
 
   /* ----------------------------------------------------------------
@@ -214,15 +214,15 @@ main (void)
    *   out[k] = (uint64_t)(k * 0x40000000) * 4 >> 32 = k
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.25, 4);
-    uint32_t     out[5];
-    nco_steps_u32_scaled (nco, 5, out, 5);
+    dp_nco_state_t *nco = dp_nco_create (0.25, 4);
+    uint32_t        out[5];
+    dp_nco_steps_u32_scaled (nco, 5, out, 5);
     DP_CHECK (out[0] == 0u);
     DP_CHECK (out[1] == 1u);
     DP_CHECK (out[2] == 2u);
     DP_CHECK (out[3] == 3u);
     DP_CHECK (out[4] == 0u); /* wrapped back to 0 */
-    nco_destroy (nco);
+    dp_nco_destroy (nco);
   }
 
   /* ----------------------------------------------------------------
@@ -242,10 +242,10 @@ main (void)
    *   sample 7: out=0xC0000000, carry=1
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.25, 0);
-    uint32_t     ph[8];
-    uint8_t      ov[8];
-    nco_steps_u32_ovf (nco, 8, ph, ov, 8);
+    dp_nco_state_t *nco = dp_nco_create (0.25, 0);
+    uint32_t        ph[8];
+    uint8_t         ov[8];
+    dp_nco_steps_u32_ovf (nco, 8, ph, ov, 8);
     DP_CHECK (ph[0] == 0x00000000u);
     DP_CHECK (ov[0] == 0);
     DP_CHECK (ph[1] == 0x40000000u);
@@ -262,33 +262,33 @@ main (void)
     DP_CHECK (ov[6] == 0);
     DP_CHECK (ph[7] == 0xC0000000u);
     DP_CHECK (ov[7] == 1);
-    nco_destroy (nco);
+    dp_nco_destroy (nco);
   }
 
   /* ----------------------------------------------------------------
    * 7. Property accessors
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.25, 0);
-    DP_CHECK (nco_get_norm_freq (nco) == 0.25);
-    DP_CHECK (nco_get_phase (nco) == 0u);
-    DP_CHECK (nco_get_phase_inc (nco) == 0x40000000u);
+    dp_nco_state_t *nco = dp_nco_create (0.25, 0);
+    DP_CHECK (dp_nco_get_norm_freq (nco) == 0.25);
+    DP_CHECK (dp_nco_get_phase (nco) == 0u);
+    DP_CHECK (dp_nco_get_phase_inc (nco) == 0x40000000u);
 
     /* set_phase */
-    nco_set_phase (nco, 0x80000000u);
-    DP_CHECK (nco_get_phase (nco) == 0x80000000u);
+    dp_nco_set_phase (nco, 0x80000000u);
+    DP_CHECK (dp_nco_get_phase (nco) == 0x80000000u);
 
     /* set_norm_freq updates phase_inc but not phase */
-    nco_set_norm_freq (nco, 0.5);
-    DP_CHECK (nco_get_phase_inc (nco) == 0x80000000u);
-    DP_CHECK (nco_get_phase (nco) == 0x80000000u); /* unchanged */
+    dp_nco_set_norm_freq (nco, 0.5);
+    DP_CHECK (dp_nco_get_phase_inc (nco) == 0x80000000u);
+    DP_CHECK (dp_nco_get_phase (nco) == 0x80000000u); /* unchanged */
 
     /* reset zeroes phase only */
-    nco_reset (nco);
-    DP_CHECK (nco_get_phase (nco) == 0u);
-    DP_CHECK (nco_get_phase_inc (nco) == 0x80000000u);
+    dp_nco_reset (nco);
+    DP_CHECK (dp_nco_get_phase (nco) == 0u);
+    DP_CHECK (dp_nco_get_phase_inc (nco) == 0x80000000u);
 
-    nco_destroy (nco);
+    dp_nco_destroy (nco);
   }
 
   /* ----------------------------------------------------------------
@@ -296,23 +296,23 @@ main (void)
    * and the phase stream continues identically; a clobbered blob rejects.
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *a = nco_create (0.123, 0);
-    uint32_t     ref[16], got[16];
-    nco_steps_u32 (a, 5, ref, 5); /* advance, then snapshot */
-    size_t sb   = nco_state_bytes (a);
+    dp_nco_state_t *a = dp_nco_create (0.123, 0);
+    uint32_t        ref[16], got[16];
+    dp_nco_steps_u32 (a, 5, ref, 5); /* advance, then snapshot */
+    size_t sb   = dp_nco_state_bytes (a);
     void  *blob = malloc (sb);
-    nco_get_state (a, blob);
-    nco_steps_u32 (a, 16, ref, 16); /* reference continuation */
+    dp_nco_get_state (a, blob);
+    dp_nco_steps_u32 (a, 16, ref, 16); /* reference continuation */
 
-    nco_state_t *b = nco_create (0.123, 0);
-    DP_CHECK (nco_set_state (b, blob) == DP_OK);
+    dp_nco_state_t *b = dp_nco_create (0.123, 0);
+    DP_CHECK (dp_nco_set_state (b, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
-    DP_CHECK (nco_set_state (b, blob) == DP_ERR_INVALID);
-    nco_steps_u32 (b, 16, got, 16);
+    DP_CHECK (dp_nco_set_state (b, blob) == DP_ERR_INVALID);
+    dp_nco_steps_u32 (b, 16, got, 16);
     for (int i = 0; i < 16; i++)
       DP_CHECK (got[i] == ref[i]);
-    nco_destroy (a);
-    nco_destroy (b);
+    dp_nco_destroy (a);
+    dp_nco_destroy (b);
     free (blob);
   }
 
@@ -324,26 +324,26 @@ main (void)
    * without modifying the NCO's base norm_freq/phase_inc.
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco_ctrl = nco_create (0.0, 0);
-    nco_state_t *nco_ref  = nco_create (0.25, 0);
+    dp_nco_state_t *nco_ctrl = dp_nco_create (0.0, 0);
+    dp_nco_state_t *nco_ref  = dp_nco_create (0.25, 0);
 
     double ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
 
     uint32_t out_ctrl[8], out_ref[8];
-    nco_steps_u32_ctrl (nco_ctrl, ctrl, 8, out_ctrl, 8);
-    nco_steps_u32 (nco_ref, 8, out_ref, 8);
+    dp_nco_steps_u32_ctrl (nco_ctrl, ctrl, 8, out_ctrl, 8);
+    dp_nco_steps_u32 (nco_ref, 8, out_ref, 8);
 
     for (int i = 0; i < 8; i++)
       DP_CHECK (out_ctrl[i] == out_ref[i]);
 
     /* Base norm_freq/phase_inc unchanged after steps_u32_ctrl. */
-    DP_CHECK (nco_get_norm_freq (nco_ctrl) == 0.0);
-    DP_CHECK (nco_get_phase_inc (nco_ctrl) == 0u);
+    DP_CHECK (dp_nco_get_norm_freq (nco_ctrl) == 0.0);
+    DP_CHECK (dp_nco_get_phase_inc (nco_ctrl) == 0u);
 
-    nco_destroy (nco_ctrl);
-    nco_destroy (nco_ref);
+    dp_nco_destroy (nco_ctrl);
+    dp_nco_destroy (nco_ref);
   }
 
   /* ----------------------------------------------------------------
@@ -354,35 +354,35 @@ main (void)
    * test 8, through the scaled output mapping instead of raw).
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco_ctrl = nco_create (0.0, 4);
-    nco_state_t *nco_ref  = nco_create (0.25, 4);
+    dp_nco_state_t *nco_ctrl = dp_nco_create (0.0, 4);
+    dp_nco_state_t *nco_ref  = dp_nco_create (0.25, 4);
 
     double ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
 
     uint32_t out_ctrl[8], out_ref[8];
-    nco_steps_u32_scaled_ctrl (nco_ctrl, ctrl, 8, out_ctrl, 8);
-    nco_steps_u32_scaled (nco_ref, 8, out_ref, 8);
+    dp_nco_steps_u32_scaled_ctrl (nco_ctrl, ctrl, 8, out_ctrl, 8);
+    dp_nco_steps_u32_scaled (nco_ref, 8, out_ref, 8);
 
     for (int i = 0; i < 8; i++)
       DP_CHECK (out_ctrl[i] == out_ref[i]);
-    DP_CHECK (nco_get_norm_freq (nco_ctrl) == 0.0);
-    DP_CHECK (nco_get_phase_inc (nco_ctrl) == 0u);
+    DP_CHECK (dp_nco_get_norm_freq (nco_ctrl) == 0.0);
+    DP_CHECK (dp_nco_get_phase_inc (nco_ctrl) == 0u);
 
     /* nmax == 0 falls back to raw, identical to steps_u32_ctrl. */
-    nco_state_t *nco_raw = nco_create (0.0, 0);
-    uint32_t     out_raw[8], out_plain[8];
-    nco_steps_u32_scaled_ctrl (nco_raw, ctrl, 8, out_raw, 8);
-    nco_state_t *nco_plain = nco_create (0.0, 0);
-    nco_steps_u32_ctrl (nco_plain, ctrl, 8, out_plain, 8);
+    dp_nco_state_t *nco_raw = dp_nco_create (0.0, 0);
+    uint32_t        out_raw[8], out_plain[8];
+    dp_nco_steps_u32_scaled_ctrl (nco_raw, ctrl, 8, out_raw, 8);
+    dp_nco_state_t *nco_plain = dp_nco_create (0.0, 0);
+    dp_nco_steps_u32_ctrl (nco_plain, ctrl, 8, out_plain, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (out_raw[i] == out_plain[i]);
 
-    nco_destroy (nco_ctrl);
-    nco_destroy (nco_ref);
-    nco_destroy (nco_raw);
-    nco_destroy (nco_plain);
+    dp_nco_destroy (nco_ctrl);
+    dp_nco_destroy (nco_ref);
+    dp_nco_destroy (nco_raw);
+    dp_nco_destroy (nco_plain);
   }
 
   /* ----------------------------------------------------------------
@@ -395,22 +395,22 @@ main (void)
    * (the 64-bit-sum path, not a naive uint32 add).
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco_ctrl = nco_create (0.0, 0);
-    nco_state_t *nco_ref  = nco_create (0.25, 0);
-    double       ctrl[8];
+    dp_nco_state_t *nco_ctrl = dp_nco_create (0.0, 0);
+    dp_nco_state_t *nco_ref  = dp_nco_create (0.25, 0);
+    double          ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
     uint32_t ph_ctrl[8], ph_ref[8];
     uint8_t  ov_ctrl[8], ov_ref[8];
-    nco_steps_u32_ovf_ctrl (nco_ctrl, ctrl, 8, ph_ctrl, ov_ctrl, 8);
-    nco_steps_u32_ovf (nco_ref, 8, ph_ref, ov_ref, 8);
+    dp_nco_steps_u32_ovf_ctrl (nco_ctrl, ctrl, 8, ph_ctrl, ov_ctrl, 8);
+    dp_nco_steps_u32_ovf (nco_ref, 8, ph_ref, ov_ref, 8);
     for (int i = 0; i < 8; i++)
       {
         DP_CHECK (ph_ctrl[i] == ph_ref[i]);
         DP_CHECK (ov_ctrl[i] == ov_ref[i]);
       }
-    nco_destroy (nco_ctrl);
-    nco_destroy (nco_ref);
+    dp_nco_destroy (nco_ctrl);
+    dp_nco_destroy (nco_ref);
 
     /* norm_freq=0.9, ctrl=0.9 -> phase_inc + ctrl_inc sums to just
        under 2 full cycles (>2^32 as a plain uint32 add would silently
@@ -419,16 +419,16 @@ main (void)
        per sample, every sample, matching the two-NCO cross-check: one
        step at combined rate 1.8 cyc/sample is the same as ANY single
        step whose total advance exceeds one full cycle. */
-    nco_state_t *nco_big = nco_create (0.9, 0);
-    double       big_ctrl[4];
+    dp_nco_state_t *nco_big = dp_nco_create (0.9, 0);
+    double          big_ctrl[4];
     for (int i = 0; i < 4; i++)
       big_ctrl[i] = 0.9;
     uint32_t ph_big[4];
     uint8_t  ov_big[4];
-    nco_steps_u32_ovf_ctrl (nco_big, big_ctrl, 4, ph_big, ov_big, 4);
+    dp_nco_steps_u32_ovf_ctrl (nco_big, big_ctrl, 4, ph_big, ov_big, 4);
     for (int i = 0; i < 4; i++)
       DP_CHECK (ov_big[i] == 1); /* every step wraps at least once */
-    nco_destroy (nco_big);
+    dp_nco_destroy (nco_big);
   }
 
   /* ----------------------------------------------------------------
@@ -441,78 +441,78 @@ main (void)
    * refactor didn't change either side's behaviour.
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *batch  = nco_create (0.1, 5);
-    nco_state_t *single = nco_create (0.1, 5);
-    uint32_t     bout[8];
-    nco_steps_u32 (batch, 8, bout, 8);
+    dp_nco_state_t *batch  = dp_nco_create (0.1, 5);
+    dp_nco_state_t *single = dp_nco_create (0.1, 5);
+    uint32_t        bout[8];
+    dp_nco_steps_u32 (batch, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (nco_step_u32 (single) == bout[i]);
-    nco_destroy (batch);
-    nco_destroy (single);
+    dp_nco_destroy (batch);
+    dp_nco_destroy (single);
   }
   {
-    nco_state_t *batch  = nco_create (0.1, 5);
-    nco_state_t *single = nco_create (0.1, 5);
-    uint32_t     bout[8];
-    nco_steps_u32_scaled (batch, 8, bout, 8);
+    dp_nco_state_t *batch  = dp_nco_create (0.1, 5);
+    dp_nco_state_t *single = dp_nco_create (0.1, 5);
+    uint32_t        bout[8];
+    dp_nco_steps_u32_scaled (batch, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (nco_step_u32_scaled (single) == bout[i]);
-    nco_destroy (batch);
-    nco_destroy (single);
+    dp_nco_destroy (batch);
+    dp_nco_destroy (single);
   }
   {
-    nco_state_t *batch  = nco_create (0.37, 0);
-    nco_state_t *single = nco_create (0.37, 0);
-    uint32_t     bout[8];
-    uint8_t      bov[8];
-    nco_steps_u32_ovf (batch, 8, bout, bov, 8);
+    dp_nco_state_t *batch  = dp_nco_create (0.37, 0);
+    dp_nco_state_t *single = dp_nco_create (0.37, 0);
+    uint32_t        bout[8];
+    uint8_t         bov[8];
+    dp_nco_steps_u32_ovf (batch, 8, bout, bov, 8);
     for (int i = 0; i < 8; i++)
       {
         uint8_t carry;
         DP_CHECK (nco_step_u32_ovf (single, &carry) == bout[i]);
         DP_CHECK (carry == bov[i]);
       }
-    nco_destroy (batch);
-    nco_destroy (single);
+    dp_nco_destroy (batch);
+    dp_nco_destroy (single);
   }
   {
-    nco_state_t *batch  = nco_create (0.0, 0);
-    nco_state_t *single = nco_create (0.0, 0);
-    double       ctrl[8];
+    dp_nco_state_t *batch  = dp_nco_create (0.0, 0);
+    dp_nco_state_t *single = dp_nco_create (0.0, 0);
+    double          ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.05 * (double)i;
     uint32_t bout[8];
-    DP_CHECK (nco_steps_u32_ctrl_max_out (batch) >= 8);
-    nco_steps_u32_ctrl (batch, ctrl, 8, bout, 8);
+    DP_CHECK (dp_nco_steps_u32_ctrl_max_out (batch) >= 8);
+    dp_nco_steps_u32_ctrl (batch, ctrl, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (nco_step_u32_ctrl (single, (double)ctrl[i]) == bout[i]);
-    nco_destroy (batch);
-    nco_destroy (single);
+    dp_nco_destroy (batch);
+    dp_nco_destroy (single);
   }
   {
-    nco_state_t *batch  = nco_create (0.0, 6);
-    nco_state_t *single = nco_create (0.0, 6);
-    double       ctrl[8];
+    dp_nco_state_t *batch  = dp_nco_create (0.0, 6);
+    dp_nco_state_t *single = dp_nco_create (0.0, 6);
+    double          ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.05 * (double)i;
     uint32_t bout[8];
-    DP_CHECK (nco_steps_u32_scaled_ctrl_max_out (batch) >= 8);
-    nco_steps_u32_scaled_ctrl (batch, ctrl, 8, bout, 8);
+    DP_CHECK (dp_nco_steps_u32_scaled_ctrl_max_out (batch) >= 8);
+    dp_nco_steps_u32_scaled_ctrl (batch, ctrl, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (nco_step_u32_scaled_ctrl (single, (double)ctrl[i]) == bout[i]);
-    nco_destroy (batch);
-    nco_destroy (single);
+    dp_nco_destroy (batch);
+    dp_nco_destroy (single);
   }
   {
-    nco_state_t *batch  = nco_create (0.0, 0);
-    nco_state_t *single = nco_create (0.0, 0);
-    double       ctrl[8];
+    dp_nco_state_t *batch  = dp_nco_create (0.0, 0);
+    dp_nco_state_t *single = dp_nco_create (0.0, 0);
+    double          ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.05 * (double)i;
     uint32_t bout[8];
     uint8_t  bov[8];
-    DP_CHECK (nco_steps_u32_ovf_ctrl_max_out (batch) >= 8);
-    nco_steps_u32_ovf_ctrl (batch, ctrl, 8, bout, bov, 8);
+    DP_CHECK (dp_nco_steps_u32_ovf_ctrl_max_out (batch) >= 8);
+    dp_nco_steps_u32_ovf_ctrl (batch, ctrl, 8, bout, bov, 8);
     for (int i = 0; i < 8; i++)
       {
         uint8_t carry;
@@ -520,45 +520,45 @@ main (void)
                   == bout[i]);
         DP_CHECK (carry == bov[i]);
       }
-    nco_destroy (batch);
-    nco_destroy (single);
+    dp_nco_destroy (batch);
+    dp_nco_destroy (single);
   }
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
   {
     /* Every stepper in the family clamps to the caller's capacity and
      * advances only by what it emitted. */
-    nco_state_t *nco = nco_create (0.01, 0);
-    nco_state_t *ref = nco_create (0.01, 0);
-    uint32_t     out[16], expect[5];
-    uint8_t      carry[16];
+    dp_nco_state_t *nco = dp_nco_create (0.01, 0);
+    dp_nco_state_t *ref = dp_nco_create (0.01, 0);
+    uint32_t        out[16], expect[5];
+    uint8_t         carry[16];
     for (int i = 0; i < 16; i++)
       out[i] = 0xDEADBEEFu;
 
-    DP_CHECK (nco_steps_u32 (nco, 16, out, 5) == 5);
+    DP_CHECK (dp_nco_steps_u32 (nco, 16, out, 5) == 5);
     for (int i = 5; i < 16; i++)
       DP_CHECK (out[i] == 0xDEADBEEFu); /* tail untouched */
-    nco_steps_u32 (ref, 5, expect, 5);
+    dp_nco_steps_u32 (ref, 5, expect, 5);
     for (int i = 0; i < 5; i++)
       DP_CHECK (out[i] == expect[i]);
-    DP_CHECK (nco_get_phase (nco) == nco_get_phase (ref));
+    DP_CHECK (dp_nco_get_phase (nco) == dp_nco_get_phase (ref));
 
     /* Zero capacity emits nothing and does not advance the phase. */
-    uint32_t before = nco_get_phase (nco);
-    DP_CHECK (nco_steps_u32 (nco, 16, out, 0) == 0);
-    DP_CHECK (nco_get_phase (nco) == before);
+    uint32_t before = dp_nco_get_phase (nco);
+    DP_CHECK (dp_nco_steps_u32 (nco, 16, out, 0) == 0);
+    DP_CHECK (dp_nco_get_phase (nco) == before);
 
-    DP_CHECK (nco_steps_u32_scaled (nco, 16, out, 4) == 4);
-    DP_CHECK (nco_steps_u32_ovf (nco, 16, out, carry, 4) == 4);
+    DP_CHECK (dp_nco_steps_u32_scaled (nco, 16, out, 4) == 4);
+    DP_CHECK (dp_nco_steps_u32_ovf (nco, 16, out, carry, 4) == 4);
 
     /* Control-port forms: ctrl_len is the request, max_out the capacity. */
     const double ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    DP_CHECK (nco_steps_u32_ctrl (nco, ctrl, 8, out, 3) == 3);
-    DP_CHECK (nco_steps_u32_scaled_ctrl (nco, ctrl, 8, out, 3) == 3);
-    DP_CHECK (nco_steps_u32_ovf_ctrl (nco, ctrl, 8, out, carry, 3) == 3);
+    DP_CHECK (dp_nco_steps_u32_ctrl (nco, ctrl, 8, out, 3) == 3);
+    DP_CHECK (dp_nco_steps_u32_scaled_ctrl (nco, ctrl, 8, out, 3) == 3);
+    DP_CHECK (dp_nco_steps_u32_ovf_ctrl (nco, ctrl, 8, out, carry, 3) == 3);
 
-    nco_destroy (nco);
-    nco_destroy (ref);
+    dp_nco_destroy (nco);
+    dp_nco_destroy (ref);
   }
 
   /* ----------------------------------------------------------------
@@ -659,12 +659,12 @@ main (void)
 
     /* A control that small is a stopped NCO, not a frozen one: the
        phase must still retreat one unit per step, not stick. */
-    nco_state_t *tiny = nco_create (0.0, 0);
-    uint8_t      tc;
+    dp_nco_state_t *tiny = dp_nco_create (0.0, 0);
+    uint8_t         tc;
     v = -1e-20;
     nco_step_u32_ovf_ctrl (tiny, v, &tc);
-    DP_CHECK (nco_get_phase (tiny) == 4294967295u);
-    nco_destroy (tiny);
+    DP_CHECK (dp_nco_get_phase (tiny) == 4294967295u);
+    dp_nco_destroy (tiny);
 
     /* The two faces are ONE body. They exist to let a call site declare
        whether it holds a rate or an angle, NOT to convert differently --
@@ -693,24 +693,24 @@ main (void)
    * catch. Build with every field non-zero so it can fail.
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *nco = nco_create (0.3, 1000);
+    dp_nco_state_t *nco = dp_nco_create (0.3, 1000);
     DP_CHECK (nco != NULL);
     if (nco)
       {
-        uint32_t inc_before = nco_get_phase_inc (nco);
+        uint32_t inc_before = dp_nco_get_phase_inc (nco);
         uint32_t out[8];
-        nco_steps_u32 (nco, 8, out, 8);
+        dp_nco_steps_u32 (nco, 8, out, 8);
 
         /* Vacuity preconditions: the fields must be non-zero BEFORE the
            reset, or this section proves nothing. */
         DP_CHECK (inc_before != 0u);
-        DP_CHECK (nco_get_phase (nco) != 0u);
+        DP_CHECK (dp_nco_get_phase (nco) != 0u);
 
-        nco_reset (nco);
+        dp_nco_reset (nco);
 
-        DP_CHECK (nco_get_phase (nco) == 0u);      /* zeroed ... */
-        DP_CHECK (nco_get_norm_freq (nco) == 0.3); /* ... and only that */
-        DP_CHECK (nco_get_phase_inc (nco) == inc_before);
+        DP_CHECK (dp_nco_get_phase (nco) == 0u);      /* zeroed ... */
+        DP_CHECK (dp_nco_get_norm_freq (nco) == 0.3); /* ... and only that */
+        DP_CHECK (dp_nco_get_phase_inc (nco) == inc_before);
 
         /* nmax has no accessor, so read it through the behaviour it
            controls. Bounding by 1000 is NOT enough: if phase_inc were
@@ -728,7 +728,7 @@ main (void)
            value also pins the truncating convention from a second
            direction. */
         uint32_t sc[8];
-        nco_steps_u32_scaled (nco, 8, sc, 8);
+        dp_nco_steps_u32_scaled (nco, 8, sc, 8);
         DP_CHECK (sc[0] == 0u);
         DP_CHECK (sc[1] == 299u);
         int scaled_in_range = 1;
@@ -737,7 +737,7 @@ main (void)
             scaled_in_range = 0;
         DP_CHECK (scaled_in_range);
 
-        nco_destroy (nco);
+        dp_nco_destroy (nco);
       }
   }
 
@@ -839,7 +839,7 @@ main (void)
        express this -- 0 + 0 never carries either, so it agrees here by
        luck; the case that separates them is unity, below. */
     {
-      nco_state_t *s = nco_create (0.25, 0);
+      dp_nco_state_t *s = dp_nco_create (0.25, 0);
       for (int i = 0; i < 64; i++)
         {
           uint8_t e32;
@@ -847,8 +847,8 @@ main (void)
           DP_CHECK (e32 == 0);
         }
       /* and the phase must not have moved */
-      DP_CHECK (nco_get_phase (s) == 0u);
-      nco_destroy (s);
+      DP_CHECK (dp_nco_get_phase (s) == 0u);
+      dp_nco_destroy (s);
     }
 
     /* A composite of exactly 1.0 completes a period every single sample
@@ -856,14 +856,14 @@ main (void)
        resampler's terminal stage sits on, and the one an unsigned-carry
        test gets wrong (it adds 0 + 0 and never fires). */
     {
-      nco_state_t *s = nco_create (1.0, 0);
+      dp_nco_state_t *s = dp_nco_create (1.0, 0);
       for (int i = 0; i < 64; i++)
         {
           uint8_t e32;
           nco_step_u32_ovf_ctrl (s, 0.0, &e32);
           DP_CHECK (e32 == 1);
         }
-      nco_destroy (s);
+      dp_nco_destroy (s);
     }
 
     /* |composite| >= 1 events on every sample, both signs: the flag
@@ -872,14 +872,14 @@ main (void)
       static const double d[] = { 1.0, 1.5, 2.0, 8.0, -1.0, -1.5, -2.0, -8.0 };
       for (size_t i = 0; i < sizeof d / sizeof d[0]; i++)
         {
-          nco_state_t *s = nco_create (d[i], 0);
+          dp_nco_state_t *s = dp_nco_create (d[i], 0);
           for (int j = 0; j < 16; j++)
             {
               uint8_t e32;
               nco_step_u32_ovf_ctrl (s, 0.0, &e32);
               DP_CHECK (e32 == 1);
             }
-          nco_destroy (s);
+          dp_nco_destroy (s);
         }
     }
 
@@ -994,9 +994,9 @@ main (void)
    * and could regain a private ceiling independently.
    * ---------------------------------------------------------------- */
   {
-    DP_CHECK (nco_steps_u32_max_out (NULL) == 65536u);
-    DP_CHECK (nco_steps_u32_scaled_max_out (NULL) == 65536u);
-    DP_CHECK (nco_steps_u32_ovf_max_out (NULL) == 65536u);
+    DP_CHECK (dp_nco_steps_u32_max_out (NULL) == 65536u);
+    DP_CHECK (dp_nco_steps_u32_scaled_max_out (NULL) == 65536u);
+    DP_CHECK (dp_nco_steps_u32_ovf_max_out (NULL) == 65536u);
 
     const size_t BIG  = 70000;
     uint32_t    *big  = malloc (BIG * sizeof *big);
@@ -1004,23 +1004,23 @@ main (void)
     DP_CHECK (big != NULL && flag != NULL);
     if (big && flag)
       {
-        nco_state_t *raw = nco_create (0.013, 0);
-        DP_CHECK (nco_steps_u32 (raw, BIG, big, BIG) == BIG);
+        dp_nco_state_t *raw = dp_nco_create (0.013, 0);
+        DP_CHECK (dp_nco_steps_u32 (raw, BIG, big, BIG) == BIG);
         /* every sample really was written: the accumulator is exactly
          * predictable, so the last one proves the whole run */
-        uint32_t inc = nco_get_phase_inc (raw);
+        uint32_t inc = dp_nco_get_phase_inc (raw);
         DP_CHECK (big[BIG - 1] == (uint32_t)((uint64_t)inc * (BIG - 1)));
-        DP_CHECK (nco_get_phase (raw) == (uint32_t)((uint64_t)inc * BIG));
-        nco_destroy (raw);
+        DP_CHECK (dp_nco_get_phase (raw) == (uint32_t)((uint64_t)inc * BIG));
+        dp_nco_destroy (raw);
 
-        nco_state_t *sc = nco_create (0.013, 1000);
-        DP_CHECK (nco_steps_u32_scaled (sc, BIG, big, BIG) == BIG);
+        dp_nco_state_t *sc = dp_nco_create (0.013, 1000);
+        DP_CHECK (dp_nco_steps_u32_scaled (sc, BIG, big, BIG) == BIG);
         DP_CHECK (big[BIG - 1] < 1000u);
-        nco_destroy (sc);
+        dp_nco_destroy (sc);
 
-        nco_state_t *ov = nco_create (0.013, 0);
-        DP_CHECK (nco_steps_u32_ovf (ov, BIG, big, flag, BIG) == BIG);
-        nco_destroy (ov);
+        dp_nco_state_t *ov = dp_nco_create (0.013, 0);
+        DP_CHECK (dp_nco_steps_u32_ovf (ov, BIG, big, flag, BIG) == BIG);
+        dp_nco_destroy (ov);
 
         free (big);
         free (flag);

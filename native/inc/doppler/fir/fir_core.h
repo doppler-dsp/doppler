@@ -4,7 +4,7 @@
  *
  * Two constructors select the tap type at creation time:
  *
- *   fir_create()      — complex CF32 taps (general case)
+ *   dp_fir_create()      — complex CF32 taps (general case)
  *   fir_create_real() — real float taps   (1 FMA/tap; use for real-valued
  * designs)
  *
@@ -14,14 +14,14 @@
  *
  * @code
  * float taps[63] = { ... };
- * fir_state_t *fir = fir_create_real(taps, 63);
+ * dp_fir_state_t *fir = fir_create_real(taps, 63);
  * float _Complex out[4096];
- * fir_execute(fir, signal, 4096, out);
- * fir_destroy(fir);
+ * dp_fir_execute(fir, signal, 4096, out);
+ * dp_fir_destroy(fir);
  * @endcode
  */
-#ifndef FIR_CORE_H
-#define FIR_CORE_H
+#ifndef DP_FIR_CORE_H
+#define DP_FIR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -43,7 +43,7 @@ extern "C"
     float _Complex *scratch; /* [delay | input] workspace, grown on demand  */
     size_t scratch_cap;
     size_t num_taps;
-  } fir_state_t;
+  } dp_fir_state_t;
 
   /**
    * @brief Single-sample direct-form FIR step (inline composition API).
@@ -51,12 +51,12 @@ extern "C"
    * Filters one sample and advances the delay line: returns
    * `y = sum_k h[k] * x[n-k]` and shifts @p x into the length-`num_taps-1`
    * delay line (dropping the oldest sample). This is the per-sample counterpart
-   * to fir_execute() — a tracking receiver inlines it into its own sample loop
-   * (e.g. a matched filter feeding a symbol-timing loop) where fir_execute()'s
-   * block interface cannot. It mirrors fir_execute()'s real-tap scalar
-   * accumulation term for term, so a fir_step() stream matches fir_execute() to
+   * to dp_fir_execute() — a tracking receiver inlines it into its own sample loop
+   * (e.g. a matched filter feeding a symbol-timing loop) where dp_fir_execute()'s
+   * block interface cannot. It mirrors dp_fir_execute()'s real-tap scalar
+   * accumulation term for term, so a fir_step() stream matches dp_fir_execute() to
    * within floating-point rounding: equal in exact arithmetic; a contracted FMA
-   * can differ by ~1 ULP across translation units, and fir_execute() on a
+   * can differ by ~1 ULP across translation units, and dp_fir_execute() on a
    * multi-sample block can differ a little more from SIMD reassociation. Cost is
    * `num_taps` MACs plus an O(num_taps) delay-line shift per sample.
    *
@@ -70,7 +70,7 @@ extern "C"
    * @return The filtered output sample.
    */
   JM_FORCEINLINE JM_HOT float _Complex
-  fir_step (fir_state_t *s, float _Complex x)
+  fir_step (dp_fir_state_t *s, float _Complex x)
   {
     size_t               M = s->num_taps;
     const float _Complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
@@ -112,7 +112,7 @@ extern "C"
    * False
    * @endcode
    */
-  fir_state_t *fir_create (const float _Complex *taps, size_t taps_len);
+  dp_fir_state_t *dp_fir_create (const float _Complex *taps, size_t taps_len);
 
   /**
    * @brief Create a FIR filter from real float tap coefficients.
@@ -124,7 +124,7 @@ extern "C"
    * @param num_taps  Filter length (>= 1).
    * @return Heap-allocated state, or NULL on allocation failure.
    */
-  fir_state_t *fir_create_real (const float *taps, size_t num_taps);
+  dp_fir_state_t *fir_create_real (const float *taps, size_t num_taps);
 
   /**
    * @brief Zero the delay line; preserve taps and scratch capacity.
@@ -145,20 +145,20 @@ extern "C"
    * [0.25, 0.5, 0.25]
    * @endcode
    */
-  void fir_reset (fir_state_t *state);
+  void dp_fir_reset (dp_fir_state_t *state);
 
   /* Serializable state (standard bytes interface; see dp_state.h): the delay
    * line (num_taps-1 samples) after the envelope; taps/scratch are config. */
 #define FIR_STATE_MAGIC DP_FOURCC ('F', 'I', 'R', '_')
 #define FIR_STATE_VERSION 1u
 
-  /** @brief Bytes fir_get_state() writes for @p state (envelope + payload). */
-  size_t fir_state_bytes (const fir_state_t *state);
+  /** @brief Bytes dp_fir_get_state() writes for @p state (envelope + payload). */
+  size_t dp_fir_state_bytes (const dp_fir_state_t *state);
   /** @brief Serialize @p state's delay line into @p blob. */
-  void fir_get_state (const fir_state_t *state, void *blob);
+  void dp_fir_get_state (const dp_fir_state_t *state, void *blob);
   /** @brief Restore the delay line from @p blob (same num_taps).
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
-  int fir_set_state (fir_state_t *state, const void *blob);
+  int dp_fir_set_state (dp_fir_state_t *state, const void *blob);
 
   /**
    * @brief Release all heap resources owned by the filter state.
@@ -176,7 +176,7 @@ extern "C"
    * dtype('complex64')
    * @endcode
    */
-  void fir_destroy (fir_state_t *state);
+  void dp_fir_destroy (dp_fir_state_t *state);
 
   /**
    * @brief Number of tap coefficients supplied at creation.
@@ -190,7 +190,7 @@ extern "C"
    * 3
    * @endcode
    */
-  size_t fir_get_num_taps (const fir_state_t *state);
+  size_t fir_get_num_taps (const dp_fir_state_t *state);
 
   /**
    * @brief True when the filter was created with real-valued tap coefficients.
@@ -205,7 +205,7 @@ extern "C"
    * False
    * @endcode
    */
-  int fir_get_is_real (const fir_state_t *state);
+  int dp_fir_get_is_real (const dp_fir_state_t *state);
 
   /**
    * @brief The filter's response to a constant input: the sum of its taps.
@@ -221,22 +221,22 @@ extern "C"
    *
    * @code
    * float h[3] = { 0.25f, 0.5f, 0.25f };
-   * fir_state_t *f = fir_create_real (h, 3);
+   * dp_fir_state_t *f = fir_create_real (h, 3);
    * printf ("%.4f\n", fir_dc_gain (f));   // 1.0000
-   * fir_destroy (f);
+   * dp_fir_destroy (f);
    * @endcode
    */
-  double fir_dc_gain (const fir_state_t *state);
+  double fir_dc_gain (const dp_fir_state_t *state);
 
   /**
    * @brief Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.
    *
-   * fir_execute() always writes exactly n_in samples; there is no
+   * dp_fir_execute() always writes exactly n_in samples; there is no
    * call-independent upper bound smaller than the input length for this
    * function to report. An `out=` buffer must be sized to exactly
    * `len(x)`, not to this function's return value.
    */
-  size_t fir_execute_max_out (fir_state_t *state);
+  size_t dp_fir_execute_max_out (dp_fir_state_t *state);
 
   /**
    * @brief Filter n_in CF32 samples and write the results to out.
@@ -265,7 +265,7 @@ extern "C"
    * [0.25, 0.5, 0.25]
    * @endcode
    */
-  size_t fir_execute (fir_state_t *state, const float _Complex *in, size_t n_in,
+  size_t dp_fir_execute (dp_fir_state_t *state, const float _Complex *in, size_t n_in,
                       float _Complex *out);
 
 #ifdef __cplusplus

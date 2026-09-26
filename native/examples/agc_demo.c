@@ -46,7 +46,7 @@ db_power (float _Complex z)
 int
 main (void)
 {
-  agc_state_t *agc = agc_create (REF_DB, LOOP_BW, ALPHA);
+  dp_agc_state_t *agc = dp_agc_create (REF_DB, LOOP_BW, ALPHA);
 
   /* Voltage amplitude for a given power level: A = 10^(dB / 20). */
   const double a_lo = pow (10.0, LO_DB / 20.0);
@@ -70,7 +70,7 @@ main (void)
       double ph        = 2.0 * M_PI * F_TONE * (double)n;
       float _Complex x = (float)(amp * cos (ph)) + (float)(amp * sin (ph)) * I;
 
-      float _Complex y = agc_step (agc, x);
+      float _Complex y = dp_agc_step (agc, x);
 
       double in_db   = db_power (x);
       double out_db  = db_power (y);
@@ -91,6 +91,6 @@ main (void)
           "step.  Wrote agc_step_response.csv (%d rows).\n",
           REF_DB, N_TOTAL);
 
-  agc_destroy (agc);
+  dp_agc_destroy (agc);
   return 0;
 }

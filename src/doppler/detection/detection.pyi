@@ -118,7 +118,7 @@ class LockDet:
         out: NDArray[np.int32] | None = None,
     ) -> NDArray[np.int32]:
         """Run a block of lock-metric looks through the detector. Applies
-        lockdet_step() to each look in turn, so the decision flag and the
+        dp_lockdet_step() to each look in turn, so the decision flag and the
         in-flight verify run carry across the block exactly as they would look
         by look — a signal can be processed in frames of any size with no seam.
 
@@ -619,7 +619,7 @@ def det_pd(snr: float, dwell: int, threshold: float) -> float:
     dwell : int
         Coherent integration depth; must be >= 1.
     threshold : float
-        Test-stat threshold eta, e.g. from det_threshold().
+        Test-stat threshold eta, e.g. from dp_det_threshold().
 
     Returns
     -------
@@ -640,9 +640,9 @@ def det_pd(snr: float, dwell: int, threshold: float) -> float:
 def det_dwell(snr: float, pd_min: float, pfa: float, max_dwell: int) -> int:
     """Minimum dwell such that Pd >= pd_min for the given SNR and Pfa.
 
-    Iterates dwell = 1, 2, ..., max_dwell, computing det_pd() at each step.
-    Returns the first dwell that satisfies the Pd requirement, or -1 if
-    none is found within max_dwell iterations.
+    Iterates dwell = 1, 2, ..., max_dwell, computing dp_det_pd() at each
+    step. Returns the first dwell that satisfies the Pd requirement, or -1
+    if none is found within max_dwell iterations.
 
     Parameters
     ----------
@@ -743,7 +743,7 @@ def det_q_inv(p: float) -> float:
     zero-mean Gaussian statistic wants `det_q_inv(pfa) * sd_H0`.
 
     **Signed, and that matters.** Above the median the quantile is
-    negative, which is exactly why det_dwell_gauss()'s `Q_inv(pfa) -
+    negative, which is exactly why dp_det_dwell_gauss()'s `Q_inv(pfa) -
     Q_inv(pd)` is a sum of two tails rather than a difference: every
     caller's `pd` is above 0.5. Clamping it to zero there halves the dwell
     without failing anything.
@@ -903,7 +903,7 @@ def det_verify_count(p_look: float, p_target: float) -> int:
     (lockdet_core.h), which is lower, so sizing on p^n over-provisions n
     rather than under. The gap is ~p -- negligible where a detector is
     really sized, 10% at p = 0.1 -- so pick n here and predict what a
-    caller will observe with det_verify_delay().
+    caller will observe with dp_det_verify_delay().
 
     One function serves both sides of a lock detector (lockdet_core.h): the
     declare count from (per-look pfa, false-declare budget) and the drop
@@ -1038,7 +1038,7 @@ def det_pd_noncoherent(
     n_noncoh : int
         Number of non-coherent looks; must be >= 1.
     threshold : float
-        Threshold eta_nc, e.g. from det_threshold_noncoherent().
+        Threshold eta_nc, e.g. from dp_det_threshold_noncoherent().
 
     Returns
     -------
@@ -1138,8 +1138,8 @@ def det_pd_power(
 
     Pd = Q_1(sqrt(2·dwell·snr_power), sqrt(2·power_threshold))
 
-    The result equals det_pd() at the equivalent amplitude SNR: power SNR
-    `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments
+    The result equals dp_det_pd() at the equivalent amplitude SNR: power
+    SNR `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments
     match.
 
     Parameters
@@ -1150,7 +1150,7 @@ def det_pd_power(
     dwell : int
         Coherent integration depth; must be >= 1.
     power_threshold : float
-        Threshold p, e.g. from det_threshold_power().
+        Threshold p, e.g. from dp_det_threshold_power().
 
     Returns
     -------
@@ -1239,7 +1239,7 @@ def det_pfa_cell(pfa: float, n_cells: float) -> float:
 
     The search false-alarms when ANY cell does, so n cells each at pc miss
     together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa
-    gives pc = 1 - (1 - pfa)^(1/n), computed through complement_power()
+    gives pc = 1 - (1 - pfa)^(1/n), computed through dp_complement_power()
     because the direct form cancels at the small pfa every search uses.
 
     Exact for independent cells, and for Gaussian noise an upper bound on
@@ -1280,7 +1280,8 @@ def det_cn0_to_snr(cn0_dbhz: float, fs: float) -> float:
     C/N0 and a sample rate.
 
     Power SNR per sample is (C/N0)/fs, and snr is its square root: the
-    convention of det_pd(), det_dwell() and every coherent function here.
+    convention of dp_det_pd(), dp_det_dwell() and every coherent function
+    here.
 
     Parameters
     ----------
@@ -1306,7 +1307,7 @@ def det_cn0_to_snr(cn0_dbhz: float, fs: float) -> float:
 
 def det_snr_to_cn0(snr: float, fs: float) -> float:
     """The C/N0, dB-Hz, of a per-sample amplitude SNR at a sample rate: the
-    inverse of det_cn0_to_snr().
+    inverse of dp_det_cn0_to_snr().
 
     Parameters
     ----------
@@ -1336,11 +1337,11 @@ def det_pd_cfar(
     leak: float,
     leak_cells: float,
 ) -> float:
-    """Pd of a cell-averaging CFAR test: the gate is det_pd()'s threshold
-    scaled by a noise reference MEASURED as the mean magnitude of k cells,
-    the test cell's own included.
+    """Pd of a cell-averaging CFAR test: the gate is dp_det_pd()'s
+    threshold scaled by a noise reference MEASURED as the mean magnitude of
+    k cells, the test cell's own included.
 
-    det_pd() prices the noise as known. A detector that measures it pays
+    dp_det_pd() prices the noise as known. A detector that measures it pays
     twice: the reference is noisy, and it contains the signal. With T =
     threshold*sqrt(2/pi) in mean-magnitude units, the test fires when the
     peak R clears T times the mean of the k cells; moving the peak's own
@@ -1351,25 +1352,25 @@ def det_pd_cfar(
     (sidelobes, and what a straddle slid out of the peak), spread over
     leak_cells of them: a cell holding non-centrality nu^2 has mean
     magnitude ~ sqrt(pi/2 + nu^2), exact at 0 and for a large one. The
-    expectation over S is 2-point Gauss-Hermite (gauss_hermite()), within
-    5e-5 of 6 points.
+    expectation over S is 2-point Gauss-Hermite (dp_gauss_hermite()),
+    within 5e-5 of 6 points.
 
-    k -> infinity is det_pd() at threshold exactly, and a reference too
-    small to hold the gate (k <= T + 1) is answered as det_pd().
+    k -> infinity is dp_det_pd() at threshold exactly, and a reference too
+    small to hold the gate (k <= T + 1) is answered as dp_det_pd().
 
     Parameters
     ----------
     snr : float
         Per-sample amplitude SNR of the test cell.
     dwell : int
-        Coherent integration length M, as in det_pd().
+        Coherent integration length M, as in dp_det_pd().
     threshold : float
-        The known-noise threshold eta, as det_threshold().
+        The known-noise threshold eta, as dp_det_threshold().
     k : float
         Reference cells, the test cell included.
     leak : float
         Signal non-centrality energy in the other k-1 cells, in the units
-        of det_pd()'s a^2 = 2 M snr^2; <= 0 is none.
+        of dp_det_pd()'s a^2 = 2 M snr^2; <= 0 is none.
     leak_cells : float
         Cells that energy is spread over, at most k-1; <= 0 spreads it over
         all of them.

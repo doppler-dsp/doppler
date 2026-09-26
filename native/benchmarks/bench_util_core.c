@@ -8,13 +8,13 @@
  * So every measurement below is a COMPARISON against the exact source
  * each migrated site used to contain:
  *
- *   raw_incremental   what agc_step and async_dsss_receiver had
+ *   raw_incremental   what dp_agc_step and async_dsss_receiver had
  *   two_product       what acc_trace had
  *   ema_step          the primitive, branch included
  *
  * and, for the compounded pole:
  *
- *   repeated_multiply what agc_steps had (a1^d, then 1 - ac)
+ *   repeated_multiply what dp_agc_steps had (a1^d, then 1 - ac)
  *   ema_alpha_decim   the primitive (expm1/log1p)
  *
  * A `volatile` sink prevents the loops being optimised away; the inputs
@@ -122,7 +122,7 @@ main (void)
       double s = 0.0;
       t0       = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        s = ema_step (s, (double)(i & 7), alpha);
+        s = dp_ema_step (s, (double)(i & 7), alpha);
       t1       = jm_bench_now_ns ();
       sink     = s;
       t_ema[r] = jm_bench_elapsed_sec (t0, t1);
@@ -150,7 +150,7 @@ main (void)
       double acc = 0.0;
       t0         = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        acc += ema_alpha_decim (alpha + (double)(i & 3) * 1e-9, 8);
+        acc += dp_ema_alpha_decim (alpha + (double)(i & 3) * 1e-9, 8);
       t1       = jm_bench_now_ns ();
       sink     = acc;
       t_dec[r] = jm_bench_elapsed_sec (t0, t1);

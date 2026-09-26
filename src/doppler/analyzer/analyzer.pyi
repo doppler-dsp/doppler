@@ -98,7 +98,7 @@ class Specan:
         """
 
     def execute_max_out(self) -> int:
-        """Output capacity hint for specan_execute(); equals disp_n.
+        """Output capacity hint for dp_specan_execute(); equals disp_n.
 
         Returns
         -------

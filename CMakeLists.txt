@@ -338,7 +338,7 @@ endif()
 # A Windows DLL exports NOTHING unless told to: doppler's headers carry no
 # __declspec(dllexport), so without this the DLL linked, installed and shipped
 # with an empty export table, and every consumer of doppler::doppler failed
-# with `undefined symbol: lo_create` (found by package-c-smoke on its first
+# with `undefined symbol: dp_lo_create` (found by package-c-smoke on its first
 # Windows run). CMake generates the .def from the objects. Functions only are
 # needed: the public headers declare no global data, which would additionally
 # need __declspec(dllimport) at the consumer. No effect off Windows.
@@ -390,7 +390,7 @@ endif()
 # so `fminf` and `pthread_join` are undefined symbols in the CONSUMER's object,
 # and ld has not resolved those through a dependency's NEEDED entries since
 # binutils 2.22. libm and threads are part of the link INTERFACE. Measured on
-# published packages: an inline agc_step() failed to link on almalinux:8 and
+# published packages: an inline dp_agc_step() failed to link on almalinux:8 and
 # debian:stable, dp_thread.h on almalinux:8 (glibc < 2.34).
 target_link_libraries(doppler_lib        PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)
 target_link_libraries(doppler_lib_static PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)

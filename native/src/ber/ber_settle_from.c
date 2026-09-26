@@ -6,7 +6,7 @@
 #include "doppler/ber/ber_core.h"
 
 size_t
-ber_settle_from (size_t budget, int timing_lock, int carrier_lock)
+dp_ber_settle_from (size_t budget, int timing_lock, int carrier_lock)
 {
   size_t out = budget;
 

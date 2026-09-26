@@ -327,7 +327,7 @@ extern "C"
    *
    * @param cfg         the coding to apply.
    * @param frame_len   Transfer Frame length in **octets**.
-   * @param frame_bits  `frame_len * 8` **unpacked** Transfer Frame bits,
+   * @param tf_bits     `frame_len * 8` **unpacked** Transfer Frame bits,
    *                    MSB-first — the representation the description works
    *                    in, so the packed/unpacked boundary is crossed by the
    *                    caller and is visible rather than hidden in a kernel.
@@ -337,7 +337,7 @@ extern "C"
    *         @ref ccsds_tm_frame_layout applies, for the same reasons.
    */
   int ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
-                               size_t frame_len, const uint8_t *frame_bits,
+                               size_t frame_len, const uint8_t *tf_bits,
                                wfm_frame_desc_t *out);
 
   /**

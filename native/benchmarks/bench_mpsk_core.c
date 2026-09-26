@@ -52,7 +52,7 @@ report (const char *name, const double *t, int m)
 {
   double s   = min_sec (t, ITERATIONS);
   double ns  = s / (double)BENCH_N * 1e9;
-  int    bps = mpsk_bits_per_symbol (m);
+  int    bps = dp_mpsk_bits_per_symbol (m);
   printf ("  %-22s %7.2f ns/sym  %7.2f ns/bit  %8.1f Msym/s\n", name, ns,
           ns / (double)bps, (double)BENCH_N / s / 1e6);
 }
@@ -78,7 +78,7 @@ main (void)
   for (int mi = 0; mi < 3; mi++)
     {
       const int m   = M[mi];
-      const int bps = mpsk_bits_per_symbol (m);
+      const int bps = dp_mpsk_bits_per_symbol (m);
 
       /* Symbols spread over the whole alphabet. A constant symbol would let
          the branch predictor and the slicer's atan2 see one input forever,
@@ -89,7 +89,7 @@ main (void)
           lfsr   = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
           sym[i] = (uint8_t)(lfsr & (uint32_t)(m - 1));
         }
-      mpsk_map (sym, BENCH_N, iq, m);
+      dp_mpsk_map (sym, BENCH_N, iq, m);
 
       char          name[64];
       static double t_map[3][ITERATIONS], t_dem[3][ITERATIONS];
@@ -99,7 +99,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          mpsk_map (sym, BENCH_N, iq, m);
+          dp_mpsk_map (sym, BENCH_N, iq, m);
           t1           = jm_bench_now_ns ();
           t_map[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -110,7 +110,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          mpsk_demap (iq, BENCH_N, out, m);
+          dp_mpsk_demap (iq, BENCH_N, out, m);
           t1           = jm_bench_now_ns ();
           t_dem[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -121,7 +121,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          mpsk_diff_map (sym, BENCH_N, iq, m);
+          dp_mpsk_diff_map (sym, BENCH_N, iq, m);
           t1            = jm_bench_now_ns ();
           t_dmap[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -132,7 +132,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          mpsk_diff_demap (iq, BENCH_N, out, m);
+          dp_mpsk_diff_demap (iq, BENCH_N, out, m);
           t1            = jm_bench_now_ns ();
           t_ddem[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -140,12 +140,12 @@ main (void)
       jm_bench_add (&_bench, name, t_ddem[mi], ITERATIONS, BENCH_N);
       report (name, t_ddem[mi], m);
 
-      mpsk_map (sym, BENCH_N, iq, m);
+      dp_mpsk_map (sym, BENCH_N, iq, m);
       const size_t n_llr = (size_t)BENCH_N * (size_t)bps;
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          mpsk_soft_demap (iq, BENCH_N, llr, n_llr, m, 0.1f);
+          dp_mpsk_soft_demap (iq, BENCH_N, llr, n_llr, m, 0.1f);
           t1            = jm_bench_now_ns ();
           t_soft[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
-/* ViterbiObject — wraps viterbi_state_t *       */
+/* ViterbiObject — wraps dp_viterbi_state_t *       */
 /* ======================================================== */
 
 #include "doppler/viterbi/viterbi_core.h"
 
 typedef struct
 {
-  PyObject_HEAD viterbi_state_t *handle;
+  PyObject_HEAD dp_viterbi_state_t *handle;
 } ViterbiObject;
 
 static void
 ViterbiObj_dealloc (ViterbiObject *self)
 {
   if (self->handle)
-    viterbi_destroy (self->handle);
+    dp_viterbi_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -55,7 +55,7 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t poly_len = (size_t)PyArray_SIZE (poly_arr);
-  self->handle    = viterbi_create ((const uint32_t *)PyArray_DATA (poly_arr),
+  self->handle = dp_viterbi_create ((const uint32_t *)PyArray_DATA (poly_arr),
                                     poly_len, k, invert, depth);
   Py_DECREF (poly_arr);
   if (!self->handle)
@@ -77,7 +77,7 @@ ViterbiObj_reset (ViterbiObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  viterbi_reset (self->handle);
+  dp_viterbi_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -93,7 +93,7 @@ ViterbiObj_decode_max_out (ViterbiObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      viterbi_decode_max_out (self->handle, (size_t)n_in));
+      dp_viterbi_decode_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -138,7 +138,7 @@ ViterbiObj_decode (ViterbiObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = viterbi_decode_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_viterbi_decode_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -148,7 +148,7 @@ ViterbiObj_decode (ViterbiObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = viterbi_decode (
+      size_t n_out = dp_viterbi_decode (
           self->handle, (const float *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -164,7 +164,7 @@ ViterbiObj_decode (ViterbiObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = viterbi_decode_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_viterbi_decode_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -175,8 +175,8 @@ ViterbiObj_decode (ViterbiObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t   n_out
-      = viterbi_decode (self->handle, (const float *)PyArray_DATA (in_arr),
-                        (size_t)n, _d0, _cap);
+      = dp_viterbi_decode (self->handle, (const float *)PyArray_DATA (in_arr),
+                           (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -202,7 +202,7 @@ ViterbiObj_state_bytes (ViterbiObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (viterbi_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_viterbi_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -213,11 +213,11 @@ ViterbiObj_get_state (ViterbiObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = viterbi_state_bytes (self->handle);
+  size_t    _n = dp_viterbi_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  viterbi_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_viterbi_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -234,12 +234,12 @@ ViterbiObj_set_state (ViterbiObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != viterbi_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_viterbi_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (viterbi_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_viterbi_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -252,7 +252,7 @@ ViterbiObj_destroy (ViterbiObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      viterbi_destroy (self->handle);
+      dp_viterbi_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -271,7 +271,7 @@ ViterbiObj_exit (ViterbiObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      viterbi_destroy (self->handle);
+      dp_viterbi_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -315,7 +315,8 @@ static PyMethodDef ViterbiObj_methods[] = {
     "branches of a stream produce no output — the traceback walks `depth -\n"
     "1` steps back, so a decision needs that many branches BEHIND it — and\n"
     "thereafter one bit is emitted per `n` symbols consumed.\n"
-    "viterbi_decode_max_out is the same statement as arithmetic, and is what\n"
+    "dp_viterbi_decode_max_out is the same statement as arithmetic, and is "
+    "what\n"
     "a caller should size a buffer with rather than repeating this sentence:\n"
     "they disagreed by one until a test asserted the count against a\n"
     "literal.\n"
@@ -344,7 +345,7 @@ static PyMethodDef ViterbiObj_methods[] = {
   { "decode_max_out", (PyCFunction)ViterbiObj_decode_max_out, METH_VARARGS,
     "decode_max_out(n_in) -> int\n"
     "\n"
-    "Bits viterbi_decode will emit for n_in soft symbols.\n"
+    "Bits dp_viterbi_decode will emit for n_in soft symbols.\n"
     "\n"
     "Accounts for the fill still owed at the start of a stream, so a caller\n"
     "can\n"

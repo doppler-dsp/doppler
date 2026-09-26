@@ -2,8 +2,8 @@
  * @file wfm_core.h
  * @brief Wfmgen module — public C API.
  */
-#ifndef WFM_CORE_H
-#define WFM_CORE_H
+#ifndef DP_WFM_CORE_H
+#define DP_WFM_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -29,7 +29,7 @@ extern "C" {
  * [(1+0j), (-1+0j), (1+0j), (-1+0j)]
  * @endcode
  */
-void bpsk_map(const uint8_t *bits, size_t bits_len, float _Complex *out);
+void dp_bpsk_map(const uint8_t *bits, size_t bits_len, float _Complex *out);
 
 /**
  * @brief Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32).
@@ -54,7 +54,7 @@ void bpsk_map(const uint8_t *bits, size_t bits_len, float _Complex *out);
  * [0.7071, 0.7071, -0.7071, -0.7071]
  * @endcode
  */
-void qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
+void dp_qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
 
 /**
  * @brief Compute the per-component AWGN amplitude for a target SNR.
@@ -63,7 +63,7 @@ void qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
  * ``signal_power`` and ``snr_db`` (measured over the full sample-rate
  * bandwidth):
  *   amplitude = sqrt(signal_power / (2 * 10^(snr_db / 10))).
- * Pass the result directly to ``awgn_create`` to get the exact noise level
+ * Pass the result directly to ``dp_awgn_create`` to get the exact noise level
  * that corresponds to the requested SNR.
  *
  * @param snr_db  Target SNR in dB, referenced to the full sample rate.
@@ -78,7 +78,7 @@ void qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
  * 0.707107
  * @endcode
  */
-float wfm_awgn_amplitude(float snr_db, float signal_power);
+float dp_wfm_awgn_amplitude(float snr_db, float signal_power);
 
 /**
  * @brief Convert Eb/No (dB) to SNR (dB) over the full sample-rate band.
@@ -101,7 +101,7 @@ float wfm_awgn_amplitude(float snr_db, float signal_power);
  * 0.9691
  * @endcode
  */
-float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol);
+float dp_wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol);
 
 /**
  * @brief Maximal-length-sequence primitive polynomial for a length-@p n LFSR.
@@ -118,7 +118,7 @@ float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_s
  * '0x41'
  * @endcode
  */
-uint64_t mls_poly(uint32_t n);
+uint64_t dp_mls_poly(uint32_t n);
 
 /**
  * @brief CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream,
@@ -140,11 +140,11 @@ uint64_t mls_poly(uint32_t n);
  * '0x29b1'
  * @endcode
  */
-uint16_t crc16(const uint8_t *bits, size_t bits_len);
-void rrc_taps(double beta, int sps, int span, float *out);
-void dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
-void rrc_h(const double *t, size_t t_len, double *out, double beta);
-void rc_h(const double *t, size_t t_len, double *out, double beta);
+uint16_t dp_crc16(const uint8_t *bits, size_t bits_len);
+void dp_rrc_taps(double beta, int sps, int span, float *out);
+void dp_dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
+void dp_rrc_h(const double *t, size_t t_len, double *out, double beta);
+void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
 #ifdef __cplusplus
 }
 #endif

@@ -70,14 +70,14 @@ main (void)
      caller with real data has. Same shape as test_frame_core.c's
      `lit_frame`, deliberately -- the benchmark should measure the frame the
      tests pin. */
-  frame_state_t *f = frame_create (
+  dp_frame_state_t *f = dp_frame_create (
       0, pre, N_PRE, 0, PRE_REPS, 0, 0, 0, 0, 0, 0, 0, 0, 0, sync, N_SYNC, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, pay, N_PAY, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
   if (!f)
     return 1;
 
-  const size_t nb1 = frame_bits_max_out (f, 1);
-  const size_t nbB = frame_bits_max_out (f, BATCH);
+  const size_t nb1 = dp_frame_bits_max_out (f, 1);
+  const size_t nbB = dp_frame_bits_max_out (f, BATCH);
   uint8_t     *out = malloc (nbB);
   if (!out)
     return 1;
@@ -92,7 +92,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += frame_bits (f, 1, out, nb1);
+      sink += dp_frame_bits (f, 1, out, nb1);
       t1       = jm_bench_now_ns ();
       t_one[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -104,7 +104,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += frame_bits (f, BATCH, out, nbB);
+      sink += dp_frame_bits (f, BATCH, out, nbB);
       t1       = jm_bench_now_ns ();
       t_bat[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -113,11 +113,11 @@ main (void)
           min_sec (t_bat, ITERATIONS) / BATCH * 1e6,
           (double)nbB / min_sec (t_bat, ITERATIONS) / 1e6);
 
-  frame_bits (f, 1, out, nb1);
+  dp_frame_bits (f, 1, out, nb1);
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += (size_t)frame_crc_ok (f, out, nb1);
+      sink += (size_t)dp_frame_crc_ok (f, out, nb1);
       t1       = jm_bench_now_ns ();
       t_crc[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -133,7 +133,7 @@ main (void)
 
   (void)sink;
   free (out);
-  frame_destroy (f);
+  dp_frame_destroy (f);
   jm_bench_write_json (&_bench, "frame");
   return 0;
 }

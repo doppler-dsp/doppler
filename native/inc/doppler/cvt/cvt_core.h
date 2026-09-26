@@ -2,8 +2,8 @@
  * @file cvt_core.h
  * @brief Cvt module — public C API.
  */
-#ifndef CVT_CORE_H
-#define CVT_CORE_H
+#ifndef DP_CVT_CORE_H
+#define DP_CVT_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -57,7 +57,7 @@ extern "C" {
  *
  * The form a frame field literal usually wants, and the one to reach for
  * first: exact, compiler-checked, with no failure mode a typo can reach.
- * @ref hex_to_bin is for the two cases this cannot serve -- a literal wider
+ * @ref dp_hex_to_bin is for the two cases this cannot serve -- a literal wider
  * than 64 bits, and text arriving from outside.
  *
  * Bit 0 out is the MOST significant of the @p n_bits requested under
@@ -83,11 +83,11 @@ extern "C" {
  *
  * @endcode
  */
-size_t int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, int bitorder);
+size_t dp_int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, int bitorder);
 /**
  * @brief Expand a hex string to unpacked bits, one per byte.
  *
- * For what @ref int_to_bin cannot serve: a literal wider than 64 bits, or one
+ * For what @ref dp_int_to_bin cannot serve: a literal wider than 64 bits, or one
  * arriving as TEXT from a CLI flag or a JSON record. Each digit contributes
  * 4 bits and digits read left to right, so an ODD number of digits is
  * accepted and yields a 4-bit tail.
@@ -113,7 +113,7 @@ size_t int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, int
  *
  * @endcode
  */
-size_t hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
+size_t dp_hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
 /**
  * @brief Read unpacked bits back into an integer -- inverse of int_to_bin.
  *
@@ -137,7 +137,7 @@ size_t hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
  *
  * @endcode
  */
-uint64_t bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
+uint64_t dp_bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
 /**
  * @brief Render unpacked bits to hex digits -- inverse of hex_to_bin.
  *
@@ -168,7 +168,7 @@ uint64_t bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
  *
  * @endcode
  */
-size_t bin_to_hex(const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out_len, int bitorder);
+size_t dp_bin_to_hex(const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out_len, int bitorder);
 /**
  * @brief Map unpacked bits to bipolar NRZ symbols: 0 -> +1, 1 -> -1.
  *
@@ -197,7 +197,7 @@ size_t bin_to_hex(const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out
  *
  * @endcode
  */
-size_t bin_to_nrz(const uint8_t *bits, size_t bits_len, float *out, size_t out_len);
+size_t dp_bin_to_nrz(const uint8_t *bits, size_t bits_len, float *out, size_t out_len);
 /**
  * @brief Hard-decide NRZ symbols back to bits -- inverse of bin_to_nrz.
  *
@@ -224,7 +224,7 @@ size_t bin_to_nrz(const uint8_t *bits, size_t bits_len, float *out, size_t out_l
  *
  * @endcode
  */
-size_t nrz_to_bin(const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len);
+size_t dp_nrz_to_bin(const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len);
 #ifdef __cplusplus
 }
 #endif

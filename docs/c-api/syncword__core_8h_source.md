@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef SYNCWORD_CORE_H
-#define SYNCWORD_CORE_H
+#ifndef DP_SYNCWORD_CORE_H
+#define DP_SYNCWORD_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_syncword.h"
@@ -33,18 +33,18 @@ typedef struct
   uint8_t *marker; 
   /*<<property_struct_fields>>*/
   size_t nbits;
-} syncword_state_t;
+} dp_syncword_state_t;
 
-syncword_state_t *syncword_create (const uint8_t *marker, size_t marker_len);
+dp_syncword_state_t *dp_syncword_create (const uint8_t *marker, size_t marker_len);
 
-void syncword_destroy (syncword_state_t *state);
+void dp_syncword_destroy (dp_syncword_state_t *state);
 
-syncword_hit_t syncword_find (syncword_state_t *state, const uint8_t *bits,
+syncword_hit_t dp_syncword_find (dp_syncword_state_t *state, const uint8_t *bits,
                               size_t bits_len, uint32_t max_errors);
 
-double syncword_pfa (syncword_state_t *state, uint32_t max_errors);
+double dp_syncword_pfa (dp_syncword_state_t *state, uint32_t max_errors);
 
-int syncword_max_errors_for (syncword_state_t *state, size_t window_bits,
+int dp_syncword_max_errors_for (dp_syncword_state_t *state, size_t window_bits,
                              double pfa);
 #ifdef __cplusplus
 }

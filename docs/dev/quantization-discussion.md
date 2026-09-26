@@ -65,11 +65,11 @@ the one family where it does.
 
 1. **The CIC encoder truncates.** [`cic_core.h`][cicenc] clamps, then converts
     with a bare `(int16_t)sr`. It's a private copy of
-    [`f32_to_uq15_step`][f2uq15] (the same offset-binary encoding, plus
+    [`dp_f32_to_uq15_step`][f2uq15] (the same offset-binary encoding, plus
     headroom) that truncates where that function rounds: the 6 dB defect #1117
     fixed everywhere else. [QUANTIZATION.md §2.4][q24] documents this
     truncation, while [§3.1][q31] says the Q15 encoder rounds. Proposed fix:
-    call `f32_to_uq15_step` with scale `32768 / CIC_PAPR_HEADROOM`.
+    call `dp_f32_to_uq15_step` with scale `32768 / CIC_PAPR_HEADROOM`.
 
 1. **The CIC output shift floors.** The [decoder][cicdec] computes
     `(uint16_t)(re >> shift)` with no rounding bias. Because the value is
@@ -79,8 +79,8 @@ the one family where it does.
     has to be regenerated.
 
 1. **The ADC's vector and scalar paths disagree.** With dither off,
-    [`adc_steps`][adcv] computes its vector body in **float** (`llroundf` of a
-    float product), while the tail and [`adc_step`][adcs] compute in
+    [`dp_adc_steps`][adcv] computes its vector body in **float** (`llroundf` of a
+    float product), while the tail and [`dp_adc_step`][adcs] compute in
     **double**. They also set `clipped` at different points: the vector path
     after rounding, the scalar path before. So a sample's code depends on
     where it falls in the block. Measured with two million uniform samples:
@@ -102,7 +102,7 @@ the one family where it does.
     # the measurement, emulating both paths in numpy
     x   = uniform(-1, 1, 2e6) as float32
     sc  = 2^(bits-1) * 10^(-dBFS/20)
-    ref = llround(double(sc) * double(x))     # adc_step and the tail
+    ref = llround(double(sc) * double(x))     # dp_adc_step and the tail
     vec = llround(float(sc) * x)              # the SIMD body
     count(clip(ref) != clip(vec))
     ```

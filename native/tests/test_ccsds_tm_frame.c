@@ -711,7 +711,7 @@ main (void)
         wfm_frame_desc_layout_t got;
         DP_REQUIRE (wfm_frame_desc_layout (&d, &got) == 0);
 
-        DP_CHECK_MSG (got.frame_bits == want.cadu_bits,
+        DP_CHECK_MSG (got.frame_nbits == want.cadu_bits,
                       "the description's frame is the CADU");
         DP_CHECK_MSG (got.out_bits == want.out_bits,
                       "...and its output is the channel symbols");
@@ -890,7 +890,7 @@ main (void)
     wfm_frame_desc_layout_t lay;
     DP_REQUIRE (wfm_frame_desc_layout (&d, &lay) == 0);
     DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
-                == lay.frame_bits);
+                == lay.frame_nbits);
 
     /* Clean: every codeword good, nothing repaired. Asserted because a
        checker that reported damage on a clean frame would be as wrong as one
@@ -905,7 +905,7 @@ main (void)
     /* The randomiser is involutive, so undoing it left the frame derandomised
        -- re-assemble before damaging it. */
     DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
-                == lay.frame_bits);
+                == lay.frame_nbits);
 
     /* A burst of DEPTH*E symbols: exactly E in each codeword, all repaired,
        and the COUNT is the margin that was spent. */
@@ -918,7 +918,7 @@ main (void)
                       && rx.stage[0].symbols == DEPTH * CCSDS_TM_RS_E,
                   "...having repaired exactly E in each of the five");
     DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
-                == lay.frame_bits);
+                == lay.frame_nbits);
 
     /* E+1 in ONE column is past the radius: that codeword is refused, the
        frame fails, and the caller is told which -- the whole reason this
@@ -945,7 +945,7 @@ main (void)
        undone by the time anything looks for a frame. The check below is about
        which stages get reversed, not about the bits. */
     DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
-                == lay.frame_bits);
+                == lay.frame_nbits);
     wfm_frame_rx_t rc;
     DP_CHECK_MSG (wfm_frame_check (&dc, &ops, cadu, &rc) == 1,
                   "the coded description checks the frame it is handed");

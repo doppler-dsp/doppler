@@ -55,7 +55,7 @@ main (void)
       t0       = jm_bench_now_ns ();
       long acc = 0;
       for (int i = 0; i < BENCH_N; i++)
-        acc += bin_to_signed ((size_t)i % nbins, nbins);
+        acc += dp_bin_to_signed ((size_t)i % nbins, nbins);
       sink     = acc;
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);

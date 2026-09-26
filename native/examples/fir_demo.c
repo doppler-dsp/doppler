@@ -7,7 +7,7 @@
  *
  * The current API accepts only float complex (CF32) input.
  * Integer SDR input (CI8, CI16) must be converted to CF32 before
- * calling fir_execute().
+ * calling dp_fir_execute().
  *
  * Build:
  *   make build
@@ -32,12 +32,12 @@ make_lowpass (float *taps, int N, double cutoff_norm)
   int half = N / 2;
   for (int k = 0; k < N; k++)
     {
-      int    n    = k - half;
-      double sinc = (n == 0) ? 1.0
-                             : sin (M_PI * cutoff_norm * 2 * n)
-                                   / (M_PI * cutoff_norm * 2 * n);
-      double win  = 0.5 * (1.0 - cos (2.0 * M_PI * k / (N - 1)));
-      taps[k]     = (float)(sinc * win);
+      int    n   = k - half;
+      double h   = (n == 0) ? 1.0
+                            : sin (M_PI * cutoff_norm * 2 * n)
+                                  / (M_PI * cutoff_norm * 2 * n);
+      double win = 0.5 * (1.0 - cos (2.0 * M_PI * k / (N - 1)));
+      taps[k]    = (float)(h * win);
     }
 }
 
@@ -56,7 +56,7 @@ main (void)
     printf ("%7.4f", (double)taps[i]);
   printf ("\n\n");
 
-  fir_state_t *fir = fir_create_real (taps, (size_t)N);
+  dp_fir_state_t *fir = fir_create_real (taps, (size_t)N);
   if (!fir)
     {
       fprintf (stderr, "fir_create_real failed\n");
@@ -79,7 +79,7 @@ main (void)
                         (float)(sin (phase_lo) + 0.5 * sin (phase_hi)));
       }
 
-    fir_execute (fir, in, S, out);
+    dp_fir_execute (fir, in, S, out);
 
     printf ("  first 8 output samples (LF tone survives, HF attenuated):\n");
     for (int i = 0; i < 8; i++)
@@ -89,7 +89,7 @@ main (void)
     printf ("\n");
   }
 
-  fir_reset (fir);
+  dp_fir_reset (fir);
 
   /* ------------------------------------------------------------------ *
    * 2. State across calls — 2 blocks of 8 samples                      *
@@ -109,8 +109,8 @@ main (void)
         in2[i]       = CMPLXF ((float)cos (phase), (float)sin (phase));
       }
 
-    fir_execute (fir, in1, 8, out1);
-    fir_execute (fir, in2, 8, out2);
+    dp_fir_execute (fir, in1, 8, out1);
+    dp_fir_execute (fir, in2, 8, out2);
 
     printf ("  block 1 last sample out:  (%6.3f, %6.3f)\n",
             (double)crealf (out1[7]), (double)cimagf (out1[7]));
@@ -119,7 +119,7 @@ main (void)
     printf ("  (continuity confirms delay line carries across calls)\n\n");
   }
 
-  fir_destroy (fir);
+  dp_fir_destroy (fir);
   printf ("Done.\n");
   return 0;
 }

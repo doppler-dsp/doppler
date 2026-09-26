@@ -32,7 +32,7 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) <br> |
+| struct | [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) <br> |
 
 
 
@@ -59,16 +59,16 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-|  [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* | [**hbdecim\_q15\_create**](#function-hbdecim_q15_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR branch coefficients are supplied as float and converted internally to Q15 with a x0.5 polyphase rate scaling. The full halfband prototype is sparse (every other tap is zero); supply only the non-zero FIR branch taps, not the full sparse prototype._  |
-|  void | [**hbdecim\_q15\_destroy**](#function-hbdecim_q15_destroy) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_Free all heap resources owned by the decimator state. Releases the Q15 coefficient buffer, all four delay rings, and the state struct itself. Passing NULL is a no-op. The Python wrapper calls this in_ **del** _and_**exit** _; call it explicitly only for deterministic release before GC reclaims the object._ |
-|  size\_t | [**hbdecim\_q15\_execute**](#function-hbdecim_q15_execute) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r, const int16\_t \* in, size\_t n\_in, int16\_t \* out, size\_t max\_out) <br>_Decimate a block of interleaved IQ int16 samples by 2. Input must be interleaved int16\_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of 2\*n\_complex elements. Each pair of complex input samples produces one complex output sample, so an array of length 2N yields at most N output pairs (2N int16 output values). If n\_in is odd the trailing IQ pair is buffered and consumed on the next call._  |
-|  size\_t | [**hbdecim\_q15\_execute\_max\_out**](#function-hbdecim_q15_execute_max_out) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_Maximum output samples for a given input length._  |
-|  size\_t | [**hbdecim\_q15\_get\_num\_taps**](#function-hbdecim_q15_get_num_taps) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_FIR branch length as supplied to the constructor. This is the count of non-zero symmetric taps in the FIR branch, not the full sparse halfband prototype length. Useful for introspection when chaining multiple stages with programmatically computed filter banks._  |
-|  double | [**hbdecim\_q15\_get\_rate**](#function-hbdecim_q15_get_rate) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_The sample-rate reduction factor; always 0.5 for 2:1 decimation. Exposed as a read-only property so pipelines can query the rate of each stage programmatically without hard-coding the 2:1 assumption._  |
-|  void | [**hbdecim\_q15\_get\_state**](#function-hbdecim_q15_get_state) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* state, void \* blob) <br> |
-|  void | [**hbdecim\_q15\_reset**](#function-hbdecim_q15_reset) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has\_pending is cleared, so no partial IQ pair carries over. Call this between unrelated signal segments to prevent inter-segment leakage._  |
-|  int | [**hbdecim\_q15\_set\_state**](#function-hbdecim_q15_set_state) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**hbdecim\_q15\_state\_bytes**](#function-hbdecim_q15_state_bytes) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* state) <br> |
+|  [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* | [**dp\_hbdecim\_q15\_create**](#function-dp_hbdecim_q15_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR branch coefficients are supplied as float and converted internally to Q15 with a x0.5 polyphase rate scaling. The full halfband prototype is sparse (every other tap is zero); supply only the non-zero FIR branch taps, not the full sparse prototype._  |
+|  void | [**dp\_hbdecim\_q15\_destroy**](#function-dp_hbdecim_q15_destroy) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Free all heap resources owned by the decimator state. Releases the Q15 coefficient buffer, all four delay rings, and the state struct itself. Passing NULL is a no-op. The Python wrapper calls this in_ **del** _and_**exit** _; call it explicitly only for deterministic release before GC reclaims the object._ |
+|  size\_t | [**dp\_hbdecim\_q15\_execute**](#function-dp_hbdecim_q15_execute) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r, const int16\_t \* in, size\_t n\_in, int16\_t \* out, size\_t max\_out) <br>_Decimate a block of interleaved IQ int16 samples by 2. Input must be interleaved int16\_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of 2\*n\_complex elements. Each pair of complex input samples produces one complex output sample, so an array of length 2N yields at most N output pairs (2N int16 output values). If n\_in is odd the trailing IQ pair is buffered and consumed on the next call._  |
+|  size\_t | [**dp\_hbdecim\_q15\_execute\_max\_out**](#function-dp_hbdecim_q15_execute_max_out) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Maximum output samples for a given input length._  |
+|  size\_t | [**dp\_hbdecim\_q15\_get\_num\_taps**](#function-dp_hbdecim_q15_get_num_taps) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_FIR branch length as supplied to the constructor. This is the count of non-zero symmetric taps in the FIR branch, not the full sparse halfband prototype length. Useful for introspection when chaining multiple stages with programmatically computed filter banks._  |
+|  double | [**dp\_hbdecim\_q15\_get\_rate**](#function-dp_hbdecim_q15_get_rate) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_The sample-rate reduction factor; always 0.5 for 2:1 decimation. Exposed as a read-only property so pipelines can query the rate of each stage programmatically without hard-coding the 2:1 assumption._  |
+|  void | [**dp\_hbdecim\_q15\_get\_state**](#function-dp_hbdecim_q15_get_state) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_hbdecim\_q15\_reset**](#function-dp_hbdecim_q15_reset) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has\_pending is cleared, so no partial IQ pair carries over. Call this between unrelated signal segments to prevent inter-segment leakage._  |
+|  int | [**dp\_hbdecim\_q15\_set\_state**](#function-dp_hbdecim_q15_set_state) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_hbdecim\_q15\_state\_bytes**](#function-dp_hbdecim_q15_state_bytes) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state) <br> |
 
 
 
@@ -137,11 +137,11 @@ Even- and odd-indexed input samples are demultiplexed into separate I and Q ring
 
 
 ```C++
-hbdecim_q15_state_t *r = hbdecim_q15_create(num_taps, h_fir);
+dp_hbdecim_q15_state_t *r = dp_hbdecim_q15_create(num_taps, h_fir);
 // in:  interleaved int16_t IQ, 2*n_in elements
 // out: interleaved int16_t IQ, 2*n_out elements (n_out <= n_in/2)
-size_t n = hbdecim_q15_execute(r, in, n_in, out, max_out);
-hbdecim_q15_destroy(r);
+size_t n = dp_hbdecim_q15_execute(r, in, n_in, out, max_out);
+dp_hbdecim_q15_destroy(r);
 ```
  
 
@@ -153,11 +153,11 @@ hbdecim_q15_destroy(r);
 
 
 
-### function hbdecim\_q15\_create 
+### function dp\_hbdecim\_q15\_create 
 
 _Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR branch coefficients are supplied as float and converted internally to Q15 with a x0.5 polyphase rate scaling. The full halfband prototype is sparse (every other tap is zero); supply only the non-zero FIR branch taps, not the full sparse prototype._ 
 ```C++
-hbdecim_q15_state_t * hbdecim_q15_create (
+dp_hbdecim_q15_state_t * dp_hbdecim_q15_create (
     size_t num_taps,
     const float * h
 ) 
@@ -200,12 +200,12 @@ HalfbandDecimatorQ15 instance.
 
 
 
-### function hbdecim\_q15\_destroy 
+### function dp\_hbdecim\_q15\_destroy 
 
 _Free all heap resources owned by the decimator state. Releases the Q15 coefficient buffer, all four delay rings, and the state struct itself. Passing NULL is a no-op. The Python wrapper calls this in_ **del** _and_**exit** _; call it explicitly only for deterministic release before GC reclaims the object._
 ```C++
-void hbdecim_q15_destroy (
-    hbdecim_q15_state_t * r
+void dp_hbdecim_q15_destroy (
+    dp_hbdecim_q15_state_t * r
 ) 
 ```
 
@@ -232,12 +232,12 @@ dtype('int16')
 
 
 
-### function hbdecim\_q15\_execute 
+### function dp\_hbdecim\_q15\_execute 
 
 _Decimate a block of interleaved IQ int16 samples by 2. Input must be interleaved int16\_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of 2\*n\_complex elements. Each pair of complex input samples produces one complex output sample, so an array of length 2N yields at most N output pairs (2N int16 output values). If n\_in is odd the trailing IQ pair is buffered and consumed on the next call._ 
 ```C++
-size_t hbdecim_q15_execute (
-    hbdecim_q15_state_t * r,
+size_t dp_hbdecim_q15_execute (
+    dp_hbdecim_q15_state_t * r,
     const int16_t * in,
     size_t n_in,
     int16_t * out,
@@ -289,12 +289,12 @@ dtype('int16')
 
 
 
-### function hbdecim\_q15\_execute\_max\_out 
+### function dp\_hbdecim\_q15\_execute\_max\_out 
 
 _Maximum output samples for a given input length._ 
 ```C++
-size_t hbdecim_q15_execute_max_out (
-    hbdecim_q15_state_t * r
+size_t dp_hbdecim_q15_execute_max_out (
+    dp_hbdecim_q15_state_t * r
 ) 
 ```
 
@@ -309,12 +309,12 @@ Returns 0 to trigger the lazy-alloc path in the Python glue: the output buffer i
 
 
 
-### function hbdecim\_q15\_get\_num\_taps 
+### function dp\_hbdecim\_q15\_get\_num\_taps 
 
 _FIR branch length as supplied to the constructor. This is the count of non-zero symmetric taps in the FIR branch, not the full sparse halfband prototype length. Useful for introspection when chaining multiple stages with programmatically computed filter banks._ 
 ```C++
-size_t hbdecim_q15_get_num_taps (
-    const hbdecim_q15_state_t * r
+size_t dp_hbdecim_q15_get_num_taps (
+    const dp_hbdecim_q15_state_t * r
 ) 
 ```
 
@@ -337,12 +337,12 @@ size_t hbdecim_q15_get_num_taps (
 
 
 
-### function hbdecim\_q15\_get\_rate 
+### function dp\_hbdecim\_q15\_get\_rate 
 
 _The sample-rate reduction factor; always 0.5 for 2:1 decimation. Exposed as a read-only property so pipelines can query the rate of each stage programmatically without hard-coding the 2:1 assumption._ 
 ```C++
-double hbdecim_q15_get_rate (
-    const hbdecim_q15_state_t * r
+double dp_hbdecim_q15_get_rate (
+    const dp_hbdecim_q15_state_t * r
 ) 
 ```
 
@@ -365,11 +365,11 @@ double hbdecim_q15_get_rate (
 
 
 
-### function hbdecim\_q15\_get\_state 
+### function dp\_hbdecim\_q15\_get\_state 
 
 ```C++
-void hbdecim_q15_get_state (
-    const hbdecim_q15_state_t * state,
+void dp_hbdecim_q15_get_state (
+    const dp_hbdecim_q15_state_t * state,
     void * blob
 ) 
 ```
@@ -381,12 +381,12 @@ void hbdecim_q15_get_state (
 
 
 
-### function hbdecim\_q15\_reset 
+### function dp\_hbdecim\_q15\_reset 
 
 _Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has\_pending is cleared, so no partial IQ pair carries over. Call this between unrelated signal segments to prevent inter-segment leakage._ 
 ```C++
-void hbdecim_q15_reset (
-    hbdecim_q15_state_t * r
+void dp_hbdecim_q15_reset (
+    dp_hbdecim_q15_state_t * r
 ) 
 ```
 
@@ -414,11 +414,11 @@ void hbdecim_q15_reset (
 
 
 
-### function hbdecim\_q15\_set\_state 
+### function dp\_hbdecim\_q15\_set\_state 
 
 ```C++
-int hbdecim_q15_set_state (
-    hbdecim_q15_state_t * state,
+int dp_hbdecim_q15_set_state (
+    dp_hbdecim_q15_state_t * state,
     const void * blob
 ) 
 ```
@@ -430,11 +430,11 @@ int hbdecim_q15_set_state (
 
 
 
-### function hbdecim\_q15\_state\_bytes 
+### function dp\_hbdecim\_q15\_state\_bytes 
 
 ```C++
-size_t hbdecim_q15_state_bytes (
-    const hbdecim_q15_state_t * state
+size_t dp_hbdecim_q15_state_bytes (
+    const dp_hbdecim_q15_state_t * state
 ) 
 ```
 

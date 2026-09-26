@@ -147,7 +147,7 @@ def test_it_round_trips_through_the_decoder():
 
 
 def test_context_manager_and_destroy():
-    """Both release paths reach `conv_enc_destroy`; a second `destroy` is a
+    """Both release paths reach `dp_conv_enc_destroy`; a second `destroy` is a
     no-op rather than a double free."""
     with ConvEncoder(CCSDS_POLY, k=7) as e:
         assert np.asarray(e.encode(np.zeros(8, dtype=np.uint8))).size == 16

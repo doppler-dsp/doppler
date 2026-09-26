@@ -113,10 +113,21 @@ test_state_roundtrip (void)
    * Under -ffast-math aarch64 contracts the two paths' multiply-adds
    * differently (#1561). A wrong axis (the port read at the input rate, say)
    * misses by O(amplitude) = O(0.1), five orders above this. */
-  int bad = 0;
+  int   bad  = 0;
+  float dmax = 0.0f, amax = 0.0f;
   for (size_t i = 0; i < nA && i < nB; i++)
-    if (cabsf (outA[i] - outB[i]) > 1e-5f)
-      bad++;
+    {
+      float d = cabsf (outA[i] - outB[i]);
+      if (d > 1e-5f)
+        bad++;
+      dmax = fmaxf (dmax, d);
+      amax = fmaxf (amax, cabsf (outB[i]));
+    }
+  if (bad)
+    fprintf (stderr,
+             "freq port vs LO: %d of %zu differ, max |diff| %.3g "
+             "at peak |out| %.3g\n",
+             bad, nA, (double)dmax, (double)amax);
   DP_CHECK (bad == 0);
   free (in);
   free (outA);

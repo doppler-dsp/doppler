@@ -146,57 +146,6 @@ dp_ber_qfunc (double x)
   return ber_qfunc (x);
 }
 
-/**
- * @brief Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR).
- *
- * `BPSK: Q(sqrt(2 Es/N0))`, `QPSK: 2 Q(sqrt(Es/N0))`,
- * `8PSK: 2 Q(sqrt(2 Es/N0) sin(pi/8))`. The QPSK and 8PSK forms are the
- * standard nearest-neighbour union bound, tight to well under a percent at any
- * Es/N0 worth testing at.
- *
- * **This is a COHERENT bound.** A differentially-decoded error rate is ~2x it,
- * because a differential decision fails when either of its two symbols is
- * wrong (measured 1.88-2.11 across M and both receiver paths). Pairing a
- * differential measurement with this curve invents a factor of two of
- * "implementation loss" — it cost a session of chasing 2-4.75x where the
- * coherent measurement is 1.2-2.4x.
- */
-static inline double
-dp_ber_theory_ser (int m, double esn0)
-{
-  return ber_theory_ser (m, esn0);
-}
-
-/**
- * @brief Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR).
- *
- * BPSK and Gray QPSK are exactly `Q(sqrt(2 Eb/N0))` — the same curve per bit,
- * which is the whole point of Gray QPSK. 8PSK uses `SER / log2(M)`, exact in
- * the high-Es/N0 limit where a symbol error lands on a neighbour and flips one
- * bit.
- */
-static inline double
-dp_ber_theory_ber (int m, double esn0)
-{
-  return ber_theory_ber (m, esn0);
-}
-
-/**
- * @brief Es/N0 (dB) at which the coherent bound equals @p ser.
- *
- * Bisects dp_ber_theory_ser(), which is monotone decreasing. This is how an
- * implementation loss is quoted honestly: convert the MEASURED rate to the
- * Es/N0 that theory would need to produce it, and subtract. A loss in dB is
- * comparable across M and across operating points; a rate ratio is not.
- *
- * Returns 40.0 for a rate below anything reachable, -10.0 for one above.
- */
-static inline double
-dp_ber_esn0_db_for_ser (int m, double ser)
-{
-  return ber_esn0_db_for_ser (m, ser);
-}
-
 /* --- 2. Alignment - detected from a marker, never searched --------------- */
 
 /**
@@ -323,31 +272,6 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
  * very symbols that fixed the alignment. dp_ber_score() excludes them. */
 
 /* --- 3. The settled window ----------------------------------------------- */
-
-/**
- * @brief First symbol from which a verify-counted flag is SUSTAINED.
- *
- * "Sustained" is @p sustain consecutive symbols high AND at least @p min_frac
- * of everything after that point high too. Both halves carry weight: the run
- * rejects a single lucky decision, and the fraction rejects a detector that
- * declares early and then flaps for the rest of the burst.
- *
- * Dating the lock by the FINAL contiguous run of ones instead is right with no
- * noise and badly wrong with it — a verify-counted detector legitimately dips
- * under AWGN, and one late dip once moved a reported lock from 415 to 2286,
- * which left no measurement window at all and read as a receiver that never
- * locked.
- *
- * @return The symbol index, or -1 when no such point exists — the honest
- *         answer for "never locked", which forces the caller to say so rather
- *         than quietly measuring a transient.
- */
-static inline long
-dp_ber_lock_symbol (const unsigned char *flag, size_t n, size_t sustain,
-                    double min_frac)
-{
-  return ber_lock_symbol (flag, n, sustain, min_frac);
-}
 
 /**
  * @brief Where a steady-state measurement may start: `max` of every budget.
@@ -660,8 +584,8 @@ dp_ber_report (const dp_ber_t *b, double esn0_db, const dp_ber_sync_t *sy,
   r.evm_floor_db = dp_test_evm_scatter_floor_db (b->m);
   r.m2m4_db      = b->m2m4_sum / n;
   r.esn0_db      = esn0_db;
-  r.theory_ser   = dp_ber_theory_ser (b->m, esn0);
-  r.theory_ber   = dp_ber_theory_ber (b->m, esn0);
+  r.theory_ser   = ber_theory_ser (b->m, esn0);
+  r.theory_ber   = ber_theory_ber (b->m, esn0);
   r.window_lo    = lo;
   r.window_hi    = hi;
   r.lag          = (sy && sy->ok) ? sy->lag : 0;
@@ -670,7 +594,7 @@ dp_ber_report (const dp_ber_t *b, double esn0_db, const dp_ber_sync_t *sy,
   r.aligned      = (sy && sy->ok) ? 1 : 0;
   r.enough       = dp_ber_enough (b);
   r.loss_db      = (b->errors && b->symbols)
-                       ? esn0_db - dp_ber_esn0_db_for_ser (b->m, r.ser.p_hat)
+                       ? esn0_db - ber_esn0_db_for_ser (b->m, r.ser.p_hat)
                        : NAN;
 
   r.sane = 1;

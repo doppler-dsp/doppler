@@ -247,8 +247,8 @@ check against the best competitor outside the guard band, `phase` recovers the
 residual constellation rotation (which resolves an M-fold ambiguity), and `ok`
 says whether to believe any of it.
 
-Also present: `dp_ber_ci`, `dp_ber_enough`, `dp_ber_esn0_db_for_ser`,
-`dp_ber_measure`, `dp_ber_lock_symbol`, `dp_ber_evm_m`, `dp_ber_in_marker`.
+Also present: `dp_ber_ci`, `dp_ber_enough`, `ber_esn0_db_for_ser`,
+`dp_ber_measure`, `ber_lock_symbol`, `dp_ber_evm_m`, `dp_ber_in_marker`.
 The settling budget it documents is
 `2*(5/bn_timing + 5/bn_carrier)`, taken as
 `max(budget, timing lock, carrier lock, handover + budget)`.
@@ -414,7 +414,7 @@ here any more.
 
 `mpsk_ber_common.h` sets the **matched-filter-output** Es/N0 (not an input
 SNR), with amplitude `A*sqrt(sps/(2*esn0))`, and anchors every measurement at
-SER = 1e-3 via `dp_ber_esn0_db_for_ser`. It is the closest thing to a
+SER = 1e-3 via `ber_esn0_db_for_ser`. It is the closest thing to a
 standard receiver harness that exists.
 
 ### 3.2 Python certification

@@ -57,8 +57,8 @@ syncword_find (syncword_state_t *state, const uint8_t *bits, size_t bits_len,
   syncword_hit_t    r = { 0, 0u, 0, 0u };
   dp_syncword_hit_t h;
 
-  if (dp_syncword_find (bits, bits_len, state->marker, state->nbits,
-                        (unsigned)max_errors, &h))
+  if (dp_syncword_search (bits, bits_len, state->marker, state->nbits,
+                          (unsigned)max_errors, &h))
     {
       r.found    = 1;
       r.offset   = h.offset;
@@ -71,7 +71,7 @@ syncword_find (syncword_state_t *state, const uint8_t *bits, size_t bits_len,
 double
 syncword_pfa (syncword_state_t *state, uint32_t max_errors)
 {
-  return dp_syncword_pfa (state->nbits, (unsigned)max_errors);
+  return dp_syncword_search_pfa (state->nbits, (unsigned)max_errors);
 }
 
 int

@@ -1,5 +1,6 @@
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_crc16.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -27,18 +28,6 @@ csign (uint8_t c)
   return (c & 1u) ? -1.0f : 1.0f;
 }
 
-static uint16_t
-crc16 (const uint8_t *bits, size_t n)
-{
-  uint16_t c = 0xFFFFu;
-  for (size_t i = 0; i < n; i++)
-    {
-      c ^= (uint16_t)((bits[i] & 1u) << 15);
-      c = (c & 0x8000u) ? (uint16_t)((c << 1) ^ 0x1021u) : (uint16_t)(c << 1);
-    }
-  return c;
-}
-
 /* The caller's half of the split: does the frame's own trailer match its
  * own payload? This object stops at decisions (doppler#1022), so every
  * assertion that used to read `frame_valid` reads this instead — the same
@@ -53,7 +42,7 @@ frame_ok (const uint8_t *frame, size_t n)
   uint16_t rx = 0;
   for (size_t j = 0; j < CRC_BITS; j++)
     rx = (uint16_t)((rx << 1) | (frame[SYNC_LEN + PAYLOAD + j] & 1u));
-  return rx == crc16 (frame + SYNC_LEN, PAYLOAD);
+  return rx == dp_crc16_ccitt (frame + SYNC_LEN, PAYLOAD);
 }
 
 /* Append one BPSK data symbol (bit -> +/-1) spread by data_code. */
@@ -82,7 +71,7 @@ build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
     n = put_symbol (y, n, dcode, SYNC[j]);
   for (size_t j = 0; j < PAYLOAD; j++)
     n = put_symbol (y, n, dcode, payload[j]);
-  uint16_t crc = crc16 (payload, PAYLOAD);
+  uint16_t crc = dp_crc16_ccitt (payload, PAYLOAD);
   for (size_t j = 0; j < CRC_BITS; j++)
     n = put_symbol (y, n, dcode, (crc >> (CRC_BITS - 1 - j)) & 1u);
 
@@ -115,7 +104,8 @@ build_burst_ex (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
   for (size_t j = 0; j < SYNC_LEN; j++)
     n = put_symbol (y, n, dcode, SYNC[j]);
 
-  uint16_t crc = crc16 (payload, PAYLOAD); /* over the CLEAN payload */
+  uint16_t crc
+      = dp_crc16_ccitt (payload, PAYLOAD); /* over the CLEAN payload */
   for (size_t j = 0; j < PAYLOAD; j++)
     {
       uint8_t b = payload[j];
@@ -174,12 +164,13 @@ run_case (const char *name, double f0, double f0_prior, double mu,
     if (bits[SYNC_LEN + i] != payload[i])
       errs++;
   DP_CHECK (errs == 0);
-  /* ...and the trailer it received is the one crc16() computes over the
-     payload it received -- the whole point of the trailer, verified where
+  /* ...and the trailer it received is the one dp_crc16_ccitt() computes over
+     the payload it received -- the whole point of the trailer, verified where
      a caller would verify it. */
-  DP_CHECK_MSG (frame_ok (bits, nb),
-                "the trailer it received is the one crc16() computes over "
-                "the payload it received");
+  DP_CHECK_MSG (
+      frame_ok (bits, nb),
+      "the trailer it received is the one dp_crc16_ccitt() computes over "
+      "the payload it received");
 
   printf ("  %-10s f0=%.4f(prior %.4f) mu=%.2e | est f=%.1fHz r=%.2eHz/s "
           "cn0=%.1fdBHz tau=%+.3fchip off=%zu errs=%zu\n",
@@ -322,7 +313,7 @@ main (void)
             uint16_t rx = 0;
             for (size_t j = 0; j < CRC_BITS; j++)
               rx = (uint16_t)((rx << 1) | (bits[SYNC_LEN + PAYLOAD + j] & 1u));
-            DP_CHECK (rx == crc16 (bits + SYNC_LEN, PAYLOAD));
+            DP_CHECK (rx == dp_crc16_ccitt (bits + SYNC_LEN, PAYLOAD));
             burst_demod_destroy (d);
           }
 
@@ -370,7 +361,7 @@ main (void)
                 for (size_t j = 0; j < CRC_BITS; j++)
                   rx = (uint16_t)((rx << 1)
                                   | (bits[SYNC_LEN + PAYLOAD + j] & 1u));
-                DP_CHECK (rx != crc16 (bits + SYNC_LEN, PAYLOAD));
+                DP_CHECK (rx != dp_crc16_ccitt (bits + SYNC_LEN, PAYLOAD));
                 burst_demod_destroy (b);
               }
           }

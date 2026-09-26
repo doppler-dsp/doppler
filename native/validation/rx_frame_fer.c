@@ -524,8 +524,7 @@ rx_frame_check (const rx_frame_cfg_t *c, const rx_frame_result_t *r,
                 int gate_sync)
 {
   const char *nm = dp_frame_label (c->frame);
-  double      loss_lo
-      = r->rep.esn0_db - dp_ber_esn0_db_for_ser (c->m, r->rep.ser.lo);
+  double loss_lo = r->rep.esn0_db - ber_esn0_db_for_ser (c->m, r->rep.ser.lo);
 
   if (r->refused)
     {
@@ -628,7 +627,7 @@ int
 main (int argc, char **argv)
 {
   int    check   = (argc > 1 && strcmp (argv[1], "--check") == 0);
-  double esn0_db = dp_ber_esn0_db_for_ser (2, DP_BER_TARGET_SER);
+  double esn0_db = ber_esn0_db_for_ser (2, DP_BER_TARGET_SER);
   int    rc      = 0;
 
   printf ("MpskReceiver, end to end on a named frame: BER, EVM, M2M4 and "

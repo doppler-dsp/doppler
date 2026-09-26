@@ -4,7 +4,7 @@
  * `test_ccsds_tm_asm.c` already holds the search to the CCSDS marker: found
  * where it was put, at the last legal offset, in either polarity, first
  * below threshold rather than best, and never invented in random data. Since
- * `ccsds_tm_asm_find` is now `dp_syncword_find` with `0x1ACFFC1D` in it,
+ * `ccsds_tm_asm_find` is now `dp_syncword_search` with `0x1ACFFC1D` in it,
  * repeating those here would be two files agreeing about one kernel.
  *
  * What only THIS component can be wrong about is the two things the CCSDS

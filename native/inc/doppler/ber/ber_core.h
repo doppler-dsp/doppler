@@ -167,6 +167,11 @@ extern "C"
    * How an implementation loss is quoted honestly: convert the MEASURED rate to
    * the Es/N0 theory would need to produce it, and subtract. A loss in dB is
    * comparable across M and across operating points; a ratio of rates is not.
+   *
+   * Bisects ber_theory_ser(), which is monotone decreasing, over
+   * -10 to 40 dB and clamps to that range: 40.0 for a rate below the bound
+   * at 40 dB, -10.0 for one at or above the bound at -10 dB. A rate that is
+   * not positive also returns -10.0.
    */
   double ber_esn0_db_for_ser (int m, double ser);
 

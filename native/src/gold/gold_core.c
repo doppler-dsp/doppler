@@ -15,14 +15,14 @@
  * downstream.
  */
 
-gold_state_t *
-gold_create (uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
-             uint64_t seed_b, uint32_t length)
+dp_gold_state_t *
+dp_gold_create (uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
+                uint64_t seed_b, uint32_t length)
 {
   /* all-zero register is a fixed point; register holds up to 64 bits */
   if (seed_a == 0 || seed_b == 0 || length == 0 || length > 64)
     return NULL;
-  gold_state_t *obj = calloc (1, sizeof (*obj));
+  dp_gold_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   obj->mask   = (length >= 64) ? ~(uint64_t)0 : (((uint64_t)1 << length) - 1u);
@@ -37,13 +37,13 @@ gold_create (uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
 }
 
 void
-gold_destroy (gold_state_t *state)
+dp_gold_destroy (dp_gold_state_t *state)
 {
   free (state);
 }
 
 void
-gold_reset (gold_state_t *state)
+dp_gold_reset (dp_gold_state_t *state)
 {
   state->reg_a = state->seed_a;
   state->reg_b = state->seed_b;
@@ -54,30 +54,30 @@ gold_reset (gold_state_t *state)
  * restored by create(). */
 
 size_t
-gold_state_bytes (const gold_state_t *state)
+dp_gold_state_bytes (const dp_gold_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t);
 }
 
 void
-gold_get_state (const gold_state_t *state, void *blob)
+dp_gold_get_state (const dp_gold_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, gold_state_bytes (state));
+  dp_writer_t w = dp_writer_init (blob, dp_gold_state_bytes (state));
   dp_w_hdr (&w, GOLD_STATE_MAGIC, GOLD_STATE_VERSION,
-            gold_state_bytes (state));
+            dp_gold_state_bytes (state));
   dp_w_u64 (&w, state->reg_a);
   dp_w_u64 (&w, state->reg_b);
 }
 
 int
-gold_set_state (gold_state_t *state, const void *blob)
+dp_gold_set_state (dp_gold_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, gold_state_bytes (state), GOLD_STATE_MAGIC,
-                              GOLD_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_gold_state_bytes (state),
+                              GOLD_STATE_MAGIC, GOLD_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, gold_state_bytes (state));
+  dp_reader_t r = dp_reader_init (blob, dp_gold_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   state->reg_a  = dp_r_u64 (&r);
   state->reg_b  = dp_r_u64 (&r);
@@ -85,14 +85,15 @@ gold_set_state (gold_state_t *state, const void *blob)
 }
 
 size_t
-gold_generate_max_out (gold_state_t *state)
+dp_gold_generate_max_out (dp_gold_state_t *state)
 {
   (void)state;
   return 0; /* output length is the caller-requested n */
 }
 
 size_t
-gold_generate (gold_state_t *state, size_t n, uint8_t *out, size_t max_out)
+dp_gold_generate (dp_gold_state_t *state, size_t n, uint8_t *out,
+                  size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)

@@ -18,7 +18,7 @@
 #include "doppler/wfm/wfm_dsp.h" /* wfm_rc_h — header-inline, no link edge */
 
 void
-rc_h (const double *t, size_t t_len, double *out, double beta)
+dp_rc_h (const double *t, size_t t_len, double *out, double beta)
 {
   /* Same guard and same reasoning as rrc_h.c: beta outside [0, 1] makes the
      closed-form limit branches wrong rather than imprecise. */

@@ -9,13 +9,13 @@
 
 ```C++
 
-#ifndef LOCKDET_CORE_H
-#define LOCKDET_CORE_H
+#ifndef DP_LOCKDET_CORE_H
+#define DP_LOCKDET_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
-#include "doppler/util/util_core.h" /* saturate() — the NaN policy, shared */
+#include "doppler/util/util_core.h" /* dp_saturate() — the NaN policy, shared */
 #include <math.h>
 #ifdef __cplusplus
 extern "C"
@@ -30,20 +30,20 @@ extern "C"
     uint32_t n_down;    
     uint32_t cnt;       
     int locked;         
-  } lockdet_state_t;
+  } dp_lockdet_state_t;
 
-  void lockdet_init(lockdet_state_t *state, double up_thresh,
+  void lockdet_init(dp_lockdet_state_t *state, double up_thresh,
                     double down_thresh, uint32_t n_up, uint32_t n_down);
 
-  lockdet_state_t *lockdet_create(double up_thresh, double down_thresh,
+  dp_lockdet_state_t *dp_lockdet_create(double up_thresh, double down_thresh,
                                   uint32_t n_up, uint32_t n_down);
 
-  void lockdet_destroy(lockdet_state_t *state);
+  void dp_lockdet_destroy(dp_lockdet_state_t *state);
 
-  void lockdet_configure(lockdet_state_t *state, double up_thresh,
+  void dp_lockdet_configure(dp_lockdet_state_t *state, double up_thresh,
                          double down_thresh, uint32_t n_up, uint32_t n_down);
 
-  void lockdet_reset(lockdet_state_t *state);
+  void dp_lockdet_reset(dp_lockdet_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Whole-struct POD snapshot (pointer-free); the decision flag and the
@@ -52,12 +52,12 @@ extern "C"
 #define LOCKDET_STATE_MAGIC DP_FOURCC('L', 'K', 'D', 'T')
 #define LOCKDET_STATE_VERSION 1u
 
-  size_t lockdet_state_bytes(const lockdet_state_t *state);
-  void lockdet_get_state(const lockdet_state_t *state, void *blob);
-  int lockdet_set_state(lockdet_state_t *state, const void *blob);
+  size_t dp_lockdet_state_bytes(const dp_lockdet_state_t *state);
+  void dp_lockdet_get_state(const dp_lockdet_state_t *state, void *blob);
+  int dp_lockdet_set_state(dp_lockdet_state_t *state, const void *blob);
 
   JM_FORCEINLINE JM_HOT int
-  lockdet_step (lockdet_state_t *state, double x)
+  dp_lockdet_step (dp_lockdet_state_t *state, double x)
   {
     /* An unknown lock is not a lock. Send a non-finite look to the floor
        through the SHARED primitive rather than encoding the policy here:
@@ -72,7 +72,7 @@ extern "C"
        forever on a dead metric.
        The bounds are infinite because the substitution is the only job:
        every finite look, and both infinities, pass through untouched. */
-    x = saturate (x, -INFINITY, INFINITY, -INFINITY);
+    x = dp_saturate (x, -INFINITY, INFINITY, -INFINITY);
 
     if (!state->locked)
       {
@@ -103,7 +103,7 @@ extern "C"
     return state->locked;
   }
 
-  void lockdet_steps (lockdet_state_t *state, const double *x, int *out,
+  void dp_lockdet_steps (dp_lockdet_state_t *state, const double *x, int *out,
                       size_t n);
 
 #ifdef __cplusplus

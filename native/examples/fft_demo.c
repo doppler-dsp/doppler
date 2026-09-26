@@ -2,7 +2,7 @@
  * fft_demo.c — doppler FFT API demonstration.
  *
  * Shows 1-D forward and inverse FFTs using the instance-based API
- * (fft_create / fft_execute_cf64 / fft_destroy).
+ * (dp_fft_create / dp_fft_execute_cf64 / dp_fft_destroy).
  *
  * Key facts used in this demo:
  *
@@ -75,10 +75,10 @@ main (void)
       x[i] = cos (2.0 * M_PI * (double)i / (double)N);
 
     /* sign = +1 → forward DFT; nthreads = 1 */
-    fft_state_t *fft = fft_create (N, +1, 1);
-    fft_execute_cf64 (fft, x, N, y, N);
+    dp_fft_state_t *fft = dp_fft_create (N, +1, 1);
+    dp_fft_execute_cf64 (fft, x, N, y, N);
     print_spectrum (y, N, 3);
-    fft_destroy (fft);
+    dp_fft_destroy (fft);
 
     free (x);
     free (y);
@@ -104,10 +104,10 @@ main (void)
     for (size_t i = 0; i < N; i++)
       x[i] = sin (2.0 * M_PI * (double)i / (double)N);
 
-    fft_state_t *fft = fft_create (N, +1, 1);
-    fft_execute_cf64 (fft, x, N, y, N);
+    dp_fft_state_t *fft = dp_fft_create (N, +1, 1);
+    dp_fft_execute_cf64 (fft, x, N, y, N);
     print_spectrum (y, N, 3);
-    fft_destroy (fft);
+    dp_fft_destroy (fft);
 
     free (x);
     free (y);
@@ -137,13 +137,13 @@ main (void)
         x[i]      = re + im * _Complex_I;
       }
 
-    fft_state_t *fwd = fft_create (N, +1, 1);
-    fft_state_t *inv = fft_create (N, -1, 1);
+    dp_fft_state_t *fwd = dp_fft_create (N, +1, 1);
+    dp_fft_state_t *inv = dp_fft_create (N, -1, 1);
 
-    fft_execute_cf64 (fwd, x, N, mid, N);
+    dp_fft_execute_cf64 (fwd, x, N, mid, N);
 
     /* IFFT output needs 1/N normalisation */
-    fft_execute_cf64 (inv, mid, N, out, N);
+    dp_fft_execute_cf64 (inv, mid, N, out, N);
     for (size_t i = 0; i < N; i++)
       out[i] /= (double)N;
 
@@ -156,8 +156,8 @@ main (void)
       }
     printf ("    Max reconstruction error: %e  (should be ~0)\n", max_err);
 
-    fft_destroy (fwd);
-    fft_destroy (inv);
+    dp_fft_destroy (fwd);
+    dp_fft_destroy (inv);
     free (x);
     free (mid);
     free (out);

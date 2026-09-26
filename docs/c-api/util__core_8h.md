@@ -54,17 +54,17 @@ _Util module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**complement\_power**](#function-complement_power) (double p, double x) <br>`1 - (1 - p)^x` _, accurate for small_`p` _: the probability that at least one of_`x` _independent trials succeeds, each with probability_`p` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_alpha\_decim**](#function-ema_alpha_decim) (double alpha, size\_t d) <br>_The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_step**](#function-ema_step) (double state, double x, double alpha) <br>_One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**gauss\_hermite**](#function-gauss_hermite) (double \* z, size\_t z\_len, double \* p, size\_t p\_len) <br>_Fill_ `z` _and_`p` _with the n-point Gauss-Hermite rule for a STANDARD NORMAL._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mean\_sinc**](#function-mean_sinc) (double umax) <br>_The mean of sinc(u) over_ `u` _in_`[0, umax]` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**midpoint\_nodes**](#function-midpoint_nodes) (double \* u, size\_t u\_len) <br>_Fill_ `u` _with the midpoint-rule nodes on_`[0, 1]` _:_`u[k] = (k + 1/2) / n` _for_`n = u_len` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**next\_pow\_two**](#function-next_pow_two) (size\_t n) <br>_Smallest power of two greater than or equal to_ `n` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**saturate**](#function-saturate) (double v, double lo, double hi, double nan\_to) <br>_Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**simpson\_weights**](#function-simpson_weights) (double \* w, size\_t w\_len) <br>_Fill_ `w` _with composite Simpson weights for the MEAN of a function over an interval._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**sinc**](#function-sinc) (double u) <br>_Normalized sinc,_ `sin(pi u) / (pi u)` _, with_`sinc(0) = 1` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**square\_clip**](#function-square_clip) (float \_Complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_complement\_power**](#function-dp_complement_power) (double p, double x) <br>`1 - (1 - p)^x` _, accurate for small_`p` _: the probability that at least one of_`x` _independent trials succeeds, each with probability_`p` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_ema\_alpha\_decim**](#function-dp_ema_alpha_decim) (double alpha, size\_t d) <br>_The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_ema\_step**](#function-dp_ema_step) (double state, double x, double alpha) <br>_One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**dp\_gauss\_hermite**](#function-dp_gauss_hermite) (double \* z, size\_t z\_len, double \* p, size\_t p\_len) <br>_Fill_ `z` _and_`p` _with the n-point Gauss-Hermite rule for a STANDARD NORMAL._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_mean\_sinc**](#function-dp_mean_sinc) (double umax) <br>_The mean of sinc(u) over_ `u` _in_`[0, umax]` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_midpoint\_nodes**](#function-dp_midpoint_nodes) (double \* u, size\_t u\_len) <br>_Fill_ `u` _with the midpoint-rule nodes on_`[0, 1]` _:_`u[k] = (k + 1/2) / n` _for_`n = u_len` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**dp\_next\_pow\_two**](#function-dp_next_pow_two) (size\_t n) <br>_Smallest power of two greater than or equal to_ `n` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_saturate**](#function-dp_saturate) (double v, double lo, double hi, double nan\_to) <br>_Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**dp\_simpson\_weights**](#function-dp_simpson_weights) (double \* w, size\_t w\_len) <br>_Fill_ `w` _with composite Simpson weights for the MEAN of a function over an interval._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_sinc**](#function-dp_sinc) (double u) <br>_Normalized sinc,_ `sin(pi u) / (pi u)` _, with_`sinc(0) = 1` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**dp\_square\_clip**](#function-dp_square_clip) (float \_Complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
 
 
 
@@ -105,11 +105,11 @@ The util functions are header-only and JM\_FORCEINLINE: any caller that includes
 
 
 
-### function complement\_power 
+### function dp\_complement\_power 
 
 `1 - (1 - p)^x` _, accurate for small_`p` _: the probability that at least one of_`x` _independent trials succeeds, each with probability_`p` _._
 ```C++
-JM_FORCEINLINE double complement_power (
+JM_FORCEINLINE double dp_complement_power (
     double p,
     double x
 ) 
@@ -163,11 +163,11 @@ Two library quantities are this one expression, and both call it:
 
 
 
-### function ema\_alpha\_decim 
+### function dp\_ema\_alpha\_decim 
 
 _The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._
 ```C++
-JM_FORCEINLINE double ema_alpha_decim (
+JM_FORCEINLINE double dp_ema_alpha_decim (
     double alpha,
     size_t d
 ) 
@@ -196,7 +196,7 @@ A decimated loop updates its average once per chunk of `d` samples and must not 
 
 
 
-`agc_steps` used the repeated-multiply form and had this defect; it now forms BOTH its per-chunk coefficients with this function. Being exact at `d == 1` is the property that lets a caller set `decim = 1` and get bit-for-bit the undecimated recursion, so the decimated and per-sample paths can be compared at all.
+`dp_agc_steps` used the repeated-multiply form and had this defect; it now forms BOTH its per-chunk coefficients with this function. Being exact at `d == 1` is the property that lets a caller set `decim = 1` and get bit-for-bit the undecimated recursion, so the decimated and per-sample paths can be compared at all.
 
 
 
@@ -236,11 +236,11 @@ The per-chunk coefficient, in `[0, 1]`.
 
 
 
-### function ema\_step 
+### function dp\_ema\_step 
 
 _One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._
 ```C++
-JM_FORCEINLINE double ema_step (
+JM_FORCEINLINE double dp_ema_step (
     double state,
     double x,
     double alpha
@@ -295,7 +295,7 @@ The updated state.
 
 **Note:**
 
-NOT total in `x`: a non-finite observation poisons the state permanently, because an EMA remembers. That is deliberate — the guard belongs at the boundary where an untrusted value first becomes persistent state, which is this function's input. Use [**saturate**](util__core_8h.md#function-saturate) there, as `agc_steps` does. See `agc_core.h` for what one unguarded non-finite sample cost. 
+NOT total in `x`: a non-finite observation poisons the state permanently, because an EMA remembers. That is deliberate — the guard belongs at the boundary where an untrusted value first becomes persistent state, which is this function's input. Use [**dp\_saturate**](util__core_8h.md#function-dp_saturate) there, as `dp_agc_steps` does. See `agc_core.h` for what one unguarded non-finite sample cost. 
 ```C++
 >>> from doppler.util import ema_step
 >>> ema_step(0.0, 1.0, 0.5)          # halfway to the observation
@@ -320,11 +320,11 @@ NOT total in `x`: a non-finite observation poisons the state permanently, becaus
 
 
 
-### function gauss\_hermite 
+### function dp\_gauss\_hermite 
 
 _Fill_ `z` _and_`p` _with the n-point Gauss-Hermite rule for a STANDARD NORMAL._
 ```C++
-JM_FORCEINLINE int gauss_hermite (
+JM_FORCEINLINE int dp_gauss_hermite (
     double * z,
     size_t z_len,
     double * p,
@@ -379,18 +379,18 @@ DP\_OK, or DP\_ERR\_INVALID (outputs untouched) for mismatched or zero lengths.
 
 
 
-### function mean\_sinc 
+### function dp\_mean\_sinc 
 
 _The mean of sinc(u) over_ `u` _in_`[0, umax]` _._
 ```C++
-JM_FORCEINLINE double mean_sinc (
+JM_FORCEINLINE double dp_mean_sinc (
     double umax
 ) 
 ```
 
 
 
-The average amplitude loss of a signal whose offset from the nearest bin centre is uniform over `umax` bins: the scalloping a Pd model averages over, where sinc(umax) would be only the worst case. 64-interval Simpson ([**simpson\_weights()**](util__core_8h.md#function-simpson_weights)) over segments of at most half a bin: within 3e-10 at any umax, far below any model this feeds.
+The average amplitude loss of a signal whose offset from the nearest bin centre is uniform over `umax` bins: the scalloping a Pd model averages over, where sinc(umax) would be only the worst case. 64-interval Simpson ([**dp\_simpson\_weights()**](util__core_8h.md#function-dp_simpson_weights)) over segments of at most half a bin: within 3e-10 at any umax, far below any model this feeds.
 
 
 
@@ -424,11 +424,11 @@ The mean; 1 for `umax <= 0`.
 
 
 
-### function midpoint\_nodes 
+### function dp\_midpoint\_nodes 
 
 _Fill_ `u` _with the midpoint-rule nodes on_`[0, 1]` _:_`u[k] = (k + 1/2) / n` _for_`n = u_len` _._
 ```C++
-JM_FORCEINLINE void midpoint_nodes (
+JM_FORCEINLINE void dp_midpoint_nodes (
     double * u,
     size_t u_len
 ) 
@@ -465,11 +465,11 @@ array([0.125, 0.375, 0.625, 0.875])
 
 
 
-### function next\_pow\_two 
+### function dp\_next\_pow\_two 
 
 _Smallest power of two greater than or equal to_ `n` _._
 ```C++
-JM_FORCEINLINE size_t next_pow_two (
+JM_FORCEINLINE size_t dp_next_pow_two (
     size_t n
 ) 
 ```
@@ -517,11 +517,11 @@ The smallest power of two &gt;= `n`, or 0 if that exceeds `SIZE_MAX`.
 
 
 
-### function saturate 
+### function dp\_saturate 
 
 _Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._
 ```C++
-JM_FORCEINLINE double saturate (
+JM_FORCEINLINE double dp_saturate (
     double v,
     double lo,
     double hi,
@@ -592,11 +592,11 @@ At the boundary where an untrusted value first becomes **persistent state** — 
 
 
 
-### function simpson\_weights 
+### function dp\_simpson\_weights 
 
 _Fill_ `w` _with composite Simpson weights for the MEAN of a function over an interval._
 ```C++
-JM_FORCEINLINE int simpson_weights (
+JM_FORCEINLINE int dp_simpson_weights (
     double * w,
     size_t w_len
 ) 
@@ -643,11 +643,11 @@ array([1., 4., 2., 4., 1.])
 
 
 
-### function sinc 
+### function dp\_sinc 
 
 _Normalized sinc,_ `sin(pi u) / (pi u)` _, with_`sinc(0) = 1` _._
 ```C++
-JM_FORCEINLINE double sinc (
+JM_FORCEINLINE double dp_sinc (
     double u
 ) 
 ```
@@ -690,11 +690,11 @@ True
 
 
 
-### function square\_clip 
+### function dp\_square\_clip 
 
 _Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._
 ```C++
-JM_FORCEINLINE float _Complex square_clip (
+JM_FORCEINLINE float _Complex dp_square_clip (
     float _Complex y,
     float lin
 ) 

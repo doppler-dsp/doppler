@@ -23,13 +23,13 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_agc[] = {
-    (jm_any_fn)agc_create,
-    (jm_any_fn)agc_destroy,
-    (jm_any_fn)agc_reset,
-    (jm_any_fn)agc_steps,
-    (jm_any_fn)agc_get_applied_gain_db,
-    (jm_any_fn)agc_set_telemetry,
-    (jm_any_fn)agc_state_bytes,
-    (jm_any_fn)agc_get_state,
-    (jm_any_fn)agc_set_state,
+    (jm_any_fn)dp_agc_create,
+    (jm_any_fn)dp_agc_destroy,
+    (jm_any_fn)dp_agc_reset,
+    (jm_any_fn)dp_agc_steps,
+    (jm_any_fn)dp_agc_get_applied_gain_db,
+    (jm_any_fn)dp_agc_set_telemetry,
+    (jm_any_fn)dp_agc_state_bytes,
+    (jm_any_fn)dp_agc_get_state,
+    (jm_any_fn)dp_agc_set_state,
 };

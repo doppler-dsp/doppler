@@ -27,8 +27,8 @@
  * [-1.0, 0.0, 0.9921875]
  * @endcode
  */
-#ifndef I8_TO_F32_CORE_H
-#define I8_TO_F32_CORE_H
+#ifndef DP_I8_TO_F32_CORE_H
+#define DP_I8_TO_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -39,11 +39,11 @@ extern "C" {
 /**
  * @brief I8ToF32 state.
  *
- * Allocate with i8_to_f32_create().
+ * Allocate with dp_i8_to_f32_create().
  */
 typedef struct {
     float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
-} i8_to_f32_state_t;
+} dp_i8_to_f32_state_t;
 
 /**
  * @brief Create a i8_to_f32 instance.
@@ -54,15 +54,15 @@ typedef struct {
  *               (default: 128.0f).  Use 128.0 to recover normalised floats
  *               from a signed 8-bit stream.
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call i8_to_f32_destroy() when done.
+ * @note Caller must call dp_i8_to_f32_destroy() when done.
  */
-i8_to_f32_state_t *i8_to_f32_create(float scale);
+dp_i8_to_f32_state_t *dp_i8_to_f32_create(float scale);
 
 /**
  * @brief Destroy a i8_to_f32 instance and release all memory.
  * @param state  May be NULL.
  */
-void i8_to_f32_destroy(i8_to_f32_state_t *state);
+void dp_i8_to_f32_destroy(dp_i8_to_f32_state_t *state);
 
 /**
  * @brief No-op reset, provided only for lifecycle symmetry.
@@ -82,7 +82,7 @@ void i8_to_f32_destroy(i8_to_f32_state_t *state);
  *
  * @endcode
  */
-void i8_to_f32_reset(i8_to_f32_state_t *state);
+void dp_i8_to_f32_reset(dp_i8_to_f32_state_t *state);
 
 /**
  * @brief Convert one signed int8 sample to a normalised float via @c 1/scale.
@@ -107,7 +107,7 @@ void i8_to_f32_reset(i8_to_f32_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT float
-i8_to_f32_step(const i8_to_f32_state_t *state, int8_t x)
+dp_i8_to_f32_step(const dp_i8_to_f32_state_t *state, int8_t x)
 {
     return (float)x * state->iscale;
 }
@@ -131,8 +131,8 @@ i8_to_f32_step(const i8_to_f32_state_t *state, int8_t x)
  *
  * @endcode
  */
-void i8_to_f32_steps(
-    i8_to_f32_state_t *state,
+void dp_i8_to_f32_steps(
+    dp_i8_to_f32_state_t *state,
     const int8_t    *input,
     float          *output,
     size_t               n);

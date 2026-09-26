@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef ACC_CF64_CORE_H
-#define ACC_CF64_CORE_H
+#ifndef DP_ACC_CF64_CORE_H
+#define DP_ACC_CF64_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -24,38 +24,38 @@ extern "C"
   typedef struct
   {
     double _Complex acc;
-  } acc_cf64_state_t;
+  } dp_acc_cf64_state_t;
 
-  acc_cf64_state_t *acc_cf64_create (double _Complex acc);
+  dp_acc_cf64_state_t *dp_acc_cf64_create (double _Complex acc);
 
-  void acc_cf64_destroy (acc_cf64_state_t *state);
+  void dp_acc_cf64_destroy (dp_acc_cf64_state_t *state);
 
-  void acc_cf64_reset (acc_cf64_state_t *state);
+  void dp_acc_cf64_reset (dp_acc_cf64_state_t *state);
 
   JM_FORCEINLINE JM_HOT void
-  acc_cf64_step (acc_cf64_state_t *state, double _Complex x)
+  dp_acc_cf64_step (dp_acc_cf64_state_t *state, double _Complex x)
   {
     state->acc += x;
   }
 
-  void acc_cf64_steps (acc_cf64_state_t *state, const double _Complex *input,
+  void dp_acc_cf64_steps (dp_acc_cf64_state_t *state, const double _Complex *input,
                        size_t n);
 
-  double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state);
+  double _Complex dp_acc_cf64_get_acc (const dp_acc_cf64_state_t *state);
 
-  void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value);
+  void dp_acc_cf64_set_acc (dp_acc_cf64_state_t *state, double _Complex value);
 
-  double _Complex acc_cf64_get (acc_cf64_state_t *state);
+  double _Complex dp_acc_cf64_get (dp_acc_cf64_state_t *state);
 
-  double _Complex acc_cf64_dump (acc_cf64_state_t *state);
+  double _Complex dp_acc_cf64_dump (dp_acc_cf64_state_t *state);
 
-  void acc_cf64_madd (acc_cf64_state_t *state, const double _Complex *x,
+  void dp_acc_cf64_madd (dp_acc_cf64_state_t *state, const double _Complex *x,
                       size_t x_len, const float *h, size_t h_len);
 
-  void acc_cf64_add2d (acc_cf64_state_t *state, const double _Complex *x,
+  void dp_acc_cf64_add2d (dp_acc_cf64_state_t *state, const double _Complex *x,
                        size_t x_len);
 
-  void acc_cf64_madd2d (acc_cf64_state_t *state, const double _Complex *x,
+  void dp_acc_cf64_madd2d (dp_acc_cf64_state_t *state, const double _Complex *x,
                         size_t x_len, const float *h, size_t h_len);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -63,9 +63,9 @@ extern "C"
    * identically-built instance. */
 #define ACC_CF64_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', 'C')
 #define ACC_CF64_STATE_VERSION 1u
-  size_t acc_cf64_state_bytes (const acc_cf64_state_t *state);
-  void    acc_cf64_get_state (const acc_cf64_state_t *state, void *blob);
-  int     acc_cf64_set_state (acc_cf64_state_t *state, const void *blob);
+  size_t dp_acc_cf64_state_bytes (const dp_acc_cf64_state_t *state);
+  void    dp_acc_cf64_get_state (const dp_acc_cf64_state_t *state, void *blob);
+  int     dp_acc_cf64_set_state (dp_acc_cf64_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

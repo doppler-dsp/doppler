@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only measure_ext.c is compiled.
  */
 /* ======================================================== */
-/* NPRMeasureObject — wraps nprmeas_state_t *       */
+/* NPRMeasureObject — wraps dp_nprmeas_state_t *       */
 /* ======================================================== */
 
 #include "doppler/nprmeas/nprmeas_core.h"
 
 typedef struct
 {
-  PyObject_HEAD nprmeas_state_t *handle;
+  PyObject_HEAD dp_nprmeas_state_t *handle;
 } NPRMeasureObject;
 
 static void
 NPRMeasureObj_dealloc (NPRMeasureObject *self)
 {
   if (self->handle)
-    nprmeas_destroy (self->handle);
+    dp_nprmeas_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -49,10 +49,10 @@ NPRMeasureObj_init (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
     return -1;
   size_t n     = (size_t)n_raw;
   size_t bits  = (size_t)bits_raw;
-  self->handle = nprmeas_create (n, fs, full_scale, bits, dynamic_range_db);
+  self->handle = dp_nprmeas_create (n, fs, full_scale, bits, dynamic_range_db);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "nprmeas_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_nprmeas_create returned NULL");
       return -1;
     }
   return 0;
@@ -66,7 +66,7 @@ NPRMeasureObj_reset (NPRMeasureObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  nprmeas_reset (self->handle);
+  dp_nprmeas_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -129,8 +129,8 @@ NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
    * state/buffers and the caller's input. */
   npr_meas_t _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = nprmeas_analyze (self->handle, x, x_len, active_lo, active_hi,
-                          notch_lo, notch_hi, guard_hz);
+    _r = dp_nprmeas_analyze (self->handle, x, x_len, active_lo, active_hi,
+                             notch_lo, notch_hi, guard_hz);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   PyObject *_o = PyStructSequence_New (NPRMeasureObj_analyze_type);
@@ -158,7 +158,7 @@ NPRMeasureObj_spectrum_dbfs_max_out (NPRMeasureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (nprmeas_spectrum_dbfs_max_out (self->handle));
+  return PyLong_FromSize_t (dp_nprmeas_spectrum_dbfs_max_out (self->handle));
 }
 
 static PyObject *
@@ -204,7 +204,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = nprmeas_spectrum_dbfs_max_out (self->handle);
+      size_t _omax    = dp_nprmeas_spectrum_dbfs_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -216,7 +216,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t n_out = nprmeas_spectrum_dbfs (
+      size_t n_out = dp_nprmeas_spectrum_dbfs (
           self->handle, (const float *)PyArray_DATA (x_arr),
           (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
@@ -238,7 +238,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = nprmeas_spectrum_dbfs_max_out (self->handle);
+  size_t _cap  = dp_nprmeas_spectrum_dbfs_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -249,7 +249,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = nprmeas_spectrum_dbfs (
+  size_t n_out = dp_nprmeas_spectrum_dbfs (
       self->handle, (const float *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
@@ -325,7 +325,7 @@ NPRMeasureObj_destroy (NPRMeasureObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      nprmeas_destroy (self->handle);
+      dp_nprmeas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -344,7 +344,7 @@ NPRMeasureObj_exit (NPRMeasureObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      nprmeas_destroy (self->handle);
+      dp_nprmeas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

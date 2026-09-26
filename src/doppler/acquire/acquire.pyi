@@ -34,7 +34,7 @@ class CarrierAcquisition:
         Target detection probability.
     design_snr : float, default 2.0
         Assumed per-sample amplitude SNR used ONLY to precompute dwell_target
-        via det_n_noncoh(); not a live measurement. An optimistic guess only
+        via dp_det_n_noncoh(); not a live measurement. An optimistic guess only
         affects NON-sequential mode (which trusts this one-shot wait count
         outright) -- sequential mode's own give-up bound is max_n_blocks, not
         dwell_target, precisely so a wrong design_snr can't stop it from trying
@@ -298,9 +298,9 @@ class Acquisition:
         Chip rate in Hz (> 0).
     symbol_rate : float, default 1000.0
         Continuous data-symbol rate in Hz; <= 0 means no known clock.
-        Diagnostic only (exposed via acq_state_t::epochs_per_symbol), doesn't
-        feed sizing: this engine never coherently combines regardless of the
-        data-modulation clock.
+        Diagnostic only (exposed via dp_acq_state_t::epochs_per_symbol),
+        doesn't feed sizing: this engine never coherently combines regardless
+        of the data-modulation clock.
     cn0_dbhz : float, default 50.0
         Carrier-to-noise density in dB-Hz: any finite value. A continuous
         engine needs one -- its non-coherent looks cannot be chosen without a
@@ -519,11 +519,11 @@ class Acquisition:
         transition inside the epoch splits one emitter into twins at its own
         code phase on other tiles, so such a peak is held for one dwell and
         listed only if it was there, at the same tile, on the previous one.
-        Each listed peak is one acq_result_t from acq_push(), all of a dwell's
-        sharing its `samples_consumed` and `noise_est`. A held twin takes a
-        slot of the `n` for that dwell but is not reported. The threshold does
-        not change: a second peak is another draw from the same cells against
-        the same union bound. Clears the held candidates.
+        Each listed peak is one acq_result_t from dp_acq_push(), all of a
+        dwell's sharing its `samples_consumed` and `noise_est`. A held twin
+        takes a slot of the `n` for that dwell but is not reported. The
+        threshold does not change: a second peak is another draw from the same
+        cells against the same union bound. Clears the held candidates.
 
         Parameters
         ----------
@@ -673,9 +673,9 @@ class Acquisition:
         hit fired), "<prefix>.noise" (the CFAR reference `noise_est`),
         "<prefix>.peak" (the strongest cell's raw value), "<prefix>.row" and
         "<prefix>.col" (its native Doppler row and code-phase column — a
-        surface coordinate, not a physical unit; acq_surface_doppler_hz() and
-        acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in the
-        dwell, held twins included), "<prefix>.n_held" (picks held as
+        surface coordinate, not a physical unit; dp_acq_surface_doppler_hz()
+        and dp_acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in
+        the dwell, held twins included), "<prefix>.n_held" (picks held as
         same-code-phase twins rather than listed, §7.1), "<prefix>.conc" (the
         strongest pick's concentration — see `peak_conc`: its main lobe's power
         over its whole column's, near 1 for one clean emitter even when it
@@ -772,7 +772,7 @@ class Acquisition:
         One value per surface row, the fold and scale a hit's `doppler_hz_est`
         uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated
         grid where the slow-time axis is interpolated), so a plot of
-        acq_surface() carries the same axis a DetectionEvent reports on.
+        dp_acq_surface() carries the same axis a DetectionEvent reports on.
 
         Parameters
         ----------
@@ -839,7 +839,7 @@ class Acquisition:
         phase per cell, before the magnitude the gate reads.
 
         Copies the coherent sum the last dwell was decided on into out,
-        row-major `surface_rows` x `code_bins` like acq_surface(), in the
+        row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the
         correlation's own units rather than the gate's. A cell's phase is the
         carrier at the block's middle, relative to its tile's centre; its
         neighbours along the code axis are complex early and late arms, so a
@@ -949,9 +949,9 @@ class Acquisition:
 
         Copies the `coherent_bins * code_bins` samples the block-coherent
         engine gathered for its last whole block into out, epoch by epoch in
-        stream order — the samples acq_push() consumed, untouched. Kept for the
-        tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker can
-        re-correlate them at any code phase, rate or symbol boundary the
+        stream order — the samples dp_acq_push() consumed, untouched. Kept for
+        the tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker
+        can re-correlate them at any code phase, rate or symbol boundary the
         engine's own grid does not have — a symbol-rate despreader at the
         tracked timing runs on exactly this
         (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a
@@ -1370,10 +1370,11 @@ class BurstAcquisition:
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
 
-        Forwards to acq_reset() on the embedded engine: discards any buffered
-        samples that have not yet completed a frame and clears the non-coherent
-        power accumulator and dwell bookkeeping, so the next push() begins a
-        fresh search from an empty ring. Construction parameters are untouched.
+        Forwards to dp_acq_reset() on the embedded engine: discards any
+        buffered samples that have not yet completed a frame and clears the
+        non-coherent power accumulator and dwell bookkeeping, so the next
+        push() begins a fresh search from an empty ring. Construction
+        parameters are untouched.
 
         Examples
         --------
@@ -1399,8 +1400,8 @@ class BurstAcquisition:
     ) -> list[tuple[int, int, float, float, float, float, int]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
-        Forwards to acq_push() on the embedded engine (see its doc comment in
-        acq_core.h for the framing/CFAR mechanics). Each event carries the
+        Forwards to dp_acq_push() on the embedded engine (see its doc comment
+        in acq_core.h for the framing/CFAR mechanics). Each event carries the
         peak's Doppler bin and code phase (the two search axes), its CFAR
         statistic, and an estimated C/N0 — see acq_result_t.
 
@@ -1443,11 +1444,11 @@ class BurstAcquisition:
         ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside
         [1, 256] (the internal non-coherent-look safety-valve ceiling).
 
-        Forwards to acq_configure_search_raw() on the embedded engine (see its
-        doc comment in acq_core.h): resizes every grid-dependent buffer/plan,
-        re-derives the threshold ladder for the pinned grid, and clears
-        in-flight accumulation — call between push() calls, never a substitute
-        for one.
+        Forwards to dp_acq_configure_search_raw() on the embedded engine (see
+        its doc comment in acq_core.h): resizes every grid-dependent
+        buffer/plan, re-derives the threshold ladder for the pinned grid, and
+        clears in-flight accumulation — call between push() calls, never a
+        substitute for one.
 
         Parameters
         ----------
@@ -1498,7 +1499,7 @@ class BurstAcquisition:
         that dwell but is not reported. The threshold does not change with n.
         Raises ValueError outside 1..64. Clears the held candidates.
 
-        Forwards to acq_set_max_peaks() on the embedded engine (see its doc
+        Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc
         comment in acq_core.h): one is the classic gated maximum; more is the
         list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
         same gate, strongest first, an exclusion zone of one Doppler bin by the

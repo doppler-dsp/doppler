@@ -7,14 +7,14 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* HalfbandDecimatorQ15Object — wraps hbdecim_q15_state_t *       */
+/* HalfbandDecimatorQ15Object — wraps dp_hbdecim_q15_state_t *       */
 /* ======================================================== */
 
 #include "doppler/hbdecim_q15/hbdecim_q15_core.h"
 
 typedef struct
 {
-  PyObject_HEAD hbdecim_q15_state_t *handle;
+  PyObject_HEAD dp_hbdecim_q15_state_t *handle;
   int16_t *_execute_buf;     /* pre-allocated output for execute */
   size_t   _execute_buf_cap; /* allocated capacity for execute */
 } HalfbandDecimatorQ15Object;
@@ -23,7 +23,7 @@ static void
 HalfbandDecimatorQ15Obj_dealloc (HalfbandDecimatorQ15Object *self)
 {
   if (self->handle)
-    hbdecim_q15_destroy (self->handle);
+    dp_hbdecim_q15_destroy (self->handle);
   free (self->_execute_buf);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -56,15 +56,16 @@ HalfbandDecimatorQ15Obj_init (HalfbandDecimatorQ15Object *self, PyObject *args,
     }
   size_t h_len = (size_t)PyArray_SIZE (h_arr);
   self->handle
-      = hbdecim_q15_create (h_len, (const float *)PyArray_DATA (h_arr));
+      = dp_hbdecim_q15_create (h_len, (const float *)PyArray_DATA (h_arr));
   Py_DECREF (h_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "hbdecim_q15_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_hbdecim_q15_create returned NULL");
       return -1;
     }
   {
-    size_t _max = hbdecim_q15_execute_max_out (self->handle);
+    size_t _max = dp_hbdecim_q15_execute_max_out (self->handle);
     if (_max)
       {
         self->_execute_buf = malloc (_max * sizeof (int16_t));
@@ -99,7 +100,7 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_execute_buf || self->_execute_buf_cap < _need)
     {
-      size_t _max = hbdecim_q15_execute_max_out (self->handle);
+      size_t _max = dp_hbdecim_q15_execute_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       int16_t *_tmp = realloc (self->_execute_buf, _max * sizeof (int16_t));
@@ -114,7 +115,7 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
     }
   size_t n_in
       = (size_t)PyArray_SIZE (x_arr); /* int16_t count = 2 * complex samples */
-  size_t n_out = hbdecim_q15_execute (
+  size_t n_out = dp_hbdecim_q15_execute (
       self->handle, (const int16_t *)PyArray_DATA (x_arr),
       n_in / 2, /* complex sample count */
       self->_execute_buf, self->_execute_buf_cap / 2); /* complex capacity */
@@ -145,7 +146,7 @@ HalfbandDecimatorQ15Obj_reset (HalfbandDecimatorQ15Object *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  hbdecim_q15_reset (self->handle);
+  dp_hbdecim_q15_reset (self->handle);
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -159,7 +160,7 @@ HalfbandDecimatorQ15_getprop_num_taps (HalfbandDecimatorQ15Object *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)hbdecim_q15_get_num_taps (self->handle));
+      (unsigned long long)dp_hbdecim_q15_get_num_taps (self->handle));
 }
 static PyObject *
 HalfbandDecimatorQ15_getprop_rate (HalfbandDecimatorQ15Object *self,
@@ -171,7 +172,7 @@ HalfbandDecimatorQ15_getprop_rate (HalfbandDecimatorQ15Object *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (hbdecim_q15_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_hbdecim_q15_get_rate (self->handle));
 }
 
 static PyGetSetDef HalfbandDecimatorQ15_getset[] = {
@@ -195,7 +196,7 @@ HalfbandDecimatorQ15Obj_destroy (HalfbandDecimatorQ15Object *self,
 {
   if (self->handle)
     {
-      hbdecim_q15_destroy (self->handle);
+      dp_hbdecim_q15_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -215,7 +216,7 @@ HalfbandDecimatorQ15Obj_exit (HalfbandDecimatorQ15Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      hbdecim_q15_destroy (self->handle);
+      dp_hbdecim_q15_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -230,7 +231,7 @@ HalfbandDecimatorQ15Obj_state_bytes (HalfbandDecimatorQ15Object *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (hbdecim_q15_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_hbdecim_q15_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -242,11 +243,11 @@ HalfbandDecimatorQ15Obj_get_state (HalfbandDecimatorQ15Object *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = hbdecim_q15_state_bytes (self->handle);
+  size_t    _n = dp_hbdecim_q15_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  hbdecim_q15_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_hbdecim_q15_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -264,12 +265,13 @@ HalfbandDecimatorQ15Obj_set_state (HalfbandDecimatorQ15Object *self,
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != hbdecim_q15_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_hbdecim_q15_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (hbdecim_q15_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_hbdecim_q15_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -286,7 +288,7 @@ HalfbandDecimatorQ15Obj_execute_max_out (HalfbandDecimatorQ15Object *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (hbdecim_q15_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_hbdecim_q15_execute_max_out (self->handle));
 }
 
 static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {

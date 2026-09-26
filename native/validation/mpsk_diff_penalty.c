@@ -70,15 +70,15 @@ static int
 measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
          double *ser_diff, size_t *n_err_coh)
 {
-  double         esn0  = pow (10.0, esn0_db / 10.0);
-  double         sigma = sqrt (1.0 / (2.0 * esn0));
-  awgn_state_t  *g     = awgn_create (seed, (float)sigma);
-  uint8_t       *sym   = malloc (BLK * sizeof *sym);
-  uint8_t       *dc    = malloc (BLK * sizeof *dc);
-  uint8_t       *dd    = malloc (BLK * sizeof *dd);
-  float complex *pc    = malloc (BLK * sizeof *pc);
-  float complex *pd    = malloc (BLK * sizeof *pd);
-  float complex *nz    = malloc (BLK * sizeof *nz);
+  double           esn0  = pow (10.0, esn0_db / 10.0);
+  double           sigma = sqrt (1.0 / (2.0 * esn0));
+  dp_awgn_state_t *g     = dp_awgn_create (seed, (float)sigma);
+  uint8_t         *sym   = malloc (BLK * sizeof *sym);
+  uint8_t         *dc    = malloc (BLK * sizeof *dc);
+  uint8_t         *dd    = malloc (BLK * sizeof *dd);
+  float complex   *pc    = malloc (BLK * sizeof *pc);
+  float complex   *pd    = malloc (BLK * sizeof *pd);
+  float complex   *nz    = malloc (BLK * sizeof *nz);
   if (!g || !sym || !dc || !dd || !pc || !pd || !nz)
     {
       free (sym);
@@ -87,7 +87,7 @@ measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
       free (pc);
       free (pd);
       free (nz);
-      awgn_destroy (g);
+      dp_awgn_destroy (g);
       *n_err_coh = 0;
       return -1;
     }
@@ -106,10 +106,10 @@ measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
           ds     = ds * 6364136223846793005ull + 1442695040888963407ull;
           sym[i] = (uint8_t)((ds >> 33) % (uint64_t)m);
         }
-      mpsk_map (sym, n, pc, m);
-      mpsk_diff_map (sym, n, pd, m);
+      dp_mpsk_map (sym, n, pc, m);
+      dp_mpsk_diff_map (sym, n, pd, m);
 
-      size_t got = awgn_generate (g, n, nz, n);
+      size_t got = dp_awgn_generate (g, n, nz, n);
       if (got != n)
         break;
       for (size_t i = 0; i < n; i++)
@@ -118,8 +118,8 @@ measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
           pd[i] += nz[i];
         }
 
-      mpsk_demap (pc, n, dc, m);
-      mpsk_diff_demap (pd, n, dd, m);
+      dp_mpsk_demap (pc, n, dc, m);
+      dp_mpsk_diff_demap (pd, n, dd, m);
       for (size_t i = 0; i < n; i++)
         {
           if (dc[i] != sym[i])
@@ -139,7 +139,7 @@ measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
   free (pc);
   free (pd);
   free (nz);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   return 0;
 }
 

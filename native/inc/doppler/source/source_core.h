@@ -2,8 +2,8 @@
  * @file source_core.h
  * @brief Source module — public C API.
  */
-#ifndef SOURCE_CORE_H
-#define SOURCE_CORE_H
+#ifndef DP_SOURCE_CORE_H
+#define DP_SOURCE_CORE_H
 
 #include "doppler/clib_common.h"
 

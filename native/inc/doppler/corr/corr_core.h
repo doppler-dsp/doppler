@@ -22,20 +22,20 @@
  * Lifecycle:
  * @code
  * float _Complex ref[N] = { ... };
- * corr_state_t *c = corr_create(ref, N, 8, 1);   // 8-frame coherent dwell
+ * dp_corr_state_t *c = dp_corr_create(ref, N, 8, 1);   // 8-frame coherent dwell
  * float _Complex out[N];
  * for (int i = 0; i < 8; i++) {
- *     size_t n_out = corr_execute(c, frame[i], N, out, N);
+ *     size_t n_out = dp_corr_execute(c, frame[i], N, out, N);
  *     if (n_out) process(out, N);   // fires once, on i == 7
  * }
- * corr_destroy(c);
+ * dp_corr_destroy(c);
  * @endcode
  *
  * Thread safety: a single state must not be used concurrently from multiple
  * threads; create separate instances per thread.
  */
-#ifndef CORR_CORE_H
-#define CORR_CORE_H
+#ifndef DP_CORR_CORE_H
+#define DP_CORR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -48,13 +48,13 @@ extern "C" {
 /**
  * @brief 1-D FFT correlator state.
  *
- * Allocate with corr_create(); never stack-allocate.  ref_spec/work_fft/accum
+ * Allocate with dp_corr_create(); never stack-allocate.  ref_spec/work_fft/accum
  * are each ``n`` complex floats; work_pad (``n_out``) exists only on the
  * decoupled-inverse path.
  */
 typedef struct {
-  fft_state_t *fwd;         /**< Forward plan (sign = -1) at n.            */
-  fft_state_t *inv;         /**< Inverse plan (sign = +1) at n_out.        */
+  dp_fft_state_t *fwd;         /**< Forward plan (sign = -1) at n.            */
+  dp_fft_state_t *inv;         /**< Inverse plan (sign = +1) at n_out.        */
   float _Complex *ref_spec;  /**< conj(FFT(ref)), pre-computed at create.   */
   float _Complex *work_fft;  /**< Scratch: FFT(in) · ref_spec (product).    */
   float _Complex *accum;     /**< Coherent product-spectrum accumulator.    */
@@ -69,7 +69,7 @@ typedef struct {
    *  here and copying the prefix. Allocated lazily, because the sized
    *  path (everything the Python binding does) never needs it. */
   float _Complex *work_trunc;
-} corr_state_t;
+} dp_corr_state_t;
 
 /**
  * @brief Allocate a 1-D FFT correlator with coherent integrate-and-dump.
@@ -99,11 +99,11 @@ typedef struct {
  * (4, 1, 0)
  * @endcode
  */
-corr_state_t *corr_create(const float _Complex *ref, size_t ref_len, size_t dwell,
+dp_corr_state_t *dp_corr_create(const float _Complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
 /** @brief Destroy and free a corr instance.  @param state May be NULL. */
-void corr_destroy(corr_state_t *state);
+void dp_corr_destroy(dp_corr_state_t *state);
 
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
@@ -124,22 +124,22 @@ void corr_destroy(corr_state_t *state);
  * 0
  * @endcode
  */
-void corr_reset(corr_state_t *state);
+void dp_corr_reset(dp_corr_state_t *state);
 
 /**
  * @brief Replace the reference signal and recompute conj(FFT(ref)).
  *
- * Also resets the accumulator and counter (as if corr_reset() were
+ * Also resets the accumulator and counter (as if dp_corr_reset() were
  * called).  Useful when the reference must change between dwells without
  * tearing down the FFT plans.
  *
  * @param state Must be non-NULL.
  * @param ref   New reference signal of length state->n.
  */
-void corr_set_ref(corr_state_t *state, const float _Complex *ref);
+void corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
 
 /** @brief Maximum output samples per execute call (== n_out). */
-size_t corr_execute_max_out(corr_state_t *state);
+size_t dp_corr_execute_max_out(dp_corr_state_t *state);
 
 /**
  * @brief Correlate one frame and optionally dump the coherent accumulator.
@@ -174,7 +174,7 @@ size_t corr_execute_max_out(corr_state_t *state);
  * [(2+0j), (2+0j), (2+0j), (2+0j)]
  * @endcode
  */
-size_t corr_execute(corr_state_t *state, const float _Complex *in, size_t n_in,
+size_t dp_corr_execute(dp_corr_state_t *state, const float _Complex *in, size_t n_in,
                     float _Complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -182,9 +182,9 @@ size_t corr_execute(corr_state_t *state, const float _Complex *in, size_t n_in,
  * FFT plans + ref_spec are config, rebuilt by create. */
 #define CORR_STATE_MAGIC DP_FOURCC ('C','O','R','R')
 #define CORR_STATE_VERSION 1u
-size_t corr_state_bytes (const corr_state_t *state);
-void corr_get_state (const corr_state_t *state, void *blob);
-int corr_set_state (corr_state_t *state, const void *blob);
+size_t dp_corr_state_bytes (const dp_corr_state_t *state);
+void dp_corr_get_state (const dp_corr_state_t *state, void *blob);
+int dp_corr_set_state (dp_corr_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

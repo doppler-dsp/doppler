@@ -125,14 +125,14 @@ typedef struct
 {
   PyObject_HEAD wfm_source_t src;
   double                     fs;
-  wfm_synth_state_t         *_gen;
+  dp_wfm_synth_state_t      *_gen;
 } SynthObject;
 
 static void
 Synth_dealloc (SynthObject *self)
 {
   if (self->_gen)
-    wfm_synth_destroy (self->_gen);
+    dp_wfm_synth_destroy (self->_gen);
   free ((void *)self->src.payload.bits);
   free (self->src.symbols);
   free ((void *)self->src.acq_code.bits);
@@ -467,7 +467,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->fs = fs;
   if (self->_gen)
     {
-      wfm_synth_destroy (self->_gen);
+      dp_wfm_synth_destroy (self->_gen);
       self->_gen = NULL;
     }
   {
@@ -1690,7 +1690,7 @@ Synth_steps (SynthObject *self, PyObject *args)
     return NULL;
   float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   Py_BEGIN_ALLOW_THREADS
-    wfm_synth_steps (self->_gen, out, (size_t)n);
+    dp_wfm_synth_steps (self->_gen, out, (size_t)n);
   Py_END_ALLOW_THREADS
   return arr;
 }
@@ -1700,7 +1700,7 @@ Synth_step (SynthObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (Synth_ensure_gen (self) < 0)
     return NULL;
-  float _Complex y = wfm_synth_step (self->_gen);
+  float _Complex y = dp_wfm_synth_step (self->_gen);
   return PyComplex_FromDoubles (crealf (y), cimagf (y));
 }
 
@@ -1708,7 +1708,7 @@ static PyObject *
 Synth_reset (SynthObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->_gen)
-    wfm_synth_reset (self->_gen);
+    dp_wfm_synth_reset (self->_gen);
   Py_RETURN_NONE;
 }
 

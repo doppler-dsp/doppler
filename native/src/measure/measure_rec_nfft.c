@@ -4,7 +4,7 @@
 #include "doppler/measure/measure_core.h"
 
 size_t
-measure_rec_nfft (size_t n, size_t pad)
+dp_measure_rec_nfft (size_t n, size_t pad)
 {
   if (pad < 1)
     pad = 1;

@@ -112,15 +112,15 @@ rtl_code (float v)
 /** @brief The chain's state, shared by both modes. */
 typedef struct
 {
-  u8_to_f32_state_t *cvt;
-  ddc_state_t       *ddc;
-  psd_state_t       *psd;
-  float complex     *cf;    /* converted input block, BLOCK        */
-  float complex     *stage; /* DDC output awaiting a whole frame   */
-  size_t             stage_len, stage_cap;
-  size_t             n;              /* PSD frame length                    */
-  double             sum_re, sum_im; /* converted-input sums (bias check)  */
-  size_t             n_in;           /* complex input samples processed    */
+  dp_u8_to_f32_state_t *cvt;
+  dp_ddc_state_t       *ddc;
+  dp_psd_state_t       *psd;
+  float complex        *cf;    /* converted input block, BLOCK        */
+  float complex        *stage; /* DDC output awaiting a whole frame   */
+  size_t                stage_len, stage_cap;
+  size_t                n; /* PSD frame length                    */
+  double sum_re, sum_im;   /* converted-input sums (bias check)  */
+  size_t n_in;             /* complex input samples processed    */
 } chain_t;
 
 static int
@@ -128,12 +128,12 @@ chain_init (chain_t *c, double fs, double offset, double rate, size_t n)
 {
   memset (c, 0, sizeof *c);
   c->n   = n;
-  c->cvt = u8_to_f32_create (U8_TO_F32_SHIFT);
-  c->ddc = ddc_create (-offset / fs, rate);
+  c->cvt = dp_u8_to_f32_create (U8_TO_F32_SHIFT);
+  c->ddc = dp_ddc_create (-offset / fs, rate);
   /* Hann window, no padding, 0 dBFS = amplitude 1.0, linear mean. */
-  c->psd       = psd_create (n, fs * rate, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+  c->psd       = dp_psd_create (n, fs * rate, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
   c->cf        = malloc (BLOCK * sizeof *c->cf);
-  c->stage_cap = ddc_execute_max_out (c->ddc, BLOCK) + n;
+  c->stage_cap = dp_ddc_execute_max_out (c->ddc, BLOCK) + n;
   c->stage     = malloc (c->stage_cap * sizeof *c->stage);
   return c->cvt && c->ddc && c->psd && c->cf && c->stage;
 }
@@ -141,9 +141,9 @@ chain_init (chain_t *c, double fs, double offset, double rate, size_t n)
 static void
 chain_free (chain_t *c)
 {
-  u8_to_f32_destroy (c->cvt);
-  ddc_destroy (c->ddc);
-  psd_destroy (c->psd);
+  dp_u8_to_f32_destroy (c->cvt);
+  dp_ddc_destroy (c->ddc);
+  dp_psd_destroy (c->psd);
   free (c->cf);
   free (c->stage);
 }
@@ -158,7 +158,7 @@ chain_free (chain_t *c)
 static void
 chain_push (chain_t *c, const uint8_t *cu8, size_t pairs)
 {
-  u8_to_f32_steps (c->cvt, cu8, (float *)c->cf, 2 * pairs);
+  dp_u8_to_f32_steps (c->cvt, cu8, (float *)c->cf, 2 * pairs);
   for (size_t i = 0; i < pairs; i++)
     {
       c->sum_re += crealf (c->cf[i]);
@@ -166,10 +166,11 @@ chain_push (chain_t *c, const uint8_t *cu8, size_t pairs)
     }
   c->n_in += pairs;
 
-  c->stage_len += ddc_execute (c->ddc, c->cf, pairs, c->stage + c->stage_len,
-                               c->stage_cap - c->stage_len);
+  c->stage_len
+      += dp_ddc_execute (c->ddc, c->cf, pairs, c->stage + c->stage_len,
+                         c->stage_cap - c->stage_len);
   size_t whole = c->stage_len - c->stage_len % c->n;
-  psd_accumulate (c->psd, c->stage, whole);
+  dp_psd_accumulate (c->psd, c->stage, whole);
   memmove (c->stage, c->stage + whole,
            (c->stage_len - whole) * sizeof *c->stage);
   c->stage_len -= whole;
@@ -180,7 +181,7 @@ static void
 spectrum_peak (chain_t *c, double fs_out, float *db, double *f_hz,
                double *level_db)
 {
-  psd_psd_db (c->psd, c->n, db, c->n);
+  dp_psd_psd_db (c->psd, c->n, db, c->n);
   size_t k = 0;
   for (size_t i = 1; i < c->n; i++)
     if (db[i] > db[k])
@@ -194,8 +195,8 @@ spectrum_peak (chain_t *c, double fs_out, float *db, double *f_hz,
  * @brief Mean noise per bin near DC, dB: bins 3 .. CHANNEL * n from the
  * centre, averaged in linear power, so the tone's own bins are excluded.
  *
- * Why not psd_noise_floor(): that is the MEDIAN over the whole output band,
- * and the plain DDC's output is not white. ddc_create() uses an
+ * Why not dp_psd_noise_floor(): that is the MEDIAN over the whole output band,
+ * and the plain DDC's output is not white. dp_ddc_create() uses an
  * UNCOMPENSATED CIC (see ddc_core.h), whose droop reaches about -3.5 dB at a
  * quarter of the output rate and -12 dB near its edge, so the band-wide
  * median sits ~3.5 dB below the noise actually next to the tone. Measure the
@@ -258,30 +259,30 @@ self_test (double fs, double offset, double rate, size_t n)
 
   /* The scene: tone + AWGN, through the dongle's ADC model, into bytes.
      Built with the library's own LO and AWGN sources. */
-  float complex *x   = malloc (total * sizeof *x);
-  float complex *w   = malloc (total * sizeof *w);
-  uint8_t       *cu8 = malloc (2 * total);
-  lo_state_t    *lo  = lo_create (offset / fs);
-  awgn_state_t  *ns  = awgn_create (0x5eedu, (float)NOISE_SIGMA);
+  float complex   *x   = malloc (total * sizeof *x);
+  float complex   *w   = malloc (total * sizeof *w);
+  uint8_t         *cu8 = malloc (2 * total);
+  dp_lo_state_t   *lo  = dp_lo_create (offset / fs);
+  dp_awgn_state_t *ns  = dp_awgn_create (0x5eedu, (float)NOISE_SIGMA);
   if (!x || !w || !cu8 || !lo || !ns)
     return 1;
-  lo_steps (lo, total, x, total);
-  awgn_generate (ns, total, w, total);
+  dp_lo_steps (lo, total, x, total);
+  dp_awgn_generate (ns, total, w, total);
   for (size_t i = 0; i < total; i++)
     {
       float complex v = (float)TONE_AMP * x[i] + w[i];
       cu8[2 * i]      = rtl_code (crealf (v));
       cu8[2 * i + 1]  = rtl_code (cimagf (v));
     }
-  lo_destroy (lo);
-  awgn_destroy (ns);
+  dp_lo_destroy (lo);
+  dp_awgn_destroy (ns);
   free (x);
   free (w);
 
   chain_t c;
   if (!chain_init (&c, fs, offset, rate, n))
     return 1;
-  const double fs_out = fs * ddc_get_rate (c.ddc);
+  const double fs_out = fs * dp_ddc_get_rate (c.ddc);
 
   /* The first block carries the DDC's filter start-up; restart the average
      after it so the spectrum describes the steady state. */
@@ -292,7 +293,7 @@ self_test (double fs, double offset, double rate, size_t n)
       size_t m = total - done < BLOCK ? total - done : BLOCK;
       chain_push (&c, cu8 + 2 * done, m);
       if (done == 0)
-        psd_reset (c.psd);
+        dp_psd_reset (c.psd);
       done += m;
     }
   double dt = now_s () - t0;
@@ -302,7 +303,7 @@ self_test (double fs, double offset, double rate, size_t n)
     return 1;
   double f_peak, peak_db;
   spectrum_peak (&c, fs_out, db, &f_peak, &peak_db);
-  const double floor_db = psd_noise_floor (c.psd);
+  const double floor_db = dp_psd_noise_floor (c.psd);
   const double chan_db  = channel_noise_db (db, n);
   const double bin_hz   = fs_out / (double)n;
   const double snr      = peak_db - chan_db;
@@ -380,7 +381,7 @@ live (const char *path, double fs, double offset, double rate, size_t n,
   uint8_t *buf = malloc (2 * BLOCK);
   if (!buf || !chain_init (&c, fs, offset, rate, n))
     return 1;
-  const double fs_out = fs * ddc_get_rate (c.ddc);
+  const double fs_out = fs * dp_ddc_get_rate (c.ddc);
   const size_t limit  = seconds > 0.0 ? (size_t)(seconds * fs) : (size_t)-1;
 
   double t0 = now_s (), c0 = cpu_s ();
@@ -422,16 +423,16 @@ live (const char *path, double fs, double offset, double rate, size_t n,
   /* Not "noise" here: live, whatever occupies the channel is in it. */
   printf ("  mean level in the channel (|f| < %.2f fs_out, excluding DC) "
           "%.1f dBFS/bin;\n    band-wide median %.1f dBFS/bin\n",
-          CHANNEL, channel_noise_db (db, n), psd_noise_floor (c.psd));
+          CHANNEL, channel_noise_db (db, n), dp_psd_noise_floor (c.psd));
   printf ("  occupied bandwidth (99%%): %.1f kHz\n",
-          psd_occupied_bw (c.psd, 0.99) / 1e3);
+          dp_psd_occupied_bw (c.psd, 0.99) / 1e3);
 
   /* The strongest peaks, from the library's interpolating peak finder,
      gated 10 dB above the band-wide median so noise bumps are not listed.
      With --offset 0 the one at DC is the dongle's own spike. */
   dp_peak_t pk[N_PEAKS];
-  size_t    np = find_peaks_f32 (db, n, N_PEAKS,
-                                 (float)psd_noise_floor (c.psd) + 10.0f, pk);
+  size_t    np = dp_find_peaks_f32 (
+      db, n, N_PEAKS, (float)dp_psd_noise_floor (c.psd) + 10.0f, pk);
   printf ("  strongest peaks (relative to the tuned centre + offset):\n");
   for (size_t i = 0; i < np; i++)
     printf ("    %+8.1f kHz  %6.1f dBFS\n",

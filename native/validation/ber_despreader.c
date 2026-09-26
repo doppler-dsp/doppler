@@ -37,19 +37,19 @@
 
 /* One BER point: NSYM synchronous symbols at the given Es/N0, MLS length n. */
 static double
-ber_point (const float *codef, int L, awgn_state_t *g, float *nb,
+ber_point (const float *codef, int L, dp_awgn_state_t *g, float *nb,
            double esn0_db, long nsym, uint64_t *dst)
 {
   double esn0  = pow (10.0, esn0_db / 10.0);
   double sigma = sqrt ((double)L / (2.0 * esn0)); /* per-chip real-noise std */
-  awgn_set_amplitude (g, (float)sigma);
-  awgn_reset (g);
+  dp_awgn_set_amplitude (g, (float)sigma);
+  dp_awgn_reset (g);
   long have = 0, pos = 0, errs = 0;
   for (long k = 0; k < nsym; k++)
     {
       if (pos + L > have)
         {
-          awgn_generate (g, BATCHC, (float complex *)nb, BATCHC);
+          dp_awgn_generate (g, BATCHC, (float complex *)nb, BATCHC);
           have = 2 * BATCHC;
           pos  = 0;
         }
@@ -75,15 +75,15 @@ main (int argc, char **argv)
   int  L     = (1 << n) - 1;
   long nsym  = check ? 300000 : 8000000;
 
-  pn_state_t *pn    = pn_create (wfm_synth_mls_poly (n), 1, n, 0);
-  float      *codef = malloc ((size_t)((L + 7) & ~7) * sizeof (float));
+  dp_pn_state_t *pn    = dp_pn_create (wfm_synth_mls_poly (n), 1, n, 0);
+  float         *codef = malloc ((size_t)((L + 7) & ~7) * sizeof (float));
   for (int i = 0; i < L; i++)
     codef[i] = pn_step (pn) ? -1.f : 1.f;
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
 
-  awgn_state_t *g   = awgn_create (0xBEEF, 1.0f);
-  float        *nb  = malloc ((size_t)2 * BATCHC * sizeof (float));
-  uint64_t      dst = 0x1234567u;
+  dp_awgn_state_t *g   = dp_awgn_create (0xBEEF, 1.0f);
+  float           *nb  = malloc ((size_t)2 * BATCHC * sizeof (float));
+  uint64_t         dst = 0x1234567u;
 
   /* --check uses 2..6 dB where BER is high enough for a tight interval; the
    * full run adds 8 and 9.6 dB to exhibit the 1e-5 operating point. */
@@ -101,7 +101,7 @@ main (int argc, char **argv)
   for (int p = 0; p < np; p++)
     {
       double meas = ber_point (codef, L, g, nb, db[p], nsym, &dst);
-      double th   = ber_theory_ser (2, pow (10.0, db[p] / 10.0));
+      double th   = dp_ber_theory_ser (2, pow (10.0, db[p] / 10.0));
       double r    = meas / th;
       printf ("   %5.1f     %.3e    %.3e    %.3f\n", db[p], meas, th, r);
       if (check && (r < 0.85 || r > 1.15)) /* ~few-% CI at these counts */
@@ -113,7 +113,7 @@ main (int argc, char **argv)
 
   free (nb);
   free (codef);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   if (fail)
     {
       fprintf (stderr, "BER deviates from the BPSK bound — FAIL\n");

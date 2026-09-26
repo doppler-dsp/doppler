@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* Corr2DObject — wraps corr2d_state_t *       */
+/* Corr2DObject — wraps dp_corr2d_state_t *       */
 /* ======================================================== */
 
 #include "doppler/corr2d/corr2d_core.h"
 
 typedef struct
 {
-  PyObject_HEAD corr2d_state_t *handle;
+  PyObject_HEAD dp_corr2d_state_t *handle;
 } Corr2DObject;
 
 static void
 Corr2DObj_dealloc (Corr2DObject *self)
 {
   if (self->handle)
-    corr2d_destroy (self->handle);
+    dp_corr2d_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -58,7 +58,7 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
     {
       return -1;
     }
-  /* Hand-patch (sacred fragment): corr2d_create takes the reference's two
+  /* Hand-patch (sacred fragment): dp_corr2d_create takes the reference's two
      dimensions split out, which a flat array init-param cannot express, so
      this marshaling stays hand-written. Regenerating this file drops it —
      see the note in docs/dev/contributing/adding-a-module.md. */
@@ -70,13 +70,13 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
     }
   size_t ref_dim0 = (size_t)PyArray_DIM (ref_arr, 0);
   size_t ref_dim1 = (size_t)PyArray_DIM (ref_arr, 1);
-  self->handle = corr2d_create ((const float _Complex *)PyArray_DATA (ref_arr),
-                                ref_dim0, ref_dim1, dwell, nthreads, ny_out,
-                                nx_out, col_out);
+  self->handle    = dp_corr2d_create (
+      (const float _Complex *)PyArray_DATA (ref_arr), ref_dim0, ref_dim1,
+      dwell, nthreads, ny_out, nx_out, col_out);
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "corr2d_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_corr2d_create returned NULL");
       return -1;
     }
   return 0;
@@ -90,7 +90,7 @@ Corr2DObj_reset (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  corr2d_reset (self->handle);
+  dp_corr2d_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -102,7 +102,7 @@ Corr2DObj_execute_max_out (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (corr2d_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_corr2d_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -148,7 +148,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = corr2d_execute_max_out (self->handle);
+      size_t _omax    = dp_corr2d_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -158,7 +158,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = corr2d_execute (
+      size_t n_out = dp_corr2d_execute (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -179,7 +179,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = corr2d_execute_max_out (self->handle);
+  size_t _cap  = dp_corr2d_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -190,9 +190,9 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = corr2d_execute (self->handle,
-                                 (const float _Complex *)PyArray_DATA (in_arr),
-                                 (size_t)n, _d0, _cap);
+  size_t          n_out = dp_corr2d_execute (
+      self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
+      _d0, _cap);
   Py_DECREF (in_arr);
   if (!n_out)
     {
@@ -223,7 +223,7 @@ Corr2DObj_state_bytes (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (corr2d_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_corr2d_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -234,11 +234,11 @@ Corr2DObj_get_state (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = corr2d_state_bytes (self->handle);
+  size_t    _n = dp_corr2d_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  corr2d_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_corr2d_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -255,12 +255,12 @@ Corr2DObj_set_state (Corr2DObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != corr2d_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_corr2d_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (corr2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_corr2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -373,7 +373,7 @@ Corr2DObj_destroy (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      corr2d_destroy (self->handle);
+      dp_corr2d_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -392,7 +392,7 @@ Corr2DObj_exit (Corr2DObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      corr2d_destroy (self->handle);
+      dp_corr2d_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -459,8 +459,8 @@ static PyMethodDef Corr2DObj_methods[] = {
   { "execute_max_out", (PyCFunction)Corr2DObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Maximum output samples per execute call (corr2d_state_t::n_out --\n"
-    "ny*nx_out normally, or ny when a single corr2d_state_t::col_out was\n"
+    "Maximum output samples per execute call (dp_corr2d_state_t::n_out --\n"
+    "ny*nx_out normally, or ny when a single dp_corr2d_state_t::col_out was\n"
     "selected).\n"
     "\n"
     "Returns\n"
@@ -561,7 +561,7 @@ static PyTypeObject Corr2DObjType = {
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate a 2-D FFT correlator with coherent integrate-and-dump.\n"
-    "Two-dimensional extension of corr_create(). The reference is a flat\n"
+    "Two-dimensional extension of dp_corr_create(). The reference is a flat\n"
     "row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once "
     "so\n"
     "each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. "

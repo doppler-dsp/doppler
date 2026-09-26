@@ -9,14 +9,14 @@ exists, and the compiler cannot help: an ``extern "C"`` block is a promise,
 not a question. Nothing verifies it at build time, at link time, or at run
 time.
 
-doppler#911 is what that costs. `lo_steps_ctrl` declared its control port
+doppler#911 is what that costs. `dp_lo_steps_ctrl` declared its control port
 ``*const f32`` while the C had been widened to ``const double *``:
 
     /* native/inc/doppler/lo/lo_core.h */
-    size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, ...);
+    size_t dp_lo_steps_ctrl (dp_lo_state_t *state, const double *ctrl, ...);
 
     // ffi/rust/src/lo.rs
-    pub fn lo_steps_ctrl(lo: *mut LoStateRaw, ctrl: *const f32, ...);
+    pub fn dp_lo_steps_ctrl(lo: *mut LoStateRaw, ctrl: *const f32, ...);
 
 So C read ``ctrl_len`` doubles out of a buffer holding ``ctrl_len`` floats --
 a heap over-read of twice the allocation, reachable from an entirely safe
@@ -96,8 +96,9 @@ COMPLEX = {
 }
 
 #: A C prototype: an optional return type, a name, and a parenthesised list.
-#: `\**` before the name because a factory returns `lo_state_t *lo_create(…)`
-#: and the star binds to the name, not the type.
+#: `\**` before the name because a factory returns
+#: `dp_lo_state_t *dp_lo_create(…)` and the star binds to the name, not the
+#: type.
 _C_PROTO = re.compile(
     r"^[ \t]*(?:[A-Za-z_][\w ]*?[\w])[ \t]+(\**)\s*(\w+)\s*\(([^;{]*)\)\s*;",
     re.M | re.S,

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* SymbolSyncObject — wraps symsync_state_t *       */
+/* SymbolSyncObject — wraps dp_symsync_state_t *       */
 /* ======================================================== */
 
 #include "doppler/symsync/symsync_core.h"
 
 typedef struct
 {
-  PyObject_HEAD symsync_state_t *handle;
+  PyObject_HEAD dp_symsync_state_t *handle;
 } SymbolSyncObject;
 
 static void
 SymbolSyncObj_dealloc (SymbolSyncObject *self)
 {
   if (self->handle)
-    symsync_destroy (self->handle);
+    dp_symsync_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -74,10 +74,10 @@ SymbolSyncObj_init (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
                     ted_str);
       return -1;
     }
-  self->handle = symsync_create (sps, bn, zeta, order, ted);
+  self->handle = dp_symsync_create (sps, bn, zeta, order, ted);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "symsync_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_symsync_create returned NULL");
       return -1;
     }
   return 0;
@@ -92,7 +92,7 @@ SymbolSyncObj_steps_max_out (SymbolSyncObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (symsync_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_symsync_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -138,7 +138,7 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = symsync_steps_max_out (self->handle);
+      size_t _omax    = dp_symsync_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -160,7 +160,7 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = symsync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_symsync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -175,7 +175,7 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = symsync_steps_max_out (self->handle);
+  size_t _cap  = dp_symsync_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -194,7 +194,7 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = symsync_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_symsync_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -248,7 +248,7 @@ SymbolSyncObj_set_telemetry (SymbolSyncObject *self, PyObject *args,
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = symsync_set_telemetry (self->handle, tlm, prefix, decim);
+  int      _rc   = dp_symsync_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
@@ -271,7 +271,7 @@ SymbolSyncObj_configure (SymbolSyncObject *self, PyObject *args,
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  symsync_configure (self->handle, bn, zeta);
+  dp_symsync_configure (self->handle, bn, zeta);
   Py_RETURN_NONE;
 }
 
@@ -292,8 +292,8 @@ SymbolSyncObj_configure_lock (SymbolSyncObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &rolloff,
                                     &esno_min_db, &pfa, &pd))
     return NULL;
-  int _rc
-      = symsync_configure_lock (self->handle, rolloff, esno_min_db, pfa, pd);
+  int _rc = dp_symsync_configure_lock (self->handle, rolloff, esno_min_db, pfa,
+                                       pd);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "configure_lock failed (rc=%d)", _rc);
@@ -325,8 +325,8 @@ SymbolSyncObj_configure_lock_raw (SymbolSyncObject *self, PyObject *args,
   size_t   avgs   = (size_t)avgs_raw;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  symsync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh, n_up,
-                              n_down);
+  dp_symsync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
+                                 n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -338,7 +338,7 @@ SymbolSyncObj_reset (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  symsync_reset (self->handle);
+  dp_symsync_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -351,7 +351,7 @@ SymbolSyncObj_state_bytes (SymbolSyncObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (symsync_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_symsync_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -362,11 +362,11 @@ SymbolSyncObj_get_state (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = symsync_state_bytes (self->handle);
+  size_t    _n = dp_symsync_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  symsync_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_symsync_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -383,12 +383,12 @@ SymbolSyncObj_set_state (SymbolSyncObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != symsync_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_symsync_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (symsync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_symsync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -404,7 +404,7 @@ SymbolSync_getprop_bn (SymbolSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (symsync_get_bn (self->handle));
+  return PyFloat_FromDouble (dp_symsync_get_bn (self->handle));
 }
 static int
 SymbolSync_setprop_bn (SymbolSyncObject *self, PyObject *value,
@@ -418,7 +418,7 @@ SymbolSync_setprop_bn (SymbolSyncObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  symsync_set_bn (self->handle, v);
+  dp_symsync_set_bn (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -431,7 +431,7 @@ SymbolSync_getprop_timing_error (SymbolSyncObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (symsync_get_timing_error (self->handle));
+  return PyFloat_FromDouble (dp_symsync_get_timing_error (self->handle));
 }
 static PyObject *
 SymbolSync_getprop_rate (SymbolSyncObject *self, void *Py_UNUSED (closure))
@@ -442,7 +442,7 @@ SymbolSync_getprop_rate (SymbolSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (symsync_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_symsync_get_rate (self->handle));
 }
 static PyObject *
 SymbolSync_getprop_lock_stat (SymbolSyncObject *self,
@@ -454,7 +454,7 @@ SymbolSync_getprop_lock_stat (SymbolSyncObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (symsync_get_lock_stat (self->handle));
+  return PyFloat_FromDouble (dp_symsync_get_lock_stat (self->handle));
 }
 static PyObject *
 SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
@@ -465,7 +465,7 @@ SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(symsync_get_locked (self->handle)));
+  return PyBool_FromLong ((long)(dp_symsync_get_locked (self->handle)));
 }
 
 static PyGetSetDef SymbolSync_getset[]
@@ -492,7 +492,7 @@ SymbolSyncObj_destroy (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      symsync_destroy (self->handle);
+      dp_symsync_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -511,7 +511,7 @@ SymbolSyncObj_exit (SymbolSyncObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      symsync_destroy (self->handle);
+      dp_symsync_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -694,8 +694,8 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "oversized); 2000/2000 true declares at the esno_min design SNR against\n"
     "a nominal pd=0.9 -- see native/validation/symsync_lock.c for the\n"
     "harness. No level hysteresis by default (up = down = threshold,\n"
-    "matching dll_configure_lock's shape); the raw escape hatch\n"
-    "(symsync_configure_lock_raw) exposes split thresholds, an explicit\n"
+    "matching dp_dll_configure_lock's shape); the raw escape hatch\n"
+    "(dp_symsync_configure_lock_raw) exposes split thresholds, an explicit\n"
     "avgs, and independent n_up/n_down.\n"
     "\n"
     "Parameters\n"
@@ -741,7 +741,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "in-flight block sum and drops the lock so the next decision uses only "
     "looks gathered under the new config.\n"
     "\n"
-    "The escape hatch under symsync_configure_lock() for a caller that\n"
+    "The escape hatch under dp_symsync_configure_lock() for a caller that\n"
     "derives its own averaging/threshold geometry: the block size (avgs), a\n"
     "split declare/drop threshold pair on lock_stat (level hysteresis), and\n"
     "both verify counts (time hysteresis). Re-tuning clears the in-flight\n"

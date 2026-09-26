@@ -31,7 +31,7 @@ _Q15-in-uint64 to float converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) <br>_I16U64ToF32 state._  |
+| struct | [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) <br>_I16U64ToF32 state._  |
 
 
 
@@ -58,11 +58,11 @@ _Q15-in-uint64 to float converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* | [**i16u64\_to\_f32\_create**](#function-i16u64_to_f32_create) (float scale) <br>_Create a i16u64\_to\_f32 instance._  |
-|  void | [**i16u64\_to\_f32\_destroy**](#function-i16u64_to_f32_destroy) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state) <br>_Destroy a i16u64\_to\_f32 instance and release all memory._  |
-|  void | [**i16u64\_to\_f32\_reset**](#function-i16u64_to_f32_reset) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i16u64\_to\_f32\_step**](#function-i16u64_to_f32_step) (const [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state, uint64\_t x) <br>_Unpack a Q15 code from a uint64's low 16 bits to a normalised float._  |
-|  void | [**i16u64\_to\_f32\_steps**](#function-i16u64_to_f32_steps) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state, const uint64\_t \* input, float \* output, size\_t n) <br>_Process a block of Q15-in-uint64 samples to float32._  |
+|  [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* | [**dp\_i16u64\_to\_f32\_create**](#function-dp_i16u64_to_f32_create) (float scale) <br>_Create a i16u64\_to\_f32 instance._  |
+|  void | [**dp\_i16u64\_to\_f32\_destroy**](#function-dp_i16u64_to_f32_destroy) ([**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state) <br>_Destroy a i16u64\_to\_f32 instance and release all memory._  |
+|  void | [**dp\_i16u64\_to\_f32\_reset**](#function-dp_i16u64_to_f32_reset) ([**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_i16u64\_to\_f32\_step**](#function-dp_i16u64_to_f32_step) (const [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state, uint64\_t x) <br>_Unpack a Q15 code from a uint64's low 16 bits to a normalised float._  |
+|  void | [**dp\_i16u64\_to\_f32\_steps**](#function-dp_i16u64_to_f32_steps) ([**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state, const uint64\_t \* input, float \* output, size\_t n) <br>_Process a block of Q15-in-uint64 samples to float32._  |
 
 
 
@@ -128,11 +128,11 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 
 
-### function i16u64\_to\_f32\_create 
+### function dp\_i16u64\_to\_f32\_create 
 
 _Create a i16u64\_to\_f32 instance._ 
 ```C++
-i16u64_to_f32_state_t * i16u64_to_f32_create (
+dp_i16u64_to_f32_state_t * dp_i16u64_to_f32_create (
     float scale
 ) 
 ```
@@ -160,7 +160,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**i16u64\_to\_f32\_destroy()**](i16u64__to__f32__core_8h.md#function-i16u64_to_f32_destroy) when done. 
+Caller must call [**dp\_i16u64\_to\_f32\_destroy()**](i16u64__to__f32__core_8h.md#function-dp_i16u64_to_f32_destroy) when done. 
 
 
 
@@ -172,12 +172,12 @@ Caller must call [**i16u64\_to\_f32\_destroy()**](i16u64__to__f32__core_8h.md#fu
 
 
 
-### function i16u64\_to\_f32\_destroy 
+### function dp\_i16u64\_to\_f32\_destroy 
 
 _Destroy a i16u64\_to\_f32 instance and release all memory._ 
 ```C++
-void i16u64_to_f32_destroy (
-    i16u64_to_f32_state_t * state
+void dp_i16u64_to_f32_destroy (
+    dp_i16u64_to_f32_state_t * state
 ) 
 ```
 
@@ -199,12 +199,12 @@ void i16u64_to_f32_destroy (
 
 
 
-### function i16u64\_to\_f32\_reset 
+### function dp\_i16u64\_to\_f32\_reset 
 
 _No-op reset, provided only for lifecycle symmetry._ 
 ```C++
-void i16u64_to_f32_reset (
-    i16u64_to_f32_state_t * state
+void dp_i16u64_to_f32_reset (
+    dp_i16u64_to_f32_state_t * state
 ) 
 ```
 
@@ -237,12 +237,12 @@ No mutable state exists beyond the immutable `iscale`, so there is nothing to cl
 
 
 
-### function i16u64\_to\_f32\_step 
+### function dp\_i16u64\_to\_f32\_step 
 
 _Unpack a Q15 code from a uint64's low 16 bits to a normalised float._ 
 ```C++
-JM_FORCEINLINE  JM_HOT float i16u64_to_f32_step (
-    const i16u64_to_f32_state_t * state,
+JM_FORCEINLINE  JM_HOT float dp_i16u64_to_f32_step (
+    const dp_i16u64_to_f32_state_t * state,
     uint64_t x
 ) 
 ```
@@ -285,12 +285,12 @@ Normalised float recovered from the low-16 Q15 code.
 
 
 
-### function i16u64\_to\_f32\_steps 
+### function dp\_i16u64\_to\_f32\_steps 
 
 _Process a block of Q15-in-uint64 samples to float32._ 
 ```C++
-void i16u64_to_f32_steps (
-    i16u64_to_f32_state_t * state,
+void dp_i16u64_to_f32_steps (
+    dp_i16u64_to_f32_state_t * state,
     const uint64_t * input,
     float * output,
     size_t n

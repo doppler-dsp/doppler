@@ -45,8 +45,8 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        sink += int_to_bin (0x1ACFFC1DULL, 32u, marker, sizeof marker,
-                            DP_BITORDER_BIG);
+        sink += dp_int_to_bin (0x1ACFFC1DULL, 32u, marker, sizeof marker,
+                               DP_BITORDER_BIG);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -57,8 +57,8 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        sink
-            += hex_to_bin ("1ACFFC1D", marker, sizeof marker, DP_BITORDER_BIG);
+        sink += dp_hex_to_bin ("1ACFFC1D", marker, sizeof marker,
+                               DP_BITORDER_BIG);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -70,7 +70,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += bin_to_nrz (bits, BENCH_N, nrz, BENCH_N);
+      sink += dp_bin_to_nrz (bits, BENCH_N, nrz, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef COSTAS_CORE_H
-#define COSTAS_CORE_H
+#ifndef DP_COSTAS_CORE_H
+#define DP_COSTAS_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -39,8 +39,8 @@ typedef struct {
 } costas_tlm_t;
 
 typedef struct {
-    lo_state_t nco;          
-    loop_filter_state_t lf;  
+    dp_lo_state_t nco;          
+    dp_loop_filter_state_t lf;  
     size_t tsamps;           
     double seed_norm_freq;   
     double bn;               
@@ -52,22 +52,22 @@ typedef struct {
     float _Complex prev;      
     int have_prev;           
     double lock_metric;      
-    lockdet_state_t lock;    
+    dp_lockdet_state_t lock;    
     double last_error;       
     costas_tlm_t tlm;        
-} costas_state_t;
+} dp_costas_state_t;
 
-void costas_init(costas_state_t *s, double bn, double zeta,
+void costas_init(dp_costas_state_t *s, double bn, double zeta,
                  double init_norm_freq, size_t tsamps, double bn_fll);
 
 JM_FORCEINLINE JM_HOT float _Complex
-costas_wipeoff(costas_state_t *s, float _Complex x)
+costas_wipeoff(dp_costas_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
 
 JM_FORCEINLINE JM_HOT void
-costas_update(costas_state_t *s, float _Complex P)
+costas_update(dp_costas_state_t *s, float _Complex P)
 {
     float reP = crealf(P), imP = cimagf(P);
     float aP = cabsf(P) + COSTAS_EPS;
@@ -93,10 +93,10 @@ costas_update(costas_state_t *s, float _Complex P)
     }
     s->prev = P;
     s->have_prev = 1;
-    loop_filter_step(&s->lf, e);
+    dp_loop_filter_step(&s->lf, e);
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
-    lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
+    dp_lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
      * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
@@ -107,16 +107,16 @@ costas_update(costas_state_t *s, float _Complex P)
     /* verify-counted decision on the smoothed metric (lockdet_core.h):
      * hysteresis keeps a metric grazing the threshold from chattering
      * `locked`. Inline POD step — no call, one branch per symbol. */
-    (void)lockdet_step(&s->lock, s->lock_metric);
+    (void)dp_lockdet_step(&s->lock, s->lock_metric);
 }
 
-costas_state_t *costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
+dp_costas_state_t *dp_costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
 
-void costas_destroy(costas_state_t *state);
+void dp_costas_destroy(dp_costas_state_t *state);
 
-void costas_reset(costas_state_t *state);
+void dp_costas_reset(dp_costas_state_t *state);
 
-void costas_tlm_flush(const costas_state_t *s);
+void costas_tlm_flush(const dp_costas_state_t *s);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
@@ -124,32 +124,32 @@ void costas_tlm_flush(const costas_state_t *s);
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
 #define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
 
-size_t costas_state_bytes(const costas_state_t *state);
-void costas_get_state(const costas_state_t *state, void *blob);
-int costas_set_state(costas_state_t *state, const void *blob);
+size_t dp_costas_state_bytes(const dp_costas_state_t *state);
+void dp_costas_get_state(const dp_costas_state_t *state, void *blob);
+int dp_costas_set_state(dp_costas_state_t *state, const void *blob);
 
-size_t costas_steps_max_out(costas_state_t *state);
+size_t dp_costas_steps_max_out(dp_costas_state_t *state);
 
-size_t costas_steps(costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-void costas_configure(costas_state_t *state, double bn, double zeta);
-double costas_get_bn(const costas_state_t *state);
-void costas_set_bn(costas_state_t *state, double val);
-double costas_get_norm_freq(const costas_state_t *state);
-double costas_get_nco_freq(const costas_state_t *state);
-void costas_set_norm_freq(costas_state_t *state, double val);
-double costas_get_lock_metric(const costas_state_t *state);
-double costas_get_last_error(const costas_state_t *state);
-double costas_get_bn_fll(const costas_state_t *state);
-void costas_set_bn_fll(costas_state_t *state, double val);
+void dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
+double dp_costas_get_bn(const dp_costas_state_t *state);
+void dp_costas_set_bn(dp_costas_state_t *state, double val);
+double dp_costas_get_norm_freq(const dp_costas_state_t *state);
+double costas_get_nco_freq(const dp_costas_state_t *state);
+void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
+double dp_costas_get_lock_metric(const dp_costas_state_t *state);
+double dp_costas_get_last_error(const dp_costas_state_t *state);
+double dp_costas_get_bn_fll(const dp_costas_state_t *state);
+void dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
 
-void costas_configure_lock(costas_state_t *state, double up_thresh,
+void dp_costas_configure_lock(dp_costas_state_t *state, double up_thresh,
                            double down_thresh, uint32_t n_up,
                            uint32_t n_down);
 
-int costas_get_locked(const costas_state_t *state);
+int dp_costas_get_locked(const dp_costas_state_t *state);
 
-int costas_set_telemetry(costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+int dp_costas_set_telemetry(dp_costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 #ifdef __cplusplus
 }
 #endif

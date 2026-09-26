@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
-/* F32ToI32Object — wraps f32_to_i32_state_t *       */
+/* F32ToI32Object — wraps dp_f32_to_i32_state_t *       */
 /* ======================================================== */
 
 #include "doppler/f32_to_i32/f32_to_i32_core.h"
 
 typedef struct
 {
-  PyObject_HEAD f32_to_i32_state_t *handle;
+  PyObject_HEAD dp_f32_to_i32_state_t *handle;
 } F32ToI32Object;
 
 static void
 F32ToI32Obj_dealloc (F32ToI32Object *self)
 {
   if (self->handle)
-    f32_to_i32_destroy (self->handle);
+    dp_f32_to_i32_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -41,10 +41,11 @@ F32ToI32Obj_init (F32ToI32Object *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|f", kwlist, &scale))
     return -1;
-  self->handle = f32_to_i32_create (scale);
+  self->handle = dp_f32_to_i32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "f32_to_i32_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_f32_to_i32_create returned NULL");
       return -1;
     }
   return 0;
@@ -58,7 +59,7 @@ F32ToI32Obj_reset (F32ToI32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  f32_to_i32_reset (self->handle);
+  dp_f32_to_i32_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -73,7 +74,7 @@ F32ToI32_step (F32ToI32Object *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
-  int32_t y = f32_to_i32_step (self->handle, x);
+  int32_t y = dp_f32_to_i32_step (self->handle, x);
   return PyLong_FromLong ((long)y);
 }
 
@@ -129,8 +130,8 @@ F32ToI32_steps (F32ToI32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      f32_to_i32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
-                        (int32_t *)PyArray_DATA (out_arr), (size_t)n);
+      dp_f32_to_i32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                           (int32_t *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -143,9 +144,9 @@ F32ToI32_steps (F32ToI32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  f32_to_i32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
-                    (int32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
-                    (size_t)n);
+  dp_f32_to_i32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                       (int32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
+                       (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -159,7 +160,7 @@ F32ToI32Obj_state_bytes (F32ToI32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (f32_to_i32_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_f32_to_i32_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -170,11 +171,11 @@ F32ToI32Obj_get_state (F32ToI32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = f32_to_i32_state_bytes (self->handle);
+  size_t    _n = dp_f32_to_i32_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  f32_to_i32_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_f32_to_i32_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -191,12 +192,13 @@ F32ToI32Obj_set_state (F32ToI32Object *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != f32_to_i32_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_f32_to_i32_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (f32_to_i32_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_f32_to_i32_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -225,7 +227,7 @@ F32ToI32Obj_destroy (F32ToI32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      f32_to_i32_destroy (self->handle);
+      dp_f32_to_i32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -244,7 +246,7 @@ F32ToI32Obj_exit (F32ToI32Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      f32_to_i32_destroy (self->handle);
+      dp_f32_to_i32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

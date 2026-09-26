@@ -52,8 +52,8 @@
  *      conventions.
  * @see docs/design/reed-solomon.md for the algebra.
  */
-#ifndef RS_CODEC_CORE_H
-#define RS_CODEC_CORE_H
+#ifndef DP_RS_CODEC_CORE_H
+#define DP_RS_CODEC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -69,13 +69,13 @@ extern "C" {
  * back through the accessors below rather than mirrored into fields here,
  * because two copies of a derived number is how they come to disagree.
  *
- * Allocate with rs_codec_create().
+ * Allocate with dp_rs_codec_create().
  */
 typedef struct
 {
   rs_t rs;
   /*<<property_struct_fields>>*/
-} rs_codec_state_t;
+} dp_rs_codec_state_t;
 
 /**
  * @brief Create a codec for the code named by the five arguments.
@@ -93,7 +93,7 @@ typedef struct
  * @param root_stride  `s`; coprime with `n`.
  * @return Heap-allocated state, or NULL if the five do not name a usable
  *         code.
- * @note Caller must call rs_codec_destroy() when done.
+ * @note Caller must call dp_rs_codec_destroy() when done.
  *
  * @code
  * >>> from doppler.coding import ReedSolomon
@@ -104,7 +104,7 @@ typedef struct
  * 15
  * @endcode
  */
-rs_codec_state_t *rs_codec_create (uint32_t nroots, uint32_t symbol_bits,
+dp_rs_codec_state_t *dp_rs_codec_create (uint32_t nroots, uint32_t symbol_bits,
                                    uint32_t field_poly, uint32_t first_root,
                                    uint32_t root_stride);
 
@@ -112,13 +112,13 @@ rs_codec_state_t *rs_codec_create (uint32_t nroots, uint32_t symbol_bits,
  * @brief Destroy a codec and release all memory.
  * @param state  May be NULL.
  */
-void rs_codec_destroy (rs_codec_state_t *state);
+void dp_rs_codec_destroy (dp_rs_codec_state_t *state);
 
 /**
- * @brief Symbols @ref rs_codec_encode writes for @p n_in information
+ * @brief Symbols @ref dp_rs_codec_encode writes for @p n_in information
  * symbols: a whole codeword, `n`.
  */
-size_t rs_codec_encode_max_out (rs_codec_state_t *state, size_t n_in);
+size_t dp_rs_codec_encode_max_out (dp_rs_codec_state_t *state, size_t n_in);
 
 /**
  * @brief Encode `k` information symbols into a whole `n`-symbol codeword.
@@ -128,13 +128,13 @@ size_t rs_codec_encode_max_out (rs_codec_state_t *state, size_t n_in);
  * transmitted in. `rs_encode` computes the parity; this places it.
  *
  * The WHOLE codeword rather than the parity alone, because that is the unit
- * every other method here takes — @ref rs_codec_decode,
- * @ref rs_codec_syndromes and @ref rs_codec_codeword_ok all read `n`
+ * every other method here takes — @ref dp_rs_codec_decode,
+ * @ref dp_rs_codec_syndromes and @ref dp_rs_codec_codeword_ok all read `n`
  * symbols, and a caller who wants the parity by itself can take the last
  * `nroots` of the answer. (`rs_encode` is the other split, and is still
  * there for a frame assembler that has already placed the information.)
  *
- * @p out may alias @p in — `rs_codec_encode (rs, buf, k, buf, n)` appends
+ * @p out may alias @p in — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends
  * the parity to a buffer that already holds the information, which is the
  * call a frame assembler makes and the one `rs_encode` exists for.
  *
@@ -159,7 +159,7 @@ size_t rs_codec_encode_max_out (rs_codec_state_t *state, size_t n_in);
  * 1
  * @endcode
  */
-size_t rs_codec_encode (rs_codec_state_t *state, const uint8_t *in,
+size_t dp_rs_codec_encode (dp_rs_codec_state_t *state, const uint8_t *in,
                         size_t n_in, uint8_t *out, size_t max_out);
 
 /**
@@ -171,7 +171,7 @@ size_t rs_codec_encode (rs_codec_state_t *state, const uint8_t *in,
  *
  * **It either refuses or leaves a codeword.** On success the key equation
  * has zeroed every syndrome by construction, so the result passes
- * @ref rs_codec_codeword_ok. On refusal @p codeword is untouched.
+ * @ref dp_rs_codec_codeword_ok. On refusal @p codeword is untouched.
  *
  * A refusal is not the same claim as "more than `E` errors". Beyond `E` a
  * bounded-distance decoder can land inside another codeword's sphere and
@@ -201,20 +201,20 @@ size_t rs_codec_encode (rs_codec_state_t *state, const uint8_t *in,
  * True
  * @endcode
  */
-int rs_codec_decode (rs_codec_state_t *state, uint8_t *codeword,
+int dp_rs_codec_decode (dp_rs_codec_state_t *state, uint8_t *codeword,
                      size_t codeword_len);
 
 /**
- * @brief Syndromes @ref rs_codec_syndromes writes: `nroots`.
+ * @brief Syndromes @ref dp_rs_codec_syndromes writes: `nroots`.
  */
-size_t rs_codec_syndromes_max_out (rs_codec_state_t *state, size_t n_in);
+size_t dp_rs_codec_syndromes_max_out (dp_rs_codec_state_t *state, size_t n_in);
 
 /**
  * @brief The `nroots` syndromes of an `n`-symbol word.
  *
  * All zero is the DEFINING property of the code: it needs no encoder and no
  * decoder to check, which is what makes it usable both as a test oracle and
- * as a receiver's error detector. @ref rs_codec_codeword_ok is this reduced
+ * as a receiver's error detector. @ref dp_rs_codec_codeword_ok is this reduced
  * to the one bit most callers want.
  *
  * @param state   The codec.
@@ -236,7 +236,7 @@ size_t rs_codec_syndromes_max_out (rs_codec_state_t *state, size_t n_in);
  * True
  * @endcode
  */
-size_t rs_codec_syndromes (rs_codec_state_t *state, const uint8_t *in,
+size_t dp_rs_codec_syndromes (dp_rs_codec_state_t *state, const uint8_t *in,
                            size_t n_in, uint8_t *out, size_t max_out);
 
 /**
@@ -259,7 +259,7 @@ size_t rs_codec_syndromes (rs_codec_state_t *state, const uint8_t *in,
  * 0
  * @endcode
  */
-int rs_codec_codeword_ok (rs_codec_state_t *state, const uint8_t *codeword,
+int dp_rs_codec_codeword_ok (dp_rs_codec_state_t *state, const uint8_t *codeword,
                           size_t codeword_len);
 
 /**
@@ -294,23 +294,23 @@ int rs_codec_codeword_ok (rs_codec_state_t *state, const uint8_t *codeword,
  * (1, 1)
  * @endcode
  */
-size_t rs_codec_generator (rs_codec_state_t *state, uint8_t *out,
+size_t dp_rs_codec_generator (dp_rs_codec_state_t *state, uint8_t *out,
                            size_t out_len);
 
 /** @brief Symbols per codeword, `2^J - 1`. */
-size_t rs_codec_get_n (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_n (const dp_rs_codec_state_t *state);
 
 /** @brief Information symbols per codeword, `n - nroots`. */
-size_t rs_codec_get_k (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_k (const dp_rs_codec_state_t *state);
 
 /** @brief Correctable symbols per codeword, `nroots / 2`. */
-size_t rs_codec_get_e (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_e (const dp_rs_codec_state_t *state);
 
 /** @brief Parity symbols per codeword, `2E`. */
-size_t rs_codec_get_nroots (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_nroots (const dp_rs_codec_state_t *state);
 
 /** @brief Symbol width `J`, in bits. */
-size_t rs_codec_get_symbol_bits (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_symbol_bits (const dp_rs_codec_state_t *state);
 
 #ifdef __cplusplus
 }

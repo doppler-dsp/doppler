@@ -89,11 +89,11 @@ static const char SYNC_BITS[SYNC_LEN + 1] = "0000011001010";
 static uint8_t *
 mls (unsigned stages, uint32_t seed, uint8_t *out)
 {
-  size_t      n  = ((size_t)1u << stages) - 1u;
-  pn_state_t *pn = pn_create (pn_mls_poly (stages), seed, stages, 0);
+  size_t         n  = ((size_t)1u << stages) - 1u;
+  dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (stages), seed, stages, 0);
   for (size_t i = 0; i < n; i++)
     out[i] = (uint8_t)(pn_step (pn) & 1u);
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
   return out;
 }
 
@@ -148,10 +148,10 @@ compose (wfm_source_t *src, size_t repeats, size_t gap, float complex *out,
   return total;
 }
 
-static dsss_burst_receiver_state_t *
+static dp_dsss_burst_receiver_state_t *
 make_rx (const uint8_t *acode, const uint8_t *dcode, const uint8_t *sy)
 {
-  return dsss_burst_receiver_create (
+  return dp_dsss_burst_receiver_create (
       acode, ACQ_SF, dcode, DATA_SF, sy, SYNC_LEN, REPS, SPC, CHIP_RATE,
       FRAME_SYMS, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
@@ -162,27 +162,29 @@ decode_in_blocks (const float complex *cap, size_t cap_len, size_t block,
                   const uint8_t *acode, const uint8_t *dcode,
                   const uint8_t *sy, uint8_t *first_payload)
 {
-  dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
+  dp_dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
   if (!rx)
     return 0;
   /* The buffer is the CALLER's, and its size comes from push_max_out on the
      block being pushed -- NOT from payload_len, because one call may complete
      several bursts. That is the whole reason the bound scales with the input
      (doppler#1008). */
-  size_t   cap_out = dsss_burst_receiver_push_max_out (rx, block);
+  size_t   cap_out = dp_dsss_burst_receiver_push_max_out (rx, block);
   uint8_t *out     = malloc (cap_out ? cap_out : 1u);
   size_t   total   = 0;
   int      kept    = 0;
   for (size_t off = 0; off < cap_len; off += block)
     {
-      size_t n   = cap_len - off < block ? cap_len - off : block;
-      size_t got = dsss_burst_receiver_push (rx, cap + off, n, out, cap_out);
+      size_t n = cap_len - off < block ? cap_len - off : block;
+      size_t got
+          = dp_dsss_burst_receiver_push (rx, cap + off, n, out, cap_out);
       /* A burst is a frame whose event says `frame_valid`. The receiver
          stops at decisions, so a false alarm in the noise still returns a
          frame; that flag is how a caller tells the two apart. */
       dsss_br_event_t ev[8];
-      size_t          nev = dsss_burst_receiver_events_max_out (rx);
-      nev = dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
+      size_t          nev = dp_dsss_burst_receiver_events_max_out (rx);
+      nev = dp_dsss_burst_receiver_events (rx, nev, ev,
+                                           sizeof ev / sizeof *ev);
       for (size_t i = 0; i < nev && i < got / FRAME_SYMS; i++)
         {
           if (!ev[i].frame_valid)
@@ -196,7 +198,7 @@ decode_in_blocks (const float complex *cap, size_t cap_len, size_t block,
         }
     }
   free (out);
-  dsss_burst_receiver_destroy (rx);
+  dp_dsss_burst_receiver_destroy (rx);
   return total;
 }
 
@@ -217,7 +219,7 @@ main (void)
      edge, and `retain_span` is the history kept per anchor. `refine_span`,
      which `min_gap` is derived from, is a start-to-start reach -- reading it
      as a spacing was doppler#1514. */
-  dsss_burst_receiver_state_t *probe = make_rx (acode, dcode, sy);
+  dp_dsss_burst_receiver_state_t *probe = make_rx (acode, dcode, sy);
   if (!probe)
     {
       fprintf (stderr, "create failed\n");
@@ -225,9 +227,9 @@ main (void)
     }
   /* Through the accessors: both spans are the CAPTURE's, derived there and
      forwarded here, so the receiver has no field of its own to read. */
-  const size_t min_gap     = dsss_burst_receiver_get_min_gap (probe);
-  const size_t retain_span = dsss_burst_receiver_get_retain_span (probe);
-  dsss_burst_receiver_destroy (probe);
+  const size_t min_gap     = dp_dsss_burst_receiver_get_min_gap (probe);
+  const size_t retain_span = dp_dsss_burst_receiver_get_retain_span (probe);
+  dp_dsss_burst_receiver_destroy (probe);
 
   printf ("=== DsssBurstReceiver — the burst chain as one object ===\n");
   printf ("  waveform    one wfmgen segment via wfm_compose_create()\n");
@@ -254,7 +256,7 @@ main (void)
     int     exact = (d == 1u);
     /* push() hands back the FRAME — this receiver stops at decisions
        (doppler#1022) — so the payload is a slice, and the trailer is
-       checked by `frame_deframe()` in §5 below. */
+       checked by `dp_frame_deframe()` in §5 below. */
     for (size_t i = 0; i < PAYLOAD && exact; i++)
       exact = (got[SYNC_LEN + i] == payload[i]);
     printf ("§1  %zu-sample capture, one burst: %zu decoded, payload %s\n", n,
@@ -279,24 +281,24 @@ main (void)
       }
 
     /* ── §3  a split burst is held, and `pending` says so ──────────────── */
-    dsss_burst_receiver_state_t *rx  = make_rx (acode, dcode, sy);
-    size_t                       cut = BURST_LEN / 2u;
-    size_t   cap_out = dsss_burst_receiver_push_max_out (rx, n);
+    dp_dsss_burst_receiver_state_t *rx  = make_rx (acode, dcode, sy);
+    size_t                          cut = BURST_LEN / 2u;
+    size_t   cap_out = dp_dsss_burst_receiver_push_max_out (rx, n);
     uint8_t *out     = malloc (cap_out);
-    size_t   a1      = dsss_burst_receiver_push (rx, cap, cut, out, cap_out);
-    size_t   held    = dsss_burst_receiver_get_pending (rx);
+    size_t   a1   = dp_dsss_burst_receiver_push (rx, cap, cut, out, cap_out);
+    size_t   held = dp_dsss_burst_receiver_get_pending (rx);
     size_t   a2
-        = dsss_burst_receiver_push (rx, cap + cut, n - cut, out, cap_out);
+        = dp_dsss_burst_receiver_push (rx, cap + cut, n - cut, out, cap_out);
     printf ("§3  split mid-burst: push 1 -> %zu payload(s), pending %zu;"
             "  push 2 -> %zu, pending %zu\n",
             a1 / FRAME_SYMS, held, a2 / FRAME_SYMS,
-            dsss_burst_receiver_get_pending (rx));
+            dp_dsss_burst_receiver_get_pending (rx));
     int ok = (a1 == 0 && held == 1u && a2 == FRAME_SYMS
-              && dsss_burst_receiver_get_pending (rx) == 0);
+              && dp_dsss_burst_receiver_get_pending (rx) == 0);
     for (size_t i = 0; i < PAYLOAD && ok; i++)
       ok = (out[SYNC_LEN + i] == payload[i]);
     free (out);
-    dsss_burst_receiver_destroy (rx);
+    dp_dsss_burst_receiver_destroy (rx);
     printf ("      -> held, then returned whole. Read pending before you"
             " stop feeding.\n");
     if (!ok)
@@ -340,21 +342,21 @@ main (void)
     const size_t spacing = BURST_LEN + min_gap; /* start to start */
     size_t       n       = compose (&src, want, min_gap, cap, CAP_MAX);
 
-    dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
+    dp_dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
     if (!rx || !n)
       {
         fprintf (stderr, "§5 setup failed\n");
         return 1;
       }
-    size_t   cap_out = dsss_burst_receiver_push_max_out (rx, n);
+    size_t   cap_out = dp_dsss_burst_receiver_push_max_out (rx, n);
     uint8_t *out     = malloc (cap_out);
-    size_t   got     = dsss_burst_receiver_push (rx, cap, n, out, cap_out);
+    size_t   got     = dp_dsss_burst_receiver_push (rx, cap, n, out, cap_out);
 
     /* One record per burst the push returned -- ask the object how many,
        never assume: a single push can complete several. */
     dsss_br_event_t ev[8];
-    size_t          nev = dsss_burst_receiver_events_max_out (rx);
-    nev = dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
+    size_t          nev = dp_dsss_burst_receiver_events_max_out (rx);
+    nev = dp_dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
 
     printf ("§5  every read-back, per burst (%zu payload(s), %zu event(s)):\n",
             got / FRAME_SYMS, nev);
@@ -408,7 +410,7 @@ main (void)
              && rx->demod_cn0_dbhz == last->demod_cn0_dbhz
              && rx->demod_timing_chips == last->demod_timing_chips;
       }
-    dsss_burst_receiver_destroy (rx);
+    dp_dsss_burst_receiver_destroy (rx);
     printf ("      -> every row checks out against the scene; the scalar"
             " read-backs equal the last row, which is all they claim.\n");
     if (!ok)
@@ -423,30 +425,30 @@ main (void)
       /* The receiver stopped at decisions: §5's rows are FRAME BITS and no
          opinion about them (doppler#1022). Turning those into a payload —
          and into a verdict — needs the frame's description, which is what
-         `frame_create()` builds and `frame_deframe()` reads. */
-      frame_state_t *f = frame_create (
+         `dp_frame_create()` builds and `dp_frame_deframe()` reads. */
+      dp_frame_state_t *f = dp_frame_create (
           0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,       /* no preamble    */
           0, sy, SYNC_LEN, 0, 0, 0, 0, 0, 0, 0, 0, 0,     /* literal sync   */
           0, payload, PAYLOAD, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* the payload   */
           1);                                             /* crc16 trailer */
       if (!f)
         {
-          fprintf (stderr, "frame_create failed\n");
+          fprintf (stderr, "dp_frame_create failed\n");
           return 1;
         }
-      const size_t nbits  = frame_deframe_max_out (f, 0);
+      const size_t nbits  = dp_frame_deframe_max_out (f, 0);
       uint8_t     *undone = malloc (nbits ? nbits : 1u);
       int          all_ok = (nbits == FRAME_SYMS) && undone != NULL;
-      printf (
-          "§6  deframed by frame_deframe() (the receiver has no opinion):\n");
+      printf ("§6  deframed by dp_frame_deframe() (the receiver has no "
+              "opinion):\n");
       for (size_t i = 0; i < nev && all_ok; i++)
         {
-          const size_t got_n = frame_deframe (f, out + i * FRAME_SYMS,
-                                              FRAME_SYMS, undone, nbits);
+          const size_t got_n = dp_frame_deframe (f, out + i * FRAME_SYMS,
+                                                 FRAME_SYMS, undone, nbits);
           /* The NAMED view, because this frame was built the four-field
              way: [preamble | sync | payload | crc]. A field-by-field
              description would index its own fields instead. */
-          const size_t poff = frame_layout (f).payload_off;
+          const size_t poff = dp_frame_layout (f).payload_off;
           int          same = (got_n == FRAME_SYMS);
           for (size_t k = 0; k < PAYLOAD && same; k++)
             same = (undone[poff + k] == payload[k]);
@@ -459,7 +461,7 @@ main (void)
       printf ("      -> decide, then deframe. Two objects, one frame.\n");
       free (undone);
       free (out);
-      frame_destroy (f);
+      dp_frame_destroy (f);
       if (!all_ok)
         {
           fprintf (stderr, "a returned frame did not deframe cleanly\n");

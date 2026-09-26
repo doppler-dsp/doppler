@@ -131,7 +131,7 @@ typedef enum
 /**
  * @brief One additive source within a segment: a `synth` config + its level.
  *
- * The nine synth fields mirror `wfm_synth_create()` (minus `fs`, which is the
+ * The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the
  * segment's — one receiver, one sample rate). `level` is the source's average
  * power in dBFS (≤0); the segment sums its sources, each scaled by
  * `10^(level/20)`.
@@ -504,9 +504,9 @@ double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
 
 /**
  * @brief Resolve a source's (snr, snr_mode) into the pair to hand to
- * `wfm_synth_create()`.
+ * `dp_wfm_synth_create()`.
  *
- * `wfm_synth_create()` runs before a dsss source's codes are attached, so it
+ * `dp_wfm_synth_create()` runs before a dsss source's codes are attached, so it
  * cannot know the spreading factor its own esno would need. This helper — the
  * one create-time entry point shared by the composer (`wfm_compose_build_synth`)
  * and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees
@@ -537,12 +537,12 @@ double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
  * (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied
  * (`bits`) and otherwise from the seeded PN. A no-op for a non-dsss source.
  *
- * @param syn  A synth from wfm_synth_create() with `wtype == WFM_SYNTH_DSSS`.
+ * @param syn  A synth from dp_wfm_synth_create() with `wtype == WFM_SYNTH_DSSS`.
  * @param src  The source (codes, payload, symbol_rate, pn config).
  * @param fs   Segment sample rate (Hz) — the continuous chip rate is fs/sps.
  * @return 0 on success (or non-dsss no-op); -1 on invalid geometry.
  */
-int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
+int wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
 /**
@@ -622,11 +622,11 @@ const char *wfm_source_frame_error(const wfm_source_t *src);
  * whatever length is asked for, which is what turns a one-frame description
  * into a multi-frame record.
  *
- * @param syn  A synth from wfm_synth_create() with `wtype == WFM_SYNTH_BITS`.
+ * @param syn  A synth from dp_wfm_synth_create() with `wtype == WFM_SYNTH_BITS`.
  * @param src  The source (pattern, modulation, and any frame fields).
  * @return 0 on success (or a non-bits/no-pattern no-op); -1 on failure.
  */
-int wfm_source_attach_frame(wfm_synth_state_t *syn, const wfm_source_t *src);
+int wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
 /**
  * @brief Construct + configure the synth for one resolved source.
@@ -642,9 +642,9 @@ int wfm_source_attach_frame(wfm_synth_state_t *syn, const wfm_source_t *src);
  * burst instance, signal fixed, regardless of `seed_advance`); instance 0 is
  * byte-identical to the pre-`repeats` behaviour.
  *
- * @return A heap synth (caller wfm_synth_destroy()s it), or NULL on failure.
+ * @return A heap synth (caller dp_wfm_synth_destroy()s it), or NULL on failure.
  */
-wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
+dp_wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,
                                            unsigned epoch, int seed_advance,
@@ -658,14 +658,14 @@ typedef struct wfm_render wfm_render_t;
  * clock-Doppler channel the source declares, if it declares one.
  *
  * THE pull path. Both faces go through `wfm_render_steps()` rather than
- * calling `wfm_synth_steps()` themselves, because a Doppler channel is a
+ * calling `dp_wfm_synth_steps()` themselves, because a Doppler channel is a
  * RESAMPLER: it consumes about `n*(1+d)` inputs per `n` outputs, so "pull
  * `k`, get `k`" only holds if something keeps the remainder. Two
  * implementations that agreed today would drift the moment either grew a
  * holdover the other did not.
  *
  * A source with `doppler == 0 && doppler_rate == 0` gets no channel and
- * `wfm_render_steps()` is then literally `wfm_synth_steps()`, so every scene
+ * `wfm_render_steps()` is then literally `dp_wfm_synth_steps()`, so every scene
  * that does not ask for Doppler renders through exactly the path it always
  * did — byte-identical, not merely equivalent.
  *
@@ -685,7 +685,7 @@ wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        double f_end, double doppler,
                                        double doppler_rate, unsigned epoch,
                                        int seed_advance, size_t instance,
-                                       doppler_channel_state_t *borrow);
+                                       dp_doppler_channel_state_t *borrow);
 
 /** @brief Pull exactly @p n samples from @p r, through its channel if any. */
 void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);

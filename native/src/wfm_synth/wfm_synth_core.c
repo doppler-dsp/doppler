@@ -3,12 +3,12 @@
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
 #include "doppler/wfm/wfm_dsp.h" /* wfm_frame_dsss_chips — the DSSS burst builder */
 
-wfm_synth_state_t *
-wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
-                  uint32_t seed, int sps, int pn_length, uint64_t pn_poly,
-                  int lfsr, double f_end)
+dp_wfm_synth_state_t *
+dp_wfm_synth_create (int type, double fs, double freq, double snr,
+                     int snr_mode, uint32_t seed, int sps, int pn_length,
+                     uint64_t pn_poly, int lfsr, double f_end)
 {
-  wfm_synth_state_t *obj = calloc (1, sizeof (*obj));
+  dp_wfm_synth_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   obj->wtype   = type;
@@ -23,8 +23,8 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
 
   /* Chirp: store the normalised start/end frequencies (freq is the start, the
    * instantaneous frequency at t=0). The per-sample slope chirp_k locks when
-   * wfm_synth_set_chirp_span() is called; until then it is 0, a CW tone at the
-   * start frequency on step() and steps() alike. */
+   * dp_wfm_synth_set_chirp_span() is called; until then it is 0, a CW tone at
+   * the start frequency on step() and steps() alike. */
   obj->chirp_f0   = (fs != 0.0) ? freq / fs : 0.0;
   obj->chirp_fend = (fs != 0.0) ? f_end / fs : 0.0;
   obj->chirp_k    = 0.0;
@@ -47,7 +47,7 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
    * synthesises its own swept carrier rather than a static LO. */
   if (type != WFM_SYNTH_NOISE && type != WFM_SYNTH_CHIRP && freq != 0.0)
     {
-      obj->lo = lo_create (fs != 0.0 ? freq / fs : 0.0);
+      obj->lo = dp_lo_create (fs != 0.0 ? freq / fs : 0.0);
       if (!obj->lo)
         {
           free (obj);
@@ -63,15 +63,16 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
       if (poly == 0)
         { /* no MLS table entry for this length */
           if (obj->lo)
-            lo_destroy (obj->lo);
+            dp_lo_destroy (obj->lo);
           free (obj);
           return NULL;
         }
-      obj->pn = pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
+      obj->pn
+          = dp_pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
       if (!obj->pn)
         {
           if (obj->lo)
-            lo_destroy (obj->lo);
+            dp_lo_destroy (obj->lo);
           free (obj);
           return NULL;
         }
@@ -87,7 +88,7 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
           = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
       if (poly != 0)
         obj->pn
-            = pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
+            = dp_pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
     }
 
   /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno.
@@ -98,7 +99,7 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   if (type == WFM_SYNTH_NOISE)
     {
       obj->awgn
-          = awgn_create ((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
+          = dp_awgn_create ((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
     }
   else if (snr < WFM_SYNTH_SNR_CLEAN)
     {
@@ -117,14 +118,14 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
       double snr_fs = wfm_synth_snr_over_fs (mode, wfm_synth_bps (type),
                                              (double)obj->nsps, snr);
       float  amp = sqrtf (1.0f / (2.0f * powf (10.0f, (float)snr_fs / 10.0f)));
-      obj->awgn  = awgn_create ((uint64_t)seed, amp);
+      obj->awgn  = dp_awgn_create ((uint64_t)seed, amp);
     }
   if (want_noise && !obj->awgn)
     {
       if (obj->pn)
-        pn_destroy (obj->pn);
+        dp_pn_destroy (obj->pn);
       if (obj->lo)
-        lo_destroy (obj->lo);
+        dp_lo_destroy (obj->lo);
       free (obj);
       return NULL;
     }
@@ -132,7 +133,8 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
 }
 
 int
-wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
+wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
+                   size_t ntaps)
 {
   /* Pulse shaping applies to the symbol carriers: pn/bpsk/qpsk, the user
    * bit-pattern source (bits), the complex-symbol stream (symbols), and the
@@ -182,7 +184,7 @@ wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
         resamp_destroy (state->shaper);
       if (state->fir)
         {
-          fir_destroy (state->fir);
+          dp_fir_destroy (state->fir);
           state->fir = NULL;
         }
       state->shaper = sh;
@@ -191,12 +193,12 @@ wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
     }
 
   /* Non-power-of-two sps: dense FIR fallback. */
-  fir_state_t *fir = fir_create_real (scaled, ntaps);
+  dp_fir_state_t *fir = fir_create_real (scaled, ntaps);
   free (scaled);
   if (!fir)
     return -1;
   if (state->fir)
-    fir_destroy (state->fir);
+    dp_fir_destroy (state->fir);
   if (state->shaper)
     {
       resamp_destroy (state->shaper);
@@ -207,7 +209,7 @@ wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
 }
 
 int
-wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
+wfm_synth_set_bits (dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                     int modulation)
 {
   if (state->wtype != WFM_SYNTH_BITS)
@@ -228,7 +230,7 @@ wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
 }
 
 int
-wfm_synth_set_dsss_chips (wfm_synth_state_t *state, const uint8_t *chips,
+wfm_synth_set_dsss_chips (dp_wfm_synth_state_t *state, const uint8_t *chips,
                           size_t n_chips)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
@@ -248,7 +250,7 @@ wfm_synth_set_dsss_chips (wfm_synth_state_t *state, const uint8_t *chips,
 }
 
 int
-wfm_synth_set_dsss (wfm_synth_state_t *state, const uint8_t *acq_code,
+wfm_synth_set_dsss (dp_wfm_synth_state_t *state, const uint8_t *acq_code,
                     size_t acq_len, size_t acq_reps, const uint8_t *data_code,
                     size_t data_len, const uint8_t *sync, size_t sync_len,
                     const uint8_t *payload, size_t payload_len, int crc)
@@ -271,7 +273,7 @@ wfm_synth_set_dsss (wfm_synth_state_t *state, const uint8_t *acq_code,
 }
 
 int
-wfm_synth_set_dsss_cont (wfm_synth_state_t *state, const uint8_t *code,
+wfm_synth_set_dsss_cont (dp_wfm_synth_state_t *state, const uint8_t *code,
                          size_t code_len, double chips_per_symbol,
                          int data_mode, const uint8_t *data, size_t n_data)
 {
@@ -321,8 +323,8 @@ wfm_synth_set_dsss_cont (wfm_synth_state_t *state, const uint8_t *code,
 }
 
 int
-wfm_synth_set_dsss_window (wfm_synth_state_t *state, size_t code_only_symbols,
-                           size_t frame_symbols)
+wfm_synth_set_dsss_window (dp_wfm_synth_state_t *state,
+                           size_t code_only_symbols, size_t frame_symbols)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
     return 0; /* no-op for every other type, same as set_dsss_cont */
@@ -334,8 +336,8 @@ wfm_synth_set_dsss_window (wfm_synth_state_t *state, size_t code_only_symbols,
 }
 
 int
-wfm_synth_set_symbols (wfm_synth_state_t *state, const float _Complex *symbols,
-                       size_t n)
+wfm_synth_set_symbols (dp_wfm_synth_state_t *state,
+                       const float _Complex *symbols, size_t n)
 {
   if (state->wtype != WFM_SYNTH_SYMBOLS)
     return 0; /* no-op for every other type */
@@ -354,26 +356,26 @@ wfm_synth_set_symbols (wfm_synth_state_t *state, const float _Complex *symbols,
 }
 
 void
-wfm_synth_destroy (wfm_synth_state_t *state)
+dp_wfm_synth_destroy (dp_wfm_synth_state_t *state)
 {
   if (state->fir)
-    fir_destroy (state->fir);
+    dp_fir_destroy (state->fir);
   if (state->shaper)
     resamp_destroy (state->shaper);
   free (state->bits);
   free (state->symbols);
   free (state->code);
   if (state->lo)
-    lo_destroy (state->lo);
+    dp_lo_destroy (state->lo);
   if (state->awgn)
-    awgn_destroy (state->awgn);
+    dp_awgn_destroy (state->awgn);
   if (state->pn)
-    pn_destroy (state->pn);
+    dp_pn_destroy (state->pn);
   free (state);
 }
 
 void
-wfm_synth_set_chirp_span (wfm_synth_state_t *state, size_t span)
+dp_wfm_synth_set_chirp_span (dp_wfm_synth_state_t *state, size_t span)
 {
   /* The slope locks on the first valid pin (span still 0); later calls and
    * non-chirp synths are no-ops, so the composer can call this for every
@@ -386,7 +388,7 @@ wfm_synth_set_chirp_span (wfm_synth_state_t *state, size_t span)
 }
 
 void
-wfm_synth_reset (wfm_synth_state_t *state)
+dp_wfm_synth_reset (dp_wfm_synth_state_t *state)
 {
   state->sym_pos = 0;
   state->cur_re
@@ -402,25 +404,25 @@ wfm_synth_reset (wfm_synth_state_t *state)
   state->sym_idx      = 0;
   state->cur_data     = 0;
   if (state->fir)
-    fir_reset (state->fir); /* clear the RRC delay line */
+    dp_fir_reset (state->fir); /* clear the RRC delay line */
   if (state->shaper)
     {
       resamp_reset (state->shaper); /* clear the polyphase delay line/phase */
       state->primed = 0;            /* re-arm the sps-sample latency priming */
     }
   if (state->lo)
-    lo_reset (state->lo);
+    dp_lo_reset (state->lo);
   if (state->awgn)
-    awgn_reset (state->awgn);
+    dp_awgn_reset (state->awgn);
   if (state->pn)
-    pn_reset (state->pn);
+    dp_pn_reset (state->pn);
 }
 
 void
-wfm_synth_reseed_noise (wfm_synth_state_t *state, uint32_t seed)
+wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
 {
   if (state && state->awgn)
-    awgn_reseed (state->awgn, (uint64_t)seed);
+    dp_awgn_reseed (state->awgn, (uint64_t)seed);
 }
 
 /* Serializable state — running waveform-position scalars + the optional
@@ -431,7 +433,7 @@ wfm_synth_reseed_noise (wfm_synth_state_t *state, uint32_t seed)
  * mid-stream hand-off resumes the shaped waveform bit-for-bit.
  */
 size_t
-wfm_synth_state_bytes (const wfm_synth_state_t *s)
+dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
 {
   size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
              + 2 * sizeof (float)                        /* cur_re/im    */
@@ -445,23 +447,23 @@ wfm_synth_state_bytes (const wfm_synth_state_t *s)
              + sizeof (uint8_t)                          /* primed       */
              + 5;                                        /* presence     */
   if (s->fir)
-    b += fir_state_bytes (s->fir);
+    b += dp_fir_state_bytes (s->fir);
   if (s->shaper)
     b += resamp_state_bytes (s->shaper);
   if (s->lo)
-    b += lo_state_bytes (s->lo);
+    b += dp_lo_state_bytes (s->lo);
   if (s->awgn)
-    b += awgn_state_bytes (s->awgn);
+    b += dp_awgn_state_bytes (s->awgn);
   if (s->pn)
-    b += pn_state_bytes (s->pn);
+    b += dp_pn_state_bytes (s->pn);
   return b;
 }
 
 void
-wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
+dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
 {
   DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
-               wfm_synth_state_bytes (s));
+               dp_wfm_synth_state_bytes (s));
   dp_w_u32 (&_w, (uint32_t)s->sym_pos);
   dp_w_f32 (&_w, &s->cur_re, 1);
   dp_w_f32 (&_w, &s->cur_im, 1);
@@ -477,22 +479,22 @@ wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
                       s->awgn != NULL, s->pn != NULL };
   dp_w_bytes (&_w, pres, 5);
   if (s->fir)
-    DP_W_CHILD (&_w, fir, s->fir);
+    DP_W_CHILD (&_w, dp_fir, s->fir);
   if (s->shaper)
     DP_W_CHILD (&_w, resamp, s->shaper);
   if (s->lo)
-    DP_W_CHILD (&_w, lo, s->lo);
+    DP_W_CHILD (&_w, dp_lo, s->lo);
   if (s->awgn)
-    DP_W_CHILD (&_w, awgn, s->awgn);
+    DP_W_CHILD (&_w, dp_awgn, s->awgn);
   if (s->pn)
-    DP_W_CHILD (&_w, pn, s->pn);
+    DP_W_CHILD (&_w, dp_pn, s->pn);
 }
 
 int
-wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
+dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
 {
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
-               wfm_synth_state_bytes (s));
+               dp_wfm_synth_state_bytes (s));
   s->sym_pos = (int)dp_r_u32 (&_r);
   dp_r_f32 (&_r, &s->cur_re, 1);
   dp_r_f32 (&_r, &s->cur_im, 1);
@@ -514,31 +516,33 @@ wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
       || (pres[4] != 0) != (s->pn != NULL))
     return DP_ERR_INVALID;
   if (s->fir)
-    DP_R_CHILD (&_r, fir, s->fir);
+    DP_R_CHILD (&_r, dp_fir, s->fir);
   if (s->shaper)
     DP_R_CHILD (&_r, resamp, s->shaper);
   if (s->lo)
-    DP_R_CHILD (&_r, lo, s->lo);
+    DP_R_CHILD (&_r, dp_lo, s->lo);
   if (s->awgn)
-    DP_R_CHILD (&_r, awgn, s->awgn);
+    DP_R_CHILD (&_r, dp_awgn, s->awgn);
   if (s->pn)
-    DP_R_CHILD (&_r, pn, s->pn);
+    DP_R_CHILD (&_r, dp_pn, s->pn);
   return DP_OK;
 }
 
 void
-wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
+dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
+                    size_t n)
 {
   /* Fully batched, no per-sample library calls. Per chunk: the LO carrier
    * (NCO) and AWGN are generated a block at a time (their vectorized paths);
-   * PN chips come from the block pn_generate() (kind-hoisted, ~1 GSa/s),
+   * PN chips come from the block dp_pn_generate() (kind-hoisted, ~1 GSa/s),
    * never per-sample pn_step(); the symbol map and the LO-mix / noise-add are
    * separate, data-parallel passes. This rounds the symbol*carrier multiply
-   * and the noise-add separately, whereas wfm_synth_step() evaluates
+   * and the noise-add separately, whereas dp_wfm_synth_step() evaluates
    * `sym*carrier + noise` as one expression — so under -ffast-math the two can
    * differ by an ULP on FMA targets (arm64) for QPSK's irrational ±1/√2 leg.
    * Callers that need the composer/CLI to agree byte-for-byte must drive a
-   * single path; wfm_compose uses wfm_synth_steps() for exactly this reason.
+   * single path; wfm_compose uses dp_wfm_synth_steps() for exactly this
+   * reason.
    */
   enum
   {
@@ -573,10 +577,10 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
       size_t          m   = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
       float _Complex *out = output + done;
       if (has_lo)
-        lo_steps (state->lo, m, carrier, m);
+        dp_lo_steps (state->lo, m, carrier, m);
       else if (is_chirp)
         /* Swept carrier, generated per sample with the same phase recurrence
-         * as wfm_synth_step() — identical doubles, identical cexpf, so the
+         * as dp_wfm_synth_step() — identical doubles, identical cexpf, so the
          * per-sample and block paths stay byte-identical. */
         for (size_t i = 0; i < m; i++)
           {
@@ -592,17 +596,18 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
             state->chirp_n++;
           }
       if (has_awgn)
-        awgn_generate (state->awgn, m, noise, m);
+        dp_awgn_generate (state->awgn, m, noise, m);
 
       if (state->shaper)
         {
-          /* Polyphase RRC pulse shaping — the single kernel wfm_synth_step()
-           * also drives (one output at a time), so the block and per-sample
-           * paths are bit-identical. Covers every shaped type; the symbol
-           * source is dispatched inside wfm_synth_shape/next_symbol, which
-           * advance bit_idx/sym_read_idx (and the pn/chip clocks) on `state`
-           * directly — re-sync the block-local read cursors afterwards so the
-           * post-loop write-back does not stomp them with stale values. */
+          /* Polyphase RRC pulse shaping — the single kernel
+           * dp_wfm_synth_step() also drives (one output at a time), so the
+           * block and per-sample paths are bit-identical. Covers every shaped
+           * type; the symbol source is dispatched inside
+           * wfm_synth_shape/next_symbol, which advance bit_idx/sym_read_idx
+           * (and the pn/chip clocks) on `state` directly — re-sync the
+           * block-local read cursors afterwards so the post-loop write-back
+           * does not stomp them with stale values. */
           wfm_synth_shape (state, out, m, shaper_syms);
           if (has_lo && has_awgn)
             for (size_t i = 0; i < m; i++)
@@ -622,8 +627,8 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
       if (is_bits)
         {
           /* User bit pattern: per-sample symbol latch from bits[], cycled,
-           * with the *same* fused sym*carrier + noise as wfm_synth_step() so
-           * the two paths stay byte-identical. With an RRC FIR attached the
+           * with the *same* fused sym*carrier + noise as dp_wfm_synth_step()
+           * so the two paths stay byte-identical. With an RRC FIR attached the
            * latched symbols become a symbol-rate impulse train shaped by the
            * matched filter — identical machinery to the PN/PSK RRC path. */
           const uint8_t *bits = state->bits;
@@ -653,7 +658,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
                   if (++sym_pos >= nsps)
                     sym_pos = 0;
                 }
-              fir_execute (state->fir, out, m, out);
+              dp_fir_execute (state->fir, out, m, out);
               if (has_lo && has_awgn)
                 for (size_t i = 0; i < m; i++)
                   out[i] = out[i] * carrier[i] + noise[i];
@@ -715,7 +720,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
                   if (++sym_pos >= nsps)
                     sym_pos = 0;
                 }
-              fir_execute (state->fir, out, m, out);
+              dp_fir_execute (state->fir, out, m, out);
               if (has_lo && has_awgn)
                 for (size_t i = 0; i < m; i++)
                   out[i] = out[i] * carrier[i] + noise[i];
@@ -774,14 +779,15 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
       size_t    first = (sym_pos == 0) ? 0 : (size_t)(nsps - sym_pos);
       size_t    nb    = (first < m) ? 1 + (m - 1 - first) / (size_t)nsps : 0;
       if (nb)
-        pn_generate (state->pn, nb * (size_t)bps, chips, nb * (size_t)bps);
+        dp_pn_generate (state->pn, nb * (size_t)bps, chips, nb * (size_t)bps);
 
       if (state->fir)
         {
           /* RRC: build the symbol-rate impulse train into out, FIR it in place
-           * (fir_execute copies its input first, so in==out is safe, and it
+           * (dp_fir_execute copies its input first, so in==out is safe, and it
            * carries the delay line across chunks → chunk-invariant), then mix
-           * with the *same* fused bb*carrier + noise as wfm_synth_step(). */
+           * with the *same* fused bb*carrier + noise as dp_wfm_synth_step().
+           */
           size_t ci = 0;
           for (size_t i = 0; i < m; i++)
             {
@@ -805,7 +811,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
               if (++sym_pos >= nsps)
                 sym_pos = 0;
             }
-          fir_execute (state->fir, out, m, out);
+          dp_fir_execute (state->fir, out, m, out);
           if (has_lo && has_awgn)
             for (size_t i = 0; i < m; i++)
               out[i] = out[i] * carrier[i] + noise[i];
@@ -877,7 +883,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
 }
 
 void
-wfm_synth_noise_steps (wfm_synth_state_t *state, float _Complex *output,
+wfm_synth_noise_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                        size_t n)
 {
   if (!state || !output || n == 0)
@@ -889,8 +895,8 @@ wfm_synth_noise_steps (wfm_synth_state_t *state, float _Complex *output,
       memset (output, 0, n * sizeof *output);
       return;
     }
-  /* Chunk exactly like wfm_synth_steps() (CH-sized awgn_generate calls) so
-   * a gap rendered here consumes the identical AWGN sub-sequences the
+  /* Chunk exactly like dp_wfm_synth_steps() (CH-sized dp_awgn_generate calls)
+   * so a gap rendered here consumes the identical AWGN sub-sequences the
    * on-time path would — the vectorized awgn path is not block-boundary
    * invariant, so matching the call pattern is what keeps a composed
    * stream reproducible across faces. */
@@ -901,67 +907,67 @@ wfm_synth_noise_steps (wfm_synth_state_t *state, float _Complex *output,
   for (size_t done = 0; done < n;)
     {
       size_t m = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
-      awgn_generate (state->awgn, m, output + done, m);
+      dp_awgn_generate (state->awgn, m, output + done, m);
       done += m;
     }
 }
 
 int
-wfm_synth_get_wtype (const wfm_synth_state_t *state)
+dp_wfm_synth_get_wtype (const dp_wfm_synth_state_t *state)
 {
   return state->wtype;
 }
 
 void
-wfm_synth_set_wtype (wfm_synth_state_t *state, int val)
+dp_wfm_synth_set_wtype (dp_wfm_synth_state_t *state, int val)
 {
   state->wtype = val;
 }
 
 int
-wfm_synth_get_nsps (const wfm_synth_state_t *state)
+dp_wfm_synth_get_nsps (const dp_wfm_synth_state_t *state)
 {
   return state->nsps;
 }
 
 void
-wfm_synth_set_nsps (wfm_synth_state_t *state, int val)
+dp_wfm_synth_set_nsps (dp_wfm_synth_state_t *state, int val)
 {
   state->nsps = val;
 }
 
 int
-wfm_synth_get_sym_pos (const wfm_synth_state_t *state)
+dp_wfm_synth_get_sym_pos (const dp_wfm_synth_state_t *state)
 {
   return state->sym_pos;
 }
 
 void
-wfm_synth_set_sym_pos (wfm_synth_state_t *state, int val)
+dp_wfm_synth_set_sym_pos (dp_wfm_synth_state_t *state, int val)
 {
   state->sym_pos = val;
 }
 
 float
-wfm_synth_get_cur_re (const wfm_synth_state_t *state)
+dp_wfm_synth_get_cur_re (const dp_wfm_synth_state_t *state)
 {
   return state->cur_re;
 }
 
 void
-wfm_synth_set_cur_re (wfm_synth_state_t *state, float val)
+dp_wfm_synth_set_cur_re (dp_wfm_synth_state_t *state, float val)
 {
   state->cur_re = val;
 }
 
 float
-wfm_synth_get_cur_im (const wfm_synth_state_t *state)
+dp_wfm_synth_get_cur_im (const dp_wfm_synth_state_t *state)
 {
   return state->cur_im;
 }
 
 void
-wfm_synth_set_cur_im (wfm_synth_state_t *state, float val)
+dp_wfm_synth_set_cur_im (dp_wfm_synth_state_t *state, float val)
 {
   state->cur_im = val;
 }

@@ -33,7 +33,7 @@ _BurstDespreader component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) <br>_BurstDespreader state._  |
+| struct | [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) <br>_BurstDespreader state._  |
 
 
 
@@ -60,28 +60,28 @@ _BurstDespreader component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**burst\_despreader\_bits**](#function-burst_despreader_bits) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one hard BPSK bit (0/1) per code period._  |
-|  size\_t | [**burst\_despreader\_bits\_max\_out**](#function-burst_despreader_bits_max_out) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Upper bound on bits_ `burst_despreader_bits` _can emit (0; see burst\_despreader\_steps\_max\_out)._ |
-|  [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* | [**burst\_despreader\_create**](#function-burst_despreader_create) (const uint8\_t \* code, size\_t code\_len, size\_t sf, size\_t sps, double init\_norm\_freq, double init\_chip\_phase, double bn\_carrier, double bn\_code) <br>_Create a burst despreader instance._  |
-|  void | [**burst\_despreader\_destroy**](#function-burst_despreader_destroy) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Destroy a burst despreader instance and release all memory._  |
-|  double | [**burst\_despreader\_get\_bn\_carrier**](#function-burst_despreader_get_bn_carrier) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Carrier (Costas) loop noise bandwidth, normalized to the symbol rate._  |
-|  double | [**burst\_despreader\_get\_bn\_code**](#function-burst_despreader_get_bn_code) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Code (DLL) loop noise bandwidth, normalized to the symbol rate._  |
-|  double | [**burst\_despreader\_get\_code\_phase**](#function-burst_despreader_get_code_phase) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Current tracked code phase within the symbol, chips._  |
-|  double | [**burst\_despreader\_get\_lock\_metric**](#function-burst_despreader_get_lock_metric) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Lock indicator in_ `[0,1]` _: the mean of \|Re prompt\|/\|prompt\| over every prompt of the burst (cumulative, not EMA — a one-shot burst gives each prompt equal weight instead of spending the whole burst warming a smoother up). ~1 when phase-locked; ~2/pi (0.637) with no carrier (\|cos theta\|, uniform theta)._ |
-|  double | [**burst\_despreader\_get\_lock\_stat**](#function-burst_despreader_get_lock_stat) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Calibrated whole-burst lock statistic (the one-shot analog of the tracking loops' verify-counted detectors)._  |
-|  double | [**burst\_despreader\_get\_norm\_freq**](#function-burst_despreader_get_norm_freq) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Current carrier frequency estimate, cycles/sample._  |
-|  double | [**burst\_despreader\_get\_snr\_est**](#function-burst_despreader_get_snr_est) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum Re^2 - sum Im^2) / sum Im^2, clamped &gt;= 0. For BPSK the signal lives in Re and the noise splits evenly, so this estimates A^2/sigma^2 (per-component) directly — unlike a per-symbol Re^2/Im^2 ratio, whose heavy-tailed reciprocal chi-square makes the estimate biased high with enormous variance. This is the EFFECTIVE post-loop SNR: residual tracking-loop phase jitter rotates signal energy into Im, so the estimate sits below the AWGN-only value by the jitter term (converging as bn -&gt; 0) — the quantity that actually predicts demodulation performance._  |
-|  size\_t | [**burst\_despreader\_get\_stat\_n**](#function-burst_despreader_get_stat_n) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Number of prompts folded into the burst statistics so far._  |
-|  void | [**burst\_despreader\_get\_state**](#function-burst_despreader_get_state) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, void \* blob) <br> |
-|  void | [**burst\_despreader\_reset**](#function-burst_despreader_reset) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._  |
-|  void | [**burst\_despreader\_set\_acq**](#function-burst_despreader_set_acq) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t acq\_reps) <br>_Enable preamble-aided pull-in with a distinct acquisition code._  |
-|  void | [**burst\_despreader\_set\_bn\_carrier**](#function-burst_despreader_set_bn_carrier) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, double val) <br>_Set the carrier loop bandwidth (recomputes the loop gains)._  |
-|  void | [**burst\_despreader\_set\_bn\_code**](#function-burst_despreader_set_bn_code) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, double val) <br>_Set the code loop bandwidth (recomputes the loop gains)._  |
-|  void | [**burst\_despreader\_set\_norm\_freq**](#function-burst_despreader_set_norm_freq) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, double val) <br>_Override the carrier frequency estimate, cycles/sample (re-seed)._  |
-|  int | [**burst\_despreader\_set\_state**](#function-burst_despreader_set_state) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**burst\_despreader\_state\_bytes**](#function-burst_despreader_state_bytes) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br> |
-|  size\_t | [**burst\_despreader\_steps**](#function-burst_despreader_steps) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one complex prompt symbol per code period._  |
-|  size\_t | [**burst\_despreader\_steps\_max\_out**](#function-burst_despreader_steps_max_out) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Upper bound on symbols_ `burst_despreader_steps` _can emit (0; the caller sizes the output buffer to the input length, which always suffices)._ |
+|  size\_t | [**dp\_burst\_despreader\_bits**](#function-dp_burst_despreader_bits) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one hard BPSK bit (0/1) per code period._  |
+|  size\_t | [**dp\_burst\_despreader\_bits\_max\_out**](#function-dp_burst_despreader_bits_max_out) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Upper bound on bits_ `dp_burst_despreader_bits` _can emit (0; see dp\_burst\_despreader\_steps\_max\_out)._ |
+|  [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* | [**dp\_burst\_despreader\_create**](#function-dp_burst_despreader_create) (const uint8\_t \* code, size\_t code\_len, size\_t sf, size\_t sps, double init\_norm\_freq, double init\_chip\_phase, double bn\_carrier, double bn\_code) <br>_Create a burst despreader instance._  |
+|  void | [**dp\_burst\_despreader\_destroy**](#function-dp_burst_despreader_destroy) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Destroy a burst despreader instance and release all memory._  |
+|  double | [**dp\_burst\_despreader\_get\_bn\_carrier**](#function-dp_burst_despreader_get_bn_carrier) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Carrier (Costas) loop noise bandwidth, normalized to the symbol rate._  |
+|  double | [**dp\_burst\_despreader\_get\_bn\_code**](#function-dp_burst_despreader_get_bn_code) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Code (DLL) loop noise bandwidth, normalized to the symbol rate._  |
+|  double | [**dp\_burst\_despreader\_get\_code\_phase**](#function-dp_burst_despreader_get_code_phase) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Current tracked code phase within the symbol, chips._  |
+|  double | [**dp\_burst\_despreader\_get\_lock\_metric**](#function-dp_burst_despreader_get_lock_metric) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Lock indicator in_ `[0,1]` _: the mean of \|Re prompt\|/\|prompt\| over every prompt of the burst (cumulative, not EMA — a one-shot burst gives each prompt equal weight instead of spending the whole burst warming a smoother up). ~1 when phase-locked; ~2/pi (0.637) with no carrier (\|cos theta\|, uniform theta)._ |
+|  double | [**dp\_burst\_despreader\_get\_lock\_stat**](#function-dp_burst_despreader_get_lock_stat) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Calibrated whole-burst lock statistic (the one-shot analog of the tracking loops' verify-counted detectors)._  |
+|  double | [**dp\_burst\_despreader\_get\_norm\_freq**](#function-dp_burst_despreader_get_norm_freq) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Current carrier frequency estimate, cycles/sample._  |
+|  double | [**dp\_burst\_despreader\_get\_snr\_est**](#function-dp_burst_despreader_get_snr_est) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum Re^2 - sum Im^2) / sum Im^2, clamped &gt;= 0. For BPSK the signal lives in Re and the noise splits evenly, so this estimates A^2/sigma^2 (per-component) directly — unlike a per-symbol Re^2/Im^2 ratio, whose heavy-tailed reciprocal chi-square makes the estimate biased high with enormous variance. This is the EFFECTIVE post-loop SNR: residual tracking-loop phase jitter rotates signal energy into Im, so the estimate sits below the AWGN-only value by the jitter term (converging as bn -&gt; 0) — the quantity that actually predicts demodulation performance._  |
+|  size\_t | [**dp\_burst\_despreader\_get\_stat\_n**](#function-dp_burst_despreader_get_stat_n) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Number of prompts folded into the burst statistics so far._  |
+|  void | [**dp\_burst\_despreader\_get\_state**](#function-dp_burst_despreader_get_state) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_burst\_despreader\_reset**](#function-dp_burst_despreader_reset) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._  |
+|  void | [**dp\_burst\_despreader\_set\_acq**](#function-dp_burst_despreader_set_acq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t acq\_reps) <br>_Enable preamble-aided pull-in with a distinct acquisition code._  |
+|  void | [**dp\_burst\_despreader\_set\_bn\_carrier**](#function-dp_burst_despreader_set_bn_carrier) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the carrier loop bandwidth (recomputes the loop gains)._  |
+|  void | [**dp\_burst\_despreader\_set\_bn\_code**](#function-dp_burst_despreader_set_bn_code) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the code loop bandwidth (recomputes the loop gains)._  |
+|  void | [**dp\_burst\_despreader\_set\_norm\_freq**](#function-dp_burst_despreader_set_norm_freq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Override the carrier frequency estimate, cycles/sample (re-seed)._  |
+|  int | [**dp\_burst\_despreader\_set\_state**](#function-dp_burst_despreader_set_state) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_burst\_despreader\_state\_bytes**](#function-dp_burst_despreader_state_bytes) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_burst\_despreader\_steps**](#function-dp_burst_despreader_steps) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one complex prompt symbol per code period._  |
+|  size\_t | [**dp\_burst\_despreader\_steps\_max\_out**](#function-dp_burst_despreader_steps_max_out) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Upper bound on symbols_ `dp_burst_despreader_steps` _can emit (0; the caller sizes the output buffer to the input length, which always suffices)._ |
 
 
 
@@ -128,13 +128,13 @@ This object despreads a BLOCK: one prompt sample per spread symbol, so there is 
 Example: 
 ```C++
 static const uint8_t code[4] = { 1, 0, 1, 1 };
-burst_despreader_state_t *obj
-    = burst_despreader_create (code, 4, 4, 2, 0.0, 0.0, 0.05, 0.01);
+dp_burst_despreader_state_t *obj
+    = dp_burst_despreader_create (code, 4, 4, 2, 0.0, 0.0, 0.05, 0.01);
 float _Complex in[8]  = { 0 };
 float _Complex out[8] = { 0 };
-size_t n = burst_despreader_steps (obj, in, 8, out,
-                                   burst_despreader_steps_max_out (obj));
-burst_despreader_destroy (obj);
+size_t n = dp_burst_despreader_steps (obj, in, 8, out,
+                                   dp_burst_despreader_steps_max_out (obj));
+dp_burst_despreader_destroy (obj);
 ```
  
 
@@ -145,12 +145,12 @@ burst_despreader_destroy (obj);
 
 
 
-### function burst\_despreader\_bits 
+### function dp\_burst\_despreader\_bits 
 
 _Despread a CF32 block; emit one hard BPSK bit (0/1) per code period._ 
 ```C++
-size_t burst_despreader_bits (
-    burst_despreader_state_t * state,
+size_t dp_burst_despreader_bits (
+    dp_burst_despreader_state_t * state,
     const float _Complex * x,
     size_t x_len,
     uint8_t * out,
@@ -160,7 +160,7 @@ size_t burst_despreader_bits (
 
 
 
-Same streaming kernel as [**burst\_despreader\_steps()**](burst__despreader__core_8h.md#function-burst_despreader_steps), but emits the hard decision `crealf(prompt) >= 0` instead of the complex symbol.
+Same streaming kernel as [**dp\_burst\_despreader\_steps()**](burst__despreader__core_8h.md#function-dp_burst_despreader_steps), but emits the hard decision `crealf(prompt) >= 0` instead of the complex symbol.
 
 
 
@@ -211,12 +211,12 @@ Number of hard bits written into `out`.
 
 
 
-### function burst\_despreader\_bits\_max\_out 
+### function dp\_burst\_despreader\_bits\_max\_out 
 
-_Upper bound on bits_ `burst_despreader_bits` _can emit (0; see burst\_despreader\_steps\_max\_out)._
+_Upper bound on bits_ `dp_burst_despreader_bits` _can emit (0; see dp\_burst\_despreader\_steps\_max\_out)._
 ```C++
-size_t burst_despreader_bits_max_out (
-    burst_despreader_state_t * state
+size_t dp_burst_despreader_bits_max_out (
+    dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -227,11 +227,11 @@ size_t burst_despreader_bits_max_out (
 
 
 
-### function burst\_despreader\_create 
+### function dp\_burst\_despreader\_create 
 
 _Create a burst despreader instance._ 
 ```C++
-burst_despreader_state_t * burst_despreader_create (
+dp_burst_despreader_state_t * dp_burst_despreader_create (
     const uint8_t * code,
     size_t code_len,
     size_t sf,
@@ -270,7 +270,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**burst\_despreader\_destroy()**](burst__despreader__core_8h.md#function-burst_despreader_destroy) when done. 
+Caller must call [**dp\_burst\_despreader\_destroy()**](burst__despreader__core_8h.md#function-dp_burst_despreader_destroy) when done. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import BurstDespreader
@@ -301,12 +301,12 @@ Caller must call [**burst\_despreader\_destroy()**](burst__despreader__core_8h.m
 
 
 
-### function burst\_despreader\_destroy 
+### function dp\_burst\_despreader\_destroy 
 
 _Destroy a burst despreader instance and release all memory._ 
 ```C++
-void burst_despreader_destroy (
-    burst_despreader_state_t * state
+void dp_burst_despreader_destroy (
+    dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -328,12 +328,12 @@ void burst_despreader_destroy (
 
 
 
-### function burst\_despreader\_get\_bn\_carrier 
+### function dp\_burst\_despreader\_get\_bn\_carrier 
 
 _Carrier (Costas) loop noise bandwidth, normalized to the symbol rate._ 
 ```C++
-double burst_despreader_get_bn_carrier (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_bn_carrier (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -344,12 +344,12 @@ double burst_despreader_get_bn_carrier (
 
 
 
-### function burst\_despreader\_get\_bn\_code 
+### function dp\_burst\_despreader\_get\_bn\_code 
 
 _Code (DLL) loop noise bandwidth, normalized to the symbol rate._ 
 ```C++
-double burst_despreader_get_bn_code (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_bn_code (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -360,12 +360,12 @@ double burst_despreader_get_bn_code (
 
 
 
-### function burst\_despreader\_get\_code\_phase 
+### function dp\_burst\_despreader\_get\_code\_phase 
 
 _Current tracked code phase within the symbol, chips._ 
 ```C++
-double burst_despreader_get_code_phase (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_code_phase (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -376,12 +376,12 @@ double burst_despreader_get_code_phase (
 
 
 
-### function burst\_despreader\_get\_lock\_metric 
+### function dp\_burst\_despreader\_get\_lock\_metric 
 
 _Lock indicator in_ `[0,1]` _: the mean of \|Re prompt\|/\|prompt\| over every prompt of the burst (cumulative, not EMA — a one-shot burst gives each prompt equal weight instead of spending the whole burst warming a smoother up). ~1 when phase-locked; ~2/pi (0.637) with no carrier (\|cos theta\|, uniform theta)._
 ```C++
-double burst_despreader_get_lock_metric (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_lock_metric (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -392,12 +392,12 @@ double burst_despreader_get_lock_metric (
 
 
 
-### function burst\_despreader\_get\_lock\_stat 
+### function dp\_burst\_despreader\_get\_lock\_stat 
 
 _Calibrated whole-burst lock statistic (the one-shot analog of the tracking loops' verify-counted detectors)._ 
 ```C++
-double burst_despreader_get_lock_stat (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_lock_stat (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -441,12 +441,12 @@ True
 
 
 
-### function burst\_despreader\_get\_norm\_freq 
+### function dp\_burst\_despreader\_get\_norm\_freq 
 
 _Current carrier frequency estimate, cycles/sample._ 
 ```C++
-double burst_despreader_get_norm_freq (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_norm_freq (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -457,12 +457,12 @@ double burst_despreader_get_norm_freq (
 
 
 
-### function burst\_despreader\_get\_snr\_est 
+### function dp\_burst\_despreader\_get\_snr\_est 
 
 _Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum Re^2 - sum Im^2) / sum Im^2, clamped &gt;= 0. For BPSK the signal lives in Re and the noise splits evenly, so this estimates A^2/sigma^2 (per-component) directly — unlike a per-symbol Re^2/Im^2 ratio, whose heavy-tailed reciprocal chi-square makes the estimate biased high with enormous variance. This is the EFFECTIVE post-loop SNR: residual tracking-loop phase jitter rotates signal energy into Im, so the estimate sits below the AWGN-only value by the jitter term (converging as bn -&gt; 0) — the quantity that actually predicts demodulation performance._ 
 ```C++
-double burst_despreader_get_snr_est (
-    const burst_despreader_state_t * state
+double dp_burst_despreader_get_snr_est (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -473,12 +473,12 @@ double burst_despreader_get_snr_est (
 
 
 
-### function burst\_despreader\_get\_stat\_n 
+### function dp\_burst\_despreader\_get\_stat\_n 
 
 _Number of prompts folded into the burst statistics so far._ 
 ```C++
-size_t burst_despreader_get_stat_n (
-    const burst_despreader_state_t * state
+size_t dp_burst_despreader_get_stat_n (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -489,11 +489,11 @@ size_t burst_despreader_get_stat_n (
 
 
 
-### function burst\_despreader\_get\_state 
+### function dp\_burst\_despreader\_get\_state 
 
 ```C++
-void burst_despreader_get_state (
-    const burst_despreader_state_t * state,
+void dp_burst_despreader_get_state (
+    const dp_burst_despreader_state_t * state,
     void * blob
 ) 
 ```
@@ -505,18 +505,18 @@ void burst_despreader_get_state (
 
 
 
-### function burst\_despreader\_reset 
+### function dp\_burst\_despreader\_reset 
 
 _Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._ 
 ```C++
-void burst_despreader_reset (
-    burst_despreader_state_t * state
+void dp_burst_despreader_reset (
+    dp_burst_despreader_state_t * state
 ) 
 ```
 
 
 
-Restores the carrier NCO to the seed frequency and the code phase to the seed chip, zeroes the loop accumulators, and clears the cumulative burst read-backs (lock\_metric / snr\_est / lock\_stat / stat\_n) — the spreading code and bandwidths are kept. Call it between bursts so each burst's statistics start clean; a prior [**burst\_despreader\_set\_acq()**](burst__despreader__core_8h.md#function-burst_despreader_set_acq) preamble is also re-armed.
+Restores the carrier NCO to the seed frequency and the code phase to the seed chip, zeroes the loop accumulators, and clears the cumulative burst read-backs (lock\_metric / snr\_est / lock\_stat / stat\_n) — the spreading code and bandwidths are kept. Call it between bursts so each burst's statistics start clean; a prior [**dp\_burst\_despreader\_set\_acq()**](burst__despreader__core_8h.md#function-dp_burst_despreader_set_acq) preamble is also re-armed.
 
 
 
@@ -551,12 +551,12 @@ True
 
 
 
-### function burst\_despreader\_set\_acq 
+### function dp\_burst\_despreader\_set\_acq 
 
 _Enable preamble-aided pull-in with a distinct acquisition code._ 
 ```C++
-void burst_despreader_set_acq (
-    burst_despreader_state_t * state,
+void dp_burst_despreader_set_acq (
+    dp_burst_despreader_state_t * state,
     const uint8_t * acq_code,
     size_t acq_code_len,
     size_t acq_reps
@@ -565,7 +565,7 @@ void burst_despreader_set_acq (
 
 
 
-Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acquisition preamble — a full ±pi phase discriminator, so the loops pull in even a wide residual) before switching to the data code for the payload. Call before feeding the burst; the acq mode clears automatically once the preamble is consumed, and re-arms on [**burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-burst_despreader_reset). NB: set\_acq re-arms the PREAMBLE only — the cumulative burst statistics (lock\_metric / snr\_est / lock\_stat / stat\_n) are re-armed by [**burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-burst_despreader_reset); call it between bursts.
+Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acquisition preamble — a full ±pi phase discriminator, so the loops pull in even a wide residual) before switching to the data code for the payload. Call before feeding the burst; the acq mode clears automatically once the preamble is consumed, and re-arms on [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset). NB: set\_acq re-arms the PREAMBLE only — the cumulative burst statistics (lock\_metric / snr\_est / lock\_stat / stat\_n) are re-armed by [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset); call it between bursts.
 
 
 
@@ -610,12 +610,12 @@ Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acq
 
 
 
-### function burst\_despreader\_set\_bn\_carrier 
+### function dp\_burst\_despreader\_set\_bn\_carrier 
 
 _Set the carrier loop bandwidth (recomputes the loop gains)._ 
 ```C++
-void burst_despreader_set_bn_carrier (
-    burst_despreader_state_t * state,
+void dp_burst_despreader_set_bn_carrier (
+    dp_burst_despreader_state_t * state,
     double val
 ) 
 ```
@@ -627,12 +627,12 @@ void burst_despreader_set_bn_carrier (
 
 
 
-### function burst\_despreader\_set\_bn\_code 
+### function dp\_burst\_despreader\_set\_bn\_code 
 
 _Set the code loop bandwidth (recomputes the loop gains)._ 
 ```C++
-void burst_despreader_set_bn_code (
-    burst_despreader_state_t * state,
+void dp_burst_despreader_set_bn_code (
+    dp_burst_despreader_state_t * state,
     double val
 ) 
 ```
@@ -644,12 +644,12 @@ void burst_despreader_set_bn_code (
 
 
 
-### function burst\_despreader\_set\_norm\_freq 
+### function dp\_burst\_despreader\_set\_norm\_freq 
 
 _Override the carrier frequency estimate, cycles/sample (re-seed)._ 
 ```C++
-void burst_despreader_set_norm_freq (
-    burst_despreader_state_t * state,
+void dp_burst_despreader_set_norm_freq (
+    dp_burst_despreader_state_t * state,
     double val
 ) 
 ```
@@ -661,11 +661,11 @@ void burst_despreader_set_norm_freq (
 
 
 
-### function burst\_despreader\_set\_state 
+### function dp\_burst\_despreader\_set\_state 
 
 ```C++
-int burst_despreader_set_state (
-    burst_despreader_state_t * state,
+int dp_burst_despreader_set_state (
+    dp_burst_despreader_state_t * state,
     const void * blob
 ) 
 ```
@@ -677,11 +677,11 @@ int burst_despreader_set_state (
 
 
 
-### function burst\_despreader\_state\_bytes 
+### function dp\_burst\_despreader\_state\_bytes 
 
 ```C++
-size_t burst_despreader_state_bytes (
-    const burst_despreader_state_t * state
+size_t dp_burst_despreader_state_bytes (
+    const dp_burst_despreader_state_t * state
 ) 
 ```
 
@@ -692,12 +692,12 @@ size_t burst_despreader_state_bytes (
 
 
 
-### function burst\_despreader\_steps 
+### function dp\_burst\_despreader\_steps 
 
 _Despread a CF32 block; emit one complex prompt symbol per code period._ 
 ```C++
-size_t burst_despreader_steps (
-    burst_despreader_state_t * state,
+size_t dp_burst_despreader_steps (
+    dp_burst_despreader_state_t * state,
     const float _Complex * x,
     size_t x_len,
     float _Complex * out,
@@ -707,7 +707,7 @@ size_t burst_despreader_steps (
 
 
 
-Streams: a partial symbol is carried in state across calls. Each emitted symbol is the complex prompt integrate-and-dump (carrier-wiped, code-stripped) — its sign is the BPSK decision, its phase/magnitude the soft information. During a `burst_despreader_set_acq` preamble no symbols are emitted (the loops are pulling in); payload symbols follow.
+Streams: a partial symbol is carried in state across calls. Each emitted symbol is the complex prompt integrate-and-dump (carrier-wiped, code-stripped) — its sign is the BPSK decision, its phase/magnitude the soft information. During a `dp_burst_despreader_set_acq` preamble no symbols are emitted (the loops are pulling in); payload symbols follow.
 
 
 
@@ -756,12 +756,12 @@ Number of prompt symbols written into `out`.
 
 
 
-### function burst\_despreader\_steps\_max\_out 
+### function dp\_burst\_despreader\_steps\_max\_out 
 
-_Upper bound on symbols_ `burst_despreader_steps` _can emit (0; the caller sizes the output buffer to the input length, which always suffices)._
+_Upper bound on symbols_ `dp_burst_despreader_steps` _can emit (0; the caller sizes the output buffer to the input length, which always suffices)._
 ```C++
-size_t burst_despreader_steps_max_out (
-    burst_despreader_state_t * state
+size_t dp_burst_despreader_steps_max_out (
+    dp_burst_despreader_state_t * state
 ) 
 ```
 

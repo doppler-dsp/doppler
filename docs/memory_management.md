@@ -34,19 +34,19 @@ main (void)
 {
   /* Binding each to a spelled-out function pointer means this listing
      stops compiling if any of these signatures ever drifts. */
-  size_t (*gen) (lo_state_t *, size_t, float complex *, size_t) = lo_steps;
-  size_t (*flt) (fir_state_t *, const float complex *, size_t,
+  size_t (*gen) (dp_lo_state_t *, size_t, float complex *, size_t) = dp_lo_steps;
+  size_t (*flt) (dp_fir_state_t *, const float complex *, size_t,
                  float complex *)
-      = fir_execute;
-  size_t (*win) (delay_state_t *, size_t, double complex *, size_t)
-      = delay_ptr;
+      = dp_fir_execute;
+  size_t (*win) (dp_delay_state_t *, size_t, double complex *, size_t)
+      = dp_delay_ptr;
 
   printf ("out-parameter blocks: %d\n", (gen != 0) + (flt != 0) + (win != 0));
   return 0;
 }
 ```
 
-`delay_ptr` is worth singling out: despite the name, the C function fills
+`dp_delay_ptr` is worth singling out: despite the name, the C function fills
 your buffer like every other one.
 
 This means there is **no lifetime contract to observe**. The memory is yours.
@@ -65,26 +65,26 @@ exactly this purpose:
 
 int main (void)
 {
-  lo_state_t *lo = lo_create (0.1);
+  dp_lo_state_t *lo = dp_lo_create (0.1);
 
   /* Ask how much room the block can need, then allocate once. */
-  size_t cap = lo_steps_max_out (lo);
+  size_t cap = dp_lo_steps_max_out (lo);
   float complex *out = malloc (cap * sizeof (float complex));
 
   /* Reuse the same buffer every call: no allocation in the loop. */
   for (int i = 0; i < 4; i++)
     {
-      size_t n = lo_steps (lo, 256, out, 256);
+      size_t n = dp_lo_steps (lo, 256, out, 256);
       printf ("block %d: %zu samples\n", i, n);
     }
 
   free (out);
-  lo_destroy (lo);
+  dp_lo_destroy (lo);
   return 0;
 }
 ```
 
-The state struct holds no output storage — `lo_state_t` is three scalars — so
+The state struct holds no output storage — `dp_lo_state_t` is three scalars — so
 a C caller allocates once, outside the loop, and never allocates again.
 
 ______________________________________________________________________
@@ -328,7 +328,7 @@ rather than slicing it out of something larger.
     This is the tamer cousin of a classic FFTW footgun, where the *planner*
     takes the buffer pointers and specialises the plan to their alignment, so
     executing against a differently-aligned array is undefined rather than
-    merely slow. doppler cannot reproduce that: `fft_create(n, sign, nthreads)`
+    merely slow. doppler cannot reproduce that: `dp_fft_create(n, sign, nthreads)`
     takes no pointers, so a plan is never tied to one.
 
 ### Over-allocating on purpose

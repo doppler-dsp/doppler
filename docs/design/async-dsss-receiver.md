@@ -50,7 +50,7 @@ ______________________________________________________________________
 ### 2.1 Two front doors, one engine
 
 `Acquisition` (continuous) and `BurstAcquisition` are two public constructors
-over one `acq_state_t` (`native/inc/doppler/acq/acq_core.h`), each exposing only the
+over one `dp_acq_state_t` (`native/inc/doppler/acq/acq_core.h`), each exposing only the
 parameters that mean something for it rather than one class with a `mode` and
 per-parameter "ignored here" caveats. State, auto-sizing, `push()` and
 serialization are shared. `Acquisition` takes the code, `spc`, `chip_rate`,
@@ -115,7 +115,7 @@ with no I/O, so the anchor comes from whatever feeds them samples and is threade
 through by the composing layer (§8.1). **Neither constructor takes a
 `carrier_freq`**: the engine works in baseband Doppler Hz, and a baseband-only
 caller never has to name one. A caller that knows the carrier tells the engine
-afterwards (`acq_set_carrier_freq_hz()` / `set_carrier_freq_hz`), which is what
+afterwards (`dp_acq_set_carrier_freq_hz()` / `set_carrier_freq_hz`), which is what
 lets each tile walk its code rate and the hand-off advance by the drift over
 half a dwell.
 
@@ -178,7 +178,7 @@ list and the twin rule on **one** surface, where a slice boundary would have cut
 an exclusion zone in two.
 
 **What it costs is a benchmark, not an estimate.**
-`native/benchmarks/bench_acq_core.c` times a real `acq_push()` per dwell: about
+`native/benchmarks/bench_acq_core.c` times a real `dp_acq_push()` per dwell: about
 10 ns per tile per output sample at `D = 1`, which is what makes the searcher's
 cost nearly equal at 2 and 5 Mcps. At `D = 154` it is 523 ns per output sample
 serially, 164 on four threads and 125 on eight, holding 53 MB of block per
@@ -428,7 +428,7 @@ cost more than its coherence buys — hundredths of a chip either way
 (`native/validation/dll_aid_jitter.c`). The emitted partial stream is untouched:
 the look-back still supplies its normalisation.
 
-The receiver applies it at chain build: `dll_set_symbol_period` from its
+The receiver applies it at chain build: `dp_dll_set_symbol_period` from its
 configuration, `n_looks` from `det_n_noncoh` over the window at its `cn0_dbhz`,
 and the drop count from `det_verify_count(1 − pd, 1e-6)` — three consecutive
 misses against the DLL's fixed two — so the verify hysteresis is a budget rather
@@ -494,7 +494,7 @@ flavour, and a blob does not travel between flavours.
     lock holds with a residual carrier on the samples, and the partial output is
     losslessly recoverable by a downstream carrier wipe and symbol despread. Its
     `bn` is 0.002 — the validated stable bandwidth for this one-update-per-partial
-    geometry, not `dll_create()`'s 0.01 default — and its early-late spacing is
+    geometry, not `dp_dll_create()`'s 0.01 default — and its early-late spacing is
     0.5 chips, so the normalised power discriminator reads `2 − spacing = 1.5`
     units per chip of offset.
 - **Downstream** are `Costas`, `SymbolSync` and `MpskReceiver`, with a
@@ -507,7 +507,7 @@ flavour, and a blob does not travel between flavours.
     [DsssReceiver](../gallery/dsss-receiver.md)'s example.
 - **`carrier_freq_hz` couples the code rate to the carrier.** The coupled
     code-rate Doppler `carrier_offset/carrier_freq` is fed to the tracking `Dll`
-    through `dll_set_rate_aid()` and refreshed every code period from the live
+    through `dp_dll_set_rate_aid()` and refreshed every code period from the live
     carrier loop, so the code loop rides a dilated clock the discriminator alone
     cannot pull in at low SNR. `0.0` turns it off.
 - **The escape hatches are separate knobs**: `configure_search_raw` pins the

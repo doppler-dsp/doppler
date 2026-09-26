@@ -2489,7 +2489,7 @@ def int_to_bin(
 
     The form a frame field literal usually wants, and the one to reach for
     first: exact, compiler-checked, with no failure mode a typo can reach.
-    hex_to_bin is for the two cases this cannot serve -- a literal wider
+    dp_hex_to_bin is for the two cases this cannot serve -- a literal wider
     than 64 bits, and text arriving from outside.
 
     Bit 0 out is the MOST significant of the n_bits requested under
@@ -2533,8 +2533,8 @@ def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
     marker that shortens syncs to nothing. Returns the bits written, or 0 on
     refusal.
 
-    For what int_to_bin cannot serve: a literal wider than 64 bits, or one
-    arriving as TEXT from a CLI flag or a JSON record. Each digit
+    For what dp_int_to_bin cannot serve: a literal wider than 64 bits, or
+    one arriving as TEXT from a CLI flag or a JSON record. Each digit
     contributes 4 bits and digits read left to right, so an ODD number of
     digits is accepted and yields a 4-bit tail.
 

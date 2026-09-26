@@ -2,7 +2,7 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891).
  *
- * `doppler_channel_execute` applies a time-varying frequency offset: a
+ * `dp_doppler_channel_execute` applies a time-varying frequency offset: a
  * phase accumulator whose increment itself ramps. Every receiver test that
  * asks "does it hold lock under drift" pays this per sample, on top of the
  * receiver it is testing -- so if the harness is slow, this is one of the
@@ -70,15 +70,16 @@ main (void)
      cheaper than a fixed one", beside the prose below asserting they cost
      the same. With this it reads 1.00x. See doppler#896. */
   {
-    doppler_channel_state_t *w = doppler_channel_create (FS, CARRIER, 3.0, 0);
+    dp_doppler_channel_state_t *w
+        = dp_doppler_channel_create (FS, CARRIER, 3.0, 0);
     if (w)
       {
         for (int i = 0; i < 64; i++)
           {
-            doppler_channel_reset (w);
-            sink += doppler_channel_execute (w, x, BENCH_N, out, BENCH_N);
+            dp_doppler_channel_reset (w);
+            sink += dp_doppler_channel_execute (w, x, BENCH_N, out, BENCH_N);
           }
-        doppler_channel_destroy (w);
+        dp_doppler_channel_destroy (w);
       }
   }
 
@@ -88,14 +89,14 @@ main (void)
 
   for (int k = 0; k < 2; k++)
     {
-      doppler_channel_state_t *c
-          = doppler_channel_create (FS, CARRIER, 3.0, rates[k]);
+      dp_doppler_channel_state_t *c
+          = dp_doppler_channel_create (FS, CARRIER, 3.0, rates[k]);
       if (!c)
         {
           (void)fprintf (stderr, "bench_doppler_channel: create NULL\n");
           return 1;
         }
-      size_t got = doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
+      size_t got = dp_doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
       if (got != BENCH_N)
         {
           (void)fprintf (stderr,
@@ -112,15 +113,15 @@ main (void)
          equally cold. */
       for (int w = 0; w < 32; w++)
         {
-          doppler_channel_reset (c);
-          sink += doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
+          dp_doppler_channel_reset (c);
+          sink += dp_doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
         }
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          doppler_channel_reset (c);
+          dp_doppler_channel_reset (c);
           t0 = jm_bench_now_ns ();
-          sink += doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
+          sink += dp_doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
           t1         = jm_bench_now_ns ();
           t_ex[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -128,7 +129,7 @@ main (void)
       printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", rname[k],
               min_sec (t_ex[k], ITERATIONS) / BENCH_N * 1e9,
               (double)BENCH_N / min_sec (t_ex[k], ITERATIONS) / 1e6);
-      doppler_channel_destroy (c);
+      dp_doppler_channel_destroy (c);
     }
 
   printf ("\n  ramp/static = %.2fx -- a drifting offset costs the same as a\n"

@@ -129,7 +129,7 @@ h = bank[fir_row].astype(np.float32)
 ```
 
 The sum `sum(h[:K])` where `K = len(h) // 2` is approximately 0.5 — not 1.0.
-The coefficients already encode the ×0.5 polyphase identity; `hbdecim_q15_create`
+The coefficients already encode the ×0.5 polyphase identity; `dp_hbdecim_q15_create`
 applies a second ×0.5 when converting to Q15 (scaling by `0.5 × 32768`).
 Together they give unity DC gain through the combined FIR + delay branches.
 

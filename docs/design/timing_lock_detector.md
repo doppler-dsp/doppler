@@ -72,7 +72,7 @@ variance alone, in the `erfcinv` form, undersizes `avgs` and blows past the
 pfa target by ~13× — but the cause was the missing convention change, not a
 derivation-specific constant that had to be kept apart from the variance.
 
-`symsync_configure_lock` now calls `det_dwell_gauss()` / `det_threshold_gauss()`
+`dp_symsync_configure_lock` now calls `det_dwell_gauss()` / `det_threshold_gauss()`
 in `Q⁻¹` form, where `SYMSYNC_LOCK_STAT_VARIANCE` is passed straight through
 as the variance it is. The derived values are unchanged, pinned at
 `avgs = 133` / `threshold = 0.311` in `test_symsync_core.c`, and the

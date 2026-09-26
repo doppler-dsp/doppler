@@ -147,23 +147,23 @@ convert_elem (const uint8_t *p, int stype, int be)
       {
         int32_t a;
         swab_copy (&a, p, 4, be);
-        i32_to_f32_state_t c
+        dp_i32_to_f32_state_t c
             = { .iscale = 1.0f / (float)dp_format_full_scale (CI32) };
-        return i32_to_f32_step (&c, a);
+        return dp_i32_to_f32_step (&c, a);
       }
     case 3:
       {
         int16_t a;
         swab_copy (&a, p, 2, be);
-        i16_to_f32_state_t c
+        dp_i16_to_f32_state_t c
             = { .iscale = 1.0f / (float)dp_format_full_scale (CI16) };
-        return i16_to_f32_step (&c, a);
+        return dp_i16_to_f32_step (&c, a);
       }
     default:
       {
-        i8_to_f32_state_t c
+        dp_i8_to_f32_state_t c
             = { .iscale = 1.0f / (float)dp_format_full_scale (CI8) };
-        return i8_to_f32_step (&c, (int8_t)p[0]);
+        return dp_i8_to_f32_step (&c, (int8_t)p[0]);
       }
     }
 }
@@ -206,10 +206,10 @@ typedef struct
    the component count separately. That split is right internally and wrong at
    the surface: a real float capture reporting `sample_type == "cf32"`
    alongside `mode == "scalar"` says two contradictory things, and the combined
-   name is also exactly what wfm_reader_create() accepts as a hint, so what you
-   pass for a headerless file is what you get back. */
+   name is also exactly what dp_wfm_reader_create() accepts as a hint, so what
+   you pass for a headerless file is what you get back. */
 static int
-reported_stype (const wfm_reader_state_t *r)
+reported_stype (const dp_wfm_reader_state_t *r)
 {
   return r->sample_type + (r->mode == WFM_MODE_SCALAR ? 5 : 0);
 }
@@ -269,7 +269,7 @@ parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
    sources -- the HCB's own keyword area and the extended header -- so a
    caller cannot tell which block a key arrived from. */
 static void
-kw_append (wfm_reader_state_t *r, const char *tag, char type, size_t count,
+kw_append (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
            const uint8_t *value)
 {
   size_t esz = wfm_kw_elem_size (type);
@@ -296,7 +296,7 @@ kw_append (wfm_reader_state_t *r, const char *tag, char type, size_t count,
    are swapped to host order, ASCII is copied verbatim. Best-effort: a failed
    allocation drops that one field rather than the whole header. */
 static void
-hdr_add (wfm_reader_state_t *r, const char *tag, char type, size_t count,
+hdr_add (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
          const uint8_t *src, int be)
 {
   size_t esz = wfm_kw_elem_size (type);
@@ -328,7 +328,7 @@ hdr_add (wfm_reader_state_t *r, const char *tag, char type, size_t count,
    itself uses (Midas BLUE 1.1 §3.1.1) -- callers asked to see what is in the
    file, not a curated subset, so nothing is dropped or renamed. */
 static void
-load_header_fields (wfm_reader_state_t *r, const uint8_t h[512], int be)
+load_header_fields (dp_wfm_reader_state_t *r, const uint8_t h[512], int be)
 {
   hdr_add (r, "version", 'A', 4, h + 0, be);
   hdr_add (r, "head_rep", 'A', 4, h + 4, be);
@@ -369,7 +369,7 @@ load_header_fields (wfm_reader_state_t *r, const uint8_t h[512], int be)
    extended-header string, so callers cannot tell which block a key came
    from -- which is the point. */
 static void
-load_hcb_keywords (wfm_reader_state_t *r, const uint8_t h[512], int be)
+load_hcb_keywords (dp_wfm_reader_state_t *r, const uint8_t h[512], int be)
 {
   int32_t klen = 0;
   swab_copy (&klen, h + 160, 4, be);
@@ -415,7 +415,8 @@ load_hcb_keywords (wfm_reader_state_t *r, const uint8_t h[512], int be)
    entry), because metadata must never cost you the capture. Unrecognised
    keyword types are stepped over, per §3.3.1. */
 static void
-load_keywords (wfm_reader_state_t *r, FILE *hf, long ext_off, size_t ext_size)
+load_keywords (dp_wfm_reader_state_t *r, FILE *hf, long ext_off,
+               size_t ext_size)
 {
   if (ext_off <= 0 || ext_size < 8)
     return;
@@ -563,7 +564,7 @@ kw_as_double (const wfm_keyword_t *k, double *out)
    Note that a keyword saying zero IS a reading -- FREQ=0 declares baseband,
    and fc_source records that it was declared rather than defaulted. */
 static void
-load_fc (wfm_reader_state_t *r)
+load_fc (dp_wfm_reader_state_t *r)
 {
   for (size_t t = 0; t < sizeof FC_TAGS / sizeof *FC_TAGS; t++)
     {
@@ -776,7 +777,7 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
    about where a growing capture ends. Asking also clears stdio's latched
    end-of-file indicator, which follow_available relies on. */
 static long
-payload_end (wfm_reader_state_t *r)
+payload_end (dp_wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
   if (cur < 0 || fseek (r->fp, 0, SEEK_END) != 0)
@@ -790,7 +791,7 @@ payload_end (wfm_reader_state_t *r)
 /* Fill nsamples from the bytes remaining between the current offset and EOF.
  */
 static void
-fill_nsamples (wfm_reader_state_t *r)
+fill_nsamples (dp_wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
   long end = payload_end (r);
@@ -802,7 +803,7 @@ fill_nsamples (wfm_reader_state_t *r)
 /* Copy the parsed HCB fields the reader keeps. Split out so both BLUE entry
    points (header-first and .det-first) agree on what the header decides. */
 static void
-apply_hcb (wfm_reader_state_t *r, const blue_hcb_t *h)
+apply_hcb (dp_wfm_reader_state_t *r, const blue_hcb_t *h)
 {
   r->sample_type = h->stype;
   r->mode        = h->mode;
@@ -840,7 +841,7 @@ apply_hcb (wfm_reader_state_t *r, const blue_hcb_t *h)
    positioned at the first sample, and it leaves the position where it found
    it. */
 static void
-compute_trailing (wfm_reader_state_t *r)
+compute_trailing (dp_wfm_reader_state_t *r)
 {
   if (!r->fp || r->file_type == WFM_FT_CSV)
     return; /* CSV is delimited, not strided: there is no partial sample */
@@ -864,7 +865,7 @@ compute_trailing (wfm_reader_state_t *r)
    keeps counting, reading and seeking from ever disagreeing about what a CSV
    sample is: there is one scanf format for the container, not three. */
 static size_t
-csv_skip (wfm_reader_state_t *r, size_t n)
+csv_skip (dp_wfm_reader_state_t *r, size_t n)
 {
   const unsigned nc = comps (r->mode);
   size_t         i  = 0;
@@ -886,7 +887,7 @@ csv_skip (wfm_reader_state_t *r, size_t n)
    file, and a caller streaming a large capture should not pay for a scan it
    never asked for. Opening stays O(1). */
 static void
-count_csv (wfm_reader_state_t *r)
+count_csv (dp_wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
   if (cur < 0 || fseek (r->fp, r->data_off, SEEK_SET) != 0)
@@ -903,7 +904,7 @@ count_csv (wfm_reader_state_t *r)
    that turns out to have a `<base>.sigmf-meta` sidecar beside it. Returns 0
    on success. */
 static int
-open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
+open_sigmf (dp_wfm_reader_state_t *r, const char *path, const char *meta)
 {
   int    has_fc = 0, has_t0 = 0;
   double t0 = 0.0;
@@ -956,7 +957,7 @@ open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
    fc and t0 are adopted regardless, because the hint cannot carry them and
    the alternative is the 0.0 this function exists to stop reporting. */
 static void
-adopt_sidecar (wfm_reader_state_t *r, const char *path, int hint_is_auto)
+adopt_sidecar (dp_wfm_reader_state_t *r, const char *path, int hint_is_auto)
 {
   char meta[1024];
   wfm_meta_path (path, meta, sizeof meta);
@@ -995,8 +996,8 @@ adopt_sidecar (wfm_reader_state_t *r, const char *path, int hint_is_auto)
    offset differs per file type (512 into an attached BLUE, 0 for a .det, raw
    or SigMF payload), so it is captured once each path is positioned -- which
    is also the moment the payload can be measured. */
-static wfm_reader_state_t *
-ready (wfm_reader_state_t *r)
+static dp_wfm_reader_state_t *
+ready (dp_wfm_reader_state_t *r)
 {
   long p      = ftell (r->fp);
   r->data_off = (p > 0) ? p : 0;
@@ -1004,8 +1005,8 @@ ready (wfm_reader_state_t *r)
   return r;
 }
 
-wfm_reader_state_t *
-wfm_reader_create (const char *path, int hint_stype, int hint_endian)
+dp_wfm_reader_state_t *
+dp_wfm_reader_create (const char *path, int hint_stype, int hint_endian)
 {
   /* The hint names one of the ten wavegen-order sample types. Indices 5..9
      are the SCALAR five, and they are the only way to say "this headerless
@@ -1027,7 +1028,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
      here until now -- so no C caller can be relying on the old meaning. */
   if (!path || hint_stype < WFM_READER_STYPE_AUTO || hint_stype > 9)
     return NULL;
-  wfm_reader_state_t *r = (wfm_reader_state_t *)calloc (1, sizeof *r);
+  dp_wfm_reader_state_t *r = (dp_wfm_reader_state_t *)calloc (1, sizeof *r);
   if (!r)
     return NULL;
   const int hint_is_auto = (hint_stype == WFM_READER_STYPE_AUTO);
@@ -1141,7 +1142,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
      unrelated `cap.sigmf-meta` would be read with that capture's datatype.
      Verified: it hijacked two files in the very first round of testing. The
      `.sigmf-data` name is part of the format, so it is required on both
-     sides; wfm_writer_create rejects a SigMF path that does not use it. */
+     sides; dp_wfm_writer_create rejects a SigMF path that does not use it. */
 
   /* Text that parses as `I,Q` is CSV, whatever the file is called -- checked
      after BLUE, so a BLUE capture misnamed `.csv` still reads as BLUE.
@@ -1187,7 +1188,7 @@ fail:
 }
 
 void
-wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
+wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info)
 {
   info->file_type   = r->file_type;
   info->sample_type = reported_stype (r);
@@ -1197,7 +1198,7 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
   info->fc          = r->fc;
   /* through the getter, so a CSV reports its length here too rather than the
      0 that means "not counted yet" */
-  info->num_samples    = wfm_reader_get_num_samples (r);
+  info->num_samples    = dp_wfm_reader_get_num_samples (r);
   info->fc_source      = r->fc_source;
   info->fs_source      = r->fs_source;
   info->t0_unix_sec    = r->t0_unix_sec;
@@ -1208,7 +1209,7 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 /* CSV: one "I,Q" per line; integer wire types are divided back by full-scale.
  */
 static size_t
-read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
+read_csv (dp_wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
   double         scale = dp_format_full_scale (STYPE_FMT[r->sample_type]);
   const unsigned nc    = comps (r->mode);
@@ -1229,8 +1230,8 @@ read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 }
 
 /* Convert up to `max` whole samples from the current position. The one place
-   bytes become samples -- wfm_reader_read applies the declared-payload bound
-   around it, wfm_reader_read_follow applies its own.
+   bytes become samples -- dp_wfm_reader_read applies the declared-payload
+   bound around it, dp_wfm_reader_read_follow applies its own.
 
    A PARTIAL sample at the end is un-consumed rather than dropped. fread has
    already taken those bytes from the stream, so dropping them leaves the next
@@ -1239,7 +1240,7 @@ read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
    has no partial tail to meet), but the fix belongs here, where the bytes
    are. docs/design/end-of-capture.md section 2b. */
 static size_t
-read_block (wfm_reader_state_t *r, size_t max, float _Complex *out)
+read_block (dp_wfm_reader_state_t *r, size_t max, float _Complex *out)
 {
   size_t elem = ELEM[r->sample_type], nc = comps (r->mode);
   size_t need = max * nc * elem;
@@ -1271,8 +1272,8 @@ read_block (wfm_reader_state_t *r, size_t max, float _Complex *out)
 }
 
 size_t
-wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
-                 size_t max_out)
+dp_wfm_reader_read (dp_wfm_reader_state_t *r, size_t max, float _Complex *out,
+                    size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). Clamped before
      the CSV branch so read_csv inherits the bound too. */
@@ -1319,7 +1320,7 @@ wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
 /* Whole samples readable right now. Consumes nothing and leaves the read
    position where it found it. */
 static size_t
-follow_available (wfm_reader_state_t *r)
+follow_available (dp_wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
   long end = payload_end (r);
@@ -1364,7 +1365,7 @@ follow_available (wfm_reader_state_t *r)
    a worse answer than no marker, because a reader would learn to trust it.
    So only a stop request can finish that wait. */
 static int
-follow_ended (wfm_reader_state_t *r)
+follow_ended (dp_wfm_reader_state_t *r)
 {
   if (r->follow_bounded)
     return 1;
@@ -1411,7 +1412,7 @@ follow_nap (uint32_t remaining_ms)
 }
 
 size_t
-wfm_reader_read_follow_max_out (wfm_reader_state_t *r, size_t n)
+dp_wfm_reader_read_follow_max_out (dp_wfm_reader_state_t *r, size_t n)
 {
   (void)r;
   /* The caller's ask, NOT what is available: jm's binding calls this to size
@@ -1422,44 +1423,44 @@ wfm_reader_read_follow_max_out (wfm_reader_state_t *r, size_t n)
 }
 
 int
-wfm_reader_get_ending (const wfm_reader_state_t *r)
+dp_wfm_reader_get_ending (const dp_wfm_reader_state_t *r)
 {
   return r->ending;
 }
 
 uint32_t
-wfm_reader_get_follow_timeout_ms (const wfm_reader_state_t *r)
+dp_wfm_reader_get_follow_timeout_ms (const dp_wfm_reader_state_t *r)
 {
   return r->follow_timeout_ms;
 }
 
 void
-wfm_reader_set_follow_timeout_ms (wfm_reader_state_t *r, uint32_t val)
+dp_wfm_reader_set_follow_timeout_ms (dp_wfm_reader_state_t *r, uint32_t val)
 {
   r->follow_timeout_ms = val;
 }
 
 uint32_t
-wfm_reader_get_follow_grace_ms (const wfm_reader_state_t *r)
+dp_wfm_reader_get_follow_grace_ms (const dp_wfm_reader_state_t *r)
 {
   return r->follow_grace_ms;
 }
 
 void
-wfm_reader_set_follow_grace_ms (wfm_reader_state_t *r, uint32_t val)
+dp_wfm_reader_set_follow_grace_ms (dp_wfm_reader_state_t *r, uint32_t val)
 {
   r->follow_grace_ms = val;
 }
 
 void
-wfm_reader_set_stop_fn (wfm_reader_state_t *r, int (*fn) (void))
+wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void))
 {
   r->stop_fn = fn;
 }
 
 size_t
-wfm_reader_read_follow (wfm_reader_state_t *r, size_t n, float _Complex *out,
-                        size_t max_out)
+dp_wfm_reader_read_follow (dp_wfm_reader_state_t *r, size_t n,
+                           float _Complex *out, size_t max_out)
 {
   if (max_out < n)
     n = max_out;
@@ -1516,7 +1517,7 @@ wfm_reader_read_follow (wfm_reader_state_t *r, size_t n, float _Complex *out,
 }
 
 size_t
-wfm_reader_read_max_out (wfm_reader_state_t *r, size_t n)
+dp_wfm_reader_read_max_out (dp_wfm_reader_state_t *r, size_t n)
 {
   /* gh-607: a read(n) yields at most n samples (fewer at EOF), so report n
      as the per-call bound; the binding sizes its buffer to this and resizes
@@ -1540,7 +1541,7 @@ wfm_reader_read_max_out (wfm_reader_state_t *r, size_t n)
    Not for CSV, which is delimited: its length comes from a scan, and so does
    its seek. */
 static int
-reader_length (wfm_reader_state_t *r, size_t *n)
+reader_length (dp_wfm_reader_state_t *r, size_t *n)
 {
   if (r->bounded && r->data_bytes)
     {
@@ -1562,7 +1563,7 @@ reader_length (wfm_reader_state_t *r, size_t *n)
    Running out is the only way this fails, and it must not also cost the
    caller their place -- so the position is restored on the way out. */
 static int
-seek_csv (wfm_reader_state_t *r, size_t n)
+seek_csv (dp_wfm_reader_state_t *r, size_t n)
 {
   long   cur = ftell (r->fp);
   size_t p0  = r->pos;
@@ -1587,7 +1588,7 @@ seek_csv (wfm_reader_state_t *r, size_t n)
 }
 
 int
-wfm_reader_seek (wfm_reader_state_t *r, int64_t index)
+dp_wfm_reader_seek (dp_wfm_reader_state_t *r, int64_t index)
 {
   if (!r || !r->fp || index < 0)
     return DP_ERR_INVALID;
@@ -1617,7 +1618,7 @@ wfm_reader_seek (wfm_reader_state_t *r, int64_t index)
 }
 
 int
-wfm_reader_seek_time (wfm_reader_state_t *r, double seconds)
+dp_wfm_reader_seek_time (dp_wfm_reader_state_t *r, double seconds)
 {
   if (!r)
     return DP_ERR_INVALID;
@@ -1631,66 +1632,66 @@ wfm_reader_seek_time (wfm_reader_state_t *r, double seconds)
   double idx = floor (seconds * r->fs + 0.5); /* round to nearest */
   if (idx > (double)INT64_MAX)
     return DP_ERR_INVALID;
-  return wfm_reader_seek (r, (int64_t)idx);
+  return dp_wfm_reader_seek (r, (int64_t)idx);
 }
 
 void
-wfm_reader_reset (wfm_reader_state_t *r)
+dp_wfm_reader_reset (dp_wfm_reader_state_t *r)
 {
   if (!r || !r->fp)
     return;
   /* seek(0), not a second copy of it: one implementation of "put the read
      position at sample k" cannot drift from itself. */
-  (void)wfm_reader_seek (r, 0);
+  (void)dp_wfm_reader_seek (r, 0);
 }
 
 /* Property accessors for the generated binding (the "computed" property kind).
    Keeping these instead of exposing the struct is what lets the layout above
    stay private -- jm only needs a pointer to an incomplete type. */
 size_t
-wfm_reader_get_position (const wfm_reader_state_t *r)
+dp_wfm_reader_get_position (const dp_wfm_reader_state_t *r)
 {
   return r->pos;
 }
 
 int
-wfm_reader_get_file_type (const wfm_reader_state_t *r)
+dp_wfm_reader_get_file_type (const dp_wfm_reader_state_t *r)
 {
   return r->file_type;
 }
 
 int
-wfm_reader_get_sample_type (const wfm_reader_state_t *r)
+dp_wfm_reader_get_sample_type (const dp_wfm_reader_state_t *r)
 {
   return reported_stype (r);
 }
 
 int
-wfm_reader_get_mode (const wfm_reader_state_t *r)
+dp_wfm_reader_get_mode (const dp_wfm_reader_state_t *r)
 {
   return r->mode;
 }
 
 int
-wfm_reader_get_endian (const wfm_reader_state_t *r)
+dp_wfm_reader_get_endian (const dp_wfm_reader_state_t *r)
 {
   return r->endian;
 }
 
 double
-wfm_reader_get_fs (const wfm_reader_state_t *r)
+dp_wfm_reader_get_fs (const dp_wfm_reader_state_t *r)
 {
   return r->fs;
 }
 
 double
-wfm_reader_get_fc (const wfm_reader_state_t *r)
+dp_wfm_reader_get_fc (const dp_wfm_reader_state_t *r)
 {
   return r->fc;
 }
 
 size_t
-wfm_reader_get_num_samples (const wfm_reader_state_t *r)
+dp_wfm_reader_get_num_samples (const dp_wfm_reader_state_t *r)
 {
   /* Every other file type declares its length in a header; a CSV's has to be
      counted, so it is counted here, once, on the first caller who asks. The
@@ -1699,48 +1700,48 @@ wfm_reader_get_num_samples (const wfm_reader_state_t *r)
      alternative is either a full scan of every CSV at open or the 0 this used
      to return, which reads as "empty capture". */
   if (r->file_type == WFM_FT_CSV && !r->csv_counted)
-    count_csv ((wfm_reader_state_t *)r);
+    count_csv ((dp_wfm_reader_state_t *)r);
   return r->num_samples;
 }
 
 int
-wfm_reader_get_fc_source (const wfm_reader_state_t *r)
+dp_wfm_reader_get_fc_source (const dp_wfm_reader_state_t *r)
 {
   return r->fc_source;
 }
 
 int
-wfm_reader_get_fs_source (const wfm_reader_state_t *r)
+dp_wfm_reader_get_fs_source (const dp_wfm_reader_state_t *r)
 {
   return r->fs_source;
 }
 
 double
-wfm_reader_get_t0 (const wfm_reader_state_t *r)
+dp_wfm_reader_get_t0 (const dp_wfm_reader_state_t *r)
 {
   return r->t0_unix_sec;
 }
 
 int
-wfm_reader_get_t0_source (const wfm_reader_state_t *r)
+dp_wfm_reader_get_t0_source (const dp_wfm_reader_state_t *r)
 {
   return r->t0_source;
 }
 
 size_t
-wfm_reader_get_trailing_bytes (const wfm_reader_state_t *r)
+dp_wfm_reader_get_trailing_bytes (const dp_wfm_reader_state_t *r)
 {
   return r->trailing;
 }
 
 size_t
-wfm_reader_num_keywords (const wfm_reader_state_t *r)
+wfm_reader_num_keywords (const dp_wfm_reader_state_t *r)
 {
   return r->nkw;
 }
 
 const wfm_keyword_t *
-wfm_reader_keyword (const wfm_reader_state_t *r, size_t i)
+wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i)
 {
   return (i < r->nkw) ? &r->kw[i] : NULL;
 }
@@ -1749,27 +1750,27 @@ wfm_reader_keyword (const wfm_reader_state_t *r, size_t i)
    keyword. jm's generated loop calls it for 0 <= i < wfm_reader_num_keywords,
    so the index is always in range. */
 const char *
-wfm_reader_keyword_tag (const wfm_reader_state_t *r, size_t i)
+wfm_reader_keyword_tag (const dp_wfm_reader_state_t *r, size_t i)
 {
   return r->kw[i].tag;
 }
 
 size_t
-wfm_reader_num_header_fields (const wfm_reader_state_t *r)
+wfm_reader_num_header_fields (const dp_wfm_reader_state_t *r)
 {
   return r->nhdr;
 }
 
 /* entry_fn for the `.header` dict property: the i-th decoded HCB field. */
 const wfm_keyword_t *
-wfm_reader_header_field (const wfm_reader_state_t *r, size_t i)
+wfm_reader_header_field (const dp_wfm_reader_state_t *r, size_t i)
 {
   return (i < r->nhdr) ? &r->hdr[i] : NULL;
 }
 
 /* key_fn for `.header`: the field's name as the format spells it. */
 const char *
-wfm_reader_header_tag (const wfm_reader_state_t *r, size_t i)
+wfm_reader_header_tag (const dp_wfm_reader_state_t *r, size_t i)
 {
   return r->hdr[i].tag;
 }
@@ -1777,7 +1778,7 @@ wfm_reader_header_tag (const wfm_reader_state_t *r, size_t i)
 /* Look a header field up by name, for callers that want one value rather
    than the whole dict. */
 const wfm_keyword_t *
-wfm_reader_find_header_field (const wfm_reader_state_t *r, const char *name)
+wfm_reader_find_header_field (const dp_wfm_reader_state_t *r, const char *name)
 {
   for (size_t i = 0; i < r->nhdr; i++)
     if (strcmp (r->hdr[i].tag, name) == 0)
@@ -1786,7 +1787,7 @@ wfm_reader_find_header_field (const wfm_reader_state_t *r, const char *name)
 }
 
 const wfm_keyword_t *
-wfm_reader_find_keyword (const wfm_reader_state_t *r, const char *tag)
+wfm_reader_find_keyword (const dp_wfm_reader_state_t *r, const char *tag)
 {
   for (size_t i = 0; i < r->nkw; i++)
     if (strcmp (r->kw[i].tag, tag) == 0)
@@ -1795,7 +1796,7 @@ wfm_reader_find_keyword (const wfm_reader_state_t *r, const char *tag)
 }
 
 void
-wfm_reader_destroy (wfm_reader_state_t *r)
+dp_wfm_reader_destroy (dp_wfm_reader_state_t *r)
 {
   if (!r)
     return;

@@ -57,7 +57,7 @@ target_include_directories(validate_dll_jitter
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 # -ffp-contract=off: the closed-loop integrator (`integ += ki*x` in
-# loop_filter_step, `integ*inv_tsamps + kp*e*inv_tsamps_sf` in dll_update)
+# dp_loop_filter_step, `integ*inv_tsamps + kp*e*inv_tsamps_sf` in dll_update)
 # fuses into a single fmadd under the default -ffp-contract=fast on hosts with
 # baseline FMA (arm64/AArch64 NEON), but stays separately-rounded on x86-64
 # without -mfma. That per-epoch LSB difference compounds over the 5000-8000
@@ -206,7 +206,7 @@ target_include_directories(validate_loop_filter_noise_bw
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 target_link_libraries(validate_loop_filter_noise_bw PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 # -ffp-contract=off: the measurement IS an accumulated integrator, so a fused
-# multiply-add inside loop_filter_step moves the last bits of a sum taken over
+# multiply-add inside dp_loop_filter_step moves the last bits of a sum taken over
 # hundreds of thousands of updates. The 1% gate is nowhere near that
 # sensitive, but the printed table is compared across machines.
 dp_gnu_compile_options(validate_loop_filter_noise_bw PRIVATE

@@ -36,11 +36,11 @@ _DdcR state — the real-to-complex front end, an LO and a cascade._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-|  [**lo\_state\_t**](structlo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
+|  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
 |  bool | [**narrow\_pulse**](#variable-narrow_pulse)  <br> |
 |  [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* | [**r2c**](#variable-r2c)  <br> |
 |  double | [**rate**](#variable-rate)  <br> |
-|  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
+|  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 
 
 
@@ -88,7 +88,7 @@ _DdcR state — the real-to-complex front end, an LO and a cascade._ [More...](#
 ## Detailed Description
 
 
-Do not initialise directly; use [**ddcr\_create()**](ddcr__core_8h.md#function-ddcr_create) or [**ddcr\_create\_matched()**](ddcr__core_8h.md#function-ddcr_create_matched). 
+Do not initialise directly; use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) or [**ddcr\_create\_matched()**](ddcr__core_8h.md#function-ddcr_create_matched). 
 
 
     
@@ -100,7 +100,7 @@ Do not initialise directly; use [**ddcr\_create()**](ddcr__core_8h.md#function-d
 ### variable lo 
 
 ```C++
-lo_state_t* ddcr_state::lo;
+dp_lo_state_t* ddcr_state::lo;
 ```
 
 
@@ -123,7 +123,7 @@ bool ddcr_state::narrow_pulse;
 
 
 
-As [**ddc\_state\_t::narrow\_pulse**](structddc__state.md#variable-narrow_pulse) — a rectangular pulse too narrow to be worth much, surfaced by the binding as a construction UserWarning. 
+As [**dp\_ddc\_state\_t::narrow\_pulse**](structddc__state.md#variable-narrow_pulse) — a rectangular pulse too narrow to be worth much, surfaced by the binding as a construction UserWarning. 
 
 
         
@@ -170,7 +170,7 @@ total fs\_out / fs\_in
 ### variable rc 
 
 ```C++
-RateConverter_state_t* ddcr_state::rc;
+dp_RateConverter_state_t* ddcr_state::rc;
 ```
 
 

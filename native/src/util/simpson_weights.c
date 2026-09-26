@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern int simpson_weights (double *w, size_t w_len);
+extern int dp_simpson_weights (double *w, size_t w_len);

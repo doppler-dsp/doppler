@@ -411,7 +411,7 @@ type_can_frame (const wfm_source_t *src)
 }
 
 int
-wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
+wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
 {
   /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
      and reading it as "no payload" is how the generated kinds stayed
@@ -469,7 +469,7 @@ wfm_source_attach_frame (wfm_synth_state_t *syn, const wfm_source_t *src)
 }
 
 int
-wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
+wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                         double fs)
 {
   if (src->type != WFM_SYNTH_DSSS)
@@ -553,7 +553,7 @@ wfm_source_dsss_nchips (const wfm_source_t *src)
                                src->data_code.len);
 }
 
-wfm_synth_state_t *
+dp_wfm_synth_state_t *
 wfm_source_to_synth (const wfm_source_t *src, double fs)
 {
   /* A "bits" waveform with no pattern has nothing to transmit. Reject it here
@@ -600,16 +600,16 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      composer also uses, so both faces agree to the bit). */
   int    snr_mode = 0;
   double snr_c    = wfm_source_create_snr (src, fs, src->snr, &snr_mode);
-  wfm_synth_state_t *eng = wfm_synth_create (
+  dp_wfm_synth_state_t *eng = dp_wfm_synth_create (
       src->type, fs, src->freq, snr_c, snr_mode, src->seed, src->sps,
       src->pn_length, src->pn_poly, src->lfsr, src->f_end);
   if (!eng)
     return NULL;
-  wfm_synth_set_chirp_span (eng, src->span); /* no-op for non-chirp */
+  dp_wfm_synth_set_chirp_span (eng, src->span); /* no-op for non-chirp */
 
   if (wfm_source_attach_frame (eng, src) != 0)
     {
-      wfm_synth_destroy (eng);
+      dp_wfm_synth_destroy (eng);
       return NULL;
     }
 
@@ -618,7 +618,7 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
 
   if (wfm_source_attach_dsss (eng, src, fs) != 0)
     {
-      wfm_synth_destroy (eng);
+      dp_wfm_synth_destroy (eng);
       return NULL;
     }
 

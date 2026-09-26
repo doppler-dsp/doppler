@@ -29,34 +29,34 @@ pub struct FftStateRaw {
 }
 
 extern "C" {
-    pub fn fft_create(
+    pub fn dp_fft_create(
         n: usize,
         sign: c_int,
         nthreads: c_int,
     ) -> *mut FftStateRaw;
-    pub fn fft_destroy(state: *mut FftStateRaw);
-    pub fn fft_execute_cf64(
+    pub fn dp_fft_destroy(state: *mut FftStateRaw);
+    pub fn dp_fft_execute_cf64(
         state: *mut FftStateRaw,
         input: *const Complex64,
         n_in: usize,
         output: *mut Complex64,
         max_out: usize,
     ) -> usize;
-    pub fn fft_execute_cf32(
+    pub fn dp_fft_execute_cf32(
         state: *mut FftStateRaw,
         input: *const Complex<f32>,
         n_in: usize,
         output: *mut Complex<f32>,
         max_out: usize,
     ) -> usize;
-    pub fn fft_execute_inplace_cf64(
+    pub fn dp_fft_execute_inplace_cf64(
         state: *mut FftStateRaw,
         input: *const Complex64,
         n_in: usize,
         output: *mut Complex64,
         max_out: usize,
     ) -> usize;
-    pub fn fft_execute_inplace_cf32(
+    pub fn dp_fft_execute_inplace_cf32(
         state: *mut FftStateRaw,
         input: *const Complex<f32>,
         n_in: usize,
@@ -83,7 +83,7 @@ impl Direction {
     }
 }
 
-/// RAII wrapper around `fft_state_t`.
+/// RAII wrapper around `dp_fft_state_t`.
 ///
 /// Create with [`Fft::new`], then call [`execute_cf64`](Fft::execute_cf64)
 /// or [`execute_cf32`](Fft::execute_cf32) as many times as needed.
@@ -99,10 +99,10 @@ impl Fft {
     /// Create an FFT instance for transforms of length `n`.
     ///
     /// # Panics
-    /// Panics if `fft_create` returns null (OOM).
+    /// Panics if `dp_fft_create` returns null (OOM).
     pub fn new(n: usize, dir: Direction) -> Self {
-        let state = unsafe { fft_create(n, dir.sign(), 1) };
-        assert!(!state.is_null(), "fft_create returned null");
+        let state = unsafe { dp_fft_create(n, dir.sign(), 1) };
+        assert!(!state.is_null(), "dp_fft_create returned null");
         Fft { state, n }
     }
 
@@ -123,7 +123,7 @@ impl Fft {
         assert_eq!(input.len(), self.n, "input length mismatch");
         assert_eq!(output.len(), self.n, "output length mismatch");
         unsafe {
-            fft_execute_cf64(
+            dp_fft_execute_cf64(
                 self.state,
                 input.as_ptr(),
                 self.n,
@@ -145,7 +145,7 @@ impl Fft {
         assert_eq!(input.len(), self.n, "input length mismatch");
         assert_eq!(output.len(), self.n, "output length mismatch");
         unsafe {
-            fft_execute_cf32(
+            dp_fft_execute_cf32(
                 self.state,
                 input.as_ptr(),
                 self.n,
@@ -158,7 +158,7 @@ impl Fft {
 
 impl Drop for Fft {
     fn drop(&mut self) {
-        unsafe { fft_destroy(self.state) }
+        unsafe { dp_fft_destroy(self.state) }
     }
 }
 

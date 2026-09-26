@@ -57,7 +57,7 @@ link = true
 
 
 # gh-515: `path` crosses as a borrowed const char * (PyUnicode_FSConverter), so
-# str and os.PathLike both work; wfm_reader_create copies it during the call.
+# str and os.PathLike both work; dp_wfm_reader_create copies it during the call.
 [[wfm_reader.init_params]]
 name = "path"
 type = "path"

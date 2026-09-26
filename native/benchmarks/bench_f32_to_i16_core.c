@@ -26,14 +26,14 @@ main (void)
   for (int i = 0; i < BENCH_N; i++)
     in[i] = (float)(i);
 
-  f32_to_i16_state_t *obj = f32_to_i16_create (32768.0f);
+  dp_f32_to_i16_state_t *obj = dp_f32_to_i16_create (32768.0f);
 
   /* volatile sink prevents DCE of the step() loop */
   volatile int16_t _sink;
 
   /* warmup */
   for (int i = 0; i < 16; i++)
-    _sink = f32_to_i16_step (obj, in[i]);
+    _sink = dp_f32_to_i16_step (obj, in[i]);
 
   uint64_t   t0, t1;
   jm_bench_t _bench = { 0 };
@@ -46,7 +46,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        _sink = f32_to_i16_step (obj, in[i]);
+        _sink = dp_f32_to_i16_step (obj, in[i]);
       t1             = jm_bench_now_ns ();
       _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -62,7 +62,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      f32_to_i16_steps (obj, in, out, BENCH_N);
+      dp_f32_to_i16_steps (obj, in, out, BENCH_N);
       t1              = jm_bench_now_ns ();
       _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -76,7 +76,7 @@ main (void)
   }
 
   jm_bench_write_json (&_bench, "f32_to_i16");
-  f32_to_i16_destroy (obj);
+  dp_f32_to_i16_destroy (obj);
   free (in);
   free (out);
   return 0;

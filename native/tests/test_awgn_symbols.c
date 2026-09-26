@@ -23,15 +23,15 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_awgn[] = {
-    (jm_any_fn)awgn_create,
-    (jm_any_fn)awgn_destroy,
-    (jm_any_fn)awgn_reset,
-    (jm_any_fn)awgn_state_bytes,
-    (jm_any_fn)awgn_get_state,
-    (jm_any_fn)awgn_set_state,
-    (jm_any_fn)awgn_get_amplitude,
-    (jm_any_fn)awgn_set_amplitude,
-    (jm_any_fn)awgn_reseed,
-    (jm_any_fn)awgn_generate_max_out,
-    (jm_any_fn)awgn_generate,
+    (jm_any_fn)dp_awgn_create,
+    (jm_any_fn)dp_awgn_destroy,
+    (jm_any_fn)dp_awgn_reset,
+    (jm_any_fn)dp_awgn_state_bytes,
+    (jm_any_fn)dp_awgn_get_state,
+    (jm_any_fn)dp_awgn_set_state,
+    (jm_any_fn)dp_awgn_get_amplitude,
+    (jm_any_fn)dp_awgn_set_amplitude,
+    (jm_any_fn)dp_awgn_reseed,
+    (jm_any_fn)dp_awgn_generate_max_out,
+    (jm_any_fn)dp_awgn_generate,
 };

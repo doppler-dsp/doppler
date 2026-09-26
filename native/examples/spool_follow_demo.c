@@ -84,7 +84,7 @@ writer_thread (void *arg)
   FILE *fp = (FILE *)arg;
   /* total_samples = 0: an unbounded run declares no length, so data_size
      starts as a placeholder and close() is what makes it real. */
-  wfm_writer_state_t *w
+  dp_wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
   if (!w)
     return NULL;
@@ -92,7 +92,7 @@ writer_thread (void *arg)
      empty, and an empty file auto-detects as RAW -- which has no header and
      therefore no end-of-capture marker, so a reader that opened during that
      window would wait for a marker that can never arrive. */
-  wfm_writer_flush (w);
+  dp_wfm_writer_flush (w);
 
   float _Complex blk[BLK];
   size_t k = 0;
@@ -101,11 +101,11 @@ writer_thread (void *arg)
       for (size_t i = 0; i < BLK; i++, k++)
         blk[i] = (float)(0.7 * sin (0.01 * (double)k))
                  + (float)(0.7 * cos (0.013 * (double)k)) * I;
-      n_written += wfm_writer_write (w, blk, BLK);
+      n_written += dp_wfm_writer_write (w, blk, BLK);
       /* Flush per block: it makes the samples OBSERVABLE to the reader
          without ending the capture, and because write() emits whole
          samples it also leaves the file on a sample boundary. */
-      wfm_writer_flush (w);
+      dp_wfm_writer_flush (w);
       nap_ms (20);
     }
 
@@ -123,14 +123,14 @@ reader_thread (void *arg)
   /* Open only once the capture really is BLUE. `create` SUCCEEDS on an
      empty file -- it falls back to raw, which is the right answer for an
      unrecognised file and the wrong one here. */
-  wfm_reader_state_t *r = NULL;
+  dp_wfm_reader_state_t *r = NULL;
   for (int tries = 0; tries < 500; tries++)
     {
-      r = wfm_reader_create (PATH, STYPE, 0);
-      if (r && wfm_reader_get_file_type (r) == WFM_FT_BLUE)
+      r = dp_wfm_reader_create (PATH, STYPE, 0);
+      if (r && dp_wfm_reader_get_file_type (r) == WFM_FT_BLUE)
         break;
       if (r)
-        wfm_reader_destroy (r);
+        dp_wfm_reader_destroy (r);
       r = NULL;
       nap_ms (10);
     }
@@ -151,7 +151,7 @@ reader_thread (void *arg)
   float _Complex blk[BLK];
   double acc = 0.0;
   size_t got;
-  while ((got = wfm_reader_read_follow (r, BLK, blk, BLK)) > 0)
+  while ((got = dp_wfm_reader_read_follow (r, BLK, blk, BLK)) > 0)
     {
       /* Stand-in for the DSP: mean power over the block. */
       for (size_t i = 0; i < got; i++)
@@ -161,7 +161,7 @@ reader_thread (void *arg)
     }
 
   const char *why = "?";
-  switch (wfm_reader_get_ending (r))
+  switch (dp_wfm_reader_get_ending (r))
     {
     case WFM_FOLLOW_EOF:
       why = "eof (the writer closed and said so)";
@@ -178,7 +178,7 @@ reader_thread (void *arg)
     }
   printf ("reader : stopped, %zu samples, mean power %.4f, ending = %s\n",
           n_read, n_read ? acc / (double)n_read : 0.0, why);
-  wfm_reader_destroy (r);
+  dp_wfm_reader_destroy (r);
   return NULL;
 }
 

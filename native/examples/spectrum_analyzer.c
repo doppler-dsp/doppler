@@ -211,10 +211,10 @@ main (int argc, char *argv[])
   signal (SIGTERM, signal_handler);
 
   /* Forward FFT plan (sign = +1 = forward). */
-  fft_state_t *fft = fft_create (fft_size, +1, 1);
+  dp_fft_state_t *fft = dp_fft_create (fft_size, +1, 1);
   if (!fft)
     {
-      fputs ("fft_create failed\n", stderr);
+      fputs ("dp_fft_create failed\n", stderr);
       return 1;
     }
 
@@ -222,7 +222,7 @@ main (int argc, char *argv[])
   if (!ctx)
     {
       fprintf (stderr, "Failed to create subscriber on %s\n", endpoint);
-      fft_destroy (fft);
+      dp_fft_destroy (fft);
       return 1;
     }
 
@@ -236,7 +236,7 @@ main (int argc, char *argv[])
       free (fft_out);
       free (db_buf);
       dp_sub_destroy (ctx);
-      fft_destroy (fft);
+      dp_fft_destroy (fft);
       return 1;
     }
 
@@ -288,7 +288,7 @@ main (int argc, char *argv[])
       dp_msg_free (msg);
 
       apply_hann (win_buf, fft_size);
-      fft_execute_cf64 (fft, win_buf, fft_size, fft_out, fft_size);
+      dp_fft_execute_cf64 (fft, win_buf, fft_size, fft_out, fft_size);
       power_db (fft_out, db_buf, fft_size);
       fftshift (db_buf, fft_size);
 
@@ -303,6 +303,6 @@ main (int argc, char *argv[])
   free (fft_out);
   free (db_buf);
   dp_sub_destroy (ctx);
-  fft_destroy (fft);
+  dp_fft_destroy (fft);
   return 0;
 }

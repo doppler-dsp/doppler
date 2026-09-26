@@ -12,7 +12,7 @@
  * assembler about the marker syncs to nothing. Python transcribing it a
  * third time was the state of this tree until doppler#900. */
 void
-asm_bits (uint8_t *out)
+dp_asm_bits (uint8_t *out)
 {
   ccsds_tm_asm_bits (out);
 }

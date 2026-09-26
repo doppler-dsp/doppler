@@ -2,8 +2,8 @@
  * @file acquire_core.h
  * @brief Acquire module — public C API.
  */
-#ifndef ACQUIRE_CORE_H
-#define ACQUIRE_CORE_H
+#ifndef DP_ACQUIRE_CORE_H
+#define DP_ACQUIRE_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -31,7 +31,7 @@ extern "C" {
  *
  * @endcode
  */
-int bin_to_signed(size_t bin, size_t n_bins);
+int dp_bin_to_signed(size_t bin, size_t n_bins);
 
 #ifdef __cplusplus
 }

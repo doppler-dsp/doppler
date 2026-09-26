@@ -10,30 +10,30 @@
 int
 main (void)
 {
-  adc_state_t *obj = adc_create (16, -10.0f, 0);
+  dp_adc_state_t *obj = dp_adc_create (16, -10.0f, 0);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* step: verify it runs without crashing */
-  (void)adc_step (obj, 0.0f);
+  (void)dp_adc_step (obj, 0.0f);
 
   /* reset */
-  adc_reset (obj);
+  dp_adc_reset (obj);
 
-  adc_destroy (obj);
+  dp_adc_destroy (obj);
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
-    adc_state_t *a = adc_create (8, 0.0f, 1);
-    adc_state_t *b = adc_create (8, 0.0f, 1);
+    dp_adc_state_t *a = dp_adc_create (8, 0.0f, 1);
+    dp_adc_state_t *b = dp_adc_create (8, 0.0f, 1);
     DP_CHECK (a != NULL && b != NULL);
     for (int i = 0; i < 20; i++)
-      (void)adc_step (a, 2.0f); /* clip + advance dither RNG */
-    DP_STATE_ROUNDTRIP_TEST (adc, a, b);
+      (void)dp_adc_step (a, 2.0f); /* clip + advance dither RNG */
+    DP_STATE_ROUNDTRIP_TEST (dp_adc, a, b);
     DP_CHECK (b->rng == a->rng && b->clipped == a->clipped);
-    DP_CHECK (adc_step (b, 0.3f) == adc_step (a, 0.3f));
-    adc_destroy (a);
-    adc_destroy (b);
+    DP_CHECK (dp_adc_step (b, 0.3f) == dp_adc_step (a, 0.3f));
+    dp_adc_destroy (a);
+    dp_adc_destroy (b);
   }
 
   DP_TEST_END ("test_adc_core");

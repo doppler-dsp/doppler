@@ -40,7 +40,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**burst\_demod\_state\_t**](structburst__demod__state__t.md) <br>_BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__core_8h.md#function-burst_demod_create) _._ |
+| struct | [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) <br>_BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create()**_](burst__demod__core_8h.md#function-dp_burst_demod_create) _._ |
 
 
 
@@ -67,18 +67,18 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* | [**burst\_demod\_create**](#function-burst_demod_create) (const uint8\_t \* data\_code, size\_t data\_code\_len, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t frame\_syms, size\_t est\_segments) <br>_Create a feedforward BPSK DSSS burst demodulator._  |
-|  size\_t | [**burst\_demod\_demod**](#function-burst_demod_demod) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
-|  size\_t | [**burst\_demod\_demod\_max\_out**](#function-burst_demod_demod_max_out) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state) <br>_Max output bits = frame\_syms (caller sizes the buffer)._  |
-|  void | [**burst\_demod\_destroy**](#function-burst_demod_destroy) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state) <br>_Destroy a demodulator._  |
-|  size\_t | [**burst\_demod\_llrs**](#function-burst_demod_llrs) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_LLRs the last demod() wrote — the frame's soft bits._  |
-|  size\_t | [**burst\_demod\_llrs\_max\_out**](#function-burst_demod_llrs_max_out) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n) <br>_Max LLRs_ [_**burst\_demod\_llrs()**_](burst__demod__core_8h.md#function-burst_demod_llrs) _writes: the frame's length in bits._ |
-|  void | [**burst\_demod\_reset**](#function-burst_demod_reset) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state) <br>_Clear the per-burst read-backs, leaving the configuration intact._  |
-|  void | [**burst\_demod\_set\_preamble**](#function-burst_demod_set_preamble) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t reps) <br>_Register the unmodulated acquisition preamble code and its repetition count used for the feedforward (f0, rate) estimate._  |
-|  void | [**burst\_demod\_set\_prior**](#function-burst_demod_set_prior) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, double f0\_coarse, size\_t start) <br>_Seed the demodulator from acquisition with the coarse Doppler and the preamble start sample._  |
-|  void | [**burst\_demod\_set\_sync**](#function-burst_demod_set_sync) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const uint8\_t \* sync, size\_t sync\_len) <br>_Register the known frame-sync word used for frame alignment and phase/sign resolution._  |
-|  size\_t | [**burst\_demod\_symbols**](#function-burst_demod_symbols) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._  |
-|  size\_t | [**burst\_demod\_symbols\_max\_out**](#function-burst_demod_symbols_max_out) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n) <br>_Max symbols_ [_**burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-burst_demod_symbols) _writes: the frame's length._ |
+|  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create**](#function-dp_burst_demod_create) (const uint8\_t \* data\_code, size\_t data\_code\_len, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t frame\_syms, size\_t est\_segments) <br>_Create a feedforward BPSK DSSS burst demodulator._  |
+|  size\_t | [**dp\_burst\_demod\_demod**](#function-dp_burst_demod_demod) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
+|  size\_t | [**dp\_burst\_demod\_demod\_max\_out**](#function-dp_burst_demod_demod_max_out) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Max output bits = frame\_syms (caller sizes the buffer)._  |
+|  void | [**dp\_burst\_demod\_destroy**](#function-dp_burst_demod_destroy) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Destroy a demodulator._  |
+|  size\_t | [**dp\_burst\_demod\_llrs**](#function-dp_burst_demod_llrs) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_LLRs the last demod() wrote — the frame's soft bits._  |
+|  size\_t | [**dp\_burst\_demod\_llrs\_max\_out**](#function-dp_burst_demod_llrs_max_out) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, size\_t n) <br>_Max LLRs_ [_**dp\_burst\_demod\_llrs()**_](burst__demod__core_8h.md#function-dp_burst_demod_llrs) _writes: the frame's length in bits._ |
+|  void | [**dp\_burst\_demod\_reset**](#function-dp_burst_demod_reset) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Clear the per-burst read-backs, leaving the configuration intact._  |
+|  void | [**dp\_burst\_demod\_set\_preamble**](#function-dp_burst_demod_set_preamble) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t reps) <br>_Register the unmodulated acquisition preamble code and its repetition count used for the feedforward (f0, rate) estimate._  |
+|  void | [**dp\_burst\_demod\_set\_prior**](#function-dp_burst_demod_set_prior) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, double f0\_coarse, size\_t start) <br>_Seed the demodulator from acquisition with the coarse Doppler and the preamble start sample._  |
+|  void | [**dp\_burst\_demod\_set\_sync**](#function-dp_burst_demod_set_sync) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const uint8\_t \* sync, size\_t sync\_len) <br>_Register the known frame-sync word used for frame alignment and phase/sign resolution._  |
+|  size\_t | [**dp\_burst\_demod\_symbols**](#function-dp_burst_demod_symbols) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._  |
+|  size\_t | [**dp\_burst\_demod\_symbols\_max\_out**](#function-dp_burst_demod_symbols_max_out) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, size\_t n) <br>_Max symbols_ [_**dp\_burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-dp_burst_demod_symbols) _writes: the frame's length._ |
 
 
 
@@ -124,7 +124,7 @@ The whole post-acquisition payload chain, in C, with no tracking loops:
 
 
 
-At a decision. It hands back one bit per symbol (demod()) and one LLR per symbol ([**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs)), and it does not know what any of them mean: which are payload, which are a check, what an outer code would repair are all questions about a FRAME, and answering them needs a description this object deliberately does not hold (doppler#1022). It used to hold half of one — a hard-coded `sync | payload | CRC-16` — which is how a burst sent without a trailer came to be reported invalid.
+At a decision. It hands back one bit per symbol (demod()) and one LLR per symbol ([**dp\_burst\_demod\_llrs()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs)), and it does not know what any of them mean: which are payload, which are a check, what an outer code would repair are all questions about a FRAME, and answering them needs a description this object deliberately does not hold (doppler#1022). It used to hold half of one — a hard-coded `sync | payload | CRC-16` — which is how a burst sent without a trailer came to be reported invalid.
 
 
 What it does need is the sync word, to find the frame and resolve the BPSK sign, and `frame_syms`, to know how many symbols to slice. Both are physical-layer facts.
@@ -135,11 +135,11 @@ Seed from acquisition with set\_prior(coarse Doppler, preamble start), set\_prea
 
 
 ```C++
-burst_demod_state_t *d = burst_demod_create(dcode, 50, 4, 1e6, 0, 0, 256, 10);
-burst_demod_set_preamble(d, acode, 500, 5);
-burst_demod_set_sync(d, sync, 31);
-burst_demod_set_prior(d, f0_coarse, preamble_start);
-size_t nbits = burst_demod_demod(d, x, n, bits, 256);   // frame bits out
+dp_burst_demod_state_t *d = dp_burst_demod_create(dcode, 50, 4, 1e6, 0, 0, 256, 10);
+dp_burst_demod_set_preamble(d, acode, 500, 5);
+dp_burst_demod_set_sync(d, sync, 31);
+dp_burst_demod_set_prior(d, f0_coarse, preamble_start);
+size_t nbits = dp_burst_demod_demod(d, x, n, bits, 256);   // frame bits out
 ```
  
 
@@ -151,11 +151,11 @@ size_t nbits = burst_demod_demod(d, x, n, bits, 256);   // frame bits out
 
 
 
-### function burst\_demod\_create 
+### function dp\_burst\_demod\_create 
 
 _Create a feedforward BPSK DSSS burst demodulator._ 
 ```C++
-burst_demod_state_t * burst_demod_create (
+dp_burst_demod_state_t * dp_burst_demod_create (
     const uint8_t * data_code,
     size_t data_code_len,
     size_t spc,
@@ -234,12 +234,12 @@ True
 
 
 
-### function burst\_demod\_demod 
+### function dp\_burst\_demod\_demod 
 
 _Demodulate one burst end to end and write the frame's bits._ 
 ```C++
-size_t burst_demod_demod (
-    burst_demod_state_t * state,
+size_t dp_burst_demod_demod (
+    dp_burst_demod_state_t * state,
     const float _Complex * x,
     size_t x_len,
     uint8_t * out,
@@ -249,7 +249,7 @@ size_t burst_demod_demod (
 
 
 
-Runs the whole feedforward chain on the supplied samples: estimate the (frequency, chirp-rate) from the preamble, dechirp, despread the data section to soft symbols, sync-align and derotate, and slice `frame_syms` symbols to bits. It writes the frame as received — sync word first — and makes no claim about what those bits are for: undoing the frame needs a description, and that is a caller's, not this object's. The soft twin of the same decisions is [**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs).
+Runs the whole feedforward chain on the supplied samples: estimate the (frequency, chirp-rate) from the preamble, dechirp, despread the data section to soft symbols, sync-align and derotate, and slice `frame_syms` symbols to bits. It writes the frame as received — sync word first — and makes no claim about what those bits are for: undoing the frame needs a description, and that is a caller's, not this object's. The soft twin of the same decisions is [**dp\_burst\_demod\_llrs()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs).
 
 
 On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` estimates. The templates and prior must already be set via set\_preamble(), set\_sync(), set\_prior().
@@ -324,12 +324,12 @@ True
 
 
 
-### function burst\_demod\_demod\_max\_out 
+### function dp\_burst\_demod\_demod\_max\_out 
 
 _Max output bits = frame\_syms (caller sizes the buffer)._ 
 ```C++
-size_t burst_demod_demod_max_out (
-    burst_demod_state_t * state
+size_t dp_burst_demod_demod_max_out (
+    dp_burst_demod_state_t * state
 ) 
 ```
 
@@ -340,12 +340,12 @@ size_t burst_demod_demod_max_out (
 
 
 
-### function burst\_demod\_destroy 
+### function dp\_burst\_demod\_destroy 
 
 _Destroy a demodulator._ 
 ```C++
-void burst_demod_destroy (
-    burst_demod_state_t * state
+void dp_burst_demod_destroy (
+    dp_burst_demod_state_t * state
 ) 
 ```
 
@@ -367,12 +367,12 @@ void burst_demod_destroy (
 
 
 
-### function burst\_demod\_llrs 
+### function dp\_burst\_demod\_llrs 
 
 _LLRs the last demod() wrote — the frame's soft bits._ 
 ```C++
-size_t burst_demod_llrs (
-    burst_demod_state_t * state,
+size_t dp_burst_demod_llrs (
+    dp_burst_demod_state_t * state,
     size_t n,
     float * out,
     size_t max_out
@@ -401,7 +401,7 @@ Scaled by `est_n0` rather than left raw: a Viterbi is invariant to a positive sc
 * `state` Demodulator handle. 
 * `n` Ignored — the count is the last demod()'s frame. 
 * `out` Receives the LLRs, one per frame bit. 
-* `max_out` Capacity of `out`; see [**burst\_demod\_llrs\_max\_out()**](burst__demod__core_8h.md#function-burst_demod_llrs_max_out). 
+* `max_out` Capacity of `out`; see [**dp\_burst\_demod\_llrs\_max\_out()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs_max_out). 
 
 
 
@@ -429,12 +429,12 @@ LLRs written — `min(frame bits, max_out)`, or 0 if the last demod() produced n
 
 
 
-### function burst\_demod\_llrs\_max\_out 
+### function dp\_burst\_demod\_llrs\_max\_out 
 
-_Max LLRs_ [_**burst\_demod\_llrs()**_](burst__demod__core_8h.md#function-burst_demod_llrs) _writes: the frame's length in bits._
+_Max LLRs_ [_**dp\_burst\_demod\_llrs()**_](burst__demod__core_8h.md#function-dp_burst_demod_llrs) _writes: the frame's length in bits._
 ```C++
-size_t burst_demod_llrs_max_out (
-    burst_demod_state_t * state,
+size_t dp_burst_demod_llrs_max_out (
+    dp_burst_demod_state_t * state,
     size_t n
 ) 
 ```
@@ -458,12 +458,12 @@ size_t burst_demod_llrs_max_out (
 
 
 
-### function burst\_demod\_reset 
+### function dp\_burst\_demod\_reset 
 
 _Clear the per-burst read-backs, leaving the configuration intact._ 
 ```C++
-void burst_demod_reset (
-    burst_demod_state_t * state
+void dp_burst_demod_reset (
+    dp_burst_demod_state_t * state
 ) 
 ```
 
@@ -498,12 +498,12 @@ Zeros the after-demod fields (`frame_offset`, `n_symbols`, and the `est_*` estim
 
 
 
-### function burst\_demod\_set\_preamble 
+### function dp\_burst\_demod\_set\_preamble 
 
 _Register the unmodulated acquisition preamble code and its repetition count used for the feedforward (f0, rate) estimate._ 
 ```C++
-void burst_demod_set_preamble (
-    burst_demod_state_t * state,
+void dp_burst_demod_set_preamble (
+    dp_burst_demod_state_t * state,
     const uint8_t * acq_code,
     size_t acq_code_len,
     size_t reps
@@ -543,12 +543,12 @@ The preamble is the acq spreading code transmitted `reps` times with no data mod
 
 
 
-### function burst\_demod\_set\_prior 
+### function dp\_burst\_demod\_set\_prior 
 
 _Seed the demodulator from acquisition with the coarse Doppler and the preamble start sample._ 
 ```C++
-void burst_demod_set_prior (
-    burst_demod_state_t * state,
+void dp_burst_demod_set_prior (
+    dp_burst_demod_state_t * state,
     double f0_coarse,
     size_t start
 ) 
@@ -585,12 +585,12 @@ These come from the upstream acquisition stage: `f0_coarse` centres the feedforw
 
 
 
-### function burst\_demod\_set\_sync 
+### function dp\_burst\_demod\_set\_sync 
 
 _Register the known frame-sync word used for frame alignment and phase/sign resolution._ 
 ```C++
-void burst_demod_set_sync (
-    burst_demod_state_t * state,
+void dp_burst_demod_set_sync (
+    dp_burst_demod_state_t * state,
     const uint8_t * sync,
     size_t sync_len
 ) 
@@ -631,12 +631,12 @@ This is the ONLY thing this object is told about the frame's content, and it is 
 
 
 
-### function burst\_demod\_symbols 
+### function dp\_burst\_demod\_symbols 
 
 _The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._ 
 ```C++
-size_t burst_demod_symbols (
-    burst_demod_state_t * state,
+size_t dp_burst_demod_symbols (
+    dp_burst_demod_state_t * state,
     size_t n,
     float _Complex * out,
     size_t max_out
@@ -645,7 +645,7 @@ size_t burst_demod_symbols (
 
 
 
-Same span and same normalisation as [**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs): the whole frame, scaled to unit mean-\|Re\| by the burst's own estimate, so `crealf(symbols[k])` is that bit's LLR up to `est_n0`.
+Same span and same normalisation as [**dp\_burst\_demod\_llrs()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs): the whole frame, scaled to unit mean-\|Re\| by the burst's own estimate, so `crealf(symbols[k])` is that bit's LLR up to `est_n0`.
 
 
 The quadrature is why this exists. After derotation the real axis carries the signal and the imaginary axis carries noise alone, so Q is diagnostic: a residual phase error scales Re by `cos(phi)` WITHOUT adding noise, which makes it indistinguishable from a genuine amplitude or SNR loss in mean \|LLR\|, in LLR spread and in BER alike. Measured over 20000 BPSK symbols, a 30 degree phase error and an amplitude loss of `cos(30 deg)` agreed to three decimals in all three, and differed only in Q/I energy — 0.386 against 0.077 (doppler#1087). That is the difference between a pointing problem and a link-budget one, on a burst this object already characterised well enough to know.
@@ -659,7 +659,7 @@ The quadrature is why this exists. After derotation the real axis carries the si
 * `state` Demodulator handle. 
 * `n` Ignored — the count is the last demod()'s frame. 
 * `out` Receives the symbols, one per frame bit. 
-* `max_out` Capacity of `out`; see [**burst\_demod\_symbols\_max\_out()**](burst__demod__core_8h.md#function-burst_demod_symbols_max_out). 
+* `max_out` Capacity of `out`; see [**dp\_burst\_demod\_symbols\_max\_out()**](burst__demod__core_8h.md#function-dp_burst_demod_symbols_max_out). 
 
 
 
@@ -687,12 +687,12 @@ Symbols written — `min(frame bits, max_out)`, or 0 if the last demod() produce
 
 
 
-### function burst\_demod\_symbols\_max\_out 
+### function dp\_burst\_demod\_symbols\_max\_out 
 
-_Max symbols_ [_**burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-burst_demod_symbols) _writes: the frame's length._
+_Max symbols_ [_**dp\_burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-dp_burst_demod_symbols) _writes: the frame's length._
 ```C++
-size_t burst_demod_symbols_max_out (
-    burst_demod_state_t * state,
+size_t dp_burst_demod_symbols_max_out (
+    dp_burst_demod_state_t * state,
     size_t n
 ) 
 ```

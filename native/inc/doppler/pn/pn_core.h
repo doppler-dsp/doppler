@@ -6,13 +6,13 @@
  *
  * Example:
  * @code
- * pn_state_t *obj = pn_create(96, 1, 7);
+ * dp_pn_state_t *obj = dp_pn_create(96, 1, 7);
  * uint8_t y = pn_step(obj);
- * pn_destroy(obj);
+ * dp_pn_destroy(obj);
  * @endcode
  */
-#ifndef PN_CORE_H
-#define PN_CORE_H
+#ifndef DP_PN_CORE_H
+#define DP_PN_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -24,7 +24,7 @@ extern "C" {
 /**
  * @brief PN state.
  *
- * Allocate with pn_create().
+ * Allocate with dp_pn_create().
  */
 /** LFSR realization: Galois (internal XOR) or Fibonacci (external XOR). */
 enum { PN_GALOIS = 0, PN_FIBONACCI = 1 };
@@ -37,18 +37,18 @@ typedef struct {
     int kind;          /* PN_GALOIS or PN_FIBONACCI */
     uint64_t fib_taps; /* Fibonacci feedback taps (canonical poly & mask) */
     uint32_t topshift; /* length-1: position the Fibonacci feedback enters */
-} pn_state_t;
+} dp_pn_state_t;
 
 /**
  * @brief Maximal-length-sequence (MLS) primitive polynomial for a register of
  * length @p n, in this module's right-shift Galois convention.
  *
- * The table lives here because the convention is pn's: `poly` is pn_create()'s
+ * The table lives here because the convention is pn's: `poly` is dp_pn_create()'s
  * tap mask, and "which mask makes it maximal-length" is a fact about this
  * LFSR, not about any caller. It is header-only so no component grows a
  * link-line dependency for a lookup.
  *
- * **A zero `poly` is not a polynomial.** pn_create() takes the mask verbatim,
+ * **A zero `poly` is not a polynomial.** dp_pn_create() takes the mask verbatim,
  * so `poly = 0` is a register with no feedback: it shifts out the seed and
  * then emits zeros forever. Every caller that lets a user say "default"
  * therefore resolves it as `poly ? poly : pn_mls_poly (n)` -- wfm_synth's
@@ -148,7 +148,7 @@ pn_mls_poly(uint32_t n)
  *              2^length - 1 for a primitive polynomial. Default 7.
  * @param lfsr  Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call pn_destroy() when done.
+ * @note Caller must call dp_pn_destroy() when done.
  * @code
  * >>> from doppler.wfm import PN
  * >>> import numpy as np
@@ -160,7 +160,7 @@ pn_mls_poly(uint32_t n)
  * 64
  * @endcode
  */
-pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
+dp_pn_state_t *dp_pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 
 /**
  * @brief Destroy a pn instance and release all memory.
@@ -174,7 +174,7 @@ pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
  * >>> p.destroy()   # explicit teardown; no exception
  * @endcode
  */
-void pn_destroy(pn_state_t *state);
+void dp_pn_destroy(dp_pn_state_t *state);
 
 /**
  * @brief Reset PN to its post-create state.
@@ -192,7 +192,7 @@ void pn_destroy(pn_state_t *state);
  * True
  * @endcode
  */
-void pn_reset(pn_state_t *state);
+void dp_pn_reset(dp_pn_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Only the running LFSR register is serialized; poly / seed / mask / kind /
@@ -202,11 +202,11 @@ void pn_reset(pn_state_t *state);
 #define PN_STATE_VERSION 1u
 
 /** @brief Serialized-state byte size. */
-size_t pn_state_bytes(const pn_state_t *state);
+size_t dp_pn_state_bytes(const dp_pn_state_t *state);
 /** @brief Serialize the LFSR register into @p blob. */
-void pn_get_state(const pn_state_t *state, void *blob);
+void dp_pn_get_state(const dp_pn_state_t *state, void *blob);
 /** @brief Restore the register; DP_OK, or DP_ERR_INVALID if rejected. */
-int pn_set_state(pn_state_t *state, const void *blob);
+int dp_pn_set_state(dp_pn_state_t *state, const void *blob);
 
 /**
  * @brief Advance the LFSR one step and return the output chip (0 or 1).
@@ -221,7 +221,7 @@ int pn_set_state(pn_state_t *state, const void *blob);
  * @return Output chip: 0 or 1 (register LSB before the shift).
  */
 JM_FORCEINLINE uint8_t
-pn_step(pn_state_t *state)
+pn_step(dp_pn_state_t *state)
 {
     uint8_t bit = (uint8_t)(state->reg & 1u);
     if (state->kind == PN_FIBONACCI) {
@@ -243,7 +243,7 @@ pn_step(pn_state_t *state)
 
 
 
-size_t pn_generate_max_out(pn_state_t *state);
+size_t dp_pn_generate_max_out(dp_pn_state_t *state);
 
 /**
  * @brief Generate ``n`` chips into ``out`` and advance the LFSR by ``n``
@@ -252,7 +252,7 @@ size_t pn_generate_max_out(pn_state_t *state);
  * binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer;
  * copy the result before calling generate again if you need a snapshot.
  *
- * @param state  Initialised PN state returned by ``pn_create``.
+ * @param state  Initialised PN state returned by ``dp_pn_create``.
  * @param n      Number of chips to produce.
  * @param out    Output buffer of at least ``n`` uint8 elements; each element
  *               receives 0 or 1.
@@ -270,7 +270,7 @@ size_t pn_generate_max_out(pn_state_t *state);
  * 64
  * @endcode
  */
-size_t pn_generate(pn_state_t *state, size_t n, uint8_t *out,
+size_t dp_pn_generate(dp_pn_state_t *state, size_t n, uint8_t *out,
                    size_t max_out);
 #ifdef __cplusplus
 }

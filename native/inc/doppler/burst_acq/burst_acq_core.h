@@ -2,7 +2,7 @@
  * @file burst_acq_core.h
  * @brief BurstAcquisition — thin forwarder onto acq_core.c's shared engine.
  *
- * Composes acq_state_t (native/inc/doppler/acq/acq_core.h) as an embedded pointer,
+ * Composes dp_acq_state_t (native/inc/doppler/acq/acq_core.h) as an embedded pointer,
  * built via acq_create_burst() -- the BURST front door onto the SAME shared
  * engine `Acquisition` (acq_core.h) composes via acq_create_continuous().
  * Every function here is a direct forward to the corresponding acq_* call;
@@ -15,15 +15,15 @@
  * float _Complex zc[127];
  * for (int k = 0; k < 127; k++)
  *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
- * burst_acq_state_t *obj = burst_acq_create(zc, 127, 8, 1.0e6, 50.0,
+ * dp_burst_acq_state_t *obj = dp_burst_acq_create(zc, 127, 8, 1.0e6, 50.0,
  *                                           0.0, 1e-3, 0.9, 0, 0.0);
  * acq_result_t hits[64];
- * size_t nh = burst_acq_push(obj, samples, n_samples, hits, 64);
- * burst_acq_destroy(obj);
+ * size_t nh = dp_burst_acq_push(obj, samples, n_samples, hits, 64);
+ * dp_burst_acq_destroy(obj);
  * @endcode
  */
-#ifndef BURST_ACQ_CORE_H
-#define BURST_ACQ_CORE_H
+#ifndef DP_BURST_ACQ_CORE_H
+#define DP_BURST_ACQ_CORE_H
 
 #include "doppler/acq/acq_core.h"
 #include "doppler/clib_common.h"
@@ -37,19 +37,19 @@ extern "C"
 
   /**
    * @brief BurstAcquisition state: a pure wrapper around one shared
-   *        acq_state_t engine.
+   *        dp_acq_state_t engine.
    *
-   * Allocate with burst_acq_create(); every other function forwards
+   * Allocate with dp_burst_acq_create(); every other function forwards
    * straight to the corresponding acq_* call on `engine`.
    */
   typedef struct
   {
-    acq_state_t *engine;
+    dp_acq_state_t *engine;
     /** The engine's `underpowered` at construction -- a field of THIS
         struct because a declared jm warning's condition must be one; it is
         what raises the under-powered UserWarning after __init__. */
     uint8_t underpowered;
-  } burst_acq_state_t;
+  } dp_burst_acq_state_t;
 
   /**
    * @brief Create a burst-mode acquisition engine for any repeated preamble,
@@ -58,7 +58,7 @@ extern "C"
    *
    * One period of @p preamble_len complex samples at @p fs, repeated up to @p reps
    * times: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped
-   * by bin_to_nrz() and held `spc` samples each (at `fs = chip_rate*spc`).
+   * by dp_bin_to_nrz() and held `spc` samples each (at `fs = chip_rate*spc`).
    * One chip is one sample: `sf = preamble_len`, `spc = 1`,
    * `chip_rate = fs`, and
    * `code_phase` is the delay into the repetition, in samples (for a
@@ -114,7 +114,7 @@ extern "C"
    *
    * @endcode
    */
-  burst_acq_state_t *burst_acq_create (const float _Complex *preamble,
+  dp_burst_acq_state_t *dp_burst_acq_create (const float _Complex *preamble,
                                        size_t preamble_len, size_t reps,
                                        double fs,
                                        double cn0_dbhz,
@@ -123,12 +123,12 @@ extern "C"
                                        double doppler_rate);
 
   /** @brief Destroy and free an instance.  @param state May be NULL. */
-  void burst_acq_destroy (burst_acq_state_t *state);
+  void dp_burst_acq_destroy (dp_burst_acq_state_t *state);
 
   /**
    * @brief Drain the input ring and reset the coherent accumulator.
    *
-   * Forwards to acq_reset() on the embedded engine: discards any buffered
+   * Forwards to dp_acq_reset() on the embedded engine: discards any buffered
    * samples that have not yet completed a frame and clears the non-coherent
    * power accumulator and dwell bookkeeping, so the next push() begins a
    * fresh search from an empty ring.  Construction parameters are untouched.
@@ -151,12 +151,12 @@ extern "C"
    *
    * @endcode
    */
-  void burst_acq_reset (burst_acq_state_t *state);
+  void dp_burst_acq_reset (dp_burst_acq_state_t *state);
 
   /**
    * @brief Stream raw samples; emit one event per CFAR dump above threshold.
    *
-   * Forwards to acq_push() on the embedded engine (see its doc comment in
+   * Forwards to dp_acq_push() on the embedded engine (see its doc comment in
    * acq_core.h for the framing/CFAR mechanics).  Each event carries the
    * peak's Doppler bin and code phase (the two search axes), its CFAR
    * statistic, and an estimated C/N0 — see @ref acq_result_t.
@@ -182,14 +182,14 @@ extern "C"
    *
    * @endcode
    */
-  size_t burst_acq_push (burst_acq_state_t *state, const float _Complex *x,
+  size_t dp_burst_acq_push (dp_burst_acq_state_t *state, const float _Complex *x,
                          size_t n_in, acq_result_t *result,
                          size_t max_results);
 
   /**
    * @brief Pin the search grid directly, bypassing the auto-sizing search.
    *
-   * Forwards to acq_configure_search_raw() on the embedded engine (see its
+   * Forwards to dp_acq_configure_search_raw() on the embedded engine (see its
    * doc comment in acq_core.h): resizes every grid-dependent buffer/plan,
    * re-derives the threshold ladder for the pinned grid, and clears in-flight
    * accumulation — call between push() calls, never a substitute for one.
@@ -218,13 +218,13 @@ extern "C"
    *
    * @endcode
    */
-  int burst_acq_configure_search_raw (burst_acq_state_t *state,
+  int dp_burst_acq_configure_search_raw (dp_burst_acq_state_t *state,
                                       size_t doppler_bins, size_t n_noncoh);
 
   /**
    * @brief How many peaks a dwell may report: the peak list's capacity.
    *
-   * Forwards to acq_set_max_peaks() on the embedded engine (see its doc
+   * Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc
    * comment in acq_core.h): one is the classic gated maximum; more is the
    * list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
    * same gate, strongest first, an exclusion zone of one Doppler bin by the
@@ -247,15 +247,15 @@ extern "C"
    * 4
    * @endcode
    */
-  int burst_acq_set_max_peaks (burst_acq_state_t *state, size_t n);
+  int dp_burst_acq_set_max_peaks (dp_burst_acq_state_t *state, size_t n);
 
   /* ── Serializable state — forwards straight to the embedded engine's own
-   * triplet (the serialized bytes ARE the shared acq_state_t's own state;
+   * triplet (the serialized bytes ARE the shared dp_acq_state_t's own state;
    * no separate format needed). */
 
-  size_t burst_acq_state_bytes (const burst_acq_state_t *state);
-  void   burst_acq_get_state (const burst_acq_state_t *state, void *blob);
-  int    burst_acq_set_state (burst_acq_state_t *state, const void *blob);
+  size_t dp_burst_acq_state_bytes (const dp_burst_acq_state_t *state);
+  void   dp_burst_acq_get_state (const dp_burst_acq_state_t *state, void *blob);
+  int    dp_burst_acq_set_state (dp_burst_acq_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

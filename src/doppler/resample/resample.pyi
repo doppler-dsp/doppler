@@ -542,7 +542,7 @@ class CIC:
         Parameters
         ----------
         R : int
-            New decimation ratio. Same constraints as cic_create().
+            New decimation ratio. Same constraints as dp_cic_create().
 
         Examples
         --------
@@ -820,12 +820,12 @@ class RateConverter:
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
-        The control-port form of RateConverter_execute(): the fixed integer
+        The control-port form of dp_RateConverter_execute(): the fixed integer
         stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
         deviation ctrl is forwarded to the **terminal polyphase Resampler
         stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
         rate becomes `stage_rate + ctrl` for this call. This exposes the
-        fractional tail's control port that RateConverter_execute() hides: a
+        fractional tail's control port that dp_RateConverter_execute() hides: a
         timing/rate-tracking loop can decimate a high input rate cheaply
         through the HB/CIC stages and then arbitrary-rate + strobe-align in the
         last stage, updating ctrl per block.
@@ -834,7 +834,7 @@ class RateConverter:
         not the overall rate. It is meaningful only when the cascade actually
         ends in a Resampler stage; a pure integer HB/CIC cascade has no
         fractional stage to steer, so this **falls through to
-        RateConverter_execute()** (ctrl ignored).
+        dp_RateConverter_execute()** (ctrl ignored).
 
         Parameters
         ----------
@@ -870,12 +870,12 @@ class RateConverter:
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of RateConverter_execute_ctrl(), and the
-        only form a closed loop can use: a block call must know its whole
+        The per-input streaming form of dp_RateConverter_execute_ctrl(), and
+        the only form a closed loop can use: a block call must know its whole
         `ctrl` history up front, whereas a timing loop computes each correction
         *from* the outputs already emitted. Feeding a stream one sample at a
-        time through this reproduces RateConverter_execute_ctrl() on the same
-        block bit-for-bit when ctrl is held constant (the cascade is
+        time through this reproduces dp_RateConverter_execute_ctrl() on the
+        same block bit-for-bit when ctrl is held constant (the cascade is
         block-boundary invariant), so the cheap block form stays correct for
         open-loop use.
 
@@ -1101,7 +1101,7 @@ class MatchedRateConverter:
         appended as a stage).
     pulse : Literal["iandd", "rrc"], default "rrc"
         RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
-        RateConverter_create() for a plain conversion.
+        dp_RateConverter_create() for a plain conversion.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -1204,12 +1204,12 @@ class MatchedRateConverter:
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
-        The control-port form of RateConverter_execute(): the fixed integer
+        The control-port form of dp_RateConverter_execute(): the fixed integer
         stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
         deviation ctrl is forwarded to the **terminal polyphase Resampler
         stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
         rate becomes `stage_rate + ctrl` for this call. This exposes the
-        fractional tail's control port that RateConverter_execute() hides: a
+        fractional tail's control port that dp_RateConverter_execute() hides: a
         timing/rate-tracking loop can decimate a high input rate cheaply
         through the HB/CIC stages and then arbitrary-rate + strobe-align in the
         last stage, updating ctrl per block.
@@ -1218,7 +1218,7 @@ class MatchedRateConverter:
         not the overall rate. It is meaningful only when the cascade actually
         ends in a Resampler stage; a pure integer HB/CIC cascade has no
         fractional stage to steer, so this **falls through to
-        RateConverter_execute()** (ctrl ignored).
+        dp_RateConverter_execute()** (ctrl ignored).
 
         Parameters
         ----------
@@ -1254,12 +1254,12 @@ class MatchedRateConverter:
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of RateConverter_execute_ctrl(), and the
-        only form a closed loop can use: a block call must know its whole
+        The per-input streaming form of dp_RateConverter_execute_ctrl(), and
+        the only form a closed loop can use: a block call must know its whole
         `ctrl` history up front, whereas a timing loop computes each correction
         *from* the outputs already emitted. Feeding a stream one sample at a
-        time through this reproduces RateConverter_execute_ctrl() on the same
-        block bit-for-bit when ctrl is held constant (the cascade is
+        time through this reproduces dp_RateConverter_execute_ctrl() on the
+        same block bit-for-bit when ctrl is held constant (the cascade is
         block-boundary invariant), so the cheap block form stays correct for
         open-loop use.
 

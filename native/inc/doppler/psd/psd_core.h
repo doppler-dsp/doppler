@@ -4,20 +4,20 @@
  *        and spectral measurement suite.
  *
  * A stateful, C-first periodogram averager (Welch's method).  It composes the existing pieces of
- * the library rather than re-implementing them: an ::fft_state_t forward plan, a
+ * the library rather than re-implementing them: an ::dp_fft_state_t forward plan, a
  * spectral window (Hann or Kaiser) with its coherent gain and ENBW, an
- * ::acc_trace_state_t per-bin power averager (mean / EMA / max-hold / min-hold),
- * and the spectral free functions (::magnitude_db_cf32, ::find_peaks_f32,
- * ::obw_from_power, ::noise_floor_db) for the derived measurements.
+ * ::dp_acc_trace_state_t per-bin power averager (mean / EMA / max-hold / min-hold),
+ * and the spectral free functions (::dp_magnitude_db_cf32, ::dp_find_peaks_f32,
+ * ::dp_obw_from_power, ::dp_noise_floor_db) for the derived measurements.
  *
- * Feed complex baseband frames with psd_accumulate(); each length-n frame is
+ * Feed complex baseband frames with dp_psd_accumulate(); each length-n frame is
  * windowed, FFT'd, converted to power, fftshifted to DC-centred order and
  * folded into the running average.  Then read:
- *   - psd_psd_db()   : averaged power spectrum, dB   (peak reads tone power)
- *   - psd_psd_dbhz() : averaged PSD, dB/Hz           (ENBW / fs normalised)
- *   - psd_band_power() / psd_total_band_power() : integrated band power, dB
- *   - psd_occupied_bw() : occupied bandwidth, Hz
- *   - psd_noise_floor() / psd_snr() / psd_sfdr() : level statistics, dB
+ *   - dp_psd_psd_db()   : averaged power spectrum, dB   (peak reads tone power)
+ *   - dp_psd_psd_dbhz() : averaged PSD, dB/Hz           (ENBW / fs normalised)
+ *   - dp_psd_band_power() / dp_psd_total_band_power() : integrated band power, dB
+ *   - dp_psd_occupied_bw() : occupied bandwidth, Hz
+ *   - dp_psd_noise_floor() / dp_psd_snr() / dp_psd_sfdr() : level statistics, dB
  *
  * All spectra are DC-centred (fftshift), matching find_peaks_f32's bin ->
  * frequency convention (bin i maps to (i - n/2)/n in normalised frequency, so
@@ -26,8 +26,8 @@
  *
  * Lifecycle: create -> (accumulate / reset)* -> (measurement getters)* -> destroy
  */
-#ifndef PSD_CORE_H
-#define PSD_CORE_H
+#ifndef DP_PSD_CORE_H
+#define DP_PSD_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -39,11 +39,11 @@ extern "C" {
 #endif
 
 /**
- * @brief PSD state.  Allocate with psd_create().
+ * @brief PSD state.  Allocate with dp_psd_create().
  */
 typedef struct {
-    fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
-    acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
+    dp_fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
+    dp_acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
     float *w;                  /**< Window, length n.                     */
     float _Complex *frame;      /**< Windowed + zero-padded, length nfft.  */
     float _Complex *spec;       /**< FFT output scratch, length nfft.      */
@@ -57,7 +57,7 @@ typedef struct {
     double fs;                 /**< Sample rate, Hz.                      */
     double full_scale;         /**< Amplitude that reads 0 dBFS.          */
     size_t bits;               /**< ADC depth that set full_scale, else 0.*/
-} psd_state_t;
+} dp_psd_state_t;
 
 /**
  * @brief Create an averaging PSD estimator.
@@ -75,7 +75,7 @@ typedef struct {
  * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
  * @param alpha       EMA smoothing factor (exp mode only).
  * @return Heap-allocated state, or NULL on invalid argument or OOM.
- * @note Caller must call psd_destroy() when done.
+ * @note Caller must call dp_psd_destroy() when done.
  *
  * @code
  * >>> from doppler.spectral import PSD
@@ -86,7 +86,7 @@ typedef struct {
  * True
  * @endcode
  */
-psd_state_t *psd_create(size_t n, double fs, int window, float beta,
+dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             size_t pad, double full_scale, size_t bits,
                             int mode, double alpha);
 
@@ -94,13 +94,13 @@ psd_state_t *psd_create(size_t n, double fs, int window, float beta,
  * @brief Destroy a PSD instance and release all memory.
  * @param state  May be NULL (no-op).
  */
-void psd_destroy(psd_state_t *state);
+void dp_psd_destroy(dp_psd_state_t *state);
 
 /**
  * @brief Discard the running average; the next accumulate re-seeds it.
  * @param state  Must be non-NULL.
  */
-void psd_reset(psd_state_t *state);
+void dp_psd_reset(dp_psd_state_t *state);
 
 /**
  * @brief Window, FFT and fold complex baseband frames into the average.
@@ -128,25 +128,25 @@ void psd_reset(psd_state_t *state);
  * 4
  * @endcode
  */
-void psd_accumulate(psd_state_t *state, const float _Complex *x,
+void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
                       size_t x_len);
 
 /**
  * @brief Window, zero-pad, FFT and fold real frames into the average.
- * The real-input counterpart to psd_accumulate(): each length-n frame is
+ * The real-input counterpart to dp_psd_accumulate(): each length-n frame is
  * windowed, zero-padded to nfft, transformed and folded as a DC-centred
  * two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins
- * carry equal power).  Read the one-sided fold with psd_power_onesided().
+ * carry equal power).  Read the one-sided fold with dp_psd_power_onesided().
  * Processes floor(n_in / n) full frames.
  *
  * @param state  Must be non-NULL.
  * @param x      Real samples (f32).
  * @param x_len  Number of samples in @p x.
  */
-void psd_accumulate_real(psd_state_t *state, const float *x, size_t x_len);
+void dp_psd_accumulate_real(dp_psd_state_t *state, const float *x, size_t x_len);
 
-/** @brief Output capacity hint for psd_power_twosided(); equals nfft. */
-size_t psd_power_twosided_max_out(psd_state_t *state);
+/** @brief Output capacity hint for dp_psd_power_twosided(); equals nfft. */
+size_t dp_psd_power_twosided_max_out(dp_psd_state_t *state);
 
 /**
  * @brief Averaged linear power, DC-centred two-sided (length nfft).
@@ -162,11 +162,11 @@ size_t psd_power_twosided_max_out(psd_state_t *state);
  *               return value is the number actually written.
  * @return min(nfft, max_out), or 0 if empty.
  */
-size_t psd_power_twosided(psd_state_t *state, size_t cap, float *out,
+size_t dp_psd_power_twosided(dp_psd_state_t *state, size_t cap, float *out,
                           size_t max_out);
 
-/** @brief Output capacity hint for psd_power_onesided(); equals nfft/2+1. */
-size_t psd_power_onesided_max_out(psd_state_t *state);
+/** @brief Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1. */
+size_t dp_psd_power_onesided_max_out(dp_psd_state_t *state);
 
 /**
  * @brief Averaged linear power, one-sided (length nfft/2 + 1).
@@ -182,11 +182,11 @@ size_t psd_power_onesided_max_out(psd_state_t *state);
  *               return value is the number actually written.
  * @return min(nfft/2 + 1, max_out), or 0 if empty.
  */
-size_t psd_power_onesided(psd_state_t *state, size_t cap, float *out,
+size_t dp_psd_power_onesided(dp_psd_state_t *state, size_t cap, float *out,
                           size_t max_out);
 
 /** @brief Output capacity hint for psd_db(); equals nfft. */
-size_t psd_psd_db_max_out(psd_state_t *state);
+size_t dp_psd_psd_db_max_out(dp_psd_state_t *state);
 
 /**
  * @brief Averaged power spectrum in dB, DC-centred.
@@ -201,11 +201,11 @@ size_t psd_psd_db_max_out(psd_state_t *state);
  *               return value is the number actually written.
  * @return min(n, max_out), or 0 if empty.
  */
-size_t psd_psd_db(psd_state_t *state, size_t n, float *out,
+size_t dp_psd_psd_db(dp_psd_state_t *state, size_t n, float *out,
                   size_t max_out);
 
 /** @brief Output capacity hint for psd_dbhz(); equals n. */
-size_t psd_psd_dbhz_max_out(psd_state_t *state);
+size_t dp_psd_psd_dbhz_max_out(dp_psd_state_t *state);
 
 /**
  * @brief Averaged power spectral density in dB/Hz, DC-centred.
@@ -223,11 +223,11 @@ size_t psd_psd_dbhz_max_out(psd_state_t *state);
  * True
  * @endcode
  */
-size_t psd_psd_dbhz(psd_state_t *state, size_t n, float *out,
+size_t dp_psd_psd_dbhz(dp_psd_state_t *state, size_t n, float *out,
                     size_t max_out);
 
 /** @brief Output capacity hint for band_power(); 0 (binding sizes from bands). */
-size_t psd_band_power_max_out(psd_state_t *state);
+size_t dp_psd_band_power_max_out(dp_psd_state_t *state);
 
 /**
  * @brief Integrated power per band in dB.
@@ -254,7 +254,7 @@ size_t psd_band_power_max_out(psd_state_t *state);
  * (2,)
  * @endcode
  */
-size_t psd_band_power(psd_state_t *state, const double *bands,
+size_t dp_psd_band_power(dp_psd_state_t *state, const double *bands,
                         size_t bands_len, float *out, size_t max_out);
 
 /**
@@ -264,7 +264,7 @@ size_t psd_band_power(psd_state_t *state, const double *bands,
  * @param bands_len  Number of edge values (2 * n_bands).
  * @return Total band power in dB (dB floor if empty).
  */
-double psd_total_band_power(psd_state_t *state, const double *bands,
+double dp_psd_total_band_power(dp_psd_state_t *state, const double *bands,
                               size_t bands_len);
 
 /**
@@ -273,13 +273,13 @@ double psd_total_band_power(psd_state_t *state, const double *bands,
  * @param fraction  Power fraction in (0, 1], e.g. 0.99.
  * @return Occupied bandwidth in Hz (0 if empty or no power).
  */
-double psd_occupied_bw(psd_state_t *state, double fraction);
+double dp_psd_occupied_bw(dp_psd_state_t *state, double fraction);
 
 /**
  * @brief Noise-floor estimate: median of the averaged dB spectrum.
  * @return Median dB level (0 if empty).
  */
-double psd_noise_floor(psd_state_t *state);
+double dp_psd_noise_floor(dp_psd_state_t *state);
 
 /**
  * @brief In-band SNR in dB: peak level in `[lo_hz, hi_hz]` minus the noise floor.
@@ -288,7 +288,7 @@ double psd_noise_floor(psd_state_t *state);
  * @param hi_hz  Band upper edge, Hz.
  * @return SNR in dB (0 if empty).
  */
-double psd_snr(psd_state_t *state, double lo_hz, double hi_hz);
+double dp_psd_snr(dp_psd_state_t *state, double lo_hz, double hi_hz);
 
 /**
  * @brief Spurious-free dynamic range in dB from the two strongest peaks.
@@ -296,15 +296,15 @@ double psd_snr(psd_state_t *state, double lo_hz, double hi_hz);
  * @param min_db  Minimum peak level considered, dB.
  * @return Carrier-minus-highest-spur level in dB (0 if fewer than two peaks).
  */
-double psd_sfdr(psd_state_t *state, float min_db);
+double dp_psd_sfdr(dp_psd_state_t *state, float min_db);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * delegates to the acc_trace power averager; window/plan/scratch
  * are config, rebuilt by create. */
 #define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
 #define PSD_STATE_VERSION 1u
-size_t psd_state_bytes (const psd_state_t *state);
-void psd_get_state (const psd_state_t *state, void *blob);
-int psd_set_state (psd_state_t *state, const void *blob);
+size_t dp_psd_state_bytes (const dp_psd_state_t *state);
+void dp_psd_get_state (const dp_psd_state_t *state, void *blob);
+int dp_psd_set_state (dp_psd_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

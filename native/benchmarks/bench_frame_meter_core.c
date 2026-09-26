@@ -59,7 +59,7 @@ main (void)
 
   /* target_errors = 10 at 99% is the harness default; `conf` is what the
      interval below is computed at. */
-  frame_meter_state_t *m = frame_meter_create (10, 0.99);
+  dp_frame_meter_state_t *m = dp_frame_meter_create (10, 0.99);
   if (!m)
     return 1;
 
@@ -69,10 +69,10 @@ main (void)
   static double t_add[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      frame_meter_reset (m);
+      dp_frame_meter_reset (m);
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        frame_meter_add (m, 1, (i % 97) != 0);
+        dp_frame_meter_add (m, 1, (i % 97) != 0);
       t1       = jm_bench_now_ns ();
       t_add[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -86,7 +86,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < STAT_N; i++)
-        sink += (double)frame_meter_get_frames (m);
+        sink += (double)dp_frame_meter_get_frames (m);
       t1       = jm_bench_now_ns ();
       t_get[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -98,7 +98,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < STAT_N; i++)
-        sink += frame_meter_fer (m).lo;
+        sink += dp_frame_meter_fer (m).lo;
       t1       = jm_bench_now_ns ();
       t_fer[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -110,7 +110,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < STAT_N; i++)
-        sink += frame_meter_sync_miss (m).lo;
+        sink += dp_frame_meter_sync_miss (m).lo;
       t1        = jm_bench_now_ns ();
       t_sync[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -129,7 +129,7 @@ main (void)
               / (min_sec (t_add, ITERATIONS) / BENCH_N));
 
   (void)sink;
-  frame_meter_destroy (m);
+  dp_frame_meter_destroy (m);
   jm_bench_write_json (&_bench, "frame_meter");
   return 0;
 }

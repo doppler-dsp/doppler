@@ -91,17 +91,19 @@ step_response (int kind, int m, double bn, double f0, size_t nsym,
   size_t         N  = nsym * (size_t)SPS;
   float complex *rx = malloc (N * sizeof (*rx));
   build_sig (kind, m, f0, nsym, rx, 31u);
-  carrier_nda_state_t *c = carrier_nda_create (bn, 0.707, 0.0, SPS, 4, m);
-  float complex        o[64];
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (bn, 0.707, 0.0, SPS, 4, m);
+  float complex o[64];
   *settle = N;
   for (size_t i = 0; i + 64 <= N; i += 64)
     {
-      carrier_nda_steps (c, rx + i, 64, o, 64);
-      if (*settle == N && fabs (carrier_nda_get_norm_freq (c) - f0) < 0.1 * f0)
+      dp_carrier_nda_steps (c, rx + i, 64, o, 64);
+      if (*settle == N
+          && fabs (dp_carrier_nda_get_norm_freq (c) - f0) < 0.1 * f0)
         *settle = i;
     }
-  *ferr = fabs (carrier_nda_get_norm_freq (c) - f0);
-  carrier_nda_destroy (c);
+  *ferr = fabs (dp_carrier_nda_get_norm_freq (c) - f0);
+  dp_carrier_nda_destroy (c);
   free (rx);
 }
 

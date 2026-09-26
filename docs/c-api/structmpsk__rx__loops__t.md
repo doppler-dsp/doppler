@@ -39,8 +39,8 @@ _The receiver's loops: timing, carrier, demapper._
 |  double | [**bn\_agc\_ratio**](#variable-bn_agc_ratio)  <br> |
 |  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
 |  double | [**car\_error**](#variable-car_error)  <br> |
-|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**car\_lf**](#variable-car_lf)  <br> |
-|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**car\_lock**](#variable-car_lock)  <br> |
+|  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) | [**car\_lf**](#variable-car_lf)  <br> |
+|  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**car\_lock**](#variable-car_lock)  <br> |
 |  int | [**differential**](#variable-differential)  <br> |
 |  double | [**freq\_ctrl**](#variable-freq_ctrl)  <br> |
 |  double | [**freq\_scale**](#variable-freq_scale)  <br> |
@@ -163,7 +163,7 @@ last carrier phase discriminator (stress).
 ### variable car\_lf 
 
 ```C++
-loop_filter_state_t mpsk_rx_loops_t::car_lf;
+dp_loop_filter_state_t mpsk_rx_loops_t::car_lf;
 ```
 
 
@@ -181,7 +181,7 @@ loop_filter_state_t mpsk_rx_loops_t::car_lf;
 ### variable car\_lock 
 
 ```C++
-lockdet_state_t mpsk_rx_loops_t::car_lock;
+dp_lockdet_state_t mpsk_rx_loops_t::car_lock;
 ```
 
 

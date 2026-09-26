@@ -21,11 +21,11 @@ main (void)
   for (int i = 0; i < BENCH_N; i++)
     in[i] = (int8_t)(i);
 
-  acc_q8_state_t *obj = acc_q8_create (0);
+  dp_acc_q8_state_t *obj = dp_acc_q8_create (0);
 
   /* warmup */
   for (int i = 0; i < 16; i++)
-    acc_q8_step (obj, in[i]);
+    dp_acc_q8_step (obj, in[i]);
 
   uint64_t   t0, t1;
   jm_bench_t _bench = { 0 };
@@ -38,7 +38,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        acc_q8_step (obj, in[i]);
+        dp_acc_q8_step (obj, in[i]);
       t1             = jm_bench_now_ns ();
       _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -54,7 +54,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      acc_q8_steps (obj, in, BENCH_N);
+      dp_acc_q8_steps (obj, in, BENCH_N);
       t1              = jm_bench_now_ns ();
       _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -68,7 +68,7 @@ main (void)
   }
 
   jm_bench_write_json (&_bench, "acc_q8");
-  acc_q8_destroy (obj);
+  dp_acc_q8_destroy (obj);
   free (in);
 
   return 0;

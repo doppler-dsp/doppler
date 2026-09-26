@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DOPPLER_CHANNEL_CORE_H
-#define DOPPLER_CHANNEL_CORE_H
+#ifndef DP_DOPPLER_CHANNEL_CORE_H
+#define DP_DOPPLER_CHANNEL_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -43,47 +43,47 @@ typedef struct {
 
     double *ctrl;         /* per-sample rate deviation scratch         */
     size_t ctrl_cap;
-} doppler_channel_state_t;
+} dp_doppler_channel_state_t;
 
 static inline double
-doppler_channel_excess(const doppler_channel_state_t *s, double t)
+doppler_channel_excess(const dp_doppler_channel_state_t *s, double t)
 {
     return (s->doppler_ppm * t + 0.5 * s->doppler_rate_ppm_s * t * t) * 1e-6;
 }
 
 static inline double
-doppler_channel_scale(const doppler_channel_state_t *s, double t)
+doppler_channel_scale(const dp_doppler_channel_state_t *s, double t)
 {
     return 1.0 + (s->doppler_ppm + s->doppler_rate_ppm_s * t) * 1e-6;
 }
 
 static inline double
-doppler_channel_phase(const doppler_channel_state_t *s, double t)
+doppler_channel_phase(const dp_doppler_channel_state_t *s, double t)
 {
     return s->carrier_hz * doppler_channel_excess(s, t);
 }
 
-doppler_channel_state_t *doppler_channel_create(double fs, double carrier_hz, double doppler_ppm, double doppler_rate_ppm_s);
+dp_doppler_channel_state_t *dp_doppler_channel_create(double fs, double carrier_hz, double doppler_ppm, double doppler_rate_ppm_s);
 
-void doppler_channel_destroy(doppler_channel_state_t *state);
+void dp_doppler_channel_destroy(dp_doppler_channel_state_t *state);
 
-void doppler_channel_reset(doppler_channel_state_t *state);
+void dp_doppler_channel_reset(dp_doppler_channel_state_t *state);
 
-size_t doppler_channel_state_bytes(const doppler_channel_state_t *state);
+size_t dp_doppler_channel_state_bytes(const dp_doppler_channel_state_t *state);
 
-void doppler_channel_get_state(const doppler_channel_state_t *state, void *blob);
+void dp_doppler_channel_get_state(const dp_doppler_channel_state_t *state, void *blob);
 
-int doppler_channel_set_state(doppler_channel_state_t *state, const void *blob);
+int dp_doppler_channel_set_state(dp_doppler_channel_state_t *state, const void *blob);
 
-size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
+size_t dp_doppler_channel_execute_max_out(dp_doppler_channel_state_t *state);
 
-size_t doppler_channel_execute(doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_doppler_channel_execute(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);
+double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);
 
-double doppler_channel_get_offset_hz(const doppler_channel_state_t *state);
+double dp_doppler_channel_get_offset_hz(const dp_doppler_channel_state_t *state);
 
-double doppler_channel_get_delay_samples(const doppler_channel_state_t *state);
+double dp_doppler_channel_get_delay_samples(const dp_doppler_channel_state_t *state);
 #ifdef __cplusplus
 }
 #endif

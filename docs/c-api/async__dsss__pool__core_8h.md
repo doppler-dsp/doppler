@@ -54,7 +54,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 | ---: | :--- |
 | struct | [**async\_dsss\_pool\_row\_t**](structasync__dsss__pool__row__t.md) <br> |
 | struct | [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) <br>_One slot's picture, by value_  _what_`status()` _returns._ |
-| struct | [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) <br>_AsyncDsssPool state._  |
+| struct | [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) <br>_AsyncDsssPool state._  |
 
 
 
@@ -81,17 +81,17 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 
 | Type | Name |
 | ---: | :--- |
-|  [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* | [**async\_dsss\_pool\_create**](#function-async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._  |
-|  void | [**async\_dsss\_pool\_destroy**](#function-async_dsss_pool_destroy) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br>_Destroy a async\_dsss\_pool instance and release all memory._  |
-|  void | [**async\_dsss\_pool\_get\_state**](#function-async_dsss_pool_get_state) (const [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, void \* blob) <br> |
-|  size\_t | [**async\_dsss\_pool\_push**](#function-async_dsss_pool_push) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_One block of raw cf32 samples through the population._  |
-|  void | [**async\_dsss\_pool\_reset**](#function-async_dsss_pool_reset) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
-|  int | [**async\_dsss\_pool\_set\_event\_log**](#function-async_dsss_pool_set_event_log) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
-|  int | [**async\_dsss\_pool\_set\_state**](#function-async_dsss_pool_set_state) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**async\_dsss\_pool\_state\_bytes**](#function-async_dsss_pool_state_bytes) (const [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br> |
-|  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**async\_dsss\_pool\_status**](#function-async_dsss_pool_status) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._ |
-|  size\_t | [**async\_dsss\_pool\_symbols**](#function-async_dsss_pool_symbols) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols slot_ `slot's` _receiver decided on the last push()._ |
-|  size\_t | [**async\_dsss\_pool\_symbols\_max\_out**](#function-async_dsss_pool_symbols_max_out) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br>_The per-slot symbol capacity_ `symbols()` _can return_ _grown with the largest block pushed so far (0 before the first push)._ |
+|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._  |
+|  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a async\_dsss\_pool instance and release all memory._  |
+|  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_One block of raw cf32 samples through the population._  |
+|  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
+|  int | [**dp\_async\_dsss\_pool\_set\_event\_log**](#function-dp_async_dsss_pool_set_event_log) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
+|  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br> |
+|  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**dp\_async\_dsss\_pool\_status**](#function-dp_async_dsss_pool_status) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._ |
+|  size\_t | [**dp\_async\_dsss\_pool\_symbols**](#function-dp_async_dsss_pool_symbols) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols slot_ `slot's` _receiver decided on the last push()._ |
+|  size\_t | [**dp\_async\_dsss\_pool\_symbols\_max\_out**](#function-dp_async_dsss_pool_symbols_max_out) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The per-slot symbol capacity_ `symbols()` _can return_ _grown with the largest block pushed so far (0 before the first push)._ |
 
 
 
@@ -180,11 +180,11 @@ Lifecycle: create, then push / status / symbols / reset as often as wanted, then
 
 
 
-### function async\_dsss\_pool\_create 
+### function dp\_async\_dsss\_pool\_create 
 
 _Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._ 
 ```C++
-async_dsss_pool_state_t * async_dsss_pool_create (
+dp_async_dsss_pool_state_t * dp_async_dsss_pool_create (
     const uint8_t * code,
     size_t code_len,
     double chip_rate,
@@ -259,7 +259,7 @@ Heap-allocated state, or NULL on an invalid argument, a searcher whose depth or 
 
 **Note:**
 
-Caller must call [**async\_dsss\_pool\_destroy()**](async__dsss__pool__core_8h.md#function-async_dsss_pool_destroy) when done. 
+Caller must call [**dp\_async\_dsss\_pool\_destroy()**](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_destroy) when done. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssPool
@@ -286,12 +286,12 @@ Caller must call [**async\_dsss\_pool\_destroy()**](async__dsss__pool__core_8h.m
 
 
 
-### function async\_dsss\_pool\_destroy 
+### function dp\_async\_dsss\_pool\_destroy 
 
 _Destroy a async\_dsss\_pool instance and release all memory._ 
 ```C++
-void async_dsss_pool_destroy (
-    async_dsss_pool_state_t * state
+void dp_async_dsss_pool_destroy (
+    dp_async_dsss_pool_state_t * state
 ) 
 ```
 
@@ -313,11 +313,11 @@ void async_dsss_pool_destroy (
 
 
 
-### function async\_dsss\_pool\_get\_state 
+### function dp\_async\_dsss\_pool\_get\_state 
 
 ```C++
-void async_dsss_pool_get_state (
-    const async_dsss_pool_state_t * state,
+void dp_async_dsss_pool_get_state (
+    const dp_async_dsss_pool_state_t * state,
     void * blob
 ) 
 ```
@@ -329,12 +329,12 @@ void async_dsss_pool_get_state (
 
 
 
-### function async\_dsss\_pool\_push 
+### function dp\_async\_dsss\_pool\_push 
 
 _One block of raw cf32 samples through the population._ 
 ```C++
-size_t async_dsss_pool_push (
-    async_dsss_pool_state_t * state,
+size_t dp_async_dsss_pool_push (
+    dp_async_dsss_pool_state_t * state,
     const float _Complex * x,
     size_t x_len
 ) 
@@ -383,12 +383,12 @@ Receivers assigned after this push.
 
 
 
-### function async\_dsss\_pool\_reset 
+### function dp\_async\_dsss\_pool\_reset 
 
 _Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._ 
 ```C++
-void async_dsss_pool_reset (
-    async_dsss_pool_state_t * state
+void dp_async_dsss_pool_reset (
+    dp_async_dsss_pool_state_t * state
 ) 
 ```
 
@@ -428,12 +428,12 @@ The attached log stays attached and nothing is logged  a reset is the holder's d
 
 
 
-### function async\_dsss\_pool\_set\_event\_log 
+### function dp\_async\_dsss\_pool\_set\_event\_log 
 
 _Attach the run's event log (design section 8.1); NULL detaches._ 
 ```C++
-int async_dsss_pool_set_event_log (
-    async_dsss_pool_state_t * state,
+int dp_async_dsss_pool_set_event_log (
+    dp_async_dsss_pool_state_t * state,
     dp_event_log_t * log
 ) 
 ```
@@ -483,11 +483,11 @@ Borrowed, never owned: the holder opens, finalizes and closes it. From now on ev
 
 
 
-### function async\_dsss\_pool\_set\_state 
+### function dp\_async\_dsss\_pool\_set\_state 
 
 ```C++
-int async_dsss_pool_set_state (
-    async_dsss_pool_state_t * state,
+int dp_async_dsss_pool_set_state (
+    dp_async_dsss_pool_state_t * state,
     const void * blob
 ) 
 ```
@@ -499,11 +499,11 @@ int async_dsss_pool_set_state (
 
 
 
-### function async\_dsss\_pool\_state\_bytes 
+### function dp\_async\_dsss\_pool\_state\_bytes 
 
 ```C++
-size_t async_dsss_pool_state_bytes (
-    const async_dsss_pool_state_t * state
+size_t dp_async_dsss_pool_state_bytes (
+    const dp_async_dsss_pool_state_t * state
 ) 
 ```
 
@@ -514,12 +514,12 @@ size_t async_dsss_pool_state_bytes (
 
 
 
-### function async\_dsss\_pool\_status 
+### function dp\_async\_dsss\_pool\_status 
 
 _One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._
 ```C++
-async_dsss_pool_slot_t async_dsss_pool_status (
-    async_dsss_pool_state_t * state,
+async_dsss_pool_slot_t dp_async_dsss_pool_status (
+    dp_async_dsss_pool_state_t * state,
     size_t slot
 ) 
 ```
@@ -567,12 +567,12 @@ The record.
 
 
 
-### function async\_dsss\_pool\_symbols 
+### function dp\_async\_dsss\_pool\_symbols 
 
 _The symbols slot_ `slot's` _receiver decided on the last push()._
 ```C++
-size_t async_dsss_pool_symbols (
-    async_dsss_pool_state_t * state,
+size_t dp_async_dsss_pool_symbols (
+    dp_async_dsss_pool_state_t * state,
     size_t slot,
     float _Complex * out,
     size_t max_out
@@ -622,12 +622,12 @@ Symbols written.
 
 
 
-### function async\_dsss\_pool\_symbols\_max\_out 
+### function dp\_async\_dsss\_pool\_symbols\_max\_out 
 
 _The per-slot symbol capacity_ `symbols()` _can return_ _grown with the largest block pushed so far (0 before the first push)._
 ```C++
-size_t async_dsss_pool_symbols_max_out (
-    async_dsss_pool_state_t * state
+size_t dp_async_dsss_pool_symbols_max_out (
+    dp_async_dsss_pool_state_t * state
 ) 
 ```
 

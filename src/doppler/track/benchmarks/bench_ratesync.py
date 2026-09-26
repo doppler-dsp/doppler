@@ -25,7 +25,7 @@ overhead — which is what a Python benchmark is for.
 **Each row asserts that its loop is still locked**, because every way this
 measurement can break makes it look FASTER. Emitting nothing is the C
 twin's documented trap: sizing its output buffer from
-`ratesync_steps_max_out()` made every call return zero symbols and the
+`dp_ratesync_steps_max_out()` made every call return zero symbols and the
 benchmark report 3.2 THz, which is the bail-out path wearing a throughput
 number. A loop that has come UNLOCKED is the quieter one — it still emits
 symbols at full rate, so the count alone cannot see it, and the row would

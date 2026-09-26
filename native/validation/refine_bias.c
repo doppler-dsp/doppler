@@ -20,7 +20,7 @@
  * BPSK data at 2700 sym/s, a fixed carrier offset of F_TRUE, AWGN sized
  * from the C/N0), so the truth is a number the harness chose and the
  * clock is undilated -- the one variable is the estimate. The receiver
- * is the SEARCHING flavor (`async_dsss_receiver_create`), seeded
+ * is the SEARCHING flavor (`dp_async_dsss_receiver_create`), seeded
  * with the stimulus's own chip phase (the capture starts on chip 0) and
  * a Doppler of F_TRUE plus a chosen error, exactly what the searcher's
  * coarse D = 1 row hands it (its bin is 4.9 kHz wide, so ~1.1 kHz off at
@@ -139,36 +139,36 @@ run_trial (const uint8_t *code, int sign_idx, size_t seed, double seed_err,
   /* The searching flavour, seeded from outside: its refine chain is the
      one under test (the hand-off flavour that carried this validator was
      retired, design section 12.28; seed() is a method of both). */
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, 100.0, 4, 8, 0,
       lookback_db[lb], 4, margin_db, REFINE_N_FFT, 8, false, 100000,
       CARRIER_HZ, 0.0);
   DP_REQUIRE_MSG (rx != NULL, "the receiver opens");
   /* The capture's signal starts on chip 0 at PRE_SILENCE; fed from there,
      the seed's phase is 0 -- the test's own convention. */
-  DP_REQUIRE_MSG (async_dsss_receiver_seed (rx, 0.0, truth + seed_err, CN0)
+  DP_REQUIRE_MSG (dp_async_dsss_receiver_seed (rx, 0.0, truth + seed_err, CN0)
                       == DP_OK,
                   "the receiver takes the seed");
   out->dwell              = rx->ca->dwell_target;
   out->segments           = rx->refine_segments;
-  size_t          max_out = async_dsss_receiver_steps_max_out (rx);
+  size_t          max_out = dp_async_dsss_receiver_steps_max_out (rx);
   float _Complex *syms = dp_xmalloc ((max_out ? max_out : TE) * sizeof *syms);
   const float _Complex *x = cap->x + PRE_SILENCE;
   const size_t          n = cap->n - PRE_SILENCE;
   for (size_t pos = 0; pos + TE <= n; pos += TE)
     {
-      (void)async_dsss_receiver_steps (rx, x + pos, TE, syms,
-                                       max_out ? max_out : TE);
-      if (async_dsss_receiver_get_tracking (rx) == 1)
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, TE, syms,
+                                          max_out ? max_out : TE);
+      if (dp_async_dsss_receiver_get_tracking (rx) == 1)
         {
           out->handed   = 1;
-          out->err_hz   = async_dsss_receiver_get_doppler_hz (rx) - truth;
+          out->err_hz   = dp_async_dsss_receiver_get_doppler_hz (rx) - truth;
           out->handed_s = (double)(pos + TE) / FS;
           break;
         }
     }
   free (syms);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -239,9 +239,9 @@ print_point (const point_t *p, double truth, double seed_err)
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 int

@@ -21,13 +21,13 @@ gen_tone (float _Complex *buf, size_t len, double fn, double amp)
 /* Drive obj with `total` input samples in `chunk`-sized blocks; return the
  * first emitted frame in out (capacity cap), or 0 if none appeared. */
 static size_t
-drive_first_frame (specan_state_t *obj, const float _Complex *tone,
+drive_first_frame (dp_specan_state_t *obj, const float _Complex *tone,
                    size_t total, size_t chunk, float *out, size_t cap)
 {
   for (size_t i = 0; i < total; i += chunk)
     {
       size_t m  = (i + chunk <= total) ? chunk : total - i;
-      size_t no = specan_execute (obj, tone + i, m, out, cap);
+      size_t no = dp_specan_execute (obj, tone + i, m, out, cap);
       if (no)
         return no;
     }
@@ -56,17 +56,18 @@ main (void)
     return 1;
 
   /* 1. Invalid arguments are rejected (no opaque NULL surprises). */
-  DP_CHECK (specan_create (0.0, span, rbw, 0, 0, 0, 1.0, 0, 1, 1)
+  DP_CHECK (dp_specan_create (0.0, span, rbw, 0, 0, 0, 1.0, 0, 1, 1)
             == NULL); /* fs   */
-  DP_CHECK (specan_create (fs, 0.0, rbw, 0, 0, 0, 1.0, 0, 1, 1)
+  DP_CHECK (dp_specan_create (fs, 0.0, rbw, 0, 0, 0, 1.0, 0, 1, 1)
             == NULL); /* span */
-  DP_CHECK (specan_create (fs, span, 0.0, 0, 0, 0, 1.0, 0, 1, 1)
+  DP_CHECK (dp_specan_create (fs, span, 0.0, 0, 0, 0, 1.0, 0, 1, 1)
             == NULL); /* rbw  */
-  DP_CHECK (specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 0)
+  DP_CHECK (dp_specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 0)
             == NULL); /* navg */
 
   /* 2. The natural params derive a sane DSP grid. */
-  specan_state_t *sa = specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 1);
+  dp_specan_state_t *sa
+      = dp_specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 1);
   DP_CHECK (sa != NULL);
   if (!sa)
     return 1;
@@ -92,23 +93,24 @@ main (void)
   DP_CHECK (out[pk] - out[5] > 30.0);        /* tone clears far bins     */
 
   /* 4. Retuning to the tone moves it to DC (cheap LO retune, no rebuild). */
-  specan_retune (sa, f_off);
+  dp_specan_retune (sa, f_off);
   size_t nfr2 = drive_first_frame (sa, tone, NTONE, 4096, out, 2048);
   DP_CHECK (nfr2 == sa->disp_n);
   size_t pk2 = argmax (out, nfr2);
   DP_CHECK (llabs ((long long)pk2 - (long long)dc_bin) <= 2);
-  specan_destroy (sa);
+  dp_specan_destroy (sa);
 
   /* 5. navg buffers a full averaging window before emitting a frame. */
-  specan_state_t *sb = specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 2);
+  dp_specan_state_t *sb
+      = dp_specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 2);
   DP_CHECK (sb != NULL);
   if (sb)
     {
       /* One window length of input is far short of n*navg decimated. */
-      DP_CHECK (specan_execute (sb, tone, sb->n, out, 2048) == 0);
+      DP_CHECK (dp_specan_execute (sb, tone, sb->n, out, 2048) == 0);
       size_t nfr3 = drive_first_frame (sb, tone, NTONE, 4096, out, 2048);
       DP_CHECK (nfr3 == sb->disp_n);
-      specan_destroy (sb);
+      dp_specan_destroy (sb);
     }
 
   free (tone);
@@ -118,24 +120,25 @@ main (void)
    * arrives per call. It did not: one call emitted one spectrum and kept the
    * rest of a large block buffered, so `pend_len` grew by the leftover every
    * call and never came back down. That leaked memory, staled the displayed
-   * frame, and -- because specan_state_bytes reserves exactly n*navg samples
-   * for `pend` -- made specan_get_state write past the end of the caller's
-   * blob. Driven here well past the point where the old code had already
-   * overrun that reservation (268 by the first call, 2146 by the eighth). */
+   * frame, and -- because dp_specan_state_bytes reserves exactly n*navg
+   * samples for `pend` -- made dp_specan_get_state write past the end of the
+   * caller's blob. Driven here well past the point where the old code had
+   * already overrun that reservation (268 by the first call, 2146 by the
+   * eighth). */
   {
     float _Complex big[4096];
     float sout[2048];
     for (int i = 0; i < 4096; i++)
       big[i] = (float)(i % 7) - 3.0f + 0.2f * I;
-    specan_state_t *g
-        = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
+    dp_specan_state_t *g
+        = dp_specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
     DP_CHECK (g != NULL);
     if (g)
       {
         size_t need = g->n * g->navg, worst = 0;
         for (int k = 0; k < 64; k++)
           {
-            (void)specan_execute (g, big, 4096, sout, 2048);
+            (void)dp_specan_execute (g, big, 4096, sout, 2048);
             if (g->pend_len > worst)
               worst = g->pend_len;
           }
@@ -143,7 +146,7 @@ main (void)
         /* and the blob the fixed-size reservation promises still fits */
         DP_CHECK (g->pend_len * sizeof (float _Complex)
                   <= need * sizeof (float _Complex));
-        specan_destroy (g);
+        dp_specan_destroy (g);
       }
   }
 
@@ -153,16 +156,16 @@ main (void)
     float out[2048];
     for (int i = 0; i < 4096; i++)
       in[i] = (float)(i % 7) - 3.0f + 0.2f * I;
-    specan_state_t *a
-        = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
-    specan_state_t *b
-        = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
+    dp_specan_state_t *a
+        = dp_specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
+    dp_specan_state_t *b
+        = dp_specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
     DP_CHECK (a != NULL && b != NULL);
-    (void)specan_execute (a, in, 4096, out, 2048);
-    DP_STATE_ROUNDTRIP_TEST (specan, a, b);
+    (void)dp_specan_execute (a, in, 4096, out, 2048);
+    DP_STATE_ROUNDTRIP_TEST (dp_specan, a, b);
     DP_CHECK (b->pend_len == a->pend_len);
-    specan_destroy (a);
-    specan_destroy (b);
+    dp_specan_destroy (a);
+    dp_specan_destroy (b);
   }
 
   DP_TEST_END ("test_specan_core");

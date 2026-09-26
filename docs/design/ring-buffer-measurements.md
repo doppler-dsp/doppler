@@ -31,7 +31,7 @@ Every C consumer is single-threaded and rebuilt that surface from the struct:
 | reset by storing `head` / `tail`      | ✔   | ✔        | ✔          | ✔             |
 | direct `head` / `tail` loads + stores | 10  | 10       | 10         | 9             |
 
-`detector_push()` is `write_some()` + `while (peek (n)) … consume (n)`,
+`dp_detector_push()` is `write_some()` + `while (peek (n)) … consume (n)`,
 written out by hand. Moving the four onto the API, with a lint rule against
 struct access, is [#1426](https://github.com/doppler-dsp/doppler/issues/1426).
 

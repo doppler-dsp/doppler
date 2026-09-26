@@ -53,13 +53,13 @@ static const char *cfg_name[N_CFG] = {
 int
 main (void)
 {
-  jm_bench_t    _bench = { 0 };
-  uint64_t      t0, t1;
-  static double t[N_CFG][ITERATIONS];
-  nco_state_t  *nco  = nco_create (NORM_FREQ, NMAX);
-  uint32_t     *out  = NULL;
-  uint8_t      *ovf  = NULL;
-  double       *ctrl = NULL;
+  jm_bench_t      _bench = { 0 };
+  uint64_t        t0, t1;
+  static double   t[N_CFG][ITERATIONS];
+  dp_nco_state_t *nco  = dp_nco_create (NORM_FREQ, NMAX);
+  uint32_t       *out  = NULL;
+  uint8_t        *ovf  = NULL;
+  double         *ctrl = NULL;
 
   if (!nco)
     return 1;
@@ -80,7 +80,7 @@ main (void)
   printf ("norm_freq = %.3f, nmax = %u, %d rounds, min over rounds\n\n",
           NORM_FREQ, NMAX, ITERATIONS);
 
-  DP_BENCH_SETTLE (nco_steps_u32 (nco, BLOCK, out, BLOCK));
+  DP_BENCH_SETTLE (dp_nco_steps_u32 (nco, BLOCK, out, BLOCK));
 
   /* Rounds outside, faces inside. Every row here is read as a multiple of
      the first one, so drift the settle missed must land on all six. */
@@ -91,22 +91,22 @@ main (void)
         switch (c)
           {
           case CFG_PLAIN:
-            nco_steps_u32 (nco, BLOCK, out, BLOCK);
+            dp_nco_steps_u32 (nco, BLOCK, out, BLOCK);
             break;
           case CFG_SCALED:
-            nco_steps_u32_scaled (nco, BLOCK, out, BLOCK);
+            dp_nco_steps_u32_scaled (nco, BLOCK, out, BLOCK);
             break;
           case CFG_OVF:
-            nco_steps_u32_ovf (nco, BLOCK, out, ovf, BLOCK);
+            dp_nco_steps_u32_ovf (nco, BLOCK, out, ovf, BLOCK);
             break;
           case CFG_CTRL:
-            nco_steps_u32_ctrl (nco, ctrl, BLOCK, out, BLOCK);
+            dp_nco_steps_u32_ctrl (nco, ctrl, BLOCK, out, BLOCK);
             break;
           case CFG_SCALED_CTRL:
-            nco_steps_u32_scaled_ctrl (nco, ctrl, BLOCK, out, BLOCK);
+            dp_nco_steps_u32_scaled_ctrl (nco, ctrl, BLOCK, out, BLOCK);
             break;
           case CFG_OVF_CTRL:
-            nco_steps_u32_ovf_ctrl (nco, ctrl, BLOCK, out, ovf, BLOCK);
+            dp_nco_steps_u32_ovf_ctrl (nco, ctrl, BLOCK, out, ovf, BLOCK);
             break;
           default:
             break;
@@ -130,7 +130,7 @@ main (void)
   free (out);
   free (ovf);
   free (ctrl);
-  nco_destroy (nco);
+  dp_nco_destroy (nco);
   jm_bench_write_json (&_bench, "nco");
   return 0;
 }

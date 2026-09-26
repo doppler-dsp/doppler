@@ -22,7 +22,7 @@
 #include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_h — header-inline, no link edge */
 
 void
-rrc_h (const double *t, size_t t_len, double *out, double beta)
+dp_rrc_h (const double *t, size_t t_len, double *out, double beta)
 {
   /* Defensive guard, mirroring rrc_taps.c: the generated binding does not
      range-check beta, and the kernel's closed-form limits are derived for

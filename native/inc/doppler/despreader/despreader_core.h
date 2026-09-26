@@ -3,7 +3,7 @@
  * @brief Continuous DSSS despreader — Costas carrier loop + DLL code loop.
  *
  * A complete continuous despreader for a DSSS-BPSK signal: it composes a
- * @ref costas_state_t carrier loop and a @ref dll_state_t code loop on a
+ * @ref dp_costas_state_t carrier loop and a @ref dp_dll_state_t code loop on a
  * single shared per-sample integrate-and-dump. Per sample it wipes the carrier
  * (costas_wipeoff, integer NCO) and feeds the de-rotated sample to the DLL's
  * early/prompt/late correlators (dll_accumulate); per code period it dumps the
@@ -16,20 +16,20 @@
  * frequency + code phase); the loops then track the residual. Set
  * `bn_fll > 0` for FLL-assisted carrier pull-in.
  *
- * Lifecycle: `despreader_create -> (steps / bits / reset)* ->
- * despreader_destroy`.
+ * Lifecycle: `dp_despreader_create -> (steps / bits / reset)* ->
+ * dp_despreader_destroy`.
  *
  * @code
  * uint8_t code[127] = { ... };  // one code period, 0/1 chips
- * despreader_state_t *ch = despreader_create(code, 127, 8, 0.0, 0.0,
+ * dp_despreader_state_t *ch = dp_despreader_create(code, 127, 8, 0.0, 0.0,
  *                                       0.05, 0.005, 0.0, 0.707, 0.5, 1);
  * float _Complex sym[64];
- * size_t k = despreader_steps(ch, rx, rx_len, sym, 64);  // prompt per period
- * despreader_destroy(ch);
+ * size_t k = dp_despreader_steps(ch, rx, rx_len, sym, 64);  // prompt per period
+ * dp_despreader_destroy(ch);
  * @endcode
  */
-#ifndef DESPREADER_CORE_H
-#define DESPREADER_CORE_H
+#ifndef DP_DESPREADER_CORE_H
+#define DP_DESPREADER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/costas/costas_core.h"
@@ -51,14 +51,14 @@ extern "C"
   /**
    * @brief Despreader state.
    *
-   * Allocate with despreader_create(). Embeds the carrier (`car`) and code
+   * Allocate with dp_despreader_create(). Embeds the carrier (`car`) and code
    * (`code`) loops by value; the despreader owns the copied spreading code and
    * the bit-sync histogram.
    */
   typedef struct
   {
-    costas_state_t car;     /**< carrier (Costas/FLL-assisted-PLL) loop.    */
-    dll_state_t    code;    /**< code (early/prompt/late DLL) loop.         */
+    dp_costas_state_t car;     /**< carrier (Costas/FLL-assisted-PLL) loop.    */
+    dp_dll_state_t    code;    /**< code (early/prompt/late DLL) loop.         */
     uint8_t *code_copy;     /**< owned copy of the spreading code.          */
     size_t periods_per_bit; /**< code periods per data bit (>=1).           */
     /* bit-sync (used only when periods_per_bit > 1) */
@@ -70,15 +70,15 @@ extern "C"
     int       prev_sign;     /**< previous prompt sign (+1/-1).              */
     int       have_prev;     /**< prev_sign valid.                           */
     dp_tlm_t *tlm_ctx;       /**< telemetry gate: non-NULL when the embedded
-                                  loops are attached (despreader_set_telemetry);
+                                  loops are attached (dp_despreader_set_telemetry);
                                   the probes live on car.tlm / code.tlm. Not
                                   serialized (field-wise triplet skips it).   */
-  } despreader_state_t;
+  } dp_despreader_state_t;
 
   /**
    * @brief Initialise a despreader in place; BORROWS @p code.
    *
-   * The by-value counterpart to despreader_create(): the caller retains
+   * The by-value counterpart to dp_despreader_create(): the caller retains
    * ownership of
    * @p code (it is not copied or freed). Seeds the carrier NCO at
    * @p init_norm_freq and the code phase at @p init_chip (the acquisition
@@ -99,7 +99,7 @@ extern "C"
    * @param periods_per_bit      Code periods per data bit (1 = one bit per
    * period).
    */
-  void despreader_init (despreader_state_t *ch, const uint8_t *code,
+  void despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
                         size_t code_len, size_t sps, double init_norm_freq,
                         double init_chip, double bn_carrier, double bn_code,
                         double bn_fll, double zeta, double spacing,
@@ -133,7 +133,7 @@ extern "C"
    * @param periods_per_bit  Code periods per data bit (1 = one bit per
    *                         period).
    * @return Heap-allocated state, or NULL on allocation failure.
-   * @note Caller must call despreader_destroy() when done.
+   * @note Caller must call dp_despreader_destroy() when done.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import Despreader
@@ -152,7 +152,7 @@ extern "C"
    *
    * @endcode
    */
-  despreader_state_t *despreader_create (const uint8_t *code, size_t code_len,
+  dp_despreader_state_t *dp_despreader_create (const uint8_t *code, size_t code_len,
                                          size_t sps, double init_norm_freq,
                                          double init_chip, double bn_carrier,
                                          double bn_code, double bn_fll,
@@ -163,7 +163,7 @@ extern "C"
    * @brief Destroy a despreader and release all memory.
    * @param state  May be NULL.
    */
-  void despreader_destroy (despreader_state_t *state);
+  void dp_despreader_destroy (dp_despreader_state_t *state);
 
   /**
    * @brief Re-seed both loops to the create-time frequency/phase; keep config.
@@ -192,9 +192,9 @@ extern "C"
    *
    * @endcode
    */
-  void despreader_reset (despreader_state_t *state);
+  void dp_despreader_reset (dp_despreader_state_t *state);
 
-  size_t despreader_steps_max_out (despreader_state_t *state);
+  size_t dp_despreader_steps_max_out (dp_despreader_state_t *state);
 
   /**
    * @brief Track carrier and code and despread a CF32 block, one prompt symbol
@@ -233,14 +233,14 @@ extern "C"
    *
    * @endcode
    */
-  size_t despreader_steps (despreader_state_t *state, const float _Complex *x,
+  size_t dp_despreader_steps (dp_despreader_state_t *state, const float _Complex *x,
                            size_t x_len, float _Complex *out, size_t max_out);
-  size_t despreader_bits_max_out (despreader_state_t *state);
+  size_t dp_despreader_bits_max_out (dp_despreader_state_t *state);
 
   /**
    * @brief Despread a CF32 block and bit-sync the prompts into hard data bits.
    *
-   * The same tracking kernel as despreader_steps(), followed by bit
+   * The same tracking kernel as dp_despreader_steps(), followed by bit
    * synchronisation: the per-period prompts are coherently summed across each
    * detected bit boundary (a data bit spans @c periods_per_bit code periods)
    * and one hard 0/1 bit is emitted per data bit. The bit boundary is estimated
@@ -271,38 +271,38 @@ extern "C"
    *
    * @endcode
    */
-  size_t despreader_bits (despreader_state_t *state, const float _Complex *x,
+  size_t dp_despreader_bits (dp_despreader_state_t *state, const float _Complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
-  double despreader_get_norm_freq (const despreader_state_t *state);
-  void   despreader_set_norm_freq (despreader_state_t *state, double val);
-  double despreader_get_code_phase (const despreader_state_t *state);
+  double dp_despreader_get_norm_freq (const dp_despreader_state_t *state);
+  void   dp_despreader_set_norm_freq (dp_despreader_state_t *state, double val);
+  double dp_despreader_get_code_phase (const dp_despreader_state_t *state);
   /** @brief Chips the embedded DLL advances per nominal chip: ~1.0, and its
    *  departure from 1 is the code-rate (clock) offset being tracked. */
-  double despreader_get_code_rate (const despreader_state_t *state);
+  double dp_despreader_get_code_rate (const dp_despreader_state_t *state);
   /** @brief The embedded Costas loop's lock statistic: the EMA of
    *  |Re P|/|P| over the prompt correlations, 1 when locked. `carrier_locked`
    *  is the de-chattered decision made on it. */
-  double despreader_get_lock_metric (const despreader_state_t *state);
+  double dp_despreader_get_lock_metric (const dp_despreader_state_t *state);
 
   /** @brief Carrier lock decision (1 = locked): the embedded Costas loop's
    *         verify-counted detector on its lock-metric EMA (see
-   *         costas_configure_lock). */
-  int despreader_get_carrier_locked (const despreader_state_t *state);
+   *         dp_costas_configure_lock). */
+  int dp_despreader_get_carrier_locked (const dp_despreader_state_t *state);
 
   /** @brief Code lock decision (1 = locked): the embedded DLL's
-   *         verify-counted CFAR detector (see dll_configure_lock); live in
+   *         verify-counted CFAR detector (see dp_dll_configure_lock); live in
    *         composition — the despreader runs the same always-on detector
-   *         dll_steps does. */
-  int despreader_get_code_locked (const despreader_state_t *state);
+   *         dp_dll_steps does. */
+  int dp_despreader_get_code_locked (const dp_despreader_state_t *state);
 
   /**
    * @brief Re-tune the embedded carrier loop's lock detector directly.
    *
-   * Thin forwarder to costas_configure_lock() on the embedded Costas loop —
-   * symmetric with despreader_get_carrier_locked() exposing its state: state
+   * Thin forwarder to dp_costas_configure_lock() on the embedded Costas loop —
+   * symmetric with dp_despreader_get_carrier_locked() exposing its state: state
    * is readable, so config should be writable too, rather than forcing a
    * caller who needs this control to drop to raw Dll+Costas composition
-   * instead of Despreader. See costas_configure_lock() for the parameter
+   * instead of Despreader. See dp_costas_configure_lock() for the parameter
    * semantics.
    * @param state        Must be non-NULL.
    * @param up_thresh    Declare threshold on the lock-metric EMA.
@@ -317,24 +317,24 @@ extern "C"
    *
    * @endcode
    */
-  void despreader_configure_carrier_lock (despreader_state_t *state,
+  void dp_despreader_configure_carrier_lock (dp_despreader_state_t *state,
                                           double up_thresh, double down_thresh,
                                           uint32_t n_up, uint32_t n_down);
 
   /**
    * @brief Re-tune the embedded code loop's lock detector.
    *
-   * Thin forwarder to dll_configure_lock() on the embedded DLL — the derived
+   * Thin forwarder to dp_dll_configure_lock() on the embedded DLL — the derived
    * (pfa-style) entry point, matching Despreader's role as the "easy" composed
-   * API (Dll's raw escape hatch, dll_configure_lock_raw(), stays a Dll-only
+   * API (Dll's raw escape hatch, dp_dll_configure_lock_raw(), stays a Dll-only
    * control for a caller that composes Dll+Costas directly). See
-   * dll_configure_lock() for the parameter semantics.
+   * dp_dll_configure_lock() for the parameter semantics.
    * @param state       Must be non-NULL.
    * @param pfa         Per-decision false-alarm probability, in (0, 1).
    * @param n_looks     Non-coherent integration depth N (looks); clamped
    *                    >= 1.
    * @param ref_snr_db  Noise-reference estimator SNR in dB (> 0), or 0 to
-   *                    derive from @p n_looks (see dll_configure_lock()).
+   *                    derive from @p n_looks (see dp_dll_configure_lock()).
    * @return DP_OK, or DP_ERR_INVALID when @p pfa is outside (0, 1).
    * @code
    * >>> import numpy as np
@@ -350,14 +350,14 @@ extern "C"
    *
    * @endcode
    */
-  int despreader_configure_code_lock (despreader_state_t *state, double pfa,
+  int dp_despreader_configure_code_lock (dp_despreader_state_t *state, double pfa,
                                       size_t n_looks, double ref_snr_db);
 
-  size_t despreader_get_bit_phase (const despreader_state_t *state);
-  double despreader_get_bn_carrier (const despreader_state_t *state);
-  void   despreader_set_bn_carrier (despreader_state_t *state, double val);
-  double despreader_get_bn_code (const despreader_state_t *state);
-  void   despreader_set_bn_code (despreader_state_t *state, double val);
+  size_t dp_despreader_get_bit_phase (const dp_despreader_state_t *state);
+  double dp_despreader_get_bn_carrier (const dp_despreader_state_t *state);
+  void   dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
+  double dp_despreader_get_bn_code (const dp_despreader_state_t *state);
+  void   dp_despreader_set_bn_code (dp_despreader_state_t *state, double val);
 
   /**
    * @brief Attach (or detach) a telemetry context across the despreader.
@@ -398,7 +398,7 @@ extern "C"
    *
    * @endcode
    */
-  int despreader_set_telemetry (despreader_state_t *state, dp_tlm_t *tlm,
+  int dp_despreader_set_telemetry (dp_despreader_state_t *state, dp_tlm_t *tlm,
                                 const char *prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -407,9 +407,9 @@ extern "C"
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D', 'S', 'P', 'R')
 #define DESPREADER_STATE_VERSION 4u /* v4: costas child grew (lockdet rule)   \
                                      */
-  size_t despreader_state_bytes (const despreader_state_t *state);
-  void   despreader_get_state (const despreader_state_t *state, void *blob);
-  int    despreader_set_state (despreader_state_t *state, const void *blob);
+  size_t dp_despreader_state_bytes (const dp_despreader_state_t *state);
+  void   dp_despreader_get_state (const dp_despreader_state_t *state, void *blob);
+  int    dp_despreader_set_state (dp_despreader_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

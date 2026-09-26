@@ -28,7 +28,7 @@ _bind_settling_samples (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &loop_bw,
                                     &alpha, &gain_err_db, &tol_db))
     return NULL;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)settling_samples (
+  return PyLong_FromUnsignedLongLong ((unsigned long long)dp_settling_samples (
       loop_bw, alpha, gain_err_db, tol_db));
 }
 

@@ -6,13 +6,13 @@
  *
  * Example:
  * @code
- * delay_state_t *obj = delay_create();
+ * dp_delay_state_t *obj = dp_delay_create();
  * float _Complex y = delay_step(obj, 0.0f + 0.0f * I);
- * delay_destroy(obj);
+ * dp_delay_destroy(obj);
  * @endcode
  */
-#ifndef DELAY_CORE_H
-#define DELAY_CORE_H
+#ifndef DP_DELAY_CORE_H
+#define DP_DELAY_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -30,7 +30,7 @@ extern "C"
    * the second half mirrors it so that any window of num_taps consecutive
    * samples is always contiguous in memory (no wrap-around copy needed).
    *
-   * Allocate with delay_create().
+   * Allocate with dp_delay_create().
    */
   typedef struct
   {
@@ -39,7 +39,7 @@ extern "C"
     size_t mask;          /* capacity - 1 (power-of-two bitmask) */
     size_t num_taps;      /* window length requested at construction */
     size_t capacity;      /* smallest power-of-two >= num_taps */
-  } delay_state_t;
+  } dp_delay_state_t;
 
   /**
    * @brief Create a dual-buffer circular delay line of length num_taps.
@@ -60,7 +60,7 @@ extern "C"
    * 4
    * @endcode
    */
-delay_state_t *delay_create(size_t num_taps);
+dp_delay_state_t *dp_delay_create(size_t num_taps);
 
   /**
    * @brief Destroy a delay instance and release all memory.
@@ -82,7 +82,7 @@ delay_state_t *delay_create(size_t num_taps);
    * destroyed
    * @endcode
    */
-void delay_destroy(delay_state_t *state);
+void dp_delay_destroy(dp_delay_state_t *state);
 
   /**
    * @brief Reset the delay line to its post-create state.
@@ -103,7 +103,7 @@ void delay_destroy(delay_state_t *state);
    * [0j, 0j, 0j]
    * @endcode
    */
-void delay_reset(delay_state_t *state);
+void dp_delay_reset(dp_delay_state_t *state);
 
   /**
    * @brief Advance the write pointer and insert a new sample.
@@ -124,17 +124,17 @@ void delay_reset(delay_state_t *state);
    * [(3+4j), (1+2j), 0j]
    * @endcode
    */
-void delay_push(delay_state_t *state, double _Complex x);
+void dp_delay_push(dp_delay_state_t *state, double _Complex x);
 
   /**
-   * @brief Maximum samples delay_ptr() writes for a request of n.
+   * @brief Maximum samples dp_delay_ptr() writes for a request of n.
    * Returns min(n, num_taps) — the tight per-call bound (gh-607).
    *
    * @param state  Must be non-NULL.
-   * @param n      Number of samples the matching delay_ptr() call requests.
+   * @param n      Number of samples the matching dp_delay_ptr() call requests.
    * @return       min(n, num_taps).
    */
-size_t delay_ptr_max_out(delay_state_t *state, size_t n);
+size_t dp_delay_ptr_max_out(dp_delay_state_t *state, size_t n);
 
   /**
    * @brief Snapshot the n most recent samples.
@@ -149,7 +149,7 @@ size_t delay_ptr_max_out(delay_state_t *state, size_t n);
    * @param n      Number of samples to copy; clamped to num_taps.
    * @param out    Output buffer; must hold at least max_out elements.
    * @param max_out Capacity of @p out in samples.  Normally num_taps (what
-   *               delay_ptr_max_out() reports); a smaller value truncates
+   *               dp_delay_ptr_max_out() reports); a smaller value truncates
    *               the snapshot instead of overrunning the buffer.
    * @return       min(n, num_taps, max_out) samples.
    * @code
@@ -166,21 +166,21 @@ size_t delay_ptr_max_out(delay_state_t *state, size_t n);
    * (3,)
    * @endcode
    */
-size_t delay_ptr(delay_state_t *state, size_t n, double _Complex *out, size_t max_out);
+size_t dp_delay_ptr(dp_delay_state_t *state, size_t n, double _Complex *out, size_t max_out);
 
   /**
-   * @brief Return the maximum output capacity for delay_push_ptr().
+   * @brief Return the maximum output capacity for dp_delay_push_ptr().
    * Returns num_taps; the Python binding sizes each call's output array
    * with it, and checks a caller's `out=` buffer against it.
    *
    * @param state  Must be non-NULL.
-   * @return       num_taps (number of samples delay_push_ptr() will write).
+   * @return       num_taps (number of samples dp_delay_push_ptr() will write).
    */
-size_t delay_push_ptr_max_out(delay_state_t *state);
+size_t dp_delay_push_ptr_max_out(dp_delay_state_t *state);
 
   /**
    * @brief Atomically push a sample and snapshot the current window.
-   * Equivalent to calling delay_push() then delay_ptr(num_taps), but
+   * Equivalent to calling dp_delay_push() then dp_delay_ptr(num_taps), but
    * avoids the overhead of a second function call.  Always writes exactly
    * num_taps samples to out.  The Python binding returns an independent
    * NumPy array per call; pass `out=` to reuse one buffer across pushes.
@@ -202,14 +202,14 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
    * [(2+0j), (1+0j), 0j]
    * @endcode
    */
-size_t delay_push_ptr(delay_state_t *state, double _Complex x,
+size_t dp_delay_push_ptr(dp_delay_state_t *state, double _Complex x,
                       double _Complex *out, size_t max_out);
 
   /**
-   * @brief Alias for delay_push(); insert a sample without reading back.
+   * @brief Alias for dp_delay_push(); insert a sample without reading back.
    * Provided for API symmetry with write-then-read patterns where the
    * caller wants to decouple sample ingestion from window inspection.
-   * Internally delegates to delay_push() with no additional overhead.
+   * Internally delegates to dp_delay_push() with no additional overhead.
    *
    * @param state  Must be non-NULL.
    * @param x      New complex sample to insert.
@@ -221,15 +221,15 @@ size_t delay_push_ptr(delay_state_t *state, double _Complex x,
    * [(5+6j), 0j]
    * @endcode
    */
-void delay_write(delay_state_t *state, double _Complex x);
+void dp_delay_write(dp_delay_state_t *state, double _Complex x);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running ring buffer + head; capacity/mask/num_taps restored by create. */
 #define DELAY_STATE_MAGIC DP_FOURCC ('D','L','A','Y')
 #define DELAY_STATE_VERSION 1u
-size_t delay_state_bytes (const delay_state_t *state);
-void delay_get_state (const delay_state_t *state, void *blob);
-int delay_set_state (delay_state_t *state, const void *blob);
+size_t dp_delay_state_bytes (const dp_delay_state_t *state);
+void dp_delay_get_state (const dp_delay_state_t *state, void *blob);
+int dp_delay_set_state (dp_delay_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

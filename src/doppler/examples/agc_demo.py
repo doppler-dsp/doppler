@@ -4,7 +4,7 @@ Feeds the AGC a constant-envelope tone whose power steps by 20 dB partway
 through, and runs the same input through three decimation settings —
 decim = 1, 8, 16 — at one fixed loop bandwidth.
 
-agc_steps() runs the detector + loop filter once per chunk of `decim`
+dp_agc_steps() runs the detector + loop filter once per chunk of `decim`
 samples, but COMPOUNDS both per-chunk coefficients from `loop_bw` / `alpha`
 (k_c = 1 - (1 - 4*loop_bw)**c, alpha_c = 1 - (1 - alpha)**c).  Compounding
 rather than scaling linearly by `c` is what keeps them their per-sample
@@ -20,7 +20,7 @@ response run at two bandwidths that straddle it.
 Saves a three-panel plot to agc_convergence.png:
   - top    : input vs output power (dB) for each decim, with the reference
   - middle : applied gain (dB) for each decim — the gain actually seen by
-             each sample.  agc_steps() commands a new gain once per chunk
+             each sample.  dp_agc_steps() commands a new gain once per chunk
              but applies it as a first-order hold, ramping linearly across
              the chunk, so the trace is smooth rather than a staircase.
   - bottom : the step-response FAMILY.  decim 8/16/32 at 4*decim*loop_bw =
@@ -66,12 +66,12 @@ DECIMS = (1, 8, 16)  # decimation factors compared at one loop bandwidth
 
 
 def run(decim):
-    """Process the input through agc_steps() at the given decimation.
+    """Process the input through dp_agc_steps() at the given decimation.
 
     Returns the output power and the applied gain, both per sample.  The
     applied gain is recovered directly from the data as |y| / |x| — for a
     constant-envelope input that is exactly the first-order-hold gain
-    agc_steps() ramped onto each sample, with no staircase artefact.
+    dp_agc_steps() ramped onto each sample, with no staircase artefact.
     """
     agc = AGC(REF_DB, LOOP_BW, ALPHA)
     agc.decim = decim

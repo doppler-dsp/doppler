@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_corr2d[] = {
-    (jm_any_fn)corr2d_create,
-    (jm_any_fn)corr2d_destroy,
-    (jm_any_fn)corr2d_reset,
-    (jm_any_fn)corr2d_execute_max_out,
-    (jm_any_fn)corr2d_execute,
-    (jm_any_fn)corr2d_state_bytes,
-    (jm_any_fn)corr2d_get_state,
-    (jm_any_fn)corr2d_set_state,
+    (jm_any_fn)dp_corr2d_create,
+    (jm_any_fn)dp_corr2d_destroy,
+    (jm_any_fn)dp_corr2d_reset,
+    (jm_any_fn)dp_corr2d_execute_max_out,
+    (jm_any_fn)dp_corr2d_execute,
+    (jm_any_fn)dp_corr2d_state_bytes,
+    (jm_any_fn)dp_corr2d_get_state,
+    (jm_any_fn)dp_corr2d_set_state,
 };

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* CarrierMpskObject — wraps carrier_mpsk_state_t *       */
+/* CarrierMpskObject — wraps dp_carrier_mpsk_state_t *       */
 /* ======================================================== */
 
 #include "doppler/carrier_mpsk/carrier_mpsk_core.h"
 
 typedef struct
 {
-  PyObject_HEAD carrier_mpsk_state_t *handle;
+  PyObject_HEAD dp_carrier_mpsk_state_t *handle;
 } CarrierMpskObject;
 
 static void
 CarrierMpskObj_dealloc (CarrierMpskObject *self)
 {
   if (self->handle)
-    carrier_mpsk_destroy (self->handle);
+    dp_carrier_mpsk_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -50,10 +50,11 @@ CarrierMpskObj_init (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
     return -1;
   size_t tsamps = (size_t)tsamps_raw;
   self->handle
-      = carrier_mpsk_create (bn, zeta, init_norm_freq, tsamps, bn_fll, m);
+      = dp_carrier_mpsk_create (bn, zeta, init_norm_freq, tsamps, bn_fll, m);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "carrier_mpsk_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_carrier_mpsk_create returned NULL");
       return -1;
     }
   return 0;
@@ -68,7 +69,7 @@ CarrierMpskObj_steps_max_out (CarrierMpskObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (carrier_mpsk_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_carrier_mpsk_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -114,7 +115,7 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = carrier_mpsk_steps_max_out (self->handle);
+      size_t _omax    = dp_carrier_mpsk_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -136,7 +137,7 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = carrier_mpsk_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_carrier_mpsk_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -151,7 +152,7 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = carrier_mpsk_steps_max_out (self->handle);
+  size_t _cap  = dp_carrier_mpsk_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -170,7 +171,7 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = carrier_mpsk_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_carrier_mpsk_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -203,7 +204,7 @@ CarrierMpskObj_configure (CarrierMpskObject *self, PyObject *args,
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  carrier_mpsk_configure (self->handle, bn, zeta);
+  dp_carrier_mpsk_configure (self->handle, bn, zeta);
   Py_RETURN_NONE;
 }
 
@@ -215,7 +216,7 @@ CarrierMpskObj_reset (CarrierMpskObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  carrier_mpsk_reset (self->handle);
+  dp_carrier_mpsk_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -228,7 +229,7 @@ CarrierMpskObj_state_bytes (CarrierMpskObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (carrier_mpsk_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_carrier_mpsk_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -240,11 +241,11 @@ CarrierMpskObj_get_state (CarrierMpskObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = carrier_mpsk_state_bytes (self->handle);
+  size_t    _n = dp_carrier_mpsk_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  carrier_mpsk_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_carrier_mpsk_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -262,12 +263,12 @@ CarrierMpskObj_set_state (CarrierMpskObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != carrier_mpsk_state_bytes (self->handle))
+      != dp_carrier_mpsk_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (carrier_mpsk_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_carrier_mpsk_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -283,7 +284,7 @@ CarrierMpsk_getprop_bn (CarrierMpskObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_mpsk_get_bn (self->handle));
+  return PyFloat_FromDouble (dp_carrier_mpsk_get_bn (self->handle));
 }
 static int
 CarrierMpsk_setprop_bn (CarrierMpskObject *self, PyObject *value,
@@ -297,7 +298,7 @@ CarrierMpsk_setprop_bn (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  carrier_mpsk_set_bn (self->handle, v);
+  dp_carrier_mpsk_set_bn (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -310,7 +311,7 @@ CarrierMpsk_getprop_norm_freq (CarrierMpskObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_mpsk_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_carrier_mpsk_get_norm_freq (self->handle));
 }
 static int
 CarrierMpsk_setprop_norm_freq (CarrierMpskObject *self, PyObject *value,
@@ -324,7 +325,7 @@ CarrierMpsk_setprop_norm_freq (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  carrier_mpsk_set_norm_freq (self->handle, v);
+  dp_carrier_mpsk_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -337,7 +338,7 @@ CarrierMpsk_getprop_lock_metric (CarrierMpskObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_mpsk_get_lock_metric (self->handle));
+  return PyFloat_FromDouble (dp_carrier_mpsk_get_lock_metric (self->handle));
 }
 static PyObject *
 CarrierMpsk_getprop_last_error (CarrierMpskObject *self,
@@ -349,7 +350,7 @@ CarrierMpsk_getprop_last_error (CarrierMpskObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_mpsk_get_last_error (self->handle));
+  return PyFloat_FromDouble (dp_carrier_mpsk_get_last_error (self->handle));
 }
 static PyObject *
 CarrierMpsk_getprop_bn_fll (CarrierMpskObject *self, void *Py_UNUSED (closure))
@@ -360,7 +361,7 @@ CarrierMpsk_getprop_bn_fll (CarrierMpskObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_mpsk_get_bn_fll (self->handle));
+  return PyFloat_FromDouble (dp_carrier_mpsk_get_bn_fll (self->handle));
 }
 static int
 CarrierMpsk_setprop_bn_fll (CarrierMpskObject *self, PyObject *value,
@@ -374,7 +375,7 @@ CarrierMpsk_setprop_bn_fll (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  carrier_mpsk_set_bn_fll (self->handle, v);
+  dp_carrier_mpsk_set_bn_fll (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -386,7 +387,7 @@ CarrierMpsk_getprop_m (CarrierMpskObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)carrier_mpsk_get_m (self->handle));
+  return PyLong_FromLong ((long)dp_carrier_mpsk_get_m (self->handle));
 }
 
 static PyGetSetDef CarrierMpsk_getset[]
@@ -410,7 +411,7 @@ CarrierMpskObj_destroy (CarrierMpskObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      carrier_mpsk_destroy (self->handle);
+      dp_carrier_mpsk_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -429,7 +430,7 @@ CarrierMpskObj_exit (CarrierMpskObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      carrier_mpsk_destroy (self->handle);
+      dp_carrier_mpsk_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -556,7 +557,7 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "Returns the NCO to the seed carrier passed at construction, zeroes the\n"
     "integrate-and-dump accumulator, the FLL history, and the lock/error\n"
     "diagnostics, and re-primes the loop integrator to the matching\n"
-    "per-symbol frequency — the exact state a fresh carrier_mpsk_create()\n"
+    "per-symbol frequency — the exact state a fresh dp_carrier_mpsk_create()\n"
     "leaves. The tuning (bn, zeta, bn_fll, tsamps, m) is untouched. Call it\n"
     "at a capture boundary so a lock reached on one segment does not bias an\n"
     "unrelated next one.\n"

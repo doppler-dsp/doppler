@@ -201,7 +201,7 @@ test_seq_bits (void)
   }
 
   /* ── PN: poly 0 means "the MLS polynomial", NOT a literal 0 ──────────
-     The header spells out the hazard: a literal 0 reaching pn_create() is
+     The header spells out the hazard: a literal 0 reaching dp_pn_create() is
      a register with no feedback, which emits the seed and then zeros --
      "a CONSTANT field that still looks like a field". So the check is not
      that bits came out, it is that they are an m-sequence: over one full
@@ -416,18 +416,19 @@ main (void)
        against the wrong sequence.
 
        NOTE the poly: `pn_mls_poly (9)`, not the descriptor's literal 0.
-       pn_create() takes the tap mask verbatim, so a 0 there is a register
+       dp_pn_create() takes the tap mask verbatim, so a 0 there is a register
        with NO FEEDBACK. This comparison used to pass `0` on both sides and
        agreed perfectly -- on two all-zero sequences. That is what a
        consistency test does when the defect is shared: it confirms the two
        halves match and says nothing about whether either is a PN. */
     static uint8_t want[300];
-    pn_state_t    *p = pn_create (pn_mls_poly (9), 7, 9, 0);
-    DP_REQUIRE_MSG (p != NULL, "pn_create");
-    DP_REQUIRE_MSG (pn_generate (p, 300, want, 300) == 300, "pn_generate");
-    pn_destroy (p);
+    dp_pn_state_t *p = dp_pn_create (pn_mls_poly (9), 7, 9, 0);
+    DP_REQUIRE_MSG (p != NULL, "dp_pn_create");
+    DP_REQUIRE_MSG (dp_pn_generate (p, 300, want, 300) == 300,
+                    "dp_pn_generate");
+    dp_pn_destroy (p);
     DP_REQUIRE_MSG (memcmp (buf, want, 300) == 0,
-                    "a PN field IS pn_generate of its own descriptor");
+                    "a PN field IS dp_pn_generate of its own descriptor");
 
     /* And the property no agreement between two halves can establish: the
        sequence is actually MAXIMAL-LENGTH. One full period of a length-n MLS
@@ -1253,22 +1254,22 @@ main (void)
        positions -- which a swapped taps_a/taps_b, or an ignored seed_b,
        satisfies just as well. That two independent sequences differ says
        nothing about WHICH sequence either one of them is. */
-    static uint8_t want_g[64];
-    gold_state_t  *g = gold_create (934u, 350u, 567u, 73u, 10u);
-    DP_REQUIRE_MSG (g != NULL, "gold_create");
-    DP_REQUIRE (gold_generate (g, 64u, want_g, 64u) == 64u);
-    gold_destroy (g);
+    static uint8_t   want_g[64];
+    dp_gold_state_t *g = dp_gold_create (934u, 350u, 567u, 73u, 10u);
+    DP_REQUIRE_MSG (g != NULL, "dp_gold_create");
+    DP_REQUIRE (dp_gold_generate (g, 64u, want_g, 64u) == 64u);
+    dp_gold_destroy (g);
     DP_CHECK_MSG (memcmp (buf + l.field_off[1], want_g, 64u) == 0,
-                  "a Gold field IS gold_generate of its own descriptor");
+                  "a Gold field IS dp_gold_generate of its own descriptor");
 
     /* The PN field, one period of it. */
     static uint8_t want_p[20];
-    pn_state_t    *p = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
-    DP_REQUIRE_MSG (p != NULL, "pn_create");
-    DP_REQUIRE (pn_generate (p, 20u, want_p, 20u) == 20u);
-    pn_destroy (p);
+    dp_pn_state_t *p = dp_pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE_MSG (p != NULL, "dp_pn_create");
+    DP_REQUIRE (dp_pn_generate (p, 20u, want_p, 20u) == 20u);
+    dp_pn_destroy (p);
     DP_CHECK_MSG (memcmp (buf + l.field_off[0], want_p, 20u) == 0,
-                  "a PN field IS pn_generate of its own descriptor");
+                  "a PN field IS dp_pn_generate of its own descriptor");
     for (size_t r = 1u; r < 3u; r++)
       DP_CHECK_MSG (
           memcmp (buf + l.field_off[0] + r * 20u, buf + l.field_off[0], 20u)
@@ -1284,10 +1285,10 @@ main (void)
        them apart, as long as its length is not a whole period: 60 bits of a
        5-bit register IS three periods, and would have agreed by accident. */
     static uint8_t run_on[60];
-    pn_state_t    *pc = pn_create (pn_mls_poly (5u), 3u, 5u, 0);
-    DP_REQUIRE_MSG (pc != NULL, "pn_create");
-    DP_REQUIRE (pn_generate (pc, 60u, run_on, 60u) == 60u);
-    pn_destroy (pc);
+    dp_pn_state_t *pc = dp_pn_create (pn_mls_poly (5u), 3u, 5u, 0);
+    DP_REQUIRE_MSG (pc != NULL, "dp_pn_create");
+    DP_REQUIRE (dp_pn_generate (pc, 60u, run_on, 60u) == 60u);
+    dp_pn_destroy (pc);
     DP_CHECK_MSG (memcmp (buf + l.field_off[0], run_on, 60u) != 0,
                   "a repeated PN field REPEATS its period -- it is not the "
                   "LFSR run on for the whole span");

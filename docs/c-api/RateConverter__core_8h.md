@@ -38,7 +38,7 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**RateConverter\_state\_t**](structRateConverter__state__t.md) <br>_Cascade state_  _owns all sub-stage C objects._ |
+| struct | [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) <br>_Cascade state_  _owns all sub-stage C objects._ |
 
 
 ## Public Types
@@ -71,36 +71,36 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**RateConverter\_agc\_gain\_db**](#function-rateconverter_agc_gain_db) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._  |
-|  double | [**RateConverter\_agc\_ref\_db**](#function-rateconverter_agc_ref_db) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_The pre-terminal AGC's reference level, in dB._  |
-|  size\_t | [**RateConverter\_bank\_shape\_value**](#function-rateconverter_bank_shape_value) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, size\_t i) <br>_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._ |
+|  double | [**RateConverter\_agc\_gain\_db**](#function-rateconverter_agc_gain_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._  |
+|  double | [**RateConverter\_agc\_ref\_db**](#function-rateconverter_agc_ref_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The pre-terminal AGC's reference level, in dB._  |
 |  size\_t | [**RateConverter\_convert**](#function-rateconverter_convert) (double rate, int compensate, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_One-shot rate conversion — no persistent state required._  |
-|  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**RateConverter\_create**](#function-rateconverter_create) (double rate, int compensate) <br>_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._  |
-|  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**RateConverter\_create\_matched**](#function-rateconverter_create_matched) (double rate, int compensate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a rate converter whose terminal stage IS a matched filter._  |
-|  void | [**RateConverter\_destroy**](#function-rateconverter_destroy) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Free all resources. NULL is a no-op._  |
-|  int | [**RateConverter\_enable\_agc**](#function-rateconverter_enable_agc) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, double bn\_sym, double alpha) <br>_Level the stream feeding the terminal (matched) stage._  |
-|  size\_t | [**RateConverter\_execute**](#function-rateconverter_execute) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n\_in \* rate._  |
-|  size\_t | [**RateConverter\_execute\_ctrl**](#function-rateconverter_execute_ctrl) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, const float \_Complex \* x, size\_t n\_in, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Convert a block, steering the cascade's fractional stage by_ `ctrl` _._ |
-|  size\_t | [**RateConverter\_execute\_ctrl\_max\_out**](#function-rateconverter_execute_ctrl_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_As_ [_**RateConverter\_execute\_max\_out()**_](RateConverter__core_8h.md#function-rateconverter_execute_max_out) _, for the block control form._ |
-|  size\_t | [**RateConverter\_execute\_ctrl\_push**](#function-rateconverter_execute_ctrl_push) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
-|  size\_t | [**RateConverter\_execute\_ctrl\_push\_max\_out**](#function-rateconverter_execute_ctrl_push_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
-|  size\_t | [**RateConverter\_execute\_ctrl\_push\_tap**](#function-rateconverter_execute_ctrl_push_tap) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._ |
-|  size\_t | [**RateConverter\_execute\_max\_out**](#function-rateconverter_execute_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Upper bound on execute output for a standard 65536-sample block._  |
-|  double | [**RateConverter\_gain**](#function-rateconverter_gain) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
-|  double | [**RateConverter\_get\_bank\_sps**](#function-rateconverter_get_bank_sps) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
-|  bool | [**RateConverter\_get\_clipped**](#function-rateconverter_get_clipped) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
-|  bool | [**RateConverter\_get\_narrow\_pulse**](#function-rateconverter_get_narrow_pulse) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
-|  double | [**RateConverter\_get\_rate**](#function-rateconverter_get_rate) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
-|  void | [**RateConverter\_get\_state**](#function-rateconverter_get_state) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
-|  size\_t | [**RateConverter\_num\_bank\_shape**](#function-rateconverter_num_bank_shape) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
-|  size\_t | [**RateConverter\_num\_stages**](#function-rateconverter_num_stages) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
-|  void | [**RateConverter\_reset**](#function-rateconverter_reset) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._  |
-|  void | [**RateConverter\_set\_rate**](#function-rateconverter_set_rate) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._  |
-|  int | [**RateConverter\_set\_state**](#function-rateconverter_set_state) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
-|  int | [**RateConverter\_set\_telemetry**](#function-rateconverter_set_telemetry) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
-|  int | [**RateConverter\_stage\_label**](#function-rateconverter_stage_label) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
-|  const char \* | [**RateConverter\_stages\_value**](#function-rateconverter_stages_value) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, size\_t i) <br>_Label of stage_ `i` _, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)"._ |
-|  size\_t | [**RateConverter\_state\_bytes**](#function-rateconverter_state_bytes) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Bytes_ [_**RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-rateconverter_get_state) _writes for_`s` _(envelope + stages)._ |
+|  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**RateConverter\_create\_matched**](#function-rateconverter_create_matched) (double rate, int compensate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a rate converter whose terminal stage IS a matched filter._  |
+|  int | [**RateConverter\_enable\_agc**](#function-rateconverter_enable_agc) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double bn\_sym, double alpha) <br>_Level the stream feeding the terminal (matched) stage._  |
+|  size\_t | [**RateConverter\_execute\_ctrl\_push\_tap**](#function-rateconverter_execute_ctrl_push_tap) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**dp\_RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._ |
+|  double | [**RateConverter\_gain**](#function-rateconverter_gain) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
+|  double | [**RateConverter\_get\_bank\_sps**](#function-rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
+|  size\_t | [**RateConverter\_num\_bank\_shape**](#function-rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
+|  size\_t | [**RateConverter\_num\_stages**](#function-rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
+|  int | [**RateConverter\_set\_telemetry**](#function-rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
+|  int | [**RateConverter\_stage\_label**](#function-rateconverter_stage_label) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
+|  size\_t | [**dp\_RateConverter\_bank\_shape\_value**](#function-dp_rateconverter_bank_shape_value) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, size\_t i) <br>_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._ |
+|  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**dp\_RateConverter\_create**](#function-dp_rateconverter_create) (double rate, int compensate) <br>_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._  |
+|  void | [**dp\_RateConverter\_destroy**](#function-dp_rateconverter_destroy) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Free all resources. NULL is a no-op._  |
+|  size\_t | [**dp\_RateConverter\_execute**](#function-dp_rateconverter_execute) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n\_in \* rate._  |
+|  size\_t | [**dp\_RateConverter\_execute\_ctrl**](#function-dp_rateconverter_execute_ctrl) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const float \_Complex \* x, size\_t n\_in, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Convert a block, steering the cascade's fractional stage by_ `ctrl` _._ |
+|  size\_t | [**dp\_RateConverter\_execute\_ctrl\_max\_out**](#function-dp_rateconverter_execute_ctrl_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_As_ [_**dp\_RateConverter\_execute\_max\_out()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_max_out) _, for the block control form._ |
+|  size\_t | [**dp\_RateConverter\_execute\_ctrl\_push**](#function-dp_rateconverter_execute_ctrl_push) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
+|  size\_t | [**dp\_RateConverter\_execute\_ctrl\_push\_max\_out**](#function-dp_rateconverter_execute_ctrl_push_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
+|  size\_t | [**dp\_RateConverter\_execute\_max\_out**](#function-dp_rateconverter_execute_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Upper bound on execute output for a standard 65536-sample block._  |
+|  bool | [**dp\_RateConverter\_get\_clipped**](#function-dp_rateconverter_get_clipped) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
+|  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
+|  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
+|  void | [**dp\_RateConverter\_get\_state**](#function-dp_rateconverter_get_state) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
+|  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._  |
+|  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._  |
+|  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
+|  const char \* | [**dp\_RateConverter\_stages\_value**](#function-dp_rateconverter_stages_value) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, size\_t i) <br>_Label of stage_ `i` _, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)"._ |
+|  size\_t | [**dp\_RateConverter\_state\_bytes**](#function-dp_rateconverter_state_bytes) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + stages)._ |
 
 
 
@@ -156,11 +156,11 @@ A single CIC stage is capped at `CIC_R_MAX` (2048) — see [**cic\_core.h**](cic
 
 Lifecycle: 
 ```C++
-RateConverter_state_t *rc = RateConverter_create(0.1, 0);
+dp_RateConverter_state_t *rc = dp_RateConverter_create(0.1, 0);
 // rc->n_stages == 2: CIC(8) then Resampler(0.8)
 float _Complex out[512];
-size_t n = RateConverter_execute(rc, in, 4096, out, 512);
-RateConverter_destroy(rc);
+size_t n = dp_RateConverter_execute(rc, in, 4096, out, 512);
+dp_RateConverter_destroy(rc);
 ```
  
 
@@ -221,7 +221,7 @@ Stage type tags.
 _Gain the pre-terminal AGC last applied, in dB; 0.0 when off._ 
 ```C++
 double RateConverter_agc_gain_db (
-    const RateConverter_state_t * s
+    const dp_RateConverter_state_t * s
 ) 
 ```
 
@@ -242,7 +242,7 @@ this cascade do to my amplitude" with the AGC on wants both, and they multiply.
 _The pre-terminal AGC's reference level, in dB._ 
 ```C++
 double RateConverter_agc_ref_db (
-    const RateConverter_state_t * s
+    const dp_RateConverter_state_t * s
 ) 
 ```
 
@@ -252,23 +252,6 @@ double RateConverter_agc_ref_db (
 
 
         
-
-<hr>
-
-
-
-### function RateConverter\_bank\_shape\_value 
-
-_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._
-```C++
-size_t RateConverter_bank_shape_value (
-    const RateConverter_state_t * s,
-    size_t i
-) 
-```
-
-
-
 
 <hr>
 
@@ -292,14 +275,14 @@ size_t RateConverter_convert (
 
 Creates a temporary converter, converts n\_in samples, destroys it. Equivalent to: 
 ```C++
-RateConverter_state_t *rc = RateConverter_create(rate, compensate);
-size_t n = RateConverter_execute(rc, in, n_in, out, max_out);
-RateConverter_destroy(rc);
+dp_RateConverter_state_t *rc = dp_RateConverter_create(rate, compensate);
+size_t n = dp_RateConverter_execute(rc, in, n_in, out, max_out);
+dp_RateConverter_destroy(rc);
 ```
 
 
 
-Use [**RateConverter\_create()**](RateConverter__core_8h.md#function-rateconverter_create) directly when processing multiple blocks at the same rate — the one-shot form resets filter memory on every call.
+Use [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create) directly when processing multiple blocks at the same rate — the one-shot form resets filter memory on every call.
 
 
 
@@ -330,54 +313,11 @@ Number of output samples written; 0 only if OOM or n\_in == 0.
 
 
 
-### function RateConverter\_create 
-
-_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._ 
-```C++
-RateConverter_state_t * RateConverter_create (
-    double rate,
-    int compensate
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `rate` Output-to-input sample rate ratio. Any positive float. 
-* `compensate` Non-zero to append a CIC passband-droop compensating FIR after any CIC stage. 
-
-
-
-**Returns:**
-
-Non-NULL on success; NULL if rate &lt;= 0 or OOM.
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> rc = RateConverter(rate=0.5, compensate=0)
->>> rc.rate
-0.5
-```
- 
-
-
-        
-
-<hr>
-
-
-
 ### function RateConverter\_create\_matched 
 
 _Create a rate converter whose terminal stage IS a matched filter._ 
 ```C++
-RateConverter_state_t * RateConverter_create_matched (
+dp_RateConverter_state_t * RateConverter_create_matched (
     double rate,
     int compensate,
     int pulse,
@@ -390,7 +330,7 @@ RateConverter_state_t * RateConverter_create_matched (
 
 
 
-Plans the same cheap cascade as [**RateConverter\_create()**](RateConverter__core_8h.md#function-rateconverter_create), then puts a pulse-shaped polyphase bank on the **terminal** stage instead of the default Kaiser one. The cascade therefore does rate conversion and matched filtering in a single dot product, and that stage's polyphase arm is the fractional timing delay — which is what makes [**RateConverter\_execute\_ctrl()**](RateConverter__core_8h.md#function-rateconverter_execute_ctrl) a timing control port rather than just a Doppler knob.
+Plans the same cheap cascade as [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create), then puts a pulse-shaped polyphase bank on the **terminal** stage instead of the default Kaiser one. The cascade therefore does rate conversion and matched filtering in a single dot product, and that stage's polyphase arm is the fractional timing delay — which is what makes [**dp\_RateConverter\_execute\_ctrl()**](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl) a timing control port rather than just a Doppler knob.
 
 
 Three things this does that plain create() cannot:
@@ -421,7 +361,7 @@ Keep the INPUT inside +-1.0 whenever the plan contains a CIC stage — see the f
 
 * `rate` Output-to-input sample rate ratio (any positive float). Rate-agnostic: this object never learns about symbols — a caller wanting `m` samples per symbol asks for `rate = m/sps`. 
 * `compensate` Non-zero to correct CIC passband droop (folded into the bank here, not appended as a stage). 
-* `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD. RC\_PULSE\_NONE is invalid here — use [**RateConverter\_create()**](RateConverter__core_8h.md#function-rateconverter_create) for a plain conversion. 
+* `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD. RC\_PULSE\_NONE is invalid here — use [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create) for a plain conversion. 
 * `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
 * `span` One-sided RRC span in symbols (ignored for the rectangle, whose support is always exactly one symbol). 
 * `pulse_sps` The pulse's period measured in **output** samples (2 = two samples per symbol out). This is a shape parameter, not a rate-planning one: a matched filter has a symbol duration, and the planner still knows nothing of symbols. 
@@ -443,28 +383,12 @@ Non-NULL on success; NULL on a bad parameter or OOM.
 
 
 
-### function RateConverter\_destroy 
-
-_Free all resources. NULL is a no-op._ 
-```C++
-void RateConverter_destroy (
-    RateConverter_state_t * s
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function RateConverter\_enable\_agc 
 
 _Level the stream feeding the terminal (matched) stage._ 
 ```C++
 int RateConverter_enable_agc (
-    RateConverter_state_t * s,
+    dp_RateConverter_state_t * s,
     double bn_sym,
     double alpha
 ) 
@@ -530,220 +454,17 @@ DP\_OK, or DP\_ERR\_INVALID for a plain cascade or a bad parameter (the converte
 
 
 ```C++
-RateConverter_state_t *rc =
+dp_RateConverter_state_t *rc =
     RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
                                   2.0, 1024);
 RateConverter_enable_agc (rc, 1e-4, 0.01);
 printf ("%.2f dB\n", RateConverter_agc_ref_db (rc));
-RateConverter_destroy (rc);
+dp_RateConverter_destroy (rc);
 ```
  
 
 
         
-
-<hr>
-
-
-
-### function RateConverter\_execute 
-
-_Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n\_in \* rate._ 
-```C++
-size_t RateConverter_execute (
-    RateConverter_state_t * s,
-    const float _Complex * in,
-    size_t n_in,
-    float _Complex * out,
-    size_t max_out
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `s` Pointer to a valid [**RateConverter\_state\_t**](structRateConverter__state__t.md). 
-* `in` CF32 input block. 
-* `n_in` Number of input samples. 
-* `out` Output buffer; must hold at least max\_out samples. 
-* `max_out` Capacity of out in samples. 
-
-
-
-**Returns:**
-
-CF32 output array; length is approximately n\_in \* rate.
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> import numpy as np
->>> rc = RateConverter(rate=0.5, compensate=0)
->>> y = rc.execute(np.zeros(1024, dtype=np.complex64))
->>> y.shape, y.dtype
-((512,), dtype('complex64'))
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_execute\_ctrl 
-
-_Convert a block, steering the cascade's fractional stage by_ `ctrl` _._
-```C++
-size_t RateConverter_execute_ctrl (
-    RateConverter_state_t * s,
-    const float _Complex * x,
-    size_t n_in,
-    double ctrl,
-    float _Complex * out,
-    size_t max_out
-) 
-```
-
-
-
-The control-port form of [**RateConverter\_execute()**](RateConverter__core_8h.md#function-rateconverter_execute): the fixed integer stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate deviation `ctrl` is forwarded to the **terminal polyphase Resampler stage's** accumulator (via resamp\_execute\_ctrl\_push) — so its effective rate becomes `stage_rate + ctrl` for this call. This exposes the fractional tail's control port that [**RateConverter\_execute()**](RateConverter__core_8h.md#function-rateconverter_execute) hides: a timing/rate-tracking loop can decimate a high input rate cheaply through the HB/CIC stages and then arbitrary-rate + strobe-align in the last stage, updating `ctrl` per block.
-
-
-`ctrl` is referenced to the terminal stage's (post-decimation) rate, not the overall rate. It is meaningful only when the cascade actually ends in a Resampler stage; a pure integer HB/CIC cascade has no fractional stage to steer, so this **falls through to [**RateConverter\_execute()**](RateConverter__core_8h.md#function-rateconverter_execute)** (ctrl ignored).
-
-
-
-
-**Parameters:**
-
-
-* `s` Pointer to a valid [**RateConverter\_state\_t**](structRateConverter__state__t.md). 
-* `x` CF32 input block. 
-* `n_in` Number of input samples. 
-* `ctrl` Rate deviation added to the terminal Resampler stage's rate. 
-* `out` Output buffer; must hold at least max\_out samples. 
-* `max_out` Capacity of out in samples. 
-
-
-
-**Returns:**
-
-CF32 output array; length tracks the accumulated effective rate.
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> import numpy as np
->>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
->>> x = np.ones(1000, dtype=np.complex64)
->>> rc.execute_ctrl(x, 0.0).shape[0]    # base rate: 1000 -> 800
-800
->>> rc2 = RateConverter(rate=0.8, compensate=0)
->>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
-851
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_execute\_ctrl\_max\_out 
-
-_As_ [_**RateConverter\_execute\_max\_out()**_](RateConverter__core_8h.md#function-rateconverter_execute_max_out) _, for the block control form._
-```C++
-size_t RateConverter_execute_ctrl_max_out (
-    RateConverter_state_t * s
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function RateConverter\_execute\_ctrl\_push 
-
-_Push ONE input sample; emit whatever outputs it completes._ 
-```C++
-size_t RateConverter_execute_ctrl_push (
-    RateConverter_state_t * s,
-    float _Complex x,
-    double ctrl,
-    float _Complex * out,
-    size_t max_out
-) 
-```
-
-
-
-The per-input streaming form of [**RateConverter\_execute\_ctrl()**](RateConverter__core_8h.md#function-rateconverter_execute_ctrl), and the only form a closed loop can use: a block call must know its whole `ctrl` history up front, whereas a timing loop computes each correction _from_ the outputs already emitted. Feeding a stream one sample at a time through this reproduces [**RateConverter\_execute\_ctrl()**](RateConverter__core_8h.md#function-rateconverter_execute_ctrl) on the same block bit-for-bit when `ctrl` is held constant (the cascade is block-boundary invariant), so the cheap block form stays correct for open-loop use.
-
-
-The integer HB/CIC stages consume the sample and emit at most one intermediate sample each; the terminal Resampler stage then emits 0 outputs (a decimator between strobes — the common case), 1, or several (an interpolator). A cascade with no terminal Resampler ignores `ctrl`.
-
-
-
-
-**Parameters:**
-
-
-* `s` Pointer to a valid [**RateConverter\_state\_t**](structRateConverter__state__t.md). 
-* `x` One CF32 input sample. 
-* `ctrl` Rate deviation added to the terminal stage's rate for this input (referenced to the terminal, post-decimation rate). 
-* `out` Output buffer for any emitted samples. 
-* `max_out` Capacity of `out` (emission stops at this bound). 
-
-
-
-**Returns:**
-
-CF32 array of the outputs completed by this input (0, 1, or more).
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> import numpy as np
->>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
->>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
->>> # a decimator emits 0 between strobes, 1 on a strobe:
->>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
-[1, 1, 1, 1, 0, 1, 1, 1, 1, 0]
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_execute\_ctrl\_push\_max\_out 
-
-_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._
-```C++
-size_t RateConverter_execute_ctrl_push_max_out (
-    RateConverter_state_t * s
-) 
-```
-
-
-
 
 <hr>
 
@@ -751,10 +472,10 @@ size_t RateConverter_execute_ctrl_push_max_out (
 
 ### function RateConverter\_execute\_ctrl\_push\_tap 
 
-[_**RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._
+[_**dp\_RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._
 ```C++
 size_t RateConverter_execute_ctrl_push_tap (
-    RateConverter_state_t * s,
+    dp_RateConverter_state_t * s,
     float _Complex x,
     double ctrl,
     float _Complex * out,
@@ -804,32 +525,12 @@ Number of terminal outputs written, as the non-tap form.
 
 
 
-### function RateConverter\_execute\_max\_out 
-
-_Upper bound on execute output for a standard 65536-sample block._ 
-```C++
-size_t RateConverter_execute_max_out (
-    RateConverter_state_t * s
-) 
-```
-
-
-
-Returns (size\_t)(65536 \* max(rate, 1.0)) + 2. The Python extension uses this to pre-allocate the output buffer on the first execute call. 
-
-
-        
-
-<hr>
-
-
-
 ### function RateConverter\_gain 
 
 _The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._ 
 ```C++
 double RateConverter_gain (
-    const RateConverter_state_t * s
+    const dp_RateConverter_state_t * s
 ) 
 ```
 
@@ -838,7 +539,7 @@ double RateConverter_gain (
 Each stage answers for itself ([**hbdecim\_dc\_gain()**](hbdecim__core_8h.md#function-hbdecim_dc_gain), [**cic\_dc\_gain()**](cic__core_8h.md#function-cic_dc_gain) times [**fir\_dc\_gain()**](fir__core_8h.md#function-fir_dc_gain) for a compensated CIC, [**resamp\_dc\_gain()**](resamp__core_8h.md#function-resamp_dc_gain)) and this is their product. So the number tracks whatever the stages actually hold: if a filter's normalisation drifts, this moves with it, and a gate comparing it against a measured DC probe catches the drift from either side.
 
 
-**A plain cascade is unity** — a rate conversion that adds gain of its own is a defect, and `RateConverter_create()` returns 1.0 here at every rate.
+**A plain cascade is unity** — a rate conversion that adds gain of its own is a defect, and `dp_RateConverter_create()` returns 1.0 here at every rate.
 
 
 **A matched cascade is not, and should not be.** Its terminal stage is a matched filter, which is deliberately not flat; the invariant that holds there is at the SYMBOL level (a symbol of amplitude A in, amplitude A out), not at DC. This function still reports that cascade's true DC gain, which is the pulse's `sum(h)/sum(h^2)`.
@@ -860,9 +561,9 @@ The DC gain of the whole cascade.
 
 
 ```C++
-RateConverter_state_t *rc = RateConverter_create (1.0 / 12.0, 1);
+dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 12.0, 1);
 printf ("%.4f\n", RateConverter_gain (rc));   // 1.0000
-RateConverter_destroy (rc);
+dp_RateConverter_destroy (rc);
 ```
  
 
@@ -878,7 +579,7 @@ RateConverter_destroy (rc);
 _Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._ 
 ```C++
 double RateConverter_get_bank_sps (
-    const RateConverter_state_t * s
+    const dp_RateConverter_state_t * s
 ) 
 ```
 
@@ -893,119 +594,12 @@ A planner outcome, not a constant: `bank_sps = pulse_sps / resamp_rate` for what
 
 
 
-### function RateConverter\_get\_clipped 
-
-_Has any planned CIC stage clipped its input since the last reset?_ 
-```C++
-bool RateConverter_get_clipped (
-    const RateConverter_state_t * s
-) 
-```
-
-
-
-The cascade inherits cic\_core's input bound (\|Re\|, \|Im\| &lt;= 1.0) whenever the plan contains a CIC — any decimation by 8 or more — and the clip does not show up in the samples: the output stays finite and plausible, merely distorted. This is the only reliable way to find out, and it is free (the boundary comparisons run on every sample regardless).
-
-
-Sticky, cleared by [**RateConverter\_reset()**](RateConverter__core_8h.md#function-rateconverter_reset). Always 0 for a cascade with no CIC stage, which is the honest answer: those plans are scale-free.
-
-
-
-
-**Parameters:**
-
-
-* `s` Pointer to a valid [**RateConverter\_state\_t**](structRateConverter__state__t.md). 
-
-
-
-**Returns:**
-
-1 if any CIC stage has clipped, else 0. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_get\_narrow\_pulse 
-
-_Is this converter's rectangular matched filter degenerately narrow?_ 
-```C++
-bool RateConverter_get_narrow_pulse (
-    const RateConverter_state_t * s
-) 
-```
-
-
-
-True only for a matched cascade built with RC\_PULSE\_IANDD and `pulse_sps < 4`: the rectangle is exactly one symbol wide, so its matched filter is a 2-3 tap sum there. It works — it just barely opens the eye (measured on the timing loop this feeds, a lock statistic of -0.34 at two samples per symbol against +0.95 at four). The RRC spans many symbols and is never affected. Construction also raises a UserWarning. 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_get\_rate 
-
-_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._ 
-```C++
-double RateConverter_get_rate (
-    const RateConverter_state_t * s
-) 
-```
-
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> rc = RateConverter(rate=0.5, compensate=0)
->>> rc.rate
-0.5
->>> rc.rate = 2.0
->>> rc.rate
-2.0
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_get\_state 
-
-_Serialize_ `s's` _active-stage state into_`blob` _._
-```C++
-void RateConverter_get_state (
-    const RateConverter_state_t * s,
-    void * blob
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function RateConverter\_num\_bank\_shape 
 
 _Terminal polyphase bank shape (backs the_ `bank_shape` _property)._
 ```C++
 size_t RateConverter_num_bank_shape (
-    const RateConverter_state_t * s
+    const dp_RateConverter_state_t * s
 ) 
 ```
 
@@ -1032,97 +626,12 @@ size_t RateConverter_num_bank_shape (
 _Number of planned cascade stages (backs the_ `stages` _property)._
 ```C++
 size_t RateConverter_num_stages (
-    const RateConverter_state_t * s
+    const dp_RateConverter_state_t * s
 ) 
 ```
 
 
 
-
-<hr>
-
-
-
-### function RateConverter\_reset 
-
-_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._ 
-```C++
-void RateConverter_reset (
-    RateConverter_state_t * s
-) 
-```
-
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> rc = RateConverter(rate=0.5, compensate=0)
->>> rc.reset()
->>> rc.rate
-0.5
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_set\_rate 
-
-_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._ 
-```C++
-void RateConverter_set_rate (
-    RateConverter_state_t * s,
-    double rate
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `s` Pointer to a valid [**RateConverter\_state\_t**](structRateConverter__state__t.md). 
-* `rate` New output/input rate ratio. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_set\_state 
-
-_Restore active-stage state from_ `blob` _(same rate)._
-```C++
-int RateConverter_set_state (
-    RateConverter_state_t * s,
-    const void * blob
-) 
-```
-
-
-
-
-
-**Returns:**
-
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
-
-
-
-
-
-        
 
 <hr>
 
@@ -1133,7 +642,7 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects.
 _Attach (or detach) a telemetry context on the pre-terminal AGC._ 
 ```C++
 int RateConverter_set_telemetry (
-    RateConverter_state_t * s,
+    dp_RateConverter_state_t * s,
     dp_tlm_t * tlm,
     const char * prefix,
     uint32_t decim
@@ -1142,7 +651,7 @@ int RateConverter_set_telemetry (
 
 
 
-The cascade has no loop of its own to report — the stages are fixed filters — so this forwards to the one child that does: the pre-terminal AGC, under `prefix` verbatim. It registers that child's probes ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"; see [**agc\_set\_telemetry()**](agc__core_8h.md#function-agc_set_telemetry)) and nothing else, which is why the prefix is not extended with a component name — there is no second thing here to disambiguate it from.
+The cascade has no loop of its own to report — the stages are fixed filters — so this forwards to the one child that does: the pre-terminal AGC, under `prefix` verbatim. It registers that child's probes ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"; see [**dp\_agc\_set\_telemetry()**](agc__core_8h.md#function-dp_agc_set_telemetry)) and nothing else, which is why the prefix is not extended with a component name — there is no second thing here to disambiguate it from.
 
 
 A composing object forwards its own prefix down: an `mpsk_receiver` attached as "rx" passes "rx.agc", and the receiver's gain trajectory joins its carrier and timing probes on one context.
@@ -1176,13 +685,13 @@ DP\_OK — including when no AGC is enabled — or DP\_ERR\_INVALID when the pro
 
 
 ```C++
-RateConverter_state_t *rc =
+dp_RateConverter_state_t *rc =
     RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
                                   2.0, 1024);
 RateConverter_enable_agc (rc, 1e-4, 0.01);
 dp_tlm_t *tlm = dp_tlm_create (1 << 12);
 RateConverter_set_telemetry (rc, tlm, "agc", 1);
-RateConverter_destroy (rc);
+dp_RateConverter_destroy (rc);
 dp_tlm_destroy (tlm);
 ```
  
@@ -1199,7 +708,7 @@ dp_tlm_destroy (tlm);
 _Write a human-readable label for stage i into buf._ 
 ```C++
 int RateConverter_stage_label (
-    RateConverter_state_t * s,
+    dp_RateConverter_state_t * s,
     int i,
     char * buf,
     size_t len
@@ -1237,12 +746,503 @@ Examples: "HalfbandDecimator", "CIC(8)", "CIC(8)+FIR", "Resampler(0.8)".
 
 
 
-### function RateConverter\_stages\_value 
+### function dp\_RateConverter\_bank\_shape\_value 
+
+_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._
+```C++
+size_t dp_RateConverter_bank_shape_value (
+    const dp_RateConverter_state_t * s,
+    size_t i
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_create 
+
+_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._ 
+```C++
+dp_RateConverter_state_t * dp_RateConverter_create (
+    double rate,
+    int compensate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `rate` Output-to-input sample rate ratio. Any positive float. 
+* `compensate` Non-zero to append a CIC passband-droop compensating FIR after any CIC stage. 
+
+
+
+**Returns:**
+
+Non-NULL on success; NULL if rate &lt;= 0 or OOM.
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> rc = RateConverter(rate=0.5, compensate=0)
+>>> rc.rate
+0.5
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_destroy 
+
+_Free all resources. NULL is a no-op._ 
+```C++
+void dp_RateConverter_destroy (
+    dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_execute 
+
+_Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n\_in \* rate._ 
+```C++
+size_t dp_RateConverter_execute (
+    dp_RateConverter_state_t * s,
+    const float _Complex * in,
+    size_t n_in,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+* `in` CF32 input block. 
+* `n_in` Number of input samples. 
+* `out` Output buffer; must hold at least max\_out samples. 
+* `max_out` Capacity of out in samples. 
+
+
+
+**Returns:**
+
+CF32 output array; length is approximately n\_in \* rate.
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> import numpy as np
+>>> rc = RateConverter(rate=0.5, compensate=0)
+>>> y = rc.execute(np.zeros(1024, dtype=np.complex64))
+>>> y.shape, y.dtype
+((512,), dtype('complex64'))
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_execute\_ctrl 
+
+_Convert a block, steering the cascade's fractional stage by_ `ctrl` _._
+```C++
+size_t dp_RateConverter_execute_ctrl (
+    dp_RateConverter_state_t * s,
+    const float _Complex * x,
+    size_t n_in,
+    double ctrl,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+The control-port form of [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute): the fixed integer stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate deviation `ctrl` is forwarded to the **terminal polyphase Resampler stage's** accumulator (via resamp\_execute\_ctrl\_push) — so its effective rate becomes `stage_rate + ctrl` for this call. This exposes the fractional tail's control port that [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute) hides: a timing/rate-tracking loop can decimate a high input rate cheaply through the HB/CIC stages and then arbitrary-rate + strobe-align in the last stage, updating `ctrl` per block.
+
+
+`ctrl` is referenced to the terminal stage's (post-decimation) rate, not the overall rate. It is meaningful only when the cascade actually ends in a Resampler stage; a pure integer HB/CIC cascade has no fractional stage to steer, so this **falls through to [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute)** (ctrl ignored).
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+* `x` CF32 input block. 
+* `n_in` Number of input samples. 
+* `ctrl` Rate deviation added to the terminal Resampler stage's rate. 
+* `out` Output buffer; must hold at least max\_out samples. 
+* `max_out` Capacity of out in samples. 
+
+
+
+**Returns:**
+
+CF32 output array; length tracks the accumulated effective rate.
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> import numpy as np
+>>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
+>>> x = np.ones(1000, dtype=np.complex64)
+>>> rc.execute_ctrl(x, 0.0).shape[0]    # base rate: 1000 -> 800
+800
+>>> rc2 = RateConverter(rate=0.8, compensate=0)
+>>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
+851
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_execute\_ctrl\_max\_out 
+
+_As_ [_**dp\_RateConverter\_execute\_max\_out()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_max_out) _, for the block control form._
+```C++
+size_t dp_RateConverter_execute_ctrl_max_out (
+    dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_execute\_ctrl\_push 
+
+_Push ONE input sample; emit whatever outputs it completes._ 
+```C++
+size_t dp_RateConverter_execute_ctrl_push (
+    dp_RateConverter_state_t * s,
+    float _Complex x,
+    double ctrl,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+The per-input streaming form of [**dp\_RateConverter\_execute\_ctrl()**](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl), and the only form a closed loop can use: a block call must know its whole `ctrl` history up front, whereas a timing loop computes each correction _from_ the outputs already emitted. Feeding a stream one sample at a time through this reproduces [**dp\_RateConverter\_execute\_ctrl()**](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl) on the same block bit-for-bit when `ctrl` is held constant (the cascade is block-boundary invariant), so the cheap block form stays correct for open-loop use.
+
+
+The integer HB/CIC stages consume the sample and emit at most one intermediate sample each; the terminal Resampler stage then emits 0 outputs (a decimator between strobes — the common case), 1, or several (an interpolator). A cascade with no terminal Resampler ignores `ctrl`.
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+* `x` One CF32 input sample. 
+* `ctrl` Rate deviation added to the terminal stage's rate for this input (referenced to the terminal, post-decimation rate). 
+* `out` Output buffer for any emitted samples. 
+* `max_out` Capacity of `out` (emission stops at this bound). 
+
+
+
+**Returns:**
+
+CF32 array of the outputs completed by this input (0, 1, or more).
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> import numpy as np
+>>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
+>>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
+>>> # a decimator emits 0 between strobes, 1 on a strobe:
+>>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
+[1, 1, 1, 1, 0, 1, 1, 1, 1, 0]
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_execute\_ctrl\_push\_max\_out 
+
+_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._
+```C++
+size_t dp_RateConverter_execute_ctrl_push_max_out (
+    dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_execute\_max\_out 
+
+_Upper bound on execute output for a standard 65536-sample block._ 
+```C++
+size_t dp_RateConverter_execute_max_out (
+    dp_RateConverter_state_t * s
+) 
+```
+
+
+
+Returns (size\_t)(65536 \* max(rate, 1.0)) + 2. The Python extension uses this to pre-allocate the output buffer on the first execute call. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_clipped 
+
+_Has any planned CIC stage clipped its input since the last reset?_ 
+```C++
+bool dp_RateConverter_get_clipped (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+The cascade inherits cic\_core's input bound (\|Re\|, \|Im\| &lt;= 1.0) whenever the plan contains a CIC — any decimation by 8 or more — and the clip does not show up in the samples: the output stays finite and plausible, merely distorted. This is the only reliable way to find out, and it is free (the boundary comparisons run on every sample regardless).
+
+
+Sticky, cleared by [**dp\_RateConverter\_reset()**](RateConverter__core_8h.md#function-dp_rateconverter_reset). Always 0 for a cascade with no CIC stage, which is the honest answer: those plans are scale-free.
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+
+
+
+**Returns:**
+
+1 if any CIC stage has clipped, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_narrow\_pulse 
+
+_Is this converter's rectangular matched filter degenerately narrow?_ 
+```C++
+bool dp_RateConverter_get_narrow_pulse (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+True only for a matched cascade built with RC\_PULSE\_IANDD and `pulse_sps < 4`: the rectangle is exactly one symbol wide, so its matched filter is a 2-3 tap sum there. It works — it just barely opens the eye (measured on the timing loop this feeds, a lock statistic of -0.34 at two samples per symbol against +0.95 at four). The RRC spans many symbols and is never affected. Construction also raises a UserWarning. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_rate 
+
+_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._ 
+```C++
+double dp_RateConverter_get_rate (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> rc = RateConverter(rate=0.5, compensate=0)
+>>> rc.rate
+0.5
+>>> rc.rate = 2.0
+>>> rc.rate
+2.0
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_state 
+
+_Serialize_ `s's` _active-stage state into_`blob` _._
+```C++
+void dp_RateConverter_get_state (
+    const dp_RateConverter_state_t * s,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_reset 
+
+_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._ 
+```C++
+void dp_RateConverter_reset (
+    dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> rc = RateConverter(rate=0.5, compensate=0)
+>>> rc.reset()
+>>> rc.rate
+0.5
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_set\_rate 
+
+_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._ 
+```C++
+void dp_RateConverter_set_rate (
+    dp_RateConverter_state_t * s,
+    double rate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
+* `rate` New output/input rate ratio. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_set\_state 
+
+_Restore active-stage state from_ `blob` _(same rate)._
+```C++
+int dp_RateConverter_set_state (
+    dp_RateConverter_state_t * s,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_stages\_value 
 
 _Label of stage_ `i` _, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)"._
 ```C++
-const char * RateConverter_stages_value (
-    const RateConverter_state_t * s,
+const char * dp_RateConverter_stages_value (
+    const dp_RateConverter_state_t * s,
     size_t i
 ) 
 ```
@@ -1258,12 +1258,12 @@ Points at a per-thread scratch buffer valid until this thread's next call — th
 
 
 
-### function RateConverter\_state\_bytes 
+### function dp\_RateConverter\_state\_bytes 
 
-_Bytes_ [_**RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-rateconverter_get_state) _writes for_`s` _(envelope + stages)._
+_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + stages)._
 ```C++
-size_t RateConverter_state_bytes (
-    const RateConverter_state_t * s
+size_t dp_RateConverter_state_bytes (
+    const dp_RateConverter_state_t * s
 ) 
 ```
 

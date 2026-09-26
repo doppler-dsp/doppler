@@ -30,13 +30,13 @@ main (void)
   /* 0x1A, MSB first. Figure 9-1 of 131.0-B-3 numbers the first transmitted
      bit of the marker as the top bit of 0x1A, which is what BIG means. */
   const uint8_t byte_big[] = { 0, 0, 0, 1, 1, 0, 1, 0 };
-  DP_CHECK (int_to_bin (0x1Au, 8u, b, sizeof b, DP_BITORDER_BIG) == 8u);
+  DP_CHECK (dp_int_to_bin (0x1Au, 8u, b, sizeof b, DP_BITORDER_BIG) == 8u);
   DP_CHECK (memcmp (b, byte_big, sizeof byte_big) == 0);
 
   /* LITTLE reverses within each BYTE, not across the whole literal. The
      distinction is the whole reason the unit width is written once. */
   const uint8_t byte_little[] = { 0, 1, 0, 1, 1, 0, 0, 0 };
-  DP_CHECK (int_to_bin (0x1Au, 8u, b, sizeof b, DP_BITORDER_LITTLE) == 8u);
+  DP_CHECK (dp_int_to_bin (0x1Au, 8u, b, sizeof b, DP_BITORDER_LITTLE) == 8u);
   DP_CHECK (memcmp (b, byte_little, sizeof byte_little) == 0);
 
   /* ── the two expansions agree ─────────────────────────────────────── */
@@ -47,8 +47,8 @@ main (void)
      not disagree about. */
   for (int bo = 0; bo < 2; bo++)
     {
-      DP_CHECK (int_to_bin (0x1ACFFC1DULL, 32u, b, sizeof b, bo) == 32u);
-      DP_CHECK (hex_to_bin ("1ACFFC1D", viahex, sizeof viahex, bo) == 32u);
+      DP_CHECK (dp_int_to_bin (0x1ACFFC1DULL, 32u, b, sizeof b, bo) == 32u);
+      DP_CHECK (dp_hex_to_bin ("1ACFFC1D", viahex, sizeof viahex, bo) == 32u);
       DP_CHECK (memcmp (b, viahex, 32u) == 0);
     }
 
@@ -63,21 +63,21 @@ main (void)
           const uint64_t want
               = (n == 64u) ? 0x0123456789ABCDEFULL
                            : (0x0123456789ABCDEFULL & ((1ULL << n) - 1u));
-          DP_CHECK (int_to_bin (want, n, b, sizeof b, bo) == n);
-          DP_CHECK (bin_to_int (b, n, bo) == want);
+          DP_CHECK (dp_int_to_bin (want, n, b, sizeof b, bo) == n);
+          DP_CHECK (dp_bin_to_int (b, n, bo) == want);
         }
     }
 
   for (int bo = 0; bo < 2; bo++)
     {
-      DP_CHECK (hex_to_bin ("1acffc1d", b, sizeof b, bo) == 32u);
-      DP_CHECK (bin_to_hex (b, 32u, hx, sizeof hx, bo) == 8u);
+      DP_CHECK (dp_hex_to_bin ("1acffc1d", b, sizeof b, bo) == 32u);
+      DP_CHECK (dp_bin_to_hex (b, 32u, hx, sizeof hx, bo) == 8u);
       DP_CHECK (strcmp ((const char *)hx, "1acffc1d") == 0);
     }
 
   /* An ODD digit count is accepted and yields a 4-bit tail. */
-  DP_CHECK (hex_to_bin ("abc", b, sizeof b, DP_BITORDER_BIG) == 12u);
-  DP_CHECK (bin_to_hex (b, 12u, hx, sizeof hx, DP_BITORDER_BIG) == 3u);
+  DP_CHECK (dp_hex_to_bin ("abc", b, sizeof b, DP_BITORDER_BIG) == 12u);
+  DP_CHECK (dp_bin_to_hex (b, 12u, hx, sizeof hx, DP_BITORDER_BIG) == 3u);
   DP_CHECK (strcmp ((const char *)hx, "abc") == 0);
 
   /* Any non-zero byte reads as a set bit, so a caller's 0/255 mask
@@ -85,7 +85,7 @@ main (void)
   uint8_t loud[8];
   for (int i = 0; i < 8; i++)
     loud[i] = (uint8_t)(byte_big[i] ? 255u : 0u);
-  DP_CHECK (bin_to_hex (loud, 8u, hx, sizeof hx, DP_BITORDER_BIG) == 2u);
+  DP_CHECK (dp_bin_to_hex (loud, 8u, hx, sizeof hx, DP_BITORDER_BIG) == 2u);
   DP_CHECK (strcmp ((const char *)hx, "1a") == 0);
 
   /* ── refusals ─────────────────────────────────────────────────────── */
@@ -93,35 +93,35 @@ main (void)
   /* A bad digit REFUSES rather than skipping, and writes nothing: a typo
      that silently shortened a marker is the failure this prevents. */
   memset (b, 0xAAu, sizeof b);
-  DP_CHECK (hex_to_bin ("12g4", b, sizeof b, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_hex_to_bin ("12g4", b, sizeof b, DP_BITORDER_BIG) == 0);
   DP_CHECK (b[0] == 0xAAu);
 
-  DP_CHECK (hex_to_bin ("", b, sizeof b, DP_BITORDER_BIG) == 0);
-  DP_CHECK (hex_to_bin (NULL, b, sizeof b, DP_BITORDER_BIG) == 0);
-  DP_CHECK (hex_to_bin ("1ACF", b, 15u, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_hex_to_bin ("", b, sizeof b, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_hex_to_bin (NULL, b, sizeof b, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_hex_to_bin ("1ACF", b, 15u, DP_BITORDER_BIG) == 0);
   /* An unknown bit order is a refusal, not a silent default. */
-  DP_CHECK (hex_to_bin ("1ACF", b, sizeof b, 7) == 0);
+  DP_CHECK (dp_hex_to_bin ("1ACF", b, sizeof b, 7) == 0);
 
-  DP_CHECK (int_to_bin (1u, 0u, b, sizeof b, DP_BITORDER_BIG) == 0);
-  DP_CHECK (int_to_bin (1u, 65u, b, sizeof b, DP_BITORDER_BIG) == 0);
-  DP_CHECK (int_to_bin (1u, 8u, NULL, sizeof b, DP_BITORDER_BIG) == 0);
-  DP_CHECK (int_to_bin (1u, 8u, b, 7u, DP_BITORDER_BIG) == 0);
-  DP_CHECK (int_to_bin (1u, 8u, b, sizeof b, 7) == 0);
+  DP_CHECK (dp_int_to_bin (1u, 0u, b, sizeof b, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_int_to_bin (1u, 65u, b, sizeof b, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_int_to_bin (1u, 8u, NULL, sizeof b, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_int_to_bin (1u, 8u, b, 7u, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_int_to_bin (1u, 8u, b, sizeof b, 7) == 0);
 
-  DP_CHECK (bin_to_int (b, 0u, DP_BITORDER_BIG) == 0);
-  DP_CHECK (bin_to_int (b, 65u, DP_BITORDER_BIG) == 0);
-  DP_CHECK (bin_to_int (NULL, 8u, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_bin_to_int (b, 0u, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_bin_to_int (b, 65u, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_bin_to_int (NULL, 8u, DP_BITORDER_BIG) == 0);
 
-  DP_CHECK (hex_to_bin ("1ACF", b, sizeof b, DP_BITORDER_BIG) == 16u);
+  DP_CHECK (dp_hex_to_bin ("1ACF", b, sizeof b, DP_BITORDER_BIG) == 16u);
   /* A bit count that is not a whole number of digits. */
-  DP_CHECK (bin_to_hex (b, 15u, hx, sizeof hx, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_bin_to_hex (b, 15u, hx, sizeof hx, DP_BITORDER_BIG) == 0);
   /* 4 digits plus a NUL do not fit in 4 bytes. */
-  DP_CHECK (bin_to_hex (b, 16u, hx, 4u, DP_BITORDER_BIG) == 0);
-  DP_CHECK (bin_to_hex (b, 16u, hx, 5u, DP_BITORDER_BIG) == 4u);
+  DP_CHECK (dp_bin_to_hex (b, 16u, hx, 4u, DP_BITORDER_BIG) == 0);
+  DP_CHECK (dp_bin_to_hex (b, 16u, hx, 5u, DP_BITORDER_BIG) == 4u);
 
   /* Only the low n_bits are read, so a caller need not mask first. */
-  DP_CHECK (int_to_bin (0xFF00u, 8u, b, sizeof b, DP_BITORDER_BIG) == 8u);
-  DP_CHECK (bin_to_int (b, 8u, DP_BITORDER_BIG) == 0u);
+  DP_CHECK (dp_int_to_bin (0xFF00u, 8u, b, sizeof b, DP_BITORDER_BIG) == 8u);
+  DP_CHECK (dp_bin_to_int (b, 8u, DP_BITORDER_BIG) == 0u);
 
   /* ── bin_to_nrz / nrz_to_bin ──────────────────────────────────────── */
 
@@ -137,7 +137,7 @@ main (void)
   {
     uint8_t bit01[2] = { 0u, 1u };
     float   sym[2];
-    DP_CHECK (bin_to_nrz (bit01, 2u, sym, 2u) == 2u);
+    DP_CHECK (dp_bin_to_nrz (bit01, 2u, sym, 2u) == 2u);
     for (unsigned g = 0; g < 2u; g++)
       DP_CHECK (sym[g] == crealf (mpsk_constellation (g, 2)));
     /* ...and the imaginary part is negligible, which is what makes
@@ -154,27 +154,27 @@ main (void)
     uint8_t in[8] = { 0, 1, 1, 0, 1, 0, 0, 1 };
     uint8_t back[8];
     float   sym[8];
-    DP_CHECK (bin_to_nrz (in, 8u, sym, sizeof sym / sizeof sym[0]) == 8u);
-    DP_CHECK (nrz_to_bin (sym, 8u, back, sizeof back) == 8u);
+    DP_CHECK (dp_bin_to_nrz (in, 8u, sym, sizeof sym / sizeof sym[0]) == 8u);
+    DP_CHECK (dp_nrz_to_bin (sym, 8u, back, sizeof back) == 8u);
     DP_CHECK (memcmp (in, back, sizeof in) == 0);
 
     /* Any non-zero byte is a set bit, matching bin_to_hex. */
     uint8_t loud[2] = { 0u, 255u };
-    DP_CHECK (bin_to_nrz (loud, 2u, sym, 2u) == 2u);
+    DP_CHECK (dp_bin_to_nrz (loud, 2u, sym, 2u) == 2u);
     DP_CHECK (sym[0] == 1.0f && sym[1] == -1.0f);
 
     /* Zero decides to 0, so the mapping is total. */
     float edge[3] = { 0.0f, -0.0f, 0.25f };
-    DP_CHECK (nrz_to_bin (edge, 3u, back, sizeof back) == 3u);
+    DP_CHECK (dp_nrz_to_bin (edge, 3u, back, sizeof back) == 3u);
     DP_CHECK (back[0] == 0u && back[1] == 0u && back[2] == 0u);
 
     /* Refusals. */
-    DP_CHECK (bin_to_nrz (NULL, 8u, sym, 8u) == 0);
-    DP_CHECK (bin_to_nrz (in, 0u, sym, 8u) == 0);
-    DP_CHECK (bin_to_nrz (in, 8u, sym, 7u) == 0);
-    DP_CHECK (nrz_to_bin (NULL, 8u, back, 8u) == 0);
-    DP_CHECK (nrz_to_bin (sym, 0u, back, 8u) == 0);
-    DP_CHECK (nrz_to_bin (sym, 8u, back, 7u) == 0);
+    DP_CHECK (dp_bin_to_nrz (NULL, 8u, sym, 8u) == 0);
+    DP_CHECK (dp_bin_to_nrz (in, 0u, sym, 8u) == 0);
+    DP_CHECK (dp_bin_to_nrz (in, 8u, sym, 7u) == 0);
+    DP_CHECK (dp_nrz_to_bin (NULL, 8u, back, 8u) == 0);
+    DP_CHECK (dp_nrz_to_bin (sym, 0u, back, 8u) == 0);
+    DP_CHECK (dp_nrz_to_bin (sym, 8u, back, 7u) == 0);
   }
 
   DP_TEST_END ("test_cvt_core");

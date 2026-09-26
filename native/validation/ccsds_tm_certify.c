@@ -297,17 +297,17 @@ rand_spectrum (const ccsds_tm_rand_t *r, size_t nfft, size_t frames)
      are the signal, so a window whose sidelobes are above the line spacing
      would smear one harmonic into its neighbours and report a floor that is
      really the window. */
-  psd_state_t *p = psd_create (nfft, 1.0, 2 /* Blackman-Harris */, 0.0f, 1,
-                               1.0, 0, 0 /* mean */, 0.0);
+  dp_psd_state_t *p = dp_psd_create (nfft, 1.0, 2 /* Blackman-Harris */, 0.0f,
+                                     1, 1.0, 0, 0 /* mean */, 0.0);
   if (!p)
     exit (1);
-  psd_accumulate_real (p, x, n);
+  dp_psd_accumulate_real (p, x, n);
 
-  const size_t nb = psd_power_onesided_max_out (p);
+  const size_t nb = dp_psd_power_onesided_max_out (p);
   float       *pw = malloc (nb * sizeof *pw);
   if (!pw)
     exit (1);
-  psd_power_onesided (p, nb, pw, nb);
+  dp_psd_power_onesided (p, nb, pw, nb);
 
   /* The floor is the MEDIAN bin, not the mean: a mean over a spectrum whose
      lines carry most of the power is dragged up by the thing being measured.
@@ -348,7 +348,7 @@ rand_spectrum (const ccsds_tm_rand_t *r, size_t nfft, size_t frames)
   free (pw);
   free (x);
   free (bits);
-  psd_destroy (p);
+  dp_psd_destroy (p);
   return out;
 }
 

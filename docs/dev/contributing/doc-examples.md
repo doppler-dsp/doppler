@@ -216,7 +216,7 @@ is a compiled program and the fence fails CI the moment a signature drifts:
 int
 main (void)
 {
-  size_t (*gen) (lo_state_t *, size_t, float complex *, size_t) = lo_steps;
+  size_t (*gen) (dp_lo_state_t *, size_t, float complex *, size_t) = dp_lo_steps;
   printf ("pinned: %d\n", gen != 0);
   return 0;
 }
@@ -229,7 +229,7 @@ quoted prototype and converts a comment into a gate.
 This is not hypothetical. Converting the two listings that qualified found
 both of them already wrong:
 
-- `corr2d-interpolated-inverse.md` had `corr2d_create`'s parameters in a
+- `corr2d-interpolated-inverse.md` had `dp_corr2d_create`'s parameters in a
     stale **order** (`ny_out, nx_out` before `dwell, nthreads`; the header has
     them after). All four are integers, so code copied from the page would
     have compiled and silently misconfigured the correlator.

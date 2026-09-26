@@ -23,7 +23,7 @@ _bind_asm_bits (PyObject *self, PyObject *Py_UNUSED (args))
     {
       return NULL;
     }
-  asm_bits ((uint8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_asm_bits ((uint8_t *)PyArray_DATA ((PyArrayObject *)_out));
   return _out;
 }
 

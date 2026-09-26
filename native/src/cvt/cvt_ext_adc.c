@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
-/* ADCObject — wraps adc_state_t *       */
+/* ADCObject — wraps dp_adc_state_t *       */
 /* ======================================================== */
 
 #include "doppler/adc/adc_core.h"
 
 typedef struct
 {
-  PyObject_HEAD adc_state_t *handle;
+  PyObject_HEAD dp_adc_state_t *handle;
 } ADCObject;
 
 static void
 ADCObj_dealloc (ADCObject *self)
 {
   if (self->handle)
-    adc_destroy (self->handle);
+    dp_adc_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -44,10 +44,10 @@ ADCObj_init (ADCObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ifi", kwlist, &bits, &dbfs,
                                     &dithering))
     return -1;
-  self->handle = adc_create (bits, dbfs, dithering);
+  self->handle = dp_adc_create (bits, dbfs, dithering);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "adc_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_adc_create returned NULL");
       return -1;
     }
   return 0;
@@ -61,7 +61,7 @@ ADCObj_reset (ADCObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  adc_reset (self->handle);
+  dp_adc_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -76,7 +76,7 @@ ADC_step (ADCObject *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
-  int64_t y = adc_step (self->handle, x);
+  int64_t y = dp_adc_step (self->handle, x);
   return PyLong_FromLongLong ((long long)y);
 }
 
@@ -132,8 +132,8 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      adc_steps (self->handle, (const float *)PyArray_DATA (in_arr),
-                 (int64_t *)PyArray_DATA (out_arr), (size_t)n);
+      dp_adc_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                    (int64_t *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -146,8 +146,8 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  adc_steps (self->handle, (const float *)PyArray_DATA (in_arr),
-             (int64_t *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
+  dp_adc_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                (int64_t *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -161,7 +161,7 @@ ADCObj_state_bytes (ADCObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (adc_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_adc_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -172,11 +172,11 @@ ADCObj_get_state (ADCObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = adc_state_bytes (self->handle);
+  size_t    _n = dp_adc_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  adc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_adc_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -193,12 +193,12 @@ ADCObj_set_state (ADCObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != adc_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_adc_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (adc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_adc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -247,7 +247,7 @@ ADCObj_destroy (ADCObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      adc_destroy (self->handle);
+      dp_adc_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -266,7 +266,7 @@ ADCObj_exit (ADCObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      adc_destroy (self->handle);
+      dp_adc_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

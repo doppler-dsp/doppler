@@ -9,22 +9,22 @@
 
 ```C++
 
-#ifndef DETECTION_CORE_H
-#define DETECTION_CORE_H
+#ifndef DP_DETECTION_CORE_H
+#define DP_DETECTION_CORE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-double marcum_q(int m, double a, double b);
+double dp_marcum_q(int m, double a, double b);
 
-double det_threshold(double pfa);
+double dp_det_threshold(double pfa);
 
-double det_pd(double snr, int dwell, double threshold);
+double dp_det_pd(double snr, int dwell, double threshold);
 
-int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
+int dp_det_dwell(double snr, double pd_min, double pfa, int max_dwell);
 
-double det_snr(int dwell, double pd_min, double pfa);
+double dp_det_snr(int dwell, double pd_min, double pfa);
 
 /* ── Non-coherent integration ────────────────────────────────────────────── */
 /*                                                                            */
@@ -35,7 +35,7 @@ double det_snr(int dwell, double pd_min, double pfa);
 /* P(R > b) = marcum_q(n_noncoh, sqrt(2*n_coh*n_noncoh)*snr, b).  All three    */
 /* helpers reduce to their coherent (order-1) counterparts at n_noncoh = 1.   */
 
-double det_threshold_noncoherent(double pfa, int n_noncoh);
+double dp_det_threshold_noncoherent(double pfa, int n_noncoh);
 
 /* ── Gaussian test statistic ─────────────────────────────────────────────── */
 /*                                                                            */
@@ -46,29 +46,29 @@ double det_threshold_noncoherent(double pfa, int n_noncoh);
 /* dll's code lock, the carrier NDA lock) share one sizing chain, and it      */
 /* lives here so they cannot drift apart.                                     */
 /*                                                                            */
-/* Do NOT reach for det_threshold() on a Gaussian statistic. It inverts       */
+/* Do NOT reach for dp_det_threshold() on a Gaussian statistic. It inverts       */
 /* Pfa = exp(-eta^2/2), the envelope law, and returns 4.9409 where            */
-/* det_q_inv() returns 4.4172 at the same pfa = 5e-6 -- two plausible small   */
+/* dp_det_q_inv() returns 4.4172 at the same pfa = 5e-6 -- two plausible small   */
 /* numbers near 5, only one of which is a sigma count.                        */
 
-double det_q_inv(double p);
+double dp_det_q_inv(double p);
 
-int det_dwell_gauss(double mean, double var, double pd, double pfa);
+int dp_det_dwell_gauss(double mean, double var, double pd, double pfa);
 
-double det_threshold_gauss(double mean, double pd, double pfa);
+double dp_det_threshold_gauss(double mean, double pd, double pfa);
 
-double det_ema_alpha(double snr_in_db, double snr_out_db);
+double dp_det_ema_alpha(double snr_in_db, double snr_out_db);
 
-int det_verify_count(double p_look, double p_target);
+int dp_det_verify_count(double p_look, double p_target);
 
-double det_verify_delay(double p_look, int n);
+double dp_det_verify_delay(double p_look, int n);
 
-double det_threshold_f(double pfa, int n);
+double dp_det_threshold_f(double pfa, int n);
 
-double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
+double dp_det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
                           double threshold);
 
-int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
+int dp_det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
                  int max_n_noncoh);
 
 /* ── Power detector ──────────────────────────────────────────────────────── */
@@ -91,27 +91,27 @@ int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
 /* the power detector offers a simpler threshold formula and an exponential  */
 /* null distribution.                                                         */
 
-double det_threshold_power(double pfa);
+double dp_det_threshold_power(double pfa);
 
-double det_pd_power(double snr_power, int dwell, double power_threshold);
+double dp_det_pd_power(double snr_power, int dwell, double power_threshold);
 
-int det_dwell_power (double snr_power, double pd_min, double pfa,
+int dp_det_dwell_power (double snr_power, double pd_min, double pfa,
                      int max_dwell);
 
-double det_snr_power(int dwell, double pd_min, double pfa);
+double dp_det_snr_power(int dwell, double pd_min, double pfa);
 
 /* ── Search-level quantities ─────────────────────────────────────────────── */
 /* A detector searches many cells, measures its noise from some of them, and */
 /* is specified in C/N0. These turn each of those into the per-cell,         */
 /* amplitude-SNR terms the functions above take.                             */
 
-double det_pfa_cell(double pfa, double n_cells);
+double dp_det_pfa_cell(double pfa, double n_cells);
 
-double det_cn0_to_snr(double cn0_dbhz, double fs);
+double dp_det_cn0_to_snr(double cn0_dbhz, double fs);
 
-double det_snr_to_cn0(double snr, double fs);
+double dp_det_snr_to_cn0(double snr, double fs);
 
-double det_pd_cfar(double snr, int dwell, double threshold, double k,
+double dp_det_pd_cfar(double snr, int dwell, double threshold, double k,
                    double leak, double leak_cells);
 
 #ifdef __cplusplus

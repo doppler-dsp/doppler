@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
-/* I16U32ToF32Object — wraps i16u32_to_f32_state_t *       */
+/* I16U32ToF32Object — wraps dp_i16u32_to_f32_state_t *       */
 /* ======================================================== */
 
 #include "doppler/i16u32_to_f32/i16u32_to_f32_core.h"
 
 typedef struct
 {
-  PyObject_HEAD i16u32_to_f32_state_t *handle;
+  PyObject_HEAD dp_i16u32_to_f32_state_t *handle;
 } I16U32ToF32Object;
 
 static void
 I16U32ToF32Obj_dealloc (I16U32ToF32Object *self)
 {
   if (self->handle)
-    i16u32_to_f32_destroy (self->handle);
+    dp_i16u32_to_f32_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -41,11 +41,11 @@ I16U32ToF32Obj_init (I16U32ToF32Object *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|f", kwlist, &scale))
     return -1;
-  self->handle = i16u32_to_f32_create (scale);
+  self->handle = dp_i16u32_to_f32_create (scale);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "i16u32_to_f32_create returned NULL");
+                       "dp_i16u32_to_f32_create returned NULL");
       return -1;
     }
   return 0;
@@ -59,7 +59,7 @@ I16U32ToF32Obj_reset (I16U32ToF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  i16u32_to_f32_reset (self->handle);
+  dp_i16u32_to_f32_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -75,7 +75,7 @@ I16U32ToF32_step (I16U32ToF32Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "k", &x_raw))
     return NULL;
   uint32_t x = (uint32_t)x_raw;
-  float    y = i16u32_to_f32_step (self->handle, x);
+  float    y = dp_i16u32_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -131,9 +131,9 @@ I16U32ToF32_steps (I16U32ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      i16u32_to_f32_steps (self->handle,
-                           (const uint32_t *)PyArray_DATA (in_arr),
-                           (float *)PyArray_DATA (out_arr), (size_t)n);
+      dp_i16u32_to_f32_steps (self->handle,
+                              (const uint32_t *)PyArray_DATA (in_arr),
+                              (float *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -146,9 +146,9 @@ I16U32ToF32_steps (I16U32ToF32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  i16u32_to_f32_steps (self->handle, (const uint32_t *)PyArray_DATA (in_arr),
-                       (float *)PyArray_DATA ((PyArrayObject *)out_arr),
-                       (size_t)n);
+  dp_i16u32_to_f32_steps (
+      self->handle, (const uint32_t *)PyArray_DATA (in_arr),
+      (float *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -159,7 +159,7 @@ I16U32ToF32Obj_destroy (I16U32ToF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      i16u32_to_f32_destroy (self->handle);
+      dp_i16u32_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -178,7 +178,7 @@ I16U32ToF32Obj_exit (I16U32ToF32Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      i16u32_to_f32_destroy (self->handle);
+      dp_i16u32_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

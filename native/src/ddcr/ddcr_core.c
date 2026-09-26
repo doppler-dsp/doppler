@@ -2,11 +2,11 @@
  * @file ddcr_core.c
  * @brief Real-input Digital Down-Converter implementation.
  *
- * hbdecim_r2c_execute → lo_steps → element-wise multiply →
- * RateConverter_execute; the control-port variants replace lo_steps with a
- * per-sample lo_step_ctrl and RateConverter_execute with
- * RateConverter_execute_ctrl, and the push forms do the same one sample at a
- * time.  Identical to ddc/ddc_core.c from the LO onwards.
+ * hbdecim_r2c_execute → dp_lo_steps → element-wise multiply →
+ * dp_RateConverter_execute; the control-port variants replace dp_lo_steps with
+ * a per-sample lo_step_ctrl and dp_RateConverter_execute with
+ * dp_RateConverter_execute_ctrl, and the push forms do the same one sample at
+ * a time.  Identical to ddc/ddc_core.c from the LO onwards.
  */
 #include "doppler/ddcr/ddcr_core.h"
 #include "doppler/RateConverter/RateConverter_core.h"
@@ -47,13 +47,13 @@ static const float s_hb_fir[DDC_HB_TAPS] = {
   0.0f,
 };
 
-static ddcr_state_t *
+static dp_ddcr_state_t *
 ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
                size_t span, double pulse_sps, size_t num_phases)
 {
   if (rate <= 0.0 || rate >= 0.5)
     return NULL;
-  ddcr_state_t *s = malloc (sizeof *s);
+  dp_ddcr_state_t *s = malloc (sizeof *s);
   if (!s)
     return NULL;
 
@@ -63,7 +63,7 @@ ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
       free (s);
       return NULL;
     }
-  s->lo = lo_create (norm_freq);
+  s->lo = dp_lo_create (norm_freq);
   if (!s->lo)
     {
       hbdecim_r2c_destroy (s->r2c);
@@ -76,12 +76,12 @@ ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
    * contract is identical to ddc_create_matched()'s.
    */
   s->rc = (pulse == RC_PULSE_NONE)
-              ? RateConverter_create (2.0 * rate, 0)
+              ? dp_RateConverter_create (2.0 * rate, 0)
               : RateConverter_create_matched (2.0 * rate, 1, pulse, beta, span,
                                               pulse_sps, num_phases);
   if (!s->rc)
     {
-      lo_destroy (s->lo);
+      dp_lo_destroy (s->lo);
       hbdecim_r2c_destroy (s->r2c);
       free (s);
       return NULL;
@@ -93,13 +93,13 @@ ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
   return s;
 }
 
-ddcr_state_t *
-ddcr_create (double norm_freq, double rate)
+dp_ddcr_state_t *
+dp_ddcr_create (double norm_freq, double rate)
 {
   return ddcr_ddcr_new (norm_freq, rate, RC_PULSE_NONE, 0.0, 0, 0.0, 0);
 }
 
-ddcr_state_t *
+dp_ddcr_state_t *
 ddcr_create_matched (double norm_freq, double rate, int pulse, double beta,
                      size_t span, double pulse_sps, size_t num_phases)
 {
@@ -110,22 +110,22 @@ ddcr_create_matched (double norm_freq, double rate, int pulse, double beta,
 }
 
 void
-ddcr_destroy (ddcr_state_t *s)
+dp_ddcr_destroy (dp_ddcr_state_t *s)
 {
   if (!s)
     return;
   hbdecim_r2c_destroy (s->r2c);
-  lo_destroy (s->lo);
-  RateConverter_destroy (s->rc);
+  dp_lo_destroy (s->lo);
+  dp_RateConverter_destroy (s->rc);
   free (s);
 }
 
 void
-ddcr_reset (ddcr_state_t *s)
+dp_ddcr_reset (dp_ddcr_state_t *s)
 {
   hbdecim_r2c_reset (s->r2c);
-  lo_reset (s->lo);
-  RateConverter_reset (s->rc);
+  dp_lo_reset (s->lo);
+  dp_RateConverter_reset (s->rc);
 }
 
 /* ── Serializable state — standard envelope + the chain's leaf serializers ───
@@ -133,81 +133,81 @@ ddcr_reset (ddcr_state_t *s)
  * signal-chain order; see dp_state.h. */
 
 size_t
-ddcr_state_bytes (const ddcr_state_t *s)
+dp_ddcr_state_bytes (const dp_ddcr_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (ddcr_extra_t)
-         + hbdecim_r2c_state_bytes (s->r2c) + lo_state_bytes (s->lo)
-         + RateConverter_state_bytes (s->rc);
+         + hbdecim_r2c_state_bytes (s->r2c) + dp_lo_state_bytes (s->lo)
+         + dp_RateConverter_state_bytes (s->rc);
 }
 
 void
-ddcr_get_state (const ddcr_state_t *s, void *blob)
+dp_ddcr_get_state (const dp_ddcr_state_t *s, void *blob)
 {
-  DP_GET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, ddcr_state_bytes (s));
+  DP_GET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, dp_ddcr_state_bytes (s));
   dp_w_f64 (&_w, s->rate); /* ddcr_extra_t */
   DP_W_CHILD (&_w, hbdecim_r2c, s->r2c);
-  DP_W_CHILD (&_w, lo, s->lo);
-  DP_W_CHILD (&_w, RateConverter, s->rc);
+  DP_W_CHILD (&_w, dp_lo, s->lo);
+  DP_W_CHILD (&_w, dp_RateConverter, s->rc);
 }
 
 int
-ddcr_set_state (ddcr_state_t *s, const void *blob)
+dp_ddcr_set_state (dp_ddcr_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, ddcr_state_bytes (s));
+  DP_SET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, dp_ddcr_state_bytes (s));
   if (dp_r_f64 (&_r) != s->rate) /* ddcr_extra_t.rate is the layout key */
     return DP_ERR_INVALID;
   DP_R_CHILD (&_r, hbdecim_r2c, s->r2c);
-  DP_R_CHILD (&_r, lo, s->lo);
-  DP_R_CHILD (&_r, RateConverter, s->rc);
+  DP_R_CHILD (&_r, dp_lo, s->lo);
+  DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   return DP_OK;
 }
 
-DP_DEFINE_RUN (ddcr, ddcr_state_t, float, float _Complex)
+DP_DEFINE_RUN (dp_ddcr, dp_ddcr_state_t, float, float _Complex)
 
 double
-ddcr_get_norm_freq (const ddcr_state_t *s)
+dp_ddcr_get_norm_freq (const dp_ddcr_state_t *s)
 {
-  return lo_get_norm_freq (s->lo);
+  return dp_lo_get_norm_freq (s->lo);
 }
 
 void
-ddcr_set_norm_freq (ddcr_state_t *s, double norm_freq)
+dp_ddcr_set_norm_freq (dp_ddcr_state_t *s, double norm_freq)
 {
-  lo_set_norm_freq (s->lo, norm_freq);
+  dp_lo_set_norm_freq (s->lo, norm_freq);
 }
 
 double
-ddcr_get_rate (const ddcr_state_t *s)
+dp_ddcr_get_rate (const dp_ddcr_state_t *s)
 {
   return s->rate;
 }
 
 size_t
-ddcr_execute_max_out (ddcr_state_t *s)
+dp_ddcr_execute_max_out (dp_ddcr_state_t *s)
 {
   (void)s;
   return 0; /* 0 -> the binding sizes the buffer from the input block */
 }
 
 size_t
-ddcr_execute_ctrl_max_out (ddcr_state_t *s)
+dp_ddcr_execute_ctrl_max_out (dp_ddcr_state_t *s)
 {
   (void)s;
-  return 0; /* as ddcr_execute_max_out: halfband + decim never expands */
+  return 0; /* as dp_ddcr_execute_max_out: halfband + decim never expands */
 }
 
 size_t
-ddcr_execute_ctrl_push_max_out (ddcr_state_t *s)
+dp_ddcr_execute_ctrl_push_max_out (dp_ddcr_state_t *s)
 {
   /* A single input completes at most ceil(rate) + 1 output periods, and the
      binding has no input block to size its buffer from here. */
-  double rate = ddcr_get_rate (s);
+  double rate = dp_ddcr_get_rate (s);
   return (size_t)(rate > 1.0 ? rate : 1.0) + 2;
 }
 
 size_t
-ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
-              float _Complex *out, size_t max_out)
+dp_ddcr_execute (dp_ddcr_state_t *s, const float *in, size_t n_in,
+                 float _Complex *out, size_t max_out)
 {
   if (n_in == 0)
     return 0;
@@ -233,21 +233,21 @@ ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
       free (hb_buf);
       return 0;
     }
-  lo_steps (s->lo, n_hb, mix, n_hb);
+  dp_lo_steps (s->lo, n_hb, mix, n_hb);
   for (size_t i = 0; i < n_hb; i++)
     mix[i] = hb_buf[i] * mix[i];
   free (hb_buf);
 
   /* Step 3: rate-convert to target output rate. */
-  size_t nout = RateConverter_execute (s->rc, mix, n_hb, out, max_out);
+  size_t nout = dp_RateConverter_execute (s->rc, mix, n_hb, out, max_out);
   free (mix);
   return nout;
 }
 
 size_t
-ddcr_execute_ctrl (ddcr_state_t *s, const float *x, size_t n_in,
-                   double rate_ctrl, double freq_ctrl, float _Complex *out,
-                   size_t max_out)
+dp_ddcr_execute_ctrl (dp_ddcr_state_t *s, const float *x, size_t n_in,
+                      double rate_ctrl, double freq_ctrl, float _Complex *out,
+                      size_t max_out)
 {
   if (n_in == 0)
     return 0;
@@ -269,14 +269,14 @@ ddcr_execute_ctrl (ddcr_state_t *s, const float *x, size_t n_in,
   for (size_t i = 0; i < n_hb; i++)
     hb_buf[i] = hb_buf[i] * lo_step_ctrl (s->lo, freq_ctrl);
 
-  size_t nout = RateConverter_execute_ctrl (s->rc, hb_buf, n_hb, rate_ctrl,
-                                            out, max_out);
+  size_t nout = dp_RateConverter_execute_ctrl (s->rc, hb_buf, n_hb, rate_ctrl,
+                                               out, max_out);
   free (hb_buf);
   return nout;
 }
 
 size_t
-ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x, double rate_ctrl,
+ddcr_execute_ctrl_push_tap (dp_ddcr_state_t *s, float x, double rate_ctrl,
                             double freq_ctrl, float _Complex *out,
                             size_t max_out, float _Complex *lo_out, int *n_lo)
 {
@@ -285,7 +285,7 @@ ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x, double rate_ctrl,
 }
 
 size_t
-ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x, double rate_ctrl,
+ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x, double rate_ctrl,
                              double freq_ctrl, float _Complex *out,
                              size_t max_out, float _Complex *lo_out, int *n_lo,
                              float _Complex *pre_out, int *n_pre)
@@ -313,33 +313,34 @@ ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x, double rate_ctrl,
 }
 
 double
-ddcr_get_bank_sps (const ddcr_state_t *s)
+ddcr_get_bank_sps (const dp_ddcr_state_t *s)
 {
   return RateConverter_get_bank_sps (s->rc);
 }
 
 size_t
-ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
-                        double freq_ctrl, float _Complex *out, size_t max_out)
+dp_ddcr_execute_ctrl_push (dp_ddcr_state_t *s, float x, double rate_ctrl,
+                           double freq_ctrl, float _Complex *out,
+                           size_t max_out)
 {
   return ddcr_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out, max_out,
                                      NULL, NULL);
 }
 
 bool
-ddcr_get_narrow_pulse (const ddcr_state_t *s)
+dp_ddcr_get_narrow_pulse (const dp_ddcr_state_t *s)
 {
   return s->narrow_pulse;
 }
 
 bool
-ddcr_get_clipped (const ddcr_state_t *s)
+dp_ddcr_get_clipped (const dp_ddcr_state_t *s)
 {
-  return RateConverter_get_clipped (s->rc) != 0;
+  return dp_RateConverter_get_clipped (s->rc) != 0;
 }
 
 int
-ddcr_set_telemetry (ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+ddcr_set_telemetry (dp_ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
                     uint32_t decim)
 {
   return RateConverter_set_telemetry (s->rc, tlm, prefix, decim);

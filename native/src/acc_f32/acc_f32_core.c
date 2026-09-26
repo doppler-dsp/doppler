@@ -1,9 +1,9 @@
 #include "doppler/acc_f32/acc_f32_core.h"
 
-acc_f32_state_t *
-acc_f32_create (float acc)
+dp_acc_f32_state_t *
+dp_acc_f32_create (float acc)
 {
-  acc_f32_state_t *state = calloc (1, sizeof (*state));
+  dp_acc_f32_state_t *state = calloc (1, sizeof (*state));
   if (!state)
     return NULL;
   state->acc = acc;
@@ -11,20 +11,20 @@ acc_f32_create (float acc)
 }
 
 void
-acc_f32_destroy (acc_f32_state_t *state)
+dp_acc_f32_destroy (dp_acc_f32_state_t *state)
 {
   free (state);
 }
 
 void
-acc_f32_reset (acc_f32_state_t *state)
+dp_acc_f32_reset (dp_acc_f32_state_t *state)
 {
   state->acc = 0.0f;
 }
 
 /* Serializable state — whole-struct POD snapshot, pointer-free (see
  * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (acc_f32, acc_f32_state_t, ACC_F32_STATE_MAGIC,
+DP_DEFINE_POD_STATE (dp_acc_f32, dp_acc_f32_state_t, ACC_F32_STATE_MAGIC,
                      ACC_F32_STATE_VERSION)
 
 /* JM_RESTRICT removes the aliasing hazard between state->acc and input[],
@@ -33,8 +33,8 @@ DP_DEFINE_POD_STATE (acc_f32, acc_f32_state_t, ACC_F32_STATE_MAGIC,
  * per iteration; JM_HSUM_F32 folds to a scalar at the end. */
 #if JM_SIMD_WIDTH_F32 > 1
 JM_HOT void
-acc_f32_steps (acc_f32_state_t *JM_RESTRICT state,
-               const float *JM_RESTRICT input, size_t n)
+dp_acc_f32_steps (dp_acc_f32_state_t *JM_RESTRICT state,
+                  const float *JM_RESTRICT input, size_t n)
 {
   JM_VEC_F32 vacc = JM_ZERO_F32 ();
   size_t     i    = 0;
@@ -46,8 +46,8 @@ acc_f32_steps (acc_f32_state_t *JM_RESTRICT state,
 }
 #else
 JM_HOT void
-acc_f32_steps (acc_f32_state_t *JM_RESTRICT state,
-               const float *JM_RESTRICT input, size_t n)
+dp_acc_f32_steps (dp_acc_f32_state_t *JM_RESTRICT state,
+                  const float *JM_RESTRICT input, size_t n)
 {
   for (size_t i = 0; i < n; i++)
     state->acc += input[i];
@@ -55,25 +55,25 @@ acc_f32_steps (acc_f32_state_t *JM_RESTRICT state,
 #endif
 
 float
-acc_f32_get_acc (const acc_f32_state_t *state)
+dp_acc_f32_get_acc (const dp_acc_f32_state_t *state)
 {
   return state->acc;
 }
 
 void
-acc_f32_set_acc (acc_f32_state_t *state, float value)
+dp_acc_f32_set_acc (dp_acc_f32_state_t *state, float value)
 {
   state->acc = value;
 }
 
 float
-acc_f32_get (acc_f32_state_t *state)
+dp_acc_f32_get (dp_acc_f32_state_t *state)
 {
   return state->acc;
 }
 
 float
-acc_f32_dump (acc_f32_state_t *state)
+dp_acc_f32_dump (dp_acc_f32_state_t *state)
 {
   float v    = state->acc;
   state->acc = 0.0f;
@@ -81,8 +81,8 @@ acc_f32_dump (acc_f32_state_t *state)
 }
 
 void
-acc_f32_madd (acc_f32_state_t *state, const float *x, size_t x_len,
-              const float *h, size_t h_len)
+dp_acc_f32_madd (dp_acc_f32_state_t *state, const float *x, size_t x_len,
+                 const float *h, size_t h_len)
 {
   size_t n = x_len < h_len ? x_len : h_len;
   for (size_t i = 0; i < n; i++)
@@ -90,15 +90,15 @@ acc_f32_madd (acc_f32_state_t *state, const float *x, size_t x_len,
 }
 
 void
-acc_f32_add2d (acc_f32_state_t *state, const float *x, size_t x_len)
+dp_acc_f32_add2d (dp_acc_f32_state_t *state, const float *x, size_t x_len)
 {
   for (size_t i = 0; i < x_len; i++)
     state->acc += x[i];
 }
 
 void
-acc_f32_madd2d (acc_f32_state_t *state, const float *x, size_t x_len,
-                const float *h, size_t h_len)
+dp_acc_f32_madd2d (dp_acc_f32_state_t *state, const float *x, size_t x_len,
+                   const float *h, size_t h_len)
 {
   size_t n = x_len < h_len ? x_len : h_len;
   for (size_t i = 0; i < n; i++)

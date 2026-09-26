@@ -10,17 +10,17 @@
 static void
 bench_n (int n, int iters, jm_bench_t *bench)
 {
-  awgn_state_t   *g   = awgn_create (0, 1.0f);
-  float _Complex *buf = malloc ((size_t)n * sizeof *buf);
-  double          times[ITERATIONS];
+  dp_awgn_state_t *g   = dp_awgn_create (0, 1.0f);
+  float _Complex  *buf = malloc ((size_t)n * sizeof *buf);
+  double           times[ITERATIONS];
 
-  awgn_generate (g, (size_t)n, buf, (size_t)n); /* warm up */
+  dp_awgn_generate (g, (size_t)n, buf, (size_t)n); /* warm up */
 
   uint64_t t0, t1;
   for (int i = 0; i < iters; i++)
     {
       t0 = jm_bench_now_ns ();
-      awgn_generate (g, (size_t)n, buf, (size_t)n);
+      dp_awgn_generate (g, (size_t)n, buf, (size_t)n);
       t1       = jm_bench_now_ns ();
       times[i] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -38,7 +38,7 @@ bench_n (int n, int iters, jm_bench_t *bench)
   jm_bench_add (bench, label, times, iters, (size_t)n);
 
   free (buf);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
 }
 
 int

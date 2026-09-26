@@ -33,7 +33,7 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**conv\_enc\_state\_t**](structconv__enc__state__t.md) <br>_A code and the register encoding it, together._  |
+| struct | [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) <br>_A code and the register encoding it, together._  |
 
 
 
@@ -60,16 +60,16 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-|  const [**conv\_code\_t**](structconv__code__t.md) \* | [**conv\_enc\_code**](#function-conv_enc_code) (const [**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* s) <br>_The code this encoder was built for._  |
-|  [**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* | [**conv\_enc\_create**](#function-conv_enc_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert) <br>_Build an encoder for the code the polynomials describe._  |
-|  [**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* | [**conv\_enc\_create\_code**](#function-conv_enc_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Build an encoder from a code already assembled._  |
-|  void | [**conv\_enc\_destroy**](#function-conv_enc_destroy) ([**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* state) <br>_Free an encoder. NULL is a no-op._  |
-|  size\_t | [**conv\_enc\_encode**](#function-conv_enc_encode) ([**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode information bits into channel symbols._  |
-|  size\_t | [**conv\_enc\_encode\_max\_out**](#function-conv_enc_encode_max_out) (const [**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* state, size\_t n\_in) <br>_Symbols_ [_**conv\_enc\_encode**_](conv__enc__core_8h.md#function-conv_enc_encode) _writes for_`n_in` _input bits._ |
-|  void | [**conv\_enc\_get\_state**](#function-conv_enc_get_state) (const [**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* s, void \* blob) <br>_Serialize the register into_ `blob` _._ |
-|  void | [**conv\_enc\_reset**](#function-conv_enc_reset) ([**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* state) <br>_Return the register to all-zero, keeping the code._  |
-|  int | [**conv\_enc\_set\_state**](#function-conv_enc_set_state) ([**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* s, const void \* blob) <br>_Restore a register from_ `blob` _._ |
-|  size\_t | [**conv\_enc\_state\_bytes**](#function-conv_enc_state_bytes) (const [**conv\_enc\_state\_t**](structconv__enc__state__t.md) \* s) <br>_Bytes_ [_**conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-conv_enc_get_state) _writes: envelope, code identity and the register._ |
+|  const [**conv\_code\_t**](structconv__code__t.md) \* | [**conv\_enc\_code**](#function-conv_enc_code) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_The code this encoder was built for._  |
+|  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**conv\_enc\_create\_code**](#function-conv_enc_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Build an encoder from a code already assembled._  |
+|  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**dp\_conv\_enc\_create**](#function-dp_conv_enc_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert) <br>_Build an encoder for the code the polynomials describe._  |
+|  void | [**dp\_conv\_enc\_destroy**](#function-dp_conv_enc_destroy) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state) <br>_Free an encoder. NULL is a no-op._  |
+|  size\_t | [**dp\_conv\_enc\_encode**](#function-dp_conv_enc_encode) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode information bits into channel symbols._  |
+|  size\_t | [**dp\_conv\_enc\_encode\_max\_out**](#function-dp_conv_enc_encode_max_out) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state, size\_t n\_in) <br>_Symbols_ [_**dp\_conv\_enc\_encode**_](conv__enc__core_8h.md#function-dp_conv_enc_encode) _writes for_`n_in` _input bits._ |
+|  void | [**dp\_conv\_enc\_get\_state**](#function-dp_conv_enc_get_state) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s, void \* blob) <br>_Serialize the register into_ `blob` _._ |
+|  void | [**dp\_conv\_enc\_reset**](#function-dp_conv_enc_reset) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state) <br>_Return the register to all-zero, keeping the code._  |
+|  int | [**dp\_conv\_enc\_set\_state**](#function-dp_conv_enc_set_state) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s, const void \* blob) <br>_Restore a register from_ `blob` _._ |
+|  size\_t | [**dp\_conv\_enc\_state\_bytes**](#function-dp_conv_enc_state_bytes) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_Bytes_ [_**dp\_conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-dp_conv_enc_get_state) _writes: envelope, code identity and the register._ |
 
 
 
@@ -110,7 +110,7 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 `conv` owns the CODE — the description, the trellis arithmetic, and the `conv_encode` kernel that turns bits into symbols. This owns the ENCODER built over one: a code and the shift register that must survive between calls, bound together so a caller cannot pair the wrong two.
 
 
-**It is not a second implementation.** [**conv\_enc\_encode**](conv__enc__core_8h.md#function-conv_enc_encode) calls `conv_encode`, exactly as [**viterbi\_decode**](viterbi__core_8h.md#function-viterbi_decode)'s object calls its own kernel. Two encoders for one code family is how a rounding rule or an inversion comes to differ between them.
+**It is not a second implementation.** [**dp\_conv\_enc\_encode**](conv__enc__core_8h.md#function-dp_conv_enc_encode) calls `conv_encode`, exactly as [**dp\_viterbi\_decode**](viterbi__core_8h.md#function-dp_viterbi_decode)'s object calls its own kernel. Two encoders for one code family is how a rounding rule or an inversion comes to differ between them.
 
 
 ### Why this exists at all
@@ -140,10 +140,10 @@ Bit convention follows `conv` and the rest of the coding chain: **unpacked** bit
 
 ```C++
 const uint32_t poly[2] = { 0171u, 0133u };
-conv_enc_state_t *e = conv_enc_create (poly, 2, 7u, 0x2u);  // CCSDS
+dp_conv_enc_state_t *e = dp_conv_enc_create (poly, 2, 7u, 0x2u);  // CCSDS
 uint8_t sym[2 * N];
-const size_t n = conv_enc_encode (e, bits, N, sym, sizeof sym);
-conv_enc_destroy (e);
+const size_t n = dp_conv_enc_encode (e, bits, N, sym, sizeof sym);
+dp_conv_enc_destroy (e);
 ```
  
 
@@ -160,7 +160,7 @@ conv_enc_destroy (e);
 _The code this encoder was built for._ 
 ```C++
 const conv_code_t * conv_enc_code (
-    const conv_enc_state_t * s
+    const dp_conv_enc_state_t * s
 ) 
 ```
 
@@ -171,11 +171,48 @@ const conv_code_t * conv_enc_code (
 
 
 
-### function conv\_enc\_create 
+### function conv\_enc\_create\_code 
+
+_Build an encoder from a code already assembled._ 
+```C++
+dp_conv_enc_state_t * conv_enc_create_code (
+    const conv_code_t * c
+) 
+```
+
+
+
+The declared `dp_conv_enc_create` takes the polynomials directly, because a struct pointer is not expressible in a manifest. Callers that already hold a [**conv\_code\_t**](structconv__code__t.md) — the CCSDS configuration, the validators — use this.
+
+
+
+
+**Parameters:**
+
+
+* `c` The code. Copied, so the caller's may be temporary. 
+
+
+
+**Returns:**
+
+The encoder, or NULL if `c` is invalid. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_conv\_enc\_create 
 
 _Build an encoder for the code the polynomials describe._ 
 ```C++
-conv_enc_state_t * conv_enc_create (
+dp_conv_enc_state_t * dp_conv_enc_create (
     const uint32_t * poly,
     size_t poly_len,
     uint32_t k,
@@ -223,7 +260,7 @@ Heap-allocated state, or NULL if the code is unusable.
 
 **Note:**
 
-Caller must call [**conv\_enc\_destroy()**](conv__enc__core_8h.md#function-conv_enc_destroy) when done. 
+Caller must call [**dp\_conv\_enc\_destroy()**](conv__enc__core_8h.md#function-dp_conv_enc_destroy) when done. 
 
 
 
@@ -235,49 +272,12 @@ Caller must call [**conv\_enc\_destroy()**](conv__enc__core_8h.md#function-conv_
 
 
 
-### function conv\_enc\_create\_code 
-
-_Build an encoder from a code already assembled._ 
-```C++
-conv_enc_state_t * conv_enc_create_code (
-    const conv_code_t * c
-) 
-```
-
-
-
-The declared `conv_enc_create` takes the polynomials directly, because a struct pointer is not expressible in a manifest. Callers that already hold a [**conv\_code\_t**](structconv__code__t.md) — the CCSDS configuration, the validators — use this.
-
-
-
-
-**Parameters:**
-
-
-* `c` The code. Copied, so the caller's may be temporary. 
-
-
-
-**Returns:**
-
-The encoder, or NULL if `c` is invalid. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function conv\_enc\_destroy 
+### function dp\_conv\_enc\_destroy 
 
 _Free an encoder. NULL is a no-op._ 
 ```C++
-void conv_enc_destroy (
-    conv_enc_state_t * state
+void dp_conv_enc_destroy (
+    dp_conv_enc_state_t * state
 ) 
 ```
 
@@ -299,12 +299,12 @@ void conv_enc_destroy (
 
 
 
-### function conv\_enc\_encode 
+### function dp\_conv\_enc\_encode 
 
 _Encode information bits into channel symbols._ 
 ```C++
-size_t conv_enc_encode (
-    conv_enc_state_t * state,
+size_t dp_conv_enc_encode (
+    dp_conv_enc_state_t * state,
     const uint8_t * in,
     size_t n_in,
     uint8_t * out,
@@ -358,19 +358,19 @@ True
 
 
 
-### function conv\_enc\_encode\_max\_out 
+### function dp\_conv\_enc\_encode\_max\_out 
 
-_Symbols_ [_**conv\_enc\_encode**_](conv__enc__core_8h.md#function-conv_enc_encode) _writes for_`n_in` _input bits._
+_Symbols_ [_**dp\_conv\_enc\_encode**_](conv__enc__core_8h.md#function-dp_conv_enc_encode) _writes for_`n_in` _input bits._
 ```C++
-size_t conv_enc_encode_max_out (
-    const conv_enc_state_t * state,
+size_t dp_conv_enc_encode_max_out (
+    const dp_conv_enc_state_t * state,
     size_t n_in
 ) 
 ```
 
 
 
-Exactly `n_in * n` — a convolutional code has no fill and no latency on the encode side, which is the asymmetry with [**viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-viterbi_decode_max_out), where the traceback still owes bits at the start of a stream.
+Exactly `n_in * n` — a convolutional code has no fill and no latency on the encode side, which is the asymmetry with [**dp\_viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-dp_viterbi_decode_max_out), where the traceback still owes bits at the start of a stream.
 
 
 
@@ -397,12 +397,12 @@ Symbols that call will write.
 
 
 
-### function conv\_enc\_get\_state 
+### function dp\_conv\_enc\_get\_state 
 
 _Serialize the register into_ `blob` _._
 ```C++
-void conv_enc_get_state (
-    const conv_enc_state_t * s,
+void dp_conv_enc_get_state (
+    const dp_conv_enc_state_t * s,
     void * blob
 ) 
 ```
@@ -415,7 +415,7 @@ void conv_enc_get_state (
 
 
 * `s` The encoder. 
-* `blob` At least [**conv\_enc\_state\_bytes**](conv__enc__core_8h.md#function-conv_enc_state_bytes) bytes. 
+* `blob` At least [**dp\_conv\_enc\_state\_bytes**](conv__enc__core_8h.md#function-dp_conv_enc_state_bytes) bytes. 
 
 
 
@@ -426,12 +426,12 @@ void conv_enc_get_state (
 
 
 
-### function conv\_enc\_reset 
+### function dp\_conv\_enc\_reset 
 
 _Return the register to all-zero, keeping the code._ 
 ```C++
-void conv_enc_reset (
-    conv_enc_state_t * state
+void dp_conv_enc_reset (
+    dp_conv_enc_state_t * state
 ) 
 ```
 
@@ -463,12 +463,12 @@ The boundary between two independent records, not a reconfiguration. The next en
 
 
 
-### function conv\_enc\_set\_state 
+### function dp\_conv\_enc\_set\_state 
 
 _Restore a register from_ `blob` _._
 ```C++
-int conv_enc_set_state (
-    conv_enc_state_t * s,
+int dp_conv_enc_set_state (
+    dp_conv_enc_state_t * s,
     const void * blob
 ) 
 ```
@@ -484,7 +484,7 @@ The code identity travels in the blob and is CHECKED rather than restored: `crea
 
 
 * `s` The encoder. 
-* `blob` A blob from [**conv\_enc\_get\_state**](conv__enc__core_8h.md#function-conv_enc_get_state). 
+* `blob` A blob from [**dp\_conv\_enc\_get\_state**](conv__enc__core_8h.md#function-dp_conv_enc_get_state). 
 
 
 
@@ -502,12 +502,12 @@ The code identity travels in the blob and is CHECKED rather than restored: `crea
 
 
 
-### function conv\_enc\_state\_bytes 
+### function dp\_conv\_enc\_state\_bytes 
 
-_Bytes_ [_**conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-conv_enc_get_state) _writes: envelope, code identity and the register._
+_Bytes_ [_**dp\_conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-dp_conv_enc_get_state) _writes: envelope, code identity and the register._
 ```C++
-size_t conv_enc_state_bytes (
-    const conv_enc_state_t * s
+size_t dp_conv_enc_state_bytes (
+    const dp_conv_enc_state_t * s
 ) 
 ```
 

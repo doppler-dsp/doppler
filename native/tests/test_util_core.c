@@ -59,7 +59,7 @@ main (void)
     for (int j = 0; j < NS; j++)
       {
         volatile double s = SAMPLES[i], x = SAMPLES[j], a = 1.0;
-        DP_CHECK (ema_step (s, x, a) == SAMPLES[j]);
+        DP_CHECK (dp_ema_step (s, x, a) == SAMPLES[j]);
       }
 
   /* ── §2 — alpha == 0 EXACTLY freezes the state ────────────────────
@@ -78,7 +78,7 @@ main (void)
    * alpha 1e-5, in this form's favour, widening as alpha shrinks). */
   for (int i = 0; i < NS; i++)
     for (int j = 0; j < NS; j++)
-      DP_CHECK (ema_step (SAMPLES[i], SAMPLES[j], 0.0) == SAMPLES[i]);
+      DP_CHECK (dp_ema_step (SAMPLES[i], SAMPLES[j], 0.0) == SAMPLES[i]);
 
   /* ── §3 — the fixed point does not move ───────────────────────────
    *
@@ -93,7 +93,8 @@ main (void)
     const double alphas[] = { 0.0, 1e-7, 1e-5, 0.01, 0.05, 0.5, 0.9, 1.0 };
     for (int a = 0; a < (int)(sizeof alphas / sizeof alphas[0]); a++)
       for (int i = 0; i < NS; i++)
-        DP_CHECK (ema_step (SAMPLES[i], SAMPLES[i], alphas[a]) == SAMPLES[i]);
+        DP_CHECK (dp_ema_step (SAMPLES[i], SAMPLES[i], alphas[a])
+                  == SAMPLES[i]);
   }
 
   /* ── §4 — the step lands between the endpoints, and moves toward x ──
@@ -110,7 +111,7 @@ main (void)
         for (int j = 0; j < NS; j++)
           {
             double s = SAMPLES[i], x = SAMPLES[j];
-            double y = ema_step (s, x, alphas[a]);
+            double y = dp_ema_step (s, x, alphas[a]);
             if (s < x)
               DP_CHECK (y > s - 1e-12 && y < x + 1e-12);
             else if (s > x)
@@ -127,8 +128,8 @@ main (void)
    * Sabotage: change the guard to `alpha > 1.0` — 1.0 itself still
    * passes, but this section keeps 1.5 honest either way; change it to
    * `alpha >= 2.0` and 1.5 overshoots to 1.5*x - 0.5*state. */
-  DP_CHECK (ema_step (0.0, 1.0, 1.5) == 1.0);
-  DP_CHECK (ema_step (10.0, -10.0, 4.0) == -10.0);
+  DP_CHECK (dp_ema_step (0.0, 1.0, 1.5) == 1.0);
+  DP_CHECK (dp_ema_step (10.0, -10.0, 4.0) == -10.0);
 
   /* ── §6 — ema_alpha_decim at d == 1 is EXACTLY alpha ──────────────
    *
@@ -137,7 +138,7 @@ main (void)
    * coefficient must be the per-sample coefficient itself, not a value
    * five ulps away.
    *
-   * This is the defect `agc_steps` carries today — it forms the pole as
+   * This is the defect `dp_agc_steps` carries today — it forms the pole as
    * `1 - a1^d` by repeated multiply, and at d == 1 that is `1-(1-alpha)`,
    * measured 6 ulps off at alpha 0.05 and 26865 ulps off at 1e-5. The
    * damage grows as the average lengthens, which is the direction a
@@ -159,7 +160,7 @@ main (void)
       {
         volatile double a   = as[i];
         volatile size_t one = 1;
-        DP_CHECK (ema_alpha_decim (a, one) == as[i]);
+        DP_CHECK (dp_ema_alpha_decim (a, one) == as[i]);
       }
   }
 
@@ -179,8 +180,9 @@ main (void)
         {
           double per = 0.0;
           for (size_t n = 0; n < ds[k]; n++)
-            per = ema_step (per, 1.0, as[i]);
-          double chunk = ema_step (0.0, 1.0, ema_alpha_decim (as[i], ds[k]));
+            per = dp_ema_step (per, 1.0, as[i]);
+          double chunk
+              = dp_ema_step (0.0, 1.0, dp_ema_alpha_decim (as[i], ds[k]));
           DP_CHECK (fabs (per - chunk) < 1e-15);
         }
   }
@@ -193,17 +195,17 @@ main (void)
    * which is -inf.
    *
    * Sabotage: drop the `alpha >= 1.0` early return and d>1 gives NaN. */
-  DP_CHECK (ema_alpha_decim (0.0, 8) == 0.0);
-  DP_CHECK (ema_alpha_decim (1.0, 8) == 1.0);
-  DP_CHECK (ema_alpha_decim (0.5, 0) == 0.5); /* d < 1 behaves as d == 1 */
+  DP_CHECK (dp_ema_alpha_decim (0.0, 8) == 0.0);
+  DP_CHECK (dp_ema_alpha_decim (1.0, 8) == 1.0);
+  DP_CHECK (dp_ema_alpha_decim (0.5, 0) == 0.5); /* d < 1 behaves as d == 1 */
   {
     const double as[] = { 1e-7, 1e-3, 0.05, 0.5, 0.99 };
     for (int i = 0; i < 5; i++)
       {
-        double prev = ema_alpha_decim (as[i], 1);
+        double prev = dp_ema_alpha_decim (as[i], 1);
         for (size_t d = 2; d <= 512; d *= 2)
           {
-            double v = ema_alpha_decim (as[i], d);
+            double v = dp_ema_alpha_decim (as[i], d);
             DP_CHECK (v >= 0.0 && v <= 1.0);
             DP_CHECK (v >= prev);
             prev = v;
@@ -228,21 +230,21 @@ main (void)
     for (int i = 0; i < 5; i++)
       for (int j = 0; j < 5; j++)
         {
-          const double      v = complement_power (ps[i], xs[j]);
+          const double      v = dp_complement_power (ps[i], xs[j]);
           const long double ref
               = -expm1l ((long double)xs[j] * log1pl (-(long double)ps[i]));
           DP_CHECK (fabs ((double)(((long double)v - ref) / ref)) < 1e-12);
         }
     for (size_t d = 2; d <= 64; d++)
-      DP_CHECK (complement_power (0.05, (double)d)
-                == ema_alpha_decim (0.05, d));
-    DP_CHECK (complement_power (0.37, 1.0) == 0.37);
-    DP_CHECK (complement_power (0.37, 0.0) == 0.0);
-    DP_CHECK (complement_power (1.0, 0.5) == 1.0);
+      DP_CHECK (dp_complement_power (0.05, (double)d)
+                == dp_ema_alpha_decim (0.05, d));
+    DP_CHECK (dp_complement_power (0.37, 1.0) == 0.37);
+    DP_CHECK (dp_complement_power (0.37, 0.0) == 0.0);
+    DP_CHECK (dp_complement_power (1.0, 0.5) == 1.0);
     for (int n = 2; n <= 4096; n *= 4)
       {
-        const double pc = complement_power (1e-3, 1.0 / (double)n);
-        DP_CHECK (fabs (complement_power (pc, (double)n) - 1e-3) < 1e-15);
+        const double pc = dp_complement_power (1e-3, 1.0 / (double)n);
+        DP_CHECK (fabs (dp_complement_power (pc, (double)n) - 1e-3) < 1e-15);
       }
   }
 
@@ -250,16 +252,16 @@ main (void)
    *
    * Sabotage: sin (u) / u (unnormalized) -- the nulls move off the
    * integers and the half-bin value is wrong. */
-  DP_CHECK (sinc (0.0) == 1.0);
+  DP_CHECK (dp_sinc (0.0) == 1.0);
   for (int k = 1; k <= 8; k++)
     {
-      DP_CHECK (fabs (sinc ((double)k)) < 1e-15);
+      DP_CHECK (fabs (dp_sinc ((double)k)) < 1e-15);
       /* Even to within rounding, not bit-equal: sin() of the negated
        * argument is not guaranteed bit-symmetric under -ffast-math (#1561). */
-      DP_CHECK (fabs (sinc (-(double)k - 0.3) - sinc ((double)k + 0.3))
+      DP_CHECK (fabs (dp_sinc (-(double)k - 0.3) - dp_sinc ((double)k + 0.3))
                 < 1e-14);
     }
-  DP_CHECK (fabs (sinc (0.5) - 2.0 / M_PI) < 1e-15);
+  DP_CHECK (fabs (dp_sinc (0.5) - 2.0 / M_PI) < 1e-15);
 
   /* ── §11 — simpson_weights: a mean, exact on cubics ────────────────
    *
@@ -273,14 +275,14 @@ main (void)
     for (size_t bad = 0; bad <= 4; bad += (bad == 2 ? 2 : 1))
       {
         w[0] = -7.0;
-        DP_CHECK (simpson_weights (w, bad) == DP_ERR_INVALID);
+        DP_CHECK (dp_simpson_weights (w, bad) == DP_ERR_INVALID);
         DP_CHECK (w[0] == -7.0);
       }
     const size_t lens[] = { 3, 5, 9, 65 };
     for (int i = 0; i < 4; i++)
       {
         const size_t n = lens[i];
-        DP_CHECK (simpson_weights (w, n) == DP_OK);
+        DP_CHECK (dp_simpson_weights (w, n) == DP_OK);
         double sum = 0.0, m2 = 0.0, m3 = 0.0;
         for (size_t k = 0; k < n; k++)
           {
@@ -302,8 +304,8 @@ main (void)
    *
    * Sabotage: divide by 64 intervals as if they were 65 points -- off by
    * ~1.5%, red. */
-  DP_CHECK (mean_sinc (0.0) == 1.0);
-  DP_CHECK (mean_sinc (-1.0) == 1.0);
+  DP_CHECK (dp_mean_sinc (0.0) == 1.0);
+  DP_CHECK (dp_mean_sinc (-1.0) == 1.0);
   {
     const double us[] = { 0.1, 0.5, 1.0, 2.5 };
     for (int i = 0; i < 4; i++)
@@ -311,9 +313,9 @@ main (void)
         const int N   = 100000;
         double    ref = 0.0;
         for (int k = 0; k < N; k++)
-          ref += sinc (us[i] * ((double)k + 0.5) / (double)N);
+          ref += dp_sinc (us[i] * ((double)k + 0.5) / (double)N);
         ref /= (double)N;
-        DP_CHECK (fabs (mean_sinc (us[i]) - ref) < 1e-9);
+        DP_CHECK (fabs (dp_mean_sinc (us[i]) - ref) < 1e-9);
       }
   }
 
@@ -322,7 +324,7 @@ main (void)
    * Sabotage: k / n (left edges) -- red. */
   {
     double u[7];
-    midpoint_nodes (u, 7);
+    dp_midpoint_nodes (u, 7);
     double sum = 0.0;
     for (int k = 0; k < 7; k++)
       {
@@ -344,13 +346,13 @@ main (void)
    * moments go red; stop Newton after one step -- the moments go red. */
   {
     double z[40], pw[40];
-    DP_CHECK (gauss_hermite (z, 0, pw, 0) == DP_ERR_INVALID);
-    DP_CHECK (gauss_hermite (z, 3, pw, 4) == DP_ERR_INVALID);
-    DP_CHECK (gauss_hermite (z, 2, pw, 2) == DP_OK);
+    DP_CHECK (dp_gauss_hermite (z, 0, pw, 0) == DP_ERR_INVALID);
+    DP_CHECK (dp_gauss_hermite (z, 3, pw, 4) == DP_ERR_INVALID);
+    DP_CHECK (dp_gauss_hermite (z, 2, pw, 2) == DP_OK);
     DP_CHECK (z[0] == -1.0 && z[1] == 1.0 && pw[0] == 0.5 && pw[1] == 0.5);
     for (size_t n = 1; n <= 40; n++)
       {
-        DP_CHECK (gauss_hermite (z, n, pw, n) == DP_OK);
+        DP_CHECK (dp_gauss_hermite (z, n, pw, n) == DP_OK);
         double sum = 0.0;
         for (size_t i = 0; i < n; i++)
           {

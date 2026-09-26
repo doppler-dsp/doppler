@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* CostasObject — wraps costas_state_t *       */
+/* CostasObject — wraps dp_costas_state_t *       */
 /* ======================================================== */
 
 #include "doppler/costas/costas_core.h"
 
 typedef struct
 {
-  PyObject_HEAD costas_state_t *handle;
+  PyObject_HEAD dp_costas_state_t *handle;
 } CostasObject;
 
 static void
 CostasObj_dealloc (CostasObject *self)
 {
   if (self->handle)
-    costas_destroy (self->handle);
+    dp_costas_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -48,10 +48,10 @@ CostasObj_init (CostasObject *self, PyObject *args, PyObject *kwds)
                                     &init_norm_freq, &tsamps_raw, &bn_fll))
     return -1;
   size_t tsamps = (size_t)tsamps_raw;
-  self->handle  = costas_create (bn, zeta, init_norm_freq, tsamps, bn_fll);
+  self->handle  = dp_costas_create (bn, zeta, init_norm_freq, tsamps, bn_fll);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "costas_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_costas_create returned NULL");
       return -1;
     }
   return 0;
@@ -65,7 +65,7 @@ CostasObj_steps_max_out (CostasObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (costas_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_costas_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -111,7 +111,7 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = costas_steps_max_out (self->handle);
+      size_t _omax    = dp_costas_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -133,7 +133,7 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = costas_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_costas_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -148,7 +148,7 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = costas_steps_max_out (self->handle);
+  size_t _cap  = dp_costas_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -167,7 +167,7 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = costas_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_costas_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -220,7 +220,7 @@ CostasObj_set_telemetry (CostasObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = costas_set_telemetry (self->handle, tlm, prefix, decim);
+  int      _rc   = dp_costas_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
@@ -242,7 +242,7 @@ CostasObj_configure (CostasObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  costas_configure (self->handle, bn, zeta);
+  dp_costas_configure (self->handle, bn, zeta);
   Py_RETURN_NONE;
 }
 
@@ -265,7 +265,8 @@ CostasObj_configure_lock (CostasObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  costas_configure_lock (self->handle, up_thresh, down_thresh, n_up, n_down);
+  dp_costas_configure_lock (self->handle, up_thresh, down_thresh, n_up,
+                            n_down);
   Py_RETURN_NONE;
 }
 
@@ -277,7 +278,7 @@ CostasObj_reset (CostasObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  costas_reset (self->handle);
+  dp_costas_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -289,7 +290,7 @@ CostasObj_state_bytes (CostasObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (costas_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_costas_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -300,11 +301,11 @@ CostasObj_get_state (CostasObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = costas_state_bytes (self->handle);
+  size_t    _n = dp_costas_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  costas_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_costas_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -321,12 +322,12 @@ CostasObj_set_state (CostasObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != costas_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_costas_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (costas_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_costas_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -342,7 +343,7 @@ Costas_getprop_bn (CostasObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (costas_get_bn (self->handle));
+  return PyFloat_FromDouble (dp_costas_get_bn (self->handle));
 }
 static int
 Costas_setprop_bn (CostasObject *self, PyObject *value,
@@ -356,7 +357,7 @@ Costas_setprop_bn (CostasObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  costas_set_bn (self->handle, v);
+  dp_costas_set_bn (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -368,7 +369,7 @@ Costas_getprop_norm_freq (CostasObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (costas_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_costas_get_norm_freq (self->handle));
 }
 static int
 Costas_setprop_norm_freq (CostasObject *self, PyObject *value,
@@ -382,7 +383,7 @@ Costas_setprop_norm_freq (CostasObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  costas_set_norm_freq (self->handle, v);
+  dp_costas_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -394,7 +395,7 @@ Costas_getprop_lock_metric (CostasObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (costas_get_lock_metric (self->handle));
+  return PyFloat_FromDouble (dp_costas_get_lock_metric (self->handle));
 }
 static PyObject *
 Costas_getprop_locked (CostasObject *self, void *Py_UNUSED (closure))
@@ -405,7 +406,7 @@ Costas_getprop_locked (CostasObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(costas_get_locked (self->handle)));
+  return PyBool_FromLong ((long)(dp_costas_get_locked (self->handle)));
 }
 static PyObject *
 Costas_getprop_last_error (CostasObject *self, void *Py_UNUSED (closure))
@@ -416,7 +417,7 @@ Costas_getprop_last_error (CostasObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (costas_get_last_error (self->handle));
+  return PyFloat_FromDouble (dp_costas_get_last_error (self->handle));
 }
 static PyObject *
 Costas_getprop_bn_fll (CostasObject *self, void *Py_UNUSED (closure))
@@ -427,7 +428,7 @@ Costas_getprop_bn_fll (CostasObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (costas_get_bn_fll (self->handle));
+  return PyFloat_FromDouble (dp_costas_get_bn_fll (self->handle));
 }
 static int
 Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
@@ -441,7 +442,7 @@ Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  costas_set_bn_fll (self->handle, v);
+  dp_costas_set_bn_fll (self->handle, v);
   return 0;
 }
 
@@ -469,7 +470,7 @@ CostasObj_destroy (CostasObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      costas_destroy (self->handle);
+      dp_costas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -488,7 +489,7 @@ CostasObj_exit (CostasObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      costas_destroy (self->handle);
+      dp_costas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -572,7 +573,7 @@ static PyMethodDef CostasObj_methods[] = {
     "frequency,\n"
     "cycles/sample) and \"<prefix>.locked\" (the verify-counted lock "
     "decision,\n"
-    "0/1 — see costas_configure_lock). Passing NULL detaches. Setup path,\n"
+    "0/1 — see dp_costas_configure_lock). Passing NULL detaches. Setup path,\n"
     "never hot: call before the producer thread starts stepping; the context\n"
     "is borrowed and must outlive the attachment (SPSC rules in\n"
     "dp_tlm/dp_tlm_core.h).\n"

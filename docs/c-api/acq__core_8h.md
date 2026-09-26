@@ -46,8 +46,8 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | struct | [**acq\_part\_t**](structacq__part__t.md) <br>_One tile's share of a decided surface (design §2.3): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._ |
 | struct | [**acq\_result\_t**](structacq__result__t.md) <br>_One acquisition detection event._  |
 | struct | [**acq\_shape\_t**](structacq__shape__t.md) <br>_What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._  |
-| struct | [**acq\_state\_t**](structacq__state__t.md) <br>_Streaming acquisition-engine state._  |
-| struct | [**acq\_tlm\_t**](structacq__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**acq\_set\_state()**_](acq__core_8h.md#function-acq_set_state) _like the borrowed code._ |
+| struct | [**acq\_tlm\_t**](structacq__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _like the borrowed code._ |
+| struct | [**dp\_acq\_state\_t**](structdp__acq__state__t.md) <br>_Streaming acquisition-engine state._  |
 
 
 ## Public Types
@@ -79,39 +79,39 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**acq\_block\_prompt**](#function-acq_block_prompt) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
-|  size\_t | [**acq\_block\_raw**](#function-acq_block_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
-|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
-|  double \_Complex | [**acq\_cell\_corr**](#function-acq_cell_corr) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
-|  void | [**acq\_cell\_corr\_grid**](#function-acq_cell_corr_grid) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**acq\_cell\_corr()**_](acq__core_8h.md#function-acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
-|  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
-|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
-|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
-|  void | [**acq\_destroy**](#function-acq_destroy) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Destroy and free an engine._  |
-|  void | [**acq\_get\_state**](#function-acq_get_state) (const [**acq\_state\_t**](structacq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
-|  double | [**acq\_psl\_db**](#function-acq_psl_db) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._ |
-|  size\_t | [**acq\_push**](#function-acq_push) ([**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
-|  void | [**acq\_reset**](#function-acq_reset) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
-|  size\_t | [**acq\_run**](#function-acq_run) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
-|  int | [**acq\_set\_carrier\_freq\_hz**](#function-acq_set_carrier_freq_hz) ([**acq\_state\_t**](structacq__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
-|  int | [**acq\_set\_max\_peaks**](#function-acq_set_max_peaks) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
-|  int | [**acq\_set\_state**](#function-acq_set_state) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
-|  void | [**acq\_set\_surface\_sink**](#function-acq_set_surface_sink) ([**acq\_state\_t**](structacq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._ |
-|  int | [**acq\_set\_telemetry**](#function-acq_set_telemetry) ([**acq\_state\_t**](structacq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._  |
-|  int | [**acq\_set\_threads**](#function-acq_set_threads) ([**acq\_state\_t**](structacq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._  |
-|  size\_t | [**acq\_state\_bytes**](#function-acq_state_bytes) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
-|  size\_t | [**acq\_surface**](#function-acq_surface) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
-|  size\_t | [**acq\_surface\_chip\_phase**](#function-acq_surface_chip_phase) ([**acq\_state\_t**](structacq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
-|  size\_t | [**acq\_surface\_complex**](#function-acq_surface_complex) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._  |
-|  size\_t | [**acq\_surface\_doppler\_hz**](#function-acq_surface_doppler_hz) ([**acq\_state\_t**](structacq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's Doppler axis: the frequency of each row, in Hz._  |
+|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _hit into a wire-ready hand-off record._ |
+|  double \_Complex | [**acq\_cell\_corr**](#function-acq_cell_corr) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
+|  void | [**acq\_cell\_corr\_grid**](#function-acq_cell_corr_grid) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**acq\_cell\_corr()**_](acq__core_8h.md#function-acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
+|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
+|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
+|  double | [**acq\_psl\_db**](#function-acq_psl_db) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._ |
+|  size\_t | [**acq\_run**](#function-acq_run) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
+|  void | [**acq\_set\_surface\_sink**](#function-acq_set_surface_sink) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._ |
+|  size\_t | [**dp\_acq\_block\_prompt**](#function-dp_acq_block_prompt) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
+|  size\_t | [**dp\_acq\_block\_raw**](#function-dp_acq_block_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
+|  int | [**dp\_acq\_configure\_search\_raw**](#function-dp_acq_configure_search_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
+|  void | [**dp\_acq\_destroy**](#function-dp_acq_destroy) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Destroy and free an engine._  |
+|  void | [**dp\_acq\_get\_state**](#function-dp_acq_get_state) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
+|  size\_t | [**dp\_acq\_push**](#function-dp_acq_push) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
+|  void | [**dp\_acq\_reset**](#function-dp_acq_reset) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
+|  int | [**dp\_acq\_set\_carrier\_freq\_hz**](#function-dp_acq_set_carrier_freq_hz) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
+|  int | [**dp\_acq\_set\_max\_peaks**](#function-dp_acq_set_max_peaks) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
+|  int | [**dp\_acq\_set\_state**](#function-dp_acq_set_state) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
+|  int | [**dp\_acq\_set\_telemetry**](#function-dp_acq_set_telemetry) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._  |
+|  int | [**dp\_acq\_set\_threads**](#function-dp_acq_set_threads) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._  |
+|  size\_t | [**dp\_acq\_state\_bytes**](#function-dp_acq_state_bytes) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
+|  size\_t | [**dp\_acq\_surface**](#function-dp_acq_surface) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
+|  size\_t | [**dp\_acq\_surface\_chip\_phase**](#function-dp_acq_surface_chip_phase) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
+|  size\_t | [**dp\_acq\_surface\_complex**](#function-dp_acq_surface_complex) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._  |
+|  size\_t | [**dp\_acq\_surface\_doppler\_hz**](#function-dp_acq_surface_doppler_hz) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's Doppler axis: the frequency of each row, in Hz._  |
 
 
 ## Public Static Functions
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**acq\_bin\_doppler\_hz**](#function-acq_bin_doppler_hz) (const [**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bin) <br>_A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over acq\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._ |
-|  size\_t | [**acq\_grid\_bins**](#function-acq_grid_bins) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._ |
+|  double | [**acq\_bin\_doppler\_hz**](#function-acq_bin_doppler_hz) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t doppler\_bin) <br>_A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over acq\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._ |
+|  size\_t | [**acq\_grid\_bins**](#function-acq_grid_bins) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._ |
 
 
 
@@ -180,7 +180,7 @@ Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / 
 **Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md §2.3): the engine allows a coherent depth, to accommodate waveforms with code-only windows. Given `code_only_epochs > 1`  the whole code-only epochs such a window holds at any chip phase  it runs a coherent depth `D` inside every tile: the per-tile epoch correlations are gathered for `D` epochs, then a zero-padded slow-time FFT per code-phase column turns each tile into `D` Doppler rows `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping and the engine does not know any emitter's window phase, so `D` is at most `(code_only_epochs+1)/2` (a whole block always lands inside the window) and, when `doppler_rate` is given, at most `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a row). The Doppler axis is then ONE uniform grid of `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)` over the tiled span, in native FFT-bin order (0 = DC, ascending, then wrapping negative): `doppler_bin` indexes it, and [**acq\_build\_handoff()**](acq__core_8h.md#function-acq_build_handoff) folds it with dp\_fftfreq\_index() over that count. A block that straddles data spreads that emitter over its rows, `10*log10(D)` below an aligned block, at its own code phase  the `conc` probe (§2.4) reads it. `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as described above. A tile de-rotates by its own centre, so an emitter on the edge between two tiles reads the same in both (within 0.03 dB) and the slow-time transform folds it to the same row index of each: every listed peak is therefore asked at its ROW's frequency before it is reported  the block's raw epochs correlated with the replica at the pick's code phase, mixed by the row's frequency and by that one span down and up, the winner reported (design §2.3, docs/design/async-dsss-receiver-measurements.md §12.18, doppler#1270).
 
 
-**A roll per thread** (design §2.3): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count. The per-cell passes that decide a surface  the magnitude, the CFAR reference, the working mask and every scan of the peak list  run per tile too, each into a slot of its own, and are merged serially in tile order (a mean of the tiles' means over equal cells, the first of the tiles' first maxima), so the serial remainder is per tile, not per cell. [**acq\_set\_threads()**](acq__core_8h.md#function-acq_set_threads) sets the count.
+**A roll per thread** (design §2.3): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count. The per-cell passes that decide a surface  the magnitude, the CFAR reference, the working mask and every scan of the peak list  run per tile too, each into a slot of its own, and are merged serially in tile order (a mean of the tiles' means over equal cells, the first of the tiles' first maxima), so the serial remainder is per tile, not per cell. [**dp\_acq\_set\_threads()**](acq__core_8h.md#function-dp_acq_set_threads) sets the count.
 
 
 
@@ -192,15 +192,15 @@ bin_to_nrz(code, 31, nrz, 31);           // chip 0 -> +1, chip 1 -> -1
 float _Complex pre[124];
 for (size_t i = 0; i < 124; i++)
   pre[i] = nrz[i / 4];                   // each chip held 4 samples
-acq_state_t *a = acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
+dp_acq_state_t *a = acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
                                   0.0, 1e-3, 0.9, 0, 0.0);
 acq_result_t hits[64];
-size_t nh = acq_push(a, samples, n_samples, hits, 64);
+size_t nh = dp_acq_push(a, samples, n_samples, hits, 64);
 for (size_t i = 0; i < nh; i++)
   printf("Doppler %zu, code phase %zu, C/N0 %.1f dB-Hz\n",
          hits[i].doppler_bin, hits[i].code_phase,
          hits[i].cn0_dbhz_est);
-acq_destroy(a);
+dp_acq_destroy(a);
 ```
  
 
@@ -227,12 +227,433 @@ typedef void(* acq_surface_sink_fn) (void *ctx, const float *surface, size_t row
 
 
 
-### function acq\_block\_prompt 
+### function acq\_build\_handoff 
+
+_Convert one_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _hit into a wire-ready hand-off record._
+```C++
+void acq_build_handoff (
+    const dp_acq_state_t * state,
+    const acq_result_t * hit,
+    size_t code_len,
+    size_t spc,
+    acq_handoff_t * out
+) 
+```
+
+
+
+Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:
+
+
+
+* **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
+* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `doppler_bin` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
+* **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At SPEC's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
+
+**Parameters:**
+
+
+  * `state` The engine `hit` came from (non-NULL, built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous)). 
+  * `hit` One hit from [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) (non-NULL). 
+  * `code_len` Spreading-code length (chips) — the same value passed to whichever acq\_create\_\*() built `state`. 
+  * `spc` Samples/chip — likewise. 
+  * `out` Written on return (non-NULL). 
+
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_cell\_corr 
+
+_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._ 
+```C++
+double _Complex acq_cell_corr (
+    const dp_acq_state_t * state,
+    const float _Complex * x,
+    size_t col,
+    double f_hz,
+    double t0
+) 
+```
+
+
+
+`sum_m x[m] * conj(ref[(m - col) mod nx]) * exp(-j 2 pi f (t0 + m)/fs)` over the `code_bins` samples of `x`. The mixer phase is referenced to `t0`, so epochs evaluated at consecutive `t0` combine COHERENTLY: sum the returned values across epochs and the result is a depth-`len` cell of the slow-time surface at `f_hz`, with no intra-epoch rotation loss.
+
+
+It is what a caller does once acquisition has SETTLED the code phase and the Doppler: evaluate the same statistic elsewhere without searching the grid again. The engine's tile-alias check uses it; burst\_capture's refine uses it to score each candidate repetition (doppler#1502).
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine whose replica, `code_bins` and `fs` are used. 
+* `x` One epoch, `code_bins` samples. 
+* `col` Code phase, samples, in [0, code\_bins). 
+* `f_hz` Mixer frequency, Hz. 
+* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
+
+
+
+**Returns:**
+
+The complex correlation. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_cell\_corr\_grid 
+
+[_**acq\_cell\_corr()**_](acq__core_8h.md#function-acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._
+```C++
+void acq_cell_corr_grid (
+    const dp_acq_state_t * state,
+    const float _Complex * x,
+    size_t n_epochs,
+    size_t col,
+    const double * f_hz,
+    size_t n_f,
+    double t0,
+    double _Complex * out
+) 
+```
+
+
+
+Element `e * n_f + j` of `out` is [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) of epoch `e` (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach (measured 2.9e-6 at a 510-sample epoch): a coherent peak 100 dB above the difference.
+
+
+How: evaluated one cell at a time, every frequency repeats the whole despread-and-mix of the epoch. Here the replica is multiplied once per call by a mixer at the frequencies' centre, so each sample costs one multiply, summed over B equal blocks per epoch with the first and second moments of the time within each block. What is left of a frequency is a residual of at most `r` cycles per epoch either side of the centre; B = ceil(48 r) blocks keep it turning under 1/96 of a cycle either side of a block's centre, and it is applied per block from the moments as a second-order expansion, whose remainder is the error above. So the cost per epoch is `code_bins + 3 * B * n_f` against `n_f * code_bins`, and burst\_capture's refine, which scores every Doppler cell of every candidate period, is the reason it exists (doppler#1538).
+
+
+Frequencies spread more than one cycle per epoch either side of their centre fall back to [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) per cell.
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine whose replica, `code_bins` and `fs` are used. 
+* `x` `n_epochs * code_bins` contiguous samples. 
+* `n_epochs` Epochs to evaluate. 
+* `col` Code phase, samples, in [0, code\_bins). 
+* `f_hz` `n_f` mixer frequencies, Hz, in any order. 
+* `n_f` Number of frequencies. 
+* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
+* `out` Written with `n_epochs * n_f` correlations, epoch-major. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_create\_burst 
+
+_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._
+```C++
+dp_acq_state_t * acq_create_burst (
+    const float _Complex * tmpl,
+    size_t n,
+    size_t reps,
+    double fs,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode,
+    double doppler_rate
+) 
+```
+
+
+
+Takes the preamble as its SAMPLES: one period of `n` complex samples at `fs`, repeated up to `reps` times. A PN code is one such preamble  pass its chips mapped by [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz) and held `spc` samples each, at `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`, and `code_phase` is the delay into the repetition, in samples  for a preamble whose ambiguity function is a ridge (Zadoff-Chu: one native bin of Doppler moves the peak `u^-1 mod n` samples), the delay plus that shift whenever the Doppler is not resolved before correlation. It converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose burst Pd `pd_burst` meets `pd` at the Sidak threshold (minimum latency for a strong signal). `pd_burst` treats the preamble as exactly `reps` periods at a uniform offset against the stream-aligned dwells, and credits every dwell it spans (doppler#1498). If no depth meets `pd` the engine takes the one with the most burst Pd and is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
+
+
+`cn0_dbhz` is the DESIGN (minimum) C/N0 and is optional: NaN ([**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none)) means none was given, and the engine then integrates the whole preamble (`coherent_bins = reps`) with the threshold set by `pfa` alone. `pd` is a sizing target only when a design C/N0 is given; without one `pd_predicted` and `pd_burst` are NAN and `underpowered` is never set.
+
+
+A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive). When `doppler_uncertainty` exceeds the native span `fs/(2n)`, falls back to the wideband window-tiling mechanism (see the file doc comment) instead  coherent depth structurally can't cover more than one native span, regardless of `reps`. Use [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_acq_configure_search_raw) to pin the grid directly instead of relying on this auto-sizer.
+
+
+What a code once knew analytically, the preamble's own correlation gives numerically, from one FFT at construction ([**acq\_shape\_t**](structacq__shape__t.md)):
+
+
+
+* the peak zone (the twin rule's reach and the exclusion around each listed peak) is the autocorrelation's first null, the lag of the first local minimum of \|R(k)\|  one chip of samples for a code;
+* the delay straddle the Pd model averages is the band-limited autocorrelation over a half-sample offset.
+
+
+
+
+For a PN code the numeric model is the more accurate one: against a rectangular-chip signal it stays conservative (never optimistic) and sits 0.01-0.08 below the measured Pd at spc 2-4, where the analytic triangle sat 0.03-0.21 below (doppler#1470).
+
+
+The within-repetition rotation loss keeps the engine's `sinc` model: it is the zero-delay cut of the ambiguity function, which a periodic preamble's envelope does not move  measured within 0.007 dB of sinc for RRC-shaped QPSK at 4.7 dB peak-to-average.
+
+
+`tmpl` is scaled to unit RMS (a copy  the caller's buffer is only read), so `peak_mag` and `noise_est` come out in the signal's units whatever the preamble's amplitude. C/N0 is the preamble's mean power.
+
+
+
+
+**Parameters:**
+
+
+* `tmpl` One period of the preamble, `n` samples; not all zero, every sample finite. 
+* `n` Samples per repetition (&gt;= 1). 
+* `reps` Max coherent repetitions, the coherence ceiling (&gt;= 1). 
+* `fs` Sample rate in Hz (&gt; 0); 1 for normalized units. 
+* `cn0_dbhz` Design carrier-to-noise density in dB-Hz, of the preamble's mean power: any finite value (at fs = 1 the per-sample SNR, usually negative), or [**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none) (NaN) for no design point  size for the whole preamble. 
+* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- fs/(2n). A value greater than the native span engages wideband mode (see the file doc comment above): coherent\_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead. 
+* `pfa` Target system (max-of-N) false-alarm probability (0,1). 
+* `pd` Target detection probability (0,1); a sizing target only when `cn0_dbhz` is given. 
+* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) the coherent depth is bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions (`f_epoch = fs/n`, the repetition rate), so the carrier's drift over one block stays inside half a slow-time row (doppler#1482). 0 is no bound: the depth is sized up to `reps`. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on bad arguments / allocation failure. 
+```C++
+// 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
+float _Complex zc[127];
+for (int k = 0; k < 127; k++)
+  zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
+dp_acq_state_t *a = acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
+                                   0.9, 0, 0.0);
+dp_acq_destroy (a);
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_create\_continuous 
+
+_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._ 
+```C++
+dp_acq_state_t * acq_create_continuous (
+    const uint8_t * code,
+    size_t code_len,
+    size_t spc,
+    double chip_rate,
+    double symbol_rate,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode,
+    size_t code_only_epochs,
+    double doppler_rate
+) 
+```
+
+
+
+Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR, and ALWAYS tiles `window_bins = max(1, ceil(doppler_uncertainty / (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file doc comment's "Wideband window-tiling mode")  unconditionally, even when `doppler_uncertainty` is narrower than one native span. A continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining across DATA a structural aliasing mislock (see docs/design/dsss-acquisition.md), so the depth is bounded by what a waveform's code-only window holds: `coherent_bins = D = min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1, run in non-overlapping D-epoch blocks inside every tile (file doc, design §2.3). With `code_only_epochs` = 1 it is 1 and the engine is exactly the epoch-by-epoch search. Sensitivity margin beyond the depth comes from auto-selected non-coherent looks over blocks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
+
+
+
+
+**Parameters:**
+
+
+* `code` PN chips (0/1), length `code_len`. 
+* `code_len` Number of chips supplied (= sf, the spreading factor). 
+* `spc` Samples per chip (&gt;= 1). 
+* `chip_rate` Chip rate in Hz (&gt; 0). 
+* `symbol_rate` Continuous data-symbol rate in Hz; &lt;= 0 means no known clock. Diagnostic only (exposed via [**dp\_acq\_state\_t::epochs\_per\_symbol**](structdp__acq__state__t.md#variable-epochs_per_symbol)), doesn't feed sizing: this engine never coherently combines regardless of the data-modulation clock. 
+* `cn0_dbhz` Carrier-to-noise density in dB-Hz: any finite value. A continuous engine needs one  its non-coherent looks cannot be chosen without a target. 
+* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf) (still window-tiled, at window\_bins=1). 
+* `pfa` Target system (max-of-N) false-alarm probability (0,1). 
+* `pd` Target detection probability (0,1). 
+* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `code_only_epochs` Whole code-only epochs a waveform's code-only window holds at any chip phase (design §2.1: `floor(W_symbols * chips_per_symbol / sf) - 1`); 1 (&gt;= 1) means no window and a depth of 1. 
+* `doppler_rate` Doppler rate in Hz/s the depth is bounded against (&gt;= 0); 0 leaves the window as the only bound. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on bad arguments / allocation failure. 
+```C++
+>>> import numpy as np
+>>> from doppler.acquire import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+>>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
+(0, 17)
+>>> a.coherent_bins            # no window given: one epoch
+1
+>>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+...                 code_only_epochs=7)
+>>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
+4
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_psl\_db 
+
+_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._
+```C++
+double acq_psl_db (
+    const dp_acq_state_t * state
+) 
+```
+
+
+
+What it predicts: a detection's sidelobes sit this far below it, at delays outside the peak zone  where the peak list's exclusion does not reach. So a burst that clears the threshold by more than `-psl_db` also lists its own sidelobe as a second peak (with `max_peaks > 1`), and a strong burst's sidelobe can mask a weak one there. A code's is its periodic floor, 20\*log10(1/31) = -29.8 dB for a 31-chip m-sequence; a perfect sequence (Zadoff-Chu, a Frank-type chirp) has none and reads -INFINITY. Configuration, not state: it is fixed at construction and not serialized.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.acquire import BurstAcquisition
+>>> from doppler.cvt import bin_to_nrz
+>>> from doppler.wfm import PN
+>>> chips = (np.asarray(PN(poly=0, seed=1, length=5).generate(31)) & 1
+...          ).astype(np.uint8)
+>>> nrz = np.zeros(31, dtype=np.float32)
+>>> _ = bin_to_nrz(chips, nrz)
+>>> pre = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
+>>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=50.0)
+>>> round(a.psl_db, 2)          # an m-sequence: 1/31
+-29.83
+>>> k = np.arange(127)
+>>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+>>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db
+-inf
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function acq\_run 
+
+_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._
+```C++
+size_t acq_run (
+    dp_acq_state_t * state,
+    const void * state_in,
+    void * state_out,
+    const float _Complex * in,
+    size_t n_in,
+    acq_result_t * result,
+    size_t max_results
+) 
+```
+
+
+
+
+
+**Returns:**
+
+Number of events written (0 … max\_results). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_set\_surface\_sink 
+
+_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._
+```C++
+void acq_set_surface_sink (
+    dp_acq_state_t * state,
+    acq_surface_sink_fn fn,
+    void * ctx,
+    uint32_t decim
+) 
+```
+
+
+
+Sets `keep_surface`, so [**dp\_acq\_surface()**](acq__core_8h.md#function-dp_acq_surface) reads the same dwell afterwards. The pointer handed to `fn` is the engine's and is valid only for the call: copy or write it out there. This is how a long run records the surface decimated in time without a copy per dwell it does not keep.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `fn` The sink, or NULL to detach. 
+* `ctx` Passed through to `fn`. 
+* `decim` Hand over every decim-th dwell; 0 reads as 1. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_acq\_block\_prompt 
 
 _One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._ 
 ```C++
-size_t acq_block_prompt (
-    acq_state_t * state,
+size_t dp_acq_block_prompt (
+    dp_acq_state_t * state,
     size_t tile,
     size_t col,
     float _Complex * out,
@@ -295,12 +716,12 @@ True
 
 
 
-### function acq\_block\_raw 
+### function dp\_acq\_block\_raw 
 
 _The last whole block's raw samples, as pushed._ 
 ```C++
-size_t acq_block_raw (
-    acq_state_t * state,
+size_t dp_acq_block_raw (
+    dp_acq_state_t * state,
     float _Complex * out,
     size_t n_out
 ) 
@@ -308,7 +729,7 @@ size_t acq_block_raw (
 
 
 
-Copies the `coherent_bins * code_bins` samples the block-coherent engine gathered for its last whole block into `out`, epoch by epoch in stream order — the samples [**acq\_push()**](acq__core_8h.md#function-acq_push) consumed, untouched. Kept for the tile-edge re-ask (acq\_resolve\_tile\_alias()); exposed so a tracker can re-correlate them at any code phase, rate or symbol boundary the engine's own grid does not have — a symbol-rate despreader at the tracked timing runs on exactly this (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a block is whole, until the next epoch is pushed.
+Copies the `coherent_bins * code_bins` samples the block-coherent engine gathered for its last whole block into `out`, epoch by epoch in stream order — the samples [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) consumed, untouched. Kept for the tile-edge re-ask (acq\_resolve\_tile\_alias()); exposed so a tracker can re-correlate them at any code phase, rate or symbol boundary the engine's own grid does not have — a symbol-rate despreader at the tracked timing runs on exactly this (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a block is whole, until the next epoch is pushed.
 
 
 
@@ -355,153 +776,12 @@ True
 
 
 
-### function acq\_build\_handoff 
-
-_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._
-```C++
-void acq_build_handoff (
-    const acq_state_t * state,
-    const acq_result_t * hit,
-    size_t code_len,
-    size_t spc,
-    acq_handoff_t * out
-) 
-```
-
-
-
-Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:
-
-
-
-* **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
-* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `doppler_bin` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
-* **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-acq_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At SPEC's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
-
-**Parameters:**
-
-
-  * `state` The engine `hit` came from (non-NULL, built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous)). 
-  * `hit` One hit from [**acq\_push()**](acq__core_8h.md#function-acq_push) (non-NULL). 
-  * `code_len` Spreading-code length (chips) — the same value passed to whichever acq\_create\_\*() built `state`. 
-  * `spc` Samples/chip — likewise. 
-  * `out` Written on return (non-NULL). 
-
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_cell\_corr 
-
-_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._ 
-```C++
-double _Complex acq_cell_corr (
-    const acq_state_t * state,
-    const float _Complex * x,
-    size_t col,
-    double f_hz,
-    double t0
-) 
-```
-
-
-
-`sum_m x[m] * conj(ref[(m - col) mod nx]) * exp(-j 2 pi f (t0 + m)/fs)` over the `code_bins` samples of `x`. The mixer phase is referenced to `t0`, so epochs evaluated at consecutive `t0` combine COHERENTLY: sum the returned values across epochs and the result is a depth-`len` cell of the slow-time surface at `f_hz`, with no intra-epoch rotation loss.
-
-
-It is what a caller does once acquisition has SETTLED the code phase and the Doppler: evaluate the same statistic elsewhere without searching the grid again. The engine's tile-alias check uses it; burst\_capture's refine uses it to score each candidate repetition (doppler#1502).
-
-
-
-
-**Parameters:**
-
-
-* `state` The engine whose replica, `code_bins` and `fs` are used. 
-* `x` One epoch, `code_bins` samples. 
-* `col` Code phase, samples, in [0, code\_bins). 
-* `f_hz` Mixer frequency, Hz. 
-* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
-
-
-
-**Returns:**
-
-The complex correlation. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_cell\_corr\_grid 
-
-[_**acq\_cell\_corr()**_](acq__core_8h.md#function-acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._
-```C++
-void acq_cell_corr_grid (
-    const acq_state_t * state,
-    const float _Complex * x,
-    size_t n_epochs,
-    size_t col,
-    const double * f_hz,
-    size_t n_f,
-    double t0,
-    double _Complex * out
-) 
-```
-
-
-
-Element `e * n_f + j` of `out` is [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) of epoch `e` (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach (measured 2.9e-6 at a 510-sample epoch): a coherent peak 100 dB above the difference.
-
-
-How: evaluated one cell at a time, every frequency repeats the whole despread-and-mix of the epoch. Here the replica is multiplied once per call by a mixer at the frequencies' centre, so each sample costs one multiply, summed over B equal blocks per epoch with the first and second moments of the time within each block. What is left of a frequency is a residual of at most `r` cycles per epoch either side of the centre; B = ceil(48 r) blocks keep it turning under 1/96 of a cycle either side of a block's centre, and it is applied per block from the moments as a second-order expansion, whose remainder is the error above. So the cost per epoch is `code_bins + 3 * B * n_f` against `n_f * code_bins`, and burst\_capture's refine, which scores every Doppler cell of every candidate period, is the reason it exists (doppler#1538).
-
-
-Frequencies spread more than one cycle per epoch either side of their centre fall back to [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) per cell.
-
-
-
-
-**Parameters:**
-
-
-* `state` The engine whose replica, `code_bins` and `fs` are used. 
-* `x` `n_epochs * code_bins` contiguous samples. 
-* `n_epochs` Epochs to evaluate. 
-* `col` Code phase, samples, in [0, code\_bins). 
-* `f_hz` `n_f` mixer frequencies, Hz, in any order. 
-* `n_f` Number of frequencies. 
-* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
-* `out` Written with `n_epochs * n_f` correlations, epoch-major. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_configure\_search\_raw 
+### function dp\_acq\_configure\_search\_raw 
 
 _Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._ 
 ```C++
-int acq_configure_search_raw (
-    acq_state_t * state,
+int dp_acq_configure_search_raw (
+    dp_acq_state_t * state,
     size_t doppler_bins,
     size_t n_noncoh
 ) 
@@ -554,181 +834,12 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 
 
 
-### function acq\_create\_burst 
-
-_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._
-```C++
-acq_state_t * acq_create_burst (
-    const float _Complex * tmpl,
-    size_t n,
-    size_t reps,
-    double fs,
-    double cn0_dbhz,
-    double doppler_uncertainty,
-    double pfa,
-    double pd,
-    int noise_mode,
-    double doppler_rate
-) 
-```
-
-
-
-Takes the preamble as its SAMPLES: one period of `n` complex samples at `fs`, repeated up to `reps` times. A PN code is one such preamble  pass its chips mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each, at `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`, and `code_phase` is the delay into the repetition, in samples  for a preamble whose ambiguity function is a ridge (Zadoff-Chu: one native bin of Doppler moves the peak `u^-1 mod n` samples), the delay plus that shift whenever the Doppler is not resolved before correlation. It converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose burst Pd `pd_burst` meets `pd` at the Sidak threshold (minimum latency for a strong signal). `pd_burst` treats the preamble as exactly `reps` periods at a uniform offset against the stream-aligned dwells, and credits every dwell it spans (doppler#1498). If no depth meets `pd` the engine takes the one with the most burst Pd and is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
-
-
-`cn0_dbhz` is the DESIGN (minimum) C/N0 and is optional: NaN ([**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none)) means none was given, and the engine then integrates the whole preamble (`coherent_bins = reps`) with the threshold set by `pfa` alone. `pd` is a sizing target only when a design C/N0 is given; without one `pd_predicted` and `pd_burst` are NAN and `underpowered` is never set.
-
-
-A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive). When `doppler_uncertainty` exceeds the native span `fs/(2n)`, falls back to the wideband window-tiling mechanism (see the file doc comment) instead  coherent depth structurally can't cover more than one native span, regardless of `reps`. Use [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_configure_search_raw) to pin the grid directly instead of relying on this auto-sizer.
-
-
-What a code once knew analytically, the preamble's own correlation gives numerically, from one FFT at construction ([**acq\_shape\_t**](structacq__shape__t.md)):
-
-
-
-* the peak zone (the twin rule's reach and the exclusion around each listed peak) is the autocorrelation's first null, the lag of the first local minimum of \|R(k)\|  one chip of samples for a code;
-* the delay straddle the Pd model averages is the band-limited autocorrelation over a half-sample offset.
-
-
-
-
-For a PN code the numeric model is the more accurate one: against a rectangular-chip signal it stays conservative (never optimistic) and sits 0.01-0.08 below the measured Pd at spc 2-4, where the analytic triangle sat 0.03-0.21 below (doppler#1470).
-
-
-The within-repetition rotation loss keeps the engine's `sinc` model: it is the zero-delay cut of the ambiguity function, which a periodic preamble's envelope does not move  measured within 0.007 dB of sinc for RRC-shaped QPSK at 4.7 dB peak-to-average.
-
-
-`tmpl` is scaled to unit RMS (a copy  the caller's buffer is only read), so `peak_mag` and `noise_est` come out in the signal's units whatever the preamble's amplitude. C/N0 is the preamble's mean power.
-
-
-
-
-**Parameters:**
-
-
-* `tmpl` One period of the preamble, `n` samples; not all zero, every sample finite. 
-* `n` Samples per repetition (&gt;= 1). 
-* `reps` Max coherent repetitions, the coherence ceiling (&gt;= 1). 
-* `fs` Sample rate in Hz (&gt; 0); 1 for normalized units. 
-* `cn0_dbhz` Design carrier-to-noise density in dB-Hz, of the preamble's mean power: any finite value (at fs = 1 the per-sample SNR, usually negative), or [**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none) (NaN) for no design point  size for the whole preamble. 
-* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- fs/(2n). A value greater than the native span engages wideband mode (see the file doc comment above): coherent\_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead. 
-* `pfa` Target system (max-of-N) false-alarm probability (0,1). 
-* `pd` Target detection probability (0,1); a sizing target only when `cn0_dbhz` is given. 
-* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) the coherent depth is bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions (`f_epoch = fs/n`, the repetition rate), so the carrier's drift over one block stays inside half a slow-time row (doppler#1482). 0 is no bound: the depth is sized up to `reps`. 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL on bad arguments / allocation failure. 
-```C++
-// 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
-float _Complex zc[127];
-for (int k = 0; k < 127; k++)
-  zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
-acq_state_t *a = acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
-                                   0.9, 0, 0.0);
-acq_destroy (a);
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_create\_continuous 
-
-_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._ 
-```C++
-acq_state_t * acq_create_continuous (
-    const uint8_t * code,
-    size_t code_len,
-    size_t spc,
-    double chip_rate,
-    double symbol_rate,
-    double cn0_dbhz,
-    double doppler_uncertainty,
-    double pfa,
-    double pd,
-    int noise_mode,
-    size_t code_only_epochs,
-    double doppler_rate
-) 
-```
-
-
-
-Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR, and ALWAYS tiles `window_bins = max(1, ceil(doppler_uncertainty / (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file doc comment's "Wideband window-tiling mode")  unconditionally, even when `doppler_uncertainty` is narrower than one native span. A continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining across DATA a structural aliasing mislock (see docs/design/dsss-acquisition.md), so the depth is bounded by what a waveform's code-only window holds: `coherent_bins = D = min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1, run in non-overlapping D-epoch blocks inside every tile (file doc, design §2.3). With `code_only_epochs` = 1 it is 1 and the engine is exactly the epoch-by-epoch search. Sensitivity margin beyond the depth comes from auto-selected non-coherent looks over blocks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
-
-
-
-
-**Parameters:**
-
-
-* `code` PN chips (0/1), length `code_len`. 
-* `code_len` Number of chips supplied (= sf, the spreading factor). 
-* `spc` Samples per chip (&gt;= 1). 
-* `chip_rate` Chip rate in Hz (&gt; 0). 
-* `symbol_rate` Continuous data-symbol rate in Hz; &lt;= 0 means no known clock. Diagnostic only (exposed via [**acq\_state\_t::epochs\_per\_symbol**](structacq__state__t.md#variable-epochs_per_symbol)), doesn't feed sizing: this engine never coherently combines regardless of the data-modulation clock. 
-* `cn0_dbhz` Carrier-to-noise density in dB-Hz: any finite value. A continuous engine needs one  its non-coherent looks cannot be chosen without a target. 
-* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf) (still window-tiled, at window\_bins=1). 
-* `pfa` Target system (max-of-N) false-alarm probability (0,1). 
-* `pd` Target detection probability (0,1). 
-* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
-* `code_only_epochs` Whole code-only epochs a waveform's code-only window holds at any chip phase (design §2.1: `floor(W_symbols * chips_per_symbol / sf) - 1`); 1 (&gt;= 1) means no window and a depth of 1. 
-* `doppler_rate` Doppler rate in Hz/s the depth is bounded against (&gt;= 0); 0 leaves the window as the only bound. 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL on bad arguments / allocation failure. 
-```C++
->>> import numpy as np
->>> from doppler.acquire import Acquisition
->>> from doppler.wfm import PN, mls_poly
->>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
-...                      length=5).generate(31)).astype(np.uint8)
->>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
-...     np.complex64)
->>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
->>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
->>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
-(0, 17)
->>> a.coherent_bins            # no window given: one epoch
-1
->>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
-...                 code_only_epochs=7)
->>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
-4
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_destroy 
+### function dp\_acq\_destroy 
 
 _Destroy and free an engine._ 
 ```C++
-void acq_destroy (
-    acq_state_t * state
+void dp_acq_destroy (
+    dp_acq_state_t * state
 ) 
 ```
 
@@ -750,12 +861,12 @@ void acq_destroy (
 
 
 
-### function acq\_get\_state 
+### function dp\_acq\_get\_state 
 
-_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._
+_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _long). Call between pushes (no partial dump pending)._
 ```C++
-void acq_get_state (
-    const acq_state_t * state,
+void dp_acq_get_state (
+    const dp_acq_state_t * state,
     void * blob
 ) 
 ```
@@ -767,54 +878,12 @@ void acq_get_state (
 
 
 
-### function acq\_psl\_db 
-
-_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._
-```C++
-double acq_psl_db (
-    const acq_state_t * state
-) 
-```
-
-
-
-What it predicts: a detection's sidelobes sit this far below it, at delays outside the peak zone  where the peak list's exclusion does not reach. So a burst that clears the threshold by more than `-psl_db` also lists its own sidelobe as a second peak (with `max_peaks > 1`), and a strong burst's sidelobe can mask a weak one there. A code's is its periodic floor, 20\*log10(1/31) = -29.8 dB for a 31-chip m-sequence; a perfect sequence (Zadoff-Chu, a Frank-type chirp) has none and reads -INFINITY. Configuration, not state: it is fixed at construction and not serialized.
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.acquire import BurstAcquisition
->>> from doppler.cvt import bin_to_nrz
->>> from doppler.wfm import PN
->>> chips = (np.asarray(PN(poly=0, seed=1, length=5).generate(31)) & 1
-...          ).astype(np.uint8)
->>> nrz = np.zeros(31, dtype=np.float32)
->>> _ = bin_to_nrz(chips, nrz)
->>> pre = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
->>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=50.0)
->>> round(a.psl_db, 2)          # an m-sequence: 1/31
--29.83
->>> k = np.arange(127)
->>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
->>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db
--inf
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function acq\_push 
+### function dp\_acq\_push 
 
 _Stream raw samples; emit one event per CFAR dump above threshold._ 
 ```C++
-size_t acq_push (
-    acq_state_t * state,
+size_t dp_acq_push (
+    dp_acq_state_t * state,
     const float _Complex * x,
     size_t n_in,
     acq_result_t * result,
@@ -873,12 +942,12 @@ Number of events written (0 … max\_results).
 
 
 
-### function acq\_reset 
+### function dp\_acq\_reset 
 
 _Drain the input ring and reset the coherent accumulator._ 
 ```C++
-void acq_reset (
-    acq_state_t * state
+void dp_acq_reset (
+    dp_acq_state_t * state
 ) 
 ```
 
@@ -919,45 +988,12 @@ Discards any buffered samples that have not yet completed a frame and clears the
 
 
 
-### function acq\_run 
-
-_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._
-```C++
-size_t acq_run (
-    acq_state_t * state,
-    const void * state_in,
-    void * state_out,
-    const float _Complex * in,
-    size_t n_in,
-    acq_result_t * result,
-    size_t max_results
-) 
-```
-
-
-
-
-
-**Returns:**
-
-Number of events written (0 … max\_results). 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_set\_carrier\_freq\_hz 
+### function dp\_acq\_set\_carrier\_freq\_hz 
 
 _Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._
 ```C++
-int acq_set_carrier_freq_hz (
-    acq_state_t * state,
+int dp_acq_set_carrier_freq_hz (
+    dp_acq_state_t * state,
     double carrier_freq_hz
 ) 
 ```
@@ -1012,19 +1048,19 @@ Config, not running state: it is not in the state blob, so a resumed engine want
 
 
 
-### function acq\_set\_max\_peaks 
+### function dp\_acq\_set\_max\_peaks 
 
 _How many peaks a dwell may report: the peak list's capacity._ 
 ```C++
-int acq_set_max_peaks (
-    acq_state_t * state,
+int dp_acq_set_max_peaks (
+    dp_acq_state_t * state,
     size_t n
 ) 
 ```
 
 
 
-One (the default) is the classic detector  the maximum of the surface, gated. More is the list of docs/design/async-dsss-receiver.md §7.1: every peak above the same gate, strongest first, each with an exclusion zone of one Doppler bin by the reference's first autocorrelation null around it (one chip for a PN code; one emitter's main lobe, so its own shoulders are not the next peak), and the two-epoch rule for a peak at an already-listed code phase  a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles, so such a peak is held for one dwell and listed only if it was there, at the same tile, on the previous one. Each listed peak is one [**acq\_result\_t**](structacq__result__t.md) from [**acq\_push()**](acq__core_8h.md#function-acq_push), all of a dwell's sharing its `samples_consumed` and `noise_est`. A held twin takes a slot of the `n` for that dwell but is not reported. The threshold does not change: a second peak is another draw from the same cells against the same union bound. Clears the held candidates.
+One (the default) is the classic detector  the maximum of the surface, gated. More is the list of docs/design/async-dsss-receiver.md §7.1: every peak above the same gate, strongest first, each with an exclusion zone of one Doppler bin by the reference's first autocorrelation null around it (one chip for a PN code; one emitter's main lobe, so its own shoulders are not the next peak), and the two-epoch rule for a peak at an already-listed code phase  a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles, so such a peak is held for one dwell and listed only if it was there, at the same tile, on the previous one. Each listed peak is one [**acq\_result\_t**](structacq__result__t.md) from [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push), all of a dwell's sharing its `samples_consumed` and `noise_est`. A held twin takes a slot of the `n` for that dwell but is not reported. The threshold does not change: a second peak is another draw from the same cells against the same union bound. Clears the held candidates.
 
 
 
@@ -1064,12 +1100,12 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 
 
 
-### function acq\_set\_state 
+### function dp\_acq\_set\_state 
 
 _Restore cross-call state from_ `blob` _into_`state` _(replacing it)._
 ```C++
-int acq_set_state (
-    acq_state_t * state,
+int dp_acq_set_state (
+    dp_acq_state_t * state,
     const void * blob
 ) 
 ```
@@ -1092,48 +1128,12 @@ int acq_set_state (
 
 
 
-### function acq\_set\_surface\_sink 
-
-_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._
-```C++
-void acq_set_surface_sink (
-    acq_state_t * state,
-    acq_surface_sink_fn fn,
-    void * ctx,
-    uint32_t decim
-) 
-```
-
-
-
-Sets `keep_surface`, so [**acq\_surface()**](acq__core_8h.md#function-acq_surface) reads the same dwell afterwards. The pointer handed to `fn` is the engine's and is valid only for the call: copy or write it out there. This is how a long run records the surface decimated in time without a copy per dwell it does not keep.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `fn` The sink, or NULL to detach. 
-* `ctx` Passed through to `fn`. 
-* `decim` Hand over every decim-th dwell; 0 reads as 1. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function acq\_set\_telemetry 
+### function dp\_acq\_set\_telemetry 
 
 _Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._ 
 ```C++
-int acq_set_telemetry (
-    acq_state_t * state,
+int dp_acq_set_telemetry (
+    dp_acq_state_t * state,
     dp_tlm_t * tlm,
     const char * prefix,
     uint32_t decim
@@ -1142,7 +1142,7 @@ int acq_set_telemetry (
 
 
 
-Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dwell that completes `n_noncoh` looks) and further thinned by `decim:` "&lt;prefix&gt;.stat" (the dwell's test statistic — the strongest cell against the CFAR reference, in the units the gate is set in), "&lt;prefix&gt;.gate" (that gate: `threshold` on the coherent path, `eta_nc` on the non-coherent one — plotted together they show exactly where a hit fired), "&lt;prefix&gt;.noise" (the CFAR reference `noise_est`), "&lt;prefix&gt;.peak" (the strongest cell's raw value), "&lt;prefix&gt;.row" and "&lt;prefix&gt;.col" (its native Doppler row and code-phase column — a surface coordinate, not a physical unit; [**acq\_surface\_doppler\_hz()**](acq__core_8h.md#function-acq_surface_doppler_hz) and [**acq\_surface\_chip\_phase()**](acq__core_8h.md#function-acq_surface_chip_phase) convert), "&lt;prefix&gt;.n\_peaks" (picks in the dwell, held twins included), "&lt;prefix&gt;.n\_held" (picks held as same-code-phase twins rather than listed, §7.1), "&lt;prefix&gt;.conc" (the strongest pick's concentration — see `peak_conc`: its main lobe's power over its whole column's, near 1 for one clean emitter even when it straddles two tiles, about 0.5 when a data transition splits it into twins two or more tiles away, lower still when a coherent block straddles data — the discriminator between one emitter's splatter and a second emitter) and "&lt;prefix&gt;.hit" (1 when the gate fired). Passing NULL detaches. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)).
+Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dwell that completes `n_noncoh` looks) and further thinned by `decim:` "&lt;prefix&gt;.stat" (the dwell's test statistic — the strongest cell against the CFAR reference, in the units the gate is set in), "&lt;prefix&gt;.gate" (that gate: `threshold` on the coherent path, `eta_nc` on the non-coherent one — plotted together they show exactly where a hit fired), "&lt;prefix&gt;.noise" (the CFAR reference `noise_est`), "&lt;prefix&gt;.peak" (the strongest cell's raw value), "&lt;prefix&gt;.row" and "&lt;prefix&gt;.col" (its native Doppler row and code-phase column — a surface coordinate, not a physical unit; [**dp\_acq\_surface\_doppler\_hz()**](acq__core_8h.md#function-dp_acq_surface_doppler_hz) and [**dp\_acq\_surface\_chip\_phase()**](acq__core_8h.md#function-dp_acq_surface_chip_phase) convert), "&lt;prefix&gt;.n\_peaks" (picks in the dwell, held twins included), "&lt;prefix&gt;.n\_held" (picks held as same-code-phase twins rather than listed, §7.1), "&lt;prefix&gt;.conc" (the strongest pick's concentration — see `peak_conc`: its main lobe's power over its whole column's, near 1 for one clean emitter even when it straddles two tiles, about 0.5 when a data transition splits it into twins two or more tiles away, lower still when a coherent block straddles data — the discriminator between one emitter's splatter and a second emitter) and "&lt;prefix&gt;.hit" (1 when the gate fired). Passing NULL detaches. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)).
 
 
 
@@ -1189,12 +1189,12 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all ten probes (the
 
 
 
-### function acq\_set\_threads 
+### function dp\_acq\_set\_threads 
 
 _Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._ 
 ```C++
-int acq_set_threads (
-    acq_state_t * state,
+int dp_acq_set_threads (
+    dp_acq_state_t * state,
     int n
 ) 
 ```
@@ -1243,12 +1243,12 @@ True
 
 
 
-### function acq\_state\_bytes 
+### function dp\_acq\_state\_bytes 
 
 _Byte size of_ `state's` _blob (header + unconsumed + nc)._
 ```C++
-size_t acq_state_bytes (
-    const acq_state_t * state
+size_t dp_acq_state_bytes (
+    const dp_acq_state_t * state
 ) 
 ```
 
@@ -1259,12 +1259,12 @@ size_t acq_state_bytes (
 
 
 
-### function acq\_surface 
+### function dp\_acq\_surface 
 
 _The last decided dwell's surface, in the gate's own units._ 
 ```C++
-size_t acq_surface (
-    acq_state_t * state,
+size_t dp_acq_surface (
+    dp_acq_state_t * state,
     float * out,
     size_t n_out
 ) 
@@ -1317,12 +1317,12 @@ True
 
 
 
-### function acq\_surface\_chip\_phase 
+### function dp\_acq\_surface\_chip\_phase 
 
 _The surface's code-phase axis: the chip phase of each column._ 
 ```C++
-size_t acq_surface_chip_phase (
-    acq_state_t * state,
+size_t dp_acq_surface_chip_phase (
+    dp_acq_state_t * state,
     double * out,
     size_t n_out
 ) 
@@ -1372,12 +1372,12 @@ True
 
 
 
-### function acq\_surface\_complex 
+### function dp\_acq\_surface\_complex 
 
 _The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._ 
 ```C++
-size_t acq_surface_complex (
-    acq_state_t * state,
+size_t dp_acq_surface_complex (
+    dp_acq_state_t * state,
     float _Complex * out,
     size_t n_out
 ) 
@@ -1385,7 +1385,7 @@ size_t acq_surface_complex (
 
 
 
-Copies the coherent sum the last dwell was decided on into `out`, row-major `surface_rows` x `code_bins` like [**acq\_surface()**](acq__core_8h.md#function-acq_surface), in the correlation's own units rather than the gate's. A cell's phase is the carrier at the block's middle, relative to its tile's centre; its neighbours along the code axis are complex early and late arms, so a tracker can form the coherent discriminator `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot (docs/design/async-dsss-receiver-measurements.md §12.21). Coherent path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
+Copies the coherent sum the last dwell was decided on into `out`, row-major `surface_rows` x `code_bins` like [**dp\_acq\_surface()**](acq__core_8h.md#function-dp_acq_surface), in the correlation's own units rather than the gate's. A cell's phase is the carrier at the block's middle, relative to its tile's centre; its neighbours along the code axis are complex early and late arms, so a tracker can form the coherent discriminator `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot (docs/design/async-dsss-receiver-measurements.md §12.21). Coherent path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
 
 
 
@@ -1432,12 +1432,12 @@ True
 
 
 
-### function acq\_surface\_doppler\_hz 
+### function dp\_acq\_surface\_doppler\_hz 
 
 _The surface's Doppler axis: the frequency of each row, in Hz._ 
 ```C++
-size_t acq_surface_doppler_hz (
-    acq_state_t * state,
+size_t dp_acq_surface_doppler_hz (
+    dp_acq_state_t * state,
     double * out,
     size_t n_out
 ) 
@@ -1445,7 +1445,7 @@ size_t acq_surface_doppler_hz (
 
 
 
-One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\_fftfreq\_index() times `doppler_res_hz`, on the interpolated grid where the slow-time axis is interpolated), so a plot of [**acq\_surface()**](acq__core_8h.md#function-acq_surface) carries the same axis a DetectionEvent reports on.
+One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\_fftfreq\_index() times `doppler_res_hz`, on the interpolated grid where the slow-time axis is interpolated), so a plot of [**dp\_acq\_surface()**](acq__core_8h.md#function-dp_acq_surface) carries the same axis a DetectionEvent reports on.
 
 
 
@@ -1495,7 +1495,7 @@ True
 _A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over acq\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._
 ```C++
 static inline double acq_bin_doppler_hz (
-    const acq_state_t * state,
+    const dp_acq_state_t * state,
     size_t doppler_bin
 ) 
 ```
@@ -1516,7 +1516,7 @@ The one conversion from a bin to Hz; [**acq\_build\_handoff()**](acq__core_8h.md
 _The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._
 ```C++
 static inline size_t acq_grid_bins (
-    const acq_state_t * state
+    const dp_acq_state_t * state
 ) 
 ```
 
@@ -1594,7 +1594,7 @@ Quadrature nodes the Pd model averages the delay straddle over.
 
 
 
-The largest `max_peaks` [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) accepts: one push's result array is sized to this many in the binding, so one dwell can always be reported whole. 
+The largest `max_peaks` [**dp\_acq\_set\_max\_peaks()**](acq__core_8h.md#function-dp_acq_set_max_peaks) accepts: one push's result array is sized to this many in the binding, so one dwell can always be reported whole. 
 
 
         
@@ -1612,7 +1612,7 @@ _Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a publ
 
 
 
-The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic and unreliable past a few hundred looks (this project's own geometry found ~256 empirically  see docs/design/async-dsss-receiver.md). Hitting this ceiling without meeting `pd` leaves [**acq\_state\_t::underpowered**](structacq__state__t.md#variable-underpowered) set, same as any other infeasible operating point  no separate bookkeeping needed. 
+The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic and unreliable past a few hundred looks (this project's own geometry found ~256 empirically  see docs/design/async-dsss-receiver.md). Hitting this ceiling without meeting `pd` leaves [**dp\_acq\_state\_t::underpowered**](structdp__acq__state__t.md#variable-underpowered) set, same as any other infeasible operating point  no separate bookkeeping needed. 
 
 
         

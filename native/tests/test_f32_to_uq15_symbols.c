@@ -23,11 +23,11 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_f32_to_uq15[] = {
-    (jm_any_fn)f32_to_uq15_create,
-    (jm_any_fn)f32_to_uq15_destroy,
-    (jm_any_fn)f32_to_uq15_reset,
-    (jm_any_fn)f32_to_uq15_steps,
-    (jm_any_fn)f32_to_uq15_state_bytes,
-    (jm_any_fn)f32_to_uq15_get_state,
-    (jm_any_fn)f32_to_uq15_set_state,
+    (jm_any_fn)dp_f32_to_uq15_create,
+    (jm_any_fn)dp_f32_to_uq15_destroy,
+    (jm_any_fn)dp_f32_to_uq15_reset,
+    (jm_any_fn)dp_f32_to_uq15_steps,
+    (jm_any_fn)dp_f32_to_uq15_state_bytes,
+    (jm_any_fn)dp_f32_to_uq15_get_state,
+    (jm_any_fn)dp_f32_to_uq15_set_state,
 };

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only ber_ext.c is compiled.
  */
 /* ======================================================== */
-/* BerMeterObject — wraps ber_meter_state_t *       */
+/* BerMeterObject — wraps dp_ber_meter_state_t *       */
 /* ======================================================== */
 
 #include "doppler/ber_meter/ber_meter_core.h"
 
 typedef struct
 {
-  PyObject_HEAD ber_meter_state_t *handle;
+  PyObject_HEAD dp_ber_meter_state_t *handle;
 } BerMeterObject;
 
 static void
 BerMeterObj_dealloc (BerMeterObject *self)
 {
   if (self->handle)
-    ber_meter_destroy (self->handle);
+    dp_ber_meter_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -45,7 +45,7 @@ BerMeterObj_init (BerMeterObject *self, PyObject *args, PyObject *kwds)
                                     &target_errors_raw, &conf))
     return -1;
   size_t target_errors = (size_t)target_errors_raw;
-  self->handle         = ber_meter_create (m, target_errors, conf);
+  self->handle         = dp_ber_meter_create (m, target_errors, conf);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -63,7 +63,7 @@ BerMeterObj_reset (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  ber_meter_reset (self->handle);
+  dp_ber_meter_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -87,7 +87,7 @@ BerMeterObj_set_truth (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *truth     = (const uint8_t *)PyArray_DATA (truth_arr);
   size_t         truth_len = (size_t)PyArray_SIZE (truth_arr);
-  int            _rc = ber_meter_set_truth (self->handle, truth, truth_len);
+  int            _rc = dp_ber_meter_set_truth (self->handle, truth, truth_len);
   Py_DECREF (truth_arr);
   if (_rc != 0)
     {
@@ -129,8 +129,8 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  int y = ber_meter_align (self->handle, rx, rx_len, t0, n_marker, period,
-                           lag_span, pfa);
+  int y = dp_ber_meter_align (self->handle, rx, rx_len, t0, n_marker, period,
+                              lag_span, pfa);
   Py_DECREF (rx_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -160,7 +160,7 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  size_t                y = ber_meter_score (self->handle, rx, rx_len, lo, hi);
+  size_t y = dp_ber_meter_score (self->handle, rx, rx_len, lo, hi);
   Py_DECREF (rx_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -196,7 +196,7 @@ BerMeterObj_ser (BerMeterObject *self, PyObject *args)
       if (!BerMeterObj_ser_type)
         return NULL;
     }
-  ber_interval_t _r = ber_meter_ser (self->handle);
+  ber_interval_t _r = dp_ber_meter_ser (self->handle);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_ser_type);
   if (!_o)
     return NULL;
@@ -243,7 +243,7 @@ BerMeterObj_ber (BerMeterObject *self, PyObject *args)
       if (!BerMeterObj_ber_type)
         return NULL;
     }
-  ber_interval_t _r = ber_meter_ber (self->handle);
+  ber_interval_t _r = dp_ber_meter_ber (self->handle);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_ber_type);
   if (!_o)
     return NULL;
@@ -301,7 +301,7 @@ BerMeterObj_interval (BerMeterObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
-  ber_interval_t _r = ber_meter_interval (self->handle, errors, symbols);
+  ber_interval_t _r = dp_ber_meter_interval (self->handle, errors, symbols);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_interval_type);
   if (!_o)
     return NULL;
@@ -325,7 +325,7 @@ BerMeterObj_state_bytes (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ber_meter_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_ber_meter_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -336,11 +336,11 @@ BerMeterObj_get_state (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = ber_meter_state_bytes (self->handle);
+  size_t    _n = dp_ber_meter_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  ber_meter_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_ber_meter_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -357,12 +357,13 @@ BerMeterObj_set_state (BerMeterObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != ber_meter_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_ber_meter_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (ber_meter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_ber_meter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -379,7 +380,7 @@ BerMeter_getprop_errors (BerMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_errors (self->handle));
+      (unsigned long long)dp_ber_meter_get_errors (self->handle));
 }
 static PyObject *
 BerMeter_getprop_symbols (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -391,7 +392,7 @@ BerMeter_getprop_symbols (BerMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_symbols (self->handle));
+      (unsigned long long)dp_ber_meter_get_symbols (self->handle));
 }
 static PyObject *
 BerMeter_getprop_bit_errors (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -403,7 +404,7 @@ BerMeter_getprop_bit_errors (BerMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_bit_errors (self->handle));
+      (unsigned long long)dp_ber_meter_get_bit_errors (self->handle));
 }
 static PyObject *
 BerMeter_getprop_bits (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -415,7 +416,7 @@ BerMeter_getprop_bits (BerMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_bits (self->handle));
+      (unsigned long long)dp_ber_meter_get_bits (self->handle));
 }
 static PyObject *
 BerMeter_getprop_skipped (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -427,7 +428,7 @@ BerMeter_getprop_skipped (BerMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_skipped (self->handle));
+      (unsigned long long)dp_ber_meter_get_skipped (self->handle));
 }
 static PyObject *
 BerMeter_getprop_m (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -438,7 +439,7 @@ BerMeter_getprop_m (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)ber_meter_get_m (self->handle));
+  return PyLong_FromLong ((long)dp_ber_meter_get_m (self->handle));
 }
 static PyObject *
 BerMeter_getprop_target_errors (BerMeterObject *self,
@@ -451,7 +452,7 @@ BerMeter_getprop_target_errors (BerMeterObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_target_errors (self->handle));
+      (unsigned long long)dp_ber_meter_get_target_errors (self->handle));
 }
 static PyObject *
 BerMeter_getprop_conf (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -462,7 +463,7 @@ BerMeter_getprop_conf (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ber_meter_get_conf (self->handle));
+  return PyFloat_FromDouble (dp_ber_meter_get_conf (self->handle));
 }
 static PyObject *
 BerMeter_getprop_enough (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -473,7 +474,7 @@ BerMeter_getprop_enough (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)ber_meter_get_enough (self->handle));
+  return PyLong_FromLong ((long)dp_ber_meter_get_enough (self->handle));
 }
 static PyObject *
 BerMeter_getprop_lag (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -484,7 +485,7 @@ BerMeter_getprop_lag (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)ber_meter_get_lag (self->handle));
+  return PyLong_FromLong ((long)dp_ber_meter_get_lag (self->handle));
 }
 static PyObject *
 BerMeter_getprop_phase (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -495,7 +496,7 @@ BerMeter_getprop_phase (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ber_meter_get_phase (self->handle));
+  return PyFloat_FromDouble (dp_ber_meter_get_phase (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_stat (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -506,7 +507,7 @@ BerMeter_getprop_align_stat (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ber_meter_get_align_stat (self->handle));
+  return PyFloat_FromDouble (dp_ber_meter_get_align_stat (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_margin_db (BerMeterObject *self,
@@ -518,7 +519,7 @@ BerMeter_getprop_align_margin_db (BerMeterObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ber_meter_get_align_margin_db (self->handle));
+  return PyFloat_FromDouble (dp_ber_meter_get_align_margin_db (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_runner_db (BerMeterObject *self,
@@ -530,7 +531,7 @@ BerMeter_getprop_align_runner_db (BerMeterObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ber_meter_get_align_runner_db (self->handle));
+  return PyFloat_FromDouble (dp_ber_meter_get_align_runner_db (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_occurrences (BerMeterObject *self,
@@ -543,7 +544,7 @@ BerMeter_getprop_align_occurrences (BerMeterObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_align_occurrences (self->handle));
+      (unsigned long long)dp_ber_meter_get_align_occurrences (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_slips (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -555,7 +556,7 @@ BerMeter_getprop_align_slips (BerMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_meter_get_align_slips (self->handle));
+      (unsigned long long)dp_ber_meter_get_align_slips (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_saturated (BerMeterObject *self,
@@ -567,7 +568,8 @@ BerMeter_getprop_align_saturated (BerMeterObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)ber_meter_get_align_saturated (self->handle));
+  return PyLong_FromLong (
+      (long)dp_ber_meter_get_align_saturated (self->handle));
 }
 static PyObject *
 BerMeter_getprop_align_ok (BerMeterObject *self, void *Py_UNUSED (closure))
@@ -578,7 +580,7 @@ BerMeter_getprop_align_ok (BerMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)ber_meter_get_align_ok (self->handle));
+  return PyLong_FromLong ((long)dp_ber_meter_get_align_ok (self->handle));
 }
 
 static PyGetSetDef BerMeter_getset[] = {
@@ -650,7 +652,7 @@ BerMeterObj_destroy (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      ber_meter_destroy (self->handle);
+      dp_ber_meter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -669,7 +671,7 @@ BerMeterObj_exit (BerMeterObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      ber_meter_destroy (self->handle);
+      dp_ber_meter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

@@ -8,7 +8,7 @@
  * in-tree caller and the Python binding size from *_max_out() and so never
  * reach this path. */
 static double _Complex *
-trunc_buf (fft2d_state_t *state)
+trunc_buf (dp_fft2d_state_t *state)
 {
   if (!state->work_trunc)
     state->work_trunc = (double _Complex *)dp_xcalloc (
@@ -16,11 +16,11 @@ trunc_buf (fft2d_state_t *state)
   return state->work_trunc;
 }
 
-fft2d_state_t *
-fft2d_create (size_t ny, size_t nx, int sign, int nthreads)
+dp_fft2d_state_t *
+dp_fft2d_create (size_t ny, size_t nx, int sign, int nthreads)
 {
   (void)nthreads;
-  fft2d_state_t *state = malloc (sizeof (*state));
+  dp_fft2d_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
   state->plan_f64 = pocketfft_plan_2d (ny, nx, sign);
@@ -40,7 +40,7 @@ fft2d_create (size_t ny, size_t nx, int sign, int nthreads)
 }
 
 void
-fft2d_destroy (fft2d_state_t *state)
+dp_fft2d_destroy (dp_fft2d_state_t *state)
 {
   if (!state)
     return;
@@ -51,20 +51,20 @@ fft2d_destroy (fft2d_state_t *state)
 }
 
 void
-fft2d_reset (fft2d_state_t *state)
+dp_fft2d_reset (dp_fft2d_state_t *state)
 {
   (void)state; /* plans are immutable after creation */
 }
 
 size_t
-fft2d_execute_cf64_max_out (fft2d_state_t *state)
+dp_fft2d_execute_cf64_max_out (dp_fft2d_state_t *state)
 {
   return state->ny * state->nx;
 }
 
 size_t
-fft2d_execute_cf64 (fft2d_state_t *state, const double _Complex *in,
-                    size_t n_in, double _Complex *out, size_t max_out)
+dp_fft2d_execute_cf64 (dp_fft2d_state_t *state, const double _Complex *in,
+                       size_t n_in, double _Complex *out, size_t max_out)
 {
   (void)n_in;
   const size_t n = state->ny * state->nx;
@@ -80,14 +80,14 @@ fft2d_execute_cf64 (fft2d_state_t *state, const double _Complex *in,
 }
 
 size_t
-fft2d_execute_cf32_max_out (fft2d_state_t *state)
+dp_fft2d_execute_cf32_max_out (dp_fft2d_state_t *state)
 {
   return state->ny * state->nx;
 }
 
 size_t
-fft2d_execute_cf32 (fft2d_state_t *state, const float _Complex *in,
-                    size_t n_in, float _Complex *out, size_t max_out)
+dp_fft2d_execute_cf32 (dp_fft2d_state_t *state, const float _Complex *in,
+                       size_t n_in, float _Complex *out, size_t max_out)
 {
   (void)n_in;
   const size_t n = state->ny * state->nx;
@@ -103,14 +103,15 @@ fft2d_execute_cf32 (fft2d_state_t *state, const float _Complex *in,
 }
 
 size_t
-fft2d_execute_inplace_cf64_max_out (fft2d_state_t *state)
+dp_fft2d_execute_inplace_cf64_max_out (dp_fft2d_state_t *state)
 {
   return state->ny * state->nx;
 }
 
 size_t
-fft2d_execute_inplace_cf64 (fft2d_state_t *state, const double _Complex *in,
-                            size_t n_in, double _Complex *out, size_t max_out)
+dp_fft2d_execute_inplace_cf64 (dp_fft2d_state_t      *state,
+                               const double _Complex *in, size_t n_in,
+                               double _Complex *out, size_t max_out)
 {
   /* n_in is documented as ny*nx; clamp so a longer input cannot walk off
    * the end of a correctly sized out. */
@@ -130,14 +131,15 @@ fft2d_execute_inplace_cf64 (fft2d_state_t *state, const double _Complex *in,
 }
 
 size_t
-fft2d_execute_inplace_cf32_max_out (fft2d_state_t *state)
+dp_fft2d_execute_inplace_cf32_max_out (dp_fft2d_state_t *state)
 {
   return state->ny * state->nx;
 }
 
 size_t
-fft2d_execute_inplace_cf32 (fft2d_state_t *state, const float _Complex *in,
-                            size_t n_in, float _Complex *out, size_t max_out)
+dp_fft2d_execute_inplace_cf32 (dp_fft2d_state_t     *state,
+                               const float _Complex *in, size_t n_in,
+                               float _Complex *out, size_t max_out)
 {
   const size_t n    = state->ny * state->nx;
   const size_t n_cp = n_in < n ? n_in : n;

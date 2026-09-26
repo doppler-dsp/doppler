@@ -17,7 +17,7 @@
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
 static void
-detector2d_compute_stat_2d (detector2d_state_t *state)
+detector2d_compute_stat_2d (dp_detector2d_state_t *state)
 {
   const size_t n = state->n;
 
@@ -44,13 +44,14 @@ detector2d_compute_stat_2d (detector2d_state_t *state)
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector2d_state_t *
-detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
-                   size_t dwell, size_t noise_lo, size_t noise_hi,
-                   det_noise_mode_t noise_mode, float threshold, int nthreads)
+dp_detector2d_state_t *
+dp_detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
+                      size_t dwell, size_t noise_lo, size_t noise_hi,
+                      det_noise_mode_t noise_mode, float threshold,
+                      int nthreads)
 {
-  detector2d_state_t *state
-      = (detector2d_state_t *)calloc (1, sizeof (detector2d_state_t));
+  dp_detector2d_state_t *state
+      = (dp_detector2d_state_t *)calloc (1, sizeof (dp_detector2d_state_t));
   if (!state)
     return NULL;
 
@@ -75,7 +76,7 @@ detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
     goto fail;
   state->ring_cap = state->ring->capacity;
 
-  state->corr = corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+  state->corr = dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
   if (!state->corr)
     goto fail;
 
@@ -95,19 +96,19 @@ detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
   return state;
 
 fail:
-  detector2d_destroy (state);
+  dp_detector2d_destroy (state);
   return NULL;
 }
 
 void
-detector2d_destroy (detector2d_state_t *state)
+dp_detector2d_destroy (dp_detector2d_state_t *state)
 {
   if (!state)
     return;
   if (state->ring)
     dp_f32_destroy (state->ring);
   if (state->corr)
-    corr2d_destroy (state->corr);
+    dp_corr2d_destroy (state->corr);
   free (state->out_buf);
   free (state->mag_buf);
   free (state->noise_scratch);
@@ -115,11 +116,11 @@ detector2d_destroy (detector2d_state_t *state)
 }
 
 void
-detector2d_reset (detector2d_state_t *state)
+dp_detector2d_reset (dp_detector2d_state_t *state)
 {
   DP_STORE_REL (&state->ring->head, 0);
   DP_STORE_REL (&state->ring->tail, 0);
-  corr2d_reset (state->corr);
+  dp_corr2d_reset (state->corr);
   state->_last_corr_valid = 0;
 }
 
@@ -127,19 +128,19 @@ detector2d_reset (detector2d_state_t *state)
  * ring's unconsumed samples (zero-padded to ring_cap so the blob is canonical)
  * + the last-dump result fields. Mirrors acq's ring serialization. */
 size_t
-detector2d_state_bytes (const detector2d_state_t *s)
+dp_detector2d_state_bytes (const dp_detector2d_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + corr2d_state_bytes (s->corr)
+  return sizeof (dp_state_hdr_t) + dp_corr2d_state_bytes (s->corr)
          + sizeof (uint64_t) + s->ring_cap * sizeof (float _Complex)
          + 2 * sizeof (uint64_t) + 3 * sizeof (float) + sizeof (uint32_t);
 }
 
 void
-detector2d_get_state (const detector2d_state_t *s, void *blob)
+dp_detector2d_get_state (const dp_detector2d_state_t *s, void *blob)
 {
   DP_GET_OPEN (DETECTOR2D_STATE_MAGIC, DETECTOR2D_STATE_VERSION,
-               detector2d_state_bytes (s));
-  DP_W_CHILD (&_w, corr2d, s->corr);
+               dp_detector2d_state_bytes (s));
+  DP_W_CHILD (&_w, dp_corr2d, s->corr);
   size_t h   = DP_LOAD_ACQ (&s->ring->head);
   size_t t   = DP_LOAD_RLX (&s->ring->tail);
   size_t nun = h - t;
@@ -162,11 +163,11 @@ detector2d_get_state (const detector2d_state_t *s, void *blob)
 }
 
 int
-detector2d_set_state (detector2d_state_t *s, const void *blob)
+dp_detector2d_set_state (dp_detector2d_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DETECTOR2D_STATE_MAGIC, DETECTOR2D_STATE_VERSION,
-               detector2d_state_bytes (s));
-  DP_R_CHILD (&_r, corr2d, s->corr);
+               dp_detector2d_state_bytes (s));
+  DP_R_CHILD (&_r, dp_corr2d, s->corr);
   size_t nun = (size_t)dp_r_u64 (&_r);
   if (nun > s->ring_cap)
     return DP_ERR_INVALID;
@@ -186,14 +187,14 @@ detector2d_set_state (detector2d_state_t *s, const void *blob)
 }
 
 int
-detector2d_set_ref (detector2d_state_t *state, const float _Complex *ref)
+detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref)
 {
-  detector2d_reset (state);
+  dp_detector2d_reset (state);
   return corr2d_set_ref (state->corr, ref);
 }
 
 void
-detector2d_set_threshold (detector2d_state_t *state, float threshold)
+detector2d_set_threshold (dp_detector2d_state_t *state, float threshold)
 {
   state->threshold = threshold;
 }
@@ -201,8 +202,8 @@ detector2d_set_threshold (detector2d_state_t *state, float threshold)
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 size_t
-detector2d_push (detector2d_state_t *state, const float _Complex *in,
-                 size_t n_in, det_result2d_t *result, size_t max_results)
+dp_detector2d_push (dp_detector2d_state_t *state, const float _Complex *in,
+                    size_t n_in, det_result2d_t *result, size_t max_results)
 {
   size_t ndet = 0;
   size_t off  = 0;
@@ -232,8 +233,8 @@ detector2d_push (detector2d_state_t *state, const float _Complex *in,
           float _Complex *frame
               = (float _Complex *)(state->ring->data
                                    + (t & state->ring->mask) * 2);
-          size_t n_out = corr2d_execute (state->corr, frame, state->n,
-                                         state->out_buf, state->n);
+          size_t n_out = dp_corr2d_execute (state->corr, frame, state->n,
+                                            state->out_buf, state->n);
           dp_f32_consume (state->ring, state->n);
 
           if (n_out == 0)

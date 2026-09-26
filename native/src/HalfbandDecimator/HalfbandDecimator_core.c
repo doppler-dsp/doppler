@@ -1,7 +1,7 @@
 #include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
 
-HalfbandDecimator_state_t *
-HalfbandDecimator_create (const float *h, size_t h_len)
+dp_HalfbandDecimator_state_t *
+dp_HalfbandDecimator_create (const float *h, size_t h_len)
 {
   /* hbdecim, the primitive underneath, still takes (len, ptr) -- it and its
      two siblings are the only creates in the tree that do. Swapping here
@@ -11,13 +11,13 @@ HalfbandDecimator_create (const float *h, size_t h_len)
 }
 
 void
-HalfbandDecimator_destroy (HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_destroy (dp_HalfbandDecimator_state_t *state)
 {
   hbdecim_destroy (state);
 }
 
 void
-HalfbandDecimator_reset (HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_reset (dp_HalfbandDecimator_state_t *state)
 {
   hbdecim_reset (state);
 }
@@ -26,36 +26,36 @@ HalfbandDecimator_reset (HalfbandDecimator_state_t *state)
  * alias for hbdecim_state_t), so the blob carries the leaf's HBDC envelope. */
 
 size_t
-HalfbandDecimator_state_bytes (const HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_state_bytes (const dp_HalfbandDecimator_state_t *state)
 {
   return hbdecim_state_bytes (state);
 }
 
 void
-HalfbandDecimator_get_state (const HalfbandDecimator_state_t *state,
-                             void                            *blob)
+dp_HalfbandDecimator_get_state (const dp_HalfbandDecimator_state_t *state,
+                                void                               *blob)
 {
   hbdecim_get_state (state, blob);
 }
 
 int
-HalfbandDecimator_set_state (HalfbandDecimator_state_t *state,
-                             const void                *blob)
+dp_HalfbandDecimator_set_state (dp_HalfbandDecimator_state_t *state,
+                                const void                   *blob)
 {
   return hbdecim_set_state (state, blob);
 }
 
 size_t
-HalfbandDecimator_execute_max_out (HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state)
 {
   (void)state;
   return HBDECIM_MAX_OUT;
 }
 
 size_t
-HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
-                           const float _Complex *x, size_t x_len,
-                           float _Complex *out, size_t max_out)
+dp_HalfbandDecimator_execute (dp_HalfbandDecimator_state_t *state,
+                              const float _Complex *x, size_t x_len,
+                              float _Complex *out, size_t max_out)
 {
   /* The leaf already clamps; hand it the caller's real capacity instead
      of the fixed cap (jm gh-138). */
@@ -63,13 +63,13 @@ HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
 }
 
 double
-HalfbandDecimator_get_rate (const HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_get_rate (const dp_HalfbandDecimator_state_t *state)
 {
   return hbdecim_get_rate (state);
 }
 
 size_t
-HalfbandDecimator_get_num_taps (const HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_get_num_taps (const dp_HalfbandDecimator_state_t *state)
 {
   return hbdecim_get_num_taps (state);
 }

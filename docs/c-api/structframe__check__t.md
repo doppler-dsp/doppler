@@ -8,7 +8,7 @@
 
 
 
-_What_ [_**frame\_check**_](frame__core_8h.md#function-frame_check) _found, summed across the stages it reversed._[More...](#detailed-description)
+_What_ [_**dp\_frame\_check**_](frame__core_8h.md#function-dp_frame_check) _found, summed across the stages it reversed._[More...](#detailed-description)
 
 * `#include <frame_core.h>`
 

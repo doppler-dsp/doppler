@@ -30,35 +30,35 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 static int
 _test_arg_validation (void)
 {
-  DP_CHECK (dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                  100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0)
             == NULL);
-  DP_CHECK (dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                  100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0)
             == NULL); /* chip_rate <= 0 */
-  DP_CHECK (dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9,
-                                  100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0)
             == NULL); /* m not in {2,4,8} */
-  DP_CHECK (dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                  100.0, 0, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 0, 8, 0)
             == NULL); /* segments < 1 */
 
-  dsss_receiver_state_t *rx = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (rx)
     {
-      DP_CHECK (dsss_receiver_get_tracking (rx) == 0);
-      DP_CHECK (dsss_receiver_get_segments (rx) == 4);
-      DP_CHECK (dsss_receiver_get_sps (rx) == 8);
+      DP_CHECK (dp_dsss_receiver_get_tracking (rx) == 0);
+      DP_CHECK (dp_dsss_receiver_get_segments (rx) == 4);
+      DP_CHECK (dp_dsss_receiver_get_sps (rx) == 8);
       /* `n` is MpskReceiver's m_out: terminal outputs per symbol since the
          cascade rebuild, not the retired NDA arm's dumps per symbol. So it
          derives to the coherent-bound default, not the old "largest divisor
          of sps in {4,2,1}" (which gave 4 and did not decode). */
-      DP_CHECK (dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
-      DP_CHECK (dsss_receiver_get_chip_phase (rx) == 0.0);
-      DP_CHECK (dsss_receiver_get_code_rate (rx) == 1.0);
-      dsss_receiver_destroy (rx);
+      DP_CHECK (dp_dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
+      DP_CHECK (dp_dsss_receiver_get_chip_phase (rx) == 0.0);
+      DP_CHECK (dp_dsss_receiver_get_code_rate (rx) == 1.0);
+      dp_dsss_receiver_destroy (rx);
     }
   return 0;
 }
@@ -66,7 +66,7 @@ _test_arg_validation (void)
 /* Stream `x` through `rx` in fixed-size chunks, collecting every emitted
  * symbol; return the symbol count and fill `*syms_out` (caller frees). */
 static size_t
-_stream (dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
+_stream (dp_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
          size_t chunk, float _Complex **syms_out)
 {
   float _Complex *syms = malloc (n * sizeof *syms); /* generous upper bound */
@@ -74,8 +74,8 @@ _stream (dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
   for (size_t pos = 0; pos < n; pos += chunk)
     {
       size_t take = (pos + chunk <= n) ? chunk : (n - pos);
-      n_syms += dsss_receiver_steps (rx, x + pos, take, syms + n_syms,
-                                     n - n_syms);
+      n_syms += dp_dsss_receiver_steps (rx, x + pos, take, syms + n_syms,
+                                        n - n_syms);
     }
   *syms_out = syms;
   return n_syms;
@@ -151,7 +151,7 @@ _test_acquire_and_decode (void)
    * scope (validating the composed object's wiring, not re-proving
    * Acquisition's own precision-vs-sizing trade-offs, already covered by
    * Acquisition's own dedicated tests). */
-  dsss_receiver_state_t *rx = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (!rx)
@@ -164,74 +164,74 @@ _test_acquire_and_decode (void)
   float _Complex *syms;
   size_t          n_syms = _stream (rx, x, n, te, &syms);
 
-  DP_CHECK (dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
-  DP_CHECK (dsss_receiver_get_cn0_dbhz_est (rx) > 0.0);
+  DP_CHECK (dp_dsss_receiver_get_cn0_dbhz_est (rx) > 0.0);
 
   double ber = _best_ber (syms, n_syms, data, n_sym + 4);
   DP_CHECK (ber < 0.05);
 
   /* ── state-serialization round trip, while tracking ─────────────────── */
-  size_t cb   = dsss_receiver_state_bytes (rx);
+  size_t cb   = dp_dsss_receiver_state_bytes (rx);
   void  *blob = malloc (cb);
-  dsss_receiver_get_state (rx, blob);
+  dp_dsss_receiver_get_state (rx, blob);
 
-  dsss_receiver_state_t *rx2 = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx2 = dp_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
-      DP_CHECK (dsss_receiver_set_state (rx2, blob) == DP_OK);
-      DP_CHECK (dsss_receiver_get_tracking (rx2) == 1);
-      DP_CHECK (fabs (dsss_receiver_get_chip_phase (rx2)
-                      - dsss_receiver_get_chip_phase (rx))
+      DP_CHECK (dp_dsss_receiver_set_state (rx2, blob) == DP_OK);
+      DP_CHECK (dp_dsss_receiver_get_tracking (rx2) == 1);
+      DP_CHECK (fabs (dp_dsss_receiver_get_chip_phase (rx2)
+                      - dp_dsss_receiver_get_chip_phase (rx))
                 < 1e-9);
 
       /* a corrupted envelope must be rejected, not reinterpreted. */
       ((char *)blob)[0] ^= (char)0xFF;
-      DP_CHECK (dsss_receiver_set_state (rx2, blob) == DP_ERR_INVALID);
-      dsss_receiver_destroy (rx2);
+      DP_CHECK (dp_dsss_receiver_set_state (rx2, blob) == DP_ERR_INVALID);
+      dp_dsss_receiver_destroy (rx2);
     }
   free (blob);
 
   /* ── state-serialization round trip, while searching ─────────────────── */
-  dsss_receiver_state_t *rx3 = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx3 = dp_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx3 != NULL);
   if (rx3)
     {
-      size_t cb3   = dsss_receiver_state_bytes (rx3);
+      size_t cb3   = dp_dsss_receiver_state_bytes (rx3);
       void  *blob3 = malloc (cb3);
-      dsss_receiver_get_state (rx3, blob3);
+      dp_dsss_receiver_get_state (rx3, blob3);
 
-      dsss_receiver_state_t *rx4 = dsss_receiver_create (
+      dp_dsss_receiver_state_t *rx4 = dp_dsss_receiver_create (
           CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
       DP_CHECK (rx4 != NULL);
       if (rx4)
         {
-          DP_CHECK (dsss_receiver_set_state (rx4, blob3) == DP_OK);
-          DP_CHECK (dsss_receiver_get_tracking (rx4) == 0);
-          dsss_receiver_destroy (rx4);
+          DP_CHECK (dp_dsss_receiver_set_state (rx4, blob3) == DP_OK);
+          DP_CHECK (dp_dsss_receiver_get_tracking (rx4) == 0);
+          dp_dsss_receiver_destroy (rx4);
         }
       free (blob3);
-      dsss_receiver_destroy (rx3);
+      dp_dsss_receiver_destroy (rx3);
     }
 
   /* ── reset() returns to searching ─────────────────────────────────────── */
-  dsss_receiver_reset (rx);
-  DP_CHECK (dsss_receiver_get_tracking (rx) == 0);
-  DP_CHECK (dsss_receiver_get_chip_phase (rx) == 0.0);
+  dp_dsss_receiver_reset (rx);
+  DP_CHECK (dp_dsss_receiver_get_tracking (rx) == 0);
+  DP_CHECK (dp_dsss_receiver_get_chip_phase (rx) == 0.0);
 
   free (syms);
   free (x);
   free (data);
-  dsss_receiver_destroy (rx);
+  dp_dsss_receiver_destroy (rx);
   return 0;
 }
 
 /* ── Isolated proof for the planned pre-despread carrier composition ──────
  * (task #93/#94, ~/.claude/plans/crystalline-knitting-hopper.md): does
- * costas_wipeoff() -> dll_steps(segments=4) -> costas_update(), chunked one
+ * costas_wipeoff() -> dp_dll_steps(segments=4) -> costas_update(), chunked one
  * code period at a time, actually track a Doppler RATE (not just a static
  * residual) when composed from the raw primitives -- before that exact
  * sequence gets wired into dsss_receiver_core.c's own internals (task #95).
@@ -260,8 +260,9 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
       x[idx] = csgn * carrier + noise;
     }
 
-  dll_state_t   *dll = dll_create (code, sf, spc, 0.0, 0.002, 0.707, 0.5, 4);
-  costas_state_t car;
+  dp_dll_state_t *dll
+      = dp_dll_create (code, sf, spc, 0.0, 0.002, 0.707, 0.5, 4);
+  dp_costas_state_t car;
   costas_init (&car, 0.01, 0.707, 0.0, tsamps, bn_fll);
 
   float _Complex *wiped = malloc (tsamps * sizeof *wiped);
@@ -275,17 +276,17 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
        * one prompt out, but Dll's own tracked code_rate need not be
        * precisely 1.0 -- don't hard-assert the count, mirroring the
        * production loop's own planned discipline (task #95's own doc). */
-      size_t n_out = dll_steps (dll, wiped, tsamps, &prompt, 1);
+      size_t n_out = dp_dll_steps (dll, wiped, tsamps, &prompt, 1);
       if (n_out == 1)
         costas_update (&car, prompt);
     }
 
-  double tracked_hz  = costas_get_norm_freq (&car) * fs;
+  double tracked_hz  = dp_costas_get_norm_freq (&car) * fs;
   double true_at_end = rate_hz_per_s * (double)n_periods * (double)tsamps / fs;
 
   free (wiped);
   free (x);
-  dll_destroy (dll);
+  dp_dll_destroy (dll);
   return fabs (tracked_hz - true_at_end);
 }
 
@@ -389,17 +390,17 @@ _test_sustained_doppler_rate (void)
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
                         pre_silence, 21, &x, &n, &data);
 
-  dsss_receiver_state_t *rx4 = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx4 = dp_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0);
-  dsss_receiver_state_t *rx1 = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx1 = dp_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 1, 8, 0);
   DP_CHECK (rx4 != NULL && rx1 != NULL);
   if (!rx4 || !rx1)
     {
       if (rx4)
-        dsss_receiver_destroy (rx4);
+        dp_dsss_receiver_destroy (rx4);
       if (rx1)
-        dsss_receiver_destroy (rx1);
+        dp_dsss_receiver_destroy (rx1);
       free (code);
       free (x);
       free (data);
@@ -413,7 +414,7 @@ _test_sustained_doppler_rate (void)
   double ber4 = _best_ber (syms4, n_syms4, data, n_sym + 4);
   double ber1 = _best_ber (syms1, n_syms1, data, n_sym + 4);
 
-  DP_CHECK (dsss_receiver_get_tracking (rx4) == 1);
+  DP_CHECK (dp_dsss_receiver_get_tracking (rx4) == 1);
   /* A receiver that lost lock partway through (the ~117 Hz/s bare-PLL
    * cliff this session's own investigation found -- SPEC's 500 Hz/s is
    * ~4x past it) would emit far fewer symbols than the run's own length;
@@ -435,7 +436,7 @@ _test_sustained_doppler_rate (void)
    * (no lookback -- a plain coherent full-epoch dump) must decode
    * measurably WORSE than `segments=4` (DsssReceiver's own default) --
    * proving the new pre-despread carrier composition still lets
-   * `dll_steps()`'s segments>1 lookback do real, load-bearing work,
+   * `dp_dll_steps()`'s segments>1 lookback do real, load-bearing work,
    * exactly as it did before this session's carrier-loop addition.
    * Confirmed directly: ber4=0.0000, ber1=0.1702 on the same run. */
   DP_CHECK (ber1 > ber4);
@@ -446,8 +447,8 @@ _test_sustained_doppler_rate (void)
   free (x);
   free (data);
   free (code);
-  dsss_receiver_destroy (rx4);
-  dsss_receiver_destroy (rx1);
+  dp_dsss_receiver_destroy (rx4);
+  dp_dsss_receiver_destroy (rx1);
   return 0;
 }
 
@@ -481,7 +482,7 @@ _test_carry_buffer_state_roundtrip (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  dsss_receiver_state_t *rx = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (!rx)
@@ -498,23 +499,23 @@ _test_carry_buffer_state_roundtrip (void)
   size_t          warm_n = _stream (rx, x, half, odd_chunk, &warm_syms);
   free (warm_syms);
   (void)warm_n;
-  DP_CHECK (dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_dsss_receiver_get_tracking (rx) == 1);
   /* Direct struct-field peek (not a public getter -- reasonable for a C
    * unit test with full struct visibility): confirms the test actually
    * exercises the nonzero-carry case it claims to, rather than silently
    * passing on a lucky zero. */
   DP_CHECK (rx->car_carry_len > 0 && rx->car_carry_len < rx->tsamps);
 
-  size_t cb   = dsss_receiver_state_bytes (rx);
+  size_t cb   = dp_dsss_receiver_state_bytes (rx);
   void  *blob = malloc (cb);
-  dsss_receiver_get_state (rx, blob);
+  dp_dsss_receiver_get_state (rx, blob);
 
-  dsss_receiver_state_t *rx2 = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx2 = dp_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
-      DP_CHECK (dsss_receiver_set_state (rx2, blob) == DP_OK);
+      DP_CHECK (dp_dsss_receiver_set_state (rx2, blob) == DP_OK);
       DP_CHECK (rx2->car_carry_len == rx->car_carry_len);
 
       float _Complex *rest1, *rest2;
@@ -527,12 +528,12 @@ _test_carry_buffer_state_roundtrip (void)
         DP_CHECK (cabsf (rest1[i] - rest2[i]) < 1e-4f);
       free (rest1);
       free (rest2);
-      dsss_receiver_destroy (rx2);
+      dp_dsss_receiver_destroy (rx2);
     }
   free (blob);
   free (x);
   free (data);
-  dsss_receiver_destroy (rx);
+  dp_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -543,25 +544,25 @@ _test_carry_buffer_state_roundtrip (void)
 static int
 _test_accessor_coverage (void)
 {
-  dsss_receiver_state_t *rx = dsss_receiver_create (
+  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (!rx)
     return 1;
 
-  (void)dsss_receiver_get_lock (rx);
-  (void)dsss_receiver_get_norm_freq (rx);
-  (void)dsss_receiver_get_doppler_hz (rx);
-  (void)dsss_receiver_steps_max_out (rx); /* 0 until first stream */
+  (void)dp_dsss_receiver_get_lock (rx);
+  (void)dp_dsss_receiver_get_norm_freq (rx);
+  (void)dp_dsss_receiver_get_doppler_hz (rx);
+  (void)dp_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
 
-  DP_CHECK (dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
-  DP_CHECK (dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
-  dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
-  DP_CHECK (dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
-  DP_CHECK (dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
-  DP_CHECK (dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
+  DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
+  DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
+  dp_dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
 
-  dsss_receiver_destroy (rx);
+  dp_dsss_receiver_destroy (rx);
   return 0;
 }
 

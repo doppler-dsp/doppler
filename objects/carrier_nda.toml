@@ -6,8 +6,8 @@ no_state = "true"
 no_step = "true"
 class_name = "CarrierNda"
 serializable = "true"
-# `agc` was here for one extern symbol, agc_set_telemetry, forwarded to the
-# embedded arm AGC (agc_step being header-inline). gh-657 retired that AGC, so
+# `agc` was here for one extern symbol, dp_agc_set_telemetry, forwarded to the
+# embedded arm AGC (dp_agc_step being header-inline). gh-657 retired that AGC, so
 # this core references no agc symbol at all and the dep goes with it.
 depends_on = [
   { name = "lo", link = true },

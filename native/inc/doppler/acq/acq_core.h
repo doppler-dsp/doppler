@@ -121,7 +121,7 @@
  * and every scan of the peak list -- run per tile too, each into a slot of
  * its own, and are merged serially in tile order (a mean of the tiles'
  * means over equal cells, the first of the tiles' first maxima), so the
- * serial remainder is per tile, not per cell. acq_set_threads() sets the
+ * serial remainder is per tile, not per cell. dp_acq_set_threads() sets the
  * count.
  *
  * @code
@@ -132,19 +132,19 @@
  * float _Complex pre[124];
  * for (size_t i = 0; i < 124; i++)
  *   pre[i] = nrz[i / 4];                   // each chip held 4 samples
- * acq_state_t *a = acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
+ * dp_acq_state_t *a = acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
  *                                   0.0, 1e-3, 0.9, 0, 0.0);
  * acq_result_t hits[64];
- * size_t nh = acq_push(a, samples, n_samples, hits, 64);
+ * size_t nh = dp_acq_push(a, samples, n_samples, hits, 64);
  * for (size_t i = 0; i < nh; i++)
  *   printf("Doppler %zu, code phase %zu, C/N0 %.1f dB-Hz\n",
  *          hits[i].doppler_bin, hits[i].code_phase,
  *          hits[i].cn0_dbhz_est);
- * acq_destroy(a);
+ * dp_acq_destroy(a);
  * @endcode
  */
-#ifndef ACQ_CORE_H
-#define ACQ_CORE_H
+#ifndef DP_ACQ_CORE_H
+#define DP_ACQ_CORE_H
 
 #include "doppler/buffer/buffer.h"
 #include "doppler/clib_common.h"
@@ -215,7 +215,7 @@ extern "C"
    *        ids (design §2.4). NULL ctx (the default) means detached — the
    *        one probe site is then a single predicted-not-taken branch per
    *        decided dwell. Never in a state blob; preserved across
-   *        acq_set_state() like the borrowed code.
+   *        dp_acq_set_state() like the borrowed code.
    */
   typedef struct
   {
@@ -317,8 +317,8 @@ extern "C"
    */
   typedef struct
   {
-    corr2d_state_t *corr; /**< Single-row-ref correlator (dwell=1).          */
-    fft_state_t *slow_fft; /**< Length-coherent_bins forward FFT (slow time). */
+    dp_corr2d_state_t *corr; /**< Single-row-ref correlator (dwell=1).          */
+    dp_fft_state_t *slow_fft; /**< Length-coherent_bins forward FFT (slow time). */
     dp_f32_t    *ring;  /**< Raw cf32 input ring (the only ring).          */
     float _Complex *ref; /**< Single-row reference (n), owned.              */
     float _Complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.  */
@@ -334,8 +334,8 @@ extern "C"
     /* Wideband mode only (window_bins > 1) — see the file doc comment.
      * Independent of corr/slow_fft/yframe/colbuf/colout above (unused, but
      * left allocated at their trivial coherent_bins=1 size, in this mode). */
-    fft_state_t *wide_fwd; /**< Forward FFT, length code_bins.               */
-    fft_state_t *wide_inv; /**< Inverse FFT, length code_bins.               */
+    dp_fft_state_t *wide_fwd; /**< Forward FFT, length code_bins.               */
+    dp_fft_state_t *wide_inv; /**< Inverse FFT, length code_bins.               */
     float _Complex
         *wide_ref_spec; /**< conj(FFT(replica row)), length code_bins.     */
     float _Complex
@@ -412,7 +412,7 @@ extern "C"
     double doppler_rate; /**< Doppler rate the depth is bounded against
                               (Hz/s); 0 = no bound from the rate.       */
     double carrier_freq_hz; /**< RF carrier the Doppler is physically
-                                 coupled to, Hz (acq_set_carrier_freq_hz());
+                                 coupled to, Hz (dp_acq_set_carrier_freq_hz());
                                  0 = uncoupled: no code-rate hypothesis per
                                  tile, no dwell advance in the hand-off. */
     float _Complex *blk; /**< window_bins * coherent_bins * code_bins: the
@@ -434,9 +434,9 @@ extern "C"
     dp_pool_t       *pool;      /**< NULL or one thread = serial          */
     int              threads;   /**< workers the pool runs on, the caller
                                      included; 1 without a pool          */
-    fft_state_t    **tile_inv;  /**< window_bins inverse plans (code_bins) */
+    dp_fft_state_t    **tile_inv;  /**< window_bins inverse plans (code_bins) */
     float _Complex **tile_prod; /**< window_bins product buffers          */
-    fft_state_t    **tile_slow; /**< window_bins slow-time plans (D*interp),
+    dp_fft_state_t    **tile_slow; /**< window_bins slow-time plans (D*interp),
                                      NULL at D == 1                      */
     float _Complex **tile_col;  /**< window_bins column scratch: a chunk of
                                      ACQ_COL_CHUNK columns of D*interp
@@ -542,7 +542,7 @@ extern "C"
     float  peak_mag;
     float  noise_est;
     float  test_stat;
-  } acq_state_t;
+  } dp_acq_state_t;
 
   /**
    * @brief Per-object extra header for an engine's cross-call state.
@@ -558,7 +558,7 @@ extern "C"
    *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
    *   `[ uint32_t       twins[2 * max_peaks] ]`      (held row, col pairs)
    *
-   * Build the byte buffer with acq_state_bytes(); set_state validates the
+   * Build the byte buffer with dp_acq_state_bytes(); set_state validates the
    * envelope (magic/version/size) plus n / n_noncoh below, rejecting a
    * mismatch rather than reinterpreting it.
    */
@@ -579,7 +579,7 @@ extern "C"
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
 #define ACQ_STATE_VERSION 4u /* v4: the block's raw epochs ride beside it */
 
-/** The largest `max_peaks` acq_set_max_peaks() accepts: one push's
+/** The largest `max_peaks` dp_acq_set_max_peaks() accepts: one push's
  *  result array is sized to this many in the binding, so one dwell can
  *  always be reported whole. */
 #define ACQ_MAX_PEAKS 64u
@@ -599,7 +599,7 @@ extern "C"
    * non-monotonic and unreliable past a few hundred looks (this project's
    * own geometry found ~256 empirically -- see
    * docs/design/async-dsss-receiver.md).  Hitting this ceiling without
-   * meeting @p pd leaves acq_state_t::underpowered set, same as any other
+   * meeting @p pd leaves dp_acq_state_t::underpowered set, same as any other
    * infeasible operating point -- no separate bookkeeping needed.
    */
 #define ACQ_N_NONCOH_SAFETY_CEILING 256u
@@ -623,7 +623,7 @@ extern "C"
    *
    * Takes the preamble as its SAMPLES: one period of @p n complex samples at
    * @p fs, repeated up to @p reps times. A PN code is one such preamble --
-   * pass its chips mapped by bin_to_nrz() and held `spc` samples each, at
+   * pass its chips mapped by dp_bin_to_nrz() and held `spc` samples each, at
    * `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`,
    * `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`,
    * and `code_phase` is the delay into the repetition, in samples -- for a
@@ -659,7 +659,7 @@ extern "C"
    * @p doppler_uncertainty exceeds the native span `fs/(2n)`,
    * falls back to the wideband window-tiling mechanism (see the file doc
    * comment) instead -- coherent depth structurally can't cover more than
-   * one native span, regardless of @p reps.  Use acq_configure_search_raw()
+   * one native span, regardless of @p reps.  Use dp_acq_configure_search_raw()
    * to pin the grid directly instead of relying on this auto-sizer.
    *
    * What a code once knew analytically, the preamble's own correlation
@@ -719,12 +719,12 @@ extern "C"
    * float _Complex zc[127];
    * for (int k = 0; k < 127; k++)
    *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
-   * acq_state_t *a = acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
+   * dp_acq_state_t *a = acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
    *                                    0.9, 0, 0.0);
-   * acq_destroy (a);
+   * dp_acq_destroy (a);
    * @endcode
    */
-  acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
+  dp_acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
                                  size_t reps, double fs, double cn0_dbhz,
                                  double doppler_uncertainty, double pfa,
                                  double pd, int noise_mode,
@@ -758,7 +758,7 @@ extern "C"
    * @param chip_rate   Chip rate in Hz (> 0).
    * @param symbol_rate Continuous data-symbol rate in Hz; <= 0 means no
    *                    known clock. Diagnostic only (exposed via
-   *                    acq_state_t::epochs_per_symbol), doesn't feed
+   *                    dp_acq_state_t::epochs_per_symbol), doesn't feed
    *                    sizing: this engine never coherently combines
    *                    regardless of the data-modulation clock.
    * @param cn0_dbhz    Carrier-to-noise density in dB-Hz: any finite value.
@@ -799,7 +799,7 @@ extern "C"
    *
    * @endcode
    */
-  acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
+  dp_acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
@@ -808,7 +808,7 @@ extern "C"
                                       double doppler_rate);
 
   /** @brief Destroy and free an engine.  @param state May be NULL. */
-  void acq_destroy (acq_state_t *state);
+  void dp_acq_destroy (dp_acq_state_t *state);
 
   /**
    * @brief Drain the input ring and reset the coherent accumulator.
@@ -837,7 +837,7 @@ extern "C"
    *
    * @endcode
    */
-  void acq_reset (acq_state_t *state);
+  void dp_acq_reset (dp_acq_state_t *state);
 
   /**
    * @brief Pin the search grid directly, bypassing both auto-sizing
@@ -877,7 +877,7 @@ extern "C"
    *
    * @endcode
    */
-  int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
+  int dp_acq_configure_search_raw (dp_acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
 
   /**
@@ -893,7 +893,7 @@ extern "C"
    * the epoch splits one emitter into twins at its own code phase on other
    * tiles, so such a peak is held for one dwell and listed only if it was
    * there, at the same tile, on the previous one. Each listed peak is one
-   * acq_result_t from acq_push(), all of a dwell's sharing its
+   * acq_result_t from dp_acq_push(), all of a dwell's sharing its
    * `samples_consumed` and `noise_est`. A held twin takes a slot of the
    * `n` for that dwell but is not reported. The threshold does not change:
    * a second peak is another draw from the same cells against the same
@@ -915,7 +915,7 @@ extern "C"
    * 8
    * @endcode
    */
-  int acq_set_max_peaks (acq_state_t *state, size_t n);
+  int dp_acq_set_max_peaks (dp_acq_state_t *state, size_t n);
 
   /**
    * @brief Couple the code clock to the carrier: the chip rate dilates by
@@ -961,7 +961,7 @@ extern "C"
    *
    * @endcode
    */
-  int acq_set_carrier_freq_hz (acq_state_t *state, double carrier_freq_hz);
+  int dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz);
 
   /**
    * @brief Set how many threads the searcher fans its tiles across
@@ -997,7 +997,7 @@ extern "C"
    *
    * @endcode
    */
-  int acq_set_threads (acq_state_t *state, int n);
+  int dp_acq_set_threads (dp_acq_state_t *state, int n);
   /**
    * @brief Attach (or detach) a telemetry context and register the
    *        engine's probes on it (design §2.4).
@@ -1011,8 +1011,8 @@ extern "C"
    * hit fired), "<prefix>.noise" (the CFAR reference `noise_est`),
    * "<prefix>.peak" (the strongest cell's raw value), "<prefix>.row" and
    * "<prefix>.col" (its native Doppler row and code-phase column — a
-   * surface coordinate, not a physical unit; acq_surface_doppler_hz() and
-   * acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in the
+   * surface coordinate, not a physical unit; dp_acq_surface_doppler_hz() and
+   * dp_acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in the
    * dwell, held twins included), "<prefix>.n_held" (picks held as
    * same-code-phase twins rather than listed, §7.1), "<prefix>.conc" (the
    * strongest pick's concentration — see `peak_conc`: its main lobe's
@@ -1050,7 +1050,7 @@ extern "C"
    *
    * @endcode
    */
-  int acq_set_telemetry (acq_state_t *state, dp_tlm_t *tlm,
+  int dp_acq_set_telemetry (dp_acq_state_t *state, dp_tlm_t *tlm,
                          const char *prefix, uint32_t decim);
 
   /**
@@ -1090,7 +1090,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_surface (acq_state_t *state, float *out, size_t n_out);
+  size_t dp_acq_surface (dp_acq_state_t *state, float *out, size_t n_out);
 
   /**
    * @brief The surface's Doppler axis: the frequency of each row, in Hz.
@@ -1098,7 +1098,7 @@ extern "C"
    * One value per surface row, the fold and scale a hit's `doppler_hz_est`
    * uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated
    * grid where the slow-time axis is interpolated), so a plot of
-   * acq_surface() carries the same axis a DetectionEvent reports on.
+   * dp_acq_surface() carries the same axis a DetectionEvent reports on.
    *
    * @param state Must be non-NULL.
    * @param out   At least `surface_rows` doubles.
@@ -1120,7 +1120,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_surface_doppler_hz (acq_state_t *state, double *out,
+  size_t dp_acq_surface_doppler_hz (dp_acq_state_t *state, double *out,
                                  size_t n_out);
 
   /**
@@ -1149,7 +1149,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_surface_chip_phase (acq_state_t *state, double *out,
+  size_t dp_acq_surface_chip_phase (dp_acq_state_t *state, double *out,
                                  size_t n_out);
 
   /**
@@ -1157,7 +1157,7 @@ extern "C"
    *        carrier phase per cell, before the magnitude the gate reads.
    *
    * Copies the coherent sum the last dwell was decided on into @p out,
-   * row-major `surface_rows` x `code_bins` like acq_surface(), in the
+   * row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the
    * correlation's own units rather than the gate's. A cell's phase is
    * the carrier at the block's middle, relative to its tile's centre; its
    * neighbours along the code axis are complex early and late arms, so a
@@ -1193,7 +1193,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_surface_complex (acq_state_t *state, float _Complex *out,
+  size_t dp_acq_surface_complex (dp_acq_state_t *state, float _Complex *out,
                               size_t n_out);
 
   /**
@@ -1220,7 +1220,7 @@ extern "C"
    *                caller's reference.
    * @return The complex correlation.
    */
-  double _Complex acq_cell_corr (const acq_state_t *state,
+  double _Complex acq_cell_corr (const dp_acq_state_t *state,
                                  const float _Complex *x, size_t col,
                                  double f_hz, double t0);
 
@@ -1261,7 +1261,7 @@ extern "C"
    *                 caller's reference.
    * @param out      Written with `n_epochs * n_f` correlations, epoch-major.
    */
-  void acq_cell_corr_grid (const acq_state_t *state, const float _Complex *x,
+  void acq_cell_corr_grid (const dp_acq_state_t *state, const float _Complex *x,
                            size_t n_epochs, size_t col, const double *f_hz,
                            size_t n_f, double t0, double _Complex *out);
 
@@ -1316,7 +1316,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
+  size_t dp_acq_block_prompt (dp_acq_state_t *state, size_t tile, size_t col,
                            float _Complex *out, size_t n_out);
 
   /**
@@ -1324,7 +1324,7 @@ extern "C"
    *
    * Copies the `coherent_bins * code_bins` samples the block-coherent
    * engine gathered for its last whole block into @p out, epoch by epoch
-   * in stream order — the samples acq_push() consumed, untouched. Kept
+   * in stream order — the samples dp_acq_push() consumed, untouched. Kept
    * for the tile-edge re-ask (acq_resolve_tile_alias()); exposed so a
    * tracker can re-correlate them at any code phase, rate or symbol
    * boundary the engine's own grid does not have — a symbol-rate
@@ -1359,7 +1359,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_block_raw (acq_state_t *state, float _Complex *out,
+  size_t dp_acq_block_raw (dp_acq_state_t *state, float _Complex *out,
                         size_t n_out);
 
   /**
@@ -1367,7 +1367,7 @@ extern "C"
    *        dwell's surface, in test-statistic units, handed to @p fn on the
    *        pushing thread (design §2.4).
    *
-   * Sets `keep_surface`, so acq_surface() reads the same dwell afterwards.
+   * Sets `keep_surface`, so dp_acq_surface() reads the same dwell afterwards.
    * The pointer handed to @p fn is the engine's and is valid only for the
    * call: copy or write it out there. This is how a long run records the
    * surface decimated in time without a copy per dwell it does not keep.
@@ -1377,7 +1377,7 @@ extern "C"
    * @param ctx   Passed through to @p fn.
    * @param decim Hand over every decim-th dwell; 0 reads as 1.
    */
-  void acq_set_surface_sink (acq_state_t *state, acq_surface_sink_fn fn,
+  void acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
                              void *ctx, uint32_t decim);
 
   /**
@@ -1416,7 +1416,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_push (acq_state_t *state, const float _Complex *x, size_t n_in,
+  size_t dp_acq_push (dp_acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
   /**
@@ -1466,7 +1466,7 @@ extern "C"
    * (doppler#1512).
    */
   static inline size_t
-  acq_grid_bins (const acq_state_t *state)
+  acq_grid_bins (const dp_acq_state_t *state)
   {
     return state->window_bins * state->coherent_bins;
   }
@@ -1480,7 +1480,7 @@ extern "C"
    * composing object call it rather than restating the fold.
    */
   static inline double
-  acq_bin_doppler_hz (const acq_state_t *state, size_t doppler_bin)
+  acq_bin_doppler_hz (const dp_acq_state_t *state, size_t doppler_bin)
   {
     return (double)dp_fftfreq_index (doppler_bin, acq_grid_bins (state))
            * state->doppler_res_hz;
@@ -1521,10 +1521,10 @@ extern "C"
    *
    * @endcode
    */
-  double acq_psl_db (const acq_state_t *state);
+  double acq_psl_db (const dp_acq_state_t *state);
 
   /**
-   * @brief Convert one acq_push() hit into a wire-ready hand-off record.
+   * @brief Convert one dp_acq_push() hit into a wire-ready hand-off record.
    *
    * Two convention inversions live here, ported verbatim from
    * `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:
@@ -1547,7 +1547,7 @@ extern "C"
    *   its end, when the chip clock is dilated by the same Doppler the hit
    *   reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz`
    *   chips per chip). The seed a code loop wants is the phase at the next
-   *   sample, so with the carrier set (acq_set_carrier_freq_hz()) the phase
+   *   sample, so with the carrier set (dp_acq_set_carrier_freq_hz()) the phase
    *   is advanced by the drift over HALF the dwell, `doppler_hz_est /
    *   carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips
    *   (a coherent block's epochs are aligned to its middle by the same
@@ -1558,13 +1558,13 @@ extern "C"
    *   floor's hand-offs never refined. Uncoupled (0.0): no advance.
    * @param state    The engine @p hit came from (non-NULL, built via
    *                 acq_create_continuous()).
-   * @param hit      One hit from acq_push() (non-NULL).
+   * @param hit      One hit from dp_acq_push() (non-NULL).
    * @param code_len Spreading-code length (chips) — the same value passed
    *                 to whichever acq_create_*() built @p state.
    * @param spc      Samples/chip — likewise.
    * @param out      Written on return (non-NULL).
    */
-  void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
+  void acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
@@ -1579,14 +1579,14 @@ extern "C"
    */
 
   /** @brief Byte size of @p state's blob (header + unconsumed + nc). */
-  size_t acq_state_bytes (const acq_state_t *state);
+  size_t dp_acq_state_bytes (const dp_acq_state_t *state);
 
   /**
    * @brief Serialize @p state's cross-call state into @p blob (caller-owned,
-   *        acq_state_bytes() long).  Call between pushes (no partial dump
+   *        dp_acq_state_bytes() long).  Call between pushes (no partial dump
    * pending).
    */
-  void acq_get_state (const acq_state_t *state, void *blob);
+  void dp_acq_get_state (const dp_acq_state_t *state, void *blob);
 
   /**
    * @brief Restore cross-call state from @p blob into @p state (replacing it).
@@ -1594,7 +1594,7 @@ extern "C"
    *         with @p state (rebuild the engine from the matching descriptor
    * first).
    */
-  int acq_set_state (acq_state_t *state, const void *blob);
+  int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
 
   /**
    * @brief Pure run: inject @p state_in, stream @p in, emit hits, export
@@ -1604,7 +1604,7 @@ extern "C"
    *        NULL out = discard).
    * @return Number of events written (0 … max_results).
    */
-  size_t acq_run (acq_state_t *state, const void *state_in, void *state_out,
+  size_t acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);
 

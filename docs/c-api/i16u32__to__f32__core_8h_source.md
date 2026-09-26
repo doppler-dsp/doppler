@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef I16U32_TO_F32_CORE_H
-#define I16U32_TO_F32_CORE_H
+#ifndef DP_I16U32_TO_F32_CORE_H
+#define DP_I16U32_TO_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -20,24 +20,24 @@ extern "C" {
 
 typedef struct {
     float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
-} i16u32_to_f32_state_t;
+} dp_i16u32_to_f32_state_t;
 
-i16u32_to_f32_state_t *i16u32_to_f32_create(float scale);
+dp_i16u32_to_f32_state_t *dp_i16u32_to_f32_create(float scale);
 
-void i16u32_to_f32_destroy(i16u32_to_f32_state_t *state);
+void dp_i16u32_to_f32_destroy(dp_i16u32_to_f32_state_t *state);
 
-void i16u32_to_f32_reset(i16u32_to_f32_state_t *state);
+void dp_i16u32_to_f32_reset(dp_i16u32_to_f32_state_t *state);
 
 JM_FORCEINLINE JM_HOT float
-i16u32_to_f32_step(const i16u32_to_f32_state_t *state, uint32_t x)
+dp_i16u32_to_f32_step(const dp_i16u32_to_f32_state_t *state, uint32_t x)
 {
     /* Extract lower 16 bits as signed int16, then scale to float. */
     int16_t v = (int16_t)(uint16_t)(x & 0xFFFFu);
     return (float)v * state->iscale;
 }
 
-void i16u32_to_f32_steps(
-    i16u32_to_f32_state_t *state,
+void dp_i16u32_to_f32_steps(
+    dp_i16u32_to_f32_state_t *state,
     const uint32_t    *input,
     float          *output,
     size_t               n);

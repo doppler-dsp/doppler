@@ -30,9 +30,10 @@ from doppler.wfm import PN, Composer, Segment
 #: certification's job.
 #:
 #: **The acquisition length is chosen on the TRANSFORM, not just the code.**
-#: `acq` calls `fft_create(sf * spc)` verbatim -- the code-axis correlation is
-#: circular, so it cannot pad to a friendlier length without changing the
-#: correlation. A 127-chip m-sequence at spc=4 gives 508 = 2^2 * 127, and
+#: `acq` calls `dp_fft_create(sf * spc)` verbatim -- the code-axis
+#: correlation is circular, so it cannot pad to a friendlier length
+#: without changing the correlation. A 127-chip m-sequence at spc=4 gives
+#: 508 = 2^2 * 127, and
 #: pocketfft falls to Bluestein on the prime: 9.70 us against 0.75 us for
 #: 512, and 21 MSa/s against 52 end-to-end. 255 * 2 = 510 = 2 * 3 * 5 * 17 is
 #: smooth AND keeps the ideal m-sequence autocorrelation (ratio 255 against

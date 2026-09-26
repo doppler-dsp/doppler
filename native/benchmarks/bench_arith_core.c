@@ -63,46 +63,46 @@ run (int op)
   switch (op)
     {
     case OP_ADD_Q15:
-      add_q15 (a15, BLOCK, b15, BLOCK, o15);
+      dp_add_q15 (a15, BLOCK, b15, BLOCK, o15);
       break;
     case OP_SUB_Q15:
-      sub_q15 (a15, BLOCK, b15, BLOCK, o15);
+      dp_sub_q15 (a15, BLOCK, b15, BLOCK, o15);
       break;
     case OP_MUL_Q15:
-      mul_q15 (a15, BLOCK, b15, BLOCK, o15);
+      dp_mul_q15 (a15, BLOCK, b15, BLOCK, o15);
       break;
     case OP_DOT_Q15:
-      sink += dot_q15 (a15, BLOCK, b15, BLOCK);
+      sink += dp_dot_q15 (a15, BLOCK, b15, BLOCK);
       break;
     case OP_SHL_Q15:
-      shl_q15 (a15, BLOCK, o15, 2);
+      dp_shl_q15 (a15, BLOCK, o15, 2);
       break;
     case OP_SHR_Q15:
-      shr_q15 (a15, BLOCK, o15, 2);
+      dp_shr_q15 (a15, BLOCK, o15, 2);
       break;
     case OP_ADD_Q8:
-      add_q8 (a8, BLOCK, b8, BLOCK, o8);
+      dp_add_q8 (a8, BLOCK, b8, BLOCK, o8);
       break;
     case OP_SUB_Q8:
-      sub_q8 (a8, BLOCK, b8, BLOCK, o8);
+      dp_sub_q8 (a8, BLOCK, b8, BLOCK, o8);
       break;
     case OP_MUL_Q8:
-      mul_q8 (a8, BLOCK, b8, BLOCK, o8);
+      dp_mul_q8 (a8, BLOCK, b8, BLOCK, o8);
       break;
     case OP_DOT_Q8:
-      sink += dot_q8 (a8, BLOCK, b8, BLOCK);
+      sink += dp_dot_q8 (a8, BLOCK, b8, BLOCK);
       break;
     case OP_SHL_Q8:
-      shl_q8 (a8, BLOCK, o8, 2);
+      dp_shl_q8 (a8, BLOCK, o8, 2);
       break;
     case OP_SHR_Q8:
-      shr_q8 (a8, BLOCK, o8, 2);
+      dp_shr_q8 (a8, BLOCK, o8, 2);
       break;
     case OP_SHL_I64:
-      shl_i64 (a64, BLOCK, o64, 2);
+      dp_shl_i64 (a64, BLOCK, o64, 2);
       break;
     default:
-      shr_i64 (a64, BLOCK, o64, 2);
+      dp_shr_i64 (a64, BLOCK, o64, 2);
       break;
     }
 }

@@ -33,7 +33,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**farrow\_state\_t**](structfarrow__state__t.md) <br>_Farrow interpolator state (4-tap delay line + order)._  |
+| struct | [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) <br>_Farrow interpolator state (4-tap delay line + order)._  |
 
 
 ## Public Types
@@ -65,18 +65,18 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-|  [**farrow\_state\_t**](structfarrow__state__t.md) \* | [**farrow\_create**](#function-farrow_create) (int order) <br>_Create a Farrow interpolator._  |
-|  size\_t | [**farrow\_delay**](#function-farrow_delay) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, double mu, float \_Complex \* out, size\_t max\_out) <br>_Apply a constant fractional delay of_ `mu` _samples to a CF32 block._ |
-|  size\_t | [**farrow\_delay\_max\_out**](#function-farrow_delay_max_out) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
-|  void | [**farrow\_destroy**](#function-farrow_destroy) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Destroy a Farrow interpolator._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**farrow\_eval**](#function-farrow_eval) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._ |
-|  size\_t | [**farrow\_get\_group\_delay**](#function-farrow_get_group_delay) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
-|  void | [**farrow\_get\_state**](#function-farrow_get_state) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state, void \* blob) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**farrow\_init**](#function-farrow_init) ([**farrow\_state\_t**](structfarrow__state__t.md) \* s, int order) <br>_Initialise in place: set order, clear the delay line._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**farrow\_push**](#function-farrow_push) ([**farrow\_state\_t**](structfarrow__state__t.md) \* s, float \_Complex x) <br>_Push one input sample into the delay line (oldest drops out)._  |
-|  void | [**farrow\_reset**](#function-farrow_reset) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Clear the interpolator delay line; keep the order._  |
-|  int | [**farrow\_set\_state**](#function-farrow_set_state) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**farrow\_state\_bytes**](#function-farrow_state_bytes) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
+|  [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* | [**dp\_farrow\_create**](#function-dp_farrow_create) (int order) <br>_Create a Farrow interpolator._  |
+|  size\_t | [**dp\_farrow\_delay**](#function-dp_farrow_delay) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, double mu, float \_Complex \* out, size\_t max\_out) <br>_Apply a constant fractional delay of_ `mu` _samples to a CF32 block._ |
+|  size\_t | [**dp\_farrow\_delay\_max\_out**](#function-dp_farrow_delay_max_out) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br> |
+|  void | [**dp\_farrow\_destroy**](#function-dp_farrow_destroy) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br>_Destroy a Farrow interpolator._  |
+|  size\_t | [**dp\_farrow\_get\_group\_delay**](#function-dp_farrow_get_group_delay) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br> |
+|  void | [**dp\_farrow\_get\_state**](#function-dp_farrow_get_state) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_farrow\_reset**](#function-dp_farrow_reset) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br>_Clear the interpolator delay line; keep the order._  |
+|  int | [**dp\_farrow\_set\_state**](#function-dp_farrow_set_state) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_farrow\_state\_bytes**](#function-dp_farrow_state_bytes) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**farrow\_eval**](#function-farrow_eval) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**farrow\_init**](#function-farrow_init) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s, int order) <br>_Initialise in place: set order, clear the delay line._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**farrow\_push**](#function-farrow_push) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s, float \_Complex x) <br>_Push one input sample into the delay line (oldest drops out)._  |
 
 
 
@@ -121,12 +121,12 @@ A selectable-order Lagrange interpolator in Farrow (Horner-in-µ) form — the l
 order: 0 = linear (2-tap Lagrange), 1 = parabolic (4-tap symmetric piecewise-parabolic Farrow, α = 0.5), 2 = cubic (4-tap cubic Lagrange). All three are symmetric about the interpolation point, so the phase (delay) response is linear — no timing bias. Linear and cubic are exact for degree 1 and 3 polynomials; the piecewise-parabolic trades exactness for a flatter magnitude response than linear at no delay cost.
 
 
-Lifecycle: farrow\_create -&gt; (push / eval / reset)\* -&gt; farrow\_destroy, or embed by value with [**farrow\_init()**](farrow__core_8h.md#function-farrow_init).
+Lifecycle: dp\_farrow\_create -&gt; (push / eval / reset)\* -&gt; dp\_farrow\_destroy, or embed by value with [**farrow\_init()**](farrow__core_8h.md#function-farrow_init).
 
 
 
 ```C++
-farrow_state_t f;
+dp_farrow_state_t f;
 farrow_init(&f, FARROW_CUBIC);
 for (size_t i = 0; i < n; i++) farrow_push(&f, x[i]);
 float _Complex y = farrow_eval(&f, 0.3f);   // x interpolated 0.3 past tap[1]
@@ -159,11 +159,11 @@ enum farrow__core_8h_1a06fc87d81c62e9abb8790b6e5713c55b {
 
 
 
-### function farrow\_create 
+### function dp\_farrow\_create 
 
 _Create a Farrow interpolator._ 
 ```C++
-farrow_state_t * farrow_create (
+dp_farrow_state_t * dp_farrow_create (
     int order
 ) 
 ```
@@ -188,7 +188,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**farrow\_destroy()**](farrow__core_8h.md#function-farrow_destroy) when done. 
+Caller must call [**dp\_farrow\_destroy()**](farrow__core_8h.md#function-dp_farrow_destroy) when done. 
 
 
 
@@ -200,12 +200,12 @@ Caller must call [**farrow\_destroy()**](farrow__core_8h.md#function-farrow_dest
 
 
 
-### function farrow\_delay 
+### function dp\_farrow\_delay 
 
 _Apply a constant fractional delay of_ `mu` _samples to a CF32 block._
 ```C++
-size_t farrow_delay (
-    farrow_state_t * state,
+size_t dp_farrow_delay (
+    dp_farrow_state_t * state,
     const float _Complex * x,
     size_t x_len,
     double mu,
@@ -224,7 +224,7 @@ Pushes each input sample through the delay line and evaluates the interpolator a
 **Parameters:**
 
 
-* `state` Pointer to a valid [**farrow\_state\_t**](structfarrow__state__t.md). 
+* `state` Pointer to a valid [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md). 
 * `x` CF32 input samples. 
 * `x_len` Number of input samples. 
 * `mu` Fractional delay in samples; the offset in `[0,1)` into the interpolation interval (values outside extrapolate). 
@@ -257,11 +257,11 @@ CF32 output array, same length as `x`, each sample delayed by `group_delay - mu`
 
 
 
-### function farrow\_delay\_max\_out 
+### function dp\_farrow\_delay\_max\_out 
 
 ```C++
-size_t farrow_delay_max_out (
-    farrow_state_t * state
+size_t dp_farrow_delay_max_out (
+    dp_farrow_state_t * state
 ) 
 ```
 
@@ -272,12 +272,12 @@ size_t farrow_delay_max_out (
 
 
 
-### function farrow\_destroy 
+### function dp\_farrow\_destroy 
 
 _Destroy a Farrow interpolator._ 
 ```C++
-void farrow_destroy (
-    farrow_state_t * state
+void dp_farrow_destroy (
+    dp_farrow_state_t * state
 ) 
 ```
 
@@ -299,50 +299,11 @@ void farrow_destroy (
 
 
 
-### function farrow\_eval 
-
-_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._
-```C++
-JM_FORCEINLINE  JM_HOT float _Complex farrow_eval (
-    const farrow_state_t * s,
-    float mu
-) 
-```
-
-
-
-Horner-in-µ evaluation of the order's Lagrange polynomial. µ = 0 returns `d[1]` (= input at i - 2); µ → 1 returns `d[2]`.
-
-
-
-
-**Parameters:**
-
-
-* `s` State. Must be non-NULL. 
-* `mu` Fractional offset in `[0,1)`. 
-
-
-
-**Returns:**
-
-The interpolated sample. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function farrow\_get\_group\_delay 
+### function dp\_farrow\_get\_group\_delay 
 
 ```C++
-size_t farrow_get_group_delay (
-    const farrow_state_t * state
+size_t dp_farrow_get_group_delay (
+    const dp_farrow_state_t * state
 ) 
 ```
 
@@ -353,11 +314,11 @@ size_t farrow_get_group_delay (
 
 
 
-### function farrow\_get\_state 
+### function dp\_farrow\_get\_state 
 
 ```C++
-void farrow_get_state (
-    const farrow_state_t * state,
+void dp_farrow_get_state (
+    const dp_farrow_state_t * state,
     void * blob
 ) 
 ```
@@ -369,46 +330,12 @@ void farrow_get_state (
 
 
 
-### function farrow\_init 
-
-_Initialise in place: set order, clear the delay line._ 
-```C++
-JM_FORCEINLINE void farrow_init (
-    farrow_state_t * s,
-    int order
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function farrow\_push 
-
-_Push one input sample into the delay line (oldest drops out)._ 
-```C++
-JM_FORCEINLINE  JM_HOT void farrow_push (
-    farrow_state_t * s,
-    float _Complex x
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function farrow\_reset 
+### function dp\_farrow\_reset 
 
 _Clear the interpolator delay line; keep the order._ 
 ```C++
-void farrow_reset (
-    farrow_state_t * state
+void dp_farrow_reset (
+    dp_farrow_state_t * state
 ) 
 ```
 
@@ -444,11 +371,11 @@ Zeroes the 4-tap delay line so the next block starts from a filling transient ag
 
 
 
-### function farrow\_set\_state 
+### function dp\_farrow\_set\_state 
 
 ```C++
-int farrow_set_state (
-    farrow_state_t * state,
+int dp_farrow_set_state (
+    dp_farrow_state_t * state,
     const void * blob
 ) 
 ```
@@ -460,11 +387,84 @@ int farrow_set_state (
 
 
 
-### function farrow\_state\_bytes 
+### function dp\_farrow\_state\_bytes 
 
 ```C++
-size_t farrow_state_bytes (
-    const farrow_state_t * state
+size_t dp_farrow_state_bytes (
+    const dp_farrow_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function farrow\_eval 
+
+_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._
+```C++
+JM_FORCEINLINE  JM_HOT float _Complex farrow_eval (
+    const dp_farrow_state_t * s,
+    float mu
+) 
+```
+
+
+
+Horner-in-µ evaluation of the order's Lagrange polynomial. µ = 0 returns `d[1]` (= input at i - 2); µ → 1 returns `d[2]`.
+
+
+
+
+**Parameters:**
+
+
+* `s` State. Must be non-NULL. 
+* `mu` Fractional offset in `[0,1)`. 
+
+
+
+**Returns:**
+
+The interpolated sample. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function farrow\_init 
+
+_Initialise in place: set order, clear the delay line._ 
+```C++
+JM_FORCEINLINE void farrow_init (
+    dp_farrow_state_t * s,
+    int order
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function farrow\_push 
+
+_Push one input sample into the delay line (oldest drops out)._ 
+```C++
+JM_FORCEINLINE  JM_HOT void farrow_push (
+    dp_farrow_state_t * s,
+    float _Complex x
 ) 
 ```
 

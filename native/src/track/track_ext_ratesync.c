@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* RateSyncObject — wraps ratesync_state_t *       */
+/* RateSyncObject — wraps dp_ratesync_state_t *       */
 /* ======================================================== */
 
 #include "doppler/ratesync/ratesync_core.h"
 
 typedef struct
 {
-  PyObject_HEAD ratesync_state_t *handle;
+  PyObject_HEAD dp_ratesync_state_t *handle;
 } RateSyncObject;
 
 static void
 RateSyncObj_dealloc (RateSyncObject *self)
 {
   if (self->handle)
-    ratesync_destroy (self->handle);
+    dp_ratesync_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -79,8 +79,8 @@ RateSyncObj_init (RateSyncObject *self, PyObject *args, PyObject *kwds)
                     ted_str);
       return -1;
     }
-  self->handle
-      = ratesync_create (sps, pulse, beta, span, m, num_phases, bn, zeta, ted);
+  self->handle = dp_ratesync_create (sps, pulse, beta, span, m, num_phases, bn,
+                                     zeta, ted);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -100,7 +100,7 @@ RateSyncObj_steps_max_out (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ratesync_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_ratesync_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -146,7 +146,7 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = ratesync_steps_max_out (self->handle);
+      size_t _omax    = dp_ratesync_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -168,7 +168,7 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = ratesync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_ratesync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -183,7 +183,7 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = ratesync_steps_max_out (self->handle);
+  size_t _cap  = dp_ratesync_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -202,7 +202,7 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = ratesync_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_ratesync_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -256,7 +256,7 @@ RateSyncObj_set_telemetry (RateSyncObject *self, PyObject *args,
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = ratesync_set_telemetry (self->handle, tlm, prefix, decim);
+  int      _rc = dp_ratesync_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
@@ -278,7 +278,7 @@ RateSyncObj_configure (RateSyncObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  ratesync_configure (self->handle, bn, zeta);
+  dp_ratesync_configure (self->handle, bn, zeta);
   Py_RETURN_NONE;
 }
 
@@ -305,8 +305,8 @@ RateSyncObj_configure_lock_raw (RateSyncObject *self, PyObject *args,
   size_t   avgs   = (size_t)avgs_raw;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  ratesync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
-                               n_up, n_down);
+  dp_ratesync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
+                                  n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -318,7 +318,7 @@ RateSyncObj_reset (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  ratesync_reset (self->handle);
+  dp_ratesync_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -330,7 +330,7 @@ RateSyncObj_state_bytes (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ratesync_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_ratesync_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -341,11 +341,11 @@ RateSyncObj_get_state (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = ratesync_state_bytes (self->handle);
+  size_t    _n = dp_ratesync_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  ratesync_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_ratesync_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -362,12 +362,12 @@ RateSyncObj_set_state (RateSyncObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != ratesync_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_ratesync_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (ratesync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_ratesync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -383,7 +383,7 @@ RateSync_getprop_bn (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ratesync_get_bn (self->handle));
+  return PyFloat_FromDouble (dp_ratesync_get_bn (self->handle));
 }
 static int
 RateSync_setprop_bn (RateSyncObject *self, PyObject *value,
@@ -397,7 +397,7 @@ RateSync_setprop_bn (RateSyncObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  ratesync_set_bn (self->handle, v);
+  dp_ratesync_set_bn (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -409,7 +409,7 @@ RateSync_getprop_timing_error (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ratesync_get_timing_error (self->handle));
+  return PyFloat_FromDouble (dp_ratesync_get_timing_error (self->handle));
 }
 static PyObject *
 RateSync_getprop_rate (RateSyncObject *self, void *Py_UNUSED (closure))
@@ -420,7 +420,7 @@ RateSync_getprop_rate (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ratesync_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_ratesync_get_rate (self->handle));
 }
 static PyObject *
 RateSync_getprop_ctrl (RateSyncObject *self, void *Py_UNUSED (closure))
@@ -431,7 +431,7 @@ RateSync_getprop_ctrl (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ratesync_get_ctrl (self->handle));
+  return PyFloat_FromDouble (dp_ratesync_get_ctrl (self->handle));
 }
 static PyObject *
 RateSync_getprop_lock_stat (RateSyncObject *self, void *Py_UNUSED (closure))
@@ -442,7 +442,7 @@ RateSync_getprop_lock_stat (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ratesync_get_lock_stat (self->handle));
+  return PyFloat_FromDouble (dp_ratesync_get_lock_stat (self->handle));
 }
 static PyObject *
 RateSync_getprop_locked (RateSyncObject *self, void *Py_UNUSED (closure))
@@ -453,7 +453,7 @@ RateSync_getprop_locked (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(ratesync_get_locked (self->handle)));
+  return PyBool_FromLong ((long)(dp_ratesync_get_locked (self->handle)));
 }
 static PyObject *
 RateSync_getprop_clipped (RateSyncObject *self, void *Py_UNUSED (closure))
@@ -464,7 +464,7 @@ RateSync_getprop_clipped (RateSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(ratesync_get_clipped (self->handle)));
+  return PyBool_FromLong ((long)(dp_ratesync_get_clipped (self->handle)));
 }
 
 static PyGetSetDef RateSync_getset[] = {
@@ -511,7 +511,7 @@ RateSyncObj_destroy (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      ratesync_destroy (self->handle);
+      dp_ratesync_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -530,7 +530,7 @@ RateSyncObj_exit (RateSyncObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      ratesync_destroy (self->handle);
+      dp_ratesync_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

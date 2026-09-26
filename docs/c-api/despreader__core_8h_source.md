@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DESPREADER_CORE_H
-#define DESPREADER_CORE_H
+#ifndef DP_DESPREADER_CORE_H
+#define DP_DESPREADER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/costas/costas_core.h"
@@ -31,8 +31,8 @@ extern "C"
 
   typedef struct
   {
-    costas_state_t car;     
-    dll_state_t    code;    
+    dp_costas_state_t car;     
+    dp_dll_state_t    code;    
     uint8_t *code_copy;     
     size_t periods_per_bit; 
     /* bit-sync (used only when periods_per_bit > 1) */
@@ -44,57 +44,57 @@ extern "C"
     int       prev_sign;     
     int       have_prev;     
     dp_tlm_t *tlm_ctx;       
-  } despreader_state_t;
+  } dp_despreader_state_t;
 
-  void despreader_init (despreader_state_t *ch, const uint8_t *code,
+  void despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
                         size_t code_len, size_t sps, double init_norm_freq,
                         double init_chip, double bn_carrier, double bn_code,
                         double bn_fll, double zeta, double spacing,
                         size_t periods_per_bit);
 
-  despreader_state_t *despreader_create (const uint8_t *code, size_t code_len,
+  dp_despreader_state_t *dp_despreader_create (const uint8_t *code, size_t code_len,
                                          size_t sps, double init_norm_freq,
                                          double init_chip, double bn_carrier,
                                          double bn_code, double bn_fll,
                                          double zeta, double spacing,
                                          size_t periods_per_bit);
 
-  void despreader_destroy (despreader_state_t *state);
+  void dp_despreader_destroy (dp_despreader_state_t *state);
 
-  void despreader_reset (despreader_state_t *state);
+  void dp_despreader_reset (dp_despreader_state_t *state);
 
-  size_t despreader_steps_max_out (despreader_state_t *state);
+  size_t dp_despreader_steps_max_out (dp_despreader_state_t *state);
 
-  size_t despreader_steps (despreader_state_t *state, const float _Complex *x,
+  size_t dp_despreader_steps (dp_despreader_state_t *state, const float _Complex *x,
                            size_t x_len, float _Complex *out, size_t max_out);
-  size_t despreader_bits_max_out (despreader_state_t *state);
+  size_t dp_despreader_bits_max_out (dp_despreader_state_t *state);
 
-  size_t despreader_bits (despreader_state_t *state, const float _Complex *x,
+  size_t dp_despreader_bits (dp_despreader_state_t *state, const float _Complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
-  double despreader_get_norm_freq (const despreader_state_t *state);
-  void   despreader_set_norm_freq (despreader_state_t *state, double val);
-  double despreader_get_code_phase (const despreader_state_t *state);
-  double despreader_get_code_rate (const despreader_state_t *state);
-  double despreader_get_lock_metric (const despreader_state_t *state);
+  double dp_despreader_get_norm_freq (const dp_despreader_state_t *state);
+  void   dp_despreader_set_norm_freq (dp_despreader_state_t *state, double val);
+  double dp_despreader_get_code_phase (const dp_despreader_state_t *state);
+  double dp_despreader_get_code_rate (const dp_despreader_state_t *state);
+  double dp_despreader_get_lock_metric (const dp_despreader_state_t *state);
 
-  int despreader_get_carrier_locked (const despreader_state_t *state);
+  int dp_despreader_get_carrier_locked (const dp_despreader_state_t *state);
 
-  int despreader_get_code_locked (const despreader_state_t *state);
+  int dp_despreader_get_code_locked (const dp_despreader_state_t *state);
 
-  void despreader_configure_carrier_lock (despreader_state_t *state,
+  void dp_despreader_configure_carrier_lock (dp_despreader_state_t *state,
                                           double up_thresh, double down_thresh,
                                           uint32_t n_up, uint32_t n_down);
 
-  int despreader_configure_code_lock (despreader_state_t *state, double pfa,
+  int dp_despreader_configure_code_lock (dp_despreader_state_t *state, double pfa,
                                       size_t n_looks, double ref_snr_db);
 
-  size_t despreader_get_bit_phase (const despreader_state_t *state);
-  double despreader_get_bn_carrier (const despreader_state_t *state);
-  void   despreader_set_bn_carrier (despreader_state_t *state, double val);
-  double despreader_get_bn_code (const despreader_state_t *state);
-  void   despreader_set_bn_code (despreader_state_t *state, double val);
+  size_t dp_despreader_get_bit_phase (const dp_despreader_state_t *state);
+  double dp_despreader_get_bn_carrier (const dp_despreader_state_t *state);
+  void   dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
+  double dp_despreader_get_bn_code (const dp_despreader_state_t *state);
+  void   dp_despreader_set_bn_code (dp_despreader_state_t *state, double val);
 
-  int despreader_set_telemetry (despreader_state_t *state, dp_tlm_t *tlm,
+  int dp_despreader_set_telemetry (dp_despreader_state_t *state, dp_tlm_t *tlm,
                                 const char *prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -103,9 +103,9 @@ extern "C"
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D', 'S', 'P', 'R')
 #define DESPREADER_STATE_VERSION 4u /* v4: costas child grew (lockdet rule)   \
                                      */
-  size_t despreader_state_bytes (const despreader_state_t *state);
-  void   despreader_get_state (const despreader_state_t *state, void *blob);
-  int    despreader_set_state (despreader_state_t *state, const void *blob);
+  size_t dp_despreader_state_bytes (const dp_despreader_state_t *state);
+  void   dp_despreader_get_state (const dp_despreader_state_t *state, void *blob);
+  int    dp_despreader_set_state (dp_despreader_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

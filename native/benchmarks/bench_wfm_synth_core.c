@@ -16,27 +16,27 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-/* Bench wfm_synth_steps for one configuration; print MSa/s and record JSON.
+/* Bench dp_wfm_synth_steps for one configuration; print MSa/s and record JSON.
  * snr >= 100 ⇒ clean (no AWGN); freq == 0 ⇒ baseband (no LO). */
 static void
 bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
            double snr, double freq, float _Complex *out, jm_bench_t *bench)
 {
-  wfm_synth_state_t *obj = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps,
-                                             pnlen, 0, lfsr, 0.0);
+  dp_wfm_synth_state_t *obj = dp_wfm_synth_create (type, 1e6, freq, snr, 0, 1,
+                                                   sps, pnlen, 0, lfsr, 0.0);
   if (!obj)
     {
       printf ("  %-26s   (create failed)\n", name);
       return;
     }
-  wfm_synth_steps (obj, out, BENCH_N); /* warm up */
+  dp_wfm_synth_steps (obj, out, BENCH_N); /* warm up */
 
   uint64_t t0, t1;
   double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      wfm_synth_steps (obj, out, BENCH_N);
+      dp_wfm_synth_steps (obj, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -48,18 +48,18 @@ bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
   printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
   jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
 
-  wfm_synth_destroy (obj);
+  dp_wfm_synth_destroy (obj);
 }
 
-/* Bench wfm_synth_steps with an RRC pulse shaper attached — the polyphase
+/* Bench dp_wfm_synth_steps with an RRC pulse shaper attached — the polyphase
  * resamp shaper for a power-of-two sps, the dense FIR otherwise. beta 0.35,
  * span 8. Isolates the pulse-shaping cost on top of the bit source. */
 static void
 bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
                double freq, float _Complex *out, jm_bench_t *bench)
 {
-  wfm_synth_state_t *obj
-      = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps, pnlen, 0, 0, 0.0);
+  dp_wfm_synth_state_t *obj = dp_wfm_synth_create (type, 1e6, freq, snr, 0, 1,
+                                                   sps, pnlen, 0, 0, 0.0);
   if (!obj)
     {
       printf ("  %-26s   (create failed)\n", name);
@@ -70,14 +70,15 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
   wfm_rrc_taps (0.35, sps, 8, taps);
   wfm_synth_set_rrc (obj, taps, ntaps);
   free (taps);
-  wfm_synth_steps (obj, out, BENCH_N); /* warm up (also primes the shaper) */
+  dp_wfm_synth_steps (obj, out,
+                      BENCH_N); /* warm up (also primes the shaper) */
 
   uint64_t t0, t1;
   double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      wfm_synth_steps (obj, out, BENCH_N);
+      dp_wfm_synth_steps (obj, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -89,7 +90,7 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
   printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
   jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
 
-  wfm_synth_destroy (obj);
+  dp_wfm_synth_destroy (obj);
 }
 
 int

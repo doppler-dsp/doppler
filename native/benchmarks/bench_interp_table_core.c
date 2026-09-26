@@ -67,7 +67,7 @@ main (void)
 
   for (int m = 0; m < 3; m++)
     {
-      interp_table_state_t *s = interp_table_create (table, TABLE_N, m);
+      dp_interp_table_state_t *s = dp_interp_table_create (table, TABLE_N, m);
       if (!s)
         {
           (void)fprintf (stderr,
@@ -79,7 +79,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += interp_table_execute (s, in, BENCH_N, out, BENCH_N);
+          sink += dp_interp_table_execute (s, in, BENCH_N, out, BENCH_N);
           t1         = jm_bench_now_ns ();
           t_ex[m][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -87,7 +87,7 @@ main (void)
       double s2 = min_sec (t_ex[m], ITERATIONS);
       printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", mname[m],
               s2 / (double)BENCH_N * 1e9, (double)BENCH_N / s2 / 1e6);
-      interp_table_destroy (s);
+      dp_interp_table_destroy (s);
     }
 
   printf ("\n  cubic/nearest = %.2fx over 4x the table reads, linear/nearest\n"

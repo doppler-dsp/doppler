@@ -26,14 +26,14 @@ main (void)
   for (int i = 0; i < BENCH_N; i++)
     in[i] = (double)(i);
 
-  loop_filter_state_t *obj = loop_filter_create (0.01, 0.707, 1.0);
+  dp_loop_filter_state_t *obj = dp_loop_filter_create (0.01, 0.707, 1.0);
 
   /* volatile sink prevents DCE of the step() loop */
   volatile double _sink;
 
   /* warmup */
   for (int i = 0; i < 16; i++)
-    _sink = loop_filter_step (obj, in[i]);
+    _sink = dp_loop_filter_step (obj, in[i]);
 
   uint64_t   t0, t1;
   jm_bench_t _bench = { 0 };
@@ -46,7 +46,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        _sink = loop_filter_step (obj, in[i]);
+        _sink = dp_loop_filter_step (obj, in[i]);
       t1             = jm_bench_now_ns ();
       _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -62,7 +62,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      loop_filter_steps (obj, in, out, BENCH_N);
+      dp_loop_filter_steps (obj, in, out, BENCH_N);
       t1              = jm_bench_now_ns ();
       _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -76,7 +76,7 @@ main (void)
   }
 
   jm_bench_write_json (&_bench, "loop_filter");
-  loop_filter_destroy (obj);
+  dp_loop_filter_destroy (obj);
   free (in);
   free (out);
   return 0;

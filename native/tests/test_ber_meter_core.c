@@ -4,7 +4,7 @@
  *
  * This file was a 24-line jm scaffold: create, reset, destroy. The object it
  * covers ships the whole alignment decision — `ber_align_detect` and the
- * stateful `ber_meter_align`/`score` around it — and `ber_align_detect`
+ * stateful `dp_ber_meter_align`/`score` around it — and `ber_align_detect`
  * appeared in exactly ONE place tree-wide (`native/tests/dp_ber_test.h`),
  * asserted by nobody. The scaffold passing meant "it constructs".
  *
@@ -81,11 +81,11 @@ main (void)
   for (size_t i = 0; i < NSYM; i++)
     truth[i] = (uint8_t)(dp_uni (&st) * M);
 
-  ber_meter_state_t *obj = ber_meter_create (M, 200, 0.99);
+  dp_ber_meter_state_t *obj = dp_ber_meter_create (M, 200, 0.99);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
-  DP_REQUIRE_MSG (ber_meter_set_truth (obj, truth, NSYM) == 0, "set_truth");
+  DP_REQUIRE_MSG (dp_ber_meter_set_truth (obj, truth, NSYM) == 0, "set_truth");
 
   /* ── 1. a planted lag and rotation come back exactly ──────────────────── */
   {
@@ -187,10 +187,10 @@ main (void)
   /* ── 7. the marker's own symbols are excluded from the score ─────────── */
   {
     build (0, 0.0, 0.10);
-    int ok = ber_meter_align (obj, rx, NSYM, 1000, 256, 0, 200, 0.0);
+    int ok = dp_ber_meter_align (obj, rx, NSYM, 1000, 256, 0, 200, 0.0);
     DP_REQUIRE_MSG (ok, "meter align on a clean stream");
-    size_t scored  = ber_meter_score (obj, rx, NSYM, 0, NSYM);
-    size_t skipped = ber_meter_get_skipped (obj);
+    size_t scored  = dp_ber_meter_score (obj, rx, NSYM, 0, NSYM);
+    size_t skipped = dp_ber_meter_get_skipped (obj);
     char   msg[160];
     snprintf (msg, sizeof msg, "scored %zu of %d, skipped %zu", scored, NSYM,
               skipped);
@@ -198,14 +198,14 @@ main (void)
     DP_REQUIRE_MSG (scored == NSYM - skipped, msg);
     /* And the alignment being right, a clean stream scores no errors. */
     snprintf (msg, sizeof msg, "clean stream scored %zu errors",
-              ber_meter_get_errors (obj));
-    DP_REQUIRE_MSG (ber_meter_get_errors (obj) == 0, msg);
+              dp_ber_meter_get_errors (obj));
+    DP_REQUIRE_MSG (dp_ber_meter_get_errors (obj) == 0, msg);
   }
 
-  ber_meter_reset (obj);
-  DP_REQUIRE_MSG (ber_meter_get_errors (obj) == 0
-                      && ber_meter_get_symbols (obj) == 0,
+  dp_ber_meter_reset (obj);
+  DP_REQUIRE_MSG (dp_ber_meter_get_errors (obj) == 0
+                      && dp_ber_meter_get_symbols (obj) == 0,
                   "reset clears the accumulation");
-  ber_meter_destroy (obj);
+  dp_ber_meter_destroy (obj);
   DP_TEST_END ("test_ber_meter_core");
 }

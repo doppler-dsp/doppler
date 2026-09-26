@@ -70,7 +70,7 @@ main (void)
 
     for (int r = 0; r < n_rates; r++)
       {
-        RateConverter_state_t *rc = RateConverter_create (rates[r], 0);
+        dp_RateConverter_state_t *rc = dp_RateConverter_create (rates[r], 0);
 
         printf ("  %-10.6f  %-8d  ", rates[r], rc->n_stages);
         for (int s = 0; s < rc->n_stages; s++)
@@ -82,7 +82,7 @@ main (void)
           }
         printf ("\n");
 
-        RateConverter_destroy (rc);
+        dp_RateConverter_destroy (rc);
       }
     printf ("\n");
   }
@@ -114,13 +114,13 @@ main (void)
       {
         double rate = test_rates[r];
 
-        RateConverter_state_t *rc = RateConverter_create (rate, 0);
+        dp_RateConverter_state_t *rc = dp_RateConverter_create (rate, 0);
 
         /* Upper-bound on output length for this block size. */
         size_t max_out      = (size_t)(n_in * (rate > 1.0 ? rate : 1.0)) + 4;
         float _Complex *out = malloc (max_out * sizeof (float _Complex));
 
-        size_t n_out = RateConverter_execute (rc, in, n_in, out, max_out);
+        size_t n_out = dp_RateConverter_execute (rc, in, n_in, out, max_out);
 
         /* Drop transient before measuring. */
         int    n_drop = (int)(0.05 * (double)n_out) + 4;
@@ -131,7 +131,7 @@ main (void)
         printf ("  %-10.6f  %-8d  %.6f\n", rate, rc->n_stages, settled);
 
         free (out);
-        RateConverter_destroy (rc);
+        dp_RateConverter_destroy (rc);
       }
 
     free (in);
@@ -158,18 +158,18 @@ main (void)
       in[i] = CMPLXF ((float)cos (2 * M_PI * 0.05 * (double)i),
                       (float)sin (2 * M_PI * 0.05 * (double)i));
 
-    RateConverter_state_t *rc = RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.5, 0);
 
-    size_t n1 = RateConverter_execute (rc, in, n_in, out, n_in);
+    size_t n1 = dp_RateConverter_execute (rc, in, n_in, out, n_in);
     printf ("  rate=0.50  n_in=%zu  n_out=%zu\n", n_in, n1);
 
     /* Rebuild cascade to 4:1 and process the same block. */
-    RateConverter_set_rate (rc, 0.25);
-    size_t n2 = RateConverter_execute (rc, in, n_in, out, n_in);
+    dp_RateConverter_set_rate (rc, 0.25);
+    size_t n2 = dp_RateConverter_execute (rc, in, n_in, out, n_in);
     printf ("  rate=0.25  n_in=%zu  n_out=%zu  (halved: %s)\n\n", n_in, n2,
             (n2 == n1 / 2) ? "yes" : "no");
 
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
     free (in);
     free (out);
   }
@@ -199,17 +199,17 @@ main (void)
       in[i] = CMPLXF ((float)cos (2 * M_PI * 0.03 * (double)i),
                       (float)sin (2 * M_PI * 0.03 * (double)i));
 
-    RateConverter_state_t *whole = RateConverter_create (0.5, 0);
-    RateConverter_state_t *split = RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *whole = dp_RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *split = dp_RateConverter_create (0.5, 0);
 
     /* Whole: single call with all 2048 input samples. */
-    size_t nw = RateConverter_execute (whole, in, n_in, out_whole, n_out);
+    size_t nw = dp_RateConverter_execute (whole, in, n_in, out_whole, n_out);
 
     /* Split: first half then second half, state threads between calls. */
     size_t ns1
-        = RateConverter_execute (split, in, n_in / 2, out_split, n_out / 2);
-    size_t ns2 = RateConverter_execute (split, in + n_in / 2, n_in / 2,
-                                        out_split + ns1, n_out / 2);
+        = dp_RateConverter_execute (split, in, n_in / 2, out_split, n_out / 2);
+    size_t ns2 = dp_RateConverter_execute (split, in + n_in / 2, n_in / 2,
+                                           out_split + ns1, n_out / 2);
     size_t ns  = ns1 + ns2;
 
     int ok
@@ -228,8 +228,8 @@ main (void)
               i, (double)crealf (out_whole[i]), (double)cimagf (out_whole[i]),
               (double)crealf (out_split[i]), (double)cimagf (out_split[i]));
 
-    RateConverter_destroy (whole);
-    RateConverter_destroy (split);
+    dp_RateConverter_destroy (whole);
+    dp_RateConverter_destroy (split);
     free (in);
     free (out_whole);
     free (out_split);

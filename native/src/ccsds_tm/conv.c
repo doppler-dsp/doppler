@@ -4,7 +4,7 @@
  * There is no encoder here any more. 131.0-B-3 section 3.3 picks a code out
  * of a family `conv_core.h` already implements, and this is that pick. The
  * arithmetic lives once, in conv_outputs(), which both conv_encode and
- * viterbi_decode read -- so the G2 inversion cannot be present in one
+ * dp_viterbi_decode read -- so the G2 inversion cannot be present in one
  * direction and absent in the other.
  */
 #include "doppler/ccsds_tm/ccsds_tm.h"

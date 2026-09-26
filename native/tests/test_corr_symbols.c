@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_corr[] = {
-    (jm_any_fn)corr_create,
-    (jm_any_fn)corr_destroy,
-    (jm_any_fn)corr_reset,
-    (jm_any_fn)corr_execute_max_out,
-    (jm_any_fn)corr_execute,
-    (jm_any_fn)corr_state_bytes,
-    (jm_any_fn)corr_get_state,
-    (jm_any_fn)corr_set_state,
+    (jm_any_fn)dp_corr_create,
+    (jm_any_fn)dp_corr_destroy,
+    (jm_any_fn)dp_corr_reset,
+    (jm_any_fn)dp_corr_execute_max_out,
+    (jm_any_fn)dp_corr_execute,
+    (jm_any_fn)dp_corr_state_bytes,
+    (jm_any_fn)dp_corr_get_state,
+    (jm_any_fn)dp_corr_set_state,
 };

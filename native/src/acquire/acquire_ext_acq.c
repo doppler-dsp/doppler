@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
-/* AcquisitionObject — wraps acq_state_t *       */
+/* AcquisitionObject — wraps dp_acq_state_t *       */
 /* ======================================================== */
 
 #include "doppler/acq/acq_core.h"
 
 typedef struct
 {
-  PyObject_HEAD acq_state_t *handle;
+  PyObject_HEAD dp_acq_state_t *handle;
 } AcquisitionObject;
 
 static void
 AcquisitionObj_dealloc (AcquisitionObject *self)
 {
   if (self->handle)
-    acq_destroy (self->handle);
+    dp_acq_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -117,7 +117,7 @@ AcquisitionObj_reset (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  acq_reset (self->handle);
+  dp_acq_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -145,7 +145,7 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = acq_push (self->handle, _ng0, n_in, results, 64);
+    n_out = dp_acq_push (self->handle, _ng0, n_in, results, 64);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
@@ -192,7 +192,7 @@ AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
     return NULL;
   size_t doppler_bins = (size_t)doppler_bins_raw;
   size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int    _rc = acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
+  int _rc = dp_acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -216,7 +216,7 @@ AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
     return NULL;
   size_t n   = (size_t)n_raw;
-  int    _rc = acq_set_max_peaks (self->handle, n);
+  int    _rc = dp_acq_set_max_peaks (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
@@ -261,7 +261,7 @@ AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = acq_set_telemetry (self->handle, tlm, prefix, decim);
+  int      _rc   = dp_acq_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -303,7 +303,7 @@ AcquisitionObj_surface (AcquisitionObject *self, PyObject *args,
     }
   float *out     = (float *)PyArray_DATA (out_arr);
   size_t out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t y       = acq_surface (self->handle, out, out_len);
+  size_t y       = dp_acq_surface (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -340,7 +340,7 @@ AcquisitionObj_surface_doppler_hz (AcquisitionObject *self, PyObject *args,
     }
   double *out     = (double *)PyArray_DATA (out_arr);
   size_t  out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t  y       = acq_surface_doppler_hz (self->handle, out, out_len);
+  size_t  y       = dp_acq_surface_doppler_hz (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -377,7 +377,7 @@ AcquisitionObj_surface_chip_phase (AcquisitionObject *self, PyObject *args,
     }
   double *out     = (double *)PyArray_DATA (out_arr);
   size_t  out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t  y       = acq_surface_chip_phase (self->handle, out, out_len);
+  size_t  y       = dp_acq_surface_chip_phase (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -391,7 +391,7 @@ AcquisitionObj_state_bytes (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (acq_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_acq_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -403,11 +403,11 @@ AcquisitionObj_get_state (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = acq_state_bytes (self->handle);
+  size_t    _n = dp_acq_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  acq_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_acq_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -424,12 +424,12 @@ AcquisitionObj_set_state (AcquisitionObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != acq_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_acq_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -950,7 +950,7 @@ AcquisitionObj_destroy (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      acq_destroy (self->handle);
+      dp_acq_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -969,7 +969,7 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      acq_destroy (self->handle);
+      dp_acq_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -988,7 +988,7 @@ AcquisitionObj_set_threads (AcquisitionObject *self, PyObject *args,
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &n))
     return NULL;
-  int _rc = acq_set_threads (self->handle, n);
+  int _rc = dp_acq_set_threads (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_threads failed",
@@ -1012,7 +1012,7 @@ AcquisitionObj_set_carrier_freq_hz (AcquisitionObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
                                     &carrier_freq_hz))
     return NULL;
-  int _rc = acq_set_carrier_freq_hz (self->handle, carrier_freq_hz);
+  int _rc = dp_acq_set_carrier_freq_hz (self->handle, carrier_freq_hz);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -1054,7 +1054,7 @@ AcquisitionObj_surface_complex (AcquisitionObject *self, PyObject *args,
     }
   float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
   size_t          out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t          y       = acq_surface_complex (self->handle, out, out_len);
+  size_t          y = dp_acq_surface_complex (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -1096,7 +1096,7 @@ AcquisitionObj_block_prompt (AcquisitionObject *self, PyObject *args,
     }
   float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
   size_t          out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t          y = acq_block_prompt (self->handle, tile, col, out, out_len);
+  size_t y = dp_acq_block_prompt (self->handle, tile, col, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -1133,7 +1133,7 @@ AcquisitionObj_block_raw (AcquisitionObject *self, PyObject *args,
     }
   float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
   size_t          out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t          y       = acq_block_raw (self->handle, out, out_len);
+  size_t          y       = dp_acq_block_raw (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -1289,7 +1289,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "transition inside the epoch splits one emitter into twins at its own\n"
     "code phase on other tiles, so such a peak is held for one dwell and\n"
     "listed only if it was there, at the same tile, on the previous one.\n"
-    "Each listed peak is one acq_result_t from acq_push(), all of a dwell's\n"
+    "Each listed peak is one acq_result_t from dp_acq_push(), all of a "
+    "dwell's\n"
     "sharing its `samples_consumed` and `noise_est`. A held twin takes a\n"
     "slot of the `n` for that dwell but is not reported. The threshold does\n"
     "not change: a second peak is another draw from the same cells against\n"
@@ -1337,8 +1338,10 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\"<prefix>.peak\" (the strongest cell's raw value), \"<prefix>.row\" "
     "and\n"
     "\"<prefix>.col\" (its native Doppler row and code-phase column — a\n"
-    "surface coordinate, not a physical unit; acq_surface_doppler_hz() and\n"
-    "acq_surface_chip_phase() convert), \"<prefix>.n_peaks\" (picks in the\n"
+    "surface coordinate, not a physical unit; dp_acq_surface_doppler_hz() "
+    "and\n"
+    "dp_acq_surface_chip_phase() convert), \"<prefix>.n_peaks\" (picks in "
+    "the\n"
     "dwell, held twins included), \"<prefix>.n_held\" (picks held as\n"
     "same-code-phase twins rather than listed, §7.1), \"<prefix>.conc\" (the\n"
     "strongest pick's concentration — see `peak_conc`: its main lobe's power\n"
@@ -1438,7 +1441,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "One value per surface row, the fold and scale a hit's `doppler_hz_est`\n"
     "uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated\n"
     "grid where the slow-time axis is interpolated), so a plot of\n"
-    "acq_surface() carries the same axis a DetectionEvent reports on.\n"
+    "dp_acq_surface() carries the same axis a DetectionEvent reports on.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1694,7 +1697,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "phase per cell, before the magnitude the gate reads.\n"
     "\n"
     "Copies the coherent sum the last dwell was decided on into out,\n"
-    "row-major `surface_rows` x `code_bins` like acq_surface(), in the\n"
+    "row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the\n"
     "correlation's own units rather than the gate's. A cell's phase is the\n"
     "carrier at the block's middle, relative to its tile's centre; its\n"
     "neighbours along the code axis are complex early and late arms, so a\n"
@@ -1802,7 +1805,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\n"
     "Copies the `coherent_bins * code_bins` samples the block-coherent\n"
     "engine gathered for its last whole block into out, epoch by epoch in\n"
-    "stream order — the samples acq_push() consumed, untouched. Kept for the\n"
+    "stream order — the samples dp_acq_push() consumed, untouched. Kept for "
+    "the\n"
     "tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker can\n"
     "re-correlate them at any code phase, rate or symbol boundary the\n"
     "engine's own grid does not have — a symbol-rate despreader at the\n"
@@ -1864,7 +1868,7 @@ static PyTypeObject AcquisitionObjType = {
     "    Chip rate in Hz (> 0).\n"
     "symbol_rate : float, default 1000.0\n"
     "    Continuous data-symbol rate in Hz; <= 0 means no known clock.\n"
-    "    Diagnostic only (exposed via acq_state_t::epochs_per_symbol), "
+    "    Diagnostic only (exposed via dp_acq_state_t::epochs_per_symbol), "
     "doesn't\n"
     "    feed sizing: this engine never coherently combines regardless of "
     "the\n"

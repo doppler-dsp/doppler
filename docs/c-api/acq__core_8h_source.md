@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef ACQ_CORE_H
-#define ACQ_CORE_H
+#ifndef DP_ACQ_CORE_H
+#define DP_ACQ_CORE_H
 
 #include "doppler/buffer/buffer.h"
 #include "doppler/clib_common.h"
@@ -81,8 +81,8 @@ extern "C"
 
   typedef struct
   {
-    corr2d_state_t *corr; 
-    fft_state_t *slow_fft; 
+    dp_corr2d_state_t *corr; 
+    dp_fft_state_t *slow_fft; 
     dp_f32_t    *ring;  
     float _Complex *ref; 
     float _Complex *yframe;  
@@ -95,8 +95,8 @@ extern "C"
     /* Wideband mode only (window_bins > 1) — see the file doc comment.
      * Independent of corr/slow_fft/yframe/colbuf/colout above (unused, but
      * left allocated at their trivial coherent_bins=1 size, in this mode). */
-    fft_state_t *wide_fwd; 
-    fft_state_t *wide_inv; 
+    dp_fft_state_t *wide_fwd; 
+    dp_fft_state_t *wide_inv; 
     float _Complex
         *wide_ref_spec; 
     float _Complex
@@ -148,9 +148,9 @@ extern "C"
        and the surface is bit-identical either way. */
     dp_pool_t       *pool;      
     int              threads;   
-    fft_state_t    **tile_inv;  
+    dp_fft_state_t    **tile_inv;  
     float _Complex **tile_prod; 
-    fft_state_t    **tile_slow; 
+    dp_fft_state_t    **tile_slow; 
     float _Complex **tile_col;  
     size_t **tile_rows;         
     acq_part_t *parts;          
@@ -204,7 +204,7 @@ extern "C"
     float  peak_mag;
     float  noise_est;
     float  test_stat;
-  } acq_state_t;
+  } dp_acq_state_t;
 
   typedef struct
   {
@@ -231,13 +231,13 @@ extern "C"
 
 #define ACQ_CN0_NONE NAN
 
-  acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
+  dp_acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
                                  size_t reps, double fs, double cn0_dbhz,
                                  double doppler_uncertainty, double pfa,
                                  double pd, int noise_mode,
                                  double doppler_rate);
 
-  acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
+  dp_acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
@@ -245,50 +245,50 @@ extern "C"
                                       size_t code_only_epochs,
                                       double doppler_rate);
 
-  void acq_destroy (acq_state_t *state);
+  void dp_acq_destroy (dp_acq_state_t *state);
 
-  void acq_reset (acq_state_t *state);
+  void dp_acq_reset (dp_acq_state_t *state);
 
-  int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
+  int dp_acq_configure_search_raw (dp_acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
 
-  int acq_set_max_peaks (acq_state_t *state, size_t n);
+  int dp_acq_set_max_peaks (dp_acq_state_t *state, size_t n);
 
-  int acq_set_carrier_freq_hz (acq_state_t *state, double carrier_freq_hz);
+  int dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz);
 
-  int acq_set_threads (acq_state_t *state, int n);
-  int acq_set_telemetry (acq_state_t *state, dp_tlm_t *tlm,
+  int dp_acq_set_threads (dp_acq_state_t *state, int n);
+  int dp_acq_set_telemetry (dp_acq_state_t *state, dp_tlm_t *tlm,
                          const char *prefix, uint32_t decim);
 
-  size_t acq_surface (acq_state_t *state, float *out, size_t n_out);
+  size_t dp_acq_surface (dp_acq_state_t *state, float *out, size_t n_out);
 
-  size_t acq_surface_doppler_hz (acq_state_t *state, double *out,
+  size_t dp_acq_surface_doppler_hz (dp_acq_state_t *state, double *out,
                                  size_t n_out);
 
-  size_t acq_surface_chip_phase (acq_state_t *state, double *out,
+  size_t dp_acq_surface_chip_phase (dp_acq_state_t *state, double *out,
                                  size_t n_out);
 
-  size_t acq_surface_complex (acq_state_t *state, float _Complex *out,
+  size_t dp_acq_surface_complex (dp_acq_state_t *state, float _Complex *out,
                               size_t n_out);
 
-  double _Complex acq_cell_corr (const acq_state_t *state,
+  double _Complex acq_cell_corr (const dp_acq_state_t *state,
                                  const float _Complex *x, size_t col,
                                  double f_hz, double t0);
 
-  void acq_cell_corr_grid (const acq_state_t *state, const float _Complex *x,
+  void acq_cell_corr_grid (const dp_acq_state_t *state, const float _Complex *x,
                            size_t n_epochs, size_t col, const double *f_hz,
                            size_t n_f, double t0, double _Complex *out);
 
-  size_t acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
+  size_t dp_acq_block_prompt (dp_acq_state_t *state, size_t tile, size_t col,
                            float _Complex *out, size_t n_out);
 
-  size_t acq_block_raw (acq_state_t *state, float _Complex *out,
+  size_t dp_acq_block_raw (dp_acq_state_t *state, float _Complex *out,
                         size_t n_out);
 
-  void acq_set_surface_sink (acq_state_t *state, acq_surface_sink_fn fn,
+  void acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
                              void *ctx, uint32_t decim);
 
-  size_t acq_push (acq_state_t *state, const float _Complex *x, size_t n_in,
+  size_t dp_acq_push (dp_acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
   typedef struct
@@ -315,21 +315,21 @@ extern "C"
    * SAME inline rather than restating the formula. */
 
   static inline size_t
-  acq_grid_bins (const acq_state_t *state)
+  acq_grid_bins (const dp_acq_state_t *state)
   {
     return state->window_bins * state->coherent_bins;
   }
 
   static inline double
-  acq_bin_doppler_hz (const acq_state_t *state, size_t doppler_bin)
+  acq_bin_doppler_hz (const dp_acq_state_t *state, size_t doppler_bin)
   {
     return (double)dp_fftfreq_index (doppler_bin, acq_grid_bins (state))
            * state->doppler_res_hz;
   }
 
-  double acq_psl_db (const acq_state_t *state);
+  double acq_psl_db (const dp_acq_state_t *state);
 
-  void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
+  void acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
@@ -343,13 +343,13 @@ extern "C"
    * uninterrupted run.
    */
 
-  size_t acq_state_bytes (const acq_state_t *state);
+  size_t dp_acq_state_bytes (const dp_acq_state_t *state);
 
-  void acq_get_state (const acq_state_t *state, void *blob);
+  void dp_acq_get_state (const dp_acq_state_t *state, void *blob);
 
-  int acq_set_state (acq_state_t *state, const void *blob);
+  int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
 
-  size_t acq_run (acq_state_t *state, const void *state_in, void *state_out,
+  size_t acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);
 

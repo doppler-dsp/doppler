@@ -1,20 +1,20 @@
-/* bench_acq_core.c — full C end-to-end wideband D=1 search: real acq_push(),
- * real n_noncoh non-coherent accumulation, at the SPEC-realistic waveform
- * this story settled on (docs/design/async-dsss-receiver.md): Rc = 3.069
- * Mcps Gold-1023 code (spc=2 -> code_bins=2046, native span = chip_rate/
- * (2*sf) = 1500 Hz exactly), +/-50 kHz Doppler uncertainty -> window_bins =
- * ceil(50000/1500) = 34 parallel roll-FFT frequency-window hypotheses per
- * epoch (see acq_core.h's "Wideband window-tiling mode" doc comment and
- * bench_freq_bank.py, the Python prototype this reuses), cn0_dbhz = 37.31
- * (this waveform's real link budget). Built via acq_create_continuous() --
- * this is exactly the continuous/async scenario that engine always
- * window-tiles for.
+/* bench_acq_core.c — full C end-to-end wideband D=1 search: real
+ * dp_acq_push(), real n_noncoh non-coherent accumulation, at the
+ * SPEC-realistic waveform this story settled on
+ * (docs/design/async-dsss-receiver.md): Rc = 3.069 Mcps Gold-1023 code (spc=2
+ * -> code_bins=2046, native span = chip_rate/ (2*sf) = 1500 Hz exactly), +/-50
+ * kHz Doppler uncertainty -> window_bins = ceil(50000/1500) = 34 parallel
+ * roll-FFT frequency-window hypotheses per epoch (see acq_core.h's "Wideband
+ * window-tiling mode" doc comment and bench_freq_bank.py, the Python prototype
+ * this reuses), cn0_dbhz = 37.31 (this waveform's real link budget). Built via
+ * acq_create_continuous() -- this is exactly the continuous/async scenario
+ * that engine always window-tiles for.
  *
  * Task #71: a frequency-bank benchmark only measured the
  * per-epoch cost of forming the 34-bin grid (a Python/numpy prototype); this
  * measures the real, full acquisition latency in C -- n_noncoh consecutive
  * epochs non-coherently accumulated before the CFAR gate fires -- via one
- * timed acq_push() call per iteration, each pushing exactly
+ * timed dp_acq_push() call per iteration, each pushing exactly
  * n_noncoh*code_bins samples (one full non-coherent dwell) of a real
  * injected burst + AWGN.
  *
@@ -174,7 +174,7 @@ main (void)
           /* Let the real auto-sizer pick n_noncoh honestly, bounded only by
            * the internal safety-valve ceiling -- see the file doc comment
            * above. */
-          acq_state_t *a = acq_create_continuous (
+          dp_acq_state_t *a = acq_create_continuous (
               code, SF, SPC, cfg->chip_rate, SYMBOL_RATE, CN0_DBHZ, cfg->du,
               PFA, pd_target, 0, cfg->code_only_epochs,
               cfg->code_only_epochs > 1 ? 500.0 : 0.0);
@@ -189,7 +189,7 @@ main (void)
            * (doppler_res_hz = 2*span), and forced odd so coverage is symmetric
            * and no ambiguous n/2 index exists -- see acq_cover_window_bins() /
            * dp_fftfreq_index(). */
-          (void)acq_set_threads (a, cfg->threads);
+          (void)dp_acq_set_threads (a, cfg->threads);
           const size_t D = a->coherent_bins;
           if ((cfg->code_only_epochs == 1 && D != 1)
               || a->window_bins != cfg->expect_bins)
@@ -198,7 +198,7 @@ main (void)
                        "unexpected grid at pd=%.3f: coherent_bins=%zu "
                        "window_bins=%zu\n",
                        pd_target, a->coherent_bins, a->window_bins);
-              acq_destroy (a);
+              dp_acq_destroy (a);
               continue;
             }
           const size_t nc   = a->n_noncoh;
@@ -224,7 +224,7 @@ main (void)
             }
 
           acq_result_t hits[4];
-          size_t       nh = acq_push (a, buf, n_in, hits, 4); /* warm-up */
+          size_t       nh = dp_acq_push (a, buf, n_in, hits, 4); /* warm-up */
           int ok = (nh == 1 && hits[0].doppler_bin == cfg->inject_window * D
                     && hits[0].code_phase == INJECT_PHASE);
           printf ("n_noncoh=%3zu D=%zu threads=%d pd_predicted=%.4f  "
@@ -239,7 +239,7 @@ main (void)
             {
               uint64_t t0, t1;
               t0       = jm_bench_now_ns ();
-              nh       = acq_push (a, buf, n_in, hits, 4);
+              nh       = dp_acq_push (a, buf, n_in, hits, 4);
               t1       = jm_bench_now_ns ();
               times[r] = jm_bench_elapsed_sec (t0, t1);
               if (nh != 1)
@@ -268,7 +268,7 @@ main (void)
           jm_bench_add (&_bench, name, times, ITERATIONS, (int)n_in);
 
           free (buf);
-          acq_destroy (a);
+          dp_acq_destroy (a);
         }
     }
 

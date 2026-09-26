@@ -8,7 +8,7 @@
 
 
 
-_One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#function-find_peaks_f32) _._[More...](#detailed-description)
+_One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._[More...](#detailed-description)
 
 * `#include <spectral_core.h>`
 

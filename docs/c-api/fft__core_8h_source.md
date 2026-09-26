@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef FFT_CORE_H
-#define FFT_CORE_H
+#ifndef DP_FFT_CORE_H
+#define DP_FFT_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/pocketfft/pocketfft.h"
@@ -27,44 +27,44 @@ extern "C"
     size_t n;                 
     int sign;                 
     double _Complex *work_trunc;
-  } fft_state_t;
+  } dp_fft_state_t;
 
-  fft_state_t *fft_create (size_t n, int sign, int nthreads);
+  dp_fft_state_t *dp_fft_create (size_t n, int sign, int nthreads);
 
-  void fft_destroy (fft_state_t *state);
+  void dp_fft_destroy (dp_fft_state_t *state);
 
-  void fft_reset (fft_state_t *state);
+  void dp_fft_reset (dp_fft_state_t *state);
 
-  size_t fft_execute_cf64_max_out (fft_state_t *state);
+  size_t dp_fft_execute_cf64_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_cf64 (fft_state_t *state, const double _Complex *in,
+  size_t dp_fft_execute_cf64 (dp_fft_state_t *state, const double _Complex *in,
                            size_t n_in, double _Complex *out, size_t max_out);
 
-  size_t fft_execute_cf32_max_out (fft_state_t *state);
+  size_t dp_fft_execute_cf32_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_cf32 (fft_state_t *state, const float _Complex *in,
+  size_t dp_fft_execute_cf32 (dp_fft_state_t *state, const float _Complex *in,
                            size_t n_in, float _Complex *out, size_t max_out);
 
-  size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
+  size_t dp_fft_execute_inplace_cf64_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_inplace_cf64 (fft_state_t *state,
+  size_t dp_fft_execute_inplace_cf64 (dp_fft_state_t *state,
                                    const double _Complex *in, size_t n_in,
                                    double _Complex *out, size_t max_out);
 
-  size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
+  size_t dp_fft_execute_inplace_cf32_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_inplace_cf32 (fft_state_t *state, const float _Complex *in,
+  size_t dp_fft_execute_inplace_cf32 (dp_fft_state_t *state, const float _Complex *in,
                                    size_t n_in, float _Complex *out,
                                    size_t max_out);
 
-  size_t fft_execute_ci16_max_out (fft_state_t *state);
+  size_t fft_execute_ci16_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
+  size_t fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
                            float _Complex *out);
 
-  size_t fft_execute_ci8_max_out (fft_state_t *state);
+  size_t fft_execute_ci8_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
+  size_t fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
                           float _Complex *out);
 
 #ifdef __cplusplus

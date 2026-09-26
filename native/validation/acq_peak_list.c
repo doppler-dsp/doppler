@@ -92,19 +92,19 @@ typedef struct
 
 typedef struct
 {
-  wfm_synth_state_t *syn;
-  float              amp;
-  size_t             row;  /* the tile the engine reports it on   */
-  size_t             col;  /* the code phase it reports           */
-  int                half; /* sits half a tile off: either neighbour */
+  dp_wfm_synth_state_t *syn;
+  float                 amp;
+  size_t                row;  /* the tile the engine reports it on   */
+  size_t                col;  /* the code phase it reports           */
+  int                   half; /* sits half a tile off: either neighbour */
 } source_t;
 
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 static const uint8_t two_bits[2] = { 0, 1 };
@@ -117,9 +117,9 @@ source_open (source_t *s, const uint8_t *code, const emitter_t *e, size_t W)
 {
   const long   r      = dp_fftfreq_index (e->tile, W);
   const double f_norm = ((double)r + e->frac) / (double)NX;
-  s->syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, FS, f_norm * FS, WFM_SYNTH_SNR_CLEAN,
-                          1, e->seed, (int)SPC, 15, 0, 0, 0.0);
+  s->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, f_norm * FS,
+                                WFM_SYNTH_SNR_CLEAN, 1, e->seed, (int)SPC, 15,
+                                0, 0, 0.0);
   if (!s->syn)
     return 1;
   int rc;
@@ -134,7 +134,7 @@ source_open (source_t *s, const uint8_t *code, const emitter_t *e, size_t W)
   if (e->tau)
     {
       float complex *skip = malloc (e->tau * sizeof *skip);
-      wfm_synth_steps (s->syn, skip, e->tau);
+      dp_wfm_synth_steps (s->syn, skip, e->tau);
       free (skip);
     }
   s->amp  = (float)pow (10.0, e->level_db / 20.0);
@@ -173,12 +173,12 @@ hit_is_twin (const acq_result_t *h, const source_t *s, size_t W)
 
 typedef struct
 {
-  acq_state_t   *a;
-  awgn_state_t  *g;
-  source_t       src[MAX_EMIT];
-  size_t         n_src;
-  float complex *epoch, *blk;
-  size_t         W, n_noncoh;
+  dp_acq_state_t  *a;
+  dp_awgn_state_t *g;
+  source_t         src[MAX_EMIT];
+  size_t           n_src;
+  float complex   *epoch, *blk;
+  size_t           W, n_noncoh;
 } scene_t;
 
 /* The scene: the noise at `cn0_dbhz` (a unit-power emitter's C/N0), the
@@ -191,11 +191,11 @@ scene_open (scene_t *sc, const uint8_t *code, const emitter_t *em, size_t n_em,
   memset (sc, 0, sizeof *sc);
   sc->a = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE, size_cn0,
                                  DU, PFA, PD, 0, 1, 0.0);
-  if (!sc->a || acq_set_max_peaks (sc->a, max_peaks) != 0)
+  if (!sc->a || dp_acq_set_max_peaks (sc->a, max_peaks) != 0)
     return 1;
   sc->W        = sc->a->window_bins;
   sc->n_noncoh = sc->a->n_noncoh;
-  sc->g        = awgn_create (
+  sc->g        = dp_awgn_create (
       seed * 7919u + 1u,
       awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   sc->epoch = malloc (NX * sizeof *sc->epoch);
@@ -213,9 +213,9 @@ static void
 scene_close (scene_t *sc)
 {
   for (size_t i = 0; i < sc->n_src; i++)
-    wfm_synth_destroy (sc->src[i].syn);
-  awgn_destroy (sc->g);
-  acq_destroy (sc->a);
+    dp_wfm_synth_destroy (sc->src[i].syn);
+  dp_awgn_destroy (sc->g);
+  dp_acq_destroy (sc->a);
   free (sc->epoch);
   free (sc->blk);
 }
@@ -228,15 +228,15 @@ scene_dwell (scene_t *sc, acq_result_t *hits, size_t max_hits)
   size_t nh = 0;
   for (size_t look = 0; look < sc->n_noncoh; look++)
     {
-      awgn_generate (sc->g, NX, sc->blk, NX);
+      dp_awgn_generate (sc->g, NX, sc->blk, NX);
       for (size_t i = 0; i < sc->n_src; i++)
         {
-          wfm_synth_steps (sc->src[i].syn, sc->epoch, NX);
+          dp_wfm_synth_steps (sc->src[i].syn, sc->epoch, NX);
           const float amp = sc->src[i].amp;
           for (size_t k = 0; k < NX; k++)
             sc->blk[k] += amp * sc->epoch[k];
         }
-      nh += acq_push (sc->a, sc->blk, NX, hits + nh, max_hits - nh);
+      nh += dp_acq_push (sc->a, sc->blk, NX, hits + nh, max_hits - nh);
     }
   return nh;
 }
@@ -450,11 +450,11 @@ main (int argc, char **argv)
         int reported[2] = { 0, 0 };
         for (size_t mp = 1; mp <= 4; mp += 3)
           {
-            acq_state_t *a
+            dp_acq_state_t *a
                 = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE,
                                          45.0, DU, 1e-2, PD, 0, 1, 0.0);
-            DP_REQUIRE (a != NULL && acq_set_max_peaks (a, mp) == 0);
-            awgn_state_t *g = awgn_create (
+            DP_REQUIRE (a != NULL && dp_acq_set_max_peaks (a, mp) == 0);
+            dp_awgn_state_t *g = dp_awgn_create (
                 31u, awgn_amplitude_for_snr ((float)(45.0 - 10.0 * log10 (FS)),
                                              1.0f));
             float complex *blk          = malloc (NX * sizeof *blk);
@@ -466,8 +466,8 @@ main (int argc, char **argv)
                 size_t       nh = 0;
                 for (size_t look = 0; look < a->n_noncoh; look++)
                   {
-                    awgn_generate (g, NX, blk, NX);
-                    nh += acq_push (a, blk, NX, hits + nh, MAX_HITS - nh);
+                    dp_awgn_generate (g, NX, blk, NX);
+                    nh += dp_acq_push (a, blk, NX, hits + nh, MAX_HITS - nh);
                   }
                 false_dwells += nh > 0;
               }
@@ -477,8 +477,8 @@ main (int argc, char **argv)
             DP_CHECK (false_dwells >= 4 && false_dwells <= 60);
             reported[mp == 1 ? 0 : 1] = false_dwells;
             free (blk);
-            awgn_destroy (g);
-            acq_destroy (a);
+            dp_awgn_destroy (g);
+            dp_acq_destroy (a);
           }
         DP_CHECK (reported[0] == reported[1]);
       }
@@ -558,11 +558,11 @@ main (int argc, char **argv)
   const size_t mps[] = { 1, 4, 8 };
   for (int mi = 0; mi < 3; mi++)
     {
-      acq_state_t *a = acq_create_continuous (
+      dp_acq_state_t *a = acq_create_continuous (
           code, SF, SPC, CHIP_RATE, SYM_RATE, 45.0, DU, 1e-2, PD, 0, 1, 0.0);
-      if (!a || acq_set_max_peaks (a, mps[mi]) != 0)
+      if (!a || dp_acq_set_max_peaks (a, mps[mi]) != 0)
         return 1;
-      awgn_state_t *g = awgn_create (
+      dp_awgn_state_t *g = dp_awgn_create (
           41u + (uint32_t)mi,
           awgn_amplitude_for_snr ((float)(45.0 - 10.0 * log10 (FS)), 1.0f));
       float complex *blk    = malloc (NX * sizeof *blk);
@@ -574,8 +574,8 @@ main (int argc, char **argv)
           size_t       nh = 0;
           for (size_t look = 0; look < a->n_noncoh; look++)
             {
-              awgn_generate (g, NX, blk, NX);
-              nh += acq_push (a, blk, NX, hits + nh, MAX_HITS - nh);
+              dp_awgn_generate (g, NX, blk, NX);
+              nh += dp_acq_push (a, blk, NX, hits + nh, MAX_HITS - nh);
             }
           rep += nh > 0;
           peaks += (int)nh;
@@ -583,8 +583,8 @@ main (int argc, char **argv)
       printf ("  %9zu   %6d   %8d   %.4f    %.2f\n", mps[mi], dwells, rep,
               (double)rep / dwells, rep ? (double)peaks / rep : 0.0);
       free (blk);
-      awgn_destroy (g);
-      acq_destroy (a);
+      dp_awgn_destroy (g);
+      dp_acq_destroy (a);
     }
   /* ...and with one strong emitter present: false peaks in its sidelobes,
      outside its zone and not at its code phase. */

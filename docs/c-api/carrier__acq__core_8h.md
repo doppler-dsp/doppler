@@ -39,7 +39,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) <br>_CarrierAcquisition state._  |
+| struct | [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) <br>_CarrierAcquisition state._  |
 
 
 
@@ -66,13 +66,13 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* | [**carrier\_acq\_create**](#function-carrier_acq_create) (double sample\_rate\_hz, double symbol\_rate\_hz, double resolution\_hz, size\_t zero\_pad, int window, float beta, const float \* psd\_template, size\_t psd\_template\_len, double pfa, double pd, double design\_snr, bool sequential, size\_t max\_n\_blocks) <br>_Create a carrier\_acq instance._  |
-|  void | [**carrier\_acq\_destroy**](#function-carrier_acq_destroy) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state) <br>_Destroy a carrier\_acq instance and release all memory._  |
-|  void | [**carrier\_acq\_get\_state**](#function-carrier_acq_get_state) (const [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state, void \* blob) <br> |
-|  void | [**carrier\_acq\_reset**](#function-carrier_acq_reset) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state) <br>_Reset to the post-create state: discard the running PSD average and detection state; n\_blocks/ready/residual\_hz return to their initial values. Config (psd/detector/dwell\_target) is untouched._  |
-|  int | [**carrier\_acq\_set\_state**](#function-carrier_acq_set_state) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**carrier\_acq\_state\_bytes**](#function-carrier_acq_state_bytes) (const [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state) <br> |
-|  void | [**carrier\_acq\_steps**](#function-carrier_acq_steps) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._ |
+|  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**dp\_carrier\_acq\_create**](#function-dp_carrier_acq_create) (double sample\_rate\_hz, double symbol\_rate\_hz, double resolution\_hz, size\_t zero\_pad, int window, float beta, const float \* psd\_template, size\_t psd\_template\_len, double pfa, double pd, double design\_snr, bool sequential, size\_t max\_n\_blocks) <br>_Create a carrier\_acq instance._  |
+|  void | [**dp\_carrier\_acq\_destroy**](#function-dp_carrier_acq_destroy) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Destroy a carrier\_acq instance and release all memory._  |
+|  void | [**dp\_carrier\_acq\_get\_state**](#function-dp_carrier_acq_get_state) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_carrier\_acq\_reset**](#function-dp_carrier_acq_reset) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Reset to the post-create state: discard the running PSD average and detection state; n\_blocks/ready/residual\_hz return to their initial values. Config (psd/detector/dwell\_target) is untouched._  |
+|  int | [**dp\_carrier\_acq\_set\_state**](#function-dp_carrier_acq_set_state) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_carrier\_acq\_state\_bytes**](#function-dp_carrier_acq_state_bytes) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br> |
+|  void | [**dp\_carrier\_acq\_steps**](#function-dp_carrier_acq_steps) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._ |
 
 
 
@@ -117,18 +117,18 @@ Composes existing primitives rather than reimplementing them:
 
 
 
-* [**psd\_state\_t**](structpsd__state__t.md): FFT + window + zero-pad + non-coherent power averaging (Welch's method)  the entire "measure the average
+* [**dp\_psd\_state\_t**](structdp__psd__state__t.md): FFT + window + zero-pad + non-coherent power averaging (Welch's method)  the entire "measure the average
     power spectrum of what's coming in" half of the algorithm.
-* [**detector\_state\_t**](structdetector__state__t.md): FFT-based circular correlation of the averaged power spectrum against a known template (the average PSD shape of a random rectangular-pulse BPSK symbol stream by default, or a caller-supplied override for a different pulse/modulation) plus a noise-referenced test statistic and argmax lag.
-* detection\_core's [**det\_n\_noncoh()**](detection__core_8h.md#function-det_n_noncoh)/det\_threshold(): det\_n\_noncoh (the same chi-square statistic Acquisition's own auto-config uses) drives the precomputed fixed-dwell/give-up cap; det\_threshold (sqrt(-2\*ln(pfa))) is reused as the tail-quantile stand-in inside the per-block CFAR ratio threshold below.
+* [**dp\_detector\_state\_t**](structdp__detector__state__t.md): FFT-based circular correlation of the averaged power spectrum against a known template (the average PSD shape of a random rectangular-pulse BPSK symbol stream by default, or a caller-supplied override for a different pulse/modulation) plus a noise-referenced test statistic and argmax lag.
+* detection\_core's [**dp\_det\_n\_noncoh()**](detection__core_8h.md#function-dp_det_n_noncoh)/dp\_det\_threshold(): det\_n\_noncoh (the same chi-square statistic Acquisition's own auto-config uses) drives the precomputed fixed-dwell/give-up cap; det\_threshold (sqrt(-2\*ln(pfa))) is reused as the tail-quantile stand-in inside the per-block CFAR ratio threshold below.
 
 
 
 
-The per-block CFAR ratio threshold is NOT [**det\_threshold\_noncoherent()**](detection__core_8h.md#function-det_threshold_noncoherent) (that statistic  a classic complex-correlator peak/noise envelope ratio  does not transfer to this object's real statistic, a power-spectrum-vs-known-template correlation; confirmed via Monte Carlo, ~5x too conservative). carrier\_acq\_ratio\_threshold() (carrier\_acq\_core.c) instead uses the derived H0 model for this specific statistic (an exact Gamma-sum mean/variance for the averaged, template-correlated periodogram) plus ONE empirically-calibrated tail-inflation constant (kappa, standing in for the argmax-over-nfft-correlated-lags extreme- value quantile a full closed form hasn't cleanly reduced to yet  see FINISHING\_PLAN.md's CarrierAcquisition section / the derive\_carrier\_acq\_statistic.py derivation for the full story, and revisit/refine kappa when time allows).
+The per-block CFAR ratio threshold is NOT [**dp\_det\_threshold\_noncoherent()**](detection__core_8h.md#function-dp_det_threshold_noncoherent) (that statistic  a classic complex-correlator peak/noise envelope ratio  does not transfer to this object's real statistic, a power-spectrum-vs-known-template correlation; confirmed via Monte Carlo, ~5x too conservative). carrier\_acq\_ratio\_threshold() (carrier\_acq\_core.c) instead uses the derived H0 model for this specific statistic (an exact Gamma-sum mean/variance for the averaged, template-correlated periodogram) plus ONE empirically-calibrated tail-inflation constant (kappa, standing in for the argmax-over-nfft-correlated-lags extreme- value quantile a full closed form hasn't cleanly reduced to yet  see FINISHING\_PLAN.md's CarrierAcquisition section / the derive\_carrier\_acq\_statistic.py derivation for the full story, and revisit/refine kappa when time allows).
 
 
-Only the default template generator (a sinc^2 shape, DC-centred to match [**psd\_power\_twosided()**](psd__core_8h.md#function-psd_power_twosided)'s own bin order) and the 3-point parabolic sub-bin peak refinement (read directly off [**detector\_state\_t**](structdetector__state__t.md)'s own out\_buf  no second correlation pass needed) are new leaf code.
+Only the default template generator (a sinc^2 shape, DC-centred to match [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided)'s own bin order) and the 3-point parabolic sub-bin peak refinement (read directly off [**dp\_detector\_state\_t**](structdp__detector__state__t.md)'s own out\_buf  no second correlation pass needed) are new leaf code.
 
 
 Lifecycle: create -&gt; steps()\* -&gt; (ready ? residual\_hz : keep feeding) -&gt; reset()/destroy
@@ -136,13 +136,13 @@ Lifecycle: create -&gt; steps()\* -&gt; (ready ? residual\_hz : keep feeding) -&
 
 
 ```C++
-carrier_acq_state_t *ca = carrier_acq_create(
+dp_carrier_acq_state_t *ca = dp_carrier_acq_create(
     4.092e6, 100e3, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9, 2.0, true,
     100000);
 while (!ca->ready && ca->n_blocks < ca->max_n_blocks)
-    carrier_acq_steps(ca, block, block_len);
+    dp_carrier_acq_steps(ca, block, block_len);
 double hz = ca->residual_hz; // valid only when ca->ready
-carrier_acq_destroy(ca);
+dp_carrier_acq_destroy(ca);
 ```
  
 
@@ -153,11 +153,11 @@ carrier_acq_destroy(ca);
 
 
 
-### function carrier\_acq\_create 
+### function dp\_carrier\_acq\_create 
 
 _Create a carrier\_acq instance._ 
 ```C++
-carrier_acq_state_t * carrier_acq_create (
+dp_carrier_acq_state_t * dp_carrier_acq_create (
     double sample_rate_hz,
     double symbol_rate_hz,
     double resolution_hz,
@@ -191,7 +191,7 @@ carrier_acq_state_t * carrier_acq_create (
 * `psd_template_len` Length of `psd_template` (0 if not supplied). 
 * `pfa` Target per-test false-alarm probability. 
 * `pd` Target detection probability. 
-* `design_snr` Assumed per-sample amplitude SNR used ONLY to precompute dwell\_target via [**det\_n\_noncoh()**](detection__core_8h.md#function-det_n_noncoh); not a live measurement. An optimistic guess only affects NON-sequential mode (which trusts this one-shot wait count outright)  sequential mode's own give-up bound is max\_n\_blocks, not dwell\_target, precisely so a wrong design\_snr can't stop it from trying more blocks once real data shows it needs to. 
+* `design_snr` Assumed per-sample amplitude SNR used ONLY to precompute dwell\_target via [**dp\_det\_n\_noncoh()**](detection__core_8h.md#function-dp_det_n_noncoh); not a live measurement. An optimistic guess only affects NON-sequential mode (which trusts this one-shot wait count outright)  sequential mode's own give-up bound is max\_n\_blocks, not dwell\_target, precisely so a wrong design\_snr can't stop it from trying more blocks once real data shows it needs to. 
 * `sequential` True: test for a detection after EVERY block (the per-block CFAR ratio threshold  see carrier\_acq\_ratio\_threshold() in carrier\_acq\_core.c  tightens as more looks accumulate), stopping the moment one fires or max\_n\_blocks is reached. False: accumulate silently and test once, at dwell\_target. 
 * `max_n_blocks` Sequential mode's own give-up cap (ignored by non-sequential mode, which stops at dwell\_target instead)  deliberately a SEPARATE, generous bound from dwell\_target; capping sequential mode at design\_snr's own point estimate would defeat the reason to test every block in the first place. 
 
@@ -206,7 +206,7 @@ Heap-allocated state, or NULL on invalid argument or allocation failure.
 
 **Note:**
 
-Caller must call [**carrier\_acq\_destroy()**](carrier__acq__core_8h.md#function-carrier_acq_destroy) when done. 
+Caller must call [**dp\_carrier\_acq\_destroy()**](carrier__acq__core_8h.md#function-dp_carrier_acq_destroy) when done. 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import CarrierAcquisition
@@ -237,12 +237,12 @@ True
 
 
 
-### function carrier\_acq\_destroy 
+### function dp\_carrier\_acq\_destroy 
 
 _Destroy a carrier\_acq instance and release all memory._ 
 ```C++
-void carrier_acq_destroy (
-    carrier_acq_state_t * state
+void dp_carrier_acq_destroy (
+    dp_carrier_acq_state_t * state
 ) 
 ```
 
@@ -264,11 +264,11 @@ void carrier_acq_destroy (
 
 
 
-### function carrier\_acq\_get\_state 
+### function dp\_carrier\_acq\_get\_state 
 
 ```C++
-void carrier_acq_get_state (
-    const carrier_acq_state_t * state,
+void dp_carrier_acq_get_state (
+    const dp_carrier_acq_state_t * state,
     void * blob
 ) 
 ```
@@ -280,12 +280,12 @@ void carrier_acq_get_state (
 
 
 
-### function carrier\_acq\_reset 
+### function dp\_carrier\_acq\_reset 
 
 _Reset to the post-create state: discard the running PSD average and detection state; n\_blocks/ready/residual\_hz return to their initial values. Config (psd/detector/dwell\_target) is untouched._ 
 ```C++
-void carrier_acq_reset (
-    carrier_acq_state_t * state
+void dp_carrier_acq_reset (
+    dp_carrier_acq_state_t * state
 ) 
 ```
 
@@ -324,11 +324,11 @@ True
 
 
 
-### function carrier\_acq\_set\_state 
+### function dp\_carrier\_acq\_set\_state 
 
 ```C++
-int carrier_acq_set_state (
-    carrier_acq_state_t * state,
+int dp_carrier_acq_set_state (
+    dp_carrier_acq_state_t * state,
     const void * blob
 ) 
 ```
@@ -340,11 +340,11 @@ int carrier_acq_set_state (
 
 
 
-### function carrier\_acq\_state\_bytes 
+### function dp\_carrier\_acq\_state\_bytes 
 
 ```C++
-size_t carrier_acq_state_bytes (
-    const carrier_acq_state_t * state
+size_t dp_carrier_acq_state_bytes (
+    const dp_carrier_acq_state_t * state
 ) 
 ```
 
@@ -355,12 +355,12 @@ size_t carrier_acq_state_bytes (
 
 
 
-### function carrier\_acq\_steps 
+### function dp\_carrier\_acq\_steps 
 
 _Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._
 ```C++
-void carrier_acq_steps (
-    carrier_acq_state_t * state,
+void dp_carrier_acq_steps (
+    dp_carrier_acq_state_t * state,
     const float _Complex * x,
     size_t x_len
 ) 

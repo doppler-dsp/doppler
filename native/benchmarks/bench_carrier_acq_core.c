@@ -74,7 +74,7 @@ main (void)
   for (int p = 0; p < 2; p++)
     for (int q = 0; q < 2; q++)
       {
-        carrier_acq_state_t *ca = carrier_acq_create (
+        dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
             SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, pads[p], 0, 0.0f, NULL, 0,
             1e-3, 0.9, 2.0, seqs[q], MAX_N_BLOCKS);
         if (!ca)
@@ -90,17 +90,17 @@ main (void)
         w0 = jm_bench_now_ns ();
         do
           {
-            carrier_acq_reset (ca);
-            carrier_acq_steps (ca, x, BENCH_N);
+            dp_carrier_acq_reset (ca);
+            dp_carrier_acq_steps (ca, x, BENCH_N);
             w1 = jm_bench_now_ns ();
           }
         while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
         for (int r = 0; r < ITERATIONS; r++)
           {
-            carrier_acq_reset (ca);
+            dp_carrier_acq_reset (ca);
             t0 = jm_bench_now_ns ();
-            carrier_acq_steps (ca, x, BENCH_N);
+            dp_carrier_acq_steps (ca, x, BENCH_N);
             t1            = jm_bench_now_ns ();
             t_st[p][q][r] = jm_bench_elapsed_sec (t0, t1);
           }
@@ -111,7 +111,7 @@ main (void)
         double sec = min_sec (t_st[p][q], ITERATIONS);
         printf ("  %-22s %8.3f ms/block  %7.2f ns/sample\n", name, sec * 1e3,
                 sec / (double)BENCH_N * 1e9);
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_destroy (ca);
       }
 
   printf ("\n  4x the zero-pad costs %.2fx, but SEQUENTIAL combining is the\n"

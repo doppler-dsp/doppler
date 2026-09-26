@@ -10,11 +10,11 @@
  * retains once noise has rotated the limited sample, and it falls with M and
  * with decreasing Es/N0.
  *
- * That H1 mean is the one input det_dwell_gauss() / det_threshold_gauss()
- * need and the one thing not already in the tree. symsync's equivalent is a
- * fitted expression in its own `mean` line (symsync_core.c); this harness is
- * where the carrier's comes from, measured against the SHIPPED discriminator
- * rather than a re-derivation of it.
+ * That H1 mean is the one input dp_det_dwell_gauss() /
+ * dp_det_threshold_gauss() need and the one thing not already in the tree.
+ * symsync's equivalent is a fitted expression in its own `mean` line
+ * (symsync_core.c); this harness is where the carrier's comes from, measured
+ * against the SHIPPED discriminator rather than a re-derivation of it.
  *
  * Geometry note: symbols are generated on the **0-grid** (angles 2*pi*k/M
  * with no constellation offset), because that is what the discriminator sees
@@ -42,7 +42,7 @@
  *
  * Noise comes from the SHIPPED generator at the SHIPPED amplitude:
  * awgn_amplitude_for_snr(esno_db, 1.0) is the per-component sigma for unit
- * symbol energy, and awgn_create() takes exactly that. Deriving it here
+ * symbol energy, and dp_awgn_create() takes exactly that. Deriving it here
  * instead is what put a 3 dB error in this file's first pass -- the helper
  * exists precisely so the "is amplitude per-rail or total power" question
  * is answered once, in one place, by the code that owns the convention.
@@ -59,9 +59,9 @@ measure (int m, double esno_db, int signal, size_t n, uint64_t seed,
          double *mean_out, double *var_out)
 {
   float amp = signal ? awgn_amplitude_for_snr ((float)esno_db, 1.0f) : 1.0f;
-  awgn_state_t *g = awgn_create (seed, amp);
-  float complex buf[NBLK];
-  double        s1 = 0.0, s2 = 0.0;
+  dp_awgn_state_t *g = dp_awgn_create (seed, amp);
+  float complex    buf[NBLK];
+  double           s1 = 0.0, s2 = 0.0;
   if (!g)
     {
       *mean_out = *var_out = -1.0;
@@ -69,7 +69,7 @@ measure (int m, double esno_db, int signal, size_t n, uint64_t seed,
     }
   for (size_t done = 0; done < n;)
     {
-      size_t got = awgn_generate (g, NBLK, buf, NBLK);
+      size_t got = dp_awgn_generate (g, NBLK, buf, NBLK);
       for (size_t i = 0; i < got && done < n; i++, done++)
         {
           float complex z = buf[i];
@@ -88,7 +88,7 @@ measure (int m, double esno_db, int signal, size_t n, uint64_t seed,
   double mean = s1 / (double)n;
   *mean_out   = mean;
   *var_out    = s2 / (double)n - mean * mean;
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
 }
 
 int
@@ -164,8 +164,8 @@ main (int argc, char **argv)
           double mu, var;
           measure (ms[i], esnos[j], 1, 2000000u, 31u + (uint32_t)(i * 100 + j),
                    &mu, &var);
-          int    dwell = det_dwell_gauss (mu, 0.5, pd, pfa);
-          double thr   = det_threshold_gauss (mu, pd, pfa);
+          int    dwell = dp_det_dwell_gauss (mu, 0.5, pd, pfa);
+          double thr   = dp_det_threshold_gauss (mu, pd, pfa);
           /* One decision per dwell-block; n_up = 1 as symsync defaults. */
           double lat = (dwell > 0) ? (double)dwell : 0.0;
           if (dwell > 0)

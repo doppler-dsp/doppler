@@ -103,7 +103,7 @@ Sabotage-verified there. Its actor is not our writer — measured, 3601
 samples of a growing capture, **zero** non-sample-aligned sizes, because
 stdio buffers in powers of two and every doppler sample size divides them
 — but a capture truncated mid-sample by a killed recorder, which is what
-`wfm_reader_get_trailing_bytes` exists to report.
+`dp_wfm_reader_get_trailing_bytes` exists to report.
 
 ______________________________________________________________________
 
@@ -224,7 +224,7 @@ exactly when the sidecar went missing — which is the "clean finish on a
 truncated capture" failure this whole design exists to remove, reintroduced
 one layer out.
 
-### 4b. `wfm_writer_flush()` — alignment, not just durability
+### 4b. `dp_wfm_writer_flush()` — alignment, not just durability
 
 The writer had no flush verb at all: the only `fflush` was inside
 `close()`. Measured consequence — a reader opened against a writer
@@ -245,10 +245,10 @@ reports success afterwards.
 <!-- docs-snippet: skip=API signature summary, not a standalone program -->
 
 ```c
-size_t wfm_reader_read_follow (wfm_reader_state_t *r, size_t n,
+size_t dp_wfm_reader_read_follow (dp_wfm_reader_state_t *r, size_t n,
                                float complex *out, size_t max_out);
-int    wfm_reader_get_ending  (const wfm_reader_state_t *r);
-void   wfm_reader_set_stop_fn (wfm_reader_state_t *r, int (*fn) (void));
+int    dp_wfm_reader_get_ending  (const dp_wfm_reader_state_t *r);
+void   wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void));
 ```
 
 **Zero means the capture ended.** With an unbounded wait the call does not
@@ -287,11 +287,11 @@ ______________________________________________________________________
 With both waits unbounded, threading stops being advice: an infinite wait
 on the wrong thread is a permanent deadlock.
 
-|            | thread  | waits on                | owns                             |
-| ---------- | ------- | ----------------------- | -------------------------------- |
-| **writer** | its own | the uncontrolled stream | `wfm_writer_state_t`, the `FILE` |
-| **reader** | its own | the file                | `wfm_reader_state_t`             |
-| **stop**   | any     | —                       | the interrupt state              |
+|            | thread  | waits on                | owns                                |
+| ---------- | ------- | ----------------------- | ----------------------------------- |
+| **writer** | its own | the uncontrolled stream | `dp_wfm_writer_state_t`, the `FILE` |
+| **reader** | its own | the file                | `dp_wfm_reader_state_t`             |
+| **stop**   | any     | —                       | the interrupt state                 |
 
 - **The writer and the follow reader must not share a thread.** A blocking
     follow read starves the writer that would produce the data it waits

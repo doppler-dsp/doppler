@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef I32_TO_F32_CORE_H
-#define I32_TO_F32_CORE_H
+#ifndef DP_I32_TO_F32_CORE_H
+#define DP_I32_TO_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -20,22 +20,22 @@ extern "C" {
 
 typedef struct {
     float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
-} i32_to_f32_state_t;
+} dp_i32_to_f32_state_t;
 
-i32_to_f32_state_t *i32_to_f32_create(float scale);
+dp_i32_to_f32_state_t *dp_i32_to_f32_create(float scale);
 
-void i32_to_f32_destroy(i32_to_f32_state_t *state);
+void dp_i32_to_f32_destroy(dp_i32_to_f32_state_t *state);
 
-void i32_to_f32_reset(i32_to_f32_state_t *state);
+void dp_i32_to_f32_reset(dp_i32_to_f32_state_t *state);
 
 JM_FORCEINLINE JM_HOT float
-i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
+dp_i32_to_f32_step(const dp_i32_to_f32_state_t *state, int32_t x)
 {
     return (float)x * state->iscale;
 }
 
-void i32_to_f32_steps(
-    i32_to_f32_state_t *state,
+void dp_i32_to_f32_steps(
+    dp_i32_to_f32_state_t *state,
     const int32_t    *input,
     float          *output,
     size_t               n);

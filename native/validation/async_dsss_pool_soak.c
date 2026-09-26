@@ -214,21 +214,21 @@ typedef struct
 
 typedef struct
 {
-  double                   ppm, doppler_hz, delay;
-  uint64_t                 burn;
-  wfm_synth_state_t       *syn;
-  doppler_channel_state_t *ch;
-  float complex           *sig;  /* TE, the synth's block                 */
-  float complex           *fifo; /* the channel's output, carried         */
-  size_t                   pend;
-  float complex           *blk; /* TE: this block's received samples     */
-  int                      on;
-  uint64_t                 toggle; /* the sample `on` flips at next       */
-  uint32_t                 rng;    /* the schedule's own draws            */
-  stint_t                 *st;
-  size_t                   n_st, cap_st;
-  size_t                   slot;     /* the slot holding it now, or N_SLOTS  */
-  uint64_t                 slot_age; /* that slot's assigned_samples      */
+  double                      ppm, doppler_hz, delay;
+  uint64_t                    burn;
+  dp_wfm_synth_state_t       *syn;
+  dp_doppler_channel_state_t *ch;
+  float complex              *sig;  /* TE, the synth's block                 */
+  float complex              *fifo; /* the channel's output, carried         */
+  size_t                      pend;
+  float complex              *blk; /* TE: this block's received samples     */
+  int                         on;
+  uint64_t                    toggle; /* the sample `on` flips at next       */
+  uint32_t                    rng;    /* the schedule's own draws            */
+  stint_t                    *st;
+  size_t                      n_st, cap_st;
+  size_t                      slot; /* the slot holding it now, or N_SLOTS  */
+  uint64_t                    slot_age; /* that slot's assigned_samples      */
 } emitter_t;
 
 typedef struct
@@ -240,9 +240,9 @@ typedef struct
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 static double
@@ -314,15 +314,15 @@ make_emitter (emitter_t *e, size_t k, const cfg_t *cfg, const uint8_t *code)
   e->ppm        = draw (&e->rng, -MAX_PPM, MAX_PPM);
   e->doppler_hz = e->ppm * 1e-6 * CARRIER_HZ;
   e->burn       = (uint64_t)(draw (&e->rng, 0.0, 1.0) * FRAME_S * FS);
-  e->syn = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             e->rng, (int)SPC, 15, 0, 0, 0.0);
+  e->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN,
+                                1, e->rng, (int)SPC, 15, 0, 0, 0.0);
   DP_REQUIRE_MSG (e->syn != NULL, "the emitter's synth opens");
   (void)wfm_synth_set_dsss_cont (e->syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
                                  NULL, 0);
   (void)wfm_synth_set_dsss_window (e->syn, W_SYM, F_SYM);
-  e->ch = doppler_channel_create (FS, CARRIER_HZ, e->ppm, 0.0);
+  e->ch = dp_doppler_channel_create (FS, CARRIER_HZ, e->ppm, 0.0);
   DP_REQUIRE_MSG (e->ch != NULL, "the emitter's channel opens");
-  e->delay = doppler_channel_get_delay_samples (e->ch);
+  e->delay = dp_doppler_channel_get_delay_samples (e->ch);
   e->sig   = dp_xmalloc (TE * sizeof *e->sig);
   e->fifo  = dp_xmalloc ((size_t)4 * TE * sizeof *e->fifo);
   e->blk   = dp_xmalloc (TE * sizeof *e->blk);
@@ -331,7 +331,7 @@ make_emitter (emitter_t *e, size_t k, const cfg_t *cfg, const uint8_t *code)
   for (uint64_t left = e->burn; left;)
     {
       size_t n = left < TE ? (size_t)left : TE;
-      wfm_synth_steps (e->syn, e->sig, n);
+      dp_wfm_synth_steps (e->syn, e->sig, n);
       left -= n;
     }
   e->slot = N_SLOTS;
@@ -356,8 +356,8 @@ destroy_emitter (emitter_t *e)
   free (e->blk);
   free (e->fifo);
   free (e->sig);
-  doppler_channel_destroy (e->ch);
-  wfm_synth_destroy (e->syn);
+  dp_doppler_channel_destroy (e->ch);
+  dp_wfm_synth_destroy (e->syn);
 }
 
 /* One received block per emitter, on or off: the synth through the
@@ -369,9 +369,9 @@ produce_one (size_t i, void *ctx)
   emitter_t *e = ((produce_ctx_t *)ctx)->e + i;
   while (e->pend < TE)
     {
-      wfm_synth_steps (e->syn, e->sig, TE);
-      e->pend += doppler_channel_execute (e->ch, e->sig, TE, e->fifo + e->pend,
-                                          2 * TE);
+      dp_wfm_synth_steps (e->syn, e->sig, TE);
+      e->pend += dp_doppler_channel_execute (e->ch, e->sig, TE,
+                                             e->fifo + e->pend, 2 * TE);
     }
   memcpy (e->blk, e->fifo, TE * sizeof *e->blk);
   e->pend -= TE;
@@ -509,22 +509,22 @@ static int g_emit = 0;
 static double
 measure_chain_delay (void)
 {
-  RateConverter_state_t *up  = RateConverter_create (DDC_IN_RATE / FS, 0);
-  ddc_state_t           *ddc = ddc_create (0.0, FS / DDC_IN_RATE);
+  dp_RateConverter_state_t *up = dp_RateConverter_create (DDC_IN_RATE / FS, 0);
+  dp_ddc_state_t           *ddc = dp_ddc_create (0.0, FS / DDC_IN_RATE);
   DP_REQUIRE_MSG (up && ddc, "the front end opens for its delay");
   const size_t   n = 8 * TE, k0 = 4 * TE;
   float complex *x    = dp_xcalloc (n, sizeof *x);
-  size_t         ucap = RateConverter_execute_max_out (up);
+  size_t         ucap = dp_RateConverter_execute_max_out (up);
   float complex *u    = dp_xmalloc (ucap * sizeof *u);
-  size_t         dcap = ddc_execute_max_out (ddc, ucap);
+  size_t         dcap = dp_ddc_execute_max_out (ddc, ucap);
   float complex *y    = dp_xmalloc (dcap * sizeof *y);
   x[k0]               = 1.0f;
   size_t total = 0, best = 0;
   float  bmag = 0.0f;
   for (size_t pos = 0; pos < n; pos += TE)
     {
-      size_t nu = RateConverter_execute (up, x + pos, TE, u, ucap);
-      size_t nd = ddc_execute (ddc, u, nu, y, dcap);
+      size_t nu = dp_RateConverter_execute (up, x + pos, TE, u, ucap);
+      size_t nd = dp_ddc_execute (ddc, u, nu, y, dcap);
       for (size_t i = 0; i < nd; i++)
         if (cabsf (y[i]) > bmag)
           {
@@ -536,8 +536,8 @@ measure_chain_delay (void)
   free (y);
   free (u);
   free (x);
-  ddc_destroy (ddc);
-  RateConverter_destroy (up);
+  dp_ddc_destroy (ddc);
+  dp_RateConverter_destroy (up);
   return (double)best - (double)k0;
 }
 
@@ -636,11 +636,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   emitter_t *e = dp_xcalloc (cfg->n_emit, sizeof *e);
   for (size_t k = 0; k < cfg->n_emit; k++)
     DP_REQUIRE (make_emitter (&e[k], k, cfg, code) == 0);
-  awgn_state_t *g
-      = awgn_create (cfg->seed * 7919u + 1u,
-                     awgn_amplitude_for_snr (
-                         (float)(cfg->cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
-  async_dsss_pool_state_t *p = async_dsss_pool_create (
+  dp_awgn_state_t *g
+      = dp_awgn_create (cfg->seed * 7919u + 1u,
+                        awgn_amplitude_for_snr (
+                            (float)(cfg->cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
+  dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cfg->cn0_dbhz, 1e-3, 0.9, DU,
       CODE_ONLY_EPOCHS, DOPPLER_RATE, MAX_PEAKS, N_SLOTS, THREADS, CARRIER_HZ,
       LOST_CONFIRM_S, cfg->max_on_s, 4, 8, 0, ASYNC_DSSS_RX_CELL_GAIN,
@@ -655,7 +655,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
                     (int)getpid (), cfg->cn0_dbhz);
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
   DP_REQUIRE_MSG (log != NULL, "the event log opens");
-  DP_REQUIRE (async_dsss_pool_set_event_log (p, log) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_pool_set_event_log (p, log) == DP_OK);
   dp_pool_t    *fan = dp_pool_create (THREADS);
   produce_ctx_t ctx = { cfg, e };
 
@@ -672,20 +672,20 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
             e[k].ppm, e[k].doppler_hz, (double)e[k].burn / FS,
             k == 0 ? ", always on" : "");
 
-  float complex         *x      = dp_xmalloc (TE * sizeof *x);
-  float complex         *nz     = dp_xmalloc (TE * sizeof *nz);
-  RateConverter_state_t *up     = NULL;
-  ddc_state_t           *ddc    = NULL;
-  float complex         *up_buf = NULL, *ddc_buf = NULL;
-  size_t                 up_cap = 0, ddc_cap = 0;
+  float complex            *x      = dp_xmalloc (TE * sizeof *x);
+  float complex            *nz     = dp_xmalloc (TE * sizeof *nz);
+  dp_RateConverter_state_t *up     = NULL;
+  dp_ddc_state_t           *ddc    = NULL;
+  float complex            *up_buf = NULL, *ddc_buf = NULL;
+  size_t                    up_cap = 0, ddc_cap = 0;
   if (g_budget)
     {
-      up  = RateConverter_create (DDC_IN_RATE / FS, 0);
-      ddc = ddc_create (0.0, FS / DDC_IN_RATE);
+      up  = dp_RateConverter_create (DDC_IN_RATE / FS, 0);
+      ddc = dp_ddc_create (0.0, FS / DDC_IN_RATE);
       DP_REQUIRE_MSG (up && ddc, "the front end opens");
-      up_cap  = RateConverter_execute_max_out (up);
+      up_cap  = dp_RateConverter_execute_max_out (up);
       up_buf  = dp_xmalloc (up_cap * sizeof *up_buf);
-      ddc_cap = ddc_execute_max_out (ddc, up_cap);
+      ddc_cap = dp_ddc_execute_max_out (ddc, up_cap);
       ddc_buf = dp_xmalloc (ddc_cap * sizeof *ddc_buf);
     }
   const uint64_t n_blocks    = samples (cfg->duration_s) / TE;
@@ -729,7 +729,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       for (size_t k = 0; k < cfg->n_emit; k++)
         schedule (&e[k], cfg, now);
       dp_pool_run (fan, cfg->n_emit, produce_one, &ctx);
-      awgn_generate (g, TE, nz, TE);
+      dp_awgn_generate (g, TE, nz, TE);
       memcpy (x, nz, TE * sizeof *x);
       for (size_t k = 0; k < cfg->n_emit; k++)
         if (e[k].on)
@@ -743,14 +743,14 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           /* Up to the front end's rate (the stimulus's cost, untimed),
              then the DDC back down (timed): the block the pool takes is
              the DDC's, a sample or so either side of an epoch. */
-          size_t n_up     = RateConverter_execute (up, x, TE, up_buf, up_cap);
+          size_t n_up = dp_RateConverter_execute (up, x, TE, up_buf, up_cap);
           const double t0 = now_s ();
-          blk_n           = ddc_execute (ddc, up_buf, n_up, ddc_buf, ddc_cap);
+          blk_n = dp_ddc_execute (ddc, up_buf, n_up, ddc_buf, ddc_cap);
           t->ddc_s += now_s () - t0;
           blk_in = ddc_buf;
         }
       const double t_push   = now_s ();
-      size_t       assigned = async_dsss_pool_push (p, blk_in, blk_n);
+      size_t       assigned = dp_async_dsss_pool_push (p, blk_in, blk_n);
       t->push_s += now_s () - t_push;
       t->signal_s += (double)TE / FS;
       const int new_drops = p->dropped > drops_before;
@@ -802,7 +802,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       async_dsss_pool_slot_t r[N_SLOTS];
       for (size_t i = 0; i < N_SLOTS; i++)
         {
-          r[i] = async_dsss_pool_status (p, i);
+          r[i] = dp_async_dsss_pool_status (p, i);
           if (r[i].assigned && r[i].both_down_samples < prev_down[i]
               && prev_down[i] >= samples (0.2)
               && r[i].state == ASYNC_DSSS_RX_TRACKING)
@@ -1135,7 +1135,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   DP_CHECK_MSG (dp_event_log_count (log) == p->events,
                 "every transition the pool counted reached the log");
   DP_REQUIRE (count_log (path, t) == 0);
-  DP_CHECK (async_dsss_pool_set_event_log (p, NULL) == DP_OK);
+  DP_CHECK (dp_async_dsss_pool_set_event_log (p, NULL) == DP_OK);
   dp_event_log_destroy (log);
   if (!g_events_dir)
     remove (path);
@@ -1315,13 +1315,13 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
 
   free (ddc_buf);
   free (up_buf);
-  ddc_destroy (ddc);
-  RateConverter_destroy (up);
+  dp_ddc_destroy (ddc);
+  dp_RateConverter_destroy (up);
   free (nz);
   free (x);
   dp_pool_destroy (fan);
-  async_dsss_pool_destroy (p);
-  awgn_destroy (g);
+  dp_async_dsss_pool_destroy (p);
+  dp_awgn_destroy (g);
   for (size_t k = 0; k < cfg->n_emit; k++)
     destroy_emitter (&e[k]);
   free (e);

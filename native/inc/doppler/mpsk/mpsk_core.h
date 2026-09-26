@@ -24,8 +24,8 @@
  * unsigned g = mpsk_slice((1.0f + 1.0f*I) * 0.70710678f, 4, &ahat); // -> 0
  * @endcode
  */
-#ifndef MPSK_CORE_H
-#define MPSK_CORE_H
+#ifndef DP_MPSK_CORE_H
+#define DP_MPSK_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -117,7 +117,7 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
 /**
  * @brief Map Gray-coded M-PSK labels to unit-amplitude constellation points.
  *
- * Element-wise inverse of mpsk_demap(): each input byte is one symbol's
+ * Element-wise inverse of dp_mpsk_demap(): each input byte is one symbol's
  * log2(M) Gray-coded bits (0..M-1), each output is its cf32 point. Memoryless
  * (absolute phase). @p out must hold @p sym_len points.
  *
@@ -138,12 +138,12 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
  *
  * @endcode
  */
-void mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
+void dp_mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
 
 /**
  * @brief Hard-decide M-PSK symbols to their Gray-coded label bytes.
  *
- * Element-wise inverse of mpsk_map(): each cf32 symbol is sliced to the nearest
+ * Element-wise inverse of dp_mpsk_map(): each cf32 symbol is sliced to the nearest
  * constellation point and its Gray label (0..M-1) is written out. A slip to an
  * adjacent point flips exactly one bit (Gray). @p out must hold @p x_len bytes.
  *
@@ -161,7 +161,7 @@ void mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
  *
  * @endcode
  */
-void mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
+void dp_mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
 /**
  * @brief Differential M-PSK map: the label selects a phase INCREMENT.
@@ -196,13 +196,13 @@ void mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
  *
  * @endcode
  */
-void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
+void dp_mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
                    int m);
 
 /**
  * @brief Differential M-PSK demap: decide from the phase DIFFERENCE.
  *
- * Inverse of mpsk_diff_map(): the Gray label of each symbol is decided from the
+ * Inverse of dp_mpsk_diff_map(): the Gray label of each symbol is decided from the
  * phase difference between consecutive sliced indices (the first references an
  * implicit zero-phase start). Invariant to an unknown constant carrier phase.
  *
@@ -220,12 +220,12 @@ void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
  *
  * @endcode
  */
-void mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
+void dp_mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
 /**
  * @brief Soft-demap M-PSK symbols to per-bit log-likelihood ratios.
  *
- * The soft counterpart of mpsk_demap(): instead of one label byte per symbol
+ * The soft counterpart of dp_mpsk_demap(): instead of one label byte per symbol
  * it writes `log2(M)` LLRs, one per bit, which is what a soft-input decoder
  * (a Viterbi, for the CCSDS inner code) needs. A hard decision throws away
  * roughly 2 dB of the coding gain such a decoder exists to deliver.
@@ -235,7 +235,7 @@ void mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m)
  *     L_i = log( P(bit i = 0 | y) / P(bit i = 1 | y) )
  *
  * so **positive means bit 0** and the hard decision is `L < 0`. That is not a
- * separate rule: `mpsk_demap()` is what this reproduces, and the sign
+ * separate rule: `dp_mpsk_demap()` is what this reproduces, and the sign
  * agreeing with it at every M and every SNR is asserted in test_mpsk_core.c
  * rather than assumed. The repository has ONE decision rule; this is a second
  * view of it, not a second copy.
@@ -279,7 +279,7 @@ void mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m)
  *
  * @endcode
  */
-void mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
+void dp_mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
                      size_t llr_len, int m, float n0);
 
 /**
@@ -295,7 +295,7 @@ void mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
  *
  * @endcode
  */
-int mpsk_bits_per_symbol(int m);
+int dp_mpsk_bits_per_symbol(int m);
 
 #ifdef __cplusplus
 }

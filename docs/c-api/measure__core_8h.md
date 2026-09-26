@@ -61,9 +61,9 @@ _Measure module — shared result structs and module-level helpers._ [More...](#
 | Type | Name |
 | ---: | :--- |
 |  double | [**dp\_coherent\_freq**](#function-dp_coherent_freq) (double fs, double f\_target, size\_t N) <br>_Nearest leakage-free coherent test frequency._  |
-|  size\_t | [**measure\_min\_samples**](#function-measure_min_samples) (double fs, double target\_rbw, size\_t bits, double dynamic\_range\_db, int complex\_input) <br>_Samples needed to reach a target resolution bandwidth._  |
-|  double | [**measure\_proc\_gain**](#function-measure_proc_gain) (size\_t nfft) <br>_FFT processing gain in dB: 10\*log10(nfft / 2)._  |
-|  size\_t | [**measure\_rec\_nfft**](#function-measure_rec_nfft) (size\_t n, size\_t pad) <br>_Recommended zero-padded transform length: next\_pow\_two(n \* max(pad,1))._  |
+|  size\_t | [**dp\_measure\_min\_samples**](#function-dp_measure_min_samples) (double fs, double target\_rbw, size\_t bits, double dynamic\_range\_db, int complex\_input) <br>_Samples needed to reach a target resolution bandwidth._  |
+|  double | [**dp\_measure\_proc\_gain**](#function-dp_measure_proc_gain) (size\_t nfft) <br>_FFT processing gain in dB: 10\*log10(nfft / 2)._  |
+|  size\_t | [**dp\_measure\_rec\_nfft**](#function-dp_measure_rec_nfft) (size\_t n, size\_t pad) <br>_Recommended zero-padded transform length: next\_pow\_two(n \* max(pad,1))._  |
 
 
 ## Public Static Functions
@@ -150,11 +150,11 @@ The coherent frequency (Hz), or 0 on bad args.
 
 
 
-### function measure\_min\_samples 
+### function dp\_measure\_min\_samples 
 
 _Samples needed to reach a target resolution bandwidth._ 
 ```C++
-size_t measure_min_samples (
+size_t dp_measure_min_samples (
     double fs,
     double target_rbw,
     size_t bits,
@@ -195,11 +195,11 @@ Required capture length, or 0 on bad args.
 
 
 
-### function measure\_proc\_gain 
+### function dp\_measure\_proc\_gain 
 
 _FFT processing gain in dB: 10\*log10(nfft / 2)._ 
 ```C++
-double measure_proc_gain (
+double dp_measure_proc_gain (
     size_t nfft
 ) 
 ```
@@ -211,11 +211,11 @@ double measure_proc_gain (
 
 
 
-### function measure\_rec\_nfft 
+### function dp\_measure\_rec\_nfft 
 
 _Recommended zero-padded transform length: next\_pow\_two(n \* max(pad,1))._ 
 ```C++
-size_t measure_rec_nfft (
+size_t dp_measure_rec_nfft (
     size_t n,
     size_t pad
 ) 

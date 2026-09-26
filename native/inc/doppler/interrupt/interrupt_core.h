@@ -2,8 +2,8 @@
  * @file interrupt_core.h
  * @brief Interrupt module — public C API.
  */
-#ifndef INTERRUPT_CORE_H
-#define INTERRUPT_CORE_H
+#ifndef DP_INTERRUPT_CORE_H
+#define DP_INTERRUPT_CORE_H
 
 #include "doppler/clib_common.h"
 

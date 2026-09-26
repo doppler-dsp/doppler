@@ -212,7 +212,7 @@ def section_summary() -> None:
     R.md("## 1. The object — design and expectations")
     R.md()
     R.md(
-        "`nco_state_t` is a **32-bit phase accumulator**: a register "
+        "`dp_nco_state_t` is a **32-bit phase accumulator**: a register "
         "advancing by `phase_inc` every sample, wrapping naturally at 2^32. "
         "It is the primitive every steered thing in the library stands on — "
         "`symsync`, `dll` and `resamp` embed it **by value**, so its "
@@ -705,7 +705,8 @@ def review(d: Data) -> None:
         f"7) depending on which face it entered by, and nothing documented "
         f"which resolution a tracking loop was steering at. The port is "
         f"now `double` on all four narrowing signatures — "
-        f"nco_steps_u32_ctrl, _scaled_ctrl, _ovf_ctrl and lo_steps_ctrl — "
+        f"dp_nco_steps_u32_ctrl, _scaled_ctrl, _ovf_ctrl and "
+        f"dp_lo_steps_ctrl — "
         f"which is the width the conversion works in and the one every "
         f"scalar steer site (nco_step_u32*_ctrl, lo_step_ctrl, symsync, "
         f"dll) already used, so this removed an inconsistency rather than "

@@ -2,8 +2,8 @@
  * @file accumulator_core.h
  * @brief Accumulator module — public C API.
  */
-#ifndef ACCUMULATOR_CORE_H
-#define ACCUMULATOR_CORE_H
+#ifndef DP_ACCUMULATOR_CORE_H
+#define DP_ACCUMULATOR_CORE_H
 
 #include "doppler/clib_common.h"
 

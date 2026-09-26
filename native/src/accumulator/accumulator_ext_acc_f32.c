@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only accumulator_ext.c is compiled.
  */
 /* ======================================================== */
-/* AccF32Object — wraps acc_f32_state_t *       */
+/* AccF32Object — wraps dp_acc_f32_state_t *       */
 /* ======================================================== */
 
 #include "doppler/acc_f32/acc_f32_core.h"
 
 typedef struct
 {
-  PyObject_HEAD acc_f32_state_t *handle;
+  PyObject_HEAD dp_acc_f32_state_t *handle;
 } AccF32Object;
 
 static void
 AccF32_dealloc (AccF32Object *self)
 {
   if (self->handle)
-    acc_f32_destroy (self->handle);
+    dp_acc_f32_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -41,10 +41,10 @@ AccF32_init (AccF32Object *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|f", kwlist, &acc))
     return -1;
-  self->handle = acc_f32_create (acc);
+  self->handle = dp_acc_f32_create (acc);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "acc_f32_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_acc_f32_create returned NULL");
       return -1;
     }
   return 0;
@@ -58,7 +58,7 @@ AccF32_reset (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  acc_f32_reset (self->handle);
+  dp_acc_f32_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -73,7 +73,7 @@ AccF32_step (AccF32Object *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
-  acc_f32_step (self->handle, x);
+  dp_acc_f32_step (self->handle, x);
   Py_RETURN_NONE;
 }
 
@@ -94,8 +94,8 @@ AccF32_steps (AccF32Object *self, PyObject *args)
   if (!in_arr)
     return NULL;
 
-  acc_f32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
-                 (size_t)PyArray_SIZE (in_arr));
+  dp_acc_f32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                    (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
   Py_RETURN_NONE;
 }
@@ -108,7 +108,7 @@ AccF32_get_acc (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)acc_f32_get_acc (self->handle));
+  return PyFloat_FromDouble ((double)dp_acc_f32_get_acc (self->handle));
 }
 
 static PyObject *
@@ -122,7 +122,7 @@ AccF32_set_acc (AccF32Object *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
-  acc_f32_set_acc (self->handle, v);
+  dp_acc_f32_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -133,7 +133,7 @@ AccF32_get (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  float y = acc_f32_get (self->handle);
+  float y = dp_acc_f32_get (self->handle);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -145,7 +145,7 @@ AccF32_dump (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  float y = acc_f32_dump (self->handle);
+  float y = dp_acc_f32_dump (self->handle);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -179,7 +179,7 @@ AccF32_madd (AccF32Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
-  acc_f32_madd (self->handle, x, x_len, h, h_len);
+  dp_acc_f32_madd (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
   Py_RETURN_NONE;
@@ -205,7 +205,7 @@ AccF32_add2d (AccF32Object *self, PyObject *args, PyObject *kwds)
     }
   const float *x     = (const float *)PyArray_DATA (x_arr);
   size_t       x_len = (size_t)PyArray_SIZE (x_arr);
-  acc_f32_add2d (self->handle, x, x_len);
+  dp_acc_f32_add2d (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -240,7 +240,7 @@ AccF32_madd2d (AccF32Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
-  acc_f32_madd2d (self->handle, x, x_len, h, h_len);
+  dp_acc_f32_madd2d (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
   Py_RETURN_NONE;
@@ -254,7 +254,7 @@ AccF32_state_bytes (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (acc_f32_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_acc_f32_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -265,11 +265,11 @@ AccF32_get_state (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = acc_f32_state_bytes (self->handle);
+  size_t    _n = dp_acc_f32_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  acc_f32_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_acc_f32_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -286,12 +286,12 @@ AccF32_set_state (AccF32Object *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != acc_f32_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_acc_f32_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (acc_f32_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_acc_f32_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -304,7 +304,7 @@ AccF32_destroy (AccF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      acc_f32_destroy (self->handle);
+      dp_acc_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -323,7 +323,7 @@ AccF32_exit (AccF32Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      acc_f32_destroy (self->handle);
+      dp_acc_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -333,7 +333,8 @@ static PyMethodDef AccF32_methods[] = {
   { "reset", (PyCFunction)AccF32_reset, METH_NOARGS,
     "Zero the accumulator, restoring the same state as a fresh\n"
     "``AccF32(0.0)`` — regardless of the value supplied to\n"
-    "``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return ``0.0``\n"
+    "``dp_acc_f32_create``. Subsequent ``get`` / ``dump`` calls return "
+    "``0.0``\n"
     "until new samples are processed.\n"
     "\n"
     "Examples\n"
@@ -349,7 +350,7 @@ static PyMethodDef AccF32_methods[] = {
     "\n"
     "Add one sample to the running sum (``acc += x``). This is the\n"
     "hot-path entry point for sample-by-sample processing. For block inputs\n"
-    "prefer ``acc_f32_steps`` to amortise call overhead and allow\n"
+    "prefer ``dp_acc_f32_steps`` to amortise call overhead and allow\n"
     "auto-vectorisation.\n"
     "\n"
     "Parameters\n"
@@ -369,7 +370,7 @@ static PyMethodDef AccF32_methods[] = {
     "steps(x[, out]) -> ndarray\n"
     "\n"
     "Add all samples in ``input`` to the running sum. Equivalent to\n"
-    "calling ``acc_f32_step`` for each element, but SIMD-vectorised on\n"
+    "calling ``dp_acc_f32_step`` for each element, but SIMD-vectorised on\n"
     "platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses\n"
     "JM_RESTRICT so the compiler can assume no aliasing between ``state``\n"
     "and ``input``.\n"
@@ -393,7 +394,7 @@ static PyMethodDef AccF32_methods[] = {
     "Return the current accumulator value without modifying state. Use this "
     "when you need to read the running sum mid-accumulation without "
     "disturbing it. For a read-and-reset in one call use "
-    "``acc_f32_dump``.\n" },
+    "``dp_acc_f32_dump``.\n" },
   { "set_acc", (PyCFunction)AccF32_set_acc, METH_VARARGS,
     "Overwrite the accumulator with a new value. Useful for seeding the "
     "accumulator to a known baseline before processing a new segment without "

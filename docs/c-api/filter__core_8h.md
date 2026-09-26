@@ -53,7 +53,7 @@ _Filter module — public C API._
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**design\_lowpass**](#function-design_lowpass) (double fpass, double fstop, double atten\_db, float \* out) <br> |
+|  void | [**dp\_design\_lowpass**](#function-dp_design_lowpass) (double fpass, double fstop, double atten\_db, float \* out) <br> |
 
 
 
@@ -87,10 +87,10 @@ _Filter module — public C API._
 
 
 
-### function design\_lowpass 
+### function dp\_design\_lowpass 
 
 ```C++
-void design_lowpass (
+void dp_design_lowpass (
     double fpass,
     double fstop,
     double atten_db,

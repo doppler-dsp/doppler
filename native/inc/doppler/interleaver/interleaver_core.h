@@ -21,15 +21,15 @@
  * pure converter.
  *
  * @code
- *   interleaver_state_t *il = interleaver_create (8, 32, 1);
+ *   dp_interleaver_state_t *il = dp_interleaver_create (8, 32, 1);
  *   uint8_t tx[256], rx[256];
- *   interleaver_interleave (il, bits, 256, tx, sizeof tx);
- *   interleaver_deinterleave (il, tx, 256, rx, sizeof rx);
- *   interleaver_destroy (il);
+ *   dp_interleaver_interleave (il, bits, 256, tx, sizeof tx);
+ *   dp_interleaver_deinterleave (il, tx, 256, rx, sizeof rx);
+ *   dp_interleaver_destroy (il);
  * @endcode
  */
-#ifndef INTERLEAVER_CORE_H
-#define INTERLEAVER_CORE_H
+#ifndef DP_INTERLEAVER_CORE_H
+#define DP_INTERLEAVER_CORE_H
 
 #include "doppler/dp_interleave.h"
 
@@ -52,7 +52,7 @@ extern "C"
     size_t rows;      /**< interleaving depth — codewords interleaved   */
     size_t cols;      /**< block span — units per codeword              */
     size_t unit_bits; /**< bits per interleaved unit; 1 bit, 8 octet    */
-  } interleaver_state_t;
+  } dp_interleaver_state_t;
 
   /**
    * @brief Build an interleaver over a @p rows x @p cols block of
@@ -77,13 +77,13 @@ extern "C"
    *
    * @endcode
    */
-  interleaver_state_t *interleaver_create (size_t rows, size_t cols,
+  dp_interleaver_state_t *dp_interleaver_create (size_t rows, size_t cols,
                                            size_t unit_bits);
 
   /**
    * @brief The RECEIVE face of the same interleaver.
    *
-   * Identical construction — it delegates to @c interleaver_create — and it
+   * Identical construction — it delegates to @c dp_interleaver_create — and it
    * exists because the two ends of a link are written by different people.
    * Someone working the receive side reaches for a `Deinterleaver`, and a
    * class that is only findable under the transmit name is a class they do
@@ -99,7 +99,7 @@ extern "C"
    * @param cols      Units per codeword, as the transmitter used.
    * @param unit_bits Bits per interleaved unit, as the transmitter used.
    * @return An interleaver, or NULL on the same refusals as
-   *         @c interleaver_create.
+   *         @c dp_interleaver_create.
    *
    * @code
    * >>> import numpy as np
@@ -113,7 +113,7 @@ extern "C"
    *
    * @endcode
    */
-  interleaver_state_t *interleaver_create_rx (size_t rows, size_t cols,
+  dp_interleaver_state_t *interleaver_create_rx (size_t rows, size_t cols,
                                               size_t unit_bits);
 
   /**
@@ -131,7 +131,7 @@ extern "C"
    *
    * @endcode
    */
-  void interleaver_destroy (interleaver_state_t *state);
+  void dp_interleaver_destroy (dp_interleaver_state_t *state);
 
   /**
    * @brief No-op; an interleaver carries nothing between calls.
@@ -154,7 +154,7 @@ extern "C"
    *
    * @endcode
    */
-  void interleaver_reset (interleaver_state_t *state);
+  void dp_interleaver_reset (dp_interleaver_state_t *state);
 
   /**
    * @brief Bits in one block — `rows * cols * unit_bits`.
@@ -168,7 +168,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_get_block_bits (const interleaver_state_t *state);
+  size_t dp_interleaver_get_block_bits (const dp_interleaver_state_t *state);
 
   /**
    * @brief Output bits for @p n_in input bits — the same number.
@@ -189,13 +189,13 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_interleave_max_out (const interleaver_state_t *state,
+  size_t dp_interleaver_interleave_max_out (const dp_interleaver_state_t *state,
                                          size_t n_in);
 
   /**
    * @brief Output bits for @p n_in input bits — the same number.
    *
-   * Identical to @c interleaver_interleave_max_out, and for the same reason:
+   * Identical to @c dp_interleaver_interleave_max_out, and for the same reason:
    * the inverse of a permutation is a permutation.
    *
    * @param state The interleaver.
@@ -209,7 +209,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_deinterleave_max_out (const interleaver_state_t *state,
+  size_t dp_interleaver_deinterleave_max_out (const dp_interleaver_state_t *state,
                                            size_t n_in);
 
   /**
@@ -227,7 +227,7 @@ extern "C"
    * @endcode
    */
   size_t
-  interleaver_deinterleave_soft_max_out (const interleaver_state_t *state,
+  dp_interleaver_deinterleave_soft_max_out (const dp_interleaver_state_t *state,
                                          size_t n_in);
 
   /**
@@ -236,7 +236,7 @@ extern "C"
    * @param state   The interleaver.
    * @param in      @p n_in bits, one bit per byte.
    * @param n_in    Input length in bits; must be a non-zero multiple of
-   *                @c interleaver_get_block_bits.
+   *                @c dp_interleaver_get_block_bits.
    * @param out     Where to write @p n_in bits; must not overlap @p in.
    * @param max_out Room in @p out, in bits.
    * @return @p n_in on success, 0 if the length is not a whole number of
@@ -254,12 +254,12 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_interleave (interleaver_state_t *state,
+  size_t dp_interleaver_interleave (dp_interleaver_state_t *state,
                                  const uint8_t *in, size_t n_in, uint8_t *out,
                                  size_t max_out);
 
   /**
-   * @brief Undo @ref interleaver_interleave over the same geometry.
+   * @brief Undo @ref dp_interleaver_interleave over the same geometry.
    * @param state   The interleaver.
    * @param in      @p n_in interleaved bits, one bit per byte.
    * @param n_in    Input length in bits; a whole number of blocks.
@@ -278,7 +278,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_deinterleave (interleaver_state_t *state,
+  size_t dp_interleaver_deinterleave (dp_interleaver_state_t *state,
                                    const uint8_t *in, size_t n_in,
                                    uint8_t *out, size_t max_out);
 
@@ -310,7 +310,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_deinterleave_soft (interleaver_state_t *state,
+  size_t dp_interleaver_deinterleave_soft (dp_interleaver_state_t *state,
                                         const float *in, size_t n_in,
                                         float *out, size_t max_out);
 
@@ -328,12 +328,12 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_get_burst_len (const interleaver_state_t *state);
+  size_t dp_interleaver_get_burst_len (const dp_interleaver_state_t *state);
 
   /**
    * @brief Units per codeword — @c cols.
    *
-   * The other half of the link budget: what @ref interleaver_get_burst_len
+   * The other half of the link budget: what @ref dp_interleaver_get_burst_len
    * spreads a burst ACROSS.
    *
    * @code
@@ -343,7 +343,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t interleaver_get_separation (const interleaver_state_t *state);
+  size_t dp_interleaver_get_separation (const dp_interleaver_state_t *state);
 
 #ifdef __cplusplus
 }

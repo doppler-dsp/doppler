@@ -43,15 +43,16 @@ main (void)
 {
   printf ("=== Halfband Decimator Demo ===\n\n");
 
-  HalfbandDecimator_state_t *dec = HalfbandDecimator_create (H_FIR, N_TAPS);
+  dp_HalfbandDecimator_state_t *dec
+      = dp_HalfbandDecimator_create (H_FIR, N_TAPS);
   if (!dec)
     {
-      fprintf (stderr, "ERROR: HalfbandDecimator_create failed\n");
+      fprintf (stderr, "ERROR: dp_HalfbandDecimator_create failed\n");
       return 1;
     }
 
   printf ("Decimator created: %zu taps, rate=%.1f\n\n", (size_t)N_TAPS,
-          HalfbandDecimator_get_rate (dec));
+          dp_HalfbandDecimator_get_rate (dec));
 
   /* Complex tone at f_n = 0.125 (eighth rate — well inside passband) */
   const double tone_freq = 0.125;
@@ -66,7 +67,7 @@ main (void)
   printf ("Input RMS:  %.2f dBFS\n\n", rms_db (in, N_IN));
 
   float _Complex out[32];
-  size_t n_out = HalfbandDecimator_execute (dec, in, N_IN, out, N_IN);
+  size_t n_out = dp_HalfbandDecimator_execute (dec, in, N_IN, out, N_IN);
 
   printf ("Output: %zu samples (2:1 decimation)\n", n_out);
   printf ("Output RMS: %.2f dBFS\n\n", rms_db (out, n_out));
@@ -78,6 +79,6 @@ main (void)
     printf ("%-4zu  %+10.6f  %+10.6f\n", k, (double)crealf (out[k]),
             (double)cimagf (out[k]));
 
-  HalfbandDecimator_destroy (dec);
+  dp_HalfbandDecimator_destroy (dec);
   return 0;
 }

@@ -23,10 +23,10 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_imdmeas[] = {
-    (jm_any_fn)imdmeas_create,
-    (jm_any_fn)imdmeas_destroy,
-    (jm_any_fn)imdmeas_reset,
-    (jm_any_fn)imdmeas_analyze,
-    (jm_any_fn)imdmeas_spectrum_dbfs_max_out,
-    (jm_any_fn)imdmeas_spectrum_dbfs,
+    (jm_any_fn)dp_imdmeas_create,
+    (jm_any_fn)dp_imdmeas_destroy,
+    (jm_any_fn)dp_imdmeas_reset,
+    (jm_any_fn)dp_imdmeas_analyze,
+    (jm_any_fn)dp_imdmeas_spectrum_dbfs_max_out,
+    (jm_any_fn)dp_imdmeas_spectrum_dbfs,
 };

@@ -6,16 +6,16 @@
  * with the integer-phase `lo` NCO (carrier wipe-off); every `tsamps` samples it
  * dumps the coherent integrate-and-dump accumulator, runs a decision-directed
  * Costas phase discriminator, filters the error through an embedded 2nd-order
- * @ref loop_filter_state_t, and steers the NCO frequency + phase.  It tracks a
+ * @ref dp_loop_filter_state_t, and steers the NCO frequency + phase.  It tracks a
  * small *residual* carrier offset (the bulk Doppler is removed upstream by FFT
  * acquisition); the steering NCO is `lo`, so the phase is bounded and exactly
  * reproducible (no double-accumulator drift).
  *
- * The block API (costas_steps) is the Python face; the JM_FORCEINLINE
+ * The block API (dp_costas_steps) is the Python face; the JM_FORCEINLINE
  * costas_wipeoff()/costas_update() are the C composition API a despreader /
  * tracking channel inlines into its own sample loop.
  *
- * Lifecycle: `costas_create -> (steps / configure / reset)* -> costas_destroy`,
+ * Lifecycle: `dp_costas_create -> (steps / configure / reset)* -> dp_costas_destroy`,
  * or embed by value with costas_init().
  *
  * Set `bn_fll > 0` to enable FLL assist (a wide-pull-in frequency-lock loop
@@ -23,15 +23,15 @@
  * Costas PLL.
  *
  * @code
- * costas_state_t *c = costas_create(0.05, 0.707, 0.01, 64, 0.0);
+ * dp_costas_state_t *c = dp_costas_create(0.05, 0.707, 0.01, 64, 0.0);
  * float _Complex sym[16];
- * size_t k = costas_steps(c, rx, rx_len, sym, 16);  // one prompt per symbol
+ * size_t k = dp_costas_steps(c, rx, rx_len, sym, 16);  // one prompt per symbol
  * double f = c->nco.norm_freq;                       // tracked residual
- * costas_destroy(c);
+ * dp_costas_destroy(c);
  * @endcode
  */
-#ifndef COSTAS_CORE_H
-#define COSTAS_CORE_H
+#ifndef DP_COSTAS_CORE_H
+#define DP_COSTAS_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -69,14 +69,14 @@ typedef struct {
 /**
  * @brief Costas loop state.
  *
- * Allocate with costas_create(), or embed by value and costas_init().
+ * Allocate with dp_costas_create(), or embed by value and costas_init().
  * The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the
  * inline composition helpers can drive them; treat the integrate-and-dump and
  * diagnostic fields as internal.
  */
 typedef struct {
-    lo_state_t nco;          /**< integer carrier NCO (uint32 phase).      */
-    loop_filter_state_t lf;  /**< 2nd-order carrier PI loop (PLL).         */
+    dp_lo_state_t nco;          /**< integer carrier NCO (uint32 phase).      */
+    dp_loop_filter_state_t lf;  /**< 2nd-order carrier PI loop (PLL).         */
     size_t tsamps;           /**< samples per symbol (integrate-and-dump). */
     double seed_norm_freq;   /**< create-time carrier freq, for reset.     */
     double bn;               /**< PLL loop noise bandwidth (retained).     */
@@ -88,17 +88,17 @@ typedef struct {
     float _Complex prev;      /**< previous symbol's prompt (FLL cross).    */
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of |Re P|/|P| (1 = locked).          */
-    lockdet_state_t lock;    /**< decision rule on lock_metric: thresholds
+    dp_lockdet_state_t lock;    /**< decision rule on lock_metric: thresholds
                                   + verify counters, stepped per symbol.   */
     double last_error;       /**< last PLL discriminator (loop stress).    */
     costas_tlm_t tlm;        /**< live telemetry attachment; zeroed in blobs */
-} costas_state_t;
+} dp_costas_state_t;
 
 /**
  * @brief Initialise a Costas loop in place (no allocation).
  *
- * The by-value counterpart to costas_create(): a tracking channel that embeds
- * a costas_state_t initialises it here.  Seeds the NCO at @p init_norm_freq and
+ * The by-value counterpart to dp_costas_create(): a tracking channel that embeds
+ * a dp_costas_state_t initialises it here.  Seeds the NCO at @p init_norm_freq and
  * the loop integrator to the matching per-symbol frequency so de-rotation is
  * correct from the first sample.
  *
@@ -109,7 +109,7 @@ typedef struct {
  * @param tsamps          Samples per symbol (the integrate-and-dump period).
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  */
-void costas_init(costas_state_t *s, double bn, double zeta,
+void costas_init(dp_costas_state_t *s, double bn, double zeta,
                  double init_norm_freq, size_t tsamps, double bn_fll);
 
 /**
@@ -123,7 +123,7 @@ void costas_init(costas_state_t *s, double bn, double zeta,
  * @return The de-rotated sample to feed the integrator.
  */
 JM_FORCEINLINE JM_HOT float _Complex
-costas_wipeoff(costas_state_t *s, float _Complex x)
+costas_wipeoff(dp_costas_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
@@ -132,7 +132,7 @@ costas_wipeoff(costas_state_t *s, float _Complex x)
  * @brief Per-symbol carrier update: discriminator -> loop filter -> steer NCO.
  *
  * Runs the decision-directed BPSK Costas discriminator on the prompt @p P,
- * filters it, and writes the new frequency (lo_set_norm_freq) plus a
+ * filters it, and writes the new frequency (dp_lo_set_norm_freq) plus a
  * proportional phase nudge into the NCO.  Updates the lock metric and
  * last_error (the instantaneous loop stress).  Inline for composition.
  *
@@ -140,7 +140,7 @@ costas_wipeoff(costas_state_t *s, float _Complex x)
  * @param P  The dumped integrate-and-dump prompt for this symbol.
  */
 JM_FORCEINLINE JM_HOT void
-costas_update(costas_state_t *s, float _Complex P)
+costas_update(dp_costas_state_t *s, float _Complex P)
 {
     float reP = crealf(P), imP = cimagf(P);
     float aP = cabsf(P) + COSTAS_EPS;
@@ -166,10 +166,10 @@ costas_update(costas_state_t *s, float _Complex P)
     }
     s->prev = P;
     s->have_prev = 1;
-    loop_filter_step(&s->lf, e);
+    dp_loop_filter_step(&s->lf, e);
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
-    lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
+    dp_lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
      * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
@@ -180,7 +180,7 @@ costas_update(costas_state_t *s, float _Complex P)
     /* verify-counted decision on the smoothed metric (lockdet_core.h):
      * hysteresis keeps a metric grazing the threshold from chattering
      * `locked`. Inline POD step — no call, one branch per symbol. */
-    (void)lockdet_step(&s->lock, s->lock_metric);
+    (void)dp_lockdet_step(&s->lock, s->lock_metric);
 }
 
 /**
@@ -192,15 +192,15 @@ costas_update(costas_state_t *s, float _Complex P)
  * @param tsamps          Samples per symbol (default 64).
  * @param bn_fll          FLL-assist bandwidth (default 0.0 = pure PLL).
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call costas_destroy() when done.
+ * @note Caller must call dp_costas_destroy() when done.
  */
-costas_state_t *costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
+dp_costas_state_t *dp_costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
 
 /**
  * @brief Destroy a Costas instance and release all memory.
  * @param state  May be NULL.
  */
-void costas_destroy(costas_state_t *state);
+void dp_costas_destroy(dp_costas_state_t *state);
 
 /**
  * @brief Re-seed the loop to its create-time frequency/phase; keep config.
@@ -232,7 +232,7 @@ void costas_destroy(costas_state_t *state);
  *
  * @endcode
  */
-void costas_reset(costas_state_t *state);
+void dp_costas_reset(dp_costas_state_t *state);
 
 /**
  * @brief Emit the carrier loop's telemetry records for the symbol just
@@ -250,7 +250,7 @@ void costas_reset(costas_state_t *state);
  *
  * @param s  State with a non-NULL tlm.ctx (caller-checked).
  */
-void costas_tlm_flush(const costas_state_t *s);
+void costas_tlm_flush(const dp_costas_state_t *s);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
@@ -259,13 +259,13 @@ void costas_tlm_flush(const costas_state_t *s);
 #define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
 
 /** @brief Serialized-state byte size. */
-size_t costas_state_bytes(const costas_state_t *state);
+size_t dp_costas_state_bytes(const dp_costas_state_t *state);
 /** @brief Serialize the full loop state into @p blob. */
-void costas_get_state(const costas_state_t *state, void *blob);
+void dp_costas_get_state(const dp_costas_state_t *state, void *blob);
 /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
-int costas_set_state(costas_state_t *state, const void *blob);
+int dp_costas_set_state(dp_costas_state_t *state, const void *blob);
 
-size_t costas_steps_max_out(costas_state_t *state);
+size_t dp_costas_steps_max_out(dp_costas_state_t *state);
 
 /**
  * @brief De-rotate a cf32 block with the carrier NCO, integrate-and-dump each
@@ -307,7 +307,7 @@ size_t costas_steps_max_out(costas_state_t *state);
  *
  * @endcode
  */
-size_t costas_steps(costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /**
  * @brief Recompute the loop-filter gains for a new (@p bn, @p zeta) without
@@ -331,19 +331,19 @@ size_t costas_steps(costas_state_t *state, const float _Complex *x, size_t x_len
  *
  * @endcode
  */
-void costas_configure(costas_state_t *state, double bn, double zeta);
-double costas_get_bn(const costas_state_t *state);
-void costas_set_bn(costas_state_t *state, double val);
-double costas_get_norm_freq(const costas_state_t *state);
+void dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
+double dp_costas_get_bn(const dp_costas_state_t *state);
+void dp_costas_set_bn(dp_costas_state_t *state, double val);
+double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +
  * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the
  * integrator-only get_norm_freq. */
-double costas_get_nco_freq(const costas_state_t *state);
-void costas_set_norm_freq(costas_state_t *state, double val);
-double costas_get_lock_metric(const costas_state_t *state);
-double costas_get_last_error(const costas_state_t *state);
-double costas_get_bn_fll(const costas_state_t *state);
-void costas_set_bn_fll(costas_state_t *state, double val);
+double costas_get_nco_freq(const dp_costas_state_t *state);
+void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
+double dp_costas_get_lock_metric(const dp_costas_state_t *state);
+double dp_costas_get_last_error(const dp_costas_state_t *state);
+double dp_costas_get_bn_fll(const dp_costas_state_t *state);
+void dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
 
 /**
  * @brief Re-tune the carrier lock detector's thresholds and verify counts.
@@ -379,14 +379,14 @@ void costas_set_bn_fll(costas_state_t *state, double val);
  *
  * @endcode
  */
-void costas_configure_lock(costas_state_t *state, double up_thresh,
+void dp_costas_configure_lock(dp_costas_state_t *state, double up_thresh,
                            double down_thresh, uint32_t n_up,
                            uint32_t n_down);
 
 /** @brief Current carrier lock decision (1 = locked, 0 = not), from the
  *         verify-counted detector on the lock-metric EMA (see
- *         costas_configure_lock). */
-int costas_get_locked(const costas_state_t *state);
+ *         dp_costas_configure_lock). */
+int dp_costas_get_locked(const dp_costas_state_t *state);
 
 /**
  * @brief Attach (or detach) a telemetry context and register the carrier
@@ -396,7 +396,7 @@ int costas_get_locked(const costas_state_t *state);
  * phase-locked), "<prefix>.e" (the PLL discriminator output — the loop
  * stress), "<prefix>.freq" (the tracked NCO frequency, cycles/sample) and
  * "<prefix>.locked" (the verify-counted lock decision, 0/1 — see
- * costas_configure_lock). Passing NULL detaches.  Setup path, never hot:
+ * dp_costas_configure_lock). Passing NULL detaches.  Setup path, never hot:
  * call before the producer thread starts stepping; the context is
  * borrowed and must outlive the attachment (SPSC rules in
  * dp_tlm/dp_tlm_core.h).
@@ -424,7 +424,7 @@ int costas_get_locked(const costas_state_t *state);
  *
  * @endcode
  */
-int costas_set_telemetry(costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+int dp_costas_set_telemetry(dp_costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 #ifdef __cplusplus
 }
 #endif

@@ -11,7 +11,7 @@
 #define BH_A3 0.01168
 
 void
-blackman_harris_window (float *w, size_t w_len)
+dp_blackman_harris_window (float *w, size_t w_len)
 {
   if (w_len == 1)
     {

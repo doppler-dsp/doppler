@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef MPSK_RECEIVER_CORE_H
-#define MPSK_RECEIVER_CORE_H
+#ifndef DP_MPSK_RECEIVER_CORE_H
+#define DP_MPSK_RECEIVER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/ddc/ddc_core.h"
@@ -45,8 +45,8 @@ extern "C"
   {
     union
     {
-      ddc_state_t  *c; 
-      ddcr_state_t *r; 
+      dp_ddc_state_t  *c; 
+      dp_ddcr_state_t *r; 
     } fe;
     mpsk_rx_loops_t l; 
     /* ── config (restored by create(), never packed in a state blob) ── */
@@ -55,16 +55,16 @@ extern "C"
        cascade's own configuration, free to drift out of step with it. */
     int    real;        
     double centre_freq; 
-  } mpsk_receiver_state_t;
+  } dp_mpsk_receiver_state_t;
 
-  mpsk_receiver_state_t *
-  mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
+  dp_mpsk_receiver_state_t *
+  dp_mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                         double rrc_beta, int rrc_span, double bn_carrier,
                         double zeta, double bn_timing, double lock_thresh,
                         double init_norm_freq, int differential,
                         size_t num_phases, int agc, double bn_agc_ratio);
 
-  mpsk_receiver_state_t *
+  dp_mpsk_receiver_state_t *
   mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                              double rrc_beta, int rrc_span, double bn_carrier,
                              double zeta, double bn_timing,
@@ -72,19 +72,19 @@ extern "C"
                              int differential, size_t num_phases, int agc,
                              double bn_agc_ratio);
 
-  double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state);
 
-  mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
+  dp_mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
       double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
       int pulse, double rrc_beta, int rrc_span, double bn_carrier,
       double bn_timing, int differential, int agc);
 
-  void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
+  void dp_mpsk_receiver_destroy (dp_mpsk_receiver_state_t *state);
 
-  void mpsk_receiver_reset (mpsk_receiver_state_t *state);
+  void dp_mpsk_receiver_reset (dp_mpsk_receiver_state_t *state);
 
   JM_FORCEINLINE JM_HOT int
-  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float _Complex x,
+  mpsk_receiver_step_ted (dp_mpsk_receiver_state_t *s, float _Complex x,
                           float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
@@ -95,7 +95,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  mpsk_receiver_step_real_ted (mpsk_receiver_state_t *s, float x,
+  mpsk_receiver_step_real_ted (dp_mpsk_receiver_state_t *s, float x,
                                float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
@@ -105,59 +105,59 @@ extern "C"
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
 
-  size_t mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_steps (mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_steps_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_steps (dp_mpsk_receiver_state_t *state,
                               const float _Complex *x, size_t x_len,
                               float _Complex *out, size_t max_out);
 
-  size_t mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_bits (mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_bits (dp_mpsk_receiver_state_t *state,
                              const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
-  size_t mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_steps_real (mpsk_receiver_state_t *state,
+  size_t mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state,
                                    const float *x, size_t x_len,
                                    float _Complex *out, size_t max_out);
 
-  size_t mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,
+  size_t mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
                                   size_t x_len, uint8_t *out, size_t max_out);
 
-  double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
-  double mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state);
-  void mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
-  double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
-  int mpsk_receiver_get_locked (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
+  void dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val);
+  double dp_mpsk_receiver_get_lock (const dp_mpsk_receiver_state_t *state);
+  int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
 
-  int64_t mpsk_receiver_get_lock_time (const mpsk_receiver_state_t *state);
-  double mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state);
+  int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
 
-  int mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
+  int dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
-  double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
-  int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
-  double mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_timing_rate (const dp_mpsk_receiver_state_t *state);
+  int    dp_mpsk_receiver_get_m (const dp_mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_sps (const dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_get_m_out (const dp_mpsk_receiver_state_t *state);
 
-  double mpsk_receiver_get_zeta (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_zeta (const dp_mpsk_receiver_state_t *state);
 
-  double mpsk_receiver_get_bn_agc_ratio (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_bn_agc_ratio (const dp_mpsk_receiver_state_t *state);
 
-  double mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state);
-
-  double
-  mpsk_receiver_get_lock_drop_thresh (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_lock_thresh (const dp_mpsk_receiver_state_t *state);
 
   double
-  mpsk_receiver_get_sync_lock_thresh (const mpsk_receiver_state_t *state);
+  dp_mpsk_receiver_get_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
   double
-  mpsk_receiver_get_sync_lock_drop_thresh (const mpsk_receiver_state_t *state);
+  dp_mpsk_receiver_get_sync_lock_thresh (const dp_mpsk_receiver_state_t *state);
 
-  size_t mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state);
+  double
+  dp_mpsk_receiver_get_sync_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
-  int mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_get_num_phases (const dp_mpsk_receiver_state_t *state);
+
+  int dp_mpsk_receiver_get_clipped (const dp_mpsk_receiver_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: the front end's and the loops' self-validating child blobs.
  * Every scalar this object carries across inputs lives in one of them; the
@@ -173,10 +173,10 @@ extern "C"
 #define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
 #define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
 #define MPSK_RECEIVER_R_STATE_VERSION 2u
-  size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
-  void   mpsk_receiver_get_state (const mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *state);
+  void   dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *state,
                                   void                        *blob);
-  int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);
+  int dp_mpsk_receiver_set_state (dp_mpsk_receiver_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

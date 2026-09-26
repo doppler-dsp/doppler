@@ -59,11 +59,11 @@ window-tiling mechanism of §4 instead — see the warning immediately below.
 
 It also sits in **one corner** of the acquisition design space, with three gaps:
 
-| Gap                  | Today                                                                                                                                                                                                                      | Why it matters                                                                                      |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset. *Since shipped:* the carry serializes (`acq_state_bytes`/`get_state`/`set_state`, §10 P0) and hands off across pods (§10 P4). | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
-| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent looks (`n_noncoh>1`) extend it on the continuous engine only; a burst engine never adds them (§10).                                                       | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
-| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments. *Since shipped:* `doppler_rate` caps the depth so the ramp stays linear; the de-chirp search (P3) has not.                                                  | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
+| Gap                  | Today                                                                                                                                                                                                                         | Why it matters                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset. *Since shipped:* the carry serializes (`dp_acq_state_bytes`/`get_state`/`set_state`, §10 P0) and hands off across pods (§10 P4). | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
+| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent looks (`n_noncoh>1`) extend it on the continuous engine only; a burst engine never adds them (§10).                                                          | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
+| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments. *Since shipped:* `doppler_rate` caps the depth so the ramp stays linear; the de-chirp search (P3) has not.                                                     | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
 
 This document defines the problem and terms precisely, frames every acquisition
 method as one **cross-ambiguity function (CAF)**, lays out the trade space, and
@@ -392,9 +392,9 @@ that POD (the precedent the `ddc_fn` handle module set before it became the `Ddc
 object: opaque state across free functions, GIL released via `nogil`); processes and pods serialize the **same bytes**. One representation,
 two faces — no second format to maintain.
 
-**The engine becomes a thin wrapper.** `acq_state_t` (shared by both
+**The engine becomes a thin wrapper.** `dp_acq_state_t` (shared by both
 `BurstAcquisition` and `Acquisition`) keeps the ring (leftover + offset) and
-the carry buffers; `acq_push` drains the ring into `ny·nx` blocks, calls
+the carry buffers; `dp_acq_push` drains the ring into `ny·nx` blocks, calls
 `acq_caf_tile` per shard, feeds dumps to `acq_nc_accumulate`, and gates after
 `N_nc` looks. The hot math lives entirely in the pure kernel; the wrapper owns the
 carry and the streaming glue. Today's behavior is the `N_nc = 1`, single-shard
@@ -426,7 +426,7 @@ shards  =  coarse_Doppler bins  ×  rate hypotheses  ×  time blocks
 
 Orchestration across shards is the **caller's job**. Inside one engine, the
 window tiles fan out over the engine's own persistent worker pool
-(`acq_set_threads()` / `Acquisition.set_threads()`, read back as `threads`).
+(`dp_acq_set_threads()` / `Acquisition.set_threads()`, read back as `threads`).
 Start **Python-first** — thread-per-shard, mirroring the coarse-bank loop already
 in the usage guide — and promote to Rust later (the FFI layer has no acq/detection
 today; the C ABI is the parallel substrate regardless).
@@ -442,7 +442,7 @@ so the slow-time FFT, ring, and CFAR are a few-percent tail and the engine is
 **Update — shipped:** `corr2d` now exploits a structural fact this section's
 own numbers motivated but didn't yet act on: `acq`'s reference is single-row
 (row 0 only), so `ref_spec` is row-frequency-invariant and the row axis of
-`corr2d_execute`'s forward-accumulate-inverse round trip is an *exact*
+`dp_corr2d_execute`'s forward-accumulate-inverse round trip is an *exact*
 identity for any row content (DFT orthogonality) — `corr2d` was paying for a
 full row-axis FFT and IFFT every frame that provably cancelled to a no-op.
 A fast path (`native/src/corr2d/corr2d_core.c`, see
@@ -800,9 +800,9 @@ objects it CAPS the coherent depth at `f_epoch / sqrt(2 * doppler_rate)`, so it
 can only lower the depth, never raise it.
 
 **P0 (stateless kernel) — substantially shipped, via a coarser mechanism
-than specified below.** `acq_run`/`acq_state_bytes`/`acq_get_state`/
-`acq_set_state` (`native/src/acq/acq_core.c`,
-[acq-fn.md](acq-fn.md)) give the shared `acq_state_t` engine the
+than specified below.** `acq_run`/`dp_acq_state_bytes`/`dp_acq_get_state`/
+`dp_acq_set_state` (`native/src/acq/acq_core.c`,
+[acq-fn.md](acq-fn.md)) give the shared `dp_acq_state_t` engine the
 pure-transducer / serializable-carry properties P0 asks for, but not via the
 `acq_caf_tile` tile-level kernel extraction this section's table row
 describes — that finer decomposition hasn't been built.

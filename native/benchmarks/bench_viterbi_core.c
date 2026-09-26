@@ -75,30 +75,30 @@ main (void)
   printf ("k=%u rate 1/2 (0%o, 0%o), %zu info bits/round, %d rounds\n\n", K,
           POLY[0], POLY[1], n_in, ITERATIONS);
 
-  const size_t      depths[2] = { 35, 96 };
-  const char *const names[2]  = { "decode[depth=35]", "decode[depth=96]" };
-  static double     t_dec[2][ITERATIONS];
-  viterbi_state_t  *v[2];
-  uint8_t          *dec[2];
-  size_t            cap[2];
+  const size_t        depths[2] = { 35, 96 };
+  const char *const   names[2]  = { "decode[depth=35]", "decode[depth=96]" };
+  static double       t_dec[2][ITERATIONS];
+  dp_viterbi_state_t *v[2];
+  uint8_t            *dec[2];
+  size_t              cap[2];
 
   for (int d = 0; d < 2; d++)
     {
-      v[d] = viterbi_create (POLY, 2, K, INVERT, depths[d]);
+      v[d] = dp_viterbi_create (POLY, 2, K, INVERT, depths[d]);
       if (!v[d])
         {
           (void)fprintf (stderr, "bench_viterbi: create(depth=%zu) NULL\n",
                          depths[d]);
           return 1;
         }
-      cap[d] = viterbi_decode_max_out (v[d], n_cod);
+      cap[d] = dp_viterbi_decode_max_out (v[d], n_cod);
       dec[d] = malloc (cap[d] ? cap[d] : 1);
       if (!dec[d])
         return 1;
 
       /* A decoder that emits nothing would time the refusal, not the
          trellis. */
-      if (viterbi_decode (v[d], llr, n_cod, dec[d], cap[d]) == 0)
+      if (dp_viterbi_decode (v[d], llr, n_cod, dec[d], cap[d]) == 0)
         {
           (void)fprintf (stderr,
                          "bench_viterbi: depth=%zu decoded 0 of %zu symbols "
@@ -119,8 +119,8 @@ main (void)
   w0 = jm_bench_now_ns ();
   do
     {
-      viterbi_reset (v[0]);
-      sink += viterbi_decode (v[0], llr, n_cod, dec[0], cap[0]);
+      dp_viterbi_reset (v[0]);
+      sink += dp_viterbi_decode (v[0], llr, n_cod, dec[0], cap[0]);
       w1 = jm_bench_now_ns ();
     }
   while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -133,9 +133,9 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int d = 0; d < 2; d++)
       {
-        viterbi_reset (v[d]);
+        dp_viterbi_reset (v[d]);
         t0 = jm_bench_now_ns ();
-        sink += viterbi_decode (v[d], llr, n_cod, dec[d], cap[d]);
+        sink += dp_viterbi_decode (v[d], llr, n_cod, dec[d], cap[d]);
         t1          = jm_bench_now_ns ();
         t_dec[d][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -147,7 +147,7 @@ main (void)
       printf ("  %-18s %8.2f ns/info-bit   %7.2f Mbit/s\n", names[d],
               sec / (double)n_in * 1e9, (double)n_in / sec / 1e6);
       free (dec[d]);
-      viterbi_destroy (v[d]);
+      dp_viterbi_destroy (v[d]);
     }
 
   printf ("\n  depth 96 costs %.2fx depth 35 over identical trellis work --\n"

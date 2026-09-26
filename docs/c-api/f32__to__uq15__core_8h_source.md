@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef F32_TO_UQ15_CORE_H
-#define F32_TO_UQ15_CORE_H
+#ifndef DP_F32_TO_UQ15_CORE_H
+#define DP_F32_TO_UQ15_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -23,16 +23,16 @@ extern "C" {
 typedef struct {
     float   scale;   /* multiply factor applied before saturation */
     uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
-} f32_to_uq15_state_t;
+} dp_f32_to_uq15_state_t;
 
-f32_to_uq15_state_t *f32_to_uq15_create(float scale);
+dp_f32_to_uq15_state_t *dp_f32_to_uq15_create(float scale);
 
-void f32_to_uq15_destroy(f32_to_uq15_state_t *state);
+void dp_f32_to_uq15_destroy(dp_f32_to_uq15_state_t *state);
 
-void f32_to_uq15_reset(f32_to_uq15_state_t *state);
+void dp_f32_to_uq15_reset(dp_f32_to_uq15_state_t *state);
 
 JM_FORCEINLINE JM_HOT uint16_t
-f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
+dp_f32_to_uq15_step(dp_f32_to_uq15_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
@@ -44,8 +44,8 @@ f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
     return (uint16_t)((int32_t)v + 32768);
 }
 
-void f32_to_uq15_steps(
-    f32_to_uq15_state_t *state,
+void dp_f32_to_uq15_steps(
+    dp_f32_to_uq15_state_t *state,
     const float    *input,
     uint16_t          *output,
     size_t               n);
@@ -55,9 +55,9 @@ void f32_to_uq15_steps(
  * identically-built instance. */
 #define F32_TO_UQ15_STATE_MAGIC DP_FOURCC ('F','U','1','5')
 #define F32_TO_UQ15_STATE_VERSION 1u
-size_t f32_to_uq15_state_bytes (const f32_to_uq15_state_t *state);
-void f32_to_uq15_get_state (const f32_to_uq15_state_t *state, void *blob);
-int f32_to_uq15_set_state (f32_to_uq15_state_t *state, const void *blob);
+size_t dp_f32_to_uq15_state_bytes (const dp_f32_to_uq15_state_t *state);
+void dp_f32_to_uq15_get_state (const dp_f32_to_uq15_state_t *state, void *blob);
+int dp_f32_to_uq15_set_state (dp_f32_to_uq15_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

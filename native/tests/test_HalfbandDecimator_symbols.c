@@ -23,11 +23,11 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_HalfbandDecimator[] = {
-    (jm_any_fn)HalfbandDecimator_create,
-    (jm_any_fn)HalfbandDecimator_destroy,
-    (jm_any_fn)HalfbandDecimator_reset,
-    (jm_any_fn)HalfbandDecimator_execute_max_out,
-    (jm_any_fn)HalfbandDecimator_execute,
-    (jm_any_fn)HalfbandDecimator_get_rate,
-    (jm_any_fn)HalfbandDecimator_get_num_taps,
+    (jm_any_fn)dp_HalfbandDecimator_create,
+    (jm_any_fn)dp_HalfbandDecimator_destroy,
+    (jm_any_fn)dp_HalfbandDecimator_reset,
+    (jm_any_fn)dp_HalfbandDecimator_execute_max_out,
+    (jm_any_fn)dp_HalfbandDecimator_execute,
+    (jm_any_fn)dp_HalfbandDecimator_get_rate,
+    (jm_any_fn)dp_HalfbandDecimator_get_num_taps,
 };

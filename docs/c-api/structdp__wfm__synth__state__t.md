@@ -1,0 +1,557 @@
+
+
+# Struct dp\_wfm\_synth\_state\_t
+
+
+
+[**ClassList**](annotated.md) **>** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md)
+
+
+
+_Synth state._ [More...](#detailed-description)
+
+* `#include <wfm_synth_core.h>`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Public Attributes
+
+| Type | Name |
+| ---: | :--- |
+|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**awgn**](#variable-awgn)  <br> |
+|  size\_t | [**bit\_idx**](#variable-bit_idx)  <br> |
+|  int | [**bit\_mod**](#variable-bit_mod)  <br> |
+|  uint8\_t \* | [**bits**](#variable-bits)  <br> |
+|  uint64\_t | [**chip\_n**](#variable-chip_n)  <br> |
+|  double | [**chips\_per\_symbol**](#variable-chips_per_symbol)  <br> |
+|  double | [**chirp\_f0**](#variable-chirp_f0)  <br> |
+|  double | [**chirp\_fend**](#variable-chirp_fend)  <br> |
+|  double | [**chirp\_k**](#variable-chirp_k)  <br> |
+|  size\_t | [**chirp\_n**](#variable-chirp_n)  <br> |
+|  double | [**chirp\_ph**](#variable-chirp_ph)  <br> |
+|  size\_t | [**chirp\_span**](#variable-chirp_span)  <br> |
+|  uint8\_t \* | [**code**](#variable-code)  <br> |
+|  size\_t | [**code\_only\_symbols**](#variable-code_only_symbols)  <br> |
+|  uint8\_t | [**cur\_data**](#variable-cur_data)  <br> |
+|  float | [**cur\_im**](#variable-cur_im)  <br> |
+|  float | [**cur\_re**](#variable-cur_re)  <br> |
+|  int | [**data\_mode**](#variable-data_mode)  <br> |
+|  [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* | [**fir**](#variable-fir)  <br> |
+|  size\_t | [**frame\_symbols**](#variable-frame_symbols)  <br> |
+|  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
+|  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
+|  size\_t | [**n\_code**](#variable-n_code)  <br> |
+|  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
+|  int | [**nsps**](#variable-nsps)  <br> |
+|  [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* | [**pn**](#variable-pn)  <br> |
+|  uint8\_t | [**primed**](#variable-primed)  <br> |
+|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**shaper**](#variable-shaper)  <br> |
+|  uint64\_t | [**sym\_idx**](#variable-sym_idx)  <br> |
+|  int | [**sym\_pos**](#variable-sym_pos)  <br> |
+|  size\_t | [**sym\_read\_idx**](#variable-sym_read_idx)  <br> |
+|  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
+|  int | [**wtype**](#variable-wtype)  <br> |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Detailed Description
+
+
+Allocate with [**dp\_wfm\_synth\_create()**](wfm__synth__core_8h.md#function-dp_wfm_synth_create). 
+
+
+    
+## Public Attributes Documentation
+
+
+
+
+### variable awgn 
+
+```C++
+dp_awgn_state_t* dp_wfm_synth_state_t::awgn;
+```
+
+
+
+
+<hr>
+
+
+
+### variable bit\_idx 
+
+```C++
+size_t dp_wfm_synth_state_t::bit_idx;
+```
+
+
+
+
+<hr>
+
+
+
+### variable bit\_mod 
+
+```C++
+int dp_wfm_synth_state_t::bit_mod;
+```
+
+
+
+
+<hr>
+
+
+
+### variable bits 
+
+```C++
+uint8_t* dp_wfm_synth_state_t::bits;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chip\_n 
+
+```C++
+uint64_t dp_wfm_synth_state_t::chip_n;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chips\_per\_symbol 
+
+```C++
+double dp_wfm_synth_state_t::chips_per_symbol;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chirp\_f0 
+
+```C++
+double dp_wfm_synth_state_t::chirp_f0;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chirp\_fend 
+
+```C++
+double dp_wfm_synth_state_t::chirp_fend;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chirp\_k 
+
+```C++
+double dp_wfm_synth_state_t::chirp_k;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chirp\_n 
+
+```C++
+size_t dp_wfm_synth_state_t::chirp_n;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chirp\_ph 
+
+```C++
+double dp_wfm_synth_state_t::chirp_ph;
+```
+
+
+
+
+<hr>
+
+
+
+### variable chirp\_span 
+
+```C++
+size_t dp_wfm_synth_state_t::chirp_span;
+```
+
+
+
+
+<hr>
+
+
+
+### variable code 
+
+```C++
+uint8_t* dp_wfm_synth_state_t::code;
+```
+
+
+
+
+<hr>
+
+
+
+### variable code\_only\_symbols 
+
+```C++
+size_t dp_wfm_synth_state_t::code_only_symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable cur\_data 
+
+```C++
+uint8_t dp_wfm_synth_state_t::cur_data;
+```
+
+
+
+
+<hr>
+
+
+
+### variable cur\_im 
+
+```C++
+float dp_wfm_synth_state_t::cur_im;
+```
+
+
+
+
+<hr>
+
+
+
+### variable cur\_re 
+
+```C++
+float dp_wfm_synth_state_t::cur_re;
+```
+
+
+
+
+<hr>
+
+
+
+### variable data\_mode 
+
+```C++
+int dp_wfm_synth_state_t::data_mode;
+```
+
+
+
+
+<hr>
+
+
+
+### variable fir 
+
+```C++
+dp_fir_state_t* dp_wfm_synth_state_t::fir;
+```
+
+
+
+
+<hr>
+
+
+
+### variable frame\_symbols 
+
+```C++
+size_t dp_wfm_synth_state_t::frame_symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable lo 
+
+```C++
+dp_lo_state_t* dp_wfm_synth_state_t::lo;
+```
+
+
+
+
+<hr>
+
+
+
+### variable n\_bits 
+
+```C++
+size_t dp_wfm_synth_state_t::n_bits;
+```
+
+
+
+
+<hr>
+
+
+
+### variable n\_code 
+
+```C++
+size_t dp_wfm_synth_state_t::n_code;
+```
+
+
+
+
+<hr>
+
+
+
+### variable n\_symbols 
+
+```C++
+size_t dp_wfm_synth_state_t::n_symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable nsps 
+
+```C++
+int dp_wfm_synth_state_t::nsps;
+```
+
+
+
+
+<hr>
+
+
+
+### variable pn 
+
+```C++
+dp_pn_state_t* dp_wfm_synth_state_t::pn;
+```
+
+
+
+
+<hr>
+
+
+
+### variable primed 
+
+```C++
+uint8_t dp_wfm_synth_state_t::primed;
+```
+
+
+
+
+<hr>
+
+
+
+### variable shaper 
+
+```C++
+resamp_state_t* dp_wfm_synth_state_t::shaper;
+```
+
+
+
+
+<hr>
+
+
+
+### variable sym\_idx 
+
+```C++
+uint64_t dp_wfm_synth_state_t::sym_idx;
+```
+
+
+
+
+<hr>
+
+
+
+### variable sym\_pos 
+
+```C++
+int dp_wfm_synth_state_t::sym_pos;
+```
+
+
+
+
+<hr>
+
+
+
+### variable sym\_read\_idx 
+
+```C++
+size_t dp_wfm_synth_state_t::sym_read_idx;
+```
+
+
+
+
+<hr>
+
+
+
+### variable symbols 
+
+```C++
+float _Complex* dp_wfm_synth_state_t::symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable wtype 
+
+```C++
+int dp_wfm_synth_state_t::wtype;
+```
+
+
+
+
+<hr>
+
+------------------------------
+The documentation for this class was generated from the following file `native/inc/doppler/wfm_synth/wfm_synth_core.h`
+

@@ -58,40 +58,40 @@ main (void)
 
   /* ---- 1. carrier offset is fc * d ------------------------------------ */
   {
-    doppler_channel_state_t *ch
-        = doppler_channel_create (T_FS, T_FC, T_PPM, 0.0);
+    dp_doppler_channel_state_t *ch
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, 0.0);
     DP_CHECK (ch != NULL);
-    size_t          cap = doppler_channel_execute_max_out (ch);
+    size_t          cap = dp_doppler_channel_execute_max_out (ch);
     float _Complex *y   = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
-    size_t n = doppler_channel_execute (ch, x, T_N, y, cap);
+    size_t n = dp_doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (n > 0);
 
     /* +/-2 kHz around the expected 50 kHz, 50 Hz resolution. */
     double f = _peak_hz (y, n < 4096 ? n : 4096, T_FS, 48000.0, 52000.0, 50.0);
     DP_CHECK (dp_nearf (f, T_FC * T_PPM * 1e-6, 200.0f));
-    DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch), 50000.0, 1.0f));
+    DP_CHECK (dp_nearf (dp_doppler_channel_get_offset_hz (ch), 50000.0, 1.0f));
 
     /* ---- 2. the time base dilates: n_out ~= n_in / (1 + d) --------- */
     double expect = (double)T_N / (1.0 + T_PPM * 1e-6);
     DP_CHECK (fabs ((double)n - expect) <= 2.0);
 
     free (y);
-    doppler_channel_destroy (ch);
+    dp_doppler_channel_destroy (ch);
   }
 
   /* ---- 3. d = 0 is a pass-through in rate and carrier alike ----------- */
   {
-    doppler_channel_state_t *ch
-        = doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
+    dp_doppler_channel_state_t *ch
+        = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
     DP_CHECK (ch != NULL);
-    size_t          cap = doppler_channel_execute_max_out (ch);
+    size_t          cap = dp_doppler_channel_execute_max_out (ch);
     float _Complex *y   = malloc (cap * sizeof *y);
-    size_t          n   = doppler_channel_execute (ch, x, T_N, y, cap);
+    size_t          n   = dp_doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (n == T_N);
-    DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch), 0.0, 1e-9f));
+    DP_CHECK (dp_nearf (dp_doppler_channel_get_offset_hz (ch), 0.0, 1e-9f));
     free (y);
-    doppler_channel_destroy (ch);
+    dp_doppler_channel_destroy (ch);
   }
 
   /* ---- 4. the ramp is the INTEGRAL, not t*d(t) ------------------------ */
@@ -99,36 +99,36 @@ main (void)
      A t*d(t) implementation passes every static-Doppler check above and
      fails only here, which is exactly why this case exists. */
   {
-    doppler_channel_state_t *ch
-        = doppler_channel_create (T_FS, T_FC, 0.0, T_RATE);
+    dp_doppler_channel_state_t *ch
+        = dp_doppler_channel_create (T_FS, T_FC, 0.0, T_RATE);
     DP_CHECK (ch != NULL);
-    size_t          cap = doppler_channel_execute_max_out (ch);
+    size_t          cap = dp_doppler_channel_execute_max_out (ch);
     float _Complex *y   = malloc (cap * sizeof *y);
     for (int b = 0; b < 16; b++)
-      (void)doppler_channel_execute (ch, x, T_N, y, cap);
-    double t = doppler_channel_get_elapsed_s (ch);
+      (void)dp_doppler_channel_execute (ch, x, T_N, y, cap);
+    double t = dp_doppler_channel_get_elapsed_s (ch);
     DP_CHECK (t > 0.0);
-    DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch),
+    DP_CHECK (dp_nearf (dp_doppler_channel_get_offset_hz (ch),
                         T_FC * T_RATE * 1e-6 * t, 0.01f));
     free (y);
-    doppler_channel_destroy (ch);
+    dp_doppler_channel_destroy (ch);
   }
 
   /* ---- 5. blockwise == one big call (chunk invariance) ---------------- */
   {
-    doppler_channel_state_t *a
-        = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
-    doppler_channel_state_t *b
-        = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    dp_doppler_channel_state_t *a
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    dp_doppler_channel_state_t *b
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL && b != NULL);
-    size_t          cap = doppler_channel_execute_max_out (a);
+    size_t          cap = dp_doppler_channel_execute_max_out (a);
     float _Complex *ya  = malloc (cap * sizeof *ya);
     float _Complex *yb  = malloc (cap * sizeof *yb);
-    size_t          na  = doppler_channel_execute (a, x, T_N, ya, cap);
+    size_t          na  = dp_doppler_channel_execute (a, x, T_N, ya, cap);
 
     size_t nb = 0;
     for (size_t off = 0; off < T_N; off += 4096)
-      nb += doppler_channel_execute (b, x + off, 4096, yb + nb, cap - nb);
+      nb += dp_doppler_channel_execute (b, x + off, 4096, yb + nb, cap - nb);
 
     DP_CHECK (na == nb);
     int same = 1;
@@ -141,32 +141,32 @@ main (void)
     DP_CHECK (same);
     free (ya);
     free (yb);
-    doppler_channel_destroy (a);
-    doppler_channel_destroy (b);
+    dp_doppler_channel_destroy (a);
+    dp_doppler_channel_destroy (b);
   }
 
   /* ---- 6. mid-stream resume is bit-exact ------------------------------ */
   {
-    doppler_channel_state_t *a
-        = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
-    doppler_channel_state_t *b
-        = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    dp_doppler_channel_state_t *a
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    dp_doppler_channel_state_t *b
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL && b != NULL);
-    size_t          cap = doppler_channel_execute_max_out (a);
+    size_t          cap = dp_doppler_channel_execute_max_out (a);
     float _Complex *ya  = malloc (cap * sizeof *ya);
     float _Complex *yb  = malloc (cap * sizeof *yb);
 
     /* Run `a` through one block, hand its state to `b`, then run both
        over an identical second block: the outputs must agree exactly. */
-    (void)doppler_channel_execute (a, x, 8192, ya, cap);
-    size_t cb   = doppler_channel_state_bytes (a);
+    (void)dp_doppler_channel_execute (a, x, 8192, ya, cap);
+    size_t cb   = dp_doppler_channel_state_bytes (a);
     void  *blob = malloc (cb);
     DP_CHECK (blob != NULL);
-    doppler_channel_get_state (a, blob);
-    DP_CHECK (doppler_channel_set_state (b, blob) == DP_OK);
+    dp_doppler_channel_get_state (a, blob);
+    DP_CHECK (dp_doppler_channel_set_state (b, blob) == DP_OK);
 
-    size_t na = doppler_channel_execute (a, x, 8192, ya, cap);
-    size_t nb = doppler_channel_execute (b, x, 8192, yb, cap);
+    size_t na = dp_doppler_channel_execute (a, x, 8192, ya, cap);
+    size_t nb = dp_doppler_channel_execute (b, x, 8192, yb, cap);
     DP_CHECK (na == nb);
     int same = 1;
     for (size_t k = 0; k < (na < nb ? na : nb); k++)
@@ -180,50 +180,50 @@ main (void)
     free (blob);
     free (ya);
     free (yb);
-    doppler_channel_destroy (a);
-    doppler_channel_destroy (b);
+    dp_doppler_channel_destroy (a);
+    dp_doppler_channel_destroy (b);
   }
 
   /* ---- 7. the standard round-trip + envelope reject ------------------- */
   {
-    doppler_channel_state_t *a
-        = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
-    doppler_channel_state_t *b
-        = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    dp_doppler_channel_state_t *a
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    dp_doppler_channel_state_t *b
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL && b != NULL);
-    size_t          cap = doppler_channel_execute_max_out (a);
+    size_t          cap = dp_doppler_channel_execute_max_out (a);
     float _Complex *y   = malloc (cap * sizeof *y);
-    (void)doppler_channel_execute (a, x, 4096, y, cap);
-    DP_STATE_ROUNDTRIP_TEST (doppler_channel, a, b);
+    (void)dp_doppler_channel_execute (a, x, 4096, y, cap);
+    DP_STATE_ROUNDTRIP_TEST (dp_doppler_channel, a, b);
     free (y);
-    doppler_channel_destroy (a);
-    doppler_channel_destroy (b);
+    dp_doppler_channel_destroy (a);
+    dp_doppler_channel_destroy (b);
   }
 
   /* ---- 8. invalid configuration is rejected, not silently accepted ---- */
-  DP_CHECK (doppler_channel_create (0.0, T_FC, 0.0, 0.0) == NULL);
-  DP_CHECK (doppler_channel_create (-1.0, T_FC, 0.0, 0.0) == NULL);
+  DP_CHECK (dp_doppler_channel_create (0.0, T_FC, 0.0, 0.0) == NULL);
+  DP_CHECK (dp_doppler_channel_create (-1.0, T_FC, 0.0, 0.0) == NULL);
   /* d <= -1 (scale <= 0) would stop or reverse time. Use d = -2 (well inside
    * the rejected region) rather than the exact d = -1 boundary: 1 +
    * (-1e6)*1e-6 is not representable as exactly 0, so it lands at +/-1e-17
    * depending on the platform's FP evaluation (rejected on x86, accepted on
    * arm64/macOS) -- testing the unrepresentable boundary is inherently
    * non-portable. */
-  DP_CHECK (doppler_channel_create (T_FS, T_FC, -2e6, 0.0) == NULL);
+  DP_CHECK (dp_doppler_channel_create (T_FS, T_FC, -2e6, 0.0) == NULL);
 
   /* ---- 9. reset returns both clocks to zero --------------------------- */
   {
-    doppler_channel_state_t *ch
-        = doppler_channel_create (T_FS, T_FC, T_PPM, 0.0);
+    dp_doppler_channel_state_t *ch
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, 0.0);
     DP_CHECK (ch != NULL);
-    size_t          cap = doppler_channel_execute_max_out (ch);
+    size_t          cap = dp_doppler_channel_execute_max_out (ch);
     float _Complex *y   = malloc (cap * sizeof *y);
-    (void)doppler_channel_execute (ch, x, T_N, y, cap);
-    DP_CHECK (doppler_channel_get_elapsed_s (ch) > 0.0);
-    doppler_channel_reset (ch);
-    DP_CHECK (dp_nearf (doppler_channel_get_elapsed_s (ch), 0.0, 1e-12f));
+    (void)dp_doppler_channel_execute (ch, x, T_N, y, cap);
+    DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) > 0.0);
+    dp_doppler_channel_reset (ch);
+    DP_CHECK (dp_nearf (dp_doppler_channel_get_elapsed_s (ch), 0.0, 1e-12f));
     free (y);
-    doppler_channel_destroy (ch);
+    dp_doppler_channel_destroy (ch);
   }
 
   /* ---- 10. the output is delayed by delay_samples, on top of the ---- *
@@ -250,14 +250,14 @@ main (void)
         /* Carrier 0: the pure time-dilation configuration the header names
            for isolating a code loop -- a carrier on the output would
            scramble a real cross-correlation. */
-        doppler_channel_state_t *ch
-            = doppler_channel_create (T_FS, 0.0, ppms[c], 0.0);
+        dp_doppler_channel_state_t *ch
+            = dp_doppler_channel_create (T_FS, 0.0, ppms[c], 0.0);
         DP_CHECK (ch != NULL);
-        double D = doppler_channel_get_delay_samples (ch);
+        double D = dp_doppler_channel_get_delay_samples (ch);
         DP_CHECK (D > 1.0);
-        size_t          cap = doppler_channel_execute_max_out (ch);
+        size_t          cap = dp_doppler_channel_execute_max_out (ch);
         float _Complex *y   = malloc (cap * sizeof *y);
-        size_t          n   = doppler_channel_execute (ch, seq, N, y, cap);
+        size_t          n   = dp_doppler_channel_execute (ch, seq, N, y, cap);
         /* The block centre: where the dilation has bought half a sample
            (k = 0.5 / (ppm*1e-6)), or the stream's middle without one. */
         size_t k0 = c ? (size_t)(0.5 / (T_PPM * 1e-6)) : N / 2;
@@ -285,7 +285,7 @@ main (void)
                 ppms[c], vertex, want);
         DP_CHECK (fabs (vertex - want) < 0.1);
         free (y);
-        doppler_channel_destroy (ch);
+        dp_doppler_channel_destroy (ch);
       }
     free (seq);
   }

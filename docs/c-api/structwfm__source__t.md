@@ -128,7 +128,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 ## Detailed Description
 
 
-The nine synth fields mirror `wfm_synth_create()` (minus `fs`, which is the segment's — one receiver, one sample rate). `level` is the source's average power in dBFS (≤0); the segment sums its sources, each scaled by `10^(level/20)`.
+The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the segment's — one receiver, one sample rate). `level` is the source's average power in dBFS (≤0); the segment sums its sources, each scaled by `10^(level/20)`.
 
 
 Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi` in the `*_hi` companion (see the `ranged` enum). 

@@ -28,7 +28,7 @@ variable_output = true
 pass_capacity = true
 [[awgn.methods]]
 name = "reseed"
-# awgn_reseed returns void; without this jm inherits the object's
+# dp_awgn_reseed returns void; without this jm inherits the object's
 # `float _Complex` return and generates an assignment that will not compile.
 return_type = "void"
 params = [{name = "seed", type = "uint64_t"}]

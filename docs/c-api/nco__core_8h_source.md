@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef NCO_CORE_H
-#define NCO_CORE_H
+#ifndef DP_NCO_CORE_H
+#define DP_NCO_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -108,10 +108,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
     uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
     double   norm_freq; /* normalised frequency (cycles/sample)          */
     uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
-  } nco_state_t;
+  } dp_nco_state_t;
 
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32 (nco_state_t *state)
+  nco_step_u32 (dp_nco_state_t *state)
   {
     uint32_t ph = state->phase;
     state->phase = ph + state->phase_inc;
@@ -119,7 +119,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_scaled (nco_state_t *state)
+  nco_step_u32_scaled (dp_nco_state_t *state)
   {
     uint32_t ph   = state->phase;
     uint32_t nmax = state->nmax;
@@ -128,7 +128,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_ovf (nco_state_t *state, uint8_t *carry)
+  nco_step_u32_ovf (dp_nco_state_t *state, uint8_t *carry)
   {
     uint32_t ph = state->phase;
     *carry      = NCO_ADD_OVF (ph, state->phase_inc, &state->phase);
@@ -136,7 +136,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_ctrl (nco_state_t *state, double ctrl)
+  nco_step_u32_ctrl (dp_nco_state_t *state, double ctrl)
   {
     uint32_t ph = state->phase;
     state->phase = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
@@ -144,7 +144,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_scaled_ctrl (nco_state_t *state, double ctrl)
+  nco_step_u32_scaled_ctrl (dp_nco_state_t *state, double ctrl)
   {
     uint32_t ph   = state->phase;
     uint32_t nmax = state->nmax;
@@ -153,7 +153,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_ovf_ctrl (nco_state_t *state, double ctrl, uint8_t *carry)
+  nco_step_u32_ovf_ctrl (dp_nco_state_t *state, double ctrl, uint8_t *carry)
   {
     uint32_t ph = state->phase;
     /* Wrapping u32 add: bit-for-bit the modulo advance the 64-bit sum
@@ -171,11 +171,11 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
     return ph;
   }
 
-  nco_state_t *nco_create (double norm_freq, uint32_t nmax);
+  dp_nco_state_t *dp_nco_create (double norm_freq, uint32_t nmax);
 
-  void nco_destroy (nco_state_t *state);
+  void dp_nco_destroy (dp_nco_state_t *state);
 
-  void nco_reset (nco_state_t *state);
+  void dp_nco_reset (dp_nco_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Only the running phase accumulator is serialized; phase_inc / nmax are
@@ -185,52 +185,52 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 #define NCO_STATE_MAGIC DP_FOURCC ('N', 'C', 'O', '_')
 #define NCO_STATE_VERSION 1u
 
-  size_t nco_state_bytes (const nco_state_t *state);
-  void nco_get_state (const nco_state_t *state, void *blob);
-  int nco_set_state (nco_state_t *state, const void *blob);
+  size_t dp_nco_state_bytes (const dp_nco_state_t *state);
+  void dp_nco_get_state (const dp_nco_state_t *state, void *blob);
+  int dp_nco_set_state (dp_nco_state_t *state, const void *blob);
 
   /* ---- Properties ---- */
 
-  double nco_get_norm_freq (const nco_state_t *state);
-  void   nco_set_norm_freq (nco_state_t *state, double norm_freq);
+  double dp_nco_get_norm_freq (const dp_nco_state_t *state);
+  void   dp_nco_set_norm_freq (dp_nco_state_t *state, double norm_freq);
 
-  uint32_t nco_get_phase (const nco_state_t *state);
-  void     nco_set_phase (nco_state_t *state, uint32_t phase);
+  uint32_t dp_nco_get_phase (const dp_nco_state_t *state);
+  void     dp_nco_set_phase (dp_nco_state_t *state, uint32_t phase);
 
-  uint32_t nco_get_phase_inc (const nco_state_t *state);
+  uint32_t dp_nco_get_phase_inc (const dp_nco_state_t *state);
 
   /* ---- Block generators ---- */
 
-  size_t nco_steps_u32_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_max_out (dp_nco_state_t *state);
 
-  size_t nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out,
+  size_t dp_nco_steps_u32 (dp_nco_state_t *state, size_t n, uint32_t *out,
                         size_t max_out);
 
-  size_t nco_steps_u32_scaled_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_scaled_max_out (dp_nco_state_t *state);
 
-  size_t nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out,
+  size_t dp_nco_steps_u32_scaled (dp_nco_state_t *state, size_t n, uint32_t *out,
                                size_t max_out);
 
-  size_t nco_steps_u32_ovf_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_ovf_max_out (dp_nco_state_t *state);
 
-  size_t nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out,
+  size_t dp_nco_steps_u32_ovf (dp_nco_state_t *state, size_t n, uint32_t *out,
                             uint8_t *out1, size_t max_out);
 
-  size_t nco_steps_u32_ctrl_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_ctrl_max_out (dp_nco_state_t *state);
 
-  size_t nco_steps_u32_ctrl (nco_state_t *state, const double *ctrl,
+  size_t dp_nco_steps_u32_ctrl (dp_nco_state_t *state, const double *ctrl,
                              size_t ctrl_len, uint32_t *out,
                              size_t max_out);
 
-  size_t nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_scaled_ctrl_max_out (dp_nco_state_t *state);
 
-  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const double *ctrl,
+  size_t dp_nco_steps_u32_scaled_ctrl (dp_nco_state_t *state, const double *ctrl,
                                     size_t ctrl_len, uint32_t *out,
                                     size_t max_out);
 
-  size_t nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_ovf_ctrl_max_out (dp_nco_state_t *state);
 
-  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const double *ctrl,
+  size_t dp_nco_steps_u32_ovf_ctrl (dp_nco_state_t *state, const double *ctrl,
                                  size_t ctrl_len, uint32_t *out,
                                  uint8_t *out1, size_t max_out);
 

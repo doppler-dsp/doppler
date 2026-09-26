@@ -201,14 +201,14 @@ flowchart TB
         direction TB
         DISC["carrier_nda_disc(z, m) → pe, lk"]
         LKE["lock += CARRIER_NDA_LOCK_ALPHA · (lk − lock)"]
-        CLD["lockdet_step(&amp;car_lock, lock)"]
+        CLD["dp_lockdet_step(&amp;car_lock, lock)"]
         DISC --> LKE --> CLD
     end
 
     RL --> ROT["y_rot = on · sym_rot"]
     DISC -->|"pe, unconditionally"| STEER
 
-    STEER["mpsk_rx_steer(pe)<br/>car_error = pe<br/>freq_ctrl = −loop_filter_step(car_lf, pe) · freq_scale"]
+    STEER["mpsk_rx_steer(pe)<br/>car_error = pe<br/>freq_ctrl = −dp_loop_filter_step(car_lf, pe) · freq_scale"]
 
     ROT --> CNT["sym_count++"]
     LKE -.->|"lock"| CLD
@@ -1113,7 +1113,7 @@ ______________________________________________________________________
 ## 6. Symbol timing
 
 The receiver embeds **`ratesync_loop_t` — [RateSync](../gallery/ratesync.md)'s
-timing loop itself**, factored out of `ratesync_state_t` so the cascade and
+timing loop itself**, factored out of `dp_ratesync_state_t` so the cascade and
 the loop are separable. That split was made bit-exact deliberately, and it is
 what keeps a single implementation of Gardner + the PI filter + the lock
 statistic serving both objects. Timing stays modulation-agnostic (`|·|²`), so
@@ -1239,11 +1239,11 @@ Both rates are **required**; there is no sane default sample rate, so the
 
     **The outcome is the same, and that is worth saying rather than
     implying otherwise** — measured, both `m_out = 0` and `m_out = 2` at
-    `sps = 1` are rejected by `mpsk_receiver_create()`, so migrating changes
+    `sps = 1` are rejected by `dp_mpsk_receiver_create()`, so migrating changes
     which rule refuses, not whether it does. The duplication is a
     drift hazard, not today's bug.
 
-    Today's bug is next to it: `dsss_receiver_create()` guards only
+    Today's bug is next to it: `dp_dsss_receiver_create()` guards only
     `sps < 1`, so `sps = 1` is accepted, reaches that rejection, and is fed
     to `dp_xnn()` — an **abort-on-OOM** helper — on a NULL that means
     "invalid argument". `DsssReceiver(sps=1)` therefore **SIGABRTs the
@@ -1280,7 +1280,7 @@ The minimal call, with every derivable knob left at zero:
 int
 main (void)
 {
-  mpsk_receiver_state_t *rx = mpsk_receiver_create (
+  dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create (
       4, 8.0,                  /* m, sps — the signal                      */
       0,                       /* m_out       -> derived                   */
       MPSK_RX_PULSE_IANDD, 0.35, 8,
@@ -1298,19 +1298,19 @@ main (void)
                                   claim this section makes */
   printf ("m_out=%zu zeta=%.4f num_phases=%zu lock_thresh=%.4f "
           "bn_agc_ratio=%.4f\n",
-          mpsk_receiver_get_m_out (rx), mpsk_receiver_get_zeta (rx),
-          mpsk_receiver_get_num_phases (rx),
-          mpsk_receiver_get_lock_thresh (rx),
-          mpsk_receiver_get_bn_agc_ratio (rx));
+          dp_mpsk_receiver_get_m_out (rx), dp_mpsk_receiver_get_zeta (rx),
+          dp_mpsk_receiver_get_num_phases (rx),
+          dp_mpsk_receiver_get_lock_thresh (rx),
+          dp_mpsk_receiver_get_bn_agc_ratio (rx));
 
   /* The doc gate compiles this and requires exit 0, so the five numbers
      printed above are CHECKED here rather than transcribed below. */
-  int ok = mpsk_receiver_get_m_out (rx) == 8
-           && fabs (mpsk_receiver_get_zeta (rx) - 0.7071) < 1e-4
-           && mpsk_receiver_get_num_phases (rx) == 64
-           && fabs (mpsk_receiver_get_lock_thresh (rx) - 0.4999) < 1e-4
-           && fabs (mpsk_receiver_get_bn_agc_ratio (rx) - 0.05) < 1e-4;
-  mpsk_receiver_destroy (rx);
+  int ok = dp_mpsk_receiver_get_m_out (rx) == 8
+           && fabs (dp_mpsk_receiver_get_zeta (rx) - 0.7071) < 1e-4
+           && dp_mpsk_receiver_get_num_phases (rx) == 64
+           && fabs (dp_mpsk_receiver_get_lock_thresh (rx) - 0.4999) < 1e-4
+           && fabs (dp_mpsk_receiver_get_bn_agc_ratio (rx) - 0.05) < 1e-4;
+  dp_mpsk_receiver_destroy (rx);
   return ok ? 0 : 1;
 }
 ```
@@ -1399,7 +1399,7 @@ it. `get_m_out`, `get_zeta`, `get_num_phases`, `get_lock_thresh` and
 ### 8.2 What remains
 
 **The surface is a C surface.** Every derivation below happens inside
-`mpsk_receiver_create()`, calling `detection`'s C primitives; the readbacks are
+`dp_mpsk_receiver_create()`, calling `detection`'s C primitives; the readbacks are
 C getters. There is no Python factory, no `compose.py` helper and no Python
 assembly of a front end and two loops — jm generates the binding over the C
 object and nothing else. This is the project's C-first rule, and it is worth
@@ -1407,7 +1407,7 @@ restating here because a construction surface that *derives* things is exactly
 where a convenience wrapper starts to look reasonable.
 
 ```text
-mpsk_receiver_create (sample_rate_hz, symbol_rate_hz,     /* the LINK        */
+dp_mpsk_receiver_create (sample_rate_hz, symbol_rate_hz,     /* the LINK        */
                       m, pulse, rrc_beta, rrc_span, carrier_freq_hz,
                       acquire_time_s, doppler_rate_hz_s,  /* the REQUIREMENT */
                       coherent,
@@ -1866,7 +1866,7 @@ is a section rather than a peer.
 five §8.1 derivations — was already one struct in one header, embedded in both
 twins by value. The twins differed in exactly two places:
 
-- the **front end**, `ddc_state_t *` against `ddcr_state_t *`;
+- the **front end**, `dp_ddc_state_t *` against `dp_ddcr_state_t *`;
 - one **rate convention** — the real face's LO runs at half the input rate,
     because its R2C halfband decimates 2:1, so `ddcr`'s tuning law
     `norm_freq = -(2·f_c + 0.5)` puts a `0.5` in its accessor.
@@ -1896,7 +1896,7 @@ fn     = "mpsk_receiver_steps_real"
 params = [{ name = "x", type = "float[]" }]
 ```
 
-The core carries `union { ddc_state_t *c; ddcr_state_t *r; } fe` plus an
+The core carries `union { dp_ddc_state_t *c; dp_ddcr_state_t *r; } fe` plus an
 `int real`, and the tag is read on **cold paths only** — create, destroy,
 reset, telemetry, the frequency accessors and the state triplet. The hot path
 has two `step` entry points, each force-inlined onto one shared

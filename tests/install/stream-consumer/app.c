@@ -21,9 +21,9 @@ main (void)
   for (int i = 0; i < 1024; i++)
     in[i] = (i % 8 == 0) ? 1.0f : 0.0f; /* impulse train */
 
-  fft_state_t *fft = fft_create (1024, -1, 1);
-  fft_execute_cf32 (fft, in, 1024, out, 1024);
-  fft_destroy (fft);
+  dp_fft_state_t *fft = dp_fft_create (1024, -1, 1);
+  dp_fft_execute_cf32 (fft, in, 1024, out, 1024);
+  dp_fft_destroy (fft);
 
   double acc = 0.0;
   for (int i = 0; i < 1024; i++)

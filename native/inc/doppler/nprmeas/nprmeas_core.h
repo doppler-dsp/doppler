@@ -9,8 +9,8 @@
  *
  * Lifecycle: create -> `[analyze]*` -> destroy
  */
-#ifndef NPRMEAS_CORE_H
-#define NPRMEAS_CORE_H
+#ifndef DP_NPRMEAS_CORE_H
+#define DP_NPRMEAS_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -24,7 +24,7 @@ extern "C" {
 
 /** @brief NPRMeasure state: owned window, FFT plan and one-sided power scratch. */
 typedef struct {
-    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
+    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
     float         *pwr;     /* metric working buffer, one-sided power     */
     double enbw;            /* window equivalent noise bandwidth (bins)   */
     double beta;            /* auto-selected Kaiser shape (from DR target) */
@@ -32,7 +32,7 @@ typedef struct {
     size_t n;               /**< Capture / frame length, samples.            */
     size_t nfft;            /**< Zero-padded transform length, bins.         */
     double fs;              /**< Sample rate, Hz.                            */
-} nprmeas_state_t;
+} dp_nprmeas_state_t;
 
 /**
  * @brief Create an NPRMeasure analyser (auto Kaiser window).
@@ -53,11 +53,11 @@ typedef struct {
  *                         when > 0, else derived from @p bits.
  * @return Heap state, or NULL on bad args / allocation failure.
  */
-nprmeas_state_t *nprmeas_create(size_t n, double fs, double full_scale,
+dp_nprmeas_state_t *dp_nprmeas_create(size_t n, double fs, double full_scale,
                                 size_t bits, double dynamic_range_db);
 
 /** @brief Destroy an NPRMeasure analyser. @param state May be NULL. */
-void nprmeas_destroy(nprmeas_state_t *state);
+void dp_nprmeas_destroy(dp_nprmeas_state_t *state);
 
 /**
  * @brief Reset the analyser (a no-op: each analyze() call is independent).
@@ -78,7 +78,7 @@ void nprmeas_destroy(nprmeas_state_t *state);
  *
  * @endcode
  */
-void nprmeas_reset(nprmeas_state_t *state);
+void dp_nprmeas_reset(dp_nprmeas_state_t *state);
 
 /**
  * @brief NPR of a notched-noise capture.
@@ -110,12 +110,12 @@ void nprmeas_reset(nprmeas_state_t *state);
  *
  * @endcode
  */
-npr_meas_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,
+npr_meas_t dp_nprmeas_analyze(dp_nprmeas_state_t *state, const float *x, size_t n_in,
                            double active_lo, double active_hi, double notch_lo,
                            double notch_hi, double guard_hz);
 
 /** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
-size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
+size_t dp_nprmeas_spectrum_dbfs_max_out(dp_nprmeas_state_t *state);
 
 /**
  * @brief DC-centred dBFS magnitude spectrum of a capture (length nfft).
@@ -145,7 +145,7 @@ size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
  *
  * @endcode
  */
-size_t nprmeas_spectrum_dbfs(nprmeas_state_t *state, const float *x,
+size_t dp_nprmeas_spectrum_dbfs(dp_nprmeas_state_t *state, const float *x,
                              size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus

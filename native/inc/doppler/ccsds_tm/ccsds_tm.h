@@ -333,7 +333,7 @@ extern "C"
    * which is why `invert` is `0x2` and not `0`.
    *
    * This is a **configuration, not an implementation**: `conv_encode` and
-   * `viterbi_decode` do the work and neither knows anything about CCSDS. A
+   * `dp_viterbi_decode` do the work and neither knows anything about CCSDS. A
    * standard choosing a code is a different fact from the code existing, and
    * keeping them apart is what stops the polynomials from being written down
    * twice — once in an encoder and once in a decoder, where the inversion is

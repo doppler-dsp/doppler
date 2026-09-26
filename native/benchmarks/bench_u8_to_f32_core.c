@@ -38,10 +38,10 @@ main (void)
   for (int i = 0; i < BLOCK; i++)
     in[i] = (uint8_t)i;
 
-  u8_to_f32_state_t *obj[N_MODE];
+  dp_u8_to_f32_state_t *obj[N_MODE];
   for (int m = 0; m < N_MODE; m++)
     {
-      obj[m] = u8_to_f32_create (m);
+      obj[m] = dp_u8_to_f32_create (m);
       if (!obj[m])
         return 1;
     }
@@ -56,7 +56,7 @@ main (void)
           BLOCK);
   printf ("%d rounds, min over rounds\n\n", ITERATIONS);
 
-  DP_BENCH_SETTLE (u8_to_f32_steps (obj[0], in, out, BLOCK));
+  DP_BENCH_SETTLE (dp_u8_to_f32_steps (obj[0], in, out, BLOCK));
 
   /* Rounds outside, modes inside: the shift/midpoint ratio is the point of
      the file, so a thermal step must land on both halves of it. */
@@ -64,13 +64,13 @@ main (void)
     for (int m = 0; m < N_MODE; m++)
       {
         t0 = jm_bench_now_ns ();
-        u8_to_f32_steps (obj[m], in, out, BLOCK);
+        dp_u8_to_f32_steps (obj[m], in, out, BLOCK);
         t1            = jm_bench_now_ns ();
         t_steps[m][r] = jm_bench_elapsed_sec (t0, t1);
 
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BLOCK; i++)
-          sink = u8_to_f32_step (obj[m], in[i]);
+          sink = dp_u8_to_f32_step (obj[m], in[i]);
         t1           = jm_bench_now_ns ();
         t_step[m][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -93,7 +93,7 @@ main (void)
 
   jm_bench_write_json (&_bench, "u8_to_f32");
   for (int m = 0; m < N_MODE; m++)
-    u8_to_f32_destroy (obj[m]);
+    dp_u8_to_f32_destroy (obj[m]);
   free (in);
   free (out);
   return 0;

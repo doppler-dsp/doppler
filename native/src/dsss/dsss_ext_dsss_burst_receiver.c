@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* DsssBurstReceiverObject — wraps dsss_burst_receiver_state_t *       */
+/* DsssBurstReceiverObject — wraps dp_dsss_burst_receiver_state_t *       */
 /* ======================================================== */
 
 #include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
 typedef struct
 {
-  PyObject_HEAD dsss_burst_receiver_state_t *handle;
+  PyObject_HEAD dp_dsss_burst_receiver_state_t *handle;
 } DsssBurstReceiverObject;
 
 static void
 DsssBurstReceiverObj_dealloc (DsssBurstReceiverObject *self)
 {
   if (self->handle)
-    dsss_burst_receiver_destroy (self->handle);
+    dp_dsss_burst_receiver_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -93,7 +93,7 @@ DsssBurstReceiverObj_init (DsssBurstReceiverObject *self, PyObject *args,
       return -1;
     }
   size_t sync_len = (size_t)PyArray_SIZE (sync_arr);
-  self->handle    = dsss_burst_receiver_create (
+  self->handle    = dp_dsss_burst_receiver_create (
       (const uint8_t *)PyArray_DATA (acq_code_arr), acq_code_len,
       (const uint8_t *)PyArray_DATA (data_code_arr), data_code_len,
       (const uint8_t *)PyArray_DATA (sync_arr), sync_len, reps, spc, chip_rate,
@@ -127,7 +127,7 @@ DsssBurstReceiverObj_push_max_out (DsssBurstReceiverObject *self,
   if (!PyArg_ParseTuple (args, "n", &x_len))
     return NULL;
   return PyLong_FromSize_t (
-      dsss_burst_receiver_push_max_out (self->handle, (size_t)x_len));
+      dp_dsss_burst_receiver_push_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -173,7 +173,7 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = dsss_burst_receiver_push_max_out (
+      size_t _omax = dp_dsss_burst_receiver_push_max_out (
           self->handle, (size_t)PyArray_SIZE (x_arr));
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -194,8 +194,8 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
       uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = dsss_burst_receiver_push (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_dsss_burst_receiver_push (self->handle, _ng0, _ng1, _ng2,
+                                             _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -210,7 +210,7 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dsss_burst_receiver_push_max_out (
+  size_t _cap  = dp_dsss_burst_receiver_push_max_out (
       self->handle, (size_t)PyArray_SIZE (x_arr));
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -229,7 +229,7 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dsss_burst_receiver_push (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_dsss_burst_receiver_push (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -261,7 +261,7 @@ DsssBurstReceiverObj_llrs_max_out (DsssBurstReceiverObject *self,
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
   return PyLong_FromSize_t (
-      dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n));
+      dp_dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -300,7 +300,7 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
       size_t _omax
-          = dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
+          = dp_dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -309,7 +309,7 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = dsss_burst_receiver_llrs (
+      size_t n_out = dp_dsss_burst_receiver_llrs (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
@@ -323,7 +323,7 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
@@ -331,8 +331,9 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
     {
       return NULL;
     }
-  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dsss_burst_receiver_llrs (self->handle, (size_t)n, _d0, _cap);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out
+      = dp_dsss_burst_receiver_llrs (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -358,7 +359,8 @@ DsssBurstReceiverObj_events_max_out (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dsss_burst_receiver_events_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_dsss_burst_receiver_events_max_out (self->handle));
 }
 
 static PyArray_Descr *DsssBurstReceiverObj_events_dtype = NULL;
@@ -477,7 +479,7 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = dsss_burst_receiver_events_max_out (self->handle);
+      size_t _omax    = dp_dsss_burst_receiver_events_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -486,7 +488,7 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = dsss_burst_receiver_events (
+      size_t n_out = dp_dsss_burst_receiver_events (
           self->handle, (size_t)n, (dsss_br_event_t *)PyArray_DATA (out_arr),
           _cap);
       npy_intp       _odim   = (npy_intp)n_out;
@@ -508,7 +510,7 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dsss_burst_receiver_events_max_out (self->handle);
+  size_t _cap  = dp_dsss_burst_receiver_events_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp       _adim  = (npy_intp)_cap;
@@ -526,7 +528,7 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
   dsss_br_event_t *_d0
       = (dsss_br_event_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out
-      = dsss_burst_receiver_events (self->handle, (size_t)n, _d0, _cap);
+      = dp_dsss_burst_receiver_events (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -560,8 +562,8 @@ DsssBurstReceiverObj_configure_search_raw (DsssBurstReceiverObject *self,
     return NULL;
   size_t doppler_bins = (size_t)doppler_bins_raw;
   size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int _rc = dsss_burst_receiver_configure_search_raw (self->handle,
-                                                      doppler_bins, n_noncoh);
+  int    _rc          = dp_dsss_burst_receiver_configure_search_raw (
+      self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -580,7 +582,7 @@ DsssBurstReceiverObj_reset (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dsss_burst_receiver_reset (self->handle);
+  dp_dsss_burst_receiver_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -593,7 +595,7 @@ DsssBurstReceiverObj_state_bytes (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dsss_burst_receiver_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_dsss_burst_receiver_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -605,11 +607,11 @@ DsssBurstReceiverObj_get_state (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = dsss_burst_receiver_state_bytes (self->handle);
+  size_t    _n = dp_dsss_burst_receiver_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  dsss_burst_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_dsss_burst_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -627,12 +629,12 @@ DsssBurstReceiverObj_set_state (DsssBurstReceiverObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != dsss_burst_receiver_state_bytes (self->handle))
+      != dp_dsss_burst_receiver_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (dsss_burst_receiver_set_state (self->handle, PyBytes_AS_STRING (arg))
+  if (dp_dsss_burst_receiver_set_state (self->handle, PyBytes_AS_STRING (arg))
       != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
@@ -651,7 +653,7 @@ DsssBurstReceiver_getprop_preamble_start (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_preamble_start (
+      (unsigned long long)dp_dsss_burst_receiver_get_preamble_start (
           self->handle));
 }
 static PyObject *
@@ -665,7 +667,7 @@ DsssBurstReceiver_getprop_doppler_hz_est (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_doppler_hz_est (self->handle));
+      dp_dsss_burst_receiver_get_doppler_hz_est (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_doppler_res_hz (DsssBurstReceiverObject *self,
@@ -678,7 +680,7 @@ DsssBurstReceiver_getprop_doppler_res_hz (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_doppler_res_hz (self->handle));
+      dp_dsss_burst_receiver_get_doppler_res_hz (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_cn0_dbhz_est (DsssBurstReceiverObject *self,
@@ -691,7 +693,7 @@ DsssBurstReceiver_getprop_cn0_dbhz_est (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_cn0_dbhz_est (self->handle));
+      dp_dsss_burst_receiver_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_est_freq_hz (DsssBurstReceiverObject *self,
@@ -704,7 +706,7 @@ DsssBurstReceiver_getprop_est_freq_hz (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_est_freq_hz (self->handle));
+      dp_dsss_burst_receiver_get_est_freq_hz (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_est_rate_hz (DsssBurstReceiverObject *self,
@@ -717,7 +719,7 @@ DsssBurstReceiver_getprop_est_rate_hz (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_est_rate_hz (self->handle));
+      dp_dsss_burst_receiver_get_est_rate_hz (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_demod_cn0_dbhz (DsssBurstReceiverObject *self,
@@ -730,7 +732,7 @@ DsssBurstReceiver_getprop_demod_cn0_dbhz (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_demod_cn0_dbhz (self->handle));
+      dp_dsss_burst_receiver_get_demod_cn0_dbhz (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_demod_timing_chips (DsssBurstReceiverObject *self,
@@ -743,7 +745,7 @@ DsssBurstReceiver_getprop_demod_timing_chips (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_demod_timing_chips (self->handle));
+      dp_dsss_burst_receiver_get_demod_timing_chips (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_frame_valid (DsssBurstReceiverObject *self,
@@ -756,7 +758,7 @@ DsssBurstReceiver_getprop_frame_valid (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
-      (long)(dsss_burst_receiver_get_frame_valid (self->handle)));
+      (long)(dp_dsss_burst_receiver_get_frame_valid (self->handle)));
 }
 static PyObject *
 DsssBurstReceiver_getprop_min_gap (DsssBurstReceiverObject *self,
@@ -769,7 +771,7 @@ DsssBurstReceiver_getprop_min_gap (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_min_gap (self->handle));
+      (unsigned long long)dp_dsss_burst_receiver_get_min_gap (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_refine_span (DsssBurstReceiverObject *self,
@@ -782,7 +784,8 @@ DsssBurstReceiver_getprop_refine_span (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_refine_span (self->handle));
+      (unsigned long long)dp_dsss_burst_receiver_get_refine_span (
+          self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_retain_span (DsssBurstReceiverObject *self,
@@ -795,7 +798,8 @@ DsssBurstReceiver_getprop_retain_span (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_retain_span (self->handle));
+      (unsigned long long)dp_dsss_burst_receiver_get_retain_span (
+          self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_pending (DsssBurstReceiverObject *self,
@@ -808,7 +812,7 @@ DsssBurstReceiver_getprop_pending (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_pending (self->handle));
+      (unsigned long long)dp_dsss_burst_receiver_get_pending (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
@@ -821,7 +825,7 @@ DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_n_bursts (self->handle));
+      (unsigned long long)dp_dsss_burst_receiver_get_n_bursts (self->handle));
 }
 
 static PyObject *
@@ -835,7 +839,7 @@ DsssBurstReceiver_getprop_dropped (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_dropped (self->handle));
+      (unsigned long long)dp_dsss_burst_receiver_get_dropped (self->handle));
 }
 
 static PyGetSetDef DsssBurstReceiver_getset[] = {
@@ -961,7 +965,7 @@ DsssBurstReceiverObj_destroy (DsssBurstReceiverObject *self,
 {
   if (self->handle)
     {
-      dsss_burst_receiver_destroy (self->handle);
+      dp_dsss_burst_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -981,7 +985,7 @@ DsssBurstReceiverObj_exit (DsssBurstReceiverObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dsss_burst_receiver_destroy (self->handle);
+      dp_dsss_burst_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

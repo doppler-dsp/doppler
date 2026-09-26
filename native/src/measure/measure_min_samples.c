@@ -16,8 +16,8 @@
 #include <stdlib.h>
 
 size_t
-measure_min_samples (double fs, double target_rbw, size_t bits,
-                     double dynamic_range_db, int complex_input)
+dp_measure_min_samples (double fs, double target_rbw, size_t bits,
+                        double dynamic_range_db, int complex_input)
 {
   if (fs <= 0.0)
     return 0;
@@ -29,7 +29,7 @@ measure_min_samples (double fs, double target_rbw, size_t bits,
     }
 
   double dr   = measure_resolve_dr (dynamic_range_db, bits);
-  double beta = kaiser_beta_for_sidelobe (dr);
+  double beta = dp_kaiser_beta_for_sidelobe (dr);
 
   /* Measure the chosen window's ENBW from a reference window. */
   enum
@@ -39,8 +39,8 @@ measure_min_samples (double fs, double target_rbw, size_t bits,
   float *w = (float *)malloc (REF * sizeof (float));
   if (!w)
     return 0;
-  kaiser_window (w, REF, (float)beta);
-  double enbw = (double)kaiser_enbw (w, REF);
+  dp_kaiser_window (w, REF, (float)beta);
+  double enbw = (double)dp_kaiser_enbw (w, REF);
   free (w);
 
   return (size_t)ceil (enbw * fs / target_rbw);

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef AGC_CORE_H
-#define AGC_CORE_H
+#ifndef DP_AGC_CORE_H
+#define DP_AGC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -37,7 +37,7 @@ extern "C"
   {
     /* Bound BEFORE floor(): (int64_t) of a huge double is itself undefined,
        so the saturation cannot wait until the cast. */
-    double z = saturate (v * 3.321928094887362, /* z = v * log2(10) */
+    double z = dp_saturate (v * 3.321928094887362, /* z = v * log2(10) */
                          -1023.0, 1023.0, -1023.0);
     double zi = floor (z);
     double u = (z - zi) * 0.6931471805599453; /* frac(z) * ln2, [0, ln2) */
@@ -64,7 +64,7 @@ extern "C"
        the loop it feeds turns the gain down.  Same rule as AGC_POWER_CEIL,
        stated the other way round from agc_exp10_'s because this is a level
        and that is a gain. */
-    p = saturate (p, AGC_POWER_FLOOR, AGC_POWER_CEIL, AGC_POWER_CEIL);
+    p = dp_saturate (p, AGC_POWER_FLOOR, AGC_POWER_CEIL, AGC_POWER_CEIL);
     uint64_t bits;
     memcpy (&bits, &p, sizeof bits);
     int e = (int)((bits >> 52) & 0x7FF) - 1023; /* p = m * 2^e       */
@@ -98,7 +98,7 @@ extern "C"
     double alpha;   /* power-detector EMA coefficient, (0, 1]          */
     size_t decim;   
     double clip_db; /* output square-clip level, dB (per component)    */
-    /* agc_step() control-update period: the detector + gain-apply run
+    /* dp_agc_step() control-update period: the detector + gain-apply run
      * every sample, but the loop-filter command (the exp10/log10 work)
      * refreshes once per this many samples — a zero-order hold on the
      * gain that amortises the transcendentals on a sample-rate hot loop.
@@ -114,24 +114,24 @@ extern "C"
        input measurement hands the loop an error equal to the whole gain and
        it integrates it. Measured on this object at loop_bw 0.002 / alpha
        0.01, a 4x-hot input drove the gain a further 13.4 dB past its correct
-       value before recovering (+2.4 dB at 0.25x). agc_create()/agc_reset()
+       value before recovering (+2.4 dB at 0.25x). dp_agc_create()/dp_agc_reset()
        already do the right thing; this note is for anyone tempted to
        shortcut them. */
     double p_avg;
     double g_last;  /* current linear gain held across the period      */
-    size_t gain_phase; /* agc_step() position in the update period     */
+    size_t gain_phase; /* dp_agc_step() position in the update period     */
     float  clip_lin;   /* cached 10^(clip_db/20), refreshed per period */
     agc_tlm_t tlm; /* live telemetry attachment; zeroed in blobs        */
-  } agc_state_t;
+  } dp_agc_state_t;
 
-agc_state_t *agc_create(double ref_db, double loop_bw, double alpha);
+dp_agc_state_t *dp_agc_create(double ref_db, double loop_bw, double alpha);
 
-void agc_destroy(agc_state_t *state);
+void dp_agc_destroy(dp_agc_state_t *state);
 
-void agc_reset(agc_state_t *state);
+void dp_agc_reset(dp_agc_state_t *state);
 
   JM_FORCEINLINE JM_HOT float _Complex
-  agc_step (agc_state_t *state, float _Complex x)
+  dp_agc_step (dp_agc_state_t *state, float _Complex x)
   {
     /* Stage 1: linear-in-dB gain, held across the update period.  At the
      * start of each period (gain_phase == 0) refresh the linear gain from
@@ -140,7 +140,7 @@ void agc_reset(agc_state_t *state);
      * always 10^(gain_db/20) and the path is the exact per-sample loop; for
      * P > 1 the gain is a zero-order hold and the exp10 is amortised over P.
      * g_last (= the gain actually applied this period) also seeds a
-     * following agc_steps() ramp and backs applied_gain_db. */
+     * following dp_agc_steps() ramp and backs applied_gain_db. */
     size_t period = state->gain_update_period ? state->gain_update_period : 1;
     if (state->gain_phase == 0)
       state->g_last = agc_exp10_ (state->gain_db * 0.05);
@@ -151,8 +151,8 @@ void agc_reset(agc_state_t *state);
      * exactly as the per-sample loop, so the detector trajectory is unchanged
      * by the period; only the loop-filter command below is decimated. */
     double p     = agc_power_ (y);
-    state->p_avg = ema_step (
-        state->p_avg, saturate (p, 0.0, AGC_POWER_CEIL, AGC_POWER_CEIL),
+    state->p_avg = dp_ema_step (
+        state->p_avg, dp_saturate (p, 0.0, AGC_POWER_CEIL, AGC_POWER_CEIL),
         state->alpha);
 
     /* Stage 3: 1st-order loop filter — once per period.  Integrate the dB
@@ -179,18 +179,18 @@ void agc_reset(agc_state_t *state);
     /* Output clip — square clip (I and Q independent) to the cached level,
      * via the shared util primitive.  Applied to the returned sample only;
      * the detector above used the unclipped y, so the loop is unaffected. */
-    return square_clip (y, state->clip_lin);
+    return dp_square_clip (y, state->clip_lin);
   }
 
-  void agc_steps (agc_state_t *state, const float _Complex *input,
+  void dp_agc_steps (dp_agc_state_t *state, const float _Complex *input,
                   float _Complex *output, size_t n);
 
-double agc_get_applied_gain_db(const agc_state_t *state);
+double dp_agc_get_applied_gain_db(const dp_agc_state_t *state);
 
   size_t agc_settling_samples (double loop_bw, double alpha,
                                double gain_err_db, double tol_db);
 
-int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+int dp_agc_set_telemetry(dp_agc_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
    * Whole-struct POD snapshot (pointer-free); the loop integrator, detector EMA, and ramp memory resume exactly into an
@@ -198,11 +198,11 @@ int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, u
    * blobs and preserved across restore (DP_DEFINE_POD_STATE_TLM). */
 #define AGC_STATE_MAGIC DP_FOURCC ('A', 'G', 'C', ' ')
 #define AGC_STATE_VERSION 3u /* v3: telemetry attachment (zeroed in blob) */
-  size_t agc_state_bytes (const agc_state_t *state);
-  void    agc_get_state (const agc_state_t *state, void *blob);
-  int     agc_set_state (agc_state_t *state, const void *blob);
+  size_t dp_agc_state_bytes (const dp_agc_state_t *state);
+  void    dp_agc_get_state (const dp_agc_state_t *state, void *blob);
+  int     dp_agc_set_state (dp_agc_state_t *state, const void *blob);
 
-size_t settling_samples(double loop_bw, double alpha, double gain_err_db, double tol_db);
+size_t dp_settling_samples(double loop_bw, double alpha, double gain_err_db, double tol_db);
 #ifdef __cplusplus
 }
 #endif

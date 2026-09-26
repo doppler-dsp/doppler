@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef BOXCAR_CORE_H
-#define BOXCAR_CORE_H
+#ifndef DP_BOXCAR_CORE_H
+#define DP_BOXCAR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -34,10 +34,10 @@ extern "C"
     float  scale;      
     float _Complex acc; 
     float _Complex ring[BOXCAR_MAX_LEN]; 
-  } boxcar_state_t;
+  } dp_boxcar_state_t;
 
   JM_FORCEINLINE JM_HOT float _Complex
-  boxcar_step (boxcar_state_t *s, float _Complex x)
+  dp_boxcar_step (dp_boxcar_state_t *s, float _Complex x)
   {
     s->acc += x - s->ring[s->pos];
     s->ring[s->pos] = x;
@@ -47,27 +47,27 @@ extern "C"
   }
 
   JM_FORCEINLINE void
-  boxcar_set_gain (boxcar_state_t *s, double gain)
+  dp_boxcar_set_gain (dp_boxcar_state_t *s, double gain)
   {
     s->gain  = gain;
     s->scale = (float)(gain * s->inv_len);
   }
 
   JM_FORCEINLINE double
-  boxcar_get_gain (const boxcar_state_t *s)
+  dp_boxcar_get_gain (const dp_boxcar_state_t *s)
   {
     return s->gain;
   }
 
-  void boxcar_init (boxcar_state_t *s, size_t len, double gain);
+  void boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
 
-  boxcar_state_t *boxcar_create (size_t len, double gain);
+  dp_boxcar_state_t *dp_boxcar_create (size_t len, double gain);
 
-  void boxcar_destroy (boxcar_state_t *s);
+  void dp_boxcar_destroy (dp_boxcar_state_t *s);
 
-  void boxcar_reset (boxcar_state_t *s);
+  void dp_boxcar_reset (dp_boxcar_state_t *s);
 
-  void boxcar_steps (boxcar_state_t *s, const float _Complex *x,
+  void dp_boxcar_steps (dp_boxcar_state_t *s, const float _Complex *x,
                      float _Complex *out, size_t n);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h)
@@ -76,9 +76,9 @@ extern "C"
 #define BOXCAR_STATE_MAGIC DP_FOURCC ('B', 'O', 'X', 'C')
 #define BOXCAR_STATE_VERSION 1u
 
-  size_t boxcar_state_bytes (const boxcar_state_t *s);
-  void boxcar_get_state (const boxcar_state_t *s, void *blob);
-  int boxcar_set_state (boxcar_state_t *s, const void *blob);
+  size_t dp_boxcar_state_bytes (const dp_boxcar_state_t *s);
+  void dp_boxcar_get_state (const dp_boxcar_state_t *s, void *blob);
+  int dp_boxcar_set_state (dp_boxcar_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

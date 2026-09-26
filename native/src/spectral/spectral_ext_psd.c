@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* PSDObject — wraps psd_state_t *       */
+/* PSDObject — wraps dp_psd_state_t *       */
 /* ======================================================== */
 
 #include "doppler/psd/psd_core.h"
 
 typedef struct
 {
-  PyObject_HEAD psd_state_t *handle;
+  PyObject_HEAD dp_psd_state_t *handle;
 } PSDObject;
 
 static void
 PSDObj_dealloc (PSDObject *self)
 {
   if (self->handle)
-    psd_destroy (self->handle);
+    dp_psd_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -87,11 +87,11 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                     mode_str);
       return -1;
     }
-  self->handle
-      = psd_create (n, fs, window, beta, pad, full_scale, bits, mode, alpha);
+  self->handle = dp_psd_create (n, fs, window, beta, pad, full_scale, bits,
+                                mode, alpha);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "psd_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_psd_create returned NULL");
       return -1;
     }
   return 0;
@@ -117,7 +117,7 @@ PSDObj_accumulate (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  psd_accumulate (self->handle, x, x_len);
+  dp_psd_accumulate (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -142,7 +142,7 @@ PSDObj_accumulate_real (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   const float *x     = (const float *)PyArray_DATA (x_arr);
   size_t       x_len = (size_t)PyArray_SIZE (x_arr);
-  psd_accumulate_real (self->handle, x, x_len);
+  dp_psd_accumulate_real (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -155,7 +155,7 @@ PSDObj_reset (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  psd_reset (self->handle);
+  dp_psd_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -167,7 +167,7 @@ PSDObj_psd_db_max_out (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (psd_psd_db_max_out (self->handle));
+  return PyLong_FromSize_t (dp_psd_psd_db_max_out (self->handle));
 }
 
 static PyObject *
@@ -204,7 +204,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = psd_psd_db_max_out (self->handle);
+      size_t _omax    = dp_psd_psd_db_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -213,8 +213,8 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = psd_psd_db (self->handle, (size_t)n,
-                                 (float *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_psd_psd_db (self->handle, (size_t)n,
+                                    (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -232,7 +232,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = psd_psd_db_max_out (self->handle);
+  size_t _cap  = dp_psd_psd_db_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -242,7 +242,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_psd_db (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_psd_db (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -272,7 +272,7 @@ PSDObj_psd_dbhz_max_out (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (psd_psd_dbhz_max_out (self->handle));
+  return PyLong_FromSize_t (dp_psd_psd_dbhz_max_out (self->handle));
 }
 
 static PyObject *
@@ -309,7 +309,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = psd_psd_dbhz_max_out (self->handle);
+      size_t _omax    = dp_psd_psd_dbhz_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -318,8 +318,8 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = psd_psd_dbhz (self->handle, (size_t)n,
-                                   (float *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_psd_psd_dbhz (self->handle, (size_t)n,
+                                      (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -337,7 +337,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = psd_psd_dbhz_max_out (self->handle);
+  size_t _cap  = dp_psd_psd_dbhz_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -347,7 +347,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_psd_dbhz (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_psd_dbhz (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -377,7 +377,7 @@ PSDObj_power_twosided_max_out (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (psd_power_twosided_max_out (self->handle));
+  return PyLong_FromSize_t (dp_psd_power_twosided_max_out (self->handle));
 }
 
 static PyObject *
@@ -414,7 +414,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = psd_power_twosided_max_out (self->handle);
+      size_t _omax    = dp_psd_power_twosided_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -423,7 +423,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = psd_power_twosided (
+      size_t n_out = dp_psd_power_twosided (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
@@ -442,7 +442,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = psd_power_twosided_max_out (self->handle);
+  size_t _cap  = dp_psd_power_twosided_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -452,7 +452,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_power_twosided (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_power_twosided (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -482,7 +482,7 @@ PSDObj_power_onesided_max_out (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (psd_power_onesided_max_out (self->handle));
+  return PyLong_FromSize_t (dp_psd_power_onesided_max_out (self->handle));
 }
 
 static PyObject *
@@ -519,7 +519,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = psd_power_onesided_max_out (self->handle);
+      size_t _omax    = dp_psd_power_onesided_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -528,7 +528,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = psd_power_onesided (
+      size_t n_out = dp_psd_power_onesided (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
@@ -547,7 +547,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = psd_power_onesided_max_out (self->handle);
+  size_t _cap  = dp_psd_power_onesided_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -557,7 +557,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_power_onesided (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_power_onesided (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -587,7 +587,7 @@ PSDObj_band_power_max_out (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (psd_band_power_max_out (self->handle));
+  return PyLong_FromSize_t (dp_psd_band_power_max_out (self->handle));
 }
 
 static PyObject *
@@ -632,7 +632,7 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = psd_band_power_max_out (self->handle);
+      size_t _omax    = dp_psd_band_power_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (bands_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (bands_arr));
@@ -644,10 +644,10 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (bands_arr);
           return NULL;
         }
-      size_t n_out = psd_band_power (self->handle,
-                                     (const double *)PyArray_DATA (bands_arr),
-                                     (size_t)PyArray_SIZE (bands_arr),
-                                     (float *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_psd_band_power (
+          self->handle, (const double *)PyArray_DATA (bands_arr),
+          (size_t)PyArray_SIZE (bands_arr), (float *)PyArray_DATA (out_arr),
+          _cap);
       Py_DECREF (bands_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
@@ -661,7 +661,7 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (bands_arr);
-  size_t _cap  = psd_band_power_max_out (self->handle);
+  size_t _cap  = dp_psd_band_power_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -671,10 +671,10 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (bands_arr);
       return NULL;
     }
-  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out
-      = psd_band_power (self->handle, (const double *)PyArray_DATA (bands_arr),
-                        (size_t)PyArray_SIZE (bands_arr), _d0, _cap);
+  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = dp_psd_band_power (
+      self->handle, (const double *)PyArray_DATA (bands_arr),
+      (size_t)PyArray_SIZE (bands_arr), _d0, _cap);
   Py_DECREF (bands_arr);
   if ((size_t)n_out == _cap)
     {
@@ -712,7 +712,7 @@ PSDObj_total_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   const double *bands     = (const double *)PyArray_DATA (bands_arr);
   size_t        bands_len = (size_t)PyArray_SIZE (bands_arr);
-  double        y = psd_total_band_power (self->handle, bands, bands_len);
+  double        y = dp_psd_total_band_power (self->handle, bands, bands_len);
   Py_DECREF (bands_arr);
   return PyFloat_FromDouble (y);
 }
@@ -729,7 +729,7 @@ PSDObj_occupied_bw (PSDObject *self, PyObject *args, PyObject *kwds)
   double       fraction  = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &fraction))
     return NULL;
-  double y = psd_occupied_bw (self->handle, fraction);
+  double y = dp_psd_occupied_bw (self->handle, fraction);
   return PyFloat_FromDouble (y);
 }
 
@@ -741,7 +741,7 @@ PSDObj_noise_floor (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  double y = psd_noise_floor (self->handle);
+  double y = dp_psd_noise_floor (self->handle);
   return PyFloat_FromDouble (y);
 }
 
@@ -758,7 +758,7 @@ PSDObj_snr (PSDObject *self, PyObject *args, PyObject *kwds)
   double       hi_hz     = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &lo_hz, &hi_hz))
     return NULL;
-  double y = psd_snr (self->handle, lo_hz, hi_hz);
+  double y = dp_psd_snr (self->handle, lo_hz, hi_hz);
   return PyFloat_FromDouble (y);
 }
 
@@ -774,7 +774,7 @@ PSDObj_sfdr (PSDObject *self, PyObject *args, PyObject *kwds)
   float        min_db    = 0.0f;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "f", _kwlist, &min_db))
     return NULL;
-  double y = psd_sfdr (self->handle, min_db);
+  double y = dp_psd_sfdr (self->handle, min_db);
   return PyFloat_FromDouble (y);
 }
 
@@ -786,7 +786,7 @@ PSDObj_state_bytes (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (psd_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_psd_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -797,11 +797,11 @@ PSDObj_get_state (PSDObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = psd_state_bytes (self->handle);
+  size_t    _n = dp_psd_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  psd_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_psd_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -818,12 +818,12 @@ PSDObj_set_state (PSDObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != psd_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_psd_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (psd_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_psd_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -949,7 +949,7 @@ PSDObj_destroy (PSDObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      psd_destroy (self->handle);
+      dp_psd_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -968,7 +968,7 @@ PSDObj_exit (PSDObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      psd_destroy (self->handle);
+      dp_psd_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -1146,7 +1146,7 @@ static PyMethodDef PSDObj_methods[] = {
     METH_NOARGS,
     "power_twosided_max_out() -> int\n"
     "\n"
-    "Output capacity hint for psd_power_twosided(); equals nfft.\n"
+    "Output capacity hint for dp_psd_power_twosided(); equals nfft.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1186,7 +1186,7 @@ static PyMethodDef PSDObj_methods[] = {
     METH_NOARGS,
     "power_onesided_max_out() -> int\n"
     "\n"
-    "Output capacity hint for psd_power_onesided(); equals nfft/2+1.\n"
+    "Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1.\n"
     "\n"
     "Returns\n"
     "-------\n"

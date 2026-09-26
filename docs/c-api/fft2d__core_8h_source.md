@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef FFT2D_CORE_H
-#define FFT2D_CORE_H
+#ifndef DP_FFT2D_CORE_H
+#define DP_FFT2D_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/pocketfft/pocketfft.h"
@@ -28,35 +28,35 @@ extern "C"
     size_t nx;                
     int sign;                 
     double _Complex *work_trunc;
-  } fft2d_state_t;
+  } dp_fft2d_state_t;
 
-  fft2d_state_t *fft2d_create (size_t ny, size_t nx, int sign, int nthreads);
+  dp_fft2d_state_t *dp_fft2d_create (size_t ny, size_t nx, int sign, int nthreads);
 
-  void fft2d_destroy (fft2d_state_t *state);
+  void dp_fft2d_destroy (dp_fft2d_state_t *state);
 
-  void fft2d_reset (fft2d_state_t *state);
+  void dp_fft2d_reset (dp_fft2d_state_t *state);
 
-  size_t fft2d_execute_cf64_max_out (fft2d_state_t *state);
+  size_t dp_fft2d_execute_cf64_max_out (dp_fft2d_state_t *state);
 
-  size_t fft2d_execute_cf64 (fft2d_state_t *state, const double _Complex *in,
+  size_t dp_fft2d_execute_cf64 (dp_fft2d_state_t *state, const double _Complex *in,
                              size_t n_in, double _Complex *out,
                              size_t max_out);
 
-  size_t fft2d_execute_cf32_max_out (fft2d_state_t *state);
+  size_t dp_fft2d_execute_cf32_max_out (dp_fft2d_state_t *state);
 
-  size_t fft2d_execute_cf32 (fft2d_state_t *state, const float _Complex *in,
+  size_t dp_fft2d_execute_cf32 (dp_fft2d_state_t *state, const float _Complex *in,
                              size_t n_in, float _Complex *out,
                              size_t max_out);
 
-  size_t fft2d_execute_inplace_cf64_max_out (fft2d_state_t *state);
+  size_t dp_fft2d_execute_inplace_cf64_max_out (dp_fft2d_state_t *state);
 
-  size_t fft2d_execute_inplace_cf64 (fft2d_state_t *state,
+  size_t dp_fft2d_execute_inplace_cf64 (dp_fft2d_state_t *state,
                                      const double _Complex *in, size_t n_in,
                                      double _Complex *out, size_t max_out);
 
-  size_t fft2d_execute_inplace_cf32_max_out (fft2d_state_t *state);
+  size_t dp_fft2d_execute_inplace_cf32_max_out (dp_fft2d_state_t *state);
 
-  size_t fft2d_execute_inplace_cf32 (fft2d_state_t *state,
+  size_t dp_fft2d_execute_inplace_cf32 (dp_fft2d_state_t *state,
                                      const float _Complex *in, size_t n_in,
                                      float _Complex *out, size_t max_out);
 

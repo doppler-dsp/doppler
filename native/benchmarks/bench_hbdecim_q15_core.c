@@ -61,14 +61,14 @@ k_pad_for (size_t num_taps)
 int
 main (void)
 {
-  jm_bench_t           _bench = { 0 };
-  uint64_t             t0, t1;
-  static double        t[N_CFG][ITERATIONS];
-  hbdecim_q15_state_t *dec[N_CFG] = { 0 };
-  float               *h          = NULL;
-  int16_t             *in = NULL, *out = NULL;
-  char                 name[72];
-  const size_t         n_max = branch_taps[N_CFG - 1];
+  jm_bench_t              _bench = { 0 };
+  uint64_t                t0, t1;
+  static double           t[N_CFG][ITERATIONS];
+  dp_hbdecim_q15_state_t *dec[N_CFG] = { 0 };
+  float                  *h          = NULL;
+  int16_t                *in = NULL, *out = NULL;
+  char                    name[72];
+  const size_t            n_max = branch_taps[N_CFG - 1];
 
   h   = malloc (n_max * sizeof *h);
   in  = malloc ((size_t)2 * BLOCK * sizeof *in);
@@ -102,7 +102,7 @@ main (void)
                                             * cos (2.0 * M_PI * (double)k
                                                    / (double)(n - 1))));
         }
-      dec[c] = hbdecim_q15_create (n, h);
+      dec[c] = dp_hbdecim_q15_create (n, h);
       if (!dec[c])
         return 1;
     }
@@ -112,7 +112,7 @@ main (void)
           ITERATIONS);
 
   DP_BENCH_SETTLE (
-      (void)hbdecim_q15_execute (dec[REF_IDX], in, BLOCK, out, BLOCK));
+      (void)dp_hbdecim_q15_execute (dec[REF_IDX], in, BLOCK, out, BLOCK));
 
   /* Rounds outside, lengths inside: the whole result is four rows read
      against each other, so a thermal step must not land on one length. */
@@ -120,7 +120,7 @@ main (void)
     for (int c = 0; c < N_CFG; c++)
       {
         t0 = jm_bench_now_ns ();
-        (void)hbdecim_q15_execute (dec[c], in, BLOCK, out, BLOCK);
+        (void)dp_hbdecim_q15_execute (dec[c], in, BLOCK, out, BLOCK);
         t1      = jm_bench_now_ns ();
         t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -148,7 +148,7 @@ main (void)
           "  boundary charging more than the taps that crossed it.\n");
 
   for (int c = 0; c < N_CFG; c++)
-    hbdecim_q15_destroy (dec[c]);
+    dp_hbdecim_q15_destroy (dec[c]);
   free (h);
   free (in);
   free (out);

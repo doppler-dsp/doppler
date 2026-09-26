@@ -262,8 +262,8 @@ dp_dsss_dilated_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   size_t          n;
   dp_dsss_capture (code, sf, spc, fs, tsym, 0.0, 300.0, n_sym, pre_silence,
                    seed, &clean, &n, data_out);
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, carrier_hz, ppm, ppm_s);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, carrier_hz, ppm, ppm_s);
   float _Complex *x   = malloc ((n + DOPPLER_CHANNEL_MAX_BLOCK) * sizeof *x);
   size_t          out = 0;
   for (size_t pos = 0; pos < n; pos += DOPPLER_CHANNEL_MAX_BLOCK)
@@ -271,10 +271,10 @@ dp_dsss_dilated_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
       size_t take = n - pos < DOPPLER_CHANNEL_MAX_BLOCK
                         ? n - pos
                         : DOPPLER_CHANNEL_MAX_BLOCK;
-      out += doppler_channel_execute (ch, clean + pos, take, x + out,
-                                      n + DOPPLER_CHANNEL_MAX_BLOCK - out);
+      out += dp_doppler_channel_execute (ch, clean + pos, take, x + out,
+                                         n + DOPPLER_CHANNEL_MAX_BLOCK - out);
     }
-  doppler_channel_destroy (ch);
+  dp_doppler_channel_destroy (ch);
   free (clean);
 
   double   amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);

@@ -34,8 +34,8 @@ class AccF32:
     def reset(self) -> None:
         """Zero the accumulator, restoring the same state as a fresh
         ``AccF32(0.0)`` — regardless of the value supplied to
-        ``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return ``0.0``
-        until new samples are processed.
+        ``dp_acc_f32_create``. Subsequent ``get`` / ``dump`` calls return
+        ``0.0`` until new samples are processed.
 
         Examples
         --------
@@ -51,7 +51,7 @@ class AccF32:
     def step(self, x: float) -> None:
         """Add one sample to the running sum (``acc += x``). This is the
         hot-path entry point for sample-by-sample processing. For block inputs
-        prefer ``acc_f32_steps`` to amortise call overhead and allow
+        prefer ``dp_acc_f32_steps`` to amortise call overhead and allow
         auto-vectorisation.
 
         Parameters
@@ -71,7 +71,7 @@ class AccF32:
 
     def steps(self, x: NDArray[np.float32]) -> None:
         """Add all samples in ``input`` to the running sum. Equivalent to
-        calling ``acc_f32_step`` for each element, but SIMD-vectorised on
+        calling ``dp_acc_f32_step`` for each element, but SIMD-vectorised on
         platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses
         JM_RESTRICT so the compiler can assume no aliasing between ``state``
         and ``input``.
@@ -270,7 +270,8 @@ class AccF32:
     def get_acc(self) -> float:
         """Return the current accumulator value without modifying state. Use
         this when you need to read the running sum mid-accumulation without
-        disturbing it. For a read-and-reset in one call use ``acc_f32_dump``.
+        disturbing it. For a read-and-reset in one call use
+        ``dp_acc_f32_dump``.
 
         Returns
         -------
@@ -390,9 +391,9 @@ class AccCf64:
     def reset(self) -> None:
         """Zero the accumulator, restoring the same state as a fresh
         ``AccCf64(0j)`` — regardless of the value supplied to
-        ``acc_cf64_create``. Both the real and imaginary parts are set to 0.0.
-        Subsequent ``get`` / ``dump`` calls return ``0j`` until new samples are
-        processed.
+        ``dp_acc_cf64_create``. Both the real and imaginary parts are set to
+        0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new
+        samples are processed.
 
         Examples
         --------
@@ -408,7 +409,7 @@ class AccCf64:
     def step(self, x: complex) -> None:
         """Add one complex sample to the running sum (``acc += x``). This is
         the hot-path entry for sample-by-sample processing. For block inputs
-        prefer ``acc_cf64_steps`` to amortise call overhead.
+        prefer ``dp_acc_cf64_steps`` to amortise call overhead.
 
         Parameters
         ----------
@@ -427,8 +428,8 @@ class AccCf64:
 
     def steps(self, x: NDArray[np.complex128]) -> None:
         """Add all samples in ``input`` to the running sum. Equivalent to
-        calling ``acc_cf64_step`` for each element; iterates element-by-element
-        over double-precision complex samples.
+        calling ``dp_acc_cf64_step`` for each element; iterates
+        element-by-element over double-precision complex samples.
 
         Parameters
         ----------
@@ -628,7 +629,8 @@ class AccCf64:
     def get_acc(self) -> complex:
         """Return the current accumulator value without modifying state. Use
         this when you need to read the running sum mid-accumulation without
-        disturbing it. For a read-and-reset in one call use ``acc_cf64_dump``.
+        disturbing it. For a read-and-reset in one call use
+        ``dp_acc_cf64_dump``.
 
         Returns
         -------

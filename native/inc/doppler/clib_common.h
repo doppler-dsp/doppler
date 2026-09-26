@@ -201,7 +201,7 @@ dp_fmod_pos (double x, double m)
  * two threads calling it race on a variable neither of them reads. That
  * is exactly what happens when a pool of receivers rebuilds their tracking
  * chains on different threads at once: every chain sizes a detector
- * threshold through `marcum_q()`, and ThreadSanitizer stopped the first
+ * threshold through `dp_marcum_q()`, and ThreadSanitizer stopped the first
  * multi-threaded test on it (doppler#1260). `lgamma_r()` takes the sign by
  * pointer and touches no global. Declared here and defined in
  * `native/src/detection/marcum_q.c` (detection_core, which every threshold

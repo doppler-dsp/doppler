@@ -14,8 +14,8 @@ peaks_peak_cmp_desc (const void *a, const void *b)
 }
 
 size_t
-find_peaks_f32 (const float *db, size_t db_len, size_t n_peaks, float min_db,
-                dp_peak_t *result)
+dp_find_peaks_f32 (const float *db, size_t db_len, size_t n_peaks,
+                   float min_db, dp_peak_t *result)
 {
   size_t n = db_len;
   if (n < 3 || n_peaks == 0)

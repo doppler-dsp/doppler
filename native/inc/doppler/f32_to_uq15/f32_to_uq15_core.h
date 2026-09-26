@@ -42,8 +42,8 @@
  * [0, 32768, 65535]
  * @endcode
  */
-#ifndef F32_TO_UQ15_CORE_H
-#define F32_TO_UQ15_CORE_H
+#ifndef DP_F32_TO_UQ15_CORE_H
+#define DP_F32_TO_UQ15_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -56,7 +56,7 @@ extern "C" {
 /**
  * @brief F32ToUQ15 state.
  *
- * Allocate with f32_to_uq15_create().
+ * Allocate with dp_f32_to_uq15_create().
  *
  * @c clipped is sticky: set to 1 by the first sample whose pre-saturation
  * scaled value falls outside `[-32768, 32767]`; cleared only by reset().
@@ -64,7 +64,7 @@ extern "C" {
 typedef struct {
     float   scale;   /* multiply factor applied before saturation */
     uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
-} f32_to_uq15_state_t;
+} dp_f32_to_uq15_state_t;
 
 /**
  * @brief Create a f32_to_uq15 instance.
@@ -76,15 +76,15 @@ typedef struct {
  *               `[-1, +1]` floats to the full UQ15 range `[0, 65535]`.
  *               Must be > 0; returns NULL otherwise.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
- * @note Caller must call f32_to_uq15_destroy() when done.
+ * @note Caller must call dp_f32_to_uq15_destroy() when done.
  */
-f32_to_uq15_state_t *f32_to_uq15_create(float scale);
+dp_f32_to_uq15_state_t *dp_f32_to_uq15_create(float scale);
 
 /**
  * @brief Destroy a f32_to_uq15 instance and release all memory.
  * @param state  May be NULL.
  */
-void f32_to_uq15_destroy(f32_to_uq15_state_t *state);
+void dp_f32_to_uq15_destroy(dp_f32_to_uq15_state_t *state);
 
 /**
  * @brief Clear the sticky clip flag, starting a fresh saturation history.
@@ -106,7 +106,7 @@ void f32_to_uq15_destroy(f32_to_uq15_state_t *state);
  *
  * @endcode
  */
-void f32_to_uq15_reset(f32_to_uq15_state_t *state);
+void dp_f32_to_uq15_reset(dp_f32_to_uq15_state_t *state);
 
 /**
  * @brief Scale one float sample to an offset-binary UQ15 uint16 code.
@@ -133,7 +133,7 @@ void f32_to_uq15_reset(f32_to_uq15_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT uint16_t
-f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
+dp_f32_to_uq15_step(dp_f32_to_uq15_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
@@ -167,8 +167,8 @@ f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
  *
  * @endcode
  */
-void f32_to_uq15_steps(
-    f32_to_uq15_state_t *state,
+void dp_f32_to_uq15_steps(
+    dp_f32_to_uq15_state_t *state,
     const float    *input,
     uint16_t          *output,
     size_t               n);
@@ -178,9 +178,9 @@ void f32_to_uq15_steps(
  * identically-built instance. */
 #define F32_TO_UQ15_STATE_MAGIC DP_FOURCC ('F','U','1','5')
 #define F32_TO_UQ15_STATE_VERSION 1u
-size_t f32_to_uq15_state_bytes (const f32_to_uq15_state_t *state);
-void f32_to_uq15_get_state (const f32_to_uq15_state_t *state, void *blob);
-int f32_to_uq15_set_state (f32_to_uq15_state_t *state, const void *blob);
+size_t dp_f32_to_uq15_state_bytes (const dp_f32_to_uq15_state_t *state);
+void dp_f32_to_uq15_get_state (const dp_f32_to_uq15_state_t *state, void *blob);
+int dp_f32_to_uq15_set_state (dp_f32_to_uq15_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

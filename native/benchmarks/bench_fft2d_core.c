@@ -1,6 +1,6 @@
 /* bench_fft2d_core.c -- a 2-D transform is not priced by its bin count.
  *
- * `fft2d_create(ny, nx, ...)` takes two dimensions and the caller usually
+ * `dp_fft2d_create(ny, nx, ...)` takes two dimensions and the caller usually
  * has some freedom in how to split a given number of bins between them --
  * a range-Doppler map, an ambiguity surface and a spectrogram are all
  * "ny by nx" for a product the application fixes and a shape it does not.
@@ -55,13 +55,13 @@ static const char *kind_name[N_KIND] = { "cf32", "cf64", "inplace_cf32" };
 int
 main (void)
 {
-  jm_bench_t       _bench = { 0 };
-  uint64_t         t0, t1;
-  static double    t[N_CFG][ITERATIONS];
-  fft2d_state_t   *plan[N_SHAPE] = { 0 };
-  float _Complex  *in32 = NULL, *out32 = NULL;
-  double _Complex *in64 = NULL, *out64 = NULL;
-  char             name[64];
+  jm_bench_t        _bench = { 0 };
+  uint64_t          t0, t1;
+  static double     t[N_CFG][ITERATIONS];
+  dp_fft2d_state_t *plan[N_SHAPE] = { 0 };
+  float _Complex   *in32 = NULL, *out32 = NULL;
+  double _Complex  *in64 = NULL, *out64 = NULL;
+  char              name[64];
 
   in32  = malloc (BINS * sizeof *in32);
   out32 = malloc (BINS * sizeof *out32);
@@ -80,7 +80,7 @@ main (void)
 
   for (int s = 0; s < N_SHAPE; s++)
     {
-      plan[s] = fft2d_create (shape_ny[s], shape_nx[s], FFT_FORWARD, 1);
+      plan[s] = dp_fft2d_create (shape_ny[s], shape_nx[s], FFT_FORWARD, 1);
       if (!plan[s])
         return 1;
     }
@@ -90,7 +90,7 @@ main (void)
   printf ("%d rounds, min over rounds\n\n", ITERATIONS);
 
   DP_BENCH_SETTLE (
-      fft2d_execute_cf32 (plan[SQUARE_IDX], in32, BINS, out32, BINS));
+      dp_fft2d_execute_cf32 (plan[SQUARE_IDX], in32, BINS, out32, BINS));
 
   /* Rounds outside, (shape, format) inside. The whole point of the file is
      that four shapes of one bin count differ, so the four must be measured
@@ -103,13 +103,13 @@ main (void)
           switch (k)
             {
             case CFG_CF32:
-              fft2d_execute_cf32 (plan[s], in32, BINS, out32, BINS);
+              dp_fft2d_execute_cf32 (plan[s], in32, BINS, out32, BINS);
               break;
             case CFG_CF64:
-              fft2d_execute_cf64 (plan[s], in64, BINS, out64, BINS);
+              dp_fft2d_execute_cf64 (plan[s], in64, BINS, out64, BINS);
               break;
             case CFG_INPLACE:
-              fft2d_execute_inplace_cf32 (plan[s], in32, BINS, out32, BINS);
+              dp_fft2d_execute_inplace_cf32 (plan[s], in32, BINS, out32, BINS);
               break;
             default:
               break;
@@ -145,7 +145,7 @@ main (void)
           "  either pass blocks when the other dimension is small.\n");
 
   for (int s = 0; s < N_SHAPE; s++)
-    fft2d_destroy (plan[s]);
+    dp_fft2d_destroy (plan[s]);
   free (in32);
   free (out32);
   free (in64);

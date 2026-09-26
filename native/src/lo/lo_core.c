@@ -35,7 +35,7 @@
  * inline lo_step() in the header can share them. */
 
 /* Definition of the LUT declared `extern` in lo_core.h.  Filled lazily by
- * lut_init() on the first lo_create()/lo_init(); read-only afterwards. */
+ * lut_init() on the first dp_lo_create()/lo_init(); read-only afterwards. */
 float      lo_sin_lut[LO_LUT_SIZE];
 static int lut_ready = 0;
 
@@ -54,7 +54,7 @@ lut_init (void)
 /* ================================================================== */
 
 void
-lo_init (lo_state_t *state, double norm_freq)
+lo_init (dp_lo_state_t *state, double norm_freq)
 {
   lut_init ();
   state->phase     = 0;
@@ -62,10 +62,10 @@ lo_init (lo_state_t *state, double norm_freq)
   state->norm_freq = norm_freq;
 }
 
-lo_state_t *
-lo_create (double norm_freq)
+dp_lo_state_t *
+dp_lo_create (double norm_freq)
 {
-  lo_state_t *state = malloc (sizeof (*state));
+  dp_lo_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
   lo_init (state, norm_freq);
@@ -73,13 +73,13 @@ lo_create (double norm_freq)
 }
 
 void
-lo_destroy (lo_state_t *state)
+dp_lo_destroy (dp_lo_state_t *state)
 {
   free (state);
 }
 
 void
-lo_reset (lo_state_t *state)
+dp_lo_reset (dp_lo_state_t *state)
 {
   state->phase = 0;
 }
@@ -89,26 +89,26 @@ lo_reset (lo_state_t *state)
 /* ================================================================== */
 
 double
-lo_get_norm_freq (const lo_state_t *state)
+dp_lo_get_norm_freq (const dp_lo_state_t *state)
 {
   return state->norm_freq;
 }
 
 void
-lo_set_norm_freq (lo_state_t *state, double norm_freq)
+dp_lo_set_norm_freq (dp_lo_state_t *state, double norm_freq)
 {
   state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
 uint32_t
-lo_get_phase (const lo_state_t *state)
+dp_lo_get_phase (const dp_lo_state_t *state)
 {
   return state->phase;
 }
 
 void
-lo_set_phase (lo_state_t *state, uint32_t phase)
+dp_lo_set_phase (dp_lo_state_t *state, uint32_t phase)
 {
   state->phase = phase;
 }
@@ -117,35 +117,35 @@ lo_set_phase (lo_state_t *state, uint32_t phase)
  * state); see dp_state.h. ───────────────────────────────────────────────── */
 
 size_t
-lo_state_bytes (const lo_state_t *state)
+dp_lo_state_bytes (const dp_lo_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + sizeof (uint32_t);
 }
 
 void
-lo_get_state (const lo_state_t *state, void *blob)
+dp_lo_get_state (const dp_lo_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, lo_state_bytes (state));
-  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, lo_state_bytes (state));
+  dp_writer_t w = dp_writer_init (blob, dp_lo_state_bytes (state));
+  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, dp_lo_state_bytes (state));
   dp_w_u32 (&w, state->phase);
 }
 
 int
-lo_set_state (lo_state_t *state, const void *blob)
+dp_lo_set_state (dp_lo_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, lo_state_bytes (state), LO_STATE_MAGIC,
+  int rc = dp_state_validate (blob, dp_lo_state_bytes (state), LO_STATE_MAGIC,
                               LO_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, lo_state_bytes (state));
+  dp_reader_t r = dp_reader_init (blob, dp_lo_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   state->phase  = dp_r_u32 (&r);
   return DP_OK;
 }
 
 uint32_t
-lo_get_phase_inc (const lo_state_t *state)
+dp_lo_get_phase_inc (const dp_lo_state_t *state)
 {
   return state->phase_inc;
 }
@@ -165,14 +165,14 @@ lo_get_phase_inc (const lo_state_t *state)
 #define LO_MAX_OUT 65536u
 
 size_t
-lo_steps_max_out (lo_state_t *state)
+dp_lo_steps_max_out (dp_lo_state_t *state)
 {
   (void)state;
   return LO_MAX_OUT;
 }
 
 size_t
-lo_steps_ctrl_max_out (lo_state_t *state)
+dp_lo_steps_ctrl_max_out (dp_lo_state_t *state)
 {
   (void)state;
   return LO_MAX_OUT;
@@ -183,7 +183,8 @@ lo_steps_ctrl_max_out (lo_state_t *state)
 /* ================================================================== */
 
 size_t
-lo_steps (lo_state_t *state, size_t n, float _Complex *out, size_t max_out)
+dp_lo_steps (dp_lo_state_t *state, size_t n, float _Complex *out,
+             size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
@@ -206,8 +207,8 @@ lo_steps (lo_state_t *state, size_t n, float _Complex *out, size_t max_out)
 /* ================================================================== */
 
 size_t
-lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
-               float _Complex *out, size_t max_out)
+dp_lo_steps_ctrl (dp_lo_state_t *state, const double *ctrl, size_t ctrl_len,
+                  float _Complex *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (ctrl_len > max_out)

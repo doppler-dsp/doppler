@@ -11,7 +11,7 @@ time from Python*. The comparison against a pure-Python expression makes
 that explicit rather than leaving a reader to infer it from an absolute
 number.
 
-The real per-sample EMA work happens inside `agc_steps`, `acc_trace` and
+The real per-sample EMA work happens inside `dp_agc_steps`, `acc_trace` and
 the DSSS lock detector, all of which loop in C over a whole block; their
 throughput is benchmarked with their own objects.
 """

@@ -2,8 +2,8 @@
  * @file impairment_core.h
  * @brief Impairment module — public C API.
  */
-#ifndef IMPAIRMENT_CORE_H
-#define IMPAIRMENT_CORE_H
+#ifndef DP_IMPAIRMENT_CORE_H
+#define DP_IMPAIRMENT_CORE_H
 
 #include "doppler/clib_common.h"
 

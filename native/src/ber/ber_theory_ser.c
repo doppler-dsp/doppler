@@ -12,7 +12,7 @@
 #endif
 
 double
-ber_theory_ser (int m, double esn0)
+dp_ber_theory_ser (int m, double esn0)
 {
   if (esn0 <= 0.0)
     return (m <= 2) ? 0.5 : 1.0 - 1.0 / (double)m;

@@ -174,7 +174,7 @@ extern "C"
 #define MPSK_RX_NUM_PHASES 1024u
 
 /* Default terminal outputs per symbol — where an I&D matched filter reaches
- * the coherent bound (see mpsk_receiver_create's @p m_out for the
+ * the coherent bound (see dp_mpsk_receiver_create's @p m_out for the
  * measurements). Same role as MPSK_RX_NUM_PHASES above: what a composing C
  * caller passes when it has no reason to want anything else, so the composed
  * receivers do not each carry their own copy of the number.
@@ -295,7 +295,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
  *
  * **So this default is an UNCODED-link indicator.** A caller running below
  * its own SER = 1e-3 anchor — which is where forward error correction exists
- * to put you — must not gate on `mpsk_receiver_get_locked()`. Pass a
+ * to put you — must not gate on `dp_mpsk_receiver_get_locked()`. Pass a
  * threshold sized for the link, or gate on something that works there: frame
  * synchronization, or the node-sync statistic (`node_sync_score`), which in
  * lock reads the channel symbol error rate directly.
@@ -351,14 +351,14 @@ mpsk_rx_derive_m_out (double cap, int strict)
     ratesync_loop_t timing; /**< the shared timing loop -> rate_ctrl.    */
 
     /* ── carrier loop ────────────────────────────────────────────────── */
-    loop_filter_state_t car_lf;  /**< 2nd-order carrier PI loop.          */
+    dp_loop_filter_state_t car_lf;  /**< 2nd-order carrier PI loop.          */
     double freq_ctrl;   /**< carrier command now applied, cycles/sample at
                              the LO's own rate.                           */
     double freq_scale;  /**< loop-filter output -> freq_ctrl; rad/symbol
                              to cycles per LO sample, set once at init.   */
     double car_error;   /**< last carrier phase discriminator (stress).   */
     double lock;        /**< EMA of the carrier lock signal.              */
-    lockdet_state_t car_lock;   /**< de-chattered binary carrier lock.    */
+    dp_lockdet_state_t car_lock;   /**< de-chattered binary carrier lock.    */
 
     /* ── config (restored by the owner's create(), never packed) ─────── */
     int    m;          /**< constellation order M (2, 4, 8).             */
@@ -483,7 +483,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
   mpsk_rx_steer (mpsk_rx_loops_t *l, double pe)
   {
     l->car_error = pe;
-    l->freq_ctrl = -loop_filter_step (&l->car_lf, pe) * l->freq_scale;
+    l->freq_ctrl = -dp_loop_filter_step (&l->car_lf, pe) * l->freq_scale;
   }
 
   /**
@@ -513,7 +513,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
        re-acquire does not restamp it, because the question a caller is
        asking is "how long did this receiver take to lock", not "when did it
        last hold". Reset clears it back to -1. */
-    if (lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
+    if (dp_lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
       l->lock_time = (int64_t)l->sym_count;
     mpsk_rx_steer (l, pe);
   }
@@ -636,7 +636,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
   void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y);
 
   /** @brief Attach (or detach) telemetry across both loops; see
-   *  mpsk_receiver_set_telemetry(), which forwards here. */
+   *  dp_mpsk_receiver_set_telemetry(), which forwards here. */
   int mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);
 

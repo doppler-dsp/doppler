@@ -232,7 +232,7 @@ const conv_code_t CCSDS_TM_CONV;
 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K = 7 code with `G1 = 1111001` (171 octal), `G2 = 1011011` (133 octal), and — the part that is easy to miss — **symbol inversion on the output path of G2**, which is why `invert` is `0x2` and not `0`.
 
 
-This is a **configuration, not an implementation**: `conv_encode` and `viterbi_decode` do the work and neither knows anything about CCSDS. A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the polynomials from being written down twice — once in an encoder and once in a decoder, where the inversion is exactly the detail that would drift.
+This is a **configuration, not an implementation**: `conv_encode` and `dp_viterbi_decode` do the work and neither knows anything about CCSDS. A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the polynomials from being written down twice — once in an encoder and once in a decoder, where the inversion is exactly the detail that would drift.
 
 
 `test_ccsds_tm_conv.c` holds it to the standard's printed impulse response: C1 must trace `G1`, and C2 the **complement** of `G2`.

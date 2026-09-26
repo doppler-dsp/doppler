@@ -113,7 +113,7 @@ Two derivations, because two different things are being named:
 
 
 * `"cap.sigmf-data"` → `"cap.sigmf-meta"` (SWAP). Not a choice: SigMF defines a capture as the `<base>.sigmf-data` + `<base>.sigmf-meta` pair, and conformant tools find the second half by exactly that name.
-* `"cap.raw"` → `"cap.raw.sigmf-meta"` (APPEND). Anything else is not a SigMF capture, so no external tool looks for its metadata under any name, which leaves the derivation free — and a free choice should be the one that cannot collide. Swapping would give `cap.raw` and a genuine `cap.sigmf-data` in one directory the SAME sidecar name, so writing one capture would silently overwrite the other's metadata. Appending keeps the sidecar 1:1 with the file it describes, which is also what makes it safe to read back by exact name: wfm\_reader\_create deliberately does NOT sniff for `<base>.sigmf-meta` beside an arbitrary file, because a shared base name hijacked two unrelated files the first time that was tried.
+* `"cap.raw"` → `"cap.raw.sigmf-meta"` (APPEND). Anything else is not a SigMF capture, so no external tool looks for its metadata under any name, which leaves the derivation free — and a free choice should be the one that cannot collide. Swapping would give `cap.raw` and a genuine `cap.sigmf-data` in one directory the SAME sidecar name, so writing one capture would silently overwrite the other's metadata. Appending keeps the sidecar 1:1 with the file it describes, which is also what makes it safe to read back by exact name: dp\_wfm\_reader\_create deliberately does NOT sniff for `<base>.sigmf-meta` beside an arbitrary file, because a shared base name hijacked two unrelated files the first time that was tried.
 
 
 

@@ -63,7 +63,7 @@ _bind_int_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t   _r      = int_to_bin (v, n_bits, out, out_len, bitorder);
+  size_t   _r      = dp_int_to_bin (v, n_bits, out, out_len, bitorder);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
@@ -98,7 +98,7 @@ _bind_hex_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t   _r      = hex_to_bin (hex, out, out_len, bitorder);
+  size_t   _r      = dp_hex_to_bin (hex, out, out_len, bitorder);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
@@ -121,7 +121,7 @@ _bind_bin_to_int (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
   size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
-  uint64_t       _r       = bin_to_int (bits, bits_len, bitorder);
+  uint64_t       _r       = dp_bin_to_int (bits, bits_len, bitorder);
   Py_DECREF (bits_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
@@ -166,7 +166,7 @@ _bind_bin_to_hex (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t   _r      = bin_to_hex (bits, bits_len, out, out_len, bitorder);
+  size_t   _r      = dp_bin_to_hex (bits, bits_len, out, out_len, bitorder);
   Py_DECREF (bits_arr);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
@@ -211,7 +211,7 @@ _bind_bin_to_nrz (PyObject *self, PyObject *args, PyObject *kwds)
     }
   float *out     = (float *)PyArray_DATA (out_arr);
   size_t out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t _r      = bin_to_nrz (bits, bits_len, out, out_len);
+  size_t _r      = dp_bin_to_nrz (bits, bits_len, out, out_len);
   Py_DECREF (bits_arr);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
@@ -256,7 +256,7 @@ _bind_nrz_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t   _r      = nrz_to_bin (nrz, nrz_len, out, out_len);
+  size_t   _r      = dp_nrz_to_bin (nrz, nrz_len, out, out_len);
   Py_DECREF (nrz_arr);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
@@ -279,7 +279,7 @@ static PyMethodDef cvt_module_methods[] = {
     "\n"
     "The form a frame field literal usually wants, and the one to reach for\n"
     "first: exact, compiler-checked, with no failure mode a typo can reach.\n"
-    "hex_to_bin is for the two cases this cannot serve -- a literal wider\n"
+    "dp_hex_to_bin is for the two cases this cannot serve -- a literal wider\n"
     "than 64 bits, and text arriving from outside.\n"
     "\n"
     "Bit 0 out is the MOST significant of the n_bits requested under\n"
@@ -322,8 +322,8 @@ static PyMethodDef cvt_module_methods[] = {
     "shortened field -- a marker that shortens syncs to nothing. Returns the "
     "bits written, or 0 on refusal.\n"
     "\n"
-    "For what int_to_bin cannot serve: a literal wider than 64 bits, or one\n"
-    "arriving as TEXT from a CLI flag or a JSON record. Each digit\n"
+    "For what dp_int_to_bin cannot serve: a literal wider than 64 bits, or\n"
+    "one arriving as TEXT from a CLI flag or a JSON record. Each digit\n"
     "contributes 4 bits and digits read left to right, so an ODD number of\n"
     "digits is accepted and yields a 4-bit tail.\n"
     "\n"

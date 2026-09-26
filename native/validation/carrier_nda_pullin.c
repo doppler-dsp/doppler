@@ -32,9 +32,9 @@
 static int
 acq_unmod (int m, double f0, double bn, size_t n, float sigma, uint32_t seed)
 {
-  carrier_nda_state_t *c  = carrier_nda_create (bn, 0.707, 0.0, 8, 4, m);
-  uint32_t             ns = seed;
-  float complex        d;
+  dp_carrier_nda_state_t *c  = dp_carrier_nda_create (bn, 0.707, 0.0, 8, 4, m);
+  uint32_t                ns = seed;
+  float complex           d;
   for (size_t k = 0; k < n; k++)
     {
       float         n_re = (float)dp_gauss (&ns);
@@ -49,9 +49,9 @@ acq_unmod (int m, double f0, double bn, size_t n, float sigma, uint32_t seed)
           carrier_nda_steer (c, pe);
         }
     }
-  int ok = fabs (carrier_nda_get_norm_freq (c) - f0) < 5e-4
-           && carrier_nda_get_lock (c) > 0.5;
-  carrier_nda_destroy (c);
+  int ok = fabs (dp_carrier_nda_get_norm_freq (c) - f0) < 5e-4
+           && dp_carrier_nda_get_lock (c) > 0.5;
+  dp_carrier_nda_destroy (c);
   return ok;
 }
 
@@ -75,10 +75,11 @@ pull_in_range (int m, double bn)
 static double
 acq_moddata (int m, double f0, float sigma, double *out_lock)
 {
-  int                  sps  = 8;
-  size_t               nsym = 8000;
-  carrier_nda_state_t *c    = carrier_nda_create (0.01, 0.707, 0.0, sps, 4, m);
-  uint32_t             ds = 3u, ns = 9u;
+  int                     sps  = 8;
+  size_t                  nsym = 8000;
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (0.01, 0.707, 0.0, sps, 4, m);
+  uint32_t ds = 3u, ns = 9u;
   for (size_t s = 0; s < nsym; s++)
     {
       float complex a
@@ -100,9 +101,9 @@ acq_moddata (int m, double f0, float sigma, double *out_lock)
             }
         }
     }
-  *out_lock  = carrier_nda_get_lock (c); /* already normalised to ~1 */
-  double err = fabs (carrier_nda_get_norm_freq (c) - f0);
-  carrier_nda_destroy (c);
+  *out_lock  = dp_carrier_nda_get_lock (c); /* already normalised to ~1 */
+  double err = fabs (dp_carrier_nda_get_norm_freq (c) - f0);
+  dp_carrier_nda_destroy (c);
   return err;
 }
 
@@ -110,11 +111,12 @@ acq_moddata (int m, double f0, float sigma, double *out_lock)
 static double
 freq_var (int m, double bn, float sigma, size_t n)
 {
-  carrier_nda_state_t *c    = carrier_nda_create (bn, 0.707, 0.002, 8, 4, m);
-  uint32_t             ns   = 21u;
-  size_t               warm = n / 2;
-  double               mu = 0, m2 = 0;
-  long                 cnt = 0;
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (bn, 0.707, 0.002, 8, 4, m);
+  uint32_t ns   = 21u;
+  size_t   warm = n / 2;
+  double   mu = 0, m2 = 0;
+  long     cnt = 0;
   for (size_t k = 0; k < n; k++)
     {
       float         n_re = (float)dp_gauss (&ns);
@@ -127,13 +129,13 @@ freq_var (int m, double bn, float sigma, size_t n)
         carrier_nda_steer (c, pe);
       if (k >= warm)
         {
-          double f = carrier_nda_get_norm_freq (c);
+          double f = dp_carrier_nda_get_norm_freq (c);
           mu += f;
           m2 += f * f;
           cnt++;
         }
     }
-  carrier_nda_destroy (c);
+  dp_carrier_nda_destroy (c);
   return m2 / cnt - (mu / cnt) * (mu / cnt);
 }
 

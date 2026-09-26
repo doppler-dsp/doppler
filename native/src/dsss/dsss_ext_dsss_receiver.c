@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* DsssReceiverObject — wraps dsss_receiver_state_t *       */
+/* DsssReceiverObject — wraps dp_dsss_receiver_state_t *       */
 /* ======================================================== */
 
 #include "doppler/dsss_receiver/dsss_receiver_core.h"
 
 typedef struct
 {
-  PyObject_HEAD dsss_receiver_state_t *handle;
+  PyObject_HEAD dp_dsss_receiver_state_t *handle;
 } DsssReceiverObject;
 
 static void
 DsssReceiverObj_dealloc (DsssReceiverObject *self)
 {
   if (self->handle)
-    dsss_receiver_destroy (self->handle);
+    dp_dsss_receiver_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -69,7 +69,7 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = dsss_receiver_create (
+  self->handle    = dp_dsss_receiver_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
       symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, segments,
       sps, differential);
@@ -96,7 +96,7 @@ DsssReceiverObj_steps_max_out (DsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dsss_receiver_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_dsss_receiver_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -143,7 +143,7 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = dsss_receiver_steps_max_out (self->handle);
+      size_t _omax    = dp_dsss_receiver_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -165,7 +165,7 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dsss_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_dsss_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -180,7 +180,7 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dsss_receiver_steps_max_out (self->handle);
+  size_t _cap  = dp_dsss_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -199,7 +199,7 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -235,7 +235,7 @@ DsssReceiverObj_configure_search_raw (DsssReceiverObject *self, PyObject *args,
     return NULL;
   size_t doppler_bins = (size_t)doppler_bins_raw;
   size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int    _rc = dsss_receiver_configure_search_raw (self->handle, doppler_bins,
+  int _rc = dp_dsss_receiver_configure_search_raw (self->handle, doppler_bins,
                                                    n_noncoh);
   if (_rc != 0)
     {
@@ -270,8 +270,8 @@ DsssReceiverObj_configure_lock_raw (DsssReceiverObject *self, PyObject *args,
   size_t   n_looks = (size_t)n_looks_raw;
   uint32_t n_up    = (uint32_t)n_up_raw;
   uint32_t n_down  = (uint32_t)n_down_raw;
-  dsss_receiver_configure_lock_raw (self->handle, up_thresh, down_thresh,
-                                    n_looks, alpha, n_up, n_down);
+  dp_dsss_receiver_configure_lock_raw (self->handle, up_thresh, down_thresh,
+                                       n_looks, alpha, n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -293,7 +293,8 @@ DsssReceiverObj_configure_chain_raw (DsssReceiverObject *self, PyObject *args,
     return NULL;
   size_t segments = (size_t)segments_raw;
   size_t sps      = (size_t)sps_raw;
-  int _rc = dsss_receiver_configure_chain_raw (self->handle, segments, sps, n);
+  int    _rc
+      = dp_dsss_receiver_configure_chain_raw (self->handle, segments, sps, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -311,7 +312,7 @@ DsssReceiverObj_reset (DsssReceiverObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dsss_receiver_reset (self->handle);
+  dp_dsss_receiver_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -324,7 +325,7 @@ DsssReceiverObj_state_bytes (DsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dsss_receiver_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_dsss_receiver_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -336,11 +337,11 @@ DsssReceiverObj_get_state (DsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = dsss_receiver_state_bytes (self->handle);
+  size_t    _n = dp_dsss_receiver_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  dsss_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_dsss_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -358,12 +359,12 @@ DsssReceiverObj_set_state (DsssReceiverObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != dsss_receiver_state_bytes (self->handle))
+      != dp_dsss_receiver_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (dsss_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_dsss_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -380,7 +381,7 @@ DsssReceiver_getprop_tracking (DsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)dsss_receiver_get_tracking (self->handle));
+  return PyLong_FromLong ((long)dp_dsss_receiver_get_tracking (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_doppler_hz (DsssReceiverObject *self,
@@ -392,7 +393,7 @@ DsssReceiver_getprop_doppler_hz (DsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dsss_receiver_get_doppler_hz (self->handle));
+  return PyFloat_FromDouble (dp_dsss_receiver_get_doppler_hz (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_cn0_dbhz_est (DsssReceiverObject *self,
@@ -404,7 +405,7 @@ DsssReceiver_getprop_cn0_dbhz_est (DsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dsss_receiver_get_cn0_dbhz_est (self->handle));
+  return PyFloat_FromDouble (dp_dsss_receiver_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_segments (DsssReceiverObject *self,
@@ -417,7 +418,7 @@ DsssReceiver_getprop_segments (DsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_receiver_get_segments (self->handle));
+      (unsigned long long)dp_dsss_receiver_get_segments (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_sps (DsssReceiverObject *self, void *Py_UNUSED (closure))
@@ -429,7 +430,7 @@ DsssReceiver_getprop_sps (DsssReceiverObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_receiver_get_sps (self->handle));
+      (unsigned long long)dp_dsss_receiver_get_sps (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_n (DsssReceiverObject *self, void *Py_UNUSED (closure))
@@ -440,7 +441,7 @@ DsssReceiver_getprop_n (DsssReceiverObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)dsss_receiver_get_n (self->handle));
+  return PyLong_FromLong ((long)dp_dsss_receiver_get_n (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_chip_phase (DsssReceiverObject *self,
@@ -452,7 +453,7 @@ DsssReceiver_getprop_chip_phase (DsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dsss_receiver_get_chip_phase (self->handle));
+  return PyFloat_FromDouble (dp_dsss_receiver_get_chip_phase (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_code_rate (DsssReceiverObject *self,
@@ -464,7 +465,7 @@ DsssReceiver_getprop_code_rate (DsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dsss_receiver_get_code_rate (self->handle));
+  return PyFloat_FromDouble (dp_dsss_receiver_get_code_rate (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_lock (DsssReceiverObject *self, void *Py_UNUSED (closure))
@@ -475,7 +476,7 @@ DsssReceiver_getprop_lock (DsssReceiverObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dsss_receiver_get_lock (self->handle));
+  return PyFloat_FromDouble (dp_dsss_receiver_get_lock (self->handle));
 }
 static PyObject *
 DsssReceiver_getprop_norm_freq (DsssReceiverObject *self,
@@ -487,7 +488,7 @@ DsssReceiver_getprop_norm_freq (DsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dsss_receiver_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_dsss_receiver_get_norm_freq (self->handle));
 }
 
 static PyGetSetDef DsssReceiver_getset[] = {
@@ -520,7 +521,7 @@ DsssReceiverObj_destroy (DsssReceiverObject *self,
 {
   if (self->handle)
     {
-      dsss_receiver_destroy (self->handle);
+      dp_dsss_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -539,7 +540,7 @@ DsssReceiverObj_exit (DsssReceiverObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dsss_receiver_destroy (self->handle);
+      dp_dsss_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -737,7 +738,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "failed pin leaves the receiver tracking on its prior grid, not\n"
     "half-destroyed. Only meaningful once tracking (the grid defaults still\n"
     "apply to create-time auto-sizing for the next hit while searching; call\n"
-    "`dsss_receiver_create()` with different `segments`/`sps` for that, or\n"
+    "`dp_dsss_receiver_create()` with different `segments`/`sps` for that, "
+    "or\n"
     "re-pin here again after the next hit).\n"
     "\n"
     "Parameters\n"

@@ -12,9 +12,9 @@ int
 main (void)
 {
   /* R=32, N=4 (fixed), M=1 (fixed) — typical SDR first-stage decimator */
-  cic_state_t *obj = cic_create (32);
-  uint64_t     t0, t1;
-  jm_bench_t   _bench = { 0 };
+  dp_cic_state_t *obj = dp_cic_create (32);
+  uint64_t        t0, t1;
+  jm_bench_t      _bench = { 0 };
 
   float _Complex *in  = calloc (BENCH_N, sizeof (float _Complex));
   float _Complex *out = calloc (BENCH_N, sizeof (float _Complex));
@@ -30,15 +30,15 @@ main (void)
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        cic_reset (obj);
+        dp_cic_reset (obj);
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
           {
             /* inline to avoid call overhead per-sample */
           }
-        cic_reset (obj);
+        dp_cic_reset (obj);
         t0 = jm_bench_now_ns ();
-        cic_decimate (obj, in, BENCH_N, out, BENCH_N);
+        dp_cic_decimate (obj, in, BENCH_N, out, BENCH_N);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -48,6 +48,6 @@ main (void)
   jm_bench_write_json (&_bench, "cic");
   free (in);
   free (out);
-  cic_destroy (obj);
+  dp_cic_destroy (obj);
   return 0;
 }

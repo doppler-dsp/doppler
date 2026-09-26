@@ -11,7 +11,7 @@ serializable = "true"
 name = "h"
 type = "float[]"
 # gh-900: the C takes the length as a NAMED scalar BEFORE the pointer
-# (`hbdecim_q15_create(size_t num_taps, const float *h)`), not as the trailing
+# (`dp_hbdecim_q15_create(size_t num_taps, const float *h)`), not as the trailing
 # `h_len` jm emits by default.
 derived = "num_taps"
 

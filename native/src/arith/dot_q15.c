@@ -5,7 +5,7 @@
 #include "doppler/q15_mac.h"
 
 int64_t
-dot_q15 (const int16_t *a, size_t a_len, const int16_t *b, size_t b_len)
+dp_dot_q15 (const int16_t *a, size_t a_len, const int16_t *b, size_t b_len)
 {
   size_t n = a_len < b_len ? a_len : b_len;
 #if defined(__AVX2__)

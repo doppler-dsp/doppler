@@ -43,7 +43,7 @@ _bind_ciccompmf (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  ciccompmf ((double *)PyArray_DATA ((PyArrayObject *)_out), N, R, M);
+  dp_ciccompmf ((double *)PyArray_DATA ((PyArrayObject *)_out), N, R, M);
   return _out;
 }
 
@@ -55,7 +55,7 @@ _bind_kaiser_beta (PyObject *self, PyObject *args, PyObject *kwds)
   double       atten     = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &atten))
     return NULL;
-  return PyFloat_FromDouble (kaiser_beta (atten));
+  return PyFloat_FromDouble (dp_kaiser_beta (atten));
 }
 
 static PyObject *
@@ -70,7 +70,8 @@ _bind_kaiser_num_taps (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "iddd", _kwlist, &num_phases,
                                     &atten, &pb, &sb))
     return NULL;
-  return PyLong_FromLong ((long)kaiser_num_taps (num_phases, atten, pb, sb));
+  return PyLong_FromLong (
+      (long)dp_kaiser_num_taps (num_phases, atten, pb, sb));
 }
 
 /* ======================================================== */

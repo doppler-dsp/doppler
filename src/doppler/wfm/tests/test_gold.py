@@ -45,7 +45,7 @@ def test_destroy():
 
 def test_construction_invalid():
     # Matches PN's own convention (see CLAUDE.md's "Known post-apply
-    # patches"): an invalid constructor arg maps to gold_create() -> NULL,
+    # patches"): an invalid constructor arg maps to dp_gold_create() -> NULL,
     # surfaced as MemoryError by the generated binding.
     with pytest.raises(MemoryError):
         Gold(seed_a=0)

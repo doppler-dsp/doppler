@@ -9,15 +9,15 @@
  * Lifecycle:
  * @code
  *   float h[] = { ... };  // num_taps FIR branch coefficients
- *   HalfbandDecimator_state_t *r =
- *       HalfbandDecimator_create(h, num_taps);
+ *   dp_HalfbandDecimator_state_t *r =
+ *       dp_HalfbandDecimator_create(h, num_taps);
  *   float _Complex out[512];
- *   size_t n = HalfbandDecimator_execute(r, in, 1024, out, 1024);
- *   HalfbandDecimator_destroy(r);
+ *   size_t n = dp_HalfbandDecimator_execute(r, in, 1024, out, 1024);
+ *   dp_HalfbandDecimator_destroy(r);
  * @endcode
  */
-#ifndef HALFBANDDECIMATOR_CORE_H
-#define HALFBANDDECIMATOR_CORE_H
+#ifndef DP_HALFBANDDECIMATOR_CORE_H
+#define DP_HALFBANDDECIMATOR_CORE_H
 
 #include "doppler/hbdecim/hbdecim_core.h"
 
@@ -26,7 +26,7 @@ extern "C"
 {
 #endif
 
-  typedef hbdecim_state_t HalfbandDecimator_state_t;
+  typedef hbdecim_state_t dp_HalfbandDecimator_state_t;
 
 /* Maximum output samples per call (pre-allocated by ext.c at init). */
 #define HBDECIM_MAX_OUT 32768
@@ -59,11 +59,11 @@ extern "C"
    * (5, 0.5)
    * @endcode
    */
-  HalfbandDecimator_state_t *HalfbandDecimator_create (const float *h,
+  dp_HalfbandDecimator_state_t *dp_HalfbandDecimator_create (const float *h,
                                                        size_t h_len);
 
   /** Free all resources.  NULL is a no-op. */
-  void HalfbandDecimator_destroy (HalfbandDecimator_state_t *state);
+  void dp_HalfbandDecimator_destroy (dp_HalfbandDecimator_state_t *state);
 
   /**
    * @brief Zero all delay lines.  Coefficients and num_taps preserved.
@@ -83,15 +83,15 @@ extern "C"
    * 5
    * @endcode
    */
-  void HalfbandDecimator_reset (HalfbandDecimator_state_t *state);
+  void dp_HalfbandDecimator_reset (dp_HalfbandDecimator_state_t *state);
 
   /** @brief Serialized-state byte size (forwarded to the hbdecim leaf). */
-  size_t HalfbandDecimator_state_bytes (const HalfbandDecimator_state_t *state);
+  size_t dp_HalfbandDecimator_state_bytes (const dp_HalfbandDecimator_state_t *state);
   /** @brief Serialize the decimator's delay-line state into @p blob. */
-  void HalfbandDecimator_get_state (const HalfbandDecimator_state_t *state,
+  void dp_HalfbandDecimator_get_state (const dp_HalfbandDecimator_state_t *state,
                                     void *blob);
   /** @brief Restore state from @p blob; DP_OK, or DP_ERR_INVALID if rejected. */
-  int HalfbandDecimator_set_state (HalfbandDecimator_state_t *state,
+  int dp_HalfbandDecimator_set_state (dp_HalfbandDecimator_state_t *state,
                                    const void *blob);
 
   /* ------------------------------------------------------------------ */
@@ -99,7 +99,7 @@ extern "C"
   /* ------------------------------------------------------------------ */
 
   /** Always returns HBDECIM_MAX_OUT. */
-  size_t HalfbandDecimator_execute_max_out (HalfbandDecimator_state_t *state);
+  size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state);
 
   /**
    * @brief Decimate x by 2 using the polyphase halfband FIR filter.
@@ -108,7 +108,7 @@ extern "C"
    * State persists between calls — contiguous blocks give identical
    * output to one large block. Output length is floor(x_len / 2).
    *
-   * @param state  Pointer to a valid HalfbandDecimator_state_t.
+   * @param state  Pointer to a valid dp_HalfbandDecimator_state_t.
    * @param x      CF32 input array.  Length must be even for exact
    *               half-rate output; odd lengths write floor(x_len/2).
    * @param x_len  Number of input samples.
@@ -129,7 +129,7 @@ extern "C"
    * ((50,), dtype('complex64'))
    * @endcode
    */
-  size_t HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
+  size_t dp_HalfbandDecimator_execute (dp_HalfbandDecimator_state_t *state,
                                     const float _Complex *x, size_t x_len,
                                     float _Complex *out, size_t max_out);
 
@@ -151,7 +151,7 @@ extern "C"
    * 0.5
    * @endcode
    */
-  double HalfbandDecimator_get_rate (const HalfbandDecimator_state_t *state);
+  double dp_HalfbandDecimator_get_rate (const dp_HalfbandDecimator_state_t *state);
 
   /**
    * @brief Number of FIR branch taps as passed to create.
@@ -169,7 +169,7 @@ extern "C"
    * @endcode
    */
   size_t
-  HalfbandDecimator_get_num_taps (const HalfbandDecimator_state_t *state);
+  dp_HalfbandDecimator_get_num_taps (const dp_HalfbandDecimator_state_t *state);
 
 #ifdef __cplusplus
 }

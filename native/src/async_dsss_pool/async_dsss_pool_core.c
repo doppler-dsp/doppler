@@ -27,7 +27,7 @@
    (section 7.1), and the searcher's own twin rule already holds a
    same-phase peak at any tile as suspect. */
 static int
-in_zone (const async_dsss_pool_state_t *s, const async_dsss_pool_row_t *row,
+in_zone (const dp_async_dsss_pool_state_t *s, const async_dsss_pool_row_t *row,
          double chip_phase)
 {
   double dc = fabs (chip_phase - row->chip_phase);
@@ -40,7 +40,7 @@ in_zone (const async_dsss_pool_state_t *s, const async_dsss_pool_row_t *row,
 /* One transition to the log (when attached) and to the count. The stamp
    is a stream position, never a time (section 8.1). */
 static void
-emit (async_dsss_pool_state_t *s, uint64_t sample, const char *label,
+emit (dp_async_dsss_pool_state_t *s, uint64_t sample, const char *label,
       size_t slot, int state, double doppler_hz, double chip_phase,
       double cn0_dbhz, const char *reason)
 {
@@ -61,7 +61,7 @@ emit (async_dsss_pool_state_t *s, uint64_t sample, const char *label,
    dilated by the seed's Doppler when the carrier is known: the phase a
    receiver still refining will have, and the key the zone is tested on. */
 static double
-advanced_phase (const async_dsss_pool_state_t *s, double chip_phase,
+advanced_phase (const dp_async_dsss_pool_state_t *s, double chip_phase,
                 double doppler_hz, double samples)
 {
   double rate = 1.0;
@@ -72,13 +72,13 @@ advanced_phase (const async_dsss_pool_state_t *s, double chip_phase,
 }
 
 static void
-release (async_dsss_pool_state_t *s, size_t i, uint64_t sample,
+release (dp_async_dsss_pool_state_t *s, size_t i, uint64_t sample,
          const async_dsss_receiver_status_t *st, const char *reason)
 {
   async_dsss_pool_row_t *row = &s->rows[i];
   emit (s, sample, "released", i, st->state, st->doppler_hz, st->chip_phase,
         st->cn0_dbhz_est, reason);
-  async_dsss_receiver_reset (s->rx[i]);
+  dp_async_dsss_receiver_reset (s->rx[i]);
   memset (row, 0, sizeof *row);
   row->prev_state = ASYNC_DSSS_RX_IDLE;
 }
@@ -86,16 +86,14 @@ release (async_dsss_pool_state_t *s, size_t i, uint64_t sample,
 /* The searcher first, since a cell receiver's correction interval is its
    block depth and its seed's pull-in is bounded by its row (the header's
    two refusals); then the receivers. */
-async_dsss_pool_state_t *
-async_dsss_pool_create (const uint8_t *code, size_t code_len, double chip_rate,
-                        double symbol_rate, size_t spc, int m, double cn0_dbhz,
-                        double pfa, double pd, double doppler_uncertainty,
-                        size_t code_only_epochs, double doppler_rate,
-                        size_t max_peaks, size_t n_slots, int threads,
-                        double carrier_freq_hz, double lost_confirm_s,
-                        double max_emitter_on_time_secs, size_t segments,
-                        size_t sps, int differential, double gain,
-                        size_t pullin_intervals)
+dp_async_dsss_pool_state_t *
+dp_async_dsss_pool_create (
+    const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
+    size_t spc, int m, double cn0_dbhz, double pfa, double pd,
+    double doppler_uncertainty, size_t code_only_epochs, double doppler_rate,
+    size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz,
+    double lost_confirm_s, double max_emitter_on_time_secs, size_t segments,
+    size_t sps, int differential, double gain, size_t pullin_intervals)
 {
   if (!code || code_len == 0 || !(chip_rate > 0.0) || !(symbol_rate > 0.0)
       || spc == 0 || n_slots == 0 || max_peaks == 0
@@ -103,8 +101,8 @@ async_dsss_pool_create (const uint8_t *code, size_t code_len, double chip_rate,
       || !(max_emitter_on_time_secs >= 0.0))
     return NULL;
   /* Fixed sizes from validated arguments: abort-on-OOM, no unwind path. */
-  async_dsss_pool_state_t *s = dp_xcalloc (1, sizeof *s);
-  s->code                    = dp_xmalloc (code_len);
+  dp_async_dsss_pool_state_t *s = dp_xcalloc (1, sizeof *s);
+  s->code                       = dp_xmalloc (code_len);
   memcpy (s->code, code, code_len);
   s->code_len        = code_len;
   s->spc             = spc;
@@ -122,12 +120,12 @@ async_dsss_pool_create (const uint8_t *code, size_t code_len, double chip_rate,
   s->acq = acq_create_continuous (s->code, code_len, spc, chip_rate,
                                   symbol_rate, cn0_dbhz, doppler_uncertainty,
                                   pfa, pd, 0, code_only_epochs, doppler_rate);
-  if (!s->acq || acq_set_max_peaks (s->acq, max_peaks) != DP_OK
-      || acq_set_threads (s->acq, threads) != DP_OK
+  if (!s->acq || dp_acq_set_max_peaks (s->acq, max_peaks) != DP_OK
+      || dp_acq_set_threads (s->acq, threads) != DP_OK
       || (carrier_freq_hz > 0.0
-          && acq_set_carrier_freq_hz (s->acq, carrier_freq_hz) != DP_OK))
+          && dp_acq_set_carrier_freq_hz (s->acq, carrier_freq_hz) != DP_OK))
     {
-      async_dsss_pool_destroy (s);
+      dp_async_dsss_pool_destroy (s);
       return NULL;
     }
   /* A cell receiver is driven on the searcher's timing and pulled in by
@@ -138,7 +136,7 @@ async_dsss_pool_create (const uint8_t *code, size_t code_len, double chip_rate,
       || s->acq->doppler_res_hz
              > 4.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (chip_rate, code_len))
     {
-      async_dsss_pool_destroy (s);
+      dp_async_dsss_pool_destroy (s);
       return NULL;
     }
   s->rx    = dp_xcalloc (n_slots, sizeof *s->rx);
@@ -153,7 +151,7 @@ async_dsss_pool_create (const uint8_t *code, size_t code_len, double chip_rate,
           s->acq->coherent_bins, gain, pullin_intervals);
       if (!s->rx[i])
         {
-          async_dsss_pool_destroy (s);
+          dp_async_dsss_pool_destroy (s);
           return NULL;
         }
       s->rows[i].prev_state = ASYNC_DSSS_RX_IDLE;
@@ -165,15 +163,15 @@ async_dsss_pool_create (const uint8_t *code, size_t code_len, double chip_rate,
 }
 
 void
-async_dsss_pool_destroy (async_dsss_pool_state_t *s)
+dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *s)
 {
   if (!s)
     return;
   dp_pool_destroy (s->pool);
   if (s->rx)
     for (size_t i = 0; i < s->n_slots; i++)
-      async_dsss_receiver_destroy (s->rx[i]);
-  acq_destroy (s->acq);
+      dp_async_dsss_receiver_destroy (s->rx[i]);
+  dp_acq_destroy (s->acq);
   free (s->rx);
   free (s->rows);
   free (s->n_sym);
@@ -184,12 +182,12 @@ async_dsss_pool_destroy (async_dsss_pool_state_t *s)
 }
 
 void
-async_dsss_pool_reset (async_dsss_pool_state_t *s)
+dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *s)
 {
-  acq_reset (s->acq);
+  dp_acq_reset (s->acq);
   for (size_t i = 0; i < s->n_slots; i++)
     {
-      async_dsss_receiver_reset (s->rx[i]);
+      dp_async_dsss_receiver_reset (s->rx[i]);
       memset (&s->rows[i], 0, sizeof s->rows[i]);
       s->rows[i].prev_state = ASYNC_DSSS_RX_IDLE;
       s->n_sym[i]           = 0;
@@ -205,14 +203,14 @@ async_dsss_pool_reset (async_dsss_pool_state_t *s)
 static void
 feed_one (size_t i, void *ctx)
 {
-  async_dsss_pool_state_t *s = ctx;
-  s->n_sym[i]                = async_dsss_receiver_steps (
+  dp_async_dsss_pool_state_t *s = ctx;
+  s->n_sym[i]                   = dp_async_dsss_receiver_steps (
       s->rx[i], s->feed_x, s->feed_n, s->sym_buf + i * s->sym_cap, s->sym_cap);
 }
 
 size_t
-async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
-                      size_t x_len)
+dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
+                         const float _Complex *x, size_t x_len)
 {
   const uint64_t start = s->samples_consumed;
   const uint64_t end   = start + x_len;
@@ -230,7 +228,7 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
     }
 
   /* 1. The searcher. */
-  size_t nh = acq_push (s->acq, x, x_len, s->hits, s->max_peaks);
+  size_t nh = dp_acq_push (s->acq, x, x_len, s->hits, s->max_peaks);
 
   /* 2. The table: a tracking receiver's live coordinates -- each only
      while its own lock flag says the loop holds them: the carrier's
@@ -246,7 +244,8 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
       async_dsss_pool_row_t *row = &s->rows[i];
       if (!row->assigned)
         continue;
-      async_dsss_receiver_status_t st = async_dsss_receiver_status (s->rx[i]);
+      async_dsss_receiver_status_t st
+          = dp_async_dsss_receiver_status (s->rx[i]);
       if (st.state == ASYNC_DSSS_RX_TRACKING && st.code_locked)
         row->had_code = 1;
       if (st.state == ASYNC_DSSS_RX_TRACKING && row->had_code)
@@ -287,8 +286,8 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
       size_t free_slot = s->n_slots;
       for (size_t i = 0; i < s->n_slots; i++)
         if (!s->rows[i].assigned
-            && async_dsss_receiver_seed (s->rx[i], phase, ho.doppler_hz_est,
-                                         ho.cn0_dbhz_est)
+            && dp_async_dsss_receiver_seed (s->rx[i], phase, ho.doppler_hz_est,
+                                            ho.cn0_dbhz_est)
                    == DP_OK)
           {
             free_slot = i;
@@ -330,7 +329,8 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
       async_dsss_pool_row_t *row = &s->rows[i];
       if (!row->assigned)
         continue;
-      async_dsss_receiver_status_t st = async_dsss_receiver_status (s->rx[i]);
+      async_dsss_receiver_status_t st
+          = dp_async_dsss_receiver_status (s->rx[i]);
       if (st.state == ASYNC_DSSS_RX_TRACKING
           && row->prev_state != ASYNC_DSSS_RX_TRACKING)
         emit (s, end, "tracking", i, st.state, st.doppler_hz, st.chip_phase,
@@ -364,7 +364,7 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
 }
 
 async_dsss_pool_slot_t
-async_dsss_pool_status (async_dsss_pool_state_t *s, size_t slot)
+dp_async_dsss_pool_status (dp_async_dsss_pool_state_t *s, size_t slot)
 {
   async_dsss_pool_slot_t r;
   memset (&r, 0, sizeof r);
@@ -373,36 +373,37 @@ async_dsss_pool_status (async_dsss_pool_state_t *s, size_t slot)
   if (slot >= s->n_slots)
     return r;
   const async_dsss_pool_row_t *row = &s->rows[slot];
-  async_dsss_receiver_status_t st  = async_dsss_receiver_status (s->rx[slot]);
-  r.assigned                       = row->assigned;
-  r.state                          = st.state;
-  r.seed_sample                    = row->seed_sample;
-  r.seed_chip_phase                = row->seed_chip_phase;
-  r.seed_doppler_hz                = row->seed_doppler_hz;
-  r.seed_cn0_dbhz                  = row->seed_cn0_dbhz;
-  r.doppler_hz                     = st.doppler_hz;
-  r.chip_phase                     = st.chip_phase;
-  r.code_rate                      = st.code_rate;
-  r.cn0_dbhz_est                   = st.cn0_dbhz_est;
-  r.code_locked                    = st.code_locked;
-  r.locked                         = st.locked;
-  r.lock_metric                    = st.lock_metric;
-  r.state_samples                  = st.state_samples;
-  r.both_down_samples              = st.both_down_samples;
+  async_dsss_receiver_status_t st
+      = dp_async_dsss_receiver_status (s->rx[slot]);
+  r.assigned          = row->assigned;
+  r.state             = st.state;
+  r.seed_sample       = row->seed_sample;
+  r.seed_chip_phase   = row->seed_chip_phase;
+  r.seed_doppler_hz   = row->seed_doppler_hz;
+  r.seed_cn0_dbhz     = row->seed_cn0_dbhz;
+  r.doppler_hz        = st.doppler_hz;
+  r.chip_phase        = st.chip_phase;
+  r.code_rate         = st.code_rate;
+  r.cn0_dbhz_est      = st.cn0_dbhz_est;
+  r.code_locked       = st.code_locked;
+  r.locked            = st.locked;
+  r.lock_metric       = st.lock_metric;
+  r.state_samples     = st.state_samples;
+  r.both_down_samples = st.both_down_samples;
   r.assigned_samples
       = row->assigned ? s->samples_consumed - row->seed_sample : 0;
   return r;
 }
 
 size_t
-async_dsss_pool_symbols_max_out (async_dsss_pool_state_t *s)
+dp_async_dsss_pool_symbols_max_out (dp_async_dsss_pool_state_t *s)
 {
   return s->sym_cap;
 }
 
 size_t
-async_dsss_pool_symbols (async_dsss_pool_state_t *s, size_t slot,
-                         float _Complex *out, size_t max_out)
+dp_async_dsss_pool_symbols (dp_async_dsss_pool_state_t *s, size_t slot,
+                            float _Complex *out, size_t max_out)
 {
   if (slot >= s->n_slots || !s->sym_buf)
     return 0;
@@ -414,7 +415,8 @@ async_dsss_pool_symbols (async_dsss_pool_state_t *s, size_t slot,
 }
 
 int
-async_dsss_pool_set_event_log (async_dsss_pool_state_t *s, dp_event_log_t *log)
+dp_async_dsss_pool_set_event_log (dp_async_dsss_pool_state_t *s,
+                                  dp_event_log_t             *log)
 {
   s->log = log;
   return DP_OK;
@@ -432,21 +434,21 @@ typedef struct
 } async_dsss_pool_extra_t;
 
 size_t
-async_dsss_pool_state_bytes (const async_dsss_pool_state_t *s)
+dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *s)
 {
   size_t n = sizeof (dp_state_hdr_t) + sizeof (async_dsss_pool_extra_t)
              + s->n_slots * sizeof (async_dsss_pool_row_t)
-             + acq_state_bytes (s->acq);
+             + dp_acq_state_bytes (s->acq);
   for (size_t i = 0; i < s->n_slots; i++)
-    n += async_dsss_receiver_state_bytes (s->rx[i]);
+    n += dp_async_dsss_receiver_state_bytes (s->rx[i]);
   return n;
 }
 
 void
-async_dsss_pool_get_state (const async_dsss_pool_state_t *s, void *blob)
+dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
 {
   DP_GET_OPEN (ASYNC_DSSS_POOL_STATE_MAGIC, ASYNC_DSSS_POOL_STATE_VERSION,
-               async_dsss_pool_state_bytes (s));
+               dp_async_dsss_pool_state_bytes (s));
   async_dsss_pool_extra_t extra = {
     .n_slots          = (uint64_t)s->n_slots,
     .n_assigned       = (uint64_t)s->n_assigned,
@@ -456,25 +458,25 @@ async_dsss_pool_get_state (const async_dsss_pool_state_t *s, void *blob)
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   dp_w_bytes (&_w, s->rows, s->n_slots * sizeof *s->rows);
-  DP_W_CHILD (&_w, acq, s->acq);
+  DP_W_CHILD (&_w, dp_acq, s->acq);
   for (size_t i = 0; i < s->n_slots; i++)
-    DP_W_CHILD (&_w, async_dsss_receiver, s->rx[i]);
+    DP_W_CHILD (&_w, dp_async_dsss_receiver, s->rx[i]);
 }
 
 int
-async_dsss_pool_set_state (async_dsss_pool_state_t *s, const void *blob)
+dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *s, const void *blob)
 {
   DP_SET_OPEN (ASYNC_DSSS_POOL_STATE_MAGIC, ASYNC_DSSS_POOL_STATE_VERSION,
-               async_dsss_pool_state_bytes (s));
+               dp_async_dsss_pool_state_bytes (s));
   async_dsss_pool_extra_t extra;
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_slots != (uint64_t)s->n_slots
       || extra.n_assigned > (uint64_t)s->n_slots)
     return DP_ERR_INVALID;
   dp_r_bytes (&_r, s->rows, s->n_slots * sizeof *s->rows);
-  DP_R_CHILD (&_r, acq, s->acq);
+  DP_R_CHILD (&_r, dp_acq, s->acq);
   for (size_t i = 0; i < s->n_slots; i++)
-    DP_R_CHILD (&_r, async_dsss_receiver, s->rx[i]);
+    DP_R_CHILD (&_r, dp_async_dsss_receiver, s->rx[i]);
   s->n_assigned       = (size_t)extra.n_assigned;
   s->dropped          = extra.dropped;
   s->events           = extra.events;

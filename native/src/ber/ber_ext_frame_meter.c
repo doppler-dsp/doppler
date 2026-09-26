@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only ber_ext.c is compiled.
  */
 /* ======================================================== */
-/* FrameMeterObject — wraps frame_meter_state_t *       */
+/* FrameMeterObject — wraps dp_frame_meter_state_t *       */
 /* ======================================================== */
 
 #include "doppler/frame_meter/frame_meter_core.h"
 
 typedef struct
 {
-  PyObject_HEAD frame_meter_state_t *handle;
+  PyObject_HEAD dp_frame_meter_state_t *handle;
 } FrameMeterObject;
 
 static void
 FrameMeterObj_dealloc (FrameMeterObject *self)
 {
   if (self->handle)
-    frame_meter_destroy (self->handle);
+    dp_frame_meter_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -44,7 +44,7 @@ FrameMeterObj_init (FrameMeterObject *self, PyObject *args, PyObject *kwds)
                                     &target_errors_raw, &conf))
     return -1;
   size_t target_errors = (size_t)target_errors_raw;
-  self->handle         = frame_meter_create (target_errors, conf);
+  self->handle         = dp_frame_meter_create (target_errors, conf);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError, "conf must lie in (0, 1)");
@@ -61,7 +61,7 @@ FrameMeterObj_reset (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  frame_meter_reset (self->handle);
+  dp_frame_meter_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -78,7 +78,7 @@ FrameMeterObj_add (FrameMeterObject *self, PyObject *args, PyObject *kwds)
   int          crc       = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ii", _kwlist, &sync_ok, &crc))
     return NULL;
-  frame_meter_add (self->handle, sync_ok, crc);
+  dp_frame_meter_add (self->handle, sync_ok, crc);
   Py_RETURN_NONE;
 }
 
@@ -114,7 +114,7 @@ FrameMeterObj_fer (FrameMeterObject *self, PyObject *args)
       if (!FrameMeterObj_fer_type)
         return NULL;
     }
-  ber_interval_t _r = frame_meter_fer (self->handle);
+  ber_interval_t _r = dp_frame_meter_fer (self->handle);
   PyObject      *_o = PyStructSequence_New (FrameMeterObj_fer_type);
   if (!_o)
     return NULL;
@@ -162,7 +162,7 @@ FrameMeterObj_sync_miss (FrameMeterObject *self, PyObject *args)
       if (!FrameMeterObj_sync_miss_type)
         return NULL;
     }
-  ber_interval_t _r = frame_meter_sync_miss (self->handle);
+  ber_interval_t _r = dp_frame_meter_sync_miss (self->handle);
   PyObject      *_o = PyStructSequence_New (FrameMeterObj_sync_miss_type);
   if (!_o)
     return NULL;
@@ -187,7 +187,7 @@ FrameMeterObj_state_bytes (FrameMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (frame_meter_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_frame_meter_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -198,11 +198,11 @@ FrameMeterObj_get_state (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = frame_meter_state_bytes (self->handle);
+  size_t    _n = dp_frame_meter_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  frame_meter_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_frame_meter_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -219,12 +219,13 @@ FrameMeterObj_set_state (FrameMeterObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != frame_meter_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_frame_meter_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (frame_meter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_frame_meter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -241,7 +242,7 @@ FrameMeter_getprop_frames (FrameMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)frame_meter_get_frames (self->handle));
+      (unsigned long long)dp_frame_meter_get_frames (self->handle));
 }
 static PyObject *
 FrameMeter_getprop_sync_detected (FrameMeterObject *self,
@@ -254,7 +255,7 @@ FrameMeter_getprop_sync_detected (FrameMeterObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)frame_meter_get_sync_detected (self->handle));
+      (unsigned long long)dp_frame_meter_get_sync_detected (self->handle));
 }
 static PyObject *
 FrameMeter_getprop_crc_passed (FrameMeterObject *self,
@@ -267,7 +268,7 @@ FrameMeter_getprop_crc_passed (FrameMeterObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)frame_meter_get_crc_passed (self->handle));
+      (unsigned long long)dp_frame_meter_get_crc_passed (self->handle));
 }
 static PyObject *
 FrameMeter_getprop_errors (FrameMeterObject *self, void *Py_UNUSED (closure))
@@ -279,7 +280,7 @@ FrameMeter_getprop_errors (FrameMeterObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)frame_meter_get_errors (self->handle));
+      (unsigned long long)dp_frame_meter_get_errors (self->handle));
 }
 static PyObject *
 FrameMeter_getprop_enough (FrameMeterObject *self, void *Py_UNUSED (closure))
@@ -290,7 +291,7 @@ FrameMeter_getprop_enough (FrameMeterObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)frame_meter_get_enough (self->handle));
+  return PyLong_FromLong ((long)dp_frame_meter_get_enough (self->handle));
 }
 
 static PyGetSetDef FrameMeter_getset[]
@@ -315,7 +316,7 @@ FrameMeterObj_destroy (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      frame_meter_destroy (self->handle);
+      dp_frame_meter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -334,7 +335,7 @@ FrameMeterObj_exit (FrameMeterObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      frame_meter_destroy (self->handle);
+      dp_frame_meter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

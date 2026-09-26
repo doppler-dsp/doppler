@@ -35,12 +35,12 @@ extern "C"
     wfm_seq_kind_t kind;
     size_t         len; 
     const uint8_t *bits; 
-    /* PN: pn_create (poly, seed, reg_bits, lfsr) */
+    /* PN: dp_pn_create (poly, seed, reg_bits, lfsr) */
     uint64_t poly; 
     uint64_t seed;     
     uint32_t reg_bits; 
     int      lfsr;     
-    /* GOLD: gold_create (taps_a, seed_a, taps_b, seed_b, reg_bits) */
+    /* GOLD: dp_gold_create (taps_a, seed_a, taps_b, seed_b, reg_bits) */
     uint64_t taps_a, seed_a, taps_b, seed_b;
   } wfm_seq_t;
 

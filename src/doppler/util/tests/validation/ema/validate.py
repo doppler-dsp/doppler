@@ -44,7 +44,7 @@ R = Report()
 # ── Findings F1 and F2 are claims about OTHER files, so they are read ──
 # rather than asserted.
 #
-# Both were written as fixed prose ("NOTHING USES IT", "`agc_steps` forms
+# Both were written as fixed prose ("NOTHING USES IT", "`dp_agc_steps` forms
 # its detector pole by repeated multiplication") and both became false the
 # moment the migration landed -- while `make validate-check` went on
 # reporting the report "up to date", because that gate re-runs this
@@ -70,8 +70,8 @@ SITES = {
 # `(1 - alpha)` repeated multiply it replaced, and a naive grep reads that
 # as the defect still being present.
 _COMMENTS = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
-_CALL = re.compile(r"\bema_(?:step|alpha_decim)\s*\(")
-_DECIM_CALL = re.compile(r"\bema_alpha_decim\s*\(")
+_CALL = re.compile(r"\bdp_ema_(?:step|alpha_decim)\s*\(")
+_DECIM_CALL = re.compile(r"\bdp_ema_alpha_decim\s*\(")
 
 
 def _code(path: Path) -> str:
@@ -85,7 +85,7 @@ def adopters() -> dict[str, bool]:
 
 
 def agc_pole_is_compounded() -> bool:
-    """True once `agc_steps` forms its detector pole with the primitive."""
+    """True once `dp_agc_steps` forms its detector pole with the primitive."""
     return bool(_DECIM_CALL.search(_code(SITES["agc_core.c"])))
 
 
@@ -444,11 +444,11 @@ def characterise() -> Data:
         "lengthens; the shipped form is exact at every coefficient "
         "tried. "
         + (
-            "`agc_steps` now forms its detector pole with "
+            "`dp_agc_steps` now forms its detector pole with "
             "`ema_alpha_decim` and therefore sits in the right-hand "
             "column — §3 F2, fixed."
             if agc_pole_is_compounded()
-            else "`agc_steps` forms its detector pole by repeated "
+            else "`dp_agc_steps` forms its detector pole by repeated "
             "multiplication and therefore sits in the left-hand column "
             "today — recorded as §3 F2."
         )
@@ -643,7 +643,7 @@ def review(d: Data) -> None:
         R.find(
             "F2",
             "CONFIRMED",
-            f"`agc_steps` forms its detector pole as `1 - a1^d` by "
+            f"`dp_agc_steps` forms its detector pole as `1 - a1^d` by "
             f"repeated multiplication, which at d == 1 is "
             f"`1-(1-alpha)` — the cancelling form measured in §2.3 at "
             f"up to {worst} ulps off across the coefficients tried. So "
@@ -657,12 +657,12 @@ def review(d: Data) -> None:
         R.find(
             "F2",
             "FIXED",
-            "`agc_steps` forms its detector pole with "
+            "`dp_agc_steps` forms its detector pole with "
             "`ema_alpha_decim`, so `decim = 1` is now bit-for-bit the "
             "undecimated recursion. It previously used a repeated "
             f"multiply of `(1 - alpha)`, off by up to {worst} ulps at "
             "d == 1 across the coefficients §2.3 sweeps. Note what "
-            "this did NOT buy: `agc_steps(decim=1)` and `agc_step` "
+            "this did NOT buy: `dp_agc_steps(decim=1)` and `dp_agc_step` "
             "still differ, because the two apply GAIN differently (a "
             "first-order-hold ramp across the chunk against a "
             "per-period refresh) — the pole was never that gap's "

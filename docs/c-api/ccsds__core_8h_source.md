@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CCSDS_CORE_H
-#define CCSDS_CORE_H
+#ifndef DP_CCSDS_CORE_H
+#define DP_CCSDS_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -20,7 +20,7 @@ extern "C" {
 
 /* Declare module-level functions here. */
 
-void asm_bits(uint8_t *out);
+void dp_asm_bits(uint8_t *out);
 
 #ifdef __cplusplus
 }

@@ -119,12 +119,12 @@ zadoff_chu (void)
                                   / (double)N);
 }
 
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 make (size_t depth, double cn0)
 {
-  burst_capture_state_t *s = burst_capture_create (ZC, N, BURST, R, 1.0, cn0,
-                                                   0.0, PFA, 0.9, 0, 0.0);
-  if (!s || burst_capture_configure_search_raw (s, depth, 1) != 0)
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      ZC, N, BURST, R, 1.0, cn0, 0.0, PFA, 0.9, 0, 0.0);
+  if (!s || dp_burst_capture_configure_search_raw (s, depth, 1) != 0)
     {
       fprintf (stderr, "capture at D=%zu refused\n", depth);
       abort ();
@@ -142,18 +142,18 @@ cn0_for (size_t depth, double target)
 {
   int lo = 0, hi = 200; /* steps: -30 dB .. +20 dB */
   {
-    burst_capture_state_t *s = make (depth, -30.0 + 0.25 * (double)hi);
-    double                 p = burst_capture_get_pd_burst (s);
-    burst_capture_destroy (s);
+    dp_burst_capture_state_t *s = make (depth, -30.0 + 0.25 * (double)hi);
+    double                    p = dp_burst_capture_get_pd_burst (s);
+    dp_burst_capture_destroy (s);
     if (!(p >= target))
       return NAN;
   }
   while (lo < hi)
     {
-      int                    mid = (lo + hi) / 2;
-      burst_capture_state_t *s   = make (depth, -30.0 + 0.25 * (double)mid);
-      double                 p   = burst_capture_get_pd_burst (s);
-      burst_capture_destroy (s);
+      int                       mid = (lo + hi) / 2;
+      dp_burst_capture_state_t *s   = make (depth, -30.0 + 0.25 * (double)mid);
+      double                    p   = dp_burst_capture_get_pd_burst (s);
+      dp_burst_capture_destroy (s);
       if (p >= target)
         hi = mid;
       else
@@ -187,18 +187,18 @@ measure (size_t depth, double target, int trials, uint32_t seed)
       abort ();
     }
 
-  burst_capture_state_t *s = make (depth, r.cn0);
-  r.dwell                  = burst_capture_get_pd_predicted (s);
-  r.pred                   = burst_capture_get_pd_burst (s);
-  const size_t    lead_max = 3u * depth * N;
-  const size_t    len      = lead_max + BURST + 2u * s->refine_span + 4u * N;
-  float _Complex *x        = dp_xmalloc (len * sizeof *x);
-  float _Complex *nz       = dp_xmalloc (len * sizeof *nz);
-  float _Complex *per      = dp_xmalloc (N * sizeof *per);
-  const size_t    cap      = burst_capture_push_max_out (s, len);
-  float _Complex *out      = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
-  awgn_state_t   *g        = dp_xnn (
-      awgn_create (seed, awgn_amplitude_for_snr ((float)r.cn0, 1.0f)));
+  dp_burst_capture_state_t *s = make (depth, r.cn0);
+  r.dwell                     = dp_burst_capture_get_pd_predicted (s);
+  r.pred                      = dp_burst_capture_get_pd_burst (s);
+  const size_t     lead_max   = 3u * depth * N;
+  const size_t     len = lead_max + BURST + 2u * s->refine_span + 4u * N;
+  float _Complex  *x   = dp_xmalloc (len * sizeof *x);
+  float _Complex  *nz  = dp_xmalloc (len * sizeof *nz);
+  float _Complex  *per = dp_xmalloc (N * sizeof *per);
+  const size_t     cap = dp_burst_capture_push_max_out (s, len);
+  float _Complex  *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
+  dp_awgn_state_t *g   = dp_xnn (
+      dp_awgn_create (seed, awgn_amplitude_for_snr ((float)r.cn0, 1.0f)));
   const double span = 1.0 / (2.0 * (double)N); /* cycles/sample */
   uint32_t     st   = seed;
   int          hits = 0, eng = 0, wrong = 0;
@@ -226,12 +226,12 @@ measure (size_t depth, double target, int trials, uint32_t seed)
           x[at + i]
               = v * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
         }
-      awgn_generate (g, len, nz, len);
+      dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
 
-      burst_capture_reset (s);
-      (void)burst_capture_push (s, x, len, out, cap);
+      dp_burst_capture_reset (s);
+      (void)dp_burst_capture_push (s, x, len, out, cap);
       int hit = 0, off = 0;
       for (size_t k = 0; k < burst_capture_ready (s); k++)
         {
@@ -276,12 +276,12 @@ measure (size_t depth, double target, int trials, uint32_t seed)
   r.meas   = (double)hits / trials;
   r.se     = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / trials);
   r.wrong  = (double)wrong / trials;
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   free (out);
   free (per);
   free (nz);
   free (x);
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return r;
 }
 

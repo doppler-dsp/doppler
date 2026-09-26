@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
-/* _SynthEngineObject — wraps wfm_synth_state_t *       */
+/* _SynthEngineObject — wraps dp_wfm_synth_state_t *       */
 /* ======================================================== */
 
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
 typedef struct
 {
-  PyObject_HEAD wfm_synth_state_t *handle;
+  PyObject_HEAD dp_wfm_synth_state_t *handle;
 } _SynthEngineObject;
 
 static void
 _SynthEngine_dealloc (_SynthEngineObject *self)
 {
   if (self->handle)
-    wfm_synth_destroy (self->handle);
+    dp_wfm_synth_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -115,11 +115,11 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t seed    = (uint32_t)seed_raw;
   uint64_t pn_poly = (uint64_t)pn_poly_raw;
-  self->handle = wfm_synth_create (type, fs, freq, snr, snr_mode, seed, sps,
-                                   pn_length, pn_poly, lfsr, f_end);
+  self->handle = dp_wfm_synth_create (type, fs, freq, snr, snr_mode, seed, sps,
+                                      pn_length, pn_poly, lfsr, f_end);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "wfm_synth_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_wfm_synth_create returned NULL");
       return -1;
     }
   return 0;
@@ -133,7 +133,7 @@ _SynthEngine_reset (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  wfm_synth_reset (self->handle);
+  dp_wfm_synth_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -145,7 +145,7 @@ _SynthEngine_step (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  float _Complex y = wfm_synth_step (self->handle);
+  float _Complex y = dp_wfm_synth_step (self->handle);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
 
@@ -166,9 +166,9 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
   if (!out_arr)
     return NULL;
 
-  wfm_synth_steps (self->handle,
-                   (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
-                   (size_t)n);
+  dp_wfm_synth_steps (
+      self->handle, (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
+      (size_t)n);
 
   return out_arr;
 }
@@ -447,7 +447,7 @@ _SynthEngine_get_wtype (_SynthEngineObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)wfm_synth_get_wtype (self->handle));
+  return PyLong_FromLong ((long)dp_wfm_synth_get_wtype (self->handle));
 }
 
 static PyObject *
@@ -461,7 +461,7 @@ _SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  wfm_synth_set_wtype (self->handle, v);
+  dp_wfm_synth_set_wtype (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -473,7 +473,7 @@ _SynthEngine_get_nsps (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)wfm_synth_get_nsps (self->handle));
+  return PyLong_FromLong ((long)dp_wfm_synth_get_nsps (self->handle));
 }
 
 static PyObject *
@@ -487,7 +487,7 @@ _SynthEngine_set_nsps (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  wfm_synth_set_nsps (self->handle, v);
+  dp_wfm_synth_set_nsps (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -500,7 +500,7 @@ _SynthEngine_get_sym_pos (_SynthEngineObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)wfm_synth_get_sym_pos (self->handle));
+  return PyLong_FromLong ((long)dp_wfm_synth_get_sym_pos (self->handle));
 }
 
 static PyObject *
@@ -514,7 +514,7 @@ _SynthEngine_set_sym_pos (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  wfm_synth_set_sym_pos (self->handle, v);
+  dp_wfm_synth_set_sym_pos (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -527,7 +527,7 @@ _SynthEngine_get_cur_re (_SynthEngineObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)wfm_synth_get_cur_re (self->handle));
+  return PyFloat_FromDouble ((double)dp_wfm_synth_get_cur_re (self->handle));
 }
 
 static PyObject *
@@ -541,7 +541,7 @@ _SynthEngine_set_cur_re (_SynthEngineObject *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
-  wfm_synth_set_cur_re (self->handle, v);
+  dp_wfm_synth_set_cur_re (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -554,7 +554,7 @@ _SynthEngine_get_cur_im (_SynthEngineObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)wfm_synth_get_cur_im (self->handle));
+  return PyFloat_FromDouble ((double)dp_wfm_synth_get_cur_im (self->handle));
 }
 
 static PyObject *
@@ -568,7 +568,7 @@ _SynthEngine_set_cur_im (_SynthEngineObject *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
-  wfm_synth_set_cur_im (self->handle, v);
+  dp_wfm_synth_set_cur_im (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -577,7 +577,7 @@ _SynthEngine_destroy (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      wfm_synth_destroy (self->handle);
+      dp_wfm_synth_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -596,7 +596,7 @@ _SynthEngine_exit (_SynthEngineObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      wfm_synth_destroy (self->handle);
+      dp_wfm_synth_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -611,7 +611,7 @@ _SynthEngine_state_bytes (_SynthEngineObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (wfm_synth_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_wfm_synth_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -623,11 +623,11 @@ _SynthEngine_get_state (_SynthEngineObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = wfm_synth_state_bytes (self->handle);
+  size_t    _n = dp_wfm_synth_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  wfm_synth_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_wfm_synth_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -644,12 +644,13 @@ _SynthEngine_set_state (_SynthEngineObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != wfm_synth_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_wfm_synth_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (wfm_synth_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_wfm_synth_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -671,7 +672,7 @@ _SynthEngine_set_chirp_span (_SynthEngineObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &span_raw))
     return NULL;
   size_t span = (size_t)span_raw;
-  wfm_synth_set_chirp_span (self->handle, span);
+  dp_wfm_synth_set_chirp_span (self->handle, span);
   Py_RETURN_NONE;
 }
 
@@ -714,7 +715,7 @@ static PyMethodDef _SynthEngine_methods[] = {
   { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
     "steps(n=1) -> ndarray\n"
     "\n"
-    "Generate a block of output samples. Calls wfm_synth_step() in a\n"
+    "Generate a block of output samples. Calls dp_wfm_synth_step() in a\n"
     "tight loop, writing each cf32 sample into ``output``. The Python\n"
     "binding returns a freshly allocated NumPy complex64 array; ownership is\n"
     "transferred to the caller.\n"
@@ -813,7 +814,7 @@ static PyMethodDef _SynthEngine_methods[] = {
     "means the very next sample begins a fresh symbol.\n" },
   { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
     "Override the symbol-position counter in-place. Injecting 0 forces the "
-    "next wfm_synth_step() to latch a new PN chip; any other value "
+    "next dp_wfm_synth_step() to latch a new PN chip; any other value "
     "fast-forwards into the middle of the current symbol hold.\n" },
   { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
     "Return the real part of the current held symbol. For modulated types "
@@ -823,14 +824,14 @@ static PyMethodDef _SynthEngine_methods[] = {
     "it is 0.0 (noise has no held symbol).\n" },
   { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
     "Override the held-symbol real (I) component in-place. Takes effect on "
-    "the next wfm_synth_step() within the current symbol hold.\n" },
+    "the next dp_wfm_synth_step() within the current symbol hold.\n" },
   { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
     "Return the imaginary part of the current held symbol. For QPSK this is "
     "the Q component (±1/√2); for BPSK/PN it is always 0; for tone/noise it "
     "is 0.\n" },
   { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
     "Override the held-symbol imaginary (Q) component in-place. Takes effect "
-    "on the next wfm_synth_step() within the current symbol hold.\n" },
+    "on the next dp_wfm_synth_step() within the current symbol hold.\n" },
   { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -927,12 +928,12 @@ static PyMethodDef _SynthEngine_methods[] = {
     "number of samples the sweep occupies — must be known before generation.\n"
     "The composer calls this with the source's declared span or the segment\n"
     "length. A synth that is never pinned does not sweep: it holds the start\n"
-    "frequency on wfm_synth_step() and wfm_synth_steps() alike, so the\n"
+    "frequency on dp_wfm_synth_step() and dp_wfm_synth_steps() alike, so the\n"
     "waveform never depends on how reads are chunked. Only the first pin\n"
     "(while the span is still 0) takes effect, so it is safe to call\n"
-    "unconditionally after wfm_synth_create(); span 0 is a no-op.\n"
+    "unconditionally after dp_wfm_synth_create(); span 0 is a no-op.\n"
     "\n"
-    "The span is configuration, not running state: wfm_synth_get_state()\n"
+    "The span is configuration, not running state: dp_wfm_synth_get_state()\n"
     "does not carry it, so pin a resumed instance exactly as the original\n"
     "was pinned.\n"
     "\n"
@@ -960,8 +961,8 @@ static PyTypeObject _SynthEngineType = {
   .tp_doc
   = "Allocate and configure a waveform synthesiser. The synthesiser combines\n"
     "a local oscillator (LO), optional AWGN, and an optional PN LFSR into a\n"
-    "single streaming source. One call to wfm_synth_step() or "
-    "wfm_synth_steps()\n"
+    "single streaming source. One call to dp_wfm_synth_step() or "
+    "dp_wfm_synth_steps()\n"
     "advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN "
     "(100\n"
     "dB) skips AWGN entirely — clean waveforms pay no noise overhead. When\n"
@@ -1023,7 +1024,7 @@ static PyTypeObject _SynthEngineType = {
     "    ``freq`` as the start, the instantaneous frequency sweeps linearly "
     "from\n"
     "    ``freq`` to ``f_end`` over the span set by "
-    "wfm_synth_set_chirp_span(),\n"
+    "dp_wfm_synth_set_chirp_span(),\n"
     "    then holds at ``f_end``. Until a span is pinned the slope is 0 (a "
     "CW\n"
     "    tone at ``freq``). ``f_end < freq`` is a down-chirp. Default 0.0.\n"

@@ -85,34 +85,34 @@ run (int cfg, int i)
   switch (cfg)
     {
     case C_BPSK_MAP:
-      bpsk_map (bits, N_BITS, map_out);
+      dp_bpsk_map (bits, N_BITS, map_out);
       sink += crealf (map_out[0]);
       break;
     case C_QPSK_MAP:
-      qpsk_map (qsyms, N_BITS, map_out);
+      dp_qpsk_map (qsyms, N_BITS, map_out);
       sink += crealf (map_out[0]);
       break;
     case C_CRC16:
-      sink += (double)crc16 (bits, N_BITS);
+      sink += (double)dp_crc16 (bits, N_BITS);
       break;
     case C_DSSS_SPREAD:
-      dsss_spread (syms, N_SYMS, code, CODE_LEN, SF, chips);
+      dp_dsss_spread (syms, N_SYMS, code, CODE_LEN, SF, chips);
       sink += crealf (chips[0]);
       break;
     case C_RRC_TAPS:
-      rrc_taps (0.35, RRC_SPS, RRC_SPAN, taps);
+      dp_rrc_taps (0.35, RRC_SPS, RRC_SPAN, taps);
       sink += taps[RRC_TAPS / 2];
       break;
     case C_RRC_H:
-      rrc_h (tvec, N_T, hout, 0.35);
+      dp_rrc_h (tvec, N_T, hout, 0.35);
       sink += hout[0];
       break;
     case C_RC_H:
-      rc_h (tvec, N_T, hout, 0.35);
+      dp_rc_h (tvec, N_T, hout, 0.35);
       sink += hout[0];
       break;
     default:
-      sink += (double)mls_poly (7u + (uint32_t)(i & 7));
+      sink += (double)dp_mls_poly (7u + (uint32_t)(i & 7));
       break;
     }
 }

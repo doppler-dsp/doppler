@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef BURST_ACQ_CORE_H
-#define BURST_ACQ_CORE_H
+#ifndef DP_BURST_ACQ_CORE_H
+#define DP_BURST_ACQ_CORE_H
 
 #include "doppler/acq/acq_core.h"
 #include "doppler/clib_common.h"
@@ -24,11 +24,11 @@ extern "C"
 
   typedef struct
   {
-    acq_state_t *engine;
+    dp_acq_state_t *engine;
     uint8_t underpowered;
-  } burst_acq_state_t;
+  } dp_burst_acq_state_t;
 
-  burst_acq_state_t *burst_acq_create (const float _Complex *preamble,
+  dp_burst_acq_state_t *dp_burst_acq_create (const float _Complex *preamble,
                                        size_t preamble_len, size_t reps,
                                        double fs,
                                        double cn0_dbhz,
@@ -36,26 +36,26 @@ extern "C"
                                        double pd, int noise_mode,
                                        double doppler_rate);
 
-  void burst_acq_destroy (burst_acq_state_t *state);
+  void dp_burst_acq_destroy (dp_burst_acq_state_t *state);
 
-  void burst_acq_reset (burst_acq_state_t *state);
+  void dp_burst_acq_reset (dp_burst_acq_state_t *state);
 
-  size_t burst_acq_push (burst_acq_state_t *state, const float _Complex *x,
+  size_t dp_burst_acq_push (dp_burst_acq_state_t *state, const float _Complex *x,
                          size_t n_in, acq_result_t *result,
                          size_t max_results);
 
-  int burst_acq_configure_search_raw (burst_acq_state_t *state,
+  int dp_burst_acq_configure_search_raw (dp_burst_acq_state_t *state,
                                       size_t doppler_bins, size_t n_noncoh);
 
-  int burst_acq_set_max_peaks (burst_acq_state_t *state, size_t n);
+  int dp_burst_acq_set_max_peaks (dp_burst_acq_state_t *state, size_t n);
 
   /* ── Serializable state — forwards straight to the embedded engine's own
-   * triplet (the serialized bytes ARE the shared acq_state_t's own state;
+   * triplet (the serialized bytes ARE the shared dp_acq_state_t's own state;
    * no separate format needed). */
 
-  size_t burst_acq_state_bytes (const burst_acq_state_t *state);
-  void   burst_acq_get_state (const burst_acq_state_t *state, void *blob);
-  int    burst_acq_set_state (burst_acq_state_t *state, const void *blob);
+  size_t dp_burst_acq_state_bytes (const dp_burst_acq_state_t *state);
+  void   dp_burst_acq_get_state (const dp_burst_acq_state_t *state, void *blob);
+  int    dp_burst_acq_set_state (dp_burst_acq_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

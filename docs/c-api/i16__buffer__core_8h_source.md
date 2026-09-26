@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef I16_BUFFER_CORE_H
-#define I16_BUFFER_CORE_H
+#ifndef DP_I16_BUFFER_CORE_H
+#define DP_I16_BUFFER_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -28,7 +28,7 @@ typedef struct
   int16_t q; 
 } dp_iq16_t;
 
-typedef dp_i16_t i16_buffer_state_t;
+typedef dp_i16_t dp_i16_buffer_state_t;
 
 static inline dp_i16_t *dp_i16_create (size_t capacity);
 
@@ -52,31 +52,31 @@ static inline void dp_i16_reset (dp_i16_t *state);
 static inline void dp_i16_destroy (dp_i16_t *state);
 
 static inline size_t
-i16_buffer_get_capacity (const i16_buffer_state_t *state)
+dp_i16_buffer_get_capacity (const dp_i16_buffer_state_t *state)
 {
   return state->capacity;
 }
 
 static inline size_t
-i16_buffer_get_available (const i16_buffer_state_t *state)
+dp_i16_buffer_get_available (const dp_i16_buffer_state_t *state)
 {
   return dp_i16_available (state);
 }
 
 static inline size_t
-i16_buffer_get_space (const i16_buffer_state_t *state)
+dp_i16_buffer_get_space (const dp_i16_buffer_state_t *state)
 {
   return dp_i16_space (state);
 }
 
 static inline size_t
-i16_buffer_get_dropped (const i16_buffer_state_t *state)
+dp_i16_buffer_get_dropped (const dp_i16_buffer_state_t *state)
 {
   return state->dropped;
 }
 
 static inline bool
-i16_buffer_get_closed (const i16_buffer_state_t *state)
+dp_i16_buffer_get_closed (const dp_i16_buffer_state_t *state)
 {
   return dp_i16_closed (state);
 }

@@ -2,7 +2,7 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891).
  *
- * `burst_acq_push` is a DETECTOR, not a tracker: it runs continuously over
+ * `dp_burst_acq_push` is a DETECTOR, not a tracker: it runs continuously over
  * the input looking for a preamble that may never arrive, so unlike the
  * loops it pays its cost whether or not there is a signal. That makes its
  * per-sample number the floor of any always-on receiver, and the one that
@@ -77,12 +77,12 @@ main (void)
         /* The preamble is the code's samples: bin_to_nrz, held spc. */
         static float nrz[64];
         static float _Complex pre[64 * 4];
-        (void)bin_to_nrz (code, sf, nrz, 64);
+        (void)dp_bin_to_nrz (code, sf, nrz, 64);
         for (size_t i = 0; i < sf * spc; i++)
           pre[i] = nrz[i / spc];
-        burst_acq_state_t *a
-            = burst_acq_create (pre, sf * spc, 8, CHIP_RATE * (double)spc,
-                                65.0, 0.0, 1e-2, 0.9, 0, 0.0);
+        dp_burst_acq_state_t *a
+            = dp_burst_acq_create (pre, sf * spc, 8, CHIP_RATE * (double)spc,
+                                   65.0, 0.0, 1e-2, 0.9, 0, 0.0);
         if (!a)
           {
             (void)fprintf (stderr,
@@ -95,17 +95,17 @@ main (void)
         w0 = jm_bench_now_ns ();
         do
           {
-            burst_acq_reset (a);
-            sink += burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
+            dp_burst_acq_reset (a);
+            sink += dp_burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
             w1 = jm_bench_now_ns ();
           }
         while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
         for (int r = 0; r < ITERATIONS; r++)
           {
-            burst_acq_reset (a);
+            dp_burst_acq_reset (a);
             t0 = jm_bench_now_ns ();
-            sink += burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
+            sink += dp_burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
             t1            = jm_bench_now_ns ();
             t_ps[k][p][r] = jm_bench_elapsed_sec (t0, t1);
           }
@@ -115,7 +115,7 @@ main (void)
         double sec = min_sec (t_ps[k][p], ITERATIONS);
         printf ("  %-22s %7.2f ns/sample  %8.1f MSa/s\n", name,
                 sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6);
-        burst_acq_destroy (a);
+        dp_burst_acq_destroy (a);
       }
 
   printf ("\n  sf 15 -> 63 costs %.2fx; spc 2 -> 4 costs %.2fx. A detector\n"

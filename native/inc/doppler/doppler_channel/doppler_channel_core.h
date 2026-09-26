@@ -39,7 +39,7 @@
  * implemented here.
  *
  * **The output is delayed by the resampler's group delay** --
- * doppler_channel_get_delay_samples(), 10.5 samples for the built-in bank --
+ * dp_doppler_channel_get_delay_samples(), 10.5 samples for the built-in bank --
  * on top of the dilation. Output sample `k`, at receive time `t = k/fs`,
  * carries the input at time `t + excess(t) - delay/fs`. A receiver started at
  * the INPUT's phase is that far from the peak: at two samples per chip, five
@@ -50,18 +50,18 @@
  *
  * Example — a 2.5 GHz carrier seen at +20 ppm, ramping at 0.2 ppm/s:
  * @code
- * doppler_channel_state_t *ch =
- *     doppler_channel_create (6.138e6, 2.5e9, 20.0, 0.2);
- * size_t         cap = doppler_channel_execute_max_out (ch);
+ * dp_doppler_channel_state_t *ch =
+ *     dp_doppler_channel_create (6.138e6, 2.5e9, 20.0, 0.2);
+ * size_t         cap = dp_doppler_channel_execute_max_out (ch);
  * float _Complex *out = malloc (cap * sizeof *out);
- * size_t         n   = doppler_channel_execute (ch, in, 65536, out, cap);
- * // n ~= 65536/(1+20e-6); doppler_channel_get_offset_hz (ch) ~= 50000.0
+ * size_t         n   = dp_doppler_channel_execute (ch, in, 65536, out, cap);
+ * // n ~= 65536/(1+20e-6); dp_doppler_channel_get_offset_hz (ch) ~= 50000.0
  * free (out);
- * doppler_channel_destroy (ch);
+ * dp_doppler_channel_destroy (ch);
  * @endcode
  */
-#ifndef DOPPLER_CHANNEL_CORE_H
-#define DOPPLER_CHANNEL_CORE_H
+#ifndef DP_DOPPLER_CHANNEL_CORE_H
+#define DP_DOPPLER_CHANNEL_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -76,13 +76,13 @@ extern "C" {
 #define DOPPLER_CHANNEL_STATE_VERSION 1u
 
 /**
- * @brief Largest input block one `doppler_channel_execute()` call accepts.
+ * @brief Largest input block one `dp_doppler_channel_execute()` call accepts.
  *
- * `doppler_channel_execute_max_out()` reports a bound for the output buffer,
+ * `dp_doppler_channel_execute_max_out()` reports a bound for the output buffer,
  * and the generated Python binding sizes its buffer from that alone — it never
  * sees the input length. So the bound has to assume a worst-case input, and
  * this is that assumption (the same convention, and the same value, as
- * `RateConverter_execute_max_out`). Longer inputs are processed up to the
+ * `dp_RateConverter_execute_max_out`). Longer inputs are processed up to the
  * caller's `max_out` and the remainder is *not* consumed; feed large streams in
  * blocks of at most this many samples.
  */
@@ -91,7 +91,7 @@ extern "C" {
 /**
  * @brief DopplerChannel state.
  *
- * Allocate with doppler_channel_create().
+ * Allocate with dp_doppler_channel_create().
  */
 typedef struct {
     double fs;                 /* receive sample rate, Hz                  */
@@ -111,7 +111,7 @@ typedef struct {
 
     double *ctrl;         /* per-sample rate deviation scratch         */
     size_t ctrl_cap;
-} doppler_channel_state_t;
+} dp_doppler_channel_state_t;
 
 /**
  * @brief Excess delay (seconds) accumulated by receive time @p t: `tau(t)-t`.
@@ -132,7 +132,7 @@ typedef struct {
  * @return Excess delay in seconds (negative for an opening-range geometry).
  */
 static inline double
-doppler_channel_excess(const doppler_channel_state_t *s, double t)
+doppler_channel_excess(const dp_doppler_channel_state_t *s, double t)
 {
     return (s->doppler_ppm * t + 0.5 * s->doppler_rate_ppm_s * t * t) * 1e-6;
 }
@@ -149,7 +149,7 @@ doppler_channel_excess(const doppler_channel_state_t *s, double t)
  * @return `1 + d(t)`, a number very close to 1.
  */
 static inline double
-doppler_channel_scale(const doppler_channel_state_t *s, double t)
+doppler_channel_scale(const dp_doppler_channel_state_t *s, double t)
 {
     return 1.0 + (s->doppler_ppm + s->doppler_rate_ppm_s * t) * 1e-6;
 }
@@ -171,7 +171,7 @@ doppler_channel_scale(const doppler_channel_state_t *s, double t)
  * @return Phase in cycles; multiply by 2*pi for radians.
  */
 static inline double
-doppler_channel_phase(const doppler_channel_state_t *s, double t)
+doppler_channel_phase(const dp_doppler_channel_state_t *s, double t)
 {
     return s->carrier_hz * doppler_channel_excess(s, t);
 }
@@ -189,15 +189,15 @@ doppler_channel_phase(const doppler_channel_state_t *s, double t)
  * @param doppler_rate_ppm_s  Linear ramp of d in ppm per second
  *              (default: 0.0).
  * @return Heap-allocated state, or NULL on allocation failure or `fs <= 0`.
- * @note Caller must call doppler_channel_destroy() when done.
+ * @note Caller must call dp_doppler_channel_destroy() when done.
  */
-doppler_channel_state_t *doppler_channel_create(double fs, double carrier_hz, double doppler_ppm, double doppler_rate_ppm_s);
+dp_doppler_channel_state_t *dp_doppler_channel_create(double fs, double carrier_hz, double doppler_ppm, double doppler_rate_ppm_s);
 
 /**
  * @brief Destroy a doppler_channel instance and release all memory.
  * @param state  May be NULL.
  */
-void doppler_channel_destroy(doppler_channel_state_t *state);
+void dp_doppler_channel_destroy(dp_doppler_channel_state_t *state);
 
 /**
  * @brief Reset DopplerChannel to its post-create state.
@@ -220,19 +220,19 @@ void doppler_channel_destroy(doppler_channel_state_t *state);
  *
  * @endcode
  */
-void doppler_channel_reset(doppler_channel_state_t *state);
+void dp_doppler_channel_reset(dp_doppler_channel_state_t *state);
 
-/** @brief Bytes doppler_channel_get_state() writes (envelope + payload). */
-size_t doppler_channel_state_bytes(const doppler_channel_state_t *state);
+/** @brief Bytes dp_doppler_channel_get_state() writes (envelope + payload). */
+size_t dp_doppler_channel_state_bytes(const dp_doppler_channel_state_t *state);
 
 /** @brief Serialize the running state (both clocks + the resampler's). */
-void doppler_channel_get_state(const doppler_channel_state_t *state, void *blob);
+void dp_doppler_channel_get_state(const dp_doppler_channel_state_t *state, void *blob);
 
 /**
- * @brief Restore a blob written by doppler_channel_get_state().
+ * @brief Restore a blob written by dp_doppler_channel_get_state().
  * @return DP_OK, or DP_ERR_INVALID if the envelope or a child blob is rejected.
  */
-int doppler_channel_set_state(doppler_channel_state_t *state, const void *blob);
+int dp_doppler_channel_set_state(dp_doppler_channel_state_t *state, const void *blob);
 
 /**
  * @brief Upper bound on the output of one execute() call.
@@ -240,7 +240,7 @@ int doppler_channel_set_state(doppler_channel_state_t *state, const void *blob);
  * Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that
  * macro for why the bound cannot depend on the actual input length.
  */
-size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
+size_t dp_doppler_channel_execute_max_out(dp_doppler_channel_state_t *state);
 
 /**
  * @brief Apply clock Doppler to a block of complex baseband.
@@ -272,13 +272,13 @@ size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
  *
  * @endcode
  */
-size_t doppler_channel_execute(doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_doppler_channel_execute(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /** @brief Receive time in seconds produced so far (`n_out/fs`). */
-double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);
+double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);
 
 /** @brief Instantaneous carrier offset `fc*d(t)` in Hz at `elapsed_s`. */
-double doppler_channel_get_offset_hz(const doppler_channel_state_t *state);
+double dp_doppler_channel_get_offset_hz(const dp_doppler_channel_state_t *state);
 
 /**
  * @brief The resampler's group delay, in samples (10.5 for the built-in bank).
@@ -295,7 +295,7 @@ double doppler_channel_get_offset_hz(const doppler_channel_state_t *state);
  * 10.5
  * @endcode
  */
-double doppler_channel_get_delay_samples(const doppler_channel_state_t *state);
+double dp_doppler_channel_get_delay_samples(const dp_doppler_channel_state_t *state);
 #ifdef __cplusplus
 }
 #endif

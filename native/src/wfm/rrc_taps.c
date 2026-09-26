@@ -10,7 +10,7 @@
 #include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_taps */
 
 void
-rrc_taps (double beta, int sps, int span, float *out)
+dp_rrc_taps (double beta, int sps, int span, float *out)
 {
   /* Defensive guard (gh-178 review #4): the generated binding no longer
      enforces sps, span >= 1 (the retired hand binding raised "sps and span

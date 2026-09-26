@@ -23,8 +23,8 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_i16u64_to_f32[] = {
-    (jm_any_fn)i16u64_to_f32_create,
-    (jm_any_fn)i16u64_to_f32_destroy,
-    (jm_any_fn)i16u64_to_f32_reset,
-    (jm_any_fn)i16u64_to_f32_steps,
+    (jm_any_fn)dp_i16u64_to_f32_create,
+    (jm_any_fn)dp_i16u64_to_f32_destroy,
+    (jm_any_fn)dp_i16u64_to_f32_reset,
+    (jm_any_fn)dp_i16u64_to_f32_steps,
 };

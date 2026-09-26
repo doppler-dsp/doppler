@@ -6,7 +6,7 @@
 #include "doppler/mpsk/mpsk_core.h"
 
 int
-mpsk_bits_per_symbol (int m)
+dp_mpsk_bits_per_symbol (int m)
 {
   return mpsk_bps (m);
 }

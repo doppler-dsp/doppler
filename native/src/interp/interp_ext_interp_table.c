@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only interp_ext.c is compiled.
  */
 /* ======================================================== */
-/* InterpolatedTableObject — wraps interp_table_state_t *       */
+/* InterpolatedTableObject — wraps dp_interp_table_state_t *       */
 /* ======================================================== */
 
 #include "doppler/interp_table/interp_table_core.h"
 
 typedef struct
 {
-  PyObject_HEAD interp_table_state_t *handle;
+  PyObject_HEAD dp_interp_table_state_t *handle;
 } InterpolatedTableObject;
 
 static void
 InterpolatedTableObj_dealloc (InterpolatedTableObject *self)
 {
   if (self->handle)
-    interp_table_destroy (self->handle);
+    dp_interp_table_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -67,12 +67,13 @@ InterpolatedTableObj_init (InterpolatedTableObject *self, PyObject *args,
       return -1;
     }
   size_t table_len = (size_t)PyArray_SIZE (table_arr);
-  self->handle     = interp_table_create (
+  self->handle     = dp_interp_table_create (
       (const double _Complex *)PyArray_DATA (table_arr), table_len, method);
   Py_DECREF (table_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "interp_table_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_interp_table_create returned NULL");
       return -1;
     }
   return 0;
@@ -87,7 +88,7 @@ InterpolatedTableObj_reset (InterpolatedTableObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  interp_table_reset (self->handle);
+  dp_interp_table_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -100,7 +101,7 @@ InterpolatedTableObj_execute_max_out (InterpolatedTableObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (interp_table_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_interp_table_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -149,7 +150,7 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = interp_table_execute_max_out (self->handle);
+      size_t _omax    = dp_interp_table_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -159,7 +160,7 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = interp_table_execute (
+      size_t n_out = dp_interp_table_execute (
           self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n,
           (double _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -181,7 +182,7 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = interp_table_execute_max_out (self->handle);
+  size_t _cap  = dp_interp_table_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -193,9 +194,9 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
     }
   double _Complex *_d0
       = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = interp_table_execute (self->handle,
-                                       (const double *)PyArray_DATA (in_arr),
-                                       (size_t)n, _d0, _cap);
+  size_t n_out = dp_interp_table_execute (
+      self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n, _d0,
+      _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -235,7 +236,7 @@ InterpolatedTableObj_destroy (InterpolatedTableObject *self,
 {
   if (self->handle)
     {
-      interp_table_destroy (self->handle);
+      dp_interp_table_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -255,7 +256,7 @@ InterpolatedTableObj_exit (InterpolatedTableObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      interp_table_destroy (self->handle);
+      dp_interp_table_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

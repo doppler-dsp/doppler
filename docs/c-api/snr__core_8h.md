@@ -53,10 +53,10 @@ _Stateless SNR / Es-N0 estimators, data-aided and non-data-aided._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**snr\_data\_aided\_db**](#function-snr_data_aided_db) (const float \_Complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len) <br>_Data-aided Es/N0 (dB) over a block of despread symbols._  |
-|  void | [**snr\_data\_aided\_db\_series**](#function-snr_data_aided_db_series) (const float \_Complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len, size\_t window, double \* out) <br>_Sliding-window data-aided Es/N0 (dB), one estimate per index._  |
-|  double | [**snr\_m2m4\_db**](#function-snr_m2m4_db) (const float \_Complex \* x, size\_t x\_len) <br>_Non-data-aided (blind) moment-based Es/N0 (dB) over a block._  |
-|  void | [**snr\_m2m4\_db\_series**](#function-snr_m2m4_db_series) (const float \_Complex \* x, size\_t x\_len, size\_t window, double \* out) <br>_Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index._  |
+|  double | [**dp\_snr\_data\_aided\_db**](#function-dp_snr_data_aided_db) (const float \_Complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len) <br>_Data-aided Es/N0 (dB) over a block of despread symbols._  |
+|  void | [**dp\_snr\_data\_aided\_db\_series**](#function-dp_snr_data_aided_db_series) (const float \_Complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len, size\_t window, double \* out) <br>_Sliding-window data-aided Es/N0 (dB), one estimate per index._  |
+|  double | [**dp\_snr\_m2m4\_db**](#function-dp_snr_m2m4_db) (const float \_Complex \* x, size\_t x\_len) <br>_Non-data-aided (blind) moment-based Es/N0 (dB) over a block._  |
+|  void | [**dp\_snr\_m2m4\_db\_series**](#function-dp_snr_m2m4_db_series) (const float \_Complex \* x, size\_t x\_len, size\_t window, double \* out) <br>_Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index._  |
 
 
 
@@ -92,8 +92,8 @@ Two independent, pure (no persistent state) estimators over a block of complex b
 
 
 
-* [**snr\_data\_aided\_db()**](snr__core_8h.md#function-snr_data_aided_db): known-symbol estimator. Strip the known transmitted sign, then Es/N0 = (mean signal amplitude)^2 / (mean residual power)  the classic pilot/known-sequence SNR estimate. Needs ground truth (or trusted decisions), but is simple and unbiased.
-* [**snr\_m2m4\_db()**](snr__core_8h.md#function-snr_m2m4_db): moment-based (M2M4) blind estimator (Pauluzzi & Beaulieu, "A comparison of SNR estimation techniques for the AWGN
+* [**dp\_snr\_data\_aided\_db()**](snr__core_8h.md#function-dp_snr_data_aided_db): known-symbol estimator. Strip the known transmitted sign, then Es/N0 = (mean signal amplitude)^2 / (mean residual power)  the classic pilot/known-sequence SNR estimate. Needs ground truth (or trusted decisions), but is simple and unbiased.
+* [**dp\_snr\_m2m4\_db()**](snr__core_8h.md#function-dp_snr_m2m4_db): moment-based (M2M4) blind estimator (Pauluzzi & Beaulieu, "A comparison of SNR estimation techniques for the AWGN
   channel", IEEE Trans. Commun. 48(10), 2000) for a constant-modulus signal (BPSK/QPSK/M-PSK) in circular complex AWGN. No known symbols needed. SNR = sqrt(2\*M2^2 - M4) / (M2 - sqrt(2\*M2^2 - M4)), where M2/M4 are the 2nd/4th moments of \|x\|. Degenerates to 0 dB-equivalent (linear 0) for pure noise and +inf for a noiseless constant-modulus signal.
 
 
@@ -116,11 +116,11 @@ double blind = snr_m2m4_db(x, n);
 
 
 
-### function snr\_data\_aided\_db 
+### function dp\_snr\_data\_aided\_db 
 
 _Data-aided Es/N0 (dB) over a block of despread symbols._ 
 ```C++
-double snr_data_aided_db (
+double dp_snr_data_aided_db (
     const float _Complex * soft,
     size_t soft_len,
     const uint8_t * sign_bits,
@@ -172,11 +172,11 @@ Es/N0 in dB over `min(soft_len, sign_bits_len)` paired samples, or NaN if that c
 
 
 
-### function snr\_data\_aided\_db\_series 
+### function dp\_snr\_data\_aided\_db\_series 
 
 _Sliding-window data-aided Es/N0 (dB), one estimate per index._ 
 ```C++
-void snr_data_aided_db_series (
+void dp_snr_data_aided_db_series (
     const float _Complex * soft,
     size_t soft_len,
     const uint8_t * sign_bits,
@@ -188,7 +188,7 @@ void snr_data_aided_db_series (
 
 
 
-Same estimator as [**snr\_data\_aided\_db()**](snr__core_8h.md#function-snr_data_aided_db), applied to a `[i - window/2, i + window/2]` window centered (clamped at the edges) on each output index  for visualizing SNR drift vs time/index rather than reading one block-average scalar.
+Same estimator as [**dp\_snr\_data\_aided\_db()**](snr__core_8h.md#function-dp_snr_data_aided_db), applied to a `[i - window/2, i + window/2]` window centered (clamped at the edges) on each output index  for visualizing SNR drift vs time/index rather than reading one block-average scalar.
 
 
 
@@ -212,11 +212,11 @@ Same estimator as [**snr\_data\_aided\_db()**](snr__core_8h.md#function-snr_data
 
 
 
-### function snr\_m2m4\_db 
+### function dp\_snr\_m2m4\_db 
 
 _Non-data-aided (blind) moment-based Es/N0 (dB) over a block._ 
 ```C++
-double snr_m2m4_db (
+double dp_snr_m2m4_db (
     const float _Complex * x,
     size_t x_len
 ) 
@@ -264,11 +264,11 @@ Es/N0 in dB, 0-linear for pure noise, +inf for a noiseless constant-modulus sign
 
 
 
-### function snr\_m2m4\_db\_series 
+### function dp\_snr\_m2m4\_db\_series 
 
 _Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index._ 
 ```C++
-void snr_m2m4_db_series (
+void dp_snr_m2m4_db_series (
     const float _Complex * x,
     size_t x_len,
     size_t window,
@@ -278,7 +278,7 @@ void snr_m2m4_db_series (
 
 
 
-Same estimator as [**snr\_m2m4\_db()**](snr__core_8h.md#function-snr_m2m4_db), applied to a `[i - window/2, i + window/2]` window centered (clamped at the edges) on each output index.
+Same estimator as [**dp\_snr\_m2m4\_db()**](snr__core_8h.md#function-dp_snr_m2m4_db), applied to a `[i - window/2, i + window/2]` window centered (clamped at the edges) on each output index.
 
 
 

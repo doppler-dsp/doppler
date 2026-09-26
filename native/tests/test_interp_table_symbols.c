@@ -23,9 +23,9 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_interp_table[] = {
-    (jm_any_fn)interp_table_create,
-    (jm_any_fn)interp_table_destroy,
-    (jm_any_fn)interp_table_reset,
-    (jm_any_fn)interp_table_execute_max_out,
-    (jm_any_fn)interp_table_execute,
+    (jm_any_fn)dp_interp_table_create,
+    (jm_any_fn)dp_interp_table_destroy,
+    (jm_any_fn)dp_interp_table_reset,
+    (jm_any_fn)dp_interp_table_execute_max_out,
+    (jm_any_fn)dp_interp_table_execute,
 };

@@ -32,8 +32,8 @@ class Reader:
         library's own writer leaves beside it, falling back to cf32/le when
         there is none. A NAMED type still wins over the sidecar, so a stale one
         can be overridden. A wrong hint does not fail, and
-        ::wfm_reader_get_trailing_bytes is NOT the way to notice -- see what it
-        says about itself.
+        ::dp_wfm_reader_get_trailing_bytes is NOT the way to notice -- see what
+        it says about itself.
     endian : Literal["le", "be"], default "le"
         byte order, likewise a hint that only headerless raw uses; `"le"` or
         `"be"` from Python, 0 or 1 from C.
@@ -181,10 +181,10 @@ class Reader:
         mid-sample cannot desynchronise the stream.
 
         Blocks until whole samples arrive. A short or empty result does not
-        mean end-of-file the way ::wfm_reader_read's does -- the reader waits.
-        **Zero means the capture ENDED**, because with the default unbounded
-        budgets the call does not come back for "not yet";
-        ::wfm_reader_get_ending says which way it ended.
+        mean end-of-file the way ::dp_wfm_reader_read's does -- the reader
+        waits. **Zero means the capture ENDED**, because with the default
+        unbounded budgets the call does not come back for "not yet";
+        ::dp_wfm_reader_get_ending says which way it ended.
 
         Parameters
         ----------

@@ -66,10 +66,10 @@ make_code (void)
 
 /* The fixture's pool: the cell pool of section 8.2 on a searcher deep
    enough for its receivers. */
-static async_dsss_pool_state_t *
+static dp_async_dsss_pool_state_t *
 make_pool (size_t n_slots, int threads)
 {
-  return async_dsss_pool_create (
+  return dp_async_dsss_pool_create (
       g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, CELL_EPOCHS,
       0.0, 4, n_slots, threads, 0.0, LOST_S, 0.0, 4, 8, 0,
       ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
@@ -111,11 +111,11 @@ sum2 (const cap_t *a, const cap_t *b)
 
 /* Feed `n` samples from `x` in epochs; returns the assigned count after. */
 static size_t
-feed (async_dsss_pool_state_t *p, const float _Complex *x, size_t n)
+feed (dp_async_dsss_pool_state_t *p, const float _Complex *x, size_t n)
 {
   size_t last = 0;
   for (size_t pos = 0; pos + TE <= n; pos += TE)
-    last = async_dsss_pool_push (p, x + pos, TE);
+    last = dp_async_dsss_pool_push (p, x + pos, TE);
   return last;
 }
 
@@ -135,13 +135,13 @@ truth_chip (size_t delay, uint64_t sample)
    false alarm in the same row is at another phase -- or n_slots; and how
    many slots hold it: one, or the table has failed. */
 static size_t
-slot_of (async_dsss_pool_state_t *p, double doppler_hz, size_t delay,
+slot_of (dp_async_dsss_pool_state_t *p, double doppler_hz, size_t delay,
          size_t *count)
 {
   size_t found = p->n_slots, n = 0;
   for (size_t i = 0; i < p->n_slots; i++)
     {
-      async_dsss_pool_slot_t r = async_dsss_pool_status (p, i);
+      async_dsss_pool_slot_t r = dp_async_dsss_pool_status (p, i);
       if (!r.assigned
           || fabs (r.seed_doppler_hz - doppler_hz) > p->acq->doppler_res_hz)
         continue;
@@ -162,31 +162,32 @@ slot_of (async_dsss_pool_state_t *p, double doppler_hz, size_t delay,
 static int
 _test_arg_validation (void)
 {
-  DP_CHECK (async_dsss_pool_create (NULL, 0, CHIP_RATE, SYM_RATE, SPC, 2, CN0,
-                                    1e-2, 0.9, DU, CELL_EPOCHS, 0.0, 4, 2, 1,
-                                    0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
+  DP_CHECK (dp_async_dsss_pool_create (
+                NULL, 0, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, DU,
+                CELL_EPOCHS, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
             == NULL);
-  DP_CHECK (async_dsss_pool_create (g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2,
-                                    CN0, 1e-2, 0.9, DU, CELL_EPOCHS, 0.0, 4, 0,
-                                    1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
+  DP_CHECK (dp_async_dsss_pool_create (
+                g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, DU,
+                CELL_EPOCHS, 0.0, 4, 0, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
             == NULL); /* n_slots 0 */
-  DP_CHECK (async_dsss_pool_create (g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2,
-                                    CN0, 1e-2, 0.9, DU, CELL_EPOCHS, 0.0, 4, 2,
-                                    1, -1.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
+  DP_CHECK (dp_async_dsss_pool_create (g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2,
+                                       CN0, 1e-2, 0.9, DU, CELL_EPOCHS, 0.0, 4,
+                                       2, 1, -1.0, LOST_S, 0.0, 4, 8, 0, 0.125,
+                                       4)
             == NULL); /* carrier < 0 */
-  async_dsss_pool_state_t *p = make_pool (3, 1);
+  dp_async_dsss_pool_state_t *p = make_pool (3, 1);
   DP_CHECK (p != NULL);
   if (!p)
     return 1;
   DP_CHECK (p->n_slots == 3 && p->n_assigned == 0 && p->events == 0);
   /* A slot that does not exist: a zero record with state -1, no symbols. */
-  async_dsss_pool_slot_t r = async_dsss_pool_status (p, 3);
+  async_dsss_pool_slot_t r = dp_async_dsss_pool_status (p, 3);
   DP_CHECK (r.state == -1 && r.assigned == 0);
   float _Complex out[4];
-  DP_CHECK (async_dsss_pool_symbols (p, 3, out, 4) == 0);
-  DP_CHECK (async_dsss_pool_symbols (p, 0, out, 4) == 0);
-  DP_CHECK (async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_IDLE);
-  async_dsss_pool_destroy (p);
+  DP_CHECK (dp_async_dsss_pool_symbols (p, 3, out, 4) == 0);
+  DP_CHECK (dp_async_dsss_pool_symbols (p, 0, out, 4) == 0);
+  DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_IDLE);
+  dp_async_dsss_pool_destroy (p);
   return 0;
 }
 
@@ -197,8 +198,8 @@ _test_arg_validation (void)
 static int
 _test_one_emitter_lifecycle (void)
 {
-  cap_t                    e = emitter (1500.0, 40, 100u);
-  async_dsss_pool_state_t *p = make_pool (3, 1);
+  cap_t                       e = emitter (1500.0, 40, 100u);
+  dp_async_dsss_pool_state_t *p = make_pool (3, 1);
   DP_REQUIRE (p != NULL);
 
   /* All but the last eight epochs, then those one at a time with the
@@ -209,15 +210,15 @@ _test_one_emitter_lifecycle (void)
   size_t          count    = 0;
   size_t          slot     = slot_of (p, 1500.0, 40, &count);
   float _Complex *syms
-      = malloc (async_dsss_pool_symbols_max_out (p) * sizeof *syms);
+      = malloc (dp_async_dsss_pool_symbols_max_out (p) * sizeof *syms);
   size_t ns = 0, ns_other = 0;
   for (size_t pos = e.n - tail; pos + TE <= e.n; pos += TE)
     {
-      assigned = async_dsss_pool_push (p, e.x + pos, TE);
+      assigned = dp_async_dsss_pool_push (p, e.x + pos, TE);
       for (size_t i = 0; i < 3; i++)
         {
-          size_t k = async_dsss_pool_symbols (
-              p, i, syms, async_dsss_pool_symbols_max_out (p));
+          size_t k = dp_async_dsss_pool_symbols (
+              p, i, syms, dp_async_dsss_pool_symbols_max_out (p));
           if (i == slot)
             ns += k;
           else
@@ -229,7 +230,7 @@ _test_one_emitter_lifecycle (void)
                 "hit it");
   DP_CHECK (p->dropped == 0);
   DP_REQUIRE (slot < 3);
-  async_dsss_pool_slot_t r = async_dsss_pool_status (p, slot);
+  async_dsss_pool_slot_t r = dp_async_dsss_pool_status (p, slot);
   DP_CHECK_MSG (r.assigned == 1 && r.state == ASYNC_DSSS_RX_TRACKING
                     && r.code_locked == 1,
                 "the assigned receiver tracks the emitter with code lock");
@@ -262,7 +263,7 @@ _test_one_emitter_lifecycle (void)
      left: the coordinates it carries are the locked loops' as of then. */
   {
     const async_dsss_pool_slot_t st0 = r;
-    (void)async_dsss_pool_push (p, e.x + e.n - TE, TE);
+    (void)dp_async_dsss_pool_push (p, e.x + e.n - TE, TE);
     DP_CHECK_MSG (st0.code_locked && st0.locked
                       && p->rows[slot].chip_phase == st0.chip_phase
                       && p->rows[slot].doppler_hz == st0.doppler_hz,
@@ -272,9 +273,9 @@ _test_one_emitter_lifecycle (void)
   /* A slot holding a false alarm may emit symbols of noise; one holding
      nothing emits none. */
   for (size_t i = 0; i < 3; i++)
-    if (i != slot && !async_dsss_pool_status (p, i).assigned)
-      DP_CHECK (async_dsss_pool_symbols (p, i, syms,
-                                         async_dsss_pool_symbols_max_out (p))
+    if (i != slot && !dp_async_dsss_pool_status (p, i).assigned)
+      DP_CHECK (dp_async_dsss_pool_symbols (
+                    p, i, syms, dp_async_dsss_pool_symbols_max_out (p))
                 == 0);
   (void)ns_other;
   DP_CHECK_MSG (p->events >= 2, "seeded and tracking were counted");
@@ -300,12 +301,13 @@ _test_one_emitter_lifecycle (void)
   size_t again = slot_of (p, 1500.0, 40, &count);
   DP_CHECK_MSG (assigned >= 1 && count == 1 && again < 3,
                 "a returning emitter is a new detection into a free slot");
-  DP_CHECK (async_dsss_pool_status (p, again).state == ASYNC_DSSS_RX_TRACKING);
+  DP_CHECK (dp_async_dsss_pool_status (p, again).state
+            == ASYNC_DSSS_RX_TRACKING);
 
-  async_dsss_pool_reset (p);
+  dp_async_dsss_pool_reset (p);
   DP_CHECK (p->n_assigned == 0 && p->events == 0 && p->samples_consumed == 0);
   free (syms);
-  async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (p);
   free (e.x);
   free (e.data);
   return 0;
@@ -321,9 +323,9 @@ _test_two_emitters_and_a_full_pool (void)
   cap_t b = emitter (-3500.0, 900, 102u);
   cap_t s = sum2 (&a, &b);
 
-  async_dsss_pool_state_t *p1 = make_pool (4, 1);
-  async_dsss_pool_state_t *p2 = make_pool (4, 3);
-  async_dsss_pool_state_t *p0 = make_pool (1, 1);
+  dp_async_dsss_pool_state_t *p1 = make_pool (4, 1);
+  dp_async_dsss_pool_state_t *p2 = make_pool (4, 3);
+  dp_async_dsss_pool_state_t *p0 = make_pool (1, 1);
   DP_REQUIRE (p1 && p2 && p0);
   DP_CHECK (feed (p1, s.x, s.n) >= 2);
   DP_CHECK (feed (p2, s.x, s.n) >= 2);
@@ -334,8 +336,8 @@ _test_two_emitters_and_a_full_pool (void)
   DP_CHECK_MSG (na == 1 && nb == 1 && sa != sb,
                 "each emitter holds exactly one slot of its own");
   DP_REQUIRE (sa < 4 && sb < 4);
-  async_dsss_pool_slot_t ra = async_dsss_pool_status (p1, sa);
-  async_dsss_pool_slot_t rb = async_dsss_pool_status (p1, sb);
+  async_dsss_pool_slot_t ra = dp_async_dsss_pool_status (p1, sa);
+  async_dsss_pool_slot_t rb = dp_async_dsss_pool_status (p1, sb);
   DP_CHECK_MSG (ra.state == ASYNC_DSSS_RX_TRACKING && ra.code_locked == 1
                     && rb.state == ASYNC_DSSS_RX_TRACKING
                     && rb.code_locked == 1,
@@ -346,17 +348,17 @@ _test_two_emitters_and_a_full_pool (void)
   /* Threads: the same assignments, the same symbols, the same counts. */
   DP_CHECK (p2->n_assigned == p1->n_assigned && p2->events == p1->events
             && p2->dropped == p1->dropped);
-  size_t          cap = async_dsss_pool_symbols_max_out (p1);
+  size_t          cap = dp_async_dsss_pool_symbols_max_out (p1);
   float _Complex *s1  = malloc (cap * sizeof *s1);
   float _Complex *s2  = malloc (cap * sizeof *s2);
   for (size_t i = 0; i < 4; i++)
     {
-      async_dsss_pool_slot_t r1 = async_dsss_pool_status (p1, i);
-      async_dsss_pool_slot_t r2 = async_dsss_pool_status (p2, i);
+      async_dsss_pool_slot_t r1 = dp_async_dsss_pool_status (p1, i);
+      async_dsss_pool_slot_t r2 = dp_async_dsss_pool_status (p2, i);
       DP_CHECK_MSG (memcmp (&r1, &r2, sizeof r1) == 0,
                     "the slot records are bit-identical across threads");
-      size_t n1 = async_dsss_pool_symbols (p1, i, s1, cap);
-      size_t n2 = async_dsss_pool_symbols (p2, i, s2, cap);
+      size_t n1 = dp_async_dsss_pool_symbols (p1, i, s1, cap);
+      size_t n2 = dp_async_dsss_pool_symbols (p2, i, s2, cap);
       DP_CHECK (n1 == n2);
       DP_CHECK_MSG (n1 == 0 || memcmp (s1, s2, n1 * sizeof *s1) == 0,
                     "the receivers' symbols are bit-identical across "
@@ -372,9 +374,9 @@ _test_two_emitters_and_a_full_pool (void)
   DP_CHECK_MSG (slot_of (p0, 1500.0, 40, NULL) == 0
                     || slot_of (p0, -3500.0, 900, NULL) == 0,
                 "and the one slot holds one of the emitters");
-  async_dsss_pool_destroy (p0);
-  async_dsss_pool_destroy (p1);
-  async_dsss_pool_destroy (p2);
+  dp_async_dsss_pool_destroy (p0);
+  dp_async_dsss_pool_destroy (p1);
+  dp_async_dsss_pool_destroy (p2);
   free (s.x);
   free (a.x);
   free (a.data);
@@ -393,10 +395,10 @@ _test_event_log (void)
                   dp_test_tmpdir (), (int)getpid ());
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
   DP_REQUIRE (log != NULL);
-  cap_t                    e = emitter (1500.0, 40, 103u);
-  async_dsss_pool_state_t *p = make_pool (2, 1);
+  cap_t                       e = emitter (1500.0, 40, 103u);
+  dp_async_dsss_pool_state_t *p = make_pool (2, 1);
   DP_REQUIRE (p != NULL);
-  DP_CHECK (async_dsss_pool_set_event_log (p, log) == DP_OK);
+  DP_CHECK (dp_async_dsss_pool_set_event_log (p, log) == DP_OK);
   (void)feed (p, e.x, e.n);
   size_t          n_off = (size_t)(2.0 * LOST_S * FS);
   float _Complex *nz;
@@ -420,12 +422,12 @@ _test_event_log (void)
       found++;
   fclose (f);
   DP_CHECK_MSG (found == 4, "seeded, tracking, lost and released, in order");
-  DP_CHECK (async_dsss_pool_set_event_log (p, NULL) == DP_OK);
+  DP_CHECK (dp_async_dsss_pool_set_event_log (p, NULL) == DP_OK);
   dp_event_log_destroy (log);
   remove (path);
   free (nz);
   free (nd);
-  async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (p);
   free (e.x);
   free (e.data);
   return 0;
@@ -443,13 +445,13 @@ _test_on_time_release_and_reset (void)
                   dp_test_tmpdir (), (int)getpid ());
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
   DP_REQUIRE (log != NULL);
-  cap_t                    e = emitter (1500.0, 40, 105u);
-  async_dsss_pool_state_t *p = async_dsss_pool_create (
+  cap_t                       e = emitter (1500.0, 40, 105u);
+  dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
       g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, CELL_EPOCHS,
       0.0, 4, 3, 1, 0.0, LOST_S, 0.4 /* the cap: 0.4 s of a 1 s capture */, 4,
       8, 0, 0.125, 4);
   DP_REQUIRE (p != NULL);
-  DP_CHECK (async_dsss_pool_set_event_log (p, log) == DP_OK);
+  DP_CHECK (dp_async_dsss_pool_set_event_log (p, log) == DP_OK);
   (void)feed (p, e.x, e.n);
   size_t count = 0;
   (void)slot_of (p, 1500.0, 40, &count);
@@ -470,13 +472,13 @@ _test_on_time_release_and_reset (void)
   DP_CHECK_MSG (seeded >= 2, "and the emitter, still on the air, is seeded "
                              "again into a free slot");
   const uint64_t before = p->events;
-  async_dsss_pool_reset (p);
+  dp_async_dsss_pool_reset (p);
   DP_CHECK_MSG (p->events == 0 && dp_event_log_count (log) == before,
                 "reset clears the count and logs nothing");
-  DP_CHECK (async_dsss_pool_set_event_log (p, NULL) == DP_OK);
+  DP_CHECK (dp_async_dsss_pool_set_event_log (p, NULL) == DP_OK);
   dp_event_log_destroy (log);
   remove (path);
-  async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (p);
   free (e.x);
   free (e.data);
   return 0;
@@ -487,19 +489,19 @@ _test_on_time_release_and_reset (void)
 static int
 _test_state_roundtrip (void)
 {
-  cap_t                    e    = emitter (1500.0, 40, 104u);
-  async_dsss_pool_state_t *ref  = make_pool (2, 1);
-  async_dsss_pool_state_t *live = make_pool (2, 1);
-  async_dsss_pool_state_t *cold = make_pool (2, 1);
+  cap_t                       e    = emitter (1500.0, 40, 104u);
+  dp_async_dsss_pool_state_t *ref  = make_pool (2, 1);
+  dp_async_dsss_pool_state_t *live = make_pool (2, 1);
+  dp_async_dsss_pool_state_t *cold = make_pool (2, 1);
   DP_REQUIRE (ref && live && cold);
   const size_t half = (e.n / TE / 2) * TE;
   (void)feed (ref, e.x, e.n);
   (void)feed (live, e.x, half);
   DP_CHECK (slot_of (live, 1500.0, 40, NULL) < 2);
-  size_t cb   = async_dsss_pool_state_bytes (live);
+  size_t cb   = dp_async_dsss_pool_state_bytes (live);
   void  *blob = malloc (cb);
-  async_dsss_pool_get_state (live, blob);
-  DP_CHECK (async_dsss_pool_set_state (cold, blob) == DP_OK);
+  dp_async_dsss_pool_get_state (live, blob);
+  DP_CHECK (dp_async_dsss_pool_set_state (cold, blob) == DP_OK);
   DP_CHECK (cold->n_assigned == live->n_assigned
             && cold->samples_consumed == live->samples_consumed
             && memcmp (cold->rows, live->rows, 2 * sizeof *cold->rows) == 0);
@@ -508,18 +510,18 @@ _test_state_roundtrip (void)
   float _Complex *sl = NULL, *sc = NULL;
   for (size_t pos = half; pos + TE <= e.n; pos += TE)
     {
-      (void)async_dsss_pool_push (live, e.x + pos, TE);
-      (void)async_dsss_pool_push (cold, e.x + pos, TE);
+      (void)dp_async_dsss_pool_push (live, e.x + pos, TE);
+      (void)dp_async_dsss_pool_push (cold, e.x + pos, TE);
       if (!sl)
         {
-          cap = async_dsss_pool_symbols_max_out (live);
+          cap = dp_async_dsss_pool_symbols_max_out (live);
           sl  = malloc (cap * sizeof *sl);
           sc  = malloc (cap * sizeof *sc);
         }
       for (size_t i = 0; i < 2; i++)
         {
-          size_t nl = async_dsss_pool_symbols (live, i, sl, cap);
-          size_t nc = async_dsss_pool_symbols (cold, i, sc, cap);
+          size_t nl = dp_async_dsss_pool_symbols (live, i, sl, cap);
+          size_t nc = dp_async_dsss_pool_symbols (cold, i, sc, cap);
           DP_CHECK (nl == nc);
           if (nl && memcmp (sl, sc, nl * sizeof *sl) != 0)
             {
@@ -537,18 +539,18 @@ _test_state_roundtrip (void)
   async_dsss_pool_row_t before[2];
   memcpy (before, cold->rows, sizeof before);
   ((char *)blob)[0] ^= (char)0xFF;
-  DP_CHECK (async_dsss_pool_set_state (cold, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_pool_set_state (cold, blob) == DP_ERR_INVALID);
   DP_CHECK_MSG (memcmp (before, cold->rows, sizeof before) == 0,
                 "a refused blob left the table untouched");
   ((char *)blob)[0] ^= (char)0xFF;
-  async_dsss_pool_state_t *other = make_pool (3, 1);
+  dp_async_dsss_pool_state_t *other = make_pool (3, 1);
   DP_REQUIRE (other != NULL);
-  DP_CHECK (async_dsss_pool_set_state (other, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_pool_set_state (other, blob) == DP_ERR_INVALID);
   free (blob);
-  async_dsss_pool_destroy (other);
-  async_dsss_pool_destroy (cold);
-  async_dsss_pool_destroy (live);
-  async_dsss_pool_destroy (ref);
+  dp_async_dsss_pool_destroy (other);
+  dp_async_dsss_pool_destroy (cold);
+  dp_async_dsss_pool_destroy (live);
+  dp_async_dsss_pool_destroy (ref);
   free (e.x);
   free (e.data);
   return 0;
@@ -562,36 +564,36 @@ static int
 _test_refusals (void)
 {
   /* D = 1: the default window, no searcher timing. */
-  DP_CHECK (async_dsss_pool_create (
+  DP_CHECK (dp_async_dsss_pool_create (
                 g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 1,
                 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
                 ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
             == NULL);
   /* D = 12 -> 407 Hz rows: past the bound by 4%. D = 13 is inside. */
-  DP_CHECK (async_dsss_pool_create (
+  DP_CHECK (dp_async_dsss_pool_create (
                 g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU,
                 23, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
                 ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
             == NULL);
-  async_dsss_pool_state_t *edge = async_dsss_pool_create (
+  dp_async_dsss_pool_state_t *edge = dp_async_dsss_pool_create (
       g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 25, 0.0, 4,
       2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, ASYNC_DSSS_RX_CELL_GAIN,
       ASYNC_DSSS_RX_CELL_PULLIN);
   DP_CHECK (edge != NULL && edge->acq->coherent_bins == 13
             && edge->acq->doppler_res_hz
                    <= 4.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (CHIP_RATE, SF));
-  async_dsss_pool_destroy (edge);
+  dp_async_dsss_pool_destroy (edge);
   /* The receivers' own argument checks reach through: gain 0. */
-  DP_CHECK (async_dsss_pool_create (g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2,
-                                    CN0, 1e-3, 0.9, DU, CELL_EPOCHS, 0.0, 4, 2,
-                                    1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.0,
-                                    ASYNC_DSSS_RX_CELL_PULLIN)
+  DP_CHECK (dp_async_dsss_pool_create (g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2,
+                                       CN0, 1e-3, 0.9, DU, CELL_EPOCHS, 0.0, 4,
+                                       2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.0,
+                                       ASYNC_DSSS_RX_CELL_PULLIN)
             == NULL);
-  async_dsss_pool_state_t *p = make_pool (2, 1);
+  dp_async_dsss_pool_state_t *p = make_pool (2, 1);
   DP_REQUIRE (p != NULL);
   DP_CHECK (p->acq->coherent_bins == 16);
-  DP_CHECK (async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_IDLE);
-  async_dsss_pool_destroy (p);
+  DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_IDLE);
+  dp_async_dsss_pool_destroy (p);
   return 0;
 }
 

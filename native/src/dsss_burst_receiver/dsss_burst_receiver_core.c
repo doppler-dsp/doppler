@@ -39,11 +39,11 @@
  * one place that knows which of those were bursts.
  */
 static int
-dsss_br_frame_valid (const dsss_burst_receiver_state_t *s)
+dsss_br_frame_valid (const dp_dsss_burst_receiver_state_t *s)
 {
-  const burst_demod_state_t *d = s->demod;
-  const size_t               n = d->n_llr;
-  if (n != s->frame_bits || n < s->sync_len + DSSS_BR_CRC_BITS)
+  const dp_burst_demod_state_t *d = s->demod;
+  const size_t                  n = d->n_llr;
+  if (n != s->frame_nbits || n < s->sync_len + DSSS_BR_CRC_BITS)
     return 0;
   uint8_t bits[n];
   for (size_t j = 0; j < n; j++)
@@ -55,14 +55,15 @@ dsss_br_frame_valid (const dsss_burst_receiver_state_t *s)
   return rx == dp_crc16_ccitt (bits + s->sync_len, payload);
 }
 
-dsss_burst_receiver_state_t *
-dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
-                            const uint8_t *data_code, size_t data_code_len,
-                            const uint8_t *sync, size_t sync_len, size_t reps,
-                            size_t spc, double chip_rate, size_t frame_syms,
-                            double cn0_dbhz, double doppler_uncertainty,
-                            double pfa, double pd, double carrier_hz,
-                            double max_rate, size_t est_segments)
+dp_dsss_burst_receiver_state_t *
+dp_dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
+                               const uint8_t *data_code, size_t data_code_len,
+                               const uint8_t *sync, size_t sync_len,
+                               size_t reps, size_t spc, double chip_rate,
+                               size_t frame_syms, double cn0_dbhz,
+                               double doppler_uncertainty, double pfa,
+                               double pd, double carrier_hz, double max_rate,
+                               size_t est_segments)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -74,9 +75,9 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
       || frame_syms < 1 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0 || pd >= 1.0)
     return NULL;
   /* cn0_dbhz: the acquisition engine's rule, checked there (doppler#1484;
-     see burst_capture_create). */
+     see dp_burst_capture_create). */
 
-  dsss_burst_receiver_state_t *s = calloc (1, sizeof *s);
+  dp_dsss_burst_receiver_state_t *s = calloc (1, sizeof *s);
   if (!s)
     return NULL;
 
@@ -107,19 +108,19 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * how much history the ring keeps, so a frame the transmitter actually
    * sent could not fit in the window this object reserved for it. */
   s->demod
-      = burst_demod_create (s->data_code, data_code_len, spc, chip_rate,
-                            carrier_hz, max_rate, frame_syms, est_segments);
+      = dp_burst_demod_create (s->data_code, data_code_len, spc, chip_rate,
+                               carrier_hz, max_rate, frame_syms, est_segments);
   if (!s->demod)
     goto fail;
-  burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
-  burst_demod_set_sync (s->demod, s->sync, sync_len);
+  dp_burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
+  dp_burst_demod_set_sync (s->demod, s->sync, sync_len);
 
   /* ── Derived geometry ───────────────────────────────────────────────
    * code_period: one acquisition code repetition, in samples. This is the
    * modulus every epoch ambiguity in the design doc is stated against --
    * acq's code_phase is exactly `burst_start mod code_period` (§3.1).
    * burst_len: preamble + the spread frame, whatever the frame is. */
-  s->frame_bits  = frame_syms; /* the row stride of push() and llrs() */
+  s->frame_nbits = frame_syms; /* the row stride of push() and llrs() */
   s->code_period = acq_code_len * spc;
   s->burst_len   = (reps * acq_code_len + frame_syms * data_code_len) * spc;
 
@@ -137,18 +138,18 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * max_rate * fs^2.
    *
    * The capture takes its preamble as SAMPLES; this receiver is DSSS end to
-   * end and takes a PN code, so it maps the chips with bin_to_nrz() (the
+   * end and takes a PN code, so it maps the chips with dp_bin_to_nrz() (the
    * library's one chip -> +-1 rule) and holds each `spc` samples. */
   const double    fs  = chip_rate * (double)spc;
   const size_t    n   = acq_code_len * spc;
   float          *nrz = dp_xmalloc (acq_code_len * sizeof *nrz);
   float _Complex *pre = dp_xmalloc (n * sizeof *pre);
-  (void)bin_to_nrz (s->acq_code, acq_code_len, nrz, acq_code_len);
+  (void)dp_bin_to_nrz (s->acq_code, acq_code_len, nrz, acq_code_len);
   for (size_t i = 0; i < n; i++)
     pre[i] = nrz[i / spc];
-  s->cap = burst_capture_create (pre, n, s->burst_len, reps, fs, cn0_dbhz,
-                                 doppler_uncertainty, pfa, pd, 0,
-                                 max_rate * fs * fs);
+  s->cap = dp_burst_capture_create (pre, n, s->burst_len, reps, fs, cn0_dbhz,
+                                    doppler_uncertainty, pfa, pd, 0,
+                                    max_rate * fs * fs);
   free (pre);
   free (nrz);
   if (!s->cap)
@@ -157,19 +158,19 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   return s;
 
 fail:
-  dsss_burst_receiver_destroy (s);
+  dp_dsss_burst_receiver_destroy (s);
   return NULL;
 }
 
 void
-dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *state)
 {
   if (!state)
     return;
   if (state->demod)
-    burst_demod_destroy (state->demod);
+    dp_burst_demod_destroy (state->demod);
   if (state->cap)
-    burst_capture_destroy (state->cap);
+    dp_burst_capture_destroy (state->cap);
   free (state->ev);
   free (state->llr);
   free (state->acq_code);
@@ -179,7 +180,7 @@ dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *state)
 }
 
 void
-dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_reset (dp_dsss_burst_receiver_state_t *state)
 {
   /* The capture resets the search, rewinds the history ring and clears the
      detection queue. That rewind is what this function got WRONG while the
@@ -189,7 +190,7 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
      refine never ran, and a second pass over the same capture returned
      nothing with dropped=67992 (doppler#1169). Composing the capture fixes
      it by construction: there is one ring, and one place that rewinds it. */
-  burst_capture_reset (state->cap);
+  dp_burst_capture_reset (state->cap);
 
   state->ev_len      = 0;
   state->frame_valid = 0;
@@ -214,14 +215,14 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
 }
 
 size_t
-dsss_burst_receiver_push_max_out (dsss_burst_receiver_state_t *state,
-                                  size_t                       x_len)
+dp_dsss_burst_receiver_push_max_out (dp_dsss_burst_receiver_state_t *state,
+                                     size_t                          x_len)
 {
   /* One frame per window the capture can complete, and the capture already
      answers how many that is -- in samples, over the same input. Deriving it
      from the same numbers a second time is how the two come to disagree. */
   size_t windows
-      = burst_capture_push_max_out (state->cap, x_len) / state->burst_len;
+      = dp_burst_capture_push_max_out (state->cap, x_len) / state->burst_len;
   return windows * state->frame_syms;
 }
 
@@ -239,7 +240,7 @@ dsss_burst_receiver_push_max_out (dsss_burst_receiver_state_t *state,
  * which is why the composition costs one memcpy per burst rather than two.
  */
 static size_t
-dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
+dsss_br_demod_one (dp_dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
                    size_t max_out)
 {
   const float _Complex        *w  = burst_capture_window (s->cap, i);
@@ -248,8 +249,8 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
     return 0;
 
   double f0 = ce->doppler_hz_est / (s->chip_rate * (double)s->spc);
-  burst_demod_set_prior (s->demod, f0, 0);
-  size_t n = burst_demod_demod (s->demod, w, s->burst_len, out, max_out);
+  dp_burst_demod_set_prior (s->demod, f0, 0);
+  size_t n = dp_burst_demod_demod (s->demod, w, s->burst_len, out, max_out);
 
   /* Publish the event. These fields ARE the record a consumer receives, so
      they are written together, from one burst, and never left half-updated
@@ -271,18 +272,18 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
      push can complete several, and a decoder handed the payload needs the
      LLRs of THAT burst (doppler#1018). */
   {
-    const size_t want = s->llr_len + s->frame_bits;
+    const size_t want = s->llr_len + s->frame_nbits;
     if (want > s->llr_cap)
       {
-        size_t cap = s->llr_cap ? s->llr_cap * 2u : (s->frame_bits * 4u);
+        size_t cap = s->llr_cap ? s->llr_cap * 2u : (s->frame_nbits * 4u);
         while (cap < want)
           cap *= 2u;
         s->llr     = dp_xrealloc (s->llr, cap * sizeof *s->llr);
         s->llr_cap = cap;
       }
-    if (s->llr_len + s->frame_bits <= s->llr_cap)
-      s->llr_len += burst_demod_llrs (s->demod, 1, s->llr + s->llr_len,
-                                      s->frame_bits);
+    if (s->llr_len + s->frame_nbits <= s->llr_cap)
+      s->llr_len += dp_burst_demod_llrs (s->demod, 1, s->llr + s->llr_len,
+                                         s->frame_nbits);
   }
 
   /* ...and the same event into this burst's OWN row. One push can complete
@@ -309,9 +310,9 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
 }
 
 size_t
-dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
-                          const float _Complex *x, size_t x_len, uint8_t *out,
-                          size_t max_out)
+dp_dsss_burst_receiver_push (dp_dsss_burst_receiver_state_t *state,
+                             const float _Complex *x, size_t x_len,
+                             uint8_t *out, size_t max_out)
 {
   /* Every call starts a fresh event list: `events()` describes THIS push. */
   state->ev_len  = 0;
@@ -327,7 +328,7 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
      `out = NULL` because the windows are not wanted as an array: the C
      consumer face hands them back as borrows, which is what keeps this
      composition at one memcpy per burst instead of two. */
-  burst_capture_push (state->cap, x, x_len, NULL, 0);
+  dp_burst_capture_push (state->cap, x, x_len, NULL, 0);
 
   /* Demodulate every window it completed -- all of them, not one. A call can
      complete several bursts, and returning one would mean storing the
@@ -346,21 +347,22 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
          "only a decoded burst arms the long window" (§10.3, doppler#1004)
          means once the capture owns the window (doppler#1181). */
       if (!state->frame_valid)
-        burst_capture_release (state->cap, i);
+        dp_burst_capture_release (state->cap, i);
     }
   return produced;
 }
 
 size_t
-dsss_burst_receiver_llrs_max_out (dsss_burst_receiver_state_t *state, size_t n)
+dp_dsss_burst_receiver_llrs_max_out (dp_dsss_burst_receiver_state_t *state,
+                                     size_t                          n)
 {
   (void)n; /* as events_max_out: the count is the last push's, not a request */
   return state->llr_len;
 }
 
 size_t
-dsss_burst_receiver_llrs (dsss_burst_receiver_state_t *state, size_t n,
-                          float *out, size_t max_out)
+dp_dsss_burst_receiver_llrs (dp_dsss_burst_receiver_state_t *state, size_t n,
+                             float *out, size_t max_out)
 {
   (void)n; /* as events(): the count is the last push's, not a request */
   const size_t rows = state->llr_len < max_out ? state->llr_len : max_out;
@@ -370,14 +372,14 @@ dsss_burst_receiver_llrs (dsss_burst_receiver_state_t *state, size_t n,
 }
 
 size_t
-dsss_burst_receiver_events_max_out (dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_events_max_out (dp_dsss_burst_receiver_state_t *state)
 {
   return state->ev_len;
 }
 
 size_t
-dsss_burst_receiver_events (dsss_burst_receiver_state_t *state, size_t n,
-                            dsss_br_event_t *out, size_t max_out)
+dp_dsss_burst_receiver_events (dp_dsss_burst_receiver_state_t *state, size_t n,
+                               dsss_br_event_t *out, size_t max_out)
 {
   (void)n; /* see the header: the count is the last push's, not a request */
   size_t rows = state->ev_len < max_out ? state->ev_len : max_out;
@@ -387,92 +389,100 @@ dsss_burst_receiver_events (dsss_burst_receiver_state_t *state, size_t n,
 }
 
 int
-dsss_burst_receiver_configure_search_raw (dsss_burst_receiver_state_t *state,
-                                          size_t doppler_bins, size_t n_noncoh)
+dp_dsss_burst_receiver_configure_search_raw (
+    dp_dsss_burst_receiver_state_t *state, size_t doppler_bins,
+    size_t n_noncoh)
 {
   /* Straight through to the capture, which owns the engine and re-reads the
      blob bound the new grid invalidates. */
-  return burst_capture_configure_search_raw (state->cap, doppler_bins,
-                                             n_noncoh);
+  return dp_burst_capture_configure_search_raw (state->cap, doppler_bins,
+                                                n_noncoh);
 }
 
 /* ── Read-backs: the DetectionEvent, per burst (§4) ───────────────────── */
 
 uint64_t
-dsss_burst_receiver_get_preamble_start (
-    const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_preamble_start (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->preamble_start;
 }
 
 double
-dsss_burst_receiver_get_doppler_hz_est (
-    const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_doppler_hz_est (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->doppler_hz_est;
 }
 
 double
-dsss_burst_receiver_get_doppler_res_hz (
-    const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_doppler_res_hz (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->doppler_res_hz;
 }
 
 double
-dsss_burst_receiver_get_cn0_dbhz_est (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_cn0_dbhz_est (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->cn0_dbhz_est;
 }
 
 double
-dsss_burst_receiver_get_est_freq_hz (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_est_freq_hz (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->est_freq_hz;
 }
 
 double
-dsss_burst_receiver_get_est_rate_hz (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_est_rate_hz (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->est_rate_hz;
 }
 
 double
-dsss_burst_receiver_get_demod_timing_chips (
-    const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_demod_timing_chips (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->demod_timing_chips;
 }
 
 double
-dsss_burst_receiver_get_demod_cn0_dbhz (
-    const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_demod_cn0_dbhz (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->demod_cn0_dbhz;
 }
 
 bool
-dsss_burst_receiver_get_frame_valid (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_frame_valid (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->frame_valid != 0;
 }
 
 size_t
-dsss_burst_receiver_get_pending (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_pending (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   /* The capture holds the queue, so it holds the answer. */
-  return burst_capture_get_pending (state->cap);
+  return dp_burst_capture_get_pending (state->cap);
 }
 
 uint64_t
-dsss_burst_receiver_get_dropped (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_dropped (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   /* The ring is the capture\'s, and so is what it refused. */
-  return burst_capture_get_dropped (state->cap);
+  return dp_burst_capture_get_dropped (state->cap);
 }
 
 uint64_t
-dsss_burst_receiver_get_n_bursts (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_n_bursts (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->n_bursts;
 }
@@ -485,19 +495,22 @@ dsss_burst_receiver_get_n_bursts (const dsss_burst_receiver_state_t *state)
  * placing bursts holds a receiver, not a capture. */
 
 size_t
-dsss_burst_receiver_get_min_gap (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_min_gap (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->cap->min_gap;
 }
 
 size_t
-dsss_burst_receiver_get_refine_span (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_refine_span (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->cap->refine_span;
 }
 
 size_t
-dsss_burst_receiver_get_retain_span (const dsss_burst_receiver_state_t *state)
+dp_dsss_burst_receiver_get_retain_span (
+    const dp_dsss_burst_receiver_state_t *state)
 {
   return state->cap->retain_span;
 }
@@ -519,7 +532,7 @@ dsss_burst_receiver_get_retain_span (const dsss_burst_receiver_state_t *state)
  * The composition's blob is this object's own scalars plus the CAPTURE's,
  * nested. That is the whole of the change: the look-back, the detection
  * queue and the acquisition child used to be written out here, field by
- * field, and every one of them now travels inside `burst_capture_get_state`
+ * field, and every one of them now travels inside `dp_burst_capture_get_state`
  * -- one owner, one layout, one place that can get it wrong.
  *
  * Nothing of the demodulator is serialized, deliberately and unchanged: a
@@ -529,7 +542,7 @@ dsss_burst_receiver_get_retain_span (const dsss_burst_receiver_state_t *state)
  */
 
 size_t
-dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
+dp_dsss_burst_receiver_state_bytes (const dp_dsss_burst_receiver_state_t *s)
 {
   /* A pure function of CONFIGURATION, deliberately: jm's binding compares an
      incoming blob's length against this before calling set_state, so a size
@@ -540,16 +553,16 @@ dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 2u /* n_bursts, preamble_start              */
          + sizeof (double) * 7u   /* the event's doubles                   */
-         + burst_capture_state_bytes (s->cap);
+         + dp_burst_capture_state_bytes (s->cap);
 }
 
 void
-dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
-                               void                              *blob)
+dp_dsss_burst_receiver_get_state (const dp_dsss_burst_receiver_state_t *s,
+                                  void                                 *blob)
 {
   DP_GET_OPEN (DSSS_BURST_RECEIVER_STATE_MAGIC,
                DSSS_BURST_RECEIVER_STATE_VERSION,
-               dsss_burst_receiver_state_bytes (s));
+               dp_dsss_burst_receiver_state_bytes (s));
 
   dp_w_u64 (&_w, s->n_bursts);
   dp_w_u64 (&_w, s->preamble_start);
@@ -565,22 +578,22 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
      so a corrupted or foreign child is rejected by the child rather than
      reinterpreted by this one. */
   {
-    void *region = dp_w_reserve (&_w, burst_capture_state_bytes (s->cap));
+    void *region = dp_w_reserve (&_w, dp_burst_capture_state_bytes (s->cap));
     if (region)
-      burst_capture_get_state (s->cap, region);
+      dp_burst_capture_get_state (s->cap, region);
   }
 }
 
 int
-dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
-                               const void                  *blob)
+dp_dsss_burst_receiver_set_state (dp_dsss_burst_receiver_state_t *s,
+                                  const void                     *blob)
 {
   /* Opens with dp_state_validate, so a wrong-object, wrong-version,
      wrong-size or foreign-endian blob is REJECTED rather than
      reinterpreted. */
   DP_SET_OPEN (DSSS_BURST_RECEIVER_STATE_MAGIC,
                DSSS_BURST_RECEIVER_STATE_VERSION,
-               dsss_burst_receiver_state_bytes (s));
+               dp_dsss_burst_receiver_state_bytes (s));
 
   s->n_bursts           = dp_r_u64 (&_r);
   s->preamble_start     = dp_r_u64 (&_r);
@@ -594,10 +607,10 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
 
   {
     const void *region
-        = dp_r_reserve (&_r, burst_capture_state_bytes (s->cap));
+        = dp_r_reserve (&_r, dp_burst_capture_state_bytes (s->cap));
     if (!region)
       return DP_ERR_INVALID;
-    if (burst_capture_set_state (s->cap, region) != DP_OK)
+    if (dp_burst_capture_set_state (s->cap, region) != DP_OK)
       return DP_ERR_INVALID;
   }
 

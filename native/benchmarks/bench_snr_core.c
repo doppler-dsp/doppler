@@ -86,7 +86,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += snr_data_aided_db (soft, BENCH_N, bits, BENCH_N);
+      sink += dp_snr_data_aided_db (soft, BENCH_N, bits, BENCH_N);
       t1       = jm_bench_now_ns ();
       t_one[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -98,7 +98,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      snr_data_aided_db_series (soft, BENCH_N, bits, BENCH_N, WINDOW, out);
+      dp_snr_data_aided_db_series (soft, BENCH_N, bits, BENCH_N, WINDOW, out);
       t1       = jm_bench_now_ns ();
       t_ser[r] = jm_bench_elapsed_sec (t0, t1);
     }

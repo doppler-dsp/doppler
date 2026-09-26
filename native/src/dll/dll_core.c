@@ -8,7 +8,7 @@
 
 /* Default always-on lock config, applied at create/init so the detector works
  * out of the box: pfa = 1e-3 over N = 20 non-coherent looks, EMA bandwidth
- * auto-derived (see dll_configure_lock).  Computed through the same
+ * auto-derived (see dp_dll_configure_lock).  Computed through the same
  * detection-module path a caller-supplied config takes, so the C and Python
  * defaults are identical by construction (this used to be a baked-constant
  * approximation the Python binding silently overrode). */
@@ -18,7 +18,7 @@
  * per-decision detection probability, which needs an SNR the DLL doesn't
  * know — so the default is a modest fixed time hysteresis: two straight
  * sub-threshold decisions (false-drop rate (1-pd_dec)^2 per window). The
- * C-only dll_configure_lock_raw() exposes it for callers that do know. */
+ * C-only dp_dll_configure_lock_raw() exposes it for callers that do know. */
 #define DLL_LOCK_DEFAULT_N_DOWN 2u
 /* Symbol-period aid: the coherent look is capped at this many EPOCHS of
    partials (a long symbol must not ask for coherence across more carrier
@@ -44,7 +44,7 @@ xorshift32 (uint32_t *s)
  * offset in [guard, sf - guard) so it clears the prompt/early/late main lobe
  * (the offset correlation is then signal-free for a low-sidelobe code). */
 static void
-draw_offset (dll_state_t *s)
+draw_offset (dp_dll_state_t *s)
 {
   size_t guard = (size_t)(s->noise_guard + 0.999); /* ceil */
   if (2 * guard >= s->sf)
@@ -59,21 +59,21 @@ draw_offset (dll_state_t *s)
 /* Clear the lock detector's running state (statistic, reference, verify
  * counters); its configuration is untouched. */
 static void
-lock_clear (dll_state_t *s)
+lock_clear (dp_dll_state_t *s)
 {
   s->noise_ema  = 0.0;
   s->lock_sum   = 0.0;
   s->lock_count = 0;
   s->lock_nz    = 0;
   s->lock_stat  = 0.0;
-  lockdet_reset (&s->lock);
+  dp_lockdet_reset (&s->lock);
 }
 
 /* Re-seed the loop to its create-time code phase + nominal rate, and clear the
  * correlator accumulators. The loop filter integrator is reset by the caller
- * (dll_init / dll_reset) before this runs. */
+ * (dll_init / dp_dll_reset) before this runs. */
 static void
-seed (dll_state_t *s)
+seed (dp_dll_state_t *s)
 {
   s->code_nco.phase = nco_norm_phase_to_word (s->seed_chip / (double)s->sf);
   s->code_nco.phase_inc
@@ -123,7 +123,7 @@ seed (dll_state_t *s)
  * for ~1/alpha looks (~hundreds of epochs) and the noise floor (hence Pfa) is
  * wrong during that warm-up. */
 static void
-lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
+lock_look (dp_dll_state_t *s, float _Complex prompt, float _Complex offset)
 {
   double po = (double)crealf (offset) * (double)crealf (offset)
               + (double)cimagf (offset) * (double)cimagf (offset);
@@ -139,7 +139,7 @@ lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
     {
       double denom = s->noise_ema > DLL_EPS ? s->noise_ema : DLL_EPS;
       s->lock_stat = sqrt (2.0 * s->lock_sum / denom);
-      (void)lockdet_step (&s->lock, s->lock_stat);
+      (void)dp_lockdet_step (&s->lock, s->lock_stat);
       s->lock_sum   = 0.0;
       s->lock_count = 0;
     }
@@ -156,7 +156,7 @@ lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
  * `start` is round((start - h) / P) -- solved and checked exactly, never
  * searched. */
 static inline int
-aid_window_starts (const dll_state_t *s, size_t h, uint64_t start)
+aid_window_starts (const dp_dll_state_t *s, size_t h, uint64_t start)
 {
   const double P  = s->sym_period;
   double       nd = floor (((double)start - (double)h) / P + 0.5);
@@ -165,7 +165,7 @@ aid_window_starts (const dll_state_t *s, size_t h, uint64_t start)
   return (uint64_t)floor ((double)h + nd * P + 0.5) == start;
 }
 
-/* Symbol-timing-aided look (dll_set_symbol_period()): one partial arrives;
+/* Symbol-timing-aided look (dp_dll_set_symbol_period()): one partial arrives;
  * the rings keep the last `aid_ring` prompt, offset (noise), early and late
  * partials, and every boundary-phase hypothesis whose window ends on this
  * partial sums its `aid_len` prompts coherently and feeds the window's
@@ -179,7 +179,7 @@ aid_window_starts (const dll_state_t *s, size_t h, uint64_t start)
  * hypotheses end a window on the same partial whenever P is not an
  * integer). */
 static void
-aid_look (dll_state_t *s, float _Complex part, float _Complex noise,
+aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
           float _Complex early, float _Complex late)
 {
   const size_t   mask     = s->aid_ring - 1;
@@ -239,21 +239,21 @@ aid_look (dll_state_t *s, float _Complex part, float _Complex noise,
  * per iteration (measured ~5% on steps(); same mechanism as the ~20%
  * telemetry-flush lesson). The kernel uses the statics directly. */
 void
-dll_lock_look (dll_state_t *s, double norm)
+dll_lock_look (dp_dll_state_t *s, double norm)
 {
   lock_look (s, s->acc_p / (float)norm, s->acc_o / (float)norm);
   s->acc_o = 0.0f;
 }
 
 void
-dll_lock_epoch (dll_state_t *s)
+dll_lock_epoch (dp_dll_state_t *s)
 {
   draw_offset (s);
 }
 
 /* Set the partial-correlation count and its derived geometry (>= 1). */
 static void
-set_segments (dll_state_t *s, size_t segments)
+set_segments (dp_dll_state_t *s, size_t segments)
 {
   s->segments  = segments ? segments : 1;
   s->seg_chips = (double)s->sf / (double)s->segments;
@@ -280,7 +280,7 @@ set_segments (dll_state_t *s, size_t segments)
 }
 
 static void
-configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
+configure_geometry (dp_dll_state_t *s, size_t code_len, size_t sps,
                     double init_chip, double bn, double zeta, double spacing)
 {
   s->sf      = code_len ? code_len : 1;
@@ -304,26 +304,26 @@ configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
   s->noise_guard = spacing + 2.0;
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per period */
   s->inv_upd = 1.0;
-  set_segments (s,
-                1); /* default: coherent full-epoch (dll_create overrides) */
-  (void)dll_configure_lock (s, DLL_LOCK_DEFAULT_PFA, DLL_LOCK_DEFAULT_N,
-                            0.0 /* auto EMA bandwidth */);
+  set_segments (
+      s, 1); /* default: coherent full-epoch (dp_dll_create overrides) */
+  (void)dp_dll_configure_lock (s, DLL_LOCK_DEFAULT_PFA, DLL_LOCK_DEFAULT_N,
+                               0.0 /* auto EMA bandwidth */);
 }
 
 void
-dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
+dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
           double init_chip, double bn, double zeta, double spacing)
 {
   configure_geometry (s, code_len, sps, init_chip, bn, zeta, spacing);
   /* In-place init of a caller-owned (possibly stack) state: loop_filter_init
      preserves the integrator (it doubles as a reconfigure), so zero it here —
-     seed() sets code_rate = 1.0 and assumes integ == 0. dll_create() gets this
-     free via calloc; an embedded/stack dll_state_t would otherwise start with
-     a garbage code rate. */
-  loop_filter_reset (&s->lf);
+     seed() sets code_rate = 1.0 and assumes integ == 0. dp_dll_create() gets
+     this free via calloc; an embedded/stack dp_dll_state_t would otherwise
+     start with a garbage code rate. */
+  dp_loop_filter_reset (&s->lf);
   /* rate_aid is carrier-aiding config (0 = off), set only by
-     dll_set_rate_aid(); seed()/reset() deliberately preserve it (like the
-     lock-detector config), so it is NOT zeroed there. dll_create() gets it
+     dp_dll_set_rate_aid(); seed()/reset() deliberately preserve it (like the
+     lock-detector config), so it is NOT zeroed there. dp_dll_create() gets it
      zeroed free via calloc, but this in-place init of a caller-owned
      (possibly stack) struct MUST zero it explicitly -- otherwise it starts as
      stack garbage and feeds phase_inc =
@@ -338,11 +338,11 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   /* dll_init always runs with segments == 1 (configure_geometry's
-   * set_segments default; there is no by-value counterpart to dll_create()'s
-   * segments parameter), so the segments>1 chunk/lookback buffers are never
-   * allocated for this instance — explicitly NULL them (not calloc'd, unlike
-   * dll_create) so a stack-embedded caller struct doesn't carry garbage
-   * pointers. */
+   * set_segments default; there is no by-value counterpart to
+   * dp_dll_create()'s segments parameter), so the segments>1 chunk/lookback
+   * buffers are never allocated for this instance — explicitly NULL them (not
+   * calloc'd, unlike dp_dll_create) so a stack-embedded caller struct doesn't
+   * carry garbage pointers. */
   s->chunk_p = s->chunk_e = s->chunk_l = s->sums = NULL;
   s->last_backward_p = s->last_e = s->last_l = NULL;
   /* Likewise the symbol-period aid: off, no rings, for a caller-owned
@@ -352,7 +352,7 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
   s->aid_power                  = NULL;
   s->sym_period                 = 0.0;
   s->aid_len = s->aid_nhyp = s->aid_ring = 0;
-  /* In-place (stack-embedded) init: start detached — dll_create's calloc
+  /* In-place (stack-embedded) init: start detached — dp_dll_create's calloc
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
@@ -361,14 +361,14 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
 
 /* Allocate the segments>1 chunk/lookback buffers (seven arrays, length
  * segments); on any failure, free whatever succeeded and return 0. Only
- * ever called from dll_create() -- dll_init()'s embedded/borrowed path is
+ * ever called from dp_dll_create() -- dll_init()'s embedded/borrowed path is
  * always segments==1 (see dll_init()'s own comment), so this never needs a
  * matching deinit for that lifecycle. `sums` is pure epoch-local scratch
  * (rebuilt from chunk_p every epoch boundary; see dll_steps_impl's
  * segments>1 branch) but is persisted here rather than allocated per-epoch,
  * matching this codebase's "no allocation in the hot loop" rule. */
 static int
-alloc_segment_buffers (dll_state_t *s, size_t segments)
+alloc_segment_buffers (dp_dll_state_t *s, size_t segments)
 {
   s->chunk_p         = calloc (segments, sizeof (*s->chunk_p));
   s->chunk_e         = calloc (segments, sizeof (*s->chunk_e));
@@ -382,7 +382,7 @@ alloc_segment_buffers (dll_state_t *s, size_t segments)
 }
 
 static void
-free_aid_buffers (dll_state_t *s)
+free_aid_buffers (dp_dll_state_t *s)
 {
   free (s->aid_ring_p);
   free (s->aid_ring_o);
@@ -397,7 +397,7 @@ free_aid_buffers (dll_state_t *s)
 }
 
 static void
-free_segment_buffers (dll_state_t *s)
+free_segment_buffers (dp_dll_state_t *s)
 {
   free (s->chunk_p);
   free (s->chunk_e);
@@ -410,13 +410,14 @@ free_segment_buffers (dll_state_t *s)
   s->last_backward_p = s->last_e = s->last_l = NULL;
 }
 
-dll_state_t *
-dll_create (const uint8_t *code, size_t code_len, size_t sps, double init_chip,
-            double bn, double zeta, double spacing, size_t segments)
+dp_dll_state_t *
+dp_dll_create (const uint8_t *code, size_t code_len, size_t sps,
+               double init_chip, double bn, double zeta, double spacing,
+               size_t segments)
 {
   if (!code || code_len == 0 || segments == 0)
     return NULL;
-  dll_state_t *obj = calloc (1, sizeof (*obj));
+  dp_dll_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   uint8_t *copy = malloc (code_len);
@@ -442,7 +443,7 @@ dll_create (const uint8_t *code, size_t code_len, size_t sps, double init_chip,
 }
 
 void
-dll_destroy (dll_state_t *state)
+dp_dll_destroy (dp_dll_state_t *state)
 {
   if (!state)
     return;
@@ -454,9 +455,9 @@ dll_destroy (dll_state_t *state)
 }
 
 void
-dll_reset (dll_state_t *state)
+dp_dll_reset (dp_dll_state_t *state)
 {
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state);
 }
 
@@ -485,8 +486,8 @@ dll_lookback_segments (size_t tsamps, double max_error_db)
 }
 
 int
-dll_set_telemetry (dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
-                   uint32_t decim)
+dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                      uint32_t decim)
 {
   if (!tlm) /* detach: probe sites revert to the single-branch cost */
     {
@@ -514,7 +515,7 @@ dll_set_telemetry (dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
 }
 
 void
-dll_tlm_flush (const dll_state_t *s)
+dll_tlm_flush (const dp_dll_state_t *s)
 {
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->code_rate);
@@ -525,12 +526,12 @@ dll_tlm_flush (const dll_state_t *s)
 /* Serializable state — whole-struct snapshot (loop_filter child and the
  * embedded code_nco are both POD, so their bytes are their state) plus,
  * when segments > 1, the six heap-owned chunk/lookback buffers packed
- * field-wise (same pattern as despreader_state_t's `flip_hist`) since
+ * field-wise (same pattern as dp_despreader_state_t's `flip_hist`) since
  * they're pointers, not part of the struct's own bytes. The borrowed
  * `code` pointer + its ownership are this instance's (config), restored
  * by create() and preserved here. */
 static size_t
-aid_bytes (const dll_state_t *s)
+aid_bytes (const dp_dll_state_t *s)
 {
   return s->sym_period > 0.0 ? 4 * s->aid_ring * sizeof (*s->aid_ring_p)
                                    + s->aid_nhyp * sizeof (*s->aid_power)
@@ -538,17 +539,17 @@ aid_bytes (const dll_state_t *s)
 }
 
 size_t
-dll_state_bytes (const dll_state_t *s)
+dp_dll_state_bytes (const dp_dll_state_t *s)
 {
   size_t extra = s->segments > 1 ? 6 * s->segments * sizeof (*s->chunk_p) : 0;
-  return sizeof (dp_state_hdr_t) + sizeof (dll_state_t) + extra
+  return sizeof (dp_state_hdr_t) + sizeof (dp_dll_state_t) + extra
          + aid_bytes (s);
 }
 
 void
-dll_get_state (const dll_state_t *s, void *blob)
+dp_dll_get_state (const dp_dll_state_t *s, void *blob)
 {
-  DP_GET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
+  DP_GET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dp_dll_state_bytes (s));
   /* Snapshot the struct but NULL the borrowed `code` pointer + its ownership,
    * and the seven segments>1 buffer pointers (six packed separately below;
    * `sums` is pure epoch-local scratch, never meaningful across calls, so
@@ -558,9 +559,9 @@ dll_get_state (const dll_state_t *s, void *blob)
    * the telemetry attachment is zeroed for the same reason (blobs stay
    * deterministic and attachment-independent; telemetry is observation,
    * not DSP state). set_state preserves the live values regardless. */
-  dll_state_t tmp = *s;
-  tmp.code        = NULL;
-  tmp.owns_code   = 0;
+  dp_dll_state_t tmp = *s;
+  tmp.code           = NULL;
+  tmp.owns_code      = 0;
   tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = tmp.sums = NULL;
   tmp.last_backward_p = tmp.last_e = tmp.last_l = NULL;
   tmp.aid_ring_p = tmp.aid_ring_o = NULL;
@@ -589,9 +590,9 @@ dll_get_state (const dll_state_t *s, void *blob)
 }
 
 int
-dll_set_state (dll_state_t *s, const void *blob)
+dp_dll_set_state (dp_dll_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
+  DP_SET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dp_dll_state_bytes (s));
   const uint8_t *code
       = s->code; /* this instance's code + ownership (config) */
   int       owns = s->owns_code;
@@ -661,17 +662,17 @@ dll_set_state (dll_state_t *s, const void *blob)
 }
 
 void
-dll_configure (dll_state_t *state, double bn, double zeta)
+dp_dll_configure (dp_dll_state_t *state, double bn, double zeta)
 {
   state->bn   = bn;
   state->zeta = zeta;
-  loop_filter_configure (&state->lf, bn, zeta, state->lf.t);
+  dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t);
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
  * input length, so 0 (== "caller sizes") is the correct sentinel. */
 size_t
-dll_steps_max_out (dll_state_t *state)
+dp_dll_steps_max_out (dp_dll_state_t *state)
 {
   (void)state;
   return 0; /* one prompt per code period, so prompts <= inputs */
@@ -686,7 +687,7 @@ dll_steps_max_out (dll_state_t *state)
  * on the symsync loops). Same mechanism as symsync_step_ted's literal
  * TED. */
 static JM_FORCEINLINE size_t
-dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
+dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                 float _Complex *out, size_t max_out, int tlm_on)
 {
   size_t emitted = 0;
@@ -963,8 +964,8 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
 }
 
 size_t
-dll_steps (dll_state_t *state, const float _Complex *x, size_t x_len,
-           float _Complex *out, size_t max_out)
+dp_dll_steps (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
+              float _Complex *out, size_t max_out)
 {
   /* Telemetry hoisted to a literal at entry (attach is setup-time only —
    * SPSC contract): the detached instantiation is the pre-telemetry code
@@ -975,19 +976,19 @@ dll_steps (dll_state_t *state, const float _Complex *x, size_t x_len,
 }
 
 double
-dll_get_bn (const dll_state_t *state)
+dp_dll_get_bn (const dp_dll_state_t *state)
 {
   return state->bn;
 }
 
 void
-dll_set_bn (dll_state_t *state, double val)
+dp_dll_set_bn (dp_dll_state_t *state, double val)
 {
-  dll_configure (state, val, state->zeta);
+  dp_dll_configure (state, val, state->zeta);
 }
 
 void
-dll_hold_here (dll_state_t *state)
+dll_hold_here (dp_dll_state_t *state)
 {
   state->held_inc = state->code_nco.phase_inc;
   state->held_lf  = state->lf;
@@ -999,15 +1000,15 @@ dll_hold_here (dll_state_t *state)
    rate it walks the phase off at chips per second (measured: +14 chips/s
    from one such steer). The rate aid summed beside it, as dll_steer does. */
 static uint32_t
-held_phase_inc (const dll_state_t *s)
+held_phase_inc (const dp_dll_state_t *s)
 {
-  const loop_filter_state_t *lf   = s->held_inc ? &s->held_lf : &s->lf;
-  const double               ctrl = s->inv_upd * s->ctrl_i * lf->integ;
+  const dp_loop_filter_state_t *lf   = s->held_inc ? &s->held_lf : &s->lf;
+  const double                  ctrl = s->inv_upd * s->ctrl_i * lf->integ;
   return nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
 void
-dll_set_coast (dll_state_t *state, int coast)
+dll_set_coast (dp_dll_state_t *state, int coast)
 {
   coast = coast ? 1 : 0;
   if (coast && !state->coast && state->held_inc)
@@ -1025,9 +1026,9 @@ dll_set_coast (dll_state_t *state, int coast)
 }
 
 void
-dll_set_rate_aid (dll_state_t *state, double rate_aid)
+dp_dll_set_rate_aid (dp_dll_state_t *state, double rate_aid)
 {
-  /* Just stores the bias; the next dll_update()/dll_steps() period boundary
+  /* Just stores the bias; the next dll_update()/dp_dll_steps() period boundary
      folds it into phase_inc (inv_tsamps*(1+rate_aid) + ctrl). Deliberately
      does NOT touch phase_inc here, so this is safe to call every period for
      continuous aiding without clobbering the loop's own steering -- a fresh
@@ -1042,7 +1043,7 @@ dll_set_rate_aid (dll_state_t *state, double rate_aid)
 }
 
 size_t
-dll_take_error (dll_state_t *state, double *sum)
+dll_take_error (dp_dll_state_t *state, double *sum)
 {
   const size_t n = (size_t)state->err_n;
   *sum           = state->err_sum;
@@ -1052,7 +1053,7 @@ dll_take_error (dll_state_t *state, double *sum)
 }
 
 double
-dll_take_error_mean (dll_state_t *state)
+dp_dll_take_error_mean (dp_dll_state_t *state)
 {
   double       sum;
   const size_t n = dll_take_error (state, &sum);
@@ -1060,7 +1061,7 @@ dll_take_error_mean (dll_state_t *state)
 }
 
 void
-dll_set_code_phase (dll_state_t *state, double chips)
+dp_dll_set_code_phase (dp_dll_state_t *state, double chips)
 {
   const double sfd    = (double)state->sf;
   const double folded = dp_fmod_pos (chips, sfd);
@@ -1096,18 +1097,18 @@ dll_set_code_phase (dll_state_t *state, double chips)
 /* Re-time the loop filter to `t` epochs per update without a transient:
  * its integrator is a phase correction PER UPDATE, so it scales with the
  * interval, and code_rate -- the per-epoch rate it implies -- is unchanged
- * by the switch. loop_filter_configure keeps integ and recomputes the
+ * by the switch. dp_loop_filter_configure keeps integ and recomputes the
  * gains from bn*t (loop_filter_core.h: keep bn*t <= 0.0112). */
 static void
-set_update_period (dll_state_t *s, double t)
+set_update_period (dp_dll_state_t *s, double t)
 {
   s->lf.integ *= t / s->lf.t;
-  loop_filter_configure (&s->lf, s->bn, s->zeta, t);
+  dp_loop_filter_configure (&s->lf, s->bn, s->zeta, t);
   s->inv_upd = 1.0 / t;
 }
 
 int
-dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
+dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
 {
   if (partials_per_symbol <= 0.0)
     {
@@ -1154,49 +1155,49 @@ dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
 }
 
 size_t
-dll_get_symbol_window (const dll_state_t *state)
+dp_dll_get_symbol_window (const dp_dll_state_t *state)
 {
   return state->sym_period > 0.0 ? state->aid_len : 0;
 }
 
 int
-dll_set_lock_verify (dll_state_t *state, uint32_t n_up, uint32_t n_down)
+dp_dll_set_lock_verify (dp_dll_state_t *state, uint32_t n_up, uint32_t n_down)
 {
   if (n_up == 0 || n_down == 0)
     return DP_ERR_INVALID;
   lockdet_init (&state->lock, state->lock.up_thresh, state->lock.down_thresh,
                 n_up, n_down);
-  lockdet_reset (&state->lock);
+  dp_lockdet_reset (&state->lock);
   return DP_OK;
 }
 
 double
-dll_get_code_phase (const dll_state_t *state)
+dp_dll_get_code_phase (const dp_dll_state_t *state)
 {
   return state->chip_pos;
 }
 
 double
-dll_get_code_rate (const dll_state_t *state)
+dp_dll_get_code_rate (const dp_dll_state_t *state)
 {
   return state->code_rate;
 }
 
 double
-dll_get_last_error (const dll_state_t *state)
+dp_dll_get_last_error (const dp_dll_state_t *state)
 {
   return state->last_error;
 }
 
 size_t
-dll_get_segments (const dll_state_t *state)
+dp_dll_get_segments (const dp_dll_state_t *state)
 {
   return state->segments;
 }
 
 int
-dll_configure_lock (dll_state_t *state, double pfa, size_t n_looks,
-                    double ref_snr_db)
+dp_dll_configure_lock (dp_dll_state_t *state, double pfa, size_t n_looks,
+                       double ref_snr_db)
 {
   if (!(pfa > 0.0 && pfa < 1.0))
     return DP_ERR_INVALID;
@@ -1214,7 +1215,7 @@ dll_configure_lock (dll_state_t *state, double pfa, size_t n_looks,
       = ref_snr_db > 0.0
             ? ref_snr_db
             : 10.0 * log10 (fmax (64.0 * (double)n, 2048.0) - 1.0);
-  double alpha = det_ema_alpha (0.0, snr_out_db);
+  double alpha = dp_det_ema_alpha (0.0, snr_out_db);
   /* Declare-side time hysteresis, sized from the same pfa: the false-declare
    * budget is held three decades under the per-decision pfa, so the verify
    * count is det_verify_count(pfa, pfa*1e-3) — consecutive decisions
@@ -1224,17 +1225,17 @@ dll_configure_lock (dll_state_t *state, double pfa, size_t n_looks,
    * hysteresis by default (up = down = eta): splitting the thresholds
    * needs the detection probability, which needs an SNR the DLL doesn't
    * know; the raw face exposes both thresholds for callers that do. */
-  double   eta  = det_threshold_noncoherent (pfa, (int)n);
-  uint32_t n_up = (uint32_t)det_verify_count (pfa, pfa * 1e-3);
-  dll_configure_lock_raw (state, eta, eta, n, alpha, n_up,
-                          DLL_LOCK_DEFAULT_N_DOWN);
+  double   eta  = dp_det_threshold_noncoherent (pfa, (int)n);
+  uint32_t n_up = (uint32_t)dp_det_verify_count (pfa, pfa * 1e-3);
+  dp_dll_configure_lock_raw (state, eta, eta, n, alpha, n_up,
+                             DLL_LOCK_DEFAULT_N_DOWN);
   return DP_OK;
 }
 
 void
-dll_configure_lock_raw (dll_state_t *state, double up_thresh,
-                        double down_thresh, size_t n_looks, double alpha,
-                        uint32_t n_up, uint32_t n_down)
+dp_dll_configure_lock_raw (dp_dll_state_t *state, double up_thresh,
+                           double down_thresh, size_t n_looks, double alpha,
+                           uint32_t n_up, uint32_t n_down)
 {
   lockdet_init (&state->lock, up_thresh, down_thresh, n_up, n_down);
   state->n_looks    = n_looks ? n_looks : 1;
@@ -1246,23 +1247,23 @@ dll_configure_lock_raw (dll_state_t *state, double up_thresh,
   state->lock_nz    = 0;
   state->noise_ema  = 0.0;
   state->lock_stat  = 0.0;
-  lockdet_reset (&state->lock);
+  dp_lockdet_reset (&state->lock);
 }
 
 int
-dll_get_locked (const dll_state_t *state)
+dp_dll_get_locked (const dp_dll_state_t *state)
 {
   return state->lock.locked;
 }
 
 double
-dll_get_lock_stat (const dll_state_t *state)
+dp_dll_get_lock_stat (const dp_dll_state_t *state)
 {
   return state->lock_stat;
 }
 
 double
-dll_get_noise_est (const dll_state_t *state)
+dp_dll_get_noise_est (const dp_dll_state_t *state)
 {
   return state->noise_ema;
 }

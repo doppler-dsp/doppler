@@ -12,10 +12,10 @@
 /* Lifecycle                                                           */
 /* ================================================================== */
 
-nco_state_t *
-nco_create (double norm_freq, uint32_t nmax)
+dp_nco_state_t *
+dp_nco_create (double norm_freq, uint32_t nmax)
 {
-  nco_state_t *state = malloc (sizeof (*state));
+  dp_nco_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
   state->phase     = 0;
@@ -26,13 +26,13 @@ nco_create (double norm_freq, uint32_t nmax)
 }
 
 void
-nco_destroy (nco_state_t *state)
+dp_nco_destroy (dp_nco_state_t *state)
 {
   free (state);
 }
 
 void
-nco_reset (nco_state_t *state)
+dp_nco_reset (dp_nco_state_t *state)
 {
   state->phase = 0;
 }
@@ -41,28 +41,29 @@ nco_reset (nco_state_t *state)
  * Only the running phase accumulator; phase_inc / nmax come from create(). */
 
 size_t
-nco_state_bytes (const nco_state_t *state)
+dp_nco_state_bytes (const dp_nco_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + sizeof (uint32_t);
 }
 
 void
-nco_get_state (const nco_state_t *state, void *blob)
+dp_nco_get_state (const dp_nco_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, nco_state_bytes (state));
-  dp_w_hdr (&w, NCO_STATE_MAGIC, NCO_STATE_VERSION, nco_state_bytes (state));
+  dp_writer_t w = dp_writer_init (blob, dp_nco_state_bytes (state));
+  dp_w_hdr (&w, NCO_STATE_MAGIC, NCO_STATE_VERSION,
+            dp_nco_state_bytes (state));
   dp_w_u32 (&w, state->phase);
 }
 
 int
-nco_set_state (nco_state_t *state, const void *blob)
+dp_nco_set_state (dp_nco_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, nco_state_bytes (state), NCO_STATE_MAGIC,
-                              NCO_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_nco_state_bytes (state),
+                              NCO_STATE_MAGIC, NCO_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, nco_state_bytes (state));
+  dp_reader_t r = dp_reader_init (blob, dp_nco_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   state->phase  = dp_r_u32 (&r);
   return DP_OK;
@@ -73,32 +74,32 @@ nco_set_state (nco_state_t *state, const void *blob)
 /* ================================================================== */
 
 double
-nco_get_norm_freq (const nco_state_t *state)
+dp_nco_get_norm_freq (const dp_nco_state_t *state)
 {
   return state->norm_freq;
 }
 
 void
-nco_set_norm_freq (nco_state_t *state, double norm_freq)
+dp_nco_set_norm_freq (dp_nco_state_t *state, double norm_freq)
 {
   state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
 uint32_t
-nco_get_phase (const nco_state_t *state)
+dp_nco_get_phase (const dp_nco_state_t *state)
 {
   return state->phase;
 }
 
 void
-nco_set_phase (nco_state_t *state, uint32_t phase)
+dp_nco_set_phase (dp_nco_state_t *state, uint32_t phase)
 {
   state->phase = phase;
 }
 
 uint32_t
-nco_get_phase_inc (const nco_state_t *state)
+dp_nco_get_phase_inc (const dp_nco_state_t *state)
 {
   return state->phase_inc;
 }
@@ -118,7 +119,7 @@ nco_get_phase_inc (const nco_state_t *state)
 #define NCO_MAX_OUT 65536u
 
 size_t
-nco_steps_u32_max_out (nco_state_t *state)
+dp_nco_steps_u32_max_out (dp_nco_state_t *state)
 {
   (void)state;
   return NCO_MAX_OUT;
@@ -130,7 +131,8 @@ nco_steps_u32_max_out (nco_state_t *state)
    duplicated in each of these six loop bodies. */
 
 size_t
-nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out, size_t max_out)
+dp_nco_steps_u32 (dp_nco_state_t *state, size_t n, uint32_t *out,
+                  size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
@@ -141,15 +143,15 @@ nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out, size_t max_out)
 }
 
 size_t
-nco_steps_u32_scaled_max_out (nco_state_t *state)
+dp_nco_steps_u32_scaled_max_out (dp_nco_state_t *state)
 {
   (void)state;
   return NCO_MAX_OUT;
 }
 
 size_t
-nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out,
-                      size_t max_out)
+dp_nco_steps_u32_scaled (dp_nco_state_t *state, size_t n, uint32_t *out,
+                         size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
@@ -160,15 +162,15 @@ nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out,
 }
 
 size_t
-nco_steps_u32_ovf_max_out (nco_state_t *state)
+dp_nco_steps_u32_ovf_max_out (dp_nco_state_t *state)
 {
   (void)state;
   return NCO_MAX_OUT;
 }
 
 size_t
-nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1,
-                   size_t max_out)
+dp_nco_steps_u32_ovf (dp_nco_state_t *state, size_t n, uint32_t *out,
+                      uint8_t *out1, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
@@ -179,15 +181,15 @@ nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1,
 }
 
 size_t
-nco_steps_u32_ctrl_max_out (nco_state_t *state)
+dp_nco_steps_u32_ctrl_max_out (dp_nco_state_t *state)
 {
   (void)state;
   return NCO_MAX_OUT;
 }
 
 size_t
-nco_steps_u32_ctrl (nco_state_t *state, const double *ctrl, size_t ctrl_len,
-                    uint32_t *out, size_t max_out)
+dp_nco_steps_u32_ctrl (dp_nco_state_t *state, const double *ctrl,
+                       size_t ctrl_len, uint32_t *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (ctrl_len > max_out)
@@ -198,15 +200,15 @@ nco_steps_u32_ctrl (nco_state_t *state, const double *ctrl, size_t ctrl_len,
 }
 
 size_t
-nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state)
+dp_nco_steps_u32_scaled_ctrl_max_out (dp_nco_state_t *state)
 {
   (void)state;
   return NCO_MAX_OUT;
 }
 
 size_t
-nco_steps_u32_scaled_ctrl (nco_state_t *state, const double *ctrl,
-                           size_t ctrl_len, uint32_t *out, size_t max_out)
+dp_nco_steps_u32_scaled_ctrl (dp_nco_state_t *state, const double *ctrl,
+                              size_t ctrl_len, uint32_t *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (ctrl_len > max_out)
@@ -217,16 +219,16 @@ nco_steps_u32_scaled_ctrl (nco_state_t *state, const double *ctrl,
 }
 
 size_t
-nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state)
+dp_nco_steps_u32_ovf_ctrl_max_out (dp_nco_state_t *state)
 {
   (void)state;
   return NCO_MAX_OUT;
 }
 
 size_t
-nco_steps_u32_ovf_ctrl (nco_state_t *state, const double *ctrl,
-                        size_t ctrl_len, uint32_t *out, uint8_t *out1,
-                        size_t max_out)
+dp_nco_steps_u32_ovf_ctrl (dp_nco_state_t *state, const double *ctrl,
+                           size_t ctrl_len, uint32_t *out, uint8_t *out1,
+                           size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (ctrl_len > max_out)

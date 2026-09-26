@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Default carrier lock-detector rule (see carrier_nda_configure_lock's
+/* Default carrier lock-detector rule (see dp_carrier_nda_configure_lock's
  * header doc). up_thresh/down_thresh (0.5/0.4) start from MpskReceiver's
  * own pre-existing acquisition<->tracking handover thresholds
  * (MPSK_RX_HANDOVER_DOWN in mpsk_receiver_core.c), which steps a lockdet
@@ -35,7 +35,7 @@
  * same frequency — de-rotation is correct from the first sample, before any
  * update runs. */
 static void
-seed (carrier_nda_state_t *s, double init_norm_freq)
+seed (dp_carrier_nda_state_t *s, double init_norm_freq)
 {
   lo_init (&s->nco, init_norm_freq); /* centre freq lives in nco.phase_inc */
   s->lf.integ = 0.0;                 /* loop filter integrates the correction
@@ -50,13 +50,13 @@ seed (carrier_nda_state_t *s, double init_norm_freq)
   boxcar_init (&s->arm, s->arm_len, 1.0);
   s->lock       = 0.0;
   s->last_error = 0.0;
-  lockdet_reset (&s->lockdet); /* drop the lock; keep the configured rule */
+  dp_lockdet_reset (&s->lockdet); /* drop the lock; keep the configured rule */
 }
 
 /* Configure the carrier PI loop for the current (bn, zeta) and scale its gains
  * by 1/(2*pi) so the loop filter natively outputs the NCO's unit (cycles per
  * sample) from the discriminator's radian phase error. The whole loop then
- * runs in NCO cycles: carrier_nda_steer is a pure loop_filter_step (no
+ * runs in NCO cycles: carrier_nda_steer is a pure dp_loop_filter_step (no
  * per-sample conversion) and lf.integ is the frequency correction in
  * cycles/sample.
  *
@@ -66,15 +66,15 @@ seed (carrier_nda_state_t *s, double init_norm_freq)
  * the radian->cycle constant into the gains leaves the open-loop product (disc
  * slope x gains x NCO gain) unchanged, so the dynamics are identical. */
 static void
-config_loop (carrier_nda_state_t *s)
+config_loop (dp_carrier_nda_state_t *s)
 {
-  loop_filter_configure (&s->lf, s->bn, s->zeta, 1.0);
+  dp_loop_filter_configure (&s->lf, s->bn, s->zeta, 1.0);
   s->lf.kp *= CARRIER_NDA_INV_2PI;
   s->lf.ki *= CARRIER_NDA_INV_2PI;
 }
 
 void
-carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
+carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
                   double init_norm_freq, size_t sps, int n, int m)
 {
   s->sps     = sps ? sps : 1;
@@ -89,7 +89,7 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   /* In-place (stack/by-value-embedded) init: start detached. seed() is the
    * reset path and deliberately never touches `tlm`, so a reset keeps a live
    * attachment; that leaves init responsible for the initial zero.
-   * carrier_nda_create's calloc gets this for free. */
+   * dp_carrier_nda_create's calloc gets this for free. */
   memset (&s->tlm, 0, sizeof s->tlm);
   config_loop (s);
   lockdet_init (&s->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP,
@@ -98,9 +98,9 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   seed (s, init_norm_freq);
 }
 
-carrier_nda_state_t *
-carrier_nda_create (double bn, double zeta, double init_norm_freq, size_t sps,
-                    int n, int m)
+dp_carrier_nda_state_t *
+dp_carrier_nda_create (double bn, double zeta, double init_norm_freq,
+                       size_t sps, int n, int m)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
@@ -108,7 +108,7 @@ carrier_nda_create (double bn, double zeta, double init_norm_freq, size_t sps,
     return NULL; /* arm length must be a whole number of samples */
   if (sps / (size_t)n > BOXCAR_MAX_LEN)
     return NULL; /* boxcar arm window is a fixed in-struct ring */
-  carrier_nda_state_t *obj = calloc (1, sizeof (*obj));
+  dp_carrier_nda_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   carrier_nda_init (obj, bn, zeta, init_norm_freq, sps, n, m);
@@ -116,21 +116,21 @@ carrier_nda_create (double bn, double zeta, double init_norm_freq, size_t sps,
 }
 
 void
-carrier_nda_destroy (carrier_nda_state_t *state)
+dp_carrier_nda_destroy (dp_carrier_nda_state_t *state)
 {
   free (state);
 }
 
 void
-carrier_nda_reset (carrier_nda_state_t *state)
+dp_carrier_nda_reset (dp_carrier_nda_state_t *state)
 {
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state, state->seed_norm_freq);
 }
 
 int
-carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
-                           const char *prefix, uint32_t decim)
+dp_carrier_nda_set_telemetry (dp_carrier_nda_state_t *state, dp_tlm_t *tlm,
+                              const char *prefix, uint32_t decim)
 {
   if (!tlm)
     {
@@ -158,7 +158,7 @@ carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
 }
 
 void
-carrier_nda_tlm_flush (const carrier_nda_state_t *s)
+carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
 {
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
@@ -171,34 +171,34 @@ carrier_nda_tlm_flush (const carrier_nda_state_t *s)
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
  * telemetry attachment zeroed in blobs and kept live across restore. */
 size_t
-carrier_nda_state_bytes (const carrier_nda_state_t *s)
+dp_carrier_nda_state_bytes (const dp_carrier_nda_state_t *s)
 {
   (void)s;
-  return sizeof (dp_state_hdr_t) + sizeof (carrier_nda_state_t);
+  return sizeof (dp_state_hdr_t) + sizeof (dp_carrier_nda_state_t);
 }
 
 void
-carrier_nda_get_state (const carrier_nda_state_t *s, void *blob)
+dp_carrier_nda_get_state (const dp_carrier_nda_state_t *s, void *blob)
 {
-  carrier_nda_state_t c = *s;
+  dp_carrier_nda_state_t c = *s;
   memset (&c.tlm, 0, sizeof c.tlm);
-  dp_writer_t w = dp_writer_init (blob, carrier_nda_state_bytes (s));
+  dp_writer_t w = dp_writer_init (blob, dp_carrier_nda_state_bytes (s));
   dp_w_hdr (&w, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
-            carrier_nda_state_bytes (s));
+            dp_carrier_nda_state_bytes (s));
   dp_w_bytes (&w, &c, sizeof c);
 }
 
 int
-carrier_nda_set_state (carrier_nda_state_t *s, const void *blob)
+dp_carrier_nda_set_state (dp_carrier_nda_state_t *s, const void *blob)
 {
   int rc
-      = dp_state_validate (blob, carrier_nda_state_bytes (s),
+      = dp_state_validate (blob, dp_carrier_nda_state_bytes (s),
                            CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  carrier_nda_state_t c;
-  dp_reader_t         r = dp_reader_init (blob, carrier_nda_state_bytes (s));
-  r.off                 = sizeof (dp_state_hdr_t);
+  dp_carrier_nda_state_t c;
+  dp_reader_t r = dp_reader_init (blob, dp_carrier_nda_state_bytes (s));
+  r.off         = sizeof (dp_state_hdr_t);
   dp_r_bytes (&r, &c, sizeof c);
   c.tlm = s->tlm; /* keep the live attachment */
   *s    = c;
@@ -207,15 +207,15 @@ carrier_nda_set_state (carrier_nda_state_t *s, const void *blob)
 
 /* Output bound: emitted samples == input length (the de-rotated stream). */
 size_t
-carrier_nda_steps_max_out (carrier_nda_state_t *state)
+dp_carrier_nda_steps_max_out (dp_carrier_nda_state_t *state)
 {
   (void)state;
   return 0; /* one symbol per sps inputs, so symbols <= inputs */
 }
 
 size_t
-carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
-                   size_t x_len, float _Complex *out, size_t max_out)
+dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
+                      size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
@@ -235,7 +235,7 @@ carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
           if (carrier_nda_arm_step (state, d, &pe, &lk))
             {
               state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
-              (void)lockdet_step (&state->lockdet, state->lock);
+              (void)dp_lockdet_step (&state->lockdet, state->lock);
               carrier_nda_steer (state, pe);
             }
           if (emitted < max_out)
@@ -251,7 +251,7 @@ carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
           if (carrier_nda_arm_step (state, d, &pe, &lk))
             {
               state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
-              (void)lockdet_step (&state->lockdet, state->lock);
+              (void)dp_lockdet_step (&state->lockdet, state->lock);
               carrier_nda_steer (state, pe);
             }
           if (emitted < max_out)
@@ -263,7 +263,7 @@ carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
 }
 
 double
-carrier_nda_get_norm_freq (const carrier_nda_state_t *state)
+dp_carrier_nda_get_norm_freq (const dp_carrier_nda_state_t *state)
 {
   /* Tracked carrier = NCO centre (nco.norm_freq) + the loop's integrated
    * frequency correction (lf.integ, already in cycles/sample — the loop gains
@@ -275,7 +275,7 @@ carrier_nda_get_norm_freq (const carrier_nda_state_t *state)
 }
 
 double
-carrier_nda_get_nco_freq (const carrier_nda_state_t *state)
+carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state)
 {
   /* The instantaneous NCO frequency command = centre + the FULL loop-filter
    * output (ctl_cyc = integ + kp*e, cycles/sample), i.e. the exact frequency
@@ -288,65 +288,66 @@ carrier_nda_get_nco_freq (const carrier_nda_state_t *state)
 }
 
 void
-carrier_nda_set_norm_freq (carrier_nda_state_t *state, double val)
+dp_carrier_nda_set_norm_freq (dp_carrier_nda_state_t *state, double val)
 {
   state->seed_norm_freq = val;
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state, val);
 }
 
 double
-carrier_nda_get_lock (const carrier_nda_state_t *state)
+dp_carrier_nda_get_lock (const dp_carrier_nda_state_t *state)
 {
   return state->lock;
 }
 
 double
-carrier_nda_get_last_error (const carrier_nda_state_t *state)
+dp_carrier_nda_get_last_error (const dp_carrier_nda_state_t *state)
 {
   return state->last_error;
 }
 
 double
-carrier_nda_get_bn (const carrier_nda_state_t *state)
+dp_carrier_nda_get_bn (const dp_carrier_nda_state_t *state)
 {
   return state->bn;
 }
 
 void
-carrier_nda_set_bn (carrier_nda_state_t *state, double val)
+dp_carrier_nda_set_bn (dp_carrier_nda_state_t *state, double val)
 {
   state->bn = val;
   config_loop (state);
 }
 
 int
-carrier_nda_get_m (const carrier_nda_state_t *state)
+dp_carrier_nda_get_m (const dp_carrier_nda_state_t *state)
 {
   return state->m;
 }
 
 int
-carrier_nda_get_n (const carrier_nda_state_t *state)
+dp_carrier_nda_get_n (const dp_carrier_nda_state_t *state)
 {
   return state->n;
 }
 
 size_t
-carrier_nda_get_sps (const carrier_nda_state_t *state)
+dp_carrier_nda_get_sps (const dp_carrier_nda_state_t *state)
 {
   return state->sps;
 }
 
 void
-carrier_nda_configure_lock (carrier_nda_state_t *state, double up_thresh,
-                            double down_thresh, uint32_t n_up, uint32_t n_down)
+dp_carrier_nda_configure_lock (dp_carrier_nda_state_t *state, double up_thresh,
+                               double down_thresh, uint32_t n_up,
+                               uint32_t n_down)
 {
-  lockdet_configure (&state->lockdet, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_configure (&state->lockdet, up_thresh, down_thresh, n_up, n_down);
 }
 
 int
-carrier_nda_get_locked (const carrier_nda_state_t *state)
+dp_carrier_nda_get_locked (const dp_carrier_nda_state_t *state)
 {
   return state->lockdet.locked;
 }

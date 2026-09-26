@@ -109,9 +109,9 @@ int main(void)
 int main(void)
 {
     float complex out[1024];
-    awgn_state_t *g = awgn_create(42, 1.0f);
-    awgn_generate(g, 1024, out, 1024);
-    awgn_destroy(g);
+    dp_awgn_state_t *g = dp_awgn_create(42, 1.0f);
+    dp_awgn_generate(g, 1024, out, 1024);
+    dp_awgn_destroy(g);
     return 0;
 }
 ```

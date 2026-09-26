@@ -9,7 +9,7 @@ pub struct FirStateRaw {
 }
 
 extern "C" {
-    pub fn fir_create(
+    pub fn dp_fir_create(
         taps: *const DpCf32,
         num_taps: usize,
     ) -> *mut FirStateRaw;
@@ -17,10 +17,10 @@ extern "C" {
         taps: *const f32,
         num_taps: usize,
     ) -> *mut FirStateRaw;
-    pub fn fir_reset(f: *mut FirStateRaw);
-    pub fn fir_destroy(f: *mut FirStateRaw);
-    pub fn fir_execute_max_out(f: *mut FirStateRaw) -> usize;
-    pub fn fir_execute(
+    pub fn dp_fir_reset(f: *mut FirStateRaw);
+    pub fn dp_fir_destroy(f: *mut FirStateRaw);
+    pub fn dp_fir_execute_max_out(f: *mut FirStateRaw) -> usize;
+    pub fn dp_fir_execute(
         f: *mut FirStateRaw,
         input: *const DpCf32,
         n_in: usize,
@@ -28,7 +28,7 @@ extern "C" {
     ) -> usize;
 }
 
-/// RAII wrapper around `fir_state_t`.
+/// RAII wrapper around `dp_fir_state_t`.
 ///
 /// Create with complex taps ([`Fir::new`]) or real taps
 /// ([`Fir::new_real`]).
@@ -55,12 +55,12 @@ impl Fir {
     /// Create a FIR filter with complex CF32 taps.
     ///
     /// # Panics
-    /// Panics if `fir_create` returns null.
+    /// Panics if `dp_fir_create` returns null.
     pub fn new(taps: &[Complex<f32>]) -> Self {
         let c_taps: Vec<DpCf32> =
             taps.iter().copied().map(DpCf32::from).collect();
-        let ptr = unsafe { fir_create(c_taps.as_ptr(), c_taps.len()) };
-        assert!(!ptr.is_null(), "fir_create returned null");
+        let ptr = unsafe { dp_fir_create(c_taps.as_ptr(), c_taps.len()) };
+        assert!(!ptr.is_null(), "dp_fir_create returned null");
         Fir { ptr, real_taps: false }
     }
 
@@ -80,7 +80,7 @@ impl Fir {
 
     /// Reset the filter delay line to zero.
     pub fn reset(&mut self) {
-        unsafe { fir_reset(self.ptr) }
+        unsafe { dp_fir_reset(self.ptr) }
     }
 
     /// Whether this filter was created with real (scalar) taps.
@@ -102,7 +102,7 @@ impl Fir {
             input.iter().copied().map(DpCf32::from).collect();
         let mut c_out = vec![DpCf32::default(); n];
         let written = unsafe {
-            fir_execute(
+            dp_fir_execute(
                 self.ptr,
                 c_in.as_ptr(),
                 n,
@@ -115,7 +115,7 @@ impl Fir {
 
 impl Drop for Fir {
     fn drop(&mut self) {
-        unsafe { fir_destroy(self.ptr) }
+        unsafe { dp_fir_destroy(self.ptr) }
     }
 }
 
@@ -184,13 +184,13 @@ mod tests {
 
 // Serializable state — the dp_state.h bytes interface.
 extern "C" {
-    fn fir_state_bytes(s: *const FirStateRaw) -> usize;
-    fn fir_get_state(s: *const FirStateRaw, blob: *mut u8);
-    fn fir_set_state(s: *mut FirStateRaw, blob: *const u8) -> i32;
+    fn dp_fir_state_bytes(s: *const FirStateRaw) -> usize;
+    fn dp_fir_get_state(s: *const FirStateRaw, blob: *mut u8);
+    fn dp_fir_set_state(s: *mut FirStateRaw, blob: *const u8) -> i32;
 }
 impl_serializable!(
     Fir,
-    fir_state_bytes,
-    fir_get_state,
-    fir_set_state
+    dp_fir_state_bytes,
+    dp_fir_get_state,
+    dp_fir_set_state
 );

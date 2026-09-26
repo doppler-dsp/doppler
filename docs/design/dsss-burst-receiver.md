@@ -529,7 +529,7 @@ is not settled is its operating envelope.
 
 - **Whether the history ring should be acq's — SETTLED for now, the
     receiver's.** §7.1 has the receiver keep its own, costing one `memcpy` of
-    the stream, because `acq_push()` consumes eagerly. The alternative is a
+    the stream, because `dp_acq_push()` consumes eagerly. The alternative is a
     retention policy on `acq`'s existing ring so there is one copy instead of
     two. That is a change to a certified object, so it needs a measurement
     showing the copy matters before it is worth the blast radius — and at
@@ -556,7 +556,7 @@ is not settled is its operating envelope.
     `demod()` call or is lost). The composition carries the asymmetry by
     serializing the acquisition child, the retained look-back and the
     detection queue, and **nothing of the demodulator** — which is what the
-    guess above predicted. `dsss_burst_receiver_state_bytes()` stays a pure
+    guess above predicted. `dp_dsss_burst_receiver_state_bytes()` stays a pure
     function of configuration because both variable regions are fixed-size
     with a length prefix. The blob is already the capture half alone, which is
     why §11's split does not simplify serialization — the same bytes are
@@ -577,7 +577,7 @@ native/src/dsss_burst_receiver/dsss_burst_receiver_core.c
 objects/dsss_burst_receiver.toml
 ```
 
-State: the composed `burst_acq_state_t *`, the chosen consumer's state, the
+State: the composed `dp_burst_acq_state_t *`, the chosen consumer's state, the
 history ring (§7.1), the in-flight burst, and `samples_fed`. Config: the two
 codes, the sync word, the geometry, and which consumer to drive.
 
@@ -668,16 +668,16 @@ power of two. (As built, the capture reaches further in both directions —
 
 **The primitive already exists, and `acq` already depends on it.**
 `native/inc/doppler/buffer/buffer.h` generates a double-mapped SPSC ring
-(`dp_f32_t` for cf32), and `acq_core.h` includes it — `acq_state_t` holds
+(`dp_f32_t` for cf32), and `acq_core.h` includes it — `dp_acq_state_t` holds
 `dp_f32_t *ring`, "the only ring". So this is not a new dependency for a DSP
 core, and **no new type is needed**: `DECLARE_DP_BUFFER` already covers the
 dtype. The double mapping is the property that matters here — a window
 spanning the wrap comes back as one contiguous `float complex *`, so the
 burst can be handed to `demod()` with no copy and no seam.
 
-**What it does not already do is retain.** `acq_push()` calls
+**What it does not already do is retain.** `dp_acq_push()` calls
 `dp_f32_consume(st->ring, frame_n)` on every frame it processes
-(`acq_push` in `acq_core.c`), so by the time a hit is emitted acquisition has
+(`dp_acq_push` in `acq_core.c`), so by the time a hit is emitted acquisition has
 *released* the samples the receiver still needs. The receiver therefore
 keeps its **own** history ring alongside acq's, rather than borrowing one it
 does not own.
@@ -729,36 +729,36 @@ by measurement rather than by taste.
 
 ```c
 /* Lifecycle */
-dsss_burst_receiver_state_t *dsss_burst_receiver_create (
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create (
     const uint8_t *acq_code, size_t acq_code_len,
     const uint8_t *data_code, size_t data_code_len,
     const uint8_t *sync, size_t sync_len,
     size_t reps, size_t spc, double chip_rate, size_t frame_syms,
     double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
     double carrier_hz, double max_rate, size_t est_segments);
-void   dsss_burst_receiver_destroy (dsss_burst_receiver_state_t *);
-void   dsss_burst_receiver_reset   (dsss_burst_receiver_state_t *);
+void   dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *);
+void   dp_dsss_burst_receiver_reset   (dp_dsss_burst_receiver_state_t *);
 
 /* The stream: samples in, the payload of EVERY completed burst out */
-size_t dsss_burst_receiver_push_max_out (dsss_burst_receiver_state_t *,
+size_t dp_dsss_burst_receiver_push_max_out (dp_dsss_burst_receiver_state_t *,
                                          size_t x_len);
-size_t dsss_burst_receiver_push (dsss_burst_receiver_state_t *,
+size_t dp_dsss_burst_receiver_push (dp_dsss_burst_receiver_state_t *,
                                  const float complex *x, size_t x_len,
                                  uint8_t *out, size_t max_out);
 
 /* One event per burst that push() just returned */
-size_t dsss_burst_receiver_events_max_out (dsss_burst_receiver_state_t *);
-size_t dsss_burst_receiver_events (dsss_burst_receiver_state_t *, size_t n,
+size_t dp_dsss_burst_receiver_events_max_out (dp_dsss_burst_receiver_state_t *);
+size_t dp_dsss_burst_receiver_events (dp_dsss_burst_receiver_state_t *, size_t n,
                                    dsss_br_event_t *out, size_t max_out);
 
 /* Escape hatch, read-backs, state */
-int    dsss_burst_receiver_configure_search_raw (dsss_burst_receiver_state_t *,
+int    dp_dsss_burst_receiver_configure_search_raw (dp_dsss_burst_receiver_state_t *,
                                                  size_t doppler_bins,
                                                  size_t n_noncoh);
-size_t dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *);
-void   dsss_burst_receiver_get_state   (const dsss_burst_receiver_state_t *,
+size_t dp_dsss_burst_receiver_state_bytes (const dp_dsss_burst_receiver_state_t *);
+void   dp_dsss_burst_receiver_get_state   (const dp_dsss_burst_receiver_state_t *,
                                         void *blob);
-int    dsss_burst_receiver_set_state   (dsss_burst_receiver_state_t *,
+int    dp_dsss_burst_receiver_set_state   (dp_dsss_burst_receiver_state_t *,
                                         const void *blob);
 ```
 
@@ -914,7 +914,7 @@ transmitted at that position.
 every **emission**, and this promise was masked — a decoy ending just after
 a real burst began swallowed it (§2.10, lead 2100). The capture now holds
 the detections inside a span rather than dropping them, and this receiver
-checks its trailer in C and calls `burst_capture_release()` on every window
+checks its trailer in C and calls `dp_burst_capture_release()` on every window
 that fails, so the span is owned exactly by the frames that decoded. See
 [`burst-capture.md` §11.2](burst-capture.md) and #1181.
 
@@ -1017,7 +1017,7 @@ are not re-made:
     to reach back to a burst start already gone past — and after the split
     the same fixed `retain_span` region is written, one envelope deeper,
     behind the capture's own `state_bytes()`.
-- **It needs no new accessor.** `acq_state_t::doppler_res_hz` is a public
+- **It needs no new accessor.** `dp_acq_state_t::doppler_res_hz` is a public
     field and `BurstAcquisition.doppler_res_hz` is a published property
     (`objects/burst_acq.toml`), so nothing re-derives the bin width.
 

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only source_ext.c is compiled.
  */
 /* ======================================================== */
-/* AWGNObject — wraps awgn_state_t *       */
+/* AWGNObject — wraps dp_awgn_state_t *       */
 /* ======================================================== */
 
 #include "doppler/awgn/awgn_core.h"
 
 typedef struct
 {
-  PyObject_HEAD awgn_state_t *handle;
+  PyObject_HEAD dp_awgn_state_t *handle;
 } AWGNObject;
 
 static void
 AWGNObj_dealloc (AWGNObject *self)
 {
   if (self->handle)
-    awgn_destroy (self->handle);
+    dp_awgn_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -44,10 +44,10 @@ AWGNObj_init (AWGNObject *self, PyObject *args, PyObject *kwds)
                                     &amplitude))
     return -1;
   uint64_t seed = (uint64_t)seed_raw;
-  self->handle  = awgn_create (seed, amplitude);
+  self->handle  = dp_awgn_create (seed, amplitude);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "awgn_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_awgn_create returned NULL");
       return -1;
     }
   return 0;
@@ -61,7 +61,7 @@ AWGNObj_reset (AWGNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  awgn_reset (self->handle);
+  dp_awgn_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -73,7 +73,7 @@ AWGNObj_generate_max_out (AWGNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (awgn_generate_max_out (self->handle));
+  return PyLong_FromSize_t (dp_awgn_generate_max_out (self->handle));
 }
 
 static PyObject *
@@ -111,7 +111,7 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = awgn_generate_max_out (self->handle);
+      size_t _omax    = dp_awgn_generate_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -121,8 +121,8 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out
-          = awgn_generate (self->handle, (size_t)n,
-                           (float _Complex *)PyArray_DATA (out_arr), _cap);
+          = dp_awgn_generate (self->handle, (size_t)n,
+                              (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -141,7 +141,7 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = awgn_generate_max_out (self->handle);
+  size_t _cap  = dp_awgn_generate_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -151,7 +151,7 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = awgn_generate (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out        = dp_awgn_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -181,7 +181,7 @@ AWGNObj_reseed (AWGNObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &seed_raw))
     return NULL;
   uint64_t seed = (uint64_t)seed_raw;
-  awgn_reseed (self->handle, seed);
+  dp_awgn_reseed (self->handle, seed);
   Py_RETURN_NONE;
 }
 
@@ -193,7 +193,7 @@ AWGNObj_state_bytes (AWGNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (awgn_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_awgn_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -204,11 +204,11 @@ AWGNObj_get_state (AWGNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = awgn_state_bytes (self->handle);
+  size_t    _n = dp_awgn_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  awgn_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_awgn_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -225,12 +225,12 @@ AWGNObj_set_state (AWGNObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != awgn_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_awgn_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (awgn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_awgn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -246,7 +246,7 @@ AWGN_getprop_amplitude (AWGNObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble ((double)awgn_get_amplitude (self->handle));
+  return PyFloat_FromDouble ((double)dp_awgn_get_amplitude (self->handle));
 }
 static int
 AWGN_setprop_amplitude (AWGNObject *self, PyObject *value,
@@ -260,7 +260,7 @@ AWGN_setprop_amplitude (AWGNObject *self, PyObject *value,
   float v = 0.0f;
   if (!PyArg_Parse (value, "f", &v))
     return -1;
-  awgn_set_amplitude (self->handle, v);
+  dp_awgn_set_amplitude (self->handle, v);
   return 0;
 }
 
@@ -275,7 +275,7 @@ AWGNObj_destroy (AWGNObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      awgn_destroy (self->handle);
+      dp_awgn_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -294,7 +294,7 @@ AWGNObj_exit (AWGNObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      awgn_destroy (self->handle);
+      dp_awgn_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -304,8 +304,8 @@ static PyMethodDef AWGNObj_methods[] = {
   { "reset", (PyCFunction)AWGNObj_reset, METH_NOARGS,
     "Reset RNG to the seed supplied at create time. Re-runs the\n"
     "SplitMix64 seeding procedure with the original seed so the next\n"
-    "awgn_generate() call produces exactly the same samples as the first\n"
-    "call after awgn_create(). amplitude is not changed.\n"
+    "dp_awgn_generate() call produces exactly the same samples as the first\n"
+    "call after dp_awgn_create(). amplitude is not changed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -373,7 +373,8 @@ static PyMethodDef AWGNObj_methods[] = {
     "reseed(seed) -> None\n"
     "\n"
     "Reseed the RNG and reset all xoshiro256++ state. Equivalent to\n"
-    "calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the\n"
+    "calling dp_awgn_destroy() and dp_awgn_create(seed, amplitude) but reuses "
+    "the\n"
     "existing allocation. amplitude is unchanged.\n"
     "\n"
     "Parameters\n"
@@ -487,7 +488,8 @@ static PyTypeObject AWGNObjType = {
   = "Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG\n"
     "via SplitMix64, and sets up both the scalar and the AVX2 parallel "
     "streams.\n"
-    "The initial seed is stored so awgn_reset() can reproduce the exact same\n"
+    "The initial seed is stored so dp_awgn_reset() can reproduce the exact "
+    "same\n"
     "stream.\n"
     "\n"
     "Parameters\n"

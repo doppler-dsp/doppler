@@ -7,7 +7,7 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* HalfbandDecimatorObject — wraps HalfbandDecimator_state_t *       */
+/* HalfbandDecimatorObject — wraps dp_HalfbandDecimator_state_t *       */
 /* ======================================================== */
 
 #include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
@@ -15,7 +15,7 @@
 
 typedef struct
 {
-  PyObject_HEAD HalfbandDecimator_state_t *handle;
+  PyObject_HEAD dp_HalfbandDecimator_state_t *handle;
   float _Complex *_execute_buf;     /* pre-allocated output for execute */
   size_t          _execute_buf_cap; /* elements allocated above */
 } HalfbandDecimatorObject;
@@ -24,7 +24,7 @@ static void
 HalfbandDecimatorObj_dealloc (HalfbandDecimatorObject *self)
 {
   if (self->handle)
-    HalfbandDecimator_destroy (self->handle);
+    dp_HalfbandDecimator_destroy (self->handle);
   free (self->_execute_buf);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -61,15 +61,15 @@ HalfbandDecimatorObj_init (HalfbandDecimatorObject *self, PyObject *args,
       return -1;
     }
   size_t h_len = (size_t)PyArray_SIZE (h_arr);
-  /* HalfbandDecimator_create(h, h_len) — the array first, matching every
+  /* dp_HalfbandDecimator_create(h, h_len) — the array first, matching every
      other create in the tree and the manifest jm renders from */
-  self->handle
-      = HalfbandDecimator_create ((const float *)PyArray_DATA (h_arr), h_len);
+  self->handle = dp_HalfbandDecimator_create (
+      (const float *)PyArray_DATA (h_arr), h_len);
   Py_DECREF (h_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "HalfbandDecimator_create returned NULL");
+                       "dp_HalfbandDecimator_create returned NULL");
       return -1;
     }
   return 0;
@@ -93,7 +93,7 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args)
     return NULL;
   if (!self->_execute_buf)
     {
-      size_t _max = HalfbandDecimator_execute_max_out (self->handle);
+      size_t _max = dp_HalfbandDecimator_execute_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
       self->_execute_buf     = malloc (_max * sizeof (float _Complex));
@@ -105,7 +105,7 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args)
           return NULL;
         }
     }
-  size_t n_out = HalfbandDecimator_execute (
+  size_t n_out = dp_HalfbandDecimator_execute (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
       self->_execute_buf_cap);
@@ -129,7 +129,7 @@ HalfbandDecimatorObj_reset (HalfbandDecimatorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  HalfbandDecimator_reset (self->handle);
+  dp_HalfbandDecimator_reset (self->handle);
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -142,7 +142,7 @@ HalfbandDecimator_getprop_rate (HalfbandDecimatorObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (HalfbandDecimator_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_HalfbandDecimator_get_rate (self->handle));
 }
 static PyObject *
 HalfbandDecimator_getprop_num_taps (HalfbandDecimatorObject *self,
@@ -155,7 +155,7 @@ HalfbandDecimator_getprop_num_taps (HalfbandDecimatorObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)HalfbandDecimator_get_num_taps (self->handle));
+      (unsigned long long)dp_HalfbandDecimator_get_num_taps (self->handle));
 }
 
 static PyGetSetDef HalfbandDecimator_getset[] = {
@@ -178,7 +178,7 @@ HalfbandDecimatorObj_destroy (HalfbandDecimatorObject *self,
 {
   if (self->handle)
     {
-      HalfbandDecimator_destroy (self->handle);
+      dp_HalfbandDecimator_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -198,7 +198,7 @@ HalfbandDecimatorObj_exit (HalfbandDecimatorObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      HalfbandDecimator_destroy (self->handle);
+      dp_HalfbandDecimator_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -208,7 +208,7 @@ HalfbandDecimatorObj_exit (HalfbandDecimatorObject *self, PyObject *args)
  * shared macro (see dp_state_pyhelp.h) — byte-identical to jm's output.
  * The matching PyMethodDef rows are below. */
 DP_PY_STATE_METHODS (HalfbandDecimatorObj, HalfbandDecimatorObject,
-                     self->handle, HalfbandDecimator)
+                     self->handle, dp_HalfbandDecimator)
 
 static PyObject *
 HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
@@ -219,7 +219,8 @@ HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (HalfbandDecimator_execute_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_HalfbandDecimator_execute_max_out (self->handle));
 }
 
 static PyMethodDef HalfbandDecimatorObj_methods[] = {

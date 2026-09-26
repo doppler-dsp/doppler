@@ -2,8 +2,8 @@
  * @file resample_core.h
  * @brief Resample module — public C API.
  */
-#ifndef RESAMPLE_CORE_H
-#define RESAMPLE_CORE_H
+#ifndef DP_RESAMPLE_CORE_H
+#define DP_RESAMPLE_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -32,7 +32,7 @@ extern "C"
  * 0.0
  * @endcode
  */
-double kaiser_beta(double atten);
+double dp_kaiser_beta(double atten);
 
 /**
  * @brief Estimate the taps-per-phase count for a polyphase Kaiser FIR bank.
@@ -54,7 +54,7 @@ double kaiser_beta(double atten);
  * 19
  * @endcode
  */
-int kaiser_num_taps(int num_phases, double atten, double pb, double sb);
+int dp_kaiser_num_taps(int num_phases, double atten, double pb, double sb);
 
   /**
    * @brief Design a CIC passband-droop compensator FIR filter.
@@ -86,7 +86,7 @@ int kaiser_num_taps(int num_phases, double atten, double pb, double sb);
    * [0.029, -0.282, 1.5061, -0.282, 0.029]
    * @endcode
    */
-void ciccompmf(double *out, uint32_t N, uint32_t R, uint32_t M);
+void dp_ciccompmf(double *out, uint32_t N, uint32_t R, uint32_t M);
 
 #ifdef __cplusplus
 }

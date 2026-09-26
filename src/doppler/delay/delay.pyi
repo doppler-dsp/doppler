@@ -117,13 +117,13 @@ class DelayCf64:
         """
 
     def ptr_max_out(self, n: int) -> int:
-        """Maximum samples delay_ptr() writes for a request of n. Returns
+        """Maximum samples dp_delay_ptr() writes for a request of n. Returns
         min(n, num_taps) — the tight per-call bound (gh-607).
 
         Parameters
         ----------
         n : int
-            Number of samples the matching delay_ptr() call requests.
+            Number of samples the matching dp_delay_ptr() call requests.
 
         Returns
         -------
@@ -137,7 +137,7 @@ class DelayCf64:
         out: NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Atomically push a sample and snapshot the current window. Equivalent
-        to calling delay_push() then delay_ptr(num_taps), but avoids the
+        to calling dp_delay_push() then dp_delay_ptr(num_taps), but avoids the
         overhead of a second function call. Always writes exactly num_taps
         samples to out. The Python binding returns an independent NumPy array
         per call; pass `out=` to reuse one buffer across pushes.
@@ -166,21 +166,21 @@ class DelayCf64:
         """
 
     def push_ptr_max_out(self) -> int:
-        """Return the maximum output capacity for delay_push_ptr(). Returns
+        """Return the maximum output capacity for dp_delay_push_ptr(). Returns
         num_taps; the Python binding sizes each call's output array with it,
         and checks a caller's `out=` buffer against it.
 
         Returns
         -------
         int
-            num_taps (number of samples delay_push_ptr() will write).
+            num_taps (number of samples dp_delay_push_ptr() will write).
         """
 
     def write(self, x: complex) -> None:
-        """Alias for delay_push(); insert a sample without reading back.
+        """Alias for dp_delay_push(); insert a sample without reading back.
         Provided for API symmetry with write-then-read patterns where the
         caller wants to decouple sample ingestion from window inspection.
-        Internally delegates to delay_push() with no additional overhead.
+        Internally delegates to dp_delay_push() with no additional overhead.
 
         Parameters
         ----------

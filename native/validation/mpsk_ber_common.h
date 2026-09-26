@@ -137,12 +137,12 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
      now, not a second state_t to cast a void* to. Every argument below is
      identical between the two calls, which is the collapse's thesis stated as
      code (docs/design/mpsk.md §8). */
-  mpsk_receiver_state_t *rx
+  dp_mpsk_receiver_state_t *rx
       = c->real ? mpsk_receiver_create_real (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                       c->bn_carrier, 0.707, c->bn_timing, 0.3, c->fc - c->foff,
                       0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO)
-                : mpsk_receiver_create (
+                : dp_mpsk_receiver_create (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                       c->bn_carrier, 0.707, c->bn_timing, 0.3, c->fc - c->foff,
                       0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
@@ -183,14 +183,14 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
           if (got && nout < nsym)
             {
               out[nout]    = y;
-              lock_c[nout] = (unsigned char)mpsk_receiver_get_locked (rx);
+              lock_c[nout] = (unsigned char)dp_mpsk_receiver_get_locked (rx);
               nout++;
             }
         }
     }
 
-  *clipped = mpsk_receiver_get_clipped (rx);
-  mpsk_receiver_destroy (rx);
+  *clipped = dp_mpsk_receiver_get_clipped (rx);
+  dp_mpsk_receiver_destroy (rx);
   return nout;
 }
 

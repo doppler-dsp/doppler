@@ -3,10 +3,10 @@
  * @brief PSD — averaging power-spectral-density estimator (Welch's method).
  *
  * Composition over reimplementation: each accumulated frame is windowed, run
- * through the shared ::fft_state_t plan, converted to power, fftshifted to
- * DC-centred order and folded into an ::acc_trace_state_t averager.  The
+ * through the shared ::dp_fft_state_t plan, converted to power, fftshifted to
+ * DC-centred order and folded into an ::dp_acc_trace_state_t averager.  The
  * measurement getters read the averaged power back and reuse the spectral free
- * functions (::find_peaks_f32, ::noise_floor_db) for level statistics.
+ * functions (::dp_find_peaks_f32, ::dp_noise_floor_db) for level statistics.
  *
  * Normalisation: dividing |X|^2 by the window coherent gain squared (cg^2)
  * makes a full-scale tone read its true power (psd_db); dividing instead by
@@ -28,9 +28,9 @@
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
-psd_state_t *
-psd_create (size_t n, double fs, int window, float beta, size_t pad,
-            double full_scale, size_t bits, int mode, double alpha)
+dp_psd_state_t *
+dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
+               double full_scale, size_t bits, int mode, double alpha)
 {
   /* The single definition of the dBFS reference: bits>0 selects an ADC
    * full scale (2^(bits-1)); otherwise full_scale is the analog/general ref.
@@ -44,11 +44,11 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
   if (pad < 1)
     pad = 1;
 
-  psd_state_t *s = (psd_state_t *)calloc (1, sizeof (*s));
+  dp_psd_state_t *s = (dp_psd_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
-  const size_t nfft = next_pow_two (n * pad);
+  const size_t nfft = dp_next_pow_two (n * pad);
   s->n              = n;
   s->nfft           = nfft;
   s->fs             = fs;
@@ -61,16 +61,16 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
   s->dbbuf = (float *)malloc (nfft * sizeof (float));
   if (!s->w || !s->frame || !s->spec || !s->pwr || !s->dbbuf)
     {
-      psd_destroy (s);
+      dp_psd_destroy (s);
       return NULL;
     }
 
   if (window == 1)
-    kaiser_window (s->w, n, beta);
+    dp_kaiser_window (s->w, n, beta);
   else if (window == 2)
-    blackman_harris_window (s->w, n);
+    dp_blackman_harris_window (s->w, n);
   else
-    hann_window (s->w, n);
+    dp_hann_window (s->w, n);
 
   double cg = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)
@@ -82,25 +82,25 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
   s->s2   = s2;
   s->enbw = (double)n * s2 / (cg * cg);
 
-  s->fft = fft_create (nfft, -1, 1);
-  s->avg = acc_trace_create (nfft, mode, alpha);
+  s->fft = dp_fft_create (nfft, -1, 1);
+  s->avg = dp_acc_trace_create (nfft, mode, alpha);
   if (!s->fft || !s->avg)
     {
-      psd_destroy (s);
+      dp_psd_destroy (s);
       return NULL;
     }
   return s;
 }
 
 void
-psd_destroy (psd_state_t *state)
+dp_psd_destroy (dp_psd_state_t *state)
 {
   if (!state)
     return;
   if (state->fft)
-    fft_destroy (state->fft);
+    dp_fft_destroy (state->fft);
   if (state->avg)
-    acc_trace_destroy (state->avg);
+    dp_acc_trace_destroy (state->avg);
   free (state->w);
   free (state->frame);
   free (state->spec);
@@ -110,31 +110,31 @@ psd_destroy (psd_state_t *state)
 }
 
 void
-psd_reset (psd_state_t *state)
+dp_psd_reset (dp_psd_state_t *state)
 {
-  acc_trace_reset (state->avg);
+  dp_acc_trace_reset (state->avg);
 }
 
 /* Serializable state — delegates to the acc_trace power averager (the only
  * running state); window, FFT plan, and scratch are config (create). */
 size_t
-psd_state_bytes (const psd_state_t *s)
+dp_psd_state_bytes (const dp_psd_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + acc_trace_state_bytes (s->avg);
+  return sizeof (dp_state_hdr_t) + dp_acc_trace_state_bytes (s->avg);
 }
 
 void
-psd_get_state (const psd_state_t *s, void *blob)
+dp_psd_get_state (const dp_psd_state_t *s, void *blob)
 {
-  DP_GET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, psd_state_bytes (s));
-  DP_W_CHILD (&_w, acc_trace, s->avg);
+  DP_GET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, dp_psd_state_bytes (s));
+  DP_W_CHILD (&_w, dp_acc_trace, s->avg);
 }
 
 int
-psd_set_state (psd_state_t *s, const void *blob)
+dp_psd_set_state (dp_psd_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, psd_state_bytes (s));
-  DP_R_CHILD (&_r, acc_trace, s->avg);
+  DP_SET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, dp_psd_state_bytes (s));
+  DP_R_CHILD (&_r, dp_acc_trace, s->avg);
   return DP_OK;
 }
 
@@ -143,12 +143,12 @@ psd_set_state (psd_state_t *s, const void *blob)
 /* Transform the already-windowed-and-zero-padded state->frame, convert to
  * DC-centred two-sided power and fold one frame into the running average. */
 static void
-psd_fold_frame (psd_state_t *state)
+psd_fold_frame (dp_psd_state_t *state)
 {
   const size_t nfft = state->nfft;
   const size_t half = nfft / 2; /* fftshift roll: bin 0 -> index nfft/2 */
 
-  fft_execute_cf32 (state->fft, state->frame, nfft, state->spec, nfft);
+  dp_fft_execute_cf32 (state->fft, state->frame, nfft, state->spec, nfft);
 
   for (size_t k = 0; k < nfft; k++)
     {
@@ -159,19 +159,20 @@ psd_fold_frame (psd_state_t *state)
         idx -= nfft;
       state->pwr[idx] = re * re + im * im;
     }
-  acc_trace_accumulate (state->avg, state->pwr, nfft);
+  dp_acc_trace_accumulate (state->avg, state->pwr, nfft);
 }
 
 /* Zero the zero-pad tail frame[n..nfft-1] (no-op when nfft == n). */
 static void
-psd_zero_pad (psd_state_t *state)
+psd_zero_pad (dp_psd_state_t *state)
 {
   for (size_t i = state->n; i < state->nfft; i++)
     state->frame[i] = 0.0f;
 }
 
 void
-psd_accumulate (psd_state_t *state, const float _Complex *x, size_t x_len)
+dp_psd_accumulate (dp_psd_state_t *state, const float _Complex *x,
+                   size_t x_len)
 {
   const size_t n      = state->n;
   const size_t nframe = x_len / n;
@@ -187,7 +188,7 @@ psd_accumulate (psd_state_t *state, const float _Complex *x, size_t x_len)
 }
 
 void
-psd_accumulate_real (psd_state_t *state, const float *x, size_t x_len)
+dp_psd_accumulate_real (dp_psd_state_t *state, const float *x, size_t x_len)
 {
   const size_t n      = state->n;
   const size_t nframe = x_len / n;
@@ -206,19 +207,19 @@ psd_accumulate_real (psd_state_t *state, const float *x, size_t x_len)
 
 /* Pull the averaged power trace into state->pwr; 0 if nothing accumulated. */
 static size_t
-psd_pull_power (psd_state_t *s)
+psd_pull_power (dp_psd_state_t *s)
 {
   if (s->avg->count == 0)
     return 0;
   /* s->pwr is allocated at nfft, and s->avg is a length-nfft trace. */
-  return acc_trace_value (s->avg, s->nfft, s->pwr, s->nfft);
+  return dp_acc_trace_value (s->avg, s->nfft, s->pwr, s->nfft);
 }
 
 /* dBFS reference: cg^2 (coherent gain) times the 0-dBFS amplitude squared.
  * full_scale == 1.0 (the default) reduces this to the bare cg^2 normalisation,
  * so every dB getter is byte-identical to the un-scaled estimator. */
 static double
-psd_db_ref (const psd_state_t *s)
+psd_db_ref (const dp_psd_state_t *s)
 {
   return s->cg * s->cg * s->full_scale * s->full_scale;
 }
@@ -228,7 +229,7 @@ psd_db_ref (const psd_state_t *s)
  * accumulated yet.  The internal callers pass state->dbbuf, which is
  * allocated at nfft, so they pass nfft as the capacity. */
 static size_t
-psd_fill_db (psd_state_t *s, float *out, size_t max_out)
+psd_fill_db (dp_psd_state_t *s, float *out, size_t max_out)
 {
   if (!psd_pull_power (s))
     return 0;
@@ -245,13 +246,14 @@ psd_fill_db (psd_state_t *s, float *out, size_t max_out)
 /* ── linear-power accessors (raw spectral estimate for measurement) ────── */
 
 size_t
-psd_power_twosided_max_out (psd_state_t *state)
+dp_psd_power_twosided_max_out (dp_psd_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-psd_power_twosided (psd_state_t *state, size_t cap, float *out, size_t max_out)
+dp_psd_power_twosided (dp_psd_state_t *state, size_t cap, float *out,
+                       size_t max_out)
 {
   (void)cap;
   if (!psd_pull_power (state))
@@ -265,13 +267,14 @@ psd_power_twosided (psd_state_t *state, size_t cap, float *out, size_t max_out)
 }
 
 size_t
-psd_power_onesided_max_out (psd_state_t *state)
+dp_psd_power_onesided_max_out (dp_psd_state_t *state)
 {
   return state->nfft / 2 + 1;
 }
 
 size_t
-psd_power_onesided (psd_state_t *state, size_t cap, float *out, size_t max_out)
+dp_psd_power_onesided (dp_psd_state_t *state, size_t cap, float *out,
+                       size_t max_out)
 {
   (void)cap;
   if (!psd_pull_power (state))
@@ -302,7 +305,7 @@ psd_power_onesided (psd_state_t *state, size_t cap, float *out, size_t max_out)
 /* Map a [lo,hi] Hz band to inclusive DC-centred bin indices.  Returns 0 if the
  * band lies entirely outside the analysed span [-fs/2, fs/2). */
 static int
-psd_band_bins (const psd_state_t *s, double lo, double hi, size_t *ilo_out,
+psd_band_bins (const dp_psd_state_t *s, double lo, double hi, size_t *ilo_out,
                size_t *ihi_out)
 {
   if (hi < lo)
@@ -338,7 +341,7 @@ psd_band_bins (const psd_state_t *s, double lo, double hi, size_t *ilo_out,
  * full-scale tone integrates to full_scale^2 and a noise band to its variance.
  */
 static double
-psd_band_lin (const psd_state_t *s, double lo, double hi)
+psd_band_lin (const dp_psd_state_t *s, double lo, double hi)
 {
   size_t ilo, ihi;
   if (!psd_band_bins (s, lo, hi, &ilo, &ihi))
@@ -353,13 +356,13 @@ psd_band_lin (const psd_state_t *s, double lo, double hi)
 /* ── PSD trace getters ─────────────────────────────────────────────────── */
 
 size_t
-psd_psd_db_max_out (psd_state_t *state)
+dp_psd_psd_db_max_out (dp_psd_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-psd_psd_db (psd_state_t *state, size_t n, float *out, size_t max_out)
+dp_psd_psd_db (dp_psd_state_t *state, size_t n, float *out, size_t max_out)
 {
   (void)n;
   /* psd_fill_db does the clamping and returns what it wrote. */
@@ -367,17 +370,17 @@ psd_psd_db (psd_state_t *state, size_t n, float *out, size_t max_out)
 }
 
 size_t
-psd_psd_dbhz_max_out (psd_state_t *state)
+dp_psd_psd_dbhz_max_out (dp_psd_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-psd_psd_dbhz (psd_state_t *state, size_t n, float *out, size_t max_out)
+dp_psd_psd_dbhz (dp_psd_state_t *state, size_t n, float *out, size_t max_out)
 {
-  /* Offset only what psd_psd_db actually wrote -- walking to nfft here
+  /* Offset only what dp_psd_psd_db actually wrote -- walking to nfft here
    * would read past the clamp. */
-  const size_t n_out = psd_psd_db (state, n, out, max_out);
+  const size_t n_out = dp_psd_psd_db (state, n, out, max_out);
   if (!n_out)
     return 0;
   /* dB/Hz differs from the dBFS spectrum by a constant. */
@@ -391,15 +394,15 @@ psd_psd_dbhz (psd_state_t *state, size_t n, float *out, size_t max_out)
 /* ── band power ────────────────────────────────────────────────────────── */
 
 size_t
-psd_band_power_max_out (psd_state_t *state)
+dp_psd_band_power_max_out (dp_psd_state_t *state)
 {
   (void)state;
   return 0; /* the binding grows the buffer to the bands length */
 }
 
 size_t
-psd_band_power (psd_state_t *state, const double *bands, size_t bands_len,
-                float *out, size_t max_out)
+dp_psd_band_power (dp_psd_state_t *state, const double *bands,
+                   size_t bands_len, float *out, size_t max_out)
 {
   if (!psd_pull_power (state))
     return 0;
@@ -417,8 +420,8 @@ psd_band_power (psd_state_t *state, const double *bands, size_t bands_len,
 }
 
 double
-psd_total_band_power (psd_state_t *state, const double *bands,
-                      size_t bands_len)
+dp_psd_total_band_power (dp_psd_state_t *state, const double *bands,
+                         size_t bands_len)
 {
   if (!psd_pull_power (state))
     return 10.0 * log10 (PSD_FLOOR);
@@ -432,7 +435,7 @@ psd_total_band_power (psd_state_t *state, const double *bands,
 /* ── scalar measurements ───────────────────────────────────────────────── */
 
 double
-psd_occupied_bw (psd_state_t *state, double fraction)
+dp_psd_occupied_bw (dp_psd_state_t *state, double fraction)
 {
   if (!psd_pull_power (state))
     return 0.0;
@@ -470,19 +473,19 @@ psd_occupied_bw (psd_state_t *state, double fraction)
 }
 
 double
-psd_noise_floor (psd_state_t *state)
+dp_psd_noise_floor (dp_psd_state_t *state)
 {
   if (!psd_fill_db (state, state->dbbuf, state->nfft))
     return 0.0;
-  return noise_floor_db (state->dbbuf, state->nfft);
+  return dp_noise_floor_db (state->dbbuf, state->nfft);
 }
 
 double
-psd_snr (psd_state_t *state, double lo_hz, double hi_hz)
+dp_psd_snr (dp_psd_state_t *state, double lo_hz, double hi_hz)
 {
   if (!psd_fill_db (state, state->dbbuf, state->nfft))
     return 0.0;
-  const double floor = noise_floor_db (state->dbbuf, state->nfft);
+  const double floor = dp_noise_floor_db (state->dbbuf, state->nfft);
 
   size_t ilo, ihi;
   if (!psd_band_bins (state, lo_hz, hi_hz, &ilo, &ihi))
@@ -495,12 +498,13 @@ psd_snr (psd_state_t *state, double lo_hz, double hi_hz)
 }
 
 double
-psd_sfdr (psd_state_t *state, float min_db)
+dp_psd_sfdr (dp_psd_state_t *state, float min_db)
 {
   if (!psd_fill_db (state, state->dbbuf, state->nfft))
     return 0.0;
   dp_peak_t    pk[16];
-  const size_t np = find_peaks_f32 (state->dbbuf, state->nfft, 16, min_db, pk);
+  const size_t np
+      = dp_find_peaks_f32 (state->dbbuf, state->nfft, 16, min_db, pk);
   if (np < 2)
     return 0.0;
   /* find_peaks_f32 returns peaks sorted by descending amplitude. */

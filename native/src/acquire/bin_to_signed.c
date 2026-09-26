@@ -17,7 +17,7 @@
 #include "doppler/acquire/acquire_core.h"
 
 int
-bin_to_signed (size_t bin, size_t n_bins)
+dp_bin_to_signed (size_t bin, size_t n_bins)
 {
   return (int)dp_fftfreq_index (bin, n_bins);
 }

@@ -31,7 +31,7 @@ _UQ15 (offset-binary uint16) to float converter._ [More...](#detailed-descriptio
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) <br>_UQ15ToF32 state._  |
+| struct | [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) <br>_UQ15ToF32 state._  |
 
 
 
@@ -58,11 +58,11 @@ _UQ15 (offset-binary uint16) to float converter._ [More...](#detailed-descriptio
 
 | Type | Name |
 | ---: | :--- |
-|  [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* | [**uq15\_to\_f32\_create**](#function-uq15_to_f32_create) (float scale) <br>_Create a uq15\_to\_f32 instance._  |
-|  void | [**uq15\_to\_f32\_destroy**](#function-uq15_to_f32_destroy) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state) <br>_Destroy a uq15\_to\_f32 instance and release all memory._  |
-|  void | [**uq15\_to\_f32\_reset**](#function-uq15_to_f32_reset) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**uq15\_to\_f32\_step**](#function-uq15_to_f32_step) (const [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state, uint16\_t x) <br>_Decode one offset-binary UQ15 uint16 code to a normalised float._  |
-|  void | [**uq15\_to\_f32\_steps**](#function-uq15_to_f32_steps) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state, const uint16\_t \* input, float \* output, size\_t n) <br>_Process a block of UQ15 samples to float32._  |
+|  [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* | [**dp\_uq15\_to\_f32\_create**](#function-dp_uq15_to_f32_create) (float scale) <br>_Create a uq15\_to\_f32 instance._  |
+|  void | [**dp\_uq15\_to\_f32\_destroy**](#function-dp_uq15_to_f32_destroy) ([**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state) <br>_Destroy a uq15\_to\_f32 instance and release all memory._  |
+|  void | [**dp\_uq15\_to\_f32\_reset**](#function-dp_uq15_to_f32_reset) ([**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_uq15\_to\_f32\_step**](#function-dp_uq15_to_f32_step) (const [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state, uint16\_t x) <br>_Decode one offset-binary UQ15 uint16 code to a normalised float._  |
+|  void | [**dp\_uq15\_to\_f32\_steps**](#function-dp_uq15_to_f32_steps) ([**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state, const uint16\_t \* input, float \* output, size\_t n) <br>_Process a block of UQ15 samples to float32._  |
 
 
 
@@ -132,11 +132,11 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 
 
-### function uq15\_to\_f32\_create 
+### function dp\_uq15\_to\_f32\_create 
 
 _Create a uq15\_to\_f32 instance._ 
 ```C++
-uq15_to_f32_state_t * uq15_to_f32_create (
+dp_uq15_to_f32_state_t * dp_uq15_to_f32_create (
     float scale
 ) 
 ```
@@ -164,7 +164,7 @@ Heap-allocated state, or NULL on invalid args or allocation failure.
 
 **Note:**
 
-Caller must call [**uq15\_to\_f32\_destroy()**](uq15__to__f32__core_8h.md#function-uq15_to_f32_destroy) when done. 
+Caller must call [**dp\_uq15\_to\_f32\_destroy()**](uq15__to__f32__core_8h.md#function-dp_uq15_to_f32_destroy) when done. 
 
 
 
@@ -176,12 +176,12 @@ Caller must call [**uq15\_to\_f32\_destroy()**](uq15__to__f32__core_8h.md#functi
 
 
 
-### function uq15\_to\_f32\_destroy 
+### function dp\_uq15\_to\_f32\_destroy 
 
 _Destroy a uq15\_to\_f32 instance and release all memory._ 
 ```C++
-void uq15_to_f32_destroy (
-    uq15_to_f32_state_t * state
+void dp_uq15_to_f32_destroy (
+    dp_uq15_to_f32_state_t * state
 ) 
 ```
 
@@ -203,12 +203,12 @@ void uq15_to_f32_destroy (
 
 
 
-### function uq15\_to\_f32\_reset 
+### function dp\_uq15\_to\_f32\_reset 
 
 _No-op reset, provided only for lifecycle symmetry._ 
 ```C++
-void uq15_to_f32_reset (
-    uq15_to_f32_state_t * state
+void dp_uq15_to_f32_reset (
+    dp_uq15_to_f32_state_t * state
 ) 
 ```
 
@@ -241,12 +241,12 @@ No mutable state exists beyond the immutable `iscale`, so there is nothing to cl
 
 
 
-### function uq15\_to\_f32\_step 
+### function dp\_uq15\_to\_f32\_step 
 
 _Decode one offset-binary UQ15 uint16 code to a normalised float._ 
 ```C++
-JM_FORCEINLINE  JM_HOT float uq15_to_f32_step (
-    const uq15_to_f32_state_t * state,
+JM_FORCEINLINE  JM_HOT float dp_uq15_to_f32_step (
+    const dp_uq15_to_f32_state_t * state,
     uint16_t x
 ) 
 ```
@@ -289,12 +289,12 @@ Normalised float in `[-1.0, ~+1.0)`.
 
 
 
-### function uq15\_to\_f32\_steps 
+### function dp\_uq15\_to\_f32\_steps 
 
 _Process a block of UQ15 samples to float32._ 
 ```C++
-void uq15_to_f32_steps (
-    uq15_to_f32_state_t * state,
+void dp_uq15_to_f32_steps (
+    dp_uq15_to_f32_state_t * state,
     const uint16_t * input,
     float * output,
     size_t n

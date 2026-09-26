@@ -29,8 +29,8 @@
  * [-1.0, 0.0, 0.999969]
  * @endcode
  */
-#ifndef UQ15_TO_F32_CORE_H
-#define UQ15_TO_F32_CORE_H
+#ifndef DP_UQ15_TO_F32_CORE_H
+#define DP_UQ15_TO_F32_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -41,11 +41,11 @@ extern "C" {
 /**
  * @brief UQ15ToF32 state.
  *
- * Allocate with uq15_to_f32_create().
+ * Allocate with dp_uq15_to_f32_create().
  */
 typedef struct {
     float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
-} uq15_to_f32_state_t;
+} dp_uq15_to_f32_state_t;
 
 /**
  * @brief Create a uq15_to_f32 instance.
@@ -58,15 +58,15 @@ typedef struct {
  *               `[-1, +1]` floats from UQ15 data written by F32ToUQ15.
  *               Must be > 0; returns NULL otherwise.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
- * @note Caller must call uq15_to_f32_destroy() when done.
+ * @note Caller must call dp_uq15_to_f32_destroy() when done.
  */
-uq15_to_f32_state_t *uq15_to_f32_create(float scale);
+dp_uq15_to_f32_state_t *dp_uq15_to_f32_create(float scale);
 
 /**
  * @brief Destroy a uq15_to_f32 instance and release all memory.
  * @param state  May be NULL.
  */
-void uq15_to_f32_destroy(uq15_to_f32_state_t *state);
+void dp_uq15_to_f32_destroy(dp_uq15_to_f32_state_t *state);
 
 /**
  * @brief No-op reset, provided only for lifecycle symmetry.
@@ -86,7 +86,7 @@ void uq15_to_f32_destroy(uq15_to_f32_state_t *state);
  *
  * @endcode
  */
-void uq15_to_f32_reset(uq15_to_f32_state_t *state);
+void dp_uq15_to_f32_reset(dp_uq15_to_f32_state_t *state);
 
 /**
  * @brief Decode one offset-binary UQ15 uint16 code to a normalised float.
@@ -112,7 +112,7 @@ void uq15_to_f32_reset(uq15_to_f32_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT float
-uq15_to_f32_step(const uq15_to_f32_state_t *state, uint16_t x)
+dp_uq15_to_f32_step(const dp_uq15_to_f32_state_t *state, uint16_t x)
 {
     /* Remove offset-binary bias in int32_t to avoid UB from int16 overflow */
     return (float)((int32_t)x - 32768) * state->iscale;
@@ -139,8 +139,8 @@ uq15_to_f32_step(const uq15_to_f32_state_t *state, uint16_t x)
  *
  * @endcode
  */
-void uq15_to_f32_steps(
-    uq15_to_f32_state_t *state,
+void dp_uq15_to_f32_steps(
+    dp_uq15_to_f32_state_t *state,
     const uint16_t    *input,
     float          *output,
     size_t               n);

@@ -63,7 +63,7 @@ main (void)
 #define ARM(label, setup, body)                                               \
   do                                                                          \
     {                                                                         \
-      interleaver_state_t *il = setup;                                        \
+      dp_interleaver_state_t *il = setup;                                     \
       if (!il)                                                                \
         {                                                                     \
           fprintf (stderr, "create failed for %s\n", label);                  \
@@ -83,18 +83,18 @@ main (void)
         _s += times[r];                                                       \
       printf ("  %-12s %8.2f Mbit/s\n", label,                                \
               (double)BITS / (_s / ITERATIONS) / 1e6);                        \
-      interleaver_destroy (il);                                               \
+      dp_interleaver_destroy (il);                                            \
     }                                                                         \
   while (0)
 
-  ARM ("bit-1x8k", interleaver_create (8, BITS / 8, 1),
-       interleaver_interleave (il, in, BITS, out, BITS));
-  ARM ("octet-1x8k", interleaver_create (8, BITS / 64, 8),
-       interleaver_interleave (il, in, BITS, out, BITS));
-  ARM ("deep", interleaver_create (256, BITS / 256, 1),
-       interleaver_interleave (il, in, BITS, out, BITS));
-  ARM ("soft", interleaver_create (8, BITS / 8, 1),
-       interleaver_deinterleave_soft (il, fin, BITS, fout, BITS));
+  ARM ("bit-1x8k", dp_interleaver_create (8, BITS / 8, 1),
+       dp_interleaver_interleave (il, in, BITS, out, BITS));
+  ARM ("octet-1x8k", dp_interleaver_create (8, BITS / 64, 8),
+       dp_interleaver_interleave (il, in, BITS, out, BITS));
+  ARM ("deep", dp_interleaver_create (256, BITS / 256, 1),
+       dp_interleaver_interleave (il, in, BITS, out, BITS));
+  ARM ("soft", dp_interleaver_create (8, BITS / 8, 1),
+       dp_interleaver_deinterleave_soft (il, fin, BITS, fout, BITS));
 
 #undef ARM
 

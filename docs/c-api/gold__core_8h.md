@@ -32,7 +32,7 @@ _Gold code component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**gold\_state\_t**](structgold__state__t.md) <br>_Gold state._  |
+| struct | [**dp\_gold\_state\_t**](structdp__gold__state__t.md) <br>_Gold state._  |
 
 
 
@@ -59,15 +59,15 @@ _Gold code component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**gold\_state\_t**](structgold__state__t.md) \* | [**gold\_create**](#function-gold_create) (uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t length) <br>_Allocate and initialise a CCSDS-style Gold code generator. Two independent Fibonacci LFSRs of the same_ `length` _free-run in lock-step; each output chip is the XOR of both registers' current top-bit (stage_`length` _, i.e. bit_`length-1` _). Both registers shift left one bit per chip: the new bit (parity of the tapped stages, read__before_ _the shift) enters at stage 1 (bit 0), and the old stage-_`length` _bit is discarded after being XORed into the output. The sequence period is_`2^length - 1` _for primitive_`taps_a` _/_`taps_b` _. With the CCSDS default polynomials the two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set_`{-1, -65, 63}` _— so varying_`seed_a` _(User dependent per the standard) walks the 2\*\*length-1 XOR members of the Gold-code family while Register B stays fixed._ |
-|  void | [**gold\_destroy**](#function-gold_destroy) ([**gold\_state\_t**](structgold__state__t.md) \* state) <br>_Destroy a gold instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
-|  size\_t | [**gold\_generate**](#function-gold_generate) ([**gold\_state\_t**](structgold__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance both LFSRs by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
-|  size\_t | [**gold\_generate\_max\_out**](#function-gold_generate_max_out) ([**gold\_state\_t**](structgold__state__t.md) \* state) <br> |
-|  void | [**gold\_get\_state**](#function-gold_get_state) (const [**gold\_state\_t**](structgold__state__t.md) \* state, void \* blob) <br>_Serialize both LFSR registers into_ `blob` _._ |
-|  void | [**gold\_reset**](#function-gold_reset) ([**gold\_state\_t**](structgold__state__t.md) \* state) <br>_Reset Gold to its post-create state. Reloads both LFSR registers from their original seeds so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
-|  int | [**gold\_set\_state**](#function-gold_set_state) ([**gold\_state\_t**](structgold__state__t.md) \* state, const void \* blob) <br>_Restore both registers; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
-|  size\_t | [**gold\_state\_bytes**](#function-gold_state_bytes) (const [**gold\_state\_t**](structgold__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**gold\_step**](#function-gold_step) ([**gold\_state\_t**](structgold__state__t.md) \* state) <br>_Advance both LFSRs one chip and return the XOR-combined output chip (0 or 1). Each register outputs its current stage-_ `length` _bit (the top bit), computes its own feedback (parity of the tapped stages), and shifts left with the feedback bit entering at stage 1. Inlined so composing objects (e.g. a DSSS spreader) can pull chips in a tight hot loop without call overhead — mirrors_[_**pn\_core.h**_](pn__core_8h.md) _'s_[_**pn\_step()**_](pn__core_8h.md#function-pn_step) _._ |
+|  [**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* | [**dp\_gold\_create**](#function-dp_gold_create) (uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t length) <br>_Allocate and initialise a CCSDS-style Gold code generator. Two independent Fibonacci LFSRs of the same_ `length` _free-run in lock-step; each output chip is the XOR of both registers' current top-bit (stage_`length` _, i.e. bit_`length-1` _). Both registers shift left one bit per chip: the new bit (parity of the tapped stages, read__before_ _the shift) enters at stage 1 (bit 0), and the old stage-_`length` _bit is discarded after being XORed into the output. The sequence period is_`2^length - 1` _for primitive_`taps_a` _/_`taps_b` _. With the CCSDS default polynomials the two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set_`{-1, -65, 63}` _— so varying_`seed_a` _(User dependent per the standard) walks the 2\*\*length-1 XOR members of the Gold-code family while Register B stays fixed._ |
+|  void | [**dp\_gold\_destroy**](#function-dp_gold_destroy) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Destroy a gold instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
+|  size\_t | [**dp\_gold\_generate**](#function-dp_gold_generate) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance both LFSRs by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
+|  size\_t | [**dp\_gold\_generate\_max\_out**](#function-dp_gold_generate_max_out) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br> |
+|  void | [**dp\_gold\_get\_state**](#function-dp_gold_get_state) (const [**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state, void \* blob) <br>_Serialize both LFSR registers into_ `blob` _._ |
+|  void | [**dp\_gold\_reset**](#function-dp_gold_reset) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Reset Gold to its post-create state. Reloads both LFSR registers from their original seeds so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
+|  int | [**dp\_gold\_set\_state**](#function-dp_gold_set_state) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state, const void \* blob) <br>_Restore both registers; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  size\_t | [**dp\_gold\_state\_bytes**](#function-dp_gold_state_bytes) (const [**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Serialized-state byte size._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**gold\_step**](#function-gold_step) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Advance both LFSRs one chip and return the XOR-combined output chip (0 or 1). Each register outputs its current stage-_ `length` _bit (the top bit), computes its own feedback (parity of the tapped stages), and shifts left with the feedback bit entering at stage 1. Inlined so composing objects (e.g. a DSSS spreader) can pull chips in a tight hot loop without call overhead — mirrors_[_**pn\_core.h**_](pn__core_8h.md) _'s_[_**pn\_step()**_](pn__core_8h.md#function-pn_step) _._ |
 
 
 
@@ -113,10 +113,10 @@ Lifecycle: create -&gt; generate/reset (repeatable) -&gt; destroy
 
 Example: 
 ```C++
-gold_state_t *obj = gold_create(934, 350, 567, 73, 10);
+dp_gold_state_t *obj = dp_gold_create(934, 350, 567, 73, 10);
 uint8_t chips[16];
-gold_generate (obj, 16, chips, 16);
-gold_destroy(obj);
+dp_gold_generate (obj, 16, chips, 16);
+dp_gold_destroy(obj);
 ```
  
 
@@ -127,11 +127,11 @@ gold_destroy(obj);
 
 
 
-### function gold\_create 
+### function dp\_gold\_create 
 
 _Allocate and initialise a CCSDS-style Gold code generator. Two independent Fibonacci LFSRs of the same_ `length` _free-run in lock-step; each output chip is the XOR of both registers' current top-bit (stage_`length` _, i.e. bit_`length-1` _). Both registers shift left one bit per chip: the new bit (parity of the tapped stages, read__before_ _the shift) enters at stage 1 (bit 0), and the old stage-_`length` _bit is discarded after being XORed into the output. The sequence period is_`2^length - 1` _for primitive_`taps_a` _/_`taps_b` _. With the CCSDS default polynomials the two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set_`{-1, -65, 63}` _— so varying_`seed_a` _(User dependent per the standard) walks the 2\*\*length-1 XOR members of the Gold-code family while Register B stays fixed._
 ```C++
-gold_state_t * gold_create (
+dp_gold_state_t * dp_gold_create (
     uint64_t taps_a,
     uint64_t seed_a,
     uint64_t taps_b,
@@ -164,7 +164,7 @@ Heap-allocated state, or NULL on allocation failure or invalid arguments (zero s
 
 **Note:**
 
-Caller must call [**gold\_destroy()**](gold__core_8h.md#function-gold_destroy) when done. 
+Caller must call [**dp\_gold\_destroy()**](gold__core_8h.md#function-dp_gold_destroy) when done. 
 ```C++
 >>> from doppler.wfm import Gold
 >>> import numpy as np
@@ -189,12 +189,12 @@ dtype('uint8')
 
 
 
-### function gold\_destroy 
+### function dp\_gold\_destroy 
 
 _Destroy a gold instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._
 ```C++
-void gold_destroy (
-    gold_state_t * state
+void dp_gold_destroy (
+    dp_gold_state_t * state
 ) 
 ```
 
@@ -222,12 +222,12 @@ void gold_destroy (
 
 
 
-### function gold\_generate 
+### function dp\_gold\_generate 
 
 _Generate_ `n` _chips into_`out` _and advance both LFSRs by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._
 ```C++
-size_t gold_generate (
-    gold_state_t * state,
+size_t dp_gold_generate (
+    dp_gold_state_t * state,
     size_t n,
     uint8_t * out,
     size_t max_out
@@ -241,7 +241,7 @@ size_t gold_generate (
 **Parameters:**
 
 
-* `state` Initialised Gold state returned by `gold_create`. 
+* `state` Initialised Gold state returned by `dp_gold_create`. 
 * `n` Number of chips to produce. 
 * `out` Output buffer of at least `n` uint8 elements; each element receives 0 or 1. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
@@ -271,11 +271,11 @@ min(n, max\_out) chips.
 
 
 
-### function gold\_generate\_max\_out 
+### function dp\_gold\_generate\_max\_out 
 
 ```C++
-size_t gold_generate_max_out (
-    gold_state_t * state
+size_t dp_gold_generate_max_out (
+    dp_gold_state_t * state
 ) 
 ```
 
@@ -286,12 +286,12 @@ size_t gold_generate_max_out (
 
 
 
-### function gold\_get\_state 
+### function dp\_gold\_get\_state 
 
 _Serialize both LFSR registers into_ `blob` _._
 ```C++
-void gold_get_state (
-    const gold_state_t * state,
+void dp_gold_get_state (
+    const dp_gold_state_t * state,
     void * blob
 ) 
 ```
@@ -303,12 +303,12 @@ void gold_get_state (
 
 
 
-### function gold\_reset 
+### function dp\_gold\_reset 
 
 _Reset Gold to its post-create state. Reloads both LFSR registers from their original seeds so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._ 
 ```C++
-void gold_reset (
-    gold_state_t * state
+void dp_gold_reset (
+    dp_gold_state_t * state
 ) 
 ```
 
@@ -340,12 +340,12 @@ True
 
 
 
-### function gold\_set\_state 
+### function dp\_gold\_set\_state 
 
 _Restore both registers; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
 ```C++
-int gold_set_state (
-    gold_state_t * state,
+int dp_gold_set_state (
+    dp_gold_state_t * state,
     const void * blob
 ) 
 ```
@@ -357,12 +357,12 @@ int gold_set_state (
 
 
 
-### function gold\_state\_bytes 
+### function dp\_gold\_state\_bytes 
 
 _Serialized-state byte size._ 
 ```C++
-size_t gold_state_bytes (
-    const gold_state_t * state
+size_t dp_gold_state_bytes (
+    const dp_gold_state_t * state
 ) 
 ```
 
@@ -378,7 +378,7 @@ size_t gold_state_bytes (
 _Advance both LFSRs one chip and return the XOR-combined output chip (0 or 1). Each register outputs its current stage-_ `length` _bit (the top bit), computes its own feedback (parity of the tapped stages), and shifts left with the feedback bit entering at stage 1. Inlined so composing objects (e.g. a DSSS spreader) can pull chips in a tight hot loop without call overhead — mirrors_[_**pn\_core.h**_](pn__core_8h.md) _'s_[_**pn\_step()**_](pn__core_8h.md#function-pn_step) _._
 ```C++
 JM_FORCEINLINE uint8_t gold_step (
-    gold_state_t * state
+    dp_gold_state_t * state
 ) 
 ```
 

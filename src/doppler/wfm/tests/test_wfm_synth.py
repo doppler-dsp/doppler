@@ -303,8 +303,8 @@ def test_rrc_bits_matches_matched_filter(sps):
     parametrized rather than fixed: ``wfm_synth_set_rrc`` shapes a
     **power-of-two** ``sps`` with a polyphase ``resamp`` bank and falls back
     to a **dense FIR** for anything else. Same convolution, two separate
-    block loops in ``wfm_synth_steps()`` — and the dense-FIR bits loop had no
-    test on any path, so the four-copy bits→symbol map it carried could have
+    block loops in ``dp_wfm_synth_steps()`` — and the dense-FIR bits loop had
+    no test on any path, so the four-copy bits→symbol map it carried could have
     been fixed in one branch and not the other with nothing to say so.
     """
     span, beta, n = 8, 0.35, 200

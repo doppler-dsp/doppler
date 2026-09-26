@@ -26,14 +26,14 @@ main (void)
   for (int i = 0; i < BENCH_N; i++)
     in[i] = (float)(i);
 
-  adc_state_t *obj = adc_create (16, -10.0f, 0);
+  dp_adc_state_t *obj = dp_adc_create (16, -10.0f, 0);
 
   /* volatile sink prevents DCE of the step() loop */
   volatile int64_t _sink;
 
   /* warmup */
   for (int i = 0; i < 16; i++)
-    _sink = adc_step (obj, in[i]);
+    _sink = dp_adc_step (obj, in[i]);
 
   uint64_t   t0, t1;
   jm_bench_t _bench = { 0 };
@@ -46,7 +46,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        _sink = adc_step (obj, in[i]);
+        _sink = dp_adc_step (obj, in[i]);
       t1             = jm_bench_now_ns ();
       _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -62,7 +62,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      adc_steps (obj, in, out, BENCH_N);
+      dp_adc_steps (obj, in, out, BENCH_N);
       t1              = jm_bench_now_ns ();
       _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -76,7 +76,7 @@ main (void)
   }
 
   jm_bench_write_json (&_bench, "adc");
-  adc_destroy (obj);
+  dp_adc_destroy (obj);
   free (in);
   free (out);
   return 0;

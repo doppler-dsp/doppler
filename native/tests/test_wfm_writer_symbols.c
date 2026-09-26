@@ -23,13 +23,13 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_wfm_writer[] = {
-    (jm_any_fn)wfm_writer_write,
+    (jm_any_fn)dp_wfm_writer_write,
     (jm_any_fn)wfm_writer_add_keyword,
-    (jm_any_fn)wfm_writer_destroy,
-    (jm_any_fn)wfm_writer_track_clipping,
-    (jm_any_fn)wfm_writer_create,
-    (jm_any_fn)wfm_writer_get_clip_fraction,
-    (jm_any_fn)wfm_writer_get_peak_dbfs,
-    (jm_any_fn)wfm_writer_get_clipped,
-    (jm_any_fn)wfm_writer_flush,
+    (jm_any_fn)dp_wfm_writer_destroy,
+    (jm_any_fn)dp_wfm_writer_track_clipping,
+    (jm_any_fn)dp_wfm_writer_create,
+    (jm_any_fn)dp_wfm_writer_get_clip_fraction,
+    (jm_any_fn)dp_wfm_writer_get_peak_dbfs,
+    (jm_any_fn)dp_wfm_writer_get_clipped,
+    (jm_any_fn)dp_wfm_writer_flush,
 };

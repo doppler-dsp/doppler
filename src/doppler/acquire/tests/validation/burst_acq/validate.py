@@ -5,7 +5,7 @@ Run:  python -m doppler.acquire.tests.validation.burst_acq.validate
       make validate-check    (fails if the committed report is stale)
 
 `burst_acq_core.c` is a pure forwarder onto `acq_core.c`'s shared engine:
-every function is a direct call through an embedded `acq_state_t` built by
+every function is a direct call through an embedded `dp_acq_state_t` built by
 `acq_create_burst()`. The algorithm lives in `acq` exactly once, which is the
 library's rule, and it is certified there.
 
@@ -145,7 +145,7 @@ def section_object() -> None:
     R.md("## 1. The object — a front door, not an algorithm")
     R.md()
     R.md(
-        "`BurstAcquisition` composes one `acq_state_t`, built through "
+        "`BurstAcquisition` composes one `dp_acq_state_t`, built through "
         "`acq_create_burst()`, and forwards every call to it. There is no "
         "algorithm here: the physics — coherent depth selection, CFAR "
         "sizing, window tiling, the detection statistic — lives in `acq` "
@@ -555,7 +555,8 @@ def review(d: Data) -> None:
     R.find(
         "F4",
         "C-ONLY",
-        "The forwarding of `burst_acq_destroy(NULL)` and the rejection of a "
+        "The forwarding of `dp_burst_acq_destroy(NULL)` and the rejection "
+        "of a "
         "NULL or zero-length code are certified in "
         "`native/tests/test_burst_acq_core.c`: neither is reachable from "
         "Python, where the binding owns lifetime and the array conversion "

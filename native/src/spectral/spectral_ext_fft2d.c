@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* FFT2DObject — wraps fft2d_state_t *       */
+/* FFT2DObject — wraps dp_fft2d_state_t *       */
 /* ======================================================== */
 
 #include "doppler/fft2d/fft2d_core.h"
 
 typedef struct
 {
-  PyObject_HEAD fft2d_state_t *handle;
+  PyObject_HEAD dp_fft2d_state_t *handle;
 } FFT2DObject;
 
 static void
 FFT2DObj_dealloc (FFT2DObject *self)
 {
   if (self->handle)
-    fft2d_destroy (self->handle);
+    dp_fft2d_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -47,10 +47,10 @@ FFT2DObj_init (FFT2DObject *self, PyObject *args, PyObject *kwds)
     return -1;
   size_t ny    = (size_t)ny_raw;
   size_t nx    = (size_t)nx_raw;
-  self->handle = fft2d_create (ny, nx, sign, nthreads);
+  self->handle = dp_fft2d_create (ny, nx, sign, nthreads);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "fft2d_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_fft2d_create returned NULL");
       return -1;
     }
   return 0;
@@ -64,7 +64,7 @@ FFT2DObj_reset (FFT2DObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  fft2d_reset (self->handle);
+  dp_fft2d_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -77,7 +77,7 @@ FFT2DObj_execute_cf64_max_out (FFT2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (fft2d_execute_cf64_max_out (self->handle));
+  return PyLong_FromSize_t (dp_fft2d_execute_cf64_max_out (self->handle));
 }
 
 static PyObject *
@@ -123,7 +123,7 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = fft2d_execute_cf64_max_out (self->handle);
+      size_t _omax    = dp_fft2d_execute_cf64_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -133,7 +133,7 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = fft2d_execute_cf64 (
+      size_t n_out = dp_fft2d_execute_cf64 (
           self->handle, (const double _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (double _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -149,7 +149,7 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = fft2d_execute_cf64_max_out (self->handle);
+  size_t _cap  = dp_fft2d_execute_cf64_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -161,7 +161,7 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
     }
   double _Complex *_d0
       = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = fft2d_execute_cf64 (
+  size_t n_out = dp_fft2d_execute_cf64 (
       self->handle, (const double _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
@@ -190,7 +190,7 @@ FFT2DObj_execute_cf32_max_out (FFT2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (fft2d_execute_cf32_max_out (self->handle));
+  return PyLong_FromSize_t (dp_fft2d_execute_cf32_max_out (self->handle));
 }
 
 static PyObject *
@@ -236,7 +236,7 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = fft2d_execute_cf32_max_out (self->handle);
+      size_t _omax    = dp_fft2d_execute_cf32_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -246,7 +246,7 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = fft2d_execute_cf32 (
+      size_t n_out = dp_fft2d_execute_cf32 (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -262,7 +262,7 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = fft2d_execute_cf32_max_out (self->handle);
+  size_t _cap  = dp_fft2d_execute_cf32_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -273,7 +273,7 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = fft2d_execute_cf32 (
+  size_t          n_out = dp_fft2d_execute_cf32 (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
@@ -302,7 +302,8 @@ FFT2DObj_execute_inplace_cf64_max_out (FFT2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (fft2d_execute_inplace_cf64_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_fft2d_execute_inplace_cf64_max_out (self->handle));
 }
 
 static PyObject *
@@ -349,7 +350,7 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = fft2d_execute_inplace_cf64_max_out (self->handle);
+      size_t _omax    = dp_fft2d_execute_inplace_cf64_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -359,7 +360,7 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = fft2d_execute_inplace_cf64 (
+      size_t n_out = dp_fft2d_execute_inplace_cf64 (
           self->handle, (const double _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (double _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -375,7 +376,7 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = fft2d_execute_inplace_cf64_max_out (self->handle);
+  size_t _cap  = dp_fft2d_execute_inplace_cf64_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -387,7 +388,7 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
     }
   double _Complex *_d0
       = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = fft2d_execute_inplace_cf64 (
+  size_t n_out = dp_fft2d_execute_inplace_cf64 (
       self->handle, (const double _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
@@ -416,7 +417,8 @@ FFT2DObj_execute_inplace_cf32_max_out (FFT2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (fft2d_execute_inplace_cf32_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_fft2d_execute_inplace_cf32_max_out (self->handle));
 }
 
 static PyObject *
@@ -463,7 +465,7 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = fft2d_execute_inplace_cf32_max_out (self->handle);
+      size_t _omax    = dp_fft2d_execute_inplace_cf32_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -473,7 +475,7 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = fft2d_execute_inplace_cf32 (
+      size_t n_out = dp_fft2d_execute_inplace_cf32 (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -489,7 +491,7 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = fft2d_execute_inplace_cf32_max_out (self->handle);
+  size_t _cap  = dp_fft2d_execute_inplace_cf32_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -500,7 +502,7 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = fft2d_execute_inplace_cf32 (
+  size_t          n_out = dp_fft2d_execute_inplace_cf32 (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
@@ -562,7 +564,7 @@ FFT2DObj_destroy (FFT2DObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      fft2d_destroy (self->handle);
+      dp_fft2d_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -581,7 +583,7 @@ FFT2DObj_exit (FFT2DObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      fft2d_destroy (self->handle);
+      dp_fft2d_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -638,7 +640,8 @@ static PyMethodDef FFT2DObj_methods[] = {
     "execute_cf32(x, out) -> ndarray\n"
     "\n"
     "Compute an out-of-place 2-D DFT on a single-precision complex grid.\n"
-    "Single-precision variant of fft2d_execute_cf64(). Accepts and returns\n"
+    "Single-precision variant of dp_fft2d_execute_cf64(). Accepts and "
+    "returns\n"
     "flat row-major CF32 arrays of length ny*nx. Output is unnormalised; in\n"
     "and out must not alias.\n"
     "\n"
@@ -720,7 +723,8 @@ static PyMethodDef FFT2DObj_methods[] = {
     "execute_inplace_cf32(x, out) -> ndarray\n"
     "\n"
     "Copy in into out, then transform out in-place (CF32 2-D).\n"
-    "Single-precision variant of fft2d_execute_inplace_cf64(). Copies ny*nx\n"
+    "Single-precision variant of dp_fft2d_execute_inplace_cf64(). Copies "
+    "ny*nx\n"
     "CF32 samples then applies the CF32 2-D pocketfft plan to out.\n"
     "\n"
     "Parameters\n"

@@ -23,13 +23,13 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_acc_trace[] = {
-    (jm_any_fn)acc_trace_create,
-    (jm_any_fn)acc_trace_destroy,
-    (jm_any_fn)acc_trace_reset,
-    (jm_any_fn)acc_trace_accumulate,
-    (jm_any_fn)acc_trace_value_max_out,
-    (jm_any_fn)acc_trace_value,
-    (jm_any_fn)acc_trace_state_bytes,
-    (jm_any_fn)acc_trace_get_state,
-    (jm_any_fn)acc_trace_set_state,
+    (jm_any_fn)dp_acc_trace_create,
+    (jm_any_fn)dp_acc_trace_destroy,
+    (jm_any_fn)dp_acc_trace_reset,
+    (jm_any_fn)dp_acc_trace_accumulate,
+    (jm_any_fn)dp_acc_trace_value_max_out,
+    (jm_any_fn)dp_acc_trace_value,
+    (jm_any_fn)dp_acc_trace_state_bytes,
+    (jm_any_fn)dp_acc_trace_get_state,
+    (jm_any_fn)dp_acc_trace_set_state,
 };

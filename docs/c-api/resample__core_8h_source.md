@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef RESAMPLE_CORE_H
-#define RESAMPLE_CORE_H
+#ifndef DP_RESAMPLE_CORE_H
+#define DP_RESAMPLE_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -21,11 +21,11 @@ extern "C"
 
   /* Declare module-level functions here. */
 
-double kaiser_beta(double atten);
+double dp_kaiser_beta(double atten);
 
-int kaiser_num_taps(int num_phases, double atten, double pb, double sb);
+int dp_kaiser_num_taps(int num_phases, double atten, double pb, double sb);
 
-void ciccompmf(double *out, uint32_t N, uint32_t R, uint32_t M);
+void dp_ciccompmf(double *out, uint32_t N, uint32_t R, uint32_t M);
 
 #ifdef __cplusplus
 }

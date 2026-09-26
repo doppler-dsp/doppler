@@ -6,7 +6,7 @@
 #include <math.h>
 
 double
-measure_proc_gain (size_t nfft)
+dp_measure_proc_gain (size_t nfft)
 {
   return 10.0 * log10 ((double)nfft / 2.0);
 }

@@ -22,7 +22,7 @@
  * the 2-sample group delay (d[1] lags the newest pushed sample by 2). */
 static float _Complex interp_at (int order, const float *f, int n, double pos)
 {
-  farrow_state_t s;
+  dp_farrow_state_t s;
   farrow_init (&s, order);
   int    base      = (int)floor (pos);
   double mu        = pos - base;
@@ -42,23 +42,23 @@ main (void)
 
   /* 1. Lifecycle / order / parity */
   {
-    farrow_state_t *c = farrow_create (FARROW_CUBIC);
+    dp_farrow_state_t *c = dp_farrow_create (FARROW_CUBIC);
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
     DP_CHECK (c->order == FARROW_CUBIC);
-    DP_CHECK (farrow_get_group_delay (c) == 2);
-    farrow_state_t v;
+    DP_CHECK (dp_farrow_get_group_delay (c) == 2);
+    dp_farrow_state_t v;
     farrow_init (&v, FARROW_CUBIC);
     DP_CHECK (v.order == c->order);
-    farrow_destroy (c);
+    dp_farrow_destroy (c);
   }
 
   /* 2. Endpoints: mu=0 -> d[1], mu->1 -> d[2] (ramp d = {0,1,2,3}) */
   {
     for (int order = 0; order <= 2; order++)
       {
-        farrow_state_t s;
+        dp_farrow_state_t s;
         farrow_init (&s, order);
         for (int i = 0; i < 4; i++)
           farrow_push (&s, (float)i + 0.0f * I);
@@ -101,9 +101,9 @@ main (void)
   /* 4. Fractional delay of a complex sinusoid -> expected phase shift.
    * Cubic is accurate to a couple percent at a modest frequency. */
   {
-    const int      n     = 64;
-    double         fnorm = 0.05; /* cycles/sample */
-    farrow_state_t s;
+    const int         n     = 64;
+    double            fnorm = 0.05; /* cycles/sample */
+    dp_farrow_state_t s;
     farrow_init (&s, FARROW_CUBIC);
     double mu     = 0.5;
     int    errors = 0;
@@ -128,27 +128,27 @@ main (void)
 
   /* 5. Reset clears the delay line */
   {
-    farrow_state_t *s = farrow_create (FARROW_LINEAR);
+    dp_farrow_state_t *s = dp_farrow_create (FARROW_LINEAR);
     farrow_push (s, 5.0f + 0.0f * I);
     farrow_push (s, 6.0f + 0.0f * I);
-    farrow_reset (s);
+    dp_farrow_reset (s);
     DP_CHECK (cabsf (farrow_eval (s, 0.5f)) < 1e-6f);
-    farrow_destroy (s);
+    dp_farrow_destroy (s);
   }
 
   /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
   {
-    farrow_state_t *a = farrow_create (FARROW_CUBIC);
-    farrow_state_t *b = farrow_create (FARROW_CUBIC);
+    dp_farrow_state_t *a = dp_farrow_create (FARROW_CUBIC);
+    dp_farrow_state_t *b = dp_farrow_create (FARROW_CUBIC);
     DP_CHECK (a != NULL && b != NULL);
     farrow_push (a, 1.0f + 0.0f * I);
     farrow_push (a, 0.0f + 2.0f * I);
     farrow_push (a, -1.0f + 0.5f * I);
     farrow_push (a, 0.5f - 0.5f * I);
-    DP_STATE_ROUNDTRIP_TEST (farrow, a, b);
+    DP_STATE_ROUNDTRIP_TEST (dp_farrow, a, b);
     DP_CHECK (farrow_eval (b, 0.3f) == farrow_eval (a, 0.3f));
-    farrow_destroy (a);
-    farrow_destroy (b);
+    dp_farrow_destroy (a);
+    dp_farrow_destroy (b);
   }
 
   DP_TEST_END ("test_farrow_core");

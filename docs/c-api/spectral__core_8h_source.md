@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef SPECTRAL_CORE_H
-#define SPECTRAL_CORE_H
+#ifndef DP_SPECTRAL_CORE_H
+#define DP_SPECTRAL_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -25,24 +25,24 @@ extern "C"
     float amplitude_db; 
   } dp_peak_t;
 
-float kaiser_enbw(const float *w, size_t w_len);
+float dp_kaiser_enbw(const float *w, size_t w_len);
 
-  double kaiser_beta_for_sidelobe(double atten_db);
+  double dp_kaiser_beta_for_sidelobe(double atten_db);
 
-void kaiser_window(float *w, size_t w_len, float beta);
+void dp_kaiser_window(float *w, size_t w_len, float beta);
 
-void hann_window(float *w, size_t w_len);
+void dp_hann_window(float *w, size_t w_len);
 
-void blackman_harris_window(float *w, size_t w_len);
+void dp_blackman_harris_window(float *w, size_t w_len);
 
-void magnitude_db_cf32(const float _Complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
+void dp_magnitude_db_cf32(const float _Complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
 
-void magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
+void dp_magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
 
-size_t find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
+size_t dp_find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
 
-double obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
-double noise_floor_db(const float *db, size_t db_len);
+double dp_obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
+double dp_noise_floor_db(const float *db, size_t db_len);
 #ifdef __cplusplus
 }
 #endif

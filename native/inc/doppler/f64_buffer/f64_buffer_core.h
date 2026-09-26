@@ -6,7 +6,7 @@
  * macro-stamped. This header is what makes it a jm component without
  * changing it:
  *
- *   - `f64_buffer_state_t` IS `dp_f64_t`, so the binding holds the real
+ *   - `dp_f64_buffer_state_t` IS `dp_f64_t`, so the binding holds the real
  *     ring and calls the real functions -- nothing is wrapped.
  *   - #DECLARE_DP_BUFFER_VIEW stamps the element-typed face (one element
  *     per SAMPLE), which is the face a numpy array has.
@@ -20,8 +20,8 @@
  * The two siblings (f32 / f64 / i16) are the same file over a different
  * element; a manifest template (just-makeit#1310) will say so once.
  */
-#ifndef F64_BUFFER_CORE_H
-#define F64_BUFFER_CORE_H
+#ifndef DP_F64_BUFFER_CORE_H
+#define DP_F64_BUFFER_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -34,7 +34,7 @@ extern "C"
 #endif
 
 /** @brief The component's state IS the ring. */
-typedef dp_f64_t f64_buffer_state_t;
+typedef dp_f64_t dp_f64_buffer_state_t;
 
 /**
  * @brief Lock-free SPSC ring buffer for complex128 (CF64) samples.
@@ -346,7 +346,7 @@ static inline void dp_f64_destroy (dp_f64_t *state);
  * @endcode
  */
 static inline size_t
-f64_buffer_get_capacity (const f64_buffer_state_t *state)
+dp_f64_buffer_get_capacity (const dp_f64_buffer_state_t *state)
 {
   return state->capacity;
 }
@@ -380,7 +380,7 @@ f64_buffer_get_capacity (const f64_buffer_state_t *state)
  * @endcode
  */
 static inline size_t
-f64_buffer_get_available (const f64_buffer_state_t *state)
+dp_f64_buffer_get_available (const dp_f64_buffer_state_t *state)
 {
   return dp_f64_available (state);
 }
@@ -406,7 +406,7 @@ f64_buffer_get_available (const f64_buffer_state_t *state)
  * @endcode
  */
 static inline size_t
-f64_buffer_get_space (const f64_buffer_state_t *state)
+dp_f64_buffer_get_space (const dp_f64_buffer_state_t *state)
 {
   return dp_f64_space (state);
 }
@@ -442,7 +442,7 @@ f64_buffer_get_space (const f64_buffer_state_t *state)
  * @endcode
  */
 static inline size_t
-f64_buffer_get_dropped (const f64_buffer_state_t *state)
+dp_f64_buffer_get_dropped (const dp_f64_buffer_state_t *state)
 {
   return state->dropped;
 }
@@ -465,7 +465,7 @@ f64_buffer_get_dropped (const f64_buffer_state_t *state)
  * @endcode
  */
 static inline bool
-f64_buffer_get_closed (const f64_buffer_state_t *state)
+dp_f64_buffer_get_closed (const dp_f64_buffer_state_t *state)
 {
   return dp_f64_closed (state);
 }

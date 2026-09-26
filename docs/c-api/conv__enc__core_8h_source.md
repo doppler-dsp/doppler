@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CONV_ENC_CORE_H
-#define CONV_ENC_CORE_H
+#ifndef DP_CONV_ENC_CORE_H
+#define DP_CONV_ENC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/conv/conv_core.h"
@@ -26,23 +26,23 @@ extern "C"
     conv_code_t code; 
     conv_enc_t  enc;  
     /*<<property_struct_fields>>*/
-  } conv_enc_state_t;
+  } dp_conv_enc_state_t;
 
-  conv_enc_state_t *conv_enc_create (const uint32_t *poly, size_t poly_len,
+  dp_conv_enc_state_t *dp_conv_enc_create (const uint32_t *poly, size_t poly_len,
                                      uint32_t k, uint32_t invert);
 
-  conv_enc_state_t *conv_enc_create_code (const conv_code_t *c);
+  dp_conv_enc_state_t *conv_enc_create_code (const conv_code_t *c);
 
-  void conv_enc_destroy (conv_enc_state_t *state);
+  void dp_conv_enc_destroy (dp_conv_enc_state_t *state);
 
-  void conv_enc_reset (conv_enc_state_t *state);
+  void dp_conv_enc_reset (dp_conv_enc_state_t *state);
 
-  size_t conv_enc_encode_max_out (const conv_enc_state_t *state, size_t n_in);
+  size_t dp_conv_enc_encode_max_out (const dp_conv_enc_state_t *state, size_t n_in);
 
-  size_t conv_enc_encode (conv_enc_state_t *state, const uint8_t *in,
+  size_t dp_conv_enc_encode (dp_conv_enc_state_t *state, const uint8_t *in,
                           size_t n_in, uint8_t *out, size_t max_out);
 
-  const conv_code_t *conv_enc_code (const conv_enc_state_t *s);
+  const conv_code_t *conv_enc_code (const dp_conv_enc_state_t *s);
 
   /* ── the state bytes interface ─────────────────────────────────────────
    *
@@ -56,11 +56,11 @@ extern "C"
 #define CONV_ENC_STATE_MAGIC DP_FOURCC ('C', 'V', 'E', 'N')
 #define CONV_ENC_STATE_VERSION 1u
 
-  size_t conv_enc_state_bytes (const conv_enc_state_t *s);
+  size_t dp_conv_enc_state_bytes (const dp_conv_enc_state_t *s);
 
-  void conv_enc_get_state (const conv_enc_state_t *s, void *blob);
+  void dp_conv_enc_get_state (const dp_conv_enc_state_t *s, void *blob);
 
-  int conv_enc_set_state (conv_enc_state_t *s, const void *blob);
+  int dp_conv_enc_set_state (dp_conv_enc_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

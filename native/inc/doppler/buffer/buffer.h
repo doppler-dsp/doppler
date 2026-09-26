@@ -603,7 +603,7 @@ typedef enum
    */                                                                         \
   static inline size_t dp_##name##_mapped_for_ (size_t n_samples)             \
   {                                                                           \
-    size_t mapped = n_samples ? next_pow_two (n_samples) : 0;                 \
+    size_t mapped = n_samples ? dp_next_pow_two (n_samples) : 0;                 \
     size_t page   = dp__page_size ();                                         \
     size_t elem   = sizeof (type) * 2;                                        \
     /* elem and page are powers of two and so is `mapped`, so doubling until  \

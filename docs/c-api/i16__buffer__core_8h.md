@@ -39,7 +39,7 @@ _The int16 I/Q pair ring as the component just-makeit binds._ [More...](#detaile
 
 | Type | Name |
 | ---: | :--- |
-| typedef dp\_i16\_t | [**i16\_buffer\_state\_t**](#typedef-i16_buffer_state_t)  <br>_The component's state IS the ring._  |
+| typedef dp\_i16\_t | [**dp\_i16\_buffer\_state\_t**](#typedef-dp_i16_buffer_state_t)  <br>_The component's state IS the ring._  |
 
 
 
@@ -66,6 +66,11 @@ _The int16 I/Q pair ring as the component just-makeit binds._ [More...](#detaile
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_i16\_buffer\_get\_available**](#function-dp_i16_buffer_get_available) (const [**dp\_i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-dp_i16_buffer_state_t) \* state) <br>_Samples written but not yet consumed._  |
+|  size\_t | [**dp\_i16\_buffer\_get\_capacity**](#function-dp_i16_buffer_get_capacity) (const [**dp\_i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-dp_i16_buffer_state_t) \* state) <br>_Buffer capacity in IQ sample pairs._  |
+|  bool | [**dp\_i16\_buffer\_get\_closed**](#function-dp_i16_buffer_get_closed) (const [**dp\_i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-dp_i16_buffer_state_t) \* state) <br>`True` _once the producer has called :meth:_`close` _._ |
+|  size\_t | [**dp\_i16\_buffer\_get\_dropped**](#function-dp_i16_buffer_get_dropped) (const [**dp\_i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-dp_i16_buffer_state_t) \* state) <br>_Cumulative IQ sample pairs in REFUSED writes_  _not pairs lost._ |
+|  size\_t | [**dp\_i16\_buffer\_get\_space**](#function-dp_i16_buffer_get_space) (const [**dp\_i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-dp_i16_buffer_state_t) \* state) <br>_Free room in samples: the largest :meth:_ `write` _sure to fit._ |
 |  void | [**dp\_i16\_close**](#function-dp_i16_close) (dp\_i16\_t \* state) <br>_Say that no more data is coming._  |
 |  int | [**dp\_i16\_consume**](#function-dp_i16_consume) (dp\_i16\_t \* state, size\_t n) <br>_Release_ `n` _samples back to the producer._ |
 |  dp\_i16\_t \* | [**dp\_i16\_create**](#function-dp_i16_create) (size\_t capacity) <br>_Lock-free SPSC ring buffer for interleaved int16 IQ pairs._  |
@@ -75,11 +80,6 @@ _The int16 I/Q pair ring as the component just-makeit binds._ [More...](#detaile
 |  [**dp\_iq16\_t**](structdp__iq16__t.md) \* | [**dp\_i16\_wait\_view**](#function-dp_i16_wait_view) (dp\_i16\_t \* state, size\_t n) <br>_Block until_ `n` _samples are available, then lend a zero-copy view._ |
 |  size\_t | [**dp\_i16\_write\_some\_view**](#function-dp_i16_write_some_view) (dp\_i16\_t \* state, const [**dp\_iq16\_t**](structdp__iq16__t.md) \* x, size\_t x\_len) <br>_Write as much of_ `x` _as fits and say how much that was._ |
 |  bool | [**dp\_i16\_write\_view**](#function-dp_i16_write_view) (dp\_i16\_t \* state, const [**dp\_iq16\_t**](structdp__iq16__t.md) \* x, size\_t x\_len) <br>_Write IQ samples into the buffer without blocking._  |
-|  size\_t | [**i16\_buffer\_get\_available**](#function-i16_buffer_get_available) (const [**i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-i16_buffer_state_t) \* state) <br>_Samples written but not yet consumed._  |
-|  size\_t | [**i16\_buffer\_get\_capacity**](#function-i16_buffer_get_capacity) (const [**i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-i16_buffer_state_t) \* state) <br>_Buffer capacity in IQ sample pairs._  |
-|  bool | [**i16\_buffer\_get\_closed**](#function-i16_buffer_get_closed) (const [**i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-i16_buffer_state_t) \* state) <br>`True` _once the producer has called :meth:_`close` _._ |
-|  size\_t | [**i16\_buffer\_get\_dropped**](#function-i16_buffer_get_dropped) (const [**i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-i16_buffer_state_t) \* state) <br>_Cumulative IQ sample pairs in REFUSED writes_  _not pairs lost._ |
-|  size\_t | [**i16\_buffer\_get\_space**](#function-i16_buffer_get_space) (const [**i16\_buffer\_state\_t**](i16__buffer__core_8h.md#typedef-i16_buffer_state_t) \* state) <br>_Free room in samples: the largest :meth:_ `write` _sure to fit._ |
 
 
 
@@ -113,7 +113,7 @@ The ring itself is `dp_i16_*` in [**buffer/buffer.h**](buffer_8h.md), header-onl
 
 
 
-* `i16_buffer_state_t` IS `dp_i16_t`, so the binding holds the real ring and calls the real functions  nothing is wrapped.
+* `dp_i16_buffer_state_t` IS `dp_i16_t`, so the binding holds the real ring and calls the real functions  nothing is wrapped.
 * [**DECLARE\_DP\_BUFFER\_VIEW**](buffer_8h.md#define-declare_dp_buffer_view) stamps the element-typed face (one element per SAMPLE), which is the face a numpy array has.
 * The Doxygen below sits on DECLARATIONS. The macros supply the definitions, but a doc extractor reads text, not the preprocessor's output, so the per-width documentation  and the Python examples the stub and `help()` both render  has to be written where it can be seen. The `<obj>_get_<prop>` accessors are the one thing defined here: they are jm's naming, not the ring's.
 
@@ -129,11 +129,11 @@ The two siblings (f32 / f64 / i16) are the same file over a different element; a
 
 
 
-### typedef i16\_buffer\_state\_t 
+### typedef dp\_i16\_buffer\_state\_t 
 
 _The component's state IS the ring._ 
 ```C++
-typedef dp_i16_t i16_buffer_state_t;
+typedef dp_i16_t dp_i16_buffer_state_t;
 ```
 
 
@@ -142,6 +142,187 @@ typedef dp_i16_t i16_buffer_state_t;
 <hr>
 ## Public Static Functions Documentation
 
+
+
+
+### function dp\_i16\_buffer\_get\_available 
+
+_Samples written but not yet consumed._ 
+```C++
+static inline size_t dp_i16_buffer_get_available (
+    const dp_i16_buffer_state_t * state
+) 
+```
+
+
+
+The largest `n` for which :meth:`wait` is guaranteed to return without spinning. Read this rather than tracking the count yourself: :meth:`wait` has no timeout and no short return, so asking for more than has been written spins until the producer catches up  forever, if there is no producer.
+
+
+Read from the consumer side this is a _lower_ bound. A producer on another thread can only increase it, so a block sized from it is always safe; it may simply be smaller than what has landed by the time :meth:`wait` runs.
+
+
+
+```C++
+>>> from doppler.buffer import I16Buffer
+>>> import numpy as np
+>>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
+>>> buf = I16Buffer(1024)
+>>> buf.available
+0
+>>> _ = buf.write(np.zeros(100, dtype=IQ16))
+>>> buf.available
+100
+>>> _ = buf.wait(64); buf.consume(64)
+>>> buf.available
+36
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_i16\_buffer\_get\_capacity 
+
+_Buffer capacity in IQ sample pairs._ 
+```C++
+static inline size_t dp_i16_buffer_get_capacity (
+    const dp_i16_buffer_state_t * state
+) 
+```
+
+
+
+Read-only. Exactly the number passed to the constructor, whatever the machine's page size; the mapping behind it is larger when that number is not a power of two or spans less than a page, and that slack is never room.
+
+
+
+```C++
+>>> from doppler.buffer import I16Buffer
+>>> I16Buffer(1024).capacity, I16Buffer(1000).capacity
+(1024, 1000)
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_i16\_buffer\_get\_closed 
+
+`True` _once the producer has called :meth:_`close` _._
+```C++
+static inline bool dp_i16_buffer_get_closed (
+    const dp_i16_buffer_state_t * state
+) 
+```
+
+
+
+The consumer's half of end of stream: it distinguishes "the
+producer is slow" from "the producer has finished", which an empty ring alone cannot.
+
+
+
+```C++
+>>> from doppler.buffer import I16Buffer
+>>> buf = I16Buffer(1024)
+>>> buf.closed
+False
+>>> buf.close()
+>>> buf.closed
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_i16\_buffer\_get\_dropped 
+
+_Cumulative IQ sample pairs in REFUSED writes_  _not pairs lost._
+```C++
+static inline size_t dp_i16_buffer_get_dropped (
+    const dp_i16_buffer_state_t * state
+) 
+```
+
+
+
+**Not a count of lost data.** :meth:`write` is all-or-nothing: with no room it copies nothing, leaves the caller's array untouched and refuses the call  and this counter is then incremented by the length of that refused call, not by 1 and not by anything actually lost.
+
+
+So a producer that spins on :meth:`write` until it succeeds, the obvious way to apply backpressure, inflates this while losing nothing: a 60,000-pair run written that way reported 5,960,438. Samples are lost only when the caller _discards_ them, which is what ignoring the return value does. Wait for room if you want this to mean what it sounds like.
+
+
+
+```C++
+>>> from doppler.buffer import I16Buffer
+>>> import numpy as np
+>>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
+>>> buf = I16Buffer(1024)
+>>> buf.dropped
+0
+>>> buf.write(np.zeros(1024, dtype=IQ16))
+True
+>>> buf.write(np.zeros(3, dtype=IQ16))
+False
+>>> buf.dropped
+1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_i16\_buffer\_get\_space 
+
+_Free room in samples: the largest :meth:_ `write` _sure to fit._
+```C++
+static inline size_t dp_i16_buffer_get_space (
+    const dp_i16_buffer_state_t * state
+) 
+```
+
+
+
+`capacity - available`, read in one place so callers stop deriving it. Read from the producer side it is a _lower_ bound: a consumer on another thread can only increase it, so a block sized from it is always accepted.
+
+
+
+```C++
+>>> from doppler.buffer import I16Buffer
+>>> import numpy as np
+>>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
+>>> buf = I16Buffer(1024)
+>>> buf.space == buf.capacity
+True
+>>> buf.write_some(np.ones(8, dtype=IQ16))
+8
+>>> buf.capacity - buf.space
+8
+```
+ 
+
+
+        
+
+<hr>
 
 
 
@@ -607,187 +788,6 @@ True
 True
 >>> buf2.write(np.zeros(1, dtype=IQ16))
 False
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function i16\_buffer\_get\_available 
-
-_Samples written but not yet consumed._ 
-```C++
-static inline size_t i16_buffer_get_available (
-    const i16_buffer_state_t * state
-) 
-```
-
-
-
-The largest `n` for which :meth:`wait` is guaranteed to return without spinning. Read this rather than tracking the count yourself: :meth:`wait` has no timeout and no short return, so asking for more than has been written spins until the producer catches up  forever, if there is no producer.
-
-
-Read from the consumer side this is a _lower_ bound. A producer on another thread can only increase it, so a block sized from it is always safe; it may simply be smaller than what has landed by the time :meth:`wait` runs.
-
-
-
-```C++
->>> from doppler.buffer import I16Buffer
->>> import numpy as np
->>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
->>> buf = I16Buffer(1024)
->>> buf.available
-0
->>> _ = buf.write(np.zeros(100, dtype=IQ16))
->>> buf.available
-100
->>> _ = buf.wait(64); buf.consume(64)
->>> buf.available
-36
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function i16\_buffer\_get\_capacity 
-
-_Buffer capacity in IQ sample pairs._ 
-```C++
-static inline size_t i16_buffer_get_capacity (
-    const i16_buffer_state_t * state
-) 
-```
-
-
-
-Read-only. Exactly the number passed to the constructor, whatever the machine's page size; the mapping behind it is larger when that number is not a power of two or spans less than a page, and that slack is never room.
-
-
-
-```C++
->>> from doppler.buffer import I16Buffer
->>> I16Buffer(1024).capacity, I16Buffer(1000).capacity
-(1024, 1000)
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function i16\_buffer\_get\_closed 
-
-`True` _once the producer has called :meth:_`close` _._
-```C++
-static inline bool i16_buffer_get_closed (
-    const i16_buffer_state_t * state
-) 
-```
-
-
-
-The consumer's half of end of stream: it distinguishes "the
-producer is slow" from "the producer has finished", which an empty ring alone cannot.
-
-
-
-```C++
->>> from doppler.buffer import I16Buffer
->>> buf = I16Buffer(1024)
->>> buf.closed
-False
->>> buf.close()
->>> buf.closed
-True
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function i16\_buffer\_get\_dropped 
-
-_Cumulative IQ sample pairs in REFUSED writes_  _not pairs lost._
-```C++
-static inline size_t i16_buffer_get_dropped (
-    const i16_buffer_state_t * state
-) 
-```
-
-
-
-**Not a count of lost data.** :meth:`write` is all-or-nothing: with no room it copies nothing, leaves the caller's array untouched and refuses the call  and this counter is then incremented by the length of that refused call, not by 1 and not by anything actually lost.
-
-
-So a producer that spins on :meth:`write` until it succeeds, the obvious way to apply backpressure, inflates this while losing nothing: a 60,000-pair run written that way reported 5,960,438. Samples are lost only when the caller _discards_ them, which is what ignoring the return value does. Wait for room if you want this to mean what it sounds like.
-
-
-
-```C++
->>> from doppler.buffer import I16Buffer
->>> import numpy as np
->>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
->>> buf = I16Buffer(1024)
->>> buf.dropped
-0
->>> buf.write(np.zeros(1024, dtype=IQ16))
-True
->>> buf.write(np.zeros(3, dtype=IQ16))
-False
->>> buf.dropped
-1
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function i16\_buffer\_get\_space 
-
-_Free room in samples: the largest :meth:_ `write` _sure to fit._
-```C++
-static inline size_t i16_buffer_get_space (
-    const i16_buffer_state_t * state
-) 
-```
-
-
-
-`capacity - available`, read in one place so callers stop deriving it. Read from the producer side it is a _lower_ bound: a consumer on another thread can only increase it, so a block sized from it is always accepted.
-
-
-
-```C++
->>> from doppler.buffer import I16Buffer
->>> import numpy as np
->>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
->>> buf = I16Buffer(1024)
->>> buf.space == buf.capacity
-True
->>> buf.write_some(np.ones(8, dtype=IQ16))
-8
->>> buf.capacity - buf.space
-8
 ```
  
 

@@ -191,9 +191,9 @@ CLAIM_MAP: list[tuple[str, str]] = [
     ("the LUT is read-only after init", "**absent**"),
     ("phase is the accumulator value in [0, 2^32)", "§7 §11"),
     ("phase_inc = floor(frac(norm_freq) x 2^32)", "§7 §12 §15, literals"),
-    ("lo_init is lo_create without the allocation", "§9"),
+    ("lo_init is dp_lo_create without the allocation", "§9"),
     ("only the fractional part of norm_freq matters", "§12"),
-    ("lo_step is bit-for-bit lo_steps, one sample at a time", "§8 §9 §12"),
+    ("lo_step is bit-for-bit dp_lo_steps, one sample at a time", "§8 §9 §12"),
     ("lo_step_ctrl adds ctrl on top of phase_inc for this step", "§16 NEW"),
     ("lo_step_ctrl does not persist ctrl", "§16 NEW"),
     ("lo_step_ctrl at ctrl == 0 is bit-identical to lo_step", "§16 NEW"),
@@ -203,9 +203,9 @@ CLAIM_MAP: list[tuple[str, str]] = [
         "nco_norm_freq_to_inc 'rounds, not truncates' (header comment)",
         "§21 NEW — CONTRADICTED",
     ),
-    ("lo_create returns NULL on allocation failure", "unreachable"),
-    ("lo_destroy may be NULL (no-op)", "§18 NEW"),
-    ("lo_reset zeroes phase, leaves norm_freq/phase_inc alone", "§7 §11"),
+    ("dp_lo_create returns NULL on allocation failure", "unreachable"),
+    ("dp_lo_destroy may be NULL (no-op)", "§18 NEW"),
+    ("dp_lo_reset zeroes phase, leaves norm_freq/phase_inc alone", "§7 §11"),
     ("setting norm_freq recomputes phase_inc, does not reset phase", "§7 §11"),
     ("phase is writable for phase-coherent frequency switching", "§7 §11"),
     ("the state blob is [dp_state_hdr_t][uint32 phase]", "§13 §14"),
@@ -238,7 +238,7 @@ def section_summary() -> None:
     R.md("## 1. The object — design and expectations")
     R.md()
     R.md(
-        "`lo_state_t` is the **NCO's 32-bit phase accumulator plus a "
+        "`dp_lo_state_t` is the **NCO's 32-bit phase accumulator plus a "
         "65536-entry float sine LUT**: the top 16 bits of the phase index "
         "the table, and a quarter-cycle offset (`LO_LUT_QTR = 16384`) maps "
         "`sin` to `cos` without a second table, so one lookup pair is a "
@@ -382,7 +382,7 @@ def characterise() -> Data:
     R.md("*(sections 8, 9, 12)*")
     R.md()
     R.md(
-        "The LO is not a second oscillator — it is `nco_state_t`'s "
+        "The LO is not a second oscillator — it is `dp_nco_state_t`'s "
         "arithmetic with a LUT on the output, and it calls the same "
         "`nco_norm_freq_to_inc` for both the configured rate and the "
         "control port. That is worth *measuring* rather than reading off "
@@ -667,7 +667,7 @@ def characterise() -> Data:
         f"configured rate was double, so the same request landed 7 words "
         f"apart depending on which face it entered by — the NCO's F2 "
         f"verbatim, inherited along with the port. Both are `double` now "
-        f"(**F5**), which also makes `lo_steps_ctrl` agree with the "
+        f"(**F5**), which also makes `dp_lo_steps_ctrl` agree with the "
         f"inline `lo_step_ctrl` that always took one."
     )
     R.md()
@@ -908,7 +908,7 @@ def characterise() -> Data:
         "the **entire inline composition API** — `lo_init`, `lo_step`, "
         "`lo_step_ctrl` and the `lo_sin_lut` extern — has no binding at "
         "all. That is by design (they exist so C can embed an "
-        "`lo_state_t` by value with zero call overhead), but it means the "
+        "`dp_lo_state_t` by value with zero call overhead), but it means the "
         "control port a tracking loop actually uses is C-only, and until "
         "this audit added §16/§17/§21 it had no test on either side. The "
         "LUT is the one exception: 2.3 reads all 65536 entries through "
@@ -1035,7 +1035,7 @@ def review(d: Data) -> None:
         f"so one requested 0.1 landed on two different phase words (delta "
         f"7) — inherited from the NCO (its F2) along with the port itself, "
         f"and the LO is the face a carrier loop actually steers. "
-        f"lo_steps_ctrl now takes `double`, the width the conversion works "
+        f"dp_lo_steps_ctrl now takes `double`, the width the conversion works "
         f"in and the one lo_step_ctrl always used, so the block and inline "
         f"faces of the same control port finally agree. Measured: delta is "
         f"now {advance(0.0, 0.1) - LO(0.1).phase_inc}.",

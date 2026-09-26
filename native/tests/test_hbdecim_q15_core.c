@@ -32,22 +32,22 @@ main (void)
 {
 
   /* ── NULL / bad-arg guards ───────────────────────────────────── */
-  DP_CHECK (hbdecim_q15_create (0, H1) == NULL);
-  DP_CHECK (hbdecim_q15_create (1, NULL) == NULL);
+  DP_CHECK (dp_hbdecim_q15_create (0, H1) == NULL);
+  DP_CHECK (dp_hbdecim_q15_create (1, NULL) == NULL);
 
   /* ── Lifecycle (num_taps=1) ──────────────────────────────────── */
-  hbdecim_q15_state_t *r = hbdecim_q15_create (1, H1);
+  dp_hbdecim_q15_state_t *r = dp_hbdecim_q15_create (1, H1);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
-  DP_CHECK (hbdecim_q15_get_num_taps (r) == 1);
-  DP_CHECK (fabs (hbdecim_q15_get_rate (r) - 0.5) < 1e-9);
-  hbdecim_q15_reset (r);
-  hbdecim_q15_destroy (r);
+  DP_CHECK (dp_hbdecim_q15_get_num_taps (r) == 1);
+  DP_CHECK (fabs (dp_hbdecim_q15_get_rate (r) - 0.5) < 1e-9);
+  dp_hbdecim_q15_reset (r);
+  dp_hbdecim_q15_destroy (r);
   r = NULL;
 
   /* ── Zero input → zero output ────────────────────────────────── */
-  r = hbdecim_q15_create (25, H25_stub);
+  r = dp_hbdecim_q15_create (25, H25_stub);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
@@ -56,7 +56,7 @@ main (void)
   int16_t              out[256];
   size_t               n;
 
-  n = hbdecim_q15_execute (r, zeros, 256, out, 128);
+  n = dp_hbdecim_q15_execute (r, zeros, 256, out, 128);
   DP_CHECK (n == 128);
   for (int i = 0; i < 256; i++)
     DP_CHECK (out[i] == 0);
@@ -66,46 +66,46 @@ main (void)
   int16_t ramp_out[1024];
   for (int i = 0; i < 2048; i++)
     ramp[i] = (int16_t)(i & 0x7fff);
-  n = hbdecim_q15_execute (r, ramp, 1024, ramp_out, 512);
+  n = dp_hbdecim_q15_execute (r, ramp, 1024, ramp_out, 512);
   DP_CHECK (n == 512);
 
   /* ── Odd block: trailing even pair buffered, consumed next call ─ */
-  hbdecim_q15_reset (r);
-  n = hbdecim_q15_execute (r, zeros, 3, out, 64);
+  dp_hbdecim_q15_reset (r);
+  n = dp_hbdecim_q15_execute (r, zeros, 3, out, 64);
   DP_CHECK (n == 1); /* floor(3/2) = 1 complete pair processed */
-  n = hbdecim_q15_execute (r, zeros, 1, out, 64);
+  n = dp_hbdecim_q15_execute (r, zeros, 1, out, 64);
   DP_CHECK (n == 1); /* buffered pair + 1 new odd = 1 more output   */
 
   /* ── Execute with empty input ────────────────────────────────── */
-  n = hbdecim_q15_execute (r, zeros, 0, out, 64);
+  n = dp_hbdecim_q15_execute (r, zeros, 0, out, 64);
   DP_CHECK (n == 0);
 
   /* ── max_out=0 produces no output ───────────────────────────── */
-  n = hbdecim_q15_execute (r, zeros, 128, out, 0);
+  n = dp_hbdecim_q15_execute (r, zeros, 128, out, 0);
   DP_CHECK (n == 0);
 
   /* ── reset clears delay lines (zero after reset + zero input) ── */
-  hbdecim_q15_reset (r);
-  n = hbdecim_q15_execute (r, zeros, 256, out, 128);
+  dp_hbdecim_q15_reset (r);
+  n = dp_hbdecim_q15_execute (r, zeros, 256, out, 128);
   DP_CHECK (n == 128);
   for (int i = 0; i < 256; i++)
     DP_CHECK (out[i] == 0);
 
-  hbdecim_q15_destroy (r);
+  dp_hbdecim_q15_destroy (r);
 
   /* ── execute_max_out always returns 0 (lazy-alloc signal) ────── */
-  r = hbdecim_q15_create (1, H1);
+  r = dp_hbdecim_q15_create (1, H1);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
-  DP_CHECK (hbdecim_q15_execute_max_out (r) == 0);
-  hbdecim_q15_destroy (r);
+  DP_CHECK (dp_hbdecim_q15_execute_max_out (r) == 0);
+  dp_hbdecim_q15_destroy (r);
 
   /* serializable state — four dual-write rings + heads round-trip + reject. */
   {
-    const float          htaps[4] = { 0.1f, -0.2f, 0.3f, 0.0f };
-    hbdecim_q15_state_t *a        = hbdecim_q15_create (7, htaps);
-    hbdecim_q15_state_t *b        = hbdecim_q15_create (7, htaps);
+    const float             htaps[4] = { 0.1f, -0.2f, 0.3f, 0.0f };
+    dp_hbdecim_q15_state_t *a        = dp_hbdecim_q15_create (7, htaps);
+    dp_hbdecim_q15_state_t *b        = dp_hbdecim_q15_create (7, htaps);
     DP_CHECK (a != NULL && b != NULL);
     /* `n_in` and `max_out` count COMPLEX samples; the buffers are
        interleaved int16 IQ, so each needs 2x that many elements (the
@@ -115,15 +115,15 @@ main (void)
     int16_t in[2 * 32], out[2 * 32];
     for (int i = 0; i < 2 * 32; i++)
       in[i] = (int16_t)(100 * i);
-    (void)hbdecim_q15_execute (a, in, 32, out, 32);
-    DP_STATE_ROUNDTRIP_TEST (hbdecim_q15, a, b);
+    (void)dp_hbdecim_q15_execute (a, in, 32, out, 32);
+    DP_STATE_ROUNDTRIP_TEST (dp_hbdecim_q15, a, b);
     DP_CHECK (b->even_head == a->even_head && b->odd_head == a->odd_head);
     DP_CHECK (b->has_pending == a->has_pending);
     const size_t rb = 2 * a->cap * sizeof (int16_t);
     DP_CHECK (memcmp (b->even_I, a->even_I, rb) == 0);
     DP_CHECK (memcmp (b->odd_Q, a->odd_Q, rb) == 0);
-    hbdecim_q15_destroy (a);
-    hbdecim_q15_destroy (b);
+    dp_hbdecim_q15_destroy (a);
+    dp_hbdecim_q15_destroy (b);
   }
 
   DP_TEST_END ("test_hbdecim_q15_core");

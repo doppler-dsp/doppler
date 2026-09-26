@@ -18,7 +18,7 @@
 
 /* Fill one `wfm_seq_t` from the flattened arguments, copying a literal array
    so the descriptor outlives the call. `own` receives the copy (NULL for a
-   generated kind) and is freed by frame_destroy().
+   generated kind) and is freed by dp_frame_destroy().
 
    The two lengths are NOT interchangeable and the choice is the kind's: a
    literal is exactly as long as the array it was given, while a generated
@@ -52,7 +52,7 @@ seq_fill (wfm_seq_t *s, uint8_t **own, int kind, const uint8_t *lit,
           s->bits = *own;
         }
       /* A literal with a length but no array stays unbuildable on purpose:
-         wfm_frame_bits() refuses it, and frame_create() turns that into a
+         wfm_frame_bits() refuses it, and dp_frame_create() turns that into a
          NULL rather than emitting a frame with a hole in it. */
       return 0;
     }
@@ -61,25 +61,23 @@ seq_fill (wfm_seq_t *s, uint8_t **own, int kind, const uint8_t *lit,
   return 0;
 }
 
-frame_state_t *
-frame_create (int preamble_kind, const uint8_t *preamble, size_t preamble_len,
-              size_t preamble_nbits, size_t preamble_reps,
-              uint64_t preamble_poly, uint64_t preamble_seed,
-              uint32_t preamble_reg_bits, int preamble_lfsr,
-              uint64_t preamble_taps_a, uint64_t preamble_seed_a,
-              uint64_t preamble_taps_b, uint64_t preamble_seed_b,
-              int sync_kind, const uint8_t *sync, size_t sync_len,
-              size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed,
-              uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a,
-              uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b,
-              int payload_kind, const uint8_t *payload, size_t payload_len,
-              size_t payload_nbits, uint64_t payload_poly,
-              uint64_t payload_seed, uint32_t payload_reg_bits,
-              int payload_lfsr, uint64_t payload_taps_a,
-              uint64_t payload_seed_a, uint64_t payload_taps_b,
-              uint64_t payload_seed_b, int crc)
+dp_frame_state_t *
+dp_frame_create (
+    int preamble_kind, const uint8_t *preamble, size_t preamble_len,
+    size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly,
+    uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr,
+    uint64_t preamble_taps_a, uint64_t preamble_seed_a,
+    uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind,
+    const uint8_t *sync, size_t sync_len, size_t sync_nbits,
+    uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits,
+    int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a,
+    uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind,
+    const uint8_t *payload, size_t payload_len, size_t payload_nbits,
+    uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits,
+    int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a,
+    uint64_t payload_taps_b, uint64_t payload_seed_b, int crc)
 {
-  frame_state_t *obj = calloc (1, sizeof (*obj));
+  dp_frame_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
 
@@ -101,7 +99,7 @@ frame_create (int preamble_kind, const uint8_t *preamble, size_t preamble_len,
                    payload_seed_b)
              != 0)
     {
-      frame_destroy (obj);
+      dp_frame_destroy (obj);
       return NULL;
     }
   obj->f.preamble_reps = preamble_reps;
@@ -120,7 +118,7 @@ frame_create (int preamble_kind, const uint8_t *preamble, size_t preamble_len,
   obj->nbits = obj->l.total_bits;
   if (obj->nbits == 0)
     {
-      frame_destroy (obj);
+      dp_frame_destroy (obj);
       return NULL;
     }
 
@@ -136,14 +134,14 @@ frame_create (int preamble_kind, const uint8_t *preamble, size_t preamble_len,
       || wfm_frame_assemble (&obj->d, NULL, obj->one, obj->nbits)
              != obj->nbits)
     {
-      frame_destroy (obj);
+      dp_frame_destroy (obj);
       return NULL;
     }
   return obj;
 }
 
 void
-frame_destroy (frame_state_t *state)
+dp_frame_destroy (dp_frame_state_t *state)
 {
   if (!state)
     return;
@@ -154,13 +152,13 @@ frame_destroy (frame_state_t *state)
 }
 
 size_t
-frame_bits_max_out (frame_state_t *state, size_t n)
+dp_frame_bits_max_out (dp_frame_state_t *state, size_t n)
 {
   return state ? n * state->nbits : 0;
 }
 
 size_t
-frame_bits (frame_state_t *state, size_t n, uint8_t *out, size_t max_out)
+dp_frame_bits (dp_frame_state_t *state, size_t n, uint8_t *out, size_t max_out)
 {
   if (!state || !out)
     return 0;
@@ -175,13 +173,14 @@ frame_bits (frame_state_t *state, size_t n, uint8_t *out, size_t max_out)
 }
 
 wfm_frame_layout_t
-frame_layout (frame_state_t *state)
+dp_frame_layout (dp_frame_state_t *state)
 {
   return state->l;
 }
 
 int
-frame_crc_ok (frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len)
+dp_frame_crc_ok (dp_frame_state_t *state, const uint8_t *rx_bits,
+                 size_t rx_bits_len)
 {
   if (!state || !rx_bits || rx_bits_len < state->nbits)
     return -1;
@@ -190,13 +189,13 @@ frame_crc_ok (frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len)
 
 /* ── the builder ──────────────────────────────────────────────────────
  *
- * The other way in. frame_create() above takes the four fields wfm_frame_t
+ * The other way in. dp_frame_create() above takes the four fields wfm_frame_t
  * names; these take one field at a time, so a caller can describe a frame
  * that fixed list cannot hold. Both fill the same `d`, and every method above
  * reads only that -- which is the whole reason the two can share them.
  */
 
-frame_state_t *
+dp_frame_state_t *
 frame_create_desc (
     int preamble_kind, const uint8_t *preamble, size_t preamble_len,
     size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly,
@@ -212,19 +211,20 @@ frame_create_desc (
     int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a,
     uint64_t payload_taps_b, uint64_t payload_seed_b, int crc)
 {
-  frame_state_t *obj = (frame_state_t *)calloc (1, sizeof (frame_state_t));
+  dp_frame_state_t *obj
+      = (dp_frame_state_t *)calloc (1, sizeof (dp_frame_state_t));
   if (!obj)
     return NULL;
 
-  /* The SAME arguments as frame_create, and that is the flavor: this one
+  /* The SAME arguments as dp_frame_create, and that is the flavor: this one
      stops before materialising, so the four fields are a STARTING POINT a
      caller extends rather than a finished frame. Pass empty arrays for all
      three to begin from nothing.
 
      An empty description is therefore legal here and refused there. The
-     difference is where completeness can be judged: frame_create()'s
+     difference is where completeness can be judged: dp_frame_create()'s
      description is complete when it returns, and this one is not complete
-     until frame_build() is called. */
+     until dp_frame_build() is called. */
   if (seq_fill (&obj->f.preamble, &obj->own[WFM_FRAME_FIELD_PREAMBLE],
                 preamble_kind, preamble, preamble_len, preamble_nbits,
                 preamble_poly, preamble_seed, preamble_reg_bits, preamble_lfsr,
@@ -243,7 +243,7 @@ frame_create_desc (
                    payload_seed_b)
              != 0)
     {
-      frame_destroy (obj);
+      dp_frame_destroy (obj);
       return NULL;
     }
   obj->f.preamble_reps = preamble_reps;
@@ -265,11 +265,11 @@ frame_create_desc (
 }
 
 int
-frame_add_field (frame_state_t *state, const uint8_t *lit, size_t lit_len,
-                 int kind, size_t gen_len, size_t reps, uint64_t poly,
-                 uint64_t seed, uint32_t reg_bits, int lfsr, uint64_t taps_a,
-                 uint64_t seed_a, uint64_t taps_b, uint64_t seed_b,
-                 uint32_t derived_by, size_t derived_bits)
+dp_frame_add_field (dp_frame_state_t *state, const uint8_t *lit,
+                    size_t lit_len, int kind, size_t gen_len, size_t reps,
+                    uint64_t poly, uint64_t seed, uint32_t reg_bits, int lfsr,
+                    uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
+                    uint64_t seed_b, uint32_t derived_by, size_t derived_bits)
 {
   if (!state || state->one != NULL
       || state->d.n_fields >= WFM_FRAME_MAX_FIELDS)
@@ -298,9 +298,9 @@ frame_add_field (frame_state_t *state, const uint8_t *lit, size_t lit_len,
 }
 
 int
-frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
-                 uint32_t n_fields, uint32_t depth, uint32_t emit_num,
-                 uint32_t emit_den, uint32_t unit_bits)
+dp_frame_add_stage (dp_frame_state_t *state, int kind, uint32_t first_field,
+                    uint32_t n_fields, uint32_t depth, uint32_t emit_num,
+                    uint32_t emit_den, uint32_t unit_bits)
 {
   if (!state || state->one != NULL
       || state->d.n_stages >= WFM_FRAME_MAX_STAGES)
@@ -321,7 +321,7 @@ frame_add_stage (frame_state_t *state, int kind, uint32_t first_field,
 }
 
 int
-frame_build (frame_state_t *state)
+dp_frame_build (dp_frame_state_t *state)
 {
   if (!state || state->one != NULL)
     return -1;
@@ -332,7 +332,7 @@ frame_build (frame_state_t *state)
   if (state->nbits == 0)
     return -1;
 
-  /* Materialised here for the reason frame_create() materialises in its own
+  /* Materialised here for the reason dp_frame_create() materialises in its own
      body: a description that cannot produce its own bits is not a frame, and
      the refusal belongs at the point the caller can still do something about
      it. This is also where a stage naming a kernel nothing here carries is
@@ -366,54 +366,55 @@ frame_build (frame_state_t *state)
 }
 
 size_t
-frame_n_fields (frame_state_t *state)
+dp_frame_n_fields (dp_frame_state_t *state)
 {
   return state ? state->d.n_fields : 0u;
 }
 
 size_t
-frame_n_stages (frame_state_t *state)
+dp_frame_n_stages (dp_frame_state_t *state)
 {
   return state ? state->d.n_stages : 0u;
 }
 
 size_t
-frame_field_off (frame_state_t *state, size_t i)
+dp_frame_field_off (dp_frame_state_t *state, size_t i)
 {
   return (state && i < state->dl.n_fields) ? state->dl.field_off[i] : 0u;
 }
 
 size_t
-frame_field_bits (frame_state_t *state, size_t i)
+dp_frame_field_bits (dp_frame_state_t *state, size_t i)
 {
   return (state && i < state->dl.n_fields) ? state->dl.field_bits[i] : 0u;
 }
 
 size_t
-frame_stage_first (frame_state_t *state, size_t i)
+dp_frame_stage_first (dp_frame_state_t *state, size_t i)
 {
   return (state && i < state->dl.n_stages) ? state->dl.stage[i].first : 0u;
 }
 
 size_t
-frame_stage_bits (frame_state_t *state, size_t i)
+dp_frame_stage_bits (dp_frame_state_t *state, size_t i)
 {
   return (state && i < state->dl.n_stages) ? state->dl.stage[i].n : 0u;
 }
 
 size_t
-frame_deframe_max_out (frame_state_t *state, size_t rx_bits_len)
+dp_frame_deframe_max_out (dp_frame_state_t *state, size_t rx_bits_len)
 {
   (void)rx_bits_len; /* the length is the description's, not the input's */
-  return state ? state->dl.frame_bits : 0u;
+  return state ? state->dl.frame_nbits : 0u;
 }
 
 size_t
-frame_deframe (frame_state_t *state, const uint8_t *rx_bits,
-               size_t rx_bits_len, uint8_t *out, size_t max_out)
+dp_frame_deframe (dp_frame_state_t *state, const uint8_t *rx_bits,
+                  size_t rx_bits_len, uint8_t *out, size_t max_out)
 {
-  if (!state || !rx_bits || !out || state->dl.frame_bits == 0
-      || rx_bits_len < state->dl.frame_bits || max_out < state->dl.frame_bits)
+  if (!state || !rx_bits || !out || state->dl.frame_nbits == 0
+      || rx_bits_len < state->dl.frame_nbits
+      || max_out < state->dl.frame_nbits)
     {
       if (state)
         {
@@ -427,7 +428,7 @@ frame_deframe (frame_state_t *state, const uint8_t *rx_bits,
 
   /* The caller's bits are a CAPTURE: copy before the stages correct, so a
      frame can be deframed twice and score the same both times. */
-  memcpy (out, rx_bits, state->dl.frame_bits);
+  memcpy (out, rx_bits, state->dl.frame_nbits);
 
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
@@ -448,24 +449,25 @@ frame_deframe (frame_state_t *state, const uint8_t *rx_bits,
           state->rx_symbols += (int)rx.stage[i].symbols;
         }
     }
-  return state->dl.frame_bits;
+  return state->dl.frame_nbits;
 }
 
 frame_check_t
-frame_check (frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len)
+dp_frame_check (dp_frame_state_t *state, const uint8_t *rx_bits,
+                size_t rx_bits_len)
 {
   frame_check_t out;
   memset (&out, 0, sizeof out);
-  if (!state || !rx_bits || rx_bits_len < state->dl.frame_bits
-      || state->dl.frame_bits == 0)
+  if (!state || !rx_bits || rx_bits_len < state->dl.frame_nbits
+      || state->dl.frame_nbits == 0)
     return out;
 
   /* A copy, because the stages CORRECT in place and the caller's buffer is a
      capture -- scoring a frame must not rewrite the evidence. */
-  uint8_t *work = (uint8_t *)malloc (state->dl.frame_bits);
+  uint8_t *work = (uint8_t *)malloc (state->dl.frame_nbits);
   if (!work)
     return out;
-  memcpy (work, rx_bits, state->dl.frame_bits);
+  memcpy (work, rx_bits, state->dl.frame_nbits);
 
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
@@ -500,13 +502,13 @@ frame_check (frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len)
  */
 
 int
-frame_field_index (frame_state_t *state, const char *name)
+dp_frame_field_index (dp_frame_state_t *state, const char *name)
 {
   return state ? wfm_frame_field_index (&state->d, name) : -1;
 }
 
 int
-frame_name_field (frame_state_t *state, uint32_t index, const char *name)
+dp_frame_name_field (dp_frame_state_t *state, uint32_t index, const char *name)
 {
   if (!state || state->one != NULL || index >= state->d.n_fields)
     return -1;
@@ -529,30 +531,31 @@ frame_name_field (frame_state_t *state, uint32_t index, const char *name)
 }
 
 int
-frame_add_derived (frame_state_t *state, const char *name, size_t bits)
+dp_frame_add_derived (dp_frame_state_t *state, const char *name, size_t bits)
 {
   if (!state || state->one != NULL)
     return -1;
   return wfm_frame_add_derived (&state->d, name, bits);
 }
 
-/* Expand `bits` bits into a literal field, through frame_add_field so the
+/* Expand `bits` bits into a literal field, through dp_frame_add_field so the
    copy, the ownership and the refusals stay in one place. `src` is borrowed
    and freed by the caller. */
 static int
-add_literal_named (frame_state_t *state, const char *name, const uint8_t *src,
-                   size_t n_bits, size_t reps)
+add_literal_named (dp_frame_state_t *state, const char *name,
+                   const uint8_t *src, size_t n_bits, size_t reps)
 {
-  const int i = frame_add_field (state, src, n_bits, 0 /* WFM_SEQ_LITERAL */,
-                                 0, reps, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-  if (i >= 0 && frame_name_field (state, (uint32_t)i, name) != 0)
+  const int i
+      = dp_frame_add_field (state, src, n_bits, 0 /* WFM_SEQ_LITERAL */, 0,
+                            reps, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  if (i >= 0 && dp_frame_name_field (state, (uint32_t)i, name) != 0)
     return -1;
   return i;
 }
 
 int
-frame_add_hex (frame_state_t *state, const char *name, const char *hex,
-               size_t reps)
+dp_frame_add_hex (dp_frame_state_t *state, const char *name, const char *hex,
+                  size_t reps)
 {
   if (!state || !hex)
     return -1;
@@ -565,28 +568,28 @@ frame_add_hex (frame_state_t *state, const char *name, const char *hex,
     return -1;
   int i = -1;
   /* cvt owns the expansion; a bad digit refuses there rather than here. */
-  if (hex_to_bin (hex, tmp, n_bits, DP_BITORDER_BIG) == n_bits)
+  if (dp_hex_to_bin (hex, tmp, n_bits, DP_BITORDER_BIG) == n_bits)
     i = add_literal_named (state, name, tmp, n_bits, reps);
   free (tmp);
   return i;
 }
 
 int
-frame_add_value (frame_state_t *state, const char *name, uint64_t value,
-                 uint32_t bits, size_t reps)
+dp_frame_add_value (dp_frame_state_t *state, const char *name, uint64_t value,
+                    uint32_t bits, size_t reps)
 {
   if (!state || bits == 0u || bits > 64u)
     return -1;
 
   uint8_t tmp[64];
-  if (int_to_bin (value, bits, tmp, sizeof tmp, DP_BITORDER_BIG) != bits)
+  if (dp_int_to_bin (value, bits, tmp, sizeof tmp, DP_BITORDER_BIG) != bits)
     return -1;
   return add_literal_named (state, name, tmp, bits, reps);
 }
 
 int
-frame_add_stage_over (frame_state_t *state, int kind, const char *first,
-                      const char *last, uint32_t depth, uint32_t unit_bits)
+dp_frame_add_stage_over (dp_frame_state_t *state, int kind, const char *first,
+                         const char *last, uint32_t depth, uint32_t unit_bits)
 {
   if (!state || state->one != NULL)
     return -1;

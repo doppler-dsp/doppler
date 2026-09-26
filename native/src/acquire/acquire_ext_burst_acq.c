@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
-/* BurstAcquisitionObject — wraps burst_acq_state_t *       */
+/* BurstAcquisitionObject — wraps dp_burst_acq_state_t *       */
 /* ======================================================== */
 
 #include "doppler/burst_acq/burst_acq_core.h"
 
 typedef struct
 {
-  PyObject_HEAD burst_acq_state_t *handle;
+  PyObject_HEAD dp_burst_acq_state_t *handle;
 } BurstAcquisitionObject;
 
 static void
 BurstAcquisitionObj_dealloc (BurstAcquisitionObject *self)
 {
   if (self->handle)
-    burst_acq_destroy (self->handle);
+    dp_burst_acq_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -82,7 +82,7 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
       return -1;
     }
   size_t preamble_len = (size_t)PyArray_SIZE (preamble_arr);
-  self->handle        = burst_acq_create (
+  self->handle        = dp_burst_acq_create (
       (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len, reps,
       fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
   Py_DECREF (preamble_arr);
@@ -118,7 +118,7 @@ BurstAcquisitionObj_reset (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  burst_acq_reset (self->handle);
+  dp_burst_acq_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -148,7 +148,7 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = burst_acq_push (self->handle, _ng0, n_in, results, 64);
+    n_out = dp_burst_acq_push (self->handle, _ng0, n_in, results, 64);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
@@ -195,8 +195,8 @@ BurstAcquisitionObj_configure_search_raw (BurstAcquisitionObject *self,
     return NULL;
   size_t doppler_bins = (size_t)doppler_bins_raw;
   size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int    _rc
-      = burst_acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
+  int    _rc = dp_burst_acq_configure_search_raw (self->handle, doppler_bins,
+                                                  n_noncoh);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -220,7 +220,7 @@ BurstAcquisitionObj_set_max_peaks (BurstAcquisitionObject *self,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
     return NULL;
   size_t n   = (size_t)n_raw;
-  int    _rc = burst_acq_set_max_peaks (self->handle, n);
+  int    _rc = dp_burst_acq_set_max_peaks (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
@@ -239,7 +239,7 @@ BurstAcquisitionObj_state_bytes (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (burst_acq_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_burst_acq_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -251,11 +251,11 @@ BurstAcquisitionObj_get_state (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = burst_acq_state_bytes (self->handle);
+  size_t    _n = dp_burst_acq_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  burst_acq_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_burst_acq_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -272,12 +272,13 @@ BurstAcquisitionObj_set_state (BurstAcquisitionObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != burst_acq_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_burst_acq_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (burst_acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_burst_acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -646,7 +647,7 @@ BurstAcquisitionObj_destroy (BurstAcquisitionObject *self,
 {
   if (self->handle)
     {
-      burst_acq_destroy (self->handle);
+      dp_burst_acq_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -666,7 +667,7 @@ BurstAcquisitionObj_exit (BurstAcquisitionObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      burst_acq_destroy (self->handle);
+      dp_burst_acq_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -676,7 +677,8 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)BurstAcquisitionObj_reset, METH_NOARGS,
     "Drain the input ring and reset the coherent accumulator.\n"
     "\n"
-    "Forwards to acq_reset() on the embedded engine: discards any buffered\n"
+    "Forwards to dp_acq_reset() on the embedded engine: discards any "
+    "buffered\n"
     "samples that have not yet completed a frame and clears the non-coherent\n"
     "power accumulator and dwell bookkeeping, so the next push() begins a\n"
     "fresh search from an empty ring. Construction parameters are untouched.\n"
@@ -702,7 +704,8 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "\n"
     "Stream raw samples; emit one event per CFAR dump above threshold.\n"
     "\n"
-    "Forwards to acq_push() on the embedded engine (see its doc comment in\n"
+    "Forwards to dp_acq_push() on the embedded engine (see its doc comment "
+    "in\n"
     "acq_core.h for the framing/CFAR mechanics). Each event carries the\n"
     "peak's Doppler bin and code phase (the two search axes), its CFAR\n"
     "statistic, and an estimated C/N0 — see acq_result_t.\n"
@@ -747,7 +750,8 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside\n"
     "[1, 256] (the internal non-coherent-look safety-valve ceiling).\n"
     "\n"
-    "Forwards to acq_configure_search_raw() on the embedded engine (see its\n"
+    "Forwards to dp_acq_configure_search_raw() on the embedded engine (see "
+    "its\n"
     "doc comment in acq_core.h): resizes every grid-dependent buffer/plan,\n"
     "re-derives the threshold ladder for the pinned grid, and clears\n"
     "in-flight accumulation — call between push() calls, never a substitute\n"
@@ -802,7 +806,7 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "that dwell but is not reported. The threshold does not change with n.\n"
     "Raises ValueError outside 1..64. Clears the held candidates.\n"
     "\n"
-    "Forwards to acq_set_max_peaks() on the embedded engine (see its doc\n"
+    "Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc\n"
     "comment in acq_core.h): one is the classic gated maximum; more is the\n"
     "list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the\n"
     "same gate, strongest first, an exclusion zone of one Doppler bin by the\n"

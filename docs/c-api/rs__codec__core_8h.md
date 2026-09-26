@@ -32,7 +32,7 @@ _The Reed-Solomon codec, as an object over_ `rs` _._[More...](#detailed-descript
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**rs\_codec\_state\_t**](structrs__codec__state__t.md) <br>_A code and the tables derived from it._  |
+| struct | [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) <br>_A code and the tables derived from it._  |
 
 
 
@@ -59,20 +59,20 @@ _The Reed-Solomon codec, as an object over_ `rs` _._[More...](#detailed-descript
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**rs\_codec\_codeword\_ok**](#function-rs_codec_codeword_ok) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, const uint8\_t \* codeword, size\_t codeword\_len) <br>_Is this a valid codeword? — every syndrome zero._  |
-|  [**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* | [**rs\_codec\_create**](#function-rs_codec_create) (uint32\_t nroots, uint32\_t symbol\_bits, uint32\_t field\_poly, uint32\_t first\_root, uint32\_t root\_stride) <br>_Create a codec for the code named by the five arguments._  |
-|  int | [**rs\_codec\_decode**](#function-rs_codec_decode) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, uint8\_t \* codeword, size\_t codeword\_len) <br>_Correct up to_ `E` _symbol errors, IN PLACE._ |
-|  void | [**rs\_codec\_destroy**](#function-rs_codec_destroy) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state) <br>_Destroy a codec and release all memory._  |
-|  size\_t | [**rs\_codec\_encode**](#function-rs_codec_encode) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode_ `k` _information symbols into a whole_`n` _-symbol codeword._ |
-|  size\_t | [**rs\_codec\_encode\_max\_out**](#function-rs_codec_encode_max_out) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, size\_t n\_in) <br>_Symbols_ [_**rs\_codec\_encode**_](rs__codec__core_8h.md#function-rs_codec_encode) _writes for_`n_in` _information symbols: a whole codeword,_`n` _._ |
-|  size\_t | [**rs\_codec\_generator**](#function-rs_codec_generator) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, uint8\_t \* out, size\_t out\_len) <br>_The_ `nroots + 1` _coefficients of_`g(x)` _,_`out[i]` _for_`x^i` _._ |
-|  size\_t | [**rs\_codec\_get\_e**](#function-rs_codec_get_e) (const [**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state) <br>_Correctable symbols per codeword,_ `nroots / 2` _._ |
-|  size\_t | [**rs\_codec\_get\_k**](#function-rs_codec_get_k) (const [**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state) <br>_Information symbols per codeword,_ `n - nroots` _._ |
-|  size\_t | [**rs\_codec\_get\_n**](#function-rs_codec_get_n) (const [**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state) <br>_Symbols per codeword,_ `2^J - 1` _._ |
-|  size\_t | [**rs\_codec\_get\_nroots**](#function-rs_codec_get_nroots) (const [**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state) <br>_Parity symbols per codeword,_ `2E` _._ |
-|  size\_t | [**rs\_codec\_get\_symbol\_bits**](#function-rs_codec_get_symbol_bits) (const [**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state) <br>_Symbol width_ `J` _, in bits._ |
-|  size\_t | [**rs\_codec\_syndromes**](#function-rs_codec_syndromes) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_The_ `nroots` _syndromes of an_`n` _-symbol word._ |
-|  size\_t | [**rs\_codec\_syndromes\_max\_out**](#function-rs_codec_syndromes_max_out) ([**rs\_codec\_state\_t**](structrs__codec__state__t.md) \* state, size\_t n\_in) <br>_Syndromes_ [_**rs\_codec\_syndromes**_](rs__codec__core_8h.md#function-rs_codec_syndromes) _writes:_`nroots` _._ |
+|  int | [**dp\_rs\_codec\_codeword\_ok**](#function-dp_rs_codec_codeword_ok) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, const uint8\_t \* codeword, size\_t codeword\_len) <br>_Is this a valid codeword? — every syndrome zero._  |
+|  [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* | [**dp\_rs\_codec\_create**](#function-dp_rs_codec_create) (uint32\_t nroots, uint32\_t symbol\_bits, uint32\_t field\_poly, uint32\_t first\_root, uint32\_t root\_stride) <br>_Create a codec for the code named by the five arguments._  |
+|  int | [**dp\_rs\_codec\_decode**](#function-dp_rs_codec_decode) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, uint8\_t \* codeword, size\_t codeword\_len) <br>_Correct up to_ `E` _symbol errors, IN PLACE._ |
+|  void | [**dp\_rs\_codec\_destroy**](#function-dp_rs_codec_destroy) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state) <br>_Destroy a codec and release all memory._  |
+|  size\_t | [**dp\_rs\_codec\_encode**](#function-dp_rs_codec_encode) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode_ `k` _information symbols into a whole_`n` _-symbol codeword._ |
+|  size\_t | [**dp\_rs\_codec\_encode\_max\_out**](#function-dp_rs_codec_encode_max_out) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, size\_t n\_in) <br>_Symbols_ [_**dp\_rs\_codec\_encode**_](rs__codec__core_8h.md#function-dp_rs_codec_encode) _writes for_`n_in` _information symbols: a whole codeword,_`n` _._ |
+|  size\_t | [**dp\_rs\_codec\_generator**](#function-dp_rs_codec_generator) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, uint8\_t \* out, size\_t out\_len) <br>_The_ `nroots + 1` _coefficients of_`g(x)` _,_`out[i]` _for_`x^i` _._ |
+|  size\_t | [**dp\_rs\_codec\_get\_e**](#function-dp_rs_codec_get_e) (const [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state) <br>_Correctable symbols per codeword,_ `nroots / 2` _._ |
+|  size\_t | [**dp\_rs\_codec\_get\_k**](#function-dp_rs_codec_get_k) (const [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state) <br>_Information symbols per codeword,_ `n - nroots` _._ |
+|  size\_t | [**dp\_rs\_codec\_get\_n**](#function-dp_rs_codec_get_n) (const [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state) <br>_Symbols per codeword,_ `2^J - 1` _._ |
+|  size\_t | [**dp\_rs\_codec\_get\_nroots**](#function-dp_rs_codec_get_nroots) (const [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state) <br>_Parity symbols per codeword,_ `2E` _._ |
+|  size\_t | [**dp\_rs\_codec\_get\_symbol\_bits**](#function-dp_rs_codec_get_symbol_bits) (const [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state) <br>_Symbol width_ `J` _, in bits._ |
+|  size\_t | [**dp\_rs\_codec\_syndromes**](#function-dp_rs_codec_syndromes) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_The_ `nroots` _syndromes of an_`n` _-symbol word._ |
+|  size\_t | [**dp\_rs\_codec\_syndromes\_max\_out**](#function-dp_rs_codec_syndromes_max_out) ([**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) \* state, size\_t n\_in) <br>_Syndromes_ [_**dp\_rs\_codec\_syndromes**_](rs__codec__core_8h.md#function-dp_rs_codec_syndromes) _writes:_`nroots` _._ |
 
 
 
@@ -160,12 +160,12 @@ Lifecycle: `create -> [encode / decode / syndromes / codeword_ok]* -> destroy`.
 
 
 
-### function rs\_codec\_codeword\_ok 
+### function dp\_rs\_codec\_codeword\_ok 
 
 _Is this a valid codeword? — every syndrome zero._ 
 ```C++
-int rs_codec_codeword_ok (
-    rs_codec_state_t * state,
+int dp_rs_codec_codeword_ok (
+    dp_rs_codec_state_t * state,
     const uint8_t * codeword,
     size_t codeword_len
 ) 
@@ -208,11 +208,11 @@ int rs_codec_codeword_ok (
 
 
 
-### function rs\_codec\_create 
+### function dp\_rs\_codec\_create 
 
 _Create a codec for the code named by the five arguments._ 
 ```C++
-rs_codec_state_t * rs_codec_create (
+dp_rs_codec_state_t * dp_rs_codec_create (
     uint32_t nroots,
     uint32_t symbol_bits,
     uint32_t field_poly,
@@ -248,7 +248,7 @@ Heap-allocated state, or NULL if the five do not name a usable code.
 
 **Note:**
 
-Caller must call [**rs\_codec\_destroy()**](rs__codec__core_8h.md#function-rs_codec_destroy) when done.
+Caller must call [**dp\_rs\_codec\_destroy()**](rs__codec__core_8h.md#function-dp_rs_codec_destroy) when done.
 
 
 
@@ -269,12 +269,12 @@ Caller must call [**rs\_codec\_destroy()**](rs__codec__core_8h.md#function-rs_co
 
 
 
-### function rs\_codec\_decode 
+### function dp\_rs\_codec\_decode 
 
 _Correct up to_ `E` _symbol errors, IN PLACE._
 ```C++
-int rs_codec_decode (
-    rs_codec_state_t * state,
+int dp_rs_codec_decode (
+    dp_rs_codec_state_t * state,
     uint8_t * codeword,
     size_t codeword_len
 ) 
@@ -285,7 +285,7 @@ int rs_codec_decode (
 `rs_decode`, over the caller's own buffer: the corrected symbols land in `codeword` itself, which is why the binding demands a writable array rather than quietly working on a copy the caller would then discard.
 
 
-**It either refuses or leaves a codeword.** On success the key equation has zeroed every syndrome by construction, so the result passes [**rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-rs_codec_codeword_ok). On refusal `codeword` is untouched.
+**It either refuses or leaves a codeword.** On success the key equation has zeroed every syndrome by construction, so the result passes [**dp\_rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-dp_rs_codec_codeword_ok). On refusal `codeword` is untouched.
 
 
 A refusal is not the same claim as "more than `E` errors". Beyond `E` a bounded-distance decoder can land inside another codeword's sphere and miscorrect — a property of the code, not of this implementation — which is why this reports a COUNT rather than a verdict, and why frame-level accounting is the protection.
@@ -329,12 +329,12 @@ True
 
 
 
-### function rs\_codec\_destroy 
+### function dp\_rs\_codec\_destroy 
 
 _Destroy a codec and release all memory._ 
 ```C++
-void rs_codec_destroy (
-    rs_codec_state_t * state
+void dp_rs_codec_destroy (
+    dp_rs_codec_state_t * state
 ) 
 ```
 
@@ -356,12 +356,12 @@ void rs_codec_destroy (
 
 
 
-### function rs\_codec\_encode 
+### function dp\_rs\_codec\_encode 
 
 _Encode_ `k` _information symbols into a whole_`n` _-symbol codeword._
 ```C++
-size_t rs_codec_encode (
-    rs_codec_state_t * state,
+size_t dp_rs_codec_encode (
+    dp_rs_codec_state_t * state,
     const uint8_t * in,
     size_t n_in,
     uint8_t * out,
@@ -374,10 +374,10 @@ size_t rs_codec_encode (
 Systematic: the information symbols are copied through untouched and the `nroots` parity symbols follow them, which is the order they are transmitted in. `rs_encode` computes the parity; this places it.
 
 
-The WHOLE codeword rather than the parity alone, because that is the unit every other method here takes — [**rs\_codec\_decode**](rs__codec__core_8h.md#function-rs_codec_decode), [**rs\_codec\_syndromes**](rs__codec__core_8h.md#function-rs_codec_syndromes) and [**rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-rs_codec_codeword_ok) all read `n` symbols, and a caller who wants the parity by itself can take the last `nroots` of the answer. (`rs_encode` is the other split, and is still there for a frame assembler that has already placed the information.)
+The WHOLE codeword rather than the parity alone, because that is the unit every other method here takes — [**dp\_rs\_codec\_decode**](rs__codec__core_8h.md#function-dp_rs_codec_decode), [**dp\_rs\_codec\_syndromes**](rs__codec__core_8h.md#function-dp_rs_codec_syndromes) and [**dp\_rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-dp_rs_codec_codeword_ok) all read `n` symbols, and a caller who wants the parity by itself can take the last `nroots` of the answer. (`rs_encode` is the other split, and is still there for a frame assembler that has already placed the information.)
 
 
-`out` may alias `in` — `rs_codec_encode (rs, buf, k, buf, n)` appends the parity to a buffer that already holds the information, which is the call a frame assembler makes and the one `rs_encode` exists for.
+`out` may alias `in` — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends the parity to a buffer that already holds the information, which is the call a frame assembler makes and the one `rs_encode` exists for.
 
 
 
@@ -419,12 +419,12 @@ The WHOLE codeword rather than the parity alone, because that is the unit every 
 
 
 
-### function rs\_codec\_encode\_max\_out 
+### function dp\_rs\_codec\_encode\_max\_out 
 
-_Symbols_ [_**rs\_codec\_encode**_](rs__codec__core_8h.md#function-rs_codec_encode) _writes for_`n_in` _information symbols: a whole codeword,_`n` _._
+_Symbols_ [_**dp\_rs\_codec\_encode**_](rs__codec__core_8h.md#function-dp_rs_codec_encode) _writes for_`n_in` _information symbols: a whole codeword,_`n` _._
 ```C++
-size_t rs_codec_encode_max_out (
-    rs_codec_state_t * state,
+size_t dp_rs_codec_encode_max_out (
+    dp_rs_codec_state_t * state,
     size_t n_in
 ) 
 ```
@@ -436,12 +436,12 @@ size_t rs_codec_encode_max_out (
 
 
 
-### function rs\_codec\_generator 
+### function dp\_rs\_codec\_generator 
 
 _The_ `nroots + 1` _coefficients of_`g(x)` _,_`out[i]` _for_`x^i` _._
 ```C++
-size_t rs_codec_generator (
-    rs_codec_state_t * state,
+size_t dp_rs_codec_generator (
+    dp_rs_codec_state_t * state,
     uint8_t * out,
     size_t out_len
 ) 
@@ -492,12 +492,12 @@ The caller supplies the buffer rather than being handed one, because the length 
 
 
 
-### function rs\_codec\_get\_e 
+### function dp\_rs\_codec\_get\_e 
 
 _Correctable symbols per codeword,_ `nroots / 2` _._
 ```C++
-size_t rs_codec_get_e (
-    const rs_codec_state_t * state
+size_t dp_rs_codec_get_e (
+    const dp_rs_codec_state_t * state
 ) 
 ```
 
@@ -508,12 +508,12 @@ size_t rs_codec_get_e (
 
 
 
-### function rs\_codec\_get\_k 
+### function dp\_rs\_codec\_get\_k 
 
 _Information symbols per codeword,_ `n - nroots` _._
 ```C++
-size_t rs_codec_get_k (
-    const rs_codec_state_t * state
+size_t dp_rs_codec_get_k (
+    const dp_rs_codec_state_t * state
 ) 
 ```
 
@@ -524,12 +524,12 @@ size_t rs_codec_get_k (
 
 
 
-### function rs\_codec\_get\_n 
+### function dp\_rs\_codec\_get\_n 
 
 _Symbols per codeword,_ `2^J - 1` _._
 ```C++
-size_t rs_codec_get_n (
-    const rs_codec_state_t * state
+size_t dp_rs_codec_get_n (
+    const dp_rs_codec_state_t * state
 ) 
 ```
 
@@ -540,12 +540,12 @@ size_t rs_codec_get_n (
 
 
 
-### function rs\_codec\_get\_nroots 
+### function dp\_rs\_codec\_get\_nroots 
 
 _Parity symbols per codeword,_ `2E` _._
 ```C++
-size_t rs_codec_get_nroots (
-    const rs_codec_state_t * state
+size_t dp_rs_codec_get_nroots (
+    const dp_rs_codec_state_t * state
 ) 
 ```
 
@@ -556,12 +556,12 @@ size_t rs_codec_get_nroots (
 
 
 
-### function rs\_codec\_get\_symbol\_bits 
+### function dp\_rs\_codec\_get\_symbol\_bits 
 
 _Symbol width_ `J` _, in bits._
 ```C++
-size_t rs_codec_get_symbol_bits (
-    const rs_codec_state_t * state
+size_t dp_rs_codec_get_symbol_bits (
+    const dp_rs_codec_state_t * state
 ) 
 ```
 
@@ -572,12 +572,12 @@ size_t rs_codec_get_symbol_bits (
 
 
 
-### function rs\_codec\_syndromes 
+### function dp\_rs\_codec\_syndromes 
 
 _The_ `nroots` _syndromes of an_`n` _-symbol word._
 ```C++
-size_t rs_codec_syndromes (
-    rs_codec_state_t * state,
+size_t dp_rs_codec_syndromes (
+    dp_rs_codec_state_t * state,
     const uint8_t * in,
     size_t n_in,
     uint8_t * out,
@@ -587,7 +587,7 @@ size_t rs_codec_syndromes (
 
 
 
-All zero is the DEFINING property of the code: it needs no encoder and no decoder to check, which is what makes it usable both as a test oracle and as a receiver's error detector. [**rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-rs_codec_codeword_ok) is this reduced to the one bit most callers want.
+All zero is the DEFINING property of the code: it needs no encoder and no decoder to check, which is what makes it usable both as a test oracle and as a receiver's error detector. [**dp\_rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-dp_rs_codec_codeword_ok) is this reduced to the one bit most callers want.
 
 
 
@@ -629,12 +629,12 @@ True
 
 
 
-### function rs\_codec\_syndromes\_max\_out 
+### function dp\_rs\_codec\_syndromes\_max\_out 
 
-_Syndromes_ [_**rs\_codec\_syndromes**_](rs__codec__core_8h.md#function-rs_codec_syndromes) _writes:_`nroots` _._
+_Syndromes_ [_**dp\_rs\_codec\_syndromes**_](rs__codec__core_8h.md#function-dp_rs_codec_syndromes) _writes:_`nroots` _._
 ```C++
-size_t rs_codec_syndromes_max_out (
-    rs_codec_state_t * state,
+size_t dp_rs_codec_syndromes_max_out (
+    dp_rs_codec_state_t * state,
     size_t n_in
 ) 
 ```

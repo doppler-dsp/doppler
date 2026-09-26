@@ -32,8 +32,8 @@ _Soft-decision Viterbi decoding of convolutional codes._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) <br>_A streaming maximum-likelihood (Viterbi) decoder._  |
 | struct | [**node\_sync\_t**](structnode__sync__t.md) <br>_What one alignment hypothesis scored, and what the runner-up did._  |
-| struct | [**viterbi\_state\_t**](structviterbi__state__t.md) <br>_A streaming maximum-likelihood (Viterbi) decoder._  |
 
 
 
@@ -60,20 +60,20 @@ _Soft-decision Viterbi decoding of convolutional codes._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**node\_sync\_scan**](#function-node_sync_scan) ([**viterbi\_state\_t**](structviterbi__state__t.md) \* v, const float \* llr, size\_t n\_llr, [**node\_sync\_t**](structnode__sync__t.md) \* out) <br>_Try every branch alignment and report which one the stream is on._  |
-|  size\_t | [**node\_sync\_score**](#function-node_sync_score) ([**viterbi\_state\_t**](structviterbi__state__t.md) \* v, const float \* llr, size\_t n\_llr) <br>_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._  |
-|  size\_t | [**node\_sync\_scored\_symbols**](#function-node_sync_scored_symbols) (const [**viterbi\_state\_t**](structviterbi__state__t.md) \* v, size\_t n\_llr) <br>_Symbols_ [_**node\_sync\_score**_](viterbi__core_8h.md#function-node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._ |
-|  const [**conv\_code\_t**](structconv__code__t.md) \* | [**viterbi\_code**](#function-viterbi_code) (const [**viterbi\_state\_t**](structviterbi__state__t.md) \* s) <br>_The code this decoder was built for._  |
-|  [**viterbi\_state\_t**](structviterbi__state__t.md) \* | [**viterbi\_create**](#function-viterbi_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert, size\_t depth) <br>_Build a decoder for the code the polynomials describe._  |
-|  [**viterbi\_state\_t**](structviterbi__state__t.md) \* | [**viterbi\_create\_code**](#function-viterbi_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c, size\_t depth) <br>_Build a decoder from a code already assembled._  |
-|  size\_t | [**viterbi\_decode**](#function-viterbi_decode) ([**viterbi\_state\_t**](structviterbi__state__t.md) \* state, const float \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Decode soft channel symbols into information bits._  |
-|  size\_t | [**viterbi\_decode\_max\_out**](#function-viterbi_decode_max_out) (const [**viterbi\_state\_t**](structviterbi__state__t.md) \* state, size\_t n\_in) <br>_Bits_ [_**viterbi\_decode**_](viterbi__core_8h.md#function-viterbi_decode) _will emit for_`n_in` _soft symbols._ |
-|  size\_t | [**viterbi\_depth**](#function-viterbi_depth) (const [**viterbi\_state\_t**](structviterbi__state__t.md) \* s) <br>_Its traceback depth, in input bits._  |
-|  void | [**viterbi\_destroy**](#function-viterbi_destroy) ([**viterbi\_state\_t**](structviterbi__state__t.md) \* state) <br>_Free a decoder and everything it allocated. NULL is a no-op._  |
-|  void | [**viterbi\_get\_state**](#function-viterbi_get_state) (const [**viterbi\_state\_t**](structviterbi__state__t.md) \* s, void \* blob) <br>_Serialize_ `s` _into_`blob` _, which must hold_[_**viterbi\_state\_bytes**_](viterbi__core_8h.md#function-viterbi_state_bytes) _bytes._ |
-|  void | [**viterbi\_reset**](#function-viterbi_reset) ([**viterbi\_state\_t**](structviterbi__state__t.md) \* state) <br>_Return to the all-zero start state, discarding the traceback._  |
-|  int | [**viterbi\_set\_state**](#function-viterbi_set_state) ([**viterbi\_state\_t**](structviterbi__state__t.md) \* s, const void \* blob) <br>_Restore_ `s` _from_`blob` _._ |
-|  size\_t | [**viterbi\_state\_bytes**](#function-viterbi_state_bytes) (const [**viterbi\_state\_t**](structviterbi__state__t.md) \* s) <br>_Bytes_ [_**viterbi\_get\_state**_](viterbi__core_8h.md#function-viterbi_get_state) _writes: envelope, code identity, ring cursor, the path metrics and the traceback ring._ |
+|  [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* | [**dp\_viterbi\_create**](#function-dp_viterbi_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert, size\_t depth) <br>_Build a decoder for the code the polynomials describe._  |
+|  size\_t | [**dp\_viterbi\_decode**](#function-dp_viterbi_decode) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* state, const float \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Decode soft channel symbols into information bits._  |
+|  size\_t | [**dp\_viterbi\_decode\_max\_out**](#function-dp_viterbi_decode_max_out) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* state, size\_t n\_in) <br>_Bits_ [_**dp\_viterbi\_decode**_](viterbi__core_8h.md#function-dp_viterbi_decode) _will emit for_`n_in` _soft symbols._ |
+|  void | [**dp\_viterbi\_destroy**](#function-dp_viterbi_destroy) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* state) <br>_Free a decoder and everything it allocated. NULL is a no-op._  |
+|  void | [**dp\_viterbi\_get\_state**](#function-dp_viterbi_get_state) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* s, void \* blob) <br>_Serialize_ `s` _into_`blob` _, which must hold_[_**dp\_viterbi\_state\_bytes**_](viterbi__core_8h.md#function-dp_viterbi_state_bytes) _bytes._ |
+|  void | [**dp\_viterbi\_reset**](#function-dp_viterbi_reset) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* state) <br>_Return to the all-zero start state, discarding the traceback._  |
+|  int | [**dp\_viterbi\_set\_state**](#function-dp_viterbi_set_state) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* s, const void \* blob) <br>_Restore_ `s` _from_`blob` _._ |
+|  size\_t | [**dp\_viterbi\_state\_bytes**](#function-dp_viterbi_state_bytes) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* s) <br>_Bytes_ [_**dp\_viterbi\_get\_state**_](viterbi__core_8h.md#function-dp_viterbi_get_state) _writes: envelope, code identity, ring cursor, the path metrics and the traceback ring._ |
+|  int | [**node\_sync\_scan**](#function-node_sync_scan) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* v, const float \* llr, size\_t n\_llr, [**node\_sync\_t**](structnode__sync__t.md) \* out) <br>_Try every branch alignment and report which one the stream is on._  |
+|  size\_t | [**node\_sync\_score**](#function-node_sync_score) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* v, const float \* llr, size\_t n\_llr) <br>_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._  |
+|  size\_t | [**node\_sync\_scored\_symbols**](#function-node_sync_scored_symbols) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* v, size\_t n\_llr) <br>_Symbols_ [_**node\_sync\_score**_](viterbi__core_8h.md#function-node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._ |
+|  const [**conv\_code\_t**](structconv__code__t.md) \* | [**viterbi\_code**](#function-viterbi_code) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* s) <br>_The code this decoder was built for._  |
+|  [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* | [**viterbi\_create\_code**](#function-viterbi_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c, size\_t depth) <br>_Build a decoder from a code already assembled._  |
+|  size\_t | [**viterbi\_depth**](#function-viterbi_depth) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* s) <br>_Its traceback depth, in input bits._  |
 
 
 
@@ -139,150 +139,11 @@ Lifecycle: `create -> [decode / reset]* -> destroy`.
 
 
 
-### function node\_sync\_scan 
-
-_Try every branch alignment and report which one the stream is on._ 
-```C++
-int node_sync_scan (
-    viterbi_state_t * v,
-    const float * llr,
-    size_t n_llr,
-    node_sync_t * out
-) 
-```
-
-
-
-`c->n` hypotheses for a rate-1/n code — the offsets `0 .. n-1` — each scored by [**node\_sync\_score**](viterbi__core_8h.md#function-node_sync_score) over the same window.
-
-
-**Re-runnable, and it has to be.** A symbol slip moves the stream by an odd number of symbols and the alignment changes mid-capture; measured through a real receiver at Es/N0 = 0 dB, that happened three times in forty-six frame slots (`docs/design/fec-receive.md` §8). A one-shot at start of stream would decode noise from the first slip onward, so this takes its window as an argument and holds no state between calls.
-
-
-
-
-**Parameters:**
-
-
-* `v` A decoder for the code; reset per hypothesis. 
-* `llr` Soft symbols. 
-* `n_llr` Window length. It buys the separation: the counts differ by about `0.5 - SER` per symbol, so a window of a few hundred symbols decides at any Es/N0 a coded link runs at. 
-* `out` Receives the outcome; may be `NULL`. 
-
-
-
-**Returns:**
-
-Non-zero when a hypothesis was scored. Zero — with `out` untouched — when the window is too short.
-
-
-
-```C++
-node_sync_t ns;
-if (node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
-  {
-    viterbi_reset (v);
-    viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
-  }
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function node\_sync\_score 
-
-_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._ 
-```C++
-size_t node_sync_score (
-    viterbi_state_t * v,
-    const float * llr,
-    size_t n_llr
-) 
-```
-
-
-
-The **re-encoding metric**. It needs no truth, no marker and no training sequence — it compares the decoder's own output against the decoder's own input — so it works on a live capture, which is what makes it the statistic a receiver can carry. `docs/design/viterbi.md` §9 derives what it reads in and out of sync, and why a marker correlation is the wrong tool for this even when a marker exists.
-
-
-**It is blind to polarity, and that is correct.** A transparent code (every generator of odd weight, which CCSDS's are) decodes an inverted stream to the complement of the bits, which re-encodes to the inverted symbols — so the disagreement count is identical. Polarity is resolved downstream by something that knows what the bits mean; this resolves only which symbol starts a branch.
-
-
-The first `k - 1` decoded bits are excluded from the count: the encoder used for the comparison starts from a zero register while the real one was mid-stream, so those bits are re-encoded from the wrong state and would bias every hypothesis by a few symbols.
-
-
-
-
-**Parameters:**
-
-
-* `v` A decoder for the code being synchronized. It is RESET, and left holding this scoring run's state — a caller decoding with it afterwards must reset it again. 
-* `llr` Soft symbols, `mpsk_soft_demap`'s convention. 
-* `n_llr` Number of symbols; the tail beyond a whole number of branches is ignored. 
-
-
-
-**Returns:**
-
-Disagreements, or 0 if the window is too short to decode anything past the traceback and the encoder fill. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function node\_sync\_scored\_symbols 
-
-_Symbols_ [_**node\_sync\_score**_](viterbi__core_8h.md#function-node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._
-```C++
-size_t node_sync_scored_symbols (
-    const viterbi_state_t * v,
-    size_t n_llr
-) 
-```
-
-
-
-The head of a window is skipped: the decoder starts from its own all-zero prior, which is wrong whenever the window opens mid-capture, and the comparison encoder starts from a zero register while the transmitter's was mid-stream. A caller reading `errors / symbols` as a channel symbol error rate wants this denominator rather than the window length. 
-
-
-        
-
-<hr>
-
-
-
-### function viterbi\_code 
-
-_The code this decoder was built for._ 
-```C++
-const conv_code_t * viterbi_code (
-    const viterbi_state_t * s
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function viterbi\_create 
+### function dp\_viterbi\_create 
 
 _Build a decoder for the code the polynomials describe._ 
 ```C++
-viterbi_state_t * viterbi_create (
+dp_viterbi_state_t * dp_viterbi_create (
     const uint32_t * poly,
     size_t poly_len,
     uint32_t k,
@@ -332,7 +193,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**viterbi\_destroy()**](viterbi__core_8h.md#function-viterbi_destroy) when done. 
+Caller must call [**dp\_viterbi\_destroy()**](viterbi__core_8h.md#function-dp_viterbi_destroy) when done. 
 
 
 
@@ -344,51 +205,12 @@ Caller must call [**viterbi\_destroy()**](viterbi__core_8h.md#function-viterbi_d
 
 
 
-### function viterbi\_create\_code 
-
-_Build a decoder from a code already assembled._ 
-```C++
-viterbi_state_t * viterbi_create_code (
-    const conv_code_t * c,
-    size_t depth
-) 
-```
-
-
-
-The declared `viterbi_create` takes the polynomials directly, because a struct pointer is not expressible in a manifest. Callers that already hold a [**conv\_code\_t**](structconv__code__t.md) — the CCSDS configuration, the validators — use this.
-
-
-
-
-**Parameters:**
-
-
-* `c` The code. Copied, so the caller's may be temporary. 
-* `depth` Traceback depth in input bits. A decision is emitted only after `depth - 1` further bits have been seen, which is the decoder's latency and the dominant term in its memory. **60 is the measured choice for CCSDS's K = 7 rate-1/2 code** — `5*K = 35`, the textbook number, sits 33 % above the achievable BER (docs/design/viterbi.md section 4). It is a default for other codes, not a law. 
-
-
-
-**Returns:**
-
-The decoder, or NULL if `c` is invalid, `depth` is 0, or allocation failed. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function viterbi\_decode 
+### function dp\_viterbi\_decode 
 
 _Decode soft channel symbols into information bits._ 
 ```C++
-size_t viterbi_decode (
-    viterbi_state_t * state,
+size_t dp_viterbi_decode (
+    dp_viterbi_state_t * state,
     const float * in,
     size_t n_in,
     uint8_t * out,
@@ -404,7 +226,7 @@ The input carries one value per channel symbol, in the convention `mpsk_soft_dem
 A maximum-likelihood path cannot move when every metric is scaled by a positive constant, so **the LLRs need no accurate scaling** — a caller with no SNR estimate may pass unscaled values.
 
 
-Streaming: state carries across calls, so a long capture may be fed in blocks and the bits come out continuously. The first `depth - 1` branches of a stream produce no output — the traceback walks `depth - 1` steps back, so a decision needs that many branches BEHIND it — and thereafter one bit is emitted per `n` symbols consumed. [**viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-viterbi_decode_max_out) is the same statement as arithmetic, and is what a caller should size a buffer with rather than repeating this sentence: they disagreed by one until a test asserted the count against a literal.
+Streaming: state carries across calls, so a long capture may be fed in blocks and the bits come out continuously. The first `depth - 1` branches of a stream produce no output — the traceback walks `depth - 1` steps back, so a decision needs that many branches BEHIND it — and thereafter one bit is emitted per `n` symbols consumed. [**dp\_viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-dp_viterbi_decode_max_out) is the same statement as arithmetic, and is what a caller should size a buffer with rather than repeating this sentence: they disagreed by one until a test asserted the count against a literal.
 
 
 
@@ -416,7 +238,7 @@ Streaming: state carries across calls, so a long capture may be fed in blocks an
 * `in` Log-likelihood ratios, one per channel symbol. `n_in` must be a multiple of the code's `n`. 
 * `n_in` Number of LLRs in `in`. 
 * `out` Receives the decoded information bits, one per byte. 
-* `max_out` Capacity of `out`; see [**viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-viterbi_decode_max_out). 
+* `max_out` Capacity of `out`; see [**dp\_viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-dp_viterbi_decode_max_out). 
 
 
 
@@ -444,12 +266,12 @@ True
 
 
 
-### function viterbi\_decode\_max\_out 
+### function dp\_viterbi\_decode\_max\_out 
 
-_Bits_ [_**viterbi\_decode**_](viterbi__core_8h.md#function-viterbi_decode) _will emit for_`n_in` _soft symbols._
+_Bits_ [_**dp\_viterbi\_decode**_](viterbi__core_8h.md#function-dp_viterbi_decode) _will emit for_`n_in` _soft symbols._
 ```C++
-size_t viterbi_decode_max_out (
-    const viterbi_state_t * state,
+size_t dp_viterbi_decode_max_out (
+    const dp_viterbi_state_t * state,
     size_t n_in
 ) 
 ```
@@ -483,28 +305,12 @@ Bits that call would write.
 
 
 
-### function viterbi\_depth 
-
-_Its traceback depth, in input bits._ 
-```C++
-size_t viterbi_depth (
-    const viterbi_state_t * s
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function viterbi\_destroy 
+### function dp\_viterbi\_destroy 
 
 _Free a decoder and everything it allocated. NULL is a no-op._ 
 ```C++
-void viterbi_destroy (
-    viterbi_state_t * state
+void dp_viterbi_destroy (
+    dp_viterbi_state_t * state
 ) 
 ```
 
@@ -526,19 +332,19 @@ void viterbi_destroy (
 
 
 
-### function viterbi\_get\_state 
+### function dp\_viterbi\_get\_state 
 
-_Serialize_ `s` _into_`blob` _, which must hold_[_**viterbi\_state\_bytes**_](viterbi__core_8h.md#function-viterbi_state_bytes) _bytes._
+_Serialize_ `s` _into_`blob` _, which must hold_[_**dp\_viterbi\_state\_bytes**_](viterbi__core_8h.md#function-dp_viterbi_state_bytes) _bytes._
 ```C++
-void viterbi_get_state (
-    const viterbi_state_t * s,
+void dp_viterbi_get_state (
+    const dp_viterbi_state_t * s,
     void * blob
 ) 
 ```
 
 
 
-The ring travels in its stored order with the cursor beside it rather than rotated into a canonical one — the rotation would cost a pass and buy nothing, since only [**viterbi\_set\_state**](viterbi__core_8h.md#function-viterbi_set_state) reads it back. 
+The ring travels in its stored order with the cursor beside it rather than rotated into a canonical one — the rotation would cost a pass and buy nothing, since only [**dp\_viterbi\_set\_state**](viterbi__core_8h.md#function-dp_viterbi_set_state) reads it back. 
 
 
         
@@ -547,12 +353,12 @@ The ring travels in its stored order with the cursor beside it rather than rotat
 
 
 
-### function viterbi\_reset 
+### function dp\_viterbi\_reset 
 
 _Return to the all-zero start state, discarding the traceback._ 
 ```C++
-void viterbi_reset (
-    viterbi_state_t * state
+void dp_viterbi_reset (
+    dp_viterbi_state_t * state
 ) 
 ```
 
@@ -583,19 +389,19 @@ The code and the depth are unchanged — this is the boundary between two indepe
 
 
 
-### function viterbi\_set\_state 
+### function dp\_viterbi\_set\_state 
 
 _Restore_ `s` _from_`blob` _._
 ```C++
-int viterbi_set_state (
-    viterbi_state_t * s,
+int dp_viterbi_set_state (
+    dp_viterbi_state_t * s,
     const void * blob
 ) 
 ```
 
 
 
-The code and the depth are configuration, restored by [**viterbi\_create**](viterbi__core_8h.md#function-viterbi_create) rather than carried in the payload — but they are _stamped_ in it and checked here, because a size match is not a configuration match: two codes with the same `k` and `n` differing only in a polynomial or in `invert` produce blobs of identical length, and reinterpreting one as the other yields a decoder that is confidently wrong rather than one that refuses.
+The code and the depth are configuration, restored by [**dp\_viterbi\_create**](viterbi__core_8h.md#function-dp_viterbi_create) rather than carried in the payload — but they are _stamped_ in it and checked here, because a size match is not a configuration match: two codes with the same `k` and `n` differing only in a polynomial or in `invert` produce blobs of identical length, and reinterpreting one as the other yields a decoder that is confidently wrong rather than one that refuses.
 
 
 
@@ -614,12 +420,12 @@ The code and the depth are configuration, restored by [**viterbi\_create**](vite
 
 
 
-### function viterbi\_state\_bytes 
+### function dp\_viterbi\_state\_bytes 
 
-_Bytes_ [_**viterbi\_get\_state**_](viterbi__core_8h.md#function-viterbi_get_state) _writes: envelope, code identity, ring cursor, the path metrics and the traceback ring._
+_Bytes_ [_**dp\_viterbi\_get\_state**_](viterbi__core_8h.md#function-dp_viterbi_get_state) _writes: envelope, code identity, ring cursor, the path metrics and the traceback ring._
 ```C++
-size_t viterbi_state_bytes (
-    const viterbi_state_t * s
+size_t dp_viterbi_state_bytes (
+    const dp_viterbi_state_t * s
 ) 
 ```
 
@@ -629,6 +435,200 @@ Depends on the configuration (`2^(k-1)` metrics and a `depth x 2^(k-1)` ring), s
 
 
         
+
+<hr>
+
+
+
+### function node\_sync\_scan 
+
+_Try every branch alignment and report which one the stream is on._ 
+```C++
+int node_sync_scan (
+    dp_viterbi_state_t * v,
+    const float * llr,
+    size_t n_llr,
+    node_sync_t * out
+) 
+```
+
+
+
+`c->n` hypotheses for a rate-1/n code — the offsets `0 .. n-1` — each scored by [**node\_sync\_score**](viterbi__core_8h.md#function-node_sync_score) over the same window.
+
+
+**Re-runnable, and it has to be.** A symbol slip moves the stream by an odd number of symbols and the alignment changes mid-capture; measured through a real receiver at Es/N0 = 0 dB, that happened three times in forty-six frame slots (`docs/design/fec-receive.md` §8). A one-shot at start of stream would decode noise from the first slip onward, so this takes its window as an argument and holds no state between calls.
+
+
+
+
+**Parameters:**
+
+
+* `v` A decoder for the code; reset per hypothesis. 
+* `llr` Soft symbols. 
+* `n_llr` Window length. It buys the separation: the counts differ by about `0.5 - SER` per symbol, so a window of a few hundred symbols decides at any Es/N0 a coded link runs at. 
+* `out` Receives the outcome; may be `NULL`. 
+
+
+
+**Returns:**
+
+Non-zero when a hypothesis was scored. Zero — with `out` untouched — when the window is too short.
+
+
+
+```C++
+node_sync_t ns;
+if (node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
+  {
+    dp_viterbi_reset (v);
+    dp_viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
+  }
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function node\_sync\_score 
+
+_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._ 
+```C++
+size_t node_sync_score (
+    dp_viterbi_state_t * v,
+    const float * llr,
+    size_t n_llr
+) 
+```
+
+
+
+The **re-encoding metric**. It needs no truth, no marker and no training sequence — it compares the decoder's own output against the decoder's own input — so it works on a live capture, which is what makes it the statistic a receiver can carry. `docs/design/viterbi.md` §9 derives what it reads in and out of sync, and why a marker correlation is the wrong tool for this even when a marker exists.
+
+
+**It is blind to polarity, and that is correct.** A transparent code (every generator of odd weight, which CCSDS's are) decodes an inverted stream to the complement of the bits, which re-encodes to the inverted symbols — so the disagreement count is identical. Polarity is resolved downstream by something that knows what the bits mean; this resolves only which symbol starts a branch.
+
+
+The first `k - 1` decoded bits are excluded from the count: the encoder used for the comparison starts from a zero register while the real one was mid-stream, so those bits are re-encoded from the wrong state and would bias every hypothesis by a few symbols.
+
+
+
+
+**Parameters:**
+
+
+* `v` A decoder for the code being synchronized. It is RESET, and left holding this scoring run's state — a caller decoding with it afterwards must reset it again. 
+* `llr` Soft symbols, `mpsk_soft_demap`'s convention. 
+* `n_llr` Number of symbols; the tail beyond a whole number of branches is ignored. 
+
+
+
+**Returns:**
+
+Disagreements, or 0 if the window is too short to decode anything past the traceback and the encoder fill. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function node\_sync\_scored\_symbols 
+
+_Symbols_ [_**node\_sync\_score**_](viterbi__core_8h.md#function-node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._
+```C++
+size_t node_sync_scored_symbols (
+    const dp_viterbi_state_t * v,
+    size_t n_llr
+) 
+```
+
+
+
+The head of a window is skipped: the decoder starts from its own all-zero prior, which is wrong whenever the window opens mid-capture, and the comparison encoder starts from a zero register while the transmitter's was mid-stream. A caller reading `errors / symbols` as a channel symbol error rate wants this denominator rather than the window length. 
+
+
+        
+
+<hr>
+
+
+
+### function viterbi\_code 
+
+_The code this decoder was built for._ 
+```C++
+const conv_code_t * viterbi_code (
+    const dp_viterbi_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function viterbi\_create\_code 
+
+_Build a decoder from a code already assembled._ 
+```C++
+dp_viterbi_state_t * viterbi_create_code (
+    const conv_code_t * c,
+    size_t depth
+) 
+```
+
+
+
+The declared `dp_viterbi_create` takes the polynomials directly, because a struct pointer is not expressible in a manifest. Callers that already hold a [**conv\_code\_t**](structconv__code__t.md) — the CCSDS configuration, the validators — use this.
+
+
+
+
+**Parameters:**
+
+
+* `c` The code. Copied, so the caller's may be temporary. 
+* `depth` Traceback depth in input bits. A decision is emitted only after `depth - 1` further bits have been seen, which is the decoder's latency and the dominant term in its memory. **60 is the measured choice for CCSDS's K = 7 rate-1/2 code** — `5*K = 35`, the textbook number, sits 33 % above the achievable BER (docs/design/viterbi.md section 4). It is a default for other codes, not a law. 
+
+
+
+**Returns:**
+
+The decoder, or NULL if `c` is invalid, `depth` is 0, or allocation failed. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function viterbi\_depth 
+
+_Its traceback depth, in input bits._ 
+```C++
+size_t viterbi_depth (
+    const dp_viterbi_state_t * s
+) 
+```
+
+
+
 
 <hr>
 ## Macro Definition Documentation

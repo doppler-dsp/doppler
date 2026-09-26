@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef RATESYNC_CORE_H
-#define RATESYNC_CORE_H
+#ifndef DP_RATESYNC_CORE_H
+#define DP_RATESYNC_CORE_H
 
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/cic/cic_core.h"
@@ -65,7 +65,7 @@ extern "C"
 
   typedef struct
   {
-    loop_filter_state_t lf; 
+    dp_loop_filter_state_t lf; 
     /* ── config (restored by the owner's create(), never packed) ────── */
     double sps;        
     size_t m;          
@@ -92,20 +92,20 @@ extern "C"
     size_t lock_count;    
     size_t avgs;          
     double lock_stat;     
-    lockdet_state_t lock; 
+    dp_lockdet_state_t lock; 
     ratesync_tlm_t tlm; 
   } ratesync_loop_t;
 
   typedef struct
   {
-    RateConverter_state_t *mf;   
+    dp_RateConverter_state_t *mf;   
     ratesync_loop_t        loop; 
     /* ── config (restored by create(), never packed in a state blob) ── */
     int    pulse;      
     double beta;       
     size_t span;       
     size_t num_phases; 
-  } ratesync_state_t;
+  } dp_ratesync_state_t;
 
   /* ------------------------------------------------------------------
    * The timing loop on its own (shared with the receivers)
@@ -118,7 +118,7 @@ extern "C"
                                   size_t prime_taps);
 
   void ratesync_loop_bind_cascade (ratesync_loop_t             *l,
-                                   const RateConverter_state_t *rc);
+                                   const dp_RateConverter_state_t *rc);
 
   void ratesync_loop_reset (ratesync_loop_t *l);
 
@@ -150,13 +150,13 @@ extern "C"
    * Lifecycle
    * ------------------------------------------------------------------ */
 
-  ratesync_state_t *ratesync_create (double sps, int pulse, double beta,
+  dp_ratesync_state_t *dp_ratesync_create (double sps, int pulse, double beta,
                                      size_t span, size_t m, size_t num_phases,
                                      double bn, double zeta, int ted);
 
-  void ratesync_destroy (ratesync_state_t *state);
+  void dp_ratesync_destroy (dp_ratesync_state_t *state);
 
-  void ratesync_reset (ratesync_state_t *state);
+  void dp_ratesync_reset (dp_ratesync_state_t *state);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -231,7 +231,7 @@ extern "C"
     double e      = num * s->ted_scale;
     s->last_error = e;
 
-    /* loop_filter_step returns a correction in symbols per symbol; `ctrl` is
+    /* dp_loop_filter_step returns a correction in symbols per symbol; `ctrl` is
        a rate deviation the TERMINAL stage adds to its accumulator once per
        one of ITS OWN inputs — not once per cascade input. Those differ by the
        whole integer decimation in front, so scaling by the cascade rate m/sps
@@ -243,7 +243,7 @@ extern "C"
        rate_term, with no reference to sps or the decimation at all.
        e > 0 means the strobe is LATE and a positive ctrl advances it — the
        classic Gardner polarity. */
-    s->ctrl = loop_filter_step (&s->lf, e) * s->term_rate;
+    s->ctrl = dp_loop_filter_step (&s->lf, e) * s->term_rate;
 
     /* Tracked samples/symbol from the loop INTEGRATOR, not the instantaneous
        control. The integrator is the rate memory (loop_filter_core.h: "kp*e
@@ -269,7 +269,7 @@ extern "C"
     if (++s->lock_count >= s->avgs)
       {
         s->lock_stat = s->lock_sum / (double)s->avgs;
-        (void)lockdet_step (&s->lock, s->lock_stat);
+        (void)dp_lockdet_step (&s->lock, s->lock_stat);
         s->lock_sum   = 0.0;
         s->lock_count = 0;
       }
@@ -280,7 +280,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  ratesync_step_ted (ratesync_state_t *s, float _Complex x,
+  ratesync_step_ted (dp_ratesync_state_t *s, float _Complex x,
                      float _Complex *y_out, int ted)
   {
     /* One input can complete MORE THAN ONE output period. It happens
@@ -294,7 +294,7 @@ extern "C"
        with m >= 2 those can contain at most one on-time strobe: the
        single-symbol return of this function is still correct. */
     float _Complex ys[4];
-    size_t n = RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
+    size_t n = dp_RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
                                                 sizeof (ys) / sizeof (ys[0]));
     int    emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
@@ -303,7 +303,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  ratesync_step (ratesync_state_t *s, float _Complex x, float _Complex *y_out)
+  ratesync_step (dp_ratesync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = ratesync_step_ted (s, x, y_out, s->loop.ted);
     if (r && s->loop.tlm.ctx)
@@ -311,36 +311,36 @@ extern "C"
     return r;
   }
 
-  size_t ratesync_steps_max_out (ratesync_state_t *state);
+  size_t dp_ratesync_steps_max_out (dp_ratesync_state_t *state);
 
-  size_t ratesync_steps (ratesync_state_t *state, const float _Complex *x,
+  size_t dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
                          size_t x_len, float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
    * Properties / configuration
    * ------------------------------------------------------------------ */
 
-  void   ratesync_configure (ratesync_state_t *state, double bn, double zeta);
-  double ratesync_get_bn (const ratesync_state_t *state);
-  void   ratesync_set_bn (ratesync_state_t *state, double val);
+  void   dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta);
+  double dp_ratesync_get_bn (const dp_ratesync_state_t *state);
+  void   dp_ratesync_set_bn (dp_ratesync_state_t *state, double val);
 
-  double ratesync_get_timing_error (const ratesync_state_t *state);
+  double dp_ratesync_get_timing_error (const dp_ratesync_state_t *state);
 
-  double ratesync_get_rate (const ratesync_state_t *state);
+  double dp_ratesync_get_rate (const dp_ratesync_state_t *state);
 
-  double ratesync_get_ctrl (const ratesync_state_t *state);
+  double dp_ratesync_get_ctrl (const dp_ratesync_state_t *state);
 
-  double ratesync_get_lock_stat (const ratesync_state_t *state);
+  double dp_ratesync_get_lock_stat (const dp_ratesync_state_t *state);
 
-  int ratesync_get_locked (const ratesync_state_t *state);
+  int dp_ratesync_get_locked (const dp_ratesync_state_t *state);
 
-  int ratesync_get_clipped (const ratesync_state_t *state);
+  int dp_ratesync_get_clipped (const dp_ratesync_state_t *state);
 
-  void ratesync_configure_lock_raw (ratesync_state_t *state, size_t avgs,
+  void dp_ratesync_configure_lock_raw (dp_ratesync_state_t *state, size_t avgs,
                                     double up_thresh, double down_thresh,
                                     uint32_t n_up, uint32_t n_down);
 
-  int ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
+  int dp_ratesync_set_telemetry (dp_ratesync_state_t *state, dp_tlm_t *tlm,
                               const char *prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ─────────
@@ -352,9 +352,9 @@ extern "C"
 #define RATESYNC_STATE_MAGIC DP_FOURCC ('R', 'A', 'T', 'S')
 #define RATESYNC_STATE_VERSION 2u /* v2: running state moved into the loop */
 
-  size_t ratesync_state_bytes (const ratesync_state_t *state);
-  void ratesync_get_state (const ratesync_state_t *state, void *blob);
-  int ratesync_set_state (ratesync_state_t *state, const void *blob);
+  size_t dp_ratesync_state_bytes (const dp_ratesync_state_t *state);
+  void dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob);
+  int dp_ratesync_set_state (dp_ratesync_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

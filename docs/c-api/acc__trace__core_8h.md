@@ -32,7 +32,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**acc\_trace\_state\_t**](structacc__trace__state__t.md) <br>_AccTrace state. Allocate with_ [_**acc\_trace\_create()**_](acc__trace__core_8h.md#function-acc_trace_create) _._ |
+| struct | [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) <br>_AccTrace state. Allocate with_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _._ |
 
 
 ## Public Types
@@ -64,15 +64,15 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**acc\_trace\_accumulate**](#function-acc_trace_accumulate) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, const float \* p, size\_t p\_len) <br>_Fold one length-n frame into the running trace. Frames shorter than_ `n` _are ignored; if_`p_len` _exceeds_`n` _only the first_`n` _samples are used. The first accumulated frame seeds the trace directly (every mode), so a single frame followed by value() returns that frame unchanged._ |
-|  [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* | [**acc\_trace\_create**](#function-acc_trace_create) (size\_t n, int mode, double alpha) <br>_Create a length-_ `n` _trace accumulator._ |
-|  void | [**acc\_trace\_destroy**](#function-acc_trace_destroy) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Destroy an AccTrace instance and release all memory._  |
-|  void | [**acc\_trace\_get\_state**](#function-acc_trace_get_state) (const [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, void \* blob) <br> |
-|  void | [**acc\_trace\_reset**](#function-acc_trace_reset) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._  |
-|  int | [**acc\_trace\_set\_state**](#function-acc_trace_set_state) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**acc\_trace\_state\_bytes**](#function-acc_trace_state_bytes) (const [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br> |
-|  size\_t | [**acc\_trace\_value**](#function-acc_trace_value) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
-|  size\_t | [**acc\_trace\_value\_max\_out**](#function-acc_trace_value_max_out) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Output capacity hint for value(); equals the trace length n._  |
+|  void | [**dp\_acc\_trace\_accumulate**](#function-dp_acc_trace_accumulate) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const float \* p, size\_t p\_len) <br>_Fold one length-n frame into the running trace. Frames shorter than_ `n` _are ignored; if_`p_len` _exceeds_`n` _only the first_`n` _samples are used. The first accumulated frame seeds the trace directly (every mode), so a single frame followed by value() returns that frame unchanged._ |
+|  [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* | [**dp\_acc\_trace\_create**](#function-dp_acc_trace_create) (size\_t n, int mode, double alpha) <br>_Create a length-_ `n` _trace accumulator._ |
+|  void | [**dp\_acc\_trace\_destroy**](#function-dp_acc_trace_destroy) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Destroy an AccTrace instance and release all memory._  |
+|  void | [**dp\_acc\_trace\_get\_state**](#function-dp_acc_trace_get_state) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_trace\_reset**](#function-dp_acc_trace_reset) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._  |
+|  int | [**dp\_acc\_trace\_set\_state**](#function-dp_acc_trace_set_state) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_acc\_trace\_state\_bytes**](#function-dp_acc_trace_state_bytes) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_acc\_trace\_value**](#function-dp_acc_trace_value) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
+|  size\_t | [**dp\_acc\_trace\_value\_max\_out**](#function-dp_acc_trace_value_max_out) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Output capacity hint for value(); equals the trace length n._  |
 
 
 
@@ -152,12 +152,12 @@ enum acc_trace_mode_t {
 
 
 
-### function acc\_trace\_accumulate 
+### function dp\_acc\_trace\_accumulate 
 
 _Fold one length-n frame into the running trace. Frames shorter than_ `n` _are ignored; if_`p_len` _exceeds_`n` _only the first_`n` _samples are used. The first accumulated frame seeds the trace directly (every mode), so a single frame followed by value() returns that frame unchanged._
 ```C++
-void acc_trace_accumulate (
-    acc_trace_state_t * state,
+void dp_acc_trace_accumulate (
+    dp_acc_trace_state_t * state,
     const float * p,
     size_t p_len
 ) 
@@ -193,11 +193,11 @@ void acc_trace_accumulate (
 
 
 
-### function acc\_trace\_create 
+### function dp\_acc\_trace\_create 
 
 _Create a length-_ `n` _trace accumulator._
 ```C++
-acc_trace_state_t * acc_trace_create (
+dp_acc_trace_state_t * dp_acc_trace_create (
     size_t n,
     int mode,
     double alpha
@@ -226,7 +226,7 @@ Heap-allocated state, or NULL on invalid argument or OOM.
 
 **Note:**
 
-Caller must call [**acc\_trace\_destroy()**](acc__trace__core_8h.md#function-acc_trace_destroy) when done.
+Caller must call [**dp\_acc\_trace\_destroy()**](acc__trace__core_8h.md#function-dp_acc_trace_destroy) when done.
 
 
 
@@ -245,12 +245,12 @@ Caller must call [**acc\_trace\_destroy()**](acc__trace__core_8h.md#function-acc
 
 
 
-### function acc\_trace\_destroy 
+### function dp\_acc\_trace\_destroy 
 
 _Destroy an AccTrace instance and release all memory._ 
 ```C++
-void acc_trace_destroy (
-    acc_trace_state_t * state
+void dp_acc_trace_destroy (
+    dp_acc_trace_state_t * state
 ) 
 ```
 
@@ -272,11 +272,11 @@ void acc_trace_destroy (
 
 
 
-### function acc\_trace\_get\_state 
+### function dp\_acc\_trace\_get\_state 
 
 ```C++
-void acc_trace_get_state (
-    const acc_trace_state_t * state,
+void dp_acc_trace_get_state (
+    const dp_acc_trace_state_t * state,
     void * blob
 ) 
 ```
@@ -288,12 +288,12 @@ void acc_trace_get_state (
 
 
 
-### function acc\_trace\_reset 
+### function dp\_acc\_trace\_reset 
 
 _Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._ 
 ```C++
-void acc_trace_reset (
-    acc_trace_state_t * state
+void dp_acc_trace_reset (
+    dp_acc_trace_state_t * state
 ) 
 ```
 
@@ -325,11 +325,11 @@ void acc_trace_reset (
 
 
 
-### function acc\_trace\_set\_state 
+### function dp\_acc\_trace\_set\_state 
 
 ```C++
-int acc_trace_set_state (
-    acc_trace_state_t * state,
+int dp_acc_trace_set_state (
+    dp_acc_trace_state_t * state,
     const void * blob
 ) 
 ```
@@ -341,11 +341,11 @@ int acc_trace_set_state (
 
 
 
-### function acc\_trace\_state\_bytes 
+### function dp\_acc\_trace\_state\_bytes 
 
 ```C++
-size_t acc_trace_state_bytes (
-    const acc_trace_state_t * state
+size_t dp_acc_trace_state_bytes (
+    const dp_acc_trace_state_t * state
 ) 
 ```
 
@@ -356,12 +356,12 @@ size_t acc_trace_state_bytes (
 
 
 
-### function acc\_trace\_value 
+### function dp\_acc\_trace\_value 
 
 _Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._
 ```C++
-size_t acc_trace_value (
-    acc_trace_state_t * state,
+size_t dp_acc_trace_value (
+    dp_acc_trace_state_t * state,
     size_t n,
     float * out,
     size_t max_out
@@ -408,12 +408,12 @@ True
 
 
 
-### function acc\_trace\_value\_max\_out 
+### function dp\_acc\_trace\_value\_max\_out 
 
 _Output capacity hint for value(); equals the trace length n._ 
 ```C++
-size_t acc_trace_value_max_out (
-    acc_trace_state_t * state
+size_t dp_acc_trace_value_max_out (
+    dp_acc_trace_state_t * state
 ) 
 ```
 

@@ -18,7 +18,7 @@ warnings = [
 ]
 # OBJECT-library object files do not propagate transitively through corr2d, so
 # fft2d/fft must be linked explicitly (as the spectral module does) for the
-# slow-time fft_create + corr2d FFTs. detection_core supplies det_threshold/
+# slow-time dp_fft_create + corr2d FFTs. detection_core supplies det_threshold/
 # det_pd for the auto-config. det_private.h / the detector2d header are
 # header-only (statics + the enum) → no link line needed for them.
 depends_on = [
@@ -43,7 +43,7 @@ extra_link_libs = ["Threads::Threads"]
 # This class is the CONTINUOUS front door (see docs/design/async-dsss-receiver.md's
 # Acquisition/BurstAcquisition split): always window-tiles, never
 # coherently combines across epochs -- BurstAcquisition (objects/burst_acq.toml)
-# is the other front door onto this SAME shared acq_state_t/acq_core.c engine.
+# is the other front door onto this SAME shared dp_acq_state_t/acq_core.c engine.
 # chip_rate / cn0_dbhz carry valid nonzero placeholder defaults so jm's auto-
 # doctest builds a non-NULL object; acq_create_continuous still rejects an
 # explicit 0.

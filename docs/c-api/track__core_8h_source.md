@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef TRACK_CORE_H
-#define TRACK_CORE_H
+#ifndef DP_TRACK_CORE_H
+#define DP_TRACK_CORE_H
 
 #include "doppler/clib_common.h"
 

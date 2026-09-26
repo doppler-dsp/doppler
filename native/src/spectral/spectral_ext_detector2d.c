@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* CorrDetector2DObject — wraps detector2d_state_t *       */
+/* CorrDetector2DObject — wraps dp_detector2d_state_t *       */
 /* ======================================================== */
 
 #include "doppler/detector2d/detector2d_core.h"
 
 typedef struct
 {
-  PyObject_HEAD detector2d_state_t *handle;
+  PyObject_HEAD dp_detector2d_state_t *handle;
 } CorrDetector2DObject;
 
 static void
 CorrDetector2DObj_dealloc (CorrDetector2DObject *self)
 {
   if (self->handle)
-    detector2d_destroy (self->handle);
+    dp_detector2d_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -92,13 +92,14 @@ CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
     }
   size_t ref_dim0 = (size_t)PyArray_DIM (ref_arr, 0);
   size_t ref_dim1 = (size_t)PyArray_DIM (ref_arr, 1);
-  self->handle    = detector2d_create (
+  self->handle    = dp_detector2d_create (
       (const float _Complex *)PyArray_DATA (ref_arr), ref_dim0, ref_dim1,
       dwell, noise_lo, noise_hi, noise_mode, threshold, nthreads);
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "detector2d_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_detector2d_create returned NULL");
       return -1;
     }
   return 0;
@@ -113,7 +114,7 @@ CorrDetector2DObj_reset (CorrDetector2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  detector2d_reset (self->handle);
+  dp_detector2d_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -134,7 +135,7 @@ CorrDetector2DObj_push (CorrDetector2DObject *self, PyObject *args)
     return NULL;
   size_t         n_in = (size_t)PyArray_SIZE (in_arr);
   det_result2d_t results[64];
-  size_t         n_out = detector2d_push (
+  size_t         n_out = dp_detector2d_push (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
       results, 64);
   Py_DECREF (in_arr);
@@ -317,7 +318,7 @@ CorrDetector2DObj_destroy (CorrDetector2DObject *self,
 {
   if (self->handle)
     {
-      detector2d_destroy (self->handle);
+      dp_detector2d_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -337,7 +338,7 @@ CorrDetector2DObj_exit (CorrDetector2DObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      detector2d_destroy (self->handle);
+      dp_detector2d_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -352,7 +353,7 @@ CorrDetector2DObj_state_bytes (CorrDetector2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (detector2d_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_detector2d_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -364,11 +365,11 @@ CorrDetector2DObj_get_state (CorrDetector2DObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = detector2d_state_bytes (self->handle);
+  size_t    _n = dp_detector2d_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  detector2d_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_detector2d_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -385,12 +386,13 @@ CorrDetector2DObj_set_state (CorrDetector2DObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != detector2d_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_detector2d_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (detector2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_detector2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -420,7 +422,8 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
     "push(x) -> list[tuple]\n"
     "\n"
     "Stream an arbitrary-length CF32 chunk through the 2-D detector. "
-    "Identical to detector_push() except frames are ny*nx complex samples and "
+    "Identical to dp_detector_push() except frames are ny*nx complex samples "
+    "and "
     "each detection event carries (row, col) for the peak location instead of "
     "a single lag index.  In Python the result is always a list of (row, col, "
     "peak_mag, noise_est, test_stat) tuples.\n"
@@ -544,7 +547,8 @@ static PyTypeObject CorrDetector2DObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate a 2-D streaming signal detector backed by a 2-D correlator.\n"
-    "Two-dimensional extension of detector_create(). Input frames are flat\n"
+    "Two-dimensional extension of dp_detector_create(). Input frames are "
+    "flat\n"
     "row-major CF32 arrays of length ny*nx streamed through a ring buffer. "
     "On\n"
     "every int-dump the peak flat index is decomposed into (row, col) and a\n"

@@ -27,13 +27,13 @@
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-fir_state_t *
-fir_create (const float _Complex *taps, size_t num_taps)
+dp_fir_state_t *
+dp_fir_create (const float _Complex *taps, size_t num_taps)
 {
   if (!taps || num_taps == 0)
     return NULL;
 
-  fir_state_t *f = (fir_state_t *)calloc (1, sizeof (*f));
+  dp_fir_state_t *f = (dp_fir_state_t *)calloc (1, sizeof (*f));
   if (!f)
     return NULL;
 
@@ -61,13 +61,13 @@ fir_create (const float _Complex *taps, size_t num_taps)
   return f;
 }
 
-fir_state_t *
+dp_fir_state_t *
 fir_create_real (const float *taps, size_t num_taps)
 {
   if (!taps || num_taps == 0)
     return NULL;
 
-  fir_state_t *f = (fir_state_t *)calloc (1, sizeof (*f));
+  dp_fir_state_t *f = (dp_fir_state_t *)calloc (1, sizeof (*f));
   if (!f)
     return NULL;
 
@@ -96,7 +96,7 @@ fir_create_real (const float *taps, size_t num_taps)
 }
 
 void
-fir_destroy (fir_state_t *state)
+dp_fir_destroy (dp_fir_state_t *state)
 {
   if (!state)
     return;
@@ -108,7 +108,7 @@ fir_destroy (fir_state_t *state)
 }
 
 void
-fir_reset (fir_state_t *state)
+dp_fir_reset (dp_fir_state_t *state)
 {
   if (state->delay && state->num_taps > 1)
     memset (state->delay, 0, (state->num_taps - 1) * sizeof (float _Complex));
@@ -118,7 +118,7 @@ fir_reset (fir_state_t *state)
  * samples); see dp_state.h. ─────────────────────────────────────────────── */
 
 size_t
-fir_state_bytes (const fir_state_t *state)
+dp_fir_state_bytes (const dp_fir_state_t *state)
 {
   size_t payload = (state->num_taps > 1)
                        ? (state->num_taps - 1) * sizeof (float _Complex)
@@ -127,22 +127,23 @@ fir_state_bytes (const fir_state_t *state)
 }
 
 void
-fir_get_state (const fir_state_t *state, void *blob)
+dp_fir_get_state (const dp_fir_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, fir_state_bytes (state));
-  dp_w_hdr (&w, FIR_STATE_MAGIC, FIR_STATE_VERSION, fir_state_bytes (state));
+  dp_writer_t w = dp_writer_init (blob, dp_fir_state_bytes (state));
+  dp_w_hdr (&w, FIR_STATE_MAGIC, FIR_STATE_VERSION,
+            dp_fir_state_bytes (state));
   if (state->num_taps > 1)
     dp_w_cf32 (&w, state->delay, state->num_taps - 1);
 }
 
 int
-fir_set_state (fir_state_t *state, const void *blob)
+dp_fir_set_state (dp_fir_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, fir_state_bytes (state), FIR_STATE_MAGIC,
-                              FIR_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_fir_state_bytes (state),
+                              FIR_STATE_MAGIC, FIR_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, fir_state_bytes (state));
+  dp_reader_t r = dp_reader_init (blob, dp_fir_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   if (state->num_taps > 1)
     dp_r_cf32 (&r, state->delay, state->num_taps - 1);
@@ -150,13 +151,13 @@ fir_set_state (fir_state_t *state, const void *blob)
 }
 
 size_t
-fir_get_num_taps (const fir_state_t *state)
+fir_get_num_taps (const dp_fir_state_t *state)
 {
   return state->num_taps;
 }
 
 double
-fir_dc_gain (const fir_state_t *state)
+fir_dc_gain (const dp_fir_state_t *state)
 {
   double sum = 0.0;
   for (size_t i = 0; i < state->num_taps; i++)
@@ -166,14 +167,14 @@ fir_dc_gain (const fir_state_t *state)
 }
 
 int
-fir_get_is_real (const fir_state_t *state)
+dp_fir_get_is_real (const dp_fir_state_t *state)
 {
   return state->rtaps != NULL;
 }
 
 /* FIR is 1:1; max_out == n_in which is unknown at create time. */
 size_t
-fir_execute_max_out (fir_state_t *state)
+dp_fir_execute_max_out (dp_fir_state_t *state)
 {
   (void)state;
   return 0; /* execute() emits one sample per input sample */
@@ -182,7 +183,7 @@ fir_execute_max_out (fir_state_t *state)
 /* ── Scratch management ─────────────────────────────────────────────────── */
 
 static int
-ensure_scratch (fir_state_t *f, size_t num_samples)
+ensure_scratch (dp_fir_state_t *f, size_t num_samples)
 {
   size_t needed = (f->num_taps - 1) + num_samples;
   if (needed <= f->scratch_cap)
@@ -345,8 +346,8 @@ inner_real_cf32 (const float _Complex *JM_RESTRICT buf,
 /* ── Execute ────────────────────────────────────────────────────────────── */
 
 size_t
-fir_execute (fir_state_t *state, const float _Complex *in, size_t n_in,
-             float _Complex *out)
+dp_fir_execute (dp_fir_state_t *state, const float _Complex *in, size_t n_in,
+                float _Complex *out)
 {
   if (!state || !in || !out || n_in == 0)
     return 0;

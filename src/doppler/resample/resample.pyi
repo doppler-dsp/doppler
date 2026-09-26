@@ -542,7 +542,7 @@ class CIC:
         Parameters
         ----------
         R : int
-            New decimation ratio. Same constraints as cic_create().
+            New decimation ratio. Same constraints as dp_cic_create().
 
         Examples
         --------
@@ -820,12 +820,12 @@ class RateConverter:
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
-        The control-port form of RateConverter_execute(): the fixed integer
+        The control-port form of dp_RateConverter_execute(): the fixed integer
         stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
         deviation ctrl is forwarded to the **terminal polyphase Resampler
         stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
         rate becomes `stage_rate + ctrl` for this call. This exposes the
-        fractional tail's control port that RateConverter_execute() hides: a
+        fractional tail's control port that dp_RateConverter_execute() hides: a
         timing/rate-tracking loop can decimate a high input rate cheaply
         through the HB/CIC stages and then arbitrary-rate + strobe-align in the
         last stage, updating ctrl per block.
@@ -834,7 +834,7 @@ class RateConverter:
         not the overall rate. It is meaningful only when the cascade actually
         ends in a Resampler stage; a pure integer HB/CIC cascade has no
         fractional stage to steer, so this **falls through to
-        RateConverter_execute()** (ctrl ignored).
+        dp_RateConverter_execute()** (ctrl ignored).
 
         Parameters
         ----------
@@ -870,12 +870,12 @@ class RateConverter:
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of RateConverter_execute_ctrl(), and the
-        only form a closed loop can use: a block call must know its whole
+        The per-input streaming form of dp_RateConverter_execute_ctrl(), and
+        the only form a closed loop can use: a block call must know its whole
         `ctrl` history up front, whereas a timing loop computes each correction
         *from* the outputs already emitted. Feeding a stream one sample at a
-        time through this reproduces RateConverter_execute_ctrl() on the same
-        block bit-for-bit when ctrl is held constant (the cascade is
+        time through this reproduces dp_RateConverter_execute_ctrl() on the
+        same block bit-for-bit when ctrl is held constant (the cascade is
         block-boundary invariant), so the cheap block form stays correct for
         open-loop use.
 
@@ -1101,7 +1101,7 @@ class MatchedRateConverter:
         appended as a stage).
     pulse : Literal["iandd", "rrc"], default "rrc"
         RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
-        RateConverter_create() for a plain conversion.
+        dp_RateConverter_create() for a plain conversion.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -1155,46 +1155,40 @@ class MatchedRateConverter:
         x: NDArray[np.complex64],
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Convert a block of CF32 samples through the cascade. Passes input
-        through each stage in order, ping-ponging between two intermediate
-        buffers. State persists between calls, so contiguous calls on
-        sequential blocks give the same result as one large call. Output length
-        is approximately n_in * rate.
+        """Execute.
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input.
         out : NDArray[np.complex64] | None
-            Output buffer; must hold at least max_out samples.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output array; length is approximately n_in * rate.
-
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> import numpy as np
-        >>> rc = RateConverter(rate=0.5, compensate=0)
-        >>> y = rc.execute(np.zeros(1024, dtype=np.complex64))
-        >>> y.shape, y.dtype
-        ((512,), dtype('complex64'))
-
+            Output.
         """
 
-    def execute_max_out(self) -> int:
-        """Upper bound on execute output for a standard 65536-sample block.
+    def execute_max_out(self, x_len: int) -> int:
+        """Largest number of samples execute() can return for x_len inputs.
 
-        Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses
+        Size an `out=` buffer with this before calling execute(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        execute_max_out() replaces this text.
 
-        this to pre-allocate the output buffer on the first execute call.
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples execute() will be given.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def execute_ctrl(
@@ -1202,48 +1196,19 @@ class MatchedRateConverter:
         x: NDArray[np.complex64],
         ctrl: float,
     ) -> NDArray[np.complex64]:
-        """Convert a block, steering the cascade's fractional stage by ctrl.
-
-        The control-port form of RateConverter_execute(): the fixed integer
-        stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
-        deviation ctrl is forwarded to the **terminal polyphase Resampler
-        stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
-        rate becomes `stage_rate + ctrl` for this call. This exposes the
-        fractional tail's control port that RateConverter_execute() hides: a
-        timing/rate-tracking loop can decimate a high input rate cheaply
-        through the HB/CIC stages and then arbitrary-rate + strobe-align in the
-        last stage, updating ctrl per block.
-
-        `ctrl` is referenced to the terminal stage's (post-decimation) rate,
-        not the overall rate. It is meaningful only when the cascade actually
-        ends in a Resampler stage; a pure integer HB/CIC cascade has no
-        fractional stage to steer, so this **falls through to
-        RateConverter_execute()** (ctrl ignored).
+        """Execute ctrl.
 
         Parameters
         ----------
         x : NDArray[np.complex64]
-            CF32 input block.
+            Input.
         ctrl : float
-            Rate deviation added to the terminal Resampler stage's rate.
+            Input.
 
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output array; length tracks the accumulated effective rate.
-
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> import numpy as np
-        >>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
-        >>> x = np.ones(1000, dtype=np.complex64)
-        >>> rc.execute_ctrl(x, 0.0).shape[0]    # base rate: 1000 -> 800
-        800
-        >>> rc2 = RateConverter(rate=0.8, compensate=0)
-        >>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
-        851
-
+            Output.
         """
 
     def execute_ctrl_push(
@@ -1252,74 +1217,42 @@ class MatchedRateConverter:
         ctrl: float,
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Push ONE input sample; emit whatever outputs it completes.
-
-        The per-input streaming form of RateConverter_execute_ctrl(), and the
-        only form a closed loop can use: a block call must know its whole
-        `ctrl` history up front, whereas a timing loop computes each correction
-        *from* the outputs already emitted. Feeding a stream one sample at a
-        time through this reproduces RateConverter_execute_ctrl() on the same
-        block bit-for-bit when ctrl is held constant (the cascade is
-        block-boundary invariant), so the cheap block form stays correct for
-        open-loop use.
-
-        The integer HB/CIC stages consume the sample and emit at most one
-        intermediate sample each; the terminal Resampler stage then emits 0
-        outputs (a decimator between strobes — the common case), 1, or several
-        (an interpolator). A cascade with no terminal Resampler ignores ctrl.
+        """Execute ctrl push.
 
         Parameters
         ----------
         x : complex
-            One CF32 input sample.
+            Input.
         ctrl : float
-            Rate deviation added to the terminal stage's rate for this input
-            (referenced to the terminal, post-decimation rate).
+            Input.
         out : NDArray[np.complex64] | None
-            Output buffer for any emitted samples.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            CF32 array of the outputs completed by this input (0, 1, or more).
-
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> import numpy as np
-        >>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
-        >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
-        >>> # a decimator emits 0 between strobes, 1 on a strobe:
-        >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
-        [1, 1, 1, 1, 0, 1, 1, 1, 1, 0]
-
+            Output.
         """
 
     def execute_ctrl_push_max_out(self) -> int:
-        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
-        Non-zero because the push form has no input block to size from.
+        """Largest number of samples execute_ctrl_push() can return in the
+        current state.
+
+        Size an `out=` buffer with this before calling execute_ctrl_push(), or
+        use it to allocate one up front. The bound is this object's own: what
+        it depends on is a property of the algorithm, so a header block on
+        execute_ctrl_push_max_out() replaces this text.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def reset(self) -> None:
-        """Zero all sub-stage filter memories. Rate, stage count, and stage
-        types are preserved. Processing from a reset state produces the same
-        output as a freshly created converter fed the same input. Use between
-        signal bursts to suppress transient artefacts from prior filter memory.
-
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> rc = RateConverter(rate=0.5, compensate=0)
-        >>> rc.reset()
-        >>> rc.rate
-        0.5
-
-        """
+        """Reset."""
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -1379,11 +1312,7 @@ class MatchedRateConverter:
 
     @property
     def rate(self) -> float:
-        """Get / set the output-to-input sample rate ratio. The setter rebuilds
-        the entire cascade (new stage selection, new sub-objects) and resets
-        all filter memories — equivalent to destroying and recreating with the
-        new rate. Setting rate <= 0 is silently ignored.
-        """
+        """Rate."""
     @rate.setter
     def rate(self, value: float) -> None: ...
     @property

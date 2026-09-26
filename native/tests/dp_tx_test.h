@@ -63,8 +63,8 @@
  *    quarter-amplitude input reads -21.6 dB EVM against -37.0 dB at unit — 15
  *    dB — with `lock_stat` 0.70 either way, because the loop really does lock
  *    and only the demodulation degrades. Over-drive IS flagged
- *    (`ratesync_get_clipped()`, a CIC bounds its input to +-1.0); there is no
- *    under-drive twin, tracked as gh-661. Until there is, ONE stimulus home is
+ *    (`dp_ratesync_get_clipped()`, a CIC bounds its input to +-1.0); there is
+ * no under-drive twin, tracked as gh-661. Until there is, ONE stimulus home is
  *    the defence: a level nobody can invent per-file is a level that cannot
  *    silently go wrong.
  * 2. **One timing origin.** Symbol `k` is centred at input sample
@@ -176,19 +176,19 @@ dp_tx_defaults (void)
 static inline int
 dp_tx_symbols (int8_t *out, size_t n, uint32_t seed)
 {
-  uint8_t    *chips = (uint8_t *)malloc (n ? n : 1);
-  pn_state_t *p     = pn_create (wfm_synth_mls_poly (DP_TX_PN_LENGTH),
-                                 seed ? seed : 1u, DP_TX_PN_LENGTH, 0);
+  uint8_t       *chips = (uint8_t *)malloc (n ? n : 1);
+  dp_pn_state_t *p     = dp_pn_create (wfm_synth_mls_poly (DP_TX_PN_LENGTH),
+                                       seed ? seed : 1u, DP_TX_PN_LENGTH, 0);
   if (!chips || !p)
     {
       free (chips);
-      pn_destroy (p);
+      dp_pn_destroy (p);
       return -1;
     }
-  pn_generate (p, n, chips, n);
+  dp_pn_generate (p, n, chips, n);
   for (size_t k = 0; k < n; k++)
     out[k] = chips[k] ? (int8_t)1 : (int8_t)-1;
-  pn_destroy (p);
+  dp_pn_destroy (p);
   free (chips);
   return 0;
 }

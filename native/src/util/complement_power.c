@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern double complement_power (double p, double x);
+extern double dp_complement_power (double p, double x);

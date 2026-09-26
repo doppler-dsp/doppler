@@ -11,11 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-rs_codec_state_t *
-rs_codec_create (uint32_t nroots, uint32_t symbol_bits, uint32_t field_poly,
-                 uint32_t first_root, uint32_t root_stride)
+dp_rs_codec_state_t *
+dp_rs_codec_create (uint32_t nroots, uint32_t symbol_bits, uint32_t field_poly,
+                    uint32_t first_root, uint32_t root_stride)
 {
-  rs_codec_state_t *obj = calloc (1, sizeof (*obj));
+  dp_rs_codec_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
 
@@ -38,21 +38,21 @@ rs_codec_create (uint32_t nroots, uint32_t symbol_bits, uint32_t field_poly,
 }
 
 void
-rs_codec_destroy (rs_codec_state_t *state)
+dp_rs_codec_destroy (dp_rs_codec_state_t *state)
 {
   free (state);
 }
 
 size_t
-rs_codec_encode_max_out (rs_codec_state_t *state, size_t n_in)
+dp_rs_codec_encode_max_out (dp_rs_codec_state_t *state, size_t n_in)
 {
   (void)n_in; /* a codeword is n symbols whatever it was built from */
   return state->rs.n;
 }
 
 size_t
-rs_codec_encode (rs_codec_state_t *state, const uint8_t *in, size_t n_in,
-                 uint8_t *out, size_t max_out)
+dp_rs_codec_encode (dp_rs_codec_state_t *state, const uint8_t *in, size_t n_in,
+                    uint8_t *out, size_t max_out)
 {
   const size_t n = state->rs.n;
   if (n_in != state->rs.k || max_out < n)
@@ -73,8 +73,8 @@ rs_codec_encode (rs_codec_state_t *state, const uint8_t *in, size_t n_in,
 }
 
 int
-rs_codec_decode (rs_codec_state_t *state, uint8_t *codeword,
-                 size_t codeword_len)
+dp_rs_codec_decode (dp_rs_codec_state_t *state, uint8_t *codeword,
+                    size_t codeword_len)
 {
   if (codeword_len != state->rs.n)
     return -2;
@@ -82,15 +82,15 @@ rs_codec_decode (rs_codec_state_t *state, uint8_t *codeword,
 }
 
 size_t
-rs_codec_syndromes_max_out (rs_codec_state_t *state, size_t n_in)
+dp_rs_codec_syndromes_max_out (dp_rs_codec_state_t *state, size_t n_in)
 {
   (void)n_in;
   return state->rs.code.nroots;
 }
 
 size_t
-rs_codec_syndromes (rs_codec_state_t *state, const uint8_t *in, size_t n_in,
-                    uint8_t *out, size_t max_out)
+dp_rs_codec_syndromes (dp_rs_codec_state_t *state, const uint8_t *in,
+                       size_t n_in, uint8_t *out, size_t max_out)
 {
   const size_t nroots = state->rs.code.nroots;
   if (n_in != state->rs.n || max_out < nroots)
@@ -100,8 +100,8 @@ rs_codec_syndromes (rs_codec_state_t *state, const uint8_t *in, size_t n_in,
 }
 
 int
-rs_codec_codeword_ok (rs_codec_state_t *state, const uint8_t *codeword,
-                      size_t codeword_len)
+dp_rs_codec_codeword_ok (dp_rs_codec_state_t *state, const uint8_t *codeword,
+                         size_t codeword_len)
 {
   if (codeword_len != state->rs.n)
     return 0;
@@ -109,7 +109,8 @@ rs_codec_codeword_ok (rs_codec_state_t *state, const uint8_t *codeword,
 }
 
 size_t
-rs_codec_generator (rs_codec_state_t *state, uint8_t *out, size_t out_len)
+dp_rs_codec_generator (dp_rs_codec_state_t *state, uint8_t *out,
+                       size_t out_len)
 {
   const size_t len = (size_t)state->rs.code.nroots + 1u;
   if (out_len < len)
@@ -119,31 +120,31 @@ rs_codec_generator (rs_codec_state_t *state, uint8_t *out, size_t out_len)
 }
 
 size_t
-rs_codec_get_n (const rs_codec_state_t *state)
+dp_rs_codec_get_n (const dp_rs_codec_state_t *state)
 {
   return state->rs.n;
 }
 
 size_t
-rs_codec_get_k (const rs_codec_state_t *state)
+dp_rs_codec_get_k (const dp_rs_codec_state_t *state)
 {
   return state->rs.k;
 }
 
 size_t
-rs_codec_get_e (const rs_codec_state_t *state)
+dp_rs_codec_get_e (const dp_rs_codec_state_t *state)
 {
   return state->rs.e;
 }
 
 size_t
-rs_codec_get_nroots (const rs_codec_state_t *state)
+dp_rs_codec_get_nroots (const dp_rs_codec_state_t *state)
 {
   return state->rs.code.nroots;
 }
 
 size_t
-rs_codec_get_symbol_bits (const rs_codec_state_t *state)
+dp_rs_codec_get_symbol_bits (const dp_rs_codec_state_t *state)
 {
   return state->rs.code.symbol_bits;
 }

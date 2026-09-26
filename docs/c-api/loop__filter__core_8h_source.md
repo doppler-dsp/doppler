@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef LOOP_FILTER_CORE_H
-#define LOOP_FILTER_CORE_H
+#ifndef DP_LOOP_FILTER_CORE_H
+#define DP_LOOP_FILTER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -28,21 +28,21 @@ extern "C"
     double bn;    
     double zeta;  
     double t;     
-  } loop_filter_state_t;
+  } dp_loop_filter_state_t;
 
-  void loop_filter_init(loop_filter_state_t *state, double bn, double zeta,
+  void loop_filter_init(dp_loop_filter_state_t *state, double bn, double zeta,
                         double t);
 
   double loop_filter_wn(double bn, double zeta);
 
-  loop_filter_state_t *loop_filter_create(double bn, double zeta, double t);
+  dp_loop_filter_state_t *dp_loop_filter_create(double bn, double zeta, double t);
 
-  void loop_filter_destroy(loop_filter_state_t *state);
+  void dp_loop_filter_destroy(dp_loop_filter_state_t *state);
 
-  void loop_filter_configure(loop_filter_state_t *state, double bn, double zeta,
+  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
-  void loop_filter_reset(loop_filter_state_t *state);
+  void dp_loop_filter_reset(dp_loop_filter_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Whole-struct POD snapshot (pointer-free); config fields restore identically
@@ -51,18 +51,18 @@ extern "C"
 #define LOOP_FILTER_STATE_MAGIC DP_FOURCC('L', 'P', 'F', 'L')
 #define LOOP_FILTER_STATE_VERSION 1u
 
-  size_t loop_filter_state_bytes(const loop_filter_state_t *state);
-  void loop_filter_get_state(const loop_filter_state_t *state, void *blob);
-  int loop_filter_set_state(loop_filter_state_t *state, const void *blob);
+  size_t dp_loop_filter_state_bytes(const dp_loop_filter_state_t *state);
+  void dp_loop_filter_get_state(const dp_loop_filter_state_t *state, void *blob);
+  int dp_loop_filter_set_state(dp_loop_filter_state_t *state, const void *blob);
 
   JM_FORCEINLINE JM_HOT double
-  loop_filter_step (loop_filter_state_t *state, double x)
+  dp_loop_filter_step (dp_loop_filter_state_t *state, double x)
   {
     state->integ += state->ki * x;
     return state->integ + state->kp * x;
   }
 
-  void loop_filter_steps (loop_filter_state_t *state, const double *x,
+  void dp_loop_filter_steps (dp_loop_filter_state_t *state, const double *x,
                           double *out, size_t n);
 
 #ifdef __cplusplus

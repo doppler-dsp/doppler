@@ -25,12 +25,12 @@
  * (its (pfa=1e-3, pd=0.9) sizing at rolloff 0.35 / esno_min 10 dB), n_up = 1,
  * n_down = 8.
  *
- * The (pfa, pd) SIZING entry point (symsync_configure_lock) is deliberately
+ * The (pfa, pd) SIZING entry point (dp_symsync_configure_lock) is deliberately
  * NOT mirrored: its constants were calibrated against symsync's own geometry
  * by Monte Carlo, and re-exposing the formula for a different front end
  * without repeating that validation would be asserting a calibration nobody
- * measured. ratesync_configure_lock_raw() exposes every knob for a caller that
- * sizes its own. */
+ * measured. dp_ratesync_configure_lock_raw() exposes every knob for a caller
+ * that sizes its own. */
 #define RATESYNC_LOCK_DEFAULT_AVGS 133u
 #define RATESYNC_LOCK_DEFAULT_THRESH 0.311
 #define RATESYNC_LOCK_DEFAULT_N_UP 1u
@@ -87,8 +87,8 @@ ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
    referenced to, and the tap count that sets the prime length. Read once at
    create so the hot path never walks the cascade. */
 void
-ratesync_loop_bind_cascade (ratesync_loop_t             *l,
-                            const RateConverter_state_t *rc)
+ratesync_loop_bind_cascade (ratesync_loop_t                *l,
+                            const dp_RateConverter_state_t *rc)
 {
   size_t                ntaps     = 0;
   double                term_rate = 0.0;
@@ -123,7 +123,7 @@ ratesync_loop_bind_cascade (ratesync_loop_t             *l,
 void
 ratesync_loop_reset (ratesync_loop_t *l)
 {
-  loop_filter_reset (&l->lf);
+  dp_loop_filter_reset (&l->lf);
   l->ctrl       = 0.0;
   l->last_error = 0.0;
   l->rate_est   = l->sps;
@@ -135,7 +135,7 @@ ratesync_loop_reset (ratesync_loop_t *l)
   l->lock_sum   = 0.0;
   l->lock_count = 0;
   l->lock_stat  = 0.0;
-  lockdet_reset (&l->lock);
+  dp_lockdet_reset (&l->lock);
   /* Terminal-stage OUTPUTS to discard while the cascade's delay lines fill.
      Counting outputs rather than strobes is what makes this rate-independent:
      the bank spans num_taps of its own input samples, and since the terminal
@@ -170,7 +170,7 @@ ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
   l->lock_sum   = 0.0;
   l->lock_count = 0;
   l->lock_stat  = 0.0;
-  lockdet_reset (&l->lock);
+  dp_lockdet_reset (&l->lock);
 }
 
 void
@@ -243,7 +243,7 @@ ratesync_loop_state_bytes (const ratesync_loop_t *l)
          + (RATESYNC_MAX_M / 2 + 1 + 1)
                * sizeof (float _Complex) /* ring+prev */
          + sizeof (uint32_t) * 2         /* lockdet cnt, locked */
-         + loop_filter_state_bytes (&l->lf);
+         + dp_loop_filter_state_bytes (&l->lf);
 }
 
 void
@@ -266,7 +266,7 @@ ratesync_loop_get_state (const ratesync_loop_t *l, void *blob)
   dp_w_bytes (&w, &l->prev_on, sizeof (l->prev_on));
   dp_w_u32 (&w, l->lock.cnt);
   dp_w_u32 (&w, (uint32_t)l->lock.locked);
-  loop_filter_get_state (&l->lf, (char *)blob + w.off);
+  dp_loop_filter_get_state (&l->lf, (char *)blob + w.off);
 }
 
 int
@@ -294,16 +294,16 @@ ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
   dp_r_bytes (&r, &l->prev_on, sizeof (l->prev_on));
   l->lock.cnt    = dp_r_u32 (&r);
   l->lock.locked = (int)dp_r_u32 (&r);
-  return loop_filter_set_state (&l->lf, (const char *)blob + r.off);
+  return dp_loop_filter_set_state (&l->lf, (const char *)blob + r.off);
 }
 
 /* ------------------------------------------------------------------
  * RateSync — the cascade, plus the loop above
  * ------------------------------------------------------------------ */
 
-ratesync_state_t *
-ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
-                 size_t num_phases, double bn, double zeta, int ted)
+dp_ratesync_state_t *
+dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
+                    size_t num_phases, double bn, double zeta, int ted)
 {
   /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
   if (!(beta >= 0.0) || !(beta <= 1.0) || span < 1 || m < 2u
@@ -319,7 +319,7 @@ ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
   if (!(sps >= (double)m))
     return NULL;
 
-  ratesync_state_t *s = calloc (1, sizeof (*s));
+  dp_ratesync_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -346,35 +346,35 @@ ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
 }
 
 void
-ratesync_destroy (ratesync_state_t *state)
+dp_ratesync_destroy (dp_ratesync_state_t *state)
 {
   if (!state)
     return;
-  RateConverter_destroy (state->mf);
+  dp_RateConverter_destroy (state->mf);
   free (state);
 }
 
 void
-ratesync_reset (ratesync_state_t *state)
+dp_ratesync_reset (dp_ratesync_state_t *state)
 {
-  RateConverter_reset (state->mf);
+  dp_RateConverter_reset (state->mf);
   ratesync_loop_reset (&state->loop);
 }
 
 size_t
-ratesync_steps_max_out (ratesync_state_t *state)
+dp_ratesync_steps_max_out (dp_ratesync_state_t *state)
 {
   (void)state;
   return 0; /* sps >= m >= 2, so symbols <= inputs; the caller's length wins */
 }
 
 size_t
-ratesync_steps (ratesync_state_t *state, const float _Complex *x, size_t x_len,
-                float _Complex *out, size_t max_out)
+dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
+                   size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t n = 0;
   /* Specialise on the configured detector so the branch folds away, exactly
-     as symsync_steps does. */
+     as dp_symsync_steps does. */
   if (state->loop.ted == RATESYNC_TED_DTTL)
     {
       for (size_t i = 0; i < x_len && n < max_out; i++)
@@ -399,71 +399,71 @@ ratesync_steps (ratesync_state_t *state, const float _Complex *x, size_t x_len,
 }
 
 void
-ratesync_configure (ratesync_state_t *state, double bn, double zeta)
+dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta)
 {
   ratesync_loop_configure (&state->loop, bn, zeta);
 }
 
 double
-ratesync_get_bn (const ratesync_state_t *state)
+dp_ratesync_get_bn (const dp_ratesync_state_t *state)
 {
   return state->loop.bn;
 }
 
 void
-ratesync_set_bn (ratesync_state_t *state, double val)
+dp_ratesync_set_bn (dp_ratesync_state_t *state, double val)
 {
-  ratesync_configure (state, val, state->loop.zeta);
+  dp_ratesync_configure (state, val, state->loop.zeta);
 }
 
 double
-ratesync_get_timing_error (const ratesync_state_t *state)
+dp_ratesync_get_timing_error (const dp_ratesync_state_t *state)
 {
   return state->loop.last_error;
 }
 
 double
-ratesync_get_rate (const ratesync_state_t *state)
+dp_ratesync_get_rate (const dp_ratesync_state_t *state)
 {
   return state->loop.rate_est;
 }
 
 double
-ratesync_get_ctrl (const ratesync_state_t *state)
+dp_ratesync_get_ctrl (const dp_ratesync_state_t *state)
 {
   return state->loop.ctrl;
 }
 
 double
-ratesync_get_lock_stat (const ratesync_state_t *state)
+dp_ratesync_get_lock_stat (const dp_ratesync_state_t *state)
 {
   return state->loop.lock_stat;
 }
 
 int
-ratesync_get_locked (const ratesync_state_t *state)
+dp_ratesync_get_locked (const dp_ratesync_state_t *state)
 {
   return state->loop.lock.locked;
 }
 
 int
-ratesync_get_clipped (const ratesync_state_t *state)
+dp_ratesync_get_clipped (const dp_ratesync_state_t *state)
 {
-  return RateConverter_get_clipped (state->mf);
+  return dp_RateConverter_get_clipped (state->mf);
 }
 
 void
-ratesync_configure_lock_raw (ratesync_state_t *state, size_t avgs,
-                             double up_thresh, double down_thresh,
-                             uint32_t n_up, uint32_t n_down)
+dp_ratesync_configure_lock_raw (dp_ratesync_state_t *state, size_t avgs,
+                                double up_thresh, double down_thresh,
+                                uint32_t n_up, uint32_t n_down)
 {
   ratesync_loop_configure_lock_raw (&state->loop, avgs, up_thresh, down_thresh,
                                     n_up, n_down);
 }
 
 int
-ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
-                        const char *prefix, uint32_t decim)
+dp_ratesync_set_telemetry (dp_ratesync_state_t *state, dp_tlm_t *tlm,
+                           const char *prefix, uint32_t decim)
 {
   return ratesync_loop_set_telemetry (&state->loop, tlm, prefix, decim);
 }
@@ -476,37 +476,37 @@ ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
  * mismatched cascade or loop is rejected rather than reinterpreted. */
 
 size_t
-ratesync_state_bytes (const ratesync_state_t *state)
+dp_ratesync_state_bytes (const dp_ratesync_state_t *state)
 {
-  return sizeof (dp_state_hdr_t) + RateConverter_state_bytes (state->mf)
+  return sizeof (dp_state_hdr_t) + dp_RateConverter_state_bytes (state->mf)
          + ratesync_loop_state_bytes (&state->loop);
 }
 
 void
-ratesync_get_state (const ratesync_state_t *state, void *blob)
+dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob)
 {
-  const size_t total = ratesync_state_bytes (state);
+  const size_t total = dp_ratesync_state_bytes (state);
   dp_writer_t  w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, RATESYNC_STATE_MAGIC, RATESYNC_STATE_VERSION, total);
   char *p = (char *)blob + w.off;
-  RateConverter_get_state (state->mf, p);
-  p += RateConverter_state_bytes (state->mf);
+  dp_RateConverter_get_state (state->mf, p);
+  p += dp_RateConverter_state_bytes (state->mf);
   ratesync_loop_get_state (&state->loop, p);
 }
 
 int
-ratesync_set_state (ratesync_state_t *state, const void *blob)
+dp_ratesync_set_state (dp_ratesync_state_t *state, const void *blob)
 {
-  const size_t total = ratesync_state_bytes (state);
+  const size_t total = dp_ratesync_state_bytes (state);
   int          rc    = dp_state_validate (blob, total, RATESYNC_STATE_MAGIC,
                                           RATESYNC_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
 
   const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
-  rc            = RateConverter_set_state (state->mf, p);
+  rc            = dp_RateConverter_set_state (state->mf, p);
   if (rc != DP_OK)
     return rc;
-  p += RateConverter_state_bytes (state->mf);
+  p += dp_RateConverter_state_bytes (state->mf);
   return ratesync_loop_set_state (&state->loop, p);
 }

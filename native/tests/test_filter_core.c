@@ -31,7 +31,8 @@
 static size_t
 taps_for (double fpass, double fstop, double atten_db)
 {
-  return (size_t)(kaiser_num_taps (1, atten_db, fpass / 2.0, fstop / 2.0) | 1);
+  return (size_t)(dp_kaiser_num_taps (1, atten_db, fpass / 2.0, fstop / 2.0)
+                  | 1);
 }
 
 /* |H(f)| of a real FIR at normalised frequency f (cycles/sample). */
@@ -67,7 +68,7 @@ main (void)
 
         for (size_t i = 0; i < n; i++)
           h[i] = -12345.0f;
-        design_lowpass (fp[c], fs_[c], at[c], h);
+        dp_design_lowpass (fp[c], fs_[c], at[c], h);
 
         /* Unity DC gain: the sum of the taps is 1, so the filter does
            not change the level of a signal it passes. It is a windowed
@@ -93,7 +94,7 @@ main (void)
   {
     const double fpass = 0.20, fstop = 0.30, atten = 60.0;
     const size_t n = taps_for (fpass, fstop, atten);
-    design_lowpass (fpass, fstop, atten, h);
+    dp_design_lowpass (fpass, fstop, atten, h);
 
     /* DC and the passband edge are both within a fraction of a dB of
        unity -- the edges are NYQUIST-normalised, so the frequency in
@@ -123,7 +124,7 @@ main (void)
     const size_t n = taps_for (0.20, 0.30, 60.0);
     for (size_t i = 0; i < n + 8; i++)
       h[i] = -12345.0f;
-    design_lowpass (0.20, 0.30, 60.0, h);
+    dp_design_lowpass (0.20, 0.30, 60.0, h);
 
     /* Every tap inside the length was written... */
     for (size_t i = 0; i < n; i++)

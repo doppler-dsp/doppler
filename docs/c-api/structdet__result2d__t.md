@@ -8,7 +8,7 @@
 
 
 
-_Detection event returned by_ [_**detector2d\_push()**_](detector2d__core_8h.md#function-detector2d_push) _._[More...](#detailed-description)
+_Detection event returned by_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _._[More...](#detailed-description)
 
 * `#include <detector2d_core.h>`
 

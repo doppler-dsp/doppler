@@ -9,7 +9,7 @@
  * shared TX/RX frame kernel (dp_crc16.h), so Python frame builders and
  * validators use the exact bits burst_demod checks. */
 uint16_t
-crc16 (const uint8_t *bits, size_t bits_len)
+dp_crc16 (const uint8_t *bits, size_t bits_len)
 {
   return dp_crc16_ccitt (bits, bits_len);
 }

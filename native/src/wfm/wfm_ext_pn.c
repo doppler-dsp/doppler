@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
-/* PNObject — wraps pn_state_t *       */
+/* PNObject — wraps dp_pn_state_t *       */
 /* ======================================================== */
 
 #include "doppler/pn/pn_core.h"
 
 typedef struct
 {
-  PyObject_HEAD pn_state_t *handle;
+  PyObject_HEAD dp_pn_state_t *handle;
 } PNObject;
 
 static void
 PNObj_dealloc (PNObject *self)
 {
   if (self->handle)
-    pn_destroy (self->handle);
+    dp_pn_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -66,11 +66,11 @@ PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
      no maximal-length sequence and poly stays 0. Not expressible in the
      manifest; re-apply after any regeneration of this fragment. */
   if (poly == 0 && length >= 2)
-    poly = mls_poly (length);
-  self->handle = pn_create (poly, seed, length, lfsr);
+    poly = dp_mls_poly (length);
+  self->handle = dp_pn_create (poly, seed, length, lfsr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "pn_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_pn_create returned NULL");
       return -1;
     }
   return 0;
@@ -84,7 +84,7 @@ PNObj_reset (PNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  pn_reset (self->handle);
+  dp_pn_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -96,7 +96,7 @@ PNObj_generate_max_out (PNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (pn_generate_max_out (self->handle));
+  return PyLong_FromSize_t (dp_pn_generate_max_out (self->handle));
 }
 
 static PyObject *
@@ -133,7 +133,7 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = pn_generate_max_out (self->handle);
+      size_t _omax    = dp_pn_generate_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -142,8 +142,8 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t    n_out  = pn_generate (self->handle, (size_t)n,
-                                      (uint8_t *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_pn_generate (self->handle, (size_t)n,
+                                     (uint8_t *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -156,7 +156,7 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = pn_generate_max_out (self->handle);
+  size_t _cap  = dp_pn_generate_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -166,7 +166,7 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = pn_generate (self->handle, (size_t)n, _d0, _cap);
+  size_t   n_out = dp_pn_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -191,7 +191,7 @@ PNObj_state_bytes (PNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (pn_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_pn_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -202,11 +202,11 @@ PNObj_get_state (PNObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = pn_state_bytes (self->handle);
+  size_t    _n = dp_pn_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  pn_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_pn_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -223,12 +223,12 @@ PNObj_set_state (PNObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != pn_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_pn_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (pn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_pn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -241,7 +241,7 @@ PNObj_destroy (PNObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      pn_destroy (self->handle);
+      dp_pn_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -260,7 +260,7 @@ PNObj_exit (PNObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      pn_destroy (self->handle);
+      dp_pn_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

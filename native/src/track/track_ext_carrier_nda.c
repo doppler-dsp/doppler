@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* CarrierNdaObject — wraps carrier_nda_state_t *       */
+/* CarrierNdaObject — wraps dp_carrier_nda_state_t *       */
 /* ======================================================== */
 
 #include "doppler/carrier_nda/carrier_nda_core.h"
 
 typedef struct
 {
-  PyObject_HEAD carrier_nda_state_t *handle;
+  PyObject_HEAD dp_carrier_nda_state_t *handle;
 } CarrierNdaObject;
 
 static void
 CarrierNdaObj_dealloc (CarrierNdaObject *self)
 {
   if (self->handle)
-    carrier_nda_destroy (self->handle);
+    dp_carrier_nda_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -49,10 +49,11 @@ CarrierNdaObj_init (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
                                     &init_norm_freq, &sps_raw, &n, &m))
     return -1;
   size_t sps   = (size_t)sps_raw;
-  self->handle = carrier_nda_create (bn, zeta, init_norm_freq, sps, n, m);
+  self->handle = dp_carrier_nda_create (bn, zeta, init_norm_freq, sps, n, m);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "carrier_nda_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_carrier_nda_create returned NULL");
       return -1;
     }
   return 0;
@@ -67,7 +68,7 @@ CarrierNdaObj_steps_max_out (CarrierNdaObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (carrier_nda_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_carrier_nda_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -113,7 +114,7 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = carrier_nda_steps_max_out (self->handle);
+      size_t _omax    = dp_carrier_nda_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -135,7 +136,7 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = carrier_nda_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_carrier_nda_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -150,7 +151,7 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = carrier_nda_steps_max_out (self->handle);
+  size_t _cap  = dp_carrier_nda_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -169,7 +170,7 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = carrier_nda_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_carrier_nda_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -223,7 +224,7 @@ CarrierNdaObj_set_telemetry (CarrierNdaObject *self, PyObject *args,
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc = carrier_nda_set_telemetry (self->handle, tlm, prefix, decim);
+  int _rc = dp_carrier_nda_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
@@ -252,8 +253,8 @@ CarrierNdaObj_configure_lock (CarrierNdaObject *self, PyObject *args,
     return NULL;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  carrier_nda_configure_lock (self->handle, up_thresh, down_thresh, n_up,
-                              n_down);
+  dp_carrier_nda_configure_lock (self->handle, up_thresh, down_thresh, n_up,
+                                 n_down);
   Py_RETURN_NONE;
 }
 
@@ -265,7 +266,7 @@ CarrierNdaObj_reset (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  carrier_nda_reset (self->handle);
+  dp_carrier_nda_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -278,7 +279,7 @@ CarrierNdaObj_state_bytes (CarrierNdaObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (carrier_nda_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_carrier_nda_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -289,11 +290,11 @@ CarrierNdaObj_get_state (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = carrier_nda_state_bytes (self->handle);
+  size_t    _n = dp_carrier_nda_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  carrier_nda_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_carrier_nda_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -310,12 +311,13 @@ CarrierNdaObj_set_state (CarrierNdaObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != carrier_nda_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_carrier_nda_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (carrier_nda_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_carrier_nda_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -332,7 +334,7 @@ CarrierNda_getprop_norm_freq (CarrierNdaObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_nda_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_carrier_nda_get_norm_freq (self->handle));
 }
 static int
 CarrierNda_setprop_norm_freq (CarrierNdaObject *self, PyObject *value,
@@ -346,7 +348,7 @@ CarrierNda_setprop_norm_freq (CarrierNdaObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  carrier_nda_set_norm_freq (self->handle, v);
+  dp_carrier_nda_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -358,7 +360,7 @@ CarrierNda_getprop_lock (CarrierNdaObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_nda_get_lock (self->handle));
+  return PyFloat_FromDouble (dp_carrier_nda_get_lock (self->handle));
 }
 static PyObject *
 CarrierNda_getprop_locked (CarrierNdaObject *self, void *Py_UNUSED (closure))
@@ -369,7 +371,7 @@ CarrierNda_getprop_locked (CarrierNdaObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(carrier_nda_get_locked (self->handle)));
+  return PyBool_FromLong ((long)(dp_carrier_nda_get_locked (self->handle)));
 }
 static PyObject *
 CarrierNda_getprop_last_error (CarrierNdaObject *self,
@@ -381,7 +383,7 @@ CarrierNda_getprop_last_error (CarrierNdaObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_nda_get_last_error (self->handle));
+  return PyFloat_FromDouble (dp_carrier_nda_get_last_error (self->handle));
 }
 static PyObject *
 CarrierNda_getprop_bn (CarrierNdaObject *self, void *Py_UNUSED (closure))
@@ -392,7 +394,7 @@ CarrierNda_getprop_bn (CarrierNdaObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (carrier_nda_get_bn (self->handle));
+  return PyFloat_FromDouble (dp_carrier_nda_get_bn (self->handle));
 }
 static int
 CarrierNda_setprop_bn (CarrierNdaObject *self, PyObject *value,
@@ -406,7 +408,7 @@ CarrierNda_setprop_bn (CarrierNdaObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  carrier_nda_set_bn (self->handle, v);
+  dp_carrier_nda_set_bn (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -418,7 +420,7 @@ CarrierNda_getprop_m (CarrierNdaObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)carrier_nda_get_m (self->handle));
+  return PyLong_FromLong ((long)dp_carrier_nda_get_m (self->handle));
 }
 static PyObject *
 CarrierNda_getprop_n (CarrierNdaObject *self, void *Py_UNUSED (closure))
@@ -429,7 +431,7 @@ CarrierNda_getprop_n (CarrierNdaObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)carrier_nda_get_n (self->handle));
+  return PyLong_FromLong ((long)dp_carrier_nda_get_n (self->handle));
 }
 static PyObject *
 CarrierNda_getprop_sps (CarrierNdaObject *self, void *Py_UNUSED (closure))
@@ -441,7 +443,7 @@ CarrierNda_getprop_sps (CarrierNdaObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)carrier_nda_get_sps (self->handle));
+      (unsigned long long)dp_carrier_nda_get_sps (self->handle));
 }
 
 static PyGetSetDef CarrierNda_getset[]
@@ -471,7 +473,7 @@ CarrierNdaObj_destroy (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      carrier_nda_destroy (self->handle);
+      dp_carrier_nda_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -490,7 +492,7 @@ CarrierNdaObj_exit (CarrierNdaObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      carrier_nda_destroy (self->handle);
+      dp_carrier_nda_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -634,7 +636,7 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "n_up rather than lower it unless you have re-measured. A live lock "
     "survives the re-tune; the in-flight verify run restarts.\n"
     "\n"
-    "Full lockdet control, mirroring costas_configure_lock(): a split\n"
+    "Full lockdet control, mirroring dp_costas_configure_lock(): a split\n"
     "declare/drop threshold pair on the lock-signal EMA (level hysteresis)\n"
     "and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32\n"
     "down) start from MpskReceiver's own pre-existing acquisition<-> "

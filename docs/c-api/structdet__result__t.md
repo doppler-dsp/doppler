@@ -8,7 +8,7 @@
 
 
 
-_Detection event returned by_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _._[More...](#detailed-description)
+_Detection event returned by_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _._[More...](#detailed-description)
 
 * `#include <detector_core.h>`
 

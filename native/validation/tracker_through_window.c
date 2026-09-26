@@ -24,7 +24,7 @@
  * shipped window (`wfm_synth_set_dsss_window`: 450 code-only symbols of
  * every 4950 -- a 1.83 s frame, a 0.17 s window); noise from the shipped
  * awgn generator sized by awgn_amplitude_for_snr() from the C/N0. The
- * receiver is the SEARCHING flavor (`async_dsss_receiver_create`),
+ * receiver is the SEARCHING flavor (`dp_async_dsss_receiver_create`),
  * seeded once with what the searcher hands it: the shipped `acq`
  * continuous engine runs on the same received blocks until its first hit,
  * and acq_build_handoff() of that hit is the seed -- the pool's own path
@@ -159,12 +159,12 @@ typedef struct
 
 /* The emitter: the shipped continuous-DSSS synth, clean (no AWGN child),
    PRBS data from its own PN register, seeded per trial, with the frame. */
-static wfm_synth_state_t *
+static dp_wfm_synth_state_t *
 make_emitter (const uint8_t *code, uint32_t seed)
 {
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                          seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                             seed, (int)SPC, 15, 0, 0, 0.0);
   /* Valid constants: the synth takes them (the caller requires `syn`). */
   (void)wfm_synth_set_dsss_cont (syn, code, SF, CPS, WFM_DSSS_DATA_PRBS, NULL,
                                  0);
@@ -179,13 +179,13 @@ static double g_d0_ppm      = 0.0; /* --trace: the channel's own numbers  */
 static double g_ppm_s       = RAMP_PPM_S;
 static size_t g_trace_every = 0; /* trace line cadence, blocks; 0 = none  */
 
-static async_dsss_receiver_state_t *
+static dp_async_dsss_receiver_state_t *
 make_rx (const uint8_t *code, double cn0_dbhz, int cond)
 {
   /* The searching flavour, seeded from outside (the hand-off flavour that
      carried this validator was retired, design section 12.28; seed() is a
      method of both, and the refine chain under test is the same). */
-  return async_dsss_receiver_create (
+  return dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 100.0, 4, 8,
       0, 0.5, 4, 14.0, 64, 8, false, 100000,
       cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S);
@@ -214,21 +214,22 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
       = lock_blocks
         + (size_t)(((double)n_frames + 1.0) * frame_s * FS / (double)TE);
 
-  wfm_synth_state_t *syn = make_emitter (code, seed);
-  awgn_state_t      *g   = awgn_create (
+  dp_wfm_synth_state_t *syn = make_emitter (code, seed);
+  dp_awgn_state_t      *g   = dp_awgn_create (
       seed * 7919u + 1u,
       awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
-  async_dsss_receiver_state_t *rx = make_rx (code, cn0_dbhz, cond);
+  dp_async_dsss_receiver_state_t *rx = make_rx (code, cn0_dbhz, cond);
   /* The channel: the emitter's clean signal through it, the noise added at
      the receiver (it does not ride the emitter's clock). The table's
      conditions are fixed; --trace hands the RATE condition its own numbers. */
-  const double             d0   = cond == COND_OFFSET ? RAMP_D0_PPM
-                                  : cond == COND_RATE ? g_d0_ppm
-                                                      : 0.0;
-  const double             rate = cond == COND_RATE ? g_ppm_s : 0.0;
-  doppler_channel_state_t *ch
-      = cond != COND_STATIC ? doppler_channel_create (FS, CARRIER_HZ, d0, rate)
-                            : NULL;
+  const double                d0   = cond == COND_OFFSET ? RAMP_D0_PPM
+                                     : cond == COND_RATE ? g_d0_ppm
+                                                         : 0.0;
+  const double                rate = cond == COND_RATE ? g_ppm_s : 0.0;
+  dp_doppler_channel_state_t *ch
+      = cond != COND_STATIC
+            ? dp_doppler_channel_create (FS, CARRIER_HZ, d0, rate)
+            : NULL;
   const double   f0  = d0 * 1e-6 * CARRIER_HZ;
   float complex *sig = dp_xmalloc (TE * sizeof *sig);
   float complex *blk = dp_xmalloc (TE * sizeof *blk);
@@ -236,14 +237,14 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
      buffer hands the receiver whole epochs. */
   float complex *fifo = dp_xmalloc (4 * TE * sizeof *fifo);
   size_t         pend = 0;
-  size_t         cap  = async_dsss_receiver_steps_max_out (rx);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
   float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
   DP_REQUIRE_MSG (syn && g && rx && out->frames && (cond == COND_STATIC || ch),
                   "the emitter, the noise, the channel and the receiver open");
   /* The searcher that seeds it: the shipped continuous engine over SPEC's
      Doppler span (one native span without a channel), fed the same blocks
      until its first hit. */
-  acq_state_t *acq = acq_create_continuous (
+  dp_acq_state_t *acq = acq_create_continuous (
       code, SF, SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
       cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,
       0.9, 0, 1, 0.0);
@@ -251,7 +252,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   /* Through the channel the code clock rides the carrier's Doppler: the
      searcher is told the carrier, as the receiver is (#1254, #1256). */
   if (cond != COND_STATIC)
-    DP_REQUIRE (acq_set_carrier_freq_hz (acq, CARRIER_HZ) == DP_OK);
+    DP_REQUIRE (dp_acq_set_carrier_freq_hz (acq, CARRIER_HZ) == DP_OK);
   int seeded = 0;
 
   uint64_t n        = 0; /* received samples handed to the receiver */
@@ -264,9 +265,9 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   int      done     = 0;
   for (size_t b = 0; b < max_blocks && !done; b++)
     {
-      wfm_synth_steps (syn, sig, TE);
+      dp_wfm_synth_steps (syn, sig, TE);
       if (ch)
-        pend += doppler_channel_execute (ch, sig, TE, fifo + pend, 2 * TE);
+        pend += dp_doppler_channel_execute (ch, sig, TE, fifo + pend, 2 * TE);
       else
         {
           memcpy (fifo + pend, sig, TE * sizeof *sig);
@@ -277,7 +278,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
       memcpy (blk, fifo, TE * sizeof *blk);
       pend -= TE;
       memmove (fifo, fifo + TE, pend * sizeof *fifo);
-      awgn_generate (g, TE, sig, TE);
+      dp_awgn_generate (g, TE, sig, TE);
       for (size_t i = 0; i < TE; i++)
         blk[i] += sig[i];
       n += TE;
@@ -287,7 +288,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
              hand-off record is the seed, applied at this block's end (the
              engine consumes whole epochs, and a block is one). */
           acq_result_t hit;
-          if (acq_push (acq, blk, TE, &hit, 1) == 0)
+          if (dp_acq_push (acq, blk, TE, &hit, 1) == 0)
             {
               if (b + 1 >= lock_blocks)
                 break; /* never acquired */
@@ -295,9 +296,9 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
             }
           acq_handoff_t ho;
           acq_build_handoff (acq, &hit, SF, SPC, &ho);
-          DP_REQUIRE_MSG (async_dsss_receiver_seed (rx, ho.chip_phase,
-                                                    ho.doppler_hz_est,
-                                                    ho.cn0_dbhz_est)
+          DP_REQUIRE_MSG (dp_async_dsss_receiver_seed (rx, ho.chip_phase,
+                                                       ho.doppler_hz_est,
+                                                       ho.cn0_dbhz_est)
                               == 0,
                           "the seeded receiver takes the searcher's seed");
           out->seed_s = (double)n / FS;
@@ -312,11 +313,11 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
                     ho.cn0_dbhz_est);
           continue;
         }
-      (void)async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
-      const int code_on = async_dsss_receiver_get_code_locked (rx) == 1;
-      const int sym_on  = async_dsss_receiver_get_locked (rx) == 1;
-      const int trk     = async_dsss_receiver_get_tracking (rx) == 1;
-      const int lost    = async_dsss_receiver_get_lost (rx) == 1;
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
+      const int code_on = dp_async_dsss_receiver_get_code_locked (rx) == 1;
+      const int sym_on  = dp_async_dsss_receiver_get_locked (rx) == 1;
+      const int trk     = dp_async_dsss_receiver_get_tracking (rx) == 1;
+      const int lost    = dp_async_dsss_receiver_get_lost (rx) == 1;
       const int win     = in_window (n - TE / 2);
       if (g_trace_every && b % g_trace_every == 0)
         {
@@ -325,19 +326,19 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
                   "err %+.3f  truth %9.1f Hz  code rate %.6f  chip %8.2f  "
                   "lock %.3f/%.3f  code %d sym %d  win %d\n",
                   t,
-                  async_dsss_receiver_get_lost (rx) == 1       ? "lost"
-                  : async_dsss_receiver_get_tracking (rx) == 1 ? "tracking"
-                                                               : "refining",
-                  async_dsss_receiver_get_doppler_hz (rx),
-                  async_dsss_receiver_get_nco_freq (rx),
-                  async_dsss_receiver_get_mpsk_last_error (rx),
+                  dp_async_dsss_receiver_get_lost (rx) == 1       ? "lost"
+                  : dp_async_dsss_receiver_get_tracking (rx) == 1 ? "tracking"
+                                                                  : "refining",
+                  dp_async_dsss_receiver_get_doppler_hz (rx),
+                  dp_async_dsss_receiver_get_nco_freq (rx),
+                  dp_async_dsss_receiver_get_mpsk_last_error (rx),
                   ch ? CARRIER_HZ * (doppler_channel_scale (ch, t) - 1.0)
                      : 0.0,
-                  async_dsss_receiver_get_code_rate (rx),
-                  async_dsss_receiver_get_chip_phase (rx),
-                  async_dsss_receiver_get_lock_metric (rx),
-                  async_dsss_receiver_get_lock_threshold (rx), code_on, sym_on,
-                  win);
+                  dp_async_dsss_receiver_get_code_rate (rx),
+                  dp_async_dsss_receiver_get_chip_phase (rx),
+                  dp_async_dsss_receiver_get_lock_metric (rx),
+                  dp_async_dsss_receiver_get_lock_threshold (rx), code_on,
+                  sym_on, win);
         }
 
       if (!out->settled)
@@ -409,20 +410,20 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   free (fifo);
   free (blk);
   free (sig);
-  doppler_channel_destroy (ch);
-  acq_destroy (acq);
-  async_dsss_receiver_destroy (rx);
-  awgn_destroy (g);
-  wfm_synth_destroy (syn);
+  dp_doppler_channel_destroy (ch);
+  dp_acq_destroy (acq);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
+  dp_wfm_synth_destroy (syn);
   return 0;
 }
 
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 static double

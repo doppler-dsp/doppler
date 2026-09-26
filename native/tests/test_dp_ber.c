@@ -63,27 +63,27 @@ test_theory (void)
 {
   /* The textbook anchors. BPSK hits 1e-5 at 9.6 dB; QPSK's SER is ~2x BPSK's
      at the same Es/N0 because it carries two bits in the same energy. */
-  DP_CHECK (fabs (ber_theory_ser (2, pow (10.0, 0.96)) - 9.7e-6) < 1.0e-6);
-  DP_CHECK_NEAR (ber_theory_ser (4, 10.0), 2.0 * dp_ber_qfunc (sqrt (10.0)),
+  DP_CHECK (fabs (dp_ber_theory_ser (2, pow (10.0, 0.96)) - 9.7e-6) < 1.0e-6);
+  DP_CHECK_NEAR (dp_ber_theory_ser (4, 10.0), 2.0 * dp_ber_qfunc (sqrt (10.0)),
                  1e-15);
-  DP_CHECK (ber_theory_ser (8, 10.0) > ber_theory_ser (4, 10.0));
+  DP_CHECK (dp_ber_theory_ser (8, 10.0) > dp_ber_theory_ser (4, 10.0));
 
   /* Gray QPSK is BPSK per bit: same BER at the same Eb/N0, i.e. QPSK at
      3 dB more Es/N0 than BPSK. */
-  DP_CHECK_NEAR (ber_theory_ber (4, 2.0 * 10.0), ber_theory_ber (2, 10.0),
-                 1e-12);
+  DP_CHECK_NEAR (dp_ber_theory_ber (4, 2.0 * 10.0),
+                 dp_ber_theory_ber (2, 10.0), 1e-12);
 
   /* The SER=1e-3 operating points quoted in the loop-design rules. */
-  DP_CHECK_NEAR (ber_esn0_db_for_ser (2, 1e-3), 6.8, 0.15);
-  DP_CHECK_NEAR (ber_esn0_db_for_ser (4, 1e-3), 10.3, 0.15);
-  DP_CHECK_NEAR (ber_esn0_db_for_ser (8, 1e-3), 15.7, 0.15);
+  DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (2, 1e-3), 6.8, 0.15);
+  DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (4, 1e-3), 10.3, 0.15);
+  DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (8, 1e-3), 15.7, 0.15);
 
   /* Round-trip: the inverse really inverts. */
   for (int m = 2; m <= 8; m *= 2)
     for (double db = 4.0; db <= 18.0; db += 2.0)
       {
-        double s = ber_theory_ser (m, pow (10.0, db / 10.0));
-        DP_CHECK_NEAR (ber_esn0_db_for_ser (m, s), db, 0.01);
+        double s = dp_ber_theory_ser (m, pow (10.0, db / 10.0));
+        DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (m, s), db, 0.01);
       }
 }
 
@@ -421,12 +421,12 @@ test_settle (void)
   memset (f, 0, sizeof f);
   for (int i = 800; i < N; i++)
     f[i] = 1;
-  DP_CHECK (ber_lock_symbol (f, N, 200, 0.9) == 800);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
 
   /* One late dip must NOT move the reported lock -- the failure that once
      reported 2286 instead of 415 and left no measurement window. */
   f[2500] = 0;
-  DP_CHECK (ber_lock_symbol (f, N, 200, 0.9) == 800);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
 
   /* A detector that declares early then flaps fails the fraction test. */
   memset (f, 0, sizeof f);
@@ -434,12 +434,12 @@ test_settle (void)
     f[i] = 1;
   for (int i = 400; i < N; i++)
     f[i] = (i % 3) == 0;
-  DP_CHECK (ber_lock_symbol (f, N, 200, 0.9) < 0);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) < 0);
 
   /* Never locked -> -1, and dp_ber_settle reports ok = 0: there is no valid
      steady-state window and the caller must say so. */
   memset (f, 0, sizeof f);
-  DP_CHECK (ber_lock_symbol (f, N, 200, 0.9) == -1);
+  DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == -1);
   {
     int ok = 1;
     dp_ber_settle (0.01, 0.01, f, NULL, N, &ok);
@@ -510,7 +510,7 @@ test_sanity_gate (void)
   dp_ber_print ("ideal QPSK @10.3dB", &r);
   DP_CHECK (r.aligned);
   DP_CHECK (r.sane);
-  DP_CHECK (r.ser.lo <= ber_theory_ser (m, pow (10.0, esn0_db / 10.0)));
+  DP_CHECK (r.ser.lo <= dp_ber_theory_ser (m, pow (10.0, esn0_db / 10.0)));
   DP_CHECK (fabs (r.loss_db) < 1.0);
   DP_CHECK (fabs (r.evm_db + esn0_db) < 1.5);
   DP_CHECK (fabs (r.m2m4_db - esn0_db) < 1.5);
@@ -607,7 +607,7 @@ test_inverse_sampling_loop (void)
   int             m       = 2;
   double          esn0_db = 6.8; /* BPSK's SER = 1e-3 anchor */
   double          sigma   = sqrt (0.5 / pow (10.0, esn0_db / 10.0));
-  double          theory  = ber_theory_ser (m, pow (10.0, esn0_db / 10.0));
+  double          theory  = dp_ber_theory_ser (m, pow (10.0, esn0_db / 10.0));
   dp_ber_t        acc;
   dp_ber_report_t r;
   int             bursts = 0;

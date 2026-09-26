@@ -34,8 +34,9 @@ _bind_measure_min_samples (PyObject *self, PyObject *args, PyObject *kwds)
                                     &complex_input))
     return NULL;
   size_t bits = (size_t)bits_raw;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)measure_min_samples (
-      fs, target_rbw, bits, dynamic_range_db, complex_input));
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_measure_min_samples (
+          fs, target_rbw, bits, dynamic_range_db, complex_input));
 }
 
 static PyObject *
@@ -51,7 +52,7 @@ _bind_measure_rec_nfft (PyObject *self, PyObject *args, PyObject *kwds)
   size_t n   = (size_t)n_raw;
   size_t pad = (size_t)pad_raw;
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)measure_rec_nfft (n, pad));
+      (unsigned long long)dp_measure_rec_nfft (n, pad));
 }
 
 static PyObject *
@@ -63,7 +64,7 @@ _bind_measure_proc_gain (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &nfft_raw))
     return NULL;
   size_t nfft = (size_t)nfft_raw;
-  return PyFloat_FromDouble (measure_proc_gain (nfft));
+  return PyFloat_FromDouble (dp_measure_proc_gain (nfft));
 }
 
 static PyObject *

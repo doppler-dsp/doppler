@@ -318,11 +318,12 @@ class PN:
 class _SynthEngine:
     """Allocate and configure a waveform synthesiser. The synthesiser combines
     a local oscillator (LO), optional AWGN, and an optional PN LFSR into a
-    single streaming source. One call to wfm_synth_step() or wfm_synth_steps()
-    advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN (100
-    dB) skips AWGN entirely — clean waveforms pay no noise overhead. When
-    ``snr_mode`` is "auto" the library picks the natural reference: Es/No for
-    modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.
+    single streaming source. One call to dp_wfm_synth_step() or
+    dp_wfm_synth_steps() advances all sub-components in lock-step. SNR >=
+    WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no
+    noise overhead. When ``snr_mode`` is "auto" the library picks the natural
+    reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for
+    tone/noise/PN.
 
     Parameters
     ----------
@@ -362,9 +363,10 @@ class _SynthEngine:
     f_end : float, default 0.0
         Chirp end frequency in Hz (type=chirp only; ignored otherwise). With
         ``freq`` as the start, the instantaneous frequency sweeps linearly from
-        ``freq`` to ``f_end`` over the span set by wfm_synth_set_chirp_span(),
-        then holds at ``f_end``. Until a span is pinned the slope is 0 (a CW
-        tone at ``freq``). ``f_end < freq`` is a down-chirp. Default 0.0.
+        ``freq`` to ``f_end`` over the span set by
+        dp_wfm_synth_set_chirp_span(), then holds at ``f_end``. Until a span is
+        pinned the slope is 0 (a CW tone at ``freq``). ``f_end < freq`` is a
+        down-chirp. Default 0.0.
 
     Examples
     --------
@@ -432,7 +434,7 @@ class _SynthEngine:
         """
 
     def steps(self, n: int = 1) -> NDArray[np.complex64]:
-        """Generate a block of output samples. Calls wfm_synth_step() in a
+        """Generate a block of output samples. Calls dp_wfm_synth_step() in a
         tight loop, writing each cf32 sample into ``output``. The Python
         binding returns a freshly allocated NumPy complex64 array; ownership is
         transferred to the caller.
@@ -469,12 +471,12 @@ class _SynthEngine:
         number of samples the sweep occupies — must be known before generation.
         The composer calls this with the source's declared span or the segment
         length. A synth that is never pinned does not sweep: it holds the start
-        frequency on wfm_synth_step() and wfm_synth_steps() alike, so the
+        frequency on dp_wfm_synth_step() and dp_wfm_synth_steps() alike, so the
         waveform never depends on how reads are chunked. Only the first pin
         (while the span is still 0) takes effect, so it is safe to call
-        unconditionally after wfm_synth_create(); span 0 is a no-op.
+        unconditionally after dp_wfm_synth_create(); span 0 is a no-op.
 
-        The span is configuration, not running state: wfm_synth_get_state()
+        The span is configuration, not running state: dp_wfm_synth_get_state()
         does not carry it, so pin a resumed instance exactly as the original
         was pinned.
 
@@ -593,7 +595,7 @@ class _SynthEngine:
 
     def set_sym_pos(self, value: int) -> None:
         """Override the symbol-position counter in-place. Injecting 0 forces
-        the next wfm_synth_step() to latch a new PN chip; any other value
+        the next dp_wfm_synth_step() to latch a new PN chip; any other value
         fast-forwards into the middle of the current symbol hold.
 
         Parameters
@@ -617,7 +619,7 @@ class _SynthEngine:
 
     def set_cur_re(self, value: float) -> None:
         """Override the held-symbol real (I) component in-place. Takes effect
-        on the next wfm_synth_step() within the current symbol hold.
+        on the next dp_wfm_synth_step() within the current symbol hold.
 
         Parameters
         ----------
@@ -638,7 +640,7 @@ class _SynthEngine:
 
     def set_cur_im(self, value: float) -> None:
         """Override the held-symbol imaginary (Q) component in-place. Takes
-        effect on the next wfm_synth_step() within the current symbol hold.
+        effect on the next dp_wfm_synth_step() within the current symbol hold.
 
         Parameters
         ----------
@@ -1128,7 +1130,7 @@ class Frame:
         """
 
     def bits_max_out(self, n: int) -> int:
-        """Bits frame_bits will write for n frames — `n * nbits`.
+        """Bits dp_frame_bits will write for n frames — `n * nbits`.
 
         Parameters
         ----------
@@ -1542,7 +1544,7 @@ class Frame:
         `ValueError`.
 
         The form to reach for when a literal fits in 64 bits: exact, and with
-        no failure mode a typo can reach. Wider ones want frame_add_hex.
+        no failure mode a typo can reach. Wider ones want dp_frame_add_hex.
 
         Parameters
         ----------
@@ -1589,7 +1591,7 @@ class Frame:
         Returns the new field's index; a refusal raises `ValueError`.
 
         A field with a declared length and no source: a CRC trailer, a block of
-        check symbols. Its producer is wired by frame_add_stage_over rather
+        check symbols. Its producer is wired by dp_frame_add_stage_over rather
         than named here, because no stage exists yet when the field it derives
         is appended — fields are ordered by POSITION and stages by APPLICATION.
 
@@ -1703,7 +1705,7 @@ class Frame:
         it is empty, unbuildable, names a stage no kernel here covers, or was
         already built.
 
-        The point at which a description is checked, which for frame_create
+        The point at which a description is checked, which for dp_frame_create
         happens inside the constructor: a description that cannot produce its
         own bits is not a frame. It is separate here only because the
         description arrives over several calls and there is no earlier moment
@@ -1766,8 +1768,8 @@ class Frame:
 
         Returns the frame with every reversible stage undone, in place order: a
         randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
-        The payload is then a slice, at frame_field_off of the payload field —
-        which is the caller's arithmetic because a description does not
+        The payload is then a slice, at dp_frame_field_off of the payload field
+        — which is the caller's arithmetic because a description does not
         privilege one field over another.
 
         The verdict comes back as read-backs (`ok`, `units`, `checked`,
@@ -1817,7 +1819,7 @@ class Frame:
         """
 
     def deframe_max_out(self, rx_bits_len: int) -> int:
-        """Max bits frame_deframe() writes: the frame's own length.
+        """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
         not
@@ -1853,8 +1855,8 @@ class Frame:
         inner code is the case, being undone before frame synchronisation --
         and such a stage is reported as not checked, never as passed.
 
-        The receive mirror of frame_bits, reading the same description — so a
-        transmitter and a receiver holding the same `Frame` cannot disagree
+        The receive mirror of dp_frame_bits, reading the same description — so
+        a transmitter and a receiver holding the same `Frame` cannot disagree
         about which stage covered what.
 
         **This is the truth-free frame error rate on a coded link.** It needs
@@ -2314,13 +2316,7 @@ class FrameDesc:
         count: int = 1,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
-        """Materialise n consecutive frames, one bit per byte.
-
-        n counts FRAMES, not bits: a descriptor describes one frame, and a
-        capture holds many. Repeating here rather than making the caller tile
-        it is what matches the generator, whose framed source cycles the same
-        frame to fill whatever length was asked for — so a stream compared
-        against this lines up with the one that was transmitted.
+        """Bits.
 
         Parameters
         ----------
@@ -2329,108 +2325,56 @@ class FrameDesc:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : NDArray[np.uint8] | None
-            Output, one bit per byte.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.uint8]
-            Bits written.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> len(d.bits())        # one frame: 13 + 16 + 16
-        45
-        >>> len(d.bits(2))       # n counts FRAMES, tiled the way a capture is
-        90
-
+            Output.
         """
 
     def bits_max_out(self, n: int) -> int:
-        """Bits frame_bits will write for n frames — `n * nbits`.
+        """Largest number of samples bits() can return for n inputs.
+
+        Size an `out=` buffer with this before calling bits(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on bits_max_out()
+        replaces this text.
 
         Parameters
         ----------
         n : int
-            Frame repetitions.
+            Number of input samples bits() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
+
+    def layout(self) -> FrameLayout:
+        """Layout.
+
+        Returns
+        -------
+        FrameLayout
+            Output.
+        """
+
+    def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
+        """Crc ok.
+
+        Parameters
+        ----------
+        rx_bits : NDArray[np.uint8]
+            Input.
 
         Returns
         -------
         int
             Output.
-        """
-
-    def layout(self) -> FrameLayout:
-        """Where each field lands, in bits from the start of the frame.
-
-        The offsets a receiver needs to slice a capture, computed by the same
-        code the generator laid the frame out with.
-
-        Returns
-        -------
-        FrameLayout
-            Where each named field lands.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import Frame
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> lay = Frame(empty, sync, payload, crc="crc16").layout()
-        >>> lay.sync_off, lay.payload_off, lay.crc_off
-        (0, 13, 29)
-        >>> lay.total_bits
-        45
-
-        This is the NAMED view, so it reports the four fields a `Frame` is built
-        from. A description assembled with `add_field` reports zeros here and is
-        read with `field_off()` / `field_bits()` instead.
-
-        """
-
-    def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
-        """Check one received frame's CRC.
-
-        **This is what makes a truth-free frame error rate possible.** It needs
-        no payload truth at all, so it works on a real capture, and unlike a
-        self-referenced EVM or a blind M2M4 it still catches a false lock — a
-        rotated constellation fails the check rather than looking clean.
-
-        Parameters
-        ----------
-        rx_bits : NDArray[np.uint8]
-            Received bits, one per byte.
-
-        Returns
-        -------
-        int
-            1 pass, 0 fail, -1 if the frame carries no CRC or rx_bits is
-            shorter than one frame.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.crc_ok(d.bits())           # its own bits are its own truth
-        1
-        >>> rx = np.asarray(d.bits()).copy()
-        >>> rx[d.field_off(2)] ^= 1      # flip one payload bit
-        >>> d.crc_ok(rx)
-        0
-
         """
 
     def add_field(
@@ -2460,49 +2404,41 @@ class FrameDesc:
         a stage's `first_field` are counted in. Refuses once the frame is
         built.
 
-        Either the caller supplies the bits (lit, or a generated kind) or a
-        stage derives them (derived_by non-zero). Both are fields, because both
-        are on the wire.
-
         Parameters
         ----------
         lit : NDArray[np.uint8]
-            Literal bits, copied here so the description outlives the call; may
-            be NULL.
+            Input.
         kind : str
-            wfm_seq_kind_t index; 0=literal…3=dotted.
+            Input.
         gen_len : int
-            Output bits for a GENERATED kind.
+            Input.
         reps : int
-            Repetitions of the field, verbatim; 0 means one.
+            Input.
         poly : int
-            PN feedback polynomial; 0 selects the maximal-length.
+            Input.
         seed : int
-            PN seed; 0 selects 1.
+            Input.
         reg_bits : int
-            PN/Gold register width.
+            Input.
         lfsr : str
-            0=galois, 1=fibonacci.
+            Input.
         taps_a : int
-            Gold: first register's taps.
+            Input.
         seed_a : int
-            Gold: first register's seed.
+            Input.
         taps_b : int
-            Gold: second register's taps.
+            Input.
         seed_b : int
-            Gold: second register's seed.
+            Input.
         derived_by : int
-            0 when the caller supplies this field; otherwise the index of the
-            producing stage, PLUS ONE.
+            Input.
         derived_bits : int
-            Length of a derived field, in bits.
+            Input.
 
         Returns
         -------
         int
-            The new field's index, or -1 if the description is full, already
-            built, or the literal could not be copied. The Python binding
-            raises `ValueError` rather than handing back the -1.
+            Output.
 
         Raises
         ------
@@ -2511,29 +2447,6 @@ class FrameDesc:
             ``cannot append a field: the description is full, already built, or
             the literal could not be copied``, with the return code appended
             (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> from doppler.ccsds import asm_bits
-        >>> empty = np.empty(0, np.uint8)
-        >>> asm = asm_bits()
-        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
-        ...                   np.uint8)
-        >>> data = np.unpackbits(octets).astype(np.uint8)
-        >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
-        >>> d.add_field(asm)                     # the attached sync marker
-        0
-        >>> d.add_field(data)                    # the transfer frame
-        1
-
-        A field the CALLER does not supply is still a field, because it is still
-        on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
-
-        >>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)
-        2
-
         """
 
     def add_stage(
@@ -2560,41 +2473,27 @@ class FrameDesc:
         its ROW count is `depth` and its column count is derived from the span
         the stage covers.
 
-        n_fields is the load-bearing part and 0 means the stage does not run. A
-        stage that inherited "everything before me" instead of declaring its
-        cover is the representation that cannot express a CCSDS CADU — see
-        `wfm/wfm_frame.h`.
-
         Parameters
         ----------
         kind : int
-            stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
-            caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
-            has to reach the assembler through its ops table.
+            Input.
         first_field : int
-            First field covered.
+            Input.
         n_fields : int
-            Fields covered; 0 = the stage does not run.
+            Input.
         depth : int
-            Interleaving depth, for an outer code.
+            Input.
         emit_num : int
-            Expansion numerator for a stage that emits a NEW stream; 0 when the
-            stage stays inside the frame.
+            Input.
         emit_den : int
-            Expansion denominator.
+            Input.
         unit_bits : int
-            INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
-            to the outer code's symbol — permuting octets is what spreads a
-            burst across the codewords of a code over GF(256), and permuting
-            bits inside one spreads a burst within a symbol that is already
-            wrong.
+            Input.
 
         Returns
         -------
         int
-            The new stage's index, or -1 if the description is full or already
-            built. The Python binding raises `ValueError` rather than handing
-            back the -1.
+            Output.
 
         Raises
         ------
@@ -2602,32 +2501,6 @@ class FrameDesc:
             If the C call returns a negative value. The exception message is
             ``cannot append a stage: the description is full or already
             built``, with the return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> from doppler.ccsds import asm_bits
-        >>> empty = np.empty(0, np.uint8)
-        >>> asm = asm_bits()
-        >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
-        ...                   np.uint8)
-        >>> data = np.unpackbits(octets).astype(np.uint8)
-        >>> d = FrameDesc(empty, empty, empty)
-        >>> _ = d.add_field(asm), d.add_field(data)
-        >>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)
-        >>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)
-        0
-        >>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser
-        1
-
-        Both start at field 1, so both skip the marker -- the cover is DECLARED,
-        which is the whole reason a CADU is describable here:
-
-        >>> d.build()
-        >>> d.stage_first(0), d.stage_bits(0)
-        (32, 2040)
-
         """
 
     def field_index(self, name: str) -> int:
@@ -2638,36 +2511,15 @@ class FrameDesc:
         wrong once. An unnamed field is ANONYMOUS rather than named "", so the
         empty name matches nothing.
 
-        The one lookup that resolves a name, so every index-taking entry point
-        keeps working unchanged and a rename can only be wrong once. An unnamed
-        field is ANONYMOUS rather than named `""`, so the empty name matches
-        nothing — including a field that has no name.
-
         Parameters
         ----------
         name : str
-            the field name.
+            Input.
 
         Returns
         -------
         int
-            the index, or -1 on NULL or a name no field carries. This is the
-            one verb whose -1 survives into Python: a name that matches nothing
-            is an ANSWER, not a refusal, so there is nothing to raise about.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_value("sync", 0xABC, 12)
-        0
-        >>> d.field_index("sync")
-        0
-        >>> d.field_index("absent")
-        -1
-
+            Output.
         """
 
     def name_field(self, index: int, name: str) -> None:
@@ -2679,9 +2531,9 @@ class FrameDesc:
         Parameters
         ----------
         index : int
-            the field to name.
+            Input.
         name : str
-            the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
+            Input.
 
         Raises
         ------
@@ -2690,19 +2542,6 @@ class FrameDesc:
             ``cannot name a field: the index is out of range, another field
             already carries the name, or the frame is already built``, with the
             return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
-        0
-        >>> d.name_field(0, "payload")
-        >>> d.field_index("payload")
-        0
-
         """
 
     def add_hex(self, name: str, hex: str, reps: int = 0) -> int:
@@ -2712,19 +2551,14 @@ class FrameDesc:
         `hex_to_bin`, not a second parser, so a bad digit is refused there.
         Returns the new field's index; a refusal raises `ValueError`.
 
-        Four bits per digit, MSB-first, so an odd number of digits gives a
-        4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
-        parser here, so a bad digit is a refusal there and the two cannot
-        disagree about what a marker expands to.
-
         Parameters
         ----------
         name : str
-            the field's name, or NULL for anonymous.
+            Input.
         hex : str
-            NUL-terminated hex digits; no `0x`, no separators.
+            Input.
         reps : int
-            repetitions; 0 means one.
+            Input.
 
         Returns
         -------
@@ -2738,19 +2572,6 @@ class FrameDesc:
             ``cannot append a hex field: the description is full, already
             built, or the digits could not be expanded``, with the return code
             appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
-        0
-        >>> d.build()
-        >>> d.nbits
-        32
-
         """
 
     def add_value(
@@ -2766,19 +2587,16 @@ class FrameDesc:
         `add_field`. Returns the new field's index; a refusal raises
         `ValueError`.
 
-        The form to reach for when a literal fits in 64 bits: exact, and with
-        no failure mode a typo can reach. Wider ones want frame_add_hex.
-
         Parameters
         ----------
         name : str
-            the field's name, or NULL for anonymous.
+            Input.
         value : int
-            the value; only the low bits are read.
+            Input.
         bits : int
-            1..64, MSB first.
+            Input.
         reps : int
-            repetitions; 0 means one.
+            Input.
 
         Returns
         -------
@@ -2792,19 +2610,6 @@ class FrameDesc:
             ``cannot append a value field: the description is full, already
             built, or the value does not fit the declared width``, with the
             return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_value("marker", 0x1A, 8)
-        0
-        >>> d.build()
-        >>> d.bits().tolist()                 # MSB first
-        [0, 0, 0, 1, 1, 0, 1, 0]
-
         """
 
     def add_derived(self, name: str, bits: int) -> int:
@@ -2813,17 +2618,12 @@ class FrameDesc:
         yet when the field it derives is appended; `add_stage_over` wires it.
         Returns the new field's index; a refusal raises `ValueError`.
 
-        A field with a declared length and no source: a CRC trailer, a block of
-        check symbols. Its producer is wired by frame_add_stage_over rather
-        than named here, because no stage exists yet when the field it derives
-        is appended — fields are ordered by POSITION and stages by APPLICATION.
-
         Parameters
         ----------
         name : str
-            the field's name, or NULL for anonymous.
+            Input.
         bits : int
-            its length, which its stage decides and the caller states.
+            Input.
 
         Returns
         -------
@@ -2836,19 +2636,6 @@ class FrameDesc:
             If the C call returns a negative value. The exception message is
             ``cannot append a derived field: the description is full or already
             built``, with the return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
-        0
-        >>> d.name_field(0, "payload")
-        >>> d.add_derived("crc", 16)          # a stage will fill it
-        1
-
         """
 
     def add_stage_over(
@@ -2867,31 +2654,23 @@ class FrameDesc:
         one possible producer. `kind` is a stage kind, as for `add_stage`.
         Returns the new stage's index; a refusal raises `ValueError`.
 
-        The cover is the load-bearing part of the representation and this is
-        the form that reads. It wires a derived field's producer for you, which
-        applies the invariant the layout already enforces rather than adding
-        one.
-
         Parameters
         ----------
         kind : int
-            a stage kind — `doppler.wfm.STAGE_CRC16` and its siblings, or a
-            caller's own from `STAGE_USER` up.
+            Input.
         first : str
-            name of the first field covered.
+            Input.
         last : str
-            name of the last field covered; may equal first.
+            Input.
         depth : int
-            RS / interleave depth; 0 when unused.
+            Input.
         unit_bits : int
-            interleave unit; 0 reads as 1.
+            Input.
 
         Returns
         -------
         int
-            the new stage's index, or -1 on NULL, a full description, a name
-            neither field carries, last before first, or once built. The Python
-            binding raises `ValueError` rather than handing back the -1.
+            Output.
 
         Raises
         ------
@@ -2900,24 +2679,6 @@ class FrameDesc:
             ``cannot append a stage: the description is full, already built, or
             names a field the description does not carry (and `last` must not
             precede `first`)``, with the return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
-        0
-        >>> d.name_field(0, "payload")
-        >>> d.add_derived("crc", 16)
-        1
-        >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
-        0
-        >>> d.build()
-        >>> d.crc_ok(d.bits())                # its own bits are its own truth
-        1
-
         """
 
     def build(self) -> None:
@@ -2928,23 +2689,6 @@ class FrameDesc:
         it is empty, unbuildable, names a stage no kernel here covers, or was
         already built.
 
-        The point at which a description is checked, which for frame_create
-        happens inside the constructor: a description that cannot produce its
-        own bits is not a frame. It is separate here only because the
-        description arrives over several calls and there is no earlier moment
-        at which it is complete.
-
-        The CRC, the outer code, the randomiser and the inner code are all
-        runnable: `ccsds_tm` has no Python binding and is not getting one, so
-        this object is where a caller meets them. A stage naming a kernel
-        nothing here carries is refused rather than skipped, because a stage
-        that quietly did not run produces a frame that still assembles and
-        syncs to nothing.
-
-        The inner encoder starts from the all-zero register on every build: a
-        description describes ONE frame. A stream of CADUs sharing one register
-        is a transmitter's job and lives in `ccsds_tm_frame_encode`.
-
         Raises
         ------
         ValueError
@@ -2952,27 +2696,6 @@ class FrameDesc:
             ``cannot build: the description is empty, unbuildable, names a
             stage no kernel here covers, or was already built``, with the
             return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.nbits                     # 13 + 16 + 16, laid out by build()
-        45
-
-        A description that cannot produce bits is not a frame, and is refused
-        rather than half-built:
-
-        >>> FrameDesc(empty, empty, empty).build()
-        Traceback (most recent call last):
-            ...
-        ValueError: cannot build: the description is empty, unbuildable, ...
-
         """
 
     def deframe(
@@ -2984,85 +2707,39 @@ class FrameDesc:
         the CORRECTED bits — the layer a receiver stops short of
         (doppler#1022).
 
-        The receive counterpart of building one, and the layer a receiver stops
-        short of: `DsssBurstReceiver` and friends hand back hard and soft
-        decisions for a frame's symbols and make no claim about what they mean,
-        because knowing that needs a description — this one (doppler#1022).
-
-        Returns the frame with every reversible stage undone, in place order: a
-        randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
-        The payload is then a slice, at frame_field_off of the payload field —
-        which is the caller's arithmetic because a description does not
-        privilege one field over another.
-
-        The verdict comes back as read-backs (`ok`, `units`, `checked`,
-        `symbols`), not as a return value, since the return is the bits. Read
-        them exactly as frame_check_t's, including the distinction that matters
-        most: `checked == 0` says the description carries no reversible stage
-        at all, which is a different fact from a check that failed.
-
-        A stage with no `undo` kernel — a convolutional inner code, which a
-        receiver cannot even frame-sync through — is reported as not checked
-        rather than as passed.
-
         Parameters
         ----------
         rx_bits : NDArray[np.uint8]
-            Received bits, `frame_bits` of them; treated as a capture and never
-            modified.
+            Input.
         out : NDArray[np.uint8] | None
-            Receives the corrected frame.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.uint8]
-            Bits written — the frame's length — or 0 if the description is
-            empty or either buffer is too small.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import Frame
-        >>> empty = np.zeros(0, dtype=np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
-        >>> f = Frame(empty, sync, payload, crc="crc16")
-        >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
-        >>> got = np.asarray(f.deframe(rx))
-        >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
-        (1, 1, 1)
-        >>> off = f.layout().payload_off       # the payload is a SLICE
-        >>> bool(np.array_equal(got[off:off + 16], payload))
-        True
-        >>> rx[off] ^= 1                       # one bit flipped in flight
-        >>> _ = f.deframe(rx)
-        >>> f.rx_ok, f.rx_units                # the check notices
-        (0, 1)
-
+            Output.
         """
 
     def deframe_max_out(self, rx_bits_len: int) -> int:
-        """Max bits frame_deframe() writes: the frame's own length.
+        """Largest number of samples deframe() can return for rx_bits_len
+        inputs.
 
-        Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
-        not
-
-        the input's: a frame is as long as its fields say, so how many bits
-        were
-
-        received does not change how many come back.
+        Size an `out=` buffer with this before calling deframe(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        deframe_max_out() replaces this text.
 
         Parameters
         ----------
         rx_bits_len : int
-            How many bits are on offer. Ignored, for the reason above; it is in
-            the signature because the binding's capacity call passes the
-            input's length.
+            Number of input samples deframe() will be given.
 
         Returns
         -------
         int
-            The frame's length in bits, or 0 for an empty description.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
@@ -3078,62 +2755,15 @@ class FrameDesc:
         inner code is the case, being undone before frame synchronisation --
         and such a stage is reported as not checked, never as passed.
 
-        The receive mirror of frame_bits, reading the same description — so a
-        transmitter and a receiver holding the same `Frame` cannot disagree
-        about which stage covered what.
-
-        **This is the truth-free frame error rate on a coded link.** It needs
-        the description and the received bits and no payload truth at all, so
-        it works on a real capture, and unlike a self-referenced EVM it still
-        catches a false lock.
-
-        checked is smaller than stages when the description names a stage the
-        receiver does not reverse here — the inner code is the case, since it
-        is undone before frame synchronisation and a frame checker never sees
-        channel symbols. Such a stage is reported as not checked, never as
-        passed.
-
         Parameters
         ----------
         rx_bits : NDArray[np.uint8]
-            Received bits, one per byte. Copied, not modified.
+            Input.
 
         Returns
         -------
         FrameCheck
-            The outcome. passed is 0 and checked is 0 when the description
-            carries no reversible stage at all — "carries no check" is not "the
-            check passed", and an FER conflating them would score every
-            unprotected frame as perfect.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> r = d.check(d.bits(1))
-        >>> r.passed, r.ok, r.units
-        (1, 1, 1)
-
-        Flip a bit the CRC covers and the verdict turns over:
-
-        >>> rx = np.asarray(d.bits(1)).copy()
-        >>> rx[d.field_off(2)] ^= 1
-        >>> d.check(rx).passed
-        0
-
-        Carrying no check is NOT passing one -- both are reported, separately:
-
-        >>> n = FrameDesc(empty, sync, payload, crc="none")
-        >>> n.build()
-        >>> c = n.check(n.bits(1))
-        >>> c.passed, c.checked
-        (0, 0)
-
+            Output.
         """
 
     def n_fields(self) -> int:
@@ -3144,19 +2774,7 @@ class FrameDesc:
         Returns
         -------
         int
-            How many fields the description carries.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.n_fields()          # the four named fields, absent ones included
-        4
-
+            Output.
         """
 
     def n_stages(self) -> int:
@@ -3165,20 +2783,7 @@ class FrameDesc:
         Returns
         -------
         int
-            How many stages the description carries.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.n_stages()         # the CRC is a stage like any other
-        1
-
+            Output.
         """
 
     def field_off(self, i: int) -> int:
@@ -3187,31 +2792,12 @@ class FrameDesc:
         Parameters
         ----------
         i : int
-            Field index.
+            Input.
 
         Returns
         -------
         int
-            Bits from the start of the frame.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.field_off(1), d.field_off(2), d.field_off(3)
-        (0, 13, 29)
-
-        Field 0 is the absent preamble: an empty field still HAS an index, so the
-        indices a caller passed to `add_field` keep meaning what they meant.
-
-        >>> d.field_off(0), d.field_bits(0)
-        (0, 0)
-
+            Output.
         """
 
     def field_bits(self, i: int) -> int:
@@ -3220,25 +2806,12 @@ class FrameDesc:
         Parameters
         ----------
         i : int
-            Field index.
+            Input.
 
         Returns
         -------
         int
-            The field's length in bits.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
-        (13, 16, 16)
-
+            Output.
         """
 
     def stage_first(self, i: int) -> int:
@@ -3247,25 +2820,12 @@ class FrameDesc:
         Parameters
         ----------
         i : int
-            Stage index.
+            Input.
 
         Returns
         -------
         int
-            Bits from the start of the frame.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
-        13
-
+            Output.
         """
 
     def stage_bits(self, i: int) -> int:
@@ -3275,25 +2835,12 @@ class FrameDesc:
         Parameters
         ----------
         i : int
-            Stage index.
+            Input.
 
         Returns
         -------
         int
-            The covered span, in bits.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
-        >>> d.build()
-        >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
-        32
-
+            Output.
         """
 
     @property

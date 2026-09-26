@@ -53,7 +53,7 @@ main (void)
       const char *label   = REGIMES[ri].label;
       size_t      max_out = BENCH_N * 2;
 
-      RateConverter_state_t *rc = RateConverter_create (rate, 0);
+      dp_RateConverter_state_t *rc = dp_RateConverter_create (rate, 0);
       if (!rc)
         {
           fprintf (stderr, "create failed for rate=%.4f\n", rate);
@@ -62,14 +62,14 @@ main (void)
 
       /* warm-up */
       for (int w = 0; w < 4; w++)
-        RateConverter_execute (rc, in, BENCH_N, out, max_out);
-      RateConverter_reset (rc);
+        dp_RateConverter_execute (rc, in, BENCH_N, out, max_out);
+      dp_RateConverter_reset (rc);
 
       for (int r = 0; r < ITERATIONS; r++)
         {
           uint64_t t0, t1;
           t0 = jm_bench_now_ns ();
-          RateConverter_execute (rc, in, BENCH_N, out, max_out);
+          dp_RateConverter_execute (rc, in, BENCH_N, out, max_out);
           t1        = jm_bench_now_ns ();
           _times[r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -83,7 +83,7 @@ main (void)
                 (double)BENCH_N / (s / ITERATIONS) / 1e6);
       }
 
-      RateConverter_destroy (rc);
+      dp_RateConverter_destroy (rc);
     }
 
   jm_bench_write_json (&_bench, "RateConverter");

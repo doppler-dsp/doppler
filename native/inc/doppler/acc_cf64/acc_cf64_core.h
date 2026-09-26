@@ -6,14 +6,14 @@
  *
  * Example:
  * @code
- * acc_cf64_state_t *obj = acc_cf64_create(0.0 + 0.0 * I);
- * acc_cf64_step(obj, 1.0 + 0.5 * I);
- * double _Complex v = acc_cf64_get(obj);  // v == 1.0 + 0.5 * I
- * acc_cf64_destroy(obj);
+ * dp_acc_cf64_state_t *obj = dp_acc_cf64_create(0.0 + 0.0 * I);
+ * dp_acc_cf64_step(obj, 1.0 + 0.5 * I);
+ * double _Complex v = dp_acc_cf64_get(obj);  // v == 1.0 + 0.5 * I
+ * dp_acc_cf64_destroy(obj);
  * @endcode
  */
-#ifndef ACC_CF64_CORE_H
-#define ACC_CF64_CORE_H
+#ifndef DP_ACC_CF64_CORE_H
+#define DP_ACC_CF64_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -27,12 +27,12 @@ extern "C"
   /**
    * @brief AccCf64 state.
    *
-   * Allocate with acc_cf64_create().
+   * Allocate with dp_acc_cf64_create().
    */
   typedef struct
   {
     double _Complex acc;
-  } acc_cf64_state_t;
+  } dp_acc_cf64_state_t;
 
   /**
    * @brief Double-precision complex scalar accumulator.
@@ -45,7 +45,7 @@ extern "C"
    *
    * @param acc  Initial accumulator value (default: 0j).
    * @return Heap-allocated state, or NULL on allocation failure.
-   * @note Caller must call acc_cf64_destroy() when done.
+   * @note Caller must call dp_acc_cf64_destroy() when done.
    * @code
    * >>> from doppler.accumulator import AccCf64
    * >>> obj = AccCf64(0j)
@@ -59,19 +59,19 @@ extern "C"
    * 0j
    * @endcode
    */
-  acc_cf64_state_t *acc_cf64_create (double _Complex acc);
+  dp_acc_cf64_state_t *dp_acc_cf64_create (double _Complex acc);
 
   /**
    * @brief Release all memory owned by an AccCf64 instance.
    * Passing NULL is safe; the function is a no-op in that case.
    * After this call the pointer must not be used.
    */
-  void acc_cf64_destroy (acc_cf64_state_t *state);
+  void dp_acc_cf64_destroy (dp_acc_cf64_state_t *state);
 
   /**
    * @brief Zero the accumulator, restoring the same state as a fresh
    * ``AccCf64(0j)`` — regardless of the value supplied to
-   * ``acc_cf64_create``. Both the real and imaginary parts are set to
+   * ``dp_acc_cf64_create``. Both the real and imaginary parts are set to
    * 0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new
    * samples are processed.
    * @code
@@ -83,12 +83,12 @@ extern "C"
    * 0j
    * @endcode
    */
-  void acc_cf64_reset (acc_cf64_state_t *state);
+  void dp_acc_cf64_reset (dp_acc_cf64_state_t *state);
 
   /**
    * @brief Add one complex sample to the running sum (``acc += x``).
    * This is the hot-path entry for sample-by-sample processing.
-   * For block inputs prefer ``acc_cf64_steps`` to amortise call overhead.
+   * For block inputs prefer ``dp_acc_cf64_steps`` to amortise call overhead.
    *
    * @param state  Must be non-NULL.
    * @param x      Input sample (complex).
@@ -101,14 +101,14 @@ extern "C"
    * @endcode
    */
   JM_FORCEINLINE JM_HOT void
-  acc_cf64_step (acc_cf64_state_t *state, double _Complex x)
+  dp_acc_cf64_step (dp_acc_cf64_state_t *state, double _Complex x)
   {
     state->acc += x;
   }
 
   /**
    * @brief Add all samples in ``input`` to the running sum.
-   * Equivalent to calling ``acc_cf64_step`` for each element; iterates
+   * Equivalent to calling ``dp_acc_cf64_step`` for each element; iterates
    * element-by-element over double-precision complex samples.
    *
    * @param state  Must be non-NULL.
@@ -123,14 +123,14 @@ extern "C"
    * (6+3j)
    * @endcode
    */
-  void acc_cf64_steps (acc_cf64_state_t *state, const double _Complex *input,
+  void dp_acc_cf64_steps (dp_acc_cf64_state_t *state, const double _Complex *input,
                        size_t n);
 
   /**
    * @brief Return the current accumulator value without modifying state.
    * Use this when you need to read the running sum mid-accumulation
    * without disturbing it. For a read-and-reset in one call use
-   * ``acc_cf64_dump``.
+   * ``dp_acc_cf64_dump``.
    *
    * @return Current value of ``acc`` (complex).
    * @code
@@ -144,7 +144,7 @@ extern "C"
    *
    * @endcode
    */
-  double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state);
+  double _Complex dp_acc_cf64_get_acc (const dp_acc_cf64_state_t *state);
 
   /**
    * @brief Overwrite the accumulator with a new complex value.
@@ -164,7 +164,7 @@ extern "C"
    *
    * @endcode
    */
-  void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value);
+  void dp_acc_cf64_set_acc (dp_acc_cf64_state_t *state, double _Complex value);
 
   /**
    * @brief Return the current accumulated sum without resetting state.
@@ -182,7 +182,7 @@ extern "C"
    * (2+3j)
    * @endcode
    */
-  double _Complex acc_cf64_get (acc_cf64_state_t *state);
+  double _Complex dp_acc_cf64_get (dp_acc_cf64_state_t *state);
 
   /**
    * @brief Return the accumulated sum and atomically reset it to zero.
@@ -202,7 +202,7 @@ extern "C"
    * 0j
    * @endcode
    */
-  double _Complex acc_cf64_dump (acc_cf64_state_t *state);
+  double _Complex dp_acc_cf64_dump (dp_acc_cf64_state_t *state);
 
   /**
    * @brief Dot-product accumulate with complex signal and float weights:
@@ -228,7 +228,7 @@ extern "C"
    * (5+0j)
    * @endcode
    */
-  void acc_cf64_madd (acc_cf64_state_t *state, const double _Complex *x,
+  void dp_acc_cf64_madd (dp_acc_cf64_state_t *state, const double _Complex *x,
                       size_t x_len, const float *h, size_t h_len);
 
   /**
@@ -250,7 +250,7 @@ extern "C"
    * (10+0j)
    * @endcode
    */
-  void acc_cf64_add2d (acc_cf64_state_t *state, const double _Complex *x,
+  void dp_acc_cf64_add2d (dp_acc_cf64_state_t *state, const double _Complex *x,
                        size_t x_len);
 
   /**
@@ -277,7 +277,7 @@ extern "C"
    * (5+0j)
    * @endcode
    */
-  void acc_cf64_madd2d (acc_cf64_state_t *state, const double _Complex *x,
+  void dp_acc_cf64_madd2d (dp_acc_cf64_state_t *state, const double _Complex *x,
                         size_t x_len, const float *h, size_t h_len);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -285,9 +285,9 @@ extern "C"
    * identically-built instance. */
 #define ACC_CF64_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', 'C')
 #define ACC_CF64_STATE_VERSION 1u
-  size_t acc_cf64_state_bytes (const acc_cf64_state_t *state);
-  void    acc_cf64_get_state (const acc_cf64_state_t *state, void *blob);
-  int     acc_cf64_set_state (acc_cf64_state_t *state, const void *blob);
+  size_t dp_acc_cf64_state_bytes (const dp_acc_cf64_state_t *state);
+  void    dp_acc_cf64_get_state (const dp_acc_cf64_state_t *state, void *blob);
+  int     dp_acc_cf64_set_state (dp_acc_cf64_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef GOLD_CORE_H
-#define GOLD_CORE_H
+#ifndef DP_GOLD_CORE_H
+#define DP_GOLD_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -28,14 +28,14 @@ typedef struct {
     uint64_t seed_b;  /* Register B: initial value (for reset); fixed by CCSDS */
     uint64_t mask;    /* (1 << length) - 1; all ones when length == 64 */
     uint32_t length;  /* register width in bits (stage count); CCSDS uses 10 */
-} gold_state_t;
+} dp_gold_state_t;
 
-gold_state_t *gold_create(uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
+dp_gold_state_t *dp_gold_create(uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
                            uint64_t seed_b, uint32_t length);
 
-void gold_destroy(gold_state_t *state);
+void dp_gold_destroy(dp_gold_state_t *state);
 
-void gold_reset(gold_state_t *state);
+void dp_gold_reset(dp_gold_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Only the two running LFSR registers are serialized; taps / seeds / mask /
@@ -44,12 +44,12 @@ void gold_reset(gold_state_t *state);
 #define GOLD_STATE_MAGIC DP_FOURCC('G', 'O', 'L', 'D')
 #define GOLD_STATE_VERSION 1u
 
-size_t gold_state_bytes(const gold_state_t *state);
-void gold_get_state(const gold_state_t *state, void *blob);
-int gold_set_state(gold_state_t *state, const void *blob);
+size_t dp_gold_state_bytes(const dp_gold_state_t *state);
+void dp_gold_get_state(const dp_gold_state_t *state, void *blob);
+int dp_gold_set_state(dp_gold_state_t *state, const void *blob);
 
 JM_FORCEINLINE uint8_t
-gold_step(gold_state_t *state)
+gold_step(dp_gold_state_t *state)
 {
     uint64_t a = state->reg_a;
     uint64_t b = state->reg_b;
@@ -62,9 +62,9 @@ gold_step(gold_state_t *state)
     return out;
 }
 
-size_t gold_generate_max_out(gold_state_t *state);
+size_t dp_gold_generate_max_out(dp_gold_state_t *state);
 
-size_t gold_generate(gold_state_t *state, size_t n, uint8_t *out,
+size_t dp_gold_generate(dp_gold_state_t *state, size_t n, uint8_t *out,
                      size_t max_out);
 #ifdef __cplusplus
 }

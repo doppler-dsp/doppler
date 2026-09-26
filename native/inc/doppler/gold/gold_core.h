@@ -20,14 +20,14 @@
  *
  * Example:
  * @code
- * gold_state_t *obj = gold_create(934, 350, 567, 73, 10);
+ * dp_gold_state_t *obj = dp_gold_create(934, 350, 567, 73, 10);
  * uint8_t chips[16];
- * gold_generate (obj, 16, chips, 16);
- * gold_destroy(obj);
+ * dp_gold_generate (obj, 16, chips, 16);
+ * dp_gold_destroy(obj);
  * @endcode
  */
-#ifndef GOLD_CORE_H
-#define GOLD_CORE_H
+#ifndef DP_GOLD_CORE_H
+#define DP_GOLD_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -39,7 +39,7 @@ extern "C" {
 /**
  * @brief Gold state.
  *
- * Allocate with gold_create().
+ * Allocate with dp_gold_create().
  */
 typedef struct {
     uint64_t reg_a;   /* Register A: current LFSR register */
@@ -50,7 +50,7 @@ typedef struct {
     uint64_t seed_b;  /* Register B: initial value (for reset); fixed by CCSDS */
     uint64_t mask;    /* (1 << length) - 1; all ones when length == 64 */
     uint32_t length;  /* register width in bits (stage count); CCSDS uses 10 */
-} gold_state_t;
+} dp_gold_state_t;
 
 /**
  * @brief Allocate and initialise a CCSDS-style Gold code generator.
@@ -87,7 +87,7 @@ typedef struct {
  *              (period 1023). Default 10.
  * @return Heap-allocated state, or NULL on allocation failure or invalid
  *              arguments (zero seed, zero/out-of-range length).
- * @note Caller must call gold_destroy() when done.
+ * @note Caller must call dp_gold_destroy() when done.
  * @code
  * >>> from doppler.wfm import Gold
  * >>> import numpy as np
@@ -101,7 +101,7 @@ typedef struct {
  * (512, 511)
  * @endcode
  */
-gold_state_t *gold_create(uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
+dp_gold_state_t *dp_gold_create(uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
                            uint64_t seed_b, uint32_t length);
 
 /**
@@ -116,7 +116,7 @@ gold_state_t *gold_create(uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
  * >>> g.destroy()   # explicit teardown; no exception
  * @endcode
  */
-void gold_destroy(gold_state_t *state);
+void dp_gold_destroy(dp_gold_state_t *state);
 
 /**
  * @brief Reset Gold to its post-create state.
@@ -135,7 +135,7 @@ void gold_destroy(gold_state_t *state);
  * True
  * @endcode
  */
-void gold_reset(gold_state_t *state);
+void dp_gold_reset(dp_gold_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Only the two running LFSR registers are serialized; taps / seeds / mask /
@@ -145,11 +145,11 @@ void gold_reset(gold_state_t *state);
 #define GOLD_STATE_VERSION 1u
 
 /** @brief Serialized-state byte size. */
-size_t gold_state_bytes(const gold_state_t *state);
+size_t dp_gold_state_bytes(const dp_gold_state_t *state);
 /** @brief Serialize both LFSR registers into @p blob. */
-void gold_get_state(const gold_state_t *state, void *blob);
+void dp_gold_get_state(const dp_gold_state_t *state, void *blob);
 /** @brief Restore both registers; DP_OK, or DP_ERR_INVALID if rejected. */
-int gold_set_state(gold_state_t *state, const void *blob);
+int dp_gold_set_state(dp_gold_state_t *state, const void *blob);
 
 /**
  * @brief Advance both LFSRs one chip and return the XOR-combined output
@@ -163,7 +163,7 @@ int gold_set_state(gold_state_t *state, const void *blob);
  * @return Output chip: 0 or 1.
  */
 JM_FORCEINLINE uint8_t
-gold_step(gold_state_t *state)
+gold_step(dp_gold_state_t *state)
 {
     uint64_t a = state->reg_a;
     uint64_t b = state->reg_b;
@@ -176,7 +176,7 @@ gold_step(gold_state_t *state)
     return out;
 }
 
-size_t gold_generate_max_out(gold_state_t *state);
+size_t dp_gold_generate_max_out(dp_gold_state_t *state);
 
 /**
  * @brief Generate ``n`` chips into ``out`` and advance both LFSRs by ``n``
@@ -185,7 +185,7 @@ size_t gold_generate_max_out(gold_state_t *state);
  * returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy
  * the result before calling generate again if you need a snapshot.
  *
- * @param state  Initialised Gold state returned by ``gold_create``.
+ * @param state  Initialised Gold state returned by ``dp_gold_create``.
  * @param n      Number of chips to produce.
  * @param out    Output buffer of at least ``n`` uint8 elements; each
  *              element receives 0 or 1.
@@ -201,7 +201,7 @@ size_t gold_generate_max_out(gold_state_t *state);
  * 1023
  * @endcode
  */
-size_t gold_generate(gold_state_t *state, size_t n, uint8_t *out,
+size_t dp_gold_generate(dp_gold_state_t *state, size_t n, uint8_t *out,
                      size_t max_out);
 #ifdef __cplusplus
 }

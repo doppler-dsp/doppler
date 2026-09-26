@@ -43,7 +43,7 @@ main (void)
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         {
-          asm_bits (bits);
+          dp_asm_bits (bits);
           sink += bits[i & 31];
         }
       t1        = jm_bench_now_ns ();

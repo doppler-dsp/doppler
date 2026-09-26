@@ -32,7 +32,7 @@ _Block interleaving as an object — the geometry, held._ [More...](#detailed-de
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**interleaver\_state\_t**](structinterleaver__state__t.md) <br>_A block interleaver's geometry._  |
+| struct | [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) <br>_A block interleaver's geometry._  |
 
 
 
@@ -59,19 +59,19 @@ _Block interleaving as an object — the geometry, held._ [More...](#detailed-de
 
 | Type | Name |
 | ---: | :--- |
-|  [**interleaver\_state\_t**](structinterleaver__state__t.md) \* | [**interleaver\_create**](#function-interleaver_create) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_Build an interleaver over a_ `rows` _x_`cols` _block of_`unit_bits` _units._ |
-|  [**interleaver\_state\_t**](structinterleaver__state__t.md) \* | [**interleaver\_create\_rx**](#function-interleaver_create_rx) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_The RECEIVE face of the same interleaver._  |
-|  size\_t | [**interleaver\_deinterleave**](#function-interleaver_deinterleave) ([**interleaver\_state\_t**](structinterleaver__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Undo_ [_**interleaver\_interleave**_](interleaver__core_8h.md#function-interleaver_interleave) _over the same geometry._ |
-|  size\_t | [**interleaver\_deinterleave\_max\_out**](#function-interleaver_deinterleave_max_out) (const [**interleaver\_state\_t**](structinterleaver__state__t.md) \* state, size\_t n\_in) <br>_Output bits for_ `n_in` _input bits — the same number._ |
-|  size\_t | [**interleaver\_deinterleave\_soft**](#function-interleaver_deinterleave_soft) ([**interleaver\_state\_t**](structinterleaver__state__t.md) \* state, const float \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Undo an interleave over SOFT values — the receive path that matters._  |
-|  size\_t | [**interleaver\_deinterleave\_soft\_max\_out**](#function-interleaver_deinterleave_soft_max_out) (const [**interleaver\_state\_t**](structinterleaver__state__t.md) \* state, size\_t n\_in) <br>_Output values for_ `n_in` _soft input values — the same number._ |
-|  void | [**interleaver\_destroy**](#function-interleaver_destroy) ([**interleaver\_state\_t**](structinterleaver__state__t.md) \* state) <br>_Release an interleaver._  |
-|  size\_t | [**interleaver\_get\_block\_bits**](#function-interleaver_get_block_bits) (const [**interleaver\_state\_t**](structinterleaver__state__t.md) \* state) <br>_Bits in one block —_ `rows * cols * unit_bits` _._ |
-|  size\_t | [**interleaver\_get\_burst\_len**](#function-interleaver_get_burst_len) (const [**interleaver\_state\_t**](structinterleaver__state__t.md) \* state) <br>_The longest burst this geometry fully spreads —_ `rows` _._ |
-|  size\_t | [**interleaver\_get\_separation**](#function-interleaver_get_separation) (const [**interleaver\_state\_t**](structinterleaver__state__t.md) \* state) <br>_Units per codeword —_ `cols` _._ |
-|  size\_t | [**interleaver\_interleave**](#function-interleaver_interleave) ([**interleaver\_state\_t**](structinterleaver__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Interleave a whole number of blocks._  |
-|  size\_t | [**interleaver\_interleave\_max\_out**](#function-interleaver_interleave_max_out) (const [**interleaver\_state\_t**](structinterleaver__state__t.md) \* state, size\_t n\_in) <br>_Output bits for_ `n_in` _input bits — the same number._ |
-|  void | [**interleaver\_reset**](#function-interleaver_reset) ([**interleaver\_state\_t**](structinterleaver__state__t.md) \* state) <br>_No-op; an interleaver carries nothing between calls._  |
+|  [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* | [**dp\_interleaver\_create**](#function-dp_interleaver_create) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_Build an interleaver over a_ `rows` _x_`cols` _block of_`unit_bits` _units._ |
+|  size\_t | [**dp\_interleaver\_deinterleave**](#function-dp_interleaver_deinterleave) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Undo_ [_**dp\_interleaver\_interleave**_](interleaver__core_8h.md#function-dp_interleaver_interleave) _over the same geometry._ |
+|  size\_t | [**dp\_interleaver\_deinterleave\_max\_out**](#function-dp_interleaver_deinterleave_max_out) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, size\_t n\_in) <br>_Output bits for_ `n_in` _input bits — the same number._ |
+|  size\_t | [**dp\_interleaver\_deinterleave\_soft**](#function-dp_interleaver_deinterleave_soft) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, const float \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Undo an interleave over SOFT values — the receive path that matters._  |
+|  size\_t | [**dp\_interleaver\_deinterleave\_soft\_max\_out**](#function-dp_interleaver_deinterleave_soft_max_out) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, size\_t n\_in) <br>_Output values for_ `n_in` _soft input values — the same number._ |
+|  void | [**dp\_interleaver\_destroy**](#function-dp_interleaver_destroy) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state) <br>_Release an interleaver._  |
+|  size\_t | [**dp\_interleaver\_get\_block\_bits**](#function-dp_interleaver_get_block_bits) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state) <br>_Bits in one block —_ `rows * cols * unit_bits` _._ |
+|  size\_t | [**dp\_interleaver\_get\_burst\_len**](#function-dp_interleaver_get_burst_len) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state) <br>_The longest burst this geometry fully spreads —_ `rows` _._ |
+|  size\_t | [**dp\_interleaver\_get\_separation**](#function-dp_interleaver_get_separation) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state) <br>_Units per codeword —_ `cols` _._ |
+|  size\_t | [**dp\_interleaver\_interleave**](#function-dp_interleaver_interleave) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Interleave a whole number of blocks._  |
+|  size\_t | [**dp\_interleaver\_interleave\_max\_out**](#function-dp_interleaver_interleave_max_out) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, size\_t n\_in) <br>_Output bits for_ `n_in` _input bits — the same number._ |
+|  void | [**dp\_interleaver\_reset**](#function-dp_interleaver_reset) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state) <br>_No-op; an interleaver carries nothing between calls._  |
+|  [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* | [**interleaver\_create\_rx**](#function-interleaver_create_rx) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_The RECEIVE face of the same interleaver._  |
 
 
 
@@ -114,11 +114,11 @@ Stateless, deliberately, and therefore not serializable. Interleaving is per-fra
 
 
 ```C++
-interleaver_state_t *il = interleaver_create (8, 32, 1);
+dp_interleaver_state_t *il = dp_interleaver_create (8, 32, 1);
 uint8_t tx[256], rx[256];
-interleaver_interleave (il, bits, 256, tx, sizeof tx);
-interleaver_deinterleave (il, tx, 256, rx, sizeof rx);
-interleaver_destroy (il);
+dp_interleaver_interleave (il, bits, 256, tx, sizeof tx);
+dp_interleaver_deinterleave (il, tx, 256, rx, sizeof rx);
+dp_interleaver_destroy (il);
 ```
  
 
@@ -129,11 +129,11 @@ interleaver_destroy (il);
 
 
 
-### function interleaver\_create 
+### function dp\_interleaver\_create 
 
 _Build an interleaver over a_ `rows` _x_`cols` _block of_`unit_bits` _units._
 ```C++
-interleaver_state_t * interleaver_create (
+dp_interleaver_state_t * dp_interleaver_create (
     size_t rows,
     size_t cols,
     size_t unit_bits
@@ -175,67 +175,12 @@ An interleaver, or NULL if any parameter is zero or the block would overflow.
 
 
 
-### function interleaver\_create\_rx 
+### function dp\_interleaver\_deinterleave 
 
-_The RECEIVE face of the same interleaver._ 
+_Undo_ [_**dp\_interleaver\_interleave**_](interleaver__core_8h.md#function-dp_interleaver_interleave) _over the same geometry._
 ```C++
-interleaver_state_t * interleaver_create_rx (
-    size_t rows,
-    size_t cols,
-    size_t unit_bits
-) 
-```
-
-
-
-Identical construction — it delegates to `interleaver_create` — and it exists because the two ends of a link are written by different people. Someone working the receive side reaches for a `Deinterleaver`, and a class that is only findable under the transmit name is a class they do not find.
-
-
-The GEOMETRY is why this is a view over one core rather than a second object: `rows`, `cols` and `unit_bits` are exactly what the two ends must agree on, and a mismatch is not an error but a receiver de-interleaving into a different permutation and handing the decoder plausible garbage. One core means one definition of the geometry to get right.
-
-
-
-
-**Parameters:**
-
-
-* `rows` Interleaving depth, as the transmitter used. 
-* `cols` Units per codeword, as the transmitter used. 
-* `unit_bits` Bits per interleaved unit, as the transmitter used. 
-
-
-
-**Returns:**
-
-An interleaver, or NULL on the same refusals as `interleaver_create`.
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.coding import Interleaver, Deinterleaver
->>> tx = Interleaver(rows=3, cols=4)
->>> rx = Deinterleaver(rows=3, cols=4)
->>> bits = np.arange(12, dtype=np.uint8)
->>> wire = np.asarray(tx.interleave(bits))
->>> np.array_equal(np.asarray(rx.deinterleave(wire)), bits)
-True
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function interleaver\_deinterleave 
-
-_Undo_ [_**interleaver\_interleave**_](interleaver__core_8h.md#function-interleaver_interleave) _over the same geometry._
-```C++
-size_t interleaver_deinterleave (
-    interleaver_state_t * state,
+size_t dp_interleaver_deinterleave (
+    dp_interleaver_state_t * state,
     const uint8_t * in,
     size_t n_in,
     uint8_t * out,
@@ -282,19 +227,19 @@ True
 
 
 
-### function interleaver\_deinterleave\_max\_out 
+### function dp\_interleaver\_deinterleave\_max\_out 
 
 _Output bits for_ `n_in` _input bits — the same number._
 ```C++
-size_t interleaver_deinterleave_max_out (
-    const interleaver_state_t * state,
+size_t dp_interleaver_deinterleave_max_out (
+    const dp_interleaver_state_t * state,
     size_t n_in
 ) 
 ```
 
 
 
-Identical to `interleaver_interleave_max_out`, and for the same reason: the inverse of a permutation is a permutation.
+Identical to `dp_interleaver_interleave_max_out`, and for the same reason: the inverse of a permutation is a permutation.
 
 
 
@@ -327,12 +272,12 @@ Identical to `interleaver_interleave_max_out`, and for the same reason: the inve
 
 
 
-### function interleaver\_deinterleave\_soft 
+### function dp\_interleaver\_deinterleave\_soft 
 
 _Undo an interleave over SOFT values — the receive path that matters._ 
 ```C++
-size_t interleaver_deinterleave_soft (
-    interleaver_state_t * state,
+size_t dp_interleaver_deinterleave_soft (
+    dp_interleaver_state_t * state,
     const float * in,
     size_t n_in,
     float * out,
@@ -384,12 +329,12 @@ There is no `interleave_soft`: a transmitter has bits, not LLRs.
 
 
 
-### function interleaver\_deinterleave\_soft\_max\_out 
+### function dp\_interleaver\_deinterleave\_soft\_max\_out 
 
 _Output values for_ `n_in` _soft input values — the same number._
 ```C++
-size_t interleaver_deinterleave_soft_max_out (
-    const interleaver_state_t * state,
+size_t dp_interleaver_deinterleave_soft_max_out (
+    const dp_interleaver_state_t * state,
     size_t n_in
 ) 
 ```
@@ -426,12 +371,12 @@ size_t interleaver_deinterleave_soft_max_out (
 
 
 
-### function interleaver\_destroy 
+### function dp\_interleaver\_destroy 
 
 _Release an interleaver._ 
 ```C++
-void interleaver_destroy (
-    interleaver_state_t * state
+void dp_interleaver_destroy (
+    dp_interleaver_state_t * state
 ) 
 ```
 
@@ -462,12 +407,12 @@ A no-op on NULL, like `free`. The object owns nothing but its three numbers, so 
 
 
 
-### function interleaver\_get\_block\_bits 
+### function dp\_interleaver\_get\_block\_bits 
 
 _Bits in one block —_ `rows * cols * unit_bits` _._
 ```C++
-size_t interleaver_get_block_bits (
-    const interleaver_state_t * state
+size_t dp_interleaver_get_block_bits (
+    const dp_interleaver_state_t * state
 ) 
 ```
 
@@ -502,12 +447,12 @@ The block size in bits.
 
 
 
-### function interleaver\_get\_burst\_len 
+### function dp\_interleaver\_get\_burst\_len 
 
 _The longest burst this geometry fully spreads —_ `rows` _._
 ```C++
-size_t interleaver_get_burst_len (
-    const interleaver_state_t * state
+size_t dp_interleaver_get_burst_len (
+    const dp_interleaver_state_t * state
 ) 
 ```
 
@@ -531,18 +476,18 @@ A burst of up to this many consecutive units on the wire touches each codeword a
 
 
 
-### function interleaver\_get\_separation 
+### function dp\_interleaver\_get\_separation 
 
 _Units per codeword —_ `cols` _._
 ```C++
-size_t interleaver_get_separation (
-    const interleaver_state_t * state
+size_t dp_interleaver_get_separation (
+    const dp_interleaver_state_t * state
 ) 
 ```
 
 
 
-The other half of the link budget: what [**interleaver\_get\_burst\_len**](interleaver__core_8h.md#function-interleaver_get_burst_len) spreads a burst ACROSS.
+The other half of the link budget: what [**dp\_interleaver\_get\_burst\_len**](interleaver__core_8h.md#function-dp_interleaver_get_burst_len) spreads a burst ACROSS.
 
 
 
@@ -560,12 +505,12 @@ The other half of the link budget: what [**interleaver\_get\_burst\_len**](inter
 
 
 
-### function interleaver\_interleave 
+### function dp\_interleaver\_interleave 
 
 _Interleave a whole number of blocks._ 
 ```C++
-size_t interleaver_interleave (
-    interleaver_state_t * state,
+size_t dp_interleaver_interleave (
+    dp_interleaver_state_t * state,
     const uint8_t * in,
     size_t n_in,
     uint8_t * out,
@@ -582,7 +527,7 @@ size_t interleaver_interleave (
 
 * `state` The interleaver. 
 * `in` `n_in` bits, one bit per byte. 
-* `n_in` Input length in bits; must be a non-zero multiple of `interleaver_get_block_bits`. 
+* `n_in` Input length in bits; must be a non-zero multiple of `dp_interleaver_get_block_bits`. 
 * `out` Where to write `n_in` bits; must not overlap `in`. 
 * `max_out` Room in `out`, in bits. 
 
@@ -611,12 +556,12 @@ size_t interleaver_interleave (
 
 
 
-### function interleaver\_interleave\_max\_out 
+### function dp\_interleaver\_interleave\_max\_out 
 
 _Output bits for_ `n_in` _input bits — the same number._
 ```C++
-size_t interleaver_interleave_max_out (
-    const interleaver_state_t * state,
+size_t dp_interleaver_interleave_max_out (
+    const dp_interleaver_state_t * state,
     size_t n_in
 ) 
 ```
@@ -656,12 +601,12 @@ A permutation moves bits and does not add or remove any, so this is the identity
 
 
 
-### function interleaver\_reset 
+### function dp\_interleaver\_reset 
 
 _No-op; an interleaver carries nothing between calls._ 
 ```C++
-void interleaver_reset (
-    interleaver_state_t * state
+void dp_interleaver_reset (
+    dp_interleaver_state_t * state
 ) 
 ```
 
@@ -685,6 +630,61 @@ Present because the object surface has it, and honest about why it does nothing:
 >>> il.reset()
 >>> il.block_bits
 6
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function interleaver\_create\_rx 
+
+_The RECEIVE face of the same interleaver._ 
+```C++
+dp_interleaver_state_t * interleaver_create_rx (
+    size_t rows,
+    size_t cols,
+    size_t unit_bits
+) 
+```
+
+
+
+Identical construction — it delegates to `dp_interleaver_create` — and it exists because the two ends of a link are written by different people. Someone working the receive side reaches for a `Deinterleaver`, and a class that is only findable under the transmit name is a class they do not find.
+
+
+The GEOMETRY is why this is a view over one core rather than a second object: `rows`, `cols` and `unit_bits` are exactly what the two ends must agree on, and a mismatch is not an error but a receiver de-interleaving into a different permutation and handing the decoder plausible garbage. One core means one definition of the geometry to get right.
+
+
+
+
+**Parameters:**
+
+
+* `rows` Interleaving depth, as the transmitter used. 
+* `cols` Units per codeword, as the transmitter used. 
+* `unit_bits` Bits per interleaved unit, as the transmitter used. 
+
+
+
+**Returns:**
+
+An interleaver, or NULL on the same refusals as `dp_interleaver_create`.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.coding import Interleaver, Deinterleaver
+>>> tx = Interleaver(rows=3, cols=4)
+>>> rx = Deinterleaver(rows=3, cols=4)
+>>> bits = np.arange(12, dtype=np.uint8)
+>>> wire = np.asarray(tx.interleave(bits))
+>>> np.array_equal(np.asarray(rx.deinterleave(wire)), bits)
+True
 ```
  
 

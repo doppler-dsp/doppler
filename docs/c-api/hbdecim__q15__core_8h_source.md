@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef HBDECIM_Q15_CORE_H
-#define HBDECIM_Q15_CORE_H
+#ifndef DP_HBDECIM_Q15_CORE_H
+#define DP_HBDECIM_Q15_CORE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -46,31 +46,31 @@ typedef struct {
     int      has_pending; /* 1 when a trailing even IQ pair is buffered    */
     int16_t  pending_I;
     int16_t  pending_Q;
-} hbdecim_q15_state_t;
+} dp_hbdecim_q15_state_t;
 
-hbdecim_q15_state_t *hbdecim_q15_create(size_t num_taps, const float *h);
+dp_hbdecim_q15_state_t *dp_hbdecim_q15_create(size_t num_taps, const float *h);
 
-void hbdecim_q15_destroy(hbdecim_q15_state_t *r);
+void dp_hbdecim_q15_destroy(dp_hbdecim_q15_state_t *r);
 
-void hbdecim_q15_reset(hbdecim_q15_state_t *r);
+void dp_hbdecim_q15_reset(dp_hbdecim_q15_state_t *r);
 
-size_t hbdecim_q15_execute(hbdecim_q15_state_t *r,
+size_t dp_hbdecim_q15_execute(dp_hbdecim_q15_state_t *r,
                            const int16_t *in, size_t n_in,
                            int16_t *out, size_t max_out);
 
-size_t hbdecim_q15_execute_max_out(hbdecim_q15_state_t *r);
+size_t dp_hbdecim_q15_execute_max_out(dp_hbdecim_q15_state_t *r);
 
-double hbdecim_q15_get_rate(const hbdecim_q15_state_t *r);
+double dp_hbdecim_q15_get_rate(const dp_hbdecim_q15_state_t *r);
 
-size_t hbdecim_q15_get_num_taps(const hbdecim_q15_state_t *r);
+size_t dp_hbdecim_q15_get_num_taps(const dp_hbdecim_q15_state_t *r);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack four dual-write rings + heads + pending; coeffs restored by create. */
 #define HBDECIM_Q15_STATE_MAGIC DP_FOURCC ('H','B','1','5')
 #define HBDECIM_Q15_STATE_VERSION 1u
-size_t hbdecim_q15_state_bytes (const hbdecim_q15_state_t *state);
-void hbdecim_q15_get_state (const hbdecim_q15_state_t *state, void *blob);
-int hbdecim_q15_set_state (hbdecim_q15_state_t *state, const void *blob);
+size_t dp_hbdecim_q15_state_bytes (const dp_hbdecim_q15_state_t *state);
+void dp_hbdecim_q15_get_state (const dp_hbdecim_q15_state_t *state, void *blob);
+int dp_hbdecim_q15_set_state (dp_hbdecim_q15_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

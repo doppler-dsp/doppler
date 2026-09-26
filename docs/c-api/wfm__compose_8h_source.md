@@ -273,7 +273,7 @@ double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
 double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
                              int *snr_mode);
 
-int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
+int wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
 int wfm_source_has_frame(const wfm_source_t *src);
@@ -284,9 +284,9 @@ size_t wfm_source_dsss_nchips(const wfm_source_t *src);
 
 const char *wfm_source_frame_error(const wfm_source_t *src);
 
-int wfm_source_attach_frame(wfm_synth_state_t *syn, const wfm_source_t *src);
+int wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
-wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
+dp_wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,
                                            unsigned epoch, int seed_advance,
@@ -299,7 +299,7 @@ wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        double f_end, double doppler,
                                        double doppler_rate, unsigned epoch,
                                        int seed_advance, size_t instance,
-                                       doppler_channel_state_t *borrow);
+                                       dp_doppler_channel_state_t *borrow);
 
 void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 

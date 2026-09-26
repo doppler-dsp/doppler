@@ -24,8 +24,8 @@
  * (dtype('uint8'), True)
  * @endcode
  */
-#ifndef VITERBI_CORE_H
-#define VITERBI_CORE_H
+#ifndef DP_VITERBI_CORE_H
+#define DP_VITERBI_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -40,7 +40,7 @@ extern "C" {
  * Opaque and heap-allocated: the path metrics and the traceback ring are
  * sized from the code and the depth, and both are wanted contiguous.
  *
- * Allocate with viterbi_create().
+ * Allocate with dp_viterbi_create().
  */
 typedef struct
 {
@@ -63,7 +63,7 @@ typedef struct
   unsigned *out1;
   unsigned *inbit;
 /*<<property_struct_fields>>*/
-} viterbi_state_t;
+} dp_viterbi_state_t;
 
 /**
  * @brief Build a decoder for the code the polynomials describe.
@@ -93,15 +93,15 @@ typedef struct
  * @param invert  invert (default: 0).
  * @param depth  depth (default: 35).
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call viterbi_destroy() when done.
+ * @note Caller must call dp_viterbi_destroy() when done.
  */
-viterbi_state_t *viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
+dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
 
 /**
  * @brief Free a decoder and everything it allocated. NULL is a no-op.
  * @param state  May be NULL.
  */
-void viterbi_destroy(viterbi_state_t *state);
+void dp_viterbi_destroy(dp_viterbi_state_t *state);
 
 /**
  * @brief Return to the all-zero start state, discarding the traceback.
@@ -120,10 +120,10 @@ void viterbi_destroy(viterbi_state_t *state);
  * >>> v.reset()
  * @endcode
  */
-void viterbi_reset(viterbi_state_t *state);
+void dp_viterbi_reset(dp_viterbi_state_t *state);
 
 /**
- * @brief Bits @ref viterbi_decode will emit for @p n_in soft symbols.
+ * @brief Bits @ref dp_viterbi_decode will emit for @p n_in soft symbols.
  *
  * Accounts for the fill still owed at the start of a stream, so a caller can
  * size a buffer exactly rather than conservatively.
@@ -132,7 +132,7 @@ void viterbi_reset(viterbi_state_t *state);
  * @param n_in   Number of soft symbols the next call would be given.
  * @return       Bits that call would write.
  */
-size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
+size_t dp_viterbi_decode_max_out (const dp_viterbi_state_t *state, size_t n_in);
 
 /**
  * @brief Decode soft channel symbols into information bits.
@@ -152,7 +152,7 @@ size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
  * blocks and the bits come out continuously. The first `depth - 1` branches
  * of a stream produce no output — the traceback walks `depth - 1` steps
  * back, so a decision needs that many branches BEHIND it — and thereafter
- * one bit is emitted per `n` symbols consumed. @ref viterbi_decode_max_out
+ * one bit is emitted per `n` symbols consumed. @ref dp_viterbi_decode_max_out
  * is the same statement as arithmetic, and is what a caller should size a
  * buffer with rather than repeating this sentence: they disagreed by one
  * until a test asserted the count against a literal.
@@ -162,7 +162,7 @@ size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
  *                 must be a multiple of the code's `n`.
  * @param n_in     Number of LLRs in @p in.
  * @param out      Receives the decoded information bits, one per byte.
- * @param max_out  Capacity of @p out; see @ref viterbi_decode_max_out.
+ * @param max_out  Capacity of @p out; see @ref dp_viterbi_decode_max_out.
  * @return         Bits written, which may be 0 while the traceback fills.
  *
  * @code
@@ -175,7 +175,7 @@ size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
  * True
  * @endcode
  */
-size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint8_t *out, size_t max_out);
+size_t dp_viterbi_decode(dp_viterbi_state_t *state, const float *in, size_t n_in, uint8_t *out, size_t max_out);
 
 /* ── hand-owned: the surface jm does not declare ───────────────────────────
  *
@@ -189,7 +189,7 @@ size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint
 /**
  * @brief Build a decoder from a code already assembled.
  *
- * The declared `viterbi_create` takes the polynomials directly, because a
+ * The declared `dp_viterbi_create` takes the polynomials directly, because a
  * struct pointer is not expressible in a manifest. Callers that already hold
  * a @ref conv_code_t — the CCSDS configuration, the validators — use this.
  *
@@ -204,13 +204,13 @@ size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint
  * @return       The decoder, or NULL if @p c is invalid, @p depth is 0, or
  *               allocation failed.
  */
-viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
+dp_viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
 
 /** @brief The code this decoder was built for. */
-const conv_code_t *viterbi_code (const viterbi_state_t *s);
+const conv_code_t *viterbi_code (const dp_viterbi_state_t *s);
 
 /** @brief Its traceback depth, in input bits. */
-size_t viterbi_depth (const viterbi_state_t *s);
+size_t viterbi_depth (const dp_viterbi_state_t *s);
 
 /* ── node synchronization ────────────────────────────────────────────── */
 
@@ -279,7 +279,7 @@ typedef struct
  * @return       Disagreements, or 0 if the window is too short to decode
  *               anything past the traceback and the encoder fill.
  */
-size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
+size_t node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
 
 /**
  * @brief Symbols @ref node_sync_score will actually score for a window of
@@ -292,7 +292,7 @@ size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
  * channel symbol error rate wants this denominator rather than the window
  * length.
  */
-size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
+size_t node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
 
 /**
  * @brief Try every branch alignment and report which one the stream is on.
@@ -320,12 +320,12 @@ size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
  * node_sync_t ns;
  * if (node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
  *   {
- *     viterbi_reset (v);
- *     viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
+ *     dp_viterbi_reset (v);
+ *     dp_viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
  *   }
  * @endcode
  */
-int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+int node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
                     node_sync_t *out);
 
 /* ── the state bytes interface ───────────────────────────────────────────
@@ -344,29 +344,29 @@ int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
 #define VITERBI_STATE_VERSION 1u
 
 /**
- * @brief Bytes @ref viterbi_get_state writes: envelope, code identity,
+ * @brief Bytes @ref dp_viterbi_get_state writes: envelope, code identity,
  *        ring cursor, the path metrics and the traceback ring.
  *
  * Depends on the configuration (`2^(k-1)` metrics and a
  * `depth x 2^(k-1)` ring), so it is not a constant across decoders.
  */
-size_t viterbi_state_bytes (const viterbi_state_t *s);
+size_t dp_viterbi_state_bytes (const dp_viterbi_state_t *s);
 
 /**
  * @brief Serialize @p s into @p blob, which must hold
- *        @ref viterbi_state_bytes bytes.
+ *        @ref dp_viterbi_state_bytes bytes.
  *
  * The ring travels in its stored order with the cursor beside it rather
  * than rotated into a canonical one — the rotation would cost a pass and
- * buy nothing, since only @ref viterbi_set_state reads it back.
+ * buy nothing, since only @ref dp_viterbi_set_state reads it back.
  */
-void viterbi_get_state (const viterbi_state_t *s, void *blob);
+void dp_viterbi_get_state (const dp_viterbi_state_t *s, void *blob);
 
 /**
  * @brief Restore @p s from @p blob.
  *
  * The code and the depth are configuration, restored by
- * @ref viterbi_create rather than carried in the payload — but they are
+ * @ref dp_viterbi_create rather than carried in the payload — but they are
  * *stamped* in it and checked here, because a size match is not a
  * configuration match: two codes with the same `k` and `n` differing only
  * in a polynomial or in @c invert produce blobs of identical length, and
@@ -377,7 +377,7 @@ void viterbi_get_state (const viterbi_state_t *s, void *blob);
  *         depth, or the ring cursor does not match this decoder — in which
  *         case @p s is untouched.
  */
-int viterbi_set_state (viterbi_state_t *s, const void *blob);
+int dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

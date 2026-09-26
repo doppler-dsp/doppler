@@ -52,7 +52,7 @@ _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**asm\_bits**](#function-asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
+|  void | [**dp\_asm\_bits**](#function-dp_asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
 
 
 
@@ -96,11 +96,11 @@ This is deliberately NOT a binding of `ccsds_tm`'s transforms, and must not beco
 
 
 
-### function asm\_bits 
+### function dp\_asm\_bits 
 
 _The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._ 
 ```C++
-void asm_bits (
+void dp_asm_bits (
     uint8_t * out
 ) 
 ```

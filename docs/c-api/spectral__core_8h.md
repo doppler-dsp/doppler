@@ -30,7 +30,7 @@ _Spectral module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_peak\_t**](structdp__peak__t.md) <br>_One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#function-find_peaks_f32) _._ |
+| struct | [**dp\_peak\_t**](structdp__peak__t.md) <br>_One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._ |
 
 
 
@@ -57,16 +57,16 @@ _Spectral module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**blackman\_harris\_window**](#function-blackman_harris_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))_ |
-|  size\_t | [**find\_peaks\_f32**](#function-find_peaks_f32) (const float \* db, size\_t db\_len, size\_t n\_peaks, float min\_db, [**dp\_peak\_t**](structdp__peak__t.md) \* result) <br>_Find up to_ `n_peaks` _local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan —_`db[k]` _&gt;_`db[k-1]` _&&_`db[k]` _&gt;=_`db[k+1]` _with_`db[k]` _&gt; min\_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq\_norm accuracy; (3) sort descending and return the top_`n_peaks` _. freq\_norm is DC-centred: bin i maps to freq\_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5. The spectrum must have at least 3 bins._ |
-|  void | [**hann\_window**](#function-hann_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a Hann (raised-cosine) window. Computes w(k) = 0.5\*(1 - cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection. Takes no shape parameter; use Kaiser for adjustable roll-off._ |
-|  double | [**kaiser\_beta\_for\_sidelobe**](#function-kaiser_beta_for_sidelobe) (double atten\_db) <br>_Kaiser beta achieving a target_ _window_ _peak-sidelobe attenuation._ |
-|  float | [**kaiser\_enbw**](#function-kaiser_enbw) (const float \* w, size\_t w\_len) <br>_Compute the equivalent noise bandwidth of a window in bins. ENBW = N \* sum(w²) / (sum(w))² quantifies how many noise bins the window smears into the main lobe. A rectangular window has ENBW = 1.0; tapered windows are &gt; 1.0. Works with any window type, not just Kaiser._  |
-|  void | [**kaiser\_window**](#function-kaiser_window) (float \* w, size\_t w\_len, float beta) <br>_Fill_ `w` _with a Kaiser window of shape parameter_`beta` _. I0 is computed via the converging power-series expansion. Increasing_`beta` _raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection). The output is normalised so that_`w[0]` _=_`w[N-1]` _= I0(0)/I0(beta)._ |
-|  void | [**magnitude\_db\_cf32**](#function-magnitude_db_cf32) (const float \_Complex \* x, size\_t x\_len, float \* out, float lin\_floor, float offset\_db) <br>_Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20\*log10(max(\|x(k)\|, lin\_floor)) + offset\_db for each bin. The_ `lin_floor` _guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor._`offset_db` _shifts the entire output for calibration (e.g., normalise to 0 dBFS)._ |
-|  void | [**magnitude\_db\_cf64**](#function-magnitude_db_cf64) (const double \_Complex \* x, size\_t x\_len, float \* out, double lin\_floor, float offset\_db) <br>_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**magnitude\_db\_cf32()**_](spectral__core_8h.md#function-magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._ |
-|  double | [**noise\_floor\_db**](#function-noise_floor_db) (const float \* db, size\_t db\_len) <br> |
-|  double | [**obw\_from\_power**](#function-obw_from_power) (const double \* pwr, size\_t pwr\_len, double fs, double frac) <br> |
+|  void | [**dp\_blackman\_harris\_window**](#function-dp_blackman_harris_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))_ |
+|  size\_t | [**dp\_find\_peaks\_f32**](#function-dp_find_peaks_f32) (const float \* db, size\_t db\_len, size\_t n\_peaks, float min\_db, [**dp\_peak\_t**](structdp__peak__t.md) \* result) <br>_Find up to_ `n_peaks` _local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan —_`db[k]` _&gt;_`db[k-1]` _&&_`db[k]` _&gt;=_`db[k+1]` _with_`db[k]` _&gt; min\_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq\_norm accuracy; (3) sort descending and return the top_`n_peaks` _. freq\_norm is DC-centred: bin i maps to freq\_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5. The spectrum must have at least 3 bins._ |
+|  void | [**dp\_hann\_window**](#function-dp_hann_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a Hann (raised-cosine) window. Computes w(k) = 0.5\*(1 - cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection. Takes no shape parameter; use Kaiser for adjustable roll-off._ |
+|  double | [**dp\_kaiser\_beta\_for\_sidelobe**](#function-dp_kaiser_beta_for_sidelobe) (double atten\_db) <br>_Kaiser beta achieving a target_ _window_ _peak-sidelobe attenuation._ |
+|  float | [**dp\_kaiser\_enbw**](#function-dp_kaiser_enbw) (const float \* w, size\_t w\_len) <br>_Compute the equivalent noise bandwidth of a window in bins. ENBW = N \* sum(w²) / (sum(w))² quantifies how many noise bins the window smears into the main lobe. A rectangular window has ENBW = 1.0; tapered windows are &gt; 1.0. Works with any window type, not just Kaiser._  |
+|  void | [**dp\_kaiser\_window**](#function-dp_kaiser_window) (float \* w, size\_t w\_len, float beta) <br>_Fill_ `w` _with a Kaiser window of shape parameter_`beta` _. I0 is computed via the converging power-series expansion. Increasing_`beta` _raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection). The output is normalised so that_`w[0]` _=_`w[N-1]` _= I0(0)/I0(beta)._ |
+|  void | [**dp\_magnitude\_db\_cf32**](#function-dp_magnitude_db_cf32) (const float \_Complex \* x, size\_t x\_len, float \* out, float lin\_floor, float offset\_db) <br>_Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20\*log10(max(\|x(k)\|, lin\_floor)) + offset\_db for each bin. The_ `lin_floor` _guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor._`offset_db` _shifts the entire output for calibration (e.g., normalise to 0 dBFS)._ |
+|  void | [**dp\_magnitude\_db\_cf64**](#function-dp_magnitude_db_cf64) (const double \_Complex \* x, size\_t x\_len, float \* out, double lin\_floor, float offset\_db) <br>_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**dp\_magnitude\_db\_cf32()**_](spectral__core_8h.md#function-dp_magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._ |
+|  double | [**dp\_noise\_floor\_db**](#function-dp_noise_floor_db) (const float \* db, size\_t db\_len) <br> |
+|  double | [**dp\_obw\_from\_power**](#function-dp_obw_from_power) (const double \* pwr, size\_t pwr\_len, double fs, double frac) <br> |
 
 
 
@@ -107,11 +107,11 @@ Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude 
 
 
 
-### function blackman\_harris\_window 
+### function dp\_blackman\_harris\_window 
 
 _Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))_
 ```C++
-void blackman_harris_window (
+void dp_blackman_harris_window (
     float * w,
     size_t w_len
 ) 
@@ -152,11 +152,11 @@ void blackman_harris_window (
 
 
 
-### function find\_peaks\_f32 
+### function dp\_find\_peaks\_f32 
 
 _Find up to_ `n_peaks` _local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan —_`db[k]` _&gt;_`db[k-1]` _&&_`db[k]` _&gt;=_`db[k+1]` _with_`db[k]` _&gt; min\_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq\_norm accuracy; (3) sort descending and return the top_`n_peaks` _. freq\_norm is DC-centred: bin i maps to freq\_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5. The spectrum must have at least 3 bins._
 ```C++
-size_t find_peaks_f32 (
+size_t dp_find_peaks_f32 (
     const float * db,
     size_t db_len,
     size_t n_peaks,
@@ -204,11 +204,11 @@ Number of [**dp\_peak\_t**](structdp__peak__t.md) entries written to `result`.
 
 
 
-### function hann\_window 
+### function dp\_hann\_window 
 
 _Fill_ `w` _with a Hann (raised-cosine) window. Computes w(k) = 0.5\*(1 - cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection. Takes no shape parameter; use Kaiser for adjustable roll-off._
 ```C++
-void hann_window (
+void dp_hann_window (
     float * w,
     size_t w_len
 ) 
@@ -242,11 +242,11 @@ void hann_window (
 
 
 
-### function kaiser\_beta\_for\_sidelobe 
+### function dp\_kaiser\_beta\_for\_sidelobe 
 
 _Kaiser beta achieving a target_ _window_ _peak-sidelobe attenuation._
 ```C++
-double kaiser_beta_for_sidelobe (
+double dp_kaiser_beta_for_sidelobe (
     double atten_db
 ) 
 ```
@@ -290,11 +290,11 @@ Kaiser beta (&gt;= 0.0).
 
 
 
-### function kaiser\_enbw 
+### function dp\_kaiser\_enbw 
 
 _Compute the equivalent noise bandwidth of a window in bins. ENBW = N \* sum(w²) / (sum(w))² quantifies how many noise bins the window smears into the main lobe. A rectangular window has ENBW = 1.0; tapered windows are &gt; 1.0. Works with any window type, not just Kaiser._ 
 ```C++
-float kaiser_enbw (
+float dp_kaiser_enbw (
     const float * w,
     size_t w_len
 ) 
@@ -335,11 +335,11 @@ ENBW in bins (dimensionless).
 
 
 
-### function kaiser\_window 
+### function dp\_kaiser\_window 
 
 _Fill_ `w` _with a Kaiser window of shape parameter_`beta` _. I0 is computed via the converging power-series expansion. Increasing_`beta` _raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection). The output is normalised so that_`w[0]` _=_`w[N-1]` _= I0(0)/I0(beta)._
 ```C++
-void kaiser_window (
+void dp_kaiser_window (
     float * w,
     size_t w_len,
     float beta
@@ -375,11 +375,11 @@ void kaiser_window (
 
 
 
-### function magnitude\_db\_cf32 
+### function dp\_magnitude\_db\_cf32 
 
 _Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20\*log10(max(\|x(k)\|, lin\_floor)) + offset\_db for each bin. The_ `lin_floor` _guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor._`offset_db` _shifts the entire output for calibration (e.g., normalise to 0 dBFS)._
 ```C++
-void magnitude_db_cf32 (
+void dp_magnitude_db_cf32 (
     const float _Complex * x,
     size_t x_len,
     float * out,
@@ -418,11 +418,11 @@ void magnitude_db_cf32 (
 
 
 
-### function magnitude\_db\_cf64 
+### function dp\_magnitude\_db\_cf64 
 
-_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**magnitude\_db\_cf32()**_](spectral__core_8h.md#function-magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._
+_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**dp\_magnitude\_db\_cf32()**_](spectral__core_8h.md#function-dp_magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._
 ```C++
-void magnitude_db_cf64 (
+void dp_magnitude_db_cf64 (
     const double _Complex * x,
     size_t x_len,
     float * out,
@@ -461,10 +461,10 @@ void magnitude_db_cf64 (
 
 
 
-### function noise\_floor\_db 
+### function dp\_noise\_floor\_db 
 
 ```C++
-double noise_floor_db (
+double dp_noise_floor_db (
     const float * db,
     size_t db_len
 ) 
@@ -477,10 +477,10 @@ double noise_floor_db (
 
 
 
-### function obw\_from\_power 
+### function dp\_obw\_from\_power 
 
 ```C++
-double obw_from_power (
+double dp_obw_from_power (
     const double * pwr,
     size_t pwr_len,
     double fs,

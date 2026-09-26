@@ -102,14 +102,14 @@ main (void)
           m[i] = (uint8_t)((s >> 16) & 1u);
         }
 
-      syncword_state_t *f = syncword_create (m, nm);
+      dp_syncword_state_t *f = dp_syncword_create (m, nm);
       if (!f)
         return 1;
 
       /* The row's whole premise: every offset is examined. A marker that is
          accidentally in the stream ends the search early, and the number
          printed would then be a fraction of the window at full confidence. */
-      if (syncword_find (f, bits, SEARCH_BITS, 0u).found)
+      if (dp_syncword_find (f, bits, SEARCH_BITS, 0u).found)
         {
           fprintf (stderr,
                    "bench_syncword: the n=%zu marker is present in the "
@@ -124,7 +124,7 @@ main (void)
           t0 = jm_bench_now_ns ();
           /* max_errors = 0: nothing in the stream can match, so the whole
              window is walked and the row is the honest worst case. */
-          sink += syncword_find (f, bits, SEARCH_BITS, 0u).found;
+          sink += dp_syncword_find (f, bits, SEARCH_BITS, 0u).found;
           t1        = jm_bench_now_ns ();
           t_find[r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -139,7 +139,7 @@ main (void)
               (double)SEARCH_BITS / s_min / 1e6,
               s_min / (double)SEARCH_BITS / (double)nm * 1e9);
 
-      syncword_destroy (f);
+      dp_syncword_destroy (f);
       free (m);
     }
 
@@ -148,7 +148,7 @@ main (void)
     uint8_t m32[32];
     for (int i = 0; i < 32; i++)
       m32[i] = (uint8_t)(i & 1);
-    syncword_state_t *f = syncword_create (m32, sizeof m32);
+    dp_syncword_state_t *f = dp_syncword_create (m32, sizeof m32);
     if (!f)
       return 1;
 
@@ -157,7 +157,7 @@ main (void)
       {
         t0 = jm_bench_now_ns ();
         for (int k = 0; k < THRESH_CALLS; k++)
-          sink += syncword_max_errors_for (f, 4096u + (size_t)k, 1e-3);
+          sink += dp_syncword_max_errors_for (f, 4096u + (size_t)k, 1e-3);
         t1       = jm_bench_now_ns ();
         t_thr[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -165,7 +165,7 @@ main (void)
                   THRESH_CALLS);
     printf ("\n  %-14s %8.2f us/call\n", "max_errors_for",
             min_sec (t_thr, ITERATIONS) / (double)THRESH_CALLS * 1e6);
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   jm_bench_write_json (&_bench, "syncword");

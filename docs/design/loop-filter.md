@@ -178,14 +178,14 @@ ______________________________________________________________________
 The state struct is **public**, and that is a design decision rather than an
 oversight. A tracker holds one by value — often two — and a heap allocation
 per loop inside an object that already owns its own allocation buys nothing
-and costs an indirection in the hot path. `loop_filter_create()` exists for
+and costs an indirection in the hot path. `dp_loop_filter_create()` exists for
 the Python binding, and is `calloc` plus `loop_filter_init()`.
 
 The contract that follows from embedding is small and sharp:
 
 **`loop_filter_init()` does not touch `integ`.** That is what makes it double
 as a retune (§5) — but it also means an embedder is responsible for the
-integrator's initial value, and a `loop_filter_state_t` on the stack starts
+integrator's initial value, and a `dp_loop_filter_state_t` on the stack starts
 with whatever was there.
 
 Every embedder in the tree honours this, and — audited rather than assumed —
@@ -193,7 +193,7 @@ they do it in three different ways:
 
 | how                                             | who                                                                |
 | ----------------------------------------------- | ------------------------------------------------------------------ |
-| `loop_filter_reset()` after `init`              | `dll`, `ratesync`, `mpsk_receiver`, `burst_despreader` (code loop) |
+| `dp_loop_filter_reset()` after `init`           | `dll`, `ratesync`, `mpsk_receiver`, `burst_despreader` (code loop) |
 | assign a **seeded** value outright              | `costas`, `carrier_mpsk`, `burst_despreader` (carrier loop)        |
 | `memset` the whole enclosing struct before init | `symsync`                                                          |
 
@@ -205,7 +205,7 @@ should not make the loop rediscover it. Zeroing on init would throw that
 away.
 
 `dll_core.c` is the one that documents the hazard in place, having evidently
-met it — its `loop_filter_reset()` carries the comment that an embedded state
+met it — its `dp_loop_filter_reset()` carries the comment that an embedded state
 "would otherwise start with a garbage code rate".
 
 So the contract is real, currently honoured everywhere, and **unpinned by any
@@ -219,12 +219,12 @@ ______________________________________________________________________
 
 ## 5. Two ways to change a running loop, and they are not the same
 
-- **`loop_filter_configure(bn, zeta, t)`** recomputes the gains and leaves
+- **`dp_loop_filter_configure(bn, zeta, t)`** recomputes the gains and leaves
     the integrator alone. This is the acquisition-to-tracking transition: run
     wide to pull in, then narrow to reduce noise, **without losing the
     frequency estimate you just spent the acquisition earning**. `ratesync`
     retunes exactly this way.
-- **`loop_filter_reset()`** zeroes the integrator and leaves the gains alone.
+- **`dp_loop_filter_reset()`** zeroes the integrator and leaves the gains alone.
     This is dropping lock: the estimate is now believed to be wrong, the
     bandwidth is still right, start again.
 
@@ -241,7 +241,7 @@ ______________________________________________________________________
 `bn >= 0` and `t > 0`. `zeta` is described as "typically 0.707" without a
 stated range.
 
-**They are enforced at `loop_filter_create()` and deliberately nowhere
+**They are enforced at `dp_loop_filter_create()` and deliberately nowhere
 else** ([gh-740](https://github.com/doppler-dsp/doppler/issues/740)). That
 split is the design, so it is worth stating why rather than leaving it to
 look like an omission:
@@ -308,7 +308,7 @@ rather than confirming them:
     NaN gains that poison the object permanently — both reachable from
     Python in one line. `create()` now rejects them (§6, gh-740); `init()`
     is deliberately still unguarded.
-1. **`loop_filter_steps()` against `loop_filter_step()`.** The block entry
+1. **`dp_loop_filter_steps()` against `dp_loop_filter_step()`.** The block entry
     point claims per-element equivalence, integrator carry across calls, and
     that `out` may alias `x`. It has no C-level caller and no C-level test.
 1. **Does the retune actually preserve lock?** §5's property is asserted as

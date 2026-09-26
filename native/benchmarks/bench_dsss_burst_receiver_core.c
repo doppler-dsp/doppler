@@ -92,10 +92,10 @@ acq_code (void)
   static int     built = 0;
   if (!built)
     {
-      pn_state_t *pn = pn_create (pn_mls_poly (5), 1u, 5u, 0);
+      dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5), 1u, 5u, 0);
       for (size_t i = 0; i < ACQ_SF; i++)
         c[i] = pn_step (pn);
-      pn_destroy (pn);
+      dp_pn_destroy (pn);
       built = 1;
     }
   return c;
@@ -171,10 +171,10 @@ fill_noise (float _Complex *x, size_t n, double sigma, uint32_t seed)
     }
 }
 
-static dsss_burst_receiver_state_t *
+static dp_dsss_burst_receiver_state_t *
 make_rx (void)
 {
-  return dsss_burst_receiver_create (
+  return dp_dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
       SPC, CHIP_RATE, PAYLOAD, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
@@ -197,22 +197,22 @@ time_push (const float _Complex *x, const char *name, jm_bench_t *bench)
   size_t   decoded = 0;
   uint64_t t0, t1;
 
-  dsss_burst_receiver_state_t *probe = make_rx ();
-  size_t cap = dsss_burst_receiver_push_max_out (probe, BENCH_N);
-  dsss_burst_receiver_destroy (probe);
+  dp_dsss_burst_receiver_state_t *probe = make_rx ();
+  size_t cap = dp_dsss_burst_receiver_push_max_out (probe, BENCH_N);
+  dp_dsss_burst_receiver_destroy (probe);
   uint8_t *out = malloc (cap ? cap : 1u);
   if (!out)
     return 0;
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      dsss_burst_receiver_state_t *rx = make_rx ();
-      t0                              = jm_bench_now_ns ();
-      size_t n = dsss_burst_receiver_push (rx, x, BENCH_N, out, cap);
+      dp_dsss_burst_receiver_state_t *rx = make_rx ();
+      t0                                 = jm_bench_now_ns ();
+      size_t n = dp_dsss_burst_receiver_push (rx, x, BENCH_N, out, cap);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
       decoded += n / PAYLOAD;
-      dsss_burst_receiver_destroy (rx);
+      dp_dsss_burst_receiver_destroy (rx);
     }
 
   jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);

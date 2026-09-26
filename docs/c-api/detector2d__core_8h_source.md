@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DETECTOR2D_CORE_H
-#define DETECTOR2D_CORE_H
+#ifndef DP_DETECTOR2D_CORE_H
+#define DP_DETECTOR2D_CORE_H
 
 #include "doppler/buffer/buffer.h"
 #include "doppler/corr2d/corr2d_core.h"
@@ -58,7 +58,7 @@ typedef struct
 
 typedef struct
 {
-  corr2d_state_t *corr;     
+  dp_corr2d_state_t *corr;     
   dp_f32_t *ring;             
   float _Complex *out_buf;   
   float *mag_buf;           
@@ -78,27 +78,27 @@ typedef struct
   float noise_est;
   float test_stat;
   int _last_corr_valid;     
-} detector2d_state_t;
+} dp_detector2d_state_t;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector2d_state_t *detector2d_create (const float _Complex *ref, size_t ny,
+dp_detector2d_state_t *dp_detector2d_create (const float _Complex *ref, size_t ny,
                                        size_t nx, size_t dwell,
                                        size_t noise_lo, size_t noise_hi,
                                        det_noise_mode_t noise_mode,
                                        float threshold, int nthreads);
 
-void detector2d_destroy (detector2d_state_t *state);
+void dp_detector2d_destroy (dp_detector2d_state_t *state);
 
-void detector2d_reset (detector2d_state_t *state);
+void dp_detector2d_reset (dp_detector2d_state_t *state);
 
-int detector2d_set_ref (detector2d_state_t *state, const float _Complex *ref);
+int detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref);
 
-void detector2d_set_threshold (detector2d_state_t *state, float threshold);
+void detector2d_set_threshold (dp_detector2d_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
-size_t detector2d_push (detector2d_state_t *state, const float _Complex *in,
+size_t dp_detector2d_push (dp_detector2d_state_t *state, const float _Complex *in,
                         size_t n_in, det_result2d_t *result,
                         size_t max_results);
 
@@ -107,9 +107,9 @@ size_t detector2d_push (detector2d_state_t *state, const float _Complex *in,
  * + the last-dump result fields; scratch is config (rebuilt by create). */
 #define DETECTOR2D_STATE_MAGIC DP_FOURCC ('D','E','T','2')
 #define DETECTOR2D_STATE_VERSION 1u
-size_t detector2d_state_bytes (const detector2d_state_t *state);
-void detector2d_get_state (const detector2d_state_t *state, void *blob);
-int detector2d_set_state (detector2d_state_t *state, const void *blob);
+size_t dp_detector2d_state_bytes (const dp_detector2d_state_t *state);
+void dp_detector2d_get_state (const dp_detector2d_state_t *state, void *blob);
+int dp_detector2d_set_state (dp_detector2d_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

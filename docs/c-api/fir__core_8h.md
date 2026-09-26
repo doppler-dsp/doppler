@@ -34,7 +34,7 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**fir\_state\_t**](structfir__state__t.md) <br> |
+| struct | [**dp\_fir\_state\_t**](structdp__fir__state__t.md) <br> |
 
 
 
@@ -61,19 +61,19 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create**](#function-fir_create) (const float \_Complex \* taps, size\_t taps\_len) <br>_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._ |
-|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create\_real**](#function-fir_create_real) (const float \* taps, size\_t num\_taps) <br>_Create a FIR filter from real float tap coefficients._  |
-|  double | [**fir\_dc\_gain**](#function-fir_dc_gain) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_The filter's response to a constant input: the sum of its taps._  |
-|  void | [**fir\_destroy**](#function-fir_destroy) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Release all heap resources owned by the filter state. Frees the tap array, delay line, and scratch buffer, then the state struct itself. Passing NULL is a no-op. The Python wrapper calls this automatically in_ **del** _and_**exit** _; call it explicitly only when you want deterministic resource release before GC._ |
-|  size\_t | [**fir\_execute**](#function-fir_execute) ([**fir\_state\_t**](structfir__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out) <br>_Filter n\_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line. The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap. The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size._  |
-|  size\_t | [**fir\_execute\_max\_out**](#function-fir_execute_max_out) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Always 0_  _FIR is a 1:1 transform, not a bounded-capacity one._ |
-|  int | [**fir\_get\_is\_real**](#function-fir_get_is_real) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_True when the filter was created with real-valued tap coefficients. Real-tap filters (fir\_create\_real) use a cheaper inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for complex multiplication. Use this flag to confirm which constructor path was used at runtime._  |
-|  size\_t | [**fir\_get\_num\_taps**](#function-fir_get_num_taps) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._  |
-|  void | [**fir\_get\_state**](#function-fir_get_state) (const [**fir\_state\_t**](structfir__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _delay line into_`blob` _._ |
-|  void | [**fir\_reset**](#function-fir_reset) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line._  |
-|  int | [**fir\_set\_state**](#function-fir_set_state) ([**fir\_state\_t**](structfir__state__t.md) \* state, const void \* blob) <br>_Restore the delay line from_ `blob` _(same num\_taps)._ |
-|  size\_t | [**fir\_state\_bytes**](#function-fir_state_bytes) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Bytes_ [_**fir\_get\_state()**_](fir__core_8h.md#function-fir_get_state) _writes for_`state` _(envelope + payload)._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**fir\_step**](#function-fir_step) ([**fir\_state\_t**](structfir__state__t.md) \* s, float \_Complex x) <br>_Single-sample direct-form FIR step (inline composition API)._  |
+|  [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* | [**dp\_fir\_create**](#function-dp_fir_create) (const float \_Complex \* taps, size\_t taps\_len) <br>_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._ |
+|  void | [**dp\_fir\_destroy**](#function-dp_fir_destroy) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Release all heap resources owned by the filter state. Frees the tap array, delay line, and scratch buffer, then the state struct itself. Passing NULL is a no-op. The Python wrapper calls this automatically in_ **del** _and_**exit** _; call it explicitly only when you want deterministic resource release before GC._ |
+|  size\_t | [**dp\_fir\_execute**](#function-dp_fir_execute) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out) <br>_Filter n\_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line. The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap. The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size._  |
+|  size\_t | [**dp\_fir\_execute\_max\_out**](#function-dp_fir_execute_max_out) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Always 0_  _FIR is a 1:1 transform, not a bounded-capacity one._ |
+|  int | [**dp\_fir\_get\_is\_real**](#function-dp_fir_get_is_real) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_True when the filter was created with real-valued tap coefficients. Real-tap filters (fir\_create\_real) use a cheaper inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for complex multiplication. Use this flag to confirm which constructor path was used at runtime._  |
+|  void | [**dp\_fir\_get\_state**](#function-dp_fir_get_state) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _delay line into_`blob` _._ |
+|  void | [**dp\_fir\_reset**](#function-dp_fir_reset) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line._  |
+|  int | [**dp\_fir\_set\_state**](#function-dp_fir_set_state) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, const void \* blob) <br>_Restore the delay line from_ `blob` _(same num\_taps)._ |
+|  size\_t | [**dp\_fir\_state\_bytes**](#function-dp_fir_state_bytes) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Bytes_ [_**dp\_fir\_get\_state()**_](fir__core_8h.md#function-dp_fir_get_state) _writes for_`state` _(envelope + payload)._ |
+|  [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* | [**fir\_create\_real**](#function-fir_create_real) (const float \* taps, size\_t num\_taps) <br>_Create a FIR filter from real float tap coefficients._  |
+|  double | [**fir\_dc\_gain**](#function-fir_dc_gain) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_The filter's response to a constant input: the sum of its taps._  |
+|  size\_t | [**fir\_get\_num\_taps**](#function-fir_get_num_taps) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**fir\_step**](#function-fir_step) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* s, float \_Complex x) <br>_Single-sample direct-form FIR step (inline composition API)._  |
 
 
 
@@ -114,7 +114,7 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 Two constructors select the tap type at creation time:
 
 
-[**fir\_create()**](fir__core_8h.md#function-fir_create) — complex CF32 taps (general case) [**fir\_create\_real()**](fir__core_8h.md#function-fir_create_real) — real float taps (1 FMA/tap; use for real-valued designs)
+[**dp\_fir\_create()**](fir__core_8h.md#function-dp_fir_create) — complex CF32 taps (general case) [**fir\_create\_real()**](fir__core_8h.md#function-fir_create_real) — real float taps (1 FMA/tap; use for real-valued designs)
 
 
 All execute functions accept CF32 input and write CF32 output. The internal scratch buffer (delay + input) is allocated lazily on the first execute call and grown as needed.
@@ -123,10 +123,10 @@ All execute functions accept CF32 input and write CF32 output. The internal scra
 
 ```C++
 float taps[63] = { ... };
-fir_state_t *fir = fir_create_real(taps, 63);
+dp_fir_state_t *fir = fir_create_real(taps, 63);
 float _Complex out[4096];
-fir_execute(fir, signal, 4096, out);
-fir_destroy(fir);
+dp_fir_execute(fir, signal, 4096, out);
+dp_fir_destroy(fir);
 ```
  
 
@@ -137,11 +137,11 @@ fir_destroy(fir);
 
 
 
-### function fir\_create 
+### function dp\_fir\_create 
 
 _Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._
 ```C++
-fir_state_t * fir_create (
+dp_fir_state_t * dp_fir_create (
     const float _Complex * taps,
     size_t taps_len
 ) 
@@ -184,95 +184,12 @@ False
 
 
 
-### function fir\_create\_real 
-
-_Create a FIR filter from real float tap coefficients._ 
-```C++
-fir_state_t * fir_create_real (
-    const float * taps,
-    size_t num_taps
-) 
-```
-
-
-
-Real taps cost 1 FMA/tap instead of 2 FMA + permute + mul. Use for filters designed with e.g. scipy.signal.firwin.
-
-
-
-
-**Parameters:**
-
-
-* `taps` Pointer to num\_taps real tap coefficients (copied). 
-* `num_taps` Filter length (&gt;= 1). 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL on allocation failure. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function fir\_dc\_gain 
-
-_The filter's response to a constant input: the sum of its taps._ 
-```C++
-double fir_dc_gain (
-    const fir_state_t * state
-) 
-```
-
-
-
-Computed from the stored coefficients, so a caller — or a gate — can ask what gain this filter contributes without running a signal through it. A complex-tap filter's DC response is itself complex; this returns its real part, which is the whole answer for the real-tap case that unity-gain questions are usually about.
-
-
-
-
-**Parameters:**
-
-
-* `state` State. Must be non-NULL. 
-
-
-
-**Returns:**
-
-Sum of the taps (real part for a complex-tap filter).
-
-
-
-```C++
-float h[3] = { 0.25f, 0.5f, 0.25f };
-fir_state_t *f = fir_create_real (h, 3);
-printf ("%.4f\n", fir_dc_gain (f));   // 1.0000
-fir_destroy (f);
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function fir\_destroy 
+### function dp\_fir\_destroy 
 
 _Release all heap resources owned by the filter state. Frees the tap array, delay line, and scratch buffer, then the state struct itself. Passing NULL is a no-op. The Python wrapper calls this automatically in_ **del** _and_**exit** _; call it explicitly only when you want deterministic resource release before GC._
 ```C++
-void fir_destroy (
-    fir_state_t * state
+void dp_fir_destroy (
+    dp_fir_state_t * state
 ) 
 ```
 
@@ -297,12 +214,12 @@ dtype('complex64')
 
 
 
-### function fir\_execute 
+### function dp\_fir\_execute 
 
 _Filter n\_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line. The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap. The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size._ 
 ```C++
-size_t fir_execute (
-    fir_state_t * state,
+size_t dp_fir_execute (
+    dp_fir_state_t * state,
     const float _Complex * in,
     size_t n_in,
     float _Complex * out
@@ -352,18 +269,18 @@ dtype('complex64')
 
 
 
-### function fir\_execute\_max\_out 
+### function dp\_fir\_execute\_max\_out 
 
 _Always 0_  _FIR is a 1:1 transform, not a bounded-capacity one._
 ```C++
-size_t fir_execute_max_out (
-    fir_state_t * state
+size_t dp_fir_execute_max_out (
+    dp_fir_state_t * state
 ) 
 ```
 
 
 
-[**fir\_execute()**](fir__core_8h.md#function-fir_execute) always writes exactly n\_in samples; there is no call-independent upper bound smaller than the input length for this function to report. An `out=` buffer must be sized to exactly `len(x)`, not to this function's return value. 
+[**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) always writes exactly n\_in samples; there is no call-independent upper bound smaller than the input length for this function to report. An `out=` buffer must be sized to exactly `len(x)`, not to this function's return value. 
 
 
         
@@ -372,12 +289,12 @@ size_t fir_execute_max_out (
 
 
 
-### function fir\_get\_is\_real 
+### function dp\_fir\_get\_is\_real 
 
 _True when the filter was created with real-valued tap coefficients. Real-tap filters (fir\_create\_real) use a cheaper inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for complex multiplication. Use this flag to confirm which constructor path was used at runtime._ 
 ```C++
-int fir_get_is_real (
-    const fir_state_t * state
+int dp_fir_get_is_real (
+    const dp_fir_state_t * state
 ) 
 ```
 
@@ -400,40 +317,12 @@ False
 
 
 
-### function fir\_get\_num\_taps 
-
-_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._ 
-```C++
-size_t fir_get_num_taps (
-    const fir_state_t * state
-) 
-```
-
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.filter import FIR
->>> taps = np.array([0.25+0j, 0.5+0j, 0.25+0j], dtype=np.complex64)
->>> FIR(taps).num_taps
-3
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function fir\_get\_state 
+### function dp\_fir\_get\_state 
 
 _Serialize_ `state's` _delay line into_`blob` _._
 ```C++
-void fir_get_state (
-    const fir_state_t * state,
+void dp_fir_get_state (
+    const dp_fir_state_t * state,
     void * blob
 ) 
 ```
@@ -445,12 +334,12 @@ void fir_get_state (
 
 
 
-### function fir\_reset 
+### function dp\_fir\_reset 
 
 _Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line._ 
 ```C++
-void fir_reset (
-    fir_state_t * state
+void dp_fir_reset (
+    dp_fir_state_t * state
 ) 
 ```
 
@@ -478,12 +367,12 @@ void fir_reset (
 
 
 
-### function fir\_set\_state 
+### function dp\_fir\_set\_state 
 
 _Restore the delay line from_ `blob` _(same num\_taps)._
 ```C++
-int fir_set_state (
-    fir_state_t * state,
+int dp_fir_set_state (
+    dp_fir_state_t * state,
     const void * blob
 ) 
 ```
@@ -506,12 +395,12 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects.
 
 
 
-### function fir\_state\_bytes 
+### function dp\_fir\_state\_bytes 
 
-_Bytes_ [_**fir\_get\_state()**_](fir__core_8h.md#function-fir_get_state) _writes for_`state` _(envelope + payload)._
+_Bytes_ [_**dp\_fir\_get\_state()**_](fir__core_8h.md#function-dp_fir_get_state) _writes for_`state` _(envelope + payload)._
 ```C++
-size_t fir_state_bytes (
-    const fir_state_t * state
+size_t dp_fir_state_bytes (
+    const dp_fir_state_t * state
 ) 
 ```
 
@@ -522,19 +411,130 @@ size_t fir_state_bytes (
 
 
 
+### function fir\_create\_real 
+
+_Create a FIR filter from real float tap coefficients._ 
+```C++
+dp_fir_state_t * fir_create_real (
+    const float * taps,
+    size_t num_taps
+) 
+```
+
+
+
+Real taps cost 1 FMA/tap instead of 2 FMA + permute + mul. Use for filters designed with e.g. scipy.signal.firwin.
+
+
+
+
+**Parameters:**
+
+
+* `taps` Pointer to num\_taps real tap coefficients (copied). 
+* `num_taps` Filter length (&gt;= 1). 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function fir\_dc\_gain 
+
+_The filter's response to a constant input: the sum of its taps._ 
+```C++
+double fir_dc_gain (
+    const dp_fir_state_t * state
+) 
+```
+
+
+
+Computed from the stored coefficients, so a caller — or a gate — can ask what gain this filter contributes without running a signal through it. A complex-tap filter's DC response is itself complex; this returns its real part, which is the whole answer for the real-tap case that unity-gain questions are usually about.
+
+
+
+
+**Parameters:**
+
+
+* `state` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Sum of the taps (real part for a complex-tap filter).
+
+
+
+```C++
+float h[3] = { 0.25f, 0.5f, 0.25f };
+dp_fir_state_t *f = fir_create_real (h, 3);
+printf ("%.4f\n", fir_dc_gain (f));   // 1.0000
+dp_fir_destroy (f);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function fir\_get\_num\_taps 
+
+_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._ 
+```C++
+size_t fir_get_num_taps (
+    const dp_fir_state_t * state
+) 
+```
+
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.filter import FIR
+>>> taps = np.array([0.25+0j, 0.5+0j, 0.25+0j], dtype=np.complex64)
+>>> FIR(taps).num_taps
+3
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function fir\_step 
 
 _Single-sample direct-form FIR step (inline composition API)._ 
 ```C++
 JM_FORCEINLINE  JM_HOT float _Complex fir_step (
-    fir_state_t * s,
+    dp_fir_state_t * s,
     float _Complex x
 ) 
 ```
 
 
 
-Filters one sample and advances the delay line: returns `y = sum_k h[k] * x[n-k]` and shifts `x` into the length-`num_taps-1` delay line (dropping the oldest sample). This is the per-sample counterpart to [**fir\_execute()**](fir__core_8h.md#function-fir_execute) — a tracking receiver inlines it into its own sample loop (e.g. a matched filter feeding a symbol-timing loop) where [**fir\_execute()**](fir__core_8h.md#function-fir_execute)'s block interface cannot. It mirrors [**fir\_execute()**](fir__core_8h.md#function-fir_execute)'s real-tap scalar accumulation term for term, so a [**fir\_step()**](fir__core_8h.md#function-fir_step) stream matches [**fir\_execute()**](fir__core_8h.md#function-fir_execute) to within floating-point rounding: equal in exact arithmetic; a contracted FMA can differ by ~1 ULP across translation units, and [**fir\_execute()**](fir__core_8h.md#function-fir_execute) on a multi-sample block can differ a little more from SIMD reassociation. Cost is `num_taps` MACs plus an O(num\_taps) delay-line shift per sample.
+Filters one sample and advances the delay line: returns `y = sum_k h[k] * x[n-k]` and shifts `x` into the length-`num_taps-1` delay line (dropping the oldest sample). This is the per-sample counterpart to [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) — a tracking receiver inlines it into its own sample loop (e.g. a matched filter feeding a symbol-timing loop) where [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute)'s block interface cannot. It mirrors [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute)'s real-tap scalar accumulation term for term, so a [**fir\_step()**](fir__core_8h.md#function-fir_step) stream matches [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) to within floating-point rounding: equal in exact arithmetic; a contracted FMA can differ by ~1 ULP across translation units, and [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) on a multi-sample block can differ a little more from SIMD reassociation. Cost is `num_taps` MACs plus an O(num\_taps) delay-line shift per sample.
 
 
 

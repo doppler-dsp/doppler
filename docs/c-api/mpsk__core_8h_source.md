@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef MPSK_CORE_H
-#define MPSK_CORE_H
+#ifndef DP_MPSK_CORE_H
+#define DP_MPSK_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -71,19 +71,19 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
   return mpsk_gray_encode (ki);
 }
 
-void mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
+void dp_mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
 
-void mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
+void dp_mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
-void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
+void dp_mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
                    int m);
 
-void mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
+void dp_mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
-void mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
+void dp_mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
                      size_t llr_len, int m, float n0);
 
-int mpsk_bits_per_symbol(int m);
+int dp_mpsk_bits_per_symbol(int m);
 
 #ifdef __cplusplus
 }

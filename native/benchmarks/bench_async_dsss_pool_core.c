@@ -99,7 +99,7 @@ main (void)
   const int threads[2] = { 1, 0 }; /* serial, then every core */
   for (int k = 0; k < 2; k++)
     {
-      async_dsss_pool_state_t *p = async_dsss_pool_create (
+      dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
           code, SF, CHIP_RATE, SYM_RATE, SPC, 2, 47.0, 1e-2, 0.9, 6000.0,
           CODE_ONLY_EPOCHS, 0.0, 4, N_SLOTS, threads[k], 0.0, 2.0, 0.0, 4, 8,
           0, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
@@ -108,7 +108,7 @@ main (void)
       /* Warm: the emitter acquired and tracking before the timed pushes. */
       size_t pos = 0;
       for (; pos + TE <= n / 2; pos += TE)
-        (void)async_dsss_pool_push (p, x + pos, TE);
+        (void)dp_async_dsss_pool_push (p, x + pos, TE);
       double   times[ITERATIONS];
       uint64_t t0, t1;
       size_t   sink = 0;
@@ -117,7 +117,7 @@ main (void)
           if (pos + TE > n)
             pos = n / 2;
           t0 = jm_bench_now_ns ();
-          sink += async_dsss_pool_push (p, x + pos, TE);
+          sink += dp_async_dsss_pool_push (p, x + pos, TE);
           t1       = jm_bench_now_ns ();
           times[r] = jm_bench_elapsed_sec (t0, t1);
           pos += TE;
@@ -129,7 +129,7 @@ main (void)
       double sec = min_sec (times, ITERATIONS);
       printf ("  %-28s %8.3f us/epoch  %7.2f ns/sample  (assigned %zu)\n",
               name, sec * 1e6, sec / (double)TE * 1e9, sink / ITERATIONS);
-      async_dsss_pool_destroy (p);
+      dp_async_dsss_pool_destroy (p);
     }
   jm_bench_write_json (&_bench, "async_dsss_pool");
   free (x);

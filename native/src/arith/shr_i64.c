@@ -4,7 +4,7 @@
 #include "doppler/arith/arith_core.h"
 
 void
-shr_i64 (const int64_t *a, size_t a_len, int64_t *out, int n)
+dp_shr_i64 (const int64_t *a, size_t a_len, int64_t *out, int n)
 {
   for (size_t i = 0; i < a_len; i++)
     {

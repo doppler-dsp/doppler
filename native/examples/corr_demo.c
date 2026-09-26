@@ -80,9 +80,9 @@ demo_corr_1d (void)
   for (size_t k = 0; k < N; k++)
     x[k] = ref[(k + N - LAG) % N];
 
-  corr_state_t *c = corr_create (ref, N, 1, 1, 0);
-  corr_execute (c, x, N, out, N);
-  corr_destroy (c);
+  dp_corr_state_t *c = dp_corr_create (ref, N, 1, 1, 0);
+  dp_corr_execute (c, x, N, out, N);
+  dp_corr_destroy (c);
 
   /* Find peak. */
   size_t peak_bin = 0;
@@ -132,10 +132,10 @@ demo_corr_dwell (void)
           " N=%zu per frame; after dwell=%zu: %.1f.\n\n",
           N, DWELL, (float)(DWELL * N));
 
-  corr_state_t *c = corr_create (ref, N, DWELL, 1, 0);
+  dp_corr_state_t *c = dp_corr_create (ref, N, DWELL, 1, 0);
   for (size_t i = 0; i < DWELL; i++)
     {
-      size_t n_out = corr_execute (c, ref, N, out, N);
+      size_t n_out = dp_corr_execute (c, ref, N, out, N);
       if (n_out == 0)
         printf ("  frame %zu/%zu : accumulating  (count=%zu)\n", i + 1, DWELL,
                 c->count);
@@ -144,7 +144,7 @@ demo_corr_dwell (void)
                 "|R[0]| = %.3f  (expected %.1f)\n",
                 i + 1, DWELL, cabsf (out[0]), (float)(DWELL * N));
     }
-  corr_destroy (c);
+  dp_corr_destroy (c);
   printf ("\n");
 }
 
@@ -160,9 +160,9 @@ demo_corr2d (void)
   fill_pn (ref, N);
   circ_shift_2d (x, ref, NY, NX, DR, DC);
 
-  corr2d_state_t *c = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
-  corr2d_execute (c, x, N, out, N);
-  corr2d_destroy (c);
+  dp_corr2d_state_t *c = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+  dp_corr2d_execute (c, x, N, out, N);
+  dp_corr2d_destroy (c);
 
   size_t peak_flat = 0;
   float  peak_mag  = 0.0f;
@@ -204,8 +204,8 @@ demo_detector (void)
 
   /* threshold=0 → always fire; noise_lo=1 excludes the peak bin (lag=0)
    * from the noise estimate so noise_est reflects the sidelobe floor.     */
-  detector_state_t *det
-      = detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+  dp_detector_state_t *det
+      = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
 
   det_result_t results[4];
   size_t       total = 0;
@@ -214,8 +214,8 @@ demo_detector (void)
     {
       /* Alternate first and second half of ref so consecutive chunk pairs
        * form one complete N-sample frame that matches the reference.      */
-      const float complex *in   = ref + (ch % 2) * CHUNK;
-      size_t               ndet = detector_push (det, in, CHUNK, results, 4);
+      const float complex *in = ref + (ch % 2) * CHUNK;
+      size_t ndet             = dp_detector_push (det, in, CHUNK, results, 4);
 
       printf ("  chunk %zu (%zu samples) : ", ch + 1, CHUNK);
       if (ndet == 0)
@@ -234,7 +234,7 @@ demo_detector (void)
     }
 
   printf ("\n  total: %zu detections from %zu chunks\n\n", total, N_CHUNKS);
-  detector_destroy (det);
+  dp_detector_destroy (det);
 }
 
 int

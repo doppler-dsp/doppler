@@ -1,19 +1,19 @@
 /**
  * @file lockdet_verify.c
  * @brief Monte-Carlo validation: lockdet's verify counts compound the way
- *        the header says, and its declare latency is det_verify_delay().
+ *        the header says, and its declare latency is dp_det_verify_delay().
  *
  * lockdet_core.h makes two probabilistic claims that nothing executed:
  *
  *   "at per-look false-alarm rate p the false-declare rate is p^n_up"
- *   "predict the declare latency with det_verify_delay()"
+ *   "predict the declare latency with dp_det_verify_delay()"
  *
  * Both are the contract the carrier and timing lock indicators are sized
- * against -- det_verify_count() picks n_up FROM the first, and the second is
- * the number a receiver reports so a caller knows how long the lamp takes to
- * light. A decision rule whose compounding is off by a factor turns a
- * 1e-5 budget into something else entirely, silently, because a lock
- * detector that declares too eagerly still looks like a working detector.
+ * against -- dp_det_verify_count() picks n_up FROM the first, and the second
+ * is the number a receiver reports so a caller knows how long the lamp takes
+ * to light. A decision rule whose compounding is off by a factor turns a 1e-5
+ * budget into something else entirely, silently, because a lock detector that
+ * declares too eagerly still looks like a working detector.
  *
  * Method. Feed the detector pure noise -- a real Gaussian look stream from
  * the shipped **awgn** generator, not a private one -- with the threshold
@@ -63,17 +63,17 @@ static void
 measure (double p, uint32_t n_up, size_t looks, uint64_t seed,
          double *rate_out, double *latency_out)
 {
-  double         thr = det_q_inv (p);
-  awgn_state_t  *g   = awgn_create (seed, 1.0f); /* per-component sd = 1 */
-  float complex *buf = malloc (BLK * sizeof *buf);
+  double           thr = dp_det_q_inv (p);
+  dp_awgn_state_t *g = dp_awgn_create (seed, 1.0f); /* per-component sd = 1 */
+  float complex   *buf = malloc (BLK * sizeof *buf);
   if (!g || !buf)
     {
       *rate_out = *latency_out = -1.0;
       free (buf);
-      awgn_destroy (g);
+      dp_awgn_destroy (g);
       return;
     }
-  lockdet_state_t d;
+  dp_lockdet_state_t d;
   memset (&d, 0, sizeof d);
   /* n_down = 1 is irrelevant here: the detector is reset on every declare,
      so it never spends a look in the locked state. */
@@ -82,26 +82,26 @@ measure (double p, uint32_t n_up, size_t looks, uint64_t seed,
   size_t declares = 0, run = 0, run_total = 0;
   for (size_t done = 0; done < looks;)
     {
-      size_t n = awgn_generate (g, BLK, buf, BLK);
+      size_t n = dp_awgn_generate (g, BLK, buf, BLK);
       for (size_t i = 0; i < n && done < looks; i++, done++)
         {
           run++;
           /* One real Gaussian look. Taking the real part is a choice of
              rail, not a scaling: awgn's amplitude IS the per-component sd,
              so this look is N(0, 1) exactly. */
-          if (lockdet_step (&d, (double)crealf (buf[i])))
+          if (dp_lockdet_step (&d, (double)crealf (buf[i])))
             {
               declares++;
               run_total += run;
               run = 0;
-              lockdet_reset (&d);
+              dp_lockdet_reset (&d);
             }
         }
     }
   *rate_out    = (double)declares / (double)looks;
   *latency_out = declares ? (double)run_total / (double)declares : 0.0;
   free (buf);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
 }
 
 int
@@ -119,7 +119,7 @@ main (int argc, char **argv)
          p^n (1-p)/(1-p^n) -- not p^n, which the header states and which is
          its p -> 0 limit. At p = 0.2 the two differ by 19%, so asserting
          p^n here would fail on correct code. */
-      double want_lat  = det_verify_delay (0.2, 3);
+      double want_lat  = dp_det_verify_delay (0.2, 3);
       double want_rate = 1.0 / want_lat;
       int    fail      = 0;
       if (!(fabs (rate - want_rate) < 0.12 * want_rate))
@@ -162,7 +162,7 @@ main (int argc, char **argv)
           looks = 40000000u;
         measure (ps[i], nups[j], looks, 991u + (uint64_t)(i * 16 + j), &rate,
                  &lat);
-        double delay = det_verify_delay (ps[i], (int)nups[j]);
+        double delay = dp_det_verify_delay (ps[i], (int)nups[j]);
         double exact = 1.0 / delay;
         printf ("  %.1f   %4u   %9.6f   %9.6f   %8.6f   %+9.1f%%   "
                 "%8.1f   %16.1f\n",

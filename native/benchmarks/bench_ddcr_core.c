@@ -52,14 +52,14 @@ static const char *face_name[N_CFG]
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  uint64_t        t0, t1;
-  static double   t[N_CFG][ITERATIONS];
-  ddcr_state_t   *ddcr = ddcr_create (NORM_FREQ, RATE);
-  float          *in   = NULL;
-  float _Complex *out  = NULL;
-  size_t          cap, emitted = 0;
-  char            name[64];
+  jm_bench_t       _bench = { 0 };
+  uint64_t         t0, t1;
+  static double    t[N_CFG][ITERATIONS];
+  dp_ddcr_state_t *ddcr = dp_ddcr_create (NORM_FREQ, RATE);
+  float           *in   = NULL;
+  float _Complex  *out  = NULL;
+  size_t           cap, emitted = 0;
+  char             name[64];
 
   if (!ddcr)
     return 1;
@@ -70,7 +70,7 @@ main (void)
   for (size_t i = 0; i < BLOCK; i++)
     in[i] = cosf (0.11f * (float)i);
 
-  cap = ddcr_execute_max_out (ddcr);
+  cap = dp_ddcr_execute_max_out (ddcr);
   if (cap < BLOCK)
     cap = BLOCK;
   out = malloc (cap * sizeof *out);
@@ -81,25 +81,25 @@ main (void)
   printf ("rate = %.2f, %d input samples, %d rounds, min over rounds\n\n",
           RATE, BLOCK, ITERATIONS);
 
-  DP_BENCH_SETTLE ((void)ddcr_execute (ddcr, in, BLOCK, out, cap));
+  DP_BENCH_SETTLE ((void)dp_ddcr_execute (ddcr, in, BLOCK, out, cap));
 
   /* Rounds outside, faces inside: the push row is read as a multiple of
      the execute row, so both must see the same machine. */
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0                = jm_bench_now_ns ();
-      emitted           = ddcr_execute (ddcr, in, BLOCK, out, cap);
+      emitted           = dp_ddcr_execute (ddcr, in, BLOCK, out, cap);
       t1                = jm_bench_now_ns ();
       t[CFG_EXECUTE][r] = jm_bench_elapsed_sec (t0, t1);
 
       t0 = jm_bench_now_ns ();
-      (void)ddcr_execute_ctrl (ddcr, in, BLOCK, 0.0, 0.0, out, cap);
+      (void)dp_ddcr_execute_ctrl (ddcr, in, BLOCK, 0.0, 0.0, out, cap);
       t1             = jm_bench_now_ns ();
       t[CFG_CTRL][r] = jm_bench_elapsed_sec (t0, t1);
 
       t0 = jm_bench_now_ns ();
       for (size_t i = 0; i < BLOCK; i++)
-        (void)ddcr_execute_ctrl_push (ddcr, in[i], 0.0, 0.0, out, cap);
+        (void)dp_ddcr_execute_ctrl_push (ddcr, in[i], 0.0, 0.0, out, cap);
       t1             = jm_bench_now_ns ();
       t[CFG_PUSH][r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -124,7 +124,7 @@ main (void)
 
   free (in);
   free (out);
-  ddcr_destroy (ddcr);
+  dp_ddcr_destroy (ddcr);
   jm_bench_write_json (&_bench, "ddcr");
   return 0;
 }

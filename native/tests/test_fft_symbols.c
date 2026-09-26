@@ -23,17 +23,17 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_fft[] = {
-    (jm_any_fn)fft_create,
-    (jm_any_fn)fft_destroy,
-    (jm_any_fn)fft_reset,
-    (jm_any_fn)fft_execute_cf64_max_out,
-    (jm_any_fn)fft_execute_cf64,
-    (jm_any_fn)fft_execute_cf32_max_out,
-    (jm_any_fn)fft_execute_cf32,
-    (jm_any_fn)fft_execute_inplace_cf64_max_out,
-    (jm_any_fn)fft_execute_inplace_cf64,
-    (jm_any_fn)fft_execute_inplace_cf32_max_out,
-    (jm_any_fn)fft_execute_inplace_cf32,
+    (jm_any_fn)dp_fft_create,
+    (jm_any_fn)dp_fft_destroy,
+    (jm_any_fn)dp_fft_reset,
+    (jm_any_fn)dp_fft_execute_cf64_max_out,
+    (jm_any_fn)dp_fft_execute_cf64,
+    (jm_any_fn)dp_fft_execute_cf32_max_out,
+    (jm_any_fn)dp_fft_execute_cf32,
+    (jm_any_fn)dp_fft_execute_inplace_cf64_max_out,
+    (jm_any_fn)dp_fft_execute_inplace_cf64,
+    (jm_any_fn)dp_fft_execute_inplace_cf32_max_out,
+    (jm_any_fn)dp_fft_execute_inplace_cf32,
     (jm_any_fn)fft_execute_ci16,
     (jm_any_fn)fft_execute_ci8,
 };

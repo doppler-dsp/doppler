@@ -138,7 +138,7 @@ forward what a capture caller actually needs.
 
 ### 4.1 Any repeated preamble, and one replica of it
 
-`burst_capture_create()` takes the preamble as its **samples**: one period
+`dp_burst_capture_create()` takes the preamble as its **samples**: one period
 of any repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), at `fs`
 ([#1470](https://github.com/doppler-dsp/doppler/issues/1470)). A PN code is one
 such preamble -- its chips by `bin_to_nrz()`, each held `spc` samples, at
@@ -168,19 +168,19 @@ ______________________________________________________________________
 <!-- docs-snippet: skip=declarations quoted from burst_capture_core.h, not a compilable program -->
 
 ```c
-burst_capture_state_t *burst_capture_create (
+dp_burst_capture_state_t *dp_burst_capture_create (
     const float _Complex *preamble, size_t preamble_len, size_t burst_len,
     size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
     double pfa, double pd, int noise_mode, double doppler_rate);
 
-size_t burst_capture_push (burst_capture_state_t *, const float complex *x,
+size_t dp_burst_capture_push (dp_burst_capture_state_t *, const float complex *x,
                            size_t x_len, float complex *out, size_t max_out);
-size_t burst_capture_events (burst_capture_state_t *, size_t n,
+size_t dp_burst_capture_events (dp_burst_capture_state_t *, size_t n,
                              burst_capture_event_t *out, size_t max_out);
 
 /* The C consumer's face: borrow, do not copy. */
-size_t burst_capture_ready  (const burst_capture_state_t *);
-const float complex *burst_capture_window (const burst_capture_state_t *,
+size_t burst_capture_ready  (const dp_burst_capture_state_t *);
+const float complex *burst_capture_window (const dp_burst_capture_state_t *,
                                            size_t i);
 ```
 
@@ -226,7 +226,7 @@ ______________________________________________________________________
 
 `DsssBurstReceiver` arms its suppression window — the span after a burst in
 which detections are the payload firing against the acquisition code, not new
-bursts — when `burst_demod_demod()` returns a non-zero bit count.
+bursts — when `dp_burst_demod_demod()` returns a non-zero bit count.
 [§10.3](dsss-burst-receiver.md) settled that: what arms it is the burst
 having demodulated, which is a physical fact that object owns.
 
@@ -494,7 +494,7 @@ mode is silence: a search that cannot meet the requested `pd` still builds a
 best-effort grid and then captures fewer bursts than arrived, which is
 indistinguishable from a stream with nothing in it. It is a *declared*
 warning, gated on a bool field. The sibling `BurstAcquisition` declares the
-same warning the same way: `burst_acq_state_t` carries its own `underpowered`
+same warning the same way: `dp_burst_acq_state_t` carries its own `underpowered`
 field for it, because jm's condition must be a bare identifier on the
 struct.
 
@@ -562,7 +562,7 @@ The capture cannot reach the verdict — it stops at samples; error
 detection, in whatever form a frame carries it, is the consumer's. So:
 
 - detections inside an owned span are **held** (`shadowed`), not dropped;
-- `burst_capture_release(i)` gives window `i`'s span back and the held
+- `dp_burst_capture_release(i)` gives window `i`'s span back and the held
     detections are searched again on the next `push()`;
 - unreleased, they are dropped when the next `push()` begins — exactly what
     a consumer with no verdict always got. `pending` never counts them;

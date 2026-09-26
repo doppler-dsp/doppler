@@ -218,17 +218,17 @@ typedef struct
 static int
 build_frames (uint8_t *frames)
 {
-  const size_t nchip = (size_t)NCADU * FRAME_OCTETS * 8u;
-  uint8_t     *chips = (uint8_t *)malloc (nchip);
-  pn_state_t  *p     = pn_create (wfm_synth_mls_poly (15), 1u, 15, 0);
+  const size_t   nchip = (size_t)NCADU * FRAME_OCTETS * 8u;
+  uint8_t       *chips = (uint8_t *)malloc (nchip);
+  dp_pn_state_t *p     = dp_pn_create (wfm_synth_mls_poly (15), 1u, 15, 0);
 
   if (!chips || !p)
     {
       free (chips);
-      pn_destroy (p);
+      dp_pn_destroy (p);
       return -1;
     }
-  pn_generate (p, nchip, chips, nchip);
+  dp_pn_generate (p, nchip, chips, nchip);
   for (size_t i = 0; i < (size_t)NCADU * FRAME_OCTETS; i++)
     {
       uint8_t v = 0;
@@ -236,7 +236,7 @@ build_frames (uint8_t *frames)
         v = (uint8_t)((v << 1) | (chips[i * 8u + b] & 1u));
       frames[i] = v;
     }
-  pn_destroy (p);
+  dp_pn_destroy (p);
   free (chips);
   return 0;
 }
@@ -286,7 +286,7 @@ identify (const uint8_t *got, const uint8_t *frames, size_t *dist_out)
    symbol starts a branch, the marker says where a FRAME starts and in which
    polarity. */
 static size_t
-decode_segment (viterbi_state_t *v, const float complex *sym, size_t nsym,
+decode_segment (dp_viterbi_state_t *v, const float complex *sym, size_t nsym,
                 float *llr, uint8_t *bits, size_t cap, node_sync_t *ns_out)
 {
   node_sync_t ns;
@@ -301,7 +301,7 @@ decode_segment (viterbi_state_t *v, const float complex *sym, size_t nsym,
      path wins -- which is what makes `n0 = 1` right here rather than lazy.
      The AGC has already moved the output scale, so any "calibrated" n0 would
      be a fiction with the same effect. */
-  mpsk_soft_demap (sym, nsym, llr, nsym, 2, 1.0f);
+  dp_mpsk_soft_demap (sym, nsym, llr, nsym, 2, 1.0f);
 
   /* Scored over the HEAD of the segment, not the whole of it, and that is
      load-bearing: an alignment is only valid until the next slip, so a scan
@@ -326,9 +326,9 @@ decode_segment (viterbi_state_t *v, const float complex *sym, size_t nsym,
 
   size_t n_llr = nsym - ns.phase;
   n_llr -= n_llr % 2u;
-  viterbi_reset (v);
-  size_t nb = viterbi_decode (v, llr + ns.phase, n_llr, bits, cap);
-  viterbi_reset (v);
+  dp_viterbi_reset (v);
+  size_t nb = dp_viterbi_decode (v, llr + ns.phase, n_llr, bits, cap);
+  dp_viterbi_reset (v);
   return nb;
 }
 
@@ -348,17 +348,17 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
   res.esn0_db = esn0_db;
   res.ebn0_db = esn0_db - 10.0 * log10 (CODE_RATE);
 
-  float complex   *out     = malloc (TOTAL_SYM * sizeof *out);
-  unsigned char   *lock_c  = malloc (TOTAL_SYM);
-  unsigned char   *track   = malloc (TOTAL_SYM);
-  double          *err     = malloc (TOTAL_SYM * sizeof *err);
-  float           *llr     = malloc (TOTAL_SYM * sizeof *llr);
-  uint8_t         *bits    = malloc (TOTAL_SYM);
-  uint8_t         *cadu    = malloc (CADU_BITS);
-  uint8_t         *frame   = malloc (FRAME_OCTETS);
-  viterbi_state_t *v       = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
-  int              clipped = 0;
-  size_t           nout    = 0;
+  float complex      *out    = malloc (TOTAL_SYM * sizeof *out);
+  unsigned char      *lock_c = malloc (TOTAL_SYM);
+  unsigned char      *track  = malloc (TOTAL_SYM);
+  double             *err    = malloc (TOTAL_SYM * sizeof *err);
+  float              *llr    = malloc (TOTAL_SYM * sizeof *llr);
+  uint8_t            *bits   = malloc (TOTAL_SYM);
+  uint8_t            *cadu   = malloc (CADU_BITS);
+  uint8_t            *frame  = malloc (FRAME_OCTETS);
+  dp_viterbi_state_t *v      = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
+  int                 clipped = 0;
+  size_t              nout    = 0;
 
   if (!out || !lock_c || !track || !err || !llr || !bits || !cadu || !frame
       || !v)
@@ -575,11 +575,11 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
       ber_interval_t ci
           = ber_confidence (res.payload_errs, res.payload_bits, CONF);
       double p    = ci.hi > 0.0 ? ci.hi : 1.0;
-      res.gain_db = ber_esn0_db_for_ser (2, p) - res.ebn0_db;
+      res.gain_db = dp_ber_esn0_db_for_ser (2, p) - res.ebn0_db;
     }
 
 done:
-  viterbi_destroy (v);
+  dp_viterbi_destroy (v);
   free (out);
   free (lock_c);
   free (track);

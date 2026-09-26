@@ -206,7 +206,7 @@ default = "100000"
 # and the pure-carrier-offset case are unchanged. When > 0, the coupled
 # code-rate Doppler (physically code_rate_dev = carrier_offset/carrier_freq,
 # the same v/c) is fed into the tracking Dll's own rate NCO via
-# dll_set_rate_aid(): the code discriminator alone cannot pull in that
+# dp_dll_set_rate_aid(): the code discriminator alone cannot pull in that
 # constant rate offset at low SNR (e.g. 24.6 chips/s at a 20 kHz offset /
 # 2.5 GHz carrier), so unaided the code loop walks off and lock collapses
 # even though the carrier estimate is correct. Set this to the receiver's own

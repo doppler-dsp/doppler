@@ -57,12 +57,12 @@ _Cvt module — public C API._
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**bin\_to\_hex**](#function-bin_to_hex) (const uint8\_t \* bits, size\_t bits\_len, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Render unpacked bits to hex digits_  _inverse of hex\_to\_bin._ |
-|  uint64\_t | [**bin\_to\_int**](#function-bin_to_int) (const uint8\_t \* bits, size\_t bits\_len, int bitorder) <br>_Read unpacked bits back into an integer_  _inverse of int\_to\_bin._ |
-|  size\_t | [**bin\_to\_nrz**](#function-bin_to_nrz) (const uint8\_t \* bits, size\_t bits\_len, float \* out, size\_t out\_len) <br>_Map unpacked bits to bipolar NRZ symbols: 0 -&gt; +1, 1 -&gt; -1._  |
-|  size\_t | [**hex\_to\_bin**](#function-hex_to_bin) (const char \* hex, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand a hex string to unpacked bits, one per byte._  |
-|  size\_t | [**int\_to\_bin**](#function-int_to_bin) (uint64\_t v, uint32\_t n\_bits, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand the low_ `n_bits` _of an integer to unpacked bits._ |
-|  size\_t | [**nrz\_to\_bin**](#function-nrz_to_bin) (const float \* nrz, size\_t nrz\_len, uint8\_t \* out, size\_t out\_len) <br>_Hard-decide NRZ symbols back to bits_  _inverse of bin\_to\_nrz._ |
+|  size\_t | [**dp\_bin\_to\_hex**](#function-dp_bin_to_hex) (const uint8\_t \* bits, size\_t bits\_len, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Render unpacked bits to hex digits_  _inverse of hex\_to\_bin._ |
+|  uint64\_t | [**dp\_bin\_to\_int**](#function-dp_bin_to_int) (const uint8\_t \* bits, size\_t bits\_len, int bitorder) <br>_Read unpacked bits back into an integer_  _inverse of int\_to\_bin._ |
+|  size\_t | [**dp\_bin\_to\_nrz**](#function-dp_bin_to_nrz) (const uint8\_t \* bits, size\_t bits\_len, float \* out, size\_t out\_len) <br>_Map unpacked bits to bipolar NRZ symbols: 0 -&gt; +1, 1 -&gt; -1._  |
+|  size\_t | [**dp\_hex\_to\_bin**](#function-dp_hex_to_bin) (const char \* hex, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand a hex string to unpacked bits, one per byte._  |
+|  size\_t | [**dp\_int\_to\_bin**](#function-dp_int_to_bin) (uint64\_t v, uint32\_t n\_bits, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand the low_ `n_bits` _of an integer to unpacked bits._ |
+|  size\_t | [**dp\_nrz\_to\_bin**](#function-dp_nrz_to_bin) (const float \* nrz, size\_t nrz\_len, uint8\_t \* out, size\_t out\_len) <br>_Hard-decide NRZ symbols back to bits_  _inverse of bin\_to\_nrz._ |
 
 
 ## Public Static Functions
@@ -125,11 +125,11 @@ The name and the values follow numpy's `packbits`/`unpackbits` `bitorder=` argum
 
 
 
-### function bin\_to\_hex 
+### function dp\_bin\_to\_hex 
 
 _Render unpacked bits to hex digits_  _inverse of hex\_to\_bin._
 ```C++
-size_t bin_to_hex (
+size_t dp_bin_to_hex (
     const uint8_t * bits,
     size_t bits_len,
     uint8_t * out,
@@ -182,11 +182,11 @@ digits written, NOT counting the NUL, or 0 on refusal.
 
 
 
-### function bin\_to\_int 
+### function dp\_bin\_to\_int 
 
 _Read unpacked bits back into an integer_  _inverse of int\_to\_bin._
 ```C++
-uint64_t bin_to_int (
+uint64_t dp_bin_to_int (
     const uint8_t * bits,
     size_t bits_len,
     int bitorder
@@ -231,11 +231,11 @@ the value, or 0 on refusal.
 
 
 
-### function bin\_to\_nrz 
+### function dp\_bin\_to\_nrz 
 
 _Map unpacked bits to bipolar NRZ symbols: 0 -&gt; +1, 1 -&gt; -1._ 
 ```C++
-size_t bin_to_nrz (
+size_t dp_bin_to_nrz (
     const uint8_t * bits,
     size_t bits_len,
     float * out,
@@ -285,11 +285,11 @@ symbols written, or 0 on refusal.
 
 
 
-### function hex\_to\_bin 
+### function dp\_hex\_to\_bin 
 
 _Expand a hex string to unpacked bits, one per byte._ 
 ```C++
-size_t hex_to_bin (
+size_t dp_hex_to_bin (
     const char * hex,
     uint8_t * out,
     size_t out_len,
@@ -299,7 +299,7 @@ size_t hex_to_bin (
 
 
 
-For what [**int\_to\_bin**](cvt__core_8h.md#function-int_to_bin) cannot serve: a literal wider than 64 bits, or one arriving as TEXT from a CLI flag or a JSON record. Each digit contributes 4 bits and digits read left to right, so an ODD number of digits is accepted and yields a 4-bit tail.
+For what [**dp\_int\_to\_bin**](cvt__core_8h.md#function-dp_int_to_bin) cannot serve: a literal wider than 64 bits, or one arriving as TEXT from a CLI flag or a JSON record. Each digit contributes 4 bits and digits read left to right, so an ODD number of digits is accepted and yields a 4-bit tail.
 
 
 A bad digit is a REFUSAL, never a skipped one: a typo'd marker that silently shortens is the failure this exists to prevent, and it syncs to nothing rather than failing loudly.
@@ -341,11 +341,11 @@ bits written, or 0 on refusal  `out` untouched.
 
 
 
-### function int\_to\_bin 
+### function dp\_int\_to\_bin 
 
 _Expand the low_ `n_bits` _of an integer to unpacked bits._
 ```C++
-size_t int_to_bin (
+size_t dp_int_to_bin (
     uint64_t v,
     uint32_t n_bits,
     uint8_t * out,
@@ -356,7 +356,7 @@ size_t int_to_bin (
 
 
 
-The form a frame field literal usually wants, and the one to reach for first: exact, compiler-checked, with no failure mode a typo can reach. [**hex\_to\_bin**](cvt__core_8h.md#function-hex_to_bin) is for the two cases this cannot serve  a literal wider than 64 bits, and text arriving from outside.
+The form a frame field literal usually wants, and the one to reach for first: exact, compiler-checked, with no failure mode a typo can reach. [**dp\_hex\_to\_bin**](cvt__core_8h.md#function-dp_hex_to_bin) is for the two cases this cannot serve  a literal wider than 64 bits, and text arriving from outside.
 
 
 Bit 0 out is the MOST significant of the `n_bits` requested under DP\_BITORDER\_BIG, which is what makes `int_to_bin(0x1A, 8, ...)` read `0,0,0,1,1,0,1,0`. Only the low `n_bits` are read, so a caller need not mask first.
@@ -399,11 +399,11 @@ Bit 0 out is the MOST significant of the `n_bits` requested under DP\_BITORDER\_
 
 
 
-### function nrz\_to\_bin 
+### function dp\_nrz\_to\_bin 
 
 _Hard-decide NRZ symbols back to bits_  _inverse of bin\_to\_nrz._
 ```C++
-size_t nrz_to_bin (
+size_t dp_nrz_to_bin (
     const float * nrz,
     size_t nrz_len,
     uint8_t * out,

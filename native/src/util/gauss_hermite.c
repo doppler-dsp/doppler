@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern int gauss_hermite (double *z, size_t z_len, double *p, size_t p_len);
+extern int dp_gauss_hermite (double *z, size_t z_len, double *p, size_t p_len);

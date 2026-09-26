@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_viterbi[] = {
-    (jm_any_fn)viterbi_create,
-    (jm_any_fn)viterbi_destroy,
-    (jm_any_fn)viterbi_reset,
-    (jm_any_fn)viterbi_decode_max_out,
-    (jm_any_fn)viterbi_decode,
-    (jm_any_fn)viterbi_state_bytes,
-    (jm_any_fn)viterbi_get_state,
-    (jm_any_fn)viterbi_set_state,
+    (jm_any_fn)dp_viterbi_create,
+    (jm_any_fn)dp_viterbi_destroy,
+    (jm_any_fn)dp_viterbi_reset,
+    (jm_any_fn)dp_viterbi_decode_max_out,
+    (jm_any_fn)dp_viterbi_decode,
+    (jm_any_fn)dp_viterbi_state_bytes,
+    (jm_any_fn)dp_viterbi_get_state,
+    (jm_any_fn)dp_viterbi_set_state,
 };

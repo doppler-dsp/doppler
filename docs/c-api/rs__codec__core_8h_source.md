@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef RS_CODEC_CORE_H
-#define RS_CODEC_CORE_H
+#ifndef DP_RS_CODEC_CORE_H
+#define DP_RS_CODEC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -23,42 +23,42 @@ typedef struct
 {
   rs_t rs;
   /*<<property_struct_fields>>*/
-} rs_codec_state_t;
+} dp_rs_codec_state_t;
 
-rs_codec_state_t *rs_codec_create (uint32_t nroots, uint32_t symbol_bits,
+dp_rs_codec_state_t *dp_rs_codec_create (uint32_t nroots, uint32_t symbol_bits,
                                    uint32_t field_poly, uint32_t first_root,
                                    uint32_t root_stride);
 
-void rs_codec_destroy (rs_codec_state_t *state);
+void dp_rs_codec_destroy (dp_rs_codec_state_t *state);
 
-size_t rs_codec_encode_max_out (rs_codec_state_t *state, size_t n_in);
+size_t dp_rs_codec_encode_max_out (dp_rs_codec_state_t *state, size_t n_in);
 
-size_t rs_codec_encode (rs_codec_state_t *state, const uint8_t *in,
+size_t dp_rs_codec_encode (dp_rs_codec_state_t *state, const uint8_t *in,
                         size_t n_in, uint8_t *out, size_t max_out);
 
-int rs_codec_decode (rs_codec_state_t *state, uint8_t *codeword,
+int dp_rs_codec_decode (dp_rs_codec_state_t *state, uint8_t *codeword,
                      size_t codeword_len);
 
-size_t rs_codec_syndromes_max_out (rs_codec_state_t *state, size_t n_in);
+size_t dp_rs_codec_syndromes_max_out (dp_rs_codec_state_t *state, size_t n_in);
 
-size_t rs_codec_syndromes (rs_codec_state_t *state, const uint8_t *in,
+size_t dp_rs_codec_syndromes (dp_rs_codec_state_t *state, const uint8_t *in,
                            size_t n_in, uint8_t *out, size_t max_out);
 
-int rs_codec_codeword_ok (rs_codec_state_t *state, const uint8_t *codeword,
+int dp_rs_codec_codeword_ok (dp_rs_codec_state_t *state, const uint8_t *codeword,
                           size_t codeword_len);
 
-size_t rs_codec_generator (rs_codec_state_t *state, uint8_t *out,
+size_t dp_rs_codec_generator (dp_rs_codec_state_t *state, uint8_t *out,
                            size_t out_len);
 
-size_t rs_codec_get_n (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_n (const dp_rs_codec_state_t *state);
 
-size_t rs_codec_get_k (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_k (const dp_rs_codec_state_t *state);
 
-size_t rs_codec_get_e (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_e (const dp_rs_codec_state_t *state);
 
-size_t rs_codec_get_nroots (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_nroots (const dp_rs_codec_state_t *state);
 
-size_t rs_codec_get_symbol_bits (const rs_codec_state_t *state);
+size_t dp_rs_codec_get_symbol_bits (const dp_rs_codec_state_t *state);
 
 #ifdef __cplusplus
 }

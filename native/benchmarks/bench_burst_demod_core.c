@@ -2,7 +2,7 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891), and the last
  * of the thirty to be filled along with async_dsss_receiver. Both needed a
- * real fixture rather than a block of noise: `burst_demod_demod` acquires a
+ * real fixture rather than a block of noise: `dp_burst_demod_demod` acquires a
  * preamble, finds a sync word, despreads a payload and checks a CRC, and
  * every one of those stages exits early on a signal that is not there. A
  * benchmark over noise would time the give-up path and report a burst
@@ -151,22 +151,22 @@ main (void)
       size_t n  = build_burst (y, acode, dcode, payload, f0s[k], mus[k]);
       n_samples = n;
 
-      burst_demod_state_t *d = burst_demod_create (
+      dp_burst_demod_state_t *d = dp_burst_demod_create (
           dcode, DATA_SF, SPC, CHIP_RATE, 0.0, rates[k], FRAME_SYMS, 10);
       if (!d)
         {
           (void)fprintf (stderr, "bench_burst_demod: create NULL\n");
           return 1;
         }
-      burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-      burst_demod_set_sync (d, SYNC, SYNC_LEN);
-      burst_demod_set_prior (d, priors[k], 0);
+      dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
+      dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
+      dp_burst_demod_set_prior (d, priors[k], 0);
 
       /* The precondition. Every stage of this object exits early on a
          signal that is not there, so without proving a real demodulation
          first the loop below would faithfully time the give-up path. */
       memset (bits, 0, FRAME_SYMS);
-      size_t nb = burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+      size_t nb = dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
       if (nb != FRAME_SYMS || memcmp (bits + SYNC_LEN, payload, PAYLOAD) != 0)
         {
           (void)fprintf (stderr,
@@ -181,19 +181,19 @@ main (void)
       w0 = jm_bench_now_ns ();
       do
         {
-          burst_demod_reset (d);
-          burst_demod_set_prior (d, priors[k], 0);
-          sink += burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+          dp_burst_demod_reset (d);
+          dp_burst_demod_set_prior (d, priors[k], 0);
+          sink += dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
           w1 = jm_bench_now_ns ();
         }
       while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          burst_demod_reset (d);
-          burst_demod_set_prior (d, priors[k], 0);
+          dp_burst_demod_reset (d);
+          dp_burst_demod_set_prior (d, priors[k], 0);
           t0 = jm_bench_now_ns ();
-          sink += burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+          sink += dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
           t1         = jm_bench_now_ns ();
           t_dm[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -201,7 +201,7 @@ main (void)
       double sec = min_sec (t_dm[k], ITERATIONS);
       printf ("  %-18s %8.3f ms/burst  %7.2f ns/sample  %7.1f bursts/s\n",
               rname[k], sec * 1e3, sec / (double)n * 1e9, 1.0 / sec);
-      burst_demod_destroy (d);
+      dp_burst_demod_destroy (d);
     }
 
   printf (

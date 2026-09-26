@@ -156,11 +156,11 @@ def test_execute_out_param_writes_into_callers_buffer():
 
 
 def test_execute_out_param_undersized_raises():
-    """Regression test: fir_execute_max_out() always returns 0 (FIR is a 1:1
+    """Regression test: dp_fir_execute_max_out() always returns 0 (FIR is a 1:1
     transform, not a bounded-capacity one), but the out= validation used to
     check `_cap < _omax` alone -- since sizes are unsigned, `_cap < 0` is
     never true, so an undersized out= buffer passed validation and then
-    fir_execute() (which has no max_out clamp) overflowed it. The fix
+    dp_fir_execute() (which has no max_out clamp) overflowed it. The fix
     requires capacity for max(max_out(), len(x))."""
     taps = np.array([1.0, 0.5, 0.25], dtype=np.complex64)
     f = FIR(taps)

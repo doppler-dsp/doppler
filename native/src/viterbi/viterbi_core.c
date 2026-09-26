@@ -18,7 +18,7 @@
  * cost about the same per bit, and traceback stores one bit per state per
  * step where register exchange stores a whole path per state.
  */
-struct viterbi_state_t
+struct dp_viterbi_state_t
 {
   conv_code_t code;
   size_t      depth;
@@ -44,9 +44,9 @@ struct viterbi_state_t
    manifest, so the object takes the polynomials directly -- the array IS the
    code, and its length gives n. Callers holding a conv_code_t already (the
    CCSDS configuration, the validators) use viterbi_create_code below. */
-viterbi_state_t *
-viterbi_create (const uint32_t *poly, size_t poly_len, uint32_t k,
-                uint32_t invert, size_t depth)
+dp_viterbi_state_t *
+dp_viterbi_create (const uint32_t *poly, size_t poly_len, uint32_t k,
+                   uint32_t invert, size_t depth)
 {
   conv_code_t c = { 0 };
   if (!poly || poly_len == 0 || poly_len > CONV_N_MAX)
@@ -59,13 +59,13 @@ viterbi_create (const uint32_t *poly, size_t poly_len, uint32_t k,
   return viterbi_create_code (&c, depth);
 }
 
-viterbi_state_t *
+dp_viterbi_state_t *
 viterbi_create_code (const conv_code_t *c, size_t depth)
 {
   if (!conv_code_valid (c) || depth == 0u)
     return NULL;
 
-  viterbi_state_t *s = (viterbi_state_t *)calloc (1, sizeof *s);
+  dp_viterbi_state_t *s = (dp_viterbi_state_t *)calloc (1, sizeof *s);
   if (s == NULL)
     return NULL;
 
@@ -84,7 +84,7 @@ viterbi_create_code (const conv_code_t *c, size_t depth)
   if (!s->pm || !s->pm2 || !s->dec || !s->pred0 || !s->pred1 || !s->out0
       || !s->out1 || !s->inbit)
     {
-      viterbi_destroy (s);
+      dp_viterbi_destroy (s);
       return NULL;
     }
 
@@ -103,12 +103,12 @@ viterbi_create_code (const conv_code_t *c, size_t depth)
       s->out1[ns]       = conv_outputs (c, p1, b);
     }
 
-  viterbi_reset (s);
+  dp_viterbi_reset (s);
   return s;
 }
 
 void
-viterbi_destroy (viterbi_state_t *s)
+dp_viterbi_destroy (dp_viterbi_state_t *s)
 {
   if (s == NULL)
     return;
@@ -124,7 +124,7 @@ viterbi_destroy (viterbi_state_t *s)
 }
 
 void
-viterbi_reset (viterbi_state_t *s)
+dp_viterbi_reset (dp_viterbi_state_t *s)
 {
   /* The encoder starts from a reset register, so the all-zero state is the
      only one with any prior probability. -FLT_MAX/4 rather than -inf keeps
@@ -138,19 +138,19 @@ viterbi_reset (viterbi_state_t *s)
 }
 
 const conv_code_t *
-viterbi_code (const viterbi_state_t *s)
+viterbi_code (const dp_viterbi_state_t *s)
 {
   return &s->code;
 }
 
 size_t
-viterbi_depth (const viterbi_state_t *s)
+viterbi_depth (const dp_viterbi_state_t *s)
 {
   return s->depth;
 }
 
 size_t
-viterbi_decode_max_out (const viterbi_state_t *s, size_t n_llr)
+dp_viterbi_decode_max_out (const dp_viterbi_state_t *s, size_t n_llr)
 {
   const size_t steps = n_llr / s->code.n;
   const size_t owed
@@ -161,7 +161,7 @@ viterbi_decode_max_out (const viterbi_state_t *s, size_t n_llr)
 /* Walk `depth-1` steps back from `st` through the ring and return the input
    bit on the branch taken there. */
 static unsigned
-traceback (const viterbi_state_t *s, uint32_t st)
+traceback (const dp_viterbi_state_t *s, uint32_t st)
 {
   size_t idx = s->head;
   for (size_t i = 0; i + 1u < s->depth; i++)
@@ -176,13 +176,13 @@ traceback (const viterbi_state_t *s, uint32_t st)
 }
 
 size_t
-viterbi_decode (viterbi_state_t *s, const float *llr, size_t n_llr,
-                uint8_t *out, size_t max_out)
+dp_viterbi_decode (dp_viterbi_state_t *s, const float *llr, size_t n_llr,
+                   uint8_t *out, size_t max_out)
 {
   const conv_code_t *c = &s->code;
   if (n_llr % c->n != 0u)
     return 0;
-  if (max_out < viterbi_decode_max_out (s, n_llr))
+  if (max_out < dp_viterbi_decode_max_out (s, n_llr))
     return 0;
 
   const size_t   steps = n_llr / c->n;
@@ -249,10 +249,10 @@ viterbi_decode (viterbi_state_t *s, const float *llr, size_t n_llr,
  * Running state is the path metrics, the traceback ring, and the cursor into
  * it. `pm2` is scratch -- it is overwritten before it is read on every step,
  * so carrying it would serialize noise. The predecessor and output tables are
- * DERIVED from the code, which viterbi_create rebuilds identically.
+ * DERIVED from the code, which dp_viterbi_create rebuilds identically.
  *
  * `fill` is part of the answer rather than bookkeeping: a decoder resumed
- * with `fill < depth` still owes its traceback, and viterbi_decode_max_out
+ * with `fill < depth` still owes its traceback, and dp_viterbi_decode_max_out
  * reads it. Dropping it would resume a decoder that emits bits it has not
  * earned.
  */
@@ -268,7 +268,7 @@ typedef struct
 } viterbi_extra_t;
 
 size_t
-viterbi_state_bytes (const viterbi_state_t *s)
+dp_viterbi_state_bytes (const dp_viterbi_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (viterbi_extra_t)
          + (size_t)s->nstate * sizeof (float) /* pm            */
@@ -276,10 +276,10 @@ viterbi_state_bytes (const viterbi_state_t *s)
 }
 
 void
-viterbi_get_state (const viterbi_state_t *s, void *blob)
+dp_viterbi_get_state (const dp_viterbi_state_t *s, void *blob)
 {
   DP_GET_OPEN (VITERBI_STATE_MAGIC, VITERBI_STATE_VERSION,
-               viterbi_state_bytes (s));
+               dp_viterbi_state_bytes (s));
 
   /* memset rather than a designated initializer: the padding a designated
      initializer leaves unspecified (C11 6.7.9p10) is written to the blob
@@ -305,10 +305,10 @@ viterbi_get_state (const viterbi_state_t *s, void *blob)
 }
 
 int
-viterbi_set_state (viterbi_state_t *s, const void *blob)
+dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob)
 {
   DP_SET_OPEN (VITERBI_STATE_MAGIC, VITERBI_STATE_VERSION,
-               viterbi_state_bytes (s));
+               dp_viterbi_state_bytes (s));
 
   viterbi_extra_t extra;
   dp_r_bytes (&_r, &extra, sizeof extra);
@@ -355,16 +355,16 @@ viterbi_set_state (viterbi_state_t *s, const void *blob)
 #define NODE_SYNC_CHUNK 256u
 
 size_t
-node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr)
+node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr)
 {
-  const conv_code_t *c    = viterbi_code (v);
-  const size_t       nb   = viterbi_decode_max_out (v, (n_llr / c->n) * c->n);
+  const conv_code_t *c  = viterbi_code (v);
+  const size_t       nb = dp_viterbi_decode_max_out (v, (n_llr / c->n) * c->n);
   const size_t       warm = viterbi_depth (v);
   return nb > warm ? (nb - warm) * c->n : 0;
 }
 
 size_t
-node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr)
+node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
 {
   if (v == NULL || llr == NULL)
     return 0;
@@ -389,7 +389,7 @@ node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr)
      honest quantity to skip. */
   const size_t warm = viterbi_depth (v);
 
-  viterbi_reset (v);
+  dp_viterbi_reset (v);
   conv_enc_init (&enc);
 
   while (consumed < usable)
@@ -399,7 +399,7 @@ node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr)
         take = (size_t)NODE_SYNC_CHUNK * n;
 
       const size_t nb
-          = viterbi_decode (v, llr + consumed, take, bits, NODE_SYNC_CHUNK);
+          = dp_viterbi_decode (v, llr + consumed, take, bits, NODE_SYNC_CHUNK);
       consumed += take;
       if (nb == 0)
         continue;
@@ -429,7 +429,7 @@ node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr)
 }
 
 int
-node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
                 node_sync_t *out)
 {
   if (v == NULL || llr == NULL)

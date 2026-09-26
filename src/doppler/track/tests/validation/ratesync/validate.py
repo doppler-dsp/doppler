@@ -594,7 +594,7 @@ def section_summary() -> None:
     R.md("## 1. The object — design and expectations")
     R.md()
     R.md(
-        "`ratesync_state_t` is **symbol-timing recovery closed around a "
+        "`dp_ratesync_state_t` is **symbol-timing recovery closed around a "
         "matched-filter rate cascade**. It owns a `RateConverter` whose "
         "terminal stage carries the pulse and steers that stage's control "
         "port, so the matched filter and the fractional timing delay are the "
@@ -744,7 +744,7 @@ def characterise() -> Data:
     R.md()
     rows = []
     for sps in (4, 8, 64):
-        # The SAME call ratesync_create() makes internally:
+        # The SAME call dp_ratesync_create() makes internally:
         # RateConverter_create_matched(m/sps, compensate=1, pulse, beta,
         # span, pulse_sps=m, num_phases).
         rc = MatchedRateConverter(
@@ -1845,9 +1845,10 @@ def review(d: Data) -> None:
     R.find(
         "F11",
         "FIXED",
-        f"`ratesync_get_clipped()` was documented as THE over-drive report — "
+        f"`dp_ratesync_get_clipped()` was documented as THE over-drive "
+        f"report — "
         f'"Over-driving is the other end of the same axis and IS reported, '
-        f'by ratesync_get_clipped()" — but it is a CIC quantiser flag, and '
+        f'by dp_ratesync_get_clipped()" — but it is a CIC quantiser flag, and '
         f"whether the plan HAS a CIC is the planner's decision, not the "
         f"caller's. Measured: at `sps = 8` the planner builds a CIC-free "
         f"cascade, and driving it to twice the contracted amplitude costs "
@@ -1859,7 +1860,8 @@ def review(d: Data) -> None:
         f"object states a level contract and publishes no flag that "
         f"enforces it — under-drive nowhere, over-drive only where a CIC "
         f"happens to sit in front. The header's own \"Always 0 when the "
-        f'plan has no CIC stage" on `ratesync_get_clipped` was accurate all '
+        f'plan has no CIC stage" on `dp_ratesync_get_clipped` was accurate '
+        f"all "
         f"along; what was missing was that the create()-level prose "
         f"presented the flag as the over-drive answer without that "
         f"qualifier. It now carries it — over-drive is reported only on the "

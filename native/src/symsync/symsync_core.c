@@ -33,14 +33,14 @@
  * fixed, unlike what an earlier, buggy measurement this session
  * suggested).
  *
- * Sizing (symsync_configure_lock): a per-look mean is estimated from the
+ * Sizing (dp_symsync_configure_lock): a per-look mean is estimated from the
  * pulse rolloff and the minimum operating Es/N0,
  *
  *   mean = (0.6*rolloff+0.26)*(1 - exp(-0.275*10^(esno_min_db/10)))
  *
  * and the classic Gaussian test-statistic sizing gives the non-coherent
  * block size (avgs) and declare threshold. **That sizing is not this
- * file's** -- it is det_dwell_gauss() / det_threshold_gauss(), shared
+ * file's** -- it is dp_det_dwell_gauss() / dp_det_threshold_gauss(), shared
  * with dll's code lock and the MPSK receiver's carrier lock:
  *
  *   avgs      = var*((Q^-1(pfa)-Q^-1(pd))/mean)^2
@@ -85,7 +85,7 @@
  * and the empirical elimination of a naive-but-wrong alternative.
  *
  * No down_thresh or n_up/n_down derivation is implied by the source
- * formula, so those default to the same shape dll_configure_lock uses:
+ * formula, so those default to the same shape dp_dll_configure_lock uses:
  * up = down = threshold (no level hysteresis by default -- splitting
  * them needs an SNR-dependent detection probability the derivation
  * doesn't supply), n_up = 1 (declare on the very first above-threshold
@@ -94,13 +94,13 @@
  * compounds pfa further via a verify count), n_down = 8 (a modest time
  * hysteresis, not derived from the source formula, so a single noisy
  * block doesn't drop a live lock -- the raw escape hatch,
- * symsync_configure_lock_raw, exposes every knob for a caller that
+ * dp_symsync_configure_lock_raw, exposes every knob for a caller that
  * wants to size these independently).
  *
  * SYMSYNC_LOCK_STAT_VARIANCE: the real per-look variance of
  * lock_signal under noise-only input, measured directly (5,000,000
  * samples, mean ~0 confirming the symmetry argument above, variance
- * ~1.343) rather than assumed. It is passed to det_dwell_gauss() as
+ * ~1.343) rather than assumed. It is passed to dp_det_dwell_gauss() as
  * exactly that -- a variance, in its own units, with no correction
  * factor riding on it.
  *
@@ -141,7 +141,7 @@ nominal_inc (size_t sps)
 }
 
 static void
-seed (symsync_state_t *s)
+seed (dp_symsync_state_t *s)
 {
   s->timing.phase     = 0;
   s->timing.phase_inc = s->base_inc;
@@ -154,8 +154,8 @@ seed (symsync_state_t *s)
   s->lock_sum         = 0.0;
   s->lock_count       = 0;
   s->lock_stat        = 0.0;
-  lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
-  farrow_reset (&s->farrow);
+  dp_lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
+  dp_farrow_reset (&s->farrow);
 }
 
 /* The matched pair's composite pulse, peak-normalised: what the receiver
@@ -201,11 +201,11 @@ symsync_ted_slope (int ted, int pulse, double beta, size_t span)
 }
 
 void
-symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
+symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
               int order, int ted)
 {
   /* Zero first so an in-place (stack-embedded) init byte-matches the
-   * calloc + init done by symsync_create: seed() sets only the timing NCO's
+   * calloc + init done by dp_symsync_create: seed() sets only the timing NCO's
    * phase/phase_inc, leaving the NCO's norm_freq/nmax to this memset. */
   memset (s, 0, sizeof (*s));
   s->sps      = sps ? sps : 1;
@@ -215,16 +215,16 @@ symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
   s->ted      = ted;
   farrow_init (&s->farrow, order);
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
-  (void)symsync_configure_lock (
+  (void)dp_symsync_configure_lock (
       s, SYMSYNC_LOCK_DEFAULT_ROLLOFF, SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB,
       SYMSYNC_LOCK_DEFAULT_PFA, SYMSYNC_LOCK_DEFAULT_PD);
   seed (s);
 }
 
-symsync_state_t *
-symsync_create (size_t sps, double bn, double zeta, int order, int ted)
+dp_symsync_state_t *
+dp_symsync_create (size_t sps, double bn, double zeta, int order, int ted)
 {
-  symsync_state_t *obj = calloc (1, sizeof (*obj));
+  dp_symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   symsync_init (obj, sps, bn, zeta, order, ted);
@@ -232,21 +232,21 @@ symsync_create (size_t sps, double bn, double zeta, int order, int ted)
 }
 
 void
-symsync_destroy (symsync_state_t *state)
+dp_symsync_destroy (dp_symsync_state_t *state)
 {
   free (state);
 }
 
 void
-symsync_reset (symsync_state_t *state)
+dp_symsync_reset (dp_symsync_state_t *state)
 {
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state);
 }
 
 int
-symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
-                       const char *prefix, uint32_t decim)
+dp_symsync_set_telemetry (dp_symsync_state_t *state, dp_tlm_t *tlm,
+                          const char *prefix, uint32_t decim)
 {
   if (!tlm) /* detach: probe sites revert to the single-branch cost */
     {
@@ -277,7 +277,7 @@ symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
 }
 
 void
-symsync_tlm_flush (const symsync_state_t *s)
+symsync_tlm_flush (const dp_symsync_state_t *s)
 {
   /* The loop control isn't retained per symbol; reconstruct it from the
    * NCO increment it steered (float32 records — the uint32 rounding is
@@ -294,27 +294,27 @@ symsync_tlm_flush (const symsync_state_t *s)
  * embedded by value, all POD) + scalar timing state: a whole-struct snapshot,
  * with the telemetry attachment zeroed in blobs and kept live across restore
  * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
-DP_DEFINE_POD_STATE_TLM (symsync, symsync_state_t, SYMSYNC_STATE_MAGIC,
+DP_DEFINE_POD_STATE_TLM (dp_symsync, dp_symsync_state_t, SYMSYNC_STATE_MAGIC,
                          SYMSYNC_STATE_VERSION, tlm)
 
 void
-symsync_configure (symsync_state_t *state, double bn, double zeta)
+dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta)
 {
   state->bn   = bn;
   state->zeta = zeta;
-  loop_filter_configure (&state->lf, bn, zeta, 1.0);
+  dp_loop_filter_configure (&state->lf, bn, zeta, 1.0);
 }
 
 size_t
-symsync_steps_max_out (symsync_state_t *state)
+dp_symsync_steps_max_out (dp_symsync_state_t *state)
 {
   (void)state;
   return 0; /* one symbol per sps >= 1 inputs, so symbols <= inputs */
 }
 
 size_t
-symsync_steps (symsync_state_t *state, const float _Complex *x, size_t x_len,
-               float _Complex *out, size_t max_out)
+dp_symsync_steps (dp_symsync_state_t *state, const float _Complex *x,
+                  size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   float _Complex y;
@@ -370,25 +370,25 @@ symsync_steps (symsync_state_t *state, const float _Complex *x, size_t x_len,
 }
 
 double
-symsync_get_bn (const symsync_state_t *state)
+dp_symsync_get_bn (const dp_symsync_state_t *state)
 {
   return state->bn;
 }
 
 void
-symsync_set_bn (symsync_state_t *state, double val)
+dp_symsync_set_bn (dp_symsync_state_t *state, double val)
 {
-  symsync_configure (state, val, state->zeta);
+  dp_symsync_configure (state, val, state->zeta);
 }
 
 double
-symsync_get_timing_error (const symsync_state_t *state)
+dp_symsync_get_timing_error (const dp_symsync_state_t *state)
 {
   return state->last_error;
 }
 
 double
-symsync_get_rate (const symsync_state_t *state)
+dp_symsync_get_rate (const dp_symsync_state_t *state)
 {
   /* effective samples/symbol the loop is tracking (EMA of the instantaneous
    * strobe rate) */
@@ -396,20 +396,20 @@ symsync_get_rate (const symsync_state_t *state)
 }
 
 double
-symsync_get_lock_stat (const symsync_state_t *state)
+dp_symsync_get_lock_stat (const dp_symsync_state_t *state)
 {
   return state->lock_stat;
 }
 
 int
-symsync_get_locked (const symsync_state_t *state)
+dp_symsync_get_locked (const dp_symsync_state_t *state)
 {
   return state->lock.locked;
 }
 
 int
-symsync_configure_lock (symsync_state_t *state, double rolloff,
-                        double esno_min_db, double pfa, double pd)
+dp_symsync_configure_lock (dp_symsync_state_t *state, double rolloff,
+                           double esno_min_db, double pfa, double pd)
 {
   if (!(pfa > 0.0 && pfa < 1.0))
     return DP_ERR_INVALID;
@@ -427,24 +427,24 @@ symsync_configure_lock (symsync_state_t *state, double rolloff,
      sqrt(2)*erfcinv(2p), so both constants disappear together.
      test_detection_core.c pins that equivalence, and test_symsync_core.c pins
      the two derived values here. */
-  int avgs_n = det_dwell_gauss (mean, SYMSYNC_LOCK_STAT_VARIANCE, pd, pfa);
+  int avgs_n = dp_det_dwell_gauss (mean, SYMSYNC_LOCK_STAT_VARIANCE, pd, pfa);
   if (avgs_n < 1)
     return DP_ERR_INVALID;
   size_t avgs      = (size_t)avgs_n;
-  double threshold = det_threshold_gauss (mean, pd, pfa);
-  symsync_configure_lock_raw (state, avgs, threshold, threshold,
-                              SYMSYNC_LOCK_DEFAULT_N_UP,
-                              SYMSYNC_LOCK_DEFAULT_N_DOWN);
+  double threshold = dp_det_threshold_gauss (mean, pd, pfa);
+  dp_symsync_configure_lock_raw (state, avgs, threshold, threshold,
+                                 SYMSYNC_LOCK_DEFAULT_N_UP,
+                                 SYMSYNC_LOCK_DEFAULT_N_DOWN);
   return DP_OK;
 }
 
 void
-symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
-                            double up_thresh, double down_thresh,
-                            uint32_t n_up, uint32_t n_down)
+dp_symsync_configure_lock_raw (dp_symsync_state_t *state, size_t avgs,
+                               double up_thresh, double down_thresh,
+                               uint32_t n_up, uint32_t n_down)
 {
   state->avgs       = avgs ? avgs : 1;
   state->lock_sum   = 0.0;
   state->lock_count = 0;
-  lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
 }

@@ -7,27 +7,27 @@
  * until the ERROR target is met and reads a defensible rate off the end:
  *
  * @code
- * ber_meter_state_t *m = ber_meter_create (4, 200, 0.99);
- * ber_meter_set_truth (m, truth, nsym);
- * while (!ber_meter_get_enough (m))
+ * dp_ber_meter_state_t *m = dp_ber_meter_create (4, 200, 0.99);
+ * dp_ber_meter_set_truth (m, truth, nsym);
+ * while (!dp_ber_meter_get_enough (m))
  *   {
  *     size_t n = run_receiver (rx);
- *     ber_align_t a = ber_meter_align (m, rx, n, t0, 0, 0, 0, 0.0);
+ *     ber_align_t a = dp_ber_meter_align (m, rx, n, t0, 0, 0, 0, 0.0);
  *     if (a.ok)
- *       ber_meter_score (m, rx, n, lo, n, a.lag, a.phase, t0, 0, 0,
+ *       dp_ber_meter_score (m, rx, n, lo, n, a.lag, a.phase, t0, 0, 0,
  *                        a.occurrences);
  *   }
- * ber_interval_t ser = ber_meter_ser (m);
- * ber_meter_destroy (m);
+ * ber_interval_t ser = dp_ber_meter_ser (m);
+ * dp_ber_meter_destroy (m);
  * @endcode
  *
  * The three gates a result has to pass, and why each exists, are on
  * ber/ber_core.h. The one rule this file enforces by construction: the
- * alignment handed to ber_meter_score() is DETECTED by ber_meter_align(),
+ * alignment handed to dp_ber_meter_score() is DETECTED by dp_ber_meter_align(),
  * never searched by minimising the error count.
  */
-#ifndef BER_METER_CORE_H
-#define BER_METER_CORE_H
+#ifndef DP_BER_METER_CORE_H
+#define DP_BER_METER_CORE_H
 
 #include "doppler/ber/ber_core.h" /* the records and the free functions */
 #include "doppler/clib_common.h"
@@ -72,11 +72,11 @@ extern "C"
        score() uses these rather than taking them from the caller, so a
        measurement cannot be handed an alignment that belongs to a different
        burst or a different marker */
-    ber_align_t last;      /**< Result of the last ber_meter_align().      */
+    ber_align_t last;      /**< Result of the last dp_ber_meter_align().      */
     size_t      mk_t0;     /**< Marker start used by that align.           */
     size_t      mk_n;      /**< Marker length used.                        */
     size_t      mk_period; /**< Marker period used.                        */
-  } ber_meter_state_t;
+  } dp_ber_meter_state_t;
 
   /**
    * @brief Exact confidence interval for a run stopped on an ERROR count.
@@ -142,9 +142,9 @@ extern "C"
    * @param target_errors  Inverse-binomial stop condition; 0 selects 200.
    * @param conf           Two-sided confidence level; 0 selects 0.99.
    */
-  ber_meter_state_t *ber_meter_create (int m, size_t target_errors,
+  dp_ber_meter_state_t *dp_ber_meter_create (int m, size_t target_errors,
                                        double conf);
-  void               ber_meter_destroy (ber_meter_state_t *state);
+  void               dp_ber_meter_destroy (dp_ber_meter_state_t *state);
   /**
    * @brief Zero the running counters; keep the configuration and the truth.
    *
@@ -176,7 +176,7 @@ extern "C"
    *
    * @endcode
    */
-  void ber_meter_reset (ber_meter_state_t *state);
+  void dp_ber_meter_reset (dp_ber_meter_state_t *state);
 
   /**
    * @brief Install the transmitted symbol sequence this meter scores against.
@@ -203,14 +203,14 @@ extern "C"
    *
    * @endcode
    */
-  int ber_meter_set_truth (ber_meter_state_t *state, const uint8_t *truth,
+  int dp_ber_meter_set_truth (dp_ber_meter_state_t *state, const uint8_t *truth,
                            size_t truth_len);
 
   /**
    * @brief Pure detection: returns the alignment without touching state.
    *
-   * ber_meter_align() is the stateful spelling the Python binding uses. The
-   * marker comes from the truth installed by ber_meter_set_truth().
+   * dp_ber_meter_align() is the stateful spelling the Python binding uses. The
+   * marker comes from the truth installed by dp_ber_meter_set_truth().
    *
    * @param state     Must be non-NULL, with truth installed.
    * @param rx        Recovered symbols.
@@ -222,7 +222,7 @@ extern "C"
    * @param pfa       Whole-search false-alarm probability; 0 selects 1e-6.
    * @return          The alignment, with `ok` saying whether to believe it.
    */
-  ber_align_t ber_meter_detect (const ber_meter_state_t *state,
+  ber_align_t ber_meter_detect (const dp_ber_meter_state_t *state,
                                 const float _Complex *rx, size_t rx_len,
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
@@ -264,7 +264,7 @@ extern "C"
    *
    * @endcode
    */
-  int ber_meter_align (ber_meter_state_t *state, const float _Complex *rx,
+  int dp_ber_meter_align (dp_ber_meter_state_t *state, const float _Complex *rx,
                        size_t rx_len, size_t t0, size_t n_marker,
                        size_t period, int lag_span, double pfa);
 
@@ -303,25 +303,25 @@ extern "C"
    *
    * @endcode
    */
-  size_t ber_meter_score (ber_meter_state_t *state, const float _Complex *rx,
+  size_t dp_ber_meter_score (dp_ber_meter_state_t *state, const float _Complex *rx,
                           size_t rx_len, size_t lo, size_t hi);
 
   /**
    * @brief Install an alignment detected elsewhere (e.g. by
    * ber_align_detect() on a different buffer), with the marker geometry that
-   * produced it, so ber_meter_score() can use it.
+   * produced it, so dp_ber_meter_score() can use it.
    *
-   * The stateful ber_meter_align() is the usual path; this exists for the case
+   * The stateful dp_ber_meter_align() is the usual path; this exists for the case
    * where detection and scoring run over different buffers. It is deliberately
    * the ONLY way to set an alignment other than detecting one — score() never
    * takes a lag from its caller, because a lag that was passed in is a lag that
    * could have been searched for.
    */
-  void ber_meter_set_align (ber_meter_state_t *state, ber_align_t align,
+  void ber_meter_set_align (dp_ber_meter_state_t *state, ber_align_t align,
                             size_t t0, size_t n_marker, size_t period);
 
   /** @brief Has the error target been reached? The inverse-binomial stop. */
-  int ber_meter_get_enough (const ber_meter_state_t *state);
+  int dp_ber_meter_get_enough (const dp_ber_meter_state_t *state);
 
   /**
    * @brief Exact confidence interval for error/trial counts from ELSEWHERE.
@@ -347,7 +347,7 @@ extern "C"
    *
    * @endcode
    */
-  ber_interval_t ber_meter_interval (const ber_meter_state_t *state,
+  ber_interval_t dp_ber_meter_interval (const dp_ber_meter_state_t *state,
                                      size_t errors, size_t symbols);
 
   /**
@@ -383,7 +383,7 @@ extern "C"
    *
    * @endcode
    */
-  ber_interval_t ber_meter_ser (const ber_meter_state_t *state);
+  ber_interval_t dp_ber_meter_ser (const dp_ber_meter_state_t *state);
 
   /**
    * @brief Gray-coded bit error rate over the scored bits, with its interval.
@@ -417,29 +417,29 @@ extern "C"
    *
    * @endcode
    */
-  ber_interval_t ber_meter_ber (const ber_meter_state_t *state);
+  ber_interval_t dp_ber_meter_ber (const dp_ber_meter_state_t *state);
 
-  size_t ber_meter_get_errors (const ber_meter_state_t *state);
-  size_t ber_meter_get_symbols (const ber_meter_state_t *state);
-  size_t ber_meter_get_bit_errors (const ber_meter_state_t *state);
-  size_t ber_meter_get_bits (const ber_meter_state_t *state);
-  size_t ber_meter_get_skipped (const ber_meter_state_t *state);
-  int    ber_meter_get_m (const ber_meter_state_t *state);
-  size_t ber_meter_get_target_errors (const ber_meter_state_t *state);
-  int    ber_meter_get_lag (const ber_meter_state_t *state);
-  double ber_meter_get_phase (const ber_meter_state_t *state);
-  double ber_meter_get_align_stat (const ber_meter_state_t *state);
-  double ber_meter_get_align_margin_db (const ber_meter_state_t *state);
-  double ber_meter_get_align_runner_db (const ber_meter_state_t *state);
-  size_t ber_meter_get_align_occurrences (const ber_meter_state_t *state);
-  size_t ber_meter_get_align_slips (const ber_meter_state_t *state);
-  int    ber_meter_get_align_saturated (const ber_meter_state_t *state);
-  int    ber_meter_get_align_ok (const ber_meter_state_t *state);
-  double ber_meter_get_conf (const ber_meter_state_t *state);
+  size_t dp_ber_meter_get_errors (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_symbols (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_bit_errors (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_bits (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_skipped (const dp_ber_meter_state_t *state);
+  int    dp_ber_meter_get_m (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_target_errors (const dp_ber_meter_state_t *state);
+  int    dp_ber_meter_get_lag (const dp_ber_meter_state_t *state);
+  double dp_ber_meter_get_phase (const dp_ber_meter_state_t *state);
+  double dp_ber_meter_get_align_stat (const dp_ber_meter_state_t *state);
+  double dp_ber_meter_get_align_margin_db (const dp_ber_meter_state_t *state);
+  double dp_ber_meter_get_align_runner_db (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_align_occurrences (const dp_ber_meter_state_t *state);
+  size_t dp_ber_meter_get_align_slips (const dp_ber_meter_state_t *state);
+  int    dp_ber_meter_get_align_saturated (const dp_ber_meter_state_t *state);
+  int    dp_ber_meter_get_align_ok (const dp_ber_meter_state_t *state);
+  double dp_ber_meter_get_conf (const dp_ber_meter_state_t *state);
 
-  size_t ber_meter_state_bytes (const ber_meter_state_t *state);
-  void   ber_meter_get_state (const ber_meter_state_t *state, void *blob);
-  int    ber_meter_set_state (ber_meter_state_t *state, const void *blob);
+  size_t dp_ber_meter_state_bytes (const dp_ber_meter_state_t *state);
+  void   dp_ber_meter_get_state (const dp_ber_meter_state_t *state, void *blob);
+  int    dp_ber_meter_set_state (dp_ber_meter_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

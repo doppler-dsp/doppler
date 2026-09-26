@@ -17,7 +17,8 @@
  * the receiver's would decode every bit inverted while looking locked.
  */
 size_t
-bin_to_nrz (const uint8_t *bits, size_t bits_len, float *out, size_t out_len)
+dp_bin_to_nrz (const uint8_t *bits, size_t bits_len, float *out,
+               size_t out_len)
 {
   if (!bits || !out || bits_len == 0u || bits_len > out_len)
     return 0;

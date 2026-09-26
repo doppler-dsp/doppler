@@ -32,7 +32,7 @@
  *     dp_test_evm_scatter_floor_db() below computes the floor, and
  *     dp_ber_report() gates on it.
  *   - dp_test_m2m4_snr_db() — the blind moment-based estimator, via the
- *     canonical snr_m2m4_db() primitive. Fully independent of the above: a
+ *     canonical dp_snr_m2m4_db() primitive. Fully independent of the above: a
  *     locked stream recovers ~Es/N0, noise-dominated symbols estimate near 0.
  *
  * An EVM that BEATS the -(Es/N0) bound is the tell that the measurement is
@@ -82,7 +82,7 @@ static inline double
 dp_test_evm_db_hard_range (const float _Complex *syms, size_t lo, size_t hi,
                            int m)
 {
-  return ber_evm_db (syms, hi, lo, hi, m);
+  return dp_ber_evm_db (syms, hi, lo, hi, m);
 }
 
 /**
@@ -118,7 +118,7 @@ dp_test_evm_db_hard_range (const float _Complex *syms, size_t lo, size_t hi,
  *
  * @note "Too short" is **39 symbols, not the 20 the guard below names.** The
  *       scored window is `n_syms - n_syms/2`, i.e. `ceil(n_syms/2)`, and
- *       ber_evm_db() needs 20 of those — so a 30-symbol stream clears this
+ *       dp_ber_evm_db() needs 20 of those — so a 30-symbol stream clears this
  *       function's own check and returns the sentinel from the layer beneath
  *       it. The range form's floor is the honest 20, because it scores
  *       exactly the window it is handed, which is one more reason to prefer
@@ -174,7 +174,7 @@ dp_test_evm_db_hard (const float _Complex *syms, size_t n_syms)
 static inline double
 dp_test_evm_scatter_floor_db (int m)
 {
-  return ber_evm_scatter_floor_db (m);
+  return dp_ber_evm_scatter_floor_db (m);
 }
 
 /* Blind M2M4 Es/N0 (dB) over an EXPLICIT window — the twin of
@@ -187,7 +187,7 @@ dp_test_m2m4_snr_db_range (const float _Complex *syms, size_t lo, size_t hi)
 {
   if (hi <= lo || hi - lo < 20)
     return -120.0;
-  return snr_m2m4_db (syms + lo, hi - lo);
+  return dp_snr_m2m4_db (syms + lo, hi - lo);
 }
 
 /* Blind M2M4 Es/N0 (dB) over the back half. Same doubling as the EVM twin:
@@ -233,7 +233,7 @@ dp_test_m2m4_snr_db (const float _Complex *syms, size_t n_syms)
 static inline size_t
 dp_test_settle_syms (double bn_timing, double bn_carrier)
 {
-  return ber_settle_syms (bn_timing, bn_carrier);
+  return dp_ber_settle_syms (bn_timing, bn_carrier);
 }
 
 /**

@@ -27,7 +27,7 @@
 static dp_f32_t *
 det_ring_create (size_t cap_min)
 {
-  size_t cap = next_pow_two (cap_min > 1 ? cap_min : 1);
+  size_t cap = dp_next_pow_two (cap_min > 1 ? cap_min : 1);
   dp_f32_t *ring = NULL;
   while (!ring)
     {

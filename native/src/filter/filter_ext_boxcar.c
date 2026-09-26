@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only filter_ext.c is compiled.
  */
 /* ======================================================== */
-/* MovingAverageObject — wraps boxcar_state_t *       */
+/* MovingAverageObject — wraps dp_boxcar_state_t *       */
 /* ======================================================== */
 
 #include "doppler/boxcar/boxcar_core.h"
 
 typedef struct
 {
-  PyObject_HEAD boxcar_state_t *handle;
+  PyObject_HEAD dp_boxcar_state_t *handle;
 } MovingAverageObject;
 
 static void
 MovingAverageObj_dealloc (MovingAverageObject *self)
 {
   if (self->handle)
-    boxcar_destroy (self->handle);
+    dp_boxcar_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -45,10 +45,10 @@ MovingAverageObj_init (MovingAverageObject *self, PyObject *args,
                                     &gain))
     return -1;
   size_t len   = (size_t)len_raw;
-  self->handle = boxcar_create (len, gain);
+  self->handle = dp_boxcar_create (len, gain);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "boxcar_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_boxcar_create returned NULL");
       return -1;
     }
   return 0;
@@ -66,7 +66,7 @@ MovingAverage_step (MovingAverageObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
   float _Complex x = (float)x_raw.real + (float)x_raw.imag * I;
-  float _Complex y = boxcar_step (self->handle, x);
+  float _Complex y = dp_boxcar_step (self->handle, x);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
 
@@ -123,9 +123,9 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      boxcar_steps (self->handle,
-                    (const float _Complex *)PyArray_DATA (in_arr),
-                    (float _Complex *)PyArray_DATA (out_arr), (size_t)n);
+      dp_boxcar_steps (self->handle,
+                       (const float _Complex *)PyArray_DATA (in_arr),
+                       (float _Complex *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -138,9 +138,9 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  boxcar_steps (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
-                (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
-                (size_t)n);
+  dp_boxcar_steps (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+                   (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
+                   (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -155,7 +155,7 @@ MovingAverageObj_reset (MovingAverageObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  boxcar_reset (self->handle);
+  dp_boxcar_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -168,7 +168,7 @@ MovingAverageObj_state_bytes (MovingAverageObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (boxcar_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_boxcar_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -180,11 +180,11 @@ MovingAverageObj_get_state (MovingAverageObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = boxcar_state_bytes (self->handle);
+  size_t    _n = dp_boxcar_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  boxcar_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_boxcar_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -201,12 +201,12 @@ MovingAverageObj_set_state (MovingAverageObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != boxcar_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_boxcar_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (boxcar_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_boxcar_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -234,7 +234,7 @@ MovingAverage_getprop_gain (MovingAverageObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (boxcar_get_gain (self->handle));
+  return PyFloat_FromDouble (dp_boxcar_get_gain (self->handle));
 }
 static int
 MovingAverage_setprop_gain (MovingAverageObject *self, PyObject *value,
@@ -248,7 +248,7 @@ MovingAverage_setprop_gain (MovingAverageObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  boxcar_set_gain (self->handle, v);
+  dp_boxcar_set_gain (self->handle, v);
   return 0;
 }
 
@@ -265,7 +265,7 @@ MovingAverageObj_destroy (MovingAverageObject *self,
 {
   if (self->handle)
     {
-      boxcar_destroy (self->handle);
+      dp_boxcar_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -285,7 +285,7 @@ MovingAverageObj_exit (MovingAverageObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      boxcar_destroy (self->handle);
+      dp_boxcar_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -323,7 +323,8 @@ static PyMethodDef MovingAverageObj_methods[] = {
     "\n"
     "Filter a block: write the gained moving average of each sample.\n"
     "\n"
-    "Applies boxcar_step() to each input sample in turn, so the window sum\n"
+    "Applies dp_boxcar_step() to each input sample in turn, so the window "
+    "sum\n"
     "and ring carry across the block exactly as they would sample by sample\n"
     "— a stream can be processed in frames of any size with no seam.\n"
     "Immediately after a reset the first len-1 outputs average over a\n"

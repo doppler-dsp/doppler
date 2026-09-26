@@ -103,18 +103,18 @@ class DDC:
     ) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
 
-        The control-port form of ddc_execute(): the LO advances by `phase_inc +
-        freq_ctrl` on every sample of this block, and the cascade's terminal
-        stage runs at `stage_rate + rate_ctrl`. Neither deviation is persisted
-        — the centre norm_freq and rate are untouched — so a tracking loop
-        passes its full filter output on every call and the DDC holds no loop
-        state of its own.
+        The control-port form of dp_ddc_execute(): the LO advances by
+        `phase_inc + freq_ctrl` on every sample of this block, and the
+        cascade's terminal stage runs at `stage_rate + rate_ctrl`. Neither
+        deviation is persisted — the centre norm_freq and rate are untouched —
+        so a tracking loop passes its full filter output on every call and the
+        DDC holds no loop state of its own.
 
-        Feeding a stream through ddc_execute_ctrl_push() one sample at a time
-        reproduces this call bit-for-bit when both controls are held constant,
-        so the cheap block form stays correct for open-loop use (a fixed
-        Doppler offset, a rate trim) and the push form is what a closed loop
-        uses.
+        Feeding a stream through dp_ddc_execute_ctrl_push() one sample at a
+        time reproduces this call bit-for-bit when both controls are held
+        constant, so the cheap block form stays correct for open-loop use (a
+        fixed Doppler offset, a rate trim) and the push form is what a closed
+        loop uses.
 
         Parameters
         ----------
@@ -158,11 +158,11 @@ class DDC:
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of ddc_execute_ctrl(), and the only form a
-        closed loop can use: a block call has to know its whole control history
-        up front, whereas a carrier or timing loop computes each correction
-        *from* the outputs already emitted. Both loops close once per symbol,
-        so both ports need this form.
+        The per-input streaming form of dp_ddc_execute_ctrl(), and the only
+        form a closed loop can use: a block call has to know its whole control
+        history up front, whereas a carrier or timing loop computes each
+        correction *from* the outputs already emitted. Both loops close once
+        per symbol, so both ports need this form.
 
         The mix costs one LO step per input; the cascade then emits 0 outputs
         (the common decimating case, between strobes), 1, or several.
@@ -357,14 +357,14 @@ class MatchedDDC:
     Parameters
     ----------
     norm_freq : float, default 0.0
-        LO frequency in cycles/sample at the input rate, as ddc_create().
+        LO frequency in cycles/sample at the input rate, as dp_ddc_create().
     rate : float, default 0.25
         Output-to-input sample rate ratio. Rate-agnostic: a caller wanting `m`
         outputs per symbol asks for `rate = m/sps`; the cascade never learns
         about symbols.
     pulse : Literal["iandd", "rrc"], default "rrc"
         RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
-        ddc_create() for a plain down-conversion.
+        dp_ddc_create() for a plain down-conversion.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -413,51 +413,35 @@ class MatchedDDC:
         Parameters
         ----------
         x : NDArray[np.complex64]
-            CF32 input block; accepted as float32 (auto-cast).
+            Input.
         out : NDArray[np.complex64] | None
-            CF32 output buffer (C-only, hidden from Python).
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (C-only).
-
-        Examples
-        --------
-        >>> from doppler.ddc import DDC
-        >>> import numpy as np
-        >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
-        >>> t = np.arange(4096)
-        >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
-        >>> y = ddc.execute(x)
-        >>> y.shape
-        (1024,)
-        >>> y.dtype
-        dtype('complex64')
-        >>> round(float(abs(y[500])), 2)   # shifted to DC; amplitude ≈ 1
-        1.0
-
+            Output.
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Maximum output samples one execute() of x_len inputs can produce.
+        """Largest number of samples execute() can return for x_len inputs.
 
-        A DDC decimates (or passes at unity), so the output never exceeds the
-
-        input length: returns x_len. The binding sizes the output buffer to
-        this
-
-        per-call bound and resizes down to the actual count (gh-607).
+        Size an `out=` buffer with this before calling execute(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        execute_max_out() replaces this text.
 
         Parameters
         ----------
         x_len : int
-            Number of input samples the matching execute() call sees.
+            Number of input samples execute() will be given.
 
         Returns
         -------
         int
-            x_len (a safe upper bound on the produced samples).
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def execute_ctrl(
@@ -466,52 +450,21 @@ class MatchedDDC:
         rate_ctrl: float,
         freq_ctrl: float,
     ) -> NDArray[np.complex64]:
-        """Mix and resample a block, steering both control ports.
-
-        The control-port form of ddc_execute(): the LO advances by `phase_inc +
-        freq_ctrl` on every sample of this block, and the cascade's terminal
-        stage runs at `stage_rate + rate_ctrl`. Neither deviation is persisted
-        — the centre norm_freq and rate are untouched — so a tracking loop
-        passes its full filter output on every call and the DDC holds no loop
-        state of its own.
-
-        Feeding a stream through ddc_execute_ctrl_push() one sample at a time
-        reproduces this call bit-for-bit when both controls are held constant,
-        so the cheap block form stays correct for open-loop use (a fixed
-        Doppler offset, a rate trim) and the push form is what a closed loop
-        uses.
+        """Execute ctrl.
 
         Parameters
         ----------
         x : NDArray[np.complex64]
-            CF32 input block.
+            Input.
         rate_ctrl : float
-            Rate deviation added to the terminal Resampler stage's rate.
-            Referenced to the terminal (post-decimation) rate, not the overall
-            rate; ignored by a plan whose last stage is an integer HB/CIC with
-            nothing to steer.
+            Input.
         freq_ctrl : float
-            Frequency deviation added to the LO, in cycles/sample at the INPUT
-            rate (any sign).
+            Input.
 
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written.
-
-        Examples
-        --------
-        >>> from doppler.ddc import DDC
-        >>> import numpy as np
-        >>> ddc = DDC(norm_freq=0.0, rate=0.25)   # LO centred at DC
-        >>> t = np.arange(4096)
-        >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
-        >>> y = ddc.execute_ctrl(x, 0.0, -0.1)    # freq_ctrl steers +0.1 to DC
-        >>> y.shape
-        (1024,)
-        >>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC
-        1.0
-
+            Output.
         """
 
     def execute_ctrl_push(
@@ -521,47 +474,25 @@ class MatchedDDC:
         freq_ctrl: float,
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Push ONE input sample; emit whatever outputs it completes.
-
-        The per-input streaming form of ddc_execute_ctrl(), and the only form a
-        closed loop can use: a block call has to know its whole control history
-        up front, whereas a carrier or timing loop computes each correction
-        *from* the outputs already emitted. Both loops close once per symbol,
-        so both ports need this form.
-
-        The mix costs one LO step per input; the cascade then emits 0 outputs
-        (the common decimating case, between strobes), 1, or several.
+        """Execute ctrl push.
 
         Parameters
         ----------
         x : complex
-            One CF32 input sample.
+            Input.
         rate_ctrl : float
-            Rate deviation for this input (terminal-stage rate).
+            Input.
         freq_ctrl : float
-            Frequency deviation for this input, cycles/sample at the input
-            rate.
+            Input.
         out : NDArray[np.complex64] | None
-            Output buffer for any emitted samples.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            Number of outputs written (0, 1, or more).
-
-        Examples
-        --------
-        >>> from doppler.ddc import DDC
-        >>> import numpy as np
-        >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
-        >>> t = np.arange(64)
-        >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
-        >>> outs = [ddc.execute_ctrl_push(complex(s), 0.0, 0.0) for s in x]
-        >>> int(sum(len(o) for o in outs))   # 64 inputs, rate 1/4 -> 16 outs
-        16
-        >>> [len(o) for o in outs[:4]]        # 0 outs until a strobe completes
-        [0, 0, 0, 1]
-
+            Output.
         """
 
     def execute_ctrl_push_max_out(self) -> int:
@@ -580,21 +511,7 @@ class MatchedDDC:
         """
 
     def reset(self) -> None:
-        """Zero LO phase and filter history.
-
-        Examples
-        --------
-        >>> from doppler.ddc import DDC
-        >>> import numpy as np
-        >>> ddc = DDC(norm_freq=0.0, rate=0.25)
-        >>> x = np.ones(64, dtype=np.complex64)
-        >>> y1 = ddc.execute(x)
-        >>> ddc.reset()
-        >>> y2 = ddc.execute(x)
-        >>> bool(np.array_equal(y1, y2))
-        True
-
-        """
+        """Zero LO phase and filter history."""
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -651,23 +568,20 @@ class MatchedDDC:
 
     @property
     def norm_freq(self) -> float:
-        """Return the current LO normalised frequency (cycles/sample)."""
+        """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
     @property
     def rate(self) -> float:
-        """Return the configured output/input rate ratio (read-only). The rate
-        is fixed at create time; change it by destroying and recreating the DDC
-        with the new value.
-        """
+        """Rate."""
 
     @property
     def clipped(self) -> bool:
-        """Has the cascade's CIC clipped its input since the last reset?"""
+        """Clipped."""
 
     @property
     def narrow_pulse(self) -> bool:
-        """Is this object's rectangular matched filter degenerately narrow?"""
+        """Narrow pulse."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -810,8 +724,8 @@ class Ddcr:
     ) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
 
-        The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
-        semantics, which are identical except for where the LO lives.
+        The control-port form of dp_ddcr_execute(); see dp_ddc_execute_ctrl()
+        for the semantics, which are identical except for where the LO lives.
 
         Parameters
         ----------
@@ -855,11 +769,11 @@ class Ddcr:
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
-        The halfband consumes two inputs per intermediate sample, so every
-        other push does no mixing and emits nothing at all — the LO advances
-        (and its control is applied) once per *intermediate* sample, which is
-        the rate the LO runs at.
+        The per-input streaming form of dp_ddcr_execute_ctrl(), for a closed
+        loop. The halfband consumes two inputs per intermediate sample, so
+        every other push does no mixing and emits nothing at all — the LO
+        advances (and its control is applied) once per *intermediate* sample,
+        which is the rate the LO runs at.
 
         Parameters
         ----------
@@ -1060,12 +974,12 @@ class MatchedDdcr:
     ----------
     norm_freq : float, default 0.0
         Fine NCO frequency at the INTERMEDIATE rate (fs_in/2) — the same
-        reference ddcr_create() uses.
+        reference dp_ddcr_create() uses.
     rate : float, default 0.25
         Total output/input rate; must be in (0, 0.5).
     pulse : Literal["iandd", "rrc"], default "rrc"
         RC_PULSE_RRC / RC_PULSE_IANDD (RC_PULSE_NONE is invalid here — use
-        ddcr_create()).
+        dp_ddcr_create()).
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -1113,39 +1027,33 @@ class MatchedDdcr:
         x : NDArray[np.float32]
             Input.
         out : NDArray[np.complex64] | None
-            CF32 output buffer (C-only, hidden from Python).
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (C-only).
-
-        Examples
-        --------
-        >>> from doppler.ddc import Ddcr
-        >>> import numpy as np
-        >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
-        >>> t = np.arange(4096)
-        >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
-        >>> out = np.empty(len(x), dtype=np.complex64)
-        >>> y = ddcr.execute(x, out)
-        >>> y.shape
-        (1024,)
-        >>> y.dtype
-        dtype('complex64')
-        >>> round(float(abs(y[500])), 2)   # analytic signal of a unit cosine
-        1.0
-
+            Output.
         """
 
-    def execute_max_out(self) -> int:
-        """Upper bound on one execute call's output, or 0 to let the caller
-        size it from the input block (a decimator never exceeds its input).
+    def execute_max_out(self, x_len: int) -> int:
+        """Largest number of samples execute() can return for x_len inputs.
+
+        Size an `out=` buffer with this before calling execute(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        execute_max_out() replaces this text.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples execute() will be given.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def execute_ctrl(
@@ -1154,42 +1062,21 @@ class MatchedDdcr:
         rate_ctrl: float,
         freq_ctrl: float,
     ) -> NDArray[np.complex64]:
-        """Process a real block, steering both control ports.
-
-        The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
-        semantics, which are identical except for where the LO lives.
+        """Execute ctrl.
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Real float32 input block.
+            Input.
         rate_ctrl : float
-            Rate deviation added to the terminal Resampler stage's rate
-            (referenced to the terminal, post-decimation rate).
+            Input.
         freq_ctrl : float
-            Frequency deviation added to the fine LO, in cycles/sample at the
-            INTERMEDIATE rate (fs_in/2) — the halfband has already decimated by
-            two by the time the mix happens, so a discriminator working in
-            cycles per ADC sample must be doubled before it lands here.
+            Input.
 
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written.
-
-        Examples
-        --------
-        >>> from doppler.ddc import Ddcr
-        >>> import numpy as np
-        >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)  # LO 0.2 short of tune
-        >>> t = np.arange(4096)
-        >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
-        >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)     # ctrl completes the tune
-        >>> y.shape
-        (1024,)
-        >>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 1.0
-        1.0
-
+            Output.
         """
 
     def execute_ctrl_push(
@@ -1199,71 +1086,44 @@ class MatchedDdcr:
         freq_ctrl: float,
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Push ONE real input sample; emit whatever outputs it completes.
-
-        The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
-        The halfband consumes two inputs per intermediate sample, so every
-        other push does no mixing and emits nothing at all — the LO advances
-        (and its control is applied) once per *intermediate* sample, which is
-        the rate the LO runs at.
+        """Execute ctrl push.
 
         Parameters
         ----------
         x : float
-            One real float32 input sample.
+            Input.
         rate_ctrl : float
-            Rate deviation for this input (terminal-stage rate).
+            Input.
         freq_ctrl : float
-            Frequency deviation, cycles/sample at fs_in/2.
+            Input.
         out : NDArray[np.complex64] | None
-            Output buffer for any emitted samples.
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
 
         Returns
         -------
         NDArray[np.complex64]
-            Number of outputs written (0, 1, or more).
-
-        Examples
-        --------
-        >>> from doppler.ddc import Ddcr
-        >>> import numpy as np
-        >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
-        >>> x = np.cos(2 * np.pi * 0.1 * np.arange(128)).astype(np.float32)
-        >>> outs = [ddcr.execute_ctrl_push(float(s), 0.0, 0.0) for s in x]
-        >>> int(sum(len(o) for o in outs))  # 128 real inputs, rate 1/4 -> 32
-        32
-        >>> [len(o) for o in outs[:4]]      # halfband: 0 until a strobe
-        [0, 0, 0, 1]
-
+            Output.
         """
 
     def execute_ctrl_push_max_out(self) -> int:
-        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
-        Non-zero because the push form has no input block to size from.
+        """Largest number of samples execute_ctrl_push() can return in the
+        current state.
+
+        Size an `out=` buffer with this before calling execute_ctrl_push(), or
+        use it to allocate one up front. The bound is this object's own: what
+        it depends on is a property of the algorithm, so a header block on
+        execute_ctrl_push_max_out() replaces this text.
 
         Returns
         -------
         int
-            Output.
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def reset(self) -> None:
-        """Zero halfband history, LO phase and filter history.
-
-        Examples
-        --------
-        >>> from doppler.ddc import Ddcr
-        >>> import numpy as np
-        >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
-        >>> x = np.ones(64, dtype=np.float32)
-        >>> out = np.empty(64, dtype=np.complex64)
-        >>> y1 = ddcr.execute(x, out).copy()
-        >>> ddcr.reset()
-        >>> y2 = ddcr.execute(x, out)
-        >>> bool(np.array_equal(y1, y2))
-        True
-
-        """
+        """Zero halfband history, LO phase and filter history."""
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -1320,25 +1180,20 @@ class MatchedDdcr:
 
     @property
     def norm_freq(self) -> float:
-        """Return the current fine NCO normalised frequency at the intermediate
-        rate (fs_in/2, cycles/sample).
-        """
+        """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
     @property
     def rate(self) -> float:
-        """Return the total configured rate (fs_out / fs_in, read-only). This
-        is the end-to-end ratio from ADC input to CF32 output. Change it by
-        destroying and recreating the DDCR.
-        """
+        """Rate."""
 
     @property
     def clipped(self) -> bool:
-        """Has the cascade's CIC clipped its input since the last reset?"""
+        """Clipped."""
 
     @property
     def narrow_pulse(self) -> bool:
-        """Is this object's rectangular matched filter degenerately narrow?"""
+        """Narrow pulse."""
 
     def close(self) -> None:
         """Release the underlying C resources immediately.

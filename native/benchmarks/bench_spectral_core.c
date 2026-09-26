@@ -73,36 +73,36 @@ run (int cfg)
   switch (cfg)
     {
     case C_KAISER_WIN:
-      kaiser_window (win, NFFT, 8.6f);
+      dp_kaiser_window (win, NFFT, 8.6f);
       sink += win[NFFT / 2];
       break;
     case C_HANN_WIN:
-      hann_window (win, NFFT);
+      dp_hann_window (win, NFFT);
       sink += win[NFFT / 2];
       break;
     case C_BH_WIN:
-      blackman_harris_window (win, NFFT);
+      dp_blackman_harris_window (win, NFFT);
       sink += win[NFFT / 2];
       break;
     case C_ENBW:
-      sink += kaiser_enbw (win, NFFT);
+      sink += dp_kaiser_enbw (win, NFFT);
       break;
     case C_MAG_CF32:
-      magnitude_db_cf32 (x32, NFFT, db, 1e-20f, 0.0f);
+      dp_magnitude_db_cf32 (x32, NFFT, db, 1e-20f, 0.0f);
       sink += db[0];
       break;
     case C_MAG_CF64:
-      magnitude_db_cf64 (x64, NFFT, db, 1e-20, 0.0f);
+      dp_magnitude_db_cf64 (x64, NFFT, db, 1e-20, 0.0f);
       sink += db[0];
       break;
     case C_NOISE_FLOOR:
-      sink += noise_floor_db (db, NFFT);
+      sink += dp_noise_floor_db (db, NFFT);
       break;
     case C_FIND_PEAKS:
-      sink += (double)find_peaks_f32 (db, NFFT, N_PEAKS, -80.0f, peaks);
+      sink += (double)dp_find_peaks_f32 (db, NFFT, N_PEAKS, -80.0f, peaks);
       break;
     default:
-      sink += obw_from_power (pwr, NFFT, 1e6, 0.99);
+      sink += dp_obw_from_power (pwr, NFFT, 1e6, 0.99);
       break;
     }
 }
@@ -127,8 +127,8 @@ main (void)
       x64[i] = a * cos (ph) + a * sin (ph) * I;
       pwr[i] = a * a;
     }
-  hann_window (win, NFFT);
-  magnitude_db_cf32 (x32, NFFT, db, 1e-20f, 0.0f);
+  dp_hann_window (win, NFFT);
+  dp_magnitude_db_cf32 (x32, NFFT, db, 1e-20f, 0.0f);
 
   printf ("=== spectral (one frame, minus the FFT) ===\n");
   printf ("nfft = %d, %d calls x %d rounds, per-BIN figures\n\n", NFFT, REPS,

@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_conv_enc[] = {
-    (jm_any_fn)conv_enc_create,
-    (jm_any_fn)conv_enc_destroy,
-    (jm_any_fn)conv_enc_reset,
-    (jm_any_fn)conv_enc_encode_max_out,
-    (jm_any_fn)conv_enc_encode,
-    (jm_any_fn)conv_enc_state_bytes,
-    (jm_any_fn)conv_enc_get_state,
-    (jm_any_fn)conv_enc_set_state,
+    (jm_any_fn)dp_conv_enc_create,
+    (jm_any_fn)dp_conv_enc_destroy,
+    (jm_any_fn)dp_conv_enc_reset,
+    (jm_any_fn)dp_conv_enc_encode_max_out,
+    (jm_any_fn)dp_conv_enc_encode,
+    (jm_any_fn)dp_conv_enc_state_bytes,
+    (jm_any_fn)dp_conv_enc_get_state,
+    (jm_any_fn)dp_conv_enc_set_state,
 };

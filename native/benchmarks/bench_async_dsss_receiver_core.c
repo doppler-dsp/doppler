@@ -110,10 +110,10 @@ build_capture (const wf_t *w, float _Complex **out, size_t *pre_out)
   return n;
 }
 
-static async_dsss_receiver_state_t *
+static dp_async_dsss_receiver_state_t *
 make_rx (const wf_t *w)
 {
-  return async_dsss_receiver_create (
+  return dp_async_dsss_receiver_create (
       w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
       500.0, 4, 8, 0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
 }
@@ -131,13 +131,13 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   if (n == 0)
     return 1;
 
-  async_dsss_receiver_state_t *probe = make_rx (w);
+  dp_async_dsss_receiver_state_t *probe = make_rx (w);
   if (!probe)
     {
       (void)fprintf (stderr, "bench_async_dsss_receiver: create NULL\n");
       return 1;
     }
-  size_t cap = async_dsss_receiver_steps_max_out (probe);
+  size_t cap = dp_async_dsss_receiver_steps_max_out (probe);
   if (cap == 0 || cap > n)
     cap = n;
   float _Complex *out = malloc (cap * sizeof *out);
@@ -146,8 +146,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
 
   /* The precondition: a receiver that never locks would time the search's
      give-up path and read fast. */
-  size_t got = async_dsss_receiver_steps (probe, x, n, out, cap);
-  int    trk = async_dsss_receiver_get_tracking (probe);
+  size_t got = dp_async_dsss_receiver_steps (probe, x, n, out, cap);
+  int    trk = dp_async_dsss_receiver_get_tracking (probe);
   if (got == 0 || trk != 1)
     {
       (void)fprintf (stderr,
@@ -157,7 +157,7 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
                      w->tag, got, trk);
       return 1;
     }
-  async_dsss_receiver_destroy (probe);
+  dp_async_dsss_receiver_destroy (probe);
 
   printf ("=== async_dsss_receiver benchmark%s ===\n", w->tag);
   printf ("SF %zu, spc %zu, chip_rate %.3g, %d symbols, %zu samples, %d "
@@ -171,21 +171,21 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
     w0 = jm_bench_now_ns ();
     do
       {
-        async_dsss_receiver_state_t *rx = make_rx (w);
-        sink += async_dsss_receiver_steps (rx, x, n, out, cap);
-        async_dsss_receiver_destroy (rx);
+        dp_async_dsss_receiver_state_t *rx = make_rx (w);
+        sink += dp_async_dsss_receiver_steps (rx, x, n, out, cap);
+        dp_async_dsss_receiver_destroy (rx);
         w1 = jm_bench_now_ns ();
       }
     while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
     for (int r = 0; r < ITERATIONS; r++)
       {
-        async_dsss_receiver_state_t *rx = make_rx (w);
-        t0                              = jm_bench_now_ns ();
-        sink += async_dsss_receiver_steps (rx, x, n, out, cap);
+        dp_async_dsss_receiver_state_t *rx = make_rx (w);
+        t0                                 = jm_bench_now_ns ();
+        sink += dp_async_dsss_receiver_steps (rx, x, n, out, cap);
         t1        = jm_bench_now_ns ();
         t_cold[r] = jm_bench_elapsed_sec (t0, t1);
-        async_dsss_receiver_destroy (rx);
+        dp_async_dsss_receiver_destroy (rx);
       }
     (void)snprintf (name, sizeof name, "steps[cold%s]", w->tag);
     jm_bench_add (bench, name, t_cold, ITERATIONS, (int)n);
@@ -197,9 +197,9 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   /* Warm: one receiver, already tracking, re-fed the tracking half. */
   static double t_warm[ITERATIONS];
   {
-    async_dsss_receiver_state_t *rx = make_rx (w);
-    sink += async_dsss_receiver_steps (rx, x, n, out, cap);
-    if (async_dsss_receiver_get_tracking (rx) != 1)
+    dp_async_dsss_receiver_state_t *rx = make_rx (w);
+    sink += dp_async_dsss_receiver_steps (rx, x, n, out, cap);
+    if (dp_async_dsss_receiver_get_tracking (rx) != 1)
       {
         (void)fprintf (stderr,
                        "bench_async_dsss_receiver%s: warm receiver is not "
@@ -213,7 +213,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
     w0 = jm_bench_now_ns ();
     do
       {
-        sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
+        sink
+            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
         w1 = jm_bench_now_ns ();
       }
     while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -221,7 +222,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
+        sink
+            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
         t1        = jm_bench_now_ns ();
         t_warm[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -232,7 +234,7 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
             "on one core\n",
             name, sec * 1e3, sec / (double)(n - half) * 1e9,
             sec / (double)(n - half) * w->chip_rate * (double)w->spc);
-    async_dsss_receiver_destroy (rx);
+    dp_async_dsss_receiver_destroy (rx);
   }
 
   /* The cell mode (design section 12.22-12.24 as a mode of this receiver,
@@ -242,12 +244,12 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
      beside the searching flavor's warm row. */
   static double t_cell[ITERATIONS];
   {
-    const size_t                 periods = w->sf == 7 ? 100 : 154;
-    async_dsss_receiver_state_t *rx      = async_dsss_receiver_create_cell (
+    const size_t                    periods = w->sf == 7 ? 100 : 154;
+    dp_async_dsss_receiver_state_t *rx      = async_dsss_receiver_create_cell (
         w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
         4, 8, 0, 0.0, 0.0, periods, ASYNC_DSSS_RX_CELL_GAIN,
         ASYNC_DSSS_RX_CELL_PULLIN);
-    if (!rx || async_dsss_receiver_seed (rx, 0.0, 0.0, 70.0) != DP_OK)
+    if (!rx || dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 70.0) != DP_OK)
       {
         (void)fprintf (stderr,
                        "bench_async_dsss_receiver%s: the cell mode "
@@ -255,8 +257,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
                        w->tag);
         return 1;
       }
-    sink += async_dsss_receiver_steps (rx, x + pre, n - pre, out, cap);
-    if (async_dsss_receiver_get_tracking (rx) != 1)
+    sink += dp_async_dsss_receiver_steps (rx, x + pre, n - pre, out, cap);
+    if (dp_async_dsss_receiver_get_tracking (rx) != 1)
       {
         (void)fprintf (stderr,
                        "bench_async_dsss_receiver%s: the cell receiver is "
@@ -270,14 +272,16 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
     w0 = jm_bench_now_ns ();
     do
       {
-        sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
+        sink
+            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
         w1 = jm_bench_now_ns ();
       }
     while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
+        sink
+            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
         t1        = jm_bench_now_ns ();
         t_cell[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -288,7 +292,7 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
             "on one core\n",
             name, sec * 1e3, sec / (double)(n - half) * 1e9,
             sec / (double)(n - half) * w->chip_rate * (double)w->spc);
-    async_dsss_receiver_destroy (rx);
+    dp_async_dsss_receiver_destroy (rx);
   }
   printf (
       "\n  cell/warm per sample = %.2fx: the cell mode's steady state\n"

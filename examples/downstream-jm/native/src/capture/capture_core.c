@@ -21,10 +21,10 @@
  */
 struct capture_state
 {
-  wfm_reader_state_t *r;    /**< doppler's opaque reader.        */
-  double              fs;   /**< resolved sample rate (Hz).      */
-  double              fc;   /**< resolved centre frequency (Hz). */
-  int                 meta; /**< ::capture_meta_t provenance.    */
+  dp_wfm_reader_state_t *r;    /**< doppler's opaque reader.        */
+  double                 fs;   /**< resolved sample rate (Hz).      */
+  double                 fc;   /**< resolved centre frequency (Hz). */
+  int                    meta; /**< ::capture_meta_t provenance.    */
 };
 
 /**
@@ -34,7 +34,7 @@ struct capture_state
  * can leak a handle on the allocation path.
  */
 static capture_state_t *
-capture_wrap (wfm_reader_state_t *r, double fs, double fc, int meta)
+capture_wrap (dp_wfm_reader_state_t *r, double fs, double fc, int meta)
 {
   capture_state_t *s;
 
@@ -44,7 +44,7 @@ capture_wrap (wfm_reader_state_t *r, double fs, double fc, int meta)
   s = calloc (1, sizeof *s);
   if (s == NULL)
     {
-      wfm_reader_destroy (r);
+      dp_wfm_reader_destroy (r);
       return NULL;
     }
 
@@ -58,13 +58,13 @@ capture_wrap (wfm_reader_state_t *r, double fs, double fc, int meta)
 capture_state_t *
 capture_create (const char *path)
 {
-  wfm_reader_info_t   info;
-  wfm_reader_state_t *r;
-  int                 meta;
+  wfm_reader_info_t      info;
+  dp_wfm_reader_state_t *r;
+  int                    meta;
 
   /* cf32/little-endian are the hints doppler falls back on for a headerless
      file; for BLUE and SigMF they are ignored and the file wins. */
-  r = wfm_reader_create (path, 0, 0);
+  r = dp_wfm_reader_create (path, 0, 0);
   if (r == NULL)
     return NULL;
 
@@ -82,12 +82,12 @@ capture_state_t *
 capture_open_raw (const char *path, int sample_type, int endian, double fs,
                   double fc)
 {
-  wfm_reader_state_t *r;
+  dp_wfm_reader_state_t *r;
 
   /* The enum indices are the manifest's string_enum order, declared to match
      doppler's own encoding (0 cf32..4 ci8; 0 le, 1 be) — so the value crosses
      straight through, with no translation table to fall out of sync. */
-  r = wfm_reader_create (path, sample_type, endian);
+  r = dp_wfm_reader_create (path, sample_type, endian);
 
   /* Whatever the file turned out to be, the caller supplied these, and saying
      so is the whole point of this constructor. */
@@ -99,7 +99,7 @@ capture_destroy (capture_state_t *state)
 {
   if (state == NULL)
     return;
-  wfm_reader_destroy (state->r);
+  dp_wfm_reader_destroy (state->r);
   free (state);
 }
 
@@ -108,25 +108,25 @@ capture_reset (capture_state_t *state)
 {
   /* Rewind to the first sample. The metadata came from the file (or from the
      caller) and is unaffected — only the read cursor moves. */
-  wfm_reader_reset (state->r);
+  dp_wfm_reader_reset (state->r);
 }
 
 size_t
 capture_read_max_out (capture_state_t *state, size_t n)
 {
-  /* A read(n) delegates straight into wfm_reader_read, so capture's per-call
-     bound IS the reader's: report whatever the canonical primitive reports for
-     n rather than reimplementing the rule. Under gh-607 the binding sizes its
-     buffer to exactly this value (no clamp up to the request), so it must be
-     the true cap — n, not a 0 sentinel. */
-  return wfm_reader_read_max_out (state->r, n);
+  /* A read(n) delegates straight into dp_wfm_reader_read, so capture's
+     per-call bound IS the reader's: report whatever the canonical primitive
+     reports for n rather than reimplementing the rule. Under gh-607 the
+     binding sizes its buffer to exactly this value (no clamp up to the
+     request), so it must be the true cap — n, not a 0 sentinel. */
+  return dp_wfm_reader_read_max_out (state->r, n);
 }
 
 size_t
 capture_read (capture_state_t *state, size_t n, float _Complex *out,
               size_t max_out)
 {
-  return wfm_reader_read (state->r, n, out, max_out);
+  return dp_wfm_reader_read (state->r, n, out, max_out);
 }
 
 double

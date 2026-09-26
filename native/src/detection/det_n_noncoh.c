@@ -1,7 +1,7 @@
 #include "doppler/detection/detection_core.h"
 int
-det_n_noncoh (double snr, int n_coh, double pd_min, double pfa,
-              int max_n_noncoh)
+dp_det_n_noncoh (double snr, int n_coh, double pd_min, double pfa,
+                 int max_n_noncoh)
 {
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd_min > 0.0 && pd_min < 1.0))
     return -1;
@@ -14,16 +14,16 @@ det_n_noncoh (double snr, int n_coh, double pd_min, double pfa,
    * scan the only safe option. With that fixed, binary search turns what
    * was an O(max_n_noncoh) scan (each step itself O(k) before the
    * marcum_q fix) into O(log max_n_noncoh) steps. */
-  double eta_max = det_threshold_noncoherent (pfa, max_n_noncoh);
-  if (det_pd_noncoherent (snr, n_coh, max_n_noncoh, eta_max) < pd_min)
+  double eta_max = dp_det_threshold_noncoherent (pfa, max_n_noncoh);
+  if (dp_det_pd_noncoherent (snr, n_coh, max_n_noncoh, eta_max) < pd_min)
     return -1;
 
   int lo = 1, hi = max_n_noncoh;
   while (lo < hi)
     {
       int    mid = lo + (hi - lo) / 2;
-      double eta = det_threshold_noncoherent (pfa, mid);
-      if (det_pd_noncoherent (snr, n_coh, mid, eta) >= pd_min)
+      double eta = dp_det_threshold_noncoherent (pfa, mid);
+      if (dp_det_pd_noncoherent (snr, n_coh, mid, eta) >= pd_min)
         hi = mid;
       else
         lo = mid + 1;

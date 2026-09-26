@@ -21,8 +21,8 @@
  * array([1.1+0.j])
  * @endcode
  */
-#ifndef INTERP_TABLE_CORE_H
-#define INTERP_TABLE_CORE_H
+#ifndef DP_INTERP_TABLE_CORE_H
+#define DP_INTERP_TABLE_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -34,7 +34,7 @@ extern "C"
   /**
    * @brief InterpolatedTable state.
    *
-   * Allocate with interp_table_create(). `table` is a private copy (the
+   * Allocate with dp_interp_table_create(). `table` is a private copy (the
    * caller's own array is not aliased or retained).
    */
   typedef struct
@@ -42,7 +42,7 @@ extern "C"
     double _Complex *table;  /**< owned copy, length n                    */
     size_t          n;      /**< table length (one period)               */
     int             method; /**< 0=floor, 1=nearest, 2=linear             */
-  } interp_table_state_t;
+  } dp_interp_table_state_t;
 
   /**
    * @brief Create an InterpolatedTable instance.
@@ -55,7 +55,7 @@ extern "C"
    * @param method     0 = floor, 1 = nearest, 2 = linear.
    * @return Heap-allocated state, or NULL on allocation failure or
    *         table_len == 0.
-   * @note Caller must call interp_table_destroy() when done.
+   * @note Caller must call dp_interp_table_destroy() when done.
    * @code
    * >>> from doppler.interp import InterpolatedTable
    * >>> import numpy as np
@@ -66,14 +66,14 @@ extern "C"
    * 3
    * @endcode
    */
-  interp_table_state_t *interp_table_create (const double _Complex *table,
+  dp_interp_table_state_t *dp_interp_table_create (const double _Complex *table,
                                              size_t table_len, int method);
 
   /**
    * @brief Destroy an interp_table instance and release all memory.
    * @param state  May be NULL.
    */
-  void interp_table_destroy (interp_table_state_t *state);
+  void dp_interp_table_destroy (dp_interp_table_state_t *state);
 
   /**
    * @brief No-op: InterpolatedTable is purely a function of (table,
@@ -95,14 +95,14 @@ extern "C"
    *
    * @endcode
    */
-  void interp_table_reset (interp_table_state_t *state);
+  void dp_interp_table_reset (dp_interp_table_state_t *state);
 
   /**
    * @brief No fixed cap -- execute()'s output is always sized to exactly
    * match its own input length, so an `out=` buffer only ever needs to
    * be at least that many elements (never a larger, unrelated minimum).
    */
-  size_t interp_table_execute_max_out (interp_table_state_t *state);
+  size_t dp_interp_table_execute_max_out (dp_interp_table_state_t *state);
 
   /**
    * @brief Evaluate the table at each of @p n_in points via periodic
@@ -130,7 +130,7 @@ extern "C"
    * array([0.5+0.j, 1.1+0.j])
    * @endcode
    */
-  size_t interp_table_execute (interp_table_state_t *state, const double *in,
+  size_t dp_interp_table_execute (dp_interp_table_state_t *state, const double *in,
                                size_t n_in, double _Complex *out,
                                size_t max_out);
 

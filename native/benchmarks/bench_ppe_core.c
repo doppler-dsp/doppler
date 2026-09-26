@@ -26,19 +26,19 @@ synth (float _Complex *y, size_t L, double f, double r)
 static void
 bench_one (jm_bench_t *b, const char *name, size_t L, double max_rate)
 {
-  ppe_state_t    *p = ppe_create (L, max_rate);
+  dp_ppe_state_t *p = dp_ppe_create (L, max_rate);
   float _Complex *y = malloc (L * sizeof *y);
   if (!p || !y)
     return;
   synth (y, L, 0.05, max_rate > 0.0 ? 1e-5 : 0.0);
-  ppe_result_t e = ppe_estimate (p, y, L); /* warm */
+  ppe_result_t e = dp_ppe_estimate (p, y, L); /* warm */
 
   uint64_t t0, t1;
   double   times[ITERATIONS];
   for (int i = 0; i < ITERATIONS; i++)
     {
       t0       = jm_bench_now_ns ();
-      e        = ppe_estimate (p, y, L);
+      e        = dp_ppe_estimate (p, y, L);
       t1       = jm_bench_now_ns ();
       times[i] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -46,7 +46,7 @@ bench_one (jm_bench_t *b, const char *name, size_t L, double max_rate)
           p->n_rate, e.freq_norm, e.rate_norm, e.snr_db);
   jm_bench_add (b, name, times, ITERATIONS, (int)L);
   free (y);
-  ppe_destroy (p);
+  dp_ppe_destroy (p);
 }
 
 int

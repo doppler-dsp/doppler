@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* DespreaderObject — wraps despreader_state_t *       */
+/* DespreaderObject — wraps dp_despreader_state_t *       */
 /* ======================================================== */
 
 #include "doppler/despreader/despreader_core.h"
 
 typedef struct
 {
-  PyObject_HEAD despreader_state_t *handle;
+  PyObject_HEAD dp_despreader_state_t *handle;
 } DespreaderObject;
 
 static void
 DespreaderObj_dealloc (DespreaderObject *self)
 {
   if (self->handle)
-    despreader_destroy (self->handle);
+    dp_despreader_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -66,13 +66,14 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = despreader_create (
+  self->handle    = dp_despreader_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, sps, init_norm_freq,
       init_chip, bn_carrier, bn_code, bn_fll, zeta, spacing, periods_per_bit);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "despreader_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_despreader_create returned NULL");
       return -1;
     }
   return 0;
@@ -87,7 +88,7 @@ DespreaderObj_steps_max_out (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (despreader_steps_max_out (self->handle));
+  return PyLong_FromSize_t (dp_despreader_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -133,7 +134,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = despreader_steps_max_out (self->handle);
+      size_t _omax    = dp_despreader_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -155,7 +156,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -170,7 +171,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = despreader_steps_max_out (self->handle);
+  size_t _cap  = dp_despreader_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -189,7 +190,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -217,7 +218,7 @@ DespreaderObj_bits_max_out (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (despreader_bits_max_out (self->handle));
+  return PyLong_FromSize_t (dp_despreader_bits_max_out (self->handle));
 }
 
 static PyObject *
@@ -262,7 +263,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = despreader_bits_max_out (self->handle);
+      size_t _omax    = dp_despreader_bits_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -284,7 +285,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
       uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -299,7 +300,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = despreader_bits_max_out (self->handle);
+  size_t _cap  = dp_despreader_bits_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -318,7 +319,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -372,7 +373,7 @@ DespreaderObj_set_telemetry (DespreaderObject *self, PyObject *args,
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = despreader_set_telemetry (self->handle, tlm, prefix, decim);
+  int _rc = dp_despreader_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
@@ -401,8 +402,8 @@ DespreaderObj_configure_carrier_lock (DespreaderObject *self, PyObject *args,
     return NULL;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  despreader_configure_carrier_lock (self->handle, up_thresh, down_thresh,
-                                     n_up, n_down);
+  dp_despreader_configure_carrier_lock (self->handle, up_thresh, down_thresh,
+                                        n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -423,8 +424,8 @@ DespreaderObj_configure_code_lock (DespreaderObject *self, PyObject *args,
                                     &n_looks_raw, &ref_snr_db))
     return NULL;
   size_t n_looks = (size_t)n_looks_raw;
-  int    _rc     = despreader_configure_code_lock (self->handle, pfa, n_looks,
-                                                   ref_snr_db);
+  int    _rc = dp_despreader_configure_code_lock (self->handle, pfa, n_looks,
+                                                  ref_snr_db);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "configure_code_lock failed (rc=%d)",
@@ -442,7 +443,7 @@ DespreaderObj_reset (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  despreader_reset (self->handle);
+  dp_despreader_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -455,7 +456,7 @@ DespreaderObj_state_bytes (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (despreader_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_despreader_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -466,11 +467,11 @@ DespreaderObj_get_state (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = despreader_state_bytes (self->handle);
+  size_t    _n = dp_despreader_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  despreader_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_despreader_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -487,12 +488,13 @@ DespreaderObj_set_state (DespreaderObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != despreader_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_despreader_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (despreader_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_despreader_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -509,7 +511,7 @@ Despreader_getprop_norm_freq (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_despreader_get_norm_freq (self->handle));
 }
 static int
 Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
@@ -523,7 +525,7 @@ Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  despreader_set_norm_freq (self->handle, v);
+  dp_despreader_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -536,7 +538,7 @@ Despreader_getprop_code_phase (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_code_phase (self->handle));
+  return PyFloat_FromDouble (dp_despreader_get_code_phase (self->handle));
 }
 static PyObject *
 Despreader_getprop_code_rate (DespreaderObject *self,
@@ -548,7 +550,7 @@ Despreader_getprop_code_rate (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_code_rate (self->handle));
+  return PyFloat_FromDouble (dp_despreader_get_code_rate (self->handle));
 }
 static PyObject *
 Despreader_getprop_lock_metric (DespreaderObject *self,
@@ -560,7 +562,7 @@ Despreader_getprop_lock_metric (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_lock_metric (self->handle));
+  return PyFloat_FromDouble (dp_despreader_get_lock_metric (self->handle));
 }
 static PyObject *
 Despreader_getprop_carrier_locked (DespreaderObject *self,
@@ -573,7 +575,7 @@ Despreader_getprop_carrier_locked (DespreaderObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
-      (long)(despreader_get_carrier_locked (self->handle)));
+      (long)(dp_despreader_get_carrier_locked (self->handle)));
 }
 static PyObject *
 Despreader_getprop_code_locked (DespreaderObject *self,
@@ -585,7 +587,8 @@ Despreader_getprop_code_locked (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(despreader_get_code_locked (self->handle)));
+  return PyBool_FromLong (
+      (long)(dp_despreader_get_code_locked (self->handle)));
 }
 static PyObject *
 Despreader_getprop_bit_phase (DespreaderObject *self,
@@ -598,7 +601,7 @@ Despreader_getprop_bit_phase (DespreaderObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)despreader_get_bit_phase (self->handle));
+      (unsigned long long)dp_despreader_get_bit_phase (self->handle));
 }
 static PyObject *
 Despreader_getprop_bn_carrier (DespreaderObject *self,
@@ -610,7 +613,7 @@ Despreader_getprop_bn_carrier (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_bn_carrier (self->handle));
+  return PyFloat_FromDouble (dp_despreader_get_bn_carrier (self->handle));
 }
 static int
 Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
@@ -624,7 +627,7 @@ Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  despreader_set_bn_carrier (self->handle, v);
+  dp_despreader_set_bn_carrier (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -636,7 +639,7 @@ Despreader_getprop_bn_code (DespreaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_bn_code (self->handle));
+  return PyFloat_FromDouble (dp_despreader_get_bn_code (self->handle));
 }
 static int
 Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
@@ -650,7 +653,7 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  despreader_set_bn_code (self->handle, v);
+  dp_despreader_set_bn_code (self->handle, v);
   return 0;
 }
 
@@ -692,7 +695,7 @@ DespreaderObj_destroy (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      despreader_destroy (self->handle);
+      dp_despreader_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -711,7 +714,7 @@ DespreaderObj_exit (DespreaderObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      despreader_destroy (self->handle);
+      dp_despreader_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -790,7 +793,7 @@ static PyMethodDef DespreaderObj_methods[] = {
     "across each detected bit boundary and one 0/1 bit is emitted per data\n"
     "bit.\n"
     "\n"
-    "The same tracking kernel as despreader_steps(), followed by bit\n"
+    "The same tracking kernel as dp_despreader_steps(), followed by bit\n"
     "synchronisation: the per-period prompts are coherently summed across\n"
     "each detected bit boundary (a data bit spans periods_per_bit code\n"
     "periods) and one hard 0/1 bit is emitted per data bit. The bit boundary\n"
@@ -906,12 +909,13 @@ static PyMethodDef DespreaderObj_methods[] = {
     "config should be writable too, rather than forcing a caller who needs "
     "this control to drop to raw Dll+Costas composition.\n"
     "\n"
-    "Thin forwarder to costas_configure_lock() on the embedded Costas loop —\n"
-    "symmetric with despreader_get_carrier_locked() exposing its state: "
+    "Thin forwarder to dp_costas_configure_lock() on the embedded Costas loop "
+    "—\n"
+    "symmetric with dp_despreader_get_carrier_locked() exposing its state: "
     "state\n"
     "is readable, so config should be writable too, rather than forcing a\n"
     "caller who needs this control to drop to raw Dll+Costas composition\n"
-    "instead of Despreader. See costas_configure_lock() for the parameter\n"
+    "instead of Despreader. See dp_costas_configure_lock() for the parameter\n"
     "semantics.\n"
     "\n"
     "Parameters\n"
@@ -944,12 +948,12 @@ static PyMethodDef DespreaderObj_methods[] = {
     "Dll-only control for a caller that composes Dll+Costas directly).\n"
     "Raises ValueError for pfa outside (0, 1).\n"
     "\n"
-    "Thin forwarder to dll_configure_lock() on the embedded DLL — the\n"
+    "Thin forwarder to dp_dll_configure_lock() on the embedded DLL — the\n"
     "derived (pfa-style) entry point, matching Despreader's role as the\n"
     "\"easy\" composed API (Dll's raw escape hatch, "
-    "dll_configure_lock_raw(),\n"
+    "dp_dll_configure_lock_raw(),\n"
     "stays a Dll-only control for a caller that composes Dll+Costas\n"
-    "directly). See dll_configure_lock() for the parameter semantics.\n"
+    "directly). See dp_dll_configure_lock() for the parameter semantics.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -959,7 +963,7 @@ static PyMethodDef DespreaderObj_methods[] = {
     "    Non-coherent integration depth N (looks); clamped >= 1.\n"
     "ref_snr_db : float\n"
     "    Noise-reference estimator SNR in dB (> 0), or 0 to derive from\n"
-    "    n_looks (see dll_configure_lock()).\n"
+    "    n_looks (see dp_dll_configure_lock()).\n"
     "\n"
     "Raises\n"
     "------\n"

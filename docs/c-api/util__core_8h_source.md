@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef UTIL_CORE_H
-#define UTIL_CORE_H
+#ifndef DP_UTIL_CORE_H
+#define DP_UTIL_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -22,7 +22,7 @@ extern "C"
 #endif
 
   JM_FORCEINLINE float _Complex
-  square_clip (float _Complex y, float lin)
+  dp_square_clip (float _Complex y, float lin)
   {
     float r = fminf (fmaxf (crealf (y), -lin), lin);
     float i = fminf (fmaxf (cimagf (y), -lin), lin);
@@ -30,7 +30,7 @@ extern "C"
   }
 
   JM_FORCEINLINE size_t
-  next_pow_two (size_t n)
+  dp_next_pow_two (size_t n)
   {
     size_t c = 1u;
     while (c < n)
@@ -43,7 +43,7 @@ extern "C"
   }
 
   JM_FORCEINLINE double
-  saturate (double v, double lo, double hi, double nan_to)
+  dp_saturate (double v, double lo, double hi, double nan_to)
   {
     if (v >= lo && v <= hi)
       return v; /* the common case; false for NaN, which falls through */
@@ -55,7 +55,7 @@ extern "C"
   }
 
   JM_FORCEINLINE double
-  ema_step (double state, double x, double alpha)
+  dp_ema_step (double state, double x, double alpha)
   {
     /* Loop-invariant, and folded away entirely when alpha is a
        compile-time constant, so the common path pays nothing. */
@@ -65,7 +65,7 @@ extern "C"
   }
 
   JM_FORCEINLINE double
-  complement_power (double p, double x)
+  dp_complement_power (double p, double x)
   {
     if (x == 1.0)
       return p; /* exact by construction, not by luck */
@@ -77,21 +77,21 @@ extern "C"
   }
 
   JM_FORCEINLINE double
-  ema_alpha_decim (double alpha, size_t d)
+  dp_ema_alpha_decim (double alpha, size_t d)
   {
     if (d <= 1)
       return alpha; /* exact by construction, not by luck */
-    return complement_power (alpha, (double)d);
+    return dp_complement_power (alpha, (double)d);
   }
 
   JM_FORCEINLINE double
-  sinc (double u)
+  dp_sinc (double u)
   {
     return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
   }
 
   JM_FORCEINLINE int
-  simpson_weights (double *w, size_t w_len)
+  dp_simpson_weights (double *w, size_t w_len)
   {
     if (w_len < 3 || (w_len & 1u) == 0)
       return DP_ERR_INVALID;
@@ -102,32 +102,32 @@ extern "C"
   }
 
   JM_FORCEINLINE double
-  mean_sinc (double umax)
+  dp_mean_sinc (double umax)
   {
     if (umax <= 0.0)
       return 1.0;
     /* 64-interval Simpson over segments of at most half a bin, so the error
        is one bound at any umax rather than growing with it. */
     double w[65];
-    (void)simpson_weights (w, 65);
+    (void)dp_simpson_weights (w, 65);
     const size_t segs = umax > 0.5 ? (size_t)ceil (2.0 * umax) : 1u;
     const double len  = umax / (double)segs;
     double       m    = 0.0;
     for (size_t s = 0; s < segs; s++)
       for (size_t i = 0; i < 65; i++)
-        m += w[i] * sinc (len * ((double)s + (double)i / 64.0));
+        m += w[i] * dp_sinc (len * ((double)s + (double)i / 64.0));
     return m / (double)segs;
   }
 
   JM_FORCEINLINE void
-  midpoint_nodes (double *u, size_t u_len)
+  dp_midpoint_nodes (double *u, size_t u_len)
   {
     for (size_t k = 0; k < u_len; k++)
       u[k] = ((double)k + 0.5) / (double)u_len;
   }
 
   JM_FORCEINLINE int
-  gauss_hermite (double *z, size_t z_len, double *p, size_t p_len)
+  dp_gauss_hermite (double *z, size_t z_len, double *p, size_t p_len)
   {
     if (z_len == 0 || z_len != p_len)
       return DP_ERR_INVALID;

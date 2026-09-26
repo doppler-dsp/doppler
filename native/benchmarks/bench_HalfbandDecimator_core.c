@@ -92,7 +92,8 @@ main (void)
       const size_t block = blocks[k];
       const size_t reps  = TOTAL_PER_ROUND / block;
 
-      HalfbandDecimator_state_t *d = HalfbandDecimator_create (h, N_TAPS);
+      dp_HalfbandDecimator_state_t *d
+          = dp_HalfbandDecimator_create (h, N_TAPS);
       if (!d)
         {
           (void)fprintf (stderr,
@@ -100,13 +101,13 @@ main (void)
                          N_TAPS);
           return 1;
         }
-      size_t cap = HalfbandDecimator_execute_max_out (d);
+      size_t cap = dp_HalfbandDecimator_execute_max_out (d);
       if (cap == 0 || cap > block)
         cap = block;
 
       /* Decimate-by-two must emit about half its input; a short or empty
          return would mean the rows below time a path no caller takes. */
-      size_t got = HalfbandDecimator_execute (d, x, block, out, cap);
+      size_t got = dp_HalfbandDecimator_execute (d, x, block, out, cap);
       if (got < block / 4)
         {
           (void)fprintf (stderr,
@@ -122,7 +123,7 @@ main (void)
       do
         {
           for (size_t r = 0; r < reps; r++)
-            sink += HalfbandDecimator_execute (d, x, block, out, cap);
+            sink += dp_HalfbandDecimator_execute (d, x, block, out, cap);
           w1 = jm_bench_now_ns ();
         }
       while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -131,7 +132,7 @@ main (void)
         {
           t0 = jm_bench_now_ns ();
           for (size_t j = 0; j < reps; j++)
-            sink += HalfbandDecimator_execute (d, x, block, out, cap);
+            sink += dp_HalfbandDecimator_execute (d, x, block, out, cap);
           t1         = jm_bench_now_ns ();
           t_ex[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -142,7 +143,7 @@ main (void)
       printf ("  %-26s %7.2f ns/sample  %8.1f MSa/s\n", name,
               sec / (double)TOTAL_PER_ROUND * 1e9,
               (double)TOTAL_PER_ROUND / sec / 1e6);
-      HalfbandDecimator_destroy (d);
+      dp_HalfbandDecimator_destroy (d);
     }
 
   printf ("\n  block 1024 -> %zu costs %.2fx per sample: the same total\n"

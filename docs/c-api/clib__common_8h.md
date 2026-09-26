@@ -172,7 +172,7 @@ double dp_lgamma (
 
 
 
-C's `lgamma()` writes the sign of Gamma into the global `signgam`, so two threads calling it race on a variable neither of them reads. That is exactly what happens when a pool of receivers rebuilds their tracking chains on different threads at once: every chain sizes a detector threshold through `marcum_q()`, and ThreadSanitizer stopped the first multi-threaded test on it (doppler#1260). `lgamma_r()` takes the sign by pointer and touches no global. Declared here and defined in `native/src/detection/marcum_q.c` (detection\_core, which every threshold links) rather than inline, because an installed header may not name libm's `lgamma_r`  the shipped libraries do not define it, and `scripts/check_installed_headers.py` says so  and a strict C99 dialect does not declare it. `scripts/check_lgamma_sites.py` fails on a bare `lgamma` in `native/inc` or `native/src`.
+C's `lgamma()` writes the sign of Gamma into the global `signgam`, so two threads calling it race on a variable neither of them reads. That is exactly what happens when a pool of receivers rebuilds their tracking chains on different threads at once: every chain sizes a detector threshold through `dp_marcum_q()`, and ThreadSanitizer stopped the first multi-threaded test on it (doppler#1260). `lgamma_r()` takes the sign by pointer and touches no global. Declared here and defined in `native/src/detection/marcum_q.c` (detection\_core, which every threshold links) rather than inline, because an installed header may not name libm's `lgamma_r`  the shipped libraries do not define it, and `scripts/check_installed_headers.py` says so  and a strict C99 dialect does not declare it. `scripts/check_lgamma_sites.py` fails on a bare `lgamma` in `native/inc` or `native/src`.
 
 
 

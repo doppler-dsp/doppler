@@ -1,7 +1,7 @@
 /* bench_detector_core.c -- what the detector adds to the correlator, and
  * whether the caller's chunk size is free.
  *
- * `detector_push` accepts a chunk of ANY length. It writes into a
+ * `dp_detector_push` accepts a chunk of ANY length. It writes into a
  * double-mapped ring, drains whole n-sample frames through the correlator
  * underneath, and on each int-dump computes peak-over-noise and decides
  * whether to emit. Nothing in that signature warns that a caller feeding
@@ -50,13 +50,13 @@ static const float thresh[N_CFG] = { 0.0f, 0.0f, 0.0f, 1e30f };
 int
 main (void)
 {
-  jm_bench_t        _bench = { 0 };
-  uint64_t          t0, t1;
-  static double     t[N_CFG][ITERATIONS];
-  detector_state_t *det[N_CFG] = { 0 };
-  float _Complex   *ref = NULL, *in = NULL;
-  det_result_t     *res = NULL;
-  char              name[72];
+  jm_bench_t           _bench = { 0 };
+  uint64_t             t0, t1;
+  static double        t[N_CFG][ITERATIONS];
+  dp_detector_state_t *det[N_CFG] = { 0 };
+  float _Complex      *ref = NULL, *in = NULL;
+  det_result_t        *res = NULL;
+  char                 name[72];
 
   ref = malloc (FRAME * sizeof *ref);
   in  = malloc (TOTAL * sizeof *in);
@@ -80,8 +80,8 @@ main (void)
 
   for (int c = 0; c < N_CFG; c++)
     {
-      det[c] = detector_create (ref, FRAME, DWELL, 1, FRAME - 1,
-                                DET_NOISE_MEAN, thresh[c], 1);
+      det[c] = dp_detector_create (ref, FRAME, DWELL, 1, FRAME - 1,
+                                   DET_NOISE_MEAN, thresh[c], 1);
       if (!det[c])
         return 1;
     }
@@ -90,17 +90,19 @@ main (void)
   printf ("frame = %d, %d samples per round, %d rounds, min over rounds\n\n",
           FRAME, TOTAL, ITERATIONS);
 
-  DP_BENCH_SETTLE ((void)detector_push (det[0], in, FRAME, res, MAX_RESULTS));
+  DP_BENCH_SETTLE (
+      (void)dp_detector_push (det[0], in, FRAME, res, MAX_RESULTS));
 
   /* Rounds outside, chunk sizes inside: three of these rows are read as
      multiples of a fourth, so one thermal step must not land on one. */
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        detector_reset (det[c]);
+        dp_detector_reset (det[c]);
         t0 = jm_bench_now_ns ();
         for (size_t off = 0; off < TOTAL; off += chunk[c])
-          (void)detector_push (det[c], in + off, chunk[c], res, MAX_RESULTS);
+          (void)dp_detector_push (det[c], in + off, chunk[c], res,
+                                  MAX_RESULTS);
         t1      = jm_bench_now_ns ();
         t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -130,7 +132,7 @@ main (void)
               / dp_bench_min (t[SILENT_FRAME_IDX], ITERATIONS));
 
   for (int c = 0; c < N_CFG; c++)
-    detector_destroy (det[c]);
+    dp_detector_destroy (det[c]);
   free (ref);
   free (in);
   free (res);

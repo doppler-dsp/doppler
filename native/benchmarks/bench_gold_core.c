@@ -5,7 +5,7 @@
  *
  * A Gold code is the XOR of two maximal-length sequences at a chosen
  * relative phase, so the only question this can answer is whether it costs
- * two `pn_generate`s plus an XOR, or more. `pn`'s own benchmark measures
+ * two `dp_pn_generate`s plus an XOR, or more. `pn`'s own benchmark measures
  * the single-register cost on the same machine; the ratio between the two
  * files is the answer, which is why both report ns/bit.
  *
@@ -48,10 +48,10 @@ main (void)
   if (!out)
     return 1;
 
-  gold_state_t *g = gold_create (TAPS_A, SEED_A, TAPS_B, SEED_B, 10u);
+  dp_gold_state_t *g = dp_gold_create (TAPS_A, SEED_A, TAPS_B, SEED_B, 10u);
   if (!g)
     {
-      (void)fprintf (stderr, "bench_gold: gold_create returned NULL\n");
+      (void)fprintf (stderr, "bench_gold: dp_gold_create returned NULL\n");
       return 1;
     }
 
@@ -62,9 +62,9 @@ main (void)
   static double t_gen[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      gold_reset (g);
+      dp_gold_reset (g);
       t0 = jm_bench_now_ns ();
-      sink += gold_generate (g, BENCH_N, out, BENCH_N);
+      sink += dp_gold_generate (g, BENCH_N, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       t_gen[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -84,7 +84,7 @@ main (void)
           "  than a bare m-sequence is not a throughput decision here.\n");
 
   (void)sink;
-  gold_destroy (g);
+  dp_gold_destroy (g);
   free (out);
   jm_bench_write_json (&_bench, "gold");
   return 0;

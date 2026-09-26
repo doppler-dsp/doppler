@@ -99,7 +99,7 @@ static int
 measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
          double cn0_dbhz, int present, uint32_t seed, floor_t *out)
 {
-  acq_state_t *a
+  dp_acq_state_t *a
       = acq_create_continuous (code, SF, SPC, chip_rate, SYMBOL_RATE,
                                SIZING_CN0, DU, PFA, PD, 0, 1, 0.0);
   if (!a)
@@ -115,7 +115,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
                "engine sized n_noncoh=%zu coherent_bins=%zu interp=%zu; this "
                "harness reads the single-look surface and needs 1/1/1\n",
                a->n_noncoh, a->coherent_bins, a->interp);
-      acq_destroy (a);
+      dp_acq_destroy (a);
       return 1;
     }
   const size_t nx = a->code_bins;
@@ -132,9 +132,9 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
      synth takes the over-fs value directly). Clean means no AWGN child. */
   const double snr_fs
       = cn0_dbhz > 0.0 ? cn0_dbhz - 10.0 * log10 (fs) : WFM_SYNTH_SNR_CLEAN;
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, fs, f_norm * fs, snr_fs, 1, seed,
-                          (int)SPC, 7, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs, f_norm * fs, snr_fs, 1, seed,
+                             (int)SPC, 7, 0, 0, 0.0);
   /* No data: one bit per code period (the pure code). A transition at
      mid-epoch, every epoch: the pattern {0,1} at two symbols per period. */
   static const uint8_t two_bits[2] = { 0, 1 };
@@ -146,8 +146,8 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   if (!syn || rc != 0)
     {
       fprintf (stderr, "wfm_synth continuous DSSS setup failed\n");
-      acq_destroy (a);
-      wfm_synth_destroy (syn);
+      dp_acq_destroy (a);
+      dp_wfm_synth_destroy (syn);
       return 1;
     }
   /* Code phase tau0: render tau0 extra samples and start the epoch there.
@@ -155,13 +155,13 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
      composer uses to carry a noise floor through a gap. */
   float complex *raw = malloc ((TAU0 + nx) * sizeof *raw);
   if (present)
-    wfm_synth_steps (syn, raw, TAU0 + nx);
+    dp_wfm_synth_steps (syn, raw, TAU0 + nx);
   else
     wfm_synth_noise_steps (syn, raw, TAU0 + nx);
   float complex *buf = raw + TAU0;
 
   acq_result_t hit[2];
-  (void)acq_push (a, buf, nx, hit, 2);
+  (void)dp_acq_push (a, buf, nx, hit, 2);
 
   /* The engine's surface, as gated on. */
   const float *m  = a->mag_buf;
@@ -215,8 +215,8 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   out->max_other_db = db (mx_other / out->peak_mag);
 
   free (raw);
-  wfm_synth_destroy (syn);
-  acq_destroy (a);
+  dp_wfm_synth_destroy (syn);
+  dp_acq_destroy (a);
   return 0;
 }
 
@@ -224,9 +224,9 @@ static void
 gold_1023 (uint8_t *code)
 {
   /* The header's own worked example: CCSDS code #365, length 1023. */
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 int

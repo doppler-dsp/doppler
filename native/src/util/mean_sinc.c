@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern double mean_sinc (double umax);
+extern double dp_mean_sinc (double umax);

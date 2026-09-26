@@ -80,7 +80,7 @@ c.set_state("not bytes")
 
 Python's `state_bytes()`/`get_state()`/`set_state()` are a thin `jm`-generated
 wrapper — the real interface is the C triplet underneath
-(`fir_state_bytes`/`fir_get_state`/`fir_set_state`, one per object), and it's
+(`dp_fir_state_bytes`/`dp_fir_get_state`/`dp_fir_set_state`, one per object), and it's
 what every language binding doppler ships ultimately calls. Same guarantees,
 same two things to prove: a checkpoint mid-stream resumes bit-exact in a
 freshly built instance, and a clobbered blob is rejected, never
@@ -103,35 +103,35 @@ int main(void)
     stream[i] = (float) (i % 11) - 5.0f + ((float) (i % 5) - 2.0f) * I;
 
   /* Uninterrupted reference. */
-  fir_state_t *ref = fir_create (taps, 7);
-  fir_execute (ref, stream, split, scratch);
+  dp_fir_state_t *ref = dp_fir_create (taps, 7);
+  dp_fir_execute (ref, stream, split, scratch);
   float complex ref_tail[1048];
-  fir_execute (ref, stream + split, tail_n, ref_tail);
-  fir_destroy (ref);
+  dp_fir_execute (ref, stream + split, tail_n, ref_tail);
+  dp_fir_destroy (ref);
 
   /* Checkpoint after the same warm-up block. */
-  fir_state_t *a = fir_create (taps, 7);
-  fir_execute (a, stream, split, scratch);
-  size_t nbytes = fir_state_bytes (a);
+  dp_fir_state_t *a = dp_fir_create (taps, 7);
+  dp_fir_execute (a, stream, split, scratch);
+  size_t nbytes = dp_fir_state_bytes (a);
   void *blob = malloc (nbytes);
-  fir_get_state (a, blob);
-  fir_destroy (a);
+  dp_fir_get_state (a, blob);
+  dp_fir_destroy (a);
 
   /* A clobbered envelope is rejected, never silently reinterpreted. */
   unsigned char *corrupt = malloc (nbytes);
   memcpy (corrupt, blob, nbytes);
   corrupt[0] ^= 0xFF;
-  fir_state_t *bad = fir_create (taps, 7);
-  assert (fir_set_state (bad, corrupt) == DP_ERR_INVALID);
-  fir_destroy (bad);
+  dp_fir_state_t *bad = dp_fir_create (taps, 7);
+  assert (dp_fir_set_state (bad, corrupt) == DP_ERR_INVALID);
+  dp_fir_destroy (bad);
   free (corrupt);
 
   /* Resume into a fresh, identically-built filter -- "a different process". */
-  fir_state_t *b = fir_create (taps, 7); /* same taps: the descriptor */
-  assert (fir_set_state (b, blob) == DP_OK);
+  dp_fir_state_t *b = dp_fir_create (taps, 7); /* same taps: the descriptor */
+  assert (dp_fir_set_state (b, blob) == DP_OK);
   float complex b_tail[1048];
-  fir_execute (b, stream + split, tail_n, b_tail);
-  fir_destroy (b);
+  dp_fir_execute (b, stream + split, tail_n, b_tail);
+  dp_fir_destroy (b);
   free (blob);
 
   assert (memcmp (ref_tail, b_tail, tail_n * sizeof (float complex)) == 0);

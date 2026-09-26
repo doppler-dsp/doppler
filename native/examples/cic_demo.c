@@ -74,17 +74,17 @@ main (void)
                               (float)sin (2 * M_PI * f_alias * i));
       }
 
-    cic_state_t *cic = cic_create (R);
+    dp_cic_state_t *cic = dp_cic_create (R);
 
     /* Drop the first n_drop outputs (filter transient). */
     size_t n_drop = CIC_N * (R - 1) / R + 1;
     size_t n_meas = n_out - n_drop;
 
-    size_t n        = cic_decimate (cic, in_pass, n_in, out, n_out);
+    size_t n        = dp_cic_decimate (cic, in_pass, n_in, out, n_out);
     double rms_pass = rms (out + n_drop, n_meas);
 
-    cic_reset (cic);
-    n                = cic_decimate (cic, in_alias, n_in, out, n_out);
+    dp_cic_reset (cic);
+    n                = dp_cic_decimate (cic, in_alias, n_in, out, n_out);
     double rms_alias = rms (out + n_drop, n_meas);
 
     double rejection_db = 20.0 * log10 (rms_pass / (rms_alias + 1e-300));
@@ -94,7 +94,7 @@ main (void)
     printf ("  alias rejection: %.1f dB\n\n", rejection_db);
 
     (void)n;
-    cic_destroy (cic);
+    dp_cic_destroy (cic);
     free (in_pass);
     free (in_alias);
     free (out);
@@ -103,23 +103,23 @@ main (void)
   /* ------------------------------------------------------------------ *
    * 2. Runtime reconfigure — change R without reallocation              *
    *                                                                     *
-   * cic_reconfigure() resets state and updates R and shift in place.   *
+   * dp_cic_reconfigure() resets state and updates R and shift in place.   *
    * Useful in scanning receivers that switch decimation on-the-fly.     *
    * ------------------------------------------------------------------ */
   printf ("--- 2. Runtime reconfigure ---\n");
   {
-    cic_state_t *cic = cic_create (4);
+    dp_cic_state_t *cic = dp_cic_create (4);
     printf ("  initial:      R=%u  shift=%u\n", cic->R, cic->shift);
 
-    cic_reconfigure (cic, 32);
+    dp_cic_reconfigure (cic, 32);
     printf ("  after reconf: R=%u  shift=%u\n", cic->R, cic->shift);
 
     /* Invalid args are silently ignored — existing config preserved. */
-    cic_reconfigure (cic, 0);
+    dp_cic_reconfigure (cic, 0);
     printf ("  after R=0:    R=%u (unchanged — invalid arg ignored)\n\n",
             cic->R);
 
-    cic_destroy (cic);
+    dp_cic_destroy (cic);
   }
 
   /* ------------------------------------------------------------------ *
@@ -141,15 +141,15 @@ main (void)
       in[i] = CMPLXF ((float)cos (2 * M_PI * 0.03 * i),
                       (float)sin (2 * M_PI * 0.03 * i));
 
-    cic_state_t *whole = cic_create (R);
-    cic_state_t *split = cic_create (R);
+    dp_cic_state_t *whole = dp_cic_create (R);
+    dp_cic_state_t *split = dp_cic_create (R);
 
     /* Whole: one call of 4R samples → 4 outputs. */
-    cic_decimate (whole, in, n_in, out_whole, 4);
+    dp_cic_decimate (whole, in, n_in, out_whole, 4);
 
     /* Split: two calls of 2R samples each → 2 outputs per call. */
-    cic_decimate (split, in, 2 * R, out_split, 4);
-    cic_decimate (split, in + 2 * R, 2 * R, out_split + 2, 2);
+    dp_cic_decimate (split, in, 2 * R, out_split, 4);
+    dp_cic_decimate (split, in + 2 * R, 2 * R, out_split + 2, 2);
 
     int ok = memcmp (out_whole, out_split, sizeof (out_whole)) == 0;
     printf ("  whole vs split output: %s\n", ok ? "MATCH" : "MISMATCH");
@@ -158,8 +158,8 @@ main (void)
               (double)crealf (out_whole[i]), (double)cimagf (out_whole[i]),
               (double)crealf (out_split[i]), (double)cimagf (out_split[i]));
 
-    cic_destroy (whole);
-    cic_destroy (split);
+    dp_cic_destroy (whole);
+    dp_cic_destroy (split);
     printf ("\n");
   }
 

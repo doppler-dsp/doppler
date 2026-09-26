@@ -44,13 +44,13 @@ static const float cfg_thresh[N_CFG] = { 0.0f, 0.0f, 0.0f, 1e30f };
 int
 main (void)
 {
-  jm_bench_t          _bench = { 0 };
-  uint64_t            t0, t1;
-  static double       t[N_CFG][ITERATIONS];
-  detector2d_state_t *det[N_CFG] = { 0 };
-  float _Complex     *ref = NULL, *in = NULL;
-  det_result2d_t     *res = NULL;
-  char                name[72];
+  jm_bench_t             _bench = { 0 };
+  uint64_t               t0, t1;
+  static double          t[N_CFG][ITERATIONS];
+  dp_detector2d_state_t *det[N_CFG] = { 0 };
+  float _Complex        *ref = NULL, *in = NULL;
+  det_result2d_t        *res = NULL;
+  char                   name[72];
 
   ref = malloc (BINS * sizeof *ref);
   in  = malloc ((size_t)FRAMES * BINS * sizeof *in);
@@ -73,7 +73,8 @@ main (void)
 
   for (int c = 0; c < N_CFG; c++)
     {
-      det[c] = detector2d_create (ref, cfg_ny[c], cfg_nx[c], DWELL, 1,
+      det[c]
+          = dp_detector2d_create (ref, cfg_ny[c], cfg_nx[c], DWELL, 1,
                                   BINS - 1, DET_NOISE_MEAN, cfg_thresh[c], 1);
       if (!det[c])
         return 1;
@@ -85,18 +86,18 @@ main (void)
           BINS, FRAMES, ITERATIONS);
 
   DP_BENCH_SETTLE (
-      (void)detector2d_push (det[SQUARE_IDX], in, BINS, res, MAX_RESULTS));
+      (void)dp_detector2d_push (det[SQUARE_IDX], in, BINS, res, MAX_RESULTS));
 
   /* Rounds outside, shapes inside: three shapes of one bin count are read
      against each other, so drift must land on all of them. */
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        detector2d_reset (det[c]);
+        dp_detector2d_reset (det[c]);
         t0 = jm_bench_now_ns ();
         for (int f = 0; f < FRAMES; f++)
-          (void)detector2d_push (det[c], in + (size_t)f * BINS, BINS, res,
-                                 MAX_RESULTS);
+          (void)dp_detector2d_push (det[c], in + (size_t)f * BINS, BINS, res,
+                                    MAX_RESULTS);
         t1      = jm_bench_now_ns ();
         t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -129,7 +130,7 @@ main (void)
               / dp_bench_min (t[SILENT_IDX], ITERATIONS));
 
   for (int c = 0; c < N_CFG; c++)
-    detector2d_destroy (det[c]);
+    dp_detector2d_destroy (det[c]);
   free (ref);
   free (in);
   free (res);

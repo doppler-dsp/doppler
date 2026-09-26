@@ -93,7 +93,7 @@ wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
                        int *snr_mode)
 {
   *snr_mode = src->snr_mode;
-  /* wfm_synth_create() sees only sps, so a dsss data-symbol Es/N0 must be
+  /* dp_wfm_synth_create() sees only sps, so a dsss data-symbol Es/N0 must be
    * pre-referred to fs here (the codes attach after create). Clean sources
    * pass through so the no-AWGN shortcut still applies. */
   if (src->type == WFM_SYNTH_DSSS && snr < WFM_SYNTH_SNR_CLEAN)

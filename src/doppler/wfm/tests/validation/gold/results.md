@@ -29,7 +29,7 @@ Every nonzero `seed_a` was generated and compared: **1023 seeds produce 1023 dis
 
 | quantity | value | why |
 |---|---|---|
-| seeds available | 1023 | `gold_create` rejects a zero seed, so 2^length **- 1** |
+| seeds available | 1023 | `dp_gold_create` rejects a zero seed, so 2^length **- 1** |
 | distinct codes reached | 1023 | measured, one per seed |
 | header's old figure | 1024 | **neither** the reachable count nor the family size |
 | true family size | 1025 | 2^n **+ 1**: these plus the two constituent m-sequences |
@@ -62,9 +62,9 @@ The document itself is not in the repository's standards library, so this report
 
 ## 3. Review -- findings, with verdicts
 
-- **F1 · FIXED** — **The header's family size was wrong in both directions at once.** It said varying `seed_a` *"walks the whole Gold-code family (2^length members)"* -- 1024 at length=10 -- and repeated "the 1024-code Gold family" in `@param seed_a`. Measured over every nonzero seed: **1023** distinct codes. Only 2^length **- 1** seeds exist, because `gold_create` rejects zero; and the classical Gold set for a preferred pair has 2^n **+ 1** = 1025 members -- these plus the two constituent m-sequences, which this generator can never emit because it always XORs both registers. So 1024 was neither the reachable count nor the family size. Corrected in the header (and carried into `wfm.pyi` by `make jm-apply`), and pinned in C by generating all 1023 codes and requiring them distinct -- a caller sizing a code-assignment scheme allocates against that number.
+- **F1 · FIXED** — **The header's family size was wrong in both directions at once.** It said varying `seed_a` *"walks the whole Gold-code family (2^length members)"* -- 1024 at length=10 -- and repeated "the 1024-code Gold family" in `@param seed_a`. Measured over every nonzero seed: **1023** distinct codes. Only 2^length **- 1** seeds exist, because `dp_gold_create` rejects zero; and the classical Gold set for a preferred pair has 2^n **+ 1** = 1025 members -- these plus the two constituent m-sequences, which this generator can never emit because it always XORs both registers. So 1024 was neither the reachable count nor the family size. Corrected in the header (and carried into `wfm.pyi` by `make jm-apply`), and pinned in C by generating all 1023 codes and requiring them distinct -- a caller sizing a code-assignment scheme allocates against that number.
 
-- **F2 · FIXED** — **Three contract claims had nothing behind them.** `max_out` was never exercised: every existing call passed `max_out == n`, so *"emission stops there"* and *"@return min(n, max_out)"* were prose. Nor was *"requesting more than one period is valid -- the sequence simply wraps"*, nor `gold_destroy(NULL)` as a documented no-op. All three are now pinned in `test_gold_core.c`, with the capacity case also requiring the untouched tail of the caller's buffer to stay untouched and a zero capacity to advance neither LFSR.
+- **F2 · FIXED** — **Three contract claims had nothing behind them.** `max_out` was never exercised: every existing call passed `max_out == n`, so *"emission stops there"* and *"@return min(n, max_out)"* were prose. Nor was *"requesting more than one period is valid -- the sequence simply wraps"*, nor `dp_gold_destroy(NULL)` as a documented no-op. All three are now pinned in `test_gold_core.c`, with the capacity case also requiring the untouched tail of the caller's buffer to stay untouched and a zero capacity to advance neither LFSR.
 
 - **F3 · FIXED** — **"Preferred pair" is a claim about the family, and one pair was checked.** The C test cross-correlated exactly two members, which says nothing about the other 1021 -- the property that makes the set usable for multiple access is that it holds between ANY two. Now sampled at six members (15 pairs) in C and at 12 members (66 pairs) here, every value landing in the three-valued set. Worth noting what this still is: a sample. The exhaustive claim is 1023x1022/2 pairs and neither gate pays for it.
 

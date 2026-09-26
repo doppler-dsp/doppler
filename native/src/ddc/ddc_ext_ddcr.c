@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only ddc_ext.c is compiled.
  */
 /* ======================================================== */
-/* DdcrObject — wraps ddcr_state_t *       */
+/* DdcrObject — wraps dp_ddcr_state_t *       */
 /* ======================================================== */
 
 #include "doppler/ddcr/ddcr_core.h"
 
 typedef struct
 {
-  PyObject_HEAD ddcr_state_t *handle;
+  PyObject_HEAD dp_ddcr_state_t *handle;
 } DdcrObject;
 
 static void
 DdcrObj_dealloc (DdcrObject *self)
 {
   if (self->handle)
-    ddcr_destroy (self->handle);
+    dp_ddcr_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -43,7 +43,7 @@ DdcrObj_init (DdcrObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dd", kwlist, &norm_freq,
                                     &rate))
     return -1;
-  self->handle = ddcr_create (norm_freq, rate);
+  self->handle = dp_ddcr_create (norm_freq, rate);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -63,7 +63,7 @@ DdcrObj_execute_max_out (DdcrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ddcr_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_ddcr_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -109,7 +109,7 @@ DdcrObj_execute (DdcrObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = ddcr_execute_max_out (self->handle);
+      size_t _omax    = dp_ddcr_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -130,7 +130,7 @@ DdcrObj_execute (DdcrObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = ddcr_execute (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_ddcr_execute (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -151,7 +151,7 @@ DdcrObj_execute (DdcrObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = ddcr_execute_max_out (self->handle);
+  size_t _cap  = dp_ddcr_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -170,7 +170,7 @@ DdcrObj_execute (DdcrObject *self, PyObject *args, PyObject *kwds)
   size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t       n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = ddcr_execute (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_ddcr_execute (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -210,7 +210,7 @@ DdcrObj_execute_ctrl (DdcrObject *self, PyObject *args, PyObject *kwds)
   if (!x_arr)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = ddcr_execute_ctrl_max_out (self->handle);
+  size_t _cap  = dp_ddcr_execute_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -229,8 +229,8 @@ DdcrObj_execute_ctrl (DdcrObject *self, PyObject *args, PyObject *kwds)
   size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t       n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = ddcr_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl, freq_ctrl,
-                               _d0, _cap);
+    n_out = dp_ddcr_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl,
+                                  freq_ctrl, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -258,7 +258,7 @@ DdcrObj_execute_ctrl_push_max_out (DdcrObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ddcr_execute_ctrl_push_max_out (self->handle));
+  return PyLong_FromSize_t (dp_ddcr_execute_ctrl_push_max_out (self->handle));
 }
 
 static PyObject *
@@ -298,11 +298,12 @@ DdcrObj_execute_ctrl_push (DdcrObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = ddcr_execute_ctrl_push_max_out (self->handle);
-      size_t _min_cap = _omax > ddcr_execute_ctrl_push_max_out (self->handle)
-                            ? _omax
-                            : (ddcr_execute_ctrl_push_max_out (self->handle));
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = dp_ddcr_execute_ctrl_push_max_out (self->handle);
+      size_t _min_cap
+          = _omax > dp_ddcr_execute_ctrl_push_max_out (self->handle)
+                ? _omax
+                : (dp_ddcr_execute_ctrl_push_max_out (self->handle));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -310,7 +311,7 @@ DdcrObj_execute_ctrl_push (DdcrObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = ddcr_execute_ctrl_push (
+      size_t n_out = dp_ddcr_execute_ctrl_push (
           self->handle, x, rate_ctrl, freq_ctrl,
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -330,8 +331,8 @@ DdcrObj_execute_ctrl_push (DdcrObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
-  size_t _need = ddcr_execute_ctrl_push_max_out (self->handle);
-  size_t _cap  = ddcr_execute_ctrl_push_max_out (self->handle);
+  size_t _need = dp_ddcr_execute_ctrl_push_max_out (self->handle);
+  size_t _cap  = dp_ddcr_execute_ctrl_push_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -341,8 +342,8 @@ DdcrObj_execute_ctrl_push (DdcrObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = ddcr_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
-                                         _d0, _cap);
+  size_t n_out        = dp_ddcr_execute_ctrl_push (self->handle, x, rate_ctrl,
+                                                   freq_ctrl, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -367,7 +368,7 @@ DdcrObj_reset (DdcrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  ddcr_reset (self->handle);
+  dp_ddcr_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -379,7 +380,7 @@ DdcrObj_state_bytes (DdcrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ddcr_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_ddcr_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -390,11 +391,11 @@ DdcrObj_get_state (DdcrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = ddcr_state_bytes (self->handle);
+  size_t    _n = dp_ddcr_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  ddcr_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_ddcr_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -411,12 +412,12 @@ DdcrObj_set_state (DdcrObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != ddcr_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_ddcr_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (ddcr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_ddcr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -432,7 +433,7 @@ Ddcr_getprop_norm_freq (DdcrObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ddcr_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_ddcr_get_norm_freq (self->handle));
 }
 static int
 Ddcr_setprop_norm_freq (DdcrObject *self, PyObject *value,
@@ -446,7 +447,7 @@ Ddcr_setprop_norm_freq (DdcrObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  ddcr_set_norm_freq (self->handle, v);
+  dp_ddcr_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -458,7 +459,7 @@ Ddcr_getprop_rate (DdcrObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ddcr_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_ddcr_get_rate (self->handle));
 }
 static PyObject *
 Ddcr_getprop_clipped (DdcrObject *self, void *Py_UNUSED (closure))
@@ -469,7 +470,7 @@ Ddcr_getprop_clipped (DdcrObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(ddcr_get_clipped (self->handle)));
+  return PyBool_FromLong ((long)(dp_ddcr_get_clipped (self->handle)));
 }
 static PyObject *
 Ddcr_getprop_narrow_pulse (DdcrObject *self, void *Py_UNUSED (closure))
@@ -480,7 +481,7 @@ Ddcr_getprop_narrow_pulse (DdcrObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(ddcr_get_narrow_pulse (self->handle)));
+  return PyBool_FromLong ((long)(dp_ddcr_get_narrow_pulse (self->handle)));
 }
 
 static PyGetSetDef Ddcr_getset[]
@@ -507,7 +508,7 @@ DdcrObj_destroy (DdcrObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      ddcr_destroy (self->handle);
+      dp_ddcr_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -526,7 +527,7 @@ DdcrObj_exit (DdcrObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      ddcr_destroy (self->handle);
+      dp_ddcr_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -583,7 +584,8 @@ static PyMethodDef DdcrObj_methods[] = {
     "\n"
     "Process a real block, steering both control ports.\n"
     "\n"
-    "The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the\n"
+    "The control-port form of dp_ddcr_execute(); see dp_ddc_execute_ctrl() "
+    "for the\n"
     "semantics, which are identical except for where the LO lives.\n"
     "\n"
     "Parameters\n"
@@ -622,7 +624,8 @@ static PyMethodDef DdcrObj_methods[] = {
     "\n"
     "Push ONE real input sample; emit whatever outputs it completes.\n"
     "\n"
-    "The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.\n"
+    "The per-input streaming form of dp_ddcr_execute_ctrl(), for a closed "
+    "loop.\n"
     "The halfband consumes two inputs per intermediate sample, so every\n"
     "other push does no mixing and emits nothing at all — the LO advances\n"
     "(and its control is applied) once per *intermediate* sample, which is\n"

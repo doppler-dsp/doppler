@@ -19,8 +19,8 @@
  * ## Every field is a sequence, and the generators already exist
  *
  * The preamble, the sync word and the payload are all `wfm_seq_t`, so "a Gold
- * sync" is a configuration rather than a feature, and `pn_create()` /
- * `gold_create()` stay the only implementations of those sequences.
+ * sync" is a configuration rather than a feature, and `dp_pn_create()` /
+ * `dp_gold_create()` stay the only implementations of those sequences.
  *
  * **The generated kinds are the ones that matter.** A literal array is what a
  * caller with real data has; a PN or Gold descriptor is a handful of numbers a
@@ -54,8 +54,8 @@ extern "C"
   typedef enum
   {
     WFM_SEQ_LITERAL = 0, /**< a 0/1 array the caller owns                  */
-    WFM_SEQ_PN      = 1, /**< pn_create()   — m-sequence, one LFSR         */
-    WFM_SEQ_GOLD    = 2, /**< gold_create() — two LFSRs, a Gold family     */
+    WFM_SEQ_PN      = 1, /**< dp_pn_create()   — m-sequence, one LFSR         */
+    WFM_SEQ_GOLD    = 2, /**< dp_gold_create() — two LFSRs, a Gold family     */
     WFM_SEQ_DOTTED  = 3  /**< alternating 1010…; a line at Rs/2 to settle on */
   } wfm_seq_kind_t;
 
@@ -63,8 +63,8 @@ extern "C"
    * @brief A run of bits, however it is produced.
    *
    * @p len is always the OUTPUT length in bits. For the generated kinds it is
-   * independent of the register width — `pn_create()`'s `length` argument is
-   * the register width (period `2^n - 1`), while `pn_generate(state, n, …)`
+   * independent of the register width — `dp_pn_create()`'s `length` argument is
+   * the register width (period `2^n - 1`), while `dp_pn_generate(state, n, …)`
    * decides how many bits come out. Conflating the two is easy and costly, so
    * they are named apart here: @p reg_bits against @p len.
    */
@@ -75,17 +75,17 @@ extern "C"
 
     const uint8_t *bits; /**< LITERAL only; NULL otherwise                 */
 
-    /* PN: pn_create (poly, seed, reg_bits, lfsr) */
+    /* PN: dp_pn_create (poly, seed, reg_bits, lfsr) */
     uint64_t poly; /**< 0 selects `pn_mls_poly(reg_bits)` — the same
                         "default" `wfm_synth`'s `--pn-poly` means. A literal
-                        0 reaching pn_create() is a register with no
+                        0 reaching dp_pn_create() is a register with no
                         feedback: it emits the seed and then zeros, which is
                         a CONSTANT field that still looks like a field.    */
     uint64_t seed;     /**< 0 selects 1; an all-zero register is a fixed point */
     uint32_t reg_bits; /**< register width 1..64; period 2^reg_bits - 1    */
     int      lfsr;     /**< PN_GALOIS (0) or PN_FIBONACCI (1)              */
 
-    /* GOLD: gold_create (taps_a, seed_a, taps_b, seed_b, reg_bits) */
+    /* GOLD: dp_gold_create (taps_a, seed_a, taps_b, seed_b, reg_bits) */
     uint64_t taps_a, seed_a, taps_b, seed_b;
   } wfm_seq_t;
 
@@ -141,7 +141,7 @@ extern "C"
      * That is not a cosmetic difference. `derived_by`, `first_field` and
      * `n_fields` are all INDICES into this array, which is precisely why a
      * frame's every parameter has to be passed positionally, and why
-     * `frame_create()` takes 38 arguments.
+     * `dp_frame_create()` takes 38 arguments.
      *
      * A fixed array rather than a pointer, so the description stays a POD
      * that can be copied, compared and stack-allocated — the property the
@@ -284,7 +284,7 @@ extern "C"
     wfm_frame_span_t stage[WFM_FRAME_MAX_STAGES]; /**< what each stage covers   */
     unsigned   n_stages;
 
-    size_t frame_bits; /**< the assembled frame, every field end to end   */
+    size_t frame_nbits; /**< the assembled frame, every field end to end   */
     size_t out_bits;   /**< what leaves the last stage that emits a new
                             stream; equals @p frame_bits when none does   */
   } wfm_frame_desc_layout_t;

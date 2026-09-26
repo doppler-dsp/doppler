@@ -34,7 +34,7 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**imdmeas\_state\_t**](structimdmeas__state__t.md) <br>_IMDMeasure state: owned window, FFT plan and one-sided power scratch._  |
+| struct | [**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) <br>_IMDMeasure state: owned window, FFT plan and one-sided power scratch._  |
 
 
 
@@ -61,12 +61,12 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-|  [**imd\_meas\_t**](structimd__meas__t.md) | [**imdmeas\_analyze**](#function-imdmeas_analyze) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
-|  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an IMDMeasure analyser (auto Kaiser window)._  |
-|  void | [**imdmeas\_destroy**](#function-imdmeas_destroy) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Destroy an IMDMeasure analyser._  |
-|  void | [**imdmeas\_reset**](#function-imdmeas_reset) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
-|  size\_t | [**imdmeas\_spectrum\_dbfs**](#function-imdmeas_spectrum_dbfs) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
-|  size\_t | [**imdmeas\_spectrum\_dbfs\_max\_out**](#function-imdmeas_spectrum_dbfs_max_out) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
+|  [**imd\_meas\_t**](structimd__meas__t.md) | [**dp\_imdmeas\_analyze**](#function-dp_imdmeas_analyze) ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
+|  [**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) \* | [**dp\_imdmeas\_create**](#function-dp_imdmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an IMDMeasure analyser (auto Kaiser window)._  |
+|  void | [**dp\_imdmeas\_destroy**](#function-dp_imdmeas_destroy) ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) \* state) <br>_Destroy an IMDMeasure analyser._  |
+|  void | [**dp\_imdmeas\_reset**](#function-dp_imdmeas_reset) ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
+|  size\_t | [**dp\_imdmeas\_spectrum\_dbfs**](#function-dp_imdmeas_spectrum_dbfs) ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
+|  size\_t | [**dp\_imdmeas\_spectrum\_dbfs\_max\_out**](#function-dp_imdmeas_spectrum_dbfs_max_out) ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 
 
 
@@ -110,12 +110,12 @@ Lifecycle: create -&gt; `[analyze]*` -&gt; destroy
 
 
 
-### function imdmeas\_analyze 
+### function dp\_imdmeas\_analyze 
 
 _Two-tone IMD/TOI of a real capture (finds the two strongest tones)._ 
 ```C++
-imd_meas_t imdmeas_analyze (
-    imdmeas_state_t * state,
+imd_meas_t dp_imdmeas_analyze (
+    dp_imdmeas_state_t * state,
     const float * x,
     size_t n_in
 ) 
@@ -153,11 +153,11 @@ the IMD metric record (by value; zeroed if no two tones are found).
 
 
 
-### function imdmeas\_create 
+### function dp\_imdmeas\_create 
 
 _Create an IMDMeasure analyser (auto Kaiser window)._ 
 ```C++
-imdmeas_state_t * imdmeas_create (
+dp_imdmeas_state_t * dp_imdmeas_create (
     size_t n,
     double fs,
     double full_scale,
@@ -198,12 +198,12 @@ Heap state, or NULL on bad args / allocation failure.
 
 
 
-### function imdmeas\_destroy 
+### function dp\_imdmeas\_destroy 
 
 _Destroy an IMDMeasure analyser._ 
 ```C++
-void imdmeas_destroy (
-    imdmeas_state_t * state
+void dp_imdmeas_destroy (
+    dp_imdmeas_state_t * state
 ) 
 ```
 
@@ -225,12 +225,12 @@ void imdmeas_destroy (
 
 
 
-### function imdmeas\_reset 
+### function dp\_imdmeas\_reset 
 
 _Reset the analyser (a no-op: each analyze() call is independent)._ 
 ```C++
-void imdmeas_reset (
-    imdmeas_state_t * state
+void dp_imdmeas_reset (
+    dp_imdmeas_state_t * state
 ) 
 ```
 
@@ -263,12 +263,12 @@ True
 
 
 
-### function imdmeas\_spectrum\_dbfs 
+### function dp\_imdmeas\_spectrum\_dbfs 
 
 _DC-centred dBFS magnitude spectrum of a capture (length nfft)._ 
 ```C++
-size_t imdmeas_spectrum_dbfs (
-    imdmeas_state_t * state,
+size_t dp_imdmeas_spectrum_dbfs (
+    dp_imdmeas_state_t * state,
     const float * x,
     size_t x_len,
     float * out,
@@ -321,12 +321,12 @@ DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
 
 
 
-### function imdmeas\_spectrum\_dbfs\_max\_out 
+### function dp\_imdmeas\_spectrum\_dbfs\_max\_out 
 
 _Capacity (== nfft) of the spectrum\_dbfs output buffer._ 
 ```C++
-size_t imdmeas_spectrum_dbfs_max_out (
-    imdmeas_state_t * state
+size_t dp_imdmeas_spectrum_dbfs_max_out (
+    dp_imdmeas_state_t * state
 ) 
 ```
 

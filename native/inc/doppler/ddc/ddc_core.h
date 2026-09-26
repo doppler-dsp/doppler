@@ -53,8 +53,8 @@
  *
  * ### Retuning vs. rebuilding
  *
- * - **Retune** (centre-frequency change): call ddc_set_norm_freq /
- *   ddcr_set_norm_freq.  Cheap — updates the LO phase increment without
+ * - **Retune** (centre-frequency change): call dp_ddc_set_norm_freq /
+ *   dp_ddcr_set_norm_freq.  Cheap — updates the LO phase increment without
  *   disturbing the resampler history.  Seamless across block boundaries.
  * - **Rate change** (span / decimation change): destroy and recreate the
  *   DDC for the new rate.
@@ -63,15 +63,15 @@
  *
  * @code
  * // Complex DDC: shift a carrier at +0.1·fs to DC, decimate by 4
- * ddc_state_t *ddc = ddc_create(-0.1, 0.25);
+ * dp_ddc_state_t *ddc = dp_ddc_create(-0.1, 0.25);
  * float _Complex out[4096];
- * size_t n = ddc_execute(ddc, in, 1024, out, 4096);
- * ddc_destroy(ddc);
+ * size_t n = dp_ddc_execute(ddc, in, 1024, out, 4096);
+ * dp_ddc_destroy(ddc);
  *
  * @endcode
  */
-#ifndef DDC_CORE_H
-#define DDC_CORE_H
+#ifndef DP_DDC_CORE_H
+#define DP_DDC_CORE_H
 
 #include "doppler/dp_complex.h"
 #include <stdbool.h>
@@ -94,18 +94,18 @@ extern "C"
   /**
    * @brief Ddc state — an LO and the cascade it feeds.
    *
-   * Do not initialise directly; use ddc_create() or ddc_create_matched().
+   * Do not initialise directly; use dp_ddc_create() or ddc_create_matched().
    */
   typedef struct ddc_state
   {
-    lo_state_t            *lo; /**< carrier wipe-off, at the input rate */
-    RateConverter_state_t *rc; /**< the cascade; matched when a pulse was
+    dp_lo_state_t            *lo; /**< carrier wipe-off, at the input rate */
+    dp_RateConverter_state_t *rc; /**< the cascade; matched when a pulse was
                                     selected at construction              */
     /** Set when the matched flavor was built with a rectangular pulse too
      *  narrow to be worth much — see ddc_create_matched(). Read by the
      *  binding, which turns it into a UserWarning at construction. */
     bool narrow_pulse;
-  } ddc_state_t;
+  } dp_ddc_state_t;
 
   /**
    * @brief Create a complex-input Digital Down-Converter.
@@ -130,7 +130,7 @@ extern "C"
    * 0.25
    * @endcode
    */
-ddc_state_t *ddc_create(double norm_freq, double rate);
+dp_ddc_state_t *dp_ddc_create(double norm_freq, double rate);
 
   /**
    * @brief Create a DDC whose cascade's terminal stage IS a matched filter.
@@ -142,21 +142,21 @@ ddc_state_t *ddc_create(double norm_freq, double rate);
    * exists, the bank is sized by the POST-decimation rate, and the CIC droop
    * folds into the bank rather than costing a stage.  What this layer adds is
    * the mix in front of it, and with it the second control port —
-   * ddc_execute_ctrl() steers the matched filter's polyphase arm (timing) and
+   * dp_ddc_execute_ctrl() steers the matched filter's polyphase arm (timing) and
    * the LO's phase accumulator (carrier) together.
    *
    * Droop compensation is not a parameter because it is unconditional here:
    * the fold is worth 28 dB of EVM for six taps per arm and no extra pass
    * over the data, so no operating point wants it off.  (The plain
-   * ddc_create() path is unchanged and uncompensated.)
+   * dp_ddc_create() path is unchanged and uncompensated.)
    *
    * @param norm_freq  LO frequency in cycles/sample at the input rate, as
-   *                   ddc_create().
+   *                   dp_ddc_create().
    * @param rate       Output-to-input sample rate ratio.  Rate-agnostic: a
    *                   caller wanting `m` outputs per symbol asks for
    *                   `rate = m/sps`; the cascade never learns about symbols.
    * @param pulse      RC_PULSE_RRC / RC_PULSE_IANDD.  RC_PULSE_NONE is
-   *                   invalid here — use ddc_create() for a plain
+   *                   invalid here — use dp_ddc_create() for a plain
    *                   down-conversion.
    * @param beta       RRC roll-off in `[0, 1]` (ignored for the rectangle).
    * @param span       One-sided RRC span in symbols (ignored for the
@@ -174,7 +174,7 @@ ddc_state_t *ddc_create(double norm_freq, double rate);
    * 0.125
    * @endcode
    */
-  ddc_state_t *ddc_create_matched (double norm_freq, double rate, int pulse,
+  dp_ddc_state_t *ddc_create_matched (double norm_freq, double rate, int pulse,
                                    double beta, size_t span, double pulse_sps,
                                    size_t num_phases);
 
@@ -189,7 +189,7 @@ ddc_state_t *ddc_create(double norm_freq, double rate);
    * >>> ddc.destroy()   # releases C memory immediately
    * @endcode
    */
-void ddc_destroy(ddc_state_t *state);
+void dp_ddc_destroy(dp_ddc_state_t *state);
 
   /**
    * @brief Zero LO phase and resampler history.
@@ -209,7 +209,7 @@ void ddc_destroy(ddc_state_t *state);
    * True
    * @endcode
    */
-void ddc_reset(ddc_state_t *state);
+void dp_ddc_reset(dp_ddc_state_t *state);
 
   /**
    * @brief Return the current LO normalised frequency (cycles/sample).
@@ -221,7 +221,7 @@ void ddc_reset(ddc_state_t *state);
    * -0.1
    * @endcode
    */
-double ddc_get_norm_freq(const ddc_state_t *state);
+double dp_ddc_get_norm_freq(const dp_ddc_state_t *state);
 
   /**
    * @brief Retune the LO without resetting phase or resampler history.
@@ -241,7 +241,7 @@ double ddc_get_norm_freq(const ddc_state_t *state);
    * -0.2
    * @endcode
    */
-void ddc_set_norm_freq(ddc_state_t *state, double val);
+void dp_ddc_set_norm_freq(dp_ddc_state_t *state, double val);
 
   /**
    * @brief Return the configured output/input rate ratio (read-only).
@@ -255,7 +255,7 @@ void ddc_set_norm_freq(ddc_state_t *state, double val);
    * 0.25
    * @endcode
    */
-double ddc_get_rate(const ddc_state_t *state);
+double dp_ddc_get_rate(const dp_ddc_state_t *state);
 
   /**
    * @brief Mix and resample a block of CF32 samples.
@@ -288,19 +288,19 @@ double ddc_get_rate(const ddc_state_t *state);
    * 1.0
    * @endcode
    */
-size_t ddc_execute(ddc_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
   /**
    * @brief Mix and resample a block, steering both control ports.
    *
-   * The control-port form of ddc_execute(): the LO advances by
+   * The control-port form of dp_ddc_execute(): the LO advances by
    * `phase_inc + freq_ctrl` on every sample of this block, and the cascade's
    * terminal stage runs at `stage_rate + rate_ctrl`. Neither deviation is
    * persisted — the centre norm_freq and rate are untouched — so a tracking
    * loop passes its full filter output on every call and the DDC holds no loop
    * state of its own.
    *
-   * Feeding a stream through ddc_execute_ctrl_push() one sample at a time
+   * Feeding a stream through dp_ddc_execute_ctrl_push() one sample at a time
    * reproduces this call bit-for-bit when both controls are held constant, so
    * the cheap block form stays correct for open-loop use (a fixed Doppler
    * offset, a rate trim) and the push form is what a closed loop uses.
@@ -332,14 +332,14 @@ size_t ddc_execute(ddc_state_t *state, const float _Complex *x, size_t x_len, fl
    *
    * @endcode
    */
-  size_t ddc_execute_ctrl (ddc_state_t *state, const float _Complex *x,
+  size_t dp_ddc_execute_ctrl (dp_ddc_state_t *state, const float _Complex *x,
                            size_t x_len, double rate_ctrl, double freq_ctrl,
                            float _Complex *out, size_t max_out);
 
   /**
    * @brief Push ONE input sample; emit whatever outputs it completes.
    *
-   * The per-input streaming form of ddc_execute_ctrl(), and the only form a
+   * The per-input streaming form of dp_ddc_execute_ctrl(), and the only form a
    * closed loop can use: a block call has to know its whole control history up
    * front, whereas a carrier or timing loop computes each correction *from*
    * the outputs already emitted. Both loops close once per symbol, so both
@@ -371,12 +371,12 @@ size_t ddc_execute(ddc_state_t *state, const float _Complex *x, size_t x_len, fl
    *
    * @endcode
    */
-  size_t ddc_execute_ctrl_push (ddc_state_t *state, float _Complex x,
+  size_t dp_ddc_execute_ctrl_push (dp_ddc_state_t *state, float _Complex x,
                                 double rate_ctrl, double freq_ctrl,
                                 float _Complex *out, size_t max_out);
 
   /**
-   * @brief ddc_execute_ctrl_push() that also hands back the post-LO sample.
+   * @brief dp_ddc_execute_ctrl_push() that also hands back the post-LO sample.
    *
    * Identical in every respect, plus a tap on the signal *between* the mix and
    * the cascade — de-rotated, but not yet decimated or matched-filtered.
@@ -405,7 +405,7 @@ size_t ddc_execute(ddc_state_t *state, const float _Complex *x, size_t x_len, fl
    *                  return 0). May be NULL.
    * @return Number of terminal outputs written (0, 1, or more).
    */
-  size_t ddc_execute_ctrl_push_tap (ddc_state_t *state, float _Complex x,
+  size_t ddc_execute_ctrl_push_tap (dp_ddc_state_t *state, float _Complex x,
                                     double rate_ctrl, double freq_ctrl,
                                     float _Complex *out, size_t max_out,
                                     float _Complex *lo_out, int *n_lo);
@@ -452,14 +452,14 @@ size_t ddc_execute(ddc_state_t *state, const float _Complex *x, size_t x_len, fl
    *                  decimation strobes, so this is 0 on those calls.
    * @return Number of terminal outputs written (0, 1, or more).
    */
-  size_t ddc_execute_ctrl_push_tap2 (ddc_state_t *state, float _Complex x,
+  size_t ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *state, float _Complex x,
                                      double rate_ctrl, double freq_ctrl,
                                      float _Complex *out, size_t max_out,
                                      float _Complex *lo_out, int *n_lo,
                                      float _Complex *pre_out, int *n_pre);
 
   /** @brief Samples per symbol of the pre-terminal tap; a planner outcome. */
-  double ddc_get_bank_sps (const ddc_state_t *state);
+  double ddc_get_bank_sps (const dp_ddc_state_t *state);
 
   /**
    * @brief Is this object's rectangular matched filter degenerately narrow?
@@ -472,20 +472,20 @@ size_t ddc_execute(ddc_state_t *state, const float _Complex *x, size_t x_len, fl
    * The RRC spans many symbols and is never affected. Construction also
    * raises a UserWarning, so this is the pull half of the same diagnostic.
    */
-  bool ddc_get_narrow_pulse (const ddc_state_t *state);
+  bool dp_ddc_get_narrow_pulse (const dp_ddc_state_t *state);
 
   /**
    * @brief Has the cascade's CIC clipped its input since the last reset?
    *
-   * Forwarded from RateConverter_get_clipped(): a CIC bounds its input to
+   * Forwarded from dp_RateConverter_get_clipped(): a CIC bounds its input to
    * `|Re|, |Im| <= 2.0` (`CIC_PAPR_HEADROOM`, 6 dB above unity — see
    * cic_core.h) and clips silently past it — the output stays finite
    * and plausible, merely distorted, at a cost of ~25 dB of EVM that no
-   * downstream metric attributes to the front end. Sticky until ddc_reset();
+   * downstream metric attributes to the front end. Sticky until dp_ddc_reset();
    * always false for a plan with no CIC stage, which is the honest answer since
    * those plans are scale-free.
    */
-bool ddc_get_clipped(const ddc_state_t *state);
+bool dp_ddc_get_clipped(const dp_ddc_state_t *state);
 
   /**
    * @brief Attach (or detach) a telemetry context on the cascade's AGC.
@@ -503,7 +503,7 @@ bool ddc_get_clipped(const ddc_state_t *state);
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
    *         AGC's probes (the attach fails whole).
    */
-  int ddc_set_telemetry (ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+  int ddc_set_telemetry (dp_ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
                          uint32_t decim);
 
   /**
@@ -517,7 +517,7 @@ bool ddc_get_clipped(const ddc_state_t *state);
    * @param x_len  Number of input samples the matching execute() call sees.
    * @return       x_len (a safe upper bound on the produced samples).
    */
-size_t ddc_execute_max_out(ddc_state_t *state, size_t x_len);
+size_t dp_ddc_execute_max_out(dp_ddc_state_t *state, size_t x_len);
 
   /* ── Serializable state — complex DDC (LO + RateConverter) ─────────────────
    * Standard bytes interface (see dp_state.h):
@@ -533,20 +533,20 @@ size_t ddc_execute_max_out(ddc_state_t *state, size_t x_len);
 #define DDC_STATE_VERSION 1u
 
   /** @brief Byte size of @p state's blob (envelope + extra + lo + rc). */
-  size_t ddc_state_bytes (const ddc_state_t *state);
+  size_t dp_ddc_state_bytes (const dp_ddc_state_t *state);
   /** @brief Serialize @p state's LO + RateConverter state into @p blob. */
-  void ddc_get_state (const ddc_state_t *state, void *blob);
+  void dp_ddc_get_state (const dp_ddc_state_t *state, void *blob);
   /** @brief Restore LO + RateConverter state from @p blob.
    *  @return DP_OK, or DP_ERR_INVALID if the envelope/rate rejects. */
-  int ddc_set_state (ddc_state_t *state, const void *blob);
+  int dp_ddc_set_state (dp_ddc_state_t *state, const void *blob);
   /** @brief Pure run: `(state_in, input) -> (state_out, output)`; either blob
    *  may be NULL (NULL in = current; NULL out = discard). */
-  size_t ddc_run (ddc_state_t *state, const void *state_in, void *state_out,
+  size_t dp_ddc_run (dp_ddc_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, float _Complex *out,
                   size_t max_out);
 
-size_t ddc_execute_ctrl_max_out(ddc_state_t *state, size_t x_len);
-size_t ddc_execute_ctrl_push_max_out(ddc_state_t *state);
+size_t dp_ddc_execute_ctrl_max_out(dp_ddc_state_t *state, size_t x_len);
+size_t dp_ddc_execute_ctrl_push_max_out(dp_ddc_state_t *state);
 #ifdef __cplusplus
 }
 #endif

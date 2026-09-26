@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
-/* ConvEncoderObject — wraps conv_enc_state_t *       */
+/* ConvEncoderObject — wraps dp_conv_enc_state_t *       */
 /* ======================================================== */
 
 #include "doppler/conv_enc/conv_enc_core.h"
 
 typedef struct
 {
-  PyObject_HEAD conv_enc_state_t *handle;
+  PyObject_HEAD dp_conv_enc_state_t *handle;
 } ConvEncoderObject;
 
 static void
 ConvEncoderObj_dealloc (ConvEncoderObject *self)
 {
   if (self->handle)
-    conv_enc_destroy (self->handle);
+    dp_conv_enc_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -53,7 +53,7 @@ ConvEncoderObj_init (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t poly_len = (size_t)PyArray_SIZE (poly_arr);
-  self->handle    = conv_enc_create ((const uint32_t *)PyArray_DATA (poly_arr),
+  self->handle = dp_conv_enc_create ((const uint32_t *)PyArray_DATA (poly_arr),
                                      poly_len, k, invert);
   Py_DECREF (poly_arr);
   if (!self->handle)
@@ -74,7 +74,7 @@ ConvEncoderObj_reset (ConvEncoderObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  conv_enc_reset (self->handle);
+  dp_conv_enc_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -90,7 +90,7 @@ ConvEncoderObj_encode_max_out (ConvEncoderObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      conv_enc_encode_max_out (self->handle, (size_t)n_in));
+      dp_conv_enc_encode_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -135,7 +135,7 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = conv_enc_encode_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_conv_enc_encode_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -145,7 +145,7 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = conv_enc_encode (
+      size_t n_out = dp_conv_enc_encode (
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -161,7 +161,7 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = conv_enc_encode_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_conv_enc_encode_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -170,10 +170,10 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out
-      = conv_enc_encode (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
-                         (size_t)n, _d0, _cap);
+  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t   n_out = dp_conv_enc_encode (self->handle,
+                                       (const uint8_t *)PyArray_DATA (in_arr),
+                                       (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -200,7 +200,7 @@ ConvEncoderObj_state_bytes (ConvEncoderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (conv_enc_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_conv_enc_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -212,11 +212,11 @@ ConvEncoderObj_get_state (ConvEncoderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = conv_enc_state_bytes (self->handle);
+  size_t    _n = dp_conv_enc_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  conv_enc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_conv_enc_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -233,12 +233,12 @@ ConvEncoderObj_set_state (ConvEncoderObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != conv_enc_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_conv_enc_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (conv_enc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_conv_enc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -251,7 +251,7 @@ ConvEncoderObj_destroy (ConvEncoderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      conv_enc_destroy (self->handle);
+      dp_conv_enc_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -270,7 +270,7 @@ ConvEncoderObj_exit (ConvEncoderObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      conv_enc_destroy (self->handle);
+      dp_conv_enc_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -330,11 +330,11 @@ static PyMethodDef ConvEncoderObj_methods[] = {
   { "encode_max_out", (PyCFunction)ConvEncoderObj_encode_max_out, METH_VARARGS,
     "encode_max_out(n_in) -> int\n"
     "\n"
-    "Symbols conv_enc_encode writes for n_in input bits.\n"
+    "Symbols dp_conv_enc_encode writes for n_in input bits.\n"
     "\n"
     "Exactly `n_in * n` — a convolutional code has no fill and no latency on\n"
     "\n"
-    "the encode side, which is the asymmetry with viterbi_decode_max_out,\n"
+    "the encode side, which is the asymmetry with dp_viterbi_decode_max_out,\n"
     "\n"
     "where the traceback still owes bits at the start of a stream.\n"
     "\n"

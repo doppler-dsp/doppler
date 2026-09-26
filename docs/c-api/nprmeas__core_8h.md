@@ -34,7 +34,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**nprmeas\_state\_t**](structnprmeas__state__t.md) <br>_NPRMeasure state: owned window, FFT plan and one-sided power scratch._  |
+| struct | [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) <br>_NPRMeasure state: owned window, FFT plan and one-sided power scratch._  |
 
 
 
@@ -61,12 +61,12 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 
 | Type | Name |
 | ---: | :--- |
-|  [**npr\_meas\_t**](structnpr__meas__t.md) | [**nprmeas\_analyze**](#function-nprmeas_analyze) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz) <br>_NPR of a notched-noise capture._  |
-|  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an NPRMeasure analyser (auto Kaiser window)._  |
-|  void | [**nprmeas\_destroy**](#function-nprmeas_destroy) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
-|  void | [**nprmeas\_reset**](#function-nprmeas_reset) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
-|  size\_t | [**nprmeas\_spectrum\_dbfs**](#function-nprmeas_spectrum_dbfs) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
-|  size\_t | [**nprmeas\_spectrum\_dbfs\_max\_out**](#function-nprmeas_spectrum_dbfs_max_out) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
+|  [**npr\_meas\_t**](structnpr__meas__t.md) | [**dp\_nprmeas\_analyze**](#function-dp_nprmeas_analyze) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz) <br>_NPR of a notched-noise capture._  |
+|  [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* | [**dp\_nprmeas\_create**](#function-dp_nprmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an NPRMeasure analyser (auto Kaiser window)._  |
+|  void | [**dp\_nprmeas\_destroy**](#function-dp_nprmeas_destroy) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
+|  void | [**dp\_nprmeas\_reset**](#function-dp_nprmeas_reset) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
+|  size\_t | [**dp\_nprmeas\_spectrum\_dbfs**](#function-dp_nprmeas_spectrum_dbfs) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
+|  size\_t | [**dp\_nprmeas\_spectrum\_dbfs\_max\_out**](#function-dp_nprmeas_spectrum_dbfs_max_out) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 
 
 
@@ -110,12 +110,12 @@ Lifecycle: create -&gt; `[analyze]*` -&gt; destroy
 
 
 
-### function nprmeas\_analyze 
+### function dp\_nprmeas\_analyze 
 
 _NPR of a notched-noise capture._ 
 ```C++
-npr_meas_t nprmeas_analyze (
-    nprmeas_state_t * state,
+npr_meas_t dp_nprmeas_analyze (
+    dp_nprmeas_state_t * state,
     const float * x,
     size_t n_in,
     double active_lo,
@@ -175,11 +175,11 @@ the NPR metric record (by value).
 
 
 
-### function nprmeas\_create 
+### function dp\_nprmeas\_create 
 
 _Create an NPRMeasure analyser (auto Kaiser window)._ 
 ```C++
-nprmeas_state_t * nprmeas_create (
+dp_nprmeas_state_t * dp_nprmeas_create (
     size_t n,
     double fs,
     double full_scale,
@@ -220,12 +220,12 @@ Heap state, or NULL on bad args / allocation failure.
 
 
 
-### function nprmeas\_destroy 
+### function dp\_nprmeas\_destroy 
 
 _Destroy an NPRMeasure analyser._ 
 ```C++
-void nprmeas_destroy (
-    nprmeas_state_t * state
+void dp_nprmeas_destroy (
+    dp_nprmeas_state_t * state
 ) 
 ```
 
@@ -247,12 +247,12 @@ void nprmeas_destroy (
 
 
 
-### function nprmeas\_reset 
+### function dp\_nprmeas\_reset 
 
 _Reset the analyser (a no-op: each analyze() call is independent)._ 
 ```C++
-void nprmeas_reset (
-    nprmeas_state_t * state
+void dp_nprmeas_reset (
+    dp_nprmeas_state_t * state
 ) 
 ```
 
@@ -285,12 +285,12 @@ True
 
 
 
-### function nprmeas\_spectrum\_dbfs 
+### function dp\_nprmeas\_spectrum\_dbfs 
 
 _DC-centred dBFS magnitude spectrum of a capture (length nfft)._ 
 ```C++
-size_t nprmeas_spectrum_dbfs (
-    nprmeas_state_t * state,
+size_t dp_nprmeas_spectrum_dbfs (
+    dp_nprmeas_state_t * state,
     const float * x,
     size_t x_len,
     float * out,
@@ -342,12 +342,12 @@ DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
 
 
 
-### function nprmeas\_spectrum\_dbfs\_max\_out 
+### function dp\_nprmeas\_spectrum\_dbfs\_max\_out 
 
 _Capacity (== nfft) of the spectrum\_dbfs output buffer._ 
 ```C++
-size_t nprmeas_spectrum_dbfs_max_out (
-    nprmeas_state_t * state
+size_t dp_nprmeas_spectrum_dbfs_max_out (
+    dp_nprmeas_state_t * state
 ) 
 ```
 

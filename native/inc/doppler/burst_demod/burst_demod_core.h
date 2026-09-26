@@ -15,7 +15,7 @@
  * ## Where this object's job ends
  *
  * At a decision. It hands back one bit per symbol (demod()) and one LLR per
- * symbol (burst_demod_llrs()), and it does not know what any of them mean:
+ * symbol (dp_burst_demod_llrs()), and it does not know what any of them mean:
  * which are payload, which are a check, what an outer code would repair are
  * all questions about a FRAME, and answering them needs a description this
  * object deliberately does not hold (doppler#1022). It used to hold half of
@@ -32,15 +32,15 @@
  * One-shot per burst. Composes ppe (which composes fft + spectral).
  *
  * @code
- * burst_demod_state_t *d = burst_demod_create(dcode, 50, 4, 1e6, 0, 0, 256, 10);
- * burst_demod_set_preamble(d, acode, 500, 5);
- * burst_demod_set_sync(d, sync, 31);
- * burst_demod_set_prior(d, f0_coarse, preamble_start);
- * size_t nbits = burst_demod_demod(d, x, n, bits, 256);   // frame bits out
+ * dp_burst_demod_state_t *d = dp_burst_demod_create(dcode, 50, 4, 1e6, 0, 0, 256, 10);
+ * dp_burst_demod_set_preamble(d, acode, 500, 5);
+ * dp_burst_demod_set_sync(d, sync, 31);
+ * dp_burst_demod_set_prior(d, f0_coarse, preamble_start);
+ * size_t nbits = dp_burst_demod_demod(d, x, n, bits, 256);   // frame bits out
  * @endcode
  */
-#ifndef BURST_DEMOD_CORE_H
-#define BURST_DEMOD_CORE_H
+#ifndef DP_BURST_DEMOD_CORE_H
+#define DP_BURST_DEMOD_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -59,7 +59,7 @@ extern "C"
 #endif
 
   /**
-   * @brief BurstDemod state.  Allocate with burst_demod_create().
+   * @brief BurstDemod state.  Allocate with dp_burst_demod_create().
    */
   typedef struct
   {
@@ -86,7 +86,7 @@ extern "C"
     size_t   start;        /**< preamble start sample in the burst.         */
 
     /* ── engine ── */
-    ppe_state_t   *ppe;  /**< feedforward (rate x freq) estimator.          */
+    dp_ppe_state_t   *ppe;  /**< feedforward (rate x freq) estimator.          */
     float _Complex *part; /**< preamble partials scratch (acq_reps*est_seg). */
     size_t         n_part;
 
@@ -133,7 +133,7 @@ extern "C"
                               -- 101 dB worse on a noiseless input. The
                               realized link IS worse, so the number is not
                               wrong; it simply cannot say WHICH of the two
-                              happened. burst_demod_symbols() can, because
+                              happened. dp_burst_demod_symbols() can, because
                               only Q against I separates them
                               (doppler#1087). See doppler#1304.          */
     double est_timing_chips; /**< Burst-start error the demodulator MEASURED,
@@ -156,7 +156,7 @@ extern "C"
                               @c est_cn0_dbhz is then a floor rather than a
                               measurement. Fixing that is acquisition's,
                               which is what resolves a start.              */
-  } burst_demod_state_t;
+  } dp_burst_demod_state_t;
 
   /**
    * @brief Create a feedforward BPSK DSSS burst demodulator.
@@ -223,14 +223,14 @@ extern "C"
    *
    * @endcode
    */
-  burst_demod_state_t *burst_demod_create (const uint8_t *data_code,
+  dp_burst_demod_state_t *dp_burst_demod_create (const uint8_t *data_code,
                                            size_t data_code_len, size_t spc,
                                            double chip_rate, double carrier_hz,
                                            double max_rate, size_t frame_syms,
                                            size_t est_segments);
 
   /** @brief Destroy a demodulator.  @param state May be NULL. */
-  void burst_demod_destroy (burst_demod_state_t *state);
+  void dp_burst_demod_destroy (dp_burst_demod_state_t *state);
 
   /**
    * @brief Clear the per-burst read-backs, leaving the configuration intact.
@@ -253,7 +253,7 @@ extern "C"
    *
    * @endcode
    */
-  void burst_demod_reset (burst_demod_state_t *state);
+  void dp_burst_demod_reset (dp_burst_demod_state_t *state);
 
   /**
    * @brief Register the unmodulated acquisition preamble code and its
@@ -279,7 +279,7 @@ extern "C"
    *
    * @endcode
    */
-  void burst_demod_set_preamble (burst_demod_state_t *state,
+  void dp_burst_demod_set_preamble (dp_burst_demod_state_t *state,
                                  const uint8_t *acq_code, size_t acq_code_len,
                                  size_t reps);
 
@@ -312,7 +312,7 @@ extern "C"
    *
    * @endcode
    */
-  void burst_demod_set_sync (burst_demod_state_t *state, const uint8_t *sync,
+  void dp_burst_demod_set_sync (dp_burst_demod_state_t *state, const uint8_t *sync,
                              size_t sync_len);
 
   /**
@@ -341,7 +341,7 @@ extern "C"
    * @param state    Demodulator handle.
    * @param n        Ignored — the count is the last demod()'s frame.
    * @param out      Receives the LLRs, one per frame bit.
-   * @param max_out  Capacity of @p out; see burst_demod_llrs_max_out().
+   * @param max_out  Capacity of @p out; see dp_burst_demod_llrs_max_out().
    * @return LLRs written — `min(frame bits, max_out)`, or 0 if the last
    *         demod() produced no frame.
    * @code
@@ -355,22 +355,22 @@ extern "C"
    *
    * @endcode
    */
-  size_t burst_demod_llrs (burst_demod_state_t *state, size_t n, float *out,
+  size_t dp_burst_demod_llrs (dp_burst_demod_state_t *state, size_t n, float *out,
                            size_t max_out);
 
   /**
-   * @brief Max LLRs burst_demod_llrs() writes: the frame's length in bits.
+   * @brief Max LLRs dp_burst_demod_llrs() writes: the frame's length in bits.
    *
    * @param state  Demodulator handle.
    * @param n      Ignored — the count is the last demod()'s frame.
    */
-  size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
+  size_t dp_burst_demod_llrs_max_out (dp_burst_demod_state_t *state, size_t n);
 
   /**
    * @brief The last demod()'s DEROTATED complex symbols — the constellation
    *        the LLRs are the real part of.
    *
-   * Same span and same normalisation as burst_demod_llrs(): the whole frame,
+   * Same span and same normalisation as dp_burst_demod_llrs(): the whole frame,
    * scaled to unit mean-|Re| by the burst's own estimate, so
    * `crealf(symbols[k])` is that bit's LLR up to @c est_n0.
    *
@@ -388,7 +388,7 @@ extern "C"
    * @param state    Demodulator handle.
    * @param n        Ignored — the count is the last demod()'s frame.
    * @param out      Receives the symbols, one per frame bit.
-   * @param max_out  Capacity of @p out; see burst_demod_symbols_max_out().
+   * @param max_out  Capacity of @p out; see dp_burst_demod_symbols_max_out().
    * @return Symbols written — `min(frame bits, max_out)`, or 0 if the last
    *         demod() produced no frame.
    * @code
@@ -402,16 +402,16 @@ extern "C"
    *
    * @endcode
    */
-  size_t burst_demod_symbols (burst_demod_state_t *state, size_t n,
+  size_t dp_burst_demod_symbols (dp_burst_demod_state_t *state, size_t n,
                               float _Complex *out, size_t max_out);
 
   /**
-   * @brief Max symbols burst_demod_symbols() writes: the frame's length.
+   * @brief Max symbols dp_burst_demod_symbols() writes: the frame's length.
    *
    * @param state  Demodulator handle.
    * @param n      Ignored — the count is the last demod()'s frame.
    */
-  size_t burst_demod_symbols_max_out (burst_demod_state_t *state, size_t n);
+  size_t dp_burst_demod_symbols_max_out (dp_burst_demod_state_t *state, size_t n);
 
   /**
    * @brief Seed the demodulator from acquisition with the coarse Doppler and
@@ -434,11 +434,11 @@ extern "C"
    *
    * @endcode
    */
-  void burst_demod_set_prior (burst_demod_state_t *state, double f0_coarse,
+  void dp_burst_demod_set_prior (dp_burst_demod_state_t *state, double f0_coarse,
                               size_t start);
 
   /** @brief Max output bits = frame_syms (caller sizes the buffer). */
-  size_t burst_demod_demod_max_out (burst_demod_state_t *state);
+  size_t dp_burst_demod_demod_max_out (dp_burst_demod_state_t *state);
 
   /**
    * @brief Demodulate one burst end to end and write the frame's bits.
@@ -449,7 +449,7 @@ extern "C"
    * symbols to bits. It writes the frame as received — sync word first — and
    * makes no claim about what those bits are for: undoing the frame needs a
    * description, and that is a caller's, not this object's. The soft twin of
-   * the same decisions is burst_demod_llrs().
+   * the same decisions is dp_burst_demod_llrs().
    *
    * On return the read-back fields report the outcome — @c frame_offset,
    * @c n_symbols, and the @c est_freq_hz / @c est_rate_hz /
@@ -506,7 +506,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t burst_demod_demod (burst_demod_state_t *state, const float _Complex *x,
+  size_t dp_burst_demod_demod (dp_burst_demod_state_t *state, const float _Complex *x,
                             size_t x_len, uint8_t *out, size_t max_out);
 
 #ifdef __cplusplus

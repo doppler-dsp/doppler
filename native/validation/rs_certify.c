@@ -224,14 +224,14 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
   float complex *nz   = malloc (nbits * sizeof *nz);
   float         *llr  = malloc (nbits * sizeof *llr);
   uint8_t       *chip = malloc (nbits);
-  pn_state_t    *pn   = pn_create (wfm_synth_mls_poly (15), 5u, 15, 0);
+  dp_pn_state_t *pn   = dp_pn_create (wfm_synth_mls_poly (15), 5u, 15, 0);
 
   if (!info || !sent || !rx || !bits || !mod || !nz || !llr || !chip || !pn)
     goto done;
 
   /* Information symbols from the library's own bit source, packed J to a
      symbol so the same generator drives every configuration. */
-  pn_generate (pn, (size_t)NCW * rs->k * rs->code.symbol_bits, chip, nbits);
+  dp_pn_generate (pn, (size_t)NCW * rs->k * rs->code.symbol_bits, chip, nbits);
   for (size_t s = 0; s < (size_t)NCW * rs->k; s++)
     {
       uint8_t v = 0;
@@ -252,22 +252,22 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
       bits[s * rs->code.symbol_bits + b]
           = (uint8_t)((sent[s] >> (rs->code.symbol_bits - 1u - b)) & 1u);
 
-  mpsk_map (bits, nbits, mod, 2);
+  dp_mpsk_map (bits, nbits, mod, 2);
 
-  const float   sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
-  const float   n0    = 2.0f * sigma * sigma;
-  awgn_state_t *ch    = awgn_create (seed, sigma);
+  const float      sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
+  const float      n0    = 2.0f * sigma * sigma;
+  dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   if (!ch)
     goto done;
-  awgn_generate (ch, nbits, nz, nbits);
-  awgn_destroy (ch);
+  dp_awgn_generate (ch, nbits, nz, nbits);
+  dp_awgn_destroy (ch);
   for (size_t i = 0; i < nbits; i++)
     mod[i] += nz[i];
 
   /* The library's demapper, sliced. A positive LLR means symbol 0 — the
      convention test_viterbi_core.c §5b pins — so the hard decision is its
      sign and not a second slicer written here. */
-  mpsk_soft_demap (mod, nbits, llr, nbits, 2, n0);
+  dp_mpsk_soft_demap (mod, nbits, llr, nbits, 2, n0);
   for (size_t s = 0; s < nsym; s++)
     {
       uint8_t v = 0;
@@ -304,7 +304,7 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
     }
 
 done:
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
   free (info);
   free (sent);
   free (rx);

@@ -19,7 +19,7 @@
  * the peaks clipping against a bound the average never approached.
  *
  * **So check @c clipped** — a sticky flag raised by any saturating component
- * and cleared only by cic_reset(), following the same convention as the
+ * and cleared only by dp_cic_reset(), following the same convention as the
  * quantizing `cvt` converters (adc, f32_to_uq15, ...).  It is free: the four
  * boundary comparisons run on every sample regardless, so recording that one
  * fired costs a register OR.  There is no reason to run a CIC without
@@ -64,13 +64,13 @@
  * Output precision: 16-bit Q15 (independent of R and N)
  *
  * @code
- * cic_state_t *cic = cic_create(16);   // R=16, N=4, M=1
- * size_t n_out = cic_decimate(cic, in, 1024, out, 1024);
- * cic_destroy(cic);
+ * dp_cic_state_t *cic = dp_cic_create(16);   // R=16, N=4, M=1
+ * size_t n_out = dp_cic_decimate(cic, in, 1024, out, 1024);
+ * dp_cic_destroy(cic);
  * @endcode
  */
-#ifndef CIC_CORE_H
-#define CIC_CORE_H
+#ifndef DP_CIC_CORE_H
+#define DP_CIC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -104,7 +104,7 @@ extern "C" {
 /**
  * @brief CIC filter state.
  *
- * Allocate with cic_create(); free with cic_destroy().
+ * Allocate with dp_cic_create(); free with dp_cic_destroy().
  * All comb state fits in-struct — no heap members.
  */
 typedef struct {
@@ -116,7 +116,7 @@ typedef struct {
     uint32_t phase;           /* input sample counter 0..R-1           */
     uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
     uint8_t  clipped;         /* sticky: input exceeded +-1.0          */
-} cic_state_t;
+} dp_cic_state_t;
 
 /**
  * @brief Create a 4-stage, M=1 CIC decimation filter.
@@ -142,10 +142,10 @@ typedef struct {
  * (16, 16)
  * @endcode
  */
-cic_state_t *cic_create(uint32_t R);
+dp_cic_state_t *dp_cic_create(uint32_t R);
 
 /** Free resources.  NULL is a no-op. */
-void cic_destroy(cic_state_t *state);
+void dp_cic_destroy(dp_cic_state_t *state);
 
 /**
  * @brief Zero all integrator and comb accumulators; preserve R and shift.
@@ -161,7 +161,7 @@ void cic_destroy(cic_state_t *state);
  * 16
  * @endcode
  */
-void cic_reset(cic_state_t *state);
+void dp_cic_reset(dp_cic_state_t *state);
 
 /* Serializable state (reusable elastic-resume convention): the integrator and
  * comb accumulators, the decimation phase counter and the sticky clip flag —
@@ -199,13 +199,13 @@ void cic_reset(cic_state_t *state);
  */
 #define CIC_PAPR_HEADROOM 2.0f
 
-/** @brief Bytes cic_get_state() writes (envelope + payload). */
-size_t cic_state_bytes(const cic_state_t *state);
+/** @brief Bytes dp_cic_get_state() writes (envelope + payload). */
+size_t dp_cic_state_bytes(const dp_cic_state_t *state);
 /** @brief Serialize the integrator/comb/phase state into @p blob. */
-void cic_get_state(const cic_state_t *state, void *blob);
+void dp_cic_get_state(const dp_cic_state_t *state, void *blob);
 /** @brief Restore the integrator/comb/phase state from @p blob.
  *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
-int cic_set_state(cic_state_t *state, const void *blob);
+int dp_cic_set_state(dp_cic_state_t *state, const void *blob);
 
 /**
  * @brief Upper bound on decimate output — returns 0 (lazy-alloc signal).
@@ -214,7 +214,7 @@ int cic_set_state(cic_state_t *state, const void *blob);
  * Since n_in >= ceil(n_in/R) = n_out for all R >= 1, the buffer is
  * always large enough as long as block size stays consistent.
  */
-size_t cic_decimate_max_out(cic_state_t *state);
+size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
 
 /**
  * @brief The filter's response to a constant input, from its own geometry.
@@ -229,12 +229,12 @@ size_t cic_decimate_max_out(cic_state_t *state);
  * @return The DC gain. 1.0 for every power-of-two R the filter accepts.
  *
  * @code
- * cic_state_t *c = cic_create (32);
+ * dp_cic_state_t *c = dp_cic_create (32);
  * printf ("%.4f\n", cic_dc_gain (c));   // 1.0000
- * cic_destroy (c);
+ * dp_cic_destroy (c);
  * @endcode
  */
-double cic_dc_gain(const cic_state_t *state);
+double cic_dc_gain(const dp_cic_state_t *state);
 
 /**
  * @brief Decimate a block of CF32 samples through the CIC pipeline.
@@ -250,7 +250,7 @@ double cic_dc_gain(const cic_state_t *state);
  * gives no sign of it, so check the sticky @c clipped flag. Scale the input
  * into range first; see the file header.
  *
- * @param state  Pointer to a valid cic_state_t.
+ * @param state  Pointer to a valid dp_cic_state_t.
  * @param in     CF32 input block, |Re| and |Im| <= 1.0 (clipped otherwise).
  * @param n_in   Number of input samples.
  * @param out    Output buffer; must hold at least max_out elements.
@@ -275,7 +275,7 @@ double cic_dc_gain(const cic_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT size_t
-cic_decimate(cic_state_t *state, const float _Complex *in,
+dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
              size_t n_in, float _Complex *out, size_t max_out)
 {
     const uint32_t R     = state->R;
@@ -350,8 +350,8 @@ cic_decimate(cic_state_t *state, const float _Complex *in,
  * power-of-two in `[2, 2048]` (`CIC_R_MAX`) — the state is left unchanged in
  * that case.
  *
- * @param state  Pointer to a valid cic_state_t.
- * @param R      New decimation ratio.  Same constraints as cic_create().
+ * @param state  Pointer to a valid dp_cic_state_t.
+ * @param R      New decimation ratio.  Same constraints as dp_cic_create().
  *
  * @code
  * >>> from doppler.resample import CIC
@@ -361,7 +361,7 @@ cic_decimate(cic_state_t *state, const float _Complex *in,
  * (8, 12)
  * @endcode
  */
-void cic_reconfigure(cic_state_t *state, uint32_t R);
+void dp_cic_reconfigure(dp_cic_state_t *state, uint32_t R);
 
 #ifdef __cplusplus
 }

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
-/* CarrierAcquisitionObject — wraps carrier_acq_state_t *       */
+/* CarrierAcquisitionObject — wraps dp_carrier_acq_state_t *       */
 /* ======================================================== */
 
 #include "doppler/carrier_acq/carrier_acq_core.h"
 
 typedef struct
 {
-  PyObject_HEAD carrier_acq_state_t *handle;
+  PyObject_HEAD dp_carrier_acq_state_t *handle;
 } CarrierAcquisitionObject;
 
 static void
 CarrierAcquisitionObj_dealloc (CarrierAcquisitionObject *self)
 {
   if (self->handle)
-    carrier_acq_destroy (self->handle);
+    dp_carrier_acq_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -100,14 +100,15 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
         }
       psd_template_len = (size_t)PyArray_SIZE (psd_template_arr);
     }
-  self->handle = carrier_acq_create (
+  self->handle = dp_carrier_acq_create (
       sample_rate_hz, symbol_rate_hz, resolution_hz, zero_pad, window, beta,
       psd_template_arr ? (const float *)PyArray_DATA (psd_template_arr) : NULL,
       psd_template_len, pfa, pd, design_snr, sequential, max_n_blocks);
   Py_XDECREF (psd_template_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "carrier_acq_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_carrier_acq_create returned NULL");
       return -1;
     }
   return 0;
@@ -134,7 +135,7 @@ CarrierAcquisitionObj_steps (CarrierAcquisitionObject *self, PyObject *args,
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  carrier_acq_steps (self->handle, x, x_len);
+  dp_carrier_acq_steps (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -148,7 +149,7 @@ CarrierAcquisitionObj_reset (CarrierAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  carrier_acq_reset (self->handle);
+  dp_carrier_acq_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -161,7 +162,7 @@ CarrierAcquisitionObj_state_bytes (CarrierAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (carrier_acq_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_carrier_acq_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -173,11 +174,11 @@ CarrierAcquisitionObj_get_state (CarrierAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = carrier_acq_state_bytes (self->handle);
+  size_t    _n = dp_carrier_acq_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  carrier_acq_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_carrier_acq_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -194,12 +195,13 @@ CarrierAcquisitionObj_set_state (CarrierAcquisitionObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != carrier_acq_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_carrier_acq_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (carrier_acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_carrier_acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -311,7 +313,7 @@ CarrierAcquisitionObj_destroy (CarrierAcquisitionObject *self,
 {
   if (self->handle)
     {
-      carrier_acq_destroy (self->handle);
+      dp_carrier_acq_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -331,7 +333,7 @@ CarrierAcquisitionObj_exit (CarrierAcquisitionObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      carrier_acq_destroy (self->handle);
+      dp_carrier_acq_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -519,7 +521,7 @@ static PyTypeObject CarrierAcquisitionObjType = {
     "design_snr : float, default 2.0\n"
     "    Assumed per-sample amplitude SNR used ONLY to precompute "
     "dwell_target\n"
-    "    via det_n_noncoh(); not a live measurement. An optimistic guess "
+    "    via dp_det_n_noncoh(); not a live measurement. An optimistic guess "
     "only\n"
     "    affects NON-sequential mode (which trusts this one-shot wait count\n"
     "    outright) -- sequential mode's own give-up bound is max_n_blocks, "

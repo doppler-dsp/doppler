@@ -64,11 +64,11 @@ main (void)
   jm_bench_t    _bench = { 0 };
   volatile long sink   = 0;
 
-  rs_codec_state_t *rs = rs_codec_create (NROOTS, 8u, POLY, J0, STRIDE);
+  dp_rs_codec_state_t *rs = dp_rs_codec_create (NROOTS, 8u, POLY, J0, STRIDE);
   if (!rs)
     return 1;
-  const size_t n = rs_codec_get_n (rs), k = rs_codec_get_k (rs),
-               e = rs_codec_get_e (rs);
+  const size_t n = dp_rs_codec_get_n (rs), k = dp_rs_codec_get_k (rs),
+               e = dp_rs_codec_get_e (rs);
 
   uint8_t *info  = malloc (k);
   uint8_t *clean = malloc (n);
@@ -83,7 +83,7 @@ main (void)
       lfsr    = lfsr * 1664525u + 1013904223u;
       info[i] = (uint8_t)(lfsr >> 24);
     }
-  if (rs_codec_encode (rs, info, k, clean, n) != n)
+  if (dp_rs_codec_encode (rs, info, k, clean, n) != n)
     return 1;
 
   printf ("=== rs_codec benchmark ===\n");
@@ -97,10 +97,10 @@ main (void)
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < CREATES; i++)
           {
-            rs_codec_state_t *s
-                = rs_codec_create (NROOTS, 8u, POLY, J0, STRIDE);
+            dp_rs_codec_state_t *s
+                = dp_rs_codec_create (NROOTS, 8u, POLY, J0, STRIDE);
             sink += (s != NULL);
-            rs_codec_destroy (s);
+            dp_rs_codec_destroy (s);
           }
         t1      = jm_bench_now_ns ();
         t_c8[r] = jm_bench_elapsed_sec (t0, t1);
@@ -108,9 +108,9 @@ main (void)
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < CREATES; i++)
           {
-            rs_codec_state_t *s = rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
+            dp_rs_codec_state_t *s = dp_rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
             sink += (s != NULL);
-            rs_codec_destroy (s);
+            dp_rs_codec_destroy (s);
           }
         t1      = jm_bench_now_ns ();
         t_c4[r] = jm_bench_elapsed_sec (t0, t1);
@@ -130,7 +130,7 @@ main (void)
       {
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < CODEWORDS; i++)
-          sink += (long)rs_codec_encode (rs, info, k, work, n);
+          sink += (long)dp_rs_codec_encode (rs, info, k, work, n);
         t1       = jm_bench_now_ns ();
         t_obj[r] = jm_bench_elapsed_sec (t0, t1);
 
@@ -162,7 +162,7 @@ main (void)
         for (int i = 0; i < CODEWORDS; i++)
           {
             memcpy (work, clean, n);
-            sink += rs_codec_decode (rs, work, n);
+            sink += dp_rs_codec_decode (rs, work, n);
           }
         t1      = jm_bench_now_ns ();
         t_d0[r] = jm_bench_elapsed_sec (t0, t1);
@@ -173,7 +173,7 @@ main (void)
             memcpy (work, clean, n);
             for (size_t j = 0; j < e; j++)
               work[j * 7u] ^= 0xA5u;
-            sink += rs_codec_decode (rs, work, n);
+            sink += dp_rs_codec_decode (rs, work, n);
           }
         t1      = jm_bench_now_ns ();
         t_de[r] = jm_bench_elapsed_sec (t0, t1);
@@ -191,7 +191,7 @@ main (void)
   free (clean);
   free (work);
   free (par);
-  rs_codec_destroy (rs);
+  dp_rs_codec_destroy (rs);
   (void)sink;
   return 0;
 }

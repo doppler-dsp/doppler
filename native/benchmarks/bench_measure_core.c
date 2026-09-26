@@ -69,14 +69,14 @@ run (int cfg, int i)
       sink += measure_dr_from_bits (bits);
       break;
     case C_MIN_SAMPLES:
-      sink += (double)measure_min_samples (1e6 * (1.0 + frac), 100.0, bits,
-                                           0.0, 1);
+      sink += (double)dp_measure_min_samples (1e6 * (1.0 + frac), 100.0, bits,
+                                              0.0, 1);
       break;
     case C_REC_NFFT:
-      sink += (double)measure_rec_nfft (1000u + (size_t)(i & 1023), 4u);
+      sink += (double)dp_measure_rec_nfft (1000u + (size_t)(i & 1023), 4u);
       break;
     case C_PROC_GAIN:
-      sink += measure_proc_gain (1024u << (i & 3));
+      sink += dp_measure_proc_gain (1024u << (i & 3));
       break;
     case C_COHERENT_P2:
       sink += dp_coherent_freq (1e6, 1e5 * (1.0 + frac), 4096u);

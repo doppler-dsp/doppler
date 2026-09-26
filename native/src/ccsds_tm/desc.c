@@ -238,7 +238,7 @@ ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv)
 
 int
 ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
-                         const uint8_t *frame_bits, wfm_frame_desc_t *out)
+                         const uint8_t *tf_bits, wfm_frame_desc_t *out)
 {
   /* The refusals are ccsds_tm_frame_layout's, asked of it rather than
      restated: an unallowed depth, an empty frame, or a frame off the
@@ -259,7 +259,7 @@ ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
   out->field[F_ASM].seq.len  = cfg->attach_asm ? CCSDS_TM_ASM_BITS : 0u;
 
   out->field[F_FRAME].seq.kind = WFM_SEQ_LITERAL;
-  out->field[F_FRAME].seq.bits = frame_bits;
+  out->field[F_FRAME].seq.bits = tf_bits;
   out->field[F_FRAME].seq.len  = frame_len * 8u;
 
   out->field[F_PARITY].bits = (size_t)CCSDS_TM_RS_2E * cfg->rs_depth * 8u;

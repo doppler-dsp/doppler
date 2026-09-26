@@ -33,7 +33,7 @@ flowchart TD
 ## The dBFS reference — one source of truth
 
 `bits` is the ergonomic ADC knob: `bits>0` sets `full_scale = 2**(bits-1)` in
-`psd_create`, the **only** place that conversion lives. `full_scale` remains the
+`dp_psd_create`, the **only** place that conversion lives. `full_scale` remains the
 analog/general alternative. Every consumer forwards `bits`/`full_scale` into its
 `PSD` and reads the resolved reference back as `psd->full_scale` — none of them
 re-derive it.

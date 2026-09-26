@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* LoopFilterObject — wraps loop_filter_state_t *       */
+/* LoopFilterObject — wraps dp_loop_filter_state_t *       */
 /* ======================================================== */
 
 #include "doppler/loop_filter/loop_filter_core.h"
 
 typedef struct
 {
-  PyObject_HEAD loop_filter_state_t *handle;
+  PyObject_HEAD dp_loop_filter_state_t *handle;
 } LoopFilterObject;
 
 static void
 LoopFilterObj_dealloc (LoopFilterObject *self)
 {
   if (self->handle)
-    loop_filter_destroy (self->handle);
+    dp_loop_filter_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -44,7 +44,7 @@ LoopFilterObj_init (LoopFilterObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddd", kwlist, &bn, &zeta,
                                     &t))
     return -1;
-  self->handle = loop_filter_create (bn, zeta, t);
+  self->handle = dp_loop_filter_create (bn, zeta, t);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -66,7 +66,7 @@ LoopFilter_step (LoopFilterObject *self, PyObject *args)
   double x;
   if (!PyArg_ParseTuple (args, "d", &x))
     return NULL;
-  double y = loop_filter_step (self->handle, x);
+  double y = dp_loop_filter_step (self->handle, x);
   return PyFloat_FromDouble (y);
 }
 
@@ -122,8 +122,9 @@ LoopFilter_steps (LoopFilterObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      loop_filter_steps (self->handle, (const double *)PyArray_DATA (in_arr),
-                         (double *)PyArray_DATA (out_arr), (size_t)n);
+      dp_loop_filter_steps (self->handle,
+                            (const double *)PyArray_DATA (in_arr),
+                            (double *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -136,9 +137,9 @@ LoopFilter_steps (LoopFilterObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  loop_filter_steps (self->handle, (const double *)PyArray_DATA (in_arr),
-                     (double *)PyArray_DATA ((PyArrayObject *)out_arr),
-                     (size_t)n);
+  dp_loop_filter_steps (self->handle, (const double *)PyArray_DATA (in_arr),
+                        (double *)PyArray_DATA ((PyArrayObject *)out_arr),
+                        (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -160,7 +161,7 @@ LoopFilterObj_configure (LoopFilterObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &bn, &zeta,
                                     &t))
     return NULL;
-  loop_filter_configure (self->handle, bn, zeta, t);
+  dp_loop_filter_configure (self->handle, bn, zeta, t);
   Py_RETURN_NONE;
 }
 
@@ -172,7 +173,7 @@ LoopFilterObj_reset (LoopFilterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  loop_filter_reset (self->handle);
+  dp_loop_filter_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -185,7 +186,7 @@ LoopFilterObj_state_bytes (LoopFilterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (loop_filter_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_loop_filter_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -196,11 +197,11 @@ LoopFilterObj_get_state (LoopFilterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = loop_filter_state_bytes (self->handle);
+  size_t    _n = dp_loop_filter_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  loop_filter_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_loop_filter_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -217,12 +218,13 @@ LoopFilterObj_set_state (LoopFilterObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != loop_filter_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_loop_filter_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (loop_filter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_loop_filter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -326,7 +328,7 @@ LoopFilterObj_destroy (LoopFilterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      loop_filter_destroy (self->handle);
+      dp_loop_filter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -345,7 +347,7 @@ LoopFilterObj_exit (LoopFilterObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      loop_filter_destroy (self->handle);
+      dp_loop_filter_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -396,7 +398,7 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "Filter a whole block of loop errors, returning the control value for\n"
     "each update.\n"
     "\n"
-    "Equivalent to calling loop_filter_step() once per element of x in\n"
+    "Equivalent to calling dp_loop_filter_step() once per element of x in\n"
     "order, carrying the integrator across the block, so the loop's memory\n"
     "and lock state persist from one call to the next. This is the block\n"
     "path used to run a captured error sequence through the filter in one\n"

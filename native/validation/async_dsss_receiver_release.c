@@ -151,27 +151,27 @@ typedef struct
 
 /* The emitter: the shipped continuous-DSSS synth, clean (no AWGN child),
    PRBS data from its own PN register, seeded per trial. */
-static wfm_synth_state_t *
+static dp_wfm_synth_state_t *
 make_emitter (const uint8_t *code, uint32_t seed)
 {
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                          seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                             seed, (int)SPC, 15, 0, 0, 0.0);
   if (syn
       && wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
                                   WFM_DSSS_DATA_PRBS, NULL, 0)
              != 0)
     {
-      wfm_synth_destroy (syn);
+      dp_wfm_synth_destroy (syn);
       syn = NULL;
     }
   return syn;
 }
 
-static async_dsss_receiver_state_t *
+static dp_async_dsss_receiver_state_t *
 make_rx (const uint8_t *code, double cn0_dbhz)
 {
-  return async_dsss_receiver_create (
+  return dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 500.0, 4, 8,
       0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
 }
@@ -193,17 +193,17 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   const size_t fade_blocks  = (size_t)(FADE_S * FS / (double)TE);
   const size_t max_blocks   = lock_blocks + watch_blocks + 2;
 
-  wfm_synth_state_t *syn = make_emitter (code, seed);
+  dp_wfm_synth_state_t *syn = make_emitter (code, seed);
   /* C/N0 to SNR over fs is the one conversion; the amplitude is the
      library's answer to "per rail or total", not a sigma derived here. */
-  awgn_state_t *g = awgn_create (
+  dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
       awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
-  async_dsss_receiver_state_t *rx   = make_rx (code, cn0_dbhz);
-  float complex               *sig  = malloc (TE * sizeof *sig);
-  float complex               *blk  = malloc (TE * sizeof *blk);
-  size_t                       cap  = async_dsss_receiver_steps_max_out (rx);
-  float complex               *syms = malloc ((cap ? cap : TE) * sizeof *syms);
+  dp_async_dsss_receiver_state_t *rx  = make_rx (code, cn0_dbhz);
+  float complex                  *sig = malloc (TE * sizeof *sig);
+  float complex                  *blk = malloc (TE * sizeof *blk);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
+  float complex *syms = malloc ((cap ? cap : TE) * sizeof *syms);
   if (!syn || !g || !rx || !sig || !blk || !syms)
     return 1;
 
@@ -215,31 +215,31 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
      mapping), so the burn is delay - k_c * d, modulo a code period. The
      channel's output length varies by the resampler, so it is carried in
      a small FIFO and taken one block at a time. */
-  wfm_synth_state_t       *synb  = NULL;
-  doppler_channel_state_t *chb   = NULL;
-  float complex           *bfifo = NULL, *bin = NULL, *btmp = NULL;
-  size_t                   bfill = 0, bcap = 0;
-  const double             xppm = ev == EV_CROSS_ON ? CROSS_ON_PPM : CROSS_PPM;
+  dp_wfm_synth_state_t       *synb  = NULL;
+  dp_doppler_channel_state_t *chb   = NULL;
+  float complex              *bfifo = NULL, *bin = NULL, *btmp = NULL;
+  size_t                      bfill = 0, bcap = 0;
+  const double xppm = ev == EV_CROSS_ON ? CROSS_ON_PPM : CROSS_PPM;
   if (ev == EV_CROSS || ev == EV_CROSS_ON)
     {
       synb = make_emitter (code, seed + 1000u);
-      chb  = doppler_channel_create (FS, CARRIER_HZ, xppm, 0.0);
+      chb  = dp_doppler_channel_create (FS, CARRIER_HZ, xppm, 0.0);
       if (!synb || !chb)
         return 1;
-      bcap               = doppler_channel_execute_max_out (chb);
+      bcap               = dp_doppler_channel_execute_max_out (chb);
       bin                = dp_xmalloc (TE * sizeof *bin);
       btmp               = dp_xmalloc (bcap * sizeof *btmp);
       bfifo              = dp_xmalloc ((bcap + 2 * TE) * sizeof *bfifo);
       const double k_c   = (T_OFF_S + CROSS_AFTER_S) * FS;
-      const double delay = doppler_channel_get_delay_samples (chb);
+      const double delay = dp_doppler_channel_get_delay_samples (chb);
       double       burn  = fmod (delay - k_c * xppm * 1e-6, (double)TE);
       if (burn < 0.0)
         burn += (double)TE;
       size_t to_burn = (size_t)(burn + 0.5);
       while (to_burn > 0)
         {
-          wfm_synth_steps (synb, bin, TE);
-          size_t n = doppler_channel_execute (chb, bin, TE, btmp, bcap);
+          dp_wfm_synth_steps (synb, bin, TE);
+          size_t n = dp_doppler_channel_execute (chb, bin, TE, btmp, bcap);
           size_t d = n < to_burn ? n : to_burn;
           memcpy (bfifo + bfill, btmp + d, (n - d) * sizeof *btmp);
           bfill += n - d;
@@ -276,8 +276,8 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
       /* The emitter keeps rendering through every event -- its code and
          data never restart -- and the event is applied to what it rendered.
          The noise is a separate stream, so a fade scales the signal alone. */
-      wfm_synth_steps (syn, sig, TE);
-      awgn_generate (g, TE, blk, TE);
+      dp_wfm_synth_steps (syn, sig, TE);
+      dp_awgn_generate (g, TE, blk, TE);
       const float complex gain = (float)amp * rot;
       for (size_t i = 0; i < TE; i++)
         blk[i] += gain * sig[i];
@@ -286,8 +286,8 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
           /* The neighbour, on the air throughout, at the same level. */
           while (bfill < TE)
             {
-              wfm_synth_steps (synb, bin, TE);
-              size_t n = doppler_channel_execute (chb, bin, TE, btmp, bcap);
+              dp_wfm_synth_steps (synb, bin, TE);
+              size_t n = dp_doppler_channel_execute (chb, bin, TE, btmp, bcap);
               memcpy (bfifo + bfill, btmp, n * sizeof *btmp);
               bfill += n;
             }
@@ -297,10 +297,10 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
           bfill -= TE;
         }
 
-      (void)async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
-      int code_on = async_dsss_receiver_get_code_locked (rx) == 1;
-      int sym_on  = async_dsss_receiver_get_locked (rx) == 1;
-      int trk     = async_dsss_receiver_get_tracking (rx) == 1;
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
+      int code_on = dp_async_dsss_receiver_get_code_locked (rx) == 1;
+      int sym_on  = dp_async_dsss_receiver_get_locked (rx) == 1;
+      int trk     = dp_async_dsss_receiver_get_tracking (rx) == 1;
 
       if (!in_event)
         {
@@ -357,7 +357,7 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
           && watched + (size_t)(2.0 * FS / (double)TE) >= watch_blocks)
         {
           /* The watch's last two seconds: the receiver's chip rate. */
-          const double c = async_dsss_receiver_get_chip_phase (rx);
+          const double c = dp_async_dsss_receiver_get_chip_phase (rx);
           if (n_rate == 0)
             chip_a = c;
           else
@@ -383,24 +383,24 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   free (btmp);
   free (bin);
   if (chb)
-    doppler_channel_destroy (chb);
+    dp_doppler_channel_destroy (chb);
   if (synb)
-    wfm_synth_destroy (synb);
+    dp_wfm_synth_destroy (synb);
   free (syms);
   free (blk);
   free (sig);
-  async_dsss_receiver_destroy (rx);
-  awgn_destroy (g);
-  wfm_synth_destroy (syn);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
+  dp_wfm_synth_destroy (syn);
   return 0;
 }
 
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 static void

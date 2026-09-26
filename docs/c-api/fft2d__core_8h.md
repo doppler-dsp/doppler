@@ -31,7 +31,7 @@ _Per-instance 2-D FFT using pocketfft directly._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**fft2d\_state\_t**](structfft2d__state__t.md) <br> |
+| struct | [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) <br> |
 
 
 
@@ -58,17 +58,17 @@ _Per-instance 2-D FFT using pocketfft directly._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-|  [**fft2d\_state\_t**](structfft2d__state__t.md) \* | [**fft2d\_create**](#function-fft2d_create) (size\_t ny, size\_t nx, int sign, int nthreads) <br>_Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32. All execute calls accept and return flat row-major arrays of length ny\*nx; the Python layer may reshape them with .reshape(ny, nx)._ `nthreads` _is accepted for API parity but ignored._ |
-|  void | [**fft2d\_destroy**](#function-fft2d_destroy) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state) <br>_Destroy and free an fft2d instance._  |
-|  size\_t | [**fft2d\_execute\_cf32**](#function-fft2d_execute_cf32) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of_ [_**fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-fft2d_execute_cf64) _. Accepts and returns flat row-major CF32 arrays of length ny\*nx. Output is unnormalised;_`in` _and_`out` _must not alias._ |
-|  size\_t | [**fft2d\_execute\_cf32\_max\_out**](#function-fft2d_execute_cf32_max_out) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state) <br>_Maximum output samples for CF32 execute (ny \* nx)._  |
-|  size\_t | [**fft2d\_execute\_cf64**](#function-fft2d_execute_cf64) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 2-D DFT on a double-precision complex grid._ `in` _is a flat row-major CF64 array of length ny\*nx. The output is written to the caller-supplied_`out` _buffer (also ny\*nx); the two must not alias. The transform is unnormalised._ |
-|  size\_t | [**fft2d\_execute\_cf64\_max\_out**](#function-fft2d_execute_cf64_max_out) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state) <br>_Maximum output samples per execute call (ny \* nx)._  |
-|  size\_t | [**fft2d\_execute\_inplace\_cf32**](#function-fft2d_execute_inplace_cf32) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32 2-D). Single-precision variant of_[_**fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-fft2d_execute_inplace_cf64) _. Copies ny\*nx CF32 samples then applies the CF32 2-D pocketfft plan to_`out` _._ |
-|  size\_t | [**fft2d\_execute\_inplace\_cf32\_max\_out**](#function-fft2d_execute_inplace_cf32_max_out) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state) <br>_Maximum output samples for inplace CF32 execute (ny \* nx)._  |
-|  size\_t | [**fft2d\_execute\_inplace\_cf64**](#function-fft2d_execute_inplace_cf64) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64 2-D). The ny\*nx CF64 samples from_`in` _are first memcpy'd to_`out` _; the 2-D DFT is then applied to_`out` _in-place._`in` _is left unmodified. Useful when the caller owns_`out` _and wants to preserve_`in` _._ |
-|  size\_t | [**fft2d\_execute\_inplace\_cf64\_max\_out**](#function-fft2d_execute_inplace_cf64_max_out) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state) <br>_Maximum output samples for inplace CF64 execute (ny \* nx)._  |
-|  void | [**fft2d\_reset**](#function-fft2d_reset) ([**fft2d\_state\_t**](structfft2d__state__t.md) \* state) <br>_No-op reset (plans are immutable after creation)._  |
+|  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**dp\_fft2d\_create**](#function-dp_fft2d_create) (size\_t ny, size\_t nx, int sign, int nthreads) <br>_Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32. All execute calls accept and return flat row-major arrays of length ny\*nx; the Python layer may reshape them with .reshape(ny, nx)._ `nthreads` _is accepted for API parity but ignored._ |
+|  void | [**dp\_fft2d\_destroy**](#function-dp_fft2d_destroy) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Destroy and free an fft2d instance._  |
+|  size\_t | [**dp\_fft2d\_execute\_cf32**](#function-dp_fft2d_execute_cf32) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of_ [_**dp\_fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf64) _. Accepts and returns flat row-major CF32 arrays of length ny\*nx. Output is unnormalised;_`in` _and_`out` _must not alias._ |
+|  size\_t | [**dp\_fft2d\_execute\_cf32\_max\_out**](#function-dp_fft2d_execute_cf32_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples for CF32 execute (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_cf64**](#function-dp_fft2d_execute_cf64) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 2-D DFT on a double-precision complex grid._ `in` _is a flat row-major CF64 array of length ny\*nx. The output is written to the caller-supplied_`out` _buffer (also ny\*nx); the two must not alias. The transform is unnormalised._ |
+|  size\_t | [**dp\_fft2d\_execute\_cf64\_max\_out**](#function-dp_fft2d_execute_cf64_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples per execute call (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf32**](#function-dp_fft2d_execute_inplace_cf32) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32 2-D). Single-precision variant of_[_**dp\_fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf64) _. Copies ny\*nx CF32 samples then applies the CF32 2-D pocketfft plan to_`out` _._ |
+|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf32\_max\_out**](#function-dp_fft2d_execute_inplace_cf32_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples for inplace CF32 execute (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf64**](#function-dp_fft2d_execute_inplace_cf64) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64 2-D). The ny\*nx CF64 samples from_`in` _are first memcpy'd to_`out` _; the 2-D DFT is then applied to_`out` _in-place._`in` _is left unmodified. Useful when the caller owns_`out` _and wants to preserve_`in` _._ |
+|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft2d_execute_inplace_cf64_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples for inplace CF64 execute (ny \* nx)._  |
+|  void | [**dp\_fft2d\_reset**](#function-dp_fft2d_reset) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_No-op reset (plans are immutable after creation)._  |
 
 
 
@@ -105,10 +105,10 @@ Holds two pocketfft plans — one CF64, one CF32 — for an ny × nx row-major t
 
 Lifecycle: 
 ```C++
-fft2d_state_t *fft = fft2d_create(64, 64, -1, 1);
+dp_fft2d_state_t *fft = dp_fft2d_create(64, 64, -1, 1);
 double _Complex out[64 * 64];
-fft2d_execute_cf64(fft, in, 64 * 64, out, 64 * 64);
-fft2d_destroy(fft);
+dp_fft2d_execute_cf64(fft, in, 64 * 64, out, 64 * 64);
+dp_fft2d_destroy(fft);
 ```
  
 
@@ -119,11 +119,11 @@ fft2d_destroy(fft);
 
 
 
-### function fft2d\_create 
+### function dp\_fft2d\_create 
 
 _Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32. All execute calls accept and return flat row-major arrays of length ny\*nx; the Python layer may reshape them with .reshape(ny, nx)._ `nthreads` _is accepted for API parity but ignored._
 ```C++
-fft2d_state_t * fft2d_create (
+dp_fft2d_state_t * dp_fft2d_create (
     size_t ny,
     size_t nx,
     int sign,
@@ -173,12 +173,12 @@ True
 
 
 
-### function fft2d\_destroy 
+### function dp\_fft2d\_destroy 
 
 _Destroy and free an fft2d instance._ 
 ```C++
-void fft2d_destroy (
-    fft2d_state_t * state
+void dp_fft2d_destroy (
+    dp_fft2d_state_t * state
 ) 
 ```
 
@@ -200,12 +200,12 @@ void fft2d_destroy (
 
 
 
-### function fft2d\_execute\_cf32 
+### function dp\_fft2d\_execute\_cf32 
 
-_Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of_ [_**fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-fft2d_execute_cf64) _. Accepts and returns flat row-major CF32 arrays of length ny\*nx. Output is unnormalised;_`in` _and_`out` _must not alias._
+_Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of_ [_**dp\_fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf64) _. Accepts and returns flat row-major CF32 arrays of length ny\*nx. Output is unnormalised;_`in` _and_`out` _must not alias._
 ```C++
-size_t fft2d_execute_cf32 (
-    fft2d_state_t * state,
+size_t dp_fft2d_execute_cf32 (
+    dp_fft2d_state_t * state,
     const float _Complex * in,
     size_t n_in,
     float _Complex * out,
@@ -254,12 +254,12 @@ True
 
 
 
-### function fft2d\_execute\_cf32\_max\_out 
+### function dp\_fft2d\_execute\_cf32\_max\_out 
 
 _Maximum output samples for CF32 execute (ny \* nx)._ 
 ```C++
-size_t fft2d_execute_cf32_max_out (
-    fft2d_state_t * state
+size_t dp_fft2d_execute_cf32_max_out (
+    dp_fft2d_state_t * state
 ) 
 ```
 
@@ -270,12 +270,12 @@ size_t fft2d_execute_cf32_max_out (
 
 
 
-### function fft2d\_execute\_cf64 
+### function dp\_fft2d\_execute\_cf64 
 
 _Compute an out-of-place 2-D DFT on a double-precision complex grid._ `in` _is a flat row-major CF64 array of length ny\*nx. The output is written to the caller-supplied_`out` _buffer (also ny\*nx); the two must not alias. The transform is unnormalised._
 ```C++
-size_t fft2d_execute_cf64 (
-    fft2d_state_t * state,
+size_t dp_fft2d_execute_cf64 (
+    dp_fft2d_state_t * state,
     const double _Complex * in,
     size_t n_in,
     double _Complex * out,
@@ -324,12 +324,12 @@ True
 
 
 
-### function fft2d\_execute\_cf64\_max\_out 
+### function dp\_fft2d\_execute\_cf64\_max\_out 
 
 _Maximum output samples per execute call (ny \* nx)._ 
 ```C++
-size_t fft2d_execute_cf64_max_out (
-    fft2d_state_t * state
+size_t dp_fft2d_execute_cf64_max_out (
+    dp_fft2d_state_t * state
 ) 
 ```
 
@@ -340,12 +340,12 @@ size_t fft2d_execute_cf64_max_out (
 
 
 
-### function fft2d\_execute\_inplace\_cf32 
+### function dp\_fft2d\_execute\_inplace\_cf32 
 
-_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32 2-D). Single-precision variant of_[_**fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-fft2d_execute_inplace_cf64) _. Copies ny\*nx CF32 samples then applies the CF32 2-D pocketfft plan to_`out` _._
+_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32 2-D). Single-precision variant of_[_**dp\_fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf64) _. Copies ny\*nx CF32 samples then applies the CF32 2-D pocketfft plan to_`out` _._
 ```C++
-size_t fft2d_execute_inplace_cf32 (
-    fft2d_state_t * state,
+size_t dp_fft2d_execute_inplace_cf32 (
+    dp_fft2d_state_t * state,
     const float _Complex * in,
     size_t n_in,
     float _Complex * out,
@@ -392,12 +392,12 @@ True
 
 
 
-### function fft2d\_execute\_inplace\_cf32\_max\_out 
+### function dp\_fft2d\_execute\_inplace\_cf32\_max\_out 
 
 _Maximum output samples for inplace CF32 execute (ny \* nx)._ 
 ```C++
-size_t fft2d_execute_inplace_cf32_max_out (
-    fft2d_state_t * state
+size_t dp_fft2d_execute_inplace_cf32_max_out (
+    dp_fft2d_state_t * state
 ) 
 ```
 
@@ -408,12 +408,12 @@ size_t fft2d_execute_inplace_cf32_max_out (
 
 
 
-### function fft2d\_execute\_inplace\_cf64 
+### function dp\_fft2d\_execute\_inplace\_cf64 
 
 _Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64 2-D). The ny\*nx CF64 samples from_`in` _are first memcpy'd to_`out` _; the 2-D DFT is then applied to_`out` _in-place._`in` _is left unmodified. Useful when the caller owns_`out` _and wants to preserve_`in` _._
 ```C++
-size_t fft2d_execute_inplace_cf64 (
-    fft2d_state_t * state,
+size_t dp_fft2d_execute_inplace_cf64 (
+    dp_fft2d_state_t * state,
     const double _Complex * in,
     size_t n_in,
     double _Complex * out,
@@ -460,12 +460,12 @@ True
 
 
 
-### function fft2d\_execute\_inplace\_cf64\_max\_out 
+### function dp\_fft2d\_execute\_inplace\_cf64\_max\_out 
 
 _Maximum output samples for inplace CF64 execute (ny \* nx)._ 
 ```C++
-size_t fft2d_execute_inplace_cf64_max_out (
-    fft2d_state_t * state
+size_t dp_fft2d_execute_inplace_cf64_max_out (
+    dp_fft2d_state_t * state
 ) 
 ```
 
@@ -476,12 +476,12 @@ size_t fft2d_execute_inplace_cf64_max_out (
 
 
 
-### function fft2d\_reset 
+### function dp\_fft2d\_reset 
 
 _No-op reset (plans are immutable after creation)._ 
 ```C++
-void fft2d_reset (
-    fft2d_state_t * state
+void dp_fft2d_reset (
+    dp_fft2d_state_t * state
 ) 
 ```
 

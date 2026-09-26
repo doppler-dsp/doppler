@@ -1,7 +1,7 @@
 """ddc_fn_demo.py — Ddcr: real passband to complex baseband.
 
 ``doppler.ddc.Ddcr`` is a generated class over an opaque
-``ddcr_state_t *``. It owns the C state like an object, yet
+``dp_ddcr_state_t *``. It owns the C state like an object, yet
 ``execute()`` writes
 into a **caller-provided** output buffer — so the caller keeps control of
 lifetime and allocation, handy for pipelines that already manage their own

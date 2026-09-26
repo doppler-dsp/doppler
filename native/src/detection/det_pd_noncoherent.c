@@ -1,7 +1,7 @@
 #include "doppler/detection/detection_core.h"
 #include <math.h>
 double
-det_pd_noncoherent (double snr, int n_coh, int n_noncoh, double threshold)
+dp_det_pd_noncoherent (double snr, int n_coh, int n_noncoh, double threshold)
 {
   /* n_noncoh non-coherent looks, each a coherent integration of n_coh samples.
    * Per look the peak power is a noncentral chi-square (2 dof) with non-
@@ -10,5 +10,5 @@ det_pd_noncoherent (double snr, int n_coh, int n_noncoh, double threshold)
    *   Pd = Q_{n_noncoh}(sqrt(2*n_coh*n_noncoh)*snr, threshold).
    * At n_noncoh == 1 this is exactly det_pd(snr, n_coh, threshold). */
   double a = sqrt (2.0 * (double)n_coh * (double)n_noncoh) * snr;
-  return marcum_q (n_noncoh, a, threshold);
+  return dp_marcum_q (n_noncoh, a, threshold);
 }

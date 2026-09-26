@@ -62,7 +62,7 @@
 |  uint64\_t | [**sps**](#variable-sps)  <br> |
 |  uint8\_t | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
-|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
+|  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 
 
 
@@ -494,7 +494,7 @@ uint64_t async_dsss_receiver_extra_t::state_samples;
 ### variable sym\_lockdet 
 
 ```C++
-lockdet_state_t async_dsss_receiver_extra_t::sym_lockdet;
+dp_lockdet_state_t async_dsss_receiver_extra_t::sym_lockdet;
 ```
 
 

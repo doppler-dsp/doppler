@@ -74,8 +74,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* | [**wfm\_compose\_build\_render**](#function-wfm_compose_build_render) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, double doppler, double doppler\_rate, unsigned epoch, int seed\_advance, size\_t instance, [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* borrow) <br>_Build a source's renderer —_ `wfm_compose_build_synth` _plus the clock-Doppler channel the source declares, if it declares one._ |
-|  [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* | [**wfm\_compose\_build\_synth**](#function-wfm_compose_build_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, unsigned epoch, int seed\_advance, size\_t instance) <br>_Construct + configure the synth for one resolved source._  |
+|  [**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* | [**wfm\_compose\_build\_render**](#function-wfm_compose_build_render) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, double doppler, double doppler\_rate, unsigned epoch, int seed\_advance, size\_t instance, [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* borrow) <br>_Build a source's renderer —_ `wfm_compose_build_synth` _plus the clock-Doppler channel the source declares, if it declares one._ |
+|  [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* | [**wfm\_compose\_build\_synth**](#function-wfm_compose_build_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, unsigned epoch, int seed\_advance, size\_t instance) <br>_Construct + configure the synth for one resolved source._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_create**](#function-wfm_compose_create) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Build a composer over a copy of_ `segs` _._ |
 |  void | [**wfm\_compose\_destroy**](#function-wfm_compose_destroy) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
 |  size\_t | [**wfm\_compose\_draws**](#function-wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
@@ -93,9 +93,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**wfm\_render\_steps**](#function-wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
 |  int | [**wfm\_resolve\_noise**](#function-wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  double | [**wfm\_snr\_over\_fs**](#function-wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
-|  int | [**wfm\_source\_attach\_dsss**](#function-wfm_source_attach_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
-|  int | [**wfm\_source\_attach\_frame**](#function-wfm_source_attach_frame) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
-|  double | [**wfm\_source\_create\_snr**](#function-wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._ |
+|  int | [**wfm\_source\_attach\_dsss**](#function-wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
+|  int | [**wfm\_source\_attach\_frame**](#function-wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
+|  double | [**wfm\_source\_create\_snr**](#function-wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
 |  int | [**wfm\_source\_describe\_frame**](#function-wfm_source_describe_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Describe a source's frame: the fields, the stages, and their covers._  |
 |  size\_t | [**wfm\_source\_dsss\_nchips**](#function-wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**wfm\_source\_frame\_error**](#function-wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
@@ -341,17 +341,17 @@ wfm_render_t * wfm_compose_build_render (
     unsigned epoch,
     int seed_advance,
     size_t instance,
-    doppler_channel_state_t * borrow
+    dp_doppler_channel_state_t * borrow
 ) 
 ```
 
 
 
-THE pull path. Both faces go through `wfm_render_steps()` rather than calling `wfm_synth_steps()` themselves, because a Doppler channel is a RESAMPLER: it consumes about `n*(1+d)` inputs per `n` outputs, so "pull
+THE pull path. Both faces go through `wfm_render_steps()` rather than calling `dp_wfm_synth_steps()` themselves, because a Doppler channel is a RESAMPLER: it consumes about `n*(1+d)` inputs per `n` outputs, so "pull
 `k`, get `k`" only holds if something keeps the remainder. Two implementations that agreed today would drift the moment either grew a holdover the other did not.
 
 
-A source with `doppler == 0 && doppler_rate == 0` gets no channel and `wfm_render_steps()` is then literally `wfm_synth_steps()`, so every scene that does not ask for Doppler renders through exactly the path it always did — byte-identical, not merely equivalent.
+A source with `doppler == 0 && doppler_rate == 0` gets no channel and `wfm_render_steps()` is then literally `dp_wfm_synth_steps()`, so every scene that does not ask for Doppler renders through exactly the path it always did — byte-identical, not merely equivalent.
 
 
 `doppler`/`doppler_rate` arrive ranged-resolved, like `freq`/`snr`/`f_end`.
@@ -380,7 +380,7 @@ A heap renderer (caller [**wfm\_render\_destroy()**](wfm__compose_8h.md#function
 
 _Construct + configure the synth for one resolved source._ 
 ```C++
-wfm_synth_state_t * wfm_compose_build_synth (
+dp_wfm_synth_state_t * wfm_compose_build_synth (
     const wfm_source_t * src,
     double fs,
     size_t on_len,
@@ -402,7 +402,7 @@ THE single synth-construction path (create + chirp-span pin + bits/symbols/RRC a
 
 **Returns:**
 
-A heap synth (caller [**wfm\_synth\_destroy()**](wfm__synth__core_8h.md#function-wfm_synth_destroy)s it), or NULL on failure. 
+A heap synth (caller [**dp\_wfm\_synth\_destroy()**](wfm__synth__core_8h.md#function-dp_wfm_synth_destroy)s it), or NULL on failure. 
 
 
 
@@ -1004,7 +1004,7 @@ SNR over fs in dB.
 _Attach a dsss source's data to a freshly-created synth._ 
 ```C++
 int wfm_source_attach_dsss (
-    wfm_synth_state_t * syn,
+    dp_wfm_synth_state_t * syn,
     const wfm_source_t * src,
     double fs
 ) 
@@ -1020,7 +1020,7 @@ The single dsss-attach path, called by BOTH synth-construction faces (`wfm_compo
 **Parameters:**
 
 
-* `syn` A synth from [**wfm\_synth\_create()**](wfm__synth__core_8h.md#function-wfm_synth_create) with `wtype == WFM_SYNTH_DSSS`. 
+* `syn` A synth from [**dp\_wfm\_synth\_create()**](wfm__synth__core_8h.md#function-dp_wfm_synth_create) with `wtype == WFM_SYNTH_DSSS`. 
 * `src` The source (codes, payload, symbol\_rate, pn config). 
 * `fs` Segment sample rate (Hz) — the continuous chip rate is fs/sps. 
 
@@ -1045,7 +1045,7 @@ The single dsss-attach path, called by BOTH synth-construction faces (`wfm_compo
 _Attach an unspread source's bit pattern, framed or not._ 
 ```C++
 int wfm_source_attach_frame (
-    wfm_synth_state_t * syn,
+    dp_wfm_synth_state_t * syn,
     const wfm_source_t * src
 ) 
 ```
@@ -1063,7 +1063,7 @@ The frame CYCLES, exactly as an unframed pattern does: one descriptor fills what
 **Parameters:**
 
 
-* `syn` A synth from [**wfm\_synth\_create()**](wfm__synth__core_8h.md#function-wfm_synth_create) with `wtype == WFM_SYNTH_BITS`. 
+* `syn` A synth from [**dp\_wfm\_synth\_create()**](wfm__synth__core_8h.md#function-dp_wfm_synth_create) with `wtype == WFM_SYNTH_BITS`. 
 * `src` The source (pattern, modulation, and any frame fields). 
 
 
@@ -1084,7 +1084,7 @@ The frame CYCLES, exactly as an unframed pattern does: one descriptor fills what
 
 ### function wfm\_source\_create\_snr 
 
-_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._
+_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._
 ```C++
 double wfm_source_create_snr (
     const wfm_source_t * src,
@@ -1096,7 +1096,7 @@ double wfm_source_create_snr (
 
 
 
-`wfm_synth_create()` runs before a dsss source's codes are attached, so it cannot know the spreading factor its own esno would need. This helper — the one create-time entry point shared by the composer (`wfm_compose_build_synth`) and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees to the bit — converts a dsss source's SNR to the over-fs reference (via `wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes through unchanged.
+`dp_wfm_synth_create()` runs before a dsss source's codes are attached, so it cannot know the spreading factor its own esno would need. This helper — the one create-time entry point shared by the composer (`wfm_compose_build_synth`) and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees to the bit — converts a dsss source's SNR to the over-fs reference (via `wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes through unchanged.
 
 
 

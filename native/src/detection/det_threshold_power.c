@@ -1,7 +1,7 @@
 #include "doppler/detection/detection_core.h"
 #include <math.h>
 double
-det_threshold_power (double pfa)
+dp_det_threshold_power (double pfa)
 {
   if (!(pfa > 0.0 && pfa < 1.0))
     return NAN;

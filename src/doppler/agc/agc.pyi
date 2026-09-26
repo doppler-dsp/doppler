@@ -23,8 +23,8 @@ class AGC:
         power (see the Linear-in-dB note above — measured 1.7x to 2.2x at -40
         dB in, worse at small alpha). Treat 1/(4*loop_bw) as a floor on
         settling, not an estimate of it. Smaller values are slower and
-        smoother. With agc_steps(), the pairing rule is 4*decim*loop_bw <= 0.05
-        — see "Choosing decim".
+        smoother. With dp_agc_steps(), the pairing rule is 4*decim*loop_bw <=
+        0.05 — see "Choosing decim".
     alpha : float, default 0.05
         Power-detector EMA coefficient in (0, 1]; smaller values smooth harder
         but react slower to envelope changes.
@@ -81,9 +81,9 @@ class AGC:
         every sample but the loop-filter command (and the exp10/log10 it needs)
         refreshes once per P samples — a zero-order hold on the gain that
         amortises the transcendentals on a sample-rate hot loop, the streaming
-        analogue of agc_steps()' decimation. agc_steps() is the faster block
-        equivalent; neither is bit-identical to the P == 1 loop once decimated,
-        but both converge to the same steady state.
+        analogue of dp_agc_steps()' decimation. dp_agc_steps() is the faster
+        block equivalent; neither is bit-identical to the P == 1 loop once
+        decimated, but both converge to the same steady state.
 
         Parameters
         ----------
@@ -123,7 +123,8 @@ class AGC:
         the new loop-filter output (a first-order hold) so there is no
         inter-chunk gain staircase. The detector and loop filter run once per
         chunk on the chunk's mean power — O(n/decim) control-loop work versus
-        O(n) for agc_step(). The output array may alias the input (in-place).
+        O(n) for dp_agc_step(). The output array may alias the input
+        (in-place).
 
         Parameters
         ----------
@@ -284,7 +285,7 @@ class AGC:
         was used on the most recently processed sample. This differs from
         gain_db (the loop integrator's current command) because the loop filter
         advances the command one step ahead after each sample: immediately
-        after agc_step() gain_db already reflects the updated command while
+        after dp_agc_step() gain_db already reflects the updated command while
         applied_gain_db still reflects what the signal actually saw. At loop
         convergence the two values are numerically equal. At create/reset both
         are 0.0 dB (unity).

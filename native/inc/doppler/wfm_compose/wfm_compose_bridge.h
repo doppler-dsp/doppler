@@ -6,8 +6,8 @@
  * is exactly one of each: include this header from a test, a benchmark or a
  * sibling component rather than re-declaring a signature jm already owns.
  */
-#ifndef WFM_COMPOSE_BRIDGE_H
-#define WFM_COMPOSE_BRIDGE_H
+#ifndef DP_WFM_COMPOSE_BRIDGE_H
+#define DP_WFM_COMPOSE_BRIDGE_H
 
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
@@ -17,10 +17,10 @@ extern "C" {
 #endif
 
 /* Build the composed generator from a source config (source -> generator). */
-wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
+dp_wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* WFM_COMPOSE_BRIDGE_H */
+#endif /* DP_WFM_COMPOSE_BRIDGE_H */

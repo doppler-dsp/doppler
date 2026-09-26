@@ -6,13 +6,13 @@
  *
  * Example:
  * @code
- * symsync_state_t *obj = symsync_create(4, 0.01, 0.707, 0, 0);
+ * dp_symsync_state_t *obj = dp_symsync_create(4, 0.01, 0.707, 0, 0);
  * float _Complex y = symsync_step(obj, 0.0f + 0.0f * I);
- * symsync_destroy(obj);
+ * dp_symsync_destroy(obj);
  * @endcode
  */
-#ifndef SYMSYNC_CORE_H
-#define SYMSYNC_CORE_H
+#ifndef DP_SYMSYNC_CORE_H
+#define DP_SYMSYNC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -29,7 +29,7 @@ extern "C"
 {
 #endif
 
-  /** @brief Timing-error-detector selection for symsync_state_t::ted. */
+  /** @brief Timing-error-detector selection for dp_symsync_state_t::ted. */
   enum
   {
     SYMSYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).    */
@@ -60,15 +60,15 @@ extern "C"
   /**
    * @brief SymbolSync state.
    *
-   * Allocate with symsync_create().  Embeds the integer timing NCO, the Farrow
+   * Allocate with dp_symsync_create().  Embeds the integer timing NCO, the Farrow
    * interpolator and the PI loop filter by value; treat the TED history as
    * internal.
    */
   typedef struct
   {
-    nco_state_t         timing; /**< integer timing NCO (phase/phase_inc).  */
-    farrow_state_t      farrow; /**< fractional interpolator.               */
-    loop_filter_state_t lf;     /**< 2nd-order timing PI loop.              */
+    dp_nco_state_t         timing; /**< integer timing NCO (phase/phase_inc).  */
+    dp_farrow_state_t      farrow; /**< fractional interpolator.               */
+    dp_loop_filter_state_t lf;     /**< 2nd-order timing PI loop.              */
     size_t              sps;    /**< nominal samples per symbol.            */
     uint32_t      base_inc;     /**< nominal NCO inc (one wrap / symbol).   */
     int           ted;          /**< SYMSYNC_TED_GARDNER / _DTTL.           */
@@ -82,7 +82,7 @@ extern "C"
     double        pwr_avg;      /**< running symbol power (TED normaliser).  */
     /* ── lock detector (always on): tumbling-window block average ────── */
     double lock_sum;      /**< running sum of lock_signal over the current
-                                avgs-symbol block (mirrors dll_state_t's
+                                avgs-symbol block (mirrors dp_dll_state_t's
                                 lock_sum/lock_count/n_looks pattern).         */
     size_t lock_count;    /**< looks accumulated in the current block.       */
     size_t avgs;          /**< non-coherent block size (looks/decision).     */
@@ -90,11 +90,11 @@ extern "C"
                                 = mean(2*(|on-time|^2-|mid|^2)
                                         /(|on-time|^2+|mid|^2)) over avgs
                                 looks; compare against the configured
-                                threshold (see symsync_configure_lock).      */
-    lockdet_state_t lock; /**< decision rule: thresholds + verify counters
+                                threshold (see dp_symsync_configure_lock).      */
+    dp_lockdet_state_t lock; /**< decision rule: thresholds + verify counters
                                 stepped on lock_stat each avgs-look block. */
     symsync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs      */
-  } symsync_state_t;
+  } dp_symsync_state_t;
 
   /**
    * @brief Gardner timing-error detector: Re{ conj(mid) * (y - prev) }.
@@ -229,7 +229,7 @@ extern "C"
    * @brief Per-sample symbol-timing step with the TED selection as a
    * parameter.
    *
-   * The workhorse behind symsync_step()/symsync_steps(). Pushes one input
+   * The workhorse behind symsync_step()/dp_symsync_steps(). Pushes one input
    * sample into the Farrow history and advances the integer timing NCO.
    * When the NCO crosses its half-scale (mid-symbol) it stores the
    * transition-gate interpolant; when it wraps (on-time) it forms the
@@ -253,7 +253,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  symsync_step_ted (symsync_state_t *s, float _Complex x, float _Complex *y_out,
+  symsync_step_ted (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out,
                     int ted)
   {
     const uint32_t HALF = 0x80000000u;
@@ -292,7 +292,7 @@ extern "C"
         s->pwr_avg += 0.01 * (inst_pwr - s->pwr_avg);
         double e       = num / (s->pwr_avg + 1e-6);
         s->last_error  = e;
-        double control = loop_filter_step (&s->lf, e);
+        double control = dp_loop_filter_step (&s->lf, e);
         s->timing.phase_inc
             = (uint32_t)((double)s->base_inc * (1.0 + control));
         double inst = (double)s->sps / (1.0 + control);
@@ -307,10 +307,10 @@ extern "C"
          * on-time sample vs. the mid-symbol/transition-gate sample already
          * used by the TED, reusing inst_pwr from above). Non-coherently
          * block-averaged over `avgs` looks before the decision, mirroring
-         * dll_state_t's lock_sum/lock_count/n_looks tumbling window (a
+         * dp_dll_state_t's lock_sum/lock_count/n_looks tumbling window (a
          * sliding window would break the verify-count independence
          * assumption the same way it would for the DLL -- see
-         * dll_configure_lock's derivation). See symsync_configure_lock()
+         * dp_dll_configure_lock's derivation). See dp_symsync_configure_lock()
          * for how avgs/threshold are sized from (rolloff, esno_min, pfa,
          * pd). */
         float _Complex md = s->mid;
@@ -322,7 +322,7 @@ extern "C"
         if (++s->lock_count >= s->avgs)
           {
             s->lock_stat = s->lock_sum / (double)s->avgs;
-            (void)lockdet_step (&s->lock, s->lock_stat);
+            (void)dp_lockdet_step (&s->lock, s->lock_stat);
             s->lock_sum   = 0.0;
             s->lock_count = 0;
           }
@@ -353,14 +353,14 @@ extern "C"
    *
    * @param s  State with a non-NULL tlm.ctx (caller-checked).
    */
-  void symsync_tlm_flush (const symsync_state_t *s);
+  void symsync_tlm_flush (const dp_symsync_state_t *s);
 
   /**
    * @brief Per-sample symbol-timing step (the inline composition API).
    *
    * The public form of symsync_step_ted(): dispatches on the state's
    * configured detector (`s->ted`) and flushes telemetry when attached.
-   * symsync_steps() is this in a loop (with the TED specialised per
+   * dp_symsync_steps() is this in a loop (with the TED specialised per
    * detector); a tracking channel inlines it to drive a downstream
    * carrier loop on the recovered symbols.
    *
@@ -370,7 +370,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  symsync_step (symsync_state_t *s, float _Complex x, float _Complex *y_out)
+  symsync_step (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = symsync_step_ted (s, x, y_out, s->ted);
     if (r && s->tlm.ctx)
@@ -381,9 +381,9 @@ extern "C"
   /**
    * @brief Initialise a SymbolSync in place (no allocation).
    *
-   * The by-value counterpart to symsync_create(): lets a composing object
-   * embed a symsync_state_t by value and initialise it without a heap
-   * allocation (symsync_state_t holds no heap members — the NCO, Farrow and
+   * The by-value counterpart to dp_symsync_create(): lets a composing object
+   * embed a dp_symsync_state_t by value and initialise it without a heap
+   * allocation (dp_symsync_state_t holds no heap members — the NCO, Farrow and
    * loop filter are all by value). Mirrors loop_filter_init()/costas_init().
    *
    * @param s      State to initialise.  Must be non-NULL.
@@ -394,7 +394,7 @@ extern "C"
    * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
    *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
    */
-  void symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
+  void symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);
 
   /**
@@ -406,16 +406,16 @@ extern "C"
    * @param order  Enum index; 0=linear…2=cubic.
    * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).
    * @return Heap-allocated state, or NULL on allocation failure.
-   * @note Caller must call symsync_destroy() when done.
+   * @note Caller must call dp_symsync_destroy() when done.
    */
-  symsync_state_t *symsync_create (size_t sps, double bn, double zeta,
+  dp_symsync_state_t *dp_symsync_create (size_t sps, double bn, double zeta,
                                    int order, int ted);
 
   /**
    * @brief Destroy a symsync instance and release all memory.
    * @param state  May be NULL.
    */
-  void symsync_destroy (symsync_state_t *state);
+  void dp_symsync_destroy (dp_symsync_state_t *state);
 
   /**
    * @brief Re-seed the timing loop to its nominal rate and zero phase.
@@ -440,9 +440,9 @@ extern "C"
    *
    * @endcode
    */
-  void symsync_reset (symsync_state_t *state);
+  void dp_symsync_reset (dp_symsync_state_t *state);
 
-  size_t symsync_steps_max_out (symsync_state_t *state);
+  size_t dp_symsync_steps_max_out (dp_symsync_state_t *state);
 
   /**
    * @brief Recover symbol timing from an oversampled cf32 baseband block.
@@ -476,7 +476,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t symsync_steps (symsync_state_t *state, const float _Complex *x,
+  size_t dp_symsync_steps (dp_symsync_state_t *state, const float _Complex *x,
                         size_t x_len, float _Complex *out, size_t max_out);
 
   /**
@@ -500,21 +500,21 @@ extern "C"
    *
    * @endcode
    */
-  void   symsync_configure (symsync_state_t *state, double bn, double zeta);
-  double symsync_get_bn (const symsync_state_t *state);
-  void   symsync_set_bn (symsync_state_t *state, double val);
-  double symsync_get_timing_error (const symsync_state_t *state);
-  double symsync_get_rate (const symsync_state_t *state);
+  void   dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
+  double dp_symsync_get_bn (const dp_symsync_state_t *state);
+  void   dp_symsync_set_bn (dp_symsync_state_t *state, double val);
+  double dp_symsync_get_timing_error (const dp_symsync_state_t *state);
+  double dp_symsync_get_rate (const dp_symsync_state_t *state);
 
   /** @brief Last block-averaged lock statistic:
    *         mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the
    *         configured avgs looks; compare against the configured
-   *         threshold (see symsync_configure_lock). */
-  double symsync_get_lock_stat (const symsync_state_t *state);
+   *         threshold (see dp_symsync_configure_lock). */
+  double dp_symsync_get_lock_stat (const dp_symsync_state_t *state);
 
   /** @brief Current lock decision (1 = locked, 0 = not), with the
    *         configured verify-count / hysteresis rule applied. */
-  int symsync_get_locked (const symsync_state_t *state);
+  int dp_symsync_get_locked (const dp_symsync_state_t *state);
 
   /**
    * @brief Tune the always-on timing-lock detector to a target (pfa, pd)
@@ -541,8 +541,8 @@ extern "C"
    * oversized); 2000/2000 true declares at the esno_min design SNR
    * against a nominal pd=0.9 -- see native/validation/symsync_lock.c for
    * the harness. No level hysteresis by default (up = down = threshold,
-   * matching dll_configure_lock's shape); the raw escape hatch
-   * (symsync_configure_lock_raw) exposes split thresholds, an explicit
+   * matching dp_dll_configure_lock's shape); the raw escape hatch
+   * (dp_symsync_configure_lock_raw) exposes split thresholds, an explicit
    * avgs, and independent n_up/n_down.
    *
    * @param state        Must be non-NULL.
@@ -568,13 +568,13 @@ extern "C"
    *
    * @endcode
    */
-  int symsync_configure_lock (symsync_state_t *state, double rolloff,
+  int dp_symsync_configure_lock (dp_symsync_state_t *state, double rolloff,
                               double esno_min_db, double pfa, double pd);
 
   /**
    * @brief Set the lock detector's raw geometry directly.
    *
-   * The escape hatch under symsync_configure_lock() for a caller that
+   * The escape hatch under dp_symsync_configure_lock() for a caller that
    * derives its own averaging/threshold geometry: the block size (avgs), a
    * split declare/drop threshold pair on lock_stat (level hysteresis), and
    * both verify counts (time hysteresis). Re-tuning clears the in-flight
@@ -602,7 +602,7 @@ extern "C"
    *
    * @endcode
    */
-  void symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
+  void dp_symsync_configure_lock_raw (dp_symsync_state_t *state, size_t avgs,
                                    double up_thresh, double down_thresh,
                                    uint32_t n_up, uint32_t n_down);
 
@@ -643,7 +643,7 @@ extern "C"
    *
    * @endcode
    */
-  int symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
+  int dp_symsync_set_telemetry (dp_symsync_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * pointer-free composition: nco + farrow + loop_filter embedded by value
@@ -652,9 +652,9 @@ extern "C"
 #define SYMSYNC_STATE_VERSION                                                 \
   5u /* v5: block-averaged lock_signal statistic (avgs/lock_sum/lock_count)   \
       */
-  size_t symsync_state_bytes (const symsync_state_t *state);
-  void   symsync_get_state (const symsync_state_t *state, void *blob);
-  int    symsync_set_state (symsync_state_t *state, const void *blob);
+  size_t dp_symsync_state_bytes (const dp_symsync_state_t *state);
+  void   dp_symsync_get_state (const dp_symsync_state_t *state, void *blob);
+  int    dp_symsync_set_state (dp_symsync_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef TONEMEAS_CORE_H
-#define TONEMEAS_CORE_H
+#ifndef DP_TONEMEAS_CORE_H
+#define DP_TONEMEAS_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
     double enbw;            
@@ -38,28 +38,28 @@ typedef struct {
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
     double fs;              
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
-} tonemeas_state_t;
+} dp_tonemeas_state_t;
 
-tonemeas_state_t *tonemeas_create(size_t n, double fs, size_t n_harmonics,
+dp_tonemeas_state_t *dp_tonemeas_create(size_t n, double fs, size_t n_harmonics,
                                   double full_scale, size_t bits,
                                   double dynamic_range_db, size_t dc_guard);
 
-void tonemeas_destroy(tonemeas_state_t *state);
+void dp_tonemeas_destroy(dp_tonemeas_state_t *state);
 
-void tonemeas_reset(tonemeas_state_t *state);
+void dp_tonemeas_reset(dp_tonemeas_state_t *state);
 
-tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
+tone_meas_t dp_tonemeas_analyze(dp_tonemeas_state_t *state, const float *x,
                              size_t n_in);
 
-tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
+tone_meas_t dp_tonemeas_analyze_complex(dp_tonemeas_state_t *state,
                                      const float _Complex *x, size_t n_in);
 
-time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
+time_stats_t dp_tonemeas_time_stats(dp_tonemeas_state_t *state, const float *x,
                                  size_t n_in);
 
-size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);
+size_t dp_tonemeas_spectrum_dbfs_max_out(dp_tonemeas_state_t *state);
 
-size_t tonemeas_spectrum_dbfs(tonemeas_state_t *state, const float *x,
+size_t dp_tonemeas_spectrum_dbfs(dp_tonemeas_state_t *state, const float *x,
                               size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus

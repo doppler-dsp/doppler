@@ -18,8 +18,8 @@
 int
 main (void)
 {
-  f64_buffer_state_t *ab     = dp_f64_create (16 * FRAME);
-  jm_bench_t          _bench = { 0 };
+  dp_f64_buffer_state_t *ab     = dp_f64_create (16 * FRAME);
+  jm_bench_t             _bench = { 0 };
   static double _Complex x[FRAME];
   static double times[ITERATIONS];
   size_t        sink = 0;

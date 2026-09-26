@@ -32,7 +32,7 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**pn\_state\_t**](structpn__state__t.md) <br> |
+| struct | [**dp\_pn\_state\_t**](structdp__pn__state__t.md) <br> |
 
 
 ## Public Types
@@ -64,16 +64,16 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**pn\_state\_t**](structpn__state__t.md) \* | [**pn\_create**](#function-pn_create) (uint64\_t poly, uint64\_t seed, uint32\_t length, int lfsr) <br>_Allocate and initialise a maximal-length-sequence LFSR. The register is seeded from_ `seed` _and will produce a pseudo-random binary sequence with period 2^length - 1 for any primitive_`poly` _. Both Galois and Fibonacci realizations share the same primitive polynomial and therefore the same period; they differ only in chip ordering/phase._ |
-|  void | [**pn\_destroy**](#function-pn_destroy) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Destroy a pn instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
-|  size\_t | [**pn\_generate**](#function-pn_generate) ([**pn\_state\_t**](structpn__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
-|  size\_t | [**pn\_generate\_max\_out**](#function-pn_generate_max_out) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br> |
-|  void | [**pn\_get\_state**](#function-pn_get_state) (const [**pn\_state\_t**](structpn__state__t.md) \* state, void \* blob) <br>_Serialize the LFSR register into_ `blob` _._ |
+|  [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* | [**dp\_pn\_create**](#function-dp_pn_create) (uint64\_t poly, uint64\_t seed, uint32\_t length, int lfsr) <br>_Allocate and initialise a maximal-length-sequence LFSR. The register is seeded from_ `seed` _and will produce a pseudo-random binary sequence with period 2^length - 1 for any primitive_`poly` _. Both Galois and Fibonacci realizations share the same primitive polynomial and therefore the same period; they differ only in chip ordering/phase._ |
+|  void | [**dp\_pn\_destroy**](#function-dp_pn_destroy) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Destroy a pn instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
+|  size\_t | [**dp\_pn\_generate**](#function-dp_pn_generate) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
+|  size\_t | [**dp\_pn\_generate\_max\_out**](#function-dp_pn_generate_max_out) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br> |
+|  void | [**dp\_pn\_get\_state**](#function-dp_pn_get_state) (const [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, void \* blob) <br>_Serialize the LFSR register into_ `blob` _._ |
+|  void | [**dp\_pn\_reset**](#function-dp_pn_reset) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
+|  int | [**dp\_pn\_set\_state**](#function-dp_pn_set_state) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, const void \* blob) <br>_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  size\_t | [**dp\_pn\_state\_bytes**](#function-dp_pn_state_bytes) (const [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**pn\_mls\_poly**](#function-pn_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._ |
-|  void | [**pn\_reset**](#function-pn_reset) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
-|  int | [**pn\_set\_state**](#function-pn_set_state) ([**pn\_state\_t**](structpn__state__t.md) \* state, const void \* blob) <br>_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
-|  size\_t | [**pn\_state\_bytes**](#function-pn_state_bytes) (const [**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**pn\_step**](#function-pn_step) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**pn\_step**](#function-pn_step) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._  |
 
 
 
@@ -116,9 +116,9 @@ Lifecycle: create -&gt; `[step / steps / reset]*` -&gt; destroy
 
 Example: 
 ```C++
-pn_state_t *obj = pn_create(96, 1, 7);
+dp_pn_state_t *obj = dp_pn_create(96, 1, 7);
 uint8_t y = pn_step(obj);
-pn_destroy(obj);
+dp_pn_destroy(obj);
 ```
  
 
@@ -141,7 +141,7 @@ enum pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04 {
 
 
 
-Allocate with [**pn\_create()**](pn__core_8h.md#function-pn_create). LFSR realization: Galois (internal XOR) or Fibonacci (external XOR). 
+Allocate with [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create). LFSR realization: Galois (internal XOR) or Fibonacci (external XOR). 
 
 
         
@@ -152,11 +152,11 @@ Allocate with [**pn\_create()**](pn__core_8h.md#function-pn_create). LFSR realiz
 
 
 
-### function pn\_create 
+### function dp\_pn\_create 
 
 _Allocate and initialise a maximal-length-sequence LFSR. The register is seeded from_ `seed` _and will produce a pseudo-random binary sequence with period 2^length - 1 for any primitive_`poly` _. Both Galois and Fibonacci realizations share the same primitive polynomial and therefore the same period; they differ only in chip ordering/phase._
 ```C++
-pn_state_t * pn_create (
+dp_pn_state_t * dp_pn_create (
     uint64_t poly,
     uint64_t seed,
     uint32_t length,
@@ -187,7 +187,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**pn\_destroy()**](pn__core_8h.md#function-pn_destroy) when done. 
+Caller must call [**dp\_pn\_destroy()**](pn__core_8h.md#function-dp_pn_destroy) when done. 
 ```C++
 >>> from doppler.wfm import PN
 >>> import numpy as np
@@ -210,12 +210,12 @@ dtype('uint8')
 
 
 
-### function pn\_destroy 
+### function dp\_pn\_destroy 
 
 _Destroy a pn instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._
 ```C++
-void pn_destroy (
-    pn_state_t * state
+void dp_pn_destroy (
+    dp_pn_state_t * state
 ) 
 ```
 
@@ -243,12 +243,12 @@ void pn_destroy (
 
 
 
-### function pn\_generate 
+### function dp\_pn\_generate 
 
 _Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._
 ```C++
-size_t pn_generate (
-    pn_state_t * state,
+size_t dp_pn_generate (
+    dp_pn_state_t * state,
     size_t n,
     uint8_t * out,
     size_t max_out
@@ -262,7 +262,7 @@ size_t pn_generate (
 **Parameters:**
 
 
-* `state` Initialised PN state returned by `pn_create`. 
+* `state` Initialised PN state returned by `dp_pn_create`. 
 * `n` Number of chips to produce. 
 * `out` Output buffer of at least `n` uint8 elements; each element receives 0 or 1. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
@@ -294,11 +294,11 @@ min(n, max\_out) chips.
 
 
 
-### function pn\_generate\_max\_out 
+### function dp\_pn\_generate\_max\_out 
 
 ```C++
-size_t pn_generate_max_out (
-    pn_state_t * state
+size_t dp_pn_generate_max_out (
+    dp_pn_state_t * state
 ) 
 ```
 
@@ -309,12 +309,12 @@ size_t pn_generate_max_out (
 
 
 
-### function pn\_get\_state 
+### function dp\_pn\_get\_state 
 
 _Serialize the LFSR register into_ `blob` _._
 ```C++
-void pn_get_state (
-    const pn_state_t * state,
+void dp_pn_get_state (
+    const dp_pn_state_t * state,
     void * blob
 ) 
 ```
@@ -326,38 +326,12 @@ void pn_get_state (
 
 
 
-### function pn\_mls\_poly 
-
-_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._
-```C++
-JM_FORCEINLINE uint64_t pn_mls_poly (
-    uint32_t n
-) 
-```
-
-
-
-The table lives here because the convention is pn's: `poly` is [**pn\_create()**](pn__core_8h.md#function-pn_create)'s tap mask, and "which mask makes it maximal-length" is a fact about this LFSR, not about any caller. It is header-only so no component grows a link-line dependency for a lookup.
-
-
-**A zero `poly` is not a polynomial.** [**pn\_create()**](pn__core_8h.md#function-pn_create) takes the mask verbatim, so `poly = 0` is a register with no feedback: it shifts out the seed and then emits zeros forever. Every caller that lets a user say "default" therefore resolves it as `poly ? poly : pn_mls_poly (n)`  wfm\_synth's create does, and wfm\_frame's PN sequence kind does. A caller that forgets gets a constant field that still looks like a field.
-
-
-Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged. 
-
-
-        
-
-<hr>
-
-
-
-### function pn\_reset 
+### function dp\_pn\_reset 
 
 _Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._ 
 ```C++
-void pn_reset (
-    pn_state_t * state
+void dp_pn_reset (
+    dp_pn_state_t * state
 ) 
 ```
 
@@ -389,12 +363,12 @@ True
 
 
 
-### function pn\_set\_state 
+### function dp\_pn\_set\_state 
 
 _Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
 ```C++
-int pn_set_state (
-    pn_state_t * state,
+int dp_pn_set_state (
+    dp_pn_state_t * state,
     const void * blob
 ) 
 ```
@@ -406,12 +380,12 @@ int pn_set_state (
 
 
 
-### function pn\_state\_bytes 
+### function dp\_pn\_state\_bytes 
 
 _Serialized-state byte size._ 
 ```C++
-size_t pn_state_bytes (
-    const pn_state_t * state
+size_t dp_pn_state_bytes (
+    const dp_pn_state_t * state
 ) 
 ```
 
@@ -422,12 +396,38 @@ size_t pn_state_bytes (
 
 
 
+### function pn\_mls\_poly 
+
+_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._
+```C++
+JM_FORCEINLINE uint64_t pn_mls_poly (
+    uint32_t n
+) 
+```
+
+
+
+The table lives here because the convention is pn's: `poly` is [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create)'s tap mask, and "which mask makes it maximal-length" is a fact about this LFSR, not about any caller. It is header-only so no component grows a link-line dependency for a lookup.
+
+
+**A zero `poly` is not a polynomial.** [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create) takes the mask verbatim, so `poly = 0` is a register with no feedback: it shifts out the seed and then emits zeros forever. Every caller that lets a user say "default" therefore resolves it as `poly ? poly : pn_mls_poly (n)`  wfm\_synth's create does, and wfm\_frame's PN sequence kind does. A caller that forgets gets a constant field that still looks like a field.
+
+
+Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged. 
+
+
+        
+
+<hr>
+
+
+
 ### function pn\_step 
 
 _Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._ 
 ```C++
 JM_FORCEINLINE uint8_t pn_step (
-    pn_state_t * state
+    dp_pn_state_t * state
 ) 
 ```
 

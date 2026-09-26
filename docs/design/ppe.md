@@ -176,10 +176,10 @@ typedef struct
   double snr_db;    /* winning-row peak-to-mean (rough estimate) */
 } ppe_result_t;
 
-ppe_state_t *ppe_create (size_t max_len, double max_rate);
-void         ppe_destroy (ppe_state_t *state);
-void         ppe_reset (ppe_state_t *state);   /* documented no-op */
-ppe_result_t ppe_estimate (ppe_state_t *state, const float _Complex *x,
+dp_ppe_state_t *dp_ppe_create (size_t max_len, double max_rate);
+void         dp_ppe_destroy (dp_ppe_state_t *state);
+void         dp_ppe_reset (dp_ppe_state_t *state);   /* documented no-op */
+ppe_result_t dp_ppe_estimate (dp_ppe_state_t *state, const float _Complex *x,
                            size_t n);
 ```
 

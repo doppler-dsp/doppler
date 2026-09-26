@@ -35,7 +35,7 @@ _Frame outcomes accumulated across a record: FER, and sync detection._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**frame\_meter\_state\_t**](structframe__meter__state__t.md) <br>_Frame-outcome accumulator. Allocate with_ [_**frame\_meter\_create()**_](frame__meter__core_8h.md#function-frame_meter_create) _._ |
+| struct | [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) <br>_Frame-outcome accumulator. Allocate with_ [_**dp\_frame\_meter\_create()**_](frame__meter__core_8h.md#function-dp_frame_meter_create) _._ |
 
 
 
@@ -62,20 +62,20 @@ _Frame outcomes accumulated across a record: FER, and sync detection._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**frame\_meter\_add**](#function-frame_meter_add) ([**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state, int sync\_ok, int crc) <br>_Record one frame's outcome._  |
-|  [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* | [**frame\_meter\_create**](#function-frame_meter_create) (size\_t target\_errors, double conf) <br>_Create an accumulator._  |
-|  void | [**frame\_meter\_destroy**](#function-frame_meter_destroy) ([**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Release the meter._  |
-|  [**ber\_interval\_t**](structber__interval__t.md) | [**frame\_meter\_fer**](#function-frame_meter_fer) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Frame error rate with its exact interval._  |
-|  size\_t | [**frame\_meter\_get\_crc\_passed**](#function-frame_meter_get_crc_passed) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Frames whose CRC checked._  |
-|  int | [**frame\_meter\_get\_enough**](#function-frame_meter_get_enough) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Non-zero once_ `target_errors` _frame errors have accumulated._ |
-|  size\_t | [**frame\_meter\_get\_errors**](#function-frame_meter_get_errors) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Frames not delivered: no sync, or a failed CRC._  |
-|  size\_t | [**frame\_meter\_get\_frames**](#function-frame_meter_get_frames) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Frames attempted._  |
-|  void | [**frame\_meter\_get\_state**](#function-frame_meter_get_state) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state, void \* blob) <br>_Serialize the running counters into_ `blob` _._ |
-|  size\_t | [**frame\_meter\_get\_sync\_detected**](#function-frame_meter_get_sync_detected) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Frames whose sync word was detected._  |
-|  void | [**frame\_meter\_reset**](#function-frame_meter_reset) ([**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Clear every counter; the configuration is untouched._  |
-|  int | [**frame\_meter\_set\_state**](#function-frame_meter_set_state) ([**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state, const void \* blob) <br>_Restore; DP\_OK, or DP\_ERR\_INVALID if the blob is rejected._  |
-|  size\_t | [**frame\_meter\_state\_bytes**](#function-frame_meter_state_bytes) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  [**ber\_interval\_t**](structber__interval__t.md) | [**frame\_meter\_sync\_miss**](#function-frame_meter_sync_miss) (const [**frame\_meter\_state\_t**](structframe__meter__state__t.md) \* state) <br>_Sync MISS rate with its exact interval._  |
+|  void | [**dp\_frame\_meter\_add**](#function-dp_frame_meter_add) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state, int sync\_ok, int crc) <br>_Record one frame's outcome._  |
+|  [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* | [**dp\_frame\_meter\_create**](#function-dp_frame_meter_create) (size\_t target\_errors, double conf) <br>_Create an accumulator._  |
+|  void | [**dp\_frame\_meter\_destroy**](#function-dp_frame_meter_destroy) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Release the meter._  |
+|  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_frame\_meter\_fer**](#function-dp_frame_meter_fer) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Frame error rate with its exact interval._  |
+|  size\_t | [**dp\_frame\_meter\_get\_crc\_passed**](#function-dp_frame_meter_get_crc_passed) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Frames whose CRC checked._  |
+|  int | [**dp\_frame\_meter\_get\_enough**](#function-dp_frame_meter_get_enough) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Non-zero once_ `target_errors` _frame errors have accumulated._ |
+|  size\_t | [**dp\_frame\_meter\_get\_errors**](#function-dp_frame_meter_get_errors) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Frames not delivered: no sync, or a failed CRC._  |
+|  size\_t | [**dp\_frame\_meter\_get\_frames**](#function-dp_frame_meter_get_frames) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Frames attempted._  |
+|  void | [**dp\_frame\_meter\_get\_state**](#function-dp_frame_meter_get_state) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state, void \* blob) <br>_Serialize the running counters into_ `blob` _._ |
+|  size\_t | [**dp\_frame\_meter\_get\_sync\_detected**](#function-dp_frame_meter_get_sync_detected) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Frames whose sync word was detected._  |
+|  void | [**dp\_frame\_meter\_reset**](#function-dp_frame_meter_reset) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Clear every counter; the configuration is untouched._  |
+|  int | [**dp\_frame\_meter\_set\_state**](#function-dp_frame_meter_set_state) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state, const void \* blob) <br>_Restore; DP\_OK, or DP\_ERR\_INVALID if the blob is rejected._  |
+|  size\_t | [**dp\_frame\_meter\_state\_bytes**](#function-dp_frame_meter_state_bytes) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Serialized-state byte size._  |
+|  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_frame\_meter\_sync\_miss**](#function-dp_frame_meter_sync_miss) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Sync MISS rate with its exact interval._  |
 
 
 
@@ -148,12 +148,12 @@ A frame carrying no CRC (`crc = -1`, which is exactly what `wfm_frame_crc_ok()` 
 
 
 
-### function frame\_meter\_add 
+### function dp\_frame\_meter\_add 
 
 _Record one frame's outcome._ 
 ```C++
-void frame_meter_add (
-    frame_meter_state_t * state,
+void dp_frame_meter_add (
+    dp_frame_meter_state_t * state,
     int sync_ok,
     int crc
 ) 
@@ -193,11 +193,11 @@ A frame counts as an error when its sync was not detected, or when it was and th
 
 
 
-### function frame\_meter\_create 
+### function dp\_frame\_meter\_create 
 
 _Create an accumulator._ 
 ```C++
-frame_meter_state_t * frame_meter_create (
+dp_frame_meter_state_t * dp_frame_meter_create (
     size_t target_errors,
     double conf
 ) 
@@ -229,12 +229,12 @@ the meter, or NULL if `conf` is outside (0, 1).
 
 
 
-### function frame\_meter\_destroy 
+### function dp\_frame\_meter\_destroy 
 
 _Release the meter._ 
 ```C++
-void frame_meter_destroy (
-    frame_meter_state_t * state
+void dp_frame_meter_destroy (
+    dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -245,12 +245,12 @@ void frame_meter_destroy (
 
 
 
-### function frame\_meter\_fer 
+### function dp\_frame\_meter\_fer 
 
 _Frame error rate with its exact interval._ 
 ```C++
-ber_interval_t frame_meter_fer (
-    const frame_meter_state_t * state
+ber_interval_t dp_frame_meter_fer (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -294,12 +294,12 @@ the rate with its exact interval.
 
 
 
-### function frame\_meter\_get\_crc\_passed 
+### function dp\_frame\_meter\_get\_crc\_passed 
 
 _Frames whose CRC checked._ 
 ```C++
-size_t frame_meter_get_crc_passed (
-    const frame_meter_state_t * state
+size_t dp_frame_meter_get_crc_passed (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -310,12 +310,12 @@ size_t frame_meter_get_crc_passed (
 
 
 
-### function frame\_meter\_get\_enough 
+### function dp\_frame\_meter\_get\_enough 
 
 _Non-zero once_ `target_errors` _frame errors have accumulated._
 ```C++
-int frame_meter_get_enough (
-    const frame_meter_state_t * state
+int dp_frame_meter_get_enough (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -330,12 +330,12 @@ The stopping condition, so a caller loops records until the measurement has the 
 
 
 
-### function frame\_meter\_get\_errors 
+### function dp\_frame\_meter\_get\_errors 
 
 _Frames not delivered: no sync, or a failed CRC._ 
 ```C++
-size_t frame_meter_get_errors (
-    const frame_meter_state_t * state
+size_t dp_frame_meter_get_errors (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -346,12 +346,12 @@ size_t frame_meter_get_errors (
 
 
 
-### function frame\_meter\_get\_frames 
+### function dp\_frame\_meter\_get\_frames 
 
 _Frames attempted._ 
 ```C++
-size_t frame_meter_get_frames (
-    const frame_meter_state_t * state
+size_t dp_frame_meter_get_frames (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -362,12 +362,12 @@ size_t frame_meter_get_frames (
 
 
 
-### function frame\_meter\_get\_state 
+### function dp\_frame\_meter\_get\_state 
 
 _Serialize the running counters into_ `blob` _._
 ```C++
-void frame_meter_get_state (
-    const frame_meter_state_t * state,
+void dp_frame_meter_get_state (
+    const dp_frame_meter_state_t * state,
     void * blob
 ) 
 ```
@@ -379,12 +379,12 @@ void frame_meter_get_state (
 
 
 
-### function frame\_meter\_get\_sync\_detected 
+### function dp\_frame\_meter\_get\_sync\_detected 
 
 _Frames whose sync word was detected._ 
 ```C++
-size_t frame_meter_get_sync_detected (
-    const frame_meter_state_t * state
+size_t dp_frame_meter_get_sync_detected (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -395,12 +395,12 @@ size_t frame_meter_get_sync_detected (
 
 
 
-### function frame\_meter\_reset 
+### function dp\_frame\_meter\_reset 
 
 _Clear every counter; the configuration is untouched._ 
 ```C++
-void frame_meter_reset (
-    frame_meter_state_t * state
+void dp_frame_meter_reset (
+    dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -436,12 +436,12 @@ The target and the confidence level are what the caller asked for, so resetting 
 
 
 
-### function frame\_meter\_set\_state 
+### function dp\_frame\_meter\_set\_state 
 
 _Restore; DP\_OK, or DP\_ERR\_INVALID if the blob is rejected._ 
 ```C++
-int frame_meter_set_state (
-    frame_meter_state_t * state,
+int dp_frame_meter_set_state (
+    dp_frame_meter_state_t * state,
     const void * blob
 ) 
 ```
@@ -453,12 +453,12 @@ int frame_meter_set_state (
 
 
 
-### function frame\_meter\_state\_bytes 
+### function dp\_frame\_meter\_state\_bytes 
 
 _Serialized-state byte size._ 
 ```C++
-size_t frame_meter_state_bytes (
-    const frame_meter_state_t * state
+size_t dp_frame_meter_state_bytes (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 
@@ -469,12 +469,12 @@ size_t frame_meter_state_bytes (
 
 
 
-### function frame\_meter\_sync\_miss 
+### function dp\_frame\_meter\_sync\_miss 
 
 _Sync MISS rate with its exact interval._ 
 ```C++
-ber_interval_t frame_meter_sync_miss (
-    const frame_meter_state_t * state
+ber_interval_t dp_frame_meter_sync_miss (
+    const dp_frame_meter_state_t * state
 ) 
 ```
 

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CARRIER_ACQ_CORE_H
-#define CARRIER_ACQ_CORE_H
+#ifndef DP_CARRIER_ACQ_CORE_H
+#define DP_CARRIER_ACQ_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -28,8 +28,8 @@ extern "C" {
 
 typedef struct {
     /* Composed children (owned, by pointer). */
-    psd_state_t      *psd; 
-    detector_state_t *det; 
+    dp_psd_state_t      *psd; 
+    dp_detector_state_t *det; 
     /* Scratch, not state -- sized nfft/psd->n, allocated once at create
      * (no allocation in the steps() hot path). */
     float         *pwr_buf;    
@@ -50,19 +50,19 @@ typedef struct {
     size_t dwell_target;  
     size_t max_n_blocks;  
     size_t nfft;
-} carrier_acq_state_t;
+} dp_carrier_acq_state_t;
 
-carrier_acq_state_t *carrier_acq_create(
+dp_carrier_acq_state_t *dp_carrier_acq_create(
     double sample_rate_hz, double symbol_rate_hz, double resolution_hz,
     size_t zero_pad, int window, float beta, const float *psd_template,
     size_t psd_template_len, double pfa, double pd, double design_snr,
     bool sequential, size_t max_n_blocks);
 
-void carrier_acq_destroy(carrier_acq_state_t *state);
+void dp_carrier_acq_destroy(dp_carrier_acq_state_t *state);
 
-void carrier_acq_reset(carrier_acq_state_t *state);
+void dp_carrier_acq_reset(dp_carrier_acq_state_t *state);
 
-void carrier_acq_steps(carrier_acq_state_t *state, const float _Complex *x,
+void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x,
                        size_t x_len);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -79,9 +79,9 @@ void carrier_acq_steps(carrier_acq_state_t *state, const float _Complex *x,
  * spectra either). */
 #define CARRIER_ACQ_STATE_MAGIC DP_FOURCC('C', 'A', 'Q', 'R')
 #define CARRIER_ACQ_STATE_VERSION 1u
-size_t carrier_acq_state_bytes(const carrier_acq_state_t *state);
-void   carrier_acq_get_state(const carrier_acq_state_t *state, void *blob);
-int    carrier_acq_set_state(carrier_acq_state_t *state, const void *blob);
+size_t dp_carrier_acq_state_bytes(const dp_carrier_acq_state_t *state);
+void   dp_carrier_acq_get_state(const dp_carrier_acq_state_t *state, void *blob);
+int    dp_carrier_acq_set_state(dp_carrier_acq_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -28,15 +28,15 @@ _bind_design_lowpass (PyObject *self, PyObject *args, PyObject *kwds)
                                     &fstop, &atten_db))
     return NULL;
   npy_intp _dim
-      = (npy_intp)(kaiser_num_taps (1, atten_db, fpass / 2.0, fstop / 2.0)
+      = (npy_intp)(dp_kaiser_num_taps (1, atten_db, fpass / 2.0, fstop / 2.0)
                    | 1);
   PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
   if (!_out)
     {
       return NULL;
     }
-  design_lowpass (fpass, fstop, atten_db,
-                  (float *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_design_lowpass (fpass, fstop, atten_db,
+                     (float *)PyArray_DATA ((PyArrayObject *)_out));
   return _out;
 }
 

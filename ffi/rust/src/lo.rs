@@ -26,18 +26,18 @@ pub struct LoStateRaw {
 }
 
 extern "C" {
-    pub fn lo_create(norm_freq: f64) -> *mut LoStateRaw;
-    pub fn lo_destroy(lo: *mut LoStateRaw);
-    pub fn lo_reset(lo: *mut LoStateRaw);
-    pub fn lo_set_norm_freq(lo: *mut LoStateRaw, norm_freq: f64);
-    pub fn lo_get_norm_freq(lo: *const LoStateRaw) -> f64;
-    pub fn lo_steps(
+    pub fn dp_lo_create(norm_freq: f64) -> *mut LoStateRaw;
+    pub fn dp_lo_destroy(lo: *mut LoStateRaw);
+    pub fn dp_lo_reset(lo: *mut LoStateRaw);
+    pub fn dp_lo_set_norm_freq(lo: *mut LoStateRaw, norm_freq: f64);
+    pub fn dp_lo_get_norm_freq(lo: *const LoStateRaw) -> f64;
+    pub fn dp_lo_steps(
         lo: *mut LoStateRaw,
         n: usize,
         out: *mut Complex<f32>,
         max_out: usize,
     ) -> usize;
-    pub fn lo_steps_ctrl(
+    pub fn dp_lo_steps_ctrl(
         lo: *mut LoStateRaw,
         ctrl: *const f64,
         ctrl_len: usize,
@@ -46,7 +46,7 @@ extern "C" {
     ) -> usize;
 }
 
-/// RAII wrapper around `lo_state_t`.
+/// RAII wrapper around `dp_lo_state_t`.
 ///
 /// Generates complex phasors at a normalised frequency (cycles per sample).
 /// Backed by a 2^16-entry LUT for high SFDR (~96 dBc) at low cost.
@@ -60,32 +60,32 @@ impl Lo {
     /// Create a local oscillator at the given normalised frequency.
     ///
     /// # Panics
-    /// Panics if `lo_create` returns null.
+    /// Panics if `dp_lo_create` returns null.
     pub fn new(norm_freq: f64) -> Self {
-        let ptr = unsafe { lo_create(norm_freq) };
-        assert!(!ptr.is_null(), "lo_create returned null");
+        let ptr = unsafe { dp_lo_create(norm_freq) };
+        assert!(!ptr.is_null(), "dp_lo_create returned null");
         Lo { ptr }
     }
 
     /// Zero the phase accumulator.  Normalised frequency is unchanged.
     pub fn reset(&mut self) {
-        unsafe { lo_reset(self.ptr) }
+        unsafe { dp_lo_reset(self.ptr) }
     }
 
     /// Update the normalised frequency without disturbing the phase.
     pub fn set_norm_freq(&mut self, norm_freq: f64) {
-        unsafe { lo_set_norm_freq(self.ptr, norm_freq) }
+        unsafe { dp_lo_set_norm_freq(self.ptr, norm_freq) }
     }
 
     /// Return the current normalised frequency.
     pub fn get_norm_freq(&self) -> f64 {
-        unsafe { lo_get_norm_freq(self.ptr) }
+        unsafe { dp_lo_get_norm_freq(self.ptr) }
     }
 
     /// Generate `out.len()` complex CF32 phasors.
     pub fn steps(&mut self, out: &mut [Complex<f32>]) {
         unsafe {
-            lo_steps(self.ptr, out.len(), out.as_mut_ptr(), out.len())
+            dp_lo_steps(self.ptr, out.len(), out.as_mut_ptr(), out.len())
         };
     }
 
@@ -107,7 +107,7 @@ impl Lo {
             "ctrl and out must have the same length"
         );
         unsafe {
-            lo_steps_ctrl(
+            dp_lo_steps_ctrl(
                 self.ptr,
                 ctrl.as_ptr(),
                 ctrl.len(),
@@ -120,7 +120,7 @@ impl Lo {
 
 impl Drop for Lo {
     fn drop(&mut self) {
-        unsafe { lo_destroy(self.ptr) }
+        unsafe { dp_lo_destroy(self.ptr) }
     }
 }
 
@@ -249,13 +249,13 @@ mod tests {
 
 // Serializable state — the dp_state.h bytes interface.
 extern "C" {
-    fn lo_state_bytes(s: *const LoStateRaw) -> usize;
-    fn lo_get_state(s: *const LoStateRaw, blob: *mut u8);
-    fn lo_set_state(s: *mut LoStateRaw, blob: *const u8) -> i32;
+    fn dp_lo_state_bytes(s: *const LoStateRaw) -> usize;
+    fn dp_lo_get_state(s: *const LoStateRaw, blob: *mut u8);
+    fn dp_lo_set_state(s: *mut LoStateRaw, blob: *const u8) -> i32;
 }
 impl_serializable!(
     Lo,
-    lo_state_bytes,
-    lo_get_state,
-    lo_set_state
+    dp_lo_state_bytes,
+    dp_lo_get_state,
+    dp_lo_set_state
 );

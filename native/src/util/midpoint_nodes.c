@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern void midpoint_nodes (double *u, size_t u_len);
+extern void dp_midpoint_nodes (double *u, size_t u_len);

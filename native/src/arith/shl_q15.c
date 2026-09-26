@@ -4,7 +4,7 @@
 #include "doppler/arith/arith_core.h"
 
 void
-shl_q15 (const int16_t *a, size_t a_len, int16_t *out, int n)
+dp_shl_q15 (const int16_t *a, size_t a_len, int16_t *out, int n)
 {
   for (size_t i = 0; i < a_len; i++)
     {

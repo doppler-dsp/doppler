@@ -32,7 +32,7 @@ _AccCf64 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) <br>_AccCf64 state._  |
+| struct | [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) <br>_AccCf64 state._  |
 
 
 
@@ -59,21 +59,21 @@ _AccCf64 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**acc\_cf64\_add2d**](#function-acc_cf64_add2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len) <br>_Sum all elements of a (logically) 2-D complex array into the accumulator. The array is treated as a flat C-order buffer of_ `x_len` _complex128 samples regardless of the original shape; the caller is responsible for passing the total element count._ |
-|  [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* | [**acc\_cf64\_create**](#function-acc_cf64_create) (double \_Complex acc) <br>_Double-precision complex scalar accumulator. Maintains one running complex sum (_ `acc` _) across calls to_`step` _,_`steps` _,_`madd` _,_`add2d` _, and_`madd2d` _. The signal path is double-precision complex (128-bit per sample); coefficient arrays for_`madd` _/_`madd2d` _are single-precision float to match typical FIR weight storage. Use_`get` _to read without side-effects or_`dump` _to read and zero atomically._ |
-|  void | [**acc\_cf64\_destroy**](#function-acc_cf64_destroy) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Release all memory owned by an AccCf64 instance. Passing NULL is safe; the function is a no-op in that case. After this call the pointer must not be used._  |
-|  double \_Complex | [**acc\_cf64\_dump**](#function-acc_cf64_dump) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate_ `reset` _call. Both real and imaginary parts are zeroed unconditionally._ |
-|  double \_Complex | [**acc\_cf64\_get**](#function-acc_cf64_get) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Return the current accumulated sum without resetting state. Identical to reading the_ `acc` _property directly; retained as an explicit method so call sites that need the value can be uniform with_`dump` _without a conditional._ |
-|  double \_Complex | [**acc\_cf64\_get\_acc**](#function-acc_cf64_get_acc) (const [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `acc_cf64_dump` _._ |
-|  void | [**acc\_cf64\_get\_state**](#function-acc_cf64_get_state) (const [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, void \* blob) <br> |
-|  void | [**acc\_cf64\_madd**](#function-acc_cf64_madd) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate with complex signal and float weights:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The signal array_`x` _is double-precision complex; the coefficient array_`h` _is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration._ |
-|  void | [**acc\_cf64\_madd2d**](#function-acc_cf64_madd2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D complex buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum._ |
-|  void | [**acc\_cf64\_reset**](#function-acc_cf64_reset) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccCf64(0j)` _— regardless of the value supplied to_`acc_cf64_create` _. Both the real and imaginary parts are set to 0.0. Subsequent_`get` _/_`dump` _calls return_`0j` _until new samples are processed._ |
-|  void | [**acc\_cf64\_set\_acc**](#function-acc_cf64_set_acc) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double \_Complex value) <br>_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._ |
-|  int | [**acc\_cf64\_set\_state**](#function-acc_cf64_set_state) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**acc\_cf64\_state\_bytes**](#function-acc_cf64_state_bytes) (const [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_cf64\_step**](#function-acc_cf64_step) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double \_Complex x) <br>_Add one complex sample to the running sum (_ `acc += x` _). This is the hot-path entry for sample-by-sample processing. For block inputs prefer_`acc_cf64_steps` _to amortise call overhead._ |
-|  void | [**acc\_cf64\_steps**](#function-acc_cf64_steps) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double \_Complex \* input, size\_t n) <br>_Add all samples in_ `input` _to the running sum. Equivalent to calling_`acc_cf64_step` _for each element; iterates element-by-element over double-precision complex samples._ |
+|  void | [**dp\_acc\_cf64\_add2d**](#function-dp_acc_cf64_add2d) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len) <br>_Sum all elements of a (logically) 2-D complex array into the accumulator. The array is treated as a flat C-order buffer of_ `x_len` _complex128 samples regardless of the original shape; the caller is responsible for passing the total element count._ |
+|  [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* | [**dp\_acc\_cf64\_create**](#function-dp_acc_cf64_create) (double \_Complex acc) <br>_Double-precision complex scalar accumulator. Maintains one running complex sum (_ `acc` _) across calls to_`step` _,_`steps` _,_`madd` _,_`add2d` _, and_`madd2d` _. The signal path is double-precision complex (128-bit per sample); coefficient arrays for_`madd` _/_`madd2d` _are single-precision float to match typical FIR weight storage. Use_`get` _to read without side-effects or_`dump` _to read and zero atomically._ |
+|  void | [**dp\_acc\_cf64\_destroy**](#function-dp_acc_cf64_destroy) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Release all memory owned by an AccCf64 instance. Passing NULL is safe; the function is a no-op in that case. After this call the pointer must not be used._  |
+|  double \_Complex | [**dp\_acc\_cf64\_dump**](#function-dp_acc_cf64_dump) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate_ `reset` _call. Both real and imaginary parts are zeroed unconditionally._ |
+|  double \_Complex | [**dp\_acc\_cf64\_get**](#function-dp_acc_cf64_get) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Return the current accumulated sum without resetting state. Identical to reading the_ `acc` _property directly; retained as an explicit method so call sites that need the value can be uniform with_`dump` _without a conditional._ |
+|  double \_Complex | [**dp\_acc\_cf64\_get\_acc**](#function-dp_acc_cf64_get_acc) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `dp_acc_cf64_dump` _._ |
+|  void | [**dp\_acc\_cf64\_get\_state**](#function-dp_acc_cf64_get_state) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_cf64\_madd**](#function-dp_acc_cf64_madd) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate with complex signal and float weights:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The signal array_`x` _is double-precision complex; the coefficient array_`h` _is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration._ |
+|  void | [**dp\_acc\_cf64\_madd2d**](#function-dp_acc_cf64_madd2d) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D complex buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum._ |
+|  void | [**dp\_acc\_cf64\_reset**](#function-dp_acc_cf64_reset) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccCf64(0j)` _— regardless of the value supplied to_`dp_acc_cf64_create` _. Both the real and imaginary parts are set to 0.0. Subsequent_`get` _/_`dump` _calls return_`0j` _until new samples are processed._ |
+|  void | [**dp\_acc\_cf64\_set\_acc**](#function-dp_acc_cf64_set_acc) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, double \_Complex value) <br>_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._ |
+|  int | [**dp\_acc\_cf64\_set\_state**](#function-dp_acc_cf64_set_state) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_acc\_cf64\_state\_bytes**](#function-dp_acc_cf64_state_bytes) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dp\_acc\_cf64\_step**](#function-dp_acc_cf64_step) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, double \_Complex x) <br>_Add one complex sample to the running sum (_ `acc += x` _). This is the hot-path entry for sample-by-sample processing. For block inputs prefer_`dp_acc_cf64_steps` _to amortise call overhead._ |
+|  void | [**dp\_acc\_cf64\_steps**](#function-dp_acc_cf64_steps) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* input, size\_t n) <br>_Add all samples in_ `input` _to the running sum. Equivalent to calling_`dp_acc_cf64_step` _for each element; iterates element-by-element over double-precision complex samples._ |
 
 
 
@@ -116,10 +116,10 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 Example: 
 ```C++
-acc_cf64_state_t *obj = acc_cf64_create(0.0 + 0.0 * I);
-acc_cf64_step(obj, 1.0 + 0.5 * I);
-double _Complex v = acc_cf64_get(obj);  // v == 1.0 + 0.5 * I
-acc_cf64_destroy(obj);
+dp_acc_cf64_state_t *obj = dp_acc_cf64_create(0.0 + 0.0 * I);
+dp_acc_cf64_step(obj, 1.0 + 0.5 * I);
+double _Complex v = dp_acc_cf64_get(obj);  // v == 1.0 + 0.5 * I
+dp_acc_cf64_destroy(obj);
 ```
  
 
@@ -130,12 +130,12 @@ acc_cf64_destroy(obj);
 
 
 
-### function acc\_cf64\_add2d 
+### function dp\_acc\_cf64\_add2d 
 
 _Sum all elements of a (logically) 2-D complex array into the accumulator. The array is treated as a flat C-order buffer of_ `x_len` _complex128 samples regardless of the original shape; the caller is responsible for passing the total element count._
 ```C++
-void acc_cf64_add2d (
-    acc_cf64_state_t * state,
+void dp_acc_cf64_add2d (
+    dp_acc_cf64_state_t * state,
     const double _Complex * x,
     size_t x_len
 ) 
@@ -171,11 +171,11 @@ void acc_cf64_add2d (
 
 
 
-### function acc\_cf64\_create 
+### function dp\_acc\_cf64\_create 
 
 _Double-precision complex scalar accumulator. Maintains one running complex sum (_ `acc` _) across calls to_`step` _,_`steps` _,_`madd` _,_`add2d` _, and_`madd2d` _. The signal path is double-precision complex (128-bit per sample); coefficient arrays for_`madd` _/_`madd2d` _are single-precision float to match typical FIR weight storage. Use_`get` _to read without side-effects or_`dump` _to read and zero atomically._
 ```C++
-acc_cf64_state_t * acc_cf64_create (
+dp_acc_cf64_state_t * dp_acc_cf64_create (
     double _Complex acc
 ) 
 ```
@@ -200,7 +200,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**acc\_cf64\_destroy()**](acc__cf64__core_8h.md#function-acc_cf64_destroy) when done. 
+Caller must call [**dp\_acc\_cf64\_destroy()**](acc__cf64__core_8h.md#function-dp_acc_cf64_destroy) when done. 
 ```C++
 >>> from doppler.accumulator import AccCf64
 >>> obj = AccCf64(0j)
@@ -225,12 +225,12 @@ Caller must call [**acc\_cf64\_destroy()**](acc__cf64__core_8h.md#function-acc_c
 
 
 
-### function acc\_cf64\_destroy 
+### function dp\_acc\_cf64\_destroy 
 
 _Release all memory owned by an AccCf64 instance. Passing NULL is safe; the function is a no-op in that case. After this call the pointer must not be used._ 
 ```C++
-void acc_cf64_destroy (
-    acc_cf64_state_t * state
+void dp_acc_cf64_destroy (
+    dp_acc_cf64_state_t * state
 ) 
 ```
 
@@ -241,12 +241,12 @@ void acc_cf64_destroy (
 
 
 
-### function acc\_cf64\_dump 
+### function dp\_acc\_cf64\_dump 
 
 _Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate_ `reset` _call. Both real and imaginary parts are zeroed unconditionally._
 ```C++
-double _Complex acc_cf64_dump (
-    acc_cf64_state_t * state
+double _Complex dp_acc_cf64_dump (
+    dp_acc_cf64_state_t * state
 ) 
 ```
 
@@ -279,12 +279,12 @@ Value of `acc` just before the reset (complex).
 
 
 
-### function acc\_cf64\_get 
+### function dp\_acc\_cf64\_get 
 
 _Return the current accumulated sum without resetting state. Identical to reading the_ `acc` _property directly; retained as an explicit method so call sites that need the value can be uniform with_`dump` _without a conditional._
 ```C++
-double _Complex acc_cf64_get (
-    acc_cf64_state_t * state
+double _Complex dp_acc_cf64_get (
+    dp_acc_cf64_state_t * state
 ) 
 ```
 
@@ -315,12 +315,12 @@ Current value of `acc` (complex).
 
 
 
-### function acc\_cf64\_get\_acc 
+### function dp\_acc\_cf64\_get\_acc 
 
-_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `acc_cf64_dump` _._
+_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `dp_acc_cf64_dump` _._
 ```C++
-double _Complex acc_cf64_get_acc (
-    const acc_cf64_state_t * state
+double _Complex dp_acc_cf64_get_acc (
+    const dp_acc_cf64_state_t * state
 ) 
 ```
 
@@ -352,11 +352,11 @@ Current value of `acc` (complex).
 
 
 
-### function acc\_cf64\_get\_state 
+### function dp\_acc\_cf64\_get\_state 
 
 ```C++
-void acc_cf64_get_state (
-    const acc_cf64_state_t * state,
+void dp_acc_cf64_get_state (
+    const dp_acc_cf64_state_t * state,
     void * blob
 ) 
 ```
@@ -368,12 +368,12 @@ void acc_cf64_get_state (
 
 
 
-### function acc\_cf64\_madd 
+### function dp\_acc\_cf64\_madd 
 
 _Dot-product accumulate with complex signal and float weights:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The signal array_`x` _is double-precision complex; the coefficient array_`h` _is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration._
 ```C++
-void acc_cf64_madd (
-    acc_cf64_state_t * state,
+void dp_acc_cf64_madd (
+    dp_acc_cf64_state_t * state,
     const double _Complex * x,
     size_t x_len,
     const float * h,
@@ -414,12 +414,12 @@ void acc_cf64_madd (
 
 
 
-### function acc\_cf64\_madd2d 
+### function dp\_acc\_cf64\_madd2d 
 
 _Dot-product accumulate over a flat 2-D complex buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum._
 ```C++
-void acc_cf64_madd2d (
-    acc_cf64_state_t * state,
+void dp_acc_cf64_madd2d (
+    dp_acc_cf64_state_t * state,
     const double _Complex * x,
     size_t x_len,
     const float * h,
@@ -460,12 +460,12 @@ void acc_cf64_madd2d (
 
 
 
-### function acc\_cf64\_reset 
+### function dp\_acc\_cf64\_reset 
 
-_Zero the accumulator, restoring the same state as a fresh_ `AccCf64(0j)` _— regardless of the value supplied to_`acc_cf64_create` _. Both the real and imaginary parts are set to 0.0. Subsequent_`get` _/_`dump` _calls return_`0j` _until new samples are processed._
+_Zero the accumulator, restoring the same state as a fresh_ `AccCf64(0j)` _— regardless of the value supplied to_`dp_acc_cf64_create` _. Both the real and imaginary parts are set to 0.0. Subsequent_`get` _/_`dump` _calls return_`0j` _until new samples are processed._
 ```C++
-void acc_cf64_reset (
-    acc_cf64_state_t * state
+void dp_acc_cf64_reset (
+    dp_acc_cf64_state_t * state
 ) 
 ```
 
@@ -489,12 +489,12 @@ void acc_cf64_reset (
 
 
 
-### function acc\_cf64\_set\_acc 
+### function dp\_acc\_cf64\_set\_acc 
 
 _Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._
 ```C++
-void acc_cf64_set_acc (
-    acc_cf64_state_t * state,
+void dp_acc_cf64_set_acc (
+    dp_acc_cf64_state_t * state,
     double _Complex value
 ) 
 ```
@@ -527,11 +527,11 @@ void acc_cf64_set_acc (
 
 
 
-### function acc\_cf64\_set\_state 
+### function dp\_acc\_cf64\_set\_state 
 
 ```C++
-int acc_cf64_set_state (
-    acc_cf64_state_t * state,
+int dp_acc_cf64_set_state (
+    dp_acc_cf64_state_t * state,
     const void * blob
 ) 
 ```
@@ -543,11 +543,11 @@ int acc_cf64_set_state (
 
 
 
-### function acc\_cf64\_state\_bytes 
+### function dp\_acc\_cf64\_state\_bytes 
 
 ```C++
-size_t acc_cf64_state_bytes (
-    const acc_cf64_state_t * state
+size_t dp_acc_cf64_state_bytes (
+    const dp_acc_cf64_state_t * state
 ) 
 ```
 
@@ -558,12 +558,12 @@ size_t acc_cf64_state_bytes (
 
 
 
-### function acc\_cf64\_step 
+### function dp\_acc\_cf64\_step 
 
-_Add one complex sample to the running sum (_ `acc += x` _). This is the hot-path entry for sample-by-sample processing. For block inputs prefer_`acc_cf64_steps` _to amortise call overhead._
+_Add one complex sample to the running sum (_ `acc += x` _). This is the hot-path entry for sample-by-sample processing. For block inputs prefer_`dp_acc_cf64_steps` _to amortise call overhead._
 ```C++
-JM_FORCEINLINE  JM_HOT void acc_cf64_step (
-    acc_cf64_state_t * state,
+JM_FORCEINLINE  JM_HOT void dp_acc_cf64_step (
+    dp_acc_cf64_state_t * state,
     double _Complex x
 ) 
 ```
@@ -595,12 +595,12 @@ JM_FORCEINLINE  JM_HOT void acc_cf64_step (
 
 
 
-### function acc\_cf64\_steps 
+### function dp\_acc\_cf64\_steps 
 
-_Add all samples in_ `input` _to the running sum. Equivalent to calling_`acc_cf64_step` _for each element; iterates element-by-element over double-precision complex samples._
+_Add all samples in_ `input` _to the running sum. Equivalent to calling_`dp_acc_cf64_step` _for each element; iterates element-by-element over double-precision complex samples._
 ```C++
-void acc_cf64_steps (
-    acc_cf64_state_t * state,
+void dp_acc_cf64_steps (
+    dp_acc_cf64_state_t * state,
     const double _Complex * input,
     size_t n
 ) 

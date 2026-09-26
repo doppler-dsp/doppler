@@ -6,7 +6,7 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* ResamplerObject — wraps Resampler_state_t *       */
+/* ResamplerObject — wraps dp_Resampler_state_t *       */
 /* ======================================================== */
 
 #include "doppler/Resampler/Resampler_core.h"
@@ -14,7 +14,7 @@
 
 typedef struct
 {
-  PyObject_HEAD Resampler_state_t *handle;
+  PyObject_HEAD dp_Resampler_state_t *handle;
   float _Complex *_execute_buf;     /* pre-allocated output for execute */
   size_t          _execute_buf_cap; /* elements allocated above */
   float _Complex
@@ -26,7 +26,7 @@ static void
 ResamplerObj_dealloc (ResamplerObject *self)
 {
   if (self->handle)
-    Resampler_destroy (self->handle);
+    dp_Resampler_destroy (self->handle);
   free (self->_execute_buf);
   free (self->_execute_ctrl_buf);
   Py_TYPE (self)->tp_free ((PyObject *)self);
@@ -72,12 +72,12 @@ ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
     }
   else
     {
-      self->handle = Resampler_create (rate);
+      self->handle = dp_Resampler_create (rate);
     }
 
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "Resampler_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_Resampler_create returned NULL");
       return -1;
     }
   return 0;
@@ -92,7 +92,7 @@ ResamplerObj_execute_max_out (ResamplerObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (Resampler_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_Resampler_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -142,7 +142,7 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = Resampler_execute_max_out (self->handle);
+      size_t _omax    = dp_Resampler_execute_max_out (self->handle);
       size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
       size_t _min_cap = _omax > _n_in ? _omax : _n_in;
       if (_cap < _min_cap)
@@ -153,7 +153,7 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t n_out = Resampler_execute (
+      size_t n_out = dp_Resampler_execute (
           self->handle, (const float _Complex *)PyArray_DATA (x_arr), _n_in,
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
@@ -171,11 +171,11 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
 
   if (!self->_execute_buf)
     {
-      /* Resampler_execute_max_out() always returns the fixed
+      /* dp_Resampler_execute_max_out() always returns the fixed
        * RESAMPLER_MAX_OUT (65536) regardless of input size -- the kernel's
        * own contract caps output there, so one allocation at that size
        * covers every future call; no growth path is needed. */
-      size_t _max = Resampler_execute_max_out (self->handle);
+      size_t _max = dp_Resampler_execute_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
       self->_execute_buf     = malloc (_max * sizeof (float _Complex));
@@ -187,7 +187,7 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
-  size_t n_out = Resampler_execute (
+  size_t n_out = dp_Resampler_execute (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
       self->_execute_buf_cap);
@@ -211,7 +211,7 @@ ResamplerObj_execute_ctrl_max_out (ResamplerObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (Resampler_execute_ctrl_max_out (self->handle));
+  return PyLong_FromSize_t (dp_Resampler_execute_ctrl_max_out (self->handle));
 }
 
 static PyObject *
@@ -280,7 +280,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = Resampler_execute_ctrl_max_out (self->handle);
+      size_t _omax    = dp_Resampler_execute_ctrl_max_out (self->handle);
       size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
       size_t _min_cap = _omax > _n_in ? _omax : _n_in;
       if (_cap < _min_cap)
@@ -292,7 +292,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t n_out = Resampler_execute_ctrl (
+      size_t n_out = dp_Resampler_execute_ctrl (
           self->handle, (const float _Complex *)PyArray_DATA (x_arr), _n_in,
           (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
@@ -313,10 +313,10 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
 
   if (!self->_execute_ctrl_buf)
     {
-      /* Resampler_execute_ctrl_max_out() always returns the fixed
+      /* dp_Resampler_execute_ctrl_max_out() always returns the fixed
        * RESAMPLER_MAX_OUT (65536) regardless of input size -- same
        * fixed-capacity contract as execute(); no growth path needed. */
-      size_t _max = Resampler_execute_ctrl_max_out (self->handle);
+      size_t _max = dp_Resampler_execute_ctrl_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
       self->_execute_ctrl_buf     = malloc (_max * sizeof (float _Complex));
@@ -329,7 +329,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           return NULL;
         }
     }
-  size_t n_out = Resampler_execute_ctrl (
+  size_t n_out = dp_Resampler_execute_ctrl (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), self->_execute_ctrl_buf,
@@ -354,7 +354,7 @@ ResamplerObj_reset (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  Resampler_reset (self->handle);
+  dp_Resampler_reset (self->handle);
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -366,7 +366,7 @@ Resampler_getprop_rate (ResamplerObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (Resampler_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_Resampler_get_rate (self->handle));
 }
 static int
 Resampler_setprop_rate (ResamplerObject *self, PyObject *value,
@@ -380,7 +380,7 @@ Resampler_setprop_rate (ResamplerObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  Resampler_set_rate (self->handle, v);
+  dp_Resampler_set_rate (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -393,7 +393,7 @@ Resampler_getprop_num_phases (ResamplerObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)Resampler_get_num_phases (self->handle));
+      (unsigned long long)dp_Resampler_get_num_phases (self->handle));
 }
 static PyObject *
 Resampler_getprop_num_taps (ResamplerObject *self, void *Py_UNUSED (closure))
@@ -405,7 +405,7 @@ Resampler_getprop_num_taps (ResamplerObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)Resampler_get_num_taps (self->handle));
+      (unsigned long long)dp_Resampler_get_num_taps (self->handle));
 }
 
 static PyObject *
@@ -417,7 +417,7 @@ Resampler_getprop_ctrl_acc (ResamplerObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (Resampler_get_ctrl_acc (self->handle));
+  return PyFloat_FromDouble (dp_Resampler_get_ctrl_acc (self->handle));
 }
 
 static PyObject *
@@ -429,7 +429,7 @@ Resampler_getprop_delay (ResamplerObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (Resampler_get_delay (self->handle));
+  return PyFloat_FromDouble (dp_Resampler_get_delay (self->handle));
 }
 
 static PyGetSetDef Resampler_getset[] = {
@@ -458,7 +458,7 @@ ResamplerObj_destroy (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      Resampler_destroy (self->handle);
+      dp_Resampler_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -477,7 +477,7 @@ ResamplerObj_exit (ResamplerObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      Resampler_destroy (self->handle);
+      dp_Resampler_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -486,7 +486,7 @@ ResamplerObj_exit (ResamplerObject *self, PyObject *args)
 /* serializable (gh-400): the standard state triplet, generated by the
  * shared macro (see dp_state_pyhelp.h) — byte-identical to jm's output.
  * The matching PyMethodDef rows are below. */
-DP_PY_STATE_METHODS (ResamplerObj, ResamplerObject, self->handle, Resampler)
+DP_PY_STATE_METHODS (ResamplerObj, ResamplerObject, self->handle, dp_Resampler)
 
 static PyMethodDef ResamplerObj_methods[] = {
 

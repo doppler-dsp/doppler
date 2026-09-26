@@ -33,7 +33,7 @@ _Scale-and-saturate float-to-int8 converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) <br>_F32ToI8 state._  |
+| struct | [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) <br>_F32ToI8 state._  |
 
 
 
@@ -60,14 +60,14 @@ _Scale-and-saturate float-to-int8 converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* | [**f32\_to\_i8\_create**](#function-f32_to_i8_create) (float scale) <br>_Create a f32\_to\_i8 instance._  |
-|  void | [**f32\_to\_i8\_destroy**](#function-f32_to_i8_destroy) ([**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state) <br>_Destroy a f32\_to\_i8 instance and release all memory._  |
-|  void | [**f32\_to\_i8\_get\_state**](#function-f32_to_i8_get_state) (const [**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state, void \* blob) <br> |
-|  void | [**f32\_to\_i8\_reset**](#function-f32_to_i8_reset) ([**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**f32\_to\_i8\_set\_state**](#function-f32_to_i8_set_state) ([**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**f32\_to\_i8\_state\_bytes**](#function-f32_to_i8_state_bytes) (const [**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int8\_t | [**f32\_to\_i8\_step**](#function-f32_to_i8_step) ([**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state, float x) <br>_Scale one float sample by_ `scale` _, round, and saturate to int8._ |
-|  void | [**f32\_to\_i8\_steps**](#function-f32_to_i8_steps) ([**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) \* state, const float \* input, int8\_t \* output, size\_t n) <br>_Process a block of float samples to int8._  |
+|  [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* | [**dp\_f32\_to\_i8\_create**](#function-dp_f32_to_i8_create) (float scale) <br>_Create a f32\_to\_i8 instance._  |
+|  void | [**dp\_f32\_to\_i8\_destroy**](#function-dp_f32_to_i8_destroy) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br>_Destroy a f32\_to\_i8 instance and release all memory._  |
+|  void | [**dp\_f32\_to\_i8\_get\_state**](#function-dp_f32_to_i8_get_state) (const [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_i8\_reset**](#function-dp_f32_to_i8_reset) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
+|  int | [**dp\_f32\_to\_i8\_set\_state**](#function-dp_f32_to_i8_set_state) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_f32\_to\_i8\_state\_bytes**](#function-dp_f32_to_i8_state_bytes) (const [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int8\_t | [**dp\_f32\_to\_i8\_step**](#function-dp_f32_to_i8_step) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, float x) <br>_Scale one float sample by_ `scale` _, round, and saturate to int8._ |
+|  void | [**dp\_f32\_to\_i8\_steps**](#function-dp_f32_to_i8_steps) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, const float \* input, int8\_t \* output, size\_t n) <br>_Process a block of float samples to int8._  |
 
 
 
@@ -145,11 +145,11 @@ False
 
 
 
-### function f32\_to\_i8\_create 
+### function dp\_f32\_to\_i8\_create 
 
 _Create a f32\_to\_i8 instance._ 
 ```C++
-f32_to_i8_state_t * f32_to_i8_create (
+dp_f32_to_i8_state_t * dp_f32_to_i8_create (
     float scale
 ) 
 ```
@@ -177,7 +177,7 @@ Heap-allocated state, or NULL if `scale` is not positive.
 
 **Note:**
 
-Caller must call [**f32\_to\_i8\_destroy()**](f32__to__i8__core_8h.md#function-f32_to_i8_destroy) when done. 
+Caller must call [**dp\_f32\_to\_i8\_destroy()**](f32__to__i8__core_8h.md#function-dp_f32_to_i8_destroy) when done. 
 
 
 
@@ -189,12 +189,12 @@ Caller must call [**f32\_to\_i8\_destroy()**](f32__to__i8__core_8h.md#function-f
 
 
 
-### function f32\_to\_i8\_destroy 
+### function dp\_f32\_to\_i8\_destroy 
 
 _Destroy a f32\_to\_i8 instance and release all memory._ 
 ```C++
-void f32_to_i8_destroy (
-    f32_to_i8_state_t * state
+void dp_f32_to_i8_destroy (
+    dp_f32_to_i8_state_t * state
 ) 
 ```
 
@@ -216,11 +216,11 @@ void f32_to_i8_destroy (
 
 
 
-### function f32\_to\_i8\_get\_state 
+### function dp\_f32\_to\_i8\_get\_state 
 
 ```C++
-void f32_to_i8_get_state (
-    const f32_to_i8_state_t * state,
+void dp_f32_to_i8_get_state (
+    const dp_f32_to_i8_state_t * state,
     void * blob
 ) 
 ```
@@ -232,12 +232,12 @@ void f32_to_i8_get_state (
 
 
 
-### function f32\_to\_i8\_reset 
+### function dp\_f32\_to\_i8\_reset 
 
 _Clear the sticky clip flag, starting a fresh saturation history._ 
 ```C++
-void f32_to_i8_reset (
-    f32_to_i8_state_t * state
+void dp_f32_to_i8_reset (
+    dp_f32_to_i8_state_t * state
 ) 
 ```
 
@@ -272,11 +272,11 @@ False
 
 
 
-### function f32\_to\_i8\_set\_state 
+### function dp\_f32\_to\_i8\_set\_state 
 
 ```C++
-int f32_to_i8_set_state (
-    f32_to_i8_state_t * state,
+int dp_f32_to_i8_set_state (
+    dp_f32_to_i8_state_t * state,
     const void * blob
 ) 
 ```
@@ -288,11 +288,11 @@ int f32_to_i8_set_state (
 
 
 
-### function f32\_to\_i8\_state\_bytes 
+### function dp\_f32\_to\_i8\_state\_bytes 
 
 ```C++
-size_t f32_to_i8_state_bytes (
-    const f32_to_i8_state_t * state
+size_t dp_f32_to_i8_state_bytes (
+    const dp_f32_to_i8_state_t * state
 ) 
 ```
 
@@ -303,12 +303,12 @@ size_t f32_to_i8_state_bytes (
 
 
 
-### function f32\_to\_i8\_step 
+### function dp\_f32\_to\_i8\_step 
 
 _Scale one float sample by_ `scale` _, round, and saturate to int8._
 ```C++
-JM_FORCEINLINE  JM_HOT int8_t f32_to_i8_step (
-    f32_to_i8_state_t * state,
+JM_FORCEINLINE  JM_HOT int8_t dp_f32_to_i8_step (
+    dp_f32_to_i8_state_t * state,
     float x
 ) 
 ```
@@ -353,12 +353,12 @@ True
 
 
 
-### function f32\_to\_i8\_steps 
+### function dp\_f32\_to\_i8\_steps 
 
 _Process a block of float samples to int8._ 
 ```C++
-void f32_to_i8_steps (
-    f32_to_i8_state_t * state,
+void dp_f32_to_i8_steps (
+    dp_f32_to_i8_state_t * state,
     const float * input,
     int8_t * output,
     size_t n

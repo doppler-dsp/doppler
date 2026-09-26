@@ -21,7 +21,7 @@ after it.
 
 ## How it works
 
-`agc_steps()` rescales the loop coefficients by `decim` so that
+`dp_agc_steps()` rescales the loop coefficients by `decim` so that
 `loop_bw` keeps its per-sample meaning regardless of how coarsely
 the detector ticks.
 

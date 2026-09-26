@@ -11,7 +11,7 @@
 
 /* The average PSD of a random +-1 rectangular-pulse (NRZ) BPSK symbol
  * stream at symbol_rate_hz: sinc^2(f/symbol_rate_hz), DC-centred to
- * match psd_power_twosided()'s own bin order (bin i -> (i - nfft/2) *
+ * match dp_psd_power_twosided()'s own bin order (bin i -> (i - nfft/2) *
  * sample_rate_hz / nfft) -- ported from freq_refine.py's own
  * _known_symbol_psd_template, just derived from the DC-centred grid
  * instead of np.fft.fftfreq's native-order one. */
@@ -23,7 +23,7 @@ carrier_acq_default_template (float *out, size_t nfft, double sample_rate_hz,
     {
       double freq_hz
           = ((double)i - (double)nfft / 2.0) * sample_rate_hz / (double)nfft;
-      double s = sinc (freq_hz / symbol_rate_hz);
+      double s = dp_sinc (freq_hz / symbol_rate_hz);
       out[i]   = (float)(s * s);
     }
 }
@@ -41,12 +41,12 @@ carrier_acq_parabolic_offset (float y1, float y2, float y3)
   return 0.5 * (double)(y1 - y3) / (double)denom;
 }
 
-carrier_acq_state_t *
-carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
-                    double resolution_hz, size_t zero_pad, int window,
-                    float beta, const float *psd_template,
-                    size_t psd_template_len, double pfa, double pd,
-                    double design_snr, bool sequential, size_t max_n_blocks)
+dp_carrier_acq_state_t *
+dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
+                       double resolution_hz, size_t zero_pad, int window,
+                       float beta, const float *psd_template,
+                       size_t psd_template_len, double pfa, double pd,
+                       double design_snr, bool sequential, size_t max_n_blocks)
 {
   if (sample_rate_hz <= 0.0 || symbol_rate_hz <= 0.0 || zero_pad < 1
       || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0 || pd >= 1.0
@@ -59,13 +59,13 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
   if (n_fft < 2)
     n_fft = 2;
 
-  carrier_acq_state_t *s = calloc (1, sizeof (*s));
+  dp_carrier_acq_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
-  s->psd = psd_create (n_fft, sample_rate_hz, window, beta, zero_pad,
-                       /*full_scale=*/1.0, /*bits=*/0, /*mode=*/0 /*mean*/,
-                       /*alpha=*/0.1);
+  s->psd = dp_psd_create (n_fft, sample_rate_hz, window, beta, zero_pad,
+                          /*full_scale=*/1.0, /*bits=*/0, /*mode=*/0 /*mean*/,
+                          /*alpha=*/0.1);
   if (!s->psd)
     {
       free (s);
@@ -75,7 +75,7 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
 
   if (psd_template_len != 0 && psd_template_len != s->nfft)
     {
-      psd_destroy (s->psd);
+      dp_psd_destroy (s->psd);
       free (s);
       return NULL;
     }
@@ -86,7 +86,7 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
     {
       free (tmpl);
       free (ref);
-      psd_destroy (s->psd);
+      dp_psd_destroy (s->psd);
       free (s);
       return NULL;
     }
@@ -113,13 +113,13 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
    * Median noise aggregation is more CFAR-robust than mean here: the
    * mainlobe peak itself sits inside the same full span being
    * aggregated over, and a plain mean would be biased upward by it. */
-  s->det = detector_create (ref, s->nfft, /*dwell=*/1, /*noise_lo=*/0,
-                            /*noise_hi=*/s->nfft - 1, DET_NOISE_MEDIAN,
-                            /*threshold=*/0.0f, /*nthreads=*/1);
+  s->det = dp_detector_create (ref, s->nfft, /*dwell=*/1, /*noise_lo=*/0,
+                               /*noise_hi=*/s->nfft - 1, DET_NOISE_MEDIAN,
+                               /*threshold=*/0.0f, /*nthreads=*/1);
   free (ref);
   if (!s->det)
     {
-      psd_destroy (s->psd);
+      dp_psd_destroy (s->psd);
       free (s);
       return NULL;
     }
@@ -132,16 +132,16 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
       free (s->pwr_buf);
       free (s->power_buf);
       free (s->carry_buf);
-      detector_destroy (s->det);
-      psd_destroy (s->psd);
+      dp_detector_destroy (s->det);
+      dp_psd_destroy (s->psd);
       free (s);
       return NULL;
     }
 
   /* n_coh = n_fft: each non-coherent look is one whole-window FFT, so
    * the window length itself IS the coherent integration length -- the
-   * same role Acquisition's own D*cb plays in its det_n_noncoh() call. */
-  int dw          = det_n_noncoh (design_snr, (int)n_fft, pd, pfa, 100000);
+   * same role Acquisition's own D*cb plays in its dp_det_n_noncoh() call. */
+  int dw          = dp_det_n_noncoh (design_snr, (int)n_fft, pd, pfa, 100000);
   s->dwell_target = (dw > 0) ? (size_t)dw : 100000;
   s->max_n_blocks = (max_n_blocks > 0) ? max_n_blocks : 1;
 
@@ -156,12 +156,12 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
 }
 
 void
-carrier_acq_destroy (carrier_acq_state_t *state)
+dp_carrier_acq_destroy (dp_carrier_acq_state_t *state)
 {
   if (!state)
     return;
-  psd_destroy (state->psd);
-  detector_destroy (state->det);
+  dp_psd_destroy (state->psd);
+  dp_detector_destroy (state->det);
   free (state->pwr_buf);
   free (state->power_buf);
   free (state->carry_buf);
@@ -169,21 +169,21 @@ carrier_acq_destroy (carrier_acq_state_t *state)
 }
 
 void
-carrier_acq_reset (carrier_acq_state_t *state)
+dp_carrier_acq_reset (dp_carrier_acq_state_t *state)
 {
-  psd_reset (state->psd);
-  detector_reset (state->det);
+  dp_psd_reset (state->psd);
+  dp_detector_reset (state->det);
   state->carry_len   = 0;
   state->n_blocks    = 0;
   state->ready       = false;
   state->residual_hz = 0.0;
 }
 
-/* Sub-bin refine the peak at `lag` directly off detector_state_t's own
+/* Sub-bin refine the peak at `lag` directly off dp_detector_state_t's own
  * out_buf (the correlation map from the dump that just fired -- no
  * second correlation pass needed) and mark ready. */
 static void
-carrier_acq_finish (carrier_acq_state_t *s, size_t lag)
+carrier_acq_finish (dp_carrier_acq_state_t *s, size_t lag)
 {
   size_t nfft    = s->nfft;
   float  y1      = crealf (s->det->out_buf[(lag + nfft - 1) % nfft]);
@@ -204,7 +204,7 @@ carrier_acq_finish (carrier_acq_state_t *s, size_t lag)
  * dwell_target) would otherwise stop sequential mode from trying more
  * blocks exactly when real data shows it needs to. */
 static size_t
-carrier_acq_giveup_cap (const carrier_acq_state_t *s)
+carrier_acq_giveup_cap (const dp_carrier_acq_state_t *s)
 {
   return s->sequential ? s->max_n_blocks : s->dwell_target;
 }
@@ -212,7 +212,7 @@ carrier_acq_giveup_cap (const carrier_acq_state_t *s)
 /* Empirically-calibrated CFAR ratio threshold (test_stat = peak/
  * median) for THIS object's real statistic -- a power-spectrum-vs-
  * known-template correlation, NOT the classic complex-correlator
- * peak/noise envelope ratio det_threshold_noncoherent() was derived
+ * peak/noise envelope ratio dp_det_threshold_noncoherent() was derived
  * for (confirmed via Monte Carlo this session: that borrowed formula
  * is ~5x too conservative here, see FINISHING_PLAN.md's
  * CarrierAcquisition section / derive_carrier_acq_statistic.py).
@@ -226,7 +226,7 @@ carrier_acq_giveup_cap (const carrier_acq_state_t *s)
  * the argmax-over-nfft-correlated-lags extreme-value effect that a
  * plain per-lag variance doesn't capture. noise_est estimates mu*s_t,
  * so the ratio threshold is 1 + z*sqrt(s_t2/n_blocks)/s_t for some
- * tail quantile z; KAPPA*det_threshold(pfa) (det_threshold() --
+ * tail quantile z; KAPPA*det_threshold(pfa) (dp_det_threshold() --
  * doppler's own existing sqrt(-2*ln(pfa)) primitive, reused rather
  * than adding a new inverse-normal-CDF) stands in for z.
  *
@@ -252,24 +252,25 @@ carrier_acq_giveup_cap (const carrier_acq_state_t *s)
 #define CARRIER_ACQ_KAPPA 7.9
 
 static float
-carrier_acq_ratio_threshold (const carrier_acq_state_t *s, size_t n_blocks)
+carrier_acq_ratio_threshold (const dp_carrier_acq_state_t *s, size_t n_blocks)
 {
-  double z      = CARRIER_ACQ_KAPPA * det_threshold (s->pfa);
+  double z      = CARRIER_ACQ_KAPPA * dp_det_threshold (s->pfa);
   double spread = sqrt (s->s_t2 / (double)n_blocks) / s->s_t;
   return (float)(1.0 + z * spread);
 }
 
 static void
-carrier_acq_process_block (carrier_acq_state_t *s, const float _Complex *block)
+carrier_acq_process_block (dp_carrier_acq_state_t *s,
+                           const float _Complex   *block)
 {
-  psd_accumulate (s->psd, block, s->psd->n);
+  dp_psd_accumulate (s->psd, block, s->psd->n);
   s->n_blocks++;
 
   bool do_test = s->sequential || (s->n_blocks == s->dwell_target);
   if (!do_test)
     return;
 
-  size_t got = psd_power_twosided (s->psd, s->nfft, s->pwr_buf, s->nfft);
+  size_t got = dp_psd_power_twosided (s->psd, s->nfft, s->pwr_buf, s->nfft);
   if (got == 0)
     return;
   for (size_t k = 0; k < s->nfft; k++)
@@ -279,14 +280,14 @@ carrier_acq_process_block (carrier_acq_state_t *s, const float _Complex *block)
   detector_set_threshold (s->det, eta_nc);
 
   det_result_t result[1];
-  size_t n_res = detector_push (s->det, s->power_buf, s->nfft, result, 1);
+  size_t n_res = dp_detector_push (s->det, s->power_buf, s->nfft, result, 1);
   if (n_res > 0)
     carrier_acq_finish (s, result[0].lag);
 }
 
 void
-carrier_acq_steps (carrier_acq_state_t *state, const float _Complex *x,
-                   size_t x_len)
+dp_carrier_acq_steps (dp_carrier_acq_state_t *state, const float _Complex *x,
+                      size_t x_len)
 {
   size_t cap = carrier_acq_giveup_cap (state);
   if (state->ready || state->n_blocks >= cap)
@@ -343,18 +344,18 @@ typedef struct
 } carrier_acq_extra_t;
 
 size_t
-carrier_acq_state_bytes (const carrier_acq_state_t *s)
+dp_carrier_acq_state_bytes (const dp_carrier_acq_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (carrier_acq_extra_t)
-         + psd_state_bytes (s->psd) + detector_state_bytes (s->det)
+         + dp_psd_state_bytes (s->psd) + dp_detector_state_bytes (s->det)
          + s->psd->n * sizeof (float _Complex);
 }
 
 void
-carrier_acq_get_state (const carrier_acq_state_t *s, void *blob)
+dp_carrier_acq_get_state (const dp_carrier_acq_state_t *s, void *blob)
 {
   DP_GET_OPEN (CARRIER_ACQ_STATE_MAGIC, CARRIER_ACQ_STATE_VERSION,
-               carrier_acq_state_bytes (s));
+               dp_carrier_acq_state_bytes (s));
   carrier_acq_extra_t extra = {
     .nfft         = (uint64_t)s->nfft,
     .dwell_target = (uint64_t)s->dwell_target,
@@ -365,16 +366,16 @@ carrier_acq_get_state (const carrier_acq_state_t *s, void *blob)
     .carry_len    = (uint64_t)s->carry_len,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
-  DP_W_CHILD (&_w, psd, s->psd);
-  DP_W_CHILD (&_w, detector, s->det);
+  DP_W_CHILD (&_w, dp_psd, s->psd);
+  DP_W_CHILD (&_w, dp_detector, s->det);
   dp_w_cf32 (&_w, s->carry_buf, s->psd->n);
 }
 
 int
-carrier_acq_set_state (carrier_acq_state_t *s, const void *blob)
+dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
 {
   DP_SET_OPEN (CARRIER_ACQ_STATE_MAGIC, CARRIER_ACQ_STATE_VERSION,
-               carrier_acq_state_bytes (s));
+               dp_carrier_acq_state_bytes (s));
   carrier_acq_extra_t extra;
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.nfft != (uint64_t)s->nfft
@@ -382,8 +383,8 @@ carrier_acq_set_state (carrier_acq_state_t *s, const void *blob)
       || extra.max_n_blocks != (uint64_t)s->max_n_blocks
       || extra.carry_len > (uint64_t)s->psd->n)
     return DP_ERR_INVALID;
-  DP_R_CHILD (&_r, psd, s->psd);
-  DP_R_CHILD (&_r, detector, s->det);
+  DP_R_CHILD (&_r, dp_psd, s->psd);
+  DP_R_CHILD (&_r, dp_detector, s->det);
   dp_r_cf32 (&_r, s->carry_buf, s->psd->n);
   s->n_blocks    = (size_t)extra.n_blocks;
   s->ready       = (bool)extra.ready;

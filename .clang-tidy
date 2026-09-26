@@ -66,7 +66,7 @@ CheckOptions:
   #
   # 160 / 30 is not the tail of the data fitted for a green run — it is the
   # level at which the check agrees with an independent signal. At 160/30 it
-  # flags three functions, and the worst of the three, `wfm_synth_steps`
+  # flags three functions, and the worst of the three, `dp_wfm_synth_steps`
   # (385 lines, 81 branches), is the SAME function clang-analyzer reports six
   # uninitialized-read findings in, at lines 800-867. Complexity and defect
   # coincide there, which is the evidence that this level means something and
@@ -74,7 +74,7 @@ CheckOptions:
   #
   # "Worst" means worst of what the check REPORTS. The genuinely worst function
   # in the library is `doppler_wfmgen` at 817 lines and 173 branches — over
-  # twice wfm_synth_steps' branch count — and it does not appear because it
+  # twice dp_wfm_synth_steps' branch count — and it does not appear because it
   # carries a NOLINT, added by a commit titled "clang-tidy clean" at a time
   # when clang-tidy could not run at all. Auditing that file by deleting its
   # four suppressions also surfaced three real ArrayBound findings. See

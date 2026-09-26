@@ -68,7 +68,7 @@ At 45 dB-Hz the emitter's own data blocks seed it in the first block or two — 
 
 | C/N0 dB-Hz | heap after warm-up MiB | largest first-use step KiB | growth since the last first use KiB | resident high-water mark MiB |
 |---|---|---|---|---|
-| 45 | 501.6 | 0.1 | +0.0 | 254.2 → 254.2 |
+| 45 | 501.6 | 0.1 | +0.0 | 254.1 → 254.1 |
 
 The heap is sampled once a second after a warm-up and re-based at every slot's first tracking — a receiver builds its track chain on its first seed, a first-use step kept apart from growth with time (section 5.1). The searcher's block and surface at D = 154 are the half gigabyte.
 

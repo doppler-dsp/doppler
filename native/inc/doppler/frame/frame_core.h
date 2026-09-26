@@ -31,7 +31,7 @@
  *
  * ## The frame is materialised at CREATE
  *
- * `frame_create()` builds the bits immediately and returns NULL if the
+ * `dp_frame_create()` builds the bits immediately and returns NULL if the
  * descriptor cannot produce them (a literal kind with no array, a PN with no
  * register width, an empty geometry). A descriptor that cannot be materialised
  * is not a frame, and finding that out at construction is what lets the
@@ -41,22 +41,22 @@
  * // Barker-13 sync over a 16-bit literal payload, with a CRC-16 trailer.
  * static const uint8_t sync[13]  = {1,1,1,1,1,0,0,1,1,0,1,0,1};
  * static const uint8_t pay[16]   = {0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1};
- * frame_state_t *f = frame_create(
+ * dp_frame_state_t *f = dp_frame_create(
  *     0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // no preamble
  *     0, sync, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,     // literal sync
  *     0, pay, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0,      // literal payload
  *     1);                                          // crc16
- * uint8_t *b = malloc(frame_bits_max_out(f, 1));
+ * uint8_t *b = malloc(dp_frame_bits_max_out(f, 1));
  * size_t   n = frame_bits(f, 1, b, f->nbits);      // 13 + 16 + 16 == 45
- * frame_crc_ok(f, b, n);                           // 1 — it is its own truth
+ * dp_frame_crc_ok(f, b, n);                           // 1 — it is its own truth
  * free(b);
- * frame_destroy(f);
+ * dp_frame_destroy(f);
  * @endcode
  *
  * @see docs/design/rx-test.md section 7
  */
-#ifndef FRAME_CORE_H
-#define FRAME_CORE_H
+#ifndef DP_FRAME_CORE_H
+#define DP_FRAME_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -73,7 +73,7 @@ extern "C" {
 /**
  * @brief Frame state.
  *
- * Allocate with frame_create().
+ * Allocate with dp_frame_create().
  */
 typedef struct {
     /** The DESCRIPTION — fields and stages — which is what everything here
@@ -85,7 +85,7 @@ typedef struct {
     wfm_frame_desc_t d;
     /** The general layout, derived at build. */
     wfm_frame_desc_layout_t dl;
-    /** What the last frame_deframe() found, summed across the stages it
+    /** What the last dp_frame_deframe() found, summed across the stages it
         reversed. Read-backs rather than a returned record: the call hands
         back BITS, and jm binds one return value. `rx_checked == 0` means
         the description carries no reversible stage — which is not the same
@@ -115,7 +115,7 @@ typedef struct {
     uint8_t *one;
 /*<<property_struct_fields>>*/
   size_t nbits;
-} frame_state_t;
+} dp_frame_state_t;
 
 /**
  * @brief Create a frame instance.
@@ -165,7 +165,7 @@ typedef struct {
  * @return Heap-allocated state, or NULL if the geometry is empty or a field
  *         cannot be built (a literal with no array, a PN with no register
  *         width) — the descriptor is refused rather than half-honoured.
- * @note Caller must call frame_destroy() when done.
+ * @note Caller must call dp_frame_destroy() when done.
  *
  * @code
  * >>> import numpy as np
@@ -189,21 +189,21 @@ typedef struct {
  * 1053
  * @endcode
  */
-frame_state_t *frame_create(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
+dp_frame_state_t *dp_frame_create(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
 
 /**
  * @brief Destroy a frame instance and release all memory.
  * @param state  May be NULL.
  */
-void frame_destroy(frame_state_t *state);
+void dp_frame_destroy(dp_frame_state_t *state);
 
 /**
- * @brief Bits @ref frame_bits will write for @p n frames — `n * nbits`.
+ * @brief Bits @ref dp_frame_bits will write for @p n frames — `n * nbits`.
  *
  * @param state  The frame.
  * @param n      Frame repetitions.
  */
-size_t frame_bits_max_out(frame_state_t *state, size_t n);
+size_t dp_frame_bits_max_out(dp_frame_state_t *state, size_t n);
 
 /**
  * @brief Materialise @p n consecutive frames, one bit per byte.
@@ -236,7 +236,7 @@ size_t frame_bits_max_out(frame_state_t *state, size_t n);
  *
  * @endcode
  */
-size_t frame_bits(frame_state_t *state, size_t n, uint8_t *out, size_t max_out);
+size_t dp_frame_bits(dp_frame_state_t *state, size_t n, uint8_t *out, size_t max_out);
 
 /**
  * @brief Where each field lands, in bits from the start of the frame.
@@ -265,7 +265,7 @@ size_t frame_bits(frame_state_t *state, size_t n, uint8_t *out, size_t max_out);
  *
  * @endcode
  */
-wfm_frame_layout_t frame_layout(frame_state_t *state);
+wfm_frame_layout_t dp_frame_layout(dp_frame_state_t *state);
 
 /**
  * @brief Check one received frame's CRC.
@@ -277,7 +277,7 @@ wfm_frame_layout_t frame_layout(frame_state_t *state);
  *
  * @param state        The frame the bits are laid out by.
  * @param rx_bits      Received bits, one per byte.
- * @param rx_bits_len  How many; must be at least @ref frame_state_t::nbits.
+ * @param rx_bits_len  How many; must be at least @ref dp_frame_state_t::nbits.
  * @return 1 pass, 0 fail, -1 if the frame carries no CRC or @p rx_bits is
  *         shorter than one frame.
  *
@@ -298,15 +298,15 @@ wfm_frame_layout_t frame_layout(frame_state_t *state);
  *
  * @endcode
  */
-int frame_crc_ok(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
+int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
 
 /**
  * @brief The same frame, DEFERRED — a description a caller can extend.
  *
- * Every argument @ref frame_create takes, and the flavor is what it does with
+ * Every argument @ref dp_frame_create takes, and the flavor is what it does with
  * them: this one stops before materialising, so the four fields are a
  * STARTING POINT rather than a finished frame. Append with
- * @ref frame_add_field and @ref frame_add_stage, then @ref frame_build.
+ * @ref dp_frame_add_field and @ref dp_frame_add_stage, then @ref dp_frame_build.
  * Pass empty arrays for all three to begin from nothing.
  *
  * That is what makes a frame doppler has never heard of describable — a
@@ -320,15 +320,15 @@ int frame_crc_ok(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_le
  * outer code, the randomiser and the inner code by DESCRIBING a CADU rather
  * than through a CCSDS entry point added here.
  *
- * An empty description is legal here and refused by @ref frame_create, and
+ * An empty description is legal here and refused by @ref dp_frame_create, and
  * the difference is where completeness can be judged: that constructor's
  * description is complete when it returns, and this one is not complete until
- * @ref frame_build is called.
+ * @ref dp_frame_build is called.
  *
- * @ref frame_layout's NAMED view reports nothing for a description, on
+ * @ref dp_frame_layout's NAMED view reports nothing for a description, on
  * purpose — it would go stale the moment a fifth field is appended, and a
  * stale offset is worse than an absent one. Read a description through
- * @ref frame_field_off and its siblings.
+ * @ref dp_frame_field_off and its siblings.
  *
  * @return An unbuilt description, or NULL on allocation failure or a field
  *         that cannot be copied.
@@ -356,7 +356,7 @@ int frame_crc_ok(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_le
  *
  * @endcode
  */
-frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
+dp_frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
 
 /**
  * @brief Append one field to a description.
@@ -410,7 +410,7 @@ frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, siz
  *
  * @endcode
  */
-int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
+int dp_frame_add_field(dp_frame_state_t *state, const uint8_t *lit, size_t lit_len,
                     int kind, size_t gen_len, size_t reps, uint64_t poly,
                     uint64_t seed, uint32_t reg_bits, int lfsr,
                     uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
@@ -471,14 +471,14 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  *
  * @endcode
  */
-int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
+int dp_frame_add_stage(dp_frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
                     uint32_t emit_den, uint32_t unit_bits);
 
 /**
  * @brief Lay out and materialise a described frame.
  *
- * The point at which a description is checked, which for @ref frame_create
+ * The point at which a description is checked, which for @ref dp_frame_create
  * happens inside the constructor: a description that cannot produce its own
  * bits is not a frame. It is separate here only because the description
  * arrives over several calls and there is no earlier moment at which it is
@@ -520,7 +520,7 @@ int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
  *
  * @endcode
  */
-int frame_build(frame_state_t *state);
+int dp_frame_build(dp_frame_state_t *state);
 
 /**
  * @brief Index of the field called @p name, or -1.
@@ -551,7 +551,7 @@ int frame_build(frame_state_t *state);
  *
  * @endcode
  */
-int frame_field_index(frame_state_t *state, const char *name);
+int dp_frame_field_index(dp_frame_state_t *state, const char *name);
 
 /**
  * @brief Give an already-appended field a name, or clear it with `""`.
@@ -577,14 +577,14 @@ int frame_field_index(frame_state_t *state, const char *name);
  *
  * @endcode
  */
-int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
+int dp_frame_name_field(dp_frame_state_t *state, uint32_t index, const char *name);
 
 /**
  * @brief Append a named field a stage will fill. Returns its index; -1 in C,
  * `ValueError` from Python.
  *
  * A field with a declared length and no source: a CRC trailer, a block of
- * check symbols. Its producer is wired by @ref frame_add_stage_over rather
+ * check symbols. Its producer is wired by @ref dp_frame_add_stage_over rather
  * than named here, because no stage exists yet when the field it derives is
  * appended — fields are ordered by POSITION and stages by APPLICATION.
  *
@@ -605,7 +605,7 @@ int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
  *
  * @endcode
  */
-int frame_add_derived(frame_state_t *state, const char *name, size_t bits);
+int dp_frame_add_derived(dp_frame_state_t *state, const char *name, size_t bits);
 
 /**
  * @brief Append a named field from a hex literal. Returns its index; -1 in C,
@@ -634,7 +634,7 @@ int frame_add_derived(frame_state_t *state, const char *name, size_t bits);
  *
  * @endcode
  */
-int frame_add_hex(frame_state_t *state, const char *name, const char *hex,
+int dp_frame_add_hex(dp_frame_state_t *state, const char *name, const char *hex,
                   size_t reps);
 
 /**
@@ -642,7 +642,7 @@ int frame_add_hex(frame_state_t *state, const char *name, const char *hex,
  * `ValueError` from Python.
  *
  * The form to reach for when a literal fits in 64 bits: exact, and with no
- * failure mode a typo can reach. Wider ones want @ref frame_add_hex.
+ * failure mode a typo can reach. Wider ones want @ref dp_frame_add_hex.
  *
  * @param state  the frame.
  * @param name   the field's name, or NULL for anonymous.
@@ -663,7 +663,7 @@ int frame_add_hex(frame_state_t *state, const char *name, const char *hex,
  *
  * @endcode
  */
-int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
+int dp_frame_add_value(dp_frame_state_t *state, const char *name, uint64_t value,
                     uint32_t bits, size_t reps);
 
 /**
@@ -703,13 +703,13 @@ int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
  *
  * @endcode
  */
-int frame_add_stage_over(frame_state_t *state, int kind, const char *first,
+int dp_frame_add_stage_over(dp_frame_state_t *state, int kind, const char *first,
                          const char *last, uint32_t depth,
                          uint32_t unit_bits);
 
 
 /**
- * @brief What @ref frame_check found, summed across the stages it reversed.
+ * @brief What @ref dp_frame_check found, summed across the stages it reversed.
  *
  * One record rather than one per stage, because a caller doing frame
  * accounting wants a verdict and a cost. @p units and @p ok count CHECKS —
@@ -736,7 +736,7 @@ typedef struct {
 /**
  * @brief Undo the description's stages over a received frame, and report.
  *
- * The receive mirror of @ref frame_bits, reading the same description — so a
+ * The receive mirror of @ref dp_frame_bits, reading the same description — so a
  * transmitter and a receiver holding the same `Frame` cannot disagree about
  * which stage covered what.
  *
@@ -787,7 +787,7 @@ typedef struct {
  *
  * @endcode
  */
-frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
+frame_check_t dp_frame_check(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
 
 /**
  * @brief Undo this description's stages over a received frame — DEFRAME it.
@@ -799,7 +799,7 @@ frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t r
  *
  * Returns the frame with every reversible stage undone, in place order:
  * a randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
- * The payload is then a slice, at @ref frame_field_off of the payload
+ * The payload is then a slice, at @ref dp_frame_field_off of the payload
  * field — which is the caller's arithmetic because a description does not
  * privilege one field over another.
  *
@@ -818,7 +818,7 @@ frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t r
  *                     capture and never modified.
  * @param rx_bits_len  How many were supplied.
  * @param out          Receives the corrected frame.
- * @param max_out      Capacity of @p out; see frame_deframe_max_out().
+ * @param max_out      Capacity of @p out; see dp_frame_deframe_max_out().
  * @return Bits written — the frame's length — or 0 if the description is
  *         empty or either buffer is too small.
  * @code
@@ -842,10 +842,10 @@ frame_check_t frame_check(frame_state_t *state, const uint8_t *rx_bits, size_t r
  *
  * @endcode
  */
-size_t frame_deframe(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, uint8_t *out, size_t max_out);
+size_t dp_frame_deframe(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len, uint8_t *out, size_t max_out);
 
 /**
- * @brief Max bits frame_deframe() writes: the frame's own length.
+ * @brief Max bits dp_frame_deframe() writes: the frame's own length.
  *
  * Size a `deframe()` buffer with this. The bound is the DESCRIPTION's, not
  * the input's: a frame is as long as its fields say, so how many bits were
@@ -857,7 +857,7 @@ size_t frame_deframe(frame_state_t *state, const uint8_t *rx_bits, size_t rx_bit
  *                     capacity call passes the input's length.
  * @return The frame's length in bits, or 0 for an empty description.
  */
-size_t frame_deframe_max_out(frame_state_t *state, size_t rx_bits_len);
+size_t dp_frame_deframe_max_out(dp_frame_state_t *state, size_t rx_bits_len);
 
 
 /**
@@ -878,7 +878,7 @@ size_t frame_deframe_max_out(frame_state_t *state, size_t rx_bits_len);
  *
  * @endcode
  */
-size_t frame_n_fields(frame_state_t *state);
+size_t dp_frame_n_fields(dp_frame_state_t *state);
 
 /**
  * @brief Stages in the description.
@@ -899,7 +899,7 @@ size_t frame_n_fields(frame_state_t *state);
  *
  * @endcode
  */
-size_t frame_n_stages(frame_state_t *state);
+size_t dp_frame_n_stages(dp_frame_state_t *state);
 
 /**
  * @brief Bit offset of field @p i, or 0 if there is no such field.
@@ -926,7 +926,7 @@ size_t frame_n_stages(frame_state_t *state);
  *
  * @endcode
  */
-size_t frame_field_off(frame_state_t *state, size_t i);
+size_t dp_frame_field_off(dp_frame_state_t *state, size_t i);
 
 /**
  * @brief Bits in field @p i, or 0 if there is no such field.
@@ -947,7 +947,7 @@ size_t frame_field_off(frame_state_t *state, size_t i);
  *
  * @endcode
  */
-size_t frame_field_bits(frame_state_t *state, size_t i);
+size_t dp_frame_field_bits(dp_frame_state_t *state, size_t i);
 
 /**
  * @brief First CADU bit stage @p i covers; 0 for a stage that did not run.
@@ -968,7 +968,7 @@ size_t frame_field_bits(frame_state_t *state, size_t i);
  *
  * @endcode
  */
-size_t frame_stage_first(frame_state_t *state, size_t i);
+size_t dp_frame_stage_first(dp_frame_state_t *state, size_t i);
 
 /**
  * @brief Bits stage @p i covers; 0 for a stage that did not run.
@@ -989,7 +989,7 @@ size_t frame_stage_first(frame_state_t *state, size_t i);
  *
  * @endcode
  */
-size_t frame_stage_bits(frame_state_t *state, size_t i);
+size_t dp_frame_stage_bits(dp_frame_state_t *state, size_t i);
 
 #ifdef __cplusplus
 }

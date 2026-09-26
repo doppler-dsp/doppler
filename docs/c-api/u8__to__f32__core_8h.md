@@ -31,7 +31,7 @@ _Offset-binary uint8 to float converter — the RTL-SDR_ `cu8` _front end._[More
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) <br>_U8ToF32 state._  |
+| struct | [**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) <br>_U8ToF32 state._  |
 
 
 ## Public Types
@@ -63,13 +63,13 @@ _Offset-binary uint8 to float converter — the RTL-SDR_ `cu8` _front end._[More
 
 | Type | Name |
 | ---: | :--- |
-|  [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) \* | [**u8\_to\_f32\_create**](#function-u8_to_f32_create) (int mode) <br>_Create a u8\_to\_f32 instance._  |
-|  void | [**u8\_to\_f32\_destroy**](#function-u8_to_f32_destroy) ([**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) \* state) <br>_Destroy a u8\_to\_f32 instance and release all memory._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**u8\_to\_f32\_midpoint**](#function-u8_to_f32_midpoint) (const [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) \* state, uint8\_t x) <br>_The_ `midpoint` _mapping of one code:_`(x - 127.5) * (1/127.5)` _._ |
-|  void | [**u8\_to\_f32\_reset**](#function-u8_to_f32_reset) ([**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) \* | [**dp\_u8\_to\_f32\_create**](#function-dp_u8_to_f32_create) (int mode) <br>_Create a u8\_to\_f32 instance._  |
+|  void | [**dp\_u8\_to\_f32\_destroy**](#function-dp_u8_to_f32_destroy) ([**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) \* state) <br>_Destroy a u8\_to\_f32 instance and release all memory._  |
+|  void | [**dp\_u8\_to\_f32\_reset**](#function-dp_u8_to_f32_reset) ([**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_u8\_to\_f32\_step**](#function-dp_u8_to_f32_step) (const [**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) \* state, uint8\_t x) <br>_Convert one offset-binary code to a normalised float._  |
+|  void | [**dp\_u8\_to\_f32\_steps**](#function-dp_u8_to_f32_steps) ([**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) \* state, const uint8\_t \* input, float \* output, size\_t n) <br>_Convert a block of offset-binary codes to float32._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**u8\_to\_f32\_midpoint**](#function-u8_to_f32_midpoint) (const [**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) \* state, uint8\_t x) <br>_The_ `midpoint` _mapping of one code:_`(x - 127.5) * (1/127.5)` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**u8\_to\_f32\_shift**](#function-u8_to_f32_shift) (uint8\_t x) <br>_The_ `shift` _mapping of one code:_`(x - 128) * 2^-7` _, exactly._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**u8\_to\_f32\_step**](#function-u8_to_f32_step) (const [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) \* state, uint8\_t x) <br>_Convert one offset-binary code to a normalised float._  |
-|  void | [**u8\_to\_f32\_steps**](#function-u8_to_f32_steps) ([**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) \* state, const uint8\_t \* input, float \* output, size\_t n) <br>_Convert a block of offset-binary codes to float32._  |
 
 
 
@@ -177,11 +177,11 @@ The Python binding passes the index of `"shift"` / `"midpoint"`, so these values
 
 
 
-### function u8\_to\_f32\_create 
+### function dp\_u8\_to\_f32\_create 
 
 _Create a u8\_to\_f32 instance._ 
 ```C++
-u8_to_f32_state_t * u8_to_f32_create (
+dp_u8_to_f32_state_t * dp_u8_to_f32_create (
     int mode
 ) 
 ```
@@ -206,7 +206,7 @@ Heap-allocated state, or NULL for an unknown `mode`. The allocation itself canno
 
 **Note:**
 
-Caller must call [**u8\_to\_f32\_destroy()**](u8__to__f32__core_8h.md#function-u8_to_f32_destroy) when done. 
+Caller must call [**dp\_u8\_to\_f32\_destroy()**](u8__to__f32__core_8h.md#function-dp_u8_to_f32_destroy) when done. 
 
 
 
@@ -218,12 +218,12 @@ Caller must call [**u8\_to\_f32\_destroy()**](u8__to__f32__core_8h.md#function-u
 
 
 
-### function u8\_to\_f32\_destroy 
+### function dp\_u8\_to\_f32\_destroy 
 
 _Destroy a u8\_to\_f32 instance and release all memory._ 
 ```C++
-void u8_to_f32_destroy (
-    u8_to_f32_state_t * state
+void dp_u8_to_f32_destroy (
+    dp_u8_to_f32_state_t * state
 ) 
 ```
 
@@ -245,51 +245,12 @@ void u8_to_f32_destroy (
 
 
 
-### function u8\_to\_f32\_midpoint 
-
-_The_ `midpoint` _mapping of one code:_`(x - 127.5) * (1/127.5)` _._
-```C++
-JM_FORCEINLINE float u8_to_f32_midpoint (
-    const u8_to_f32_state_t * state,
-    uint8_t x
-) 
-```
-
-
-
-The one definition of the unbiased path; step() and steps() both call it.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL (supplies the pre-computed reciprocal). 
-* `x` Offset-binary code in `[0, 255]`. 
-
-
-
-**Returns:**
-
-`(x - 127.5) / 127.5` to within the last bit, in `[-1, +1]`. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function u8\_to\_f32\_reset 
+### function dp\_u8\_to\_f32\_reset 
 
 _No-op reset, provided only for lifecycle symmetry._ 
 ```C++
-void u8_to_f32_reset (
-    u8_to_f32_state_t * state
+void dp_u8_to_f32_reset (
+    dp_u8_to_f32_state_t * state
 ) 
 ```
 
@@ -322,49 +283,12 @@ The mode and its reciprocal are fixed at construction and nothing else is held, 
 
 
 
-### function u8\_to\_f32\_shift 
-
-_The_ `shift` _mapping of one code:_`(x - 128) * 2^-7` _, exactly._
-```C++
-JM_FORCEINLINE float u8_to_f32_shift (
-    uint8_t x
-) 
-```
-
-
-
-The one definition of the fast path; step() and steps() both call it. The subtract is done in `int32_t` rather than by flipping the top bit into an `int8_t`, which gives the same value without C's implementation-defined narrowing conversion.
-
-
-
-
-**Parameters:**
-
-
-* `x` Offset-binary code in `[0, 255]`. 
-
-
-
-**Returns:**
-
-`(x - 128) / 128`, in `[-1, 127/128]`. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function u8\_to\_f32\_step 
+### function dp\_u8\_to\_f32\_step 
 
 _Convert one offset-binary code to a normalised float._ 
 ```C++
-JM_FORCEINLINE  JM_HOT float u8_to_f32_step (
-    const u8_to_f32_state_t * state,
+JM_FORCEINLINE  JM_HOT float dp_u8_to_f32_step (
+    const dp_u8_to_f32_state_t * state,
     uint8_t x
 ) 
 ```
@@ -408,12 +332,12 @@ The mapped sample (see the table at the top of this file).
 
 
 
-### function u8\_to\_f32\_steps 
+### function dp\_u8\_to\_f32\_steps 
 
 _Convert a block of offset-binary codes to float32._ 
 ```C++
-void u8_to_f32_steps (
-    u8_to_f32_state_t * state,
+void dp_u8_to_f32_steps (
+    dp_u8_to_f32_state_t * state,
     const uint8_t * input,
     float * output,
     size_t n
@@ -444,6 +368,82 @@ The mode is resolved once for the block, then one branch-free loop runs, so the 
 [-1j, (0.5-0.5j)]
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function u8\_to\_f32\_midpoint 
+
+_The_ `midpoint` _mapping of one code:_`(x - 127.5) * (1/127.5)` _._
+```C++
+JM_FORCEINLINE float u8_to_f32_midpoint (
+    const dp_u8_to_f32_state_t * state,
+    uint8_t x
+) 
+```
+
+
+
+The one definition of the unbiased path; step() and steps() both call it.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL (supplies the pre-computed reciprocal). 
+* `x` Offset-binary code in `[0, 255]`. 
+
+
+
+**Returns:**
+
+`(x - 127.5) / 127.5` to within the last bit, in `[-1, +1]`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function u8\_to\_f32\_shift 
+
+_The_ `shift` _mapping of one code:_`(x - 128) * 2^-7` _, exactly._
+```C++
+JM_FORCEINLINE float u8_to_f32_shift (
+    uint8_t x
+) 
+```
+
+
+
+The one definition of the fast path; step() and steps() both call it. The subtract is done in `int32_t` rather than by flipping the top bit into an `int8_t`, which gives the same value without C's implementation-defined narrowing conversion.
+
+
+
+
+**Parameters:**
+
+
+* `x` Offset-binary code in `[0, 255]`. 
+
+
+
+**Returns:**
+
+`(x - 128) / 128`, in `[-1, 127/128]`. 
+
+
+
 
 
         

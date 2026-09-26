@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Default carrier lock-detector rule (see costas_configure_lock's header
+/* Default carrier lock-detector rule (see dp_costas_configure_lock's header
  * doc for the full derivation). Under H0 the |Re P|/|P| metric is
  * |cos(theta)| for uniform theta: mean 2/pi (~0.637), per-symbol std
  * ~0.31, reduced to ~0.071 by the COSTAS_LOCK_ALPHA = 0.1 EMA — so the
@@ -20,7 +20,7 @@
  * and point the NCO at the same frequency — de-rotation is correct from
  * the first sample, before any update runs. */
 static void
-seed (costas_state_t *s, double init_norm_freq)
+seed (dp_costas_state_t *s, double init_norm_freq)
 {
   lo_init (&s->nco, init_norm_freq);
   s->lf.integ    = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
@@ -30,12 +30,12 @@ seed (costas_state_t *s, double init_norm_freq)
   s->have_prev   = 0;
   s->lock_metric = 0.0;
   s->last_error  = 0.0;
-  lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
+  dp_lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
 }
 
 void
-costas_init (costas_state_t *s, double bn, double zeta, double init_norm_freq,
-             size_t tsamps, double bn_fll)
+costas_init (dp_costas_state_t *s, double bn, double zeta,
+             double init_norm_freq, size_t tsamps, double bn_fll)
 {
   s->tsamps         = tsamps ? tsamps : 1;
   s->bn             = bn;
@@ -43,7 +43,7 @@ costas_init (costas_state_t *s, double bn, double zeta, double init_norm_freq,
   s->bn_fll         = bn_fll;
   s->k_fll          = 4.0 * bn_fll; /* 1st-order FLL aiding gain */
   s->seed_norm_freq = init_norm_freq;
-  /* In-place (stack-embedded) init: start detached — costas_create's calloc
+  /* In-place (stack-embedded) init: start detached — dp_costas_create's calloc
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
@@ -53,11 +53,11 @@ costas_init (costas_state_t *s, double bn, double zeta, double init_norm_freq,
   seed (s, init_norm_freq);
 }
 
-costas_state_t *
-costas_create (double bn, double zeta, double init_norm_freq, size_t tsamps,
-               double bn_fll)
+dp_costas_state_t *
+dp_costas_create (double bn, double zeta, double init_norm_freq, size_t tsamps,
+                  double bn_fll)
 {
-  costas_state_t *obj = calloc (1, sizeof (*obj));
+  dp_costas_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   costas_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll);
@@ -65,21 +65,21 @@ costas_create (double bn, double zeta, double init_norm_freq, size_t tsamps,
 }
 
 void
-costas_destroy (costas_state_t *state)
+dp_costas_destroy (dp_costas_state_t *state)
 {
   free (state);
 }
 
 void
-costas_reset (costas_state_t *state)
+dp_costas_reset (dp_costas_state_t *state)
 {
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state, state->seed_norm_freq);
 }
 
 int
-costas_set_telemetry (costas_state_t *state, dp_tlm_t *tlm, const char *prefix,
-                      uint32_t decim)
+dp_costas_set_telemetry (dp_costas_state_t *state, dp_tlm_t *tlm,
+                         const char *prefix, uint32_t decim)
 {
   if (!tlm) /* detach: probe sites revert to the single-branch cost */
     {
@@ -107,7 +107,7 @@ costas_set_telemetry (costas_state_t *state, dp_tlm_t *tlm, const char *prefix,
 }
 
 void
-costas_tlm_flush (const costas_state_t *s)
+costas_tlm_flush (const dp_costas_state_t *s)
 {
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_metric);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
@@ -118,29 +118,29 @@ costas_tlm_flush (const costas_state_t *s)
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
  * telemetry attachment zeroed in blobs and kept live across restore
  * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
-DP_DEFINE_POD_STATE_TLM (costas, costas_state_t, COSTAS_STATE_MAGIC,
+DP_DEFINE_POD_STATE_TLM (dp_costas, dp_costas_state_t, COSTAS_STATE_MAGIC,
                          COSTAS_STATE_VERSION, tlm)
 
 void
-costas_configure (costas_state_t *state, double bn, double zeta)
+dp_costas_configure (dp_costas_state_t *state, double bn, double zeta)
 {
   state->bn   = bn;
   state->zeta = zeta;
-  loop_filter_configure (&state->lf, bn, zeta, 1.0);
+  dp_loop_filter_configure (&state->lf, bn, zeta, 1.0);
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
  * input length, so 0 (== "caller sizes") is the correct sentinel. */
 size_t
-costas_steps_max_out (costas_state_t *state)
+dp_costas_steps_max_out (dp_costas_state_t *state)
 {
   (void)state;
   return 0; /* one symbol per tsamps >= 1 inputs, so symbols <= inputs */
 }
 
 size_t
-costas_steps (costas_state_t *state, const float _Complex *x, size_t x_len,
-              float _Complex *out, size_t max_out)
+dp_costas_steps (dp_costas_state_t *state, const float _Complex *x,
+                 size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
@@ -185,25 +185,25 @@ costas_steps (costas_state_t *state, const float _Complex *x, size_t x_len,
 }
 
 double
-costas_get_bn (const costas_state_t *state)
+dp_costas_get_bn (const dp_costas_state_t *state)
 {
   return state->bn;
 }
 
 void
-costas_set_bn (costas_state_t *state, double val)
+dp_costas_set_bn (dp_costas_state_t *state, double val)
 {
-  costas_configure (state, val, state->zeta);
+  dp_costas_configure (state, val, state->zeta);
 }
 
 double
-costas_get_norm_freq (const costas_state_t *state)
+dp_costas_get_norm_freq (const dp_costas_state_t *state)
 {
   return state->nco.norm_freq;
 }
 
 double
-costas_get_nco_freq (const costas_state_t *state)
+costas_get_nco_freq (const dp_costas_state_t *state)
 {
   /* Effective NCO frequency command = the loop-filter OUTPUT: the NCO
    * frequency register (which holds the integrator, set each symbol) PLUS
@@ -217,46 +217,46 @@ costas_get_nco_freq (const costas_state_t *state)
 }
 
 void
-costas_set_norm_freq (costas_state_t *state, double val)
+dp_costas_set_norm_freq (dp_costas_state_t *state, double val)
 {
   state->seed_norm_freq = val;
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state, val);
 }
 
 double
-costas_get_lock_metric (const costas_state_t *state)
+dp_costas_get_lock_metric (const dp_costas_state_t *state)
 {
   return state->lock_metric;
 }
 
 void
-costas_configure_lock (costas_state_t *state, double up_thresh,
-                       double down_thresh, uint32_t n_up, uint32_t n_down)
+dp_costas_configure_lock (dp_costas_state_t *state, double up_thresh,
+                          double down_thresh, uint32_t n_up, uint32_t n_down)
 {
-  lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
 }
 
 int
-costas_get_locked (const costas_state_t *state)
+dp_costas_get_locked (const dp_costas_state_t *state)
 {
   return state->lock.locked;
 }
 
 double
-costas_get_last_error (const costas_state_t *state)
+dp_costas_get_last_error (const dp_costas_state_t *state)
 {
   return state->last_error;
 }
 
 double
-costas_get_bn_fll (const costas_state_t *state)
+dp_costas_get_bn_fll (const dp_costas_state_t *state)
 {
   return state->bn_fll;
 }
 
 void
-costas_set_bn_fll (costas_state_t *state, double val)
+dp_costas_set_bn_fll (dp_costas_state_t *state, double val)
 {
   state->bn_fll = val;
   state->k_fll  = 4.0 * val;

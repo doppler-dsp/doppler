@@ -69,8 +69,8 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (det != NULL);
     DP_CHECK (det->ny == NY);
     DP_CHECK (det->nx == NX);
@@ -80,8 +80,8 @@ main (void)
     DP_CHECK (det->corr != NULL);
     DP_CHECK (det->_last_corr_valid == 0);
 
-    detector2d_destroy (det);
-    detector2d_destroy (NULL);
+    dp_detector2d_destroy (det);
+    dp_detector2d_destroy (NULL);
   }
 
   /* ── noise_hi sentinel clamp ────────────────────────────────────── *
@@ -91,20 +91,20 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, (size_t)-1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 0, (size_t)-1, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (det != NULL);
     DP_CHECK (det->noise_lo == 0);
     DP_CHECK (det->noise_hi == N - 1);
 
     det_result2d_t results[16];
-    size_t         ndet = detector2d_push (det, ref, N, results, 16);
+    size_t         ndet = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
     DP_CHECK (results[0].row == 0 && results[0].col == 0);
     DP_CHECK (isfinite (results[0].noise_est) && results[0].noise_est > 0.0f);
     DP_CHECK (isfinite (results[0].test_stat) && results[0].test_stat > 1.0f);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── impulse ref: peak at (row=0, col=0) ────────────────────────── *
@@ -114,10 +114,10 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t      results[16];
-    size_t              ndet = detector2d_push (det, ref, N, results, 16);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    det_result2d_t results[16];
+    size_t         ndet = dp_detector2d_push (det, ref, N, results, 16);
 
     DP_CHECK (ndet == 1);
     DP_CHECK (results[0].row == 0);
@@ -126,7 +126,7 @@ main (void)
     DP_CHECK (results[0].test_stat > 1.0f);
     DP_CHECK (det->_last_corr_valid == 1);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── sub-frame push ──────────────────────────────────────────────── */
@@ -134,18 +134,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t      results[16];
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    det_result2d_t results[16];
 
-    size_t n1 = detector2d_push (det, ref, N / 2, results, 16);
+    size_t n1 = dp_detector2d_push (det, ref, N / 2, results, 16);
     DP_CHECK (n1 == 0);
 
-    size_t n2 = detector2d_push (det, ref + N / 2, N / 2, results, 16);
+    size_t n2 = dp_detector2d_push (det, ref + N / 2, N / 2, results, 16);
     DP_CHECK (n2 == 1);
     DP_CHECK (results[0].row == 0 && results[0].col == 0);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── dwell=2 ─────────────────────────────────────────────────────── */
@@ -153,18 +153,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 2, 1, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t      results[16];
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    det_result2d_t results[16];
 
-    size_t n1 = detector2d_push (det, ref, N, results, 16);
+    size_t n1 = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (n1 == 0);
 
-    size_t n2 = detector2d_push (det, ref, N, results, 16);
+    size_t n2 = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (n2 == 1);
     DP_CHECK (results[0].peak_mag > 1.9f && results[0].peak_mag < 2.1f);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── 2-D shift: ref=δ[0,0] in=δ[1,0] → peak at (row=1, col=0) ──── */
@@ -174,16 +174,16 @@ main (void)
     ref[0]                = 1.0f;
     in[NX]                = 1.0f; /* row 1, col 0 */
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t      results[16];
-    size_t              ndet = detector2d_push (det, in, N, results, 16);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    det_result2d_t results[16];
+    size_t         ndet = dp_detector2d_push (det, in, N, results, 16);
 
     DP_CHECK (ndet == 1);
     DP_CHECK (results[0].row == 1);
     DP_CHECK (results[0].col == 0);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── threshold gate ──────────────────────────────────────────────── */
@@ -191,17 +191,17 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
-                                                 DET_NOISE_MEAN, 1000.0f, 1);
-    det_result2d_t      results[16];
-    size_t              ndet = detector2d_push (det, ref, N, results, 16);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 1, N - 1, DET_NOISE_MEAN, 1000.0f, 1);
+    det_result2d_t results[16];
+    size_t         ndet = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 0);
 
     detector2d_set_threshold (det, 0.0f);
-    ndet = detector2d_push (det, ref, N, results, 16);
+    ndet = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── reset clears state ──────────────────────────────────────────── */
@@ -209,18 +209,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 2, 1, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t      results[16];
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    det_result2d_t results[16];
 
-    detector2d_push (det, ref, N, results, 16);
+    dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (det->corr->count == 1);
 
-    detector2d_reset (det);
+    dp_detector2d_reset (det);
     DP_CHECK (det->corr->count == 0);
     DP_CHECK (det->_last_corr_valid == 0);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* serializable state — corr2d child + ring residual + result fields. */
@@ -231,26 +231,26 @@ main (void)
       ref[i] = (float)(i % 4) + 0.5f * I;
     for (int i = 0; i < 24; i++)
       in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
-    detector2d_state_t *a
-        = detector2d_create (ref, 4, 4, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
-    detector2d_state_t *b
-        = detector2d_create (ref, 4, 4, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *a
+        = dp_detector2d_create (ref, 4, 4, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *b
+        = dp_detector2d_create (ref, 4, 4, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)detector2d_push (a, in, 24, res, 16);
-    DP_STATE_ROUNDTRIP_TEST (detector2d, a, b);
+    (void)dp_detector2d_push (a, in, 24, res, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_detector2d, a, b);
     DP_CHECK (b->corr->count == a->corr->count); /* corr2d child resumed */
     DP_CHECK ((DP_LOAD_ACQ (&b->ring->head) - DP_LOAD_RLX (&b->ring->tail))
               == (DP_LOAD_ACQ (&a->ring->head)
                   - DP_LOAD_RLX (&a->ring->tail))); /* ring residual */
     DP_CHECK (b->_last_corr_valid == a->_last_corr_valid);
-    detector2d_destroy (a);
-    detector2d_destroy (b);
+    dp_detector2d_destroy (a);
+    dp_detector2d_destroy (b);
   }
 
   /* ── dwell = 0 is refused, inherited from corr2d ──────────────────────
    *
    * detector2d's own header says dwell "must be >= 1" and it validates
-   * nothing itself -- it forwards straight to corr2d_create, which is
+   * nothing itself -- it forwards straight to dp_corr2d_create, which is
    * where the rule now lives (see test_corr2d_core.c). Pinned here too
    * because this is the object a caller constructs, and because it is the
    * assertion that would notice if the forwarding were ever replaced by a
@@ -258,14 +258,14 @@ main (void)
   {
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
-    DP_CHECK (
-        detector2d_create (ref, NY, NX, 0, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1)
-        == NULL);
+    DP_CHECK (dp_detector2d_create (ref, NY, NX, 0, 1, N - 1, DET_NOISE_MEAN,
+                                    0.0f, 1)
+              == NULL);
     /* Not vacuous: the neighbouring value builds. */
-    detector2d_state_t *ok = detector2d_create (ref, NY, NX, 1, 1, N - 1,
-                                                DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *ok = dp_detector2d_create (ref, NY, NX, 1, 1, N - 1,
+                                                      DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (ok != NULL);
-    detector2d_destroy (ok);
+    dp_detector2d_destroy (ok);
   }
 
   /* ── all FOUR noise modes, not just the mean ──────────────────────────
@@ -300,11 +300,11 @@ main (void)
     float        got[4];
     for (int m = 0; m < 4; m++)
       {
-        detector2d_state_t *det = detector2d_create (
+        dp_detector2d_state_t *det = dp_detector2d_create (
             ref, NY, NX, 1, lo, hi, (det_noise_mode_t)m, 0.0f, 1);
         DP_CHECK (det != NULL);
         det_result2d_t res[4];
-        size_t         nd = detector2d_push (det, in, N, res, 4);
+        size_t         nd = dp_detector2d_push (det, in, N, res, 4);
         DP_CHECK (nd == 1);
         if (nd == 1)
           {
@@ -323,7 +323,7 @@ main (void)
                 fabsf (res[0].test_stat - res[0].peak_mag / res[0].noise_est)
                 < 1e-4f);
           }
-        detector2d_destroy (det);
+        dp_detector2d_destroy (det);
       }
     /* Not vacuous: the four modes genuinely disagree on this window, so
        each assertion above is discriminating rather than four spellings
@@ -356,8 +356,8 @@ main (void)
       ref_2d[k] = (float)(k % 5) + 1.0f; /* genuinely multi-row */
     in[0] = 1.0f;
 
-    detector2d_state_t *det = detector2d_create (ref_a, NY, NX, 2, 0, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref_a, NY, NX, 2, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (det != NULL);
     det_result2d_t res[4];
 
@@ -365,14 +365,14 @@ main (void)
        assertions below pass on things that were already clean. Measured
        while writing this: asserting only `corr->count == 0` is satisfied
        by corr2d_set_ref's own reset, so it tests corr2d rather than this
-       function -- deleting detector2d_reset from set_ref left it green.
+       function -- deleting dp_detector2d_reset from set_ref left it green.
        The ring residue and the last-dump flag are what set_ref adds. */
-    DP_CHECK (detector2d_push (det, in, N, res, 4) == 0); /* dwell 1 of 2 */
-    DP_CHECK (detector2d_push (det, in, N, res, 4) == 1); /* dumps       */
+    DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0); /* dwell 1 of 2 */
+    DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 1); /* dumps       */
     DP_CHECK (det->_last_corr_valid == 1);
-    DP_CHECK (detector2d_push (det, in, N, res, 4) == 0); /* accumulator */
+    DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0); /* accumulator */
     DP_CHECK (det->corr->count == 1);
-    DP_CHECK (detector2d_push (det, in, N / 2, res, 4) == 0); /* ring     */
+    DP_CHECK (dp_detector2d_push (det, in, N / 2, res, 4) == 0); /* ring     */
     size_t resid = (size_t)(DP_LOAD_ACQ (&det->ring->head)
                             - DP_LOAD_RLX (&det->ring->tail));
     DP_CHECK (resid > 0);
@@ -387,8 +387,8 @@ main (void)
 
     /* The new reference is genuinely in force: the impulse moved two
        columns, so the correlation peak moves with it. */
-    DP_CHECK (detector2d_push (det, in, N, res, 4) == 0);
-    size_t nd = detector2d_push (det, in, N, res, 4);
+    DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0);
+    size_t nd = dp_detector2d_push (det, in, N, res, 4);
     DP_CHECK (nd == 1);
     if (nd == 1)
       DP_CHECK (res[0].row == 0 && res[0].col == NX - 2);
@@ -396,13 +396,13 @@ main (void)
     /* A multi-row reference is REFUSED on a fast-path object, and the
        refusal is not destructive -- the object still works afterwards. */
     DP_CHECK (detector2d_set_ref (det, ref_2d) != 0);
-    DP_CHECK (detector2d_push (det, in, N, res, 4) == 0);
-    nd = detector2d_push (det, in, N, res, 4);
+    DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0);
+    nd = dp_detector2d_push (det, in, N, res, 4);
     DP_CHECK (nd == 1);
     if (nd == 1)
       DP_CHECK (res[0].row == 0 && res[0].col == NX - 2); /* still ref_b */
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   /* ── set_threshold gates without rebuilding, and the last-dump values
@@ -424,12 +424,12 @@ main (void)
     in_a[0]          = 1.0f; /* peak at (0,0) */
     in_b[2 * NX + 5] = 1.0f; /* peak at (2,5) */
 
-    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
-                                                 DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector2d_state_t *det = dp_detector2d_create (
+        ref, NY, NX, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (det != NULL);
     det_result2d_t res[4];
 
-    DP_CHECK (detector2d_push (det, in_a, N, res, 4) == 1);
+    DP_CHECK (dp_detector2d_push (det, in_a, N, res, 4) == 1);
     float stat_open = det->test_stat;
     DP_CHECK (stat_open > 1.0f);
     DP_CHECK (det->peak_row == 0 && det->peak_col == 0);
@@ -437,7 +437,7 @@ main (void)
     /* Raise the gate above what the surface produces: nothing emitted ... */
     detector2d_set_threshold (det, stat_open * 10.0f);
     DP_CHECK (det->threshold == stat_open * 10.0f);
-    DP_CHECK (detector2d_push (det, in_b, N, res, 4) == 0);
+    DP_CHECK (dp_detector2d_push (det, in_b, N, res, 4) == 0);
 
     /* ... and yet the last-dump POSITION followed the new input, which is
        the claim. A stale copy would still read (0,0) from in_a. */
@@ -446,10 +446,10 @@ main (void)
 
     /* Dropping the gate re-opens it with no rebuild. */
     detector2d_set_threshold (det, 0.0f);
-    DP_CHECK (detector2d_push (det, in_a, N, res, 4) == 1);
+    DP_CHECK (dp_detector2d_push (det, in_a, N, res, 4) == 1);
     DP_CHECK (det->peak_row == 0 && det->peak_col == 0);
 
-    detector2d_destroy (det);
+    dp_detector2d_destroy (det);
   }
 
   DP_TEST_END ("test_detector2d_core");

@@ -62,14 +62,14 @@ main (void)
                          + 0.002 * sin (p4));
         }
 
-      imdmeas_state_t *m = imdmeas_create (n, 1.0, 1.0, 0, 90.0);
+      dp_imdmeas_state_t *m = dp_imdmeas_create (n, 1.0, 1.0, 0, 90.0);
       if (!m)
         {
           (void)fprintf (stderr, "bench_imdmeas: create(n=%zu) NULL\n", n);
           return 1;
         }
 
-      imd_meas_t probe = imdmeas_analyze (m, x, n);
+      imd_meas_t probe = dp_imdmeas_analyze (m, x, n);
       if (!isfinite (probe.imd3_dbc))
         {
           (void)fprintf (stderr,
@@ -82,7 +82,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += imdmeas_analyze (m, x, n).imd3_dbc;
+          sink += dp_imdmeas_analyze (m, x, n).imd3_dbc;
           t1         = jm_bench_now_ns ();
           t_an[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -93,7 +93,7 @@ main (void)
               min_sec (t_an[k], ITERATIONS) * 1e6,
               min_sec (t_an[k], ITERATIONS) / (double)n * 1e9);
 
-      imdmeas_destroy (m);
+      dp_imdmeas_destroy (m);
       free (x);
     }
 

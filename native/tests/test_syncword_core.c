@@ -60,17 +60,17 @@ main (void)
    * caller can see it rather than at every find.
    */
   {
-    DP_CHECK_MSG (syncword_create (NULL, 0) == NULL,
+    DP_CHECK_MSG (dp_syncword_create (NULL, 0) == NULL,
                   "a NULL marker must be refused");
     uint8_t m = 1u;
-    DP_CHECK_MSG (syncword_create (&m, 0) == NULL,
+    DP_CHECK_MSG (dp_syncword_create (&m, 0) == NULL,
                   "an empty marker must be refused -- it matches everywhere");
   }
 
   /* ── 2. the marker is COPIED ──────────────────────────────────────────────
    *
    * The header promises a searcher outlives the array it was built from,
-   * which is what lets `SyncFinder(asm_bits())` work at all: numpy
+   * which is what lets `SyncFinder(dp_asm_bits())` work at all: numpy
    * frees that temporary the moment the constructor returns. A searcher
    * holding the caller's pointer would search whatever landed there next,
    * and would do it silently.
@@ -80,17 +80,17 @@ main (void)
     uint8_t keep[13];
     memcpy (keep, m, sizeof m);
 
-    syncword_state_t *f = syncword_create (m, sizeof m);
+    dp_syncword_state_t *f = dp_syncword_create (m, sizeof m);
     DP_REQUIRE (f != NULL);
     memset (m, 0, sizeof m); /* the caller reuses their buffer */
 
     uint8_t bits[60] = { 0 };
     memcpy (bits + 21, keep, sizeof keep);
-    syncword_hit_t h = syncword_find (f, bits, sizeof bits, 0u);
+    syncword_hit_t h = dp_syncword_find (f, bits, sizeof bits, 0u);
     DP_CHECK_MSG (h.found && h.offset == 21u,
                   "the searcher must still hold the ORIGINAL marker");
-    DP_CHECK (syncword_pfa (f, 0u) > 0.0); /* nbits survived too */
-    syncword_destroy (f);
+    DP_CHECK (dp_syncword_pfa (f, 0u) > 0.0); /* nbits survived too */
+    dp_syncword_destroy (f);
   }
 
   /* ── 3. a miss is an answer, not an absence ───────────────────────────────
@@ -101,20 +101,20 @@ main (void)
    * obviously not a location.
    */
   {
-    uint8_t           m[9] = { 1, 1, 0, 1, 0, 0, 1, 0, 1 };
-    syncword_state_t *f    = syncword_create (m, sizeof m);
+    uint8_t              m[9] = { 1, 1, 0, 1, 0, 0, 1, 0, 1 };
+    dp_syncword_state_t *f    = dp_syncword_create (m, sizeof m);
     DP_REQUIRE (f != NULL);
 
     uint8_t        bits[40] = { 0 };
-    syncword_hit_t h        = syncword_find (f, bits, sizeof bits, 0u);
+    syncword_hit_t h        = dp_syncword_find (f, bits, sizeof bits, 0u);
     DP_CHECK_MSG (!h.found, "a marker that is not there must not be found");
     DP_CHECK_MSG (h.offset == 0u && h.inverted == 0 && h.errors == 0u,
                   "a miss must return the record zeroed, not partly filled");
 
     /* Shorter than the marker: nothing to correlate against. */
-    h = syncword_find (f, bits, 8u, 32u);
+    h = dp_syncword_find (f, bits, 8u, 32u);
     DP_CHECK_MSG (!h.found, "a run shorter than the marker cannot hold one");
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   /* ── 4. polarity, at a length that is not 32 ──────────────────────────────
@@ -126,8 +126,8 @@ main (void)
    * so the frame is simply lost and nothing says why.
    */
   {
-    uint8_t           m[9] = { 1, 1, 0, 1, 0, 0, 1, 0, 1 };
-    syncword_state_t *f    = syncword_create (m, sizeof m);
+    uint8_t              m[9] = { 1, 1, 0, 1, 0, 0, 1, 0, 1 };
+    dp_syncword_state_t *f    = dp_syncword_create (m, sizeof m);
     DP_REQUIRE (f != NULL);
 
     uint8_t bits[50];
@@ -136,14 +136,14 @@ main (void)
     for (size_t i = 0; i < sizeof m; i++)
       bits[17 + i] = (uint8_t)(m[i] ^ 1u);
 
-    syncword_hit_t h = syncword_find (f, bits, sizeof bits, 0u);
+    syncword_hit_t h = dp_syncword_find (f, bits, sizeof bits, 0u);
     DP_REQUIRE (h.found);
     DP_CHECK_MSG (h.offset == 17u, "an inverted marker is still at 17");
     DP_CHECK_MSG (h.inverted, "...and must be REPORTED as inverted");
     DP_CHECK_MSG (h.errors == 0u,
                   "an exactly inverted marker is zero errors from the "
                   "complement, whatever the marker's length");
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   /* ── 5. FIRST below threshold, at a long marker ───────────────────────────
@@ -166,7 +166,7 @@ main (void)
     for (size_t i = 0; i < NM; i++)
       m[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    syncword_state_t *f = syncword_create (m, NM);
+    dp_syncword_state_t *f = dp_syncword_create (m, NM);
     DP_REQUIRE (f != NULL);
 
     uint8_t bits[N] = { 0 };
@@ -175,18 +175,18 @@ main (void)
     bits[FIRST + 19] ^= 1u;
     memcpy (bits + BEST, m, NM);
 
-    syncword_hit_t h = syncword_find (f, bits, N, 2u);
+    syncword_hit_t h = dp_syncword_find (f, bits, N, 2u);
     DP_REQUIRE (h.found);
     DP_CHECK_MSG (h.offset == FIRST && h.errors == 2u,
                   "the FIRST marker within tolerance wins, and reports its "
                   "own distance rather than the better one's");
 
-    h = syncword_find (f, bits, N, 1u);
+    h = dp_syncword_find (f, bits, N, 1u);
     DP_REQUIRE (h.found);
     DP_CHECK_MSG (h.offset == BEST && h.errors == 0u,
                   "tighten the tolerance and the later clean marker becomes "
                   "the first that qualifies -- a threshold, not a ranking");
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   /* ── 6. pfa against an EXHAUSTIVE count ───────────────────────────────────
@@ -206,7 +206,7 @@ main (void)
     const unsigned M = 0xB4u;
     uint8_t        mb[8];
     byte_bits (M, mb);
-    syncword_state_t *f = syncword_create (mb, 8u);
+    dp_syncword_state_t *f = dp_syncword_create (mb, 8u);
     DP_REQUIRE (f != NULL);
 
     for (unsigned t = 0; t <= 8u; t++)
@@ -219,11 +219,11 @@ main (void)
               hits++;
           }
         const double want = (double)hits / 256.0;
-        DP_CHECK_NEAR (syncword_pfa (f, t), want, 1e-12);
+        DP_CHECK_NEAR (dp_syncword_pfa (f, t), want, 1e-12);
       }
-    DP_CHECK_MSG (syncword_pfa (f, 4u) == 1.0,
+    DP_CHECK_MSG (dp_syncword_pfa (f, 4u) == 1.0,
                   "at 2t >= n every window matches one polarity: exactly 1");
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   /* ── 7. the formula and the SEARCH agree ──────────────────────────────────
@@ -248,7 +248,7 @@ main (void)
     const unsigned M = 0x6Eu;
     uint8_t        mb[8];
     byte_bits (M, mb);
-    syncword_state_t *f = syncword_create (mb, 8u);
+    dp_syncword_state_t *f = dp_syncword_create (mb, 8u);
     DP_REQUIRE (f != NULL);
 
     for (unsigned t = 1u; t <= 2u; t++)
@@ -262,14 +262,14 @@ main (void)
               w[i] = (uint8_t)(dp_xs32 (&st) & 1u);
             /* n_bits == 8 leaves exactly one offset, so this is a single
                accept/reject of the detector rather than a search. */
-            if (syncword_find (f, w, 8u, t).found)
+            if (dp_syncword_find (f, w, 8u, t).found)
               hits++;
           }
         const double got  = (double)hits / (double)TRIALS;
-        const double want = syncword_pfa (f, t);
+        const double want = dp_syncword_pfa (f, t);
         DP_CHECK_NEAR (got, want, 0.15 * want);
       }
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   /* ── 8. max_errors_for is the threshold, and it is TIGHT ──────────────────
@@ -286,7 +286,7 @@ main (void)
     uint32_t st = 99u;
     for (size_t i = 0; i < sizeof m; i++)
       m[i] = (uint8_t)(dp_xs32 (&st) & 1u);
-    syncword_state_t *f = syncword_create (m, sizeof m);
+    dp_syncword_state_t *f = dp_syncword_create (m, sizeof m);
     DP_REQUIRE (f != NULL);
 
     const size_t W[]    = { 32u, 96u, 4096u, 100000u };
@@ -294,14 +294,14 @@ main (void)
     int          prev   = 33;
     for (size_t i = 0; i < sizeof W / sizeof W[0]; i++)
       {
-        const int t = syncword_max_errors_for (f, W[i], target);
+        const int t = dp_syncword_max_errors_for (f, W[i], target);
         DP_REQUIRE (t >= 0);
 
         const double at
-            = 1.0 - pow (1.0 - syncword_pfa (f, (uint32_t)t), (double)W[i]);
+            = 1.0 - pow (1.0 - dp_syncword_pfa (f, (uint32_t)t), (double)W[i]);
         const double next
             = 1.0
-              - pow (1.0 - syncword_pfa (f, (uint32_t)t + 1), (double)W[i]);
+              - pow (1.0 - dp_syncword_pfa (f, (uint32_t)t + 1), (double)W[i]);
         DP_CHECK_MSG (at <= target,
                       "the returned tolerance must MEET the false-frame rate");
         DP_CHECK_MSG (next > target,
@@ -318,9 +318,9 @@ main (void)
        even an exact match false-hits within this window more often than the
        caller allows. -1 says so rather than returning 0, which a caller
        would read as "exact matches only" and act on. */
-    DP_CHECK_MSG (syncword_max_errors_for (f, (size_t)1e12, 1e-9) == -1,
+    DP_CHECK_MSG (dp_syncword_max_errors_for (f, (size_t)1e12, 1e-9) == -1,
                   "an unachievable rate must be reported, not rounded to 0");
-    syncword_destroy (f);
+    dp_syncword_destroy (f);
   }
 
   DP_TEST_END ("syncword_core");

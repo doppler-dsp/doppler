@@ -150,7 +150,7 @@ enum
 };
 
 /* N-source accumulate renders one source at a time into a fixed-size scratch
- * and adds it in. wfm_synth_steps() is chunk-invariant, so capping the
+ * and adds it in. dp_wfm_synth_steps() is chunk-invariant, so capping the
  * per-call chunk here does not change the output — and it keeps scratch a
  * fixed allocation regardless of the caller's `max` (the binding can pass
  * millions).
@@ -187,9 +187,9 @@ struct wfm_compose_state
      other -- and that is exactly what has to survive the per-segment synth
      teardown for `doppler_rate` to mean anything across a multi-burst pass.
      NULL everywhere unless some source declares WFM_DOPPLER_PERSIST. */
-  doppler_channel_state_t **pch;
-  size_t                   *pch_off; /* first slot of segment i */
-  size_t                    pch_n;   /* total slots */
+  dp_doppler_channel_state_t **pch;
+  size_t                      *pch_off; /* first slot of segment i */
+  size_t                       pch_n;   /* total slots */
 };
 
 /* Destroy the active segment's renderers (the rend[] array stays allocated).
@@ -217,7 +217,7 @@ stop_synths (wfm_compose_state_t *s)
  * on-time; epoch/seed_advance drive the per-repeat seed policy (epoch 0 → the
  * unmodified seed); a non-zero `repeats` instance always freshens the AWGN
  * (signal fixed). Returns NULL only on synth-create failure. */
-wfm_synth_state_t *
+dp_wfm_synth_state_t *
 wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
                          double freq, double snr, double f_end, unsigned epoch,
                          int seed_advance, size_t instance)
@@ -229,23 +229,23 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
     seed = (uint32_t)(src->seed + epoch);
   /* A dsss data-symbol Es/N0 is referred to fs before create (the codes
    * attach below, after create resolves the noise); identity otherwise. */
-  int                snr_mode = 0;
-  double             snr_c = wfm_source_create_snr (src, fs, snr, &snr_mode);
-  wfm_synth_state_t *syn
-      = wfm_synth_create (src->type, fs, freq, snr_c, snr_mode, seed, src->sps,
-                          src->pn_length, src->pn_poly, src->lfsr, f_end);
+  int    snr_mode           = 0;
+  double snr_c              = wfm_source_create_snr (src, fs, snr, &snr_mode);
+  dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+      src->type, fs, freq, snr_c, snr_mode, seed, src->sps, src->pn_length,
+      src->pn_poly, src->lfsr, f_end);
   if (!syn)
     return NULL;
   /* Pin a chirp's sweep to its declared span, else the on-time (no-op for
      non-chirp). */
-  wfm_synth_set_chirp_span (syn, src->span ? src->span : on_len);
+  dp_wfm_synth_set_chirp_span (syn, src->span ? src->span : on_len);
   /* Attach a bits pattern / symbols stream / dsss burst (no-op otherwise).
      The bits attach goes through the frame path so a framed source emits
      `[preamble x reps | sync | payload | crc]` here exactly as it does on the
      standalone face — they share the bridge for that reason. */
   if (wfm_source_attach_frame (syn, src) != 0)
     {
-      wfm_synth_destroy (syn);
+      dp_wfm_synth_destroy (syn);
       return NULL;
     }
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
@@ -256,7 +256,7 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
     {
       /* Invalid geometry: fail the build (the composer skips the segment to a
        * silent gap; a standalone Synth raises at first use). */
-      wfm_synth_destroy (syn);
+      dp_wfm_synth_destroy (syn);
       return NULL;
     }
   /* RRC pulse shaping (same wfm_rrc_taps() the standalone face uses; set_rrc
@@ -295,14 +295,14 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
  * scene on exactly its old code path. */
 struct wfm_render
 {
-  wfm_synth_state_t       *syn;
-  doppler_channel_state_t *ch;
-  int                      ch_borrowed; /* a PERSIST channel the scene owns */
-  float _Complex          *in;   /* one input block for the channel      */
-  float _Complex          *hold; /* what the channel produced, undrained */
-  size_t                   hold_cap;
-  size_t                   hold_n;  /* valid samples in hold            */
-  size_t                   hold_rd; /* how many of them are spent       */
+  dp_wfm_synth_state_t       *syn;
+  dp_doppler_channel_state_t *ch;
+  int             ch_borrowed; /* a PERSIST channel the scene owns */
+  float _Complex *in;          /* one input block for the channel      */
+  float _Complex *hold;        /* what the channel produced, undrained */
+  size_t          hold_cap;
+  size_t          hold_n;  /* valid samples in hold            */
+  size_t          hold_rd; /* how many of them are spent       */
 };
 
 /* Input block fed per refill. Not DOPPLER_CHANNEL_MAX_BLOCK: the holdover
@@ -319,9 +319,9 @@ wfm_render_destroy (wfm_render_t *r)
   if (!r)
     return;
   if (r->syn)
-    wfm_synth_destroy (r->syn);
+    dp_wfm_synth_destroy (r->syn);
   if (r->ch && !r->ch_borrowed)
-    doppler_channel_destroy (r->ch);
+    dp_doppler_channel_destroy (r->ch);
   free (r->in);
   free (r->hold);
   free (r);
@@ -332,7 +332,7 @@ wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
                           double freq, double snr, double f_end,
                           double doppler, double doppler_rate, unsigned epoch,
                           int seed_advance, size_t instance,
-                          doppler_channel_state_t *borrow)
+                          dp_doppler_channel_state_t *borrow)
 {
   wfm_render_t *r = dp_xcalloc (1, sizeof *r);
   r->syn = wfm_compose_build_synth (src, fs, on_len, freq, snr, f_end, epoch,
@@ -345,7 +345,7 @@ wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
       return NULL;
     }
   /* No declared motion, no channel: the pull below is then a straight
-     wfm_synth_steps and the scene is byte-identical to before Doppler
+     dp_wfm_synth_steps and the scene is byte-identical to before Doppler
      existed. Both terms are checked because a pure rate ramp starting from
      zero offset is a legitimate pass. */
   if (!borrow && doppler == 0.0 && doppler_rate == 0.0)
@@ -360,14 +360,14 @@ wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
       r->ch_borrowed = 1;
     }
   else
-    r->ch
-        = doppler_channel_create (fs, src->carrier_hz, doppler, doppler_rate);
+    r->ch = dp_doppler_channel_create (fs, src->carrier_hz, doppler,
+                                       doppler_rate);
   if (!r->ch)
     {
       wfm_render_destroy (r);
       return NULL;
     }
-  r->hold_cap = doppler_channel_execute_max_out (r->ch);
+  r->hold_cap = dp_doppler_channel_execute_max_out (r->ch);
   r->in       = dp_xmalloc (RENDER_FEED * sizeof *r->in);
   r->hold     = dp_xmalloc (r->hold_cap * sizeof *r->hold);
   return r;
@@ -395,7 +395,7 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
       if (noise_only)
         wfm_synth_noise_steps (r->syn, dst, n);
       else
-        wfm_synth_steps (r->syn, dst, n);
+        dp_wfm_synth_steps (r->syn, dst, n);
       return;
     }
   size_t done = 0;
@@ -412,7 +412,7 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
           continue;
         }
       /* Refill. The output buffer is sized at execute_max_out() and NEVER
-         at "just what is still wanted": doppler_channel_execute's loop is
+         at "just what is still wanted": dp_doppler_channel_execute's loop is
          `off < x_len && n_out < max_out`, so a short buffer stops it early
          and the input it had not yet consumed is dropped on the floor --
          silently, and it is exactly the samples the holdover exists to
@@ -420,7 +420,7 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
       r->hold_rd = 0;
       r->hold_n  = 0;
       /* Size the FEED to the buffer, rather than growing the buffer to the
-         feed. This is the line that keeps doppler_channel_execute from
+         feed. This is the line that keeps dp_doppler_channel_execute from
          stopping on `n_out < max_out` and DROPPING the input it had not
          consumed -- the one failure the whole holdover exists to avoid.
 
@@ -434,7 +434,7 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
          every call and is correct at any ramp. A shorter feed costs nothing:
          the channel's accumulator carries across calls, so chunking is
          invisible in the output. */
-      size_t bound = doppler_channel_execute_max_out (r->ch);
+      size_t bound = dp_doppler_channel_execute_max_out (r->ch);
       size_t fits
           = (size_t)((double)r->hold_cap * (double)DOPPLER_CHANNEL_MAX_BLOCK
                      / (double)bound);
@@ -444,9 +444,9 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
       if (noise_only)
         wfm_synth_noise_steps (r->syn, r->in, feed);
       else
-        wfm_synth_steps (r->syn, r->in, feed);
-      r->hold_n
-          = doppler_channel_execute (r->ch, r->in, feed, r->hold, r->hold_cap);
+        dp_wfm_synth_steps (r->syn, r->in, feed);
+      r->hold_n = dp_doppler_channel_execute (r->ch, r->in, feed, r->hold,
+                                              r->hold_cap);
     }
 }
 
@@ -498,14 +498,14 @@ start_segment (wfm_compose_state_t *s)
          slot, created on first use so a scene that never reaches a segment
          never pays for it. PER_INSTANCE passes NULL and the renderer makes
          its own, which dies with the instance -- the repeated-trial shape. */
-      doppler_channel_state_t *borrow = NULL;
+      dp_doppler_channel_state_t *borrow = NULL;
       if (src->doppler_lifetime == WFM_DOPPLER_PERSIST
           && (v.doppler != 0.0 || v.doppler_rate != 0.0) && s->pch)
         {
           size_t slot = s->pch_off[s->cur] + k;
           if (!s->pch[slot])
-            s->pch[slot] = doppler_channel_create (g->fs, src->carrier_hz,
-                                                   v.doppler, v.doppler_rate);
+            s->pch[slot] = dp_doppler_channel_create (
+                g->fs, src->carrier_hz, v.doppler, v.doppler_rate);
           borrow = s->pch[slot];
         }
       s->rend[k] = wfm_compose_build_render (
@@ -776,14 +776,14 @@ wfm_compose_execute (wfm_compose_state_t *state, float _Complex *out,
             {
               /* ── 1 source: the original single-synth path, VERBATIM ──
                * Pull the ON run as a block through the *same*
-               * wfm_synth_steps() the wavegen CLI uses, so composer and CLI
+               * dp_wfm_synth_steps() the wavegen CLI uses, so composer and CLI
                * are byte-identical by construction. (Under -ffast-math a
-               * per-sample wfm_synth_step() loop contracts `sym*carrier +
+               * per-sample dp_wfm_synth_step() loop contracts `sym*carrier +
                * noise` to an FMA on arm64 while the block path rounds
                * separately — QPSK's ±1/√2 leg exposed that as #67;
-               * wfm_synth_steps() is chunk-invariant, so block size is free.)
-               * The Phase-3 level gain is a post-multiply here (no-op at 0
-               * dB). */
+               * dp_wfm_synth_steps() is chunk-invariant, so block size is
+               * free.) The Phase-3 level gain is a post-multiply here (no-op
+               * at 0 dB). */
               wfm_render_steps (state->rend[0], out + i, k);
               if (state->gain[0] != 1.0f)
                 for (size_t j = 0; j < k; j++)
@@ -875,7 +875,7 @@ wfm_compose_destroy (wfm_compose_state_t *state)
          the only place that can free them. */
       for (size_t i = 0; i < state->pch_n; i++)
         if (state->pch[i])
-          doppler_channel_destroy (state->pch[i]);
+          dp_doppler_channel_destroy (state->pch[i]);
       for (size_t i = 0; i < state->n_segs; i++)
         free_segment_sources (&state->segs[i]);
       free (state->segs);

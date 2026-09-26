@@ -1,8 +1,8 @@
 /* bench_fir_core.c -- what a tap costs, and what a COMPLEX tap costs.
  *
- * `fir_execute` is the library's most-used inner loop, and it has two of
+ * `dp_fir_execute` is the library's most-used inner loop, and it has two of
  * them: `inner_real_cf32` for a filter built by `fir_create_real`, and
- * `inner_cf32` for one built by `fir_create`. Both consume complex
+ * `inner_cf32` for one built by `dp_fir_create`. Both consume complex
  * samples; they differ only in whether each tap is a real scale or a
  * complex rotate-and-scale. The choice is made once, at construction,
  * by which constructor the caller reached for -- and nothing in the
@@ -13,7 +13,7 @@
  * arithmetic bound is 4x; the SIMD paths (AVX-512 permute + sign mask,
  * AVX2, NEON) close most of that, and how much they close is a property
  * of the machine, not of the algorithm. A caller with real taps who
- * builds them with `fir_create` -- easy to do, since complex taps accept
+ * builds them with `dp_fir_create` -- easy to do, since complex taps accept
  * a real array with zero imaginary parts -- pays that difference for
  * nothing, silently.
  *
@@ -59,7 +59,7 @@ main (void)
   jm_bench_t      _bench = { 0 };
   uint64_t        t0, t1;
   static double   t[N_CFG][ITERATIONS];
-  fir_state_t    *fir[N_CFG] = { 0 };
+  dp_fir_state_t *fir[N_CFG] = { 0 };
   float          *rtaps      = NULL;
   float _Complex *ctaps = NULL, *in = NULL, *out = NULL;
   char            name[64];
@@ -94,7 +94,7 @@ main (void)
   for (int l = 0; l < N_LEN; l++)
     {
       fir[l * N_KIND + CFG_REAL]    = fir_create_real (rtaps, taps_n[l]);
-      fir[l * N_KIND + CFG_COMPLEX] = fir_create (ctaps, taps_n[l]);
+      fir[l * N_KIND + CFG_COMPLEX] = dp_fir_create (ctaps, taps_n[l]);
     }
   for (int c = 0; c < N_CFG; c++)
     if (!fir[c])
@@ -103,7 +103,7 @@ main (void)
   printf ("=== fir (block FIR, %d samples per call) ===\n", BLOCK);
   printf ("%d rounds, min over rounds\n\n", ITERATIONS);
 
-  DP_BENCH_SETTLE (fir_execute (fir[0], in, BLOCK, out));
+  DP_BENCH_SETTLE (dp_fir_execute (fir[0], in, BLOCK, out));
 
   /* Rounds outside, configurations inside: the real/complex ratio is the
      point of the file, so a thermal step must land on both halves of it. */
@@ -111,7 +111,7 @@ main (void)
     for (int c = 0; c < N_CFG; c++)
       {
         t0 = jm_bench_now_ns ();
-        fir_execute (fir[c], in, BLOCK, out);
+        dp_fir_execute (fir[c], in, BLOCK, out);
         t1      = jm_bench_now_ns ();
         t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -142,7 +142,7 @@ main (void)
           "  the tap kind has stopped being what the call costs.\n");
 
   for (int c = 0; c < N_CFG; c++)
-    fir_destroy (fir[c]);
+    dp_fir_destroy (fir[c]);
   free (rtaps);
   free (ctaps);
   free (in);

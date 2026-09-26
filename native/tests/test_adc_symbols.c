@@ -23,11 +23,11 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_adc[] = {
-    (jm_any_fn)adc_create,
-    (jm_any_fn)adc_destroy,
-    (jm_any_fn)adc_reset,
-    (jm_any_fn)adc_steps,
-    (jm_any_fn)adc_state_bytes,
-    (jm_any_fn)adc_get_state,
-    (jm_any_fn)adc_set_state,
+    (jm_any_fn)dp_adc_create,
+    (jm_any_fn)dp_adc_destroy,
+    (jm_any_fn)dp_adc_reset,
+    (jm_any_fn)dp_adc_steps,
+    (jm_any_fn)dp_adc_state_bytes,
+    (jm_any_fn)dp_adc_get_state,
+    (jm_any_fn)dp_adc_set_state,
 };

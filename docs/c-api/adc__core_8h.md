@@ -33,7 +33,7 @@ _Signed two's-complement ADC model._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**adc\_state\_t**](structadc__state__t.md) <br>_ADC state._  |
+| struct | [**dp\_adc\_state\_t**](structdp__adc__state__t.md) <br>_ADC state._  |
 
 
 
@@ -60,14 +60,14 @@ _Signed two's-complement ADC model._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**adc\_state\_t**](structadc__state__t.md) \* | [**adc\_create**](#function-adc_create) (int bits, float dbfs, int dithering) <br>_Create an ADC instance._  |
-|  void | [**adc\_destroy**](#function-adc_destroy) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Destroy an ADC instance and release all memory._  |
-|  void | [**adc\_get\_state**](#function-adc_get_state) (const [**adc\_state\_t**](structadc__state__t.md) \* state, void \* blob) <br> |
-|  void | [**adc\_reset**](#function-adc_reset) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Clear the clip flag and re-seed the dither PRNG for a reproducible run._  |
-|  int | [**adc\_set\_state**](#function-adc_set_state) ([**adc\_state\_t**](structadc__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**adc\_state\_bytes**](#function-adc_state_bytes) (const [**adc\_state\_t**](structadc__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int64\_t | [**adc\_step**](#function-adc_step) ([**adc\_state\_t**](structadc__state__t.md) \* state, float x) <br>_Quantise one float sample to a signed N-bit ADC code._  |
-|  void | [**adc\_steps**](#function-adc_steps) ([**adc\_state\_t**](structadc__state__t.md) \* state, const float \* input, int64\_t \* output, size\_t n) <br>_Process a block of float samples to int64._  |
+|  [**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* | [**dp\_adc\_create**](#function-dp_adc_create) (int bits, float dbfs, int dithering) <br>_Create an ADC instance._  |
+|  void | [**dp\_adc\_destroy**](#function-dp_adc_destroy) ([**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state) <br>_Destroy an ADC instance and release all memory._  |
+|  void | [**dp\_adc\_get\_state**](#function-dp_adc_get_state) (const [**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_adc\_reset**](#function-dp_adc_reset) ([**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state) <br>_Clear the clip flag and re-seed the dither PRNG for a reproducible run._  |
+|  int | [**dp\_adc\_set\_state**](#function-dp_adc_set_state) ([**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_adc\_state\_bytes**](#function-dp_adc_state_bytes) (const [**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int64\_t | [**dp\_adc\_step**](#function-dp_adc_step) ([**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state, float x) <br>_Quantise one float sample to a signed N-bit ADC code._  |
+|  void | [**dp\_adc\_steps**](#function-dp_adc_steps) ([**dp\_adc\_state\_t**](structdp__adc__state__t.md) \* state, const float \* input, int64\_t \* output, size\_t n) <br>_Process a block of float samples to int64._  |
 
 
 
@@ -159,11 +159,11 @@ False
 
 
 
-### function adc\_create 
+### function dp\_adc\_create 
 
 _Create an ADC instance._ 
 ```C++
-adc_state_t * adc_create (
+dp_adc_state_t * dp_adc_create (
     int bits,
     float dbfs,
     int dithering
@@ -195,7 +195,7 @@ Heap-allocated state, or NULL on invalid args or allocation failure.
 
 **Note:**
 
-Caller must call [**adc\_destroy()**](adc__core_8h.md#function-adc_destroy) when done. 
+Caller must call [**dp\_adc\_destroy()**](adc__core_8h.md#function-dp_adc_destroy) when done. 
 
 
 
@@ -207,12 +207,12 @@ Caller must call [**adc\_destroy()**](adc__core_8h.md#function-adc_destroy) when
 
 
 
-### function adc\_destroy 
+### function dp\_adc\_destroy 
 
 _Destroy an ADC instance and release all memory._ 
 ```C++
-void adc_destroy (
-    adc_state_t * state
+void dp_adc_destroy (
+    dp_adc_state_t * state
 ) 
 ```
 
@@ -234,11 +234,11 @@ void adc_destroy (
 
 
 
-### function adc\_get\_state 
+### function dp\_adc\_get\_state 
 
 ```C++
-void adc_get_state (
-    const adc_state_t * state,
+void dp_adc_get_state (
+    const dp_adc_state_t * state,
     void * blob
 ) 
 ```
@@ -250,12 +250,12 @@ void adc_get_state (
 
 
 
-### function adc\_reset 
+### function dp\_adc\_reset 
 
 _Clear the clip flag and re-seed the dither PRNG for a reproducible run._ 
 ```C++
-void adc_reset (
-    adc_state_t * state
+void dp_adc_reset (
+    dp_adc_state_t * state
 ) 
 ```
 
@@ -290,11 +290,11 @@ False
 
 
 
-### function adc\_set\_state 
+### function dp\_adc\_set\_state 
 
 ```C++
-int adc_set_state (
-    adc_state_t * state,
+int dp_adc_set_state (
+    dp_adc_state_t * state,
     const void * blob
 ) 
 ```
@@ -306,11 +306,11 @@ int adc_set_state (
 
 
 
-### function adc\_state\_bytes 
+### function dp\_adc\_state\_bytes 
 
 ```C++
-size_t adc_state_bytes (
-    const adc_state_t * state
+size_t dp_adc_state_bytes (
+    const dp_adc_state_t * state
 ) 
 ```
 
@@ -321,12 +321,12 @@ size_t adc_state_bytes (
 
 
 
-### function adc\_step 
+### function dp\_adc\_step 
 
 _Quantise one float sample to a signed N-bit ADC code._ 
 ```C++
-JM_FORCEINLINE  JM_HOT int64_t adc_step (
-    adc_state_t * state,
+JM_FORCEINLINE  JM_HOT int64_t dp_adc_step (
+    dp_adc_state_t * state,
     float x
 ) 
 ```
@@ -371,12 +371,12 @@ True
 
 
 
-### function adc\_steps 
+### function dp\_adc\_steps 
 
 _Process a block of float samples to int64._ 
 ```C++
-void adc_steps (
-    adc_state_t * state,
+void dp_adc_steps (
+    dp_adc_state_t * state,
     const float * input,
     int64_t * output,
     size_t n

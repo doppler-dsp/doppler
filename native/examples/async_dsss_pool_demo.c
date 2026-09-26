@@ -68,7 +68,7 @@
 /* The code-only window the pool's searcher aligns its blocks inside: 20
    symbols of every 270 (ten frames a second), which holds the 31 whole
    epochs a depth of 16 needs at any chip phase -- 305 Hz rows, inside the
-   cell receivers' pull-in (async_dsss_pool_create()'s bound). */
+   cell receivers' pull-in (dp_async_dsss_pool_create()'s bound). */
 #define W_SYM 20u
 #define F_SYM 270u
 #define CODE_ONLY_EPOCHS 31u
@@ -91,19 +91,19 @@
 /** @brief One emitter: the shipped continuous-DSSS synth at a carrier
  *  offset, its own PRBS data, clean -- the noise is added once at the sum
  *  so two emitters share one channel's noise. */
-static wfm_synth_state_t *
+static dp_wfm_synth_state_t *
 emitter (const uint8_t *code, double doppler_hz, uint32_t seed)
 {
-  wfm_synth_state_t *syn
-      = wfm_synth_create (WFM_SYNTH_DSSS, FS, doppler_hz, WFM_SYNTH_SNR_CLEAN,
-                          1, seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+      WFM_SYNTH_DSSS, FS, doppler_hz, WFM_SYNTH_SNR_CLEAN, 1, seed, (int)SPC,
+      15, 0, 0, 0.0);
   if (syn
       && (wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
                                    WFM_DSSS_DATA_PRBS, NULL, 0)
               != 0
           || wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) != 0))
     {
-      wfm_synth_destroy (syn);
+      dp_wfm_synth_destroy (syn);
       syn = NULL;
     }
   return syn;
@@ -117,13 +117,13 @@ emitter (const uint8_t *code, double doppler_hz, uint32_t seed)
  *  free slot for one release interval, at another phase, so a slot is the
  *  emitter's by both coordinates, never by a count. */
 static size_t
-slot_of (async_dsss_pool_state_t *p, double doppler_hz, double chip0,
+slot_of (dp_async_dsss_pool_state_t *p, double doppler_hz, double chip0,
          size_t *count)
 {
   size_t found = N_SLOTS, n = 0;
   for (size_t i = 0; i < N_SLOTS; i++)
     {
-      async_dsss_pool_slot_t r = async_dsss_pool_status (p, i);
+      async_dsss_pool_slot_t r = dp_async_dsss_pool_status (p, i);
       if (!r.assigned
           || fabs (r.seed_doppler_hz - doppler_hz) > p->acq->doppler_res_hz)
         continue;
@@ -144,14 +144,14 @@ slot_of (async_dsss_pool_state_t *p, double doppler_hz, double chip0,
 int
 main (void)
 {
-  uint8_t       code[SF];
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  uint8_t          code[SF];
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 
-  wfm_synth_state_t *a = emitter (code, DOPPLER_A, 1u);
-  wfm_synth_state_t *b = emitter (code, DOPPLER_B, 2u);
-  awgn_state_t      *g = awgn_create (
+  dp_wfm_synth_state_t *a = emitter (code, DOPPLER_A, 1u);
+  dp_wfm_synth_state_t *b = emitter (code, DOPPLER_B, 2u);
+  dp_awgn_state_t      *g = dp_awgn_create (
       7u,
       awgn_amplitude_for_snr ((float)(CN0_DBHZ - 10.0 * log10 (FS)), 1.0f));
   CHECK (a && b && g, "the emitters and the noise open");
@@ -162,13 +162,13 @@ main (void)
   {
     float complex *burn = malloc ((size_t)CHIP0_B * SPC * sizeof *burn);
     CHECK (burn != NULL, "the burn-in allocates");
-    wfm_synth_steps (b, burn, (size_t)CHIP0_B * SPC);
+    dp_wfm_synth_steps (b, burn, (size_t)CHIP0_B * SPC);
     free (burn);
   }
 
   /* The pool: the searcher's and the receivers' parameters pass through
      create() untouched; everything is sized here, once. */
-  async_dsss_pool_state_t *pool = async_dsss_pool_create (
+  dp_async_dsss_pool_state_t *pool = dp_async_dsss_pool_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0_DBHZ, 1e-3, 0.9, DU,
       CODE_ONLY_EPOCHS, 0.0, 4, N_SLOTS, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
       ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
@@ -180,7 +180,7 @@ main (void)
   (void)snprintf (path, sizeof path, "/tmp/async_dsss_pool_demo_%d.events",
                   (int)getpid ());
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
-  CHECK (log != NULL && async_dsss_pool_set_event_log (pool, log) == DP_OK,
+  CHECK (log != NULL && dp_async_dsss_pool_set_event_log (pool, log) == DP_OK,
          "the event log opens and attaches");
 
   float complex *sa  = malloc ((size_t)TE * sizeof *sa);
@@ -196,9 +196,9 @@ main (void)
 #define BLOCK(gain_b)                                                         \
   do                                                                          \
     {                                                                         \
-      wfm_synth_steps (a, sa, TE);                                            \
-      wfm_synth_steps (b, sb, TE);                                            \
-      awgn_generate (g, TE, x, TE);                                           \
+      dp_wfm_synth_steps (a, sa, TE);                                         \
+      dp_wfm_synth_steps (b, sb, TE);                                         \
+      dp_awgn_generate (g, TE, x, TE);                                        \
       for (size_t i = 0; i < TE; i++)                                         \
         x[i] += sa[i] + (float)(gain_b) * sb[i];                              \
     }                                                                         \
@@ -211,25 +211,25 @@ main (void)
   for (size_t k = 0; k < on_blocks; k++)
     {
       BLOCK (1.0);
-      (void)async_dsss_pool_push (pool, x, TE);
+      (void)dp_async_dsss_pool_push (pool, x, TE);
       if (!syms)
         {
           /* Sized by the pool from the largest block it has seen; a
              caller reads it after the first push and keeps it. */
-          cap  = async_dsss_pool_symbols_max_out (pool);
+          cap  = dp_async_dsss_pool_symbols_max_out (pool);
           syms = malloc (cap * sizeof *syms);
           CHECK (syms != NULL, "the symbol buffer allocates");
         }
       for (size_t i = 0; i < N_SLOTS; i++)
-        n_syms[i] += async_dsss_pool_symbols (pool, i, syms, cap);
+        n_syms[i] += dp_async_dsss_pool_symbols (pool, i, syms, cap);
     }
   size_t na, nb;
   size_t slot_a = slot_of (pool, DOPPLER_A, 0.0, &na);
   size_t slot_b = slot_of (pool, DOPPLER_B, CHIP0_B, &nb);
   CHECK (na == 1 && nb == 1 && slot_a != slot_b,
          "each emitter holds exactly one slot (A %zu, B %zu)", na, nb);
-  async_dsss_pool_slot_t ra = async_dsss_pool_status (pool, slot_a);
-  async_dsss_pool_slot_t rb = async_dsss_pool_status (pool, slot_b);
+  async_dsss_pool_slot_t ra = dp_async_dsss_pool_status (pool, slot_a);
+  async_dsss_pool_slot_t rb = dp_async_dsss_pool_status (pool, slot_b);
   printf ("    A: slot %zu, seeded at %.3f s at %+.0f Hz, now %+.1f Hz, "
           "state %d, code lock %d, symbol lock %d, %zu symbols so far\n",
           slot_a, (double)ra.seed_sample / FS, ra.seed_doppler_hz,
@@ -255,19 +255,20 @@ main (void)
   for (size_t k = 0; k < off_blocks; k++)
     {
       BLOCK (0.0);
-      (void)async_dsss_pool_push (pool, x, TE);
-      if (!released_at && !async_dsss_pool_status (pool, slot_b).assigned)
+      (void)dp_async_dsss_pool_push (pool, x, TE);
+      if (!released_at && !dp_async_dsss_pool_status (pool, slot_b).assigned)
         released_at = k + 1;
     }
   CHECK (released_at > 0, "B's slot is released once it is gone");
   printf ("    released %.0f ms after the departure (the interval is %.0f "
           "ms); A still tracking: %d\n",
           (double)released_at * TE / FS * 1e3, LOST_S * 1e3,
-          async_dsss_pool_status (pool, slot_a).state
+          dp_async_dsss_pool_status (pool, slot_a).state
               == ASYNC_DSSS_RX_TRACKING);
   CHECK ((double)released_at * TE / FS >= LOST_S,
          "not before the release interval has run");
-  CHECK (async_dsss_pool_status (pool, slot_a).state == ASYNC_DSSS_RX_TRACKING,
+  CHECK (dp_async_dsss_pool_status (pool, slot_a).state
+             == ASYNC_DSSS_RX_TRACKING,
          "A is untouched by B's release");
 
   /* ── §3 ───────────────────────────────────────────────────────────── */
@@ -275,15 +276,15 @@ main (void)
   for (size_t k = 0; k < on_blocks; k++)
     {
       BLOCK (1.0);
-      (void)async_dsss_pool_push (pool, x, TE);
+      (void)dp_async_dsss_pool_push (pool, x, TE);
     }
   size_t slot_b2 = slot_of (pool, DOPPLER_B, CHIP0_B, &nb);
   CHECK (nb == 1 && slot_b2 < N_SLOTS,
          "B is a new detection into a free slot");
   printf ("    B: slot %zu (was %zu), state %d; A: still slot %zu, %d\n",
-          slot_b2, slot_b, async_dsss_pool_status (pool, slot_b2).state,
-          slot_a, async_dsss_pool_status (pool, slot_a).state);
-  CHECK (async_dsss_pool_status (pool, slot_b2).state
+          slot_b2, slot_b, dp_async_dsss_pool_status (pool, slot_b2).state,
+          slot_a, dp_async_dsss_pool_status (pool, slot_a).state);
+  CHECK (dp_async_dsss_pool_status (pool, slot_b2).state
              == ASYNC_DSSS_RX_TRACKING,
          "and tracks again");
 
@@ -307,7 +308,7 @@ main (void)
           "in order: %s\n",
           dp_event_log_count (log), found == 5 ? "yes" : "NO");
   CHECK (found == 5, "the labels are the design's, in order");
-  (void)async_dsss_pool_set_event_log (pool, NULL);
+  (void)dp_async_dsss_pool_set_event_log (pool, NULL);
   dp_event_log_destroy (log);
   remove (path);
 
@@ -315,10 +316,10 @@ main (void)
   free (x);
   free (sb);
   free (sa);
-  async_dsss_pool_destroy (pool);
-  awgn_destroy (g);
-  wfm_synth_destroy (b);
-  wfm_synth_destroy (a);
+  dp_async_dsss_pool_destroy (pool);
+  dp_awgn_destroy (g);
+  dp_wfm_synth_destroy (b);
+  dp_wfm_synth_destroy (a);
   printf ("OK\n");
   return 0;
 }

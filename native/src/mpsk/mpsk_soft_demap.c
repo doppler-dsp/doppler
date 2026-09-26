@@ -11,8 +11,8 @@
 #include <float.h>
 
 void
-mpsk_soft_demap (const float _Complex *x, size_t x_len, float *llr,
-                 size_t llr_len, int m, float n0)
+dp_mpsk_soft_demap (const float _Complex *x, size_t x_len, float *llr,
+                    size_t llr_len, int m, float n0)
 {
   const int nb = mpsk_bps (m);
   if (nb == 0 || n0 <= 0.0f || llr_len < x_len * (size_t)nb)

@@ -25,23 +25,23 @@ main (void)
   {
     /* Below 21 dB a rectangular window already meets the spec, so beta
        is 0 -- the branch a caller sweeping attenuation walks through. */
-    DP_CHECK (kaiser_beta (0.0) == 0.0);
-    DP_CHECK (kaiser_beta (20.999) == 0.0);
+    DP_CHECK (dp_kaiser_beta (0.0) == 0.0);
+    DP_CHECK (dp_kaiser_beta (20.999) == 0.0);
 
     /* The published closed forms, at the two branch points. */
-    DP_CHECK (fabs (kaiser_beta (60.0) - 0.1102 * (60.0 - 8.7)) < 1e-12);
+    DP_CHECK (fabs (dp_kaiser_beta (60.0) - 0.1102 * (60.0 - 8.7)) < 1e-12);
     DP_CHECK (
-        fabs (kaiser_beta (30.0)
+        fabs (dp_kaiser_beta (30.0)
               - (0.5842 * pow (30.0 - 21.0, 0.4) + 0.07886 * (30.0 - 21.0)))
         < 1e-12);
 
     /* Continuous at 21 dB (both branches give 0 there) and monotone
        above it -- a beta that dipped would make a stricter spec cheaper. */
-    DP_CHECK (fabs (kaiser_beta (21.0)) < 1e-12);
+    DP_CHECK (fabs (dp_kaiser_beta (21.0)) < 1e-12);
     double prev = -1.0;
     for (double a = 21.0; a <= 120.0; a += 1.0)
       {
-        const double b = kaiser_beta (a);
+        const double b = dp_kaiser_beta (a);
         DP_CHECK (b >= prev);
         prev = b;
       }
@@ -50,23 +50,23 @@ main (void)
   /* ── kaiser_num_taps: monotone in the spec, and safe at the rails ── */
   {
     /* The header's own worked example. */
-    DP_CHECK (kaiser_num_taps (4096, 60.0, 0.4, 0.6) == 19);
+    DP_CHECK (dp_kaiser_num_taps (4096, 60.0, 0.4, 0.6) == 19);
 
     /* A tighter transition costs taps; a looser one saves them. */
-    DP_CHECK (kaiser_num_taps (1, 60.0, 0.20, 0.22)
-              > kaiser_num_taps (1, 60.0, 0.20, 0.40));
+    DP_CHECK (dp_kaiser_num_taps (1, 60.0, 0.20, 0.22)
+              > dp_kaiser_num_taps (1, 60.0, 0.20, 0.40));
     /* More attenuation costs taps at a fixed transition. */
-    DP_CHECK (kaiser_num_taps (1, 90.0, 0.20, 0.30)
-              > kaiser_num_taps (1, 40.0, 0.20, 0.30));
+    DP_CHECK (dp_kaiser_num_taps (1, 90.0, 0.20, 0.30)
+              > dp_kaiser_num_taps (1, 40.0, 0.20, 0.30));
     /* Never below the documented floor of 1. */
-    DP_CHECK (kaiser_num_taps (1, 21.0, 0.1, 0.9) >= 1);
+    DP_CHECK (dp_kaiser_num_taps (1, 21.0, 0.1, 0.9) >= 1);
 
     /* THE REGRESSION: the final divide is integer, so num_phases == 0
        used to raise SIGFPE and take a Python caller's interpreter with
        it. A value below 1 is not a bank; it returns 0. */
-    DP_CHECK (kaiser_num_taps (0, 60.0, 0.4, 0.6) == 0);
-    DP_CHECK (kaiser_num_taps (-1, 60.0, 0.4, 0.6) == 0);
-    DP_CHECK (kaiser_num_taps (-4096, 60.0, 0.4, 0.6) == 0);
+    DP_CHECK (dp_kaiser_num_taps (0, 60.0, 0.4, 0.6) == 0);
+    DP_CHECK (dp_kaiser_num_taps (-1, 60.0, 0.4, 0.6) == 0);
+    DP_CHECK (dp_kaiser_num_taps (-4096, 60.0, 0.4, 0.6) == 0);
   }
 
   /* ── ciccompmf: DC gain is exactly 1, and the taps are linear phase ─ */
@@ -76,7 +76,7 @@ main (void)
     /* The header's worked example, to the digits it prints. */
     for (int i = 0; i < 19; i++)
       h[i] = 0.0;
-    ciccompmf (h, 4, 16, 5);
+    dp_ciccompmf (h, 4, 16, 5);
     DP_CHECK (fabs (h[0] - 0.029) < 5e-4);
     DP_CHECK (fabs (h[1] - (-0.282)) < 5e-4);
     DP_CHECK (fabs (h[2] - 1.5061) < 5e-4);
@@ -88,7 +88,7 @@ main (void)
         double sum = 0.0;
         for (uint32_t i = 0; i < m; i++)
           h[i] = 0.0;
-        ciccompmf (h, 4, 16, m);
+        dp_ciccompmf (h, 4, 16, m);
         for (uint32_t i = 0; i < m; i++)
           sum += h[i];
         DP_CHECK (fabs (sum - 1.0) < 1e-9);
@@ -101,7 +101,7 @@ main (void)
       {
         for (uint32_t i = 0; i < m; i++)
           h[i] = 0.0;
-        ciccompmf (h, 4, 16, m);
+        dp_ciccompmf (h, 4, 16, m);
         for (uint32_t i = 0; i < m; i++)
           DP_CHECK (fabs (h[i] - h[m - 1 - i]) < 1e-12);
       }
@@ -120,7 +120,7 @@ main (void)
         double    g[32]; /* > 24 + 1: the sentinel read below is g[m] */
         for (uint32_t i = 0; i < 32; i++)
           g[i] = -12345.0;
-        ciccompmf (g, 4, 16, m);
+        dp_ciccompmf (g, 4, 16, m);
 
         double sum = 0.0;
         for (uint32_t i = 0; i < m; i++)
@@ -135,7 +135,7 @@ main (void)
     /* M = 0 writes nothing at all, so the sentinel survives. */
     {
       double g[4] = { -12345.0, -12345.0, -12345.0, -12345.0 };
-      ciccompmf (g, 4, 16, 0);
+      dp_ciccompmf (g, 4, 16, 0);
       DP_CHECK (g[0] == -12345.0);
     }
   }

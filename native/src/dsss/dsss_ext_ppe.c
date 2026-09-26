@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* PolynomialPhaseEstimatorObject — wraps ppe_state_t *       */
+/* PolynomialPhaseEstimatorObject — wraps dp_ppe_state_t *       */
 /* ======================================================== */
 
 #include "doppler/ppe/ppe_core.h"
 
 typedef struct
 {
-  PyObject_HEAD ppe_state_t *handle;
+  PyObject_HEAD dp_ppe_state_t *handle;
 } PolynomialPhaseEstimatorObject;
 
 static void
 PolynomialPhaseEstimatorObj_dealloc (PolynomialPhaseEstimatorObject *self)
 {
   if (self->handle)
-    ppe_destroy (self->handle);
+    dp_ppe_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -47,10 +47,10 @@ PolynomialPhaseEstimatorObj_init (PolynomialPhaseEstimatorObject *self,
                                     &max_rate))
     return -1;
   size_t max_len = (size_t)max_len_raw;
-  self->handle   = ppe_create (max_len, max_rate);
+  self->handle   = dp_ppe_create (max_len, max_rate);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "ppe_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_ppe_create returned NULL");
       return -1;
     }
   return 0;
@@ -65,7 +65,7 @@ PolynomialPhaseEstimatorObj_reset (PolynomialPhaseEstimatorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  ppe_reset (self->handle);
+  dp_ppe_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -115,7 +115,7 @@ PolynomialPhaseEstimatorObj_estimate (PolynomialPhaseEstimatorObject *self,
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   ppe_result_t          _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = ppe_estimate (self->handle, _ng0, n_in);
+    _r = dp_ppe_estimate (self->handle, _ng0, n_in);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o
@@ -197,7 +197,7 @@ PolynomialPhaseEstimatorObj_destroy (PolynomialPhaseEstimatorObject *self,
 {
   if (self->handle)
     {
-      ppe_destroy (self->handle);
+      dp_ppe_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -218,7 +218,7 @@ PolynomialPhaseEstimatorObj_exit (PolynomialPhaseEstimatorObject *self,
   (void)args;
   if (self->handle)
     {
-      ppe_destroy (self->handle);
+      dp_ppe_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

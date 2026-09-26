@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only accumulator_ext.c is compiled.
  */
 /* ======================================================== */
-/* AccTraceObject — wraps acc_trace_state_t *       */
+/* AccTraceObject — wraps dp_acc_trace_state_t *       */
 /* ======================================================== */
 
 #include "doppler/acc_trace/acc_trace_core.h"
 
 typedef struct
 {
-  PyObject_HEAD acc_trace_state_t *handle;
+  PyObject_HEAD dp_acc_trace_state_t *handle;
 } AccTraceObject;
 
 static void
 AccTraceObj_dealloc (AccTraceObject *self)
 {
   if (self->handle)
-    acc_trace_destroy (self->handle);
+    dp_acc_trace_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -62,10 +62,10 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
                     mode_str);
       return -1;
     }
-  self->handle = acc_trace_create (n, mode, alpha);
+  self->handle = dp_acc_trace_create (n, mode, alpha);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "acc_trace_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_acc_trace_create returned NULL");
       return -1;
     }
   return 0;
@@ -91,7 +91,7 @@ AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
     }
   const float *p     = (const float *)PyArray_DATA (p_arr);
   size_t       p_len = (size_t)PyArray_SIZE (p_arr);
-  acc_trace_accumulate (self->handle, p, p_len);
+  dp_acc_trace_accumulate (self->handle, p, p_len);
   Py_DECREF (p_arr);
   Py_RETURN_NONE;
 }
@@ -104,7 +104,7 @@ AccTraceObj_reset (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  acc_trace_reset (self->handle);
+  dp_acc_trace_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -116,7 +116,7 @@ AccTraceObj_value_max_out (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (acc_trace_value_max_out (self->handle));
+  return PyLong_FromSize_t (dp_acc_trace_value_max_out (self->handle));
 }
 
 static PyObject *
@@ -153,7 +153,7 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = acc_trace_value_max_out (self->handle);
+      size_t _omax    = dp_acc_trace_value_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -162,8 +162,8 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = acc_trace_value (self->handle, (size_t)n,
-                                      (float *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_acc_trace_value (
+          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -187,7 +187,7 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = acc_trace_value_max_out (self->handle);
+  size_t _cap  = dp_acc_trace_value_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -197,7 +197,7 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = acc_trace_value (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_acc_trace_value (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -227,7 +227,7 @@ AccTraceObj_state_bytes (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (acc_trace_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_acc_trace_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -238,11 +238,11 @@ AccTraceObj_get_state (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = acc_trace_state_bytes (self->handle);
+  size_t    _n = dp_acc_trace_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  acc_trace_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_acc_trace_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -259,12 +259,13 @@ AccTraceObj_set_state (AccTraceObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != acc_trace_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_acc_trace_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (acc_trace_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_acc_trace_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -343,7 +344,7 @@ AccTraceObj_destroy (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      acc_trace_destroy (self->handle);
+      dp_acc_trace_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -362,7 +363,7 @@ AccTraceObj_exit (AccTraceObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      acc_trace_destroy (self->handle);
+      dp_acc_trace_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

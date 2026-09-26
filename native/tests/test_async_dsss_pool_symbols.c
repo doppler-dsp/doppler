@@ -23,15 +23,15 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_async_dsss_pool[] = {
-    (jm_any_fn)async_dsss_pool_create,
-    (jm_any_fn)async_dsss_pool_destroy,
-    (jm_any_fn)async_dsss_pool_reset,
-    (jm_any_fn)async_dsss_pool_push,
-    (jm_any_fn)async_dsss_pool_status,
-    (jm_any_fn)async_dsss_pool_symbols_max_out,
-    (jm_any_fn)async_dsss_pool_symbols,
-    (jm_any_fn)async_dsss_pool_set_event_log,
-    (jm_any_fn)async_dsss_pool_state_bytes,
-    (jm_any_fn)async_dsss_pool_get_state,
-    (jm_any_fn)async_dsss_pool_set_state,
+    (jm_any_fn)dp_async_dsss_pool_create,
+    (jm_any_fn)dp_async_dsss_pool_destroy,
+    (jm_any_fn)dp_async_dsss_pool_reset,
+    (jm_any_fn)dp_async_dsss_pool_push,
+    (jm_any_fn)dp_async_dsss_pool_status,
+    (jm_any_fn)dp_async_dsss_pool_symbols_max_out,
+    (jm_any_fn)dp_async_dsss_pool_symbols,
+    (jm_any_fn)dp_async_dsss_pool_set_event_log,
+    (jm_any_fn)dp_async_dsss_pool_state_bytes,
+    (jm_any_fn)dp_async_dsss_pool_get_state,
+    (jm_any_fn)dp_async_dsss_pool_set_state,
 };

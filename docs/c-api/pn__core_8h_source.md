@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef PN_CORE_H
-#define PN_CORE_H
+#ifndef DP_PN_CORE_H
+#define DP_PN_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -29,7 +29,7 @@ typedef struct {
     int kind;          /* PN_GALOIS or PN_FIBONACCI */
     uint64_t fib_taps; /* Fibonacci feedback taps (canonical poly & mask) */
     uint32_t topshift; /* length-1: position the Fibonacci feedback enters */
-} pn_state_t;
+} dp_pn_state_t;
 
 JM_FORCEINLINE uint64_t
 pn_mls_poly(uint32_t n)
@@ -103,11 +103,11 @@ pn_mls_poly(uint32_t n)
 }
 
 
-pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
+dp_pn_state_t *dp_pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 
-void pn_destroy(pn_state_t *state);
+void dp_pn_destroy(dp_pn_state_t *state);
 
-void pn_reset(pn_state_t *state);
+void dp_pn_reset(dp_pn_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Only the running LFSR register is serialized; poly / seed / mask / kind /
@@ -116,12 +116,12 @@ void pn_reset(pn_state_t *state);
 #define PN_STATE_MAGIC DP_FOURCC('P', 'N', '_', '_')
 #define PN_STATE_VERSION 1u
 
-size_t pn_state_bytes(const pn_state_t *state);
-void pn_get_state(const pn_state_t *state, void *blob);
-int pn_set_state(pn_state_t *state, const void *blob);
+size_t dp_pn_state_bytes(const dp_pn_state_t *state);
+void dp_pn_get_state(const dp_pn_state_t *state, void *blob);
+int dp_pn_set_state(dp_pn_state_t *state, const void *blob);
 
 JM_FORCEINLINE uint8_t
-pn_step(pn_state_t *state)
+pn_step(dp_pn_state_t *state)
 {
     uint8_t bit = (uint8_t)(state->reg & 1u);
     if (state->kind == PN_FIBONACCI) {
@@ -143,9 +143,9 @@ pn_step(pn_state_t *state)
 
 
 
-size_t pn_generate_max_out(pn_state_t *state);
+size_t dp_pn_generate_max_out(dp_pn_state_t *state);
 
-size_t pn_generate(pn_state_t *state, size_t n, uint8_t *out,
+size_t dp_pn_generate(dp_pn_state_t *state, size_t n, uint8_t *out,
                    size_t max_out);
 #ifdef __cplusplus
 }

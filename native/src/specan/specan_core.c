@@ -40,8 +40,8 @@ kaiser_beta_for_enbw (double target_enbw, size_t n)
   for (int i = 0; i < 60; i++)
     {
       double mid = 0.5 * (lo + hi);
-      kaiser_window (w, n, (float)mid);
-      if ((double)kaiser_enbw (w, n) < target_enbw)
+      dp_kaiser_window (w, n, (float)mid);
+      if ((double)dp_kaiser_enbw (w, n) < target_enbw)
         lo = mid;
       else
         hi = mid;
@@ -50,10 +50,10 @@ kaiser_beta_for_enbw (double target_enbw, size_t n)
   return 0.5 * (lo + hi);
 }
 
-specan_state_t *
-specan_create (double fs, double span, double rbw, double src_center,
-               double center, double offset_db, double full_scale, size_t bits,
-               int window, size_t navg)
+dp_specan_state_t *
+dp_specan_create (double fs, double span, double rbw, double src_center,
+                  double center, double offset_db, double full_scale,
+                  size_t bits, int window, size_t navg)
 {
   if (fs <= 0.0 || span <= 0.0 || rbw <= 0.0 || navg < 1)
     return NULL;
@@ -64,7 +64,7 @@ specan_create (double fs, double span, double rbw, double src_center,
     fs_out = fs;
 
   /* RBW → window length (coarse) + Kaiser beta (fine). */
-  size_t n = next_pow_two ((size_t)ceil (fs_out / rbw));
+  size_t n = dp_next_pow_two ((size_t)ceil (fs_out / rbw));
   if (n < 2)
     n = 2;
   double target_enbw = rbw / (fs_out / (double)n);
@@ -72,14 +72,14 @@ specan_create (double fs, double span, double rbw, double src_center,
     target_enbw = 1.0;
   double beta = (window == 1) ? kaiser_beta_for_enbw (target_enbw, n) : 0.0;
 
-  /* Zero-padded transform length (must match psd_create's nfft) and the
+  /* Zero-padded transform length (must match dp_psd_create's nfft) and the
    * central display crop covering ±span/2. */
-  size_t nfft = next_pow_two (n * SPECAN_PAD);
+  size_t nfft = dp_next_pow_two (n * SPECAN_PAD);
   size_t half = (size_t)lround ((double)nfft / 2.56);
   if (half > nfft / 2)
     half = nfft / 2;
 
-  specan_state_t *s = calloc (1, sizeof *s);
+  dp_specan_state_t *s = calloc (1, sizeof *s);
   if (!s)
     return NULL;
 
@@ -88,15 +88,15 @@ specan_create (double fs, double span, double rbw, double src_center,
    * shifts content up by +norm_freq, so a positive offset needs a negative LO
    * (matching ddc_core's "norm_freq = -f_carrier shifts f_carrier to DC"). */
   double norm_freq = -(center - src_center) / fs;
-  s->ddc           = ddc_create (norm_freq, rate);
+  s->ddc           = dp_ddc_create (norm_freq, rate);
   /* The PSD core owns the 0-dBFS reference (full_scale / bits); the display
    * reads it back as s->psd->full_scale, so dBFS is single-sourced. */
-  s->psd = psd_create (n, fs_out, window, (float)beta, SPECAN_PAD, full_scale,
-                       bits, 0, 0.1);
+  s->psd = dp_psd_create (n, fs_out, window, (float)beta, SPECAN_PAD,
+                          full_scale, bits, 0, 0.1);
   s->pwr = malloc (nfft * sizeof *s->pwr);
   if (!s->ddc || !s->psd || !s->pwr)
     {
-      specan_destroy (s);
+      dp_specan_destroy (s);
       return NULL;
     }
 
@@ -117,14 +117,14 @@ specan_create (double fs, double span, double rbw, double src_center,
 }
 
 void
-specan_destroy (specan_state_t *state)
+dp_specan_destroy (dp_specan_state_t *state)
 {
   if (!state)
     return;
   if (state->ddc)
-    ddc_destroy (state->ddc);
+    dp_ddc_destroy (state->ddc);
   if (state->psd)
-    psd_destroy (state->psd);
+    dp_psd_destroy (state->psd);
   free (state->scratch);
   free (state->pend);
   free (state->pwr);
@@ -132,10 +132,10 @@ specan_destroy (specan_state_t *state)
 }
 
 void
-specan_reset (specan_state_t *state)
+dp_specan_reset (dp_specan_state_t *state)
 {
-  ddc_reset (state->ddc);
-  psd_reset (state->psd);
+  dp_ddc_reset (state->ddc);
+  dp_psd_reset (state->psd);
   state->pend_len = 0;
 }
 
@@ -144,20 +144,20 @@ specan_reset (specan_state_t *state)
  * drains, so it serializes at that fixed capacity (zero-padded → canonical);
  * display/rate fields are config (restored by create). */
 size_t
-specan_state_bytes (const specan_state_t *s)
+dp_specan_state_bytes (const dp_specan_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + ddc_state_bytes (s->ddc)
-         + psd_state_bytes (s->psd) + sizeof (uint64_t)
+  return sizeof (dp_state_hdr_t) + dp_ddc_state_bytes (s->ddc)
+         + dp_psd_state_bytes (s->psd) + sizeof (uint64_t)
          + s->n * s->navg * sizeof (float _Complex);
 }
 
 void
-specan_get_state (const specan_state_t *s, void *blob)
+dp_specan_get_state (const dp_specan_state_t *s, void *blob)
 {
   DP_GET_OPEN (SPECAN_STATE_MAGIC, SPECAN_STATE_VERSION,
-               specan_state_bytes (s));
-  DP_W_CHILD (&_w, ddc, s->ddc);
-  DP_W_CHILD (&_w, psd, s->psd);
+               dp_specan_state_bytes (s));
+  DP_W_CHILD (&_w, dp_ddc, s->ddc);
+  DP_W_CHILD (&_w, dp_psd, s->psd);
   dp_w_u64 (&_w, s->pend_len);
   dp_w_cf32 (&_w, s->pend, s->pend_len);
   for (size_t i = s->pend_len; i < s->n * s->navg; i++)
@@ -165,12 +165,12 @@ specan_get_state (const specan_state_t *s, void *blob)
 }
 
 int
-specan_set_state (specan_state_t *s, const void *blob)
+dp_specan_set_state (dp_specan_state_t *s, const void *blob)
 {
   DP_SET_OPEN (SPECAN_STATE_MAGIC, SPECAN_STATE_VERSION,
-               specan_state_bytes (s));
-  DP_R_CHILD (&_r, ddc, s->ddc);
-  DP_R_CHILD (&_r, psd, s->psd);
+               dp_specan_state_bytes (s));
+  DP_R_CHILD (&_r, dp_ddc, s->ddc);
+  DP_R_CHILD (&_r, dp_psd, s->psd);
   size_t need     = s->n * s->navg;
   size_t pend_len = (size_t)dp_r_u64 (&_r);
   if (pend_len > need)
@@ -189,14 +189,14 @@ specan_set_state (specan_state_t *s, const void *blob)
 }
 
 size_t
-specan_execute_max_out (specan_state_t *state)
+dp_specan_execute_max_out (dp_specan_state_t *state)
 {
   return state->disp_n;
 }
 
 size_t
-specan_execute (specan_state_t *state, const float _Complex *x, size_t x_len,
-                float *out, size_t max_out)
+dp_specan_execute (dp_specan_state_t *state, const float _Complex *x,
+                   size_t x_len, float *out, size_t max_out)
 {
   /* Mix to DC and decimate; output length <= x_len since rate <= 1. */
   if (state->scratch_cap < x_len)
@@ -207,8 +207,8 @@ specan_execute (specan_state_t *state, const float _Complex *x, size_t x_len,
       state->scratch     = p;
       state->scratch_cap = x_len;
     }
-  size_t m
-      = ddc_execute (state->ddc, x, x_len, state->scratch, state->scratch_cap);
+  size_t m = dp_ddc_execute (state->ddc, x, x_len, state->scratch,
+                             state->scratch_cap);
 
   /* Buffer the decimated samples until a full averaging window is available.
    */
@@ -241,9 +241,9 @@ specan_execute (specan_state_t *state, const float _Complex *x, size_t x_len,
    * calls -- 268, 536, 804, 1073, 1341, 1609, 1878, 2146 -- and it does not
    * turn around. Three consequences, in order of how badly they bite:
    *
-   * 1. `specan_state_bytes` reserves `n*navg` samples for `pend`, because the
-   *    state protocol makes the blob size a CONFIG fingerprint. So once
-   *    pend_len passed 256, `specan_get_state` wrote past the end of the
+   * 1. `dp_specan_state_bytes` reserves `n*navg` samples for `pend`, because
+   * the state protocol makes the blob size a CONFIG fingerprint. So once
+   *    pend_len passed 256, `dp_specan_get_state` wrote past the end of the
    *    caller's buffer -- 17 KB into a 2 KB reservation by the eighth call.
    * 2. The analyzer leaked ~2 KB per call, forever.
    * 3. The spectrum returned was computed from ever-staler samples, so a
@@ -251,19 +251,19 @@ specan_execute (specan_state_t *state, const float _Complex *x, size_t x_len,
    *
    * Skipping to the newest complete window fixes all three and costs one
    * psd pass, not `frames` of them: the intermediate windows would each have
-   * been overwritten by the next `psd_reset` anyway. A display that cannot
+   * been overwritten by the next `dp_psd_reset` anyway. A display that cannot
    * keep up shows the LATEST frame; it does not queue history it will never
    * catch up on. That the buffer is now bounded by `need` is what makes the
    * fixed-size state blob correct, so the serialization round-trip that
    * exposed this passes as a consequence rather than by its own patch. */
   size_t frames = state->pend_len / need;
-  psd_reset (state->psd);
-  psd_accumulate (state->psd, state->pend + (frames - 1) * need, need);
+  dp_psd_reset (state->psd);
+  dp_psd_accumulate (state->psd, state->pend + (frames - 1) * need, need);
   state->pend_len -= frames * need;
   memmove (state->pend, state->pend + frames * need,
            state->pend_len * sizeof *state->pend);
 
-  psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
+  dp_psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
 
   /* Crop the central display band and convert to dBFS (+ application offset).
    * The 0-dBFS reference is the PSD core's full_scale (single source). */
@@ -280,9 +280,10 @@ specan_execute (specan_state_t *state, const float _Complex *x, size_t x_len,
 }
 
 void
-specan_retune (specan_state_t *state, double center)
+dp_specan_retune (dp_specan_state_t *state, double center)
 {
   state->center = center;
-  ddc_set_norm_freq (state->ddc, -(center - state->src_center) / state->fs_in);
+  dp_ddc_set_norm_freq (state->ddc,
+                        -(center - state->src_center) / state->fs_in);
   state->pend_len = 0; /* drop stale-tune samples; next frame is single-tune */
 }

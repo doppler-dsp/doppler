@@ -75,34 +75,34 @@ run (int cfg, int i)
   switch (cfg)
     {
     case C_MARCUM_M1:
-      sink += marcum_q (1, 0.5 + 4.0 * frac, 4.75);
+      sink += dp_marcum_q (1, 0.5 + 4.0 * frac, 4.75);
       break;
     case C_MARCUM_M4:
-      sink += marcum_q (4, 0.5 + 4.0 * frac, 4.75);
+      sink += dp_marcum_q (4, 0.5 + 4.0 * frac, 4.75);
       break;
     case C_THRESHOLD:
-      sink += det_threshold (1e-4 * (1.0 + frac));
+      sink += dp_det_threshold (1e-4 * (1.0 + frac));
       break;
     case C_THRESH_NC:
-      sink += det_threshold_noncoherent (1e-4 * (1.0 + frac), 8);
+      sink += dp_det_threshold_noncoherent (1e-4 * (1.0 + frac), 8);
       break;
     case C_Q_INV:
-      sink += det_q_inv (1e-3 + 0.4 * frac);
+      sink += dp_det_q_inv (1e-3 + 0.4 * frac);
       break;
     case C_EMA_ALPHA:
-      sink += det_ema_alpha (0.0, -10.0 - 10.0 * frac);
+      sink += dp_det_ema_alpha (0.0, -10.0 - 10.0 * frac);
       break;
     case C_PD_D1:
-      sink += det_pd (0.5 + 2.0 * frac, 1, eta);
+      sink += dp_det_pd (0.5 + 2.0 * frac, 1, eta);
       break;
     case C_PD_D64:
-      sink += det_pd (0.5 + 2.0 * frac, 64, eta);
+      sink += dp_det_pd (0.5 + 2.0 * frac, 64, eta);
       break;
     case C_DWELL:
-      sink += det_dwell (0.4 + 0.2 * frac, 0.9, 1e-6, 256);
+      sink += dp_det_dwell (0.4 + 0.2 * frac, 0.9, 1e-6, 256);
       break;
     default:
-      sink += det_snr (8, 0.9, 1e-6);
+      sink += dp_det_snr (8, 0.9, 1e-6);
       break;
     }
 }
@@ -114,7 +114,7 @@ main (void)
   uint64_t      t0, t1;
   static double t[N_CFG][ITERATIONS];
 
-  eta = det_threshold (1e-6);
+  eta = dp_det_threshold (1e-6);
 
   printf ("=== detection (detector design helpers) ===\n");
   printf ("%d rounds; inner count differs per entry (a search is not a "

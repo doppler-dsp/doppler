@@ -10,13 +10,13 @@
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/util/util_core.h"
 
-acc_trace_state_t *
-acc_trace_create (size_t n, int mode, double alpha)
+dp_acc_trace_state_t *
+dp_acc_trace_create (size_t n, int mode, double alpha)
 {
   if (n == 0 || mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
 
-  acc_trace_state_t *s = (acc_trace_state_t *)calloc (1, sizeof (*s));
+  dp_acc_trace_state_t *s = (dp_acc_trace_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -35,7 +35,7 @@ acc_trace_create (size_t n, int mode, double alpha)
 }
 
 void
-acc_trace_destroy (acc_trace_state_t *state)
+dp_acc_trace_destroy (dp_acc_trace_state_t *state)
 {
   if (!state)
     return;
@@ -44,7 +44,7 @@ acc_trace_destroy (acc_trace_state_t *state)
 }
 
 void
-acc_trace_reset (acc_trace_state_t *state)
+dp_acc_trace_reset (dp_acc_trace_state_t *state)
 {
   memset (state->acc, 0, state->n * sizeof (double));
   state->count = 0;
@@ -53,32 +53,33 @@ acc_trace_reset (acc_trace_state_t *state)
 /* Serializable state — running trace + fold count; config restored by
  * create(). */
 size_t
-acc_trace_state_bytes (const acc_trace_state_t *s)
+dp_acc_trace_state_bytes (const dp_acc_trace_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t) + s->n * sizeof (double);
 }
 
 void
-acc_trace_get_state (const acc_trace_state_t *s, void *blob)
+dp_acc_trace_get_state (const dp_acc_trace_state_t *s, void *blob)
 {
   DP_GET_OPEN (ACC_TRACE_STATE_MAGIC, ACC_TRACE_STATE_VERSION,
-               acc_trace_state_bytes (s));
+               dp_acc_trace_state_bytes (s));
   dp_w_u64 (&_w, s->count);
   dp_w_bytes (&_w, s->acc, s->n * sizeof (double));
 }
 
 int
-acc_trace_set_state (acc_trace_state_t *s, const void *blob)
+dp_acc_trace_set_state (dp_acc_trace_state_t *s, const void *blob)
 {
   DP_SET_OPEN (ACC_TRACE_STATE_MAGIC, ACC_TRACE_STATE_VERSION,
-               acc_trace_state_bytes (s));
+               dp_acc_trace_state_bytes (s));
   s->count = dp_r_u64 (&_r);
   dp_r_bytes (&_r, s->acc, s->n * sizeof (double));
   return DP_OK;
 }
 
 void
-acc_trace_accumulate (acc_trace_state_t *state, const float *p, size_t p_len)
+dp_acc_trace_accumulate (dp_acc_trace_state_t *state, const float *p,
+                         size_t p_len)
 {
   const size_t n = state->n;
   if (p_len < n)
@@ -111,7 +112,7 @@ acc_trace_accumulate (acc_trace_state_t *state, const float *p, size_t p_len)
       {
         const double a = state->alpha;
         for (size_t i = 0; i < n; i++)
-          acc[i] = ema_step (acc[i], (double)p[i], a);
+          acc[i] = dp_ema_step (acc[i], (double)p[i], a);
         break;
       }
     case ACC_TRACE_MAXHOLD:
@@ -134,14 +135,14 @@ acc_trace_accumulate (acc_trace_state_t *state, const float *p, size_t p_len)
 }
 
 size_t
-acc_trace_value_max_out (acc_trace_state_t *state)
+dp_acc_trace_value_max_out (dp_acc_trace_state_t *state)
 {
   return state->n;
 }
 
 size_t
-acc_trace_value (acc_trace_state_t *state, size_t n, float *out,
-                 size_t max_out)
+dp_acc_trace_value (dp_acc_trace_state_t *state, size_t n, float *out,
+                    size_t max_out)
 {
   (void)n; /* the trace length is state->n; n is vestigial */
   if (state->count == 0)

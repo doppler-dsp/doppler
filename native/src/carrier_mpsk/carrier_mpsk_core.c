@@ -7,7 +7,7 @@
  * point the NCO at the same frequency — de-rotation is correct from the first
  * sample, before any update runs. */
 static void
-seed (carrier_mpsk_state_t *s, double init_norm_freq)
+seed (dp_carrier_mpsk_state_t *s, double init_norm_freq)
 {
   lo_init (&s->nco, init_norm_freq);
   s->lf.integ    = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
@@ -21,7 +21,7 @@ seed (carrier_mpsk_state_t *s, double init_norm_freq)
 }
 
 void
-carrier_mpsk_init (carrier_mpsk_state_t *s, double bn, double zeta,
+carrier_mpsk_init (dp_carrier_mpsk_state_t *s, double bn, double zeta,
                    double init_norm_freq, size_t tsamps, double bn_fll, int m)
 {
   s->tsamps         = tsamps ? tsamps : 1;
@@ -35,13 +35,13 @@ carrier_mpsk_init (carrier_mpsk_state_t *s, double bn, double zeta,
   seed (s, init_norm_freq);
 }
 
-carrier_mpsk_state_t *
-carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
-                     size_t tsamps, double bn_fll, int m)
+dp_carrier_mpsk_state_t *
+dp_carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
+                        size_t tsamps, double bn_fll, int m)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
-  carrier_mpsk_state_t *obj = calloc (1, sizeof (*obj));
+  dp_carrier_mpsk_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   carrier_mpsk_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll, m);
@@ -49,43 +49,44 @@ carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
 }
 
 void
-carrier_mpsk_destroy (carrier_mpsk_state_t *state)
+dp_carrier_mpsk_destroy (dp_carrier_mpsk_state_t *state)
 {
   free (state);
 }
 
 void
-carrier_mpsk_reset (carrier_mpsk_state_t *state)
+dp_carrier_mpsk_reset (dp_carrier_mpsk_state_t *state)
 {
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state, state->seed_norm_freq);
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot
  * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (carrier_mpsk, carrier_mpsk_state_t,
+DP_DEFINE_POD_STATE (dp_carrier_mpsk, dp_carrier_mpsk_state_t,
                      CARRIER_MPSK_STATE_MAGIC, CARRIER_MPSK_STATE_VERSION)
 
 void
-carrier_mpsk_configure (carrier_mpsk_state_t *state, double bn, double zeta)
+dp_carrier_mpsk_configure (dp_carrier_mpsk_state_t *state, double bn,
+                           double zeta)
 {
   state->bn   = bn;
   state->zeta = zeta;
-  loop_filter_configure (&state->lf, bn, zeta, 1.0);
+  dp_loop_filter_configure (&state->lf, bn, zeta, 1.0);
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
  * input length, so 0 (== "caller sizes") is the correct sentinel. */
 size_t
-carrier_mpsk_steps_max_out (carrier_mpsk_state_t *state)
+dp_carrier_mpsk_steps_max_out (dp_carrier_mpsk_state_t *state)
 {
   (void)state;
   return 0; /* one symbol per sps inputs, so symbols <= inputs */
 }
 
 size_t
-carrier_mpsk_steps (carrier_mpsk_state_t *state, const float _Complex *x,
-                    size_t x_len, float _Complex *out, size_t max_out)
+dp_carrier_mpsk_steps (dp_carrier_mpsk_state_t *state, const float _Complex *x,
+                       size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   for (size_t n = 0; n < x_len; n++)
@@ -105,58 +106,58 @@ carrier_mpsk_steps (carrier_mpsk_state_t *state, const float _Complex *x,
 }
 
 double
-carrier_mpsk_get_bn (const carrier_mpsk_state_t *state)
+dp_carrier_mpsk_get_bn (const dp_carrier_mpsk_state_t *state)
 {
   return state->bn;
 }
 
 void
-carrier_mpsk_set_bn (carrier_mpsk_state_t *state, double val)
+dp_carrier_mpsk_set_bn (dp_carrier_mpsk_state_t *state, double val)
 {
-  carrier_mpsk_configure (state, val, state->zeta);
+  dp_carrier_mpsk_configure (state, val, state->zeta);
 }
 
 double
-carrier_mpsk_get_norm_freq (const carrier_mpsk_state_t *state)
+dp_carrier_mpsk_get_norm_freq (const dp_carrier_mpsk_state_t *state)
 {
   return state->nco.norm_freq;
 }
 
 void
-carrier_mpsk_set_norm_freq (carrier_mpsk_state_t *state, double val)
+dp_carrier_mpsk_set_norm_freq (dp_carrier_mpsk_state_t *state, double val)
 {
   state->seed_norm_freq = val;
-  loop_filter_reset (&state->lf);
+  dp_loop_filter_reset (&state->lf);
   seed (state, val);
 }
 
 double
-carrier_mpsk_get_lock_metric (const carrier_mpsk_state_t *state)
+dp_carrier_mpsk_get_lock_metric (const dp_carrier_mpsk_state_t *state)
 {
   return state->lock_metric;
 }
 
 double
-carrier_mpsk_get_last_error (const carrier_mpsk_state_t *state)
+dp_carrier_mpsk_get_last_error (const dp_carrier_mpsk_state_t *state)
 {
   return state->last_error;
 }
 
 double
-carrier_mpsk_get_bn_fll (const carrier_mpsk_state_t *state)
+dp_carrier_mpsk_get_bn_fll (const dp_carrier_mpsk_state_t *state)
 {
   return state->bn_fll;
 }
 
 void
-carrier_mpsk_set_bn_fll (carrier_mpsk_state_t *state, double val)
+dp_carrier_mpsk_set_bn_fll (dp_carrier_mpsk_state_t *state, double val)
 {
   state->bn_fll = val;
   state->k_fll  = 4.0 * val;
 }
 
 int
-carrier_mpsk_get_m (const carrier_mpsk_state_t *state)
+dp_carrier_mpsk_get_m (const dp_carrier_mpsk_state_t *state)
 {
   return state->m;
 }

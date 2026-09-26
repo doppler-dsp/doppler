@@ -47,7 +47,7 @@
  * inside the sample loop and `real` is read only on cold paths (destroy,
  * reset, telemetry, the frequency accessors and the state triplet).
  *
- *   - @ref ddc_state_t (the matched flavor) mixes, decimates and
+ *   - @ref dp_ddc_state_t (the matched flavor) mixes, decimates and
  *     matched-filters in the dot products it was already doing. Its terminal
  *     polyphase stage IS the matched filter, and the arm that stage selects IS
  *     the fractional symbol-timing delay.
@@ -94,7 +94,7 @@
  * 8x wider loop. Detection performance is unchanged (the fused matched filter
  * measures on the Es/N0 bound); exact-output pins are not.
  *
- * Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
+ * Lifecycle: `dp_mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
  *
  * Both examples name every argument, in the constructor's own parameter
  * order, so a reader can check a call against the signature without counting
@@ -122,14 +122,14 @@
  * const int    agc            = 1;     // one AGC, inside the cascade
  * const double bn_agc_ratio   = MPSK_RX_AGC_BW_RATIO;
  *
- * mpsk_receiver_state_t *rx = mpsk_receiver_create (
+ * dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create (
  *     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
  *     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
  *     agc, bn_agc_ratio);
  * float _Complex sym[256];
- * size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
- * double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
- * mpsk_receiver_destroy (rx);
+ * size_t k = dp_mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
+ * double f = dp_mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
+ * dp_mpsk_receiver_destroy (rx);
  * @endcode
  *
  * The real-IF face is the same call with `_real` on both ends. It lives here
@@ -158,17 +158,17 @@
  * const int    agc            = 1;
  * const double bn_agc_ratio   = 0.0;   // 0 derives
  *
- * mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+ * dp_mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
  *     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
  *     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
  *     agc, bn_agc_ratio);
  * float _Complex sym[256];
  * size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
- * mpsk_receiver_destroy (rx);
+ * dp_mpsk_receiver_destroy (rx);
  * @endcode
  */
-#ifndef MPSK_RECEIVER_CORE_H
-#define MPSK_RECEIVER_CORE_H
+#ifndef DP_MPSK_RECEIVER_CORE_H
+#define DP_MPSK_RECEIVER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/ddc/ddc_core.h"
@@ -202,7 +202,7 @@ extern "C"
   /**
    * @brief M-PSK receiver state.
    *
-   * Allocate with mpsk_receiver_create() (complex input) or
+   * Allocate with dp_mpsk_receiver_create() (complex input) or
    * mpsk_receiver_create_real() (real IF). Owns one matched front end (`fe`)
    * and embeds the loops by value. Treat all fields as internal (use the
    * getters); they are exposed for the inline sample loop.
@@ -213,8 +213,8 @@ extern "C"
         reads it — the two step entry points each name their own arm. */
     union
     {
-      ddc_state_t  *c; /**< matched DDC:  mix + cascade + MF.            */
-      ddcr_state_t *r; /**< matched DDCR: R2C + mix + cascade + MF.      */
+      dp_ddc_state_t  *c; /**< matched DDC:  mix + cascade + MF.            */
+      dp_ddcr_state_t *r; /**< matched DDCR: R2C + mix + cascade + MF.      */
     } fe;
     mpsk_rx_loops_t l; /**< carrier + timing loops, demapper.           */
 
@@ -225,7 +225,7 @@ extern "C"
     int    real;        /**< 0 = complex front end, 1 = real IF.         */
     double centre_freq; /**< create-time carrier offset (cycles/sample),
                              at the receiver's INPUT rate on both faces. */
-  } mpsk_receiver_state_t;
+  } dp_mpsk_receiver_state_t;
 
   /**
    * @brief Create an M-PSK receiver.
@@ -238,7 +238,7 @@ extern "C"
    *                        2..8 the rate allows, via
    *                        @ref mpsk_rx_derive_m_out, which is `8` at the
    *                        default `sps = 8`; pass a value only to pin one.
-   *                        Read it back with mpsk_receiver_get_m_out().
+   *                        Read it back with dp_mpsk_receiver_get_m_out().
    *                        Gardner needs the half-symbol gate. The derived
    *                        answer reaches 8 for two reasons. The matched
    *                        filter: the rectangle is one symbol wide, so its
@@ -283,7 +283,7 @@ extern "C"
    *                        than a computation, since nothing in this receiver
    *                        moves the optimal damping and both loops already
    *                        share one value. Read it back with
-   *                        mpsk_receiver_get_zeta().
+   *                        dp_mpsk_receiver_get_zeta().
    * @param bn_timing      Symbol-timing loop noise bandwidth, normalised to
    *                        the symbol rate (default 0.01).
    * @param lock_thresh    Declare threshold for the carrier lock
@@ -295,7 +295,7 @@ extern "C"
    *                        because a number that was picked and a number that
    *                        was derived look identical until one has to move.
    *                        Read it back with
-   *                        mpsk_receiver_get_lock_thresh(). The drop
+   *                        dp_mpsk_receiver_get_lock_thresh(). The drop
    *                        threshold sits at 0.8x for level hysteresis, and
    *                        both directions are verify-counted (8 symbols up /
    *                        32 down).
@@ -317,7 +317,7 @@ extern "C"
    *                        saturation point — against the 1024 that used to
    *                        be the default, a 16x bank for no measurable gain.
    *                        Read it back with
-   *                        mpsk_receiver_get_num_phases(). Sets the timing
+   *                        dp_mpsk_receiver_get_num_phases(). Sets the timing
    *                        resolution to `1/num_phases` of an output period.
    * @param agc            Non-zero (default) puts the receiver's ONE AGC in
    *                        the front-end cascade, immediately before the
@@ -352,7 +352,7 @@ extern "C"
    *                        (@ref MPSK_RX_AGC_RATIO_DEFAULT); 0 is the one
    *                        value below 1 that is a request rather than a
    *                        rejection. Read it back with
-   *                        mpsk_receiver_get_bn_agc_ratio().
+   *                        dp_mpsk_receiver_get_bn_agc_ratio().
    * @return Heap-allocated state, or NULL on invalid args / allocation
    * failure.
    *
@@ -364,10 +364,10 @@ extern "C"
    * guards a supplied one does. Each is reported back by a getter — without
    * that, `0` would be an instruction whose result nobody can see. See
    * docs/design/mpsk.md §8.1.
-   * @note Caller must call mpsk_receiver_destroy() when done.
+   * @note Caller must call dp_mpsk_receiver_destroy() when done.
    */
-  mpsk_receiver_state_t *
-  mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
+  dp_mpsk_receiver_state_t *
+  dp_mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                         double rrc_beta, int rrc_span, double bn_carrier,
                         double zeta, double bn_timing, double lock_thresh,
                         double init_norm_freq, int differential,
@@ -377,7 +377,7 @@ extern "C"
    * @brief Create the same receiver behind an R2C halfband: a real IF in.
    *
    * The real-input face. **Every parameter means what it means on
-   * mpsk_receiver_create()** — same names, same order, same types, same
+   * dp_mpsk_receiver_create()** — same names, same order, same types, same
    * derivations, the same "zero means derive" rule — because this is the same
    * object and not a twin of it. Only the three rate conventions in this
    * file's header block differ, and each is named against the parameter it
@@ -388,7 +388,7 @@ extern "C"
    * symbols, bits, telemetry, serialization — is one implementation shared
    * with the complex face.
    *
-   * @param m              As mpsk_receiver_create().
+   * @param m              As dp_mpsk_receiver_create().
    * @param sps            Samples per symbol at the REAL input; any double
    *                        **strictly greater than `2 * m_out`**. The cascade
    *                        behind the halfband runs at twice the overall rate,
@@ -398,17 +398,17 @@ extern "C"
    *                        the same bound (@ref mpsk_rx_derive_m_out takes the
    *                        constraint, not the rate), so a caller cannot pair
    *                        an `sps` and an `m_out` that will not construct.
-   * @param m_out          As mpsk_receiver_create(); **0 derives** it against
+   * @param m_out          As dp_mpsk_receiver_create(); **0 derives** it against
    *                        the strict `sps/2` cap above rather than `sps`.
-   * @param pulse          As mpsk_receiver_create().
-   * @param rrc_beta       As mpsk_receiver_create().
-   * @param rrc_span       As mpsk_receiver_create().
-   * @param bn_carrier     As mpsk_receiver_create(). Still normalised to the
+   * @param pulse          As dp_mpsk_receiver_create().
+   * @param rrc_beta       As dp_mpsk_receiver_create().
+   * @param rrc_span       As dp_mpsk_receiver_create().
+   * @param bn_carrier     As dp_mpsk_receiver_create(). Still normalised to the
    *                        SYMBOL rate: the halfband moves the LO's clock, not
    *                        the loop's units.
-   * @param zeta           As mpsk_receiver_create(); 0 derives.
-   * @param bn_timing      As mpsk_receiver_create().
-   * @param lock_thresh    As mpsk_receiver_create(); 0 derives.
+   * @param zeta           As dp_mpsk_receiver_create(); 0 derives.
+   * @param bn_timing      As dp_mpsk_receiver_create().
+   * @param lock_thresh    As dp_mpsk_receiver_create(); 0 derives.
    * @param init_norm_freq The real IF **centre**, cycles/sample at the real
    *                        input rate. An IF at `0.2 * fs` is `0.2`; the
    *                        halved value the LO actually uses is this object's
@@ -416,18 +416,18 @@ extern "C"
    *                        near — this face does not acquire from a cold zero
    *                        the way the complex one does, so the centre is
    *                        where the tap's pull-in range sits *around*.
-   * @param differential   As mpsk_receiver_create().
-   * @param num_phases     As mpsk_receiver_create(); 0 derives.
-   * @param agc            As mpsk_receiver_create(). The AGC sits inside the
+   * @param differential   As dp_mpsk_receiver_create().
+   * @param num_phases     As dp_mpsk_receiver_create(); 0 derives.
+   * @param agc            As dp_mpsk_receiver_create(). The AGC sits inside the
    *                        cascade BEHIND the halfband, so it levels the
    *                        analytic signal at the intermediate rate, which is
    *                        also where the noise has already been filtered.
-   * @param bn_agc_ratio   As mpsk_receiver_create(); 0 derives.
+   * @param bn_agc_ratio   As dp_mpsk_receiver_create(); 0 derives.
    * @return Heap-allocated state, or NULL on invalid args / allocation
-   *         failure. Destroy with mpsk_receiver_destroy() like any other.
+   *         failure. Destroy with dp_mpsk_receiver_destroy() like any other.
    *
    * Deliberately carries NO example block, exactly like
-   * mpsk_receiver_create() above -- the C usage MOVED to this file's header
+   * dp_mpsk_receiver_create() above -- the C usage MOVED to this file's header
    * comment, it was not dropped. A constructor's own example block is what
    * jm renders as the class's Python `Examples`, so a C block here does not
    * add an example, it REPLACES the generated Python one. That is how
@@ -439,7 +439,7 @@ extern "C"
    * recognised inside backticks too, so spelling it here would open a block
    * that never closes and swallow every declaration below.)
    */
-  mpsk_receiver_state_t *
+  dp_mpsk_receiver_state_t *
   mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                              double rrc_beta, int rrc_span, double bn_carrier,
                              double zeta, double bn_timing,
@@ -462,13 +462,13 @@ extern "C"
    * Separate from the cascade's filter response (RateConverter_gain()), which
    * is computed from coefficients and stays 1.0; the two multiply.
    */
-  double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief A BPSK receiver stated in the units a caller actually holds: Hz.
    *
    * Same core, same loops, same methods — this differs from
-   * mpsk_receiver_create() only in what it ASKS FOR, and that is the point.
+   * dp_mpsk_receiver_create() only in what it ASKS FOR, and that is the point.
    * A caller with a capture holds a sample rate, a symbol rate and a carrier
    * frequency, all in Hz. They do not hold `sps`: that is `fs / Rs`, a ratio
    * this library computes for its own use in selecting a cascade and in
@@ -516,7 +516,7 @@ extern "C"
    *                         (default 0, coherent).
    * @param agc             Front-end AGC (default 1).
    * @return Heap-allocated state, or NULL on invalid args / allocation
-   * failure. Destroy with mpsk_receiver_destroy() like any other.
+   * failure. Destroy with dp_mpsk_receiver_destroy() like any other.
    *
    * @code
    * >>> from doppler.track import BpskReceiver
@@ -527,7 +527,7 @@ extern "C"
    * 8.0
    * @endcode
    */
-  mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
+  dp_mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
       double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
       int pulse, double rrc_beta, int rrc_span, double bn_carrier,
       double bn_timing, int differential, int agc);
@@ -536,7 +536,7 @@ extern "C"
    * @brief Destroy an M-PSK receiver and release all memory.
    * @param state  May be NULL.
    */
-  void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
+  void dp_mpsk_receiver_destroy (dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Re-seed the front end and both loops to their create-time state.
@@ -563,7 +563,7 @@ extern "C"
    *
    * @endcode
    */
-  void mpsk_receiver_reset (mpsk_receiver_state_t *state);
+  void dp_mpsk_receiver_reset (dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Push one input sample; emit a symbol if it completed one.
@@ -582,7 +582,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float _Complex x,
+  mpsk_receiver_step_ted (dp_mpsk_receiver_state_t *s, float _Complex x,
                           float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
@@ -609,7 +609,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  mpsk_receiver_step_real_ted (mpsk_receiver_state_t *s, float x,
+  mpsk_receiver_step_real_ted (dp_mpsk_receiver_state_t *s, float x,
                                float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
@@ -619,7 +619,7 @@ extern "C"
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
 
-  size_t mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_steps_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a cf32 block and emit the recovered symbols.
    *
@@ -650,15 +650,15 @@ extern "C"
    *
    * @endcode
    */
-  size_t mpsk_receiver_steps (mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_steps (dp_mpsk_receiver_state_t *state,
                               const float _Complex *x, size_t x_len,
                               float _Complex *out, size_t max_out);
 
-  size_t mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a cf32 block and emit hard Gray-coded bits.
    *
-   * Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
+   * Like dp_mpsk_receiver_steps(), but each recovered symbol is sliced to its
    * nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
    * the differential option set at create time, the Gray label is taken from
    * the phase *difference* between consecutive symbols (rotation-invariant —
@@ -689,15 +689,15 @@ extern "C"
    *
    * @endcode
    */
-  size_t mpsk_receiver_bits (mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_bits (dp_mpsk_receiver_state_t *state,
                              const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
-  size_t mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a real f32 block and emit the recovered symbols.
    *
-   * mpsk_receiver_steps() taking real samples: the R2C halfband makes them
+   * dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes them
    * complex before anything else touches them, and the per-sample body is the
    * same one. Requires a state built by mpsk_receiver_create_real().
    *
@@ -725,15 +725,15 @@ extern "C"
    *
    * @endcode
    */
-  size_t mpsk_receiver_steps_real (mpsk_receiver_state_t *state,
+  size_t mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state,
                                    const float *x, size_t x_len,
                                    float _Complex *out, size_t max_out);
 
-  size_t mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a real f32 block and emit hard Gray-coded bits.
    *
-   * mpsk_receiver_bits() taking real samples. Requires a state built by
+   * dp_mpsk_receiver_bits() taking real samples. Requires a state built by
    * mpsk_receiver_create_real().
    *
    * @param state    Must be non-NULL.
@@ -764,25 +764,25 @@ extern "C"
    *
    * @endcode
    */
-  size_t mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,
+  size_t mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
                                   size_t x_len, uint8_t *out, size_t max_out);
 
   /** @brief Carrier frequency the receiver is tracking, cycles/sample at the
    *  input rate: the create-time centre plus the loop's own estimate. */
-  double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state);
   /** @brief Instantaneous NCO frequency command (carrier loop filter output,
    * cycles/sample): mean tracks a ramp with no lag, variance is loop stress. */
-  double mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
   /** @brief Retune to @p val cycles/sample: moves the LO centre there and
    *  zeroes the loop's residual estimate, so norm_freq reads back exactly. */
-  void mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
+  void dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val);
   /** @brief The raw carrier lock statistic: the EMA of the M-th-power NDA
    *  lock signal, near 1 when locked and near 0 on noise. It chatters at
    *  the threshold; `locked` is the de-chattered decision made on it. */
-  double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_lock (const dp_mpsk_receiver_state_t *state);
   /** @brief Binary carrier-lock flag from the loop's hysteretic (up/down
    * verify-counted) lock detector — de-chattered, unlike the raw metric. */
-  int mpsk_receiver_get_locked (const mpsk_receiver_state_t *state);
+  int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Symbols from reset to the FIRST carrier-lock declaration, or -1 if
@@ -790,19 +790,19 @@ extern "C"
    *
    * The acquisition time, as a number a caller can read rather than infer by
    * polling `locked` in a loop. Dated by the same hysteretic detector
-   * `mpsk_receiver_get_locked()` reports, so the two cannot disagree.
+   * `dp_mpsk_receiver_get_locked()` reports, so the two cannot disagree.
    *
    * In SYMBOLS, not seconds: `bn_carrier` and `bn_timing` are both normalised
    * to the symbol rate, so a settling budget quoted in symbols is comparable
    * across every input rate, and a caller with `Rs` divides once. Only the
    * first declaration is dated — a drop and re-acquire does not restamp it,
    * because the question this answers is "how long did this receiver take to
-   * lock", not "when did it last hold". mpsk_receiver_reset() clears it to -1.
+   * lock", not "when did it last hold". dp_mpsk_receiver_reset() clears it to -1.
    */
-  int64_t mpsk_receiver_get_lock_time (const mpsk_receiver_state_t *state);
+  int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
   /** @brief Carrier loop phase discriminator (rad) — the residual phase the
    * loop is trying to null; loop stress. */
-  double mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Attach (or detach) a telemetry context across the receiver.
@@ -811,7 +811,7 @@ extern "C"
    * the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
    * ".locked" / ".mu" -- ten probes emitted once per recovered symbol --
    * then the front end's AGC under "<prefix>.agc" ("<prefix>.agc.gain_db" and
-   * "<prefix>.agc.level_db"; see agc_set_telemetry()).  Twelve probes total,
+   * "<prefix>.agc.level_db"; see dp_agc_set_telemetry()).  Twelve probes total,
    * all thinned by @p decim.  Passing NULL detaches everything.
    *
    * @warning The two AGC probes are NOT at the symbol rate the other ten
@@ -877,28 +877,28 @@ extern "C"
    *
    * @endcode
    */
-  int mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
+  int dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
   /** @brief Smoothed tracked samples per symbol — departs from the nominal
    *  `sps` by exactly the sample-clock offset the timing loop is tracking. */
-  double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_timing_rate (const dp_mpsk_receiver_state_t *state);
   /** @brief Constellation order M (2, 4 or 8), as constructed. */
-  int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
+  int    dp_mpsk_receiver_get_m (const dp_mpsk_receiver_state_t *state);
   /** @brief Nominal samples per symbol at the receiver's input, as
    *  constructed; `timing_rate` is the tracked value. */
-  double mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_sps (const dp_mpsk_receiver_state_t *state);
   /** @brief Terminal outputs per symbol (the old `n`, now the cascade's). */
-  size_t mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_get_m_out (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Loop damping in use — derived `1/sqrt(2)` unless pinned (§8.1). */
-  double mpsk_receiver_get_zeta (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_zeta (const dp_mpsk_receiver_state_t *state);
 
   /** @brief AGC bandwidth ratio in use — derived unless pinned (§8.1). */
-  double mpsk_receiver_get_bn_agc_ratio (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_bn_agc_ratio (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Carrier lock DECLARE threshold in use — derived unless pinned
    *         (§8.1). It gates no loop and no output; see mpsk_rx_loops.h. */
-  double mpsk_receiver_get_lock_thresh (const mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_lock_thresh (const dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Carrier DROP threshold in use — `MPSK_RX_LOCK_DOWN` x the
@@ -910,25 +910,25 @@ extern "C"
    * hysteresis rule outside the object that owns it.
    */
   double
-  mpsk_receiver_get_lock_drop_thresh (const mpsk_receiver_state_t *state);
+  dp_mpsk_receiver_get_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Timing DECLARE threshold on `sync.lock`, derived by symsync's
    *         own (rolloff, esno_min, pfa, pd) geometry rather than pinned. */
   double
-  mpsk_receiver_get_sync_lock_thresh (const mpsk_receiver_state_t *state);
+  dp_mpsk_receiver_get_sync_lock_thresh (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Timing DROP threshold on `sync.lock`. Equal to the declare
    *         threshold when the timing loop carries no level hysteresis. */
   double
-  mpsk_receiver_get_sync_lock_drop_thresh (const mpsk_receiver_state_t *state);
+  dp_mpsk_receiver_get_sync_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1). */
-  size_t mpsk_receiver_get_num_phases (const mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_get_num_phases (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *  reset? A CIC bounds its input to +-1.0 and clips silently past that,
    *  which costs ~25 dB of EVM behind a perfectly healthy lock. */
-  int mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state);
+  int dp_mpsk_receiver_get_clipped (const dp_mpsk_receiver_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: the front end's and the loops' self-validating child blobs.
  * Every scalar this object carries across inputs lives in one of them; the
@@ -944,10 +944,10 @@ extern "C"
 #define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
 #define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
 #define MPSK_RECEIVER_R_STATE_VERSION 2u
-  size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
-  void   mpsk_receiver_get_state (const mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *state);
+  void   dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *state,
                                   void                        *blob);
-  int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);
+  int dp_mpsk_receiver_set_state (dp_mpsk_receiver_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

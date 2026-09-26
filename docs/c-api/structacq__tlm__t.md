@@ -8,7 +8,7 @@
 
 
 
-_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**acq\_set\_state()**_](acq__core_8h.md#function-acq_set_state) _like the borrowed code._
+_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _like the borrowed code._
 
 * `#include <acq_core.h>`
 

@@ -71,11 +71,11 @@ main (void)
     {
       /* window 0, pad 1, full_scale 1.0, bits 0, mode 0 (linear mean),
          alpha 0.1 -- the shape test_psd_core.c constructs. */
-      psd_state_t *p
-          = psd_create (nffts[k], 1.0e6, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+      dp_psd_state_t *p
+          = dp_psd_create (nffts[k], 1.0e6, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
       if (!p)
         {
-          (void)fprintf (stderr, "bench_psd: psd_create(nfft=%zu) NULL\n",
+          (void)fprintf (stderr, "bench_psd: dp_psd_create(nfft=%zu) NULL\n",
                          nffts[k]);
           return 1;
         }
@@ -84,7 +84,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          psd_accumulate (p, x, BLOCK);
+          dp_psd_accumulate (p, x, BLOCK);
           t1          = jm_bench_now_ns ();
           t_acc[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -97,7 +97,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          psd_accumulate_real (p, xr, BLOCK);
+          dp_psd_accumulate_real (p, xr, BLOCK);
           t1           = jm_bench_now_ns ();
           t_real[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -108,7 +108,7 @@ main (void)
               min_sec (t_real[k], ITERATIONS) / BLOCK * 1e9,
               (double)BLOCK / min_sec (t_real[k], ITERATIONS) / 1e6);
 
-      size_t cap = psd_power_onesided_max_out (p);
+      size_t cap = dp_psd_power_onesided_max_out (p);
       float *out = malloc (cap * sizeof *out);
       if (!out)
         return 1;
@@ -116,7 +116,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += (double)psd_power_onesided (p, cap, out, cap);
+          sink += (double)dp_psd_power_onesided (p, cap, out, cap);
           t1      = jm_bench_now_ns ();
           t_rd[r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -125,7 +125,7 @@ main (void)
       printf ("  %-26s %7.2f us/call    (%zu bins)\n\n", name,
               min_sec (t_rd, ITERATIONS) * 1e6, cap);
       free (out);
-      psd_destroy (p);
+      dp_psd_destroy (p);
     }
 
   printf ("  nfft 1024 -> 16384 costs %.2fx per sample -- BELOW 1.0, so a\n"

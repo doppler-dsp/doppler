@@ -14,17 +14,17 @@
  *
  * @code
  * uint8_t acq[31], data[8], sync[13];
- * dsss_burst_receiver_state_t *rx = dsss_burst_receiver_create (
+ * dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create (
  *     acq, 31, data, 8, sync, 13, 4, 4, 1.0e6, 61,
  *     55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
  * uint8_t bits[61];   // frame_syms per burst: sync | payload | CRC
- * size_t n = dsss_burst_receiver_push (rx, samples, n_samples, bits, 61);
+ * size_t n = dp_dsss_burst_receiver_push (rx, samples, n_samples, bits, 61);
  * // the bits are the FRAME as received; undoing it is a Frame's job
- * dsss_burst_receiver_destroy (rx);
+ * dp_dsss_burst_receiver_destroy (rx);
  * @endcode
  */
-#ifndef DSSS_BURST_RECEIVER_CORE_H
-#define DSSS_BURST_RECEIVER_CORE_H
+#ifndef DP_DSSS_BURST_RECEIVER_CORE_H
+#define DP_DSSS_BURST_RECEIVER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -80,7 +80,7 @@ extern "C" {
 /**
  * @brief DsssBurstReceiver state.
  *
- * Allocate with dsss_burst_receiver_create().
+ * Allocate with dp_dsss_burst_receiver_create().
  */
 typedef struct {
   /* ── Configuration, copied at create() ──────────────────────────────── */
@@ -105,12 +105,12 @@ typedef struct {
   size_t burst_len;   /**< Preamble + spread frame, in samples.           */
 
   /* ── The composed children (each certified separately) ──────────────── */
-  burst_capture_state_t *cap;   /**< Search, refine, retain, emit. Owns the
+  dp_burst_capture_state_t *cap;   /**< Search, refine, retain, emit. Owns the
                                      acquisition engine, the history ring
                                      and the claim rule -- everything about
                                      FINDING a burst. This object owns what
                                      to DO with one.                       */
-  burst_demod_state_t   *demod; /**< Demod stage, re-seeded per burst.     */
+  dp_burst_demod_state_t   *demod; /**< Demod stage, re-seeded per burst.     */
 
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
   uint64_t preamble_start; /**< Stream-absolute preamble start. Never late. */
@@ -139,7 +139,7 @@ typedef struct {
                                 detection -- THIS receiver's frame carries a
                                 CRC-16 trailer. The verdict the capture
                                 cannot reach: a window that failed is given
-                                back with burst_capture_release(), so a
+                                back with dp_burst_capture_release(), so a
                                 decoy cannot own the span of a real burst
                                 behind it (doppler#1181, doppler#1004).   */
 
@@ -157,7 +157,7 @@ typedef struct {
                         one call and is never serialized.              */
   size_t  llr_cap; /**< Allocated floats.                               */
   size_t  llr_len; /**< Floats written by the last push.                */
-  size_t  frame_bits; /**< The frame's length, from the description --
+  size_t  frame_nbits; /**< The frame's length, from the description --
                            the stride of a row in `llr`.                */
   size_t           ev_len; /**< Records the last push() wrote.              */
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
@@ -166,7 +166,7 @@ typedef struct {
                           they differ by any window the demodulator refused,
                           and that difference is the thing worth seeing.  */
 /*<<property_struct_fields>>*/
-} dsss_burst_receiver_state_t;
+} dp_dsss_burst_receiver_state_t;
 
 /**
  * @brief Create a burst receiver: acquisition, refine and demodulation
@@ -203,7 +203,7 @@ typedef struct {
  * @param max_rate  Chirp-rate search half-span (cycles/sample^2).
  * @param est_segments  Segments the feedforward estimator fits over.
  * @return Heap-allocated state, or NULL if any argument is invalid.
- * @note Caller must call dsss_burst_receiver_destroy() when done.
+ * @note Caller must call dp_dsss_burst_receiver_destroy() when done.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
@@ -218,13 +218,13 @@ typedef struct {
  *
  * @endcode
  */
-dsss_burst_receiver_state_t *dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
 
 /**
  * @brief Destroy a dsss_burst_receiver instance and release all memory.
  * @param state  May be NULL.
  */
-void dsss_burst_receiver_destroy(dsss_burst_receiver_state_t *state);
+void dp_dsss_burst_receiver_destroy(dp_dsss_burst_receiver_state_t *state);
 
 /**
  * @brief Return to searching: drop the history and clear every read-back.
@@ -249,7 +249,7 @@ void dsss_burst_receiver_destroy(dsss_burst_receiver_state_t *state);
  *
  * @endcode
  */
-void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
+void dp_dsss_burst_receiver_reset(dp_dsss_burst_receiver_state_t *state);
 
 
 
@@ -272,7 +272,7 @@ void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
  * @param x_len  Number of input samples the caller is about to push.
  * @return `(x_len/burst_len + 1 + q_cap) * frame_syms`.
  */
-size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size_t x_len);
+size_t dp_dsss_burst_receiver_push_max_out(dp_dsss_burst_receiver_state_t *state, size_t x_len);
 
 /**
  * @brief Stream samples; return the payload of EVERY burst that completed.
@@ -316,7 +316,7 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  *
  * @endcode
  */
-size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float _Complex *x, size_t x_len, uint8_t *out, size_t max_out);
+size_t dp_dsss_burst_receiver_push(dp_dsss_burst_receiver_state_t *state, const float _Complex *x, size_t x_len, uint8_t *out, size_t max_out);
 
 /**
  * @brief Max records events() writes: one per burst the last push() returned.
@@ -324,7 +324,7 @@ size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float 
  * @param state  Must be non-NULL.
  * @return The number of bursts the most recent push() completed.
  */
-size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
+size_t dp_dsss_burst_receiver_events_max_out(dp_dsss_burst_receiver_state_t *state);
 
 /**
  * @brief The SOFT bits of every burst the last push() returned.
@@ -364,7 +364,7 @@ size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
  *
  * @endcode
  */
-size_t dsss_burst_receiver_llrs(dsss_burst_receiver_state_t *state, size_t n, float *out, size_t max_out);
+size_t dp_dsss_burst_receiver_llrs(dp_dsss_burst_receiver_state_t *state, size_t n, float *out, size_t max_out);
 
 /**
  * @brief Max LLRs llrs() writes: frame bits x the bursts the last push
@@ -373,7 +373,7 @@ size_t dsss_burst_receiver_llrs(dsss_burst_receiver_state_t *state, size_t n, fl
  * @param state  Receiver handle.
  * @param n      Ignored, as in llrs().
  */
-size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size_t n);
+size_t dp_dsss_burst_receiver_llrs_max_out(dp_dsss_burst_receiver_state_t *state, size_t n);
 
 
 /**
@@ -410,7 +410,7 @@ size_t dsss_burst_receiver_llrs_max_out(dsss_burst_receiver_state_t *state, size
  *
  * @endcode
  */
-size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, dsss_br_event_t *out, size_t max_out);
+size_t dp_dsss_burst_receiver_events(dp_dsss_burst_receiver_state_t *state, size_t n, dsss_br_event_t *out, size_t max_out);
 /**
  * @brief Pin the acquisition search grid, bypassing the auto-sizing.
  *
@@ -434,20 +434,20 @@ size_t dsss_burst_receiver_events(dsss_burst_receiver_state_t *state, size_t n, 
  *
  * @endcode
  */
-int dsss_burst_receiver_configure_search_raw(dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
-uint64_t dsss_burst_receiver_get_preamble_start(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_doppler_hz_est(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_cn0_dbhz_est(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_est_freq_hz(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_est_rate_hz(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_demod_cn0_dbhz(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_demod_timing_chips(const dsss_burst_receiver_state_t *state);
-size_t dsss_burst_receiver_get_pending(const dsss_burst_receiver_state_t *state);
+int dp_dsss_burst_receiver_configure_search_raw(dp_dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
+uint64_t dp_dsss_burst_receiver_get_preamble_start(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_doppler_hz_est(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_doppler_res_hz(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_cn0_dbhz_est(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_est_freq_hz(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_est_rate_hz(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_demod_cn0_dbhz(const dp_dsss_burst_receiver_state_t *state);
+double dp_dsss_burst_receiver_get_demod_timing_chips(const dp_dsss_burst_receiver_state_t *state);
+size_t dp_dsss_burst_receiver_get_pending(const dp_dsss_burst_receiver_state_t *state);
 /** @brief Samples the capture ring refused. Each is a LOST BURST, not a
  *  statistic -- a lifetime count that survives reset(). */
-uint64_t dsss_burst_receiver_get_dropped(const dsss_burst_receiver_state_t *state);
-uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *state);
+uint64_t dp_dsss_burst_receiver_get_dropped(const dp_dsss_burst_receiver_state_t *state);
+uint64_t dp_dsss_burst_receiver_get_n_bursts(const dp_dsss_burst_receiver_state_t *state);
 
 /* ── Serializable state — the elastic / pure-transducer face ──────────────
  *
@@ -465,24 +465,24 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 #define DSSS_BURST_RECEIVER_STATE_VERSION 7u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
-size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);
+size_t dp_dsss_burst_receiver_state_bytes(const dp_dsss_burst_receiver_state_t *state);
 
 /**
  * @brief Serialize @p state's cross-call state into @p blob (caller-owned,
- *        dsss_burst_receiver_state_bytes() long).
+ *        dp_dsss_burst_receiver_state_bytes() long).
  */
-void dsss_burst_receiver_get_state(const dsss_burst_receiver_state_t *state, void *blob);
+void dp_dsss_burst_receiver_get_state(const dp_dsss_burst_receiver_state_t *state, void *blob);
 
 /**
  * @brief Restore cross-call state from @p blob (replacing it).
  * @return DP_OK, or DP_ERR_INVALID if the envelope or any child rejects.
  */
-int dsss_burst_receiver_set_state(dsss_burst_receiver_state_t *state, const void *blob);
-size_t dsss_burst_receiver_get_min_gap (
-    const dsss_burst_receiver_state_t *state);
-size_t dsss_burst_receiver_get_refine_span(const dsss_burst_receiver_state_t *state);
-size_t dsss_burst_receiver_get_retain_span(const dsss_burst_receiver_state_t *state);
-bool dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
+int dp_dsss_burst_receiver_set_state(dp_dsss_burst_receiver_state_t *state, const void *blob);
+size_t dp_dsss_burst_receiver_get_min_gap (
+    const dp_dsss_burst_receiver_state_t *state);
+size_t dp_dsss_burst_receiver_get_refine_span(const dp_dsss_burst_receiver_state_t *state);
+size_t dp_dsss_burst_receiver_get_retain_span(const dp_dsss_burst_receiver_state_t *state);
+bool dp_dsss_burst_receiver_get_frame_valid(const dp_dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus
 }
 #endif

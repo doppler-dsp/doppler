@@ -36,7 +36,7 @@
  * @return Heap state, or NULL on an out-of-range parameter or a file the
  *         ring could not be backed with.
  */
-static burst_capture_state_t *
+static dp_burst_capture_state_t *
 burst_capture_create_impl (const char *path, const float _Complex *preamble,
                            size_t n, size_t burst_len, size_t reps, double fs,
                            double cn0_dbhz, double doppler_uncertainty,
@@ -53,7 +53,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   /* cn0_dbhz and the preamble's energy are NOT checked here: what a valid
      design C/N0 is -- any finite value, or NaN for none (doppler#1484) --
      and what a searchable preamble is are the engine's rules, and it
-     refuses the rest; burst_acq_create() returns NULL and this unwinds.
+     refuses the rest; dp_burst_acq_create() returns NULL and this unwinds.
      A second copy here is how the old `< 0` outlived the rule it copied. */
 
   /* dp_xcalloc and friends abort on OOM rather than threading an unwind path
@@ -61,7 +61,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
      failure is genuine exhaustion. The one create() still checked below is
      the acquisition child's, which can refuse a geometry rather than a
      size. */
-  burst_capture_state_t *s = dp_xcalloc (1, sizeof *s);
+  dp_burst_capture_state_t *s = dp_xcalloc (1, sizeof *s);
 
   s->horizon   = UINT64_MAX; /* unbounded outside push()'s claim loop */
   s->reps      = reps;
@@ -72,9 +72,9 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
    * comes first because refine correlates against ITS reference row, the
    * one replica of the preamble in the tree (below). The preamble is not
    * kept here: the engine holds it, at unit RMS. */
-  s->acq
-      = burst_acq_create (preamble, n, reps, fs, cn0_dbhz, doppler_uncertainty,
-                          pfa, pd, noise_mode, doppler_rate);
+  s->acq = dp_burst_acq_create (preamble, n, reps, fs, cn0_dbhz,
+                                doppler_uncertainty, pfa, pd, noise_mode,
+                                doppler_rate);
   if (!s->acq)
     goto fail;
 
@@ -90,7 +90,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
    * arrive. Sized from the geometry, which is entirely known here.
    *
    * Reusing the double-mapped ring rather than growing a new type: acq
-   * already composes it (acq_state_t's `ring`), and the mirror is what lets
+   * already composes it (dp_acq_state_t's `ring`), and the mirror is what lets
    * a window spanning the wrap be copied out as ONE contiguous run. */
   {
     /* Refine searches whole code periods either side of the anchor, because
@@ -128,7 +128,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
     /* Twice the retained span, so `chunk_max` below is never zero: a push
        larger than the ring is processed in slices rather than refused,
        which is what "accepts any block size" costs. */
-    size_t cap = next_pow_two (2u * s->retain_span);
+    size_t cap = dp_next_pow_two (2u * s->retain_span);
     if (path)
       {
         /* A file failure is the CALLER's -- a bad path, a full disk, a
@@ -185,11 +185,11 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
   s->cell_f    = dp_xmalloc (s->max_cells * sizeof *s->cell_f);
 
-  /* acq_state_bytes() is ALREADY a pure function of configuration -- it
+  /* dp_acq_state_bytes() is ALREADY a pure function of configuration -- it
      sizes its sample region from `ring_cap`, the capacity, not from whatever
      happens to be unconsumed. It is re-read in configure_search_raw(), the
      one call that can legitimately change the grid underneath it. */
-  s->acq_blob_max = acq_state_bytes (s->acq->engine);
+  s->acq_blob_max = dp_acq_state_bytes (s->acq->engine);
   /* Mirrored once here: the declared warning needs it as a field, and a
      value that cannot change after create() has no reason to be re-read. */
   s->underpowered = s->acq->engine->underpowered ? 1 : 0;
@@ -197,22 +197,23 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   return s;
 
 fail:
-  burst_capture_destroy (s);
+  dp_burst_capture_destroy (s);
   return NULL;
 }
 
-burst_capture_state_t *
-burst_capture_create (const float _Complex *preamble, size_t preamble_len,
-                      size_t burst_len, size_t reps, double fs,
-                      double cn0_dbhz, double doppler_uncertainty, double pfa,
-                      double pd, int noise_mode, double doppler_rate)
+dp_burst_capture_state_t *
+dp_burst_capture_create (const float _Complex *preamble, size_t preamble_len,
+                         size_t burst_len, size_t reps, double fs,
+                         double cn0_dbhz, double doppler_uncertainty,
+                         double pfa, double pd, int noise_mode,
+                         double doppler_rate)
 {
   return burst_capture_create_impl (NULL, preamble, preamble_len, burst_len,
                                     reps, fs, cn0_dbhz, doppler_uncertainty,
                                     pfa, pd, noise_mode, doppler_rate);
 }
 
-burst_capture_state_t *
+dp_burst_capture_state_t *
 burst_capture_create_backed (const char *path, const float _Complex *preamble,
                              size_t preamble_len, size_t burst_len,
                              size_t reps, double fs, double cn0_dbhz,
@@ -227,12 +228,12 @@ burst_capture_create_backed (const char *path, const float _Complex *preamble,
 }
 
 void
-burst_capture_destroy (burst_capture_state_t *state)
+dp_burst_capture_destroy (dp_burst_capture_state_t *state)
 {
   if (!state)
     return;
   if (state->acq)
-    burst_acq_destroy (state->acq);
+    dp_burst_acq_destroy (state->acq);
   if (state->hist)
     dp_f32_destroy (state->hist);
   free (state->cell_buf);
@@ -246,11 +247,11 @@ burst_capture_destroy (burst_capture_state_t *state)
 }
 
 void
-burst_capture_reset (burst_capture_state_t *state)
+dp_burst_capture_reset (dp_burst_capture_state_t *state)
 {
   if (!state)
     return;
-  burst_acq_reset (state->acq);
+  dp_burst_acq_reset (state->acq);
   /* Rewind the ring to zero, not merely empty it. `head`/`tail` are
      MONOTONIC ABSOLUTE counters, so consuming everything available leaves
      them at whatever position the stream had reached while `samples_fed`
@@ -282,7 +283,7 @@ burst_capture_reset (burst_capture_state_t *state)
 
 /** @brief Contiguous view of the history ring at a stream position. */
 static const float _Complex *
-burst_capture_at (const burst_capture_state_t *s, uint64_t pos)
+burst_capture_at (const dp_burst_capture_state_t *s, uint64_t pos)
 {
   /* The ring is double-mapped, so this pointer stays contiguous across the
      wrap -- which is what lets a burst window be read as one run. */
@@ -292,7 +293,7 @@ burst_capture_at (const burst_capture_state_t *s, uint64_t pos)
 
 /** @brief Samples currently reachable at or after @p pos. */
 static int
-burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
+burst_capture_have (const dp_burst_capture_state_t *s, uint64_t pos, size_t n)
 {
   /* Arrived means written AND not past the horizon: inside push()'s claim
      loop, samples later than the detection being claimed have not arrived
@@ -366,7 +367,7 @@ burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
  *         in which case the caller must try again rather than drop the hit.
  */
 static int
-burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
+burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
                       double doppler_hz, uint64_t *start, double *score)
 {
   size_t P    = s->code_period;
@@ -396,10 +397,10 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
   /* The Doppler cells: the depth-`reps` grid (fine = fs / (P * reps *
      ACQ_DOPPLER_INTERP)) across the detecting engine's bin (fs / (P * D))
      centred on its estimate, one cell of slack each side. */
-  const acq_state_t *eng  = s->acq->engine;
-  const size_t       IP   = BURST_CAPTURE_REFINE_INTERP;
-  const double       fine = eng->fs / ((double)P * (double)reps * (double)IP);
-  const size_t       half
+  const dp_acq_state_t *eng = s->acq->engine;
+  const size_t          IP  = BURST_CAPTURE_REFINE_INTERP;
+  const double fine = eng->fs / ((double)P * (double)reps * (double)IP);
+  const size_t half
       = (reps * IP + 2u * eng->coherent_bins - 1u) / (2u * eng->coherent_bins)
         + 1u;
   size_t cells = 2u * half + 1u;
@@ -478,7 +479,7 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
  *         delay straddles two samples -- and a full set drops the newcomer,
  *         leaving refine as it was before phases were kept. */
 static int
-burst_capture_note_phase (const burst_capture_state_t *s,
+burst_capture_note_phase (const dp_burst_capture_state_t *s,
                           burst_capture_pending_t *e, uint64_t epoch)
 {
   const uint32_t P  = (uint32_t)s->code_period;
@@ -510,8 +511,8 @@ burst_capture_note_phase (const burst_capture_state_t *s,
  * @return Non-zero once refined; 0 to retry after more samples arrive.
  */
 static int
-burst_capture_refine_phases (burst_capture_state_t   *s,
-                             burst_capture_pending_t *e)
+burst_capture_refine_phases (dp_burst_capture_state_t *s,
+                             burst_capture_pending_t  *e)
 {
   const int64_t  P    = (int64_t)s->code_period;
   const int64_t  base = (int64_t)(e->anchor % (uint64_t)P);
@@ -541,7 +542,7 @@ burst_capture_refine_phases (burst_capture_state_t   *s,
 
 /** @brief Release history no stage can still need. */
 static void
-burst_capture_trim (burst_capture_state_t *s)
+burst_capture_trim (dp_burst_capture_state_t *s)
 {
   uint64_t head = s->hist->head;
   uint64_t keep
@@ -593,12 +594,12 @@ burst_capture_trim (burst_capture_state_t *s)
  * @return Non-zero if a window was emitted.
  */
 static int
-burst_capture_emit (burst_capture_state_t *s)
+burst_capture_emit (dp_burst_capture_state_t *s)
 {
   if (!s->pending)
     return 0;
   /* The first entry NOT held. A held (shadowed) one waits for a verdict
-     only the consumer can give, between pushes (burst_capture_release());
+     only the consumer can give, between pushes (dp_burst_capture_release());
      it must not stall every burst queued behind it. A long burst makes the
      stall a loss: a complete window waiting behind a held head keeps the
      history tail pinned, the ring refuses the next chunk, and a whole-capture
@@ -658,11 +659,11 @@ burst_capture_emit (burst_capture_state_t *s)
   /* Publish the event. These fields ARE the record a consumer receives, so
      they are written together, from one burst, and never left half-updated
      from a previous one. */
-  const acq_state_t *eng = s->acq->engine;
-  s->preamble_start      = e->start;
-  s->doppler_hz_est      = e->doppler_hz;
-  s->cn0_dbhz_est        = e->cn0_dbhz;
-  s->doppler_res_hz      = eng->doppler_res_hz;
+  const dp_acq_state_t *eng = s->acq->engine;
+  s->preamble_start         = e->start;
+  s->doppler_hz_est         = e->doppler_hz;
+  s->cn0_dbhz_est           = e->cn0_dbhz;
+  s->doppler_res_hz         = eng->doppler_res_hz;
   s->n_bursts++;
 
   /* ...and the same event into this burst's OWN row. One push can complete
@@ -713,7 +714,7 @@ burst_capture_emit (burst_capture_state_t *s)
  * always release down to retain_span.
  */
 static void
-burst_capture_drain (burst_capture_state_t *s)
+burst_capture_drain (dp_burst_capture_state_t *s)
 {
   while (burst_capture_emit (s))
     ;
@@ -722,7 +723,7 @@ burst_capture_drain (burst_capture_state_t *s)
 /**
  * @brief Samples the acquisition child has ABSORBED -- framed plus ringed.
  *
- * acq_push() stops once it has filled the caller's result array and leaves
+ * dp_acq_push() stops once it has filled the caller's result array and leaves
  * the rest of its input unwritten, so a composer has to re-feed the
  * remainder itself. The repo idiom for that diffs against the child's
  * `samples_consumed`, and that is correct where the tail is handed to a
@@ -735,16 +736,16 @@ burst_capture_drain (burst_capture_state_t *s)
  * The invariant quantity is framed plus ring-resident.
  */
 static uint64_t
-burst_capture_acq_absorbed (const burst_capture_state_t *s)
+burst_capture_acq_absorbed (const dp_burst_capture_state_t *s)
 {
-  const acq_state_t *e = s->acq->engine;
-  uint64_t           h = (uint64_t)DP_LOAD_RLX (&e->ring->head);
-  uint64_t           t = (uint64_t)DP_LOAD_RLX (&e->ring->tail);
+  const dp_acq_state_t *e = s->acq->engine;
+  uint64_t              h = (uint64_t)DP_LOAD_RLX (&e->ring->head);
+  uint64_t              t = (uint64_t)DP_LOAD_RLX (&e->ring->tail);
   return e->samples_consumed + (h - t);
 }
 
 size_t
-burst_capture_push_max_out (burst_capture_state_t *state, size_t x_len)
+dp_burst_capture_push_max_out (dp_burst_capture_state_t *state, size_t x_len)
 {
   /* push() returns EVERY burst it completed, so the bound scales with the
    * input rather than being a constant. Distinct bursts cannot overlap, so
@@ -756,8 +757,9 @@ burst_capture_push_max_out (burst_capture_state_t *state, size_t x_len)
 }
 
 size_t
-burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
-                    size_t x_len, float _Complex *out, size_t max_out)
+dp_burst_capture_push (dp_burst_capture_state_t *state,
+                       const float _Complex *x, size_t x_len,
+                       float _Complex *out, size_t max_out)
 {
   /* Every call starts fresh: both lists describe THIS push. */
   state->ev_len  = 0;
@@ -793,8 +795,8 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
      detections whose window has not arrived. */
   burst_capture_drain (state);
 
-  const acq_state_t *e   = state->acq->engine;
-  size_t             off = 0;
+  const dp_acq_state_t *e   = state->acq->engine;
+  size_t                off = 0;
   while (off < x_len)
     {
       size_t chunk = x_len - off;
@@ -822,8 +824,9 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
         {
           uint64_t     before = burst_capture_acq_absorbed (state);
           acq_result_t hits[BURST_CAPTURE_HITS];
-          size_t nh = burst_acq_push (state->acq, x + off + fed, chunk - fed,
-                                      hits, BURST_CAPTURE_HITS);
+          size_t       nh
+              = dp_burst_acq_push (state->acq, x + off + fed, chunk - fed,
+                                   hits, BURST_CAPTURE_HITS);
 
           for (size_t i = 0; i < nh; i++)
             {
@@ -974,15 +977,15 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
 }
 
 size_t
-burst_capture_detections_max_out (burst_capture_state_t *state, size_t n)
+dp_burst_capture_detections_max_out (dp_burst_capture_state_t *state, size_t n)
 {
   (void)n; /* the count is the last push's, not a request */
   return state->det_len;
 }
 
 size_t
-burst_capture_detections (burst_capture_state_t *state, size_t n,
-                          burst_capture_detection_t *out, size_t max_out)
+dp_burst_capture_detections (dp_burst_capture_state_t *state, size_t n,
+                             burst_capture_detection_t *out, size_t max_out)
 {
   (void)n;
   const size_t rows = state->det_len < max_out ? state->det_len : max_out;
@@ -992,15 +995,15 @@ burst_capture_detections (burst_capture_state_t *state, size_t n,
 }
 
 size_t
-burst_capture_events_max_out (burst_capture_state_t *state, size_t n)
+dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t n)
 {
   (void)n; /* the count is the last push's, not a request */
   return state->ev_len;
 }
 
 size_t
-burst_capture_events (burst_capture_state_t *state, size_t n,
-                      burst_capture_event_t *out, size_t max_out)
+dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
+                         burst_capture_event_t *out, size_t max_out)
 {
   (void)n; /* as events_max_out: the count is the last push's */
   const size_t rows = state->ev_len < max_out ? state->ev_len : max_out;
@@ -1010,13 +1013,13 @@ burst_capture_events (burst_capture_state_t *state, size_t n,
 }
 
 size_t
-burst_capture_ready (const burst_capture_state_t *state)
+burst_capture_ready (const dp_burst_capture_state_t *state)
 {
   return state->ev_len;
 }
 
 const float _Complex *
-burst_capture_window (const burst_capture_state_t *state, size_t i)
+burst_capture_window (const dp_burst_capture_state_t *state, size_t i)
 {
   if (i >= state->ev_len)
     return NULL;
@@ -1024,7 +1027,7 @@ burst_capture_window (const burst_capture_state_t *state, size_t i)
 }
 
 const burst_capture_event_t *
-burst_capture_event_at (const burst_capture_state_t *state, size_t i)
+burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i)
 {
   if (i >= state->ev_len)
     return NULL;
@@ -1032,8 +1035,8 @@ burst_capture_event_at (const burst_capture_state_t *state, size_t i)
 }
 
 int
-burst_capture_configure_search_raw (burst_capture_state_t *state,
-                                    size_t doppler_bins, size_t n_noncoh)
+dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
+                                       size_t doppler_bins, size_t n_noncoh)
 {
   /* A grid refine cannot reach is refused HERE, before the engine sees it.
      acq stamps a hit at the end of the LAST of n_noncoh accumulated frames,
@@ -1052,13 +1055,14 @@ burst_capture_configure_search_raw (burst_capture_state_t *state,
      translation happens here rather than the doc being weakened to match.
      (The DSP layer returns only DP_OK / DP_ERR_MEMORY / DP_ERR_INVALID; see
      docs/dev/contributing/error-convention.md.) */
-  int rc = burst_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  int rc
+      = dp_burst_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
   if (rc != 0)
     return DP_ERR_INVALID;
   /* The grid moved, so the child's blob size may have moved with it. This is
      the one call that can legitimately change it underneath a bound that
      state_bytes() promises is a pure function of configuration. */
-  state->acq_blob_max = acq_state_bytes (state->acq->engine);
+  state->acq_blob_max = dp_acq_state_bytes (state->acq->engine);
   return DP_OK;
 }
 
@@ -1071,19 +1075,19 @@ burst_capture_configure_search_raw (burst_capture_state_t *state,
  * the manifest instead -- they are configuration, fixed at create(). */
 
 uint64_t
-burst_capture_get_preamble_start (const burst_capture_state_t *state)
+dp_burst_capture_get_preamble_start (const dp_burst_capture_state_t *state)
 {
   return state->preamble_start;
 }
 
 double
-burst_capture_get_doppler_hz_est (const burst_capture_state_t *state)
+dp_burst_capture_get_doppler_hz_est (const dp_burst_capture_state_t *state)
 {
   return state->doppler_hz_est;
 }
 
 double
-burst_capture_get_doppler_res_hz (const burst_capture_state_t *state)
+dp_burst_capture_get_doppler_res_hz (const dp_burst_capture_state_t *state)
 {
   /* The ENGINE's, not the last event's mirror of it. The bin width is a
      property of the configured search and a composing bank sizes its
@@ -1094,13 +1098,13 @@ burst_capture_get_doppler_res_hz (const burst_capture_state_t *state)
 }
 
 double
-burst_capture_get_cn0_dbhz_est (const burst_capture_state_t *state)
+dp_burst_capture_get_cn0_dbhz_est (const dp_burst_capture_state_t *state)
 {
   return state->cn0_dbhz_est;
 }
 
 size_t
-burst_capture_get_pending (const burst_capture_state_t *state)
+dp_burst_capture_get_pending (const dp_burst_capture_state_t *state)
 {
   /* The read-back's meaning is "a burst you would lose by stopping now", so
      the shadowed entries -- payload hits inside a window already handed out
@@ -1112,7 +1116,7 @@ burst_capture_get_pending (const burst_capture_state_t *state)
 }
 
 int
-burst_capture_release (burst_capture_state_t *state, size_t i)
+dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i)
 {
   if (i >= state->ev_len)
     return DP_ERR_INVALID;
@@ -1140,13 +1144,13 @@ burst_capture_release (burst_capture_state_t *state, size_t i)
 }
 
 uint64_t
-burst_capture_get_dropped (const burst_capture_state_t *state)
+dp_burst_capture_get_dropped (const dp_burst_capture_state_t *state)
 {
   return state->dropped;
 }
 
 uint64_t
-burst_capture_get_n_bursts (const burst_capture_state_t *state)
+dp_burst_capture_get_n_bursts (const dp_burst_capture_state_t *state)
 {
   return state->n_bursts;
 }
@@ -1158,55 +1162,55 @@ burst_capture_get_n_bursts (const burst_capture_state_t *state)
  * the engine already did. */
 
 size_t
-burst_capture_get_min_gap (const burst_capture_state_t *state)
+burst_capture_get_min_gap (const dp_burst_capture_state_t *state)
 {
   return state->min_gap;
 }
 
 double
-burst_capture_get_eta (const burst_capture_state_t *state)
+dp_burst_capture_get_eta (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->eta;
 }
 
 double
-burst_capture_get_eta_nc (const burst_capture_state_t *state)
+dp_burst_capture_get_eta_nc (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->eta_nc;
 }
 
 double
-burst_capture_get_straddle_loss (const burst_capture_state_t *state)
+dp_burst_capture_get_straddle_loss (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->straddle_loss;
 }
 
 double
-burst_capture_get_pd_predicted (const burst_capture_state_t *state)
+dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->pd_predicted;
 }
 
 double
-burst_capture_get_pd_burst (const burst_capture_state_t *state)
+dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->pd_burst;
 }
 
 double
-burst_capture_get_psl_db (const burst_capture_state_t *state)
+dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state)
 {
   return acq_psl_db (state->acq->engine);
 }
 
 double
-burst_capture_get_doppler_rate (const burst_capture_state_t *state)
+dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->doppler_rate;
 }
 
 size_t
-burst_capture_get_doppler_bins (const burst_capture_state_t *state)
+dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state)
 {
   /* The grid the search covers, tiles included -- the same number
      BurstAcquisition's doppler_bins reads (doppler#1512). */
@@ -1214,19 +1218,19 @@ burst_capture_get_doppler_bins (const burst_capture_state_t *state)
 }
 
 size_t
-burst_capture_get_n_noncoh (const burst_capture_state_t *state)
+dp_burst_capture_get_n_noncoh (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->n_noncoh;
 }
 
 size_t
-burst_capture_get_code_bins (const burst_capture_state_t *state)
+dp_burst_capture_get_code_bins (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->code_bins;
 }
 
 double
-burst_capture_get_doppler_span_hz (const burst_capture_state_t *state)
+dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state)
 {
   return state->acq->engine->doppler_span_hz;
 }
@@ -1234,7 +1238,7 @@ burst_capture_get_doppler_span_hz (const burst_capture_state_t *state)
 /* ── Serializable state ──────────────────────────────────────────────── */
 
 size_t
-burst_capture_state_bytes (const burst_capture_state_t *s)
+dp_burst_capture_state_bytes (const dp_burst_capture_state_t *s)
 {
   /* A pure function of CONFIGURATION, deliberately: jm's binding compares an
      incoming blob's length against this before calling set_state, so a size
@@ -1262,10 +1266,10 @@ burst_capture_state_bytes (const burst_capture_state_t *s)
 }
 
 void
-burst_capture_get_state (const burst_capture_state_t *s, void *blob)
+dp_burst_capture_get_state (const dp_burst_capture_state_t *s, void *blob)
 {
   DP_GET_OPEN (BURST_CAPTURE_STATE_MAGIC, BURST_CAPTURE_STATE_VERSION,
-               burst_capture_state_bytes (s));
+               dp_burst_capture_state_bytes (s));
 
   dp_w_u64 (&_w, s->samples_fed);
   dp_w_u64 (&_w, s->n_bursts);
@@ -1310,26 +1314,26 @@ burst_capture_get_state (const burst_capture_state_t *s, void *blob)
         }
     }
 
-  size_t an = acq_state_bytes (s->acq->engine);
+  size_t an = dp_acq_state_bytes (s->acq->engine);
   dp_w_u32 (&_w, (uint32_t)an);
   {
     void *region = dp_w_reserve (&_w, s->acq_blob_max);
     if (region && an <= s->acq_blob_max)
       {
         memset (region, 0, s->acq_blob_max);
-        acq_get_state (s->acq->engine, region);
+        dp_acq_get_state (s->acq->engine, region);
       }
   }
 }
 
 int
-burst_capture_set_state (burst_capture_state_t *s, const void *blob)
+dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
 {
   /* Opens with dp_state_validate, so a wrong-object, wrong-version,
      wrong-size or foreign-endian blob is REJECTED rather than
      reinterpreted. */
   DP_SET_OPEN (BURST_CAPTURE_STATE_MAGIC, BURST_CAPTURE_STATE_VERSION,
-               burst_capture_state_bytes (s));
+               dp_burst_capture_state_bytes (s));
 
   s->samples_fed    = dp_r_u64 (&_r);
   s->n_bursts       = dp_r_u64 (&_r);
@@ -1406,7 +1410,7 @@ burst_capture_set_state (burst_capture_state_t *s, const void *blob)
     const void *region = dp_r_reserve (&_r, s->acq_blob_max);
     if (!region || (size_t)an > s->acq_blob_max)
       return DP_ERR_INVALID;
-    if (acq_set_state (s->acq->engine, region) != DP_OK)
+    if (dp_acq_set_state (s->acq->engine, region) != DP_OK)
       return DP_ERR_INVALID;
   }
 

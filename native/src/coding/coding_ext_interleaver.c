@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
-/* InterleaverObject — wraps interleaver_state_t *       */
+/* InterleaverObject — wraps dp_interleaver_state_t *       */
 /* ======================================================== */
 
 #include "doppler/interleaver/interleaver_core.h"
 
 typedef struct
 {
-  PyObject_HEAD interleaver_state_t *handle;
+  PyObject_HEAD dp_interleaver_state_t *handle;
 } InterleaverObject;
 
 static void
 InterleaverObj_dealloc (InterleaverObject *self)
 {
   if (self->handle)
-    interleaver_destroy (self->handle);
+    dp_interleaver_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -47,7 +47,7 @@ InterleaverObj_init (InterleaverObject *self, PyObject *args, PyObject *kwds)
   size_t rows      = (size_t)rows_raw;
   size_t cols      = (size_t)cols_raw;
   size_t unit_bits = (size_t)unit_bits_raw;
-  self->handle     = interleaver_create (rows, cols, unit_bits);
+  self->handle     = dp_interleaver_create (rows, cols, unit_bits);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -66,7 +66,7 @@ InterleaverObj_reset (InterleaverObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  interleaver_reset (self->handle);
+  dp_interleaver_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -82,7 +82,7 @@ InterleaverObj_interleave_max_out (InterleaverObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      interleaver_interleave_max_out (self->handle, (size_t)n_in));
+      dp_interleaver_interleave_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -127,8 +127,9 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = interleaver_interleave_max_out (self->handle, (size_t)n);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax
+          = dp_interleaver_interleave_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -138,7 +139,7 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = interleaver_interleave (
+      size_t n_out = dp_interleaver_interleave (
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -156,7 +157,7 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
               PyExc_ValueError,
               "interleave: length %zd is not a whole number of blocks "
               "of block_bits = %zu",
-              (Py_ssize_t)n, interleaver_get_block_bits (self->handle));
+              (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
           return NULL;
         }
       npy_intp  _odim  = (npy_intp)n_out;
@@ -171,7 +172,7 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = interleaver_interleave_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_interleaver_interleave_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -181,7 +182,7 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
       return NULL;
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = interleaver_interleave (
+  size_t   n_out = dp_interleaver_interleave (
       self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
@@ -198,7 +199,8 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
       PyErr_Format (PyExc_ValueError,
                     "interleave: length %zd is not a whole number of blocks "
                     "of block_bits = %zu",
-                    (Py_ssize_t)n, interleaver_get_block_bits (self->handle));
+                    (Py_ssize_t)n,
+                    dp_interleaver_get_block_bits (self->handle));
       return NULL;
     }
   if ((size_t)n_out == _cap)
@@ -229,7 +231,7 @@ InterleaverObj_deinterleave_max_out (InterleaverObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      interleaver_deinterleave_max_out (self->handle, (size_t)n_in));
+      dp_interleaver_deinterleave_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -276,7 +278,7 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
       size_t _omax
-          = interleaver_deinterleave_max_out (self->handle, (size_t)n);
+          = dp_interleaver_deinterleave_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -286,7 +288,7 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = interleaver_deinterleave (
+      size_t n_out = dp_interleaver_deinterleave (
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -304,7 +306,7 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
               PyExc_ValueError,
               "deinterleave: length %zd is not a whole number of blocks "
               "of block_bits = %zu",
-              (Py_ssize_t)n, interleaver_get_block_bits (self->handle));
+              (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
           return NULL;
         }
       npy_intp  _odim  = (npy_intp)n_out;
@@ -319,7 +321,7 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = interleaver_deinterleave_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_interleaver_deinterleave_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -329,7 +331,7 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
       return NULL;
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = interleaver_deinterleave (
+  size_t   n_out = dp_interleaver_deinterleave (
       self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
@@ -346,7 +348,8 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
       PyErr_Format (PyExc_ValueError,
                     "deinterleave: length %zd is not a whole number of blocks "
                     "of block_bits = %zu",
-                    (Py_ssize_t)n, interleaver_get_block_bits (self->handle));
+                    (Py_ssize_t)n,
+                    dp_interleaver_get_block_bits (self->handle));
       return NULL;
     }
   if ((size_t)n_out == _cap)
@@ -378,7 +381,7 @@ InterleaverObj_deinterleave_soft_max_out (InterleaverObject *self,
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
   return PyLong_FromSize_t (
-      interleaver_deinterleave_soft_max_out (self->handle, (size_t)n_in));
+      dp_interleaver_deinterleave_soft_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -425,7 +428,7 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
       size_t _omax
-          = interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
+          = dp_interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -435,7 +438,7 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = interleaver_deinterleave_soft (
+      size_t n_out = dp_interleaver_deinterleave_soft (
           self->handle, (const float *)PyArray_DATA (in_arr), (size_t)n,
           (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -453,7 +456,7 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
               PyExc_ValueError,
               "deinterleave_soft: length %zd is not a whole number of blocks "
               "of block_bits = %zu",
-              (Py_ssize_t)n, interleaver_get_block_bits (self->handle));
+              (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
           return NULL;
         }
       npy_intp  _odim  = (npy_intp)n_out;
@@ -469,7 +472,7 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
     }
   size_t _need = (size_t)n;
   size_t _cap
-      = interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
+      = dp_interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
@@ -479,7 +482,7 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = interleaver_deinterleave_soft (
+  size_t n_out = dp_interleaver_deinterleave_soft (
       self->handle, (const float *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
@@ -497,7 +500,7 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
           PyExc_ValueError,
           "deinterleave_soft: length %zd is not a whole number of blocks "
           "of block_bits = %zu",
-          (Py_ssize_t)n, interleaver_get_block_bits (self->handle));
+          (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
       return NULL;
     }
   if ((size_t)n_out == _cap)
@@ -558,7 +561,7 @@ Interleaver_getprop_block_bits (InterleaverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)interleaver_get_block_bits (self->handle));
+      (unsigned long long)dp_interleaver_get_block_bits (self->handle));
 }
 static PyObject *
 Interleaver_getprop_burst_len (InterleaverObject *self,
@@ -571,7 +574,7 @@ Interleaver_getprop_burst_len (InterleaverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)interleaver_get_burst_len (self->handle));
+      (unsigned long long)dp_interleaver_get_burst_len (self->handle));
 }
 static PyObject *
 Interleaver_getprop_separation (InterleaverObject *self,
@@ -584,7 +587,7 @@ Interleaver_getprop_separation (InterleaverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)interleaver_get_separation (self->handle));
+      (unsigned long long)dp_interleaver_get_separation (self->handle));
 }
 
 static PyGetSetDef Interleaver_getset[]
@@ -616,7 +619,7 @@ InterleaverObj_destroy (InterleaverObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      interleaver_destroy (self->handle);
+      dp_interleaver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -635,7 +638,7 @@ InterleaverObj_exit (InterleaverObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      interleaver_destroy (self->handle);
+      dp_interleaver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -756,7 +759,8 @@ static PyMethodDef InterleaverObj_methods[] = {
     "\n"
     "Output bits for n_in input bits — the same number.\n"
     "\n"
-    "Identical to interleaver_interleave_max_out, and for the same reason:\n"
+    "Identical to dp_interleaver_interleave_max_out, and for the same "
+    "reason:\n"
     "the inverse of a permutation is a permutation.\n"
     "\n"
     "Parameters\n"

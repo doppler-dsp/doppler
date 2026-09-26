@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef VITERBI_CORE_H
-#define VITERBI_CORE_H
+#ifndef DP_VITERBI_CORE_H
+#define DP_VITERBI_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -39,17 +39,17 @@ typedef struct
   unsigned *out1;
   unsigned *inbit;
 /*<<property_struct_fields>>*/
-} viterbi_state_t;
+} dp_viterbi_state_t;
 
-viterbi_state_t *viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
+dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
 
-void viterbi_destroy(viterbi_state_t *state);
+void dp_viterbi_destroy(dp_viterbi_state_t *state);
 
-void viterbi_reset(viterbi_state_t *state);
+void dp_viterbi_reset(dp_viterbi_state_t *state);
 
-size_t viterbi_decode_max_out (const viterbi_state_t *state, size_t n_in);
+size_t dp_viterbi_decode_max_out (const dp_viterbi_state_t *state, size_t n_in);
 
-size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint8_t *out, size_t max_out);
+size_t dp_viterbi_decode(dp_viterbi_state_t *state, const float *in, size_t n_in, uint8_t *out, size_t max_out);
 
 /* ── hand-owned: the surface jm does not declare ───────────────────────────
  *
@@ -60,11 +60,11 @@ size_t viterbi_decode(viterbi_state_t *state, const float *in, size_t n_in, uint
  * `serializable` flag generates the PYTHON side over it).
  */
 
-viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
+dp_viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
 
-const conv_code_t *viterbi_code (const viterbi_state_t *s);
+const conv_code_t *viterbi_code (const dp_viterbi_state_t *s);
 
-size_t viterbi_depth (const viterbi_state_t *s);
+size_t viterbi_depth (const dp_viterbi_state_t *s);
 
 /* ── node synchronization ────────────────────────────────────────────── */
 
@@ -77,11 +77,11 @@ typedef struct
   size_t   margin;  
 } node_sync_t;
 
-size_t node_sync_score (viterbi_state_t *v, const float *llr, size_t n_llr);
+size_t node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
 
-size_t node_sync_scored_symbols (const viterbi_state_t *v, size_t n_llr);
+size_t node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
 
-int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
+int node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
                     node_sync_t *out);
 
 /* ── the state bytes interface ───────────────────────────────────────────
@@ -97,11 +97,11 @@ int node_sync_scan (viterbi_state_t *v, const float *llr, size_t n_llr,
 #define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
 #define VITERBI_STATE_VERSION 1u
 
-size_t viterbi_state_bytes (const viterbi_state_t *s);
+size_t dp_viterbi_state_bytes (const dp_viterbi_state_t *s);
 
-void viterbi_get_state (const viterbi_state_t *s, void *blob);
+void dp_viterbi_get_state (const dp_viterbi_state_t *s, void *blob);
 
-int viterbi_set_state (viterbi_state_t *s, const void *blob);
+int dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

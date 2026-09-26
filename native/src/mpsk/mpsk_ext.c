@@ -37,8 +37,8 @@ _bind_mpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (sym_arr);
       return NULL;
     }
-  mpsk_map (sym, sym_len,
-            (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
+  dp_mpsk_map (sym, sym_len,
+               (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
   Py_DECREF (sym_arr);
   return _out;
 }
@@ -67,7 +67,7 @@ _bind_mpsk_demap (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  mpsk_demap (x, x_len, (uint8_t *)PyArray_DATA ((PyArrayObject *)_out), m);
+  dp_mpsk_demap (x, x_len, (uint8_t *)PyArray_DATA ((PyArrayObject *)_out), m);
   Py_DECREF (x_arr);
   return _out;
 }
@@ -96,8 +96,8 @@ _bind_mpsk_diff_map (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (sym_arr);
       return NULL;
     }
-  mpsk_diff_map (sym, sym_len,
-                 (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
+  dp_mpsk_diff_map (sym, sym_len,
+                    (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
   Py_DECREF (sym_arr);
   return _out;
 }
@@ -126,8 +126,8 @@ _bind_mpsk_diff_demap (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  mpsk_diff_demap (x, x_len, (uint8_t *)PyArray_DATA ((PyArrayObject *)_out),
-                   m);
+  dp_mpsk_diff_demap (x, x_len,
+                      (uint8_t *)PyArray_DATA ((PyArrayObject *)_out), m);
   Py_DECREF (x_arr);
   return _out;
 }
@@ -173,7 +173,7 @@ _bind_mpsk_soft_demap (PyObject *self, PyObject *args, PyObject *kwds)
     }
   float *llr     = (float *)PyArray_DATA (llr_arr);
   size_t llr_len = (size_t)PyArray_SIZE (llr_arr);
-  mpsk_soft_demap (x, x_len, llr, llr_len, m, n0);
+  dp_mpsk_soft_demap (x, x_len, llr, llr_len, m, n0);
   Py_DECREF (x_arr);
   Py_DECREF (llr_arr);
   Py_RETURN_NONE;
@@ -187,7 +187,7 @@ _bind_mpsk_bits_per_symbol (PyObject *self, PyObject *args, PyObject *kwds)
   int          m         = 4;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", _kwlist, &m))
     return NULL;
-  return PyLong_FromLong ((long)mpsk_bits_per_symbol (m));
+  return PyLong_FromLong ((long)dp_mpsk_bits_per_symbol (m));
 }
 
 /* ======================================================== */
@@ -199,9 +199,9 @@ static PyMethodDef mpsk_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Map Gray-coded M-PSK labels to unit-amplitude constellation points.\n"
     "\n"
-    "Element-wise inverse of mpsk_demap(): each input byte is one symbol's\n"
-    "log2(M) Gray-coded bits (0..M-1), each output is its cf32 point.\n"
-    "Memoryless (absolute phase). out must hold sym_len points.\n"
+    "Element-wise inverse of dp_mpsk_demap(): each input byte is one\n"
+    "symbol's log2(M) Gray-coded bits (0..M-1), each output is its cf32\n"
+    "point. Memoryless (absolute phase). out must hold sym_len points.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -229,10 +229,10 @@ static PyMethodDef mpsk_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Hard-decide M-PSK symbols to their Gray-coded label bytes.\n"
     "\n"
-    "Element-wise inverse of mpsk_map(): each cf32 symbol is sliced to the\n"
-    "nearest constellation point and its Gray label (0..M-1) is written out.\n"
-    "A slip to an adjacent point flips exactly one bit (Gray). out must hold\n"
-    "x_len bytes.\n"
+    "Element-wise inverse of dp_mpsk_map(): each cf32 symbol is sliced to\n"
+    "the nearest constellation point and its Gray label (0..M-1) is written\n"
+    "out. A slip to an adjacent point flips exactly one bit (Gray). out must\n"
+    "hold x_len bytes.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -296,7 +296,7 @@ static PyMethodDef mpsk_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Differential M-PSK demap: decide from the phase DIFFERENCE.\n"
     "\n"
-    "Inverse of mpsk_diff_map(): the Gray label of each symbol is decided\n"
+    "Inverse of dp_mpsk_diff_map(): the Gray label of each symbol is decided\n"
     "from the phase difference between consecutive sliced indices (the first\n"
     "references an implicit zero-phase start). Invariant to an unknown\n"
     "constant carrier phase.\n"
@@ -324,7 +324,7 @@ static PyMethodDef mpsk_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Soft-demap M-PSK symbols to per-bit log-likelihood ratios.\n"
     "\n"
-    "The soft counterpart of mpsk_demap(): instead of one label byte per\n"
+    "The soft counterpart of dp_mpsk_demap(): instead of one label byte per\n"
     "symbol it writes `log2(M)` LLRs, one per bit, which is what a\n"
     "soft-input decoder (a Viterbi, for the CCSDS inner code) needs. A hard\n"
     "decision throws away roughly 2 dB of the coding gain such a decoder\n"
@@ -335,7 +335,7 @@ static PyMethodDef mpsk_module_methods[] = {
     "L_i = log( P(bit i = 0 | y) / P(bit i = 1 | y) )\n"
     "\n"
     "so **positive means bit 0** and the hard decision is `L < 0`. That is\n"
-    "not a separate rule: `mpsk_demap()` is what this reproduces, and the\n"
+    "not a separate rule: `dp_mpsk_demap()` is what this reproduces, and the\n"
     "sign agreeing with it at every M and every SNR is asserted in\n"
     "test_mpsk_core.c rather than assumed. The repository has ONE decision\n"
     "rule; this is a second view of it, not a second copy.\n"

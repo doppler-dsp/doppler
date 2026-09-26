@@ -20,13 +20,13 @@
  * the spectral_core window / find_peaks free functions.
  *
  * @code
- * ppe_state_t *p = ppe_create(4096, 0.0);     // Doppler only (single FFT)
- * ppe_result_t e = ppe_estimate(p, y, n);     // e.freq_norm, e.rate_norm
- * ppe_destroy(p);
+ * dp_ppe_state_t *p = dp_ppe_create(4096, 0.0);     // Doppler only (single FFT)
+ * ppe_result_t e = dp_ppe_estimate(p, y, n);     // e.freq_norm, e.rate_norm
+ * dp_ppe_destroy(p);
  * @endcode
  */
-#ifndef PPE_CORE_H
-#define PPE_CORE_H
+#ifndef DP_PPE_CORE_H
+#define DP_PPE_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -51,7 +51,7 @@ extern "C"
   /**
    * @brief PolynomialPhaseEstimator state (FFT plan + rate grid + scratch).
    *
-   * Allocate with ppe_create().
+   * Allocate with dp_ppe_create().
    */
   typedef struct
   {
@@ -67,14 +67,14 @@ extern "C"
     double max_rate; /**< chirp-rate search half-span (cycles/sample^2).    */
     size_t n_rate;   /**< number of chirp-rate hypotheses (1 if max_rate=0).*/
     double drate;    /**< chirp-rate grid step.                             */
-    fft_state_t   *fft;    /**< forward plan, size nfft.                    */
+    dp_fft_state_t   *fft;    /**< forward plan, size nfft.                    */
     float _Complex *buf;    /**< windowed, dechirped, zero-padded input, nfft.*/
     float _Complex *spec;   /**< FFT output, nfft.                           */
     float         *mag;    /**< dB magnitude scratch, nfft.                 */
     float         *win;    /**< window scratch, max_len.                    */
     double        *rowpk;  /**< per-rate winning peak dB, n_rate.           */
     double        *rowfrq; /**< per-rate winning frequency, n_rate.         */
-  } ppe_state_t;
+  } dp_ppe_state_t;
 
   /**
    * @brief Create a polynomial-phase estimator.
@@ -83,10 +83,10 @@ extern "C"
    *                  frequency only (a single FFT — near-static Doppler).
    * @return Heap state, or NULL on bad args / allocation failure.
    */
-  ppe_state_t *ppe_create (size_t max_len, double max_rate);
+  dp_ppe_state_t *dp_ppe_create (size_t max_len, double max_rate);
 
   /** @brief Destroy an estimator.  @param state May be NULL. */
-  void ppe_destroy (ppe_state_t *state);
+  void dp_ppe_destroy (dp_ppe_state_t *state);
 
   /**
    * @brief Do nothing — the estimator keeps no running state between calls.
@@ -104,7 +104,7 @@ extern "C"
    *
    * @endcode
    */
-  void ppe_reset (ppe_state_t *state);
+  void dp_ppe_reset (dp_ppe_state_t *state);
 
   /**
    * @brief Estimate the normalized frequency and chirp rate of a complex
@@ -139,7 +139,7 @@ extern "C"
    *
    * @endcode
    */
-  ppe_result_t ppe_estimate (ppe_state_t *state, const float _Complex *x,
+  ppe_result_t dp_ppe_estimate (dp_ppe_state_t *state, const float _Complex *x,
                              size_t n_in);
 
 #ifdef __cplusplus

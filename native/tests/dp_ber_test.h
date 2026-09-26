@@ -63,14 +63,14 @@
  * ## Reuse, not re-derivation
  *
  * Nothing numeric is invented here. The confidence interval is the exact
- * Gamma/chi-square one, and its quantiles come from `det_threshold()` /
- * `det_threshold_noncoherent()` — doppler's own regularized-incomplete-gamma
- * inverse, already validated in the detection module — rather than a second
- * copy of a series/continued-fraction kernel. Gray coding comes from
- * `mpsk_core.h`. EVM and the blind SNR come from `dp_sym_test.h`. This file
- * owns the coherent M-PSK theory curve so the FIVE hand-rolled copies of
- * `qfunc`/`theory_ser` scattered across the validators and the demos can
- * collapse onto one.
+ * Gamma/chi-square one, and its quantiles come from `dp_det_threshold()` /
+ * `dp_det_threshold_noncoherent()` — doppler's own
+ * regularized-incomplete-gamma inverse, already validated in the detection
+ * module — rather than a second copy of a series/continued-fraction kernel.
+ * Gray coding comes from `mpsk_core.h`. EVM and the blind SNR come from
+ * `dp_sym_test.h`. This file owns the coherent M-PSK theory curve so the FIVE
+ * hand-rolled copies of `qfunc`/`theory_ser` scattered across the validators
+ * and the demos can collapse onto one.
  *
  * ## Linking
  *
@@ -209,11 +209,11 @@ typedef struct
  * symbols; occurrences of a repeating marker are combined NON-COHERENTLY (so
  * a slow phase drift between them cannot cancel the peak), which is exactly
  * the statistic `marcum_q(K, 0, .)` describes and
- * `det_threshold_noncoherent()` inverts. The noise floor is estimated from the
- * off-peak lags themselves — a CFAR reference, so no knowledge of the Es/N0 is
- * needed and the partial correlation of the marker against random data (which
- * is what a false alarm actually looks like) is the reference, as it should
- * be.
+ * `dp_det_threshold_noncoherent()` inverts. The noise floor is estimated from
+ * the off-peak lags themselves — a CFAR reference, so no knowledge of the
+ * Es/N0 is needed and the partial correlation of the marker against random
+ * data (which is what a false alarm actually looks like) is the reference, as
+ * it should be.
  *
  * The peak's phase is the ABSOLUTE constellation rotation, so there is no
  * residual M-fold ambiguity to search: the marker resolves it. That is what
@@ -312,16 +312,17 @@ dp_ber_settle (double bn_timing, double bn_carrier,
                const unsigned char *lock_timing,
                const unsigned char *lock_carrier, size_t n, int *ok)
 {
-  size_t budget = ber_settle_syms (bn_timing, bn_carrier);
+  size_t budget = dp_ber_settle_syms (bn_timing, bn_carrier);
   /* An indicator the receiver does not publish is "not required", so it
      contributes 0. A -1 means the loop never locked, which is a different
      answer entirely -- distinguish the two here and let the core own the
      max policy. */
-  int t = lock_timing ? (int)ber_lock_symbol (lock_timing, n, 200, 0.9) : 0;
-  int c = lock_carrier ? (int)ber_lock_symbol (lock_carrier, n, 200, 0.9) : 0;
+  int t = lock_timing ? (int)dp_ber_lock_symbol (lock_timing, n, 200, 0.9) : 0;
+  int c
+      = lock_carrier ? (int)dp_ber_lock_symbol (lock_carrier, n, 200, 0.9) : 0;
   if (ok)
     *ok = (t >= 0 && c >= 0);
-  return ber_settle_from (budget, t, c);
+  return dp_ber_settle_from (budget, t, c);
 }
 
 /* --- 4. Counting - inverse binomial sampling ----------------------------- */
@@ -329,16 +330,16 @@ dp_ber_settle (double bn_timing, double bn_carrier,
 /**
  * @brief Test-side handle on a `ber_meter` plus mirrors of its counters.
  *
- * Owns NO counting logic: every symbol is scored by ber_meter_score() in the
- * library, and the fields below are refreshed from it so existing call sites
- * can keep reading `acc.errors`. Call dp_ber_free() when done.
+ * Owns NO counting logic: every symbol is scored by dp_ber_meter_score() in
+ * the library, and the fields below are refreshed from it so existing call
+ * sites can keep reading `acc.errors`. Call dp_ber_free() when done.
  */
 typedef struct
 {
-  ber_meter_state_t *meter;  /**< the one implementation                */
-  int                m, bps; /**< mirrors of its configuration          */
-  unsigned long      target_errors;
-  unsigned long      errors, symbols, bit_errors, bits, skipped, bursts;
+  dp_ber_meter_state_t *meter;  /**< the one implementation                */
+  int                   m, bps; /**< mirrors of its configuration          */
+  unsigned long         target_errors;
+  unsigned long         errors, symbols, bit_errors, bits, skipped, bursts;
   double evm_sum, m2m4_sum; /**< test-side cross-checks               */
 } dp_ber_t;
 
@@ -346,11 +347,11 @@ typedef struct
 static inline void
 dp_ber_refresh (dp_ber_t *b)
 {
-  b->errors     = (unsigned long)ber_meter_get_errors (b->meter);
-  b->symbols    = (unsigned long)ber_meter_get_symbols (b->meter);
-  b->bit_errors = (unsigned long)ber_meter_get_bit_errors (b->meter);
-  b->bits       = (unsigned long)ber_meter_get_bits (b->meter);
-  b->skipped    = (unsigned long)ber_meter_get_skipped (b->meter);
+  b->errors     = (unsigned long)dp_ber_meter_get_errors (b->meter);
+  b->symbols    = (unsigned long)dp_ber_meter_get_symbols (b->meter);
+  b->bit_errors = (unsigned long)dp_ber_meter_get_bit_errors (b->meter);
+  b->bits       = (unsigned long)dp_ber_meter_get_bits (b->meter);
+  b->skipped    = (unsigned long)dp_ber_meter_get_skipped (b->meter);
 }
 
 /** @brief Accumulate the two truth-free cross-checks over `[lo, hi)` — the
@@ -361,8 +362,8 @@ dp_ber_evm_m2m4 (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi)
 {
   if (hi <= lo || hi - lo < 20)
     return 0;
-  b->evm_sum += ber_evm_db (rx, hi, lo, hi, b->m);
-  b->m2m4_sum += snr_m2m4_db (rx + lo, hi - lo);
+  b->evm_sum += dp_ber_evm_db (rx, hi, lo, hi, b->m);
+  b->m2m4_sum += dp_snr_m2m4_db (rx + lo, hi - lo);
   return 1;
 }
 
@@ -373,7 +374,7 @@ dp_ber_init (dp_ber_t *b, int m, unsigned long target_errors)
   b->m             = (m < 2) ? 2 : m;
   b->bps           = mpsk_bps (b->m);
   b->target_errors = target_errors ? target_errors : DP_BER_TARGET_ERRORS;
-  b->meter         = ber_meter_create (b->m, b->target_errors, DP_BER_CONF);
+  b->meter         = dp_ber_meter_create (b->m, b->target_errors, DP_BER_CONF);
   b->errors = b->symbols = b->bit_errors = b->bits = 0;
   b->skipped = b->bursts = 0;
   b->evm_sum = b->m2m4_sum = 0.0;
@@ -383,7 +384,7 @@ dp_ber_init (dp_ber_t *b, int m, unsigned long target_errors)
 static inline void
 dp_ber_free (dp_ber_t *b)
 {
-  ber_meter_destroy (b->meter);
+  dp_ber_meter_destroy (b->meter);
   b->meter = NULL;
 }
 
@@ -399,7 +400,7 @@ dp_ber_free (dp_ber_t *b)
 static inline int
 dp_ber_enough (const dp_ber_t *b)
 {
-  return ber_meter_get_enough (b->meter);
+  return dp_ber_meter_get_enough (b->meter);
 }
 
 /**
@@ -433,9 +434,9 @@ dp_ber_score (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi,
   a.stat = a.threshold = a.margin_db = a.runner_db = 0.0;
   a.slips                                          = 0;
   a.saturated = a.ok = 0;
-  ber_meter_set_truth (b->meter, truth, n_truth);
+  dp_ber_meter_set_truth (b->meter, truth, n_truth);
   ber_meter_set_align (b->meter, a, t0, mn, pd);
-  ber_meter_score (b->meter, rx, hi, lo, hi);
+  dp_ber_meter_score (b->meter, rx, hi, lo, hi);
   dp_ber_refresh (b);
   if (dp_ber_evm_m2m4 (b, rx, lo, hi))
     b->bursts++;
@@ -472,9 +473,9 @@ typedef struct
  * q`, and `marcum_q(r, 0, b) = Q(r, b^2/2)` for the regularized upper
  * incomplete gamma `Q`, so `chi2_q(2r)/2 = 0.5 *
  * det_threshold_noncoherent(1-q, r)^2`. At `r = 1` that reduces to the closed
- * form `det_threshold()`, and the interval is `[-ln(1-a/2)/N, -ln(a/2)/N]` —
- * correct, and no normal approximation anywhere, so the interval stays honest
- * at the small error counts where a Wald interval is worst.
+ * form `dp_det_threshold()`, and the interval is `[-ln(1-a/2)/N, -ln(a/2)/N]`
+ * — correct, and no normal approximation anywhere, so the interval stays
+ * honest at the small error counts where a Wald interval is worst.
  *
  * **Assert on `lo`.** Comparing the lower limit against a spec is the form
  * that cannot flake on counting noise; comparing `p_hat` will.
@@ -584,8 +585,8 @@ dp_ber_report (const dp_ber_t *b, double esn0_db, const dp_ber_sync_t *sy,
   r.evm_floor_db = dp_test_evm_scatter_floor_db (b->m);
   r.m2m4_db      = b->m2m4_sum / n;
   r.esn0_db      = esn0_db;
-  r.theory_ser   = ber_theory_ser (b->m, esn0);
-  r.theory_ber   = ber_theory_ber (b->m, esn0);
+  r.theory_ser   = dp_ber_theory_ser (b->m, esn0);
+  r.theory_ber   = dp_ber_theory_ber (b->m, esn0);
   r.window_lo    = lo;
   r.window_hi    = hi;
   r.lag          = (sy && sy->ok) ? sy->lag : 0;
@@ -594,7 +595,7 @@ dp_ber_report (const dp_ber_t *b, double esn0_db, const dp_ber_sync_t *sy,
   r.aligned      = (sy && sy->ok) ? 1 : 0;
   r.enough       = dp_ber_enough (b);
   r.loss_db      = (b->errors && b->symbols)
-                       ? esn0_db - ber_esn0_db_for_ser (b->m, r.ser.p_hat)
+                       ? esn0_db - dp_ber_esn0_db_for_ser (b->m, r.ser.p_hat)
                        : NAN;
 
   r.sane = 1;

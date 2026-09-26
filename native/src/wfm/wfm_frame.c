@@ -41,29 +41,29 @@ wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
     case WFM_SEQ_PN:
       {
         /* poly 0 is "the maximal-length one for this register", the same
-           resolution wfm_synth_create() applies to its --pn-poly. Passing 0
-           through to pn_create() instead means a register with NO FEEDBACK:
+           resolution dp_wfm_synth_create() applies to its --pn-poly. Passing 0
+           through to dp_pn_create() instead means a register with NO FEEDBACK:
            it shifts the seed out and emits zeros for ever, which is a
            constant field that still looks like a field. */
-        pn_state_t *p
-            = pn_create (s->poly ? s->poly : pn_mls_poly (s->reg_bits),
-                         s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
+        dp_pn_state_t *p
+            = dp_pn_create (s->poly ? s->poly : pn_mls_poly (s->reg_bits),
+                            s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
         if (!p)
           return 0;
-        size_t n = pn_generate (p, s->len, out, cap);
-        pn_destroy (p);
+        size_t n = dp_pn_generate (p, s->len, out, cap);
+        dp_pn_destroy (p);
         return n;
       }
 
     case WFM_SEQ_GOLD:
       {
-        gold_state_t *g
-            = gold_create (s->taps_a, s->seed_a ? s->seed_a : 1u, s->taps_b,
-                           s->seed_b ? s->seed_b : 1u, s->reg_bits);
+        dp_gold_state_t *g
+            = dp_gold_create (s->taps_a, s->seed_a ? s->seed_a : 1u, s->taps_b,
+                              s->seed_b ? s->seed_b : 1u, s->reg_bits);
         if (!g)
           return 0;
-        size_t n = gold_generate (g, s->len, out, cap);
-        gold_destroy (g);
+        size_t n = dp_gold_generate (g, s->len, out, cap);
+        dp_gold_destroy (g);
         return n;
       }
     }
@@ -169,7 +169,7 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
       out->field_off[i] = off;
       off += out->field_bits[i];
     }
-  out->frame_bits = off;
+  out->frame_nbits = off;
 
   /* 4. each stage's span, from its DECLARED cover */
   for (unsigned s = 0; s < d->n_stages; s++)
@@ -201,17 +201,17 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
    * nothing passes it. Both are refused here, where the geometry is decided,
    * rather than discovered as a silent 0 later. A stage that rewrites PART
    * of a frame is the in-place kind; that is what a partial cover is for. */
-  out->out_bits = out->frame_bits;
+  out->out_bits = out->frame_nbits;
   int emitting  = 0;
   for (unsigned s = 0; s < d->n_stages; s++)
     {
       const wfm_stage_t *st = &d->stage[s];
       if (!st->emit_num || !st->emit_den || out->stage[s].n == 0)
         continue;
-      if (emitting || out->stage[s].n != out->frame_bits)
+      if (emitting || out->stage[s].n != out->frame_nbits)
         return -1;
       emitting      = 1;
-      out->out_bits = out->frame_bits * st->emit_num / st->emit_den;
+      out->out_bits = out->frame_nbits * st->emit_num / st->emit_den;
     }
   return 0;
 }
@@ -271,7 +271,7 @@ wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
   out->payload_bits  = l.field_bits[WFM_FRAME_FIELD_PAYLOAD];
   out->crc_off       = l.field_off[WFM_FRAME_FIELD_CRC];
   out->crc_bits      = l.field_bits[WFM_FRAME_FIELD_CRC];
-  out->total_bits    = l.frame_bits;
+  out->total_bits    = l.frame_nbits;
   return 0;
 }
 
@@ -460,7 +460,7 @@ wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
   /* The frame is assembled in the TAIL of the buffer when a stage expands it
      into a different stream, so the stream can be written from the head with
      no scratch allocation. With no such stage the tail IS the buffer. */
-  uint8_t *frame = out + (l.out_bits - l.frame_bits);
+  uint8_t *frame = out + (l.out_bits - l.frame_nbits);
 
   for (unsigned i = 0; i < d->n_fields; i++)
     {
@@ -493,7 +493,7 @@ wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
               != 0)
             return 0;
         }
-      else if (op->emit (&d->stage[s], frame, l.frame_bits, out, max_out, u)
+      else if (op->emit (&d->stage[s], frame, l.frame_nbits, out, max_out, u)
                != l.out_bits)
         return 0;
     }
@@ -744,7 +744,7 @@ wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
  *
  * Appending, rather than a constructor per shape. A field count baked into a
  * prototype forces every field's every parameter into it -- which is what
- * `frame_create()`'s 38 arguments are -- so a fifth field has to be an
+ * `dp_frame_create()`'s 38 arguments are -- so a fifth field has to be an
  * append, not a signature change.
  */
 

@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
-/* UQ15ToF32Object — wraps uq15_to_f32_state_t *       */
+/* UQ15ToF32Object — wraps dp_uq15_to_f32_state_t *       */
 /* ======================================================== */
 
 #include "doppler/uq15_to_f32/uq15_to_f32_core.h"
 
 typedef struct
 {
-  PyObject_HEAD uq15_to_f32_state_t *handle;
+  PyObject_HEAD dp_uq15_to_f32_state_t *handle;
 } UQ15ToF32Object;
 
 static void
 UQ15ToF32Obj_dealloc (UQ15ToF32Object *self)
 {
   if (self->handle)
-    uq15_to_f32_destroy (self->handle);
+    dp_uq15_to_f32_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -41,10 +41,11 @@ UQ15ToF32Obj_init (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|f", kwlist, &scale))
     return -1;
-  self->handle = uq15_to_f32_create (scale);
+  self->handle = dp_uq15_to_f32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "uq15_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_uq15_to_f32_create returned NULL");
       return -1;
     }
   return 0;
@@ -58,7 +59,7 @@ UQ15ToF32Obj_reset (UQ15ToF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  uq15_to_f32_reset (self->handle);
+  dp_uq15_to_f32_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -74,7 +75,7 @@ UQ15ToF32_step (UQ15ToF32Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "I", &x_raw))
     return NULL;
   uint16_t x = (uint16_t)x_raw;
-  float    y = uq15_to_f32_step (self->handle, x);
+  float    y = dp_uq15_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -130,8 +131,9 @@ UQ15ToF32_steps (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      uq15_to_f32_steps (self->handle, (const uint16_t *)PyArray_DATA (in_arr),
-                         (float *)PyArray_DATA (out_arr), (size_t)n);
+      dp_uq15_to_f32_steps (self->handle,
+                            (const uint16_t *)PyArray_DATA (in_arr),
+                            (float *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -144,9 +146,9 @@ UQ15ToF32_steps (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  uq15_to_f32_steps (self->handle, (const uint16_t *)PyArray_DATA (in_arr),
-                     (float *)PyArray_DATA ((PyArrayObject *)out_arr),
-                     (size_t)n);
+  dp_uq15_to_f32_steps (self->handle, (const uint16_t *)PyArray_DATA (in_arr),
+                        (float *)PyArray_DATA ((PyArrayObject *)out_arr),
+                        (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -157,7 +159,7 @@ UQ15ToF32Obj_destroy (UQ15ToF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      uq15_to_f32_destroy (self->handle);
+      dp_uq15_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -176,7 +178,7 @@ UQ15ToF32Obj_exit (UQ15ToF32Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      uq15_to_f32_destroy (self->handle);
+      dp_uq15_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

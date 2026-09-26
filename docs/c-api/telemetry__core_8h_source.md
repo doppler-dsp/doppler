@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef TELEMETRY_CORE_H
-#define TELEMETRY_CORE_H
+#ifndef DP_TELEMETRY_CORE_H
+#define DP_TELEMETRY_CORE_H
 
 #include "doppler/clib_common.h"
 

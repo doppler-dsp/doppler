@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef F32_BUFFER_CORE_H
-#define F32_BUFFER_CORE_H
+#ifndef DP_F32_BUFFER_CORE_H
+#define DP_F32_BUFFER_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -22,7 +22,7 @@ extern "C"
 {
 #endif
 
-typedef dp_f32_t f32_buffer_state_t;
+typedef dp_f32_t dp_f32_buffer_state_t;
 
 static inline dp_f32_t *dp_f32_create (size_t capacity);
 
@@ -46,31 +46,31 @@ static inline void dp_f32_reset (dp_f32_t *state);
 static inline void dp_f32_destroy (dp_f32_t *state);
 
 static inline size_t
-f32_buffer_get_capacity (const f32_buffer_state_t *state)
+dp_f32_buffer_get_capacity (const dp_f32_buffer_state_t *state)
 {
   return state->capacity;
 }
 
 static inline size_t
-f32_buffer_get_available (const f32_buffer_state_t *state)
+dp_f32_buffer_get_available (const dp_f32_buffer_state_t *state)
 {
   return dp_f32_available (state);
 }
 
 static inline size_t
-f32_buffer_get_space (const f32_buffer_state_t *state)
+dp_f32_buffer_get_space (const dp_f32_buffer_state_t *state)
 {
   return dp_f32_space (state);
 }
 
 static inline size_t
-f32_buffer_get_dropped (const f32_buffer_state_t *state)
+dp_f32_buffer_get_dropped (const dp_f32_buffer_state_t *state)
 {
   return state->dropped;
 }
 
 static inline bool
-f32_buffer_get_closed (const f32_buffer_state_t *state)
+dp_f32_buffer_get_closed (const dp_f32_buffer_state_t *state)
 {
   return dp_f32_closed (state);
 }

@@ -22,7 +22,7 @@ name = "rate"
 type = "double"
 default = "0.25"
 
-# The matched FLAVOR (gh-504): same ddc_state_t, same methods, one different
+# The matched FLAVOR (gh-504): same dp_ddc_state_t, same methods, one different
 # constructor. A pulse on the cascade's terminal stage makes the chain mix,
 # decimate and matched-filter in the same dot products, and makes that stage's
 # polyphase arm the fractional timing delay `rate_ctrl` steers -- so the two

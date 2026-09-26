@@ -221,6 +221,40 @@ jobs:
       # dependency shows up.
       run: make burst-pipeline-check
 
+  # Linux aarch64: BINDING, because release.yml publishes aarch64 wheels built
+  # natively on this runner. Until this job the C suite had never run on the
+  # configuration we ship there -- the macOS leg is arm64 too, but Apple clang
+  # and Apple libm, not GCC and glibc -- and four exactness tests were failing
+  # on it unseen (#1561). Same pinned image as the x86 legs: the digest is a
+  # multi-platform index, so the arm runner pulls its arm64 variant.
+  build-and-test-linux-arm64:
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
+    name: Build on ubuntu-24.04-arm
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    container:
+      image: ${{ needs.pin.outputs.image_2404 }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/ccache
+      with:
+        key: build-ubuntu-24.04-arm
+
+    - name: Build
+      run: make build
+
+    # `make test`, the x86 legs' target: the same selection as test-fast
+    # without --stop-on-failure, so a red run names every failing test.
+    - name: Test
+      run: make test
+
   # Windows, clang-cl: BINDING, because the release publishes what it builds.
   # A zip of the C library ships on every GitHub Release, so a PR that breaks
   # the Windows build must not merge -- otherwise the break surfaces at the
@@ -1074,6 +1108,7 @@ jobs:
       - changes
       - pin
       - build-and-test-linux
+      - build-and-test-linux-arm64
       - build-and-test-macos
       - build-and-test-windows
       - python
@@ -1101,7 +1136,8 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           SKIPPABLE: >-
-            build-and-test-linux build-and-test-windows build-and-test-macos
+            build-and-test-linux build-and-test-linux-arm64 build-and-test-windows
+            build-and-test-macos
             python glibc-228 doxygen sweep-validators docs docker sanitizers
             coverage linux-packages
         run: python3 scripts/ci_passed.py

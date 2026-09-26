@@ -254,7 +254,10 @@ main (void)
   for (int k = 1; k <= 8; k++)
     {
       DP_CHECK (fabs (sinc ((double)k)) < 1e-15);
-      DP_CHECK (sinc (-(double)k - 0.3) == sinc ((double)k + 0.3));
+      /* Even to within rounding, not bit-equal: sin() of the negated
+       * argument is not guaranteed bit-symmetric under -ffast-math (#1561). */
+      DP_CHECK (fabs (sinc (-(double)k - 0.3) - sinc ((double)k + 0.3))
+                < 1e-14);
     }
   DP_CHECK (fabs (sinc (0.5) - 2.0 / M_PI) < 1e-15);
 

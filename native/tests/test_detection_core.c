@@ -709,8 +709,10 @@ main (void)
   /* ── det_cn0_to_snr / det_snr_to_cn0: one convention, both ways ──────
    *
    * 60 dB-Hz at 1 MHz is 0 dB per sample, amplitude 1; and the two are
-   * inverses. Sabotage: drop the sqrt -- the anchor goes red. */
-  DP_CHECK (fabs (det_cn0_to_snr (60.0, 1e6) - 1.0) < 1e-15);
+   * inverses. Sabotage: drop the sqrt -- the anchor goes red. Tolerances
+   * are a few thousand ULP, not 1: pow under -ffast-math rounds differently
+   * on aarch64, and a last-bit difference is not a defect (#1561). */
+  DP_CHECK (fabs (det_cn0_to_snr (60.0, 1e6) - 1.0) < 1e-12);
   DP_CHECK (fabs (det_cn0_to_snr (70.0, 1e6) - sqrt (10.0)) < 1e-14);
   for (double c = 20.0; c <= 90.0; c += 7.5)
     DP_CHECK (fabs (det_snr_to_cn0 (det_cn0_to_snr (c, 2.5e6), 2.5e6) - c)

@@ -109,10 +109,13 @@ test_state_roundtrip (void)
   free (blob);
 
   DP_CHECK (nA == nB);
+  /* The same LO reached two ways: equal to float rounding, not to the bit.
+   * Under -ffast-math aarch64 contracts the two paths' multiply-adds
+   * differently (#1561). A wrong axis (the port read at the input rate, say)
+   * misses by O(amplitude) = O(0.1), five orders above this. */
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
-    if (crealf (outA[i]) != crealf (outB[i])
-        || cimagf (outA[i]) != cimagf (outB[i]))
+    if (cabsf (outA[i] - outB[i]) > 1e-5f)
       bad++;
   DP_CHECK (bad == 0);
   free (in);

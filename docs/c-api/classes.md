@@ -205,6 +205,7 @@
 
 ## u
 
+* [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md)
 * [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md)
 
 

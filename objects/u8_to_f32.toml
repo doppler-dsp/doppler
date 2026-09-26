@@ -1,0 +1,12 @@
+[u8_to_f32]
+arg_type = "uint8_t"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "U8ToF32"
+
+[[u8_to_f32.init_params]]
+name = "mode"
+type = "string_enum:shift,midpoint"
+default = "shift"

@@ -257,6 +257,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**tonemeas\_core.h**](tonemeas__core_8h.md) _ToneMeasure — single-tone ADC/converter spectral measurement._     
             * **dir** [**track**](dir_f98cb3fb09d38460dfcf46a77aa842c0.md)     
                 * **file** [**track\_core.h**](track__core_8h.md) _Track module — public C API._ 
+            * **dir** [**u8\_to\_f32**](dir_b468cb3e760d860bad02e34079834f5d.md)     
+                * **file** [**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md) _Offset-binary uint8 to float converter — the RTL-SDR_ `cu8` _front end._    
             * **dir** [**uq15\_to\_f32**](dir_289e6f8543a5d0b92e78da373782efe4.md)     
                 * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
             * **dir** [**util**](dir_7dd94ac9e5a2e34ed236c6361f93c476.md)     

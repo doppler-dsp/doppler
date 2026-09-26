@@ -221,6 +221,12 @@ jobs:
       # dependency shows up.
       run: make burst-pipeline-check
 
+    - name: UNO Q example (install prefix, both link modes)
+      # The RTL-SDR front end example-projects/uno-q demonstrates, built the
+      # way its README says and run in its self-test mode: U8ToF32 -> DDC ->
+      # PSD on a synthetic cu8 capture, every claim checked.
+      run: make uno-q-check
+
   # Linux aarch64: BINDING, because release.yml publishes aarch64 wheels built
   # natively on this runner. Until this job the C suite had never run on the
   # configuration we ship there -- the macOS leg is arm64 too, but Apple clang
@@ -254,6 +260,11 @@ jobs:
     # without --stop-on-failure, so a red run names every failing test.
     - name: Test
       run: make test
+
+    # The UNO Q example targets an aarch64 board, so it is checked on the
+    # aarch64 runner as well as the x86 and macOS legs.
+    - name: UNO Q example (install prefix, both link modes)
+      run: make uno-q-check
 
   # Windows, clang-cl: BINDING, because the release publishes what it builds.
   # A zip of the C library ships on every GitHub Release, so a PR that breaks
@@ -416,6 +427,12 @@ jobs:
       # Both link modes; the static one is where a missing transitive
       # dependency shows up.
       run: make burst-pipeline-check
+
+    - name: UNO Q example (install prefix, both link modes)
+      # The RTL-SDR front end example-projects/uno-q demonstrates, built the
+      # way its README says and run in its self-test mode: U8ToF32 -> DDC ->
+      # PSD on a synthetic cu8 capture, every claim checked.
+      run: make uno-q-check
 
   # ------------------------------------------------------------------
   # Python package build + pytest

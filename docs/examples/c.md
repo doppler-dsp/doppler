@@ -581,3 +581,26 @@ asserts:
 `make burst-pipeline-check` builds and runs it in both link modes against a
 scratch install, and CI runs the same target, so what you copy is known to
 work.
+
+### An RTL-SDR front end on a small ARM board
+
+[`example-projects/uno-q/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/uno-q)
+is the first stages of a receiver fed by an RTL-SDR, as a downstream project:
+`cu8` bytes through `U8ToF32`, a `DDC` that mixes an offset-tuned channel to DC
+and decimates, and a `PSD`. Run with no input, it synthesises an RTL-SDR
+capture and checks the chain; run on `-`, it reads a live `cu8` stream. It was
+measured on an Arduino UNO Q, a Cortex-A53-class board, and its README carries
+that board's setup and tuning, including why `-mcpu=cortex-a53` helps where
+`-march=native` does not. Two points it demonstrates:
+
+- **Offset tuning removes the DC terms.** `U8ToF32`'s fast mode reads 0.5/128
+    low, and the dongle adds its own DC spike. Mixing the wanted channel to DC
+    moves both to `−offset`, where the DDC's filter removes them. The
+    self-test measures the bias before the DDC and checks it is gone after.
+- **Measure noise where the signal is.** The plain DDC's CIC is
+    uncompensated, so its output band slopes. A band-wide median floor read
+    the SNR 3.6 dB high; the in-channel noise matches the prediction to
+    0.15 dB.
+
+`make uno-q-check` builds and runs it in both link modes against a scratch
+install, and CI runs it on Linux x86-64, Linux aarch64 and macOS.

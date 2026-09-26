@@ -642,7 +642,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 abi-check link-check installed-headers-check \
                 exported-link-check \
                 test-asan test-ubsan test-tsan \
-                consumer-faces-check burst-pipeline-check glibc-gate \
+                consumer-faces-check burst-pipeline-check uno-q-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
                 docker-examples ci-image-repin-check package-linux-smoke
 
@@ -1366,7 +1366,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-ubsan test-tsan test-asan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
-                burst-pipeline-check \
+                burst-pipeline-check uno-q-check \
                 glibc-check glibc-gate glibc-image \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
@@ -3362,6 +3362,23 @@ burst-pipeline-check: build ## Build+run example-projects/burst-pipeline against
 	        echo "burst-pipeline-check: static target not built"; exit 1; }; }; \
 	 rc=$$?; rm -rf "$$t"; \
 	 if [ $$rc -eq 0 ]; then echo "burst-pipeline-check: OK — both link modes"; fi; \
+	 exit $$rc
+
+# The same shape as burst-pipeline-check, for the RTL-SDR front end the UNO Q
+# example demonstrates: install to a scratch prefix, then the example's OWN
+# `make PREFIX=... run`, which self-tests in both link modes -- the cu8 bias
+# present before the DDC and filtered after it, the tone mixed to DC, the SNR
+# the chain's parameters predict. Its failures are real exits, so this is a
+# check of U8ToF32 + DDC + PSD composed, not only of the example compiling.
+uno-q-check: build ## Build+run example-projects/uno-q against an install prefix
+	@t=$$(mktemp -d); \
+	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
+	 && $(MAKE) --no-print-directory -C example-projects/uno-q \
+	        BUILD_DIR="$$t/b" PREFIX="$$t/pfx" run \
+	 && { [ -x "$$t/b/uno_q_static" ] || { \
+	        echo "uno-q-check: static target not built"; exit 1; }; }; \
+	 rc=$$?; rm -rf "$$t"; \
+	 if [ $$rc -eq 0 ]; then echo "uno-q-check: OK — both link modes"; fi; \
 	 exit $$rc
 
 # The oldest glibc a released ARTIFACT may reference. Pure inspection, and only

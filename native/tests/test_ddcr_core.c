@@ -109,25 +109,11 @@ test_state_roundtrip (void)
   free (blob);
 
   DP_CHECK (nA == nB);
-  /* The same LO reached two ways: equal to float rounding, not to the bit.
-   * Under -ffast-math aarch64 contracts the two paths' multiply-adds
-   * differently (#1561). A wrong axis (the port read at the input rate, say)
-   * misses by O(amplitude) = O(0.1), five orders above this. */
-  int   bad  = 0;
-  float dmax = 0.0f, amax = 0.0f;
+  int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
-    {
-      float d = cabsf (outA[i] - outB[i]);
-      if (d > 1e-5f)
-        bad++;
-      dmax = fmaxf (dmax, d);
-      amax = fmaxf (amax, cabsf (outB[i]));
-    }
-  if (bad)
-    fprintf (stderr,
-             "freq port vs LO: %d of %zu differ, max |diff| %.3g "
-             "at peak |out| %.3g\n",
-             bad, nA, (double)dmax, (double)amax);
+    if (crealf (outA[i]) != crealf (outB[i])
+        || cimagf (outA[i]) != cimagf (outB[i]))
+      bad++;
   DP_CHECK (bad == 0);
   free (in);
   free (outA);
@@ -183,12 +169,21 @@ test_freq_port_is_the_lo_axis (void)
   size_t nB = ddcr_execute_ctrl (b, in, L, 0.0, 0.0, outB, CAP);
 
   DP_CHECK (nA == nB);
-  int bad = 0;
+  /* The same LO reached two ways: equal to float rounding, not to the bit.
+   * Under -ffast-math aarch64 contracts the two paths' multiply-adds
+   * differently (#1561). The bound is relative to the output's own peak:
+   * rounding through this chain is ~1e-6 of it, while a 0.1% LO error
+   * (f * 1.001 on one path) already misses by 2e-3 of it. */
+  float dmax = 0.0f, amax = 0.0f;
   for (size_t i = 0; i < nA && i < nB; i++)
-    if (crealf (outA[i]) != crealf (outB[i])
-        || cimagf (outA[i]) != cimagf (outB[i]))
-      bad++;
-  DP_CHECK (bad == 0);
+    {
+      dmax = fmaxf (dmax, cabsf (outA[i] - outB[i]));
+      amax = fmaxf (amax, cabsf (outB[i]));
+    }
+  if (!(dmax <= 1e-4f * amax))
+    fprintf (stderr, "freq port vs LO: max |diff| %.3g at peak |out| %.3g\n",
+             (double)dmax, (double)amax);
+  DP_CHECK (amax > 0.0f && dmax <= 1e-4f * amax);
   DP_CHECK (ddcr_get_norm_freq (a) == 0.0); /* centre untouched */
 
   ddcr_destroy (a);

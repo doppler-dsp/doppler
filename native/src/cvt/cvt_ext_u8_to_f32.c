@@ -1,85 +1,97 @@
 /*
- * cvt_ext_i8_to_f32.c — I8ToF32 type for the cvt module.
+ * cvt_ext_u8_to_f32.c — U8ToF32 type for the cvt module.
  *
  * Included by cvt_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
-/* I8ToF32Object — wraps i8_to_f32_state_t *       */
+/* U8ToF32Object — wraps u8_to_f32_state_t *       */
 /* ======================================================== */
 
-#include "doppler/i8_to_f32/i8_to_f32_core.h"
+#include "doppler/u8_to_f32/u8_to_f32_core.h"
 
 typedef struct
 {
-  PyObject_HEAD i8_to_f32_state_t *handle;
-} I8ToF32Object;
+  PyObject_HEAD u8_to_f32_state_t *handle;
+} U8ToF32Object;
 
 static void
-I8ToF32Obj_dealloc (I8ToF32Object *self)
+U8ToF32Obj_dealloc (U8ToF32Object *self)
 {
   if (self->handle)
-    i8_to_f32_destroy (self->handle);
+    u8_to_f32_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
 static PyObject *
-I8ToF32Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+U8ToF32Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  I8ToF32Object *self = (I8ToF32Object *)type->tp_alloc (type, 0);
+  U8ToF32Object *self = (U8ToF32Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-I8ToF32Obj_init (I8ToF32Object *self, PyObject *args, PyObject *kwds)
+U8ToF32Obj_init (U8ToF32Object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "scale", NULL };
-  float        scale    = 128.0f;
+  static char *kwlist[] = { "mode", NULL };
+  const char  *mode_str = "shift";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|f", kwlist, &scale))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|s", kwlist, &mode_str))
     return -1;
-  self->handle = i8_to_f32_create (scale);
+  int mode = 0;
+  if (strcmp (mode_str, "shift") == 0)
+    mode = 0;
+  else if (strcmp (mode_str, "midpoint") == 0)
+    mode = 1;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "mode must be one of \"shift\", \"midpoint\", got '%s'",
+                    mode_str);
+      return -1;
+    }
+  self->handle = u8_to_f32_create (mode);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "i8_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "u8_to_f32_create returned NULL");
       return -1;
     }
   return 0;
 }
 
 static PyObject *
-I8ToF32Obj_reset (I8ToF32Object *self, PyObject *Py_UNUSED (ignored))
+U8ToF32Obj_reset (U8ToF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  i8_to_f32_reset (self->handle);
+  u8_to_f32_reset (self->handle);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-I8ToF32_step (I8ToF32Object *self, PyObject *args)
+U8ToF32_step (U8ToF32Object *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int x_raw = 0;
-  if (!PyArg_ParseTuple (args, "i", &x_raw))
+  unsigned int x_raw = 0U;
+  if (!PyArg_ParseTuple (args, "I", &x_raw))
     return NULL;
-  int8_t x = (int8_t)x_raw;
-  float  y = i8_to_f32_step (self->handle, x);
+  uint8_t x = (uint8_t)x_raw;
+  float   y = u8_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);
 }
 
 static PyObject *
-I8ToF32_steps (I8ToF32Object *self, PyObject *args, PyObject *kwds)
+U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -94,7 +106,7 @@ I8ToF32_steps (I8ToF32Object *self, PyObject *args, PyObject *kwds)
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
     return NULL;
 
@@ -130,7 +142,7 @@ I8ToF32_steps (I8ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      i8_to_f32_steps (self->handle, (const int8_t *)PyArray_DATA (in_arr),
+      u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
                        (float *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
@@ -144,7 +156,7 @@ I8ToF32_steps (I8ToF32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  i8_to_f32_steps (self->handle, (const int8_t *)PyArray_DATA (in_arr),
+  u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
                    (float *)PyArray_DATA ((PyArrayObject *)out_arr),
                    (size_t)n);
 
@@ -153,90 +165,92 @@ I8ToF32_steps (I8ToF32Object *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-I8ToF32Obj_destroy (I8ToF32Object *self, PyObject *Py_UNUSED (ignored))
+U8ToF32Obj_destroy (U8ToF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      i8_to_f32_destroy (self->handle);
+      u8_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
 static PyObject *
-I8ToF32Obj_enter (I8ToF32Object *self, PyObject *Py_UNUSED (ignored))
+U8ToF32Obj_enter (U8ToF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-I8ToF32Obj_exit (I8ToF32Object *self, PyObject *args)
+U8ToF32Obj_exit (U8ToF32Object *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
     {
-      i8_to_f32_destroy (self->handle);
+      u8_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
-static PyMethodDef I8ToF32Obj_methods[] = {
-  { "reset", (PyCFunction)I8ToF32Obj_reset, METH_NOARGS,
+static PyMethodDef U8ToF32Obj_methods[] = {
+  { "reset", (PyCFunction)U8ToF32Obj_reset, METH_NOARGS,
     "No-op reset, provided only for lifecycle symmetry.\n"
     "\n"
-    "No mutable state exists beyond the immutable iscale, so there is\n"
-    "nothing to clear; the method exists so every converter in the module\n"
-    "presents the same create / step / reset / destroy lifecycle.\n"
+    "The mode and its reciprocal are fixed at construction and nothing else\n"
+    "is held, so there is nothing to clear; the method exists so every\n"
+    "converter in the module presents the same create / step / reset /\n"
+    "destroy lifecycle.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.cvt import I8ToF32\n"
-    ">>> c = I8ToF32()\n"
-    ">>> c.reset()           # stateless converter -> reset is a no-op\n"
-    ">>> round(c.step(-128), 4)\n"
+    ">>> from doppler.cvt import U8ToF32\n"
+    ">>> c = U8ToF32()\n"
+    ">>> c.reset()          # stateless converter -> reset is a no-op\n"
+    ">>> c.step(0)\n"
     "-1.0\n" },
-  { "step", (PyCFunction)I8ToF32_step, METH_VARARGS,
+  { "step", (PyCFunction)U8ToF32_step, METH_VARARGS,
     "step(x) -> float\n"
     "\n"
-    "Convert one signed int8 sample to a normalised float via 1/scale.\n"
+    "Convert one offset-binary code to a normalised float.\n"
     "\n"
-    "Returns (float)x * iscale, a single multiply on the hot path. At the\n"
-    "default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the\n"
-    "front end of a signed 8-bit IQ path (e.g. a HackRF `cs8` stream) into\n"
-    "normalised floats.\n"
+    "Dispatches on the mode chosen at construction. For a block, steps()\n"
+    "resolves the mode once and runs a branch-free loop instead.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : int\n"
-    "    Signed int8 code in `[-128, 127]`.\n"
+    "    Offset-binary code in `[0, 255]`.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Normalised float, `x / scale`.\n"
+    "    The mapped sample (see the table at the top of this file).\n"
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.cvt import I8ToF32\n"
-    ">>> c = I8ToF32(scale=128.0)   # signed 8-bit -> normalised float\n"
-    ">>> round(c.step(64), 4)        # 64 / 128\n"
-    "0.5\n"
-    ">>> round(c.step(-128), 4)      # full-negative code -> -1.0\n"
-    "-1.0\n"
+    ">>> from doppler.cvt import U8ToF32\n"
+    ">>> c = U8ToF32()             # mode=\"shift\": (x - 128) / 128, exact\n"
+    ">>> c.step(0), c.step(128), c.step(192)\n"
+    "(-1.0, 0.0, 0.5)\n"
+    ">>> m = U8ToF32(mode=\"midpoint\")\n"
+    ">>> m.step(0), m.step(255)    # symmetric: both rails reach full scale\n"
+    "(-1.0, 1.0)\n"
     "\n" },
-  { "steps", (PyCFunction)(void *)I8ToF32_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)(void *)U8ToF32_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
-    "Process a block of int8 samples to float32.\n"
+    "Convert a block of offset-binary codes to float32.\n"
     "\n"
-    "Applies step() to every element. Accepts an optional pre-allocated\n"
-    "output array; allocates a fresh one when output is NULL.\n"
+    "The mode is resolved once for the block, then one branch-free loop\n"
+    "runs, so the per-sample work is only the mapping itself. Feed it the\n"
+    "flat interleaved I/Q buffer; the output is then complex samples in\n"
+    "`float _Complex` layout.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "x : NDArray[np.int8]\n"
+    "x : NDArray[np.uint8]\n"
     "    Input sample.\n"
     "\n"
     "Returns\n"
@@ -246,13 +260,14 @@ static PyMethodDef I8ToF32Obj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.cvt import I8ToF32\n"
+    ">>> from doppler.cvt import U8ToF32\n"
     ">>> import numpy as np\n"
-    ">>> I8ToF32().steps(np.array([0, 64, -128], dtype=np.int8)).tolist()\n"
-    "[0.0, 0.5, -1.0]\n"
+    ">>> cu8 = np.array([128, 0, 192, 64], dtype=np.uint8)  # 2 I/Q pairs\n"
+    ">>> U8ToF32().steps(cu8).view(np.complex64).tolist()\n"
+    "[-1j, (0.5-0.5j)]\n"
     "\n" },
 
-  { "destroy", (PyCFunction)I8ToF32Obj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)U8ToF32Obj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
@@ -262,18 +277,18 @@ static PyMethodDef I8ToF32Obj_methods[] = {
     "\n"
     "Idempotent: calling it again on an already-released object does\n"
     "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)I8ToF32Obj_enter, METH_NOARGS,
+  { "__enter__", (PyCFunction)U8ToF32Obj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
-    "Lets a I8ToF32 be used in a `with` statement so its C resources are\n"
+    "Lets a U8ToF32 be used in a `with` statement so its C resources are\n"
     "released deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "I8ToF32\n"
+    "U8ToF32\n"
     "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)I8ToF32Obj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the I8ToF32.\n"
+  { "__exit__", (PyCFunction)U8ToF32Obj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the U8ToF32.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
     "raised inside the `with` body propagates normally; this never\n"
@@ -290,28 +305,13 @@ static PyMethodDef I8ToF32Obj_methods[] = {
   { NULL }
 };
 
-static PyTypeObject I8ToF32ObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.I8ToF32",
-  .tp_basicsize                           = sizeof (I8ToF32Object),
-  .tp_dealloc                             = (destructor)I8ToF32Obj_dealloc,
+static PyTypeObject U8ToF32ObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.cvt.U8ToF32",
+  .tp_basicsize                           = sizeof (U8ToF32Object),
+  .tp_dealloc                             = (destructor)U8ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Create a i8_to_f32 instance.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "scale : float, default 128.0\n"
-    "    Denominator scale; 1/scale is applied to each sample (default: "
-    "128.0f).\n"
-    "    Use 128.0 to recover normalised floats from a signed 8-bit stream.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Create with defaults:\n"
-    "\n"
-    ">>> from doppler.cvt import I8ToF32\n"
-    ">>> obj = I8ToF32(scale=128.0)\n",
-  .tp_methods = I8ToF32Obj_methods,
-  .tp_new     = I8ToF32Obj_new,
-  .tp_init    = (initproc)I8ToF32Obj_init,
+  .tp_doc                                 = "U8ToF32 type.\n",
+  .tp_methods                             = U8ToF32Obj_methods,
+  .tp_new                                 = U8ToF32Obj_new,
+  .tp_init                                = (initproc)U8ToF32Obj_init,
 };

@@ -79,6 +79,7 @@ ppe
 rs_codec
 syncword
 tonemeas
+u8_to_f32
 uq15_to_f32
 wfm_reader
 wfm_writer

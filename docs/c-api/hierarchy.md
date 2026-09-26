@@ -145,6 +145,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._ 
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._ 
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._ 
+* **struct** [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md) _U8ToF32 state._ 
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._ 
 * **struct** [**viterbi\_state\_t**](structviterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._ 
 * **struct** [**wfm\_draw\_t**](structwfm__draw__t.md) _One rendered source instance: its timing AND the values it was actually rendered with._ 

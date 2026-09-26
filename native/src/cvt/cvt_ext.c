@@ -1,7 +1,7 @@
 /*
  * cvt_ext.c — Python extension module cvt
  *
- * Objects: F32ToI8, F32ToI16, F32ToI32, I8ToF32, I16ToF32, I32ToF32,
+ * Objects: F32ToI8, F32ToI16, F32ToI32, I8ToF32, U8ToF32, I16ToF32, I32ToF32,
  * F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32,
  * ADC GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c
  * fragments.
@@ -27,6 +27,7 @@
 #include "cvt_ext_i16u64_to_f32.c"
 #include "cvt_ext_i32_to_f32.c"
 #include "cvt_ext_i8_to_f32.c"
+#include "cvt_ext_u8_to_f32.c"
 #include "cvt_ext_uq15_to_f32.c"
 
 static PyObject *
@@ -506,18 +507,19 @@ static PyMethodDef cvt_module_methods[] = {
 static PyModuleDef cvt_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name = "cvt",
-  .m_doc  = "Sample-format conversion: vectorized converters between float32 "
-            "IQ and fixed-point integer formats (int8/16/32, unsigned Q15), "
-            "plus a scaling ADC front end.\n"
-            "\n"
-            "Examples\n"
-            "--------\n"
-            ">>> import numpy as np\n"
-            ">>> from doppler.cvt import F32ToI16, I16ToF32\n"
-            ">>> x = np.array([0.5, -0.25], np.float32)\n"
-            ">>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()\n"
-            "[0.5, -0.25]\n",
-  .m_size = -1,
+  .m_doc
+  = "Sample-format conversion: vectorized converters between float32 IQ and "
+    "fixed-point integer formats (int8/16/32, offset-binary uint8 as RTL-SDR "
+    "cu8 I/Q, unsigned Q15), plus a scaling ADC front end.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.cvt import F32ToI16, I16ToF32\n"
+    ">>> x = np.array([0.5, -0.25], np.float32)\n"
+    ">>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()\n"
+    "[0.5, -0.25]\n",
+  .m_size    = -1,
   .m_methods = cvt_module_methods,
 };
 
@@ -532,6 +534,8 @@ PyInit_cvt (void)
   if (PyType_Ready (&F32ToI32ObjType) < 0)
     return NULL;
   if (PyType_Ready (&I8ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&U8ToF32ObjType) < 0)
     return NULL;
   if (PyType_Ready (&I16ToF32ObjType) < 0)
     return NULL;
@@ -579,6 +583,13 @@ PyInit_cvt (void)
   if (PyModule_AddObject (m, "I8ToF32", (PyObject *)&I8ToF32ObjType) < 0)
     {
       Py_DECREF (&I8ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&U8ToF32ObjType);
+  if (PyModule_AddObject (m, "U8ToF32", (PyObject *)&U8ToF32ObjType) < 0)
+    {
+      Py_DECREF (&U8ToF32ObjType);
       Py_DECREF (m);
       return NULL;
     }

@@ -686,7 +686,7 @@ returns = "double"
 expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.cvt]
 doc = """
-Sample-format conversion: vectorized converters between float32 IQ and fixed-point integer formats (int8/16/32, unsigned Q15), plus a scaling ADC front end.
+Sample-format conversion: vectorized converters between float32 IQ and fixed-point integer formats (int8/16/32, offset-binary uint8 as RTL-SDR cu8 I/Q, unsigned Q15), plus a scaling ADC front end.
 
 Examples
 --------
@@ -697,7 +697,7 @@ Examples
 [0.5, -0.25]
 
 """
-objects = ["f32_to_i8", "f32_to_i16", "f32_to_i32", "i8_to_f32", "i16_to_f32", "i32_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
+objects = ["f32_to_i8", "f32_to_i16", "f32_to_i32", "i8_to_f32", "u8_to_f32", "i16_to_f32", "i32_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
 
 [[module.cvt.functions]]
 name = "int_to_bin"

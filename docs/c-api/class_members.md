@@ -441,7 +441,7 @@
 * **index** ([**dp\_chunk\_t**](structdp__chunk__t.md))
 * **i** ([**dp\_iq16\_t**](structdp__iq16__t.md))
 * **inverted** ([**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
-* **iscale** ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md), [**i16u32\_to\_f32\_state\_t**](structi16u32__to__f32__state__t.md), [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md), [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md), [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md), [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md))
+* **iscale** ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md), [**i16u32\_to\_f32\_state\_t**](structi16u32__to__f32__state__t.md), [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md), [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md), [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md), [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md), [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md))
 * **imd2\_dbc** ([**imd\_meas\_t**](structimd__meas__t.md))
 * **imd2\_freq** ([**imd\_meas\_t**](structimd__meas__t.md))
 * **imd3\_dbc** ([**imd\_meas\_t**](structimd__meas__t.md))
@@ -519,7 +519,7 @@
 
 ## m
 
-* **mode** ([**acc\_trace\_state\_t**](structacc__trace__state__t.md), [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md))
+* **mode** ([**acc\_trace\_state\_t**](structacc__trace__state__t.md), [**u8\_to\_f32\_state\_t**](structu8__to__f32__state__t.md), [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md))
 * **max\_peaks** ([**acq\_extra\_t**](structacq__extra__t.md), [**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md))
 * **mag\_buf** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **max\_on\_samples** ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md))

@@ -5,9 +5,11 @@
  * Multiplies each signed int8 sample by @c 1/scale and returns a float32.
  * The default scale of 128.0 maps the full int8 range `[-128, 127]` to
  * `[-1.0, ~+1.0)`, which is the natural inverse of an 8-bit ADC path.
- * This converter is used in the 8-bit IQ sample pipeline (e.g., RTL-SDR
- * signed-8 I/Q streams) where samples arrive as int8 and must be converted
- * to normalised complex floats.
+ * This converter is used in the 8-bit IQ sample pipeline for SIGNED 8-bit
+ * I/Q streams (`cs8`, e.g. HackRF) where samples arrive as int8 and must be
+ * converted to normalised complex floats.  An RTL-SDR streams UNSIGNED
+ * offset-binary bytes (`cu8`) instead; read as int8 they are wrong by a sign
+ * flip above code 127, so use U8ToF32 for those.
  * The inverse scale is pre-computed at construction time.
  *
  * Lifecycle: create -> `[step / steps / reset]*` -> destroy
@@ -87,7 +89,7 @@ void i8_to_f32_reset(i8_to_f32_state_t *state);
  *
  * Returns @c (float)x * iscale, a single multiply on the hot path. At the
  * default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the
- * front end of an 8-bit IQ path (e.g. a signed-8 RTL-SDR stream) into
+ * front end of a signed 8-bit IQ path (e.g. a HackRF `cs8` stream) into
  * normalised floats.
  *
  * @param state  Must be non-NULL.

@@ -1637,6 +1637,13 @@
 
 ## u
 
+* **u8\_to\_f32\_create** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
+* **u8\_to\_f32\_destroy** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
+* **u8\_to\_f32\_midpoint** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
+* **u8\_to\_f32\_reset** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
+* **u8\_to\_f32\_shift** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
+* **u8\_to\_f32\_step** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
+* **u8\_to\_f32\_steps** ([**u8\_to\_f32\_core.h**](u8__to__f32__core_8h.md))
 * **uq15\_to\_f32\_create** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
 * **uq15\_to\_f32\_destroy** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
 * **uq15\_to\_f32\_reset** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))

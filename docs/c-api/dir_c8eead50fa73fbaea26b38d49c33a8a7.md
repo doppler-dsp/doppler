@@ -157,6 +157,7 @@
 | dir | [**timing**](dir_f312c7d1315f2596c2b71ef05d5d7b2b.md) <br> |
 | dir | [**tonemeas**](dir_e0665d68cb2c2ff7feb28506d37a8bd1.md) <br> |
 | dir | [**track**](dir_f98cb3fb09d38460dfcf46a77aa842c0.md) <br> |
+| dir | [**u8\_to\_f32**](dir_b468cb3e760d860bad02e34079834f5d.md) <br> |
 | dir | [**uq15\_to\_f32**](dir_289e6f8543a5d0b92e78da373782efe4.md) <br> |
 | dir | [**util**](dir_7dd94ac9e5a2e34ed236c6361f93c476.md) <br> |
 | dir | [**viterbi**](dir_63cd492a1a551091390943fc51915433.md) <br> |

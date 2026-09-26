@@ -1,5 +1,5 @@
 # cvt/cvt.pyi — type stubs for the cvt C extension.
-from typing import final
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -674,7 +674,7 @@ class I8ToF32:
 
         Returns (float)x * iscale, a single multiply on the hot path. At the
         default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the
-        front end of an 8-bit IQ path (e.g. a signed-8 RTL-SDR stream) into
+        front end of a signed 8-bit IQ path (e.g. a HackRF `cs8` stream) into
         normalised floats.
 
         Parameters
@@ -758,6 +758,152 @@ class I8ToF32:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the I8ToF32.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class U8ToF32:
+    """U8ToF32 component.
+
+    Parameters
+    ----------
+    mode : Literal["shift", "midpoint"], default "shift"
+        mode constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import U8ToF32
+    >>> obj = U8ToF32(mode="shift")
+
+    """
+
+    def __init__(
+        self,
+        mode: Literal["shift", "midpoint"] = "shift",
+    ) -> None: ...
+    def reset(self) -> None:
+        """No-op reset, provided only for lifecycle symmetry.
+
+        The mode and its reciprocal are fixed at construction and nothing else
+        is held, so there is nothing to clear; the method exists so every
+        converter in the module presents the same create / step / reset /
+        destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import U8ToF32
+        >>> c = U8ToF32()
+        >>> c.reset()          # stateless converter -> reset is a no-op
+        >>> c.step(0)
+        -1.0
+
+        """
+
+    def step(self, x: int) -> float:
+        """Convert one offset-binary code to a normalised float.
+
+        Dispatches on the mode chosen at construction. For a block, steps()
+        resolves the mode once and runs a branch-free loop instead.
+
+        Parameters
+        ----------
+        x : int
+            Offset-binary code in `[0, 255]`.
+
+        Returns
+        -------
+        float
+            The mapped sample (see the table at the top of this file).
+
+        Examples
+        --------
+        >>> from doppler.cvt import U8ToF32
+        >>> c = U8ToF32()             # mode="shift": (x - 128) / 128, exact
+        >>> c.step(0), c.step(128), c.step(192)
+        (-1.0, 0.0, 0.5)
+        >>> m = U8ToF32(mode="midpoint")
+        >>> m.step(0), m.step(255)    # symmetric: both rails reach full scale
+        (-1.0, 1.0)
+
+        """
+
+    def steps(
+        self,
+        x: NDArray[np.uint8],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """Convert a block of offset-binary codes to float32.
+
+        The mode is resolved once for the block, then one branch-free loop
+        runs, so the per-sample work is only the mapping itself. Feed it the
+        flat interleaved I/Q buffer; the output is then complex samples in
+        `float _Complex` layout.
+
+        Parameters
+        ----------
+        x : NDArray[np.uint8]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import U8ToF32
+        >>> import numpy as np
+        >>> cu8 = np.array([128, 0, 192, 64], dtype=np.uint8)  # 2 I/Q pairs
+        >>> U8ToF32().steps(cu8).view(np.complex64).tolist()
+        [-1j, (0.5-0.5j)]
+
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "U8ToF32":
+        """Enter a context manager, returning this object.
+
+        Lets a U8ToF32 be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        U8ToF32
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the U8ToF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

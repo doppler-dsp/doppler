@@ -36,6 +36,8 @@
 
 #include "doppler/i8_to_f32/i8_to_f32_core.h"
 
+#include "doppler/u8_to_f32/u8_to_f32_core.h"
+
 #include "doppler/i16_to_f32/i16_to_f32_core.h"
 
 #include "doppler/i32_to_f32/i32_to_f32_core.h"

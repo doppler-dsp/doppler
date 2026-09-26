@@ -24,7 +24,8 @@ ______________________________________________________________________
 
 | Class                         | In → Out         | Use                                         |
 | ----------------------------- | ---------------- | ------------------------------------------- |
-| `F32ToI8` / `I8ToF32`         | float32 ↔ int8   | 8-bit IQ round-trip (RTL-SDR, `ci8` wire)   |
+| `F32ToI8` / `I8ToF32`         | float32 ↔ int8   | signed 8-bit IQ round-trip (HackRF, `ci8`)  |
+| `U8ToF32`                     | uint8 → float32  | **unsigned** 8-bit IQ in (RTL-SDR `cu8`)    |
 | `F32ToI16` / `I16ToF32`       | float32 ↔ int16  | signed Q15 / 16-bit PCM round-trip          |
 | `F32ToI32` / `I32ToF32`       | float32 ↔ int32  | 24/32-bit ADC codes round-trip              |
 | `F32ToUQ15` / `UQ15ToF32`     | float32 ↔ uint16 | **unsigned** Q15 (offset-binary) round-trip |
@@ -68,6 +69,23 @@ I8ToF32().steps(np.array([64, -128], dtype=np.int8))   # [0.5, -1.0]
 
 Note `+1.0` saturating to `127` / `2147483647` while `-1.0` reaches `-128` /
 `-2147483648` exactly — the asymmetry described above.
+
+### RTL-SDR `cu8` (unsigned 8-bit I/Q)
+
+An RTL-SDR streams **unsigned**, offset-binary bytes centred on 127.5 — not
+the signed int8 `I8ToF32` reads. `U8ToF32` converts the flat interleaved
+buffer; view the result as `complex64` to get the I/Q samples. The default
+`mode="shift"` is exact and fast and reads `0.5/128` low (a DC term a
+down-converter tuned off DC filters out); `mode="midpoint"` is the unbiased,
+symmetric mapping for when DC matters.
+
+```python
+from doppler.cvt import U8ToF32
+
+cu8 = np.array([128, 0, 192, 64], dtype=np.uint8)      # two I/Q pairs
+U8ToF32().steps(cu8).view(np.complex64)                 # [0-1j, 0.5-0.5j]
+U8ToF32(mode="midpoint").steps(np.array([0, 255], dtype=np.uint8))  # [-1, 1]
+```
 
 ### float32 ↔ int16 round-trip
 
@@ -126,7 +144,7 @@ back = UQ15ToF32().steps(u)    # ~= input
 
 ______________________________________________________________________
 
-## Signed integer ↔ float
+## Integer ↔ float (signed, and unsigned 8-bit)
 
 ::: doppler.cvt.F32ToI16
 
@@ -135,6 +153,8 @@ ______________________________________________________________________
 ::: doppler.cvt.I32ToF32
 
 ::: doppler.cvt.I8ToF32
+
+::: doppler.cvt.U8ToF32
 
 ______________________________________________________________________
 

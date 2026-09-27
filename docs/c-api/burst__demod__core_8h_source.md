@@ -23,6 +23,7 @@
 #include "doppler/pn/pn_core.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/mpsk/mpsk_core.h"
+#include "doppler/cvt/cvt_core.h"
 #ifdef __cplusplus
 extern "C"
 {

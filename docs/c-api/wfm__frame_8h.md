@@ -78,6 +78,10 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | ---: | :--- |
 |  size\_t | [**dp\_wfm\_dsss\_desc\_chips**](#function-dp_wfm_dsss_desc_chips) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, uint8\_t \* out, size\_t max\_out) <br>_Build a two-code DSSS burst from a description: assemble, spread._  |
 |  size\_t | [**dp\_wfm\_dsss\_desc\_nchips**](#function-dp_wfm_dsss_desc_nchips) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, size\_t acq\_len, size\_t acq\_reps, size\_t data\_len) <br>_Chip count of a DSSS burst built from a description._  |
+|  size\_t | [**dp\_wfm\_field\_bits**](#function-dp_wfm_field_bits) (const char \* spec, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_A Field's bits, straight from its text form. Returns the count._  |
+|  size\_t | [**dp\_wfm\_field\_format**](#function-dp_wfm_field_format) (const [**wfm\_field\_t**](structwfm__field__t.md) \* field, char \* buf, size\_t cap) <br>_Write a field's canonical text form. Returns its length._  |
+|  int | [**dp\_wfm\_field\_parse**](#function-dp_wfm_field_parse) (const char \* spec, [**wfm\_field\_t**](structwfm__field__t.md) \* field, uint8\_t \*\* owned, const char \*\* why) <br>_Read one Field from its text form._  |
+|  size\_t | [**dp\_wfm\_field\_render**](#function-dp_wfm_field_render) (const [**wfm\_field\_t**](structwfm__field__t.md) \* f, uint8\_t \* out, size\_t max\_out) <br>_Write a field's bits: its sequence once, then repeated. Returns the count._  |
 |  int | [**dp\_wfm\_frame\_add\_derived**](#function-dp_wfm_frame_add_derived) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name, size\_t bits) <br>_Append a named DERIVED field — one a stage will fill. Returns its index, or -1._  |
 |  int | [**dp\_wfm\_frame\_add\_field**](#function-dp_wfm_frame_add_field) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* seq, size\_t reps) <br>_Append a named field. Returns its index, or -1._  |
 |  int | [**dp\_wfm\_frame\_add\_stage**](#function-dp_wfm_frame_add_stage) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, const char \* first, const char \* last) <br>_Append a stage covering_ `[first .. last]` _BY NAME. Returns its index, or -1._ |
@@ -335,6 +339,223 @@ size_t dp_wfm_dsss_desc_nchips (
 **Returns:**
 
 burst chips, or 0 if the description is refused, or it has bits and `data_len` is 0, or there is nothing to transmit. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_field\_bits 
+
+_A Field's bits, straight from its text form. Returns the count._ 
+```C++
+size_t dp_wfm_field_bits (
+    const char * spec,
+    uint8_t * out,
+    size_t max_out,
+    const char ** why
+) 
+```
+
+
+
+[**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse), then [**dp\_wfm\_field\_render**](wfm__frame_8h.md#function-dp_wfm_field_render), with the literal's storage released before returning — the one door from the text a person writes to the bits every object takes. With `out` NULL it only SIZES: it returns how many bits the field is, which is what a caller allocates before the second call.
+
+
+
+
+**Parameters:**
+
+
+* `spec` NUL-terminated text, as [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse) reads it. 
+* `out` receives the bits, one per byte; NULL to size. 
+* `max_out` capacity of `out` in bits; ignored when `out` is NULL. 
+* `why` optional; as [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse), plus the render's own refusals (a generator that rejects its parameters, a buffer too small). 
+
+
+
+**Returns:**
+
+the field's length in bits (repetitions included), or 0 on a refusal. A Field is never empty, so 0 is unambiguous. **A sizing call checks the grammar only**: a generator that rejects its own parameters (a Gold pair that is not a preferred pair) is found by the call that renders, which then returns 0.
+
+
+
+```C++
+uint8_t b[124];
+size_t  n = dp_wfm_field_bits ("pn:31:5*4", NULL, 0, NULL);   // 124
+dp_wfm_field_bits ("pn:31:5*4", b, n, NULL);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_field\_format 
+
+_Write a field's canonical text form. Returns its length._ 
+```C++
+size_t dp_wfm_field_format (
+    const wfm_field_t * field,
+    char * buf,
+    size_t cap
+) 
+```
+
+
+
+The ONLY writer of the grammar, and the inverse of [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse). Parsing what this writes gives back the same field, for every field it accepts. The form is canonical, so two equal fields print identically:
+
+
+
+* a literal prints as `0x…` hex when its length is a multiple of 4, and as `0`/`1` digits otherwise;
+* a generator prints only what differs from its defaults — a zero seed or poly is omitted unless a later number needs its position, and `galois` is never written;
+* `*REPS` appears only when `reps > 1`.
+
+
+
+
+
+
+**Parameters:**
+
+
+* `field` the field. A derived field has no text form and is refused. 
+* `buf` receives the text and a NUL; may be NULL to size it. 
+* `cap` capacity of `buf` in bytes, NUL included. 
+
+
+
+**Returns:**
+
+the length WITHOUT the NUL, whether or not it fit — so a `buf == NULL` call sizes the buffer — or 0 for a field with no text form. Nothing is written unless all of it fits.
+
+
+
+```C++
+char s[64];
+dp_wfm_field_format (&f, s, sizeof s);   // "pn:31:5*4"
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_field\_parse 
+
+_Read one Field from its text form._ 
+```C++
+int dp_wfm_field_parse (
+    const char * spec,
+    wfm_field_t * field,
+    uint8_t ** owned,
+    const char ** why
+) 
+```
+
+
+
+The ONLY reader of the grammar every text face shares — the CLI, a JSON scene and `field_bits()` in Python all call this, and none restates it (docs/design/frame-description.md §F.1):
+
+
+
+```C++
+field  := seq [ "*" REPS ]                       REPS >= 1
+seq    := bin | hex | pn | gold | dotted
+bin    := [01]+
+hex    := "0x" [0-9A-Fa-f]+                       4 bits a digit, MSB first
+pn     := "pn:" LEN ":" REG [":" SEED [":" POLY]] [":" LFSR]
+gold   := "gold:" LEN ":" REG ":" TA ":" SA ":" TB ":" SB
+dotted := "dotted:" LEN
+LFSR   := "galois" | "fibonacci"                  default galois
+```
+
+
+
+A number is decimal, or hex after `0x`, and must be consumed WHOLE: `12abc`, `-1`, `5` and an empty field (`pn::10`) are refused, not read as far as they go. A leading `0` is decimal, never octal. `LEN` is the output length and must be &gt; 0; `REG` is the register width, 1..64. A `0`/`1` string with any other character in it is refused rather than filtered, because a typo that quietly shortens a sync word syncs to nothing and fails nowhere.
+
+
+`data:LEN` is part of the grammar but not yet of this parser: it names a payload drawn from a data source, which a `wfm_seq_t` cannot carry until that source exists. It is refused, by name.
+
+
+
+
+**Parameters:**
+
+
+* `spec` NUL-terminated text. 
+* `field` receives the field: `name` empty, `derived_by` 0, `reps` as written (1 when absent). Untouched on refusal. 
+* `owned` receives the allocated bit array of a LITERAL field, which `field->seq.bits` points into and the caller must `free()`; NULL for a generated kind. Untouched on refusal. 
+* `why` optional; receives a STATIC sentence naming the cause of a refusal, NULL on success. Never freed. 
+
+
+
+**Returns:**
+
+[**DP\_OK**](clib__common_8h.md#define-dp_ok), or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) for text outside the grammar. A literal's storage is at most four times the spec's length, so it is allocated with the abort-on-OOM helper.
+
+
+
+```C++
+wfm_field_t f;
+uint8_t    *owned;
+const char *why;
+if (dp_wfm_field_parse ("pn:31:5*4", &f, &owned, &why) != DP_OK)
+  fprintf (stderr, "error: %s\n", why);
+// f.seq.kind == WFM_SEQ_PN, f.seq.len == 31, f.seq.reg_bits == 5,
+// f.reps == 4, owned == NULL
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_field\_render 
+
+_Write a field's bits: its sequence once, then repeated. Returns the count._ 
+```C++
+size_t dp_wfm_field_render (
+    const wfm_field_t * f,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+The one place a field's REPETITION is expanded, used by [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble) for every caller-supplied field and by [**dp\_wfm\_field\_bits**](wfm__frame_8h.md#function-dp_wfm_field_bits) for a field given as text. A repetition is the same bits again, never fresh ones: a generated field that drew new bits per repetition would not be a periodic acquisition target, and coherent integration across the repetitions would be void.
+
+
+
+
+**Parameters:**
+
+
+* `f` the field; `reps == 0` means one. A DERIVED field has no source of its own and is refused. 
+* `out` receives `f->seq.len * reps` bits, one per byte. 
+* `max_out` capacity of `out` in bits. 
+
+
+
+**Returns:**
+
+bits written, or 0 if the field is derived, empty, larger than `max_out`, or its sequence cannot be built. On 0, `out` may have been partly written. 
 
 
 

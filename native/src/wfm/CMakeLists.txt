@@ -29,10 +29,10 @@ target_link_libraries(wfm PRIVATE
     fir_core
     resamp_core
     wfm_frame_core
+    cvt_core
     ccsds_tm_core
     conv_core
     rs_core
-    cvt_core
     wfm_dsp_core
     Python3::NumPy)
 target_include_directories(wfm PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -60,10 +60,10 @@ target_link_libraries(test_wfm_core PRIVATE
     fir_core
     resamp_core
     wfm_frame_core
+    cvt_core
     ccsds_tm_core
     conv_core
     rs_core
-    cvt_core
     wfm_dsp_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_wfm_core

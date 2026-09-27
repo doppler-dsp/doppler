@@ -14,6 +14,7 @@
  * bits and no payload truth at all, which is the one metric that works on a
  * real capture AND still catches a false lock.
  */
+#include "doppler/clib_common.h" /* DP_OK / DP_ERR_INVALID */
 #include "doppler/wfm/wfm_dsp.h" /* the four-field DSSS pair, for the equivalence */
 #include "doppler/wfm/wfm_frame.h"
 #include "dp_test.h"
@@ -342,6 +343,268 @@ test_dsss_nchips (void)
                           - dp_wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 0)
                       == WFM_FRAME_CRC_BITS,
                   "a CRC costs exactly WFM_FRAME_CRC_BITS spread symbols");
+  return 0;
+}
+
+/* ── the Field text form (docs/design/frame-description.md §F.1) ─────────
+ *
+ * The parser is the one reader of the grammar every text face shares, so its
+ * value is in what it REFUSES as much as what it reads: the reader it
+ * replaces skipped empty fields and let strtoull stop wherever it liked, so
+ * a typo became a different, valid-looking field. Truth here is written out
+ * by hand or taken from pn/gold directly, never from the parser's own
+ * output. */
+
+/* An accepted spec and what it must parse to. */
+typedef struct
+{
+  const char *spec;
+  int         kind;
+  size_t      len, reps;
+  uint32_t    reg;
+  uint64_t    seed, poly;
+  int         lfsr;
+  const char *canon; /* dp_wfm_field_format's output */
+} field_ok_t;
+
+static const field_ok_t FIELD_OK[] = {
+  { "1101", WFM_SEQ_LITERAL, 4, 1, 0, 0, 0, 0, "0xd" },
+  { "110", WFM_SEQ_LITERAL, 3, 1, 0, 0, 0, 0, "110" },
+  { "010", WFM_SEQ_LITERAL, 3, 1, 0, 0, 0, 0, "010" }, /* never octal */
+  { "0x1ACFFC1D", WFM_SEQ_LITERAL, 32, 1, 0, 0, 0, 0, "0x1acffc1d" },
+  { "0x1acffc1d", WFM_SEQ_LITERAL, 32, 1, 0, 0, 0, 0, "0x1acffc1d" },
+  { "0101*3", WFM_SEQ_LITERAL, 4, 3, 0, 0, 0, 0, "0x5*3" },
+  { "pn:31:5", WFM_SEQ_PN, 31, 1, 5, 0, 0, 0, "pn:31:5" },
+  { "pn:31:5*4", WFM_SEQ_PN, 31, 4, 5, 0, 0, 0, "pn:31:5*4" },
+  { "pn:010:5", WFM_SEQ_PN, 10, 1, 5, 0, 0, 0, "pn:10:5" },
+  { "pn:31:5:galois", WFM_SEQ_PN, 31, 1, 5, 0, 0, 0, "pn:31:5" },
+  { "pn:64:7:0x5:0:fibonacci", WFM_SEQ_PN, 64, 1, 7, 5, 0, 1,
+    "pn:64:7:0x5:fibonacci" },
+  { "pn:31:5:0:0x12", WFM_SEQ_PN, 31, 1, 5, 0, 0x12, 0, "pn:31:5:0:0x12" },
+  { "pn:31:5:7:0X12", WFM_SEQ_PN, 31, 1, 5, 7, 0x12, 0, "pn:31:5:0x7:0x12" },
+  { "gold:64:10:934:350:567:73", WFM_SEQ_GOLD, 64, 1, 10, 0, 0, 0,
+    "gold:64:10:0x3a6:0x15e:0x237:0x49" },
+  { "dotted:16", WFM_SEQ_DOTTED, 16, 1, 0, 0, 0, 0, "dotted:16" },
+  { "dotted:5*2", WFM_SEQ_DOTTED, 5, 2, 0, 0, 0, 0, "dotted:5*2" },
+};
+
+/* Text the grammar does not contain. Every one must be refused, name a
+   cause, and leave the output untouched. */
+static const char *const FIELD_BAD[] = {
+  "",                          /* empty                                 */
+  "*4",                        /* repeats nothing                       */
+  "01a1",                      /* a typo in a literal, not a filter     */
+  "0101 ",                     /* trailing space                        */
+  "0x",                        /* no digits                             */
+  "0xG1",                      /* not hex                               */
+  "0x12*",                     /* empty REPS                            */
+  "0x12*0",                    /* REPS 0                                */
+  "0x12*-1",                   /* signed REPS                           */
+  "pn:31:5**2",                /* two stars                             */
+  "pn:31:5*2*2",               /* two REPS                              */
+  "pn",                        /* no fields                             */
+  "pn:",                       /* empty LEN                             */
+  "pn::31:5",                  /* an empty field is not skipped         */
+  "pn:31",                     /* no REG                                */
+  "pn:31:0",                   /* REG 0                                 */
+  "pn:31:65",                  /* REG past 64                           */
+  "pn:0:5",                    /* LEN 0                                 */
+  "pn:-1:5",                   /* signed                                */
+  "pn:12abc:5",                /* a number consumed partly              */
+  "pn: 31:5",                  /* a space                               */
+  "pn:31:5:1:2:3",             /* one number too many                   */
+  "pn:31:5:fibonacci:1",       /* the register form is last             */
+  "pn:31:5:gallois",           /* a misspelt register form              */
+  "pn:18446744073709551616:5", /* 2^64, overflow                       */
+  "gold:64:10:1:2:3",          /* gold short a seed                     */
+  "gold:64:10:1:2:3:4:5",      /* gold one too many                     */
+  "gold:64:10:1:2:3:x",        /* gold with a non-number                */
+  "dotted",                    /* no LEN                                */
+  "dotted:16:1",               /* dotted takes only LEN                 */
+  "literal:0101",              /* a literal is its bits                 */
+  "data:1024",                 /* not supported yet, and said so        */
+  "prbs:9",                    /* retired name                          */
+  "2",                         /* not a bit                             */
+  "abc",                       /* not a field                           */
+};
+
+static int
+test_field_text (void)
+{
+  const size_t n_ok  = sizeof FIELD_OK / sizeof *FIELD_OK;
+  const size_t n_bad = sizeof FIELD_BAD / sizeof *FIELD_BAD;
+
+  for (size_t i = 0; i < n_ok; i++)
+    {
+      const field_ok_t *c = &FIELD_OK[i];
+      wfm_field_t       f;
+      uint8_t          *owned = NULL;
+      const char       *why   = "unset";
+      DP_REQUIRE_MSG (dp_wfm_field_parse (c->spec, &f, &owned, &why) == DP_OK,
+                      c->spec);
+      DP_CHECK_MSG (why == NULL, "success clears why");
+      DP_CHECK_MSG ((int)f.seq.kind == c->kind, c->spec);
+      DP_CHECK_MSG (f.seq.len == c->len, c->spec);
+      DP_CHECK_MSG (f.reps == c->reps, c->spec);
+      DP_CHECK_MSG (f.derived_by == 0u && f.name[0] == '\0', c->spec);
+      DP_CHECK_MSG ((owned != NULL) == (c->kind == WFM_SEQ_LITERAL),
+                    "a literal owns its bits; a generator owns nothing");
+      if (c->kind == WFM_SEQ_PN || c->kind == WFM_SEQ_GOLD)
+        DP_CHECK_MSG (f.seq.reg_bits == c->reg, c->spec);
+      if (c->kind == WFM_SEQ_PN)
+        DP_CHECK_MSG (f.seq.seed == c->seed && f.seq.poly == c->poly
+                          && f.seq.lfsr == c->lfsr,
+                      c->spec);
+
+      /* The canonical form, and that it reads back as the same field. */
+      char         s[96];
+      const size_t n = dp_wfm_field_format (&f, s, sizeof s);
+      DP_CHECK_MSG (n == strlen (c->canon) && strcmp (s, c->canon) == 0,
+                    c->canon);
+      DP_CHECK_MSG (dp_wfm_field_format (&f, NULL, 0) == n,
+                    "a NULL buffer sizes the text");
+      wfm_field_t g;
+      uint8_t    *owned2 = NULL;
+      DP_REQUIRE_MSG (dp_wfm_field_parse (s, &g, &owned2, NULL) == DP_OK,
+                      "the canonical form parses");
+      DP_CHECK_MSG (
+          g.seq.kind == f.seq.kind && g.seq.len == f.seq.len
+              && g.reps == f.reps && g.seq.reg_bits == f.seq.reg_bits
+              && g.seq.seed == f.seq.seed && g.seq.poly == f.seq.poly
+              && g.seq.lfsr == f.seq.lfsr && g.seq.taps_a == f.seq.taps_a
+              && g.seq.seed_a == f.seq.seed_a && g.seq.taps_b == f.seq.taps_b
+              && g.seq.seed_b == f.seq.seed_b,
+          "parse (format (f)) == f");
+      if (c->kind == WFM_SEQ_LITERAL)
+        DP_CHECK_MSG (memcmp (f.seq.bits, g.seq.bits, f.seq.len) == 0,
+                      "a literal's bits survive the round trip");
+      free (owned2);
+      free (owned);
+    }
+
+  /* A literal's bits, written out by hand. The CCSDS marker 0x1ACFFC1D. */
+  {
+    static const uint8_t asm_bits[32]
+        = { 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1 };
+    uint8_t b[32];
+    DP_CHECK_MSG (dp_wfm_field_bits ("0x1ACFFC1D", b, sizeof b, NULL) == 32
+                      && memcmp (b, asm_bits, 32) == 0,
+                  "hex expands MSB first");
+    static const uint8_t lit[4] = { 1, 1, 0, 1 };
+    DP_CHECK_MSG (dp_wfm_field_bits ("1101", b, 4, NULL) == 4
+                      && memcmp (b, lit, 4) == 0,
+                  "binary reads left to right");
+  }
+
+  /* A generated field's bits are the generator's, repeated verbatim. */
+  {
+    uint8_t        truth[31], b[124];
+    dp_pn_state_t *p = dp_pn_create (pn_mls_poly (5), 1u, 5u, 0);
+    DP_REQUIRE (p != NULL);
+    DP_REQUIRE (dp_pn_generate (p, 31, truth, 31) == 31);
+    dp_pn_destroy (p);
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:31:5*4", NULL, 0, NULL) == 124,
+                  "sizing counts the repetitions");
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:31:5*4", b, sizeof b, NULL) == 124,
+                  "renders all four");
+    for (size_t r = 0; r < 4; r++)
+      DP_CHECK_MSG (memcmp (b + 31 * r, truth, 31) == 0,
+                    "each repetition is the SAME period, not a fresh draw");
+
+    uint8_t          gt[64], gb[64];
+    dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
+    DP_REQUIRE (g != NULL);
+    DP_REQUIRE (dp_gold_generate (g, 64, gt, 64) == 64);
+    dp_gold_destroy (g);
+    DP_CHECK_MSG (dp_wfm_field_bits ("gold:64:10:934:350:567:73", gb, 64, NULL)
+                          == 64
+                      && memcmp (gb, gt, 64) == 0,
+                  "gold renders the generator's bits");
+
+    static const uint8_t dot[5] = { 1, 0, 1, 0, 1 };
+    DP_CHECK_MSG (dp_wfm_field_bits ("dotted:5", b, 5, NULL) == 5
+                      && memcmp (b, dot, 5) == 0,
+                  "dotted starts high");
+  }
+
+  /* Every malformed spec: refused, a cause named, nothing written. */
+  for (size_t i = 0; i < n_bad; i++)
+    {
+      wfm_field_t f;
+      memset (&f, 0xA5, sizeof f);
+      uint8_t    *owned = (uint8_t *)&f; /* a sentinel, never dereferenced */
+      const char *why   = NULL;
+      DP_CHECK_MSG (dp_wfm_field_parse (FIELD_BAD[i], &f, &owned, &why)
+                        == DP_ERR_INVALID,
+                    FIELD_BAD[i]);
+      DP_CHECK_MSG (why != NULL && why[0] != '\0', "a refusal names a cause");
+      DP_CHECK_MSG (owned == (uint8_t *)&f, "owned untouched on refusal");
+      DP_CHECK_MSG (((const uint8_t *)&f)[0] == 0xA5u,
+                    "the field is untouched on refusal");
+      DP_CHECK_MSG (dp_wfm_field_bits (FIELD_BAD[i], NULL, 0, NULL) == 0,
+                    "field_bits refuses what parse refuses");
+    }
+  {
+    const char *why = NULL;
+    (void)dp_wfm_field_parse ("data:1024", &(wfm_field_t){ 0 },
+                              &(uint8_t *){ NULL }, &why);
+    DP_CHECK_MSG (why && strstr (why, "data source") != NULL,
+                  "data:LEN is refused by name, not as a typo");
+  }
+
+  /* The render's own refusals. */
+  {
+    uint8_t     b[8];
+    const char *why = NULL;
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:31:5", b, sizeof b, &why) == 0
+                      && why != NULL,
+                  "an output too small is refused, with a cause");
+    /* doppler#1602: a register with no m-sequence polynomial. Sizing checks
+       the grammar only, so it passes; the render must refuse rather than
+       emit the seed and then zeros. */
+    uint8_t big[12];
+    why = NULL;
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1", NULL, 0, NULL) == 12,
+                  "sizing a 1-bit register is grammar-only");
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1", big, sizeof big, &why) == 0
+                      && why != NULL,
+                  "a PN register with no m-sequence is refused at render "
+                  "(doppler#1602)");
+    wfm_seq_t s = { .kind = WFM_SEQ_PN, .len = 12, .reg_bits = 1 };
+    DP_CHECK_MSG (dp_wfm_seq_bits (&s, big, sizeof big) == 0,
+                  "dp_wfm_seq_bits refuses a register with no m-sequence "
+                  "(doppler#1602)");
+    s.poly = 0x1; /* an explicit polynomial is the caller's to choose */
+    DP_CHECK_MSG (dp_wfm_seq_bits (&s, big, sizeof big) == 12,
+                  "an explicit poly on a 1-bit register still renders");
+  }
+
+  /* A derived field has no text form and no source. */
+  {
+    wfm_field_t d;
+    memset (&d, 0, sizeof d);
+    d.derived_by = 1;
+    d.bits       = 16;
+    char s[8]    = "x";
+    DP_CHECK_MSG (dp_wfm_field_format (&d, s, sizeof s) == 0 && s[0] == 'x',
+                  "a derived field is not formatted");
+    DP_CHECK_MSG (dp_wfm_field_render (&d, (uint8_t *)s, sizeof s) == 0,
+                  "a derived field is not rendered");
+  }
+
+  /* A buffer too small for the text writes nothing, and says how much. */
+  {
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    DP_REQUIRE (dp_wfm_field_parse ("pn:1023:10*4", &f, &owned, NULL)
+                == DP_OK);
+    char s[4] = "abc";
+    DP_CHECK_MSG (dp_wfm_field_format (&f, s, sizeof s)
+                          == strlen ("pn:1023:10*4")
+                      && strcmp (s, "abc") == 0,
+                  "a short buffer is left untouched");
+  }
   return 0;
 }
 
@@ -1432,6 +1695,8 @@ main (void)
   if (test_seq_bits ())
     return 1;
   if (test_dsss_nchips ())
+    return 1;
+  if (test_field_text ())
     return 1;
   DP_TEST_END ("wfm_frame");
 }

@@ -5,12 +5,16 @@
  */
 #include "doppler/wfm/wfm_frame.h"
 
+#include "doppler/clib_common.h"  /* DP_OK / DP_ERR_*       */
+#include "doppler/cvt/cvt_core.h" /* dp_hex_to_bin          */
 #include "doppler/dp_crc16.h"
 #include "doppler/dp_interleave.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/pn/pn_core.h"
 #include "doppler/wfm/wfm_dsp.h" /* the DSSS burst assembler declared there */
+#include "doppler/wfm/wfm_names.h" /* SEQ_KIND_NAMES, LFSR_NAMES */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -44,10 +48,15 @@ dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
            resolution dp_wfm_synth_create() applies to its --pn-poly. Passing 0
            through to dp_pn_create() instead means a register with NO FEEDBACK:
            it shifts the seed out and emits zeros for ever, which is a
-           constant field that still looks like a field. */
-        dp_pn_state_t *p
-            = dp_pn_create (s->poly ? s->poly : pn_mls_poly (s->reg_bits),
-                            s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
+           constant field that still looks like a field. And a register
+           with NO m-sequence to resolve to (width 1: pn_mls_poly is 0) is
+           refused rather than built as that same no-feedback register --
+           doppler#1602, the frame-field twin of #1590's source fix. */
+        const uint64_t poly = s->poly ? s->poly : pn_mls_poly (s->reg_bits);
+        if (poly == 0)
+          return 0;
+        dp_pn_state_t *p = dp_pn_create (poly, s->seed ? s->seed : 1u,
+                                         s->reg_bits, s->lfsr);
         if (!p)
           return 0;
         size_t n = dp_pn_generate (p, s->len, out, cap);
@@ -88,6 +97,444 @@ supplied_bits (const wfm_field_t *f)
     return 0;
   const size_t reps = f->reps ? f->reps : 1u;
   return f->seq.len * reps;
+}
+
+size_t
+dp_wfm_field_render (const wfm_field_t *f, uint8_t *out, size_t max_out)
+{
+  if (!f || !out || f->derived_by)
+    return 0;
+  const size_t n = supplied_bits (f);
+  if (n == 0 || n > max_out)
+    return 0;
+  /* One period, then repeated verbatim -- see the declaration for why a
+     repetition may never draw fresh bits. */
+  if (dp_wfm_seq_bits (&f->seq, out, f->seq.len) != f->seq.len)
+    return 0;
+  for (size_t r = 1; r * f->seq.len < n; r++)
+    memcpy (out + r * f->seq.len, out, f->seq.len);
+  return n;
+}
+
+/* ── the Field text form ──────────────────────────────────────────────
+ *
+ * docs/design/frame-description.md §F.1. The grammar is small on purpose,
+ * and every rule below is a REFUSAL rather than a repair: the reader this
+ * replaces skipped empty fields (`pn::10` read as `pn:10`) and let strtoull
+ * stop wherever it liked (`12abc` read as 12, `010` as 8), so a typo became
+ * a different, valid-looking field.
+ */
+
+/* A token: a run of the spec, not NUL-terminated. */
+typedef struct
+{
+  const char *p;
+  size_t      n;
+} field_tok_t;
+
+/* Tokens a generated field can have: gold's seven is the most. One more is
+   allowed so that an eighth is SEEN and refused, rather than truncated. */
+#define FIELD_MAX_TOKENS 8u
+
+static int
+field_refuse (const char **why, const char *msg)
+{
+  if (why)
+    *why = msg;
+  return DP_ERR_INVALID;
+}
+
+static int
+tok_is (field_tok_t t, const char *word)
+{
+  const size_t n = strlen (word);
+  return t.n == n && memcmp (t.p, word, n) == 0;
+}
+
+/* A number consumed WHOLE: decimal, or hex after `0x`. A sign, a space, a
+   trailing letter, an empty token and a bare `0x` are all refused, and a
+   leading 0 is decimal -- there is no octal to mistype into. */
+static int
+tok_u64 (field_tok_t t, uint64_t *v)
+{
+  unsigned base = 10u;
+  size_t   i    = 0;
+  if (t.n >= 2 && t.p[0] == '0' && (t.p[1] == 'x' || t.p[1] == 'X'))
+    {
+      base = 16u;
+      i    = 2;
+    }
+  if (i == t.n)
+    return -1;
+  uint64_t acc = 0;
+  for (; i < t.n; i++)
+    {
+      const int c = (unsigned char)t.p[i];
+      unsigned  d;
+      if (c >= '0' && c <= '9')
+        d = (unsigned)(c - '0');
+      else if (base == 16u && c >= 'a' && c <= 'f')
+        d = (unsigned)(c - 'a' + 10);
+      else if (base == 16u && c >= 'A' && c <= 'F')
+        d = (unsigned)(c - 'A' + 10);
+      else
+        return -1;
+      if (acc > (UINT64_MAX - d) / base)
+        return -1; /* overflow is a refusal, not a wrap */
+      acc = acc * base + d;
+    }
+  *v = acc;
+  return 0;
+}
+
+/* Split [p, p + n) at every ':'. An EMPTY token is kept, so the caller sees
+   it and refuses it. Returns the count, or FIELD_MAX_TOKENS + 1 when there
+   are more than the table holds. */
+static size_t
+split_colons (const char *p, size_t n, field_tok_t *t)
+{
+  size_t      k     = 0;
+  const char *start = p;
+  for (size_t i = 0; i <= n; i++)
+    if (i == n || p[i] == ':')
+      {
+        if (k == FIELD_MAX_TOKENS)
+          return FIELD_MAX_TOKENS + 1u;
+        t[k].p = start;
+        t[k].n = (size_t)(p + i - start);
+        k++;
+        start = p + i + 1;
+      }
+  return k;
+}
+
+/* A literal: `0`/`1` digits, or `0x` hex through cvt's dp_hex_to_bin -- the
+   one hex expansion, not a second one. */
+static int
+parse_literal (const char *p, size_t n, wfm_seq_t *q, uint8_t **owned,
+               const char **why)
+{
+  const int    is_hex = n >= 2 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X');
+  const size_t digits = is_hex ? n - 2u : n;
+  if (digits == 0)
+    return field_refuse (why, "a hex literal needs a digit after 0x");
+  if (is_hex && digits > SIZE_MAX / 4u)
+    return field_refuse (why, "a hex literal is too long");
+  const size_t nbits = is_hex ? 4u * digits : digits;
+
+  /* Both buffers are at most 4x the spec, which is already in memory, so
+     only a genuine OOM fails them -- the abort-on-OOM helpers, not an unwind
+     path no test can reach. */
+  uint8_t *b = dp_xmalloc (nbits);
+  if (is_hex)
+    {
+      char *text = dp_xmalloc (digits + 1u);
+      memcpy (text, p + 2, digits);
+      text[digits]     = '\0';
+      const size_t got = dp_hex_to_bin (text, b, nbits, DP_BITORDER_BIG);
+      free (text);
+      if (got != nbits)
+        {
+          free (b);
+          return field_refuse (why, "a hex literal holds a character other "
+                                    "than 0-9, a-f or A-F");
+        }
+    }
+  else
+    for (size_t i = 0; i < n; i++)
+      {
+        if (p[i] != '0' && p[i] != '1')
+          {
+            free (b);
+            return field_refuse (why, "a binary literal holds a character "
+                                      "other than 0 or 1");
+          }
+        b[i] = (uint8_t)(p[i] - '0');
+      }
+
+  memset (q, 0, sizeof *q);
+  q->kind = WFM_SEQ_LITERAL;
+  q->len  = nbits;
+  q->bits = b;
+  *owned  = b;
+  return DP_OK;
+}
+
+/* A generated field: `pn:`, `gold:` or `dotted:`, the kind word being the
+   same SEQ_KIND_NAMES spelling the JSON scene and the CLI use. */
+static int
+parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
+{
+  field_tok_t  t[FIELD_MAX_TOKENS];
+  const size_t k = split_colons (p, n, t);
+
+  if (tok_is (t[0], "data"))
+    return field_refuse (why, "data:LEN names a payload drawn from a data "
+                              "source, which is not supported yet");
+  int kind = -1;
+  for (int i = 0; i < 4; i++)
+    if (tok_is (t[0], SEQ_KIND_NAMES[i]))
+      kind = i;
+  if (kind == WFM_SEQ_LITERAL)
+    return field_refuse (why, "a literal is written as its bits (0101) or "
+                              "in hex (0x5), not as literal:");
+  if (kind < 0)
+    return field_refuse (why, "a field is 0/1 bits, 0x hex, or starts "
+                              "with pn:, gold: or dotted:");
+  if (k > FIELD_MAX_TOKENS)
+    return field_refuse (why, "too many ':' fields");
+
+  wfm_seq_t s;
+  memset (&s, 0, sizeof s);
+  s.kind = (wfm_seq_kind_t)kind;
+
+  uint64_t len;
+  if (k < 2 || tok_u64 (t[1], &len) != 0 || len == 0 || len > SIZE_MAX)
+    return field_refuse (why, "LEN, the output length in bits, must be a "
+                              "number > 0");
+  s.len = (size_t)len;
+
+  if (s.kind == WFM_SEQ_DOTTED)
+    {
+      if (k != 2)
+        return field_refuse (why, "dotted takes only a length: dotted:LEN");
+      *q = s;
+      return DP_OK;
+    }
+
+  uint64_t reg;
+  if (k < 3 || tok_u64 (t[2], &reg) != 0 || reg == 0 || reg > 64)
+    return field_refuse (why, "REG, the register width, must be 1..64");
+  s.reg_bits = (uint32_t)reg;
+
+  if (s.kind == WFM_SEQ_GOLD)
+    {
+      uint64_t v[4];
+      if (k != 7)
+        return field_refuse (
+            why, "gold is gold:LEN:REG:TAPS_A:SEED_A:TAPS_B:SEED_B");
+      for (size_t i = 0; i < 4; i++)
+        if (tok_u64 (t[3 + i], &v[i]) != 0)
+          return field_refuse (why, "a gold tap or seed is not a number");
+      s.taps_a = v[0];
+      s.seed_a = v[1];
+      s.taps_b = v[2];
+      s.seed_b = v[3];
+      *q       = s;
+      return DP_OK;
+    }
+
+  /* pn: after REG, up to two numbers (SEED, POLY), then optionally the
+     register form as a WORD -- last, so it can never be mistaken for a
+     number's position. */
+  size_t nums = k - 3u;
+  if (nums > 0)
+    for (int i = 0; i < 2; i++)
+      if (tok_is (t[k - 1u], LFSR_NAMES[i]))
+        {
+          s.lfsr = i;
+          nums--;
+          break;
+        }
+  if (nums > 2)
+    return field_refuse (why, "pn is pn:LEN:REG[:SEED[:POLY]][:galois|"
+                              "fibonacci]");
+  if (nums > 0 && tok_u64 (t[3], &s.seed) != 0)
+    return field_refuse (why, "a pn SEED is not a number");
+  if (nums > 1 && tok_u64 (t[4], &s.poly) != 0)
+    return field_refuse (why, "a pn POLY is not a number");
+  *q = s;
+  return DP_OK;
+}
+
+int
+dp_wfm_field_parse (const char *spec, wfm_field_t *field, uint8_t **owned,
+                    const char **why)
+{
+  if (why)
+    *why = NULL;
+  if (!field || !owned)
+    return field_refuse (why, "no field to parse into");
+  if (!spec || !*spec)
+    return field_refuse (why, "an empty field");
+
+  /* `*REPS`, at most once, and last. */
+  size_t      n    = strlen (spec);
+  uint64_t    reps = 1;
+  const char *star = strchr (spec, '*');
+  if (star)
+    {
+      field_tok_t r = { star + 1, n - (size_t)(star + 1 - spec) };
+      if (tok_u64 (r, &reps) != 0 || reps == 0)
+        return field_refuse (why, "*REPS must be a number >= 1");
+      n = (size_t)(star - spec);
+      if (n == 0)
+        return field_refuse (why, "*REPS repeats nothing");
+    }
+
+  wfm_seq_t q;
+  uint8_t  *mine = NULL;
+  int       rc;
+  if (spec[0] == '0' || spec[0] == '1')
+    rc = parse_literal (spec, n, &q, &mine, why);
+  else
+    rc = parse_generated (spec, n, &q, why);
+  if (rc != DP_OK)
+    return rc;
+
+  if (reps > SIZE_MAX / q.len)
+    {
+      free (mine);
+      return field_refuse (why, "LEN * REPS is too many bits");
+    }
+
+  memset (field, 0, sizeof *field);
+  field->seq  = q;
+  field->reps = (size_t)reps;
+  *owned      = mine;
+  return DP_OK;
+}
+
+/* Append @p s at @p *at when @p dst is non-NULL; count it either way. */
+static void
+put (char *dst, size_t *at, const char *s)
+{
+  const size_t n = strlen (s);
+  if (dst)
+    memcpy (dst + *at, s, n);
+  *at += n;
+}
+
+/* A register parameter: 0 as `0`, anything else in hex -- taps and seeds
+   are written in hex in the literature, and the record already does. */
+static void
+put_hex (char *dst, size_t *at, uint64_t v)
+{
+  char b[24];
+  if (v == 0)
+    (void)snprintf (b, sizeof b, ":0");
+  else
+    (void)snprintf (b, sizeof b, ":0x%llx", (unsigned long long)v);
+  put (dst, at, b);
+}
+
+/* The canonical text of @p f at @p dst (NULL: count only). Returns the
+   length, or 0 when @p f has no text form. */
+static size_t
+field_emit (const wfm_field_t *f, char *dst)
+{
+  const wfm_seq_t *s  = &f->seq;
+  size_t           at = 0;
+  char             b[48];
+
+  switch (s->kind)
+    {
+    case WFM_SEQ_LITERAL:
+      if (!s->bits)
+        return 0;
+      if (s->len % 4u == 0)
+        {
+          put (dst, &at, "0x");
+          /* dp_bin_to_hex writes its NUL too; room for it is ensured by the
+             caller, which sizes with a NULL pass first. */
+          if (dst
+              && dp_bin_to_hex (s->bits, s->len, (uint8_t *)dst + at,
+                                s->len / 4u + 1u, DP_BITORDER_BIG)
+                     != s->len / 4u)
+            return 0;
+          at += s->len / 4u;
+        }
+      else
+        {
+          for (size_t i = 0; i < s->len; i++)
+            if (dst)
+              dst[at + i] = (char)('0' + (s->bits[i] & 1u));
+          at += s->len;
+        }
+      break;
+
+    case WFM_SEQ_DOTTED:
+      (void)snprintf (b, sizeof b, "dotted:%zu", s->len);
+      put (dst, &at, b);
+      break;
+
+    case WFM_SEQ_PN:
+      (void)snprintf (b, sizeof b, "pn:%zu:%u", s->len, s->reg_bits);
+      put (dst, &at, b);
+      /* A zero seed or poly is the default and is omitted -- unless the
+         poly follows it, which needs the seed's position filled. */
+      if (s->seed || s->poly)
+        put_hex (dst, &at, s->seed);
+      if (s->poly)
+        put_hex (dst, &at, s->poly);
+      if (s->lfsr == 1)
+        {
+          put (dst, &at, ":");
+          put (dst, &at, LFSR_NAMES[1]);
+        }
+      break;
+
+    case WFM_SEQ_GOLD:
+      (void)snprintf (b, sizeof b, "gold:%zu:%u", s->len, s->reg_bits);
+      put (dst, &at, b);
+      put_hex (dst, &at, s->taps_a);
+      put_hex (dst, &at, s->seed_a);
+      put_hex (dst, &at, s->taps_b);
+      put_hex (dst, &at, s->seed_b);
+      break;
+
+    default:
+      return 0;
+    }
+
+  if (f->reps > 1)
+    {
+      (void)snprintf (b, sizeof b, "*%zu", f->reps);
+      put (dst, &at, b);
+    }
+  return at;
+}
+
+size_t
+dp_wfm_field_format (const wfm_field_t *field, char *buf, size_t cap)
+{
+  if (!field || field->derived_by || field->seq.len == 0)
+    return 0;
+  const size_t n = field_emit (field, NULL);
+  if (n == 0 || !buf || n + 1u > cap)
+    return n;
+  if (field_emit (field, buf) != n)
+    return 0;
+  buf[n] = '\0';
+  return n;
+}
+
+size_t
+dp_wfm_field_bits (const char *spec, uint8_t *out, size_t max_out,
+                   const char **why)
+{
+  wfm_field_t f;
+  uint8_t    *owned = NULL;
+  if (dp_wfm_field_parse (spec, &f, &owned, why) != DP_OK)
+    return 0;
+  size_t n = supplied_bits (&f);
+  if (out)
+    {
+      if (n > max_out)
+        {
+          (void)field_refuse (why, "the output is smaller than the field");
+          n = 0;
+        }
+      else if (dp_wfm_field_render (&f, out, max_out) != n)
+        {
+          (void)field_refuse (why, "the generator refused its parameters "
+                                   "(a register these numbers do not "
+                                   "describe)");
+          n = 0;
+        }
+    }
+  free (owned);
+  return n;
 }
 
 int
@@ -470,15 +917,8 @@ dp_wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
       if (n == 0 || f->derived_by)
         continue; /* absent, or written by the stage that derives it */
 
-      /* One period, then repeated verbatim — a generated field must repeat
-         the SAME bits, not draw fresh ones, or it is not a periodic
-         acquisition target and coherent integration across reps is void. */
-      if (dp_wfm_seq_bits (&f->seq, frame + l.field_off[i], f->seq.len)
-          != f->seq.len)
+      if (dp_wfm_field_render (f, frame + l.field_off[i], n) != n)
         return 0;
-      for (size_t r = 1; r * f->seq.len < n; r++)
-        memcpy (frame + l.field_off[i] + r * f->seq.len,
-                frame + l.field_off[i], f->seq.len);
     }
 
   for (unsigned s = 0; s < d->n_stages; s++)

@@ -501,6 +501,144 @@ extern "C"
   size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
 
   /**
+   * @brief Write a field's bits: its sequence once, then repeated. Returns
+   * the count.
+   *
+   * The one place a field's REPETITION is expanded, used by
+   * @ref dp_wfm_frame_assemble for every caller-supplied field and by
+   * @ref dp_wfm_field_bits for a field given as text. A repetition is the
+   * same bits again, never fresh ones: a generated field that drew new bits
+   * per repetition would not be a periodic acquisition target, and coherent
+   * integration across the repetitions would be void.
+   *
+   * @param f        the field; `reps == 0` means one. A DERIVED field has no
+   *                 source of its own and is refused.
+   * @param out      receives `f->seq.len * reps` bits, one per byte.
+   * @param max_out  capacity of @p out in bits.
+   * @return bits written, or 0 if the field is derived, empty, larger than
+   *         @p max_out, or its sequence cannot be built. On 0, @p out may
+   *         have been partly written.
+   */
+  size_t dp_wfm_field_render (const wfm_field_t *f, uint8_t *out,
+                              size_t max_out);
+
+  /**
+   * @brief Read one Field from its text form.
+   *
+   * The ONLY reader of the grammar every text face shares — the CLI, a JSON
+   * scene and `field_bits()` in Python all call this, and none restates it
+   * (docs/design/frame-description.md §F.1):
+   *
+   * @code{.unparsed}
+   * field  := seq [ "*" REPS ]                       REPS >= 1
+   * seq    := bin | hex | pn | gold | dotted
+   * bin    := [01]+
+   * hex    := "0x" [0-9A-Fa-f]+                       4 bits a digit, MSB first
+   * pn     := "pn:" LEN ":" REG [":" SEED [":" POLY]] [":" LFSR]
+   * gold   := "gold:" LEN ":" REG ":" TA ":" SA ":" TB ":" SB
+   * dotted := "dotted:" LEN
+   * LFSR   := "galois" | "fibonacci"                  default galois
+   * @endcode
+   *
+   * A number is decimal, or hex after `0x`, and must be consumed WHOLE:
+   * `12abc`, `-1`, ` 5` and an empty field (`pn::10`) are refused, not read
+   * as far as they go. A leading `0` is decimal, never octal. `LEN` is the
+   * output length and must be > 0; `REG` is the register width, 1..64.
+   * A `0`/`1` string with any other character in it is refused rather than
+   * filtered, because a typo that quietly shortens a sync word syncs to
+   * nothing and fails nowhere.
+   *
+   * `data:LEN` is part of the grammar but not yet of this parser: it names a
+   * payload drawn from a data source, which a `wfm_seq_t` cannot carry
+   * until that source exists. It is refused, by name.
+   *
+   * @param spec   NUL-terminated text.
+   * @param field  receives the field: `name` empty, `derived_by` 0, `reps`
+   *               as written (1 when absent). Untouched on refusal.
+   * @param owned  receives the allocated bit array of a LITERAL field, which
+   *               `field->seq.bits` points into and the caller must `free()`;
+   *               NULL for a generated kind. Untouched on refusal.
+   * @param why    optional; receives a STATIC sentence naming the cause of a
+   *               refusal, NULL on success. Never freed.
+   * @return @ref DP_OK, or @ref DP_ERR_INVALID for text outside the
+   *         grammar. A literal's storage is at most four times the spec's
+   *         length, so it is allocated with the abort-on-OOM helper.
+   *
+   * @code
+   * wfm_field_t f;
+   * uint8_t    *owned;
+   * const char *why;
+   * if (dp_wfm_field_parse ("pn:31:5*4", &f, &owned, &why) != DP_OK)
+   *   fprintf (stderr, "error: %s\n", why);
+   * // f.seq.kind == WFM_SEQ_PN, f.seq.len == 31, f.seq.reg_bits == 5,
+   * // f.reps == 4, owned == NULL
+   * @endcode
+   */
+  int dp_wfm_field_parse (const char *spec, wfm_field_t *field,
+                          uint8_t **owned, const char **why);
+
+  /**
+   * @brief Write a field's canonical text form. Returns its length.
+   *
+   * The ONLY writer of the grammar, and the inverse of
+   * @ref dp_wfm_field_parse. Parsing what this writes gives back the same
+   * field, for every field it accepts. The form is canonical, so two equal
+   * fields print identically:
+   *
+   * - a literal prints as `0x…` hex when its length is a multiple of 4, and
+   *   as `0`/`1` digits otherwise;
+   * - a generator prints only what differs from its defaults — a zero seed
+   *   or poly is omitted unless a later number needs its position, and
+   *   `galois` is never written;
+   * - `*REPS` appears only when `reps > 1`.
+   *
+   * @param field  the field. A derived field has no text form and is
+   *               refused.
+   * @param buf    receives the text and a NUL; may be NULL to size it.
+   * @param cap    capacity of @p buf in bytes, NUL included.
+   * @return the length WITHOUT the NUL, whether or not it fit — so a
+   *         `buf == NULL` call sizes the buffer — or 0 for a field with no
+   *         text form. Nothing is written unless all of it fits.
+   *
+   * @code
+   * char s[64];
+   * dp_wfm_field_format (&f, s, sizeof s);   // "pn:31:5*4"
+   * @endcode
+   */
+  size_t dp_wfm_field_format (const wfm_field_t *field, char *buf,
+                              size_t cap);
+
+  /**
+   * @brief A Field's bits, straight from its text form. Returns the count.
+   *
+   * @ref dp_wfm_field_parse, then @ref dp_wfm_field_render, with the
+   * literal's storage released before returning — the one door from the text
+   * a person writes to the bits every object takes. With @p out NULL it only
+   * SIZES: it returns how many bits the field is, which is what a caller
+   * allocates before the second call.
+   *
+   * @param spec     NUL-terminated text, as @ref dp_wfm_field_parse reads it.
+   * @param out      receives the bits, one per byte; NULL to size.
+   * @param max_out  capacity of @p out in bits; ignored when @p out is NULL.
+   * @param why      optional; as @ref dp_wfm_field_parse, plus the render's
+   *                 own refusals (a generator that rejects its parameters,
+   *                 a buffer too small).
+   * @return the field's length in bits (repetitions included), or 0 on a
+   *         refusal. A Field is never empty, so 0 is unambiguous. **A sizing
+   *         call checks the grammar only**: a generator that rejects its own
+   *         parameters (a Gold pair that is not a preferred pair) is found by
+   *         the call that renders, which then returns 0.
+   *
+   * @code
+   * uint8_t b[124];
+   * size_t  n = dp_wfm_field_bits ("pn:31:5*4", NULL, 0, NULL);   // 124
+   * dp_wfm_field_bits ("pn:31:5*4", b, n, NULL);
+   * @endcode
+   */
+  size_t dp_wfm_field_bits (const char *spec, uint8_t *out, size_t max_out,
+                            const char **why);
+
+  /**
    * @brief Materialise a description: run every field, then every stage.
    *
    * The general form of @ref dp_wfm_frame_bits. Fields are written in wire

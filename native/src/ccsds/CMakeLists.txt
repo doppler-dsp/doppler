@@ -24,6 +24,7 @@ target_link_libraries(ccsds PRIVATE
     conv_core
     rs_core
     wfm_frame_core
+    cvt_core
     pn_core
     gold_core
     Python3::NumPy)
@@ -47,6 +48,7 @@ target_link_libraries(test_ccsds_core PRIVATE
     conv_core
     rs_core
     wfm_frame_core
+    cvt_core
     pn_core
     gold_core
     ${JM_MATH_LIBRARY})
@@ -62,6 +64,7 @@ target_link_libraries(bench_ccsds_core PRIVATE
     conv_core
     rs_core
     wfm_frame_core
+    cvt_core
     pn_core
     gold_core
     ${JM_MATH_LIBRARY})

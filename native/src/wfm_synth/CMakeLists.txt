@@ -25,6 +25,7 @@ target_link_libraries(wfm_synth_core PUBLIC
     resamp_core
     wfm_dsp_core
     wfm_frame_core
+    cvt_core
     gold_core)
 
 add_executable(test_wfm_synth_core
@@ -38,6 +39,7 @@ target_link_libraries(test_wfm_synth_core
     resamp_core
     wfm_dsp_core
     wfm_frame_core
+    cvt_core
     gold_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_wfm_synth_core
@@ -55,6 +57,7 @@ target_link_libraries(bench_wfm_synth_core
     resamp_core
     wfm_dsp_core
     wfm_frame_core
+    cvt_core
     gold_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

@@ -21,6 +21,7 @@ _Synth component API._ [More...](#detailed-description)
 * `#include <math.h>`
 * `#include "doppler/gold/gold_core.h"`
 * `#include "doppler/mpsk/mpsk_core.h"`
+* `#include "doppler/cvt/cvt_core.h"`
 
 
 

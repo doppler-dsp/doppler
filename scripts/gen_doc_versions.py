@@ -79,11 +79,17 @@ def current_version() -> str:
 
 
 def pages() -> list[Path]:
-    """Every hand-owned markdown page that could carry a region.
+    """Every hand-owned page or example build file that could carry a region.
 
     Cheap to scan and self-maintaining: adding a region to a new page
     needs no edit here. Build trees are skipped -- an example's build
     directory can contain copies of its own README.
+
+    An example project's ``CMakeLists.txt`` is scanned too: its
+    ``find_package(doppler X.Y.Z REQUIRED)`` floor sits in a region (the
+    markers inside ``#`` comments), so each release re-stamps it and a
+    stale install fails at configure instead of at its first ``#include``
+    (doppler#1583).
     """
     out: list[Path] = [ROOT / "README.md"]
     for root in ("docs", "examples", "example-projects"):
@@ -91,7 +97,33 @@ def pages() -> list[Path]:
             if "build" in page.relative_to(ROOT).parts:
                 continue
             out.append(page)
+    out.extend(example_cmakelists())
     return [p for p in out if p.is_file()]
+
+
+def example_cmakelists() -> list[Path]:
+    """Every example project's own CMakeLists.txt, build trees skipped."""
+    return [
+        p
+        for p in sorted((ROOT / "example-projects").rglob("CMakeLists.txt"))
+        if "build" not in p.relative_to(ROOT).parts
+    ]
+
+
+# An example's `find_package(doppler ...)`. It must sit in a region: a floor
+# typed by hand rots, and no floor at all is how a stale 0.56.0 install was
+# accepted and failed later as a missing header (doppler#1583).
+FIND_DOPPLER = re.compile(r"find_package\s*\(\s*doppler\b")
+
+
+def unfloored(text: str) -> list[int]:
+    """Line numbers of `find_package(doppler` calls outside every region."""
+    spans = [m.span() for m in REGION.finditer(text)]
+    return [
+        text.count("\n", 0, m.start()) + 1
+        for m in FIND_DOPPLER.finditer(text)
+        if not any(a <= m.start() < b for a, b in spans)
+    ]
 
 
 def render(text: str, version: str) -> str:
@@ -128,6 +160,25 @@ def main() -> int:
             written.append(str(rel))
         else:
             stale.append(str(rel))
+
+    bare = [
+        f"{p.relative_to(ROOT)}:{line}"
+        for p in example_cmakelists()
+        for line in unfloored(p.read_text(encoding="utf-8"))
+    ]
+    if bare:
+        print(
+            "gen_doc_versions: an example's find_package(doppler) is outside "
+            "a doc-version region, so it accepts any installed version "
+            "(doppler#1583). Wrap it:\n"
+            f"  # {START}\n"
+            f"  find_package(doppler {version} REQUIRED)\n"
+            f"  # {END}",
+            file=sys.stderr,
+        )
+        for where in bare:
+            print(f"  {where}", file=sys.stderr)
+        return 1
 
     if args.check and stale:
         print(

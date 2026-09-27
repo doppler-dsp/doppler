@@ -49,7 +49,9 @@ if(DEFINED DOPPLER_BUILD_DIR)
             INTERFACE_LINK_LIBRARIES      "m")
     endif()
 else()
-    find_package(doppler REQUIRED)
+    # <!-- doc-version:start -->
+    find_package(doppler 0.58.0 REQUIRED)
+    # <!-- doc-version:end -->
 endif()
 
 add_executable(awgn_example main.c)

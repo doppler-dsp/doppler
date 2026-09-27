@@ -29,6 +29,7 @@ churned every existing capture" is the other way this goes wrong.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -179,7 +180,7 @@ def test_the_flag_path_records_it_too(tmp_path, mode):
             "--seed-advance",
             mode,
             "--output",
-            "/dev/null",
+            os.devnull,
             "--record",
             str(record),
         ],
@@ -209,7 +210,7 @@ def test_a_default_run_records_no_seed_advance_key(tmp_path):
             "--count",
             str(PERIOD),
             "--output",
-            "/dev/null",
+            os.devnull,
             "--record",
             str(record),
         ],

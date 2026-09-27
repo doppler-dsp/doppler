@@ -28,6 +28,7 @@ import numpy as np
 import pytest
 
 import doppler.wfm as w
+from doppler.tests._platform import posix_only
 
 # --------------------------------------------------------------------------- #
 # Coverage registry — every name in __all__ must appear here, mapped to the
@@ -847,6 +848,7 @@ class TestCLI:
         assert len(r.stdout) == 256 * 8  # 256 cf32 samples on stdout
         assert not (tmp_path / "-").exists()
 
+    @posix_only("drives a pseudo-terminal (os.openpty)")
     def test_output_dash_to_tty_refused(self, tmp_path) -> None:
         # The explicit '-' form must trip the same "refuse binary IQ to a
         # terminal" guard as omitting --output. Give wfmgen a pty as stdout so

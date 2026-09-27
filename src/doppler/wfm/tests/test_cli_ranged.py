@@ -11,6 +11,7 @@ produce a finite run, and round-trip the range into the record.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -28,10 +29,10 @@ def _bin() -> str:
 
 
 def _record(tmp_path: Path, *flags: str) -> dict:
-    """Run wfmgen with *flags* + ``--output /dev/null --record FILE``."""
+    """Run wfmgen with *flags* + ``--output os.devnull --record FILE``."""
     rec = tmp_path / "record.json"
     p = subprocess.run(
-        [_bin(), *flags, "--output", "/dev/null", "--record", str(rec)],
+        [_bin(), *flags, "--output", os.devnull, "--record", str(rec)],
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()

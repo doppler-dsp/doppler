@@ -15,6 +15,7 @@ Run::
 import os
 import shutil
 import stat
+import subprocess
 import sys
 
 # The binary CMake copies next to this package (see native/src/wfmcompose/
@@ -69,5 +70,11 @@ def main() -> int:
             "data; a source/editable install must build it first "
             "(cmake -B build -DBUILD_PYTHON=ON && cmake --build build)."
         )
+    if sys.platform == "win32":
+        # Windows has no exec: CPython's os.execv spawns the target and exits
+        # this process at once, so the caller would see a 0 exit status while
+        # the real wfmgen ran on, orphaned beyond terminate()'s reach. Run it
+        # as a child instead and hand its exit status back.
+        return subprocess.call([binary, *sys.argv[1:]])
     # os.execv replaces this process; it does not return on success.
     os.execv(binary, [binary, *sys.argv[1:]])

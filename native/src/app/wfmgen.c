@@ -752,6 +752,25 @@ seq_both_spellings (const char *gen_flag)
   return 2;
 }
 
+/* The next ':'-separated field of *cursor, NUL-terminated in place, or NULL
+   when none is left. The same contract as strtok_r (s, ":", &save) (empty
+   fields are skipped, so "pn::10" reads as pn:10), spelled out here because
+   strtok_r is POSIX and the Windows CRT does not provide it. */
+static char *
+next_colon_field (char **cursor)
+{
+  char *p = *cursor + strspn (*cursor, ":");
+  if (*p == '\0')
+    {
+      *cursor = p;
+      return NULL;
+    }
+  char *end = p + strcspn (p, ":");
+  *cursor   = *end ? end + 1 : end;
+  *end      = '\0';
+  return p;
+}
+
 static int
 parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
 {
@@ -770,9 +789,9 @@ parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
     }
   memcpy (buf, v, strlen (v) + 1);
 
-  char *save = NULL;
-  char *tok  = strtok_r (buf, ":", &save);
-  int   kind = tok ? lookup (tok, SEQ_KIND_NAMES, 4) : -1;
+  char *cursor = buf;
+  char *tok    = next_colon_field (&cursor);
+  int   kind   = tok ? lookup (tok, SEQ_KIND_NAMES, 4) : -1;
   /* `literal` is rejected, not merely unmatched: a literal sequence is what
      --sync and --sync-hex are for, and a second way to spell it is how two
      spellings of one thing start disagreeing. */
@@ -787,7 +806,7 @@ parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
 
   unsigned long long field[7] = { 0 };
   size_t             n        = 0;
-  while ((tok = strtok_r (NULL, ":", &save)) != NULL && n < 7)
+  while ((tok = next_colon_field (&cursor)) != NULL && n < 7)
     field[n++] = strtoull (tok, NULL, 0);
 
   memset (q, 0, sizeof *q);

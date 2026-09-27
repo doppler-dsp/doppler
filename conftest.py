@@ -20,9 +20,15 @@ _IGNORE = pathlib.Path(__file__).parent / "docs" / ".doc-snippet-ignore"
 # extension exists only where stream_core_obj does, which is if(NOT WIN32)
 # in native/src/stream/CMakeLists.txt. Ignored at COLLECTION, because
 # collecting doppler/stream/tests/* imports the doppler.stream package
-# first, and no marker inside a test module runs before that.
+# first, and no marker inside a test module runs before that. specan's
+# NATS-source tests monkeypatch doppler.stream itself, so they go too.
 collect_ignore_glob = (
-    ["src/doppler/stream/*"] if sys.platform == "win32" else []
+    [
+        "src/doppler/stream/*",
+        "src/doppler/specan/tests/test_nats_sources.py",
+    ]
+    if sys.platform == "win32"
+    else []
 )
 
 _NATS_ADDR = ("127.0.0.1", 4222)

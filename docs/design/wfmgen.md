@@ -213,7 +213,7 @@ path, because it is doppler's own and needs no new jm mechanism.
 
 **What the manifest declares, per field,** beyond what jm reads: the CLI
 spelling (`cli`, `cli_aliases`), the JSON key where it differs from the field
-name (`asm`, `conv`), the help text and metavar, which faces expose it, and
+name, the help text and metavar, which faces expose it, and
 `kind = "field"` for the four that take a
 [Field](frame-description.md#f-the-field-one-text-form). Options that exist
 only on the command line (`--output`, `--realtime`, `--record`, …) are

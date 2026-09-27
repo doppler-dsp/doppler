@@ -1290,16 +1290,27 @@ if(NOT WIN32)
         VERSION   ${PROJECT_VERSION}
         SOVERSION ${DOPPLER_SOVERSION})
     set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
-    # tlm_sink.c (in stream_core_obj) calls dp_tlm_read from the core's
-    # telemetry_core — the component's one cross-lib symbol. Linking the
-    # core keeps the SHARED form self-consistent (Mach-O's ld64 rejects
-    # undefined dylib symbols); consumers already link both per the
-    # contract above. The STATIC archive needs nothing (archives don't
-    # resolve at ar time).
+    # The stream component calls INTO the core: tlm_sink.c's dp_tlm_read
+    # (telemetry_core) and stream_core.c's dp_stream_interrupt* wrappers
+    # over the core's interrupt API (dp_interrupt, dp_resume, ...). The
+    # SHARED form links the core PRIVATE, which keeps it self-consistent
+    # (Mach-O's ld64 rejects undefined dylib symbols).
+    #
+    # The STATIC form must say the same thing, as an interface dependency:
+    # an archive resolves nothing at ar time, so the CONSUMER's link line
+    # has to put libdoppler.a AFTER libdoppler_stream.a. "Consumers link
+    # both" is not enough -- linking doppler::doppler-static first and
+    # doppler::stream-static second leaves every one of those symbols
+    # undefined (found by example-projects/uno-q's static build). Declaring
+    # the core here exports it in doppler::stream-static's
+    # INTERFACE_LINK_LIBRARIES, so CMake orders it for every consumer.
+    # pkg-config already had this right: `Requires: doppler` puts -ldoppler
+    # after -ldoppler_stream.
     target_link_libraries(doppler_stream
         PRIVATE nats_vendor_static doppler_lib
         PUBLIC  Threads::Threads ${DP_MATH_LIBRARY})
-    target_link_libraries(doppler_stream_static PUBLIC Threads::Threads ${DP_MATH_LIBRARY})
+    target_link_libraries(doppler_stream_static
+        PUBLIC doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
     # The static form can't embed an archive through link rules, so fold the
     # vendored libnats.a objects in (the ar-merge the core used to use) —
     # leaving the static consumer with `-ldoppler_stream` + the C runtime,

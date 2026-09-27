@@ -92,6 +92,9 @@ class SpecanEngine:
         cfg = self._cfg
         self._fs_in = fs_in
         self._center_freq = center_freq
+        # Nobody chose a display center: show the source where it is.
+        if not cfg.center_pinned:
+            cfg.center = center_freq
 
         # Resolve the natural parameters (auto span/rbw) the same way the
         # config has always defined them, then hand concrete values to C.
@@ -186,8 +189,22 @@ class SpecanEngine:
     def retune(self, center: float) -> None:
         """Shift the display center frequency (cheap C-level LO retune)."""
         self._cfg.center = center
+        self._cfg.center_pinned = True  # a retune is a choice; keep it
         if self._specan is not None:
             self._specan.retune(center)
+
+    def follow_source(self) -> None:
+        """Unpin the display center: show the source where it is tuned.
+
+        The inverse of retune(). A UI's "reset" calls this when the center it
+        started with was never chosen -- restoring that start-up value would
+        instead pin the display to whatever it held before the first frame
+        (0.0 for a live source).
+        """
+        self._cfg.center_pinned = False
+        self._cfg.center = self._center_freq
+        if self._specan is not None:
+            self._specan.retune(self._center_freq)
 
     def zoom(self, span: float) -> None:
         """Change the display span (triggers full chain rebuild)."""

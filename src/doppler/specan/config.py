@@ -38,7 +38,13 @@ class SpecanConfig:
         Input sample rate in Hz.  Required for file sources;
         auto-discovered from packet headers for socket sources.
     center : float
-        Center frequency in Hz.
+        Display center frequency in Hz. Until it is set -- by `center` in
+        the yml, ``--center``, or a retune in either UI -- the display
+        follows the source's own center (a stream header's
+        ``center_freq``), so a live RF capture is on screen at its real
+        frequency without being told what it already says.
+    center_pinned : bool
+        Whether `center` was set rather than adopted from the source.
     span : float
         Display bandwidth in Hz.  0 means auto (full input bandwidth).
     rbw : float
@@ -61,6 +67,7 @@ class SpecanConfig:
     address: str = ""
     fs: float = 0.0
     center: float = 0.0
+    center_pinned: bool = False
     span: float = 0.0
     rbw: float = 0.0
     level: float = 0.0
@@ -176,5 +183,11 @@ def load_config(
     for key, val in cli_overrides.items():
         if val is not None and hasattr(cfg, key):
             setattr(cfg, key, val)
+
+    # A center someone gave, in the yml or on the command line, is theirs;
+    # one nobody gave follows the source (see SpecanConfig.center).
+    cfg.center_pinned = (
+        "center" in data or cli_overrides.get("center") is not None
+    )
 
     return cfg

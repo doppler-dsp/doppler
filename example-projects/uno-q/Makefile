@@ -13,6 +13,8 @@ PREFIX           ?=
 # an Arduino UNO Q, where -march=native resolves to a generic ARMv8 target
 # (see README.md). doppler itself is tuned when IT is built, not here.
 CPU_FLAGS        ?=
+# The broker `nats-check` talks to: a JetStream one (`nats-server -js`).
+NATS_URL         ?= nats://127.0.0.1:4222
 
 CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
 ifneq ($(strip $(PREFIX)),)
@@ -22,7 +24,7 @@ ifneq ($(strip $(CPU_FLAGS)),)
 CMAKE_FLAGS += "-DCMAKE_C_FLAGS=$(CPU_FLAGS)"
 endif
 
-.PHONY: all build run clean help
+.PHONY: all build run nats-check clean help
 .DEFAULT_GOAL := build
 
 all: build
@@ -46,6 +48,12 @@ run: build
 	    echo "note: no static target — this install ships no doppler::doppler-static"; \
 	fi
 
+# The NATS transport end to end, both patterns (see nats-check.sh). Needs a
+# JetStream broker at NATS_URL and a doppler install with its stream
+# component; either missing is a failure, never a skip.
+nats-check: build
+	./nats-check.sh $(BUILD_DIR) $(NATS_URL)
+
 clean:
 	rm -rf $(BUILD_DIR)
 
@@ -54,10 +62,12 @@ help:
 	@echo
 	@echo "  make build              configure and compile"
 	@echo "  make run                build, then self-test in both link modes"
+	@echo "  make nats-check         NATS transport, pub/sub + push/pull (needs a broker)"
 	@echo "  make clean              remove $(BUILD_DIR)/"
 	@echo
 	@echo "  PREFIX=<dir>            where doppler is installed"
 	@echo "  CPU_FLAGS=<flags>       e.g. -mcpu=cortex-a53"
+	@echo "  NATS_URL=<url>          default nats://127.0.0.1:4222"
 	@echo "  CMAKE_BUILD_TYPE=<t>    default Release"
 	@echo "  BUILD_DIR=<dir>         default build"
 	@echo

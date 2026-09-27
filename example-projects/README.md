@@ -31,12 +31,13 @@ install; `standalone` additionally takes `DOPPLER_BUILD_DIR=<dir>`.
 Each is built and run in CI, so a directory users are told to copy keeps
 building the way they will build it:
 
-| project           | gate                        | how                                                            |
-| ----------------- | --------------------------- | -------------------------------------------------------------- |
-| `consumer/`       | `make link-check`           | bare `cc` against `libdoppler.a` with `-lm -lpthread`          |
-| `standalone/`     | `make test-examples-c`      | `make -C example-projects/standalone run`                      |
-| `burst-pipeline/` | `make burst-pipeline-check` | `make -C example-projects/burst-pipeline run`, both link modes |
-| `uno-q/`          | `make uno-q-check`          | `make -C example-projects/uno-q run`, both link modes          |
+| project           | gate                        | how                                                                               |
+| ----------------- | --------------------------- | --------------------------------------------------------------------------------- |
+| `consumer/`       | `make link-check`           | bare `cc` against `libdoppler.a` with `-lm -lpthread`                             |
+| `standalone/`     | `make test-examples-c`      | `make -C example-projects/standalone run`                                         |
+| `burst-pipeline/` | `make burst-pipeline-check` | `make -C example-projects/burst-pipeline run`, both link modes                    |
+| `uno-q/`          | `make uno-q-check`          | `make -C example-projects/uno-q run`, both link modes                             |
+| `uno-q/` (NATS)   | `make uno-q-nats-check`     | `make -C example-projects/uno-q nats-check`: pub/sub + push/pull against a broker |
 
 The last three run the same `make` command this file tells you to use, so the
 documented path is the tested one — a gate that configured CMake its own way

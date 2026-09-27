@@ -642,7 +642,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 abi-check link-check installed-headers-check \
                 exported-link-check symbol-prefix-check \
                 test-asan test-ubsan test-tsan \
-                consumer-faces-check burst-pipeline-check uno-q-check glibc-gate \
+                consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
                 docker-examples ci-image-repin-check package-linux-smoke
 
@@ -1366,7 +1366,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-ubsan test-tsan test-asan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
-                burst-pipeline-check uno-q-check \
+                burst-pipeline-check uno-q-check uno-q-nats-check \
                 glibc-check glibc-gate glibc-image \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
@@ -3388,6 +3388,19 @@ uno-q-check: build ## Build+run example-projects/uno-q against an install prefix
 	 rc=$$?; rm -rf "$$t"; \
 	 if [ $$rc -eq 0 ]; then echo "uno-q-check: OK — both link modes"; fi; \
 	 exit $$rc
+
+# The uno-q NATS transport, both patterns, through the example's OWN
+# `make nats-check` against a scratch install: pub/sub delivers every frame
+# of the self-test scene once, and push/pull does too across a deliberate
+# consumer stall, each run held to the self-test's checks. Needs the
+# JetStream broker `make nats-up` starts; with none it FAILS -- a check that
+# could not run has not passed. CI runs it in the job that starts the broker.
+uno-q-nats-check: build ## Build+run example-projects/uno-q's NATS transport (needs make nats-up)
+	@t=$$(mktemp -d); \
+	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
+	 && $(MAKE) --no-print-directory -C example-projects/uno-q \
+	        BUILD_DIR="$$t/b" PREFIX="$$t/pfx" nats-check; \
+	 rc=$$?; rm -rf "$$t"; exit $$rc
 
 # The oldest glibc a released ARTIFACT may reference. Pure inspection, and only
 # meaningful against a build MADE on that glibc: pointed at a modern distro's

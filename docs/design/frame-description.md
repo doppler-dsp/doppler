@@ -324,13 +324,23 @@ that does not divide into `LEN`-bit chunks fills its last frame from
 and a receiver's frame length never changes. Without a declared fill the run
 is **refused**, naming the remainder: a pad nobody chose is data nobody sent.
 How many fill bits the last frame carries is recorded (`--record`, the SigMF
-metadata), because a receiver cannot otherwise know where the data stopped.
+metadata) as **truth for scoring**, not as a signal to the receiver.
 
 **A stream that runs dry sends idle frames.** Paced (`--realtime`), an
 underrun emits frames whose payload is the fill, so the carrier and the frame
 timing never break and a receiver stays locked; each is counted and reported.
 When the input *ends* — a closed pipe, not a pause — the last frame is padded
 by the rule above and the run ends cleanly.
+
+**A receiver is designed in the know, so the frame carries no signalling of
+its own.** A receiver is built against the description it expects: it knows
+the payload is `LEN` bits at a known offset, and that an idle frame's payload
+is the declared fill. If a link wants to say more in band — a length, a
+frame count, an idle flag — that is **a field at a known position**, declared
+in the description like any other, and the receiver reads bits `N:M` because
+it was designed to. The generator does not interpret it. A field whose
+*value* depends on the data (a per-frame length) would be a derived field and
+so a stage kind; none is added until a link needs one.
 
 **What a record can replay.** A finite source is replayed byte for byte: its
 bits (or its file and a hash of it) are in the record. A stream is not — the
@@ -640,11 +650,6 @@ it is measured:
     golden — rare enough that quoting is cheap, common enough that a separate
     key would be a second spelling of one field. Revisit if a user trips on
     it.
-- **How a receiver tells an idle frame from a data frame, and where the
-    data stopped.** Both are recorded out of band (§F.5). In band, each needs
-    a field that says so — CCSDS spends a virtual-channel ID and a first-
-    header pointer on exactly this — and which field, if any, is general is
-    not yet known.
 - **What `--repeat` means over a data source.** Replaying a finite burst is
     the natural reading; re-reading a stream is not possible. Decided when
     §F.5 is built.

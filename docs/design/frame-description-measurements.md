@@ -125,6 +125,13 @@ wrong. Three corrections followed, each from the owner, in this order:
     DSSS), and the fixed-layout CLI field flags for the common frame — which
     build a description, not a second representation.
 
+1. **A receiver is designed in the know.** The draft listed "how a receiver
+    tells an idle frame from data, and where the data stopped" as an unknown
+    needing a general in-band mechanism. It needs none: a receiver is built
+    against the description it expects, so a length or idle marker is a field
+    at a known position (`N:M`) and the generator does not interpret it. The
+    unknown was deleted rather than answered.
+
 ______________________________________________________________________
 
 ## C. The CCSDS sites

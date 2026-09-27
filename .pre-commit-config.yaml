@@ -229,6 +229,13 @@ repos:
         language: system
         pass_filenames: false
 
+      # A `cmake -P` script declares its own policy level (#1578).
+      - id: cmake-script-policy
+        name: cmake -P scripts declare cmake_minimum_required
+        entry: make -s lint-cmake-script-policy
+        language: system
+        pass_filenames: false
+
       # A waveform name table's ORDER is the C enum value, so a second copy
       # maps a flag to the wrong waveform rather than failing to compile.
       # Fires on every file, not just C: the manifest's [[enum]] blocks are

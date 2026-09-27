@@ -126,7 +126,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                retired-names ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
-               version-literals text-encoding
+               version-literals text-encoding cmake-script-policy
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -320,6 +320,12 @@ lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting som
 # five of them the NAME a C test prints, which no compiler can notice. The
 # list is data, added by the commit that retires a name.
 LINT_retired-names = $(UV) run python scripts/check_retired_names.py
+
+# A `cmake -P` script inherits no policies: without its own
+# cmake_minimum_required every policy is OLD, which CMake 4 hides and the CMake
+# CI runs does not (#1578: IN_LIST failed every Linux build). Plain python3:
+# the script imports nothing outside the standard library.
+LINT_cmake-script-policy = python3 scripts/check_cmake_script_policy.py
 
 # A header's example block is compiled by NOTHING. `docs/**` fences are built
 # -Werror against libdoppler.a; a header's is rendered by doxygen, published
@@ -640,7 +646,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-all test-sweep test-stubs test-api-docs test-snippets \
                 test-rust \
                 abi-check link-check installed-headers-check \
-                exported-link-check symbol-prefix-check \
+                exported-link-check symbol-prefix-check vendored-collision-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
@@ -1377,6 +1383,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 bench-coverage-check kwarg-parity-check issues \
                 doc-sections-check \
                 installed-headers-check exported-link-check symbol-prefix-check \
+                vendored-collision-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
                 container-mount-check \
@@ -3321,6 +3328,25 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 # itself rather than with the docs. pthread joined the line when rs.c moved
 # to `pthread_once`; on glibc >= 2.34 it is folded into libc and omitting it
 # still links, which is exactly why a gate that names it is worth having.
+# A consumer with its OWN cJSON / nats.c links doppler statically, and doppler
+# keeps its own copies (#1565). The archives embed both; before their symbols
+# were respelled dp__v_* this failed at the consumer's link -- `multiple
+# definition of 'cJSON_Parse'` -- which is exactly what it did when sabotaged
+# by reversing the rename on copies of the two archives. POSIX-only, like
+# libdoppler_stream (#1575).
+vendored-collision-check: build ## A consumer with its own cJSON/nats.c still links doppler statically
+	@t=$$(mktemp -d); \
+	 if cc tests/install/vendored-collision/app.c -Inative/inc \
+	       -I$(BUILD_DIR)/native/inc $(BUILD_DIR)/libdoppler_stream.a \
+	       $(BUILD_DIR)/libdoppler.a -lm -lpthread -o "$$t/vc" \
+	    && "$$t/vc"; then \
+	     rm -rf "$$t"; \
+	 else \
+	     echo "vendored-collision-check: FAIL -- a consumer's own cJSON or" \
+	          "nats.c collides with doppler's (see output above)"; \
+	     rm -rf "$$t"; exit 1; \
+	 fi
+
 link-check: ## Smoke-test that a downstream links libdoppler.a with -lm -lpthread
 	@t=$$(mktemp -d); \
 	 if cc example-projects/consumer/main.c -Inative/inc -I$(BUILD_DIR)/native/inc \

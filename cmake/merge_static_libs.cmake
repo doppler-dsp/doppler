@@ -15,6 +15,9 @@
 #   AR      — the `ar` to use (CMAKE_AR). Required on non-Apple hosts.
 #   RANLIB  — the `ranlib` to use (CMAKE_RANLIB). Required on non-Apple hosts.
 
+# A `cmake -P` script sets no policies of its own; this is the project's floor.
+cmake_minimum_required(VERSION 3.16)
+
 if(NOT DEST OR NOT SRC)
     message(FATAL_ERROR "merge_static_libs: DEST and SRC are required")
 endif()

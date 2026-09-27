@@ -268,6 +268,27 @@ add_library(doppler_lib SHARED native/src/doppler_lib.c
     $<TARGET_OBJECTS:dp_interrupt_obj>)
 add_library(doppler_lib_static STATIC native/src/doppler_lib.c
     $<TARGET_OBJECTS:dp_interrupt_obj>)
+# The vendored code libdoppler.a embeds (cJSON, pffft, pocketfft) is respelled
+# dp__v_* after the archive is built (#1565): a consumer that links its own
+# cJSON would otherwise fail at its link on duplicate definitions. GNU objcopy
+# where the toolchain has one; llvm-objcopy otherwise (macOS has neither by
+# default -- prefix_vendored.cmake then warns and leaves the archive as is).
+if(CMAKE_OBJCOPY)
+    set(DP_SYMBOL_OBJCOPY "${CMAKE_OBJCOPY}")
+else()
+    find_program(DP_SYMBOL_OBJCOPY NAMES llvm-objcopy)
+endif()
+if(NOT WIN32)
+    add_custom_command(TARGET doppler_lib_static POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DARCHIVE=$<TARGET_FILE:doppler_lib_static>
+            -DCOMPILE_DB=${CMAKE_BINARY_DIR}/compile_commands.json
+            -DNM=${CMAKE_NM} -DAR=${CMAKE_AR} -DRANLIB=${CMAKE_RANLIB}
+            -DOBJCOPY=${DP_SYMBOL_OBJCOPY}
+            -P ${CMAKE_SOURCE_DIR}/cmake/prefix_vendored.cmake
+        COMMENT "Respelling vendored symbols dp__v_* in libdoppler.a"
+        VERBATIM)
+endif()
 foreach(_t doppler_lib doppler_lib_static)
     target_include_directories(${_t} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
@@ -1325,6 +1346,17 @@ if(NOT WIN32)
             -DRANLIB=${CMAKE_RANLIB}
             -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
         COMMENT "Folding libnats.a into libdoppler_stream.a (self-contained)"
+        VERBATIM)
+    # After the fold: nats.c's symbols move to dp__v_* (#1565), so a program
+    # that links its own nats.c alongside doppler_stream still links.
+    add_custom_command(TARGET doppler_stream_static POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DARCHIVE=$<TARGET_FILE:doppler_stream_static>
+            -DVENDOR_LIB=${_NATS_LIB}
+            -DNM=${CMAKE_NM} -DAR=${CMAKE_AR} -DRANLIB=${CMAKE_RANLIB}
+            -DOBJCOPY=${DP_SYMBOL_OBJCOPY}
+            -P ${CMAKE_SOURCE_DIR}/cmake/prefix_vendored.cmake
+        COMMENT "Respelling nats.c's symbols dp__v_* in libdoppler_stream.a"
         VERBATIM)
 endif()
 

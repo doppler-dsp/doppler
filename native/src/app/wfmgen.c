@@ -22,7 +22,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h> /* isatty, fileno (the UCRT's POSIX names) */
+#else
 #include <unistd.h> /* isatty */
+#endif
 
 #include "doppler/dp_interrupt.h"
 #include "doppler/timing/timing_core.h"

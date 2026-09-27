@@ -23,9 +23,10 @@
  */
 
 #include "doppler/dp_interrupt.h"
+#include "doppler/dp_thread.h"
+#include "doppler/timing/timing_core.h"
 #include "doppler/wfm/wfmgen.h"
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -40,20 +41,18 @@
 
 /* Stamped the instant the stop is requested, so the latency measured is
    request-to-return and not the run length subtracted from a total. */
-static struct timespec t_request;
+static uint64_t t_request; /* dp_mono_ns() */
 
-static void *
-stopper (void *arg)
+DP_THREAD_FN (stopper, arg)
 {
   (void)arg;
-  struct timespec nap = { RUN_MS / 1000, (RUN_MS % 1000) * 1000L * 1000L };
-  nanosleep (&nap, NULL);
+  dp_thread_sleep_us ((unsigned)RUN_MS * 1000u);
 
   printf ("  stopping it with dp_interrupt()\n");
   fflush (stdout);
-  clock_gettime (CLOCK_MONOTONIC, &t_request);
+  t_request = dp_mono_ns ();
   dp_interrupt ();
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
@@ -67,8 +66,8 @@ main (void)
      known state. */
   dp_resume ();
 
-  pthread_t th;
-  if (pthread_create (&th, NULL, stopper, NULL) != 0)
+  dp_thread_t th;
+  if (dp_thread_create (&th, stopper, NULL) != 0)
     {
       fprintf (stderr, "cannot start the stopper thread\n");
       return 1;
@@ -78,13 +77,12 @@ main (void)
      whole run. That is the demanding case for a stop -- the loop is busy
      generating rather than idling in a wait, so a stop that is prompt here
      is prompt anywhere. */
-  char           *args[] = { (char *)"wfmgen", (char *)"--continuous",
-                             (char *)"--output", (char *)OUT_PATH, NULL };
-  int             rc     = dp_doppler_wfmgen (4, args);
-  struct timespec t_returned;
-  clock_gettime (CLOCK_MONOTONIC, &t_returned);
+  char    *args[]     = { (char *)"wfmgen", (char *)"--continuous",
+                          (char *)"--output", (char *)OUT_PATH, NULL };
+  int      rc         = dp_doppler_wfmgen (4, args);
+  uint64_t t_returned = dp_mono_ns ();
 
-  pthread_join (th, NULL);
+  dp_thread_join (th);
   dp_resume ();
 
   if (rc != 0)
@@ -93,8 +91,7 @@ main (void)
       return 1;
     }
 
-  double stop_ms = (double)(t_returned.tv_sec - t_request.tv_sec) * 1e3
-                   + (double)(t_returned.tv_nsec - t_request.tv_nsec) / 1e6;
+  double stop_ms = (double)(t_returned - t_request) / 1e6;
 
   printf ("\nstopped cleanly, exit 0 — %.2f ms from the request to the "
           "generator returning,\nwith the CPU pegged the whole time\n",

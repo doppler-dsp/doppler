@@ -81,8 +81,9 @@ cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl `
 path. `doppler::doppler` links the DLL — put `$HOME\doppler\bin` on `PATH`,
 or copy `doppler.dll` beside your executable — and
 `doppler::doppler-static` links `doppler_static.lib` with no DLL at all. The
-NATS stream layer is not in the Windows build
-([#1364](https://github.com/doppler-dsp/doppler/issues/1364)).
+NATS stream layer is `doppler::stream` (`doppler_stream.dll`) and
+`doppler::stream-static` (`doppler_stream_static.lib`); a static consumer
+also links `ws2_32`, which the static target carries for you.
 
 #### With vcpkg
 
@@ -323,9 +324,9 @@ error via the weak `wfm_stream_sink_*` seam).
 
 The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 
-!!! note "POSIX only"
+!!! note "The NATS output"
 
-    `dp_doppler_wfmgen` is built on the same surface as the `wfmgen` binary,
-    including the NATS stream sink, which is not ported to Windows, so it is
-    not available there. See [Build from Source](source.md#windows) for what
-    the Windows build includes.
+    `dp_doppler_wfmgen` is the same generator as the `wfmgen` binary. Its
+    `--output nats://` needs the stream sink from `doppler::stream`: without
+    it, that one output reports that the sink is not linked, and every other
+    output works from the core library alone.

@@ -318,7 +318,7 @@ survives are all on [Python: Capture I/O](python-wfm-io.md). For SigMF, pair a
 `Writer(..., file_type="sigmf")` data file with `Composer(...).to_sigmf(...)`,
 which is the piece that knows the scene and can therefore annotate it.
 
-The `StreamSink` is POSIX-only. DSP helpers `rrc_taps(beta, sps, span)` and
+DSP helpers `rrc_taps(beta, sps, span)` and
 `dsss_spread(syms, code, sf)` expose the pulse-shaping and spreading
 primitives.
 

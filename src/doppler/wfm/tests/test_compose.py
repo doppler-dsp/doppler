@@ -13,13 +13,11 @@ import random
 import shutil
 import struct
 import subprocess
-import sys
 import time
 
 import numpy as np
 import pytest
 
-from doppler.tests._platform import WINDOWS
 from doppler.tests._repo import build_dir, exe
 from doppler.wfm import cli, dsss_spread, mls_poly, rrc_taps, write_blue_header
 from doppler.wfm.compose import (
@@ -27,6 +25,7 @@ from doppler.wfm.compose import (
     Reader,
     SampleClock,
     Segment,
+    StreamSink,
     Synth,
     Timeline,
     Writer,
@@ -36,13 +35,6 @@ from doppler.wfm.compose import (
     qpsk,
     tone,
 )
-
-# StreamSink exists only where [module.wfm_sink] platforms builds it: absent
-# on Windows by decision (doppler#1364). Imported only there, so a Linux or
-# macOS build that lost it still fails here, loudly; every test that uses it
-# carries `_needs_stream_sink`.
-if not WINDOWS:
-    from doppler.wfm.compose import StreamSink
 
 
 def _read_all(r):
@@ -77,12 +69,9 @@ def _wfmgen() -> str:
     return cli._runnable()
 
 
-# StreamSink and SampleClock are POSIX-only (the vendored nats.c client is
-# POSIX-only; the clock uses clock_gettime / nanosleep). The generated
-# handles are gated the same way the retired capsule bindings were (#ifndef
-# _WIN32), so key the skips off the platform now that those probe symbols
-# are gone (gh-178 review #7). StreamSink additionally needs a live
-# nats-server to actually move a frame.
+# StreamSink needs a live nats-server to actually move a frame. (It and
+# SampleClock build on every platform since #1575; the Windows skips they
+# used to carry are gone.)
 def _nats_available() -> bool:
     import socket
 
@@ -94,13 +83,8 @@ def _nats_available() -> bool:
 
 
 _needs_stream_sink = pytest.mark.skipif(
-    WINDOWS or not _nats_available(),
-    reason="StreamSink is not built on Windows (doppler#1364), or no "
-    "nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
-)
-_needs_clock = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="SampleClock not available on this platform",
+    not _nats_available(),
+    reason="no nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
 )
 
 
@@ -689,7 +673,6 @@ def test_seed_advance_all_varies_signal():
     assert np.array_equal(a[:127], base[:127])
 
 
-@_needs_clock
 def test_stream_realtime_paces():
     """stream(block, realtime=fs) paces blocks in C at fs (~ N/fs total)."""
     # 100 blocks of 1000 @ 1e5 = 1.0 s; paced at segments[0].fs.
@@ -703,7 +686,6 @@ def test_stream_realtime_paces():
     )
 
 
-@_needs_clock
 def test_stream_realtime_float_rate_overrides():
     """A faster realtime rate drains quickly."""
     c = Composer(type="tone", fs=1e5, num_samples=10_000)
@@ -712,7 +694,6 @@ def test_stream_realtime_float_rate_overrides():
     assert time.perf_counter() - t0 < 0.3
 
 
-@_needs_clock
 def test_sampleclock_paces_to_rate():
     """Pacing N samples at fs takes ~N/fs seconds, drift-free."""
     clk = SampleClock(fs=1e5)  # 100 kS/s
@@ -728,7 +709,6 @@ def test_sampleclock_paces_to_rate():
     # near 1.0 s.
 
 
-@_needs_clock
 def test_sampleclock_stamp_is_exact():
     """stamp() advances by exactly count/fs nanoseconds (pure arithmetic)."""
     clk = SampleClock(fs=1e6)  # 1 sample = 1000 ns
@@ -738,7 +718,6 @@ def test_sampleclock_stamp_is_exact():
     assert isinstance(clk.stamp(), int)
 
 
-@_needs_clock
 def test_sampleclock_underrun_counted():
     """An impossible rate makes every deadline past → counted underruns."""
     clk = SampleClock(fs=1e12)  # 1 TS/s: nothing can keep up
@@ -748,7 +727,6 @@ def test_sampleclock_underrun_counted():
     assert clk.max_lateness > 0.0
 
 
-@_needs_clock
 def test_sampleclock_resync_reanchors():
     """resync=True keeps the clock near 'now' instead of piling up lateness."""
     clk = SampleClock(fs=1e12, resync=True)
@@ -759,7 +737,6 @@ def test_sampleclock_resync_reanchors():
     assert clk.samples == 5000
 
 
-@_needs_clock
 def test_sampleclock_reset():
     clk = SampleClock(fs=1e12)
     clk.pace(1000)
@@ -768,7 +745,6 @@ def test_sampleclock_reset():
     assert clk.underruns == 0
 
 
-@_needs_clock
 def test_sampleclock_releases_gil():
     """pace() must release the GIL: a paced worker can't stall the main thread.
 
@@ -794,7 +770,6 @@ def test_sampleclock_releases_gil():
     assert ticks > 10, f"main thread only ran {ticks}x — GIL not released?"
 
 
-@_needs_clock
 def test_sampleclock_nonpositive_fs_is_safe():
     """gh-178 review #4: the generated binding no longer rejects fs <= 0 (the
     retired hand binding raised "fs must be > 0"). A non-positive fs would make

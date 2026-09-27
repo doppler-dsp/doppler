@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -179,21 +180,13 @@ def write_scene(path, *, snr_db=SNR_DB):
 
 
 def wfmgen_available():
-    """Path to the wfmgen CLI (PATH, else the CMake build tree), or None.
-
-    None, too, where the platform does not build wfmgen at all
-    (``doppler.wfm.cli.AVAILABLE``, doppler#1364): on Windows the ``wfmgen``
-    on PATH is only the console shim, which has no binary to hand off to.
-    """
-    from doppler.wfm import cli
-
-    if not cli.AVAILABLE:
-        return None
+    """Path to the wfmgen CLI (PATH, else the CMake build tree), or None."""
     exe = shutil.which("wfmgen")
     if exe:
         return exe
     root = repo_root(__file__)
-    for cand in root.glob("build*/**/wfmgen"):
+    name = "wfmgen.exe" if sys.platform == "win32" else "wfmgen"
+    for cand in root.glob(f"build*/**/{name}"):
         if cand.is_file():
             return str(cand)
     return None

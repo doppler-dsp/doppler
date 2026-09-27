@@ -48,10 +48,19 @@ enum
 int
 main (void)
 {
+  /* The platform's temp directory: %TEMP% on Windows, $TMPDIR or /tmp. */
+#ifdef _WIN32
+  const char *dir = getenv ("TEMP");
+#else
   const char *dir = getenv ("TMPDIR");
-  char        path[512];
+#endif
+  char path[512];
   snprintf (path, sizeof path, "%s/dp_ring_backed_demo.bin",
+#ifdef _WIN32
+            dir && *dir ? dir : ".");
+#else
             dir && *dir ? dir : "/tmp");
+#endif
   remove (path); /* a clean start, so `existed` below means something */
 
   /* ── first process: record, checkpoint, go away ───────────────────── */

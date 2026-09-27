@@ -755,8 +755,7 @@ with StreamSink("nats://127.0.0.1:4222/iq") as sink:
 The schedule is drift-free (deadlines come from the cumulative sample count, not
 summed sleeps); underruns are counted in `clk.underruns` / `clk.max_lateness`,
 and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
-`SampleClock` and `StreamSink` are POSIX-only. See the
-[Python API](python.md) for the full class surface.
+See the [Python API](python.md) for the full class surface.
 
 ______________________________________________________________________
 

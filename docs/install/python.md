@@ -13,14 +13,12 @@
     out of the box on Linux (x86_64, aarch64), macOS (arm64) and Windows
     (x64), for Python 3.9+.
 
-!!! note "What the Windows wheel leaves out"
+!!! note "Windows"
 
-    The NATS stream layer is not ported to Windows yet, so the Windows
-    wheel has no `doppler.stream`, no `doppler.wfm.StreamSink` and no
-    `wfmgen` command (it prints that it is not available on this platform).
-    Everything else, including `doppler.wfm.Composer`, `Writer` and
-    `Reader`, is the same as on Linux and macOS. Tracked on
-    [#1364](https://github.com/doppler-dsp/doppler/issues/1364).
+    The Windows wheel is the same package as on Linux and macOS, including
+    the NATS stream layer (`doppler.stream`, `doppler.wfm.StreamSink`) and
+    the `wfmgen` command, which it has carried since
+    [#1575](https://github.com/doppler-dsp/doppler/issues/1575).
 
 ## Verify
 

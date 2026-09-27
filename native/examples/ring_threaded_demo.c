@@ -25,7 +25,7 @@
  *   ./build/native/examples/ring_threaded_demo
  */
 #include "doppler/buffer/buffer.h"
-#include <pthread.h>
+#include "doppler/dp_thread.h"
 #include <stdio.h>
 
 #define CHECK(cond)                                                           \
@@ -45,8 +45,7 @@ enum
   TOTAL = 50 * FRAME + 300 /* not a whole number of frames, on purpose */
 };
 
-static void *
-producer (void *arg)
+DP_THREAD_FN (producer, arg)
 {
   dp_f32_t           *ring    = arg;
   static const size_t sizes[] = { 3000, 700, 4096, 129, 2048 };
@@ -71,7 +70,7 @@ producer (void *arg)
       sent += n;
     }
   dp_f32_close (ring); /* the consumer's only way to tell slow from done */
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
@@ -80,8 +79,8 @@ main (void)
   dp_f32_t *ring = dp_f32_create (8192);
   CHECK (ring != NULL);
 
-  pthread_t tid;
-  CHECK (pthread_create (&tid, NULL, producer, ring) == 0);
+  dp_thread_t tid;
+  CHECK (dp_thread_create (&tid, producer, ring) == 0);
 
   size_t got = 0;
   float *frame;
@@ -105,7 +104,7 @@ main (void)
     CHECK (rest[2 * k] == (float)(got + k));
   dp_f32_consume (ring, tail);
 
-  pthread_join (tid, NULL);
+  dp_thread_join (tid);
   CHECK (ring->dropped == 0);
   printf ("threaded: %d samples -> %zu frames of %d + a tail of %zu, "
           "0 refused, ended by close()\n",

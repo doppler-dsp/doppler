@@ -85,12 +85,11 @@ from .wfm_plan import (
 )
 from .wfm_reader import Reader  # noqa: F401  (re-export)
 
-# StreamSink is built only where [module.wfm_sink] platforms says (linux,
-# macos: it embeds the POSIX-only stream core, doppler#1364), and
-# doppler.wfm leaves it out elsewhere. Keyed on whether the extension was
-# BUILT, not on a second copy of that platform list. That is safe: where it
-# should exist, doppler/wfm/__init__.py's own guarded import runs first and
-# fails loudly on a broken build, so this cannot hide one.
+# StreamSink is built wherever the stream layer is (every shipped build since
+# #1575; a GNU-driver clang build on Windows leaves it out). Keyed on whether
+# the extension was BUILT, not on a second copy of that rule. That is safe:
+# doppler/wfm/__init__.py imports it unconditionally first and fails loudly
+# on a broken build, so this cannot hide one.
 if _find_spec(f"{__package__}.wfm_sink") is not None:
     from .wfm_sink import StreamSink  # noqa: F401  (re-export)
 from .wfm_writer import Writer  # noqa: F401  (re-export)

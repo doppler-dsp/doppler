@@ -1,23 +1,21 @@
 """Where the test suite meets a platform that lacks something.
 
 Every Windows skip in the Python suite comes from here, so the set is one
-file to read and one grep to count. There are exactly two kinds, and they
-cite different issues on purpose:
+file to read and one grep to count. There is one kind:
 
-- **Absent by decision** (doppler#1364). The ``wfmgen`` CLI and the
-  ``doppler.stream`` layer are POSIX-only builds, and the owner decided the
-  Windows package ships without them rather than waiting on a port. Their
-  markers key on the one declaration that says so, so a Linux or macOS
-  build that LOST either still fails instead of skipping.
-- **A test of something the platform does not have** (doppler#1465): a
-  POSIX signal, a tty, ``resource`` limits, a bash gate script. The code
-  under test is fine; the TEST's mechanism has no Windows counterpart. Each
-  says which, and doppler#1465 lists them so the set can only shrink.
+**A test of something the platform does not have** (doppler#1465): a POSIX
+signal, a tty, ``resource`` limits, a bash gate script. The code under test is
+fine; the TEST's mechanism has no Windows counterpart. Each says which, and
+doppler#1465 lists them so the set can only shrink.
+
+There used to be a second kind, "absent by decision" (doppler#1364): the
+``wfmgen`` CLI and ``doppler.stream`` were not built on Windows. Both are now
+(#1575 and its follow-up), so nothing is absent by decision any more.
 
 Examples
 --------
 >>> from doppler.tests import _platform
->>> _platform.requires_wfmgen.mark.name
+>>> _platform.posix_only("needs a tty").mark.name
 'skipif'
 """
 
@@ -28,52 +26,15 @@ import sys
 
 import pytest
 
-from doppler.wfm import cli as _wfmgen_cli
-
 __all__ = [
     "HARMLESS_SIGNAL",
-    "STREAM_MODULES",
     "WINDOWS",
     "posix_only",
-    "requires_stream",
-    "requires_wfmgen",
-    "skip_module_without_wfmgen",
+    "skip_module_posix_only",
     "skip_without_posix_shell",
 ]
 
 WINDOWS = sys.platform == "win32"
-
-#: The wfmgen CLI, keyed on ``doppler.wfm.cli.AVAILABLE`` -- the single
-#: Python statement of where CMake builds it.
-_WFMGEN_ABSENT = "the wfmgen CLI is not built on Windows (doppler#1364)"
-requires_wfmgen = pytest.mark.skipif(
-    not _wfmgen_cli.AVAILABLE, reason=_WFMGEN_ABSENT
-)
-
-
-def skip_module_without_wfmgen() -> None:
-    """Skip the calling test MODULE where wfmgen is not built.
-
-    For a module whose every test drives the CLI AND that imports something
-    only such a platform has (``pty``, for a terminal guard) -- the import
-    would fail at collection before any marker applied.
-    """
-    if not _wfmgen_cli.AVAILABLE:
-        pytest.skip(_WFMGEN_ABSENT, allow_module_level=True)
-
-
-#: ``doppler.stream`` (and ``wfm.StreamSink``): its extension is created
-#: only where ``stream_core_obj`` exists, which is ``if(NOT WIN32)`` in
-#: native/src/stream/CMakeLists.txt; ``[module.wfm_sink] platforms`` says
-#: the same for the sink.
-_STREAM_ABSENT = "doppler.stream (NATS) is not built on Windows (doppler#1364)"
-requires_stream = pytest.mark.skipif(WINDOWS, reason=_STREAM_ABSENT)
-
-#: The extension modules not built on Windows, by decision (doppler#1364):
-#: the stream layer, and the sink that embeds it ([module.wfm_sink]
-#: platforms). A test that walks every stub or extension marks these.
-STREAM_MODULES = frozenset({"doppler.stream.stream", "doppler.wfm.wfm_sink"})
-
 
 #: A signal a test may arm and raise without side effects. POSIX has
 #: SIGUSR1 for exactly this; on Windows doppler maps only SIGINT, SIGBREAK
@@ -130,4 +91,27 @@ def skip_without_posix_shell(what: str) -> None:
         pytest.skip(
             f"POSIX-only: execs {what}, a bash gate whose home is make lint "
             "on Linux CI (doppler#1465)"
+        )
+
+
+def skip_module_posix_only(why: str) -> None:
+    """Skip the calling test MODULE on Windows, for the reason ``why``.
+
+    :func:`posix_only` for a module that IMPORTS what Windows lacks (``pty``,
+    ``resource``): the import fails at collection, before any marker applies.
+    Call it above that import.
+
+    Parameters
+    ----------
+    why : str
+        The missing mechanism, as for :func:`posix_only`.
+
+    Examples
+    --------
+    >>> from doppler.tests._platform import skip_module_posix_only
+    >>> skip_module_posix_only("needs a pty") if not WINDOWS else None
+    """
+    if WINDOWS:
+        pytest.skip(
+            f"POSIX-only: {why} (doppler#1465)", allow_module_level=True
         )

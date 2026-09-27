@@ -28,9 +28,9 @@
 # Windows (Git Bash, from an MSVC developer environment): the asset is a .zip,
 # the consumer is built with Ninja + clang-cl (cl.exe cannot compile doppler's
 # headers), dependencies are read with llvm-objdump, and the shared consumer
-# finds doppler.dll through PATH. pkg-config and the stream layer are skipped
-# there, each saying why: pkg-config is not how a Windows build finds a
-# library, and the stream layer is not ported (#1364).
+# finds doppler.dll through PATH. pkg-config is skipped there (it is not how
+# a Windows build finds a library), and the stream consumer is built through
+# its CMake face only.
 set -euo pipefail
 
 REPO="doppler-dsp/doppler"
@@ -174,10 +174,17 @@ fi
 # output — the docs' "Compile it — three ways" snippets are --8<-- included
 # from the very script this runs.
 if [ "$WINDOWS" = 1 ]; then
-    echo ">> stream consumer: skipped — the stream layer is not built on"
-    echo "   Windows (#1364)"
+    # The stream layer ships in the Windows zip since #1575. CMake is the
+    # Windows face -- bare cc and pkg-config are how POSIX consumes a
+    # library -- so build the same consumer through find_package alone.
+    echo ">> stream consumer, CMake (doppler::stream)"
+    sbuild="$work/stream-build"
+    quiet cmake -S "$ROOT/tests/install/stream-consumer" -B "$sbuild" \
+        "${gen[@]}" -DCMAKE_PREFIX_PATH="$prefix"
+    quiet cmake --build "$sbuild"
+    run "$sbuild/app$EXE"
     echo ">> PASS: v$VERSION ($PLAT) consumable via find_package, static +"
-    echo "         shared (core), no libzmq anywhere."
+    echo "         shared (core and stream), no libzmq anywhere."
     exit 0
 fi
 echo ">> stream consumer, three ways"

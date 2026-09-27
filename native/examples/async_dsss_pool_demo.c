@@ -40,12 +40,12 @@
 #include <doppler/awgn/awgn_core.h>
 #include <doppler/dp_event_log/dp_event_log_core.h>
 #include <doppler/gold/gold_core.h>
+#include <doppler/timing/timing_core.h> /* dp_mono_ns: a per-run file key */
 #include <doppler/wfm_synth/wfm_synth_core.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 /* ── geometry: the operating point of design §6.1, at a demo's depth ─────
  * 1023 chips at 5 Mcps, two samples per chip, 2700 sym/s asynchronous BPSK
@@ -176,9 +176,17 @@ main (void)
 
   /* §4's log, attached before the first push so nothing is missed. It is
      borrowed: the pool never closes it. */
-  char path[64];
-  (void)snprintf (path, sizeof path, "/tmp/async_dsss_pool_demo_%d.events",
-                  (int)getpid ());
+  /* The platform's temp directory: %TEMP% on Windows, /tmp elsewhere. */
+#ifdef _WIN32
+  const char *tmp = getenv ("TEMP");
+  if (!tmp || !*tmp)
+    tmp = ".";
+#else
+  const char *tmp = "/tmp";
+#endif
+  char path[512];
+  (void)snprintf (path, sizeof path, "%s/async_dsss_pool_demo_%llu.events",
+                  tmp, (unsigned long long)dp_mono_ns ());
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
   CHECK (log != NULL && dp_async_dsss_pool_set_event_log (pool, log) == DP_OK,
          "the event log opens and attaches");

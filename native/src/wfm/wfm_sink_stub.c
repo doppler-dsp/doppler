@@ -21,7 +21,11 @@
 
 #include "doppler/wfm/wfm_sink.h"
 
-#if defined(__GNUC__)
+/* __clang__ too: clang-cl -- the shipped Windows compiler -- defines
+   _MSC_VER and not __GNUC__, but honours the attribute on COFF. Without it
+   these were STRONG there, a duplicate of libdoppler_stream's definitions
+   the moment both reached one static link (#1575 follow-up). */
+#if defined(__GNUC__) || defined(__clang__)
 #define WFM_STUB __attribute__ ((weak))
 #else
 #define WFM_STUB

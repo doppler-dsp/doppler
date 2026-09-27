@@ -34,6 +34,12 @@ DOCS = ROOT / "docs"
 EXCLUDED_PARTS = {"c-api", "archive"}
 EXCLUDED_RELPATHS = {"benchmarks.md"}
 
+# just-makeit's own version numbers are quoted all over the docs, and doppler's
+# version climbs into the same range (0.58.0 is both a doppler release and a jm
+# one). A number labelled as jm's is a fact about jm, not a hand-typed claim
+# about doppler, so a match immediately after this label is not a hit.
+OTHER_TOOL_LABEL = re.compile(r"\b(?:jm|just-makeit)(?:==|\s+v?)$")
+
 # Delimiters of a generated version region -- see scripts/gen_doc_versions.py.
 DOC_VERSION_START = "<!-- doc-version:start -->"
 DOC_VERSION_END = "<!-- doc-version:end -->"
@@ -49,11 +55,32 @@ def current_version() -> str:
     return m.group(1)
 
 
+def claims_version(line: str, version: str) -> bool:
+    """Whether *line* hand-types doppler's *version*.
+
+    \\b alone won't do: 0.33.4 must not match inside 10.33.40 or 0.33.40,
+    so both ends are guarded against adjacent digits and dots. A match
+    labelled as another tool's version (``jm 0.58.0``,
+    ``just-makeit==0.58.0``) is skipped; see OTHER_TOOL_LABEL.
+
+    >>> claims_version("doppler 0.58.0 adds a thing", "0.58.0")
+    True
+    >>> claims_version("a jm 0.58.0+ scaffold", "0.58.0")
+    False
+    >>> claims_version("pin just-makeit==0.58.0", "0.58.0")
+    False
+    >>> claims_version("see 10.58.01", "0.58.0")
+    False
+    """
+    needle = re.compile(rf"(?<![0-9.]){re.escape(version)}(?![0-9.])")
+    return any(
+        not OTHER_TOOL_LABEL.search(line[: m.start()])
+        for m in needle.finditer(line)
+    )
+
+
 def main() -> int:
     version = current_version()
-    # \b alone won't do: 0.33.4 must not match inside 10.33.40 or
-    # 0.33.40. Guard both ends against adjacent digits and dots.
-    needle = re.compile(rf"(?<![0-9.]){re.escape(version)}(?![0-9.])")
 
     pages = [ROOT / "README.md"]
     for page in sorted(DOCS.rglob("*.md")):
@@ -96,7 +123,7 @@ def main() -> int:
                 continue
             if generated:
                 continue
-            if needle.search(line):
+            if claims_version(line, version):
                 rel = page.relative_to(ROOT)
                 hits.append(f"  {rel}:{lineno}: {line.strip()}")
 

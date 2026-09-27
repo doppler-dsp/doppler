@@ -205,6 +205,11 @@ jobs:
       # name, and only the consumer's link notices. Ratcheted (#1565).
       run: make symbol-prefix-check
 
+    - name: Verify a consumer's own cJSON / nats.c links beside doppler
+      # doppler embeds both; their symbols are respelled dp__v_* so a
+      # program bringing its own copy neither collides nor hijacks (#1565).
+      run: make vendored-collision-check
+
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
       # Installs the fresh build to a scratch prefix and builds the
       # core+stream consumer via all three documented faces, asserting

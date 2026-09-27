@@ -6,6 +6,9 @@
 # passes -- a failing run keeps them for inspection. `make test` fails on any
 # file a passing test leaves behind (scripts/check_test_leaks.py).
 
+# A `cmake -P` script sets no policies of its own; this is the project's floor.
+cmake_minimum_required(VERSION 3.16)
+
 function(sweep_scratch)
     file(GLOB _wg LIST_DIRECTORIES false "wg[._]*")
     if(_wg)

@@ -8,6 +8,9 @@
 #
 #   cmake -DMANIFEST=build/install_manifest.txt -DPREFIX=<dir> \
 #         -P cmake/check_installed_headers.cmake
+# A `cmake -P` script sets no policies of its own; this is the project's floor.
+cmake_minimum_required(VERSION 3.16)
+
 if(NOT EXISTS "${MANIFEST}")
   message(FATAL_ERROR "no install manifest at ${MANIFEST}: install first")
 endif()

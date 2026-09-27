@@ -16,7 +16,9 @@ project(doppler_burst_pipeline C)
 # comes with the imported target; a downstream that does maths of its own
 # links libm for that reason, exactly as it would without doppler. Dropped
 # here it fails at the link, not at runtime, which is how you find out.
-find_package(doppler REQUIRED)
+# <!-- doc-version:start -->
+find_package(doppler 0.58.0 REQUIRED)
+# <!-- doc-version:end -->
 
 add_executable(burst_pipeline_shared main.c)
 target_link_libraries(burst_pipeline_shared PRIVATE doppler::doppler m)

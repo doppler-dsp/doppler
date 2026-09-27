@@ -13,7 +13,9 @@ project(doppler_uno_q C)
 # `m` is on the link line because THIS program calls log10(), floorf() and
 # friends for its own arithmetic; doppler's own libm use comes with the
 # imported target.
-find_package(doppler REQUIRED)
+# <!-- doc-version:start -->
+find_package(doppler 0.58.0 REQUIRED)
+# <!-- doc-version:end -->
 
 add_executable(uno_q_shared main.c scene.c)
 target_link_libraries(uno_q_shared PRIVATE doppler::doppler m)

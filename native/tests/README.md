@@ -6,18 +6,19 @@ shared parts live in the `dp_*_test.h` family rather than in each file.
 
 ## The family
 
-| header            | owns                                                             |
-| ----------------- | ---------------------------------------------------------------- |
-| `dp_test.h`       | **assertions, the counters, the epilogue** — everything below    |
-| `dp_rng_test.h`   | **randomness**: the generator, the uniforms, the Gaussians       |
-| `dp_state_test.h` | the serialize → restore → reject round trip; every byte written  |
-| `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                    |
-| `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped          |
-| `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests            |
-| `dp_ber_test.h`   | error-rate measurement: settling, alignment, sampling, the CI    |
-| `dp_mf_test.h`    | matched-filter fixtures (RRC-BPSK on a carrier, EVM)             |
-| `dp_frame_test.h` | the named frame set — what a framed stimulus transmits           |
-| `dp_rx_test.h`    | **the receiver instrument**: one struct, one run, every receiver |
+| header            | owns                                                              |
+| ----------------- | ----------------------------------------------------------------- |
+| `dp_test.h`       | **assertions, the counters, the epilogue** — everything below     |
+| `dp_rng_test.h`   | **randomness**: the generator, the uniforms, the Gaussians        |
+| `dp_state_test.h` | the serialize → restore → reject round trip; every byte written   |
+| `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                     |
+| `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped           |
+| `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests             |
+| `dp_ber_test.h`   | error-rate measurement: settling, alignment, sampling, the CI     |
+| `dp_mf_test.h`    | matched-filter fixtures (RRC-BPSK on a carrier, EVM)              |
+| `dp_frame_test.h` | the named frame set — what a framed stimulus transmits            |
+| `dp_rx_test.h`    | **the receiver instrument**: one struct, one run, every receiver  |
+| `dp_nats_test.h`  | the live-broker fixture: reachable?, a unique subject, the settle |
 
 `dp_test.h` is the one every other member depends on. Include it first;
 include the others as the test needs them.

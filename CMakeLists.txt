@@ -382,6 +382,18 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # glibc >= 2.34 box linked it clean, pthread being folded into libc there.
 find_package(Threads REQUIRED)
 
+# The NATS stream layer (libdoppler_stream, doppler.stream, StreamSink) builds
+# wherever the vendored nats.c does. On Windows that is an MSVC-style
+# compiler: nats.c's own CMake adds `/W4 /wd4100 ...` for every WIN32 build,
+# which clang-cl accepts and the GNU `clang` driver reads as file names. So
+# clang-cl -- the binding, published Windows build -- gets the stream layer,
+# and GNU-driver clang on Windows (windows.yml's reference leg) does not (#1575).
+if(WIN32 AND NOT MSVC)
+    set(DP_WITH_STREAM OFF)
+else()
+    set(DP_WITH_STREAM ON)
+endif()
+
 # libm is a separate library on POSIX and part of the UCRT on Windows, where
 # a bare `m` resolves to nothing and the link dies on `could not open
 # 'm.lib'`. `find_library` answers WHETHER there is one; the link item is
@@ -1261,10 +1273,17 @@ add_test(NAME test_wfm_time COMMAND test_wfm_time)
 # libdoppler_stream tier and adds no C++ anywhere in the build.
 set(_NATS_SRC "${CMAKE_SOURCE_DIR}/vendor/nats.c")
 set(_NATS_BLD "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor")
-set(_NATS_LIB "${_NATS_BLD}/lib/libnats_static.a")
+# CMake's own static-library spelling: libnats_static.a on POSIX,
+# nats_static.lib under clang-cl/MSVC (#1575).
+set(_NATS_LIB "${_NATS_BLD}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}nats_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
 add_custom_command(OUTPUT "${_NATS_LIB}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_NATS_BLD}"
     COMMAND ${CMAKE_COMMAND} -B "${_NATS_BLD}" -S "${_NATS_SRC}"
+            # The PARENT's generator and compiler: CMake's default generator
+            # on Windows is Visual Studio (multi-config, lib/Release/, MSVC),
+            # not the Ninja + clang-cl doppler builds with (#1575).
+            -G "${CMAKE_GENERATOR}"
+            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             -DNATS_BUILD_WITH_TLS=OFF
@@ -1282,6 +1301,12 @@ set_target_properties(nats_vendor_static PROPERTIES
     IMPORTED_LOCATION             "${_NATS_LIB}"
     INTERFACE_INCLUDE_DIRECTORIES "${_NATS_SRC}/src")
 add_dependencies(nats_vendor_static libnats_vendor)
+# nats.c's own CMake names ws2_32 as its only extra library on Windows
+# (NATS_EXTRA_LIB, TLS off). On the imported target, every link of nats gets it.
+if(WIN32)
+    set_property(TARGET nats_vendor_static APPEND PROPERTY
+        INTERFACE_LINK_LIBRARIES ws2_32)
+endif()
 
 # ── Optional stream component (libdoppler_stream) ────────────────────────────
 # The networking layer is split OUT of the core so a consumer that doesn't
@@ -1291,10 +1316,11 @@ add_dependencies(nats_vendor_static libnats_vendor)
 # wfm_stream_sink_* definitions that satisfy the core's weak seam
 # (native/inc/doppler/wfm/wfm_sink.h), so a C consumer that wants `--output nats://`
 # (or the dp_pub_*/dp_sub_* wire layer) links `doppler::stream` alongside
-# `doppler::doppler[-static]`.  POSIX-only, like the vendored nats.c build.
+# `doppler::doppler[-static]`.
 # nats.c stays statically embedded — no runtime libnats.so in either the
 # shared or static form.  Pure C: this component carries no C++ runtime.
-if(NOT WIN32)
+# Every platform since #1575 (nats.c ships its own Windows port).
+if(TARGET stream_core_obj)
     add_library(doppler_stream        SHARED
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:wfm_sink_core>)
     add_library(doppler_stream_static STATIC
@@ -1305,6 +1331,13 @@ if(NOT WIN32)
             $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
             $<INSTALL_INTERFACE:include>)
     endforeach()
+    # The core's rule, for the core's reason: on Windows the DLL's import
+    # library and the static archive would both be doppler_stream.lib, and
+    # ninja refuses two rules for one path (see doppler_lib_static above).
+    if(WIN32)
+        set_target_properties(doppler_stream_static PROPERTIES
+                              OUTPUT_NAME doppler_stream_static)
+    endif()
     set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
     # Versioned with the core, for the same reason (see DOPPLER_SOVERSION).
     set_target_properties(doppler_stream PROPERTIES
@@ -1332,6 +1365,15 @@ if(NOT WIN32)
         PUBLIC  Threads::Threads ${DP_MATH_LIBRARY})
     target_link_libraries(doppler_stream_static
         PUBLIC doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
+    if(WIN32)
+        # nats.c's objects are folded INTO this archive (below), so its one
+        # system library is the consumer's to link: winsock (#1575).
+        target_link_libraries(doppler_stream_static PUBLIC ws2_32)
+        # A DLL exports nothing unless told to -- the same rule the core DLL
+        # follows (WINDOWS_EXPORT_ALL_SYMBOLS on doppler_lib).
+        set_target_properties(doppler_stream PROPERTIES
+            WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
     # The static form can't embed an archive through link rules, so fold the
     # vendored libnats.a objects in (the ar-merge the core used to use) —
     # leaving the static consumer with `-ldoppler_stream` + the C runtime,
@@ -1348,7 +1390,9 @@ if(NOT WIN32)
         COMMENT "Folding libnats.a into libdoppler_stream.a (self-contained)"
         VERBATIM)
     # After the fold: nats.c's symbols move to dp__v_* (#1565), so a program
-    # that links its own nats.c alongside doppler_stream still links.
+    # that links its own nats.c alongside doppler_stream still links. Not yet
+    # on Windows (COFF archives, #1577).
+    if(NOT WIN32)
     add_custom_command(TARGET doppler_stream_static POST_BUILD
         COMMAND ${CMAKE_COMMAND}
             -DARCHIVE=$<TARGET_FILE:doppler_stream_static>
@@ -1358,6 +1402,7 @@ if(NOT WIN32)
             -P ${CMAKE_SOURCE_DIR}/cmake/prefix_vendored.cmake
         COMMENT "Respelling nats.c's symbols dp__v_* in libdoppler_stream.a"
         VERBATIM)
+    endif()
 endif()
 
 add_subdirectory(native/examples)
@@ -1397,7 +1442,7 @@ install(TARGETS doppler_lib_static
 
 # Optional stream component → `doppler::stream` / `doppler::stream-static`.
 # Link it only if you need the dp_pub_*/dp_sub_*/etc. NATS wire layer.
-if(NOT WIN32)
+if(TARGET doppler_stream)
     install(TARGETS doppler_stream doppler_stream_static
         EXPORT doppler-targets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
@@ -1459,7 +1504,7 @@ string(REGEX REPLACE "[^/]+" ".." DOPPLER_PC_TO_PREFIX
 configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-if(NOT WIN32)
+if(TARGET doppler_stream)
     # One pkg-config name for the whole streaming link line:
     # `pkg-config --cflags --libs doppler_stream` (Requires: doppler).
     configure_file(cmake/doppler_stream.pc.in doppler_stream.pc @ONLY)

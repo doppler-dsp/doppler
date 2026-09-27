@@ -12,58 +12,34 @@
 #include "doppler/stream/tlm_sink.h"
 #include "dp_test.h"
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include "dp_nats_test.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <time.h>
-#include <unistd.h>
-
-#define SKIP_CODE 77
-#define SETTLE_US 300000 /* core NATS: sub must exist before pub */
-
-static int
-broker_reachable (void)
-{
-  int fd = socket (AF_INET, SOCK_STREAM, 0);
-  if (fd < 0)
-    return 0;
-  struct sockaddr_in addr;
-  memset (&addr, 0, sizeof addr);
-  addr.sin_family      = AF_INET;
-  addr.sin_port        = htons (4222);
-  addr.sin_addr.s_addr = inet_addr ("127.0.0.1");
-  int ok = (connect (fd, (struct sockaddr *)&addr, sizeof addr) == 0);
-  close (fd);
-  return ok;
-}
 
 int
 main (void)
 {
-  if (!broker_reachable ())
+  if (!dp_nats_broker_reachable ())
     {
       printf ("test_tlm_sink SKIPPED (no nats-server on 127.0.0.1:4222)\n");
-      return SKIP_CODE;
+      return DP_NATS_SKIP;
     }
 
   /* Unique subject so runs never collide on a shared broker. */
-  char ep[128];
-  snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/tlm-%d-%ld", (int)getpid (),
-            (long)time (NULL));
+  const char *ep = dp_nats_endpoint ("tlm");
 
   dp_sub_t *sub = dp_sub_create (ep);
   DP_CHECK (sub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   /* A malformed endpoint fails the open cleanly. */
   DP_CHECK (dp_tlm_sink_open ("not-a-nats-url") == NULL);
 
   dp_tlm_sink_t *sink = dp_tlm_sink_open (ep);
   DP_CHECK (sink != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   /* Fill a telemetry ring with a known series: two probes, one of them
    * decimated, with a caller-stamped sample index. */

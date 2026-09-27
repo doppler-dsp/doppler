@@ -77,15 +77,18 @@ see [Install for Python](python.md). On Windows the static library is
 library. The CMake target names (`doppler::doppler`, `doppler::doppler-static`)
 are the same on every platform.
 
+The NATS stream layer (`libdoppler_stream`, `dp_pub_*` / `dp_sub_*`),
+`doppler.stream` and the wfm `StreamSink` build on Windows with clang-cl,
+using the vendored nats.c's own Windows port. The static stream library is
+`doppler_stream_static.lib` there, for the same reason as the core's. A build
+with the GNU `clang` driver leaves the stream layer out: nats.c's CMake passes
+MSVC-style flags on every Windows build.
+
 **Not available on Windows yet.** These are not ported, and CMake leaves them
 out of a Windows build rather than failing:
 
-- the NATS stream layer (`libdoppler_stream`, `dp_pub_*` / `dp_sub_*`), and
-    everything built on it: the wfm `StreamSink`, the `wfmgen` CLI and
-    `dp_doppler_wfmgen`, and the streaming examples;
-- the Rust crate, which is built and tested on Linux and macOS only. (The
-    Python extensions do build on Windows, without `doppler.stream` and
-    `StreamSink`; CI builds and tests them with clang-cl on every PR.)
+- the `wfmgen` CLI and `dp_doppler_wfmgen`, and the C examples;
+- the Rust crate, which is built and tested on Linux and macOS only;
 - a few tests of POSIX-only behaviour (signal chaining in `dp_interrupt`, a
     memory soak that reads `getrusage`).
 

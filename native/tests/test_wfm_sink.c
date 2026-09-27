@@ -14,30 +14,10 @@
 #include "dp_test.h"
 
 #include "doppler/dp_complex.h"
-#include <arpa/inet.h>
+#include "dp_nats_test.h"
 #include <math.h>
-#include <netinet/in.h>
 #include <stdio.h>
-#include <sys/socket.h>
 #include <time.h>
-#include <unistd.h>
-
-#define SKIP_CODE 77
-
-static int
-broker_reachable (void)
-{
-  int fd = socket (AF_INET, SOCK_STREAM, 0);
-  if (fd < 0)
-    return 0;
-  struct sockaddr_in addr;
-  addr.sin_family      = AF_INET;
-  addr.sin_port        = htons (4222);
-  addr.sin_addr.s_addr = inet_addr ("127.0.0.1");
-  int ok = (connect (fd, (struct sockaddr *)&addr, sizeof addr) == 0);
-  close (fd);
-  return ok;
-}
 
 /* One sink per case, on a subject unique to this run: a PUB with no
  * subscriber still reports success, so the assertions below are about the
@@ -46,20 +26,20 @@ static wfm_stream_sink_t *
 open_sink (int sample_type)
 {
   static int seq = 0;
-  char       ep[96];
-  snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-cert-%d-%d-%ld",
-            sample_type, seq++, (long)time (NULL));
+  char       ep[160];
+  snprintf (ep, sizeof ep, DP_NATS_URL "/wfm-sink-cert-%d-%d-%llu",
+            sample_type, seq++, (unsigned long long)dp_mono_ns ());
   return dp_wfm_stream_sink_open (ep, sample_type);
 }
 
 int
 main (void)
 {
-  if (!broker_reachable ())
+  if (!dp_nats_broker_reachable ())
     {
       printf ("SKIP: no nats-server on 127.0.0.1:4222 (run `nats-server "
               "-js`)\n");
-      return SKIP_CODE;
+      return DP_NATS_SKIP;
     }
 
   float _Complex blk[256];
@@ -69,9 +49,9 @@ main (void)
   /* one PUB per wire type on a unique subject */
   for (int t = 0; t < 5; t++)
     {
-      char ep[96];
-      snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-test-%d-%ld", t,
-                (long)time (NULL));
+      char ep[160];
+      snprintf (ep, sizeof ep, DP_NATS_URL "/wfm-sink-test-%d-%llu", t,
+                (unsigned long long)dp_mono_ns ());
       wfm_stream_sink_t *s = dp_wfm_stream_sink_open (ep, t);
       DP_REQUIRE_MSG (s, "sink open");
       DP_REQUIRE_MSG (dp_wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,

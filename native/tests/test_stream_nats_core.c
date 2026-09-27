@@ -18,44 +18,11 @@
 #include <nats.h>
 
 #include "doppler/dp_complex.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <pthread.h>
+#include "dp_nats_test.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <time.h>
-#include <unistd.h>
-
-#define SKIP_CODE 77
-#define SETTLE_US 300000 /* core NATS: sub/rep must exist before pub/req */
-
-static int
-broker_reachable (void)
-{
-  int fd = socket (AF_INET, SOCK_STREAM, 0);
-  if (fd < 0)
-    return 0;
-  struct sockaddr_in addr;
-  memset (&addr, 0, sizeof addr);
-  addr.sin_family      = AF_INET;
-  addr.sin_port        = htons (4222);
-  addr.sin_addr.s_addr = inet_addr ("127.0.0.1");
-  int ok = (connect (fd, (struct sockaddr *)&addr, sizeof addr) == 0);
-  close (fd);
-  return ok;
-}
-
-/* Unique subject per test so runs never collide on a shared broker. */
-static const char *
-nats_ep (const char *hint)
-{
-  static char buf[128];
-  snprintf (buf, sizeof buf, "nats://127.0.0.1:4222/%s-%d-%ld", hint,
-            (int)getpid (), (long)time (NULL));
-  return buf;
-}
 
 /* ------------------------------------------------------------------
  * test_pub_sub_roundtrip
@@ -64,15 +31,15 @@ static void
 test_pub_sub_roundtrip (void)
 {
   printf ("\n-- PUB/SUB round-trip --\n");
-  const char *ep = nats_ep ("pubsub");
+  const char *ep = dp_nats_endpoint ("pubsub");
 
   dp_sub_t *sub = dp_sub_create (ep);
   DP_CHECK (sub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   dp_pub_t *pub = dp_pub_create (ep, CF64);
   DP_CHECK (pub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   double _Complex tx[3] = { 1 + 2 * I, 3 + 4 * I, 5 + 6 * I };
   DP_CHECK (dp_pub_send_cf64 (pub, tx, 3, 48000.0, 915e6) == DP_OK);
@@ -108,15 +75,15 @@ static void
 test_eos_ends_the_stream (void)
 {
   printf ("\n-- end of stream --\n");
-  const char *ep = nats_ep ("eos");
+  const char *ep = dp_nats_endpoint ("eos");
 
   dp_sub_t *sub = dp_sub_create (ep);
   DP_CHECK (sub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   dp_pub_t *pub = dp_pub_create (ep, CF64);
   DP_CHECK (pub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   /* Data first, so the marker is proven to arrive AFTER a real frame
      rather than instead of one. */
@@ -180,13 +147,13 @@ static void
 test_eos_is_acked_on_the_work_queue (void)
 {
   printf ("\n-- end of stream is acked on the work queue --\n");
-  const char *ep = nats_ep ("eosack");
+  const char *ep = dp_nats_endpoint ("eosack");
 
   dp_pub_t *push = dp_push_create (ep, CF32);
   DP_CHECK (push != NULL);
   dp_sub_t *pull = dp_pull_create (ep);
   DP_CHECK (pull != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   /* Data first, so the marker is proven to arrive after a real frame. */
   float _Complex tx[4] = { 1 + 1 * I, 2 + 2 * I, 3 + 3 * I, 4 + 4 * I };
@@ -235,11 +202,11 @@ static void
 test_req_rep_roundtrip (void)
 {
   printf ("\n-- REQ/REP round-trip --\n");
-  const char *ep = nats_ep ("ctrl");
+  const char *ep = dp_nats_endpoint ("ctrl");
 
   dp_rep_t *rep = dp_rep_create (ep);
   DP_CHECK (rep != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   dp_req_t *req = dp_req_create (ep);
   DP_CHECK (req != NULL);
@@ -285,16 +252,16 @@ static void
 test_chunked_pub_sub (void)
 {
   printf ("\n-- Chunked PUB/SUB (>1 MiB) --\n");
-  const char  *ep = nats_ep ("chunk");
+  const char  *ep = dp_nats_endpoint ("chunk");
   const size_t n  = 100000; /* 1.6 MB of CF64 > 1 MiB max_payload */
 
   dp_sub_t *sub = dp_sub_create (ep);
   DP_CHECK (sub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   dp_pub_t *pub = dp_pub_create (ep, CF64);
   DP_CHECK (pub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   double _Complex *tx = malloc (n * sizeof *tx);
   DP_CHECK (tx != NULL);
@@ -331,44 +298,41 @@ test_chunked_pub_sub (void)
  * than sitting there until a frame arrives -- which, with no sender, is
  * never.
  * ------------------------------------------------------------------ */
-static void *
-interrupt_after_delay (void *arg)
+DP_THREAD_FN (interrupt_after_delay, arg)
 {
   (void)arg;
-  usleep (400000); /* let the receive get properly blocked first */
+  dp_thread_sleep_us (400000); /* let the receive get properly blocked first */
   dp_stream_interrupt ();
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 static void
 test_interrupt_unblocks_recv (void)
 {
   printf ("\n-- interrupt unblocks a blocking recv --\n");
-  const char *ep = nats_ep ("interrupt");
+  const char *ep = dp_nats_endpoint ("interrupt");
 
   dp_stream_resume ();
   dp_sub_t *sub = dp_sub_create (ep);
   DP_CHECK (sub != NULL);
   if (!sub)
     return;
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   /* No dp_sub_set_timeout: this blocks, and nothing will ever publish. */
-  pthread_t th;
-  DP_CHECK (pthread_create (&th, NULL, interrupt_after_delay, NULL) == 0);
+  dp_thread_t th;
+  DP_CHECK (dp_thread_create (&th, interrupt_after_delay, NULL) == 0);
 
-  struct timespec t0, t1;
-  clock_gettime (CLOCK_MONOTONIC, &t0);
+  uint64_t t0 = dp_mono_ns ();
 
   dp_msg_t   *msg = NULL;
   dp_header_t hdr;
   int         rc = dp_sub_recv (sub, &msg, &hdr);
 
-  clock_gettime (CLOCK_MONOTONIC, &t1);
-  pthread_join (th, NULL);
+  uint64_t t1 = dp_mono_ns ();
+  dp_thread_join (th);
 
-  double elapsed = (double)(t1.tv_sec - t0.tv_sec)
-                   + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
+  double elapsed = (double)(t1 - t0) / 1e9;
 
   DP_CHECK (rc == DP_ERR_INTERRUPTED);
   DP_CHECK (msg == NULL);
@@ -379,13 +343,11 @@ test_interrupt_unblocks_recv (void)
 
   /* Sticky: a receive STARTED while the flag is set refuses at once, so a
      signal cannot be missed by racing it. */
-  clock_gettime (CLOCK_MONOTONIC, &t0);
+  t0 = dp_mono_ns ();
   rc = dp_sub_recv (sub, &msg, &hdr);
-  clock_gettime (CLOCK_MONOTONIC, &t1);
+  t1 = dp_mono_ns ();
   DP_CHECK (rc == DP_ERR_INTERRUPTED);
-  DP_CHECK ((double)(t1.tv_sec - t0.tv_sec)
-                + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9
-            < 0.5);
+  DP_CHECK ((double)(t1 - t0) / 1e9 < 0.5);
 
   /* And receiving works again once it is cleared. */
   dp_stream_resume ();
@@ -404,14 +366,14 @@ static void
 test_flush_after_send (void)
 {
   printf ("\n-- flush waits for the server --\n");
-  const char *ep = nats_ep ("flush");
+  const char *ep = dp_nats_endpoint ("flush");
 
   dp_sub_t *sub = dp_sub_create (ep);
   DP_CHECK (sub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
   dp_pub_t *pub = dp_pub_create (ep, CF64);
   DP_CHECK (pub != NULL);
-  usleep (SETTLE_US);
+  dp_nats_settle ();
   if (!sub || !pub)
     return;
 
@@ -449,13 +411,13 @@ static void
 test_drain_then_send (void)
 {
   printf ("\n-- drain, then a send is refused as CLOSED --\n");
-  const char *ep = nats_ep ("drain");
+  const char *ep = dp_nats_endpoint ("drain");
 
   dp_pub_t *pub = dp_pub_create (ep, CF64);
   DP_CHECK (pub != NULL);
   if (!pub)
     return;
-  usleep (SETTLE_US);
+  dp_nats_settle ();
 
   double _Complex tx[4] = { 1, 2, 3, 4 };
   DP_CHECK (dp_pub_send_cf64 (pub, tx, 4, 48000.0, 0.0) == DP_OK);
@@ -523,10 +485,10 @@ test_unparseable_frame_does_not_wedge_the_queue (void)
   printf ("\n-- an unparseable frame is terminated, not left pending --\n");
 
   char base[96];
-  (void)snprintf (base, sizeof base, "poison-%d-%ld", (int)getpid (),
-                  (long)time (NULL));
+  (void)snprintf (base, sizeof base, "poison-%llu",
+                  (unsigned long long)dp_mono_ns ());
   char ep[160];
-  (void)snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/%s", base);
+  (void)snprintf (ep, sizeof ep, DP_NATS_URL "/%s", base);
 
   dp_pub_t *push = dp_push_create (ep, CF32); /* provisions the stream */
   DP_CHECK (push != NULL);
@@ -593,9 +555,8 @@ test_unparseable_frame_does_not_wedge_the_queue (void)
 static void
 test_work_queue_is_age_bounded (void)
 {
-  char ep[128];
-  (void)snprintf (ep, sizeof (ep), "nats://127.0.0.1:4222/agecap%d", rand ());
-  dp_push_t *push = dp_push_create (ep, CF64);
+  const char *ep   = dp_nats_endpoint ("agecap");
+  dp_push_t  *push = dp_push_create (ep, CF64);
   DP_CHECK (push != NULL);
   if (!push)
     return;
@@ -620,9 +581,8 @@ test_work_queue_is_age_bounded (void)
 
   /* A fan-out publisher has no work queue at all, so asking to delete
      one is a caller error rather than a broker round trip. */
-  char pubep[128];
-  (void)snprintf (pubep, sizeof (pubep), "nats://127.0.0.1:4222/nojs%d",
-                  rand ());
+  char pubep[160];
+  (void)snprintf (pubep, sizeof (pubep), "%s", dp_nats_endpoint ("nojs"));
   dp_pub_t *fanout = dp_pub_create (pubep, CF64);
   DP_CHECK (fanout != NULL);
   if (fanout)
@@ -655,9 +615,7 @@ static void
 test_pull_first_provisions_the_work_queue (void)
 {
   printf ("\n-- a worker started first provisions the work queue --\n");
-  char ep[128];
-  (void)snprintf (ep, sizeof (ep), "nats://127.0.0.1:4222/pullfirst%d-%d",
-                  (int)getpid (), rand ());
+  const char *ep = dp_nats_endpoint ("pullfirst");
 
   dp_sub_t *pull = dp_pull_create (ep);
   DP_CHECK_MSG (pull != NULL,
@@ -714,11 +672,11 @@ test_pull_first_provisions_the_work_queue (void)
 int
 main (void)
 {
-  if (!broker_reachable ())
+  if (!dp_nats_broker_reachable ())
     {
       printf ("SKIP: no nats-server on 127.0.0.1:4222 (run `nats-server "
               "-js`)\n");
-      return SKIP_CODE;
+      return DP_NATS_SKIP;
     }
 
   test_pub_sub_roundtrip ();

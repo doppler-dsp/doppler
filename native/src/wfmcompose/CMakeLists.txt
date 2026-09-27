@@ -73,7 +73,7 @@ add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -89,7 +89,7 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 add_executable(bench_wfm_compose_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_compose_core.c)
 target_link_libraries(bench_wfm_compose_core PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -104,7 +104,7 @@ target_include_directories(bench_wfm_compose_core PRIVATE
 add_executable(test_wfm_plan
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
 target_link_libraries(test_wfm_plan PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core wfm_cjson_core
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -130,7 +130,9 @@ add_library(wfm_frame_core OBJECT
 target_include_directories(wfm_frame_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
-target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core ${DP_MATH_LIBRARY})
+# cvt: a Field written in hex expands through dp_hex_to_bin and prints back
+# through dp_bin_to_hex -- cvt's, rather than a second hex codec here.
+target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core cvt_core ${DP_MATH_LIBRARY})
 
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
 add_library(wfm_dsp_core OBJECT
@@ -142,7 +144,7 @@ target_link_libraries(wfm_dsp_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_wfm_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_frame.c)
-target_link_libraries(test_wfm_frame PRIVATE wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
+target_link_libraries(test_wfm_frame PRIVATE wfm_frame_core cvt_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_wfm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
@@ -154,14 +156,14 @@ add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
 # no object, so its test is registered beside the descriptor's.
 add_executable(test_dp_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_dp_frame.c)
-target_link_libraries(test_dp_frame PRIVATE wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
+target_link_libraries(test_dp_frame PRIVATE wfm_frame_core cvt_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_dp_frame COMMAND test_dp_frame)
 
 add_executable(test_wfm_dsp
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_dsp.c)
-target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core wfm_frame_core
+target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core wfm_frame_core cvt_core
     pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_wfm_dsp
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

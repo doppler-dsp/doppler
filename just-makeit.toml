@@ -272,6 +272,11 @@ link = true
 [[module.wfm_plan.depends_on]]
 name = "wfm_frame"
 link = true
+# cvt: a Field in hex expands through dp_hex_to_bin inside wfm_frame.c, and an
+# OBJECT library does not carry its dependencies' objects to its consumers.
+[[module.wfm_plan.depends_on]]
+name = "cvt"
+link = true
 
 # ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
 # framed source through dp_wfm_frame_assemble, and the coding stages a source may
@@ -1076,6 +1081,11 @@ link = true
 
 [[module.wfm_compose.depends_on]]
 name = "wfm_frame"
+link = true
+# cvt: a Field in hex expands through dp_hex_to_bin inside wfm_frame.c, and an
+# OBJECT library does not carry its dependencies' objects to its consumers.
+[[module.wfm_compose.depends_on]]
+name = "cvt"
 link = true
 
 # ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
@@ -2986,7 +2996,7 @@ True
 
 """
 objects = []
-extra_link_libs = ["ccsds_tm_core", "conv_core", "rs_core", "wfm_frame_core", "pn_core", "gold_core"]
+extra_link_libs = ["ccsds_tm_core", "conv_core", "rs_core", "wfm_frame_core", "cvt_core", "pn_core", "gold_core"]
 
 # The Attached Sync Marker as bits a Python receiver can search for.
 #

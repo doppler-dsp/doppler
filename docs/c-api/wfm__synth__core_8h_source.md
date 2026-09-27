@@ -23,6 +23,7 @@
 #include <math.h> /* log10/powf/sqrtf in create_impl */
 #include "doppler/gold/gold_core.h"
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE bit->symbol map */
+#include "doppler/cvt/cvt_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

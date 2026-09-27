@@ -38,6 +38,7 @@ target_link_libraries(dsss PRIVATE
     fft_core
     spectral_core
     wfm_frame_core
+    cvt_core
     ccsds_tm_core
     conv_core
     rs_core
@@ -77,7 +78,6 @@ target_link_libraries(dsss PRIVATE
     wfm_draw_core
     burst_capture_core
     burst_acq_core
-    cvt_core
     Python3::NumPy)
 target_include_directories(dsss PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(dsss PROPERTIES

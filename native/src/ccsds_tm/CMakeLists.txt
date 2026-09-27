@@ -44,7 +44,7 @@ target_include_directories(ccsds_tm_core PUBLIC
 # wfm_compose_core carries it for dp_parallel.
 # detection_core: dp_syncword.h's binomial tail calls dp_lgamma(), which
 # is defined beside marcum_q() (the library's one reentrant lgamma, #1260).
-target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core
+target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core cvt_core
                                            detection_core Threads::Threads)
 
 # ── tests ───────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ add_executable(test_ccsds_tm_frame
 # points the way docs/design/frame-description.md has it -- CCSDS is a
 # configuration of the general frame, not a peer of it.
 target_link_libraries(test_ccsds_tm_frame PRIVATE
-    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
+    ccsds_tm_core conv_core rs_core wfm_frame_core cvt_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_ccsds_tm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -119,7 +119,7 @@ add_test(NAME test_ccsds_tm_frame COMMAND test_ccsds_tm_frame)
 add_executable(bench_ccsds_tm_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ccsds_tm_core.c)
 target_link_libraries(bench_ccsds_tm_core PRIVATE
-    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
+    ccsds_tm_core conv_core rs_core wfm_frame_core cvt_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_ccsds_tm_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/benchmarks)

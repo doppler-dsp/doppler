@@ -21,6 +21,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 * `#include "doppler/pn/pn_core.h"`
 * `#include "doppler/gold/gold_core.h"`
 * `#include "doppler/mpsk/mpsk_core.h"`
+* `#include "doppler/cvt/cvt_core.h"`
 
 
 

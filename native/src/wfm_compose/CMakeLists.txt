@@ -10,6 +10,7 @@ target_link_libraries(wfm_compose PRIVATE
     wfm_compose_core
     wfm_dsp_core
     wfm_frame_core
+    cvt_core
     ccsds_tm_core
     conv_core
     rs_core

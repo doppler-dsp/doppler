@@ -31,6 +31,7 @@ depends_on = [
     { name = "fft", link = true },
     { name = "spectral", link = true },
     { name = "wfm_frame", link = true },
+    { name = "cvt", link = true }, # wfm_frame.c expands a hex Field through it
     { name = "ccsds_tm", link = true },
     { name = "conv", link = true },
     { name = "rs", link = true },

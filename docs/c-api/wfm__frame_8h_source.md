@@ -157,6 +157,18 @@ extern "C"
 
   size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
 
+  size_t dp_wfm_field_render (const wfm_field_t *f, uint8_t *out,
+                              size_t max_out);
+
+  int dp_wfm_field_parse (const char *spec, wfm_field_t *field,
+                          uint8_t **owned, const char **why);
+
+  size_t dp_wfm_field_format (const wfm_field_t *field, char *buf,
+                              size_t cap);
+
+  size_t dp_wfm_field_bits (const char *spec, uint8_t *out, size_t max_out,
+                            const char **why);
+
   size_t dp_wfm_frame_assemble (const wfm_frame_desc_t *d,
                              const wfm_frame_ops_t *ops, uint8_t *out,
                              size_t max_out);

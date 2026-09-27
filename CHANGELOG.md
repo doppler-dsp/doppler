@@ -13,6 +13,166 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-09-27
+
+### Breaking
+
+- **The remaining hand-named C API moves onto `dp_`**
+    ([#1565](https://github.com/doppler-dsp/doppler/issues/1565)): 207 exports,
+    among them `resamp_*`, `hbdecim_*`, `hbdecim_r2c_*`, `rs_*`,
+    `ccsds_tm_*`, the `pocketfft_*` wrapper, `awgn`, the `CCSDS_TM_*` tables
+    and each component's hand-added extras (`ddc_create_matched`,
+    `lo_init`, …). The Python API is unchanged.
+
+- **Every C symbol just-makeit derives now carries `dp_`**
+    ([#1545](https://github.com/doppler-dsp/doppler/issues/1545)):
+    `fir_create` is `dp_fir_create`, `fir_state_t` is `dp_fir_state_t`. A new
+    ABI; rebuild against the new headers. Python names do not change; the
+    Rust crate's raw `extern "C"` declarations follow C. Names doppler spelled
+    itself (`wfm_*`, vendored cJSON/nats.c) are not prefixed yet, and a new
+    bare export fails `make symbol-prefix-check`
+    ([#1565](https://github.com/doppler-dsp/doppler/issues/1565)).
+
+- **C consumers include doppler's headers as `<doppler/...>`**
+    ([#1546](https://github.com/doppler-dsp/doppler/issues/1546)):
+    `#include <doppler/lo/lo_core.h>`, was `<lo/lo_core.h>`. `pkg-config   --cflags doppler` and the exported CMake targets now hand out
+    `-I<prefix>/include`, so no component name (`fft/`, `util/`,
+    `clib_common.h`) sits at the root of a consumer's search path; a bare
+    `cc` line changes `-I <prefix>/include/doppler` to `-I <prefix>/include`.
+    The installed files do not move.
+
+- **`dp_syncword_find` / `dp_syncword_pfa` are now `dp_syncword_search` /
+    `dp_syncword_search_pfa`** (`doppler/dp_syncword.h`). Under the coming
+    `dp_` symbol prefix (#1545), the `syncword` object's `find`/`pfa` methods
+    take the old names, and two different C functions cannot share one. Same
+    signatures and behaviour; `SyncFinder` in Python is unchanged.
+
+- **The `wfm_*` C API is now `dp_wfm_*`**
+    ([#1565](https://github.com/doppler-dsp/doppler/issues/1565)): 110
+    exported functions and tables (`wfm_plan_render` → `dp_wfm_plan_render`,
+    `wfm_reader_find_keyword` → `dp_wfm_reader_find_keyword`, …) and the type
+    `wfm_compose_state_t`. The Python API is unchanged. `wfm_source_to_synth`
+    stays bare for now (just-buildit/just-makeit#1694).
+
+### Added
+
+- **The C suite runs on Linux aarch64 in CI** (`Build on ubuntu-24.04-arm`,
+    binding via `CI passed`). The aarch64 wheels were already published
+    from that runner; their tests had never run there (#1561). Three
+    exactness tests that failed only at the ULP level under `-ffast-math`
+    now assert a tolerance.
+
+- **`cvt.U8ToF32` reads RTL-SDR `cu8` I/Q** — unsigned, offset-binary bytes
+    centred on 127.5, which `I8ToF32` misreads as signed (its docs named
+    RTL-SDR; they now name HackRF's `cs8`). `mode="shift"` (default) is exact
+    and fast, `(x - 128)/128`, reading 0.5/128 low; `mode="midpoint"` is the
+    unbiased, symmetric `(x - 127.5)/127.5`.
+
+- **`example-projects/uno-q/`: an RTL-SDR receive front end**, `cu8` →
+    `U8ToF32` → DDC → PSD, self-testing on a synthetic capture (gated as
+    `make uno-q-check` on Linux x86-64, aarch64 and macOS) or reading a live
+    `cu8` stream. Measured on an Arduino UNO Q: 8.3× real time on one core,
+    and `-mcpu=cortex-a53` (not `-march=native`) is the tuning that helps.
+
+- **`example-projects/uno-q` over NATS, with every frame accounted for.**
+    `uno_q_pub` puts an RTL-SDR on doppler's wire as `ci8`, and
+    `uno_q --nats` counts lost and repeated frames from the header's sequence,
+    over pub/sub (the default) or JetStream push/pull. Gated as
+    `make uno-q-nats-check`. On an Arduino UNO Q, live FM arrived with 0 of 733
+    frames lost, at 46% of one core.
+
+- **More of doppler builds on Windows**: `dp_doppler_wfmgen` is in
+    `doppler.dll`, and the `wfmgen` CLI, the streaming and threaded C
+    examples, and the timing test and bench build under clang-cl. The
+    examples use `dp_thread.h` and `dp_thread_sleep_us` instead of pthreads
+    and three private sleep macros. `doppler.stream`'s Python tests and
+    specan's NATS-source tests now run on Windows (they were uncollected
+    there since before #1575 made the extension build).
+
+- **The NATS stream layer builds on Windows**
+    ([#1575](https://github.com/doppler-dsp/doppler/issues/1575)):
+    `libdoppler_stream` (the `dp_pub_*`/`dp_sub_*` wire layer and the wfm
+    stream sink), `doppler.stream` and `doppler.wfm.StreamSink` now build
+    under clang-cl with the vendored nats.c's own Windows port, and the wire
+    format test runs there (closes
+    [#1361](https://github.com/doppler-dsp/doppler/issues/1361)). The stream
+    tests and benchmark use doppler's portable thread and clock primitives
+    instead of pthreads, BSD sockets and POSIX semaphores.
+
+### Changed
+
+- **Groundwork for the `dp_` symbol prefix (#1545):** the test/validation
+    tree no longer declares names the prefix will derive. The four
+    `dp_ber_*` forwarding shims in `native/tests/dp_ber_test.h` are gone
+    (callers use `ber_*`), four private `crc16` copies call `dp_crc16_ccitt`,
+    and a private `rrc_taps` calls `wfm_rrc_taps`.
+
+- **just-makeit pin 0.89.0 → 0.90.1**, and the project at jm's schema 8:
+    headers live under `native/inc/doppler/`, every include spelled
+    `"doppler/..."` (jm#1583) — the source half of the Breaking entry above.
+    The gates that named header paths read them from one place,
+    `scripts/_layout.py`.
+
+- **just-makeit pin 0.90.1 → 0.91.0.** Pure tooling for doppler: `jm apply`
+    regenerates nothing (multi-library installs, jm#1600, are not used here),
+    and `jm status --check` now names the file it fails on (jm#1619). The
+    `wfm_synth` step body in `objects/wfm_synth.toml` is respelled
+    `float _Complex`, so `jm upgrade` and `jm apply` agree on the header.
+
+- **just-makeit pin 0.91.0 → 0.92.0.** Pure tooling for doppler: `jm apply`
+    regenerates nothing and `jm upgrade` finds schema 8 already current. The
+    release carries `[project] c_prefix` and the `jm upgrade` respell
+    (jm#1591 phase 3), which the `dp_` symbol prefix (#1545) adopts next.
+
+- **just-makeit pin 0.92.0 → 0.92.1**, the release that makes `c_prefix`
+    adoptable here: view docstrings survive the prefix (jm#1667), members and
+    locals named like a derived symbol keep their names (jm#1668), and
+    property getters are prefixed whether declared or not (jm#1670).
+
+- **just-makeit pin 0.92.1 → 0.92.2**, which closes the last of the `dp_`
+    rename ([#1565](https://github.com/doppler-dsp/doppler/issues/1565)):
+    `jm upgrade` now respells a container property's accessors
+    (`dp_RateConverter_num_stages` / `_num_bank_shape`, jm#1695), and a
+    `bridge_fn` may name a `dp_` function (`dp_wfm_source_to_synth`,
+    jm#1694). Every symbol `libdoppler.a` and `libdoppler_stream.a` export now
+    carries `dp_`, and `make symbol-prefix-check` enforces it with no
+    allowlist.
+
+- **The hand-typed-version docs gate ignores a number labelled as just-makeit's**
+    (`jm 0.58.0`, `just-makeit==0.58.0`): doppler's version climbed into jm's range,
+    and a jm version quoted in the docs refused this release.
+
+### Fixed
+
+- **doppler's private NATS wrappers no longer export names in nats.c's own
+    namespace** ([#1565](https://github.com/doppler-dsp/doppler/issues/1565)):
+    the 14 `nats_*` helpers in `stream_nats.c` and `wfm_draw_samples` are
+    now `dp__*`, doppler's internal spelling. A nats.c release adding, say,
+    `nats_flush` would otherwise have broken the link. Not public API.
+
+- **`doppler-specan`'s live NATS sources show real streams.** The socket
+    source imported `Subscriber` from the wrong module and read the dict
+    header as an object, so it could not show a frame. Both sources cast
+    integer I/Q (`ci8`/`ci16`/`ci32`) straight to complex, drawing a mirrored
+    spectrum at twice the rate. The display now centres on the stream's own
+    frequency unless `--center` is given. Tests drive both sources through a
+    stand-in transport.
+
+- **`doppler::stream-static` links**: its exported target now declares
+    the core static library, so CMake puts `libdoppler.a` after
+    `libdoppler_stream.a`. Before this, a static consumer of the stream
+    component failed with undefined `dp_interrupt*` / `dp_tlm_read`, whatever
+    order it linked the two in. The shared form and pkg-config were already
+    right.
+
+- **A program with its own cJSON or nats.c now links doppler statically**
+    ([#1565](https://github.com/doppler-dsp/doppler/issues/1565)): the
+    vendored cJSON, pffft, pocketfft and nats.c inside `libdoppler.a` /
+    `libdoppler_stream.a` are respelled `dp__v_*` at build time, so they no
+    longer collide with, or silently resolve to, a consumer's copy. Linux
+    static archives; macOS, Windows and the shared libraries follow in
+    [#1577](https://github.com/doppler-dsp/doppler/issues/1577).
+
 ## [0.57.0] - 2026-09-25
 
 ### Added
@@ -14696,8 +14856,9 @@ ______________________________________________________________________
 [0.55.0]: https://github.com/doppler-dsp/doppler/compare/v0.54.1...v0.55.0
 [0.56.0]: https://github.com/doppler-dsp/doppler/compare/v0.55.0...v0.56.0
 [0.57.0]: https://github.com/doppler-dsp/doppler/compare/v0.56.0...v0.57.0
+[0.58.0]: https://github.com/doppler-dsp/doppler/compare/v0.57.0...v0.58.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.57.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.58.0...HEAD

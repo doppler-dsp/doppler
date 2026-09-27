@@ -201,11 +201,16 @@ bits_from_file (const char *path, size_t *n)
       free (raw);
       return NULL;
     }
-  for (size_t i = 0; i < rd; i++)
-    for (unsigned b = 0; b < 8u; b++)
-      bits[i * 8u + b] = (uint8_t)((raw[i] >> (7u - b)) & 1u);
+  /* cvt's conversion, not a copy of it: a file's bits must unpack exactly
+     as the same octets do through doppler.cvt.bytes_to_bin. */
+  const size_t nb = dp_bytes_to_bin (raw, rd, bits, rd * 8u, DP_BITORDER_BIG);
   free (raw);
-  *n = rd * 8u;
+  if (nb == 0)
+    {
+      free (bits);
+      return NULL;
+    }
+  *n = nb;
   return bits;
 }
 

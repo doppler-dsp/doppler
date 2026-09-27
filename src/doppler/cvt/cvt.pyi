@@ -2568,6 +2568,50 @@ def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
 
     """
 
+def bytes_to_bin(
+    octets: NDArray[np.uint8],
+    out: NDArray[np.uint8],
+    bitorder: int,
+) -> int:
+    r"""Unpack octets to bits, one per byte: 8 bits an octet, MSB first under
+    bitorder 0 (DP_BITORDER_BIG). The door for PACKED data -- a binary file, a
+    byte stream, a network buffer -- into the unpacked bits every frame field
+    takes. Returns the bits written (8 * the octet count), or 0 on refusal.
+
+    The door for PACKED data: a binary file, a byte stream, a network
+    buffer. Every frame field takes UNPACKED bits (one per byte, each 0 or
+    1), so packed data is converted here, by name, and never passed as
+    bytes and hoped about (docs/design/frame-description.md §F.4). Each
+    octet gives 8 bits; under DP_BITORDER_BIG its most significant bit
+    comes first, which is how a file's bits are read on the wire.
+
+    Parameters
+    ----------
+    octets : NDArray[np.uint8]
+        the packed bytes.
+    out : NDArray[np.uint8]
+        receives `8 * octets_len` bytes, each 0 or 1.
+    bitorder : int
+        DP_BITORDER_BIG or DP_BITORDER_LITTLE.
+
+    Returns
+    -------
+    int
+        bits written, or 0 on refusal -- out untouched.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.cvt import bytes_to_bin
+    >>> octets = np.frombuffer(b"\x1a\xcf", np.uint8)
+    >>> b = np.zeros(16, np.uint8)
+    >>> bytes_to_bin(octets, b, 0)          # 0 = big, MSB of each byte first
+    16
+    >>> b.tolist()
+    [0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1]
+
+    """
+
 def bin_to_int(bits: NDArray[np.uint8], bitorder: int) -> int:
     """Read unpacked bits back into an integer -- the inverse of int_to_bin.
 

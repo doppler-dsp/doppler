@@ -12,7 +12,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(cvt_core OBJECT cvt_core.c int_to_bin.c hex_to_bin.c bin_to_int.c bin_to_hex.c bin_to_nrz.c nrz_to_bin.c)
+add_library(cvt_core OBJECT cvt_core.c int_to_bin.c hex_to_bin.c bytes_to_bin.c bin_to_int.c bin_to_hex.c bin_to_nrz.c nrz_to_bin.c)
 target_include_directories(cvt_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

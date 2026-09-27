@@ -104,6 +104,52 @@ _bind_hex_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_bytes_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[]  = { "octets", "out", "bitorder", NULL };
+  PyObject    *octets_obj = NULL;
+  PyObject    *out_obj    = NULL;
+  int          bitorder   = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOi", _kwlist, &octets_obj,
+                                    &out_obj, &bitorder))
+    return NULL;
+  PyArrayObject *octets_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      octets_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!octets_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *octets     = (const uint8_t *)PyArray_DATA (octets_arr);
+  size_t         octets_len = (size_t)PyArray_SIZE (octets_arr);
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      Py_DECREF (octets_arr);
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      Py_DECREF (octets_arr);
+      return NULL;
+    }
+  uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
+  size_t   out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t   _r = dp_bytes_to_bin (octets, octets_len, out, out_len, bitorder);
+  Py_DECREF (octets_arr);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
+}
+
+static PyObject *
 _bind_bin_to_int (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -355,6 +401,46 @@ static PyMethodDef cvt_module_methods[] = {
     "32\n"
     ">>> b[:8].tolist()\n"
     "[0, 0, 0, 1, 1, 0, 1, 0]\n" },
+  { "bytes_to_bin", (PyCFunction)(void *)_bind_bytes_to_bin,
+    METH_VARARGS | METH_KEYWORDS,
+    "Unpack octets to bits, one per byte: 8 bits an octet, MSB first under "
+    "bitorder 0 (DP_BITORDER_BIG). The door for PACKED data -- a binary file, "
+    "a byte stream, a network buffer -- into the unpacked bits every frame "
+    "field takes. Returns the bits written (8 * the octet count), or 0 on "
+    "refusal.\n"
+    "\n"
+    "The door for PACKED data: a binary file, a byte stream, a network\n"
+    "buffer. Every frame field takes UNPACKED bits (one per byte, each 0 or\n"
+    "1), so packed data is converted here, by name, and never passed as\n"
+    "bytes and hoped about (docs/design/frame-description.md §F.4). Each\n"
+    "octet gives 8 bits; under DP_BITORDER_BIG its most significant bit\n"
+    "comes first, which is how a file's bits are read on the wire.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "octets : NDArray[np.uint8]\n"
+    "    the packed bytes.\n"
+    "out : NDArray[np.uint8]\n"
+    "    receives `8 * octets_len` bytes, each 0 or 1.\n"
+    "bitorder : int\n"
+    "    DP_BITORDER_BIG or DP_BITORDER_LITTLE.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    bits written, or 0 on refusal -- out untouched.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.cvt import bytes_to_bin\n"
+    ">>> octets = np.frombuffer(b\"\\x1a\\xcf\", np.uint8)\n"
+    ">>> b = np.zeros(16, np.uint8)\n"
+    ">>> bytes_to_bin(octets, b, 0)          # 0 = big, MSB of each byte "
+    "first\n"
+    "16\n"
+    ">>> b.tolist()\n"
+    "[0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1]\n" },
   { "bin_to_int", (PyCFunction)(void *)_bind_bin_to_int,
     METH_VARARGS | METH_KEYWORDS,
     "Read unpacked bits back into an integer -- the inverse of int_to_bin.\n"

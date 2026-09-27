@@ -19,9 +19,9 @@
  *      floor it implies runs through the whole segment — including the gaps,
  *      where the signal is off. So a gap is the channel, not digital silence.
  *
- *   4. PREPARE ONCE, SWEEP MANY. `wfm_plan_prepare` caches the clean signal
- *      and `wfm_plan_at` re-weights it. Both timings are printed and NEITHER
- *      is asserted: a Plan caches the signal but redraws the noise, so what
+ *   4. PREPARE ONCE, SWEEP MANY. `dp_wfm_plan_prepare` caches the clean signal
+ *      and `dp_wfm_plan_at` re-weights it. Both timings are printed and
+ * NEITHER is asserted: a Plan caches the signal but redraws the noise, so what
  *      it saves is the signal's share of the work, and that depends on the
  *      scene and the machine. What IS asserted is that a cached render is
  *      byte-identical to composing the scene — a cache that is fast because
@@ -33,7 +33,7 @@
  *      marker. The marker is rebuilt from the frame's own declaration rather
  *      than held as a second copy, and the search tolerance is derived by
  *      `dp_syncword_max_errors_for` rather than guessed. Each frame found is
- *      checked with `wfm_frame_desc_crc_ok`, which needs no payload truth —
+ *      checked with `dp_wfm_frame_desc_crc_ok`, which needs no payload truth —
  *      a frame error rate a receiver could compute on someone else's capture.
  *
  * Measurement comes from the library where the library has it:
@@ -76,8 +76,8 @@
 #define PAY_BITS 240u /* payload                                          */
 /* A GENERATED sync field rather than a literal: declaring a `kind` means the
    description PRODUCES the marker, so the receiver rebuilds the same bits
-   from the same declaration (`wfm_seq_bits`) instead of holding a second copy
-   that can drift. A literal field works too, for a marker you must match.
+   from the same declaration (`dp_wfm_seq_bits`) instead of holding a second
+   copy that can drift. A literal field works too, for a marker you must match.
 
    LENGTH IS THE PROPERTY THAT MATTERS, because the search is a Hamming
    distance over bits: what makes a marker safe is being unlikely to appear by
@@ -126,10 +126,10 @@ now_s (void)
 
 /** @brief Drain a composer into `out`, returning what it produced. */
 static size_t
-drain (wfm_compose_state_t *c, float complex *out, size_t cap)
+drain (dp_wfm_compose_state_t *c, float complex *out, size_t cap)
 {
   size_t n = 0, got;
-  while (n < cap && (got = wfm_compose_execute (c, out + n, cap - n)) > 0)
+  while (n < cap && (got = dp_wfm_compose_execute (c, out + n, cap - n)) > 0)
     n += got;
   return n;
 }
@@ -168,18 +168,19 @@ main (void)
      The sync marker and the header sit outside the cover — a receiver finds
      them before it can check anything. */
   int built
-      = wfm_frame_add_field (&d, "sync", &sy, 0u) == 0
-        && wfm_frame_add_field (&d, "hdr", &h, 0u) == 1
-        && wfm_frame_add_field (&d, "payload", &p, 0u) == 2
-        && wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 3
-        && wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") == 0;
+      = dp_wfm_frame_add_field (&d, "sync", &sy, 0u) == 0
+        && dp_wfm_frame_add_field (&d, "hdr", &h, 0u) == 1
+        && dp_wfm_frame_add_field (&d, "payload", &p, 0u) == 2
+        && dp_wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 3
+        && dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") == 0;
   check (built, "a generated sync marker, a header, a payload and a derived "
                 "CRC-16 over a named span");
   if (!built)
     return 1;
 
   wfm_frame_desc_layout_t lay;
-  check (wfm_frame_desc_layout (&d, &lay) == 0 && lay.frame_bits == FRAME_BITS,
+  check (dp_wfm_frame_desc_layout (&d, &lay) == 0
+             && lay.frame_bits == FRAME_BITS,
          "the description lays out at the length the burst is sized from");
   printf ("  %zu frame bits x %d sps = %u samples of burst, "
           "%u samples of gap\n\n",
@@ -232,10 +233,10 @@ main (void)
       many[i].delay_samples = DELAY_SAMPLES;
     }
 
-  double               t0       = now_s ();
-  wfm_compose_state_t *c        = wfm_compose_create (many, N_BURSTS, 0, 0);
-  size_t               n_listed = c ? drain (c, listed, TOTAL) : 0;
-  wfm_compose_destroy (c);
+  double                  t0 = now_s ();
+  dp_wfm_compose_state_t *c  = dp_wfm_compose_create (many, N_BURSTS, 0, 0);
+  size_t                  n_listed = c ? drain (c, listed, TOTAL) : 0;
+  dp_wfm_compose_destroy (c);
   const double t_listed = now_s () - t0;
 
   /* The declared shape: ONE segment that plays `repeats` times. Each
@@ -251,9 +252,9 @@ main (void)
   one.repeats       = N_BURSTS;
 
   t0                = now_s ();
-  c                 = wfm_compose_create (&one, 1u, 0, 0);
+  c                 = dp_wfm_compose_create (&one, 1u, 0, 0);
   size_t n_declared = c ? drain (c, declared, TOTAL) : 0;
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
   const double t_declared = now_s () - t0;
 
   check (n_listed == TOTAL && n_declared == TOTAL,
@@ -294,7 +295,7 @@ main (void)
   static uint8_t       tx_bits[FRAME_BITS];
   const float complex *tx_sym = declared + burst0; /* a sample IS a symbol */
 
-  const size_t n_tx = wfm_frame_assemble (&d, NULL, tx_bits, FRAME_BITS);
+  const size_t n_tx = dp_wfm_frame_assemble (&d, NULL, tx_bits, FRAME_BITS);
   check (n_tx == FRAME_BITS,
          "the description assembles the bits the burst carries");
 
@@ -326,10 +327,11 @@ main (void)
   printf ("--- 4. A %u-point SNR sweep, re-composed then cached ---\n",
           N_SWEEP);
 
-  char *spec = wfm_spec_to_json (&one, 1u, 0, 0, WFM_SEED_ADVANCE_NONE, 0.0);
+  char *spec
+      = dp_wfm_spec_to_json (&one, 1u, 0, 0, WFM_SEED_ADVANCE_NONE, 0.0);
   if (!spec)
     {
-      fprintf (stderr, "wfm_spec_to_json failed\n");
+      fprintf (stderr, "dp_wfm_spec_to_json failed\n");
       return 1;
     }
 
@@ -338,21 +340,21 @@ main (void)
   t0 = now_s ();
   for (unsigned k = 0; k < N_SWEEP; k++)
     {
-      wfm_source_t s2         = src;
-      s2.snr                  = 4.0 + (double)k;
-      wfm_segment_t g         = one;
-      g.sources               = &s2;
-      wfm_compose_state_t *cc = wfm_compose_create (&g, 1u, 0, 0);
+      wfm_source_t s2            = src;
+      s2.snr                     = 4.0 + (double)k;
+      wfm_segment_t g            = one;
+      g.sources                  = &s2;
+      dp_wfm_compose_state_t *cc = dp_wfm_compose_create (&g, 1u, 0, 0);
       if (cc)
         (void)drain (cc, swept, TOTAL);
-      wfm_compose_destroy (cc);
+      dp_wfm_compose_destroy (cc);
     }
   const double t_recompose = now_s () - t0;
 
   /* Cached: prepare renders and keeps each source's clean ON-time once; a
      point is then a re-weighted sum plus fresh noise. */
   t0                     = now_s ();
-  wfm_plan_t  *plan      = wfm_plan_prepare (spec);
+  wfm_plan_t  *plan      = dp_wfm_plan_prepare (spec);
   const double t_prepare = now_s () - t0;
   check (plan != NULL, "the scene is in scope for a Plan");
 
@@ -364,7 +366,7 @@ main (void)
       for (unsigned k = 0; k < N_SWEEP; k++)
         /* The return is the length of THIS draw. Discarding it is how a Plan
            that renders nothing still looks like a fast sweep. */
-        if (wfm_plan_at (plan, 4.0 + (double)k, 1234u + k, swept) != TOTAL)
+        if (dp_wfm_plan_at (plan, 4.0 + (double)k, 1234u + k, swept) != TOTAL)
           all_full = 0;
       t_sweep = now_s () - t0;
     }
@@ -373,7 +375,7 @@ main (void)
 
   /* THE CHECK THAT MATTERS, and it is not the clock. A cache is worth having
      only if it renders what compose would have: at the scene's own SNR and
-     anchor seed, `wfm_plan_at` reproduces `wfm_compose` to the bit
+     anchor seed, `dp_wfm_plan_at` reproduces `wfm_compose` to the bit
      (wfm_plan.h). A speed ratio asserts nothing useful in its place — it is
      a property of the machine, and it cannot tell "faster" from "did less".
      Byte-identity can. */
@@ -386,11 +388,11 @@ main (void)
           fprintf (stderr, "out of memory\n");
           return 1;
         }
-      wfm_compose_state_t *ref_c = wfm_compose_create (&one, 1u, 0, 0);
-      const size_t         n_ref = ref_c ? drain (ref_c, ref, TOTAL) : 0;
-      wfm_compose_destroy (ref_c);
-      const size_t n_plan
-          = wfm_plan_at (plan, SNR_DB, wfm_plan_anchor_seed (plan), swept);
+      dp_wfm_compose_state_t *ref_c = dp_wfm_compose_create (&one, 1u, 0, 0);
+      const size_t            n_ref = ref_c ? drain (ref_c, ref, TOTAL) : 0;
+      dp_wfm_compose_destroy (ref_c);
+      const size_t n_plan = dp_wfm_plan_at (
+          plan, SNR_DB, dp_wfm_plan_anchor_seed (plan), swept);
       exact = n_ref == TOTAL && n_plan == TOTAL
               && memcmp (ref, swept, TOTAL * sizeof *swept) == 0;
       free (ref);
@@ -430,7 +432,7 @@ main (void)
      as a create/destroy pair invites, closes the FILE twice; it segfaults in
      ferror() on the second pass. One call, and check its status: BLUE patches
      its length and flushes here, so a failure at close is a failed capture. */
-  int          wrc     = w ? wfm_writer_close (w) : -1;
+  int          wrc     = w ? dp_wfm_writer_close (w) : -1;
   const double t_write = now_s () - t0;
 
   check (wrote == TOTAL && wrc == 0, "the whole train reached the file");
@@ -490,7 +492,7 @@ main (void)
      same bits from the same declaration — one statement of what the marker
      is, and the two ends cannot drift apart. */
   static uint8_t marker[SYNC_BITS];
-  check (wfm_seq_bits (&sy, marker, SYNC_BITS) == SYNC_BITS,
+  check (dp_wfm_seq_bits (&sy, marker, SYNC_BITS) == SYNC_BITS,
          "the receiver rebuilds the marker from the frame's own declaration");
 
   dp_syncword_state_t *sw = dp_syncword_create (marker, SYNC_BITS);
@@ -529,7 +531,7 @@ main (void)
           dp_syncword_pfa (sw, (uint32_t)max_err));
 
   /* Walk the record one burst at a time, and CHECK each frame the search
-     lands on. wfm_frame_desc_crc_ok needs the description and the received
+     lands on. dp_wfm_frame_desc_crc_ok needs the description and the received
      bits and no payload truth at all, so this is the frame error rate a
      receiver can compute on a capture it did not generate. */
   size_t         pos = 0, at_expected = 0;
@@ -558,7 +560,7 @@ main (void)
           for (size_t j = 0; j < FRAME_BITS; j++)
             frame[j]
                 = hit.inverted ? (uint8_t)!rx_bits[at + j] : rx_bits[at + j];
-          if (wfm_frame_desc_crc_ok (&d, frame) == 1)
+          if (dp_wfm_frame_desc_crc_ok (&d, frame) == 1)
             crc_pass++;
         }
       bursts++;
@@ -585,7 +587,7 @@ done:
   free (declared);
   free (swept);
   free (readback);
-  wfm_plan_destroy (plan);
+  dp_wfm_plan_destroy (plan);
 
   if (failures)
     {

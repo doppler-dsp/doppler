@@ -75,7 +75,7 @@ OFFSET = OFFSET_SYM * RS / FS  # cycles per sample, for the stimulus
 # something the library already owns: `np.repeat` for a rectangular pulse,
 # `exp(2j*pi*OFFSET*k)` for the carrier offset, and
 # `sqrt(8 / (2 * 10**(20/10)))` for the noise level -- an Es/N0 conversion
-# that is `snr_mode="esno"` here and `wfm_snr_over_fs()` in C. A demo that
+# that is `snr_mode="esno"` here and `dp_wfm_snr_over_fs()` in C. A demo that
 # re-derives the transmitter cannot catch a transmitter bug.
 NSYM = 4000
 SPS = int(FS / RS)

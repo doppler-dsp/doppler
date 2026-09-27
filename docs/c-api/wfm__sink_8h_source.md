@@ -27,7 +27,7 @@ extern "C" {
  * links libdoppler.a), the core ships **weak no-op definitions** of every
  * wfm_stream_sink_* symbol (see wfm_sink_stub.c).  Linking `libdoppler_stream`
  * supplies the STRONG real definitions, which override the weak stubs.
- * wfmgen gates the path with `wfm_stream_sink_available()` (0 from the stub,
+ * wfmgen gates the path with `dp_wfm_stream_sink_available()` (0 from the stub,
  * 1 from the real component).
  *
  * NB: when linking the *static* stream archive, pull it whole
@@ -36,30 +36,30 @@ extern "C" {
 
 typedef struct wfm_stream_sink wfm_stream_sink_t;
 
-int wfm_stream_sink_available(void);
+int dp_wfm_stream_sink_available(void);
 
-wfm_stream_sink_t *wfm_stream_sink_open(const char *endpoint, int sample_type);
+wfm_stream_sink_t *dp_wfm_stream_sink_open(const char *endpoint, int sample_type);
 
-int wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
+int dp_wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
                          size_t n, double fs, double fc);
 
-int wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
+int dp_wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
 
-int wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
+int dp_wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
 
-void wfm_stream_sink_close(wfm_stream_sink_t *sink);
+void dp_wfm_stream_sink_close(wfm_stream_sink_t *sink);
 
 /* Clip detection, mirroring wfm_writer (peak always tracked on the integer
  * paths, where saturation can occur; the per-component fraction is opt-in). The
  * cf32 path is left untouched — it never clips and is the streaming hot path. */
 
-void wfm_stream_sink_track_clipping(wfm_stream_sink_t *sink, int on);
+void dp_wfm_stream_sink_track_clipping(wfm_stream_sink_t *sink, int on);
 
-void wfm_stream_sink_set_gain(wfm_stream_sink_t *sink, double gain);
+void dp_wfm_stream_sink_set_gain(wfm_stream_sink_t *sink, double gain);
 
-double wfm_stream_sink_peak(const wfm_stream_sink_t *sink);
+double dp_wfm_stream_sink_peak(const wfm_stream_sink_t *sink);
 
-double wfm_stream_sink_clip_fraction(const wfm_stream_sink_t *sink);
+double dp_wfm_stream_sink_clip_fraction(const wfm_stream_sink_t *sink);
 
 #ifdef __cplusplus
 }

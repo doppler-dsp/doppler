@@ -1,7 +1,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
-#include "doppler/wfm/wfm_dsp.h" /* wfm_frame_dsss_chips — the DSSS burst builder */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_frame_dsss_chips — the DSSS burst builder */
 
 dp_wfm_synth_state_t *
 dp_wfm_synth_create (int type, double fs, double freq, double snr,
@@ -31,12 +31,12 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
   obj->chirp_ph   = 0.0;
   obj->chirp_n    = 0;
   obj->chirp_span = 0;
-  /* Bit-pattern state attached later via wfm_synth_set_bits(). */
+  /* Bit-pattern state attached later via dp_wfm_synth_set_bits(). */
   obj->bits    = NULL;
   obj->n_bits  = 0;
   obj->bit_idx = 0;
   obj->bit_mod = 1; /* default bpsk */
-  /* Complex-symbol stream attached later via wfm_synth_set_symbols(). */
+  /* Complex-symbol stream attached later via dp_wfm_synth_set_symbols(). */
   obj->symbols      = NULL;
   obj->n_symbols    = 0;
   obj->sym_read_idx = 0;
@@ -81,7 +81,7 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
      seeded with the source seed so a receiver regenerates the bits. NON-fatal
      on a bad pn_length: a burst dsss never touches the PN, so it must not fail
      to build over an unused knob; continuous prbs rejects a NULL pn in
-     wfm_synth_set_dsss_cont instead. */
+     dp_wfm_synth_set_dsss_cont instead. */
   else if (type == WFM_SYNTH_DSSS)
     {
       uint64_t poly
@@ -133,8 +133,8 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
 }
 
 int
-wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
-                   size_t ntaps)
+dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
+                      size_t ntaps)
 {
   /* Pulse shaping applies to the symbol carriers: pn/bpsk/qpsk, the user
    * bit-pattern source (bits), the complex-symbol stream (symbols), and the
@@ -148,7 +148,7 @@ wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
   /* Scale the (unit-energy) taps by sqrt(sps) here, in one place, so the
    * symbol-rate impulse train (one impulse per sps samples → mean power
    * 1/sps) comes out at unit average power — and every caller that passes the
-   * raw wfm_rrc_taps() output gets byte-identical shaping. */
+   * raw dp_wfm_rrc_taps() output gets byte-identical shaping. */
   int    sps    = state->nsps;
   float  scale  = (float)sqrt ((double)sps);
   float *scaled = malloc (ntaps * sizeof (float));
@@ -173,7 +173,7 @@ wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
           free (scaled);
           return -1;
         }
-      wfm_polyphase_bank (scaled, ntaps, nphases, nptaps, bank);
+      dp_wfm_polyphase_bank (scaled, ntaps, nphases, nptaps, bank);
       resamp_state_t *sh
           = resamp_create_custom (nphases, nptaps, bank, (double)sps);
       free (bank);
@@ -209,8 +209,8 @@ wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
 }
 
 int
-wfm_synth_set_bits (dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
-                    int modulation)
+dp_wfm_synth_set_bits (dp_wfm_synth_state_t *state, const uint8_t *bits,
+                       size_t n, int modulation)
 {
   if (state->wtype != WFM_SYNTH_BITS)
     return 0; /* no-op for every other type */
@@ -230,8 +230,8 @@ wfm_synth_set_bits (dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
 }
 
 int
-wfm_synth_set_dsss_chips (dp_wfm_synth_state_t *state, const uint8_t *chips,
-                          size_t n_chips)
+dp_wfm_synth_set_dsss_chips (dp_wfm_synth_state_t *state, const uint8_t *chips,
+                             size_t n_chips)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
     return 0; /* no-op for every other type */
@@ -250,32 +250,33 @@ wfm_synth_set_dsss_chips (dp_wfm_synth_state_t *state, const uint8_t *chips,
 }
 
 int
-wfm_synth_set_dsss (dp_wfm_synth_state_t *state, const uint8_t *acq_code,
-                    size_t acq_len, size_t acq_reps, const uint8_t *data_code,
-                    size_t data_len, const uint8_t *sync, size_t sync_len,
-                    const uint8_t *payload, size_t payload_len, int crc)
+dp_wfm_synth_set_dsss (dp_wfm_synth_state_t *state, const uint8_t *acq_code,
+                       size_t acq_len, size_t acq_reps,
+                       const uint8_t *data_code, size_t data_len,
+                       const uint8_t *sync, size_t sync_len,
+                       const uint8_t *payload, size_t payload_len, int crc)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
     return 0; /* no-op for every other type */
-  size_t n = wfm_frame_dsss_nchips (acq_len, acq_reps, data_len, sync_len,
-                                    payload_len, crc);
+  size_t n = dp_wfm_frame_dsss_nchips (acq_len, acq_reps, data_len, sync_len,
+                                       payload_len, crc);
   if (n == 0)
     return -1; /* frame bits with no data code, or an empty burst */
   uint8_t *chips = malloc (n);
   if (!chips)
     return -1;
-  (void)wfm_frame_dsss_chips (acq_code, acq_len, acq_reps, data_code, data_len,
-                              sync, sync_len, payload, payload_len, crc,
-                              chips);
-  const int rc = wfm_synth_set_dsss_chips (state, chips, n);
+  (void)dp_wfm_frame_dsss_chips (acq_code, acq_len, acq_reps, data_code,
+                                 data_len, sync, sync_len, payload,
+                                 payload_len, crc, chips);
+  const int rc = dp_wfm_synth_set_dsss_chips (state, chips, n);
   free (chips);
   return rc;
 }
 
 int
-wfm_synth_set_dsss_cont (dp_wfm_synth_state_t *state, const uint8_t *code,
-                         size_t code_len, double chips_per_symbol,
-                         int data_mode, const uint8_t *data, size_t n_data)
+dp_wfm_synth_set_dsss_cont (dp_wfm_synth_state_t *state, const uint8_t *code,
+                            size_t code_len, double chips_per_symbol,
+                            int data_mode, const uint8_t *data, size_t n_data)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
     return 0; /* no-op for every other type, same as set_dsss */
@@ -323,8 +324,8 @@ wfm_synth_set_dsss_cont (dp_wfm_synth_state_t *state, const uint8_t *code,
 }
 
 int
-wfm_synth_set_dsss_window (dp_wfm_synth_state_t *state,
-                           size_t code_only_symbols, size_t frame_symbols)
+dp_wfm_synth_set_dsss_window (dp_wfm_synth_state_t *state,
+                              size_t code_only_symbols, size_t frame_symbols)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
     return 0; /* no-op for every other type, same as set_dsss_cont */
@@ -336,8 +337,8 @@ wfm_synth_set_dsss_window (dp_wfm_synth_state_t *state,
 }
 
 int
-wfm_synth_set_symbols (dp_wfm_synth_state_t *state,
-                       const float _Complex *symbols, size_t n)
+dp_wfm_synth_set_symbols (dp_wfm_synth_state_t *state,
+                          const float _Complex *symbols, size_t n)
 {
   if (state->wtype != WFM_SYNTH_SYMBOLS)
     return 0; /* no-op for every other type */
@@ -419,7 +420,7 @@ dp_wfm_synth_reset (dp_wfm_synth_state_t *state)
 }
 
 void
-wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
+dp_wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
 {
   if (state && state->awgn)
     dp_awgn_reseed (state->awgn, (uint64_t)seed);
@@ -883,8 +884,8 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
 }
 
 void
-wfm_synth_noise_steps (dp_wfm_synth_state_t *state, float _Complex *output,
-                       size_t n)
+dp_wfm_synth_noise_steps (dp_wfm_synth_state_t *state, float _Complex *output,
+                          size_t n)
 {
   if (!state || !output || n == 0)
     return;

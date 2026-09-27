@@ -169,7 +169,7 @@ def test_c_api_byte_parity_vs_wfmgen(tmp_path, wtype):
     C API and the CLI had diverged completely.
 
     The harness builds its scene from a `wfm_source_t` STRUCT rather than
-    through `wfm_compose_from_json`, deliberately: routing it through JSON
+    through `dp_wfm_compose_from_json`, deliberately: routing it through JSON
     would put all three legs behind one parser, and a consistency test is
     blind to any defect its paths share.
 
@@ -1627,7 +1627,7 @@ def test_symbols_no_stream_cannot_generate():
 def test_sigmf_annotations_per_instance():
     """The SigMF sidecar emits one annotation per rendered instance at the
     exact drawn position — repeats and ranged delay/gap draws replayed via
-    wfm_compose_spans — with real type labels (the writer's stale private
+    dp_wfm_compose_spans — with real type labels (the writer's stale private
     name table used to drop symbols/dsss and mis-place ranged scenes)."""
     seg = Segment(
         "bpsk",
@@ -1669,7 +1669,7 @@ def test_sigmf_annotation_values_are_the_drawn_ones():
     the source struct -- which for a ranged field holds `lo` -- so every
     annotation of a ranged scene reported the same wrong frequency and SNR
     beside a sample-accurate start (doppler#1086). Both halves come from one
-    `wfm_compose_draws()` row now, so they cannot disagree.
+    `dp_wfm_compose_draws()` row now, so they cannot disagree.
 
     `segments` still reports the (lo, hi) RANGE: that is what makes a run
     replay byte-for-byte, and it is a different question from what this run

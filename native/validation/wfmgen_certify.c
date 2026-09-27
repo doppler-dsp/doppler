@@ -13,11 +13,11 @@
  * determinism — a real property, and not this one. It would pass unchanged
  * if the C API and the CLI had diverged completely.
  *
- * So this harness renders through the STRUCT API — `wfm_compose_create` over
- * a hand-built `wfm_source_t`, not `wfm_compose_from_json` — and writes the
- * raw samples out for something else to compare. Going through JSON here
- * would have made all three legs share one parser, and a consistency test is
- * structurally blind to any defect its paths share (validation.md, step 2).
+ * So this harness renders through the STRUCT API — `dp_wfm_compose_create`
+ * over a hand-built `wfm_source_t`, not `dp_wfm_compose_from_json` — and
+ * writes the raw samples out for something else to compare. Going through JSON
+ * here would have made all three legs share one parser, and a consistency test
+ * is structurally blind to any defect its paths share (validation.md, step 2).
  *
  * IT DECIDES NOTHING. It renders and writes; whether the three renders agree
  * is `validate.py`'s limit to hold, because two places deciding that would be
@@ -91,11 +91,11 @@ render (const scene_t *sc, float complex *out)
   seg.fs            = SCENE_FS;
   seg.num_samples   = SCENE_N;
 
-  wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
   if (!c)
     return 0;
-  size_t n = wfm_compose_execute (c, out, SCENE_N);
-  wfm_compose_destroy (c);
+  size_t n = dp_wfm_compose_execute (c, out, SCENE_N);
+  dp_wfm_compose_destroy (c);
   return n;
 }
 

@@ -24,7 +24,7 @@ kw_swab (void *dst, const void *src, size_t sz, int be)
 }
 
 size_t
-wfm_kw_elem_size (char type)
+dp_wfm_kw_elem_size (char type)
 {
   switch (type)
     {
@@ -50,24 +50,24 @@ wfm_kw_elem_size (char type)
 }
 
 size_t
-wfm_kw_entry_size (size_t ltag, size_t vbytes)
+dp_wfm_kw_entry_size (size_t ltag, size_t vbytes)
 {
   size_t n = 8 + vbytes + ltag; /* header + value + tag, before padding */
   return n + ((8 - (n % 8)) % 8);
 }
 
 size_t
-wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
-               const void *value, size_t count, int be)
+dp_wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
+                  const void *value, size_t count, int be)
 {
-  size_t esz = wfm_kw_elem_size (type);
+  size_t esz = dp_wfm_kw_elem_size (type);
   if (!out || !tag || !value || esz == 0 || count == 0)
     return 0;
   size_t ltag = strlen (tag);
   if (ltag == 0 || ltag > WFM_KW_MAX_TAG)
     return 0;
   size_t vbytes = count * esz;
-  size_t lkey   = wfm_kw_entry_size (ltag, vbytes);
+  size_t lkey   = dp_wfm_kw_entry_size (ltag, vbytes);
   if (lkey > cap || lkey > INT32_MAX)
     return 0;
   /* lext is the NON-value length: the 8-byte header, the tag, and the pad. */
@@ -92,8 +92,8 @@ wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
 }
 
 int
-wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
-               size_t *consumed)
+dp_wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
+                  size_t *consumed)
 {
   if (avail < 8) /* not even a keyword header left */
     return -1;
@@ -115,7 +115,7 @@ wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
     return -1;
   *consumed = lkey;
 
-  size_t esz = wfm_kw_elem_size (type);
+  size_t esz = dp_wfm_kw_elem_size (type);
   if (esz == 0 || vbytes == 0 || (vbytes % esz) != 0)
     return 1; /* intact but undecodable — skip it, don't fail the file */
 
@@ -151,8 +151,8 @@ wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
    structures a type-1000 file does not have, and doppler writes type 1000
    only -- emitting one would describe a layout that is not there. */
 int
-wfm_kw_check_standard (const char *tag, char type, const void *value,
-                       size_t count)
+dp_wfm_kw_check_standard (const char *tag, char type, const void *value,
+                          size_t count)
 {
   const char *v = (const char *)value;
   if (strcmp (tag, "ACQDATE") == 0)

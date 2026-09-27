@@ -181,25 +181,25 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
     {
     case BLK_ALIGNED:
     case BLK_NOISE:
-      rc = wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
-                                    WFM_DSSS_DATA_NONE, NULL, 0);
+      rc = dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
+                                       WFM_DSSS_DATA_NONE, NULL, 0);
       break;
     case BLK_FLIP_MID:
       /* a "symbol" of half a block, bits {0,1}: one flip, mid-block */
-      rc = wfm_synth_set_dsss_cont (syn, code, SF, (double)(D * SF) / 2.0,
-                                    WFM_DSSS_DATA_BITS, two_bits, 2);
+      rc = dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)(D * SF) / 2.0,
+                                       WFM_DSSS_DATA_BITS, two_bits, 2);
       break;
     case BLK_PRBS:
-      rc = wfm_synth_set_dsss_cont (syn, code, SF, cps, WFM_DSSS_DATA_PRBS,
-                                    NULL, 0);
+      rc = dp_wfm_synth_set_dsss_cont (syn, code, SF, cps, WFM_DSSS_DATA_PRBS,
+                                       NULL, 0);
       break;
     case BLK_WINDOW_EDGE:
       /* the real frame: the window closes at symbol W_SYM; start the
          block D/2 epochs before that edge */
-      rc = wfm_synth_set_dsss_cont (syn, code, SF, cps, WFM_DSSS_DATA_PRBS,
-                                    NULL, 0);
+      rc = dp_wfm_synth_set_dsss_cont (syn, code, SF, cps, WFM_DSSS_DATA_PRBS,
+                                       NULL, 0);
       if (rc == 0)
-        rc = wfm_synth_set_dsss_window (syn, W_SYM, F_SYM);
+        rc = dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM);
       {
         double edge_chip = (double)W_SYM * cps;
         double start     = edge_chip - (double)(D / 2) * (double)SF;
@@ -211,7 +211,7 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
   const size_t   blk = D * nx;
   float complex *raw = dp_xmalloc ((discard + blk) * sizeof *raw);
   if (kind == BLK_NOISE)
-    wfm_synth_noise_steps (syn, raw, discard + blk);
+    dp_wfm_synth_noise_steps (syn, raw, discard + blk);
   else
     dp_wfm_synth_steps (syn, raw, discard + blk);
   acq_result_t hit[4];
@@ -299,8 +299,9 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
       WFM_SYNTH_DSSS, fs, dilate ? 0.0 : f, WFM_SYNTH_SNR_CLEAN, 1, seed,
       (int)SPC, 7, 0, 0, 0.0);
   DP_REQUIRE_MSG (syn
-                      && wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
-                                                  WFM_DSSS_DATA_NONE, NULL, 0)
+                      && dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
+                                                     WFM_DSSS_DATA_NONE, NULL,
+                                                     0)
                              == 0,
                   "the synth takes the aligned block");
   const size_t   discard = TAU0, blk = D * nx, need = discard + blk;
@@ -399,8 +400,9 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
       = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              seed, (int)SPC, 7, 0, 0, 0.0);
   DP_REQUIRE_MSG (syn
-                      && wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
-                                                  WFM_DSSS_DATA_NONE, NULL, 0)
+                      && dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
+                                                     WFM_DSSS_DATA_NONE, NULL,
+                                                     0)
                              == 0,
                   "the synth takes the edge emitter");
   dp_doppler_channel_state_t *ch

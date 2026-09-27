@@ -8,14 +8,14 @@
  * mirrors what the old Python `compose.py:Synth._engine()` did: create, then
  * attach the bit pattern (type=bits) and the RRC pulse taps (pn/bpsk/qpsk/bits
  * with pulse="rrc"). The unit-energy taps are scaled to unit transmit power
- * inside `wfm_synth_set_rrc`, so standalone generation stays byte-identical to
- * the composed path.
+ * inside `dp_wfm_synth_set_rrc`, so standalone generation stays byte-identical
+ * to the composed path.
  */
 #include <stdlib.h>
 
 #include "doppler/ccsds_tm/ccsds_tm_frame.h" /* the kernels its coded stages run */
 #include "doppler/wfm/wfm_compose.h"         /* wfm_source_t */
-#include "doppler/wfm/wfm_dsp.h"             /* wfm_rrc_ntaps / wfm_rrc_taps */
+#include "doppler/wfm/wfm_dsp.h"   /* wfm_rrc_ntaps / dp_wfm_rrc_taps */
 #include "doppler/wfm/wfm_frame.h" /* the frame descriptor both faces now read */
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
@@ -23,7 +23,7 @@
 #define WFM_PULSE_RRC 1
 
 int
-wfm_source_has_frame (const wfm_source_t *src)
+dp_wfm_source_has_frame (const wfm_source_t *src)
 {
   /* Preamble or sync word — never `crc`; see the header on why. Any coding
      stage frames it too, and a CADU is why: [ASM | codeblock] carries neither
@@ -37,7 +37,7 @@ wfm_source_has_frame (const wfm_source_t *src)
      builder below states. A GENERATED sequence (PN, Gold) has no array at
      all, so a pointer test would read a PN sync as unframed and quietly emit
      the payload unframed; and for a LITERAL, a length with no array is an
-     unbuildable descriptor that must REACH `wfm_frame_assemble` to be
+     unbuildable descriptor that must REACH `dp_wfm_frame_assemble` to be
      refused there rather than be silently dropped here. */
   /* A carried description is the frame, whatever the flat fields say --
      they are sugar for building one, so a source that already has one does
@@ -51,9 +51,9 @@ wfm_source_has_frame (const wfm_source_t *src)
 static int type_can_frame (const wfm_source_t *src);
 
 const char *
-wfm_source_frame_error (const wfm_source_t *src)
+dp_wfm_source_frame_error (const wfm_source_t *src)
 {
-  if (!wfm_source_has_frame (src))
+  if (!dp_wfm_source_has_frame (src))
     return NULL;
   if (src->type == WFM_SYNTH_DSSS)
     {
@@ -164,8 +164,8 @@ wfm_source_frame_error (const wfm_source_t *src)
      to be dragged out of. */
   wfm_frame_desc_t        desc;
   wfm_frame_desc_layout_t lay;
-  if (wfm_source_describe_frame (src, &desc) != 0
-      || wfm_frame_desc_layout (&desc, &lay) != 0)
+  if (dp_wfm_source_describe_frame (src, &desc) != 0
+      || dp_wfm_frame_desc_layout (&desc, &lay) != 0)
     return "this frame description does not lay out: a field that declares a "
            "length but supplies no bits is DERIVED and must name the stage "
            "that fills it (`derived_by` = the stage's index plus one), a "
@@ -185,11 +185,11 @@ wfm_source_frame_error (const wfm_source_t *src)
  * That is a physical fact rather than an inconsistency: a DSSS preamble is
  * transmitted unmodulated and UNSPREAD, because it is the coherent pull-in
  * target a receiver correlates raw chips against. It is therefore outside
- * anything a stage could cover, and `wfm_dsss_desc_chips` prepends it around
- * the description rather than inside it.
+ * anything a stage could cover, and `dp_wfm_dsss_desc_chips` prepends it
+ * around the description rather than inside it.
  */
 int
-wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
+dp_wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
   if (!src || !d)
     return -1;
@@ -228,19 +228,19 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
       seq.kind = WFM_SEQ_LITERAL;
       seq.bits = marker;
       seq.len  = CCSDS_TM_ASM_BITS;
-      if (wfm_frame_add_field (d, "asm", &seq, 0u) < 0)
+      if (dp_wfm_frame_add_field (d, "asm", &seq, 0u) < 0)
         return -1;
       first = "asm";
     }
 
   /* A field is included on its LENGTH, never on its pointer being non-NULL:
      a length with no array is an unbuildable descriptor, and it has to reach
-     `wfm_frame_assemble` to be refused there. Dropping the field instead
+     `dp_wfm_frame_assemble` to be refused there. Dropping the field instead
      would assemble a frame quietly missing it.
 
      A DSSS preamble is transmitted unmodulated and UNSPREAD -- it is the
      coherent pull-in target a receiver correlates raw chips against -- so it
-     is outside anything a stage could cover, and `wfm_dsss_desc_chips`
+     is outside anything a stage could cover, and `dp_wfm_dsss_desc_chips`
      prepends it around the description rather than inside it. */
   if (!spread && src->acq_code.len && src->acq_reps)
     {
@@ -248,7 +248,7 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
          literal. A copy that set `kind = WFM_SEQ_LITERAL` discarded every
          generated kind before the descriptor could see it, which is what
          made PN and Gold unreachable from any face (gh-762). */
-      if (wfm_frame_add_field (d, "preamble", &src->acq_code, src->acq_reps)
+      if (dp_wfm_frame_add_field (d, "preamble", &src->acq_code, src->acq_reps)
           < 0)
         return -1;
       if (!first)
@@ -257,7 +257,7 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 
   if (src->sync.len)
     {
-      if (wfm_frame_add_field (d, "sync", &src->sync, 0u) < 0)
+      if (dp_wfm_frame_add_field (d, "sync", &src->sync, 0u) < 0)
         return -1;
       if (!first)
         first = "sync";
@@ -270,7 +270,7 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
      used to copy the array into a fresh WFM_SEQ_LITERAL, which discarded a
      generated payload before the descriptor could see it -- the last place
      gh-762's flattening survived after the preamble and sync were fixed. */
-  if (wfm_frame_add_field (d, "payload", &src->payload, 0u) < 0)
+  if (dp_wfm_frame_add_field (d, "payload", &src->payload, 0u) < 0)
     return -1;
   if (!first)
     first = "payload";
@@ -278,11 +278,11 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
   /* The derived fields, in wire order. Their producers are wired by the
      stage that covers them -- which is why they can be appended before any
      stage exists, and why the index arithmetic desc_of needed is gone. */
-  if (src->crc && wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0)
+  if (src->crc && dp_wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0)
     return -1;
   if (src->rs_depth
-      && wfm_frame_add_derived (d, "rs_parity",
-                                (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u)
+      && dp_wfm_frame_add_derived (d, "rs_parity",
+                                   (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u)
              < 0)
     return -1;
 
@@ -296,21 +296,22 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
   int st;
   if (src->crc)
     {
-      if ((st = wfm_frame_add_stage (d, WFM_STAGE_CRC16, "payload", "crc"))
+      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_CRC16, "payload", "crc"))
           < 0)
         return -1;
     }
   if (src->rs_depth)
     {
-      if ((st = wfm_frame_add_stage (d, WFM_STAGE_RS, "payload", "rs_parity"))
+      if ((st
+           = dp_wfm_frame_add_stage (d, WFM_STAGE_RS, "payload", "rs_parity"))
           < 0)
         return -1;
       d->stage[st].depth = src->rs_depth;
     }
   if (src->randomise)
     {
-      if ((st = wfm_frame_add_stage (d, WFM_STAGE_RANDOMISE, "payload",
-                                     data_last))
+      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_RANDOMISE, "payload",
+                                        data_last))
           < 0)
         return -1;
       /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
@@ -320,8 +321,8 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
     }
   if (src->interleave_depth)
     {
-      if ((st = wfm_frame_add_stage (d, WFM_STAGE_INTERLEAVE, "payload",
-                                     data_last))
+      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_INTERLEAVE, "payload",
+                                        data_last))
           < 0)
         return -1;
       d->stage[st].depth     = src->interleave_depth;
@@ -329,7 +330,8 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
     }
   if (src->convolutional)
     {
-      if ((st = wfm_frame_add_stage (d, WFM_STAGE_CONV, first, data_last)) < 0)
+      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_CONV, first, data_last))
+          < 0)
         return -1;
       /* 3.2.1: rate 1/2, so the frame it covers leaves twice as long. */
       d->stage[st].emit_num = 2u;
@@ -342,7 +344,7 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
  *
  * The DSSS chip builder takes RAW ARRAYS, not a description: the spreading
  * code and a spread preamble are chips, and chips are outside anything the
- * frame descriptor covers (`wfm_dsss_desc_chips` prepends the preamble
+ * frame descriptor covers (`dp_wfm_dsss_desc_chips` prepends the preamble
  * AROUND the description). A generated sequence has `bits == NULL`, so
  * handing one to that path reads through a null pointer -- which it did,
  * for a `data_code_gen` arriving from a record, until this existed.
@@ -350,8 +352,9 @@ wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
  * Returns a malloc'd array the caller frees, or NULL. `*n` is its length. A
  * LITERAL is returned as a copy rather than borrowed, so one free() covers
  * both cases and the caller needs no branch. Both consumers COPY what they
- * are given (`wfm_synth_set_dsss_cont`'s `code` is documented "copied";
- * `wfm_dsss_desc_chips` reads it during the call), so a temporary is enough.
+ * are given (`dp_wfm_synth_set_dsss_cont`'s `code` is documented "copied";
+ * `dp_wfm_dsss_desc_chips` reads it during the call), so a temporary is
+ * enough.
  */
 static uint8_t *
 seq_to_chips (const wfm_seq_t *q, size_t *n)
@@ -364,7 +367,7 @@ seq_to_chips (const wfm_seq_t *q, size_t *n)
      from this function therefore means one thing only -- the sequence is
      unbuildable -- and that IS reachable and tested. */
   uint8_t *buf = dp_xmalloc (q->len);
-  if (wfm_seq_bits (q, buf, q->len) != q->len)
+  if (dp_wfm_seq_bits (q, buf, q->len) != q->len)
     {
       free (buf);
       return NULL;
@@ -411,14 +414,14 @@ type_can_frame (const wfm_source_t *src)
 }
 
 int
-wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
+dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
 {
   /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
      and reading it as "no payload" is how the generated kinds stayed
      unreachable everywhere else in this file. */
   if (!type_can_frame (src) || src->payload.len == 0)
-    return 0; /* nothing to attach; mirrors wfm_synth_set_bits */
-  if (!wfm_source_has_frame (src))
+    return 0; /* nothing to attach; mirrors dp_wfm_synth_set_bits */
+  if (!dp_wfm_source_has_frame (src))
     {
       /* Unframed. Only a BITS source transmits its payload directly -- for
          the PN-sourced types an unframed payload is not a waveform they
@@ -429,7 +432,7 @@ wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
       uint8_t *bts = seq_to_chips (&src->payload, &n);
       if (!bts)
         return -1;
-      const int rc = wfm_synth_set_bits (syn, bts, n, src->modulation);
+      const int rc = dp_wfm_synth_set_bits (syn, bts, n, src->modulation);
       free (bts);
       return rc;
     }
@@ -437,11 +440,11 @@ wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
   /* Framed: the pattern is the whole frame, assembled by the one
      descriptor, whatever waveform type carries it. */
   wfm_frame_desc_t d;
-  if (wfm_source_describe_frame (src, &d) != 0)
+  if (dp_wfm_source_describe_frame (src, &d) != 0)
     return -1;
 
   wfm_frame_desc_layout_t lay;
-  if (wfm_frame_desc_layout (&d, &lay) != 0 || lay.out_bits == 0)
+  if (dp_wfm_frame_desc_layout (&d, &lay) != 0 || lay.out_bits == 0)
     return -1;
 
   const size_t n    = lay.out_bits;
@@ -457,23 +460,23 @@ wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
      need the cycle to be a coding decision rather than a length one. */
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
-  if (wfm_frame_assemble (&d, &ops, bits, n) != n)
+  if (dp_wfm_frame_assemble (&d, &ops, bits, n) != n)
     {
       free (bits);
       return -1;
     }
   /* set_bits copies, so the frame buffer is ours to release. */
-  int rc = wfm_synth_set_bits (syn, bits, n, frame_modulation (src));
+  int rc = dp_wfm_synth_set_bits (syn, bits, n, frame_modulation (src));
   free (bits);
   return rc;
 }
 
 int
-wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
-                        double fs)
+dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
+                           double fs)
 {
   if (src->type != WFM_SYNTH_DSSS)
-    return 0; /* no-op, mirrors wfm_synth_set_dsss */
+    return 0; /* no-op, mirrors dp_wfm_synth_set_dsss */
   if (src->symbol_rate > 0.0)
     {
       /* Continuous async: the data clock is independent of the code. sps is
@@ -491,7 +494,7 @@ wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       uint8_t *dchp = seq_to_chips (&src->data_code, &dn);
       if (!dchp)
         return -1;
-      const int rc = wfm_synth_set_dsss_cont (
+      const int rc = dp_wfm_synth_set_dsss_cont (
           syn, dchp, dn, cps, mode, src->payload.bits, src->payload.len);
       free (dchp);
       return rc;
@@ -501,10 +504,10 @@ wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
      `--rs-depth` and `--randomise` reach a DSSS burst by existing, instead of
      being read from the scene and then silently dropped (doppler#1017). */
   wfm_frame_desc_t d;
-  if (wfm_source_describe_frame (src, &d) != 0)
+  if (dp_wfm_source_describe_frame (src, &d) != 0)
     return -1;
-  const size_t n = wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
-                                         src->data_code.len);
+  const size_t n = dp_wfm_dsss_desc_nchips (&d, src->acq_code.len,
+                                            src->acq_reps, src->data_code.len);
   if (n == 0)
     return -1; /* frame bits with no data code, or an empty burst */
   uint8_t *chips = malloc (n);
@@ -524,8 +527,8 @@ wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       free (chips);
       return -1;
     }
-  const size_t got = wfm_dsss_desc_chips (&d, &ops, achp, an, src->acq_reps,
-                                          dchp, dn, chips, n);
+  const size_t got = dp_wfm_dsss_desc_chips (&d, &ops, achp, an, src->acq_reps,
+                                             dchp, dn, chips, n);
   free (achp);
   free (dchp);
   if (got != n)
@@ -537,20 +540,20 @@ wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       free (chips);
       return -1;
     }
-  const int rc = wfm_synth_set_dsss_chips (syn, chips, n);
+  const int rc = dp_wfm_synth_set_dsss_chips (syn, chips, n);
   free (chips);
   return rc;
 }
 
 size_t
-wfm_source_dsss_nchips (const wfm_source_t *src)
+dp_wfm_source_dsss_nchips (const wfm_source_t *src)
 {
   wfm_frame_desc_t d;
   if (!src || src->type != WFM_SYNTH_DSSS || src->symbol_rate > 0.0
-      || wfm_source_describe_frame (src, &d) != 0)
+      || dp_wfm_source_describe_frame (src, &d) != 0)
     return 0;
-  return wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
-                               src->data_code.len);
+  return dp_wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
+                                  src->data_code.len);
 }
 
 dp_wfm_synth_state_t *
@@ -569,9 +572,9 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      frame; frame bits require a data code). A CONTINUOUS stream (symbol_rate >
      0) has no frame — it needs only a spreading code. */
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate <= 0.0
-      && wfm_frame_dsss_nchips (src->acq_code.len, src->acq_reps,
-                                src->data_code.len, src->sync.len,
-                                src->payload.len, src->crc)
+      && dp_wfm_frame_dsss_nchips (src->acq_code.len, src->acq_reps,
+                                   src->data_code.len, src->sync.len,
+                                   src->payload.len, src->crc)
              == 0)
     return NULL;
   /* LEN, not `bits`. A generated spreading code carries `bits == NULL` by
@@ -585,7 +588,7 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* A frame this waveform type cannot carry. Refusing is the whole point:
      these fields used to be accepted and dropped, so the caller got an
      unframed waveform and no way to find out. */
-  if (wfm_source_frame_error (src) != NULL)
+  if (dp_wfm_source_frame_error (src) != NULL)
     return NULL;
   /* A sweeping chirp needs its span, and standalone there is no segment to
      lend one. It used to lock to the length of the first read, so step(),
@@ -599,7 +602,7 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* Refer a dsss data-symbol Es/N0 to fs before create (the SSOT helper the
      composer also uses, so both faces agree to the bit). */
   int    snr_mode = 0;
-  double snr_c    = wfm_source_create_snr (src, fs, src->snr, &snr_mode);
+  double snr_c    = dp_wfm_source_create_snr (src, fs, src->snr, &snr_mode);
   dp_wfm_synth_state_t *eng = dp_wfm_synth_create (
       src->type, fs, src->freq, snr_c, snr_mode, src->seed, src->sps,
       src->pn_length, src->pn_poly, src->lfsr, src->f_end);
@@ -607,16 +610,16 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
     return NULL;
   dp_wfm_synth_set_chirp_span (eng, src->span); /* no-op for non-chirp */
 
-  if (wfm_source_attach_frame (eng, src) != 0)
+  if (dp_wfm_source_attach_frame (eng, src) != 0)
     {
       dp_wfm_synth_destroy (eng);
       return NULL;
     }
 
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols && src->n_symbols)
-    wfm_synth_set_symbols (eng, src->symbols, src->n_symbols);
+    dp_wfm_synth_set_symbols (eng, src->symbols, src->n_symbols);
 
-  if (wfm_source_attach_dsss (eng, src, fs) != 0)
+  if (dp_wfm_source_attach_dsss (eng, src, fs) != 0)
     {
       dp_wfm_synth_destroy (eng);
       return NULL;
@@ -631,8 +634,8 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
       float *taps  = (float *)malloc ((size_t)ntaps * sizeof *taps);
       if (taps)
         {
-          wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
-          wfm_synth_set_rrc (eng, taps, ntaps);
+          dp_wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
+          dp_wfm_synth_set_rrc (eng, taps, ntaps);
           free (taps); /* set_rrc copies the taps */
         }
     }

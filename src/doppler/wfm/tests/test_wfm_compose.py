@@ -157,7 +157,7 @@ def _timeline(mod):
 
 
 def test_to_json_wire_bytes_match_reference():
-    """Delegated ``wfm_spec_to_json`` → byte-identical wire format vs
+    """Delegated ``dp_wfm_spec_to_json`` → byte-identical wire format vs
     reference."""
     assert _timeline(G).to_json() == _timeline(R).to_json()
 

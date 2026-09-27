@@ -21,7 +21,7 @@
  * Method. The operating point of §12.3: a 1023-chip Gold code at 5 Mcps,
  * two samples per chip, asynchronous BPSK data at 2700 sym/s from the
  * shipped synth (`wfm_synth` continuous DSSS, its own PRBS data) with the
- * shipped window (`wfm_synth_set_dsss_window`: 450 code-only symbols of
+ * shipped window (`dp_wfm_synth_set_dsss_window`: 450 code-only symbols of
  * every 4950 -- a 1.83 s frame, a 0.17 s window); noise from the shipped
  * awgn generator sized by awgn_amplitude_for_snr() from the C/N0. The
  * receiver is the SEARCHING flavor (`dp_async_dsss_receiver_create`),
@@ -166,9 +166,9 @@ make_emitter (const uint8_t *code, uint32_t seed)
       = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              seed, (int)SPC, 15, 0, 0, 0.0);
   /* Valid constants: the synth takes them (the caller requires `syn`). */
-  (void)wfm_synth_set_dsss_cont (syn, code, SF, CPS, WFM_DSSS_DATA_PRBS, NULL,
-                                 0);
-  (void)wfm_synth_set_dsss_window (syn, W_SYM, F_SYM);
+  (void)dp_wfm_synth_set_dsss_cont (syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
+                                    NULL, 0);
+  (void)dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM);
   return syn;
 }
 

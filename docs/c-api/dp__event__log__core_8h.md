@@ -123,7 +123,7 @@ A `.sigmf-meta` is ONE JSON document: `global`, `captures`, `annotations`, close
 
 
 * **During the run** each event is appended to a flat file as one JSON object on one line (JSON Lines), flushed immediately. That file is tail-able while the run is live, and a crash costs at most the event being written, never the ones before it.
-* **At finalize** the lines are collected into the `annotations` array of a proper `.sigmf-meta` sidecar — through the writer's existing SigMF emitter ([**wfm\_sigmf\_meta\_json\_ex()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json_ex), [**wfm\_writer/wfm\_writer\_core.h**](wfm__writer__core_8h.md)), never a second one. `global` and `captures` therefore come out byte-for-byte the way every other doppler sidecar spells them, including the omit-when-unknown rules that document says at length.
+* **At finalize** the lines are collected into the `annotations` array of a proper `.sigmf-meta` sidecar — through the writer's existing SigMF emitter ([**dp\_wfm\_sigmf\_meta\_json\_ex()**](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json_ex), [**wfm\_writer/wfm\_writer\_core.h**](wfm__writer__core_8h.md)), never a second one. `global` and `captures` therefore come out byte-for-byte the way every other doppler sidecar spells them, including the omit-when-unknown rules that document says at length.
 
 
 

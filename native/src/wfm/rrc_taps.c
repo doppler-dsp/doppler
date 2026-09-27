@@ -7,7 +7,7 @@
  * stable wfm public name with a self-sizing (variable_output) Python binding.
  */
 #include "doppler/wfm/wfm_core.h"
-#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_taps */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_rrc_taps */
 
 void
 dp_rrc_taps (double beta, int sps, int span, float *out)
@@ -26,5 +26,5 @@ dp_rrc_taps (double beta, int sps, int span, float *out)
         out[i] = 0.0f;
       return;
     }
-  wfm_rrc_taps (beta, sps, span, out);
+  dp_wfm_rrc_taps (beta, sps, span, out);
 }

@@ -269,7 +269,7 @@ WriterObj_add_keyword (WriterObject *self, PyObject *args, PyObject *kwds)
       const char *_s = PyUnicode_AsUTF8AndSize (value, &_n);
       if (!_s)
         return NULL;
-      if (wfm_writer_add_keyword (self->handle, tag, _type, _s, (size_t)_n)
+      if (dp_wfm_writer_add_keyword (self->handle, tag, _type, _s, (size_t)_n)
           != 0)
         {
           PyErr_SetString (PyExc_ValueError, "add_keyword failed");
@@ -374,7 +374,7 @@ WriterObj_add_keyword (WriterObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (_seq);
       return NULL;
     }
-  int _rc = wfm_writer_add_keyword (self->handle, tag, _type, _buf, _count);
+  int _rc = dp_wfm_writer_add_keyword (self->handle, tag, _type, _buf, _count);
   free (_buf);
   Py_XDECREF (_seq);
   if (_rc != 0)

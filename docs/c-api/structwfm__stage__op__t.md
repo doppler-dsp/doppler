@@ -96,7 +96,7 @@ It is also what makes the description open. A caller with a stage doppler has ne
 Exactly one of the two is set. `in_unit` rewrites the stage's span where it lies; `emit` consumes the assembled frame and produces a different stream.
 
 
-**A stage's derived field is the LAST field of its cover**, which is what lets one in-place signature serve a CRC, an outer code and a randomiser alike: the op receives the whole span, reads the information at its head and writes the check symbols into its tail. [**wfm\_frame\_desc\_layout**](wfm__frame_8h.md#function-wfm_frame_desc_layout) refuses a description that breaks it. 
+**A stage's derived field is the LAST field of its cover**, which is what lets one in-place signature serve a CRC, an outer code and a randomiser alike: the op receives the whole span, reads the information at its head and writes the check symbols into its tail. [**dp\_wfm\_frame\_desc\_layout**](wfm__frame_8h.md#function-dp_wfm_frame_desc_layout) refuses a description that breaks it. 
 
 
     
@@ -167,7 +167,7 @@ int(* wfm_stage_op_t::undo) (const wfm_stage_t *st, uint8_t *bits, size_t n, wfm
 Undo the stage over its span on the RECEIVE side, correcting `bits` in place and reporting what was found. Returns 0 on success, -1 if the span is the wrong shape for this stage.
 
 
-A stage with no `undo` is not an error — it is a stage the receiver does not reverse HERE. The inner code is the case: it is streaming and emits its decisions `depth` bits late, so it is undone before frame synchronisation and a frame checker never sees channel symbols. [**wfm\_frame\_check**](wfm__frame_8h.md#function-wfm_frame_check) reports such a stage as not-checked rather than as passed, which are different answers. 
+A stage with no `undo` is not an error — it is a stage the receiver does not reverse HERE. The inner code is the case: it is streaming and emits its decisions `depth` bits late, so it is undone before frame synchronisation and a frame checker never sees channel symbols. [**dp\_wfm\_frame\_check**](wfm__frame_8h.md#function-dp_wfm_frame_check) reports such a stage as not-checked rather than as passed, which are different answers. 
 
 
         

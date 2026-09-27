@@ -8,7 +8,7 @@
 
 
 
-_What_ [_**wfm\_frame\_check**_](wfm__frame_8h.md#function-wfm_frame_check) _found, stage by stage._[More...](#detailed-description)
+_What_ [_**dp\_wfm\_frame\_check**_](wfm__frame_8h.md#function-dp_wfm_frame_check) _found, stage by stage._[More...](#detailed-description)
 
 * `#include <wfm_frame.h>`
 

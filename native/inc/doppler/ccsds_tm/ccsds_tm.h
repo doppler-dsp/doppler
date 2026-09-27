@@ -71,7 +71,7 @@
  * encoder did. The check that bites is the one the standard prints.
  *
  * Bit convention: every function here takes and returns **unpacked** bits,
- * one per byte in the LSB, which is what `wfm_frame_bits`, `dp_crc16_ccitt`
+ * one per byte in the LSB, which is what `dp_wfm_frame_bits`, `dp_crc16_ccitt`
  * and the spreader already pass around. Packed byte streams are a separate
  * (and wanted) representation; conflating them silently is how MSB-first came
  * to be hardcoded in three places that agree by luck.

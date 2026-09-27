@@ -61,24 +61,24 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_wfm\_blue\_write\_hcb**](#function-dp_wfm_blue_write_hcb) (FILE \* fp, int sample\_type, int endian, double fs, double fc, double data\_start, size\_t total\_samples, int detached, double t0\_unix\_sec) <br>_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._  |
+|  char \* | [**dp\_wfm\_sigmf\_meta\_json**](#function-dp_wfm_sigmf_meta_json) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._ |
+|  char \* | [**dp\_wfm\_sigmf\_meta\_json\_ex**](#function-dp_wfm_sigmf_meta_json_ex) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, const char \* extra\_global\_json, const char \*const \* annotations, size\_t n\_ann) <br>[_**dp\_wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json) _plus the two things a caller can add to it._ |
+|  int | [**dp\_wfm\_writer\_add\_keyword**](#function-dp_wfm_writer_add_keyword) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
+|  double | [**dp\_wfm\_writer\_clip\_fraction**](#function-dp_wfm_writer_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
+|  int | [**dp\_wfm\_writer\_close**](#function-dp_wfm_writer_close) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
 |  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**dp\_wfm\_writer\_create**](#function-dp_wfm_writer_create) (const char \* path, double fs, int file\_type, int sample\_type, int endian, double fc, size\_t total, double headroom, double t0, bool sidecar) <br>_Open a capture for writing._  |
 |  int | [**dp\_wfm\_writer\_destroy**](#function-dp_wfm_writer_destroy) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Finalise and free — the object binding's fallible destructor._  |
 |  int | [**dp\_wfm\_writer\_flush**](#function-dp_wfm_writer_flush) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Make written samples durable and observable, without finishing._  |
 |  double | [**dp\_wfm\_writer\_get\_clip\_fraction**](#function-dp_wfm_writer_get_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
 |  bool | [**dp\_wfm\_writer\_get\_clipped**](#function-dp_wfm_writer_get_clipped) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
 |  double | [**dp\_wfm\_writer\_get\_peak\_dbfs**](#function-dp_wfm_writer_get_peak_dbfs) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
+|  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**dp\_wfm\_writer\_open**](#function-dp_wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer__core_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples, double t0\_unix\_sec) <br>_Open a writer on an already-open stream._  |
+|  double | [**dp\_wfm\_writer\_peak**](#function-dp_wfm_writer_peak) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
+|  void | [**dp\_wfm\_writer\_set\_gain**](#function-dp_wfm_writer_set_gain) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, double gain) <br> |
 |  void | [**dp\_wfm\_writer\_track\_clipping**](#function-dp_wfm_writer_track_clipping) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, int on) <br> |
 |  size\_t | [**dp\_wfm\_writer\_write**](#function-dp_wfm_writer_write) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Convert and write a block of samples._  |
 |  int | [**dp\_write\_blue\_header**](#function-dp_write_blue_header) (const char \* path, double fs, int sample\_type, int endian, double fc, double data\_start, size\_t total, int detached, double t0) <br> |
-|  int | [**wfm\_blue\_write\_hcb**](#function-wfm_blue_write_hcb) (FILE \* fp, int sample\_type, int endian, double fs, double fc, double data\_start, size\_t total\_samples, int detached, double t0\_unix\_sec) <br>_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._  |
-|  char \* | [**wfm\_sigmf\_meta\_json**](#function-wfm_sigmf_meta_json) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._ |
-|  char \* | [**wfm\_sigmf\_meta\_json\_ex**](#function-wfm_sigmf_meta_json_ex) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, const char \* extra\_global\_json, const char \*const \* annotations, size\_t n\_ann) <br>[_**wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) _plus the two things a caller can add to it._ |
-|  int | [**wfm\_writer\_add\_keyword**](#function-wfm_writer_add_keyword) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
-|  double | [**wfm\_writer\_clip\_fraction**](#function-wfm_writer_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
-|  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
-|  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**wfm\_writer\_open**](#function-wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer__core_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples, double t0\_unix\_sec) <br>_Open a writer on an already-open stream._  |
-|  double | [**wfm\_writer\_peak**](#function-wfm_writer_peak) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
-|  void | [**wfm\_writer\_set\_gain**](#function-wfm_writer_set_gain) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, double gain) <br> |
 
 
 
@@ -110,10 +110,10 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 ## Detailed Description
 
 
-A streaming writer over a FILE\* that serialises cf32 blocks into one of three on-disk file types, in the chosen wire sample type and byte order. The fourth file-type, SigMF, writes its samples as `raw` (into `<base>.sigmf-data`) and pairs with a sidecar `<base>.sigmf-meta` JSON from [**wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json).
+A streaming writer over a FILE\* that serialises cf32 blocks into one of three on-disk file types, in the chosen wire sample type and byte order. The fourth file-type, SigMF, writes its samples as `raw` (into `<base>.sigmf-data`) and pairs with a sidecar `<base>.sigmf-meta` JSON from [**dp\_wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json).
 
 
-A writer opened by PATH (dp\_wfm\_writer\_create) emits that sidecar itself, at close, so `sigmf` produces a readable pair with no further work — and for that reason it REQUIRES a path ending in `.sigmf-data`, since both halves of a SigMF capture are found by name. A writer opened on a FILE\* (wfm\_writer\_open) has no name to derive the sidecar's from, so the caller owns it — that is the path wfmgen and Composer take, and it is also how they attach their per-segment annotations.
+A writer opened by PATH (dp\_wfm\_writer\_create) emits that sidecar itself, at close, so `sigmf` produces a readable pair with no further work — and for that reason it REQUIRES a path ending in `.sigmf-data`, since both halves of a SigMF capture are found by name. A writer opened on a FILE\* (dp\_wfm\_writer\_open) has no name to derive the sidecar's from, so the caller owns it — that is the path wfmgen and Composer take, and it is also how they attach their per-segment annotations.
 
 
 The same mechanism keeps `raw` and `csv` interpretable. Both containers take `fs`, `fc` and `t0` at construction and have nowhere to store them, and until now simply discarded them — handing back a file that not even its author could interpret afterwards. A path-opened raw/CSV writer therefore gets a `<path>.sigmf-meta` sidecar too (`sidecar=false` opts out). It is SigMF-SHAPED, not a SigMF capture: the name is appended rather than swapped so it cannot collide with a real pair's metadata (see wfm\_meta\_path), and for CSV `core:datatype` names the value domain the samples were quantised to rather than a byte layout. BLUE gets none — its header already carries all three, and a second copy is only somewhere for them to drift.
@@ -132,9 +132,9 @@ Axes (orthogonal to the file type):
 // which leaves the BLUE timecode field unset rather than dating the
 // capture to 1970.
 dp_wfm_writer_state_t *w =
-    wfm_writer_open(fp, WFM_FT_BLUE, 3, 0, 1e6, 2.4e9, 4096, 0.0);
+    dp_wfm_writer_open(fp, WFM_FT_BLUE, 3, 0, 1e6, 2.4e9, 4096, 0.0);
 dp_wfm_writer_write(w, iq, 4096);
-wfm_writer_close(w);   // patches the BLUE data_size from the actual count
+dp_wfm_writer_close(w);   // patches the BLUE data_size from the actual count
 ```
  
 
@@ -183,6 +183,264 @@ Output file type.
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function dp\_wfm\_blue\_write\_hcb 
+
+_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._ 
+```C++
+int dp_wfm_blue_write_hcb (
+    FILE * fp,
+    int sample_type,
+    int endian,
+    double fs,
+    double fc,
+    double data_start,
+    size_t total_samples,
+    int detached,
+    double t0_unix_sec
+) 
+```
+
+
+
+Used for the `blue` file type — both attached (the writer calls this with `data_start = 512`, `detached = 0`, then streams the data after it) and detached (the caller writes the data to a separate `.det` file and this HCB to a `.hdr` file with `data_start = 0`, `detached = 1`). Every standard field is written; the header byte order follows `endian`.
+
+
+
+
+**Parameters:**
+
+
+* `fp` destination (binary). 
+* `sample_type` wire type (wavegen order) → BLUE format char C{B,I,L,F,D}. 
+* `endian` 0 little (`EEEI`) / 1 big (`IEEE`). 
+* `fs` sample rate (Hz) → `xdelta = 1/fs`. A zero writes `xdelta = 0`, the header's own way of saying the rate is not known. 
+* `fc` centre frequency (Hz). Type 1000 has no HCB field for it, so a non-zero value is written as an ASCII `FREQ=<value>` pair in the HCB keyword area. 
+* `data_start` `data_start` field: 512 attached, 0 detached. 
+* `total_samples` complex-sample count → `data_size`. 
+* `detached` non-zero sets the HCB `detached` flag. 
+* `t0_unix_sec` capture start in UNIX seconds → the `timecode` field at byte 56, converted to the J1950 epoch BLUE counts from. [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset) (0.0) leaves the field zero, which is what a reader tests for; it does not write 1970 (nor 1950). 
+
+
+
+**Returns:**
+
+0 on success, non-zero on a write error. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_sigmf\_meta\_json 
+
+_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._
+```C++
+char * dp_wfm_sigmf_meta_json (
+    int sample_type,
+    int endian,
+    double fs,
+    double fc,
+    double t0_unix_sec,
+    const wfm_segment_t * segs,
+    size_t n_segs
+) 
+```
+
+
+
+`global` carries core:datatype (from sample\_type+endian, e.g. "ci16\_le"), core:version "1.0.0", a wfmgen description/author, and core:sample\_rate _if_ `fs` is non-zero. `captures` is a single capture at sample 0 / frequency `fc`, carrying core:datetime _if_ `t0_unix_sec` is set. `annotations` has one entry per composer segment — sample span, frequency edges (fc + freq ± bandwidth/2, bandwidth ≈ fs/sps for symbol/chip types), a core:label of the waveform type, and custom `wfmgen:*` parameters.
+
+
+Both optional keys are OMITTED rather than defaulted when their input is unset. SigMF 1.0.0 requires only core:datatype and core:version in `global`, so an absent sample rate is legal — and it is the honest answer, where a fabricated one is a number a downstream tool will act on.
+
+
+
+
+**Parameters:**
+
+
+* `sample_type` wire type (wavegen order) — with `endian` this becomes core:datatype, e.g. `"ci16_le"`. 
+* `endian` 0 little, 1 big. 
+* `fs` sample rate (Hz). 0.0 means "not stated by the caller", and is then DERIVED from `segs` when they carry one and agree on it — the annotations below are already computed from each segment's own `fs`, so omitting `core:sample_rate` would withhold a rate this document demonstrably knows. Segments that disagree leave it unstated (no single rate is true of the stream), as does a NULL `segs`. A non-zero `fs` always wins: a caller rendering at a resampled rate is describing the FILE. 
+* `fc` centre frequency (Hz) → `captures[0]["core:frequency"]`. 
+* `t0_unix_sec` capture start in UNIX seconds, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset). Rendered as extended ISO 8601 (`core:datetime` requires the separators; doppler's filename stamps do not). 
+* `segs` composer segments to annotate, or NULL for none. 
+* `n_segs` number of entries in `segs`. 
+
+
+
+**Returns:**
+
+malloc'd JSON string (caller frees), or NULL on allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_sigmf\_meta\_json\_ex 
+
+[_**dp\_wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json) _plus the two things a caller can add to it._
+```C++
+char * dp_wfm_sigmf_meta_json_ex (
+    int sample_type,
+    int endian,
+    double fs,
+    double fc,
+    double t0_unix_sec,
+    const wfm_segment_t * segs,
+    size_t n_segs,
+    const char * extra_global_json,
+    const char *const * annotations,
+    size_t n_ann
+) 
+```
+
+
+
+The same document, from the same code — this IS the implementation and [**dp\_wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json) is the call with both extras absent. It exists so an events sidecar ([**dp\_event\_log/dp\_event\_log\_core.h**](dp__event__log__core_8h.md)) is this emitter with annotations of its own, rather than a second builder free to spell `global` and `captures`, and their omit-when-unknown rules, differently.
+
+
+
+
+**Parameters:**
+
+
+* `sample_type` wire type (wavegen order) -&gt; `core:datatype`. 
+* `endian` 0 little, 1 big. 
+* `fs` sample rate (Hz); 0.0 derives from `segs` or is omitted  see [**dp\_wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json). 
+* `fc` centre frequency (Hz) -&gt; `captures[0]`. 
+* `t0_unix_sec` capture start, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset). 
+* `segs` composer segments to annotate, or NULL for none. 
+* `n_segs` number of entries in `segs`. 
+* `extra_global_json` a JSON OBJECT whose members are merged into `global`, or NULL. A member replaces a key already there rather than duplicating it. Text that is not a JSON object is ignored. 
+* `annotations` JSON object strings appended to `annotations` after the segments', or NULL. A string that does not parse as an object is skipped, not fatal. 
+* `n_ann` number of entries in `annotations`. 
+
+
+
+**Returns:**
+
+malloc'd JSON string (caller frees), or NULL on allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_add\_keyword 
+
+_Attach a BLUE extended-header keyword (a tag/value pair)._ 
+```C++
+int dp_wfm_writer_add_keyword (
+    dp_wfm_writer_state_t * w,
+    const char * tag,
+    char type,
+    const void * value,
+    size_t count
+) 
+```
+
+
+
+Keywords are buffered and written as one block by [**dp\_wfm\_writer\_close()**](wfm__writer__core_8h.md#function-dp_wfm_writer_close), after the data — the layout BLUE §3.3 recommends for streaming, since the total data size is not known until the stream ends. `ext_start`/`ext_size` are patched into the HCB at the same time. Call as many times as you like, before or between writes; order is preserved, and duplicate tags are allowed (the format permits them).
+
+
+
+
+**Parameters:**
+
+
+* `w` an open BLUE writer (any other file type returns an error — only BLUE has an extended header). 
+* `tag` NUL-terminated tag, 1..255 characters. Upper-case is strongly preferred: lower-case has limited support across the Midas baselines. 
+* `type` element type code — `B`/`I`/`L`/`X` (8/16/32/64-bit integer), `F`/`D` (32/64-bit float), or `A` (ASCII string, variable length in keyword context). `O`/`P`/`N` are not permitted in keywords and are rejected. 
+* `value` `count` elements in host byte order; for `A`, `count` characters (no NUL is written or required). 
+* `count` element count; must be non-zero. 
+
+
+
+**Returns:**
+
+0 on success, non-zero if the file type is not BLUE, the arguments are invalid, or the buffer could not grow.
+
+
+
+```C++
+double fc = 1.2345e9;
+dp_wfm_writer_add_keyword(w, "F_C", 'D', &fc, 1);
+dp_wfm_writer_add_keyword(w, "COMMENT", 'A', "10 dB pad", 9);
+dp_wfm_writer_close(w);   // keywords land after the data, HCB patched
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_clip\_fraction 
+
+```C++
+double dp_wfm_writer_clip_fraction (
+    const dp_wfm_writer_state_t * w
+) 
+```
+
+
+
+Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless [**dp\_wfm\_writer\_track\_clipping()**](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) was enabled. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_close 
+
+_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._ 
+```C++
+int dp_wfm_writer_close (
+    dp_wfm_writer_state_t * w
+) 
+```
+
+
+
+
+
+**Returns:**
+
+0 on success, non-zero on a write/seek error. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -285,7 +543,7 @@ int dp_wfm_writer_destroy (
 
 
 
-Identical to [**wfm\_writer\_close()**](wfm__writer__core_8h.md#function-wfm_writer_close); the object shape (gh-541) generates a Python close() from this that raises when it returns non-zero, so the finaliser's status reaches the caller and out of a `with` block. C callers may use either name.
+Identical to [**dp\_wfm\_writer\_close()**](wfm__writer__core_8h.md#function-dp_wfm_writer_close); the object shape (gh-541) generates a Python close() from this that raises when it returns non-zero, so the finaliser's status reaches the caller and out of a `with` block. C callers may use either name.
 
 
 
@@ -387,6 +645,93 @@ double dp_wfm_writer_get_peak_dbfs (
 
 
 
+### function dp\_wfm\_writer\_open 
+
+_Open a writer on an already-open stream._ 
+```C++
+dp_wfm_writer_state_t * dp_wfm_writer_open (
+    FILE * fp,
+    wfm_filetype_t ft,
+    int sample_type,
+    int endian,
+    double fs,
+    double fc,
+    size_t total_samples,
+    double t0_unix_sec
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `fp` destination (binary mode for raw/blue; text-safe for csv). 
+* `ft` file type; SIGMF is treated as RAW here. 
+* `sample_type` wire type (wavegen order); see file header. 
+* `endian` 0 little, 1 big (ignored for csv). 
+* `fs` sample rate (Hz) — BLUE xdelta = 1/fs. Pass 0.0 for "not known", which writes xdelta 0 and omits SigMF's core:sample\_rate rather than claiming a rate. 
+* `fc` centre frequency (Hz). BLUE records it as a `FREQ` keyword — see dp\_wfm\_writer\_create; raw and CSV have nowhere to put it and drop it. 
+* `total_samples` expected complex-sample count for the BLUE header (0 if unknown; close() patches the actual count when fp is seekable). 
+* `t0_unix_sec` capture start, seconds since the UNIX epoch, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset) (0.0) if unknown. BLUE stores it as a J1950 timecode, SigMF as `core:datetime`; raw and CSV have nowhere to put it and drop it. A zero stays an unset field — it is never written as 1970. 
+
+
+
+**Returns:**
+
+Writer handle, or NULL on bad args / allocation. BLUE writes its 512-byte header here. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_peak 
+
+```C++
+double dp_wfm_writer_peak (
+    const dp_wfm_writer_state_t * w
+) 
+```
+
+
+
+Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, full-scale 1.0). &gt; 1.0 ⇒ integer output clipped; peak\_dBFS = 20\*log10(peak). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_writer\_set\_gain 
+
+```C++
+void dp_wfm_writer_set_gain (
+    dp_wfm_writer_state_t * w,
+    double gain
+) 
+```
+
+
+
+Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_writer\_track\_clipping 
 
 ```C++
@@ -474,351 +819,6 @@ int dp_write_blue_header (
 
 
 
-
-<hr>
-
-
-
-### function wfm\_blue\_write\_hcb 
-
-_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._ 
-```C++
-int wfm_blue_write_hcb (
-    FILE * fp,
-    int sample_type,
-    int endian,
-    double fs,
-    double fc,
-    double data_start,
-    size_t total_samples,
-    int detached,
-    double t0_unix_sec
-) 
-```
-
-
-
-Used for the `blue` file type — both attached (the writer calls this with `data_start = 512`, `detached = 0`, then streams the data after it) and detached (the caller writes the data to a separate `.det` file and this HCB to a `.hdr` file with `data_start = 0`, `detached = 1`). Every standard field is written; the header byte order follows `endian`.
-
-
-
-
-**Parameters:**
-
-
-* `fp` destination (binary). 
-* `sample_type` wire type (wavegen order) → BLUE format char C{B,I,L,F,D}. 
-* `endian` 0 little (`EEEI`) / 1 big (`IEEE`). 
-* `fs` sample rate (Hz) → `xdelta = 1/fs`. A zero writes `xdelta = 0`, the header's own way of saying the rate is not known. 
-* `fc` centre frequency (Hz). Type 1000 has no HCB field for it, so a non-zero value is written as an ASCII `FREQ=<value>` pair in the HCB keyword area. 
-* `data_start` `data_start` field: 512 attached, 0 detached. 
-* `total_samples` complex-sample count → `data_size`. 
-* `detached` non-zero sets the HCB `detached` flag. 
-* `t0_unix_sec` capture start in UNIX seconds → the `timecode` field at byte 56, converted to the J1950 epoch BLUE counts from. [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset) (0.0) leaves the field zero, which is what a reader tests for; it does not write 1970 (nor 1950). 
-
-
-
-**Returns:**
-
-0 on success, non-zero on a write error. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_sigmf\_meta\_json 
-
-_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._
-```C++
-char * wfm_sigmf_meta_json (
-    int sample_type,
-    int endian,
-    double fs,
-    double fc,
-    double t0_unix_sec,
-    const wfm_segment_t * segs,
-    size_t n_segs
-) 
-```
-
-
-
-`global` carries core:datatype (from sample\_type+endian, e.g. "ci16\_le"), core:version "1.0.0", a wfmgen description/author, and core:sample\_rate _if_ `fs` is non-zero. `captures` is a single capture at sample 0 / frequency `fc`, carrying core:datetime _if_ `t0_unix_sec` is set. `annotations` has one entry per composer segment — sample span, frequency edges (fc + freq ± bandwidth/2, bandwidth ≈ fs/sps for symbol/chip types), a core:label of the waveform type, and custom `wfmgen:*` parameters.
-
-
-Both optional keys are OMITTED rather than defaulted when their input is unset. SigMF 1.0.0 requires only core:datatype and core:version in `global`, so an absent sample rate is legal — and it is the honest answer, where a fabricated one is a number a downstream tool will act on.
-
-
-
-
-**Parameters:**
-
-
-* `sample_type` wire type (wavegen order) — with `endian` this becomes core:datatype, e.g. `"ci16_le"`. 
-* `endian` 0 little, 1 big. 
-* `fs` sample rate (Hz). 0.0 means "not stated by the caller", and is then DERIVED from `segs` when they carry one and agree on it — the annotations below are already computed from each segment's own `fs`, so omitting `core:sample_rate` would withhold a rate this document demonstrably knows. Segments that disagree leave it unstated (no single rate is true of the stream), as does a NULL `segs`. A non-zero `fs` always wins: a caller rendering at a resampled rate is describing the FILE. 
-* `fc` centre frequency (Hz) → `captures[0]["core:frequency"]`. 
-* `t0_unix_sec` capture start in UNIX seconds, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset). Rendered as extended ISO 8601 (`core:datetime` requires the separators; doppler's filename stamps do not). 
-* `segs` composer segments to annotate, or NULL for none. 
-* `n_segs` number of entries in `segs`. 
-
-
-
-**Returns:**
-
-malloc'd JSON string (caller frees), or NULL on allocation failure. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_sigmf\_meta\_json\_ex 
-
-[_**wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) _plus the two things a caller can add to it._
-```C++
-char * wfm_sigmf_meta_json_ex (
-    int sample_type,
-    int endian,
-    double fs,
-    double fc,
-    double t0_unix_sec,
-    const wfm_segment_t * segs,
-    size_t n_segs,
-    const char * extra_global_json,
-    const char *const * annotations,
-    size_t n_ann
-) 
-```
-
-
-
-The same document, from the same code — this IS the implementation and [**wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) is the call with both extras absent. It exists so an events sidecar ([**dp\_event\_log/dp\_event\_log\_core.h**](dp__event__log__core_8h.md)) is this emitter with annotations of its own, rather than a second builder free to spell `global` and `captures`, and their omit-when-unknown rules, differently.
-
-
-
-
-**Parameters:**
-
-
-* `sample_type` wire type (wavegen order) -&gt; `core:datatype`. 
-* `endian` 0 little, 1 big. 
-* `fs` sample rate (Hz); 0.0 derives from `segs` or is omitted  see [**wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json). 
-* `fc` centre frequency (Hz) -&gt; `captures[0]`. 
-* `t0_unix_sec` capture start, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset). 
-* `segs` composer segments to annotate, or NULL for none. 
-* `n_segs` number of entries in `segs`. 
-* `extra_global_json` a JSON OBJECT whose members are merged into `global`, or NULL. A member replaces a key already there rather than duplicating it. Text that is not a JSON object is ignored. 
-* `annotations` JSON object strings appended to `annotations` after the segments', or NULL. A string that does not parse as an object is skipped, not fatal. 
-* `n_ann` number of entries in `annotations`. 
-
-
-
-**Returns:**
-
-malloc'd JSON string (caller frees), or NULL on allocation failure. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_add\_keyword 
-
-_Attach a BLUE extended-header keyword (a tag/value pair)._ 
-```C++
-int wfm_writer_add_keyword (
-    dp_wfm_writer_state_t * w,
-    const char * tag,
-    char type,
-    const void * value,
-    size_t count
-) 
-```
-
-
-
-Keywords are buffered and written as one block by [**wfm\_writer\_close()**](wfm__writer__core_8h.md#function-wfm_writer_close), after the data — the layout BLUE §3.3 recommends for streaming, since the total data size is not known until the stream ends. `ext_start`/`ext_size` are patched into the HCB at the same time. Call as many times as you like, before or between writes; order is preserved, and duplicate tags are allowed (the format permits them).
-
-
-
-
-**Parameters:**
-
-
-* `w` an open BLUE writer (any other file type returns an error — only BLUE has an extended header). 
-* `tag` NUL-terminated tag, 1..255 characters. Upper-case is strongly preferred: lower-case has limited support across the Midas baselines. 
-* `type` element type code — `B`/`I`/`L`/`X` (8/16/32/64-bit integer), `F`/`D` (32/64-bit float), or `A` (ASCII string, variable length in keyword context). `O`/`P`/`N` are not permitted in keywords and are rejected. 
-* `value` `count` elements in host byte order; for `A`, `count` characters (no NUL is written or required). 
-* `count` element count; must be non-zero. 
-
-
-
-**Returns:**
-
-0 on success, non-zero if the file type is not BLUE, the arguments are invalid, or the buffer could not grow.
-
-
-
-```C++
-double fc = 1.2345e9;
-wfm_writer_add_keyword(w, "F_C", 'D', &fc, 1);
-wfm_writer_add_keyword(w, "COMMENT", 'A', "10 dB pad", 9);
-wfm_writer_close(w);   // keywords land after the data, HCB patched
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_clip\_fraction 
-
-```C++
-double wfm_writer_clip_fraction (
-    const dp_wfm_writer_state_t * w
-) 
-```
-
-
-
-Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless [**dp\_wfm\_writer\_track\_clipping()**](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) was enabled. 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_close 
-
-_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._ 
-```C++
-int wfm_writer_close (
-    dp_wfm_writer_state_t * w
-) 
-```
-
-
-
-
-
-**Returns:**
-
-0 on success, non-zero on a write/seek error. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_open 
-
-_Open a writer on an already-open stream._ 
-```C++
-dp_wfm_writer_state_t * wfm_writer_open (
-    FILE * fp,
-    wfm_filetype_t ft,
-    int sample_type,
-    int endian,
-    double fs,
-    double fc,
-    size_t total_samples,
-    double t0_unix_sec
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `fp` destination (binary mode for raw/blue; text-safe for csv). 
-* `ft` file type; SIGMF is treated as RAW here. 
-* `sample_type` wire type (wavegen order); see file header. 
-* `endian` 0 little, 1 big (ignored for csv). 
-* `fs` sample rate (Hz) — BLUE xdelta = 1/fs. Pass 0.0 for "not known", which writes xdelta 0 and omits SigMF's core:sample\_rate rather than claiming a rate. 
-* `fc` centre frequency (Hz). BLUE records it as a `FREQ` keyword — see dp\_wfm\_writer\_create; raw and CSV have nowhere to put it and drop it. 
-* `total_samples` expected complex-sample count for the BLUE header (0 if unknown; close() patches the actual count when fp is seekable). 
-* `t0_unix_sec` capture start, seconds since the UNIX epoch, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset) (0.0) if unknown. BLUE stores it as a J1950 timecode, SigMF as `core:datetime`; raw and CSV have nowhere to put it and drop it. A zero stays an unset field — it is never written as 1970. 
-
-
-
-**Returns:**
-
-Writer handle, or NULL on bad args / allocation. BLUE writes its 512-byte header here. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_peak 
-
-```C++
-double wfm_writer_peak (
-    const dp_wfm_writer_state_t * w
-) 
-```
-
-
-
-Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, full-scale 1.0). &gt; 1.0 ⇒ integer output clipped; peak\_dBFS = 20\*log10(peak). 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_writer\_set\_gain 
-
-```C++
-void wfm_writer_set_gain (
-    dp_wfm_writer_state_t * w,
-    double gain
-) 
-```
-
-
-
-Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
-
-
-        
 
 <hr>
 

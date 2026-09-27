@@ -96,7 +96,7 @@ _One rendered source instance: its timing AND the values it was actually rendere
 ## Detailed Description
 
 
-A `wfm_span_t` answers _when_; this answers _when and what_, for one source of one instance. The distinction is not academic. The SigMF sidecar used to build each annotation from two provenances  timing replayed through [**wfm\_compose\_spans()**](wfm__compose_8h.md#function-wfm_compose_spans), frequency and SNR read straight off the source struct, which for a ranged field still holds `lo`  so every annotation of a `--freq 11200:12800 --snr 8:14` scene claimed 11200 Hz and 8 dB beside a sample-accurate start. Measured against the capture itself: up to 1224 Hz and 6.0 dB out (doppler#1086). A 6 dB error is a different operating point, and nothing in the file revealed it.
+A `wfm_span_t` answers _when_; this answers _when and what_, for one source of one instance. The distinction is not academic. The SigMF sidecar used to build each annotation from two provenances  timing replayed through [**dp\_wfm\_compose\_spans()**](wfm__compose_8h.md#function-dp_wfm_compose_spans), frequency and SNR read straight off the source struct, which for a ranged field still holds `lo`  so every annotation of a `--freq 11200:12800 --snr 8:14` scene claimed 11200 Hz and 8 dB beside a sample-accurate start. Measured against the capture itself: up to 1224 Hz and 6.0 dB out (doppler#1086). A 6 dB error is a different operating point, and nothing in the file revealed it.
 
 
 An un-ranged field reports its scalar, so a consumer never branches on the `ranged` bitmask.

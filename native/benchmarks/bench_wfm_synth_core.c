@@ -6,7 +6,7 @@
  * bit-manipulation path). Emits pytest-benchmark-compatible JSON via make
  * bench. */
 #include "doppler/dp_complex.h"
-#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_taps — RRC pulse-shaping bench */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_rrc_taps — RRC pulse-shaping bench */
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
@@ -67,8 +67,8 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
     }
   size_t ntaps = wfm_rrc_ntaps (sps, 8);
   float *taps  = malloc (ntaps * sizeof (float));
-  wfm_rrc_taps (0.35, sps, 8, taps);
-  wfm_synth_set_rrc (obj, taps, ntaps);
+  dp_wfm_rrc_taps (0.35, sps, 8, taps);
+  dp_wfm_synth_set_rrc (obj, taps, ntaps);
   free (taps);
   dp_wfm_synth_steps (obj, out,
                       BENCH_N); /* warm up (also primes the shaper) */

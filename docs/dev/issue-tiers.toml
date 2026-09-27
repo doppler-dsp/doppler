@@ -547,7 +547,7 @@ status = "open"
 
 [issue.1123]
 tier = 5
-title = "wfm_reader_header_tag neither bounds-checks nor documents that it must not be \u2014 the only one of four enumerators that does neither"
+title = "dp_wfm_reader_header_tag neither bounds-checks nor documents that it must not be \u2014 the only one of four enumerators that does neither"
 status = "open"
 
 [issue.1128]

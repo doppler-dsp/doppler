@@ -784,7 +784,7 @@ function now takes `type="path"` + string-enum params **referencing the
 `type="enum:stype"` — that KeyErrors; the `enum` key on the param is the trigger,
 see `_build_params_parse`), and `check_return=true` raises on a non-zero `int`
 return. **Hosted on the `wfm_writer` module, not the base `wfm` module** — the C
-kernel `wfm_blue_write_hcb` lives in `wfm_writer_core`, which drags the
+kernel `dp_wfm_blue_write_hcb` lives in `wfm_writer_core`, which drags the
 keyword/cJSON chain; putting the function on base `wfm` would invert the layering
 (base→writer). A thin `write_blue_header.c` shim opens the path and calls the
 shared FILE-based kernel. With its only surface migrated, the **`_wfmcompose`

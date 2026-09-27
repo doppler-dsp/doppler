@@ -416,7 +416,7 @@ means knowing *which* value, and the span cannot tell you — read the range's
 (`seg`, `instance`, `src`, `start`, `delay`, `on`, `off`) and what it drew
 (`freq`, `f_end`, `snr`, `level`, `doppler`, `doppler_rate`). These are the
 same rows a capture's SigMF metadata is built from — both read through
-`wfm_compose_draws()` in C — so an in-process render and a written capture
+`dp_wfm_compose_draws()` in C — so an in-process render and a written capture
 cannot disagree about what was generated.
 
 ::: doppler.wfm.compose.draws

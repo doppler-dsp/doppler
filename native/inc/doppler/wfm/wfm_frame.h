@@ -6,7 +6,7 @@
  * it and by the measurer that scores it. The DSSS assembler already stated the
  * reason it must be shared — it is "assembled in one place so TX and RX can
  * never drift" — and this generalises that from one waveform to all of them:
- * `wfm_frame_dsss_chips()` now builds these bits and spreads them, rather than
+ * `dp_wfm_frame_dsss_chips()` now builds these bits and spreads them, rather than
  * carrying a second copy of the layout.
  *
  * ## It describes BITS
@@ -31,7 +31,7 @@
  * ## The CRC is the one we already have
  *
  * `dp_crc16_ccitt()`, over the payload only, MSB-first, carried as the same
- * `int crc` flag `wfm_frame_dsss_chips()` already took. A second CRC would be
+ * `int crc` flag `dp_wfm_frame_dsss_chips()` already took. A second CRC would be
  * a wire-format decision and nothing is asking for one.
  *
  * @see docs/design/rx-test.md section 7
@@ -237,13 +237,13 @@ extern "C"
         two numbers rather than one.
 
         An emitting stage **covers the WHOLE frame, and a description may
-        hold at most one**. Both are properties of @ref wfm_frame_assemble
+        hold at most one**. Both are properties of @ref dp_wfm_frame_assemble
         rather than rules invented for their own sake: it hands @p emit the
         whole assembled frame and requires exactly `out_bits` back, so a
         cover narrower than the frame describes something no kernel is ever
         asked to do, and a second emitting stage would have to consume the
         first one's output, which nothing passes it.
-        @ref wfm_frame_desc_layout refuses both — see there for why that is
+        @ref dp_wfm_frame_desc_layout refuses both — see there for why that is
         the right place to say so. A stage that rewrites part of the frame
         in place is what a partial cover is FOR; that stage sets
         `emit_num = 0` and an @c in_unit kernel. */
@@ -262,7 +262,7 @@ extern "C"
    * A standard's framing is a CONFIGURATION of this, in the same way
    * `CCSDS_TM_CONV` configures `conv_code_t` and `CCSDS_TM_RS` configures
    * `rs_code_t`. @ref wfm_frame_t is the first such configuration and is
-   * built by @ref wfm_frame_describe.
+   * built by @ref dp_wfm_frame_describe.
    *
    * @see docs/design/frame-description.md
    */
@@ -312,7 +312,7 @@ extern "C"
   } wfm_frame_stage_rx_t;
 
   /**
-   * @brief What @ref wfm_frame_check found, stage by stage.
+   * @brief What @ref dp_wfm_frame_check found, stage by stage.
    *
    * Indexed the same as the description's stages, so a caller reads the
    * result beside the declaration that produced it.
@@ -345,7 +345,7 @@ extern "C"
    * **A stage's derived field is the LAST field of its cover**, which is what
    * lets one in-place signature serve a CRC, an outer code and a randomiser
    * alike: the op receives the whole span, reads the information at its head
-   * and writes the check symbols into its tail. @ref wfm_frame_desc_layout
+   * and writes the check symbols into its tail. @ref dp_wfm_frame_desc_layout
    * refuses a description that breaks it.
    */
   typedef struct
@@ -374,7 +374,7 @@ extern "C"
         does not reverse HERE. The inner code is the case: it is streaming
         and emits its decisions `depth` bits late, so it is undone before
         frame synchronisation and a frame checker never sees channel symbols.
-        @ref wfm_frame_check reports such a stage as not-checked rather than
+        @ref dp_wfm_frame_check reports such a stage as not-checked rather than
         as passed, which are different answers. */
     int (*undo) (const wfm_stage_t *st, uint8_t *bits, size_t n,
                  wfm_frame_stage_rx_t *rx, void *user);
@@ -414,7 +414,7 @@ extern "C"
    * @return the field's index, or -1 if @p d or @p name is NULL, @p name is
    *         empty, or no field carries it.
    */
-  int wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
+  int dp_wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
 
   /**
    * @brief Append a named field. Returns its index, or -1.
@@ -432,7 +432,7 @@ extern "C"
    * @return the new field's index, or -1 if @p d or @p seq is NULL, the
    *         description is full, or @p name is already taken.
    */
-  int wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
+  int dp_wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
                            const wfm_seq_t *seq, size_t reps);
 
   /**
@@ -440,7 +440,7 @@ extern "C"
    * index, or -1.
    *
    * A field with a declared length and no source: a CRC trailer, a block of
-   * R-S check symbols. Its producer is wired by @ref wfm_frame_add_stage,
+   * R-S check symbols. Its producer is wired by @ref dp_wfm_frame_add_stage,
    * not named here, because a stage does not exist yet when the field it
    * derives is appended — fields are ordered by POSITION and stages by
    * APPLICATION, and this is where those two orders meet.
@@ -451,7 +451,7 @@ extern "C"
    * @return the new field's index, or -1 on NULL, a full description, a
    *         zero @p bits, or a name already taken.
    */
-  int wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name,
+  int dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name,
                              size_t bits);
 
   /**
@@ -463,7 +463,7 @@ extern "C"
    * three integers used to.
    *
    * **It wires a derived field's producer for you**, and that is applying an
-   * invariant rather than adding one: @ref wfm_frame_desc_layout already
+   * invariant rather than adding one: @ref dp_wfm_frame_desc_layout already
    * refuses a description whose derived field is not the LAST of its
    * producing stage's cover, so a field with a declared length and no source
    * sitting at the end of this cover has exactly one possible producer. It
@@ -477,7 +477,7 @@ extern "C"
    * @return the new stage's index, or -1 on NULL, a full description, a name
    *         neither field carries, or @p last before @p first.
    */
-  int wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind,
+  int dp_wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind,
                            const char *first, const char *last);
 
   /**
@@ -498,14 +498,14 @@ extern "C"
    *         with no array, a length past @p max_out, a generator that
    *         refused its own parameters).
    */
-  size_t wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
+  size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
 
   /**
    * @brief Materialise a description: run every field, then every stage.
    *
-   * The general form of @ref wfm_frame_bits. Fields are written in wire
+   * The general form of @ref dp_wfm_frame_bits. Fields are written in wire
    * order, then each stage is applied over the span
-   * @ref wfm_frame_desc_layout gave it — over that span and no other, which
+   * @ref dp_wfm_frame_desc_layout gave it — over that span and no other, which
    * is the whole content of the coverage table a standard's framing turns
    * out to be.
    *
@@ -519,7 +519,7 @@ extern "C"
    *         has no kernel, a field cannot be built, or @p max_out is too
    *         small — in which case @p out is untouched.
    */
-  size_t wfm_frame_assemble (const wfm_frame_desc_t *d,
+  size_t dp_wfm_frame_assemble (const wfm_frame_desc_t *d,
                              const wfm_frame_ops_t *ops, uint8_t *out,
                              size_t max_out);
 
@@ -527,19 +527,19 @@ extern "C"
    * @brief Derive every field offset, every stage span and both lengths.
    *
    * The one operation both shipped framers already have, widened: this is
-   * `wfm_frame_layout()`'s arithmetic and `ccsds_tm_frame_layout()`'s, with
+   * `dp_wfm_frame_layout()`'s arithmetic and `ccsds_tm_frame_layout()`'s, with
    * the field and stage lists supplied rather than fixed.
    *
    * A derived field whose producing stage covers no caller-supplied bits is
    * dropped to zero length — which is the general form of the rule
-   * @ref wfm_frame_layout has always applied, that a CRC over an empty
+   * @ref dp_wfm_frame_layout has always applied, that a CRC over an empty
    * payload protects nothing and is not emitted.
    *
    * An EMITTING stage (@c emit_num set) is refused unless it covers the
    * whole frame, and a second one is refused outright. Refusing here is the
    * point: such a description used to lay out perfectly and then be
    * unassemblable for ever, because `out_bits` was computed from the cover
-   * while @ref wfm_frame_assemble hands the kernel the whole frame. The
+   * while @ref dp_wfm_frame_assemble hands the kernel the whole frame. The
    * caller got a 0 from `assemble` and no way to learn that the geometry,
    * not the data, was wrong. Geometry is decided here, so it is refused
    * here.
@@ -551,7 +551,7 @@ extern "C"
    * whose tail no longer existed, and the caller got a record rather than an
    * error. Every reader funnels through here, so refusing at this one point
    * covers the scene JSON and the CLI as well as the builder — which cannot
-   * reach the state at all, since @ref wfm_frame_add_stage wires the
+   * reach the state at all, since @ref dp_wfm_frame_add_stage wires the
    * producer from the cover it is given.
    *
    * @param d    the description.
@@ -561,7 +561,7 @@ extern "C"
    *         emitting stage covers less than the whole frame or is not the
    *         only one.
    */
-  int wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
+  int dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);
 
   /**
@@ -573,8 +573,8 @@ extern "C"
    * coherent-integration target.
    *
    * This is a **configuration** of @ref wfm_frame_desc_t — four fields and
-   * one stage — not a second descriptor. @ref wfm_frame_layout builds it
-   * through @ref wfm_frame_describe and reads the general layout back, so
+   * one stage — not a second descriptor. @ref dp_wfm_frame_layout builds it
+   * through @ref dp_wfm_frame_describe and reads the general layout back, so
    * there is one implementation of the arithmetic and the two cannot drift.
    */
   typedef struct
@@ -599,7 +599,7 @@ extern "C"
     size_t total_bits;
   } wfm_frame_layout_t;
 
-  /** @brief Field indices @ref wfm_frame_describe writes, in wire order. */
+  /** @brief Field indices @ref dp_wfm_frame_describe writes, in wire order. */
   enum
   {
     WFM_FRAME_FIELD_PREAMBLE = 0,
@@ -621,25 +621,25 @@ extern "C"
    * @param out  receives the description.
    * @return 0, or -1 if either argument is NULL.
    */
-  int wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out);
+  int dp_wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out);
 
   /**
    * @brief Total frame bits, or 0 if the geometry is empty.
    *
    * @param f  the frame; must be non-NULL.
    */
-  size_t wfm_frame_nbits (const wfm_frame_t *f);
+  size_t dp_wfm_frame_nbits (const wfm_frame_t *f);
 
   /**
    * @brief Fill @p out with the field offsets.
    *
    * The arithmetic both directions need, computed once. Today it is inline in
-   * `wfm_frame_dsss_nchips()`, and a receiver scoring a frame would have to
+   * `dp_wfm_frame_dsss_nchips()`, and a receiver scoring a frame would have to
    * recompute it — which is exactly how TX and RX drift apart.
    *
    * @return 0, or -1 if @p f or @p out is NULL.
    */
-  int wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out);
+  int dp_wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out);
 
   /**
    * @brief Materialise the frame as one flat 0/1 bit array.
@@ -654,7 +654,7 @@ extern "C"
    *         unbuildable (a LITERAL with no array, a PN with no register
    *         width), or @p max_out is too small.
    */
-  size_t wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+  size_t dp_wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
 
   /**
    * @brief Chip count of a DSSS burst built from a description.
@@ -671,15 +671,15 @@ extern "C"
    * @return burst chips, or 0 if the description is refused, or it has bits
    *         and @p data_len is 0, or there is nothing to transmit.
    */
-  size_t wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
+  size_t dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
                                size_t acq_reps, size_t data_len);
 
   /**
    * @brief Build a two-code DSSS burst from a description: assemble, spread.
    *
-   *     [ acq_code x acq_reps | wfm_frame_assemble(d) (+) data_code ]
+   *     [ acq_code x acq_reps | dp_wfm_frame_assemble(d) (+) data_code ]
    *
-   * The general form of @ref wfm_frame_dsss_chips, and the only spreader —
+   * The general form of @ref dp_wfm_frame_dsss_chips, and the only spreader —
    * the four-field entry point is this one with the description filled in.
    *
    * **The preamble is not a field of @p d, by design.** It is unmodulated,
@@ -703,11 +703,11 @@ extern "C"
    * @param data_len  chips per frame bit.
    * @param out       receives the burst, one chip per byte.
    * @param max_out   capacity of @p out; must be at least
-   *                  @ref wfm_dsss_desc_nchips.
+   *                  @ref dp_wfm_dsss_desc_nchips.
    * @return chips written, or 0 if the geometry is refused, a stage has no
    *         kernel, or @p max_out is too small.
    */
-  size_t wfm_dsss_desc_chips (const wfm_frame_desc_t *d,
+  size_t dp_wfm_dsss_desc_chips (const wfm_frame_desc_t *d,
                               const wfm_frame_ops_t *ops,
                               const uint8_t *acq_code, size_t acq_len,
                               size_t acq_reps, const uint8_t *data_code,
@@ -716,7 +716,7 @@ extern "C"
   /**
    * @brief Undo a description's stages over a received frame, and report.
    *
-   * The receive mirror of @ref wfm_frame_assemble, reading the same
+   * The receive mirror of @ref dp_wfm_frame_assemble, reading the same
    * description — so the two cannot disagree about which stage covered what,
    * which is the failure the whole representation exists to prevent. Stages
    * are reversed in the OPPOSITE order to the one they were applied in, each
@@ -748,13 +748,13 @@ extern "C"
    *         "the check passed" are different answers, and an FER that
    *         conflated them would score every unprotected frame as perfect.
    */
-  int wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+  int dp_wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
                        uint8_t *bits, wfm_frame_rx_t *rx);
 
   /**
    * @brief Check a received frame's CRC against any description that has one.
    *
-   * The general form of @ref wfm_frame_crc_ok, and the same truth-free claim:
+   * The general form of @ref dp_wfm_frame_crc_ok, and the same truth-free claim:
    * it needs the description and the received bits and no payload truth at
    * all. What the CRC protects is everything its stage covers except the
    * trailer that stage derived — read back from the same rule the assembler
@@ -767,7 +767,7 @@ extern "C"
    *         "carries no check" as "the check failed" would count every
    *         unprotected frame as an error.
    */
-  int wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
+  int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
                              const uint8_t          *rx_bits);
 
   /**
@@ -780,10 +780,10 @@ extern "C"
    * check rather than looking clean.
    *
    * @param f        the frame the bits are laid out by.
-   * @param rx_bits  received bits, `wfm_frame_nbits(f)` of them.
+   * @param rx_bits  received bits, `dp_wfm_frame_nbits(f)` of them.
    * @return 1 pass, 0 fail, -1 if the frame carries no CRC (or on NULL).
    */
-  int wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits);
+  int dp_wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits);
 
 #ifdef __cplusplus
 }

@@ -336,7 +336,7 @@ the layers above it is now clean as well.
 ### The sites, and how each was settled
 
 Of the five the earlier plan listed, **site 1 is done** —
-`wfm_source_describe_frame()` builds through the by-name builder rather than
+`dp_wfm_source_describe_frame()` builds through the by-name builder rather than
 `ccsds_tm_frame_desc_of()`. Three others turned out not to be leaks at all:
 `frame_core.c`, `wfm_synth_bridge.c` and `burst_demod_core.c` include
 `ccsds_tm` to *compose* it, in the acyclic direction the design intends, and
@@ -368,7 +368,7 @@ Two things changed with site 1 that the plan did not anticipate:
     face at all — the descriptor supported them and every route into it
     flattened them away
     ([#762](https://github.com/doppler-dsp/doppler/issues/762)).
-- **`wfm_source_has_frame()` tests LENGTH, not the pointer.** A generated
+- **`dp_wfm_source_has_frame()` tests LENGTH, not the pointer.** A generated
     sequence has no array, so a pointer test read a PN sync as *unframed* and
     emitted the payload bare.
 

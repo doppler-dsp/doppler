@@ -6,7 +6,7 @@
  * append that renders ONE annotation and flushes it, and a finalize that
  * hands the accumulated lines to the writer's SigMF emitter. There is no
  * third thing here, and deliberately no second JSON document builder --
- * `global` and `captures` are wfm_sigmf_meta_json_ex()'s to spell.
+ * `global` and `captures` are dp_wfm_sigmf_meta_json_ex()'s to spell.
  */
 
 #include <math.h>
@@ -94,7 +94,7 @@ dp_event_log_close (dp_event_log_t *log)
     return DP_ERR_INVALID;
   if (log->fp)
     {
-      /* ferror() first, for the reason wfm_writer_close() documents: a
+      /* ferror() first, for the reason dp_wfm_writer_close() documents: a
          rejected write leaves nothing buffered, so the fclose that follows
          reports success over the top of it. */
       if (ferror (log->fp))
@@ -437,10 +437,11 @@ dp_event_log_write_meta (const char *log_path, const char *meta_path,
     return DP_ERR_INVALID;
 
   char *extra = build_extra_global (dataset, telemetry);
-  char *json  = extra ? wfm_sigmf_meta_json_ex (sample_type, endian, fs, fc,
-                                                t0_unix_sec, NULL, 0, extra,
-                                                (const char *const *)lines, n)
-                      : NULL;
+  char *json  = extra
+                    ? dp_wfm_sigmf_meta_json_ex (sample_type, endian, fs, fc,
+                                                 t0_unix_sec, NULL, 0, extra,
+                                                 (const char *const *)lines, n)
+                    : NULL;
   free (extra);
   for (size_t i = 0; i < n; i++)
     free (lines[i]);

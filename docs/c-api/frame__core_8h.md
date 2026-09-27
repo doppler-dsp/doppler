@@ -121,14 +121,14 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 ## Detailed Description
 
 
-This is the RECEIVE half of the frame story. `wfm_frame_t` (`wfm/wfm_frame.h`) is what a generator builds a frame from and what `wfm_frame_crc_ok()` scores a received one against, and until now only C could hold one — so `ber`'s frame meter, which exists precisely to turn CRC outcomes into an exact error-rate interval, had no way to be fed from the language most captures are analysed in.
+This is the RECEIVE half of the frame story. `wfm_frame_t` (`wfm/wfm_frame.h`) is what a generator builds a frame from and what `dp_wfm_frame_crc_ok()` scores a received one against, and until now only C could hold one — so `ber`'s frame meter, which exists precisely to turn CRC outcomes into an exact error-rate interval, had no way to be fed from the language most captures are analysed in.
 
 
 ### It owns NO layout
 
 
 
-Every decision — where the CRC sits, that it covers the payload alone and nothing else, that a repeated preamble repeats the SAME bits — stays in `wfm_frame.c`. This object is lifecycle and delegation: it copies the caller's literal arrays so the descriptor outlives the call that made it, materialises the frame once, and hands everything else to `wfm_frame_layout()` / `wfm_frame_bits()` / `wfm_frame_crc_ok()`. Re-deriving any of it here would rebuild exactly the TX/RX drift the descriptor was introduced to stop.
+Every decision — where the CRC sits, that it covers the payload alone and nothing else, that a repeated preamble repeats the SAME bits — stays in `wfm_frame.c`. This object is lifecycle and delegation: it copies the caller's literal arrays so the descriptor outlives the call that made it, materialises the frame once, and hands everything else to `dp_wfm_frame_layout()` / `dp_wfm_frame_bits()` / `dp_wfm_frame_crc_ok()`. Re-deriving any of it here would rebuild exactly the TX/RX drift the descriptor was introduced to stop.
 
 
 

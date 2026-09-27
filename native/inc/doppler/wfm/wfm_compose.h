@@ -10,7 +10,7 @@
  * the single-waveform path; a one-segment spec is byte-identical to calling
  * `synth` directly.
  *
- * Lifecycle: wfm_compose_create -> wfm_compose_execute* -> wfm_compose_destroy
+ * Lifecycle: dp_wfm_compose_create -> dp_wfm_compose_execute* -> dp_wfm_compose_destroy
  *
  * @code
  * wfm_source_t tone = {.type = 0, .freq = 1e5, .snr = 100.0};
@@ -21,11 +21,11 @@
  *     {.sources = &qpsk, .n_sources = 1, .fs = 1e6,
  *      .num_samples = 4096, .off_samples = 0},            // qpsk
  * };
- * wfm_compose_state_t *c = wfm_compose_create(segs, 2, 0, 0);
+ * dp_wfm_compose_state_t *c = dp_wfm_compose_create(segs, 2, 0, 0);
  * float _Complex buf[4096];
  * size_t n;
- * while ((n = wfm_compose_execute(c, buf, 4096)) > 0) { ... }
- * wfm_compose_destroy(c);
+ * while ((n = dp_wfm_compose_execute(c, buf, 4096)) > 0) { ... }
+ * dp_wfm_compose_destroy(c);
  * @endcode
  */
 #ifndef WFM_COMPOSE_H
@@ -63,7 +63,7 @@ enum
   WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
   WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
   /* Source again, continuing after the segment bits rather than renumbering
-     them: the bit index is the draw's stream selector (wfm_draw_range), so
+     them: the bit index is the draw's stream selector (dp_wfm_draw_range), so
      moving one would change every drawn value in every existing scene. */
   WFM_RANGE_DOPPLER      = 1u << 7, /* source.doppler → [lo, doppler_hi] */
   WFM_RANGE_DOPPLER_RATE = 1u << 8, /* source.doppler_rate → [lo, hi]    */
@@ -210,10 +210,10 @@ typedef struct {
        KERNELS stay in C by design. A description names a stage's KIND; the
        code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a
        genuinely new transform (convolutional interleaving, say) writes that
-       kernel in C and hands it to `wfm_frame_assemble` directly. */
+       kernel in C and hands it to `dp_wfm_frame_assemble` directly. */
     const wfm_frame_desc_t *frame;
 
-    /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
+    /* type=dsss: the two-code burst geometry (dp_wfm_frame_dsss_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
        "a run of bits, however produced" -- LITERAL plus the generated PN /
@@ -231,7 +231,7 @@ typedef struct {
     wfm_seq_t sync;      /* frame-sync word bits; len 0 = none */
     int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
-       epoch rate selects the continuous form (wfm_synth_set_dsss_cont) over
+       epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather
        than a tenth entry in five hand-maintained name tables. 0 = burst.
        The frame fields (acq_code/sync/crc/bits) are meaningless when this is
@@ -323,7 +323,7 @@ typedef struct {
  * @brief One rendered segment instance's exact timing: where it lands in the
  * composed stream and how its `delay | on | off` spans divide it.
  *
- * Produced by wfm_compose_spans() — the deterministic replay of the ranged
+ * Produced by dp_wfm_compose_spans() — the deterministic replay of the ranged
  * draws (same hash, epoch 0), so the reported positions match the rendered
  * capture sample-for-sample without rendering anything. This is the ground
  * truth a detector-scoring pipeline or a SigMF annotation needs: the burst
@@ -345,7 +345,7 @@ typedef struct {
  * drawn delay/on/off exactly as the streaming composer will (identical draw
  * hash), and fills `out` with up to `cap` spans in stream order. Returns the
  * TOTAL instance count regardless of `cap` — call once with cap 0 to size,
- * then again with a buffer. Pass the RESOLVED segments (wfm_compose_segments()
+ * then again with a buffer. Pass the RESOLVED segments (dp_wfm_compose_segments()
  * on a live composer) so intrinsic on-times (dsss) are already folded in.
  *
  * Assumes every segment builds: a segment that fails at render time (invalid
@@ -358,7 +358,7 @@ typedef struct {
  * @param cap    Capacity of out in spans.
  * @return Total number of instances in one pass of the spec.
  */
-size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
+size_t dp_wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
                          wfm_span_t *out, size_t cap);
 
 /**
@@ -368,7 +368,7 @@ size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
  * A `wfm_span_t` answers *when*; this answers *when and what*, for one
  * source of one instance. The distinction is not academic. The SigMF
  * sidecar used to build each annotation from two provenances -- timing
- * replayed through wfm_compose_spans(), frequency and SNR read straight off
+ * replayed through dp_wfm_compose_spans(), frequency and SNR read straight off
  * the source struct, which for a ranged field still holds `lo` -- so every
  * annotation of a `--freq 11200:12800 --snr 8:14` scene claimed 11200 Hz and
  * 8 dB beside a sample-accurate start. Measured against the capture itself:
@@ -405,14 +405,14 @@ typedef struct {
 /**
  * @brief Replay the (epoch 0) instance timeline AND its drawn source values.
  *
- * Same size-then-fill protocol as wfm_compose_spans(): call once with `cap`
+ * Same size-then-fill protocol as dp_wfm_compose_spans(): call once with `cap`
  * 0 to size, then again with a buffer. Emits one row per SOURCE per
  * instance, in stream order, because that is the granularity a per-source
  * annotation or a scoring pipeline needs. Pass the RESOLVED segments
- * (wfm_compose_segments() on a live composer) so intrinsic on-times are
+ * (dp_wfm_compose_segments() on a live composer) so intrinsic on-times are
  * already folded in.
  *
- * The rows are produced by the same wfm_draw_segment()/wfm_draw_source()
+ * The rows are produced by the same dp_wfm_draw_segment()/dp_wfm_draw_source()
  * calls the renderer resolves through, so a field added to the draw reaches
  * both by construction rather than by a reviewer noticing.
  *
@@ -423,11 +423,11 @@ typedef struct {
  * @return Total rows in one pass of the spec (sum of n_sources over
  *         instances), regardless of `cap`.
  */
-size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
+size_t dp_wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
                          wfm_draw_t *out, size_t cap);
 
 /**
- * @brief The same rows wfm_compose_draws() reports, as a JSON array.
+ * @brief The same rows dp_wfm_compose_draws() reports, as a JSON array.
  *
  * One object per source per instance, in stream order, with the keys named
  * after the `wfm_draw_t` fields. Exists so a binding can hand a caller its
@@ -436,10 +436,10 @@ size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
  * against a scene whose `freq` re-draws per instance means scoring against a
  * number the caller does not otherwise have (doppler#1112).
  *
- * Reads through wfm_compose_draws(), so it cannot disagree with the SigMF
+ * Reads through dp_wfm_compose_draws(), so it cannot disagree with the SigMF
  * annotations, which read through it too.
  *
- * @param segs   Resolved segment array (wfm_compose_segments()).
+ * @param segs   Resolved segment array (dp_wfm_compose_segments()).
  * @param n_segs Segment count.
  * @return Heap JSON string the caller free()s; never NULL — the allocations
  *         go through the abort-on-OOM helpers. A spec with no rows yields
@@ -447,13 +447,13 @@ size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
  *
  * @code
  * size_t n; int rp, ct;
- * const wfm_segment_t *segs = wfm_compose_segments(c, &n, &rp, &ct);
- * char *js = wfm_draws_json(segs, n);
+ * const wfm_segment_t *segs = dp_wfm_compose_segments(c, &n, &rp, &ct);
+ * char *js = dp_wfm_draws_json(segs, n);
  * puts(js);
  * free(js);
  * @endcode
  */
-char *wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
+char *dp_wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
 
 /**
  * @brief Resolve a segment list's noise model in place (Phase 4b).
@@ -464,20 +464,20 @@ char *wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
  * sources, and appends a WFM_SYNTH_NOISE source at the floor — so the composer's
  * accumulator just sums. May `realloc` each segment's `sources`. Idempotent.
  *
- * `wfm_compose_create()` calls this on its private copy, so every face (CLI,
+ * `dp_wfm_compose_create()` calls this on its private copy, so every face (CLI,
  * JSON, Python) resolves identically.
  *
  * @return 0 on success; -1 if a non-anchor source over-specifies (snr + level)
  *         or on allocation failure.
  */
-int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
+int dp_wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
 /**
  * @brief SNR (dB) referred to fs, from a source's snr/snr_mode/sps/type.
  *
  * The single source of truth for the Es/No, Eb/No, and over-fs conventions
- * (`snr_mode` 0 auto / 1 fs / 2 ebno / 3 esno). `wfm_resolve_noise()` uses it to
- * place the shared noise floor at `level(anchor) − wfm_snr_over_fs(anchor)`, and
+ * (`snr_mode` 0 auto / 1 fs / 2 ebno / 3 esno). `dp_wfm_resolve_noise()` uses it to
+ * place the shared noise floor at `level(anchor) − dp_wfm_snr_over_fs(anchor)`, and
  * the Plan stimulus engine reuses it to recompute the floor at an arbitrary
  * swept SNR — so both agree to the bit.
  *
@@ -499,7 +499,7 @@ int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
  * @param snr      The declared SNR in dB.
  * @return SNR over fs in dB.
  */
-double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
+double dp_wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
                        double sym_span, double snr);
 
 /**
@@ -508,10 +508,10 @@ double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
  *
  * `dp_wfm_synth_create()` runs before a dsss source's codes are attached, so it
  * cannot know the spreading factor its own esno would need. This helper — the
- * one create-time entry point shared by the composer (`wfm_compose_build_synth`)
+ * one create-time entry point shared by the composer (`dp_wfm_compose_build_synth`)
  * and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees
  * to the bit — converts a dsss source's SNR to the over-fs reference (via
- * `wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream
+ * `dp_wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream
  * uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes
  * through unchanged.
  *
@@ -523,17 +523,17 @@ double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
  * @param snr_mode Receives the snr_mode for create.
  * @return The SNR in dB for create.
  */
-double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
+double dp_wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
                              int *snr_mode);
 
 /**
  * @brief Attach a dsss source's data to a freshly-created synth.
  *
  * The single dsss-attach path, called by BOTH synth-construction faces
- * (`wfm_compose_build_synth` and the standalone `wfm_source_to_synth`), so the
+ * (`dp_wfm_compose_build_synth` and the standalone `wfm_source_to_synth`), so the
  * two cannot drift on how a dsss stream is configured. Selects on
- * `symbol_rate`: 0 → the burst form (`wfm_synth_set_dsss`); > 0 → the
- * continuous form (`wfm_synth_set_dsss_cont`) with `chips_per_symbol =
+ * `symbol_rate`: 0 → the burst form (`dp_wfm_synth_set_dsss`); > 0 → the
+ * continuous form (`dp_wfm_synth_set_dsss_cont`) with `chips_per_symbol =
  * (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied
  * (`bits`) and otherwise from the seeded PN. A no-op for a non-dsss source.
  *
@@ -542,7 +542,7 @@ double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
  * @param fs   Segment sample rate (Hz) — the continuous chip rate is fs/sps.
  * @return 0 on success (or non-dsss no-op); -1 on invalid geometry.
  */
-int wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
+int dp_wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
 /**
@@ -556,7 +556,7 @@ int wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
  *
  * @param src  The source; NULL reads as unframed.
  */
-int wfm_source_has_frame(const wfm_source_t *src);
+int dp_wfm_source_has_frame(const wfm_source_t *src);
 
 /**
  * @brief Describe a source's frame: the fields, the stages, and their covers.
@@ -571,7 +571,7 @@ int wfm_source_has_frame(const wfm_source_t *src);
  * @param d    receives the description.
  * @return 0, or non-zero if the source cannot be described.
  */
-int wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
+int dp_wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
 
 /**
  * @brief Chips one DSSS BURST from this source occupies, description and all.
@@ -585,14 +585,14 @@ int wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
  * @return burst chips, or 0 for a non-dsss source, a CONTINUOUS dsss source
  *         (which has no intrinsic length), or an empty/refused geometry.
  */
-size_t wfm_source_dsss_nchips(const wfm_source_t *src);
+size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
 
 /**
  * @brief NULL when this source's frame fields can be honoured; else why not.
  *
  * ONE rule, asked by all three faces — the wfmgen CLI before it generates, the
  * standalone `Synth` through `wfm_source_to_synth`, and the composer through
- * `wfm_compose_create` — because the alternative is what shipped: the flags
+ * `dp_wfm_compose_create` — because the alternative is what shipped: the flags
  * were accepted, stored and readable back on every face, and applied on none
  * of them, so a caller who asked for a framed waveform silently got an
  * unframed one.
@@ -606,14 +606,14 @@ size_t wfm_source_dsss_nchips(const wfm_source_t *src);
  * @param src  The source.
  * @return NULL if there is nothing wrong, else a static message.
  */
-const char *wfm_source_frame_error(const wfm_source_t *src);
+const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.
  *
- * The `type=bits` counterpart of wfm_source_attach_dsss(), and called from the
+ * The `type=bits` counterpart of dp_wfm_source_attach_dsss(), and called from the
  * same two places for the same reason. When the source carries a frame, the
- * pattern handed to `wfm_synth_set_bits()` is `wfm_frame_bits()` of
+ * pattern handed to `dp_wfm_synth_set_bits()` is `dp_wfm_frame_bits()` of
  * `[preamble x reps | sync | payload | crc]` rather than the payload alone —
  * so the layout, the CRC's position and its bit order come from the one
  * descriptor that the DSSS path and the receiver already read.
@@ -626,7 +626,7 @@ const char *wfm_source_frame_error(const wfm_source_t *src);
  * @param src  The source (pattern, modulation, and any frame fields).
  * @return 0 on success (or a non-bits/no-pattern no-op); -1 on failure.
  */
-int wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
+int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
 /**
  * @brief Construct + configure the synth for one resolved source.
@@ -644,7 +644,7 @@ int wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
  *
  * @return A heap synth (caller dp_wfm_synth_destroy()s it), or NULL on failure.
  */
-dp_wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
+dp_wfm_synth_state_t *dp_wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,
                                            unsigned epoch, int seed_advance,
@@ -654,10 +654,10 @@ dp_wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs
 typedef struct wfm_render wfm_render_t;
 
 /**
- * @brief Build a source's renderer — `wfm_compose_build_synth` plus the
+ * @brief Build a source's renderer — `dp_wfm_compose_build_synth` plus the
  * clock-Doppler channel the source declares, if it declares one.
  *
- * THE pull path. Both faces go through `wfm_render_steps()` rather than
+ * THE pull path. Both faces go through `dp_wfm_render_steps()` rather than
  * calling `dp_wfm_synth_steps()` themselves, because a Doppler channel is a
  * RESAMPLER: it consumes about `n*(1+d)` inputs per `n` outputs, so "pull
  * `k`, get `k`" only holds if something keeps the remainder. Two
@@ -665,7 +665,7 @@ typedef struct wfm_render wfm_render_t;
  * holdover the other did not.
  *
  * A source with `doppler == 0 && doppler_rate == 0` gets no channel and
- * `wfm_render_steps()` is then literally `dp_wfm_synth_steps()`, so every scene
+ * `dp_wfm_render_steps()` is then literally `dp_wfm_synth_steps()`, so every scene
  * that does not ask for Doppler renders through exactly the path it always
  * did — byte-identical, not merely equivalent.
  *
@@ -678,9 +678,9 @@ typedef struct wfm_render wfm_render_t;
  * ordinary case — the renderer creates and owns a channel if the source
  * declares Doppler, and destroys it with itself.
  *
- * @return A heap renderer (caller wfm_render_destroy()s it), or NULL.
+ * @return A heap renderer (caller dp_wfm_render_destroy()s it), or NULL.
  */
-wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
+wfm_render_t *dp_wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        size_t on_len, double freq, double snr,
                                        double f_end, double doppler,
                                        double doppler_rate, unsigned epoch,
@@ -688,7 +688,7 @@ wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        dp_doppler_channel_state_t *borrow);
 
 /** @brief Pull exactly @p n samples from @p r, through its channel if any. */
-void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
 /**
  * @brief Pull @p n samples of the source's NOISE FLOOR only, through the
@@ -700,10 +700,10 @@ void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
  * the channel over gaps and `doppler_rate` across a multi-burst scene
  * quietly means "rate per unit of ON time" instead of per second.
  */
-void wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
 /** @brief Free a renderer and everything it owns. NULL-safe. */
-void wfm_render_destroy(wfm_render_t *r);
+void dp_wfm_render_destroy(wfm_render_t *r);
 
 /**
  * @brief Per-repeat seed policy for a looped/continuous stream.
@@ -720,7 +720,7 @@ typedef enum
 } wfm_seed_advance_t;
 
 /** Opaque composer state. */
-typedef struct wfm_compose_state wfm_compose_state_t;
+typedef struct wfm_compose_state dp_wfm_compose_state_t;
 
 /**
  * @brief Build a composer over a copy of `segs`.
@@ -731,9 +731,9 @@ typedef struct wfm_compose_state wfm_compose_state_t;
  * @param continuous  Non-zero: never finish (implies repeat); execute always
  *                    returns `max`.
  * @return Heap state, or NULL on bad args / allocation / synth failure.
- * @note Caller must wfm_compose_destroy() when done.
+ * @note Caller must dp_wfm_compose_destroy() when done.
  */
-wfm_compose_state_t *wfm_compose_create(
+dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
 
 /**
@@ -751,7 +751,7 @@ wfm_compose_state_t *wfm_compose_create(
  * @param state  Compose state (may be NULL).
  * @param mode   A wfm_seed_advance_t value.
  */
-void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
+void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
 
 /**
  * @brief The composer's current seed-advance mode (a `wfm_seed_advance_t`).
@@ -761,18 +761,18 @@ void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
  * from here rather than from whichever half happened to supply it.
  * @param state  Compose state (may be NULL → `WFM_SEED_ADVANCE_NONE`).
  */
-int wfm_compose_seed_advance(const wfm_compose_state_t *state);
+int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
 
 /**
  * @brief Emit up to `max` samples of the composed stream.
  * @return Number of samples written: < `max` (or 0) signals the sequence
  *         finished (never, when `continuous`).
  */
-size_t wfm_compose_execute(
-    wfm_compose_state_t *state, float _Complex *out, size_t max);
+size_t dp_wfm_compose_execute(
+    dp_wfm_compose_state_t *state, float _Complex *out, size_t max);
 
 /** @brief Destroy a composer and its active synth. @param state May be NULL. */
-void wfm_compose_destroy(wfm_compose_state_t *state);
+void dp_wfm_compose_destroy(dp_wfm_compose_state_t *state);
 
 /**
  * @brief Borrow the composer's stored segment list (for --record / SigMF).
@@ -781,9 +781,9 @@ void wfm_compose_destroy(wfm_compose_state_t *state);
  * @param repeat     receives the repeat flag (may be NULL).
  * @param continuous receives the continuous flag (may be NULL).
  * @return Pointer to the internal segments (owned by the composer; valid until
- *         wfm_compose_destroy).
+ *         dp_wfm_compose_destroy).
  */
-const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
+const wfm_segment_t *dp_wfm_compose_segments(const dp_wfm_compose_state_t *state,
                                           size_t *n_out, int *repeat,
                                           int *continuous);
 
@@ -800,7 +800,7 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
  * `seed_advance` (a `wfm_seed_advance_t`) and `headroom` (dB of output backoff
  * applied at the writer, not the composer) are each emitted as a top-level
  * field only when non-default, so an unrecorded run and any older spec stay
- * byte-identical. Read `headroom` back with wfm_spec_headroom(); the parser
+ * byte-identical. Read `headroom` back with dp_wfm_spec_headroom(); the parser
  * reads `seed_advance` straight onto the composer.
  *
  * `seed_advance` is a parameter rather than something read from `segs` because
@@ -811,7 +811,7 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
  *
  * @return malloc'd JSON (caller frees), or NULL on allocation failure.
  */
-char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
+char *dp_wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
                        int continuous, int seed_advance, double headroom);
 
 /**
@@ -820,34 +820,34 @@ char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
  * Lets `--from-file` reproduce a recorded `--headroom`; the value is a writer
  * gain, so it lives outside the composer state.
  */
-double wfm_spec_headroom(const char *json);
+double dp_wfm_spec_headroom(const char *json);
 
 /**
  * @brief A ready-to-edit example spec in the canonical --from-file schema.
  *
  * Returns a representative multi-segment template — an inline tone, an
  * RRC-shaped QPSK-from-bits burst with a trailing gap, and a two-source
- * additive `sum` mix — serialised with wfm_spec_to_json(), so it is valid by
- * construction and round-trips through wfm_compose_from_json() unchanged. It
+ * additive `sum` mix — serialised with dp_wfm_spec_to_json(), so it is valid by
+ * construction and round-trips through dp_wfm_compose_from_json() unchanged. It
  * therefore doubles as a working starting point for `wfmgen --from-file`, not
  * just documentation: dump it, edit the fields, feed it back.
  *
  * @return malloc'd JSON (caller frees), or NULL on allocation failure.
  */
-char *wfm_spec_template_json(void);
+char *dp_wfm_spec_template_json(void);
 
 /**
  * @brief Build a composer from a JSON spec string (for --from-file).
  * @return Composer state, or NULL on parse error / bad type / no segments.
  */
-wfm_compose_state_t *wfm_compose_from_json(const char *json);
+dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 
 /**
  * @brief The same, but able to say why a FRAME was refused.
  *
  * A spec is the interface most likely to be hand-written, and a NULL return
  * is the one answer that cannot teach anything. This runs
- * @ref wfm_source_frame_error over every parsed source before handing them to
+ * @ref dp_wfm_source_frame_error over every parsed source before handing them to
  * the composer — which asks the same question and would refuse either way —
  * so the reason survives the boundary as a sentence instead of a pointer.
  *
@@ -858,18 +858,18 @@ wfm_compose_state_t *wfm_compose_from_json(const char *json);
  * @param json  the spec.
  * @param why   optional; receives a STATIC message when a source's frame is
  *              refused, or NULL in every other case (including success).
- *              Passing NULL makes this exactly @ref wfm_compose_from_json.
+ *              Passing NULL makes this exactly @ref dp_wfm_compose_from_json.
  * @return Composer state, or NULL on parse error / bad type / no segments /
  *         a refused frame.
  */
-wfm_compose_state_t *wfm_compose_from_json_why(const char *json,
+dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
                                                const char **why);
 
 /**
  * @brief Build a composer from a JSON spec file.
  * @return Composer state, or NULL on read/parse error.
  */
-wfm_compose_state_t *wfm_compose_from_file(const char *path);
+dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 
 #ifdef __cplusplus
 }

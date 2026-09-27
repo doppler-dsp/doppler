@@ -32,16 +32,16 @@ typedef enum {
 typedef struct wfm_writer_state dp_wfm_writer_state_t;
 
 
-dp_wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
+dp_wfm_writer_state_t *dp_wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
                              int endian, double fs, double fc,
                              size_t total_samples, double t0_unix_sec);
 
 size_t dp_wfm_writer_write(dp_wfm_writer_state_t *state, const float _Complex *x, size_t x_len);
 
-int wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
+int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
                           const void *value, size_t count);
 
-int wfm_writer_close(dp_wfm_writer_state_t *w);
+int dp_wfm_writer_close(dp_wfm_writer_state_t *w);
 
 int dp_wfm_writer_destroy(dp_wfm_writer_state_t *state);
 
@@ -65,23 +65,23 @@ void dp_wfm_writer_track_clipping(dp_wfm_writer_state_t *state, int on);
  * Floats scale too (they just never clip); peak/clip tracking sees the scaled
  * values. */
 
-void wfm_writer_set_gain(dp_wfm_writer_state_t *w, double gain);
+void dp_wfm_writer_set_gain(dp_wfm_writer_state_t *w, double gain);
 
-double wfm_writer_peak(const dp_wfm_writer_state_t *w);
+double dp_wfm_writer_peak(const dp_wfm_writer_state_t *w);
 
-double wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
+double dp_wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
 
 dp_wfm_writer_state_t *dp_wfm_writer_create(const char *path, double fs, int file_type, int sample_type, int endian, double fc, size_t total, double headroom, double t0, bool sidecar);
 
-int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
+int dp_wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
                        double fc, double data_start, size_t total_samples,
                        int detached, double t0_unix_sec);
 
-char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
+char *dp_wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           double t0_unix_sec, const wfm_segment_t *segs,
                           size_t n_segs);
 
-char *wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
+char *dp_wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
                              double t0_unix_sec, const wfm_segment_t *segs,
                              size_t n_segs, const char *extra_global_json,
                              const char *const *annotations, size_t n_ann);

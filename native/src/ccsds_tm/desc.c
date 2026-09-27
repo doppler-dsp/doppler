@@ -222,7 +222,7 @@ static const wfm_stage_op_t OPS[] = {
      decisions `depth` bits late, so it is undone before frame synchronisation
      and a frame checker never sees channel symbols -- the boundary
      ccsds_tm_frame.h argues at length is the only place it can go.
-     wfm_frame_check reports it as NOT CHECKED rather than as passed. */
+     dp_wfm_frame_check reports it as NOT CHECKED rather than as passed. */
   { WFM_STAGE_CONV, NULL, inner_emit, NULL },
 };
 
@@ -322,7 +322,7 @@ ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
     }
   /* A field is included on its LENGTH, never on its pointer being non-NULL:
      a length with no array is an unbuildable descriptor, and it has to reach
-     `wfm_frame_assemble` to be refused there. Dropping the field instead
+     `dp_wfm_frame_assemble` to be refused there. Dropping the field instead
      would assemble a frame that is quietly missing it -- the same silent
      unframing the composer's own tests pin. */
   if (s->preamble_len && s->preamble_reps)

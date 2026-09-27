@@ -100,7 +100,7 @@ A frame synchroniser correlates a marker it knows against the bits it is handed,
 Header-only (like `dp_crc16.h`) so no component grows a link-line dependency for a kernel this size — a receiver correlating a marker should not link a Reed-Solomon encoder to do it.
 
 
-Bit convention: **unpacked** bits, one per byte in the LSB, which is what `wfm_frame_bits`, `dp_crc16_ccitt`, `ccsds_tm_randomise` and the spreader already pass around.
+Bit convention: **unpacked** bits, one per byte in the LSB, which is what `dp_wfm_frame_bits`, `dp_crc16_ccitt`, `ccsds_tm_randomise` and the spreader already pass around.
 
 
 ### Choosing @p max\_errors — it is not a property of the marker

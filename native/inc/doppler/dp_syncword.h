@@ -16,7 +16,7 @@
  * should not link a Reed-Solomon encoder to do it.
  *
  * Bit convention: **unpacked** bits, one per byte in the LSB, which is what
- * `wfm_frame_bits`, `dp_crc16_ccitt`, `ccsds_tm_randomise` and the spreader
+ * `dp_wfm_frame_bits`, `dp_crc16_ccitt`, `ccsds_tm_randomise` and the spreader
  * already pass around.
  *
  * ## Choosing @p max_errors — it is not a property of the marker

@@ -74,6 +74,8 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 | ---: | :--- |
 |  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create**](#function-dp_wfm_reader_create) (const char \* path, int sample\_type, int endian) <br>_Open a capture, auto-detecting its file type from its content._  |
 |  void | [**dp\_wfm\_reader\_destroy**](#function-dp_wfm_reader_destroy) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Close the file, free the reader and its decoded keywords._  |
+|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_header\_field**](#function-dp_wfm_reader_find_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, const char \* name) <br>_Look up one HCB field by name, or NULL if absent._  |
+|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_keyword**](#function-dp_wfm_reader_find_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, const char \* tag) <br> |
 |  int | [**dp\_wfm\_reader\_get\_endian**](#function-dp_wfm_reader_get_endian) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
 |  int | [**dp\_wfm\_reader\_get\_ending**](#function-dp_wfm_reader_get_ending) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
 |  double | [**dp\_wfm\_reader\_get\_fc**](#function-dp_wfm_reader_get_fc) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
@@ -90,6 +92,13 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  double | [**dp\_wfm\_reader\_get\_t0**](#function-dp_wfm_reader_get_t0) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Capture start time in seconds since the UNIX epoch, or 0.0._  |
 |  int | [**dp\_wfm\_reader\_get\_t0\_source**](#function-dp_wfm_reader_get_t0_source) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Where_ [_**dp\_wfm\_reader\_get\_t0**_](wfm__reader__core_8h.md#function-dp_wfm_reader_get_t0) _read the capture start time from._ |
 |  size\_t | [**dp\_wfm\_reader\_get\_trailing\_bytes**](#function-dp_wfm_reader_get_trailing_bytes) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Payload bytes left over after the last whole sample._  |
+|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_header\_field**](#function-dp_wfm_reader_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t i) <br>_The i-th decoded HCB field, or NULL if_ `i` _is out of range._ |
+|  const char \* | [**dp\_wfm\_reader\_header\_tag**](#function-dp_wfm_reader_header_tag) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t i) <br>_The i-th HCB field's name, for the_ `.header` _dict binding._ |
+|  void | [**dp\_wfm\_reader\_info**](#function-dp_wfm_reader_info) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md) \* info) <br>_Copy the resolved capture metadata into_ `info` _._ |
+|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_keyword**](#function-dp_wfm_reader_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, size\_t i) <br>_The_ `i'th` _keyword in file order, or NULL if_`i` _is out of range._ |
+|  const char \* | [**dp\_wfm\_reader\_keyword\_tag**](#function-dp_wfm_reader_keyword_tag) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t i) <br>_The tag of the_ `i'th` _keyword (key\_fn for the_`.keywords` _dict)._ |
+|  size\_t | [**dp\_wfm\_reader\_num\_header\_fields**](#function-dp_wfm_reader_num_header_fields) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_The first keyword whose tag equals_ `tag` _, or NULL if absent._ |
+|  size\_t | [**dp\_wfm\_reader\_num\_keywords**](#function-dp_wfm_reader_num_keywords) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Number of extended-header keywords recovered from the capture._  |
 |  size\_t | [**dp\_wfm\_reader\_read**](#function-dp_wfm_reader_read) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Read up to_ `count` _samples, returning them as_`complex64` _._ |
 |  size\_t | [**dp\_wfm\_reader\_read\_follow**](#function-dp_wfm_reader_read_follow) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Read from a capture that is still being written._  |
 |  size\_t | [**dp\_wfm\_reader\_read\_follow\_max\_out**](#function-dp_wfm_reader_read_follow_max_out) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t n) <br> |
@@ -99,16 +108,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  int | [**dp\_wfm\_reader\_seek\_time**](#function-dp_wfm_reader_seek_time) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, double seconds) <br>_Move the read position to_ `seconds` _into the capture._ |
 |  void | [**dp\_wfm\_reader\_set\_follow\_grace\_ms**](#function-dp_wfm_reader_set_follow_grace_ms) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, uint32\_t val) <br> |
 |  void | [**dp\_wfm\_reader\_set\_follow\_timeout\_ms**](#function-dp_wfm_reader_set_follow_timeout_ms) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, uint32\_t val) <br> |
-|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**wfm\_reader\_find\_header\_field**](#function-wfm_reader_find_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, const char \* name) <br>_Look up one HCB field by name, or NULL if absent._  |
-|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**wfm\_reader\_find\_keyword**](#function-wfm_reader_find_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, const char \* tag) <br> |
-|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**wfm\_reader\_header\_field**](#function-wfm_reader_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t i) <br>_The i-th decoded HCB field, or NULL if_ `i` _is out of range._ |
-|  const char \* | [**wfm\_reader\_header\_tag**](#function-wfm_reader_header_tag) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t i) <br>_The i-th HCB field's name, for the_ `.header` _dict binding._ |
-|  void | [**wfm\_reader\_info**](#function-wfm_reader_info) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md) \* info) <br>_Copy the resolved capture metadata into_ `info` _._ |
-|  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**wfm\_reader\_keyword**](#function-wfm_reader_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, size\_t i) <br>_The_ `i'th` _keyword in file order, or NULL if_`i` _is out of range._ |
-|  const char \* | [**wfm\_reader\_keyword\_tag**](#function-wfm_reader_keyword_tag) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, size\_t i) <br>_The tag of the_ `i'th` _keyword (key\_fn for the_`.keywords` _dict)._ |
-|  size\_t | [**wfm\_reader\_num\_header\_fields**](#function-wfm_reader_num_header_fields) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_The first keyword whose tag equals_ `tag` _, or NULL if absent._ |
-|  size\_t | [**wfm\_reader\_num\_keywords**](#function-wfm_reader_num_keywords) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Number of extended-header keywords recovered from the capture._  |
-|  void | [**wfm\_reader\_set\_stop\_fn**](#function-wfm_reader_set_stop_fn) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, int(\*)(void) fn) <br>_Tell a following read how to learn that a stop was requested._  |
+|  void | [**dp\_wfm\_reader\_set\_stop\_fn**](#function-dp_wfm_reader_set_stop_fn) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, int(\*)(void) fn) <br>_Tell a following read how to learn that a stop was requested._  |
 
 
 
@@ -161,7 +161,7 @@ Samples come out as `float _Complex` at unit scale: float wire types are reinter
 ```C++
 dp_wfm_reader_state_t *r = dp_wfm_reader_create("cap.sigmf-data", 0, 0);
 wfm_reader_info_t info;
-wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
+dp_wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
 float _Complex buf[4096];
 size_t n;
 while ((n = dp_wfm_reader_read(r, 4096, buf, 4096)) > 0)   // (state, count, out)
@@ -400,6 +400,39 @@ _Close the file, free the reader and its decoded keywords._
 ```C++
 void dp_wfm_reader_destroy (
     dp_wfm_reader_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_find\_header\_field 
+
+_Look up one HCB field by name, or NULL if absent._ 
+```C++
+const wfm_keyword_t * dp_wfm_reader_find_header_field (
+    const dp_wfm_reader_state_t * state,
+    const char * name
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_find\_keyword 
+
+```C++
+const wfm_keyword_t * dp_wfm_reader_find_keyword (
+    const dp_wfm_reader_state_t * r,
+    const char * tag
 ) 
 ```
 
@@ -695,6 +728,146 @@ Either way the leftover bytes are dropped: [**dp\_wfm\_reader\_read**](wfm__read
 
 
 Always 0 for CSV, which is delimited rather than strided. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_header\_field 
+
+_The i-th decoded HCB field, or NULL if_ `i` _is out of range._
+```C++
+const wfm_keyword_t * dp_wfm_reader_header_field (
+    const dp_wfm_reader_state_t * state,
+    size_t i
+) 
+```
+
+
+
+Every field of the 512-byte header control block is carried as a `wfm_keyword_t`, under the name the format itself uses  `data_start`, `ext_size`, `xdelta` and so on (Midas BLUE 1.1 3.1.1). Reusing the keyword struct means the header and the keywords share one tag/value codec, so a double or an ASCII field can never be turned into a Python object two different ways. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_header\_tag 
+
+_The i-th HCB field's name, for the_ `.header` _dict binding._
+```C++
+const char * dp_wfm_reader_header_tag (
+    const dp_wfm_reader_state_t * state,
+    size_t i
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_info 
+
+_Copy the resolved capture metadata into_ `info` _._
+```C++
+void dp_wfm_reader_info (
+    const dp_wfm_reader_state_t * r,
+    wfm_reader_info_t * info
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_keyword 
+
+_The_ `i'th` _keyword in file order, or NULL if_`i` _is out of range._
+```C++
+const wfm_keyword_t * dp_wfm_reader_keyword (
+    const dp_wfm_reader_state_t * r,
+    size_t i
+) 
+```
+
+
+
+The returned pointer (and its `value` buffer) is owned by the reader and is freed by [**dp\_wfm\_reader\_destroy()**](wfm__reader__core_8h.md#function-dp_wfm_reader_destroy). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_keyword\_tag 
+
+_The tag of the_ `i'th` _keyword (key\_fn for the_`.keywords` _dict)._
+```C++
+const char * dp_wfm_reader_keyword_tag (
+    const dp_wfm_reader_state_t * state,
+    size_t i
+) 
+```
+
+
+
+jm's generated dict loop (gh-543) calls this for every index in [0, [**dp\_wfm\_reader\_num\_keywords()**](wfm__reader__core_8h.md#function-dp_wfm_reader_num_keywords)), so `i` is always in range. The returned pointer is owned by the reader. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_num\_header\_fields 
+
+_The first keyword whose tag equals_ `tag` _, or NULL if absent._
+```C++
+size_t dp_wfm_reader_num_header_fields (
+    const dp_wfm_reader_state_t * state
+) 
+```
+
+
+
+Tags are not required to be unique; this returns the earliest match.
+
+
+Number of decoded HCB fields (0 for a non-BLUE file type). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_num\_keywords 
+
+_Number of extended-header keywords recovered from the capture._ 
+```C++
+size_t dp_wfm_reader_num_keywords (
+    const dp_wfm_reader_state_t * state
+) 
+```
+
+
+
+BLUE only, and 0 unless the file carries an extended header. Keywords of a type this library cannot decode are skipped during the walk (BLUE §3.3.1) and are not counted; a truncated or malformed keyword region yields whatever decoded cleanly before it, since metadata must never cost you the samples. For a detached capture the keywords come from the HEADER file, not the `.det`. 
 
 
         
@@ -1055,184 +1228,11 @@ void dp_wfm_reader_set_follow_timeout_ms (
 
 
 
-### function wfm\_reader\_find\_header\_field 
-
-_Look up one HCB field by name, or NULL if absent._ 
-```C++
-const wfm_keyword_t * wfm_reader_find_header_field (
-    const dp_wfm_reader_state_t * state,
-    const char * name
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_reader\_find\_keyword 
-
-```C++
-const wfm_keyword_t * wfm_reader_find_keyword (
-    const dp_wfm_reader_state_t * r,
-    const char * tag
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_reader\_header\_field 
-
-_The i-th decoded HCB field, or NULL if_ `i` _is out of range._
-```C++
-const wfm_keyword_t * wfm_reader_header_field (
-    const dp_wfm_reader_state_t * state,
-    size_t i
-) 
-```
-
-
-
-Every field of the 512-byte header control block is carried as a `wfm_keyword_t`, under the name the format itself uses  `data_start`, `ext_size`, `xdelta` and so on (Midas BLUE 1.1 3.1.1). Reusing the keyword struct means the header and the keywords share one tag/value codec, so a double or an ASCII field can never be turned into a Python object two different ways. 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_reader\_header\_tag 
-
-_The i-th HCB field's name, for the_ `.header` _dict binding._
-```C++
-const char * wfm_reader_header_tag (
-    const dp_wfm_reader_state_t * state,
-    size_t i
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_reader\_info 
-
-_Copy the resolved capture metadata into_ `info` _._
-```C++
-void wfm_reader_info (
-    const dp_wfm_reader_state_t * r,
-    wfm_reader_info_t * info
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function wfm\_reader\_keyword 
-
-_The_ `i'th` _keyword in file order, or NULL if_`i` _is out of range._
-```C++
-const wfm_keyword_t * wfm_reader_keyword (
-    const dp_wfm_reader_state_t * r,
-    size_t i
-) 
-```
-
-
-
-The returned pointer (and its `value` buffer) is owned by the reader and is freed by [**dp\_wfm\_reader\_destroy()**](wfm__reader__core_8h.md#function-dp_wfm_reader_destroy). 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_reader\_keyword\_tag 
-
-_The tag of the_ `i'th` _keyword (key\_fn for the_`.keywords` _dict)._
-```C++
-const char * wfm_reader_keyword_tag (
-    const dp_wfm_reader_state_t * state,
-    size_t i
-) 
-```
-
-
-
-jm's generated dict loop (gh-543) calls this for every index in [0, [**wfm\_reader\_num\_keywords()**](wfm__reader__core_8h.md#function-wfm_reader_num_keywords)), so `i` is always in range. The returned pointer is owned by the reader. 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_reader\_num\_header\_fields 
-
-_The first keyword whose tag equals_ `tag` _, or NULL if absent._
-```C++
-size_t wfm_reader_num_header_fields (
-    const dp_wfm_reader_state_t * state
-) 
-```
-
-
-
-Tags are not required to be unique; this returns the earliest match.
-
-
-Number of decoded HCB fields (0 for a non-BLUE file type). 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_reader\_num\_keywords 
-
-_Number of extended-header keywords recovered from the capture._ 
-```C++
-size_t wfm_reader_num_keywords (
-    const dp_wfm_reader_state_t * state
-) 
-```
-
-
-
-BLUE only, and 0 unless the file carries an extended header. Keywords of a type this library cannot decode are skipped during the walk (BLUE §3.3.1) and are not counted; a truncated or malformed keyword region yields whatever decoded cleanly before it, since metadata must never cost you the samples. For a detached capture the keywords come from the HEADER file, not the `.det`. 
-
-
-        
-
-<hr>
-
-
-
-### function wfm\_reader\_set\_stop\_fn 
+### function dp\_wfm\_reader\_set\_stop\_fn 
 
 _Tell a following read how to learn that a stop was requested._ 
 ```C++
-void wfm_reader_set_stop_fn (
+void dp_wfm_reader_set_stop_fn (
     dp_wfm_reader_state_t * state,
     int(*)(void) fn
 ) 
@@ -1248,7 +1248,7 @@ NULL (the default) means the follow read never stops early  only the capture's e
 
 
 ```C++
-wfm_reader_set_stop_fn (r, dp_interrupted);
+dp_wfm_reader_set_stop_fn (r, dp_interrupted);
 ```
  
 

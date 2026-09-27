@@ -158,8 +158,8 @@ make_emitter (const uint8_t *code, uint32_t seed)
       = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              seed, (int)SPC, 15, 0, 0, 0.0);
   if (syn
-      && wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
-                                  WFM_DSSS_DATA_PRBS, NULL, 0)
+      && dp_wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
+                                     WFM_DSSS_DATA_PRBS, NULL, 0)
              != 0)
     {
       dp_wfm_synth_destroy (syn);

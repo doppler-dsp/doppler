@@ -654,8 +654,8 @@ class FrameMeter:
         """Record one frame's outcome. `sync_ok` is the DETECTOR's own decision
         (ber_align_t.ok, or burst_demod's frame offset validity) -- never a
         threshold applied afterwards to a statistic. `crc` is
-        wfm_frame_crc_ok()'s return passed straight through: 1 pass, 0 fail, -1
-        the frame carries no CRC. A frame is an error when its sync was not
+        dp_wfm_frame_crc_ok()'s return passed straight through: 1 pass, 0 fail,
+        -1 the frame carries no CRC. A frame is an error when its sync was not
         detected, or when it was and the CRC failed; with no CRC carried, a
         detected frame counts as delivered, because counting it as an error
         would measure the frame format rather than the receiver.
@@ -668,11 +668,11 @@ class FrameMeter:
             frame_offset validity — never a threshold applied afterwards to a
             statistic.
         crc : int
-            `wfm_frame_crc_ok()`'s return, passed straight through: 1 pass, 0
-            fail, -1 the frame carries no CRC. A frame counts as an error when
-            its sync was not detected, or when it was and the CRC failed. With
-            `crc = -1` a detected frame counts as delivered, because nothing
-            about it can be checked.
+            `dp_wfm_frame_crc_ok()`'s return, passed straight through: 1 pass,
+            0 fail, -1 the frame carries no CRC. A frame counts as an error
+            when its sync was not detected, or when it was and the CRC failed.
+            With `crc = -1` a detected frame counts as delivered, because
+            nothing about it can be checked.
 
         Examples
         --------

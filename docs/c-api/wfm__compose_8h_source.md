@@ -31,7 +31,7 @@ enum
   WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
   WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
   /* Source again, continuing after the segment bits rather than renumbering
-     them: the bit index is the draw's stream selector (wfm_draw_range), so
+     them: the bit index is the draw's stream selector (dp_wfm_draw_range), so
      moving one would change every drawn value in every existing scene. */
   WFM_RANGE_DOPPLER      = 1u << 7, /* source.doppler → [lo, doppler_hi] */
   WFM_RANGE_DOPPLER_RATE = 1u << 8, /* source.doppler_rate → [lo, hi]    */
@@ -128,10 +128,10 @@ typedef struct {
        KERNELS stay in C by design. A description names a stage's KIND; the
        code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a
        genuinely new transform (convolutional interleaving, say) writes that
-       kernel in C and hands it to `wfm_frame_assemble` directly. */
+       kernel in C and hands it to `dp_wfm_frame_assemble` directly. */
     const wfm_frame_desc_t *frame;
 
-    /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
+    /* type=dsss: the two-code burst geometry (dp_wfm_frame_dsss_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
        "a run of bits, however produced" -- LITERAL plus the generated PN /
@@ -149,7 +149,7 @@ typedef struct {
     wfm_seq_t sync;      /* frame-sync word bits; len 0 = none */
     int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
-       epoch rate selects the continuous form (wfm_synth_set_dsss_cont) over
+       epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather
        than a tenth entry in five hand-maintained name tables. 0 = burst.
        The frame fields (acq_code/sync/crc/bits) are meaningless when this is
@@ -238,7 +238,7 @@ typedef struct {
     size_t off;      /* trailing gap length (samples) */
 } wfm_span_t;
 
-size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
+size_t dp_wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
                          wfm_span_t *out, size_t cap);
 
 typedef struct {
@@ -260,33 +260,33 @@ typedef struct {
     double doppler_rate; /* DRAWN Doppler rate, ppm/s                    */
 } wfm_draw_t;
 
-size_t wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
+size_t dp_wfm_compose_draws(const wfm_segment_t *segs, size_t n_segs,
                          wfm_draw_t *out, size_t cap);
 
-char *wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
+char *dp_wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
 
-int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
+int dp_wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
-double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
+double dp_wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
                        double sym_span, double snr);
 
-double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
+double dp_wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
                              int *snr_mode);
 
-int wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
+int dp_wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs);
 
-int wfm_source_has_frame(const wfm_source_t *src);
+int dp_wfm_source_has_frame(const wfm_source_t *src);
 
-int wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
+int dp_wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
 
-size_t wfm_source_dsss_nchips(const wfm_source_t *src);
+size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
 
-const char *wfm_source_frame_error(const wfm_source_t *src);
+const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 
-int wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
+int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
-dp_wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
+dp_wfm_synth_state_t *dp_wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,
                                            unsigned epoch, int seed_advance,
@@ -294,18 +294,18 @@ dp_wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs
 
 typedef struct wfm_render wfm_render_t;
 
-wfm_render_t *wfm_compose_build_render(const wfm_source_t *src, double fs,
+wfm_render_t *dp_wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        size_t on_len, double freq, double snr,
                                        double f_end, double doppler,
                                        double doppler_rate, unsigned epoch,
                                        int seed_advance, size_t instance,
                                        dp_doppler_channel_state_t *borrow);
 
-void wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
-void wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
-void wfm_render_destroy(wfm_render_t *r);
+void dp_wfm_render_destroy(wfm_render_t *r);
 
 typedef enum
 {
@@ -314,21 +314,21 @@ typedef enum
   WFM_SEED_ADVANCE_ALL   = 2, /* whole seed advances (code+data+noise) */
 } wfm_seed_advance_t;
 
-typedef struct wfm_compose_state wfm_compose_state_t;
+typedef struct wfm_compose_state dp_wfm_compose_state_t;
 
-wfm_compose_state_t *wfm_compose_create(
+dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
 
-void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
+void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
 
-int wfm_compose_seed_advance(const wfm_compose_state_t *state);
+int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
 
-size_t wfm_compose_execute(
-    wfm_compose_state_t *state, float _Complex *out, size_t max);
+size_t dp_wfm_compose_execute(
+    dp_wfm_compose_state_t *state, float _Complex *out, size_t max);
 
-void wfm_compose_destroy(wfm_compose_state_t *state);
+void dp_wfm_compose_destroy(dp_wfm_compose_state_t *state);
 
-const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
+const wfm_segment_t *dp_wfm_compose_segments(const dp_wfm_compose_state_t *state,
                                           size_t *n_out, int *repeat,
                                           int *continuous);
 
@@ -339,19 +339,19 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
  * Use `wfmgen json-template` for a ready-to-edit example covering all fields.
  */
 
-char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
+char *dp_wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
                        int continuous, int seed_advance, double headroom);
 
-double wfm_spec_headroom(const char *json);
+double dp_wfm_spec_headroom(const char *json);
 
-char *wfm_spec_template_json(void);
+char *dp_wfm_spec_template_json(void);
 
-wfm_compose_state_t *wfm_compose_from_json(const char *json);
+dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 
-wfm_compose_state_t *wfm_compose_from_json_why(const char *json,
+dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
                                                const char **why);
 
-wfm_compose_state_t *wfm_compose_from_file(const char *path);
+dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 
 #ifdef __cplusplus
 }

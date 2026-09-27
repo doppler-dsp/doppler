@@ -57,16 +57,16 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**wfm\_stream\_sink\_available**](#function-wfm_stream_sink_available) (void) <br>_1 if the real stream sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output nats://` _path._ |
-|  double | [**wfm\_stream\_sink\_clip\_fraction**](#function-wfm_stream_sink_clip_fraction) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
-|  void | [**wfm\_stream\_sink\_close**](#function-wfm_stream_sink_close) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
-|  int | [**wfm\_stream\_sink\_drain**](#function-wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
-|  [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* | [**wfm\_stream\_sink\_open**](#function-wfm_stream_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a stream sink (PUB) bound to a NATS subject._  |
-|  double | [**wfm\_stream\_sink\_peak**](#function-wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
-|  int | [**wfm\_stream\_sink\_send**](#function-wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
-|  int | [**wfm\_stream\_sink\_send\_eos**](#function-wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
-|  void | [**wfm\_stream\_sink\_set\_gain**](#function-wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br> |
-|  void | [**wfm\_stream\_sink\_track\_clipping**](#function-wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br> |
+|  int | [**dp\_wfm\_stream\_sink\_available**](#function-dp_wfm_stream_sink_available) (void) <br>_1 if the real stream sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output nats://` _path._ |
+|  double | [**dp\_wfm\_stream\_sink\_clip\_fraction**](#function-dp_wfm_stream_sink_clip_fraction) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
+|  void | [**dp\_wfm\_stream\_sink\_close**](#function-dp_wfm_stream_sink_close) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
+|  int | [**dp\_wfm\_stream\_sink\_drain**](#function-dp_wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
+|  [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* | [**dp\_wfm\_stream\_sink\_open**](#function-dp_wfm_stream_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a stream sink (PUB) bound to a NATS subject._  |
+|  double | [**dp\_wfm\_stream\_sink\_peak**](#function-dp_wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
+|  int | [**dp\_wfm\_stream\_sink\_send**](#function-dp_wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
+|  int | [**dp\_wfm\_stream\_sink\_send\_eos**](#function-dp_wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
+|  void | [**dp\_wfm\_stream\_sink\_set\_gain**](#function-dp_wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br> |
+|  void | [**dp\_wfm\_stream\_sink\_track\_clipping**](#function-dp_wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br> |
 
 
 
@@ -101,14 +101,14 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 Streams cf32 blocks (from synth or the composer) to a NATS subject using doppler's `dp_pub_*` wire layer (SIGS header, magic "SIGS"), converting to the requested wire sample type per block. This is the `--output nats://…` destination; a `dp_sub_*` receiver (e.g. native/examples/spectrum\_analyzer) reads the stream.
 
 
-Lifecycle: wfm\_stream\_sink\_open -&gt; wfm\_stream\_sink\_send\* -&gt; wfm\_stream\_sink\_close
+Lifecycle: dp\_wfm\_stream\_sink\_open -&gt; dp\_wfm\_stream\_sink\_send\* -&gt; dp\_wfm\_stream\_sink\_close
 
 
 
 ```C++
-wfm_stream_sink_t *s = wfm_stream_sink_open("nats://127.0.0.1:4222/iq", 3); // ci16
-wfm_stream_sink_send(s, iq, 4096, 1e6, 2.4e9);
-wfm_stream_sink_close(s);
+wfm_stream_sink_t *s = dp_wfm_stream_sink_open("nats://127.0.0.1:4222/iq", 3); // ci16
+dp_wfm_stream_sink_send(s, iq, 4096, 1e6, 2.4e9);
+dp_wfm_stream_sink_close(s);
 ```
  
 
@@ -138,11 +138,11 @@ Opaque stream sink.
 
 
 
-### function wfm\_stream\_sink\_available 
+### function dp\_wfm\_stream\_sink\_available 
 
 _1 if the real stream sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output nats://` _path._
 ```C++
-int wfm_stream_sink_available (
+int dp_wfm_stream_sink_available (
     void
 ) 
 ```
@@ -154,10 +154,10 @@ int wfm_stream_sink_available (
 
 
 
-### function wfm\_stream\_sink\_clip\_fraction 
+### function dp\_wfm\_stream\_sink\_clip\_fraction 
 
 ```C++
-double wfm_stream_sink_clip_fraction (
+double dp_wfm_stream_sink_clip_fraction (
     const wfm_stream_sink_t * sink
 ) 
 ```
@@ -173,11 +173,11 @@ Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. The 
 
 
 
-### function wfm\_stream\_sink\_close 
+### function dp\_wfm\_stream\_sink\_close 
 
 _Close the sink and destroy the publisher._ 
 ```C++
-void wfm_stream_sink_close (
+void dp_wfm_stream_sink_close (
     wfm_stream_sink_t * sink
 ) 
 ```
@@ -200,11 +200,11 @@ void wfm_stream_sink_close (
 
 
 
-### function wfm\_stream\_sink\_drain 
+### function dp\_wfm\_stream\_sink\_drain 
 
 _Let everything already sent reach the server, then stop._ 
 ```C++
-int wfm_stream_sink_drain (
+int dp_wfm_stream_sink_drain (
     wfm_stream_sink_t * sink,
     int timeout_ms
 ) 
@@ -243,11 +243,11 @@ DP\_OK once drained, or the stream layer's error  DP\_ERR\_TIMEOUT if the budget
 
 
 
-### function wfm\_stream\_sink\_open 
+### function dp\_wfm\_stream\_sink\_open 
 
 _Open a stream sink (PUB) bound to a NATS subject._ 
 ```C++
-wfm_stream_sink_t * wfm_stream_sink_open (
+wfm_stream_sink_t * dp_wfm_stream_sink_open (
     const char * endpoint,
     int sample_type
 ) 
@@ -274,7 +274,7 @@ Sink handle, or NULL on bad type / publisher-create failure.
 
 **Note:**
 
-Caller must [**wfm\_stream\_sink\_close()**](wfm__sink_8h.md#function-wfm_stream_sink_close) when done. 
+Caller must [**dp\_wfm\_stream\_sink\_close()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_close) when done. 
 
 
 
@@ -286,10 +286,10 @@ Caller must [**wfm\_stream\_sink\_close()**](wfm__sink_8h.md#function-wfm_stream
 
 
 
-### function wfm\_stream\_sink\_peak 
+### function dp\_wfm\_stream\_sink\_peak 
 
 ```C++
-double wfm_stream_sink_peak (
+double dp_wfm_stream_sink_peak (
     const wfm_stream_sink_t * sink
 ) 
 ```
@@ -307,11 +307,11 @@ Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
 
 
 
-### function wfm\_stream\_sink\_send 
+### function dp\_wfm\_stream\_sink\_send 
 
 _Convert a cf32 block to the wire type and publish it._ 
 ```C++
-int wfm_stream_sink_send (
+int dp_wfm_stream_sink_send (
     wfm_stream_sink_t * sink,
     const float _Complex * iq,
     size_t n,
@@ -349,11 +349,11 @@ int wfm_stream_sink_send (
 
 
 
-### function wfm\_stream\_sink\_send\_eos 
+### function dp\_wfm\_stream\_sink\_send\_eos 
 
 _Tell subscribers this stream has ended._ 
 ```C++
-int wfm_stream_sink_send_eos (
+int dp_wfm_stream_sink_send_eos (
     wfm_stream_sink_t * sink
 ) 
 ```
@@ -386,10 +386,10 @@ DP\_OK, or the stream layer's error.
 
 
 
-### function wfm\_stream\_sink\_set\_gain 
+### function dp\_wfm\_stream\_sink\_set\_gain 
 
 ```C++
-void wfm_stream_sink_set_gain (
+void dp_wfm_stream_sink_set_gain (
     wfm_stream_sink_t * sink,
     double gain
 ) 
@@ -406,10 +406,10 @@ Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
 
 
 
-### function wfm\_stream\_sink\_track\_clipping 
+### function dp\_wfm\_stream\_sink\_track\_clipping 
 
 ```C++
-void wfm_stream_sink_track_clipping (
+void dp_wfm_stream_sink_track_clipping (
     wfm_stream_sink_t * sink,
     int on
 ) 

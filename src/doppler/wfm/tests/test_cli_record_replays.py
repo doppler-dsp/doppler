@@ -6,7 +6,7 @@ run reproduces byte-for-byte when fed back via ``--from-file``"* — and what
 ``--from-file`` reads back"*.
 
 It was false for ``seed_advance`` (doppler#978). The key was parsed onto the
-composer and `wfm_spec_to_json()` had **no parameter to write it from**, so
+composer and `dp_wfm_spec_to_json()` had **no parameter to write it from**, so
 a recorded run replayed with the mode silently reset to ``none`` — every loop
 after the first came out identical when the original's did not. Nothing warned,
 on either stream.

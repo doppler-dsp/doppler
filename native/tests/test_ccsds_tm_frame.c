@@ -709,7 +709,7 @@ main (void)
         d.stage[S_INNER].emit_den    = 1u;
 
         wfm_frame_desc_layout_t got;
-        DP_REQUIRE (wfm_frame_desc_layout (&d, &got) == 0);
+        DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &got) == 0);
 
         DP_CHECK_MSG (got.frame_bits == want.cadu_bits,
                       "the description's frame is the CADU");
@@ -735,7 +735,7 @@ main (void)
    * The section above proves the general description reproduces this
    * component's coverage table. A right coverage table says nothing about
    * whether the stages were applied to the right bits, so this is the other
-   * half and the one that matters: `wfm_frame_assemble` over
+   * half and the one that matters: `dp_wfm_frame_assemble` over
    * `ccsds_tm_frame_describe`'s description must equal
    * `ccsds_tm_frame_encode`'s output BYTE FOR BYTE.
    *
@@ -801,7 +801,7 @@ main (void)
         ccsds_tm_frame_ops (&ops, NULL);
 
         memset (got, 0xAAu, sizeof got);
-        const size_t m = wfm_frame_assemble (&d, &ops, got, sizeof got);
+        const size_t m = dp_wfm_frame_assemble (&d, &ops, got, sizeof got);
         DP_CHECK_MSG (m == n, "the description must write as many bits");
         DP_CHECK_MSG (m == n && memcmp (got, want, n) == 0,
                       "...and the SAME bits, byte for byte");
@@ -837,7 +837,7 @@ main (void)
     for (int f = 0; f < 2; f++)
       {
         ccsds_tm_frame_encode (&cfg, &ca, frame, octets, want, nsym);
-        if (wfm_frame_assemble (&d, &ops, got, nsym) != nsym
+        if (dp_wfm_frame_assemble (&d, &ops, got, nsym) != nsym
             || memcmp (got, want, nsym) != 0)
           seam_ok = 0;
       }
@@ -848,11 +848,11 @@ main (void)
 
   /* ── 16. the scoring path: undo the same spans, and report ─────────────────
    *
-   * `wfm_frame_check` reads the description `wfm_frame_assemble` wrote by, so
-   * the two cannot disagree about which stage covered what. What is asserted
-   * here is what a receiver does with the answer: the outer code's counts,
-   * which are a strictly better detector than a CRC because they say how much
-   * repair it took rather than one bit of right-or-wrong.
+   * `dp_wfm_frame_check` reads the description `dp_wfm_frame_assemble` wrote
+   * by, so the two cannot disagree about which stage covered what. What is
+   * asserted here is what a receiver does with the answer: the outer code's
+   * counts, which are a strictly better detector than a CRC because they say
+   * how much repair it took rather than one bit of right-or-wrong.
    *
    * Damage is placed at the SYMBOL level and its effect is predicted, not
    * observed: at depth 5 a contiguous burst of 5*E symbols is exactly E in
@@ -888,15 +888,15 @@ main (void)
     ccsds_tm_frame_ops (&ops, NULL);
 
     wfm_frame_desc_layout_t lay;
-    DP_REQUIRE (wfm_frame_desc_layout (&d, &lay) == 0);
-    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &lay) == 0);
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
                 == lay.frame_bits);
 
     /* Clean: every codeword good, nothing repaired. Asserted because a
        checker that reported damage on a clean frame would be as wrong as one
        that missed damage, and only one of those shows up below. */
     wfm_frame_rx_t rx;
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, cadu, &rx) == 1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, cadu, &rx) == 1,
                   "a clean CADU must pass its own check");
     DP_CHECK_MSG (rx.stage[0].units == DEPTH && rx.stage[0].ok == DEPTH
                       && rx.stage[0].corrected == 0
@@ -904,7 +904,7 @@ main (void)
                   "...with nothing repaired");
     /* The randomiser is involutive, so undoing it left the frame derandomised
        -- re-assemble before damaging it. */
-    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
                 == lay.frame_bits);
 
     /* A burst of DEPTH*E symbols: exactly E in each codeword, all repaired,
@@ -912,12 +912,12 @@ main (void)
     const size_t blk = lay.stage[0].first;
     for (unsigned s = 0; s < DEPTH * CCSDS_TM_RS_E; s++)
       cadu[blk + (size_t)s * 8u] ^= 1u;
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, cadu, &rx) == 1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, cadu, &rx) == 1,
                   "a burst of DEPTH*E symbols must still pass");
     DP_CHECK_MSG (rx.stage[0].ok == DEPTH && rx.stage[0].corrected == DEPTH
                       && rx.stage[0].symbols == DEPTH * CCSDS_TM_RS_E,
                   "...having repaired exactly E in each of the five");
-    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
                 == lay.frame_bits);
 
     /* E+1 in ONE column is past the radius: that codeword is refused, the
@@ -925,7 +925,7 @@ main (void)
        reports counts rather than a verdict. */
     for (unsigned c = 0; c <= CCSDS_TM_RS_E; c++)
       cadu[blk + ((size_t)c * DEPTH + 2u) * 8u] ^= 1u;
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, cadu, &rx) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, cadu, &rx) == 0,
                   "E+1 errors in one column must FAIL the frame");
     DP_CHECK_MSG (rx.stage[0].units == DEPTH && rx.stage[0].ok == DEPTH - 1u,
                   "...as exactly one bad codeword out of five");
@@ -944,10 +944,10 @@ main (void)
        the input a frame checker really gets: the inner code is already
        undone by the time anything looks for a frame. The check below is about
        which stages get reversed, not about the bits. */
-    DP_REQUIRE (wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, cadu, sizeof cadu)
                 == lay.frame_bits);
     wfm_frame_rx_t rc;
-    DP_CHECK_MSG (wfm_frame_check (&dc, &ops, cadu, &rc) == 1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&dc, &ops, cadu, &rc) == 1,
                   "the coded description checks the frame it is handed");
     DP_CHECK_MSG (!rc.stage[2].checked,
                   "the inner code is not reversed by a frame checker");
@@ -985,7 +985,7 @@ main (void)
 
     /* The default: depth unset selects 10.4.1's. */
     static uint8_t dflt[NB * 8];
-    DP_REQUIRE (wfm_frame_assemble (&d, &ops, dflt, sizeof dflt)
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, dflt, sizeof dflt)
                 == sizeof dflt);
     uint8_t want[40];
     ccsds_tm_rand_seq_with (&CCSDS_TM_RAND, want, sizeof want);
@@ -997,7 +997,7 @@ main (void)
        gets a waveform no legacy receiver can read. */
     d.stage[1].depth = 2u;
     static uint8_t legacy[NB * 8];
-    DP_REQUIRE (wfm_frame_assemble (&d, &ops, legacy, sizeof legacy)
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, legacy, sizeof legacy)
                 == sizeof legacy);
     ccsds_tm_rand_seq_with (&CCSDS_TM_RAND_LEGACY, want, sizeof want);
     DP_CHECK_MSG (memcmp (legacy, want, sizeof want) == 0,
@@ -1007,9 +1007,9 @@ main (void)
 
     /* And the receive side reverses whichever was APPLIED, reading the same
        stage -- so a frame coded one way and checked the other cannot happen.
-       wfm_frame_check derandomises in place, and the payload was zeros, so
+       dp_wfm_frame_check derandomises in place, and the payload was zeros, so
        what comes back is zeros. */
-    wfm_frame_check (&d, &ops, legacy, NULL);
+    dp_wfm_frame_check (&d, &ops, legacy, NULL);
     int back = 1;
     for (size_t i = 0; i < sizeof legacy; i++)
       {

@@ -20,9 +20,9 @@ level expressible-but-unstated.
 
 Four signatures, each with a canonical primitive that already exists:
 
-  pulse      a private raised-cosine / RRC  ->  wfm_synth_set_rrc, rrc_taps
+  pulse      a private raised-cosine / RRC  ->  dp_wfm_synth_set_rrc, rrc_taps
   level      normalising a generated stream by its PEAK  ->  Synth(level=,
-             snr=, snr_mode=), wfm_snr_over_fs, wfm_source_create_snr
+             snr=, snr_mode=), dp_wfm_snr_over_fs, dp_wfm_source_create_snr
   offset     a loop residual as a bare cycles/sample number  ->
              freq_offset_inside_bw / clock_offset_inside_bw in Python,
              dp_test_freq_offset_inside_bw in C (native/tests/dp_sym_test.h)
@@ -77,9 +77,9 @@ MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
             r"def\s+_?rrc\w*\s*\(|def\s+_?rc\s*\(|"
             r"static\s+(inline\s+)?double\s+_?(rrc|rc)\w*\s*\("
         ),
-        "generate with wfmgen -- wfm_synth_set_rrc() in C, or "
+        "generate with wfmgen -- dp_wfm_synth_set_rrc() in C, or "
         "Synth(pulse='rrc', rrc_beta=..., rrc_span=...) in Python. "
-        "wfm_rrc_taps()/rrc_taps() gives the taps if you need them raw.",
+        "dp_wfm_rrc_taps()/rrc_taps() gives the taps if you need them raw.",
     ),
     # A NUMERIC backoff against the peak, e.g. `x *= 0.25 / max(|x|)`.
     #
@@ -177,9 +177,9 @@ CANONICAL: dict[str, set[str]] = {
         "rc_h",
         "wfm_rrc_h",
         "wfm_rc_h",
-        "wfm_rrc_taps",
-        "wfm_rrc_polyphase_bank",
-        "wfm_synth_set_rrc",
+        "dp_wfm_rrc_taps",
+        "dp_wfm_rrc_polyphase_bank",
+        "dp_wfm_synth_set_rrc",
         # The generator itself, and the module-level factories that return
         # one. `qpsk(pulse="rrc", ...)` IS wfmgen; a harness calling it is
         # doing exactly what this gate asks for. Names like `noise`, `pn`

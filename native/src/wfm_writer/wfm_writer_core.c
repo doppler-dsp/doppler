@@ -102,7 +102,7 @@ blue_format_char (int stype)
 struct wfm_writer_state
 {
   FILE    *fp;
-  int      owns_fp; /* close fp in wfm_writer_close (path-opened writers) */
+  int      owns_fp; /* close fp in dp_wfm_writer_close (path-opened writers) */
   int      ft;
   int      stype;
   int      be;
@@ -132,7 +132,7 @@ struct wfm_writer_state
   double t0;
   /* The capture's own path, and the ONLY signal that this writer owes a
      sidecar: it is stored exactly when one is wanted, and the sidecar's name
-     is derived from it (wfm_meta_path). An fp-only writer (wfm_writer_open)
+     is derived from it (wfm_meta_path). An fp-only writer (dp_wfm_writer_open)
      has no name to derive from, so it never has one and leaves the metadata
      to its caller -- which is why the sidecar is a create()-only guarantee. */
   char *path;
@@ -272,9 +272,9 @@ fc_hcb_pair (char *out, size_t cap, double fc)
    default). The header is laid out in head_rep byte order (LE "EEEI" / BE
    "IEEE"). */
 int
-wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
-                    double fc, double data_start, size_t total_samples,
-                    int detached, double t0_unix_sec)
+dp_wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
+                       double fc, double data_start, size_t total_samples,
+                       int detached, double t0_unix_sec)
 {
   if (!fp || sample_type < 0 || sample_type >= (int)N_STYPES)
     return -1;
@@ -311,7 +311,7 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   /* flagmask (54), inlet (64), outlets (66), outmask (68), pipeloc (72),
      pipesize (76), in_byte (80), out_byte (88), outbytes[8] (96) = 0.
      keylength (160) / keywords (164) start with the centre frequency, if
-     there is one, and are patched again by wfm_writer_close once the
+     there is one, and are patched again by dp_wfm_writer_close once the
      caller's own keywords are known. */
   char   kwarea[92];
   size_t klen = fc_hcb_pair (kwarea, sizeof kwarea, fc);
@@ -384,17 +384,18 @@ hcb_kw_append (dp_wfm_writer_state_t *w, const char *tag, const char *value,
 static void
 emit_fc_keyword (dp_wfm_writer_state_t *w, double fc)
 {
-  (void)wfm_writer_add_keyword (w, "FREQ", 'D', &fc, 1);
-  /* Seed the keyword area with exactly the bytes wfm_blue_write_hcb has just
-     put on disk, so that a close()-time re-patch (which any other HCB keyword
-     triggers) rewrites it unchanged rather than overwriting it away. */
+  (void)dp_wfm_writer_add_keyword (w, "FREQ", 'D', &fc, 1);
+  /* Seed the keyword area with exactly the bytes dp_wfm_blue_write_hcb has
+     just put on disk, so that a close()-time re-patch (which any other HCB
+     keyword triggers) rewrites it unchanged rather than overwriting it away.
+   */
   w->hcbkwlen = fc_hcb_pair (w->hcbkw, sizeof w->hcbkw, fc);
 }
 
 dp_wfm_writer_state_t *
-wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
-                 double fs, double fc, size_t total_samples,
-                 double t0_unix_sec)
+dp_wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
+                    double fs, double fc, size_t total_samples,
+                    double t0_unix_sec)
 {
   if (!fp || sample_type < 0 || sample_type >= (int)N_STYPES || ft < 0
       || ft > 3)
@@ -411,8 +412,8 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
   w->fc    = fc;
   w->t0    = t0_unix_sec;
   if (ft == WFM_FT_BLUE
-      && wfm_blue_write_hcb (fp, sample_type, w->be, fs, fc, 512.0,
-                             total_samples, 0, t0_unix_sec))
+      && dp_wfm_blue_write_hcb (fp, sample_type, w->be, fs, fc, 512.0,
+                                total_samples, 0, t0_unix_sec))
     {
       free (w);
       return NULL;
@@ -548,12 +549,12 @@ dp_wfm_writer_write (dp_wfm_writer_state_t *w, const float _Complex *iq,
 }
 
 int
-wfm_writer_add_keyword (dp_wfm_writer_state_t *w, const char *tag, char type,
-                        const void *value, size_t count)
+dp_wfm_writer_add_keyword (dp_wfm_writer_state_t *w, const char *tag,
+                           char type, const void *value, size_t count)
 {
   if (!w || w->ft != WFM_FT_BLUE) /* only BLUE has an extended header */
     return -1;
-  size_t esz = wfm_kw_elem_size (type);
+  size_t esz = dp_wfm_kw_elem_size (type);
   if (esz == 0 || !tag || !value || count == 0)
     return -1;
   /* The HCB keyword area is NOT general-purpose storage. BLUE 1.1 3.4 is
@@ -574,7 +575,7 @@ wfm_writer_add_keyword (dp_wfm_writer_state_t *w, const char *tag, char type,
      rather than being lost — its meaning is defined by its tag, and 3.4's
      own remedy for a full HCB area is to move keywords out of it. */
 
-  size_t need = wfm_kw_entry_size (strlen (tag), count * esz);
+  size_t need = dp_wfm_kw_entry_size (strlen (tag), count * esz);
   if (w->kwlen + need > w->kwcap)
     {
       size_t   ncap = w->kwcap ? w->kwcap * 2 : 256;
@@ -587,8 +588,8 @@ wfm_writer_add_keyword (dp_wfm_writer_state_t *w, const char *tag, char type,
       w->kw    = p;
       w->kwcap = ncap;
     }
-  size_t got = wfm_kw_encode (w->kw + w->kwlen, w->kwcap - w->kwlen, tag, type,
-                              value, count, w->be);
+  size_t got = dp_wfm_kw_encode (w->kw + w->kwlen, w->kwcap - w->kwlen, tag,
+                                 type, value, count, w->be);
   if (got == 0)
     return -1;
   w->kwlen += got;
@@ -651,13 +652,13 @@ write_ext_header (dp_wfm_writer_state_t *w)
 double
 dp_wfm_writer_get_clip_fraction (const dp_wfm_writer_state_t *w)
 {
-  return wfm_writer_clip_fraction (w);
+  return dp_wfm_writer_clip_fraction (w);
 }
 
 double
 dp_wfm_writer_get_peak_dbfs (const dp_wfm_writer_state_t *w)
 {
-  double p = wfm_writer_peak (w);
+  double p = dp_wfm_writer_peak (w);
   return (p > 0.0) ? 20.0 * log10 (p) : -INFINITY;
 }
 
@@ -706,7 +707,7 @@ write_sigmf_sidecar (dp_wfm_writer_state_t *w)
   char meta_path[1024];
   wfm_meta_path (w->path, meta_path, sizeof meta_path);
   char *json
-      = wfm_sigmf_meta_json (w->stype, w->be, w->fs, w->fc, w->t0, NULL, 0);
+      = dp_wfm_sigmf_meta_json (w->stype, w->be, w->fs, w->fc, w->t0, NULL, 0);
   if (!json)
     return -1;
   FILE *mf = fopen (meta_path, "w");
@@ -742,7 +743,7 @@ dp_wfm_writer_flush (dp_wfm_writer_state_t *w)
 }
 
 int
-wfm_writer_close (dp_wfm_writer_state_t *w)
+dp_wfm_writer_close (dp_wfm_writer_state_t *w)
 {
   int rc = 0;
   if (w)
@@ -801,19 +802,19 @@ wfm_writer_close (dp_wfm_writer_state_t *w)
 
 /* The object binding's fallible destructor (gh-541): jm generates a close()
    that raises when this returns non-zero, so the finaliser's status reaches
-   the caller. wfm_writer_close() is the implementation; C callers use it
+   the caller. dp_wfm_writer_close() is the implementation; C callers use it
    directly. */
 int
 dp_wfm_writer_destroy (dp_wfm_writer_state_t *w)
 {
-  return wfm_writer_close (w);
+  return dp_wfm_writer_close (w);
 }
 
 /* Path-opening + FILE-owning variant for the generated `Writer` handle (jm
  * kind="handle"): the handle wants create(path,…) -> writer*, and close must
  * release the FILE (the old CPython capsule owned it). Opens the file,
- * delegates to wfm_writer_open, and marks the FILE owned so wfm_writer_close
- * fclose's it. */
+ * delegates to dp_wfm_writer_open, and marks the FILE owned so
+ * dp_wfm_writer_close fclose's it. */
 dp_wfm_writer_state_t *
 dp_wfm_writer_create (const char *path, double fs, int file_type,
                       int sample_type, int endian, double fc, size_t total,
@@ -833,7 +834,7 @@ dp_wfm_writer_create (const char *path, double fs, int file_type,
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return NULL;
-  dp_wfm_writer_state_t *w = wfm_writer_open (
+  dp_wfm_writer_state_t *w = dp_wfm_writer_open (
       fp, (wfm_filetype_t)file_type, sample_type, endian, fs, fc, total, t0);
   if (!w)
     {
@@ -860,7 +861,7 @@ dp_wfm_writer_create (const char *path, double fs, int file_type,
    * in here so headroom is a plain ctor arg, not a create_post over a non-ctor
    * param the generated create-call would mis-pass. */
   if (headroom != 0.0)
-    wfm_writer_set_gain (w, pow (10.0, -headroom / 20.0));
+    dp_wfm_writer_set_gain (w, pow (10.0, -headroom / 20.0));
   return w;
 }
 
@@ -872,20 +873,20 @@ dp_wfm_writer_track_clipping (dp_wfm_writer_state_t *w, int on)
 }
 
 void
-wfm_writer_set_gain (dp_wfm_writer_state_t *w, double gain)
+dp_wfm_writer_set_gain (dp_wfm_writer_state_t *w, double gain)
 {
   if (w)
     w->gain = (float)gain;
 }
 
 double
-wfm_writer_peak (const dp_wfm_writer_state_t *w)
+dp_wfm_writer_peak (const dp_wfm_writer_state_t *w)
 {
   return w ? (double)w->peak : 0.0;
 }
 
 double
-wfm_writer_clip_fraction (const dp_wfm_writer_state_t *w)
+dp_wfm_writer_clip_fraction (const dp_wfm_writer_state_t *w)
 {
   if (!w || w->written == 0)
     return 0.0;
@@ -944,19 +945,19 @@ merge_object (cJSON *dst, const char *json)
 }
 
 char *
-wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
-                     double t0_unix_sec, const wfm_segment_t *segs,
-                     size_t n_segs)
+dp_wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
+                        double t0_unix_sec, const wfm_segment_t *segs,
+                        size_t n_segs)
 {
-  return wfm_sigmf_meta_json_ex (sample_type, endian, fs, fc, t0_unix_sec,
-                                 segs, n_segs, NULL, NULL, 0);
+  return dp_wfm_sigmf_meta_json_ex (sample_type, endian, fs, fc, t0_unix_sec,
+                                    segs, n_segs, NULL, NULL, 0);
 }
 
 char *
-wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
-                        double t0_unix_sec, const wfm_segment_t *segs,
-                        size_t n_segs, const char *extra_global_json,
-                        const char *const *annotations, size_t n_ann)
+dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
+                           double t0_unix_sec, const wfm_segment_t *segs,
+                           size_t n_segs, const char *extra_global_json,
+                           const char *const *annotations, size_t n_ann)
 {
   cJSON *root = cJSON_CreateObject ();
   if (!root)
@@ -1043,7 +1044,7 @@ wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
   cJSON *anns = cJSON_AddArrayToObject (root, "annotations");
   /* One annotation per SOURCE per rendered INSTANCE, from ONE row.
    *
-   * wfm_compose_draws() replays the ranged draws (repeats instancing,
+   * dp_wfm_compose_draws() replays the ranged draws (repeats instancing,
    * jittered delays/gaps, intrinsic dsss on-times) AND the drawn
    * freq/f_end/snr/level, through the same helpers the composer renders
    * through. Reading the timing from a replay and the values from the source
@@ -1052,10 +1053,10 @@ wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
    * 8 dB on EVERY annotation, beside a sample-accurate start. Measured
    * against the capture, up to 1224 Hz and 6.0 dB out (doppler#1086). The
    * exact half is what stopped anyone looking at the other. */
-  size_t      n_rows = wfm_compose_draws (segs, n_segs, NULL, 0);
+  size_t      n_rows = dp_wfm_compose_draws (segs, n_segs, NULL, 0);
   wfm_draw_t *rows   = n_rows ? malloc (n_rows * sizeof *rows) : NULL;
   if (rows)
-    (void)wfm_compose_draws (segs, n_segs, rows, n_rows);
+    (void)dp_wfm_compose_draws (segs, n_segs, rows, n_rows);
   for (size_t r = 0; rows && r < n_rows; r++)
     {
       const wfm_draw_t    *d     = &rows[r];

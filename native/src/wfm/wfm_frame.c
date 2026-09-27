@@ -18,7 +18,7 @@
    cannot produce them — which is a REFUSAL, not a short write: a frame that
    half-materialises would be scored against a truth nobody can regenerate. */
 size_t
-wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
+dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
 {
   if (!s || s->len == 0 || s->len > cap)
     return 0;
@@ -91,7 +91,8 @@ supplied_bits (const wfm_field_t *f)
 }
 
 int
-wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
+dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
+                          wfm_frame_desc_layout_t *out)
 {
   if (!d || !out)
     return -1;
@@ -121,7 +122,7 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
    * Refused HERE, where geometry is decided, so it covers every reader at
    * once: the builder, the scene JSON, the CLI and Python all funnel through
    * this function. The builder cannot reach the state anyway --
-   * wfm_frame_add_stage() wires the producer from the cover it is given --
+   * dp_wfm_frame_add_stage() wires the producer from the cover it is given --
    * so the check exists for the readers that take the two facts as
    * independent integers and could otherwise let them disagree. */
   for (unsigned i = 0; i < d->n_fields; i++)
@@ -189,7 +190,7 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
    *
    * The arithmetic here used to be `(frame_bits - cov) + cov * num / den`,
    * which reads as "the bits it does not cover pass through at their own
-   * width". Nothing implements that. `wfm_frame_assemble` hands `emit` the
+   * width". Nothing implements that. `dp_wfm_frame_assemble` hands `emit` the
    * WHOLE assembled frame and requires exactly `out_bits` back, so a
    * partially-covering emitting stage laid out cleanly and could then never
    * assemble: the kernel expands bits it was never promised and returns a
@@ -217,7 +218,7 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
 }
 
 int
-wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out)
+dp_wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out)
 {
   if (!f || !out)
     return -1;
@@ -254,12 +255,12 @@ wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out)
 }
 
 int
-wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
+dp_wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
 {
   wfm_frame_desc_t        d;
   wfm_frame_desc_layout_t l;
-  if (!f || !out || wfm_frame_describe (f, &d) != 0
-      || wfm_frame_desc_layout (&d, &l) != 0)
+  if (!f || !out || dp_wfm_frame_describe (f, &d) != 0
+      || dp_wfm_frame_desc_layout (&d, &l) != 0)
     return -1;
   memset (out, 0, sizeof *out);
 
@@ -276,10 +277,10 @@ wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
 }
 
 size_t
-wfm_frame_nbits (const wfm_frame_t *f)
+dp_wfm_frame_nbits (const wfm_frame_t *f)
 {
   wfm_frame_layout_t l;
-  if (wfm_frame_layout (f, &l) != 0)
+  if (dp_wfm_frame_layout (f, &l) != 0)
     return 0;
   return l.total_bits;
 }
@@ -434,18 +435,18 @@ find_op (const wfm_frame_ops_t *ops, uint32_t kind)
 }
 
 size_t
-wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
-                    uint8_t *out, size_t max_out)
+dp_wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                       uint8_t *out, size_t max_out)
 {
   wfm_frame_desc_layout_t l;
-  if (!d || !out || wfm_frame_desc_layout (d, &l) != 0)
+  if (!d || !out || dp_wfm_frame_desc_layout (d, &l) != 0)
     return 0;
   if (l.out_bits == 0 || l.out_bits > max_out)
     return 0;
 
   /* Every stage must have a kernel BEFORE anything is written. A stage
      discovered to be unrunnable half way through would leave a partly coded
-     frame in the caller's buffer, which is the shape `wfm_seq_bits` already
+     frame in the caller's buffer, which is the shape `dp_wfm_seq_bits` already
      refuses for a field: a frame that half-materialises is scored against a
      truth nobody can reproduce. */
   for (unsigned s = 0; s < d->n_stages; s++)
@@ -472,7 +473,7 @@ wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
       /* One period, then repeated verbatim — a generated field must repeat
          the SAME bits, not draw fresh ones, or it is not a periodic
          acquisition target and coherent integration across reps is void. */
-      if (wfm_seq_bits (&f->seq, frame + l.field_off[i], f->seq.len)
+      if (dp_wfm_seq_bits (&f->seq, frame + l.field_off[i], f->seq.len)
           != f->seq.len)
         return 0;
       for (size_t r = 1; r * f->seq.len < n; r++)
@@ -501,21 +502,21 @@ wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
 }
 
 size_t
-wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out)
+dp_wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out)
 {
   wfm_frame_desc_t d;
-  if (!f || wfm_frame_describe (f, &d) != 0)
+  if (!f || dp_wfm_frame_describe (f, &d) != 0)
     return 0;
-  return wfm_frame_assemble (&d, NULL, out, max_out);
+  return dp_wfm_frame_assemble (&d, NULL, out, max_out);
 }
 
 int
-wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
-                 uint8_t *bits, wfm_frame_rx_t *rx)
+dp_wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                    uint8_t *bits, wfm_frame_rx_t *rx)
 {
   wfm_frame_desc_layout_t l;
   wfm_frame_rx_t          out;
-  if (!d || !bits || wfm_frame_desc_layout (d, &l) != 0)
+  if (!d || !bits || dp_wfm_frame_desc_layout (d, &l) != 0)
     return -1;
 
   memset (&out, 0, sizeof out);
@@ -554,10 +555,10 @@ wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
 }
 
 int
-wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
+dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
 {
   wfm_frame_desc_layout_t l;
-  if (!d || !rx_bits || wfm_frame_desc_layout (d, &l) != 0)
+  if (!d || !rx_bits || dp_wfm_frame_desc_layout (d, &l) != 0)
     return -1;
 
   for (unsigned s = 0; s < d->n_stages; s++)
@@ -587,12 +588,12 @@ wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
 }
 
 int
-wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
+dp_wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
 {
   wfm_frame_desc_t d;
-  if (!f || wfm_frame_describe (f, &d) != 0)
+  if (!f || dp_wfm_frame_describe (f, &d) != 0)
     return -1;
-  return wfm_frame_desc_crc_ok (&d, rx_bits);
+  return dp_wfm_frame_desc_crc_ok (&d, rx_bits);
 }
 
 /* ── the DSSS burst: a FRAME, then spread ──────────────────────────────
@@ -605,11 +606,11 @@ wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
  * wfm/wfm_dsp.h, where every caller already looks for them.
  */
 size_t
-wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
-                      size_t acq_reps, size_t data_len)
+dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
+                         size_t acq_reps, size_t data_len)
 {
   wfm_frame_desc_layout_t l;
-  if (!d || wfm_frame_desc_layout (d, &l) != 0)
+  if (!d || dp_wfm_frame_desc_layout (d, &l) != 0)
     return 0;
   const size_t pre = acq_len * acq_reps;
   if (l.out_bits && data_len == 0)
@@ -618,28 +619,29 @@ wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
 }
 
 size_t
-wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
-                     const uint8_t *acq_code, size_t acq_len, size_t acq_reps,
-                     const uint8_t *data_code, size_t data_len, uint8_t *out,
-                     size_t max_out)
+dp_wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+                        const uint8_t *acq_code, size_t acq_len,
+                        size_t acq_reps, const uint8_t *data_code,
+                        size_t data_len, uint8_t *out, size_t max_out)
 {
-  const size_t total = wfm_dsss_desc_nchips (d, acq_len, acq_reps, data_len);
+  const size_t total
+      = dp_wfm_dsss_desc_nchips (d, acq_len, acq_reps, data_len);
   if (total == 0 || total > max_out || !out)
     return 0;
 
   wfm_frame_desc_layout_t l;
-  if (wfm_frame_desc_layout (d, &l) != 0)
+  if (dp_wfm_frame_desc_layout (d, &l) != 0)
     return 0;
 
   /* Assemble first, spread second. The description says what the frame IS --
      which fields, which stages, and the span each stage covers -- and every
-     answer about the bits comes from `wfm_frame_assemble`. A stage whose
+     answer about the bits comes from `dp_wfm_frame_assemble`. A stage whose
      kernel this caller did not supply makes the assembly fail, and the burst
      is then refused rather than transmitted without it. */
   uint8_t *bits = (l.out_bits > 0) ? malloc (l.out_bits) : NULL;
   if (l.out_bits > 0
       && (!bits
-          || wfm_frame_assemble (d, ops, bits, l.out_bits) != l.out_bits))
+          || dp_wfm_frame_assemble (d, ops, bits, l.out_bits) != l.out_bits))
     {
       free (bits);
       return 0;
@@ -671,7 +673,7 @@ wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
  * second spreader, and no way for the two spellings to answer differently.
  * Note what is NOT in the description: the acquisition preamble. It is
  * unmodulated and unspread, so it belongs to the waveform rather than to the
- * frame, and `wfm_dsss_desc_chips` prepends it. */
+ * frame, and `dp_wfm_dsss_desc_chips` prepends it. */
 static int
 dsss_four_field (const uint8_t *sync, size_t sync_len, const uint8_t *payload,
                  size_t payload_len, int crc, wfm_frame_desc_t *out)
@@ -684,38 +686,39 @@ dsss_four_field (const uint8_t *sync, size_t sync_len, const uint8_t *payload,
   f.payload.bits = payload;
   f.payload.len  = payload_len;
   f.crc          = crc;
-  return wfm_frame_describe (&f, out);
+  return dp_wfm_frame_describe (&f, out);
 }
 
 size_t
-wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len,
-                       size_t sync_len, size_t payload_len, int crc)
+dp_wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len,
+                          size_t sync_len, size_t payload_len, int crc)
 {
   wfm_frame_desc_t d;
   if (dsss_four_field (NULL, sync_len, NULL, payload_len, crc, &d) != 0)
     return 0;
-  return wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
+  return dp_wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
 }
 
 size_t
-wfm_frame_dsss_chips (const uint8_t *acq_code, size_t acq_len, size_t acq_reps,
-                      const uint8_t *data_code, size_t data_len,
-                      const uint8_t *sync, size_t sync_len,
-                      const uint8_t *payload, size_t payload_len, int crc,
-                      uint8_t *out)
+dp_wfm_frame_dsss_chips (const uint8_t *acq_code, size_t acq_len,
+                         size_t acq_reps, const uint8_t *data_code,
+                         size_t data_len, const uint8_t *sync, size_t sync_len,
+                         const uint8_t *payload, size_t payload_len, int crc,
+                         uint8_t *out)
 {
   wfm_frame_desc_t d;
   if (dsss_four_field (sync, sync_len, payload, payload_len, crc, &d) != 0)
     return 0;
-  const size_t total = wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
+  const size_t total
+      = dp_wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
   /* The four-field form has no capacity argument and never had one: its
      caller sizes `out` from _nchips by contract. Pass that same number. */
-  return wfm_dsss_desc_chips (&d, NULL, acq_code, acq_len, acq_reps, data_code,
-                              data_len, out, total);
+  return dp_wfm_dsss_desc_chips (&d, NULL, acq_code, acq_len, acq_reps,
+                                 data_code, data_len, out, total);
 }
 
 int
-wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
+dp_wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
 {
   /* No empty-name guard here, deliberately: the anonymous-field skip below
      already returns -1 for "", and two mechanisms producing one behaviour
@@ -753,7 +756,7 @@ wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
 static int
 name_taken (const wfm_frame_desc_t *d, const char *name)
 {
-  return (name && name[0] != '\0') ? (wfm_frame_field_index (d, name) >= 0)
+  return (name && name[0] != '\0') ? (dp_wfm_frame_field_index (d, name) >= 0)
                                    : 0;
 }
 
@@ -773,8 +776,8 @@ set_name (wfm_field_t *f, const char *name)
 }
 
 int
-wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
-                     const wfm_seq_t *seq, size_t reps)
+dp_wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
+                        const wfm_seq_t *seq, size_t reps)
 {
   if (!d || !seq || d->n_fields >= WFM_FRAME_MAX_FIELDS
       || name_taken (d, name))
@@ -790,7 +793,7 @@ wfm_frame_add_field (wfm_frame_desc_t *d, const char *name,
 }
 
 int
-wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
+dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
 {
   if (!d || bits == 0u || d->n_fields >= WFM_FRAME_MAX_FIELDS
       || name_taken (d, name))
@@ -800,21 +803,21 @@ wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
   memset (&d->field[i], 0, sizeof d->field[i]);
   set_name (&d->field[i], name);
   d->field[i].bits = bits;
-  /* derived_by stays 0 -- no stage exists yet to name. wfm_frame_add_stage
+  /* derived_by stays 0 -- no stage exists yet to name. dp_wfm_frame_add_stage
      wires it when the stage that covers this field arrives. */
   d->n_fields = i + 1u;
   return (int)i;
 }
 
 int
-wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
-                     const char *last)
+dp_wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
+                        const char *last)
 {
   if (!d || d->n_stages >= WFM_FRAME_MAX_STAGES)
     return -1;
 
-  const int a = wfm_frame_field_index (d, first);
-  const int b = wfm_frame_field_index (d, last);
+  const int a = dp_wfm_frame_field_index (d, first);
+  const int b = dp_wfm_frame_field_index (d, last);
   if (a < 0 || b < 0 || b < a)
     return -1;
 
@@ -827,7 +830,7 @@ wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
 
   /* Wire the derived field's producer, if the last covered field is one.
      A field with a declared length and no source bits IS derived -- that is
-     the definition, not a heuristic -- and wfm_frame_desc_layout already
+     the definition, not a heuristic -- and dp_wfm_frame_desc_layout already
      refuses any description where such a field is not the last of its
      producing stage's cover. So there is exactly one stage it could name,
      and wiring it here is what stops a caller stating it a second, different

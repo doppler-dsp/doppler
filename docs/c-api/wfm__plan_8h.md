@@ -59,18 +59,18 @@
 
 | Type | Name |
 | ---: | :--- |
-|  uint64\_t | [**wfm\_plan\_anchor\_seed**](#function-wfm_plan_anchor_seed) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_The noise seed that reproduces a full compose._  |
-|  size\_t | [**wfm\_plan\_at**](#function-wfm_plan_at) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, double snr, uint64\_t seed, float \_Complex \* out) <br>_Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse)._  |
-|  void | [**wfm\_plan\_destroy**](#function-wfm_plan_destroy) ([**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Destroy a Plan and free its caches. NULL is a no-op._  |
-|  int | [**wfm\_plan\_dump**](#function-wfm_plan_dump) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* path) <br>_Save a Plan to a file (_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _bytes at_`path` _)._ |
-|  size\_t | [**wfm\_plan\_len**](#function-wfm_plan_len) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Worst-case materialized length in samples (every ranged gap at its_ `hi` _bound) — the jm binding's out\_len\_fn / allocation capacity._ |
-|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**wfm\_plan\_load**](#function-wfm_plan_load) (const char \* path) <br>_Load a Plan from a file written by_ [_**wfm\_plan\_dump()**_](wfm__plan_8h.md#function-wfm_plan_dump) _._ |
-|  size\_t | [**wfm\_plan\_n\_sources**](#function-wfm_plan_n_sources) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Number of cached signal sources across every segment (excludes noise floors); the length of the_ `gains` _/_`phases` _/_`enable` _arrays._ |
-|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**wfm\_plan\_prepare**](#function-wfm_plan_prepare) (const char \* spec\_json) <br>_Prepare a Plan from a composer spec JSON (Composer.to\_json())._  |
-|  size\_t | [**wfm\_plan\_render**](#function-wfm_plan_render) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* overrides\_json, float \_Complex \* out) <br>_General render: apply a JSON override spec, return a cf32 array._  |
-|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**wfm\_plan\_restore**](#function-wfm_plan_restore) (const void \* blob, size\_t n) <br>_Reconstruct a Plan from a blob produced by_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _._ |
-|  size\_t | [**wfm\_plan\_save**](#function-wfm_plan_save) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, void \* blob) <br>_Serialize a Plan into_ `blob` _(wfm\_plan\_save\_bytes(p) bytes)._ |
-|  size\_t | [**wfm\_plan\_save\_bytes**](#function-wfm_plan_save_bytes) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Serialized size of a Plan blob (envelope + spec + cached buffers)._  |
+|  uint64\_t | [**dp\_wfm\_plan\_anchor\_seed**](#function-dp_wfm_plan_anchor_seed) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_The noise seed that reproduces a full compose._  |
+|  size\_t | [**dp\_wfm\_plan\_at**](#function-dp_wfm_plan_at) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, double snr, uint64\_t seed, float \_Complex \* out) <br>_Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse)._  |
+|  void | [**dp\_wfm\_plan\_destroy**](#function-dp_wfm_plan_destroy) ([**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Destroy a Plan and free its caches. NULL is a no-op._  |
+|  int | [**dp\_wfm\_plan\_dump**](#function-dp_wfm_plan_dump) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* path) <br>_Save a Plan to a file (_ [_**dp\_wfm\_plan\_save()**_](wfm__plan_8h.md#function-dp_wfm_plan_save) _bytes at_`path` _)._ |
+|  size\_t | [**dp\_wfm\_plan\_len**](#function-dp_wfm_plan_len) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Worst-case materialized length in samples (every ranged gap at its_ `hi` _bound) — the jm binding's out\_len\_fn / allocation capacity._ |
+|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**dp\_wfm\_plan\_load**](#function-dp_wfm_plan_load) (const char \* path) <br>_Load a Plan from a file written by_ [_**dp\_wfm\_plan\_dump()**_](wfm__plan_8h.md#function-dp_wfm_plan_dump) _._ |
+|  size\_t | [**dp\_wfm\_plan\_n\_sources**](#function-dp_wfm_plan_n_sources) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Number of cached signal sources across every segment (excludes noise floors); the length of the_ `gains` _/_`phases` _/_`enable` _arrays._ |
+|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**dp\_wfm\_plan\_prepare**](#function-dp_wfm_plan_prepare) (const char \* spec\_json) <br>_Prepare a Plan from a composer spec JSON (Composer.to\_json())._  |
+|  size\_t | [**dp\_wfm\_plan\_render**](#function-dp_wfm_plan_render) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* overrides\_json, float \_Complex \* out) <br>_General render: apply a JSON override spec, return a cf32 array._  |
+|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**dp\_wfm\_plan\_restore**](#function-dp_wfm_plan_restore) (const void \* blob, size\_t n) <br>_Reconstruct a Plan from a blob produced by_ [_**dp\_wfm\_plan\_save()**_](wfm__plan_8h.md#function-dp_wfm_plan_save) _._ |
+|  size\_t | [**dp\_wfm\_plan\_save**](#function-dp_wfm_plan_save) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, void \* blob) <br>_Serialize a Plan into_ `blob` _(dp\_wfm\_plan\_save\_bytes(p) bytes)._ |
+|  size\_t | [**dp\_wfm\_plan\_save\_bytes**](#function-dp_wfm_plan_save_bytes) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Serialized size of a Plan blob (envelope + spec + cached buffers)._  |
 
 
 
@@ -123,18 +123,18 @@ Opaque prepared-plan state.
 
 
 
-### function wfm\_plan\_anchor\_seed 
+### function dp\_wfm\_plan\_anchor\_seed 
 
 _The noise seed that reproduces a full compose._ 
 ```C++
-uint64_t wfm_plan_anchor_seed (
+uint64_t dp_wfm_plan_anchor_seed (
     const wfm_plan_t * p
 ) 
 ```
 
 
 
-The first noisy segment's default seed (its first source's `seed` field). Passing this as `wfm_plan_at`'s seed (with the scene's base SNR) yields the byte-identical output of `wfm_compose` for a single-segment scene; for a multi-segment scene each segment still draws from its own default seed unless overridden. Varying the seed draws independent Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations. 
+The first noisy segment's default seed (its first source's `seed` field). Passing this as `dp_wfm_plan_at`'s seed (with the scene's base SNR) yields the byte-identical output of `wfm_compose` for a single-segment scene; for a multi-segment scene each segment still draws from its own default seed unless overridden. Varying the seed draws independent Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations. 
 
 
         
@@ -143,11 +143,11 @@ The first noisy segment's default seed (its first source's `seed` field). Passin
 
 
 
-### function wfm\_plan\_at 
+### function dp\_wfm\_plan\_at 
 
 _Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse)._ 
 ```C++
-size_t wfm_plan_at (
+size_t dp_wfm_plan_at (
     const wfm_plan_t * p,
     double snr,
     uint64_t seed,
@@ -157,14 +157,14 @@ size_t wfm_plan_at (
 
 
 
-`out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance; writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here.
+`out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance; writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here.
 
 
 
 
 **Returns:**
 
-Samples actually written for this draw (&lt;= wfm\_plan\_len(p)). 
+Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)). 
 
 
 
@@ -176,11 +176,11 @@ Samples actually written for this draw (&lt;= wfm\_plan\_len(p)).
 
 
 
-### function wfm\_plan\_destroy 
+### function dp\_wfm\_plan\_destroy 
 
 _Destroy a Plan and free its caches. NULL is a no-op._ 
 ```C++
-void wfm_plan_destroy (
+void dp_wfm_plan_destroy (
     wfm_plan_t * p
 ) 
 ```
@@ -192,11 +192,11 @@ void wfm_plan_destroy (
 
 
 
-### function wfm\_plan\_dump 
+### function dp\_wfm\_plan\_dump 
 
-_Save a Plan to a file (_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _bytes at_`path` _)._
+_Save a Plan to a file (_ [_**dp\_wfm\_plan\_save()**_](wfm__plan_8h.md#function-dp_wfm_plan_save) _bytes at_`path` _)._
 ```C++
-int wfm_plan_dump (
+int dp_wfm_plan_dump (
     const wfm_plan_t * p,
     const char * path
 ) 
@@ -220,11 +220,11 @@ int wfm_plan_dump (
 
 
 
-### function wfm\_plan\_len 
+### function dp\_wfm\_plan\_len 
 
 _Worst-case materialized length in samples (every ranged gap at its_ `hi` _bound) — the jm binding's out\_len\_fn / allocation capacity._
 ```C++
-size_t wfm_plan_len (
+size_t dp_wfm_plan_len (
     const wfm_plan_t * p
 ) 
 ```
@@ -236,25 +236,25 @@ size_t wfm_plan_len (
 
 
 
-### function wfm\_plan\_load 
+### function dp\_wfm\_plan\_load 
 
-_Load a Plan from a file written by_ [_**wfm\_plan\_dump()**_](wfm__plan_8h.md#function-wfm_plan_dump) _._
+_Load a Plan from a file written by_ [_**dp\_wfm\_plan\_dump()**_](wfm__plan_8h.md#function-dp_wfm_plan_dump) _._
 ```C++
-wfm_plan_t * wfm_plan_load (
+wfm_plan_t * dp_wfm_plan_load (
     const char * path
 ) 
 ```
 
 
 
-Same fingerprint semantics as [**wfm\_plan\_restore()**](wfm__plan_8h.md#function-wfm_plan_restore): a matching build loads the cached buffers, a mismatch rebuilds from the embedded spec.
+Same fingerprint semantics as [**dp\_wfm\_plan\_restore()**](wfm__plan_8h.md#function-dp_wfm_plan_restore): a matching build loads the cached buffers, a mismatch rebuilds from the embedded spec.
 
 
 
 
 **Returns:**
 
-Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_destroy)s it), or NULL on an open/read error or a malformed/foreign-endian file. 
+Heap Plan (caller [**dp\_wfm\_plan\_destroy()**](wfm__plan_8h.md#function-dp_wfm_plan_destroy)s it), or NULL on an open/read error or a malformed/foreign-endian file. 
 
 
 
@@ -266,11 +266,11 @@ Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_d
 
 
 
-### function wfm\_plan\_n\_sources 
+### function dp\_wfm\_plan\_n\_sources 
 
 _Number of cached signal sources across every segment (excludes noise floors); the length of the_ `gains` _/_`phases` _/_`enable` _arrays._
 ```C++
-size_t wfm_plan_n_sources (
+size_t dp_wfm_plan_n_sources (
     const wfm_plan_t * p
 ) 
 ```
@@ -282,11 +282,11 @@ size_t wfm_plan_n_sources (
 
 
 
-### function wfm\_plan\_prepare 
+### function dp\_wfm\_plan\_prepare 
 
 _Prepare a Plan from a composer spec JSON (Composer.to\_json())._ 
 ```C++
-wfm_plan_t * wfm_plan_prepare (
+wfm_plan_t * dp_wfm_plan_prepare (
     const char * spec_json
 ) 
 ```
@@ -310,7 +310,7 @@ The last is a refusal rather than a limitation to work around. This cache holds 
 
 **Returns:**
 
-Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_destroy)s it), or NULL. 
+Heap Plan (caller [**dp\_wfm\_plan\_destroy()**](wfm__plan_8h.md#function-dp_wfm_plan_destroy)s it), or NULL. 
 
 
 
@@ -322,11 +322,11 @@ Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_d
 
 
 
-### function wfm\_plan\_render 
+### function dp\_wfm\_plan\_render 
 
 _General render: apply a JSON override spec, return a cf32 array._ 
 ```C++
-size_t wfm_plan_render (
+size_t dp_wfm_plan_render (
     const wfm_plan_t * p,
     const char * overrides_json,
     float _Complex * out
@@ -335,14 +335,14 @@ size_t wfm_plan_render (
 
 
 
-`overrides_json` is a small JSON object, all keys optional: `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and segment-major, length = [**wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-wfm_plan_n_sources)). An empty object (or NULL) renders the baseline — bit-identical to `Composer(scene).compose()`. Writes up to `wfm_plan_len(p)` samples to `out`.
+`overrides_json` is a small JSON object, all keys optional: `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and segment-major, length = [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources)). An empty object (or NULL) renders the baseline — bit-identical to `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples to `out`.
 
 
 
 
 **Returns:**
 
-Samples actually written for this draw (&lt;= wfm\_plan\_len(p)). 
+Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)). 
 
 
 
@@ -354,11 +354,11 @@ Samples actually written for this draw (&lt;= wfm\_plan\_len(p)).
 
 
 
-### function wfm\_plan\_restore 
+### function dp\_wfm\_plan\_restore 
 
-_Reconstruct a Plan from a blob produced by_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _._
+_Reconstruct a Plan from a blob produced by_ [_**dp\_wfm\_plan\_save()**_](wfm__plan_8h.md#function-dp_wfm_plan_save) _._
 ```C++
-wfm_plan_t * wfm_plan_restore (
+wfm_plan_t * dp_wfm_plan_restore (
     const void * blob,
     size_t n
 ) 
@@ -366,7 +366,7 @@ wfm_plan_t * wfm_plan_restore (
 
 
 
-If the blob's DSP fingerprint matches this build AND its structure matches the embedded spec, the cached buffers are loaded directly (no DSP). Otherwise the Plan is REBUILT from the embedded spec via the full DSP — same result, just paying prepare()'s cost. Returns NULL only on a malformed/foreign-endian blob or an unparseable/out-of-scope embedded spec (the same cases wfm\_plan\_prepare rejects), never on a mere fingerprint mismatch.
+If the blob's DSP fingerprint matches this build AND its structure matches the embedded spec, the cached buffers are loaded directly (no DSP). Otherwise the Plan is REBUILT from the embedded spec via the full DSP — same result, just paying prepare()'s cost. Returns NULL only on a malformed/foreign-endian blob or an unparseable/out-of-scope embedded spec (the same cases dp\_wfm\_plan\_prepare rejects), never on a mere fingerprint mismatch.
 
 
 
@@ -374,14 +374,14 @@ If the blob's DSP fingerprint matches this build AND its structure matches the e
 **Parameters:**
 
 
-* `blob` Bytes from [**wfm\_plan\_save()**](wfm__plan_8h.md#function-wfm_plan_save). 
+* `blob` Bytes from [**dp\_wfm\_plan\_save()**](wfm__plan_8h.md#function-dp_wfm_plan_save). 
 * `n` Length of `blob` in bytes. 
 
 
 
 **Returns:**
 
-Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_destroy)s it), or NULL. 
+Heap Plan (caller [**dp\_wfm\_plan\_destroy()**](wfm__plan_8h.md#function-dp_wfm_plan_destroy)s it), or NULL. 
 
 
 
@@ -393,11 +393,11 @@ Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_d
 
 
 
-### function wfm\_plan\_save 
+### function dp\_wfm\_plan\_save 
 
-_Serialize a Plan into_ `blob` _(wfm\_plan\_save\_bytes(p) bytes)._
+_Serialize a Plan into_ `blob` _(dp\_wfm\_plan\_save\_bytes(p) bytes)._
 ```C++
-size_t wfm_plan_save (
+size_t dp_wfm_plan_save (
     const wfm_plan_t * p,
     void * blob
 ) 
@@ -405,7 +405,7 @@ size_t wfm_plan_save (
 
 
 
-Native-endian. The blob embeds the spec JSON, so a restore is self-contained. Returns the number of bytes written (== wfm\_plan\_save\_bytes(p)) — the actual-length contract a variable-output binding needs, so `save() -> bytes` generates with no hand-written glue. 
+Native-endian. The blob embeds the spec JSON, so a restore is self-contained. Returns the number of bytes written (== dp\_wfm\_plan\_save\_bytes(p)) — the actual-length contract a variable-output binding needs, so `save() -> bytes` generates with no hand-written glue. 
 
 
         
@@ -414,18 +414,18 @@ Native-endian. The blob embeds the spec JSON, so a restore is self-contained. Re
 
 
 
-### function wfm\_plan\_save\_bytes 
+### function dp\_wfm\_plan\_save\_bytes 
 
 _Serialized size of a Plan blob (envelope + spec + cached buffers)._ 
 ```C++
-size_t wfm_plan_save_bytes (
+size_t dp_wfm_plan_save_bytes (
     const wfm_plan_t * p
 ) 
 ```
 
 
 
-The number of bytes [**wfm\_plan\_save()**](wfm__plan_8h.md#function-wfm_plan_save) writes: a small envelope with the DSP fingerprint, the embedded spec JSON, and every cached signal buffer. Dominated by the buffers (Σ per-source num\_samples · 8 bytes) — multi-MB for a large scene, which is exactly why the spec-rebuild path is the default. 
+The number of bytes [**dp\_wfm\_plan\_save()**](wfm__plan_8h.md#function-dp_wfm_plan_save) writes: a small envelope with the DSP fingerprint, the embedded spec JSON, and every cached signal buffer. Dominated by the buffers (Σ per-source num\_samples · 8 bytes) — multi-MB for a large scene, which is exactly why the spec-rebuild path is the default. 
 
 
         

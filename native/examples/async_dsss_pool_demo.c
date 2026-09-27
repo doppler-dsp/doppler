@@ -98,10 +98,10 @@ emitter (const uint8_t *code, double doppler_hz, uint32_t seed)
       WFM_SYNTH_DSSS, FS, doppler_hz, WFM_SYNTH_SNR_CLEAN, 1, seed, (int)SPC,
       15, 0, 0, 0.0);
   if (syn
-      && (wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
-                                   WFM_DSSS_DATA_PRBS, NULL, 0)
+      && (dp_wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
+                                      WFM_DSSS_DATA_PRBS, NULL, 0)
               != 0
-          || wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) != 0))
+          || dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) != 0))
     {
       dp_wfm_synth_destroy (syn);
       syn = NULL;

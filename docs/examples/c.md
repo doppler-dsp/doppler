@@ -530,13 +530,13 @@ ______________________________________________________________________
 array. Underneath, the caller holds the buffer, and four things the Python
 face hides become the API:
 
-1. **You own the output.** `wfm_compose_execute()` never allocates. It fills
+1. **You own the output.** `dp_wfm_compose_execute()` never allocates. It fills
     what you give it and returns how much it used.
 1. **The stream ends with a short read**, not an error, so composing means
     draining in a loop until `execute()` returns less than you asked for —
     and then `0` from every call after that.
-1. **The segment list is borrowed.** `wfm_compose_segments()` points into the
-    composer; `wfm_compose_destroy()` takes it with it.
+1. **The segment list is borrowed.** `dp_wfm_compose_segments()` points into the
+    composer; `dp_wfm_compose_destroy()` takes it with it.
 1. **A declaration is reproducible.** The same scene composed twice is
     byte-identical, which is what makes a capture replayable.
 
@@ -574,7 +574,7 @@ asserts:
 - **Where SNR shows up.** The gap is not silence — it carries the segment's
     noise floor — so burst power over gap power recovers the declared SNR.
 - **Prepare once, sweep many.** A 24-point SNR sweep, re-composed at every
-    point against `wfm_plan_prepare` + `wfm_plan_at`.
+    point against `dp_wfm_plan_prepare` + `dp_wfm_plan_at`.
 - **BLUE round-trips.** cf32 out and back is byte-exact, with both halves
     timed in Msample/s.
 

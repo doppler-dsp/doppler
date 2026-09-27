@@ -300,7 +300,7 @@ def test_rrc_bits_matches_matched_filter(sps):
     train convolved with the sqrt(sps)-scaled taps — for both bpsk and qpsk.
 
     ``sps`` selects the shaping implementation, and that is why it is
-    parametrized rather than fixed: ``wfm_synth_set_rrc`` shapes a
+    parametrized rather than fixed: ``dp_wfm_synth_set_rrc`` shapes a
     **power-of-two** ``sps`` with a polyphase ``resamp`` bank and falls back
     to a **dense FIR** for anything else. Same convolution, two separate
     block loops in ``dp_wfm_synth_steps()`` — and the dense-FIR bits loop had

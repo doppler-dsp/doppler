@@ -53,8 +53,8 @@ class StreamSink:
         ------
         OSError
             If the C call returns a non-zero status. The exception message is
-            ``wfm_stream_sink_send_eos failed``, with the return code appended
-            (gh-869).
+            ``dp_wfm_stream_sink_send_eos failed``, with the return code
+            appended (gh-869).
         """
     def drain(self, timeout_ms: int = ...) -> None:
         """Let everything already sent reach the server, then stop.
@@ -78,7 +78,7 @@ class StreamSink:
         ------
         OSError
             If the C call returns a non-zero status. The exception message is
-            ``wfm_stream_sink_drain failed``, with the return code appended
+            ``dp_wfm_stream_sink_drain failed``, with the return code appended
             (gh-869).
         """
     def track_clipping(self, on: int = ...) -> None:

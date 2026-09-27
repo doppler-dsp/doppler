@@ -58,11 +58,11 @@ _BLUE extended-header keywords — the X-Midas binary tag/value codec._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**wfm\_kw\_check\_standard**](#function-wfm_kw_check_standard) (const char \* tag, char type, const void \* value, size\_t count) <br>_Advisory conformance check for the standard BLUE keywords._  |
-|  int | [**wfm\_kw\_decode**](#function-wfm_kw_decode) (const uint8\_t \* p, size\_t avail, int be, [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* out, size\_t \* consumed) <br>_Decode the keyword at_ `p` _, allocating its value._ |
-|  size\_t | [**wfm\_kw\_elem\_size**](#function-wfm_kw_elem_size) (char type) <br>_Bytes per element for a keyword type code, or 0 if the code cannot appear in a keyword._  |
-|  size\_t | [**wfm\_kw\_encode**](#function-wfm_kw_encode) (uint8\_t \* out, size\_t cap, const char \* tag, char type, const void \* value, size\_t count, int be) <br>_Encode one keyword into_ `out` _._ |
-|  size\_t | [**wfm\_kw\_entry\_size**](#function-wfm_kw_entry_size) (size\_t ltag, size\_t vbytes) <br>_Total encoded size (_ `lkey` _) of a keyword, including padding._ |
+|  int | [**dp\_wfm\_kw\_check\_standard**](#function-dp_wfm_kw_check_standard) (const char \* tag, char type, const void \* value, size\_t count) <br>_Advisory conformance check for the standard BLUE keywords._  |
+|  int | [**dp\_wfm\_kw\_decode**](#function-dp_wfm_kw_decode) (const uint8\_t \* p, size\_t avail, int be, [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* out, size\_t \* consumed) <br>_Decode the keyword at_ `p` _, allocating its value._ |
+|  size\_t | [**dp\_wfm\_kw\_elem\_size**](#function-dp_wfm_kw_elem_size) (char type) <br>_Bytes per element for a keyword type code, or 0 if the code cannot appear in a keyword._  |
+|  size\_t | [**dp\_wfm\_kw\_encode**](#function-dp_wfm_kw_encode) (uint8\_t \* out, size\_t cap, const char \* tag, char type, const void \* value, size\_t count, int be) <br>_Encode one keyword into_ `out` _._ |
+|  size\_t | [**dp\_wfm\_kw\_entry\_size**](#function-dp_wfm_kw_entry_size) (size\_t ltag, size\_t vbytes) <br>_Total encoded size (_ `lkey` _) of a keyword, including padding._ |
 
 
 
@@ -130,10 +130,10 @@ Values are stored in the byte order the HCB declares (`head_rep`), so the decode
 // Encode "F_C = 1.2345e9" into a buffer, then read it back.
 double   fc = 1.2345e9;
 uint8_t  buf[64];
-size_t   n = wfm_kw_encode(buf, sizeof buf, "F_C", 'D', &fc, 1, 0);
+size_t   n = dp_wfm_kw_encode(buf, sizeof buf, "F_C", 'D', &fc, 1, 0);
 wfm_keyword_t kw;
 size_t   used;
-wfm_kw_decode(buf, n, 0, &kw, &used);   // kw.tag = "F_C", kw.count = 1
+dp_wfm_kw_decode(buf, n, 0, &kw, &used);   // kw.tag = "F_C", kw.count = 1
 double   got;
 memcpy(&got, kw.value, sizeof got);     // 1.2345e9, host order
 ```
@@ -146,11 +146,11 @@ memcpy(&got, kw.value, sizeof got);     // 1.2345e9, host order
 
 
 
-### function wfm\_kw\_check\_standard 
+### function dp\_wfm\_kw\_check\_standard 
 
 _Advisory conformance check for the standard BLUE keywords._ 
 ```C++
-int wfm_kw_check_standard (
+int dp_wfm_kw_check_standard (
     const char * tag,
     char type,
     const void * value,
@@ -175,9 +175,9 @@ This is ADVISORY. 3.4.2 leaves the effect of these keywords to the consuming sys
 
 
 ```C++
-wfm_kw_check_standard("ACQTIME", 'A', "12:34:56", 8);  // 1
-wfm_kw_check_standard("ACQTIME", 'A', "12:34", 5);     // -1
-wfm_kw_check_standard("MY_TAG",  'A', "anything", 8);  // 0
+dp_wfm_kw_check_standard("ACQTIME", 'A', "12:34:56", 8);  // 1
+dp_wfm_kw_check_standard("ACQTIME", 'A', "12:34", 5);     // -1
+dp_wfm_kw_check_standard("MY_TAG",  'A', "anything", 8);  // 0
 ```
  
 
@@ -188,11 +188,11 @@ wfm_kw_check_standard("MY_TAG",  'A', "anything", 8);  // 0
 
 
 
-### function wfm\_kw\_decode 
+### function dp\_wfm\_kw\_decode 
 
 _Decode the keyword at_ `p` _, allocating its value._
 ```C++
-int wfm_kw_decode (
+int dp_wfm_kw_decode (
     const uint8_t * p,
     size_t avail,
     int be,
@@ -232,11 +232,11 @@ int wfm_kw_decode (
 
 
 
-### function wfm\_kw\_elem\_size 
+### function dp\_wfm\_kw\_elem\_size 
 
 _Bytes per element for a keyword type code, or 0 if the code cannot appear in a keyword._ 
 ```C++
-size_t wfm_kw_elem_size (
+size_t dp_wfm_kw_elem_size (
     char type
 ) 
 ```
@@ -252,11 +252,11 @@ Table 6's KW-legal set: `B` 1, `I` 2, `L` 4, `X` 8, `F` 4, `D` 8, `A` 1 (a varia
 
 
 
-### function wfm\_kw\_encode 
+### function dp\_wfm\_kw\_encode 
 
 _Encode one keyword into_ `out` _._
 ```C++
-size_t wfm_kw_encode (
+size_t dp_wfm_kw_encode (
     uint8_t * out,
     size_t cap,
     const char * tag,
@@ -277,7 +277,7 @@ size_t wfm_kw_encode (
 * `out` destination buffer. 
 * `cap` bytes available at `out`. 
 * `tag` NUL-terminated tag, 1..WFM\_KW\_MAX\_TAG characters. 
-* `type` element type code (must be KW-legal, see wfm\_kw\_elem\_size). 
+* `type` element type code (must be KW-legal, see dp\_wfm\_kw\_elem\_size). 
 * `value` the elements to write, in HOST order (characters for an ASCII keyword). 
 * `count` element count; must be non-zero. 
 * `be` write the value big-endian (the HCB's `head_rep`). 
@@ -298,11 +298,11 @@ bytes written, or 0 if the arguments are invalid or `cap` is too small (nothing 
 
 
 
-### function wfm\_kw\_entry\_size 
+### function dp\_wfm\_kw\_entry\_size 
 
 _Total encoded size (_ `lkey` _) of a keyword, including padding._
 ```C++
-size_t wfm_kw_entry_size (
+size_t dp_wfm_kw_entry_size (
     size_t ltag,
     size_t vbytes
 ) 

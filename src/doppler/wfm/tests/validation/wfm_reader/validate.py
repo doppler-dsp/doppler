@@ -250,7 +250,7 @@ def measure_metadata(d: Data, tmp: Path) -> None:
     R.md(
         "Every property here is a distinct `wfm_reader_get_*` accessor, and "
         "the Python face is the ONLY caller of most of them -- the C suite "
-        "reads the same state through `wfm_reader_info()`. `fs` and `fc` "
+        "reads the same state through `dp_wfm_reader_info()`. `fs` and `fc` "
         "are deliberately far apart (2.4 MHz against 1.42 GHz) so a getter "
         "returning its neighbour's field cannot hide."
     )
@@ -762,21 +762,22 @@ def measure_reach(d: Data) -> None:
     R.md()
     d.unreachable = [
         (
-            "`wfm_reader_info` -- the bulk metadata struct. Python reads "
+            "`dp_wfm_reader_info` -- the bulk metadata struct. Python reads "
             "the same state through the individual properties, which is "
             "why §2.2 exists: those accessors have no other caller."
         ),
         (
-            "`wfm_reader_keyword` / `wfm_reader_header_field` -- the "
+            "`dp_wfm_reader_keyword` / `dp_wfm_reader_header_field` -- the "
             "record accessors. Python gets decoded values in a dict "
             "instead, so the `wfm_keyword_t` never crosses the boundary."
         ),
         (
-            "`wfm_reader_find_keyword` / `wfm_reader_find_header_field` -- "
+            "`dp_wfm_reader_find_keyword` / "
+            "`dp_wfm_reader_find_header_field` -- "
             "lookup by tag, which a Python dict does for free."
         ),
         (
-            "`wfm_reader_set_stop_fn` -- the follow-loop interrupt hook, a "
+            "`dp_wfm_reader_set_stop_fn` -- the follow-loop interrupt hook, a "
             "C function pointer with no Python equivalent."
         ),
     ]
@@ -818,7 +819,7 @@ def review(d: Data) -> None:
         "tested.** Fifteen entry points had zero mentions in any C test in "
         "the tree, and they were not a random fifteen: they were almost "
         "exactly the set the binding uses. The C suite reads metadata "
-        "through `wfm_reader_info()`, which fills its struct from "
+        "through `dp_wfm_reader_info()`, which fills its struct from "
         "`r->file_type`, `r->fs`, `r->fc`, `r->mode` and `r->endian` "
         "DIRECTLY, while every Python property goes through a separate "
         "`wfm_reader_get_*` accessor -- two independent readers of one "
@@ -835,14 +836,14 @@ def review(d: Data) -> None:
     R.find(
         "F2",
         "GAP",
-        "**`wfm_reader_header_tag` neither bounds-checks nor documents "
+        "**`dp_wfm_reader_header_tag` neither bounds-checks nor documents "
         "that it must not be** (gh-1123). Of the four enumerators, three "
-        "are consistent -- `wfm_reader_keyword` and "
-        "`wfm_reader_header_field` both bounds-check and both say so; "
-        "`wfm_reader_keyword_tag` does not check and says exactly that "
+        "are consistent -- `dp_wfm_reader_keyword` and "
+        "`dp_wfm_reader_header_field` both bounds-check and both say so; "
+        "`dp_wfm_reader_keyword_tag` does not check and says exactly that "
         "(\"jm's generated dict loop calls this for every index in "
         '[0, num_keywords), so `i` is always in range"). '
-        "`wfm_reader_header_tag` does neither, two lines from the sibling "
+        "`dp_wfm_reader_header_tag` does neither, two lines from the sibling "
         "that does both. Correct today, because the generated loop is its "
         "only caller and bounds `i` -- but it is declared in a public "
         "header, so a C caller is told nothing about a precondition whose "

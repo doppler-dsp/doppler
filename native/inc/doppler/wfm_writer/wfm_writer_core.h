@@ -5,13 +5,13 @@
  * A streaming writer over a FILE* that serialises cf32 blocks into one of three
  * on-disk file types, in the chosen wire sample type and byte order. The fourth
  * file-type, SigMF, writes its samples as `raw` (into `<base>.sigmf-data`) and
- * pairs with a sidecar `<base>.sigmf-meta` JSON from wfm_sigmf_meta_json().
+ * pairs with a sidecar `<base>.sigmf-meta` JSON from dp_wfm_sigmf_meta_json().
  *
  * A writer opened by PATH (dp_wfm_writer_create) emits that sidecar itself, at
  * close, so `sigmf` produces a readable pair with no further work — and for
  * that reason it REQUIRES a path ending in `.sigmf-data`, since both halves
  * of a SigMF capture are found by name. A writer opened on a FILE*
- * (wfm_writer_open) has no name to derive the sidecar's from, so the caller
+ * (dp_wfm_writer_open) has no name to derive the sidecar's from, so the caller
  * owns it — that is the path wfmgen and Composer take, and it is also how
  * they attach their per-segment annotations.
  *
@@ -36,9 +36,9 @@
  * // which leaves the BLUE timecode field unset rather than dating the
  * // capture to 1970.
  * dp_wfm_writer_state_t *w =
- *     wfm_writer_open(fp, WFM_FT_BLUE, 3, 0, 1e6, 2.4e9, 4096, 0.0);
+ *     dp_wfm_writer_open(fp, WFM_FT_BLUE, 3, 0, 1e6, 2.4e9, 4096, 0.0);
  * dp_wfm_writer_write(w, iq, 4096);
- * wfm_writer_close(w);   // patches the BLUE data_size from the actual count
+ * dp_wfm_writer_close(w);   // patches the BLUE data_size from the actual count
  * @endcode
  */
 #ifndef WFM_WRITER_H
@@ -59,7 +59,7 @@ typedef enum {
     WFM_FT_RAW = 0,  /**< interleaved I/Q, no header. */
     WFM_FT_CSV = 1,  /**< text, one complex sample per line. */
     WFM_FT_BLUE = 2, /**< X-Midas/REDHAWK BLUE type-1000 (512-byte header). */
-    WFM_FT_SIGMF = 3 /**< samples as raw; metadata via wfm_sigmf_meta_json(). */
+    WFM_FT_SIGMF = 3 /**< samples as raw; metadata via dp_wfm_sigmf_meta_json(). */
 } wfm_filetype_t;
 
 /** Opaque writer. */
@@ -89,7 +89,7 @@ typedef struct wfm_writer_state dp_wfm_writer_state_t;
  * @return Writer handle, or NULL on bad args / allocation. BLUE writes its
  *         512-byte header here.
  */
-dp_wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
+dp_wfm_writer_state_t *dp_wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
                              int endian, double fs, double fc,
                              size_t total_samples, double t0_unix_sec);
 
@@ -126,7 +126,7 @@ size_t dp_wfm_writer_write(dp_wfm_writer_state_t *state, const float _Complex *x
 /**
  * @brief Attach a BLUE extended-header keyword (a tag/value pair).
  *
- * Keywords are buffered and written as one block by wfm_writer_close(), after
+ * Keywords are buffered and written as one block by dp_wfm_writer_close(), after
  * the data — the layout BLUE §3.3 recommends for streaming, since the total
  * data size is not known until the stream ends. `ext_start`/`ext_size` are
  * patched into the HCB at the same time. Call as many times as you like,
@@ -150,12 +150,12 @@ size_t dp_wfm_writer_write(dp_wfm_writer_state_t *state, const float _Complex *x
  *
  * @code
  * double fc = 1.2345e9;
- * wfm_writer_add_keyword(w, "F_C", 'D', &fc, 1);
- * wfm_writer_add_keyword(w, "COMMENT", 'A', "10 dB pad", 9);
- * wfm_writer_close(w);   // keywords land after the data, HCB patched
+ * dp_wfm_writer_add_keyword(w, "F_C", 'D', &fc, 1);
+ * dp_wfm_writer_add_keyword(w, "COMMENT", 'A', "10 dB pad", 9);
+ * dp_wfm_writer_close(w);   // keywords land after the data, HCB patched
  * @endcode
  */
-int wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
+int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
                           const void *value, size_t count);
 
 /**
@@ -164,12 +164,12 @@ int wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
  *        (does not close the FILE*).
  * @return 0 on success, non-zero on a write/seek error.
  */
-int wfm_writer_close(dp_wfm_writer_state_t *w);
+int dp_wfm_writer_close(dp_wfm_writer_state_t *w);
 
 /**
  * @brief Finalise and free — the object binding's fallible destructor.
  *
- * Identical to wfm_writer_close(); the object shape (gh-541) generates a
+ * Identical to dp_wfm_writer_close(); the object shape (gh-541) generates a
  * Python close() from this that raises when it returns non-zero, so the
  * finaliser's status reaches the caller and out of a `with` block. C callers
  * may use either name.
@@ -200,15 +200,15 @@ void dp_wfm_writer_track_clipping(dp_wfm_writer_state_t *state, int on);
  * values. */
 
 /** Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). */
-void wfm_writer_set_gain(dp_wfm_writer_state_t *w, double gain);
+void dp_wfm_writer_set_gain(dp_wfm_writer_state_t *w, double gain);
 
 /** Largest per-axis magnitude max(|I|,|Q|) written so far (pre-clip, full-scale
  *  1.0). > 1.0 ⇒ integer output clipped; peak_dBFS = 20*log10(peak). */
-double wfm_writer_peak(const dp_wfm_writer_state_t *w);
+double dp_wfm_writer_peak(const dp_wfm_writer_state_t *w);
 
 /** Fraction (0..1) of I/Q components that saturated (|v| > 1). Always 0 unless
  *  dp_wfm_writer_track_clipping() was enabled. */
-double wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
+double dp_wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
 
 /**
  * @brief Open a capture for writing.
@@ -341,7 +341,7 @@ dp_wfm_writer_state_t *dp_wfm_writer_create(const char *path, double fs, int fil
  *                      write 1970 (nor 1950).
  * @return 0 on success, non-zero on a write error.
  */
-int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
+int dp_wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
                        double fc, double data_start, size_t total_samples,
                        int detached, double t0_unix_sec);
 
@@ -381,15 +381,15 @@ int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
  * @param n_segs      number of entries in @p segs.
  * @return malloc'd JSON string (caller frees), or NULL on allocation failure.
  */
-char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
+char *dp_wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           double t0_unix_sec, const wfm_segment_t *segs,
                           size_t n_segs);
 
 /**
- * @brief wfm_sigmf_meta_json() plus the two things a caller can add to it.
+ * @brief dp_wfm_sigmf_meta_json() plus the two things a caller can add to it.
  *
  * The same document, from the same code — this IS the implementation and
- * wfm_sigmf_meta_json() is the call with both extras absent. It exists so an
+ * dp_wfm_sigmf_meta_json() is the call with both extras absent. It exists so an
  * events sidecar (dp_event_log/dp_event_log_core.h) is this emitter with
  * annotations of its own, rather than a second builder free to spell
  * `global` and `captures`, and their omit-when-unknown rules, differently.
@@ -397,7 +397,7 @@ char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
  * @param sample_type       wire type (wavegen order) -> `core:datatype`.
  * @param endian            0 little, 1 big.
  * @param fs                sample rate (Hz); 0.0 derives from @p segs or is
- *                          omitted -- see wfm_sigmf_meta_json().
+ *                          omitted -- see dp_wfm_sigmf_meta_json().
  * @param fc                centre frequency (Hz) -> `captures[0]`.
  * @param t0_unix_sec       capture start, or ::WFM_TIMECODE_UNSET.
  * @param segs              composer segments to annotate, or NULL for none.
@@ -412,7 +412,7 @@ char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
  * @param n_ann             number of entries in @p annotations.
  * @return malloc'd JSON string (caller frees), or NULL on allocation failure.
  */
-char *wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
+char *dp_wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
                              double t0_unix_sec, const wfm_segment_t *segs,
                              size_t n_segs, const char *extra_global_json,
                              const char *const *annotations, size_t n_ann);

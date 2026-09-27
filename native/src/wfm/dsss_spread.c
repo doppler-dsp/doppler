@@ -9,7 +9,7 @@
  * does not (gh-178 review #2).
  */
 #include "doppler/wfm/wfm_core.h"
-#include "doppler/wfm/wfm_dsp.h" /* wfm_dsss_spread */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_dsss_spread */
 
 void
 dp_dsss_spread (const float _Complex *syms, size_t syms_len,
@@ -32,5 +32,5 @@ dp_dsss_spread (const float _Complex *syms, size_t syms_len,
         out[k] = 0.0f;
       return;
     }
-  wfm_dsss_spread (syms, syms_len, code, (size_t)sf, out);
+  dp_wfm_dsss_spread (syms, syms_len, code, (size_t)sf, out);
 }

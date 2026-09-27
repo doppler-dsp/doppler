@@ -9,7 +9,7 @@
  * where it belongs, by test_wfm_dsp's existing round-trips staying
  * bit-identical across the refactor).
  *
- * `wfm_frame_crc_ok` gets particular attention because it is what makes a
+ * `dp_wfm_frame_crc_ok` gets particular attention because it is what makes a
  * TRUTH-FREE frame error rate possible: it needs the layout and the received
  * bits and no payload truth at all, which is the one metric that works on a
  * real capture AND still catches a false lock.
@@ -144,11 +144,11 @@ toy_ops (void)
   return o;
 }
 
-/* ── wfm_seq_bits: "the one place a wfm_seq_t becomes bits", untested ────
+/* ── dp_wfm_seq_bits: "the one place a wfm_seq_t becomes bits", untested ────
  *
  * Inventory against wfm_frame.h. This object is well covered -- 18 declared
  * entry points, 16 of them exercised -- and the two that were not are the
- * interesting ones. `wfm_seq_bits` had ZERO mentions in any C test in the
+ * interesting ones. `dp_wfm_seq_bits` had ZERO mentions in any C test in the
  * tree, and its own doc calls it the single place this conversion happens:
  * a descriptor materialises its fields through it, and the DSSS chip
  * builder calls it to expand a generated sequence before consuming a raw
@@ -171,14 +171,14 @@ test_seq_bits (void)
     const uint8_t src[8] = { 1, 0, 1, 1, 2, 3, 0, 255 };
     wfm_seq_t     s      = { .kind = WFM_SEQ_LITERAL, .len = 8, .bits = src };
     memset (out, 0xAA, sizeof out);
-    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, sizeof out) == 8,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&s, out, sizeof out) == 8,
                     "LITERAL writes len bits");
     for (size_t i = 0; i < 8; i++)
       DP_REQUIRE_MSG (out[i] == (uint8_t)(src[i] & 1u),
                       "LITERAL copies, masked to 0/1");
     /* a LITERAL with no array is unbuildable, not a silent zero field */
     wfm_seq_t empty = { .kind = WFM_SEQ_LITERAL, .len = 8, .bits = NULL };
-    DP_REQUIRE_MSG (wfm_seq_bits (&empty, out, sizeof out) == 0,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&empty, out, sizeof out) == 0,
                     "a LITERAL with no array returns 0");
   }
 
@@ -190,13 +190,14 @@ test_seq_bits (void)
   {
     wfm_seq_t s = { .kind = WFM_SEQ_DOTTED, .len = 9 };
     memset (out, 0xAA, sizeof out);
-    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, sizeof out) == 9,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&s, out, sizeof out) == 9,
                     "DOTTED writes len bits");
     for (size_t i = 0; i < 9; i++)
       DP_REQUIRE_MSG (out[i] == (uint8_t)((i & 1u) ^ 1u), "DOTTED alternates");
     DP_REQUIRE_MSG (out[0] == 1u, "and it starts HIGH, not low");
     wfm_seq_t one = { .kind = WFM_SEQ_DOTTED, .len = 1 };
-    DP_REQUIRE_MSG (wfm_seq_bits (&one, out, sizeof out) == 1 && out[0] == 1u,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&one, out, sizeof out) == 1
+                        && out[0] == 1u,
                     "a one-bit dotted field is a 1, not a 0");
   }
 
@@ -217,7 +218,7 @@ test_seq_bits (void)
                                 .poly     = 0, /* 0 => pn_mls_poly (n) */
                                 .seed     = 0, /* 0 => 1               */
                                 .reg_bits = n };
-        DP_REQUIRE_MSG (wfm_seq_bits (&s, out, sizeof out) == period,
+        DP_REQUIRE_MSG (dp_wfm_seq_bits (&s, out, sizeof out) == period,
                         "PN writes len bits");
         size_t ones = 0;
         for (size_t i = 0; i < period; i++)
@@ -234,7 +235,7 @@ test_seq_bits (void)
     wfm_seq_t z = {
       .kind = WFM_SEQ_PN, .len = 31, .poly = 0, .seed = 0, .reg_bits = 5
     };
-    DP_REQUIRE_MSG (wfm_seq_bits (&z, out, sizeof out) == 31,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&z, out, sizeof out) == 31,
                     "a zero seed still builds");
     size_t nz = 0;
     for (size_t i = 0; i < 31; i++)
@@ -245,7 +246,7 @@ test_seq_bits (void)
     wfm_seq_t bad = {
       .kind = WFM_SEQ_PN, .len = 8, .poly = 0, .seed = 1, .reg_bits = 0
     };
-    DP_REQUIRE_MSG (wfm_seq_bits (&bad, out, sizeof out) == 0,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&bad, out, sizeof out) == 0,
                     "a generator that refuses its parameters returns 0");
   }
 
@@ -265,8 +266,8 @@ test_seq_bits (void)
                      .seed_b   = 1 };
     wfm_seq_t g2 = g1;
     g2.seed_b    = 2;
-    size_t n1    = wfm_seq_bits (&g1, a, sizeof a);
-    size_t n2    = wfm_seq_bits (&g2, b, sizeof b);
+    size_t n1    = dp_wfm_seq_bits (&g1, a, sizeof a);
+    size_t n2    = dp_wfm_seq_bits (&g2, b, sizeof b);
     DP_REQUIRE_MSG (n1 == 255 && n2 == 255, "GOLD writes len bits");
     DP_REQUIRE_MSG (memcmp (a, b, 255) != 0,
                     "the SECOND register participates -- a Gold code that "
@@ -279,23 +280,23 @@ test_seq_bits (void)
   {
     const uint8_t src[4] = { 1, 0, 1, 0 };
     wfm_seq_t     s      = { .kind = WFM_SEQ_LITERAL, .len = 4, .bits = src };
-    DP_REQUIRE_MSG (wfm_seq_bits (NULL, out, sizeof out) == 0,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (NULL, out, sizeof out) == 0,
                     "a NULL sequence returns 0");
-    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, 3) == 0,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&s, out, 3) == 0,
                     "a length past the capacity returns 0, not a truncation");
     /* and it wrote nothing on the way to refusing */
     memset (out, 0xAA, sizeof out);
-    DP_REQUIRE_MSG (wfm_seq_bits (&s, out, 3) == 0, "still 0");
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&s, out, 3) == 0, "still 0");
     DP_REQUIRE_MSG (out[0] == 0xAA,
                     "a refused build leaves the caller's buffer alone");
     wfm_seq_t zero_len = { .kind = WFM_SEQ_LITERAL, .len = 0, .bits = src };
-    DP_REQUIRE_MSG (wfm_seq_bits (&zero_len, out, sizeof out) == 0,
+    DP_REQUIRE_MSG (dp_wfm_seq_bits (&zero_len, out, sizeof out) == 0,
                     "len 0 means the field is absent");
   }
   return 0;
 }
 
-/* ── wfm_frame_dsss_nchips: the burst geometry, in this object's own test
+/* ── dp_wfm_frame_dsss_nchips: the burst geometry, in this object's own test
  *
  * Reached only through wfm_synth's tests until now -- so the chip count a
  * DSSS burst occupies was certified as a side effect of testing the
@@ -324,21 +325,21 @@ test_dsss_nchips (void)
   };
   for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++)
     {
-      size_t got = wfm_frame_dsss_nchips (cases[k].acq_len, cases[k].acq_reps,
-                                          cases[k].data_len, cases[k].sync_len,
-                                          cases[k].payload_len, cases[k].crc);
+      size_t got = dp_wfm_frame_dsss_nchips (
+          cases[k].acq_len, cases[k].acq_reps, cases[k].data_len,
+          cases[k].sync_len, cases[k].payload_len, cases[k].crc);
       DP_REQUIRE_MSG (got == cases[k].want,
                       "dsss_nchips is preamble + spread frame bits");
     }
   /* frame bits with no spreading code is a refusal: there is no chip count
      for a frame nothing spreads, and 0 is how the synth learns to reject it */
-  DP_REQUIRE_MSG (wfm_frame_dsss_nchips (8, 3, 0, 2, 5, 1) == 0,
+  DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (8, 3, 0, 2, 5, 1) == 0,
                   "frame bits with no data code is unbuildable");
-  DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 4, 0, 0, 0) == 0,
+  DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 4, 0, 0, 0) == 0,
                   "an empty burst is unbuildable");
   /* the CRC term is exactly WFM_FRAME_CRC_BITS symbols wide */
-  DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 1)
-                          - wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 0)
+  DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 1)
+                          - dp_wfm_frame_dsss_nchips (0, 0, 1, 0, 1, 0)
                       == WFM_FRAME_CRC_BITS,
                   "a CRC costs exactly WFM_FRAME_CRC_BITS spread symbols");
   return 0;
@@ -365,17 +366,17 @@ main (void)
     f.crc              = 1;
 
     wfm_frame_layout_t l;
-    DP_REQUIRE_MSG (wfm_frame_layout (&f, &l) == 0, "layout");
+    DP_REQUIRE_MSG (dp_wfm_frame_layout (&f, &l) == 0, "layout");
     DP_REQUIRE_MSG (l.preamble_off == 0 && l.preamble_bits == 32,
                     "preamble is len*reps at the front");
     DP_REQUIRE_MSG (l.sync_off == 32 && l.sync_bits == 13, "sync follows");
     DP_REQUIRE_MSG (l.payload_off == 45 && l.payload_bits == 100, "payload");
     DP_REQUIRE_MSG (l.crc_off == 145 && l.crc_bits == 16, "crc trails");
     DP_REQUIRE_MSG (l.total_bits == 161, "total");
-    DP_REQUIRE_MSG (wfm_frame_nbits (&f) == l.total_bits,
+    DP_REQUIRE_MSG (dp_wfm_frame_nbits (&f) == l.total_bits,
                     "nbits agrees with the layout it summarises");
 
-    size_t n = wfm_frame_bits (&f, buf, CAP);
+    size_t n = dp_wfm_frame_bits (&f, buf, CAP);
     DP_REQUIRE_MSG (n == l.total_bits, "bits written == total");
     for (size_t i = 0; i < n; i++)
       DP_REQUIRE_MSG (buf[i] <= 1, "every output is 0 or 1");
@@ -406,7 +407,7 @@ main (void)
     f.payload.reg_bits = 9;
     f.payload.seed     = 7;
 
-    size_t n = wfm_frame_bits (&f, buf, CAP);
+    size_t n = dp_wfm_frame_bits (&f, buf, CAP);
     DP_REQUIRE_MSG (n == 300, "pn payload materialises");
 
     /* The receiver's side: the same three numbers, through pn directly. This
@@ -442,7 +443,7 @@ main (void)
       bal.payload.reg_bits = 9;
       bal.payload.seed     = 7;
       size_t ones          = 0;
-      DP_REQUIRE_MSG (wfm_frame_bits (&bal, buf, CAP) == 511, "one period");
+      DP_REQUIRE_MSG (dp_wfm_frame_bits (&bal, buf, CAP) == 511, "one period");
       for (size_t i = 0; i < 511; i++)
         ones += buf[i];
       DP_REQUIRE_MSG (ones == 256,
@@ -452,7 +453,7 @@ main (void)
 
     /* Same descriptor, same bits, every time. */
     static uint8_t again[300];
-    DP_REQUIRE_MSG (wfm_frame_bits (&f, again, 300) == 300, "second build");
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&f, again, 300) == 300, "second build");
     DP_REQUIRE_MSG (memcmp (buf, again, 300) == 0, "deterministic");
   }
 
@@ -465,9 +466,9 @@ main (void)
     f.payload.seed     = 3;
     f.crc              = 1;
 
-    size_t n = wfm_frame_bits (&f, buf, CAP);
+    size_t n = dp_wfm_frame_bits (&f, buf, CAP);
     DP_REQUIRE_MSG (n == 80, "64 payload + 16 crc");
-    DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == 1,
+    DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == 1,
                     "a frame we just built must check");
 
     /* One flipped payload bit must fail -- and it must fail without anyone
@@ -475,22 +476,23 @@ main (void)
     for (size_t i = 0; i < 64; i += 17)
       {
         buf[i] ^= 1u;
-        DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == 0,
+        DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == 0,
                         "a corrupted payload must fail the check");
         buf[i] ^= 1u;
       }
     /* A flipped CRC bit too: the trailer is part of what is checked. */
     buf[70] ^= 1u;
-    DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == 0, "corrupted CRC fails");
+    DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == 0, "corrupted CRC fails");
     buf[70] ^= 1u;
-    DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == 1, "restored, passes again");
+    DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == 1,
+                    "restored, passes again");
 
     /* No CRC is -1, NOT 0: "this frame carries no check" and "the check
        failed" are different answers, and an FER that conflated them would
        count every unprotected frame as an error. */
     wfm_frame_t g = f;
     g.crc         = 0;
-    DP_REQUIRE_MSG (wfm_frame_crc_ok (&g, buf) == -1, "no CRC reports -1");
+    DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&g, buf) == -1, "no CRC reports -1");
   }
 
   /* ── the rules the geometry enforces ─────────────────────────────────── */
@@ -498,11 +500,12 @@ main (void)
     wfm_frame_t f = { 0 };
     f.crc         = 1; /* a CRC over nothing protects nothing */
     wfm_frame_layout_t l;
-    wfm_frame_layout (&f, &l);
+    dp_wfm_frame_layout (&f, &l);
     DP_REQUIRE_MSG (l.crc_bits == 0 && l.total_bits == 0,
                     "crc is dropped when there is no payload");
-    DP_REQUIRE_MSG (wfm_frame_nbits (&f) == 0, "an empty frame is 0 bits");
-    DP_REQUIRE_MSG (wfm_frame_bits (&f, buf, CAP) == 0, "and writes nothing");
+    DP_REQUIRE_MSG (dp_wfm_frame_nbits (&f) == 0, "an empty frame is 0 bits");
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&f, buf, CAP) == 0,
+                    "and writes nothing");
 
     /* A field that cannot be built refuses outright rather than writing a
        short frame: a half-materialised frame would be scored against a truth
@@ -511,18 +514,18 @@ main (void)
     bad.payload.kind = WFM_SEQ_LITERAL;
     bad.payload.len  = 32;
     bad.payload.bits = NULL; /* a literal with no array */
-    DP_REQUIRE_MSG (wfm_frame_bits (&bad, buf, CAP) == 0,
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&bad, buf, CAP) == 0,
                     "a literal with no array cannot build");
 
     wfm_frame_t small  = { 0 };
     small.payload.kind = WFM_SEQ_DOTTED;
     small.payload.len  = 64;
-    DP_REQUIRE_MSG (wfm_frame_bits (&small, buf, 63) == 0,
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&small, buf, 63) == 0,
                     "too small an output buffer writes nothing");
-    DP_REQUIRE_MSG (wfm_frame_bits (&small, buf, 64) == 64, "exact fits");
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&small, buf, 64) == 64, "exact fits");
 
-    DP_REQUIRE_MSG (wfm_frame_layout (NULL, &l) == -1, "NULL frame");
-    DP_REQUIRE_MSG (wfm_frame_crc_ok (NULL, buf) == -1, "NULL frame, crc");
+    DP_REQUIRE_MSG (dp_wfm_frame_layout (NULL, &l) == -1, "NULL frame");
+    DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (NULL, buf) == -1, "NULL frame, crc");
 
     /* `preamble_reps = 0` means NO preamble, which this struct documents and
        nothing asserted -- found by sabotage: making a zero count emit one
@@ -536,7 +539,7 @@ main (void)
     norep.preamble_reps = 0;
     norep.payload.kind  = WFM_SEQ_DOTTED;
     norep.payload.len   = 16;
-    DP_REQUIRE (wfm_frame_layout (&norep, &l) == 0);
+    DP_REQUIRE (dp_wfm_frame_layout (&norep, &l) == 0);
     DP_CHECK_MSG (l.preamble_bits == 0,
                   "preamble_reps = 0 must emit no preamble at all");
     DP_CHECK_MSG (l.payload_off == 0 && l.total_bits == 16,
@@ -546,8 +549,8 @@ main (void)
   /* ── the description the geometry above is a CONFIGURATION of ─────────
    *
    * `wfm_frame_t` is four fields and one stage of `wfm_frame_desc_t`, and
-   * `wfm_frame_layout()` is `wfm_frame_desc_layout()` read back through named
-   * members. What is checked here is the general form's own rules, on
+   * `dp_wfm_frame_layout()` is `dp_wfm_frame_desc_layout()` read back through
+   * named members. What is checked here is the general form's own rules, on
    * descriptions the closed struct cannot express -- because those are the
    * rules every future configuration rests on, and none of them is reachable
    * through the four-field face.
@@ -577,7 +580,7 @@ main (void)
     d.stage[1].n_fields    = 3u;
 
     wfm_frame_desc_layout_t l;
-    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
     DP_CHECK (l.frame_bits == 48u && l.out_bits == 48u);
     DP_CHECK_MSG (l.stage[0].first == 8u && l.stage[0].n == 40u,
                   "a stage covers what it declares, starting where it says");
@@ -589,7 +592,7 @@ main (void)
        plausible-looking span for a stage that never ran, which a caller
        reading the spans to decide what to undo would act on. */
     d.stage[0].n_fields = 0u;
-    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
     DP_CHECK_MSG (l.stage[0].n == 0u && l.stage[0].first == 0u,
                   "a stage that did not run reports first = 0 and n = 0");
 
@@ -606,12 +609,12 @@ main (void)
     d.n_stages             = 1u;
     d.stage[0].first_field = 0u;
     d.stage[0].n_fields    = 2u;
-    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
     DP_CHECK_MSG (l.field_bits[1] == 16u && l.frame_bits == 40u,
                   "a derived field is emitted when its stage covers data");
 
     d.field[0].seq.len = 0u; /* nothing left to protect */
-    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
     DP_CHECK_MSG (l.field_bits[1] == 0u && l.frame_bits == 0u,
                   "...and dropped when it covers nothing");
 
@@ -624,16 +627,16 @@ main (void)
     d.field[0].seq.len  = 8u;
     d.n_stages          = 1u;
     d.stage[0].n_fields = 2u; /* one past the single field */
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
                   "a cover running past the field list must refuse");
 
     d.stage[0].n_fields   = 1u;
     d.field[0].derived_by = 9u; /* no such stage */
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
                   "a derived field naming no stage must refuse");
 
-    DP_CHECK (wfm_frame_desc_layout (NULL, &l) == -1);
-    DP_CHECK (wfm_frame_describe (NULL, &d) == -1);
+    DP_CHECK (dp_wfm_frame_desc_layout (NULL, &l) == -1);
+    DP_CHECK (dp_wfm_frame_describe (NULL, &d) == -1);
 
     /* A derived field must be the LAST field of its stage's cover. That is
        what lets one in-place op signature serve a CRC, an outer code and a
@@ -650,13 +653,13 @@ main (void)
     d.n_stages             = 1u;
     d.stage[0].first_field = 0u;
     d.stage[0].n_fields    = 2u;
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
                   "a derived field must be last in its stage's cover");
   }
 
   /* ── assembling a description, and what it refuses ────────────────────
    *
-   * `wfm_frame_bits` is `wfm_frame_assemble` over the four-field
+   * `dp_wfm_frame_bits` is `dp_wfm_frame_assemble` over the four-field
    * configuration, so the sections above already exercise the field writing
    * and the built-in CRC. What is left is the part only a general
    * description reaches: a stage whose kernel this component does not own.
@@ -684,7 +687,7 @@ main (void)
        kind passed every other test in the tree, because every other test
        supplies the kernels its description names. */
     memset (buf, 0xAAu, sizeof buf);
-    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 0,
                   "a stage with no kernel must refuse, not run silently");
     int untouched = 1;
     for (size_t i = 0; i < sizeof buf; i++)
@@ -699,11 +702,11 @@ main (void)
     d.field[1].bits = WFM_FRAME_CRC_BITS;
     d.field[1].derived_by = 1u;
     d.stage[0].n_fields   = 2u;
-    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 48u,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 48u,
                   "...while a stage the built-ins DO cover assembles");
 
-    DP_CHECK (wfm_frame_assemble (NULL, NULL, buf, sizeof buf) == 0);
-    DP_CHECK (wfm_frame_assemble (&d, NULL, buf, 47u) == 0);
+    DP_CHECK (dp_wfm_frame_assemble (NULL, NULL, buf, sizeof buf) == 0);
+    DP_CHECK (dp_wfm_frame_assemble (&d, NULL, buf, 47u) == 0);
   }
 
   /* ── a DSSS burst from a description: assemble, then spread ───────────
@@ -730,17 +733,17 @@ main (void)
     f.payload.len  = sizeof pay;
     f.crc          = 1;
     wfm_frame_desc_t d;
-    DP_CHECK (wfm_frame_describe (&f, &d) == 0);
+    DP_CHECK (dp_wfm_frame_describe (&f, &d) == 0);
 
     const size_t want
         = pre + (sizeof sync + sizeof pay + WFM_FRAME_CRC_BITS) * dl;
-    DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, dl) == want,
+    DP_CHECK_MSG (dp_wfm_dsss_desc_nchips (&d, sizeof acq, reps, dl) == want,
                   "burst chips = preamble + spread frame");
     const size_t nl
-        = wfm_frame_dsss_chips (acq, sizeof acq, reps, dcode, dl, sync,
-                                sizeof sync, pay, sizeof pay, 1, legacy);
-    const size_t ng = wfm_dsss_desc_chips (&d, NULL, acq, sizeof acq, reps,
-                                           dcode, dl, general, sizeof general);
+        = dp_wfm_frame_dsss_chips (acq, sizeof acq, reps, dcode, dl, sync,
+                                   sizeof sync, pay, sizeof pay, 1, legacy);
+    const size_t ng = dp_wfm_dsss_desc_chips (
+        &d, NULL, acq, sizeof acq, reps, dcode, dl, general, sizeof general);
     DP_CHECK_MSG (nl == want && ng == want,
                   "both entry points write the same count");
     DP_CHECK_MSG (
@@ -763,9 +766,9 @@ main (void)
     wfm_frame_t g = f;
     g.crc         = 0;
     wfm_frame_desc_t d0;
-    DP_CHECK (wfm_frame_describe (&g, &d0) == 0);
-    DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, dl)
-                          - wfm_dsss_desc_nchips (&d0, sizeof acq, reps, dl)
+    DP_CHECK (dp_wfm_frame_describe (&g, &d0) == 0);
+    DP_CHECK_MSG (dp_wfm_dsss_desc_nchips (&d, sizeof acq, reps, dl)
+                          - dp_wfm_dsss_desc_nchips (&d0, sizeof acq, reps, dl)
                       == WFM_FRAME_CRC_BITS * dl,
                   "a CRC stage costs exactly its bits, spread");
 
@@ -779,15 +782,15 @@ main (void)
     rsd.stage[0].first_field = 0u;
     rsd.stage[0].n_fields    = rsd.n_fields;
     memset (general, 0xAAu, sizeof general);
-    DP_CHECK_MSG (wfm_dsss_desc_chips (&rsd, NULL, acq, sizeof acq, reps,
-                                       dcode, dl, general, sizeof general)
+    DP_CHECK_MSG (dp_wfm_dsss_desc_chips (&rsd, NULL, acq, sizeof acq, reps,
+                                          dcode, dl, general, sizeof general)
                       == 0,
                   "a stage with no kernel refuses the burst");
     DP_CHECK_MSG (general[0] == 0xAAu, "...and writes nothing");
-    DP_CHECK (wfm_dsss_desc_chips (&d, NULL, acq, sizeof acq, reps, dcode, dl,
-                                   general, want - 1u)
+    DP_CHECK (dp_wfm_dsss_desc_chips (&d, NULL, acq, sizeof acq, reps, dcode,
+                                      dl, general, want - 1u)
               == 0);
-    DP_CHECK_MSG (wfm_dsss_desc_nchips (&d, sizeof acq, reps, 0u) == 0,
+    DP_CHECK_MSG (dp_wfm_dsss_desc_nchips (&d, sizeof acq, reps, 0u) == 0,
                   "frame bits with no spreading code is not a geometry");
   }
 
@@ -817,13 +820,13 @@ main (void)
     d.stage[1].first_field = 0u;
     d.stage[1].n_fields    = 2u;
 
-    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, b, sizeof b) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, b, sizeof b) == 0,
                   "without the table the randomise stage has no kernel");
-    DP_CHECK_MSG (wfm_frame_assemble (&d, &ops, b, sizeof b) == 48u,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, &ops, b, sizeof b) == 48u,
                   "with it, the table's stage AND the built-in CRC resolve");
   }
 
-  /* ── wfm_frame_check reverses in the OPPOSITE order ────────────────────
+  /* ── dp_wfm_frame_check reverses in the OPPOSITE order ────────────────────
    *
    * "Stages are reversed in the OPPOSITE order to the one they were applied
    * in." Pinned nowhere. A test that merely watched check() return 1 would
@@ -851,7 +854,7 @@ main (void)
     d.stage[1].first_field = 0u;
     d.stage[1].n_fields    = 2u;
 
-    DP_CHECK (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
+    DP_CHECK (dp_wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
 
     /* The precondition. Undo the sum WITHOUT undoing the flip first -- the
        same-order mistake -- and it must report not-ok, or the pair commutes
@@ -865,7 +868,7 @@ main (void)
                   "satisfied by any order at all");
 
     memset (&rx, 0, sizeof rx);
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, &rx) == 1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, b, &rx) == 1,
                   "reversing flip-then-sum recovers the frame");
     DP_CHECK_MSG (rx.checked == 2u, "both stages were actually reversed");
   }
@@ -897,9 +900,9 @@ main (void)
     d.stage[1].first_field = 0u;
     d.stage[1].n_fields    = 2u;
 
-    DP_CHECK (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
+    DP_CHECK (dp_wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
     memset (&rx, 0, sizeof rx);
-    DP_CHECK (wfm_frame_check (&d, &ops, b, &rx) == 1);
+    DP_CHECK (dp_wfm_frame_check (&d, &ops, b, &rx) == 1);
     DP_CHECK_MSG (rx.stage[0].checked == 1 && rx.stage[0].ok == 1u,
                   "the reversible stage was checked and passed");
     DP_CHECK_MSG (rx.stage[1].checked == 0,
@@ -931,21 +934,21 @@ main (void)
     d.stage[0].kind        = WFM_STAGE_RS;
     d.stage[0].first_field = 0u;
     d.stage[0].n_fields    = 2u;
-    DP_CHECK (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, NULL) == 1,
+    DP_CHECK (dp_wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u);
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, b, NULL) == 1,
                   "a description WITH a check answers 1");
 
     /* Same bits, same geometry — only the stage's reversibility differs. */
     d.stage[0].kind = WFM_STAGE_CONV; /* no undo */
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, NULL) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, b, NULL) == -1,
                   "nothing was checked, so the answer is -1, not 1");
 
     d.n_stages = 0u;
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, NULL) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, b, NULL) == -1,
                   "a description with no stages carries no check either");
   }
 
-  /* ── wfm_frame_desc_crc_ok is a TRI-state ──────────────────────────────
+  /* ── dp_wfm_frame_desc_crc_ok is a TRI-state ──────────────────────────────
    *
    * Zero mentions anywhere in the tree before this. "The three are distinct
    * on purpose: an FER that read 'carries no check' as 'the check failed'
@@ -966,22 +969,22 @@ main (void)
     d.stage[0].first_field = 0u;
     d.stage[0].n_fields    = 2u;
 
-    DP_CHECK (wfm_frame_assemble (&d, NULL, b, sizeof b) == 48u);
-    DP_CHECK_MSG (wfm_frame_desc_crc_ok (&d, b) == 1, "a good frame is 1");
+    DP_CHECK (dp_wfm_frame_assemble (&d, NULL, b, sizeof b) == 48u);
+    DP_CHECK_MSG (dp_wfm_frame_desc_crc_ok (&d, b) == 1, "a good frame is 1");
 
     b[0] ^= 1u;
-    DP_CHECK_MSG (wfm_frame_desc_crc_ok (&d, b) == 0, "a corrupt one is 0");
+    DP_CHECK_MSG (dp_wfm_frame_desc_crc_ok (&d, b) == 0, "a corrupt one is 0");
     b[0] ^= 1u;
-    DP_CHECK (wfm_frame_desc_crc_ok (&d, b) == 1);
+    DP_CHECK (dp_wfm_frame_desc_crc_ok (&d, b) == 1);
 
     /* Carries no CRC at all — the third answer. */
     wfm_frame_desc_t n = d;
     n.stage[0].kind    = WFM_STAGE_RANDOMISE;
-    DP_CHECK_MSG (wfm_frame_desc_crc_ok (&n, b) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_crc_ok (&n, b) == -1,
                   "no CRC stage is -1, which is not 'the check failed'");
 
-    DP_CHECK (wfm_frame_desc_crc_ok (NULL, b) == -1);
-    DP_CHECK (wfm_frame_desc_crc_ok (&d, NULL) == -1);
+    DP_CHECK (dp_wfm_frame_desc_crc_ok (NULL, b) == -1);
+    DP_CHECK (dp_wfm_frame_desc_crc_ok (&d, NULL) == -1);
   }
 
   /* ── the second built-in: INTERLEAVE, through the general path ─────────
@@ -1007,7 +1010,7 @@ main (void)
     d.field[0].seq.bits = pat;
     d.field[0].seq.len  = sizeof pat;
 
-    DP_CHECK (wfm_frame_assemble (&d, NULL, plain, sizeof plain) == 32u);
+    DP_CHECK (dp_wfm_frame_assemble (&d, NULL, plain, sizeof plain) == 32u);
 
     d.n_stages             = 1u;
     d.stage[0].kind        = WFM_STAGE_INTERLEAVE;
@@ -1015,14 +1018,14 @@ main (void)
     d.stage[0].n_fields    = 1u;
     d.stage[0].depth       = 4u;
     d.stage[0].unit_bits   = 1u;
-    DP_CHECK (wfm_frame_assemble (&d, NULL, woven, sizeof woven) == 32u);
+    DP_CHECK (dp_wfm_frame_assemble (&d, NULL, woven, sizeof woven) == 32u);
 
     DP_CHECK_MSG (memcmp (woven, plain, 32u) != 0,
                   "the interleaver must actually permute, or 'undo restores "
                   "it' is satisfied by doing nothing");
 
     memset (&rx, 0, sizeof rx);
-    DP_CHECK_MSG (wfm_frame_check (&d, NULL, woven, &rx) == 1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, NULL, woven, &rx) == 1,
                   "a built-in needs no ops table to be reversed");
     DP_CHECK_MSG (memcmp (woven, plain, 32u) == 0,
                   "...and undoing it restores the original bits exactly");
@@ -1059,12 +1062,12 @@ main (void)
     d.stage[1].first_field = 0u;
     d.stage[1].n_fields    = 2u;
 
-    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, b, sizeof b) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, b, sizeof b) == 0,
                   "a user kind with no kernel is refused like any other");
-    DP_CHECK_MSG (wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, &ops, b, sizeof b) == 32u,
                   "with the caller's table it assembles...");
     memset (&rx, 0, sizeof rx);
-    DP_CHECK_MSG (wfm_frame_check (&d, &ops, b, &rx) == 1,
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, b, &rx) == 1,
                   "...and reverses through the same open lookup");
     DP_CHECK_MSG (rx.checked == 2u,
                   "the user stage is reversed like a built-in, not skipped");
@@ -1098,32 +1101,32 @@ main (void)
     d.field[2].seq.kind = WFM_SEQ_DOTTED;
     d.field[2].seq.len  = 24u;
 
-    DP_CHECK (wfm_frame_field_index (&d, "sync") == 0);
-    DP_CHECK (wfm_frame_field_index (&d, "payload") == 2);
-    DP_CHECK_MSG (wfm_frame_field_index (&d, "crc") == -1,
+    DP_CHECK (dp_wfm_frame_field_index (&d, "sync") == 0);
+    DP_CHECK (dp_wfm_frame_field_index (&d, "payload") == 2);
+    DP_CHECK_MSG (dp_wfm_frame_field_index (&d, "crc") == -1,
                   "a name no field carries is -1, not a guess");
 
     /* An unnamed field is ANONYMOUS, not named "". Matching it would make an
        unnamed description answer questions about fields it does not have --
        and every description in this file before now is unnamed. */
-    DP_CHECK_MSG (wfm_frame_field_index (&d, "") == -1,
+    DP_CHECK_MSG (dp_wfm_frame_field_index (&d, "") == -1,
                   "the empty name matches nothing, including field 1");
 
-    DP_CHECK (wfm_frame_field_index (NULL, "sync") == -1);
-    DP_CHECK (wfm_frame_field_index (&d, NULL) == -1);
+    DP_CHECK (dp_wfm_frame_field_index (NULL, "sync") == -1);
+    DP_CHECK (dp_wfm_frame_field_index (&d, NULL) == -1);
 
     /* Names change nothing about the geometry: the same description lays out
        identically whether or not its fields are named. That is what makes
        this addition safe for every caller that predates it. */
     wfm_frame_desc_layout_t named, anon;
-    DP_CHECK (wfm_frame_desc_layout (&d, &named) == 0);
+    DP_CHECK (dp_wfm_frame_desc_layout (&d, &named) == 0);
     for (unsigned i = 0; i < d.n_fields; i++)
       d.field[i].name[0] = '\0';
-    DP_CHECK (wfm_frame_desc_layout (&d, &anon) == 0);
+    DP_CHECK (dp_wfm_frame_desc_layout (&d, &anon) == 0);
     DP_CHECK_MSG (named.frame_bits == anon.frame_bits
                       && named.field_off[2] == anon.field_off[2],
                   "a name is not part of the geometry");
-    DP_CHECK_MSG (wfm_frame_field_index (&d, "sync") == -1,
+    DP_CHECK_MSG (dp_wfm_frame_field_index (&d, "sync") == -1,
                   "...and clearing the names really did clear them");
   }
 
@@ -1156,17 +1159,19 @@ main (void)
     wfm_seq_t payload = { 0 };
     payload.kind      = WFM_SEQ_DOTTED;
     payload.len       = 32u;
-    DP_CHECK (wfm_frame_add_field (&n, "payload", &payload, 0u) == 0);
-    DP_CHECK (wfm_frame_add_derived (&n, "crc", WFM_FRAME_CRC_BITS) == 1);
-    DP_CHECK (wfm_frame_add_stage (&n, WFM_STAGE_CRC16, "payload", "crc")
+    DP_CHECK (dp_wfm_frame_add_field (&n, "payload", &payload, 0u) == 0);
+    DP_CHECK (dp_wfm_frame_add_derived (&n, "crc", WFM_FRAME_CRC_BITS) == 1);
+    DP_CHECK (dp_wfm_frame_add_stage (&n, WFM_STAGE_CRC16, "payload", "crc")
               == 0);
 
     /* add_stage wired the producer, and it wired the RIGHT one. */
     DP_CHECK_MSG (n.field[1].derived_by == 1u,
                   "the derived field's producer is the stage that covers it");
 
-    const size_t nh = wfm_frame_assemble (&h, NULL, by_hand, sizeof by_hand);
-    const size_t nn = wfm_frame_assemble (&n, NULL, by_name, sizeof by_name);
+    const size_t nh
+        = dp_wfm_frame_assemble (&h, NULL, by_hand, sizeof by_hand);
+    const size_t nn
+        = dp_wfm_frame_assemble (&n, NULL, by_name, sizeof by_name);
     DP_CHECK (nh == 48u && nn == 48u);
     DP_CHECK_MSG (memcmp (by_hand, by_name, 48u) == 0,
                   "naming the fields changes no bit of the frame");
@@ -1178,37 +1183,39 @@ main (void)
     wfm_seq_t eight = { 0 };
     eight.kind      = WFM_SEQ_DOTTED;
     eight.len       = 8u;
-    DP_CHECK (wfm_frame_add_field (&m, "a", &eight, 0u) == 0);
-    DP_CHECK (wfm_frame_add_field (&m, "b", &eight, 0u) == 1);
-    DP_CHECK (wfm_frame_add_field (&m, "c", &eight, 0u) == 2);
-    DP_CHECK (wfm_frame_add_stage (&m, WFM_STAGE_INTERLEAVE, "b", "c") == 0);
+    DP_CHECK (dp_wfm_frame_add_field (&m, "a", &eight, 0u) == 0);
+    DP_CHECK (dp_wfm_frame_add_field (&m, "b", &eight, 0u) == 1);
+    DP_CHECK (dp_wfm_frame_add_field (&m, "c", &eight, 0u) == 2);
+    DP_CHECK (dp_wfm_frame_add_stage (&m, WFM_STAGE_INTERLEAVE, "b", "c")
+              == 0);
     DP_CHECK_MSG (m.stage[0].first_field == 1u && m.stage[0].n_fields == 2u,
                   "the cover is the named range, not the whole frame");
 
     /* Refusals. */
-    DP_CHECK_MSG (wfm_frame_add_field (&m, "b", &eight, 0u) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&m, "b", &eight, 0u) == -1,
                   "a duplicate name is refused, not silently shadowed");
-    DP_CHECK_MSG (wfm_frame_add_stage (&m, WFM_STAGE_CRC16, "a", "zzz") == -1,
+    DP_CHECK_MSG (dp_wfm_frame_add_stage (&m, WFM_STAGE_CRC16, "a", "zzz")
+                      == -1,
                   "a cover naming a field that does not exist is refused");
-    DP_CHECK_MSG (wfm_frame_add_stage (&m, WFM_STAGE_CRC16, "c", "a") == -1,
+    DP_CHECK_MSG (dp_wfm_frame_add_stage (&m, WFM_STAGE_CRC16, "c", "a") == -1,
                   "a cover that runs backwards is refused");
-    DP_CHECK (wfm_frame_add_field (NULL, "x", &eight, 0u) == -1);
-    DP_CHECK (wfm_frame_add_field (&m, "x", NULL, 0u) == -1);
-    DP_CHECK (wfm_frame_add_derived (&m, "x", 0u) == -1);
+    DP_CHECK (dp_wfm_frame_add_field (NULL, "x", &eight, 0u) == -1);
+    DP_CHECK (dp_wfm_frame_add_field (&m, "x", NULL, 0u) == -1);
+    DP_CHECK (dp_wfm_frame_add_derived (&m, "x", 0u) == -1);
 
     /* Anonymous fields never collide, because "" is not a name. */
     wfm_frame_desc_t q;
     memset (&q, 0, sizeof q);
-    DP_CHECK (wfm_frame_add_field (&q, NULL, &eight, 0u) == 0);
-    DP_CHECK_MSG (wfm_frame_add_field (&q, NULL, &eight, 0u) == 1,
+    DP_CHECK (dp_wfm_frame_add_field (&q, NULL, &eight, 0u) == 0);
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&q, NULL, &eight, 0u) == 1,
                   "two anonymous fields are two fields, not a collision");
 
     /* The description fills up and REFUSES rather than overwriting. */
     wfm_frame_desc_t full;
     memset (&full, 0, sizeof full);
     for (unsigned i = 0; i < WFM_FRAME_MAX_FIELDS; i++)
-      DP_CHECK (wfm_frame_add_field (&full, NULL, &eight, 0u) == (int)i);
-    DP_CHECK_MSG (wfm_frame_add_field (&full, NULL, &eight, 0u) == -1,
+      DP_CHECK (dp_wfm_frame_add_field (&full, NULL, &eight, 0u) == (int)i);
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&full, NULL, &eight, 0u) == -1,
                   "a full description refuses the next field");
     DP_CHECK (full.n_fields == WFM_FRAME_MAX_FIELDS);
   }
@@ -1216,7 +1223,7 @@ main (void)
   /* ── the GENERATED kinds, through that same by-name face ───────────────
    *
    * Everything above reaches a PN or a Gold field through `wfm_frame_t`'s
-   * three named slots. The general description -- what wfm_frame_add_field
+   * three named slots. The general description -- what dp_wfm_frame_add_field
    * builds and what every by-name caller assembles -- carried only LITERAL
    * and DOTTED fields in this suite, so nothing pinned a generated field
    * reached THIS way to the generator it claims to be. That is the face a
@@ -1240,14 +1247,14 @@ main (void)
 
     wfm_frame_desc_t d;
     memset (&d, 0, sizeof d);
-    DP_REQUIRE (wfm_frame_add_field (&d, "sync", &pn, 3u) == 0);
-    DP_REQUIRE (wfm_frame_add_field (&d, "payload", &gold, 0u) == 1);
+    DP_REQUIRE (dp_wfm_frame_add_field (&d, "sync", &pn, 3u) == 0);
+    DP_REQUIRE (dp_wfm_frame_add_field (&d, "payload", &gold, 0u) == 1);
 
     wfm_frame_desc_layout_t l;
-    DP_REQUIRE (wfm_frame_desc_layout (&d, &l) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
     DP_CHECK_MSG (l.field_bits[0] == 60u && l.field_bits[1] == 64u,
                   "a generated field is len*reps like any other");
-    DP_REQUIRE (wfm_frame_assemble (&d, NULL, buf, CAP) == l.out_bits);
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, NULL, buf, CAP) == l.out_bits);
 
     /* Gold against its OWN generator. The named starter set compares a Gold
        sync against a PN one and asserts they differ in about half their
@@ -1296,7 +1303,7 @@ main (void)
 
   /* ── an EMITTING stage covers the whole frame, or it is refused ────────
    *
-   * `wfm_frame_assemble` hands `emit` the whole assembled frame and demands
+   * `dp_wfm_frame_assemble` hands `emit` the whole assembled frame and demands
    * exactly `out_bits` back. The layout used to compute `out_bits` from the
    * stage's COVER instead -- "the bits it does not cover pass through at
    * their own width" -- which nothing implements. The two disagreed only
@@ -1304,8 +1311,8 @@ main (void)
    * emitting stages all cover everything, so the disagreement never fired
    * in the tree while remaining reachable by any caller.
    *
-   * The failure it produced is the expensive kind: `wfm_frame_desc_layout`
-   * returned 0, every offset looked right, and `wfm_frame_assemble` then
+   * The failure it produced is the expensive kind: `dp_wfm_frame_desc_layout`
+   * returned 0, every offset looked right, and `dp_wfm_frame_assemble` then
    * returned 0 for ever with no way to tell a bad description from bad
    * data.
    */
@@ -1327,17 +1334,17 @@ main (void)
     d.stage[0].n_fields    = 1u; /* 32 of 48 bits */
     d.stage[0].emit_num    = 2u;
     d.stage[0].emit_den    = 1u;
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
                   "an emitting stage over PART of the frame is refused by "
                   "the layout, not discovered as a 0 from assemble");
-    DP_CHECK_MSG (wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, buf, sizeof buf) == 0,
                   "and it still assembles nothing, from the same refusal");
 
     /* Widen it to the whole frame and the same description is fine. Both
        directions: a rule that only ever refuses is satisfied by refusing
        everything, which would quietly retire the inner code. */
     d.stage[0].n_fields = 2u;
-    DP_REQUIRE_MSG (wfm_frame_desc_layout (&d, &l) == 0,
+    DP_REQUIRE_MSG (dp_wfm_frame_desc_layout (&d, &l) == 0,
                     "covering the whole frame is accepted");
     DP_CHECK_MSG (l.frame_bits == 48u && l.out_bits == 96u,
                   "rate 1/2 doubles the whole frame");
@@ -1353,7 +1360,7 @@ main (void)
     d.stage[1].n_fields    = 2u;
     d.stage[1].emit_num    = 2u;
     d.stage[1].emit_den    = 1u;
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
                   "a second emitting stage is refused");
 
     /* A stage that DID NOT RUN is not an emitting stage. Its span is zero,
@@ -1361,7 +1368,7 @@ main (void)
        break every optional inner code, which is declared and then switched
        off by covering nothing. */
     d.stage[1].n_fields = 0u;
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == 0,
                   "a declared-but-not-running emitting stage is ignored, "
                   "not counted against the one-emitter rule");
   }
@@ -1383,9 +1390,9 @@ main (void)
     p.bits                       = pay;
     p.len                        = 24u;
 
-    DP_REQUIRE_MSG (wfm_frame_add_field (&d, "payload", &p, 0u) == 0,
+    DP_REQUIRE_MSG (dp_wfm_frame_add_field (&d, "payload", &p, 0u) == 0,
                     "the payload field is appended");
-    /* Hand-built rather than through wfm_frame_add_stage(), because that is
+    /* Hand-built rather than through dp_wfm_frame_add_stage(), because that is
        the whole point: the builder WIRES the producer from the cover it is
        given and cannot express this. Only a reader taking the two facts as
        independent integers -- the scene JSON -- can. */
@@ -1398,14 +1405,14 @@ main (void)
     d.n_stages             = 1u;
 
     wfm_frame_desc_layout_t l;
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == -1,
                   "a derived field naming no producing stage is refused");
 
     /* Claim it and the same description is accepted, at its FULL length --
        so the refusal above is about the missing producer and not about the
        shape of the description. */
     d.field[1].derived_by = 1u; /* stage 0, plus one */
-    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&d, &l) == 0,
                   "claimed by its stage, the same description lays out");
     DP_CHECK_MSG (l.frame_bits == 24u + WFM_FRAME_CRC_BITS,
                   "and it is payload + CRC, not the short frame the "
@@ -1415,10 +1422,10 @@ main (void)
        there is nothing for a stage to fill and nothing to refuse. Without
        this the check would reject every zero-initialised description. */
     wfm_frame_desc_t e = { 0 };
-    DP_CHECK_MSG (wfm_frame_add_field (&e, "payload", &p, 0u) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_add_field (&e, "payload", &p, 0u) == 0,
                   "a lone supplied field");
     e.n_fields = 2u; /* field[1] is all zeros: no bits, no seq, no producer */
-    DP_CHECK_MSG (wfm_frame_desc_layout (&e, &l) == 0,
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&e, &l) == 0,
                   "an empty field is not a derived one and stays legal");
   }
 

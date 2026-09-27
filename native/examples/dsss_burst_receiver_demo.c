@@ -10,7 +10,7 @@
  *
  * **The waveform is not built here.** It is one declarative wfmgen scene --
  * a `wfm_segment_t` carrying one `wfm_source_t` of `WFM_SYNTH_DSSS`, handed
- * to `wfm_compose_create()`. Same engine as the Python example's
+ * to `dp_wfm_compose_create()`. Same engine as the Python example's
  * `Composer`/`Segment` and as the `wfmgen` CLI, so all three render the
  * identical capture. Nothing here tiles a preamble, spreads a frame, appends
  * a CRC or draws noise, and the codes come from wfm's own PN generator: a
@@ -137,14 +137,14 @@ compose (wfm_source_t *src, size_t repeats, size_t gap, float complex *out,
   seg.gap_noise   = 0; /* auto -- the floor runs through the gaps, as a
                           real capture does, rather than digital silence */
 
-  wfm_compose_state_t *c = wfm_compose_create (&seg, 1u, 0, 0);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1u, 0, 0);
   if (!c)
     return 0;
   size_t total = 0, got;
   while (total < max
-         && (got = wfm_compose_execute (c, out + total, max - total)) > 0)
+         && (got = dp_wfm_compose_execute (c, out + total, max - total)) > 0)
     total += got;
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
   return total;
 }
 
@@ -232,7 +232,7 @@ main (void)
   dp_dsss_burst_receiver_destroy (probe);
 
   printf ("=== DsssBurstReceiver — the burst chain as one object ===\n");
-  printf ("  waveform    one wfmgen segment via wfm_compose_create()\n");
+  printf ("  waveform    one wfmgen segment via dp_wfm_compose_create()\n");
   printf ("  burst_len   %6zu samples   (%u-chip preamble x%u, spc %u)\n",
           (size_t)BURST_LEN, ACQ_SF, REPS, SPC);
   printf ("  min_gap     %6zu           dead air to leave between bursts\n",

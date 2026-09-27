@@ -1316,25 +1316,25 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
  */
 typedef struct
 {
-  const wfmgen_opts_t *o;
-  wfm_compose_state_t *comp;
-  const wfm_segment_t *segs; /* resolved, borrowed from the composer */
-  size_t               n_segs;
-  double               fs;      /* the capture sample rate */
-  double               gain;    /* 10^(-headroom/20), the peak backoff */
-  int                  endless; /* the composer resolved --continuous */
-  dp_sample_clock_t   *clk;     /* NULL unless the run is real-time */
+  const wfmgen_opts_t    *o;
+  dp_wfm_compose_state_t *comp;
+  const wfm_segment_t    *segs; /* resolved, borrowed from the composer */
+  size_t                  n_segs;
+  double                  fs;      /* the capture sample rate */
+  double                  gain;    /* 10^(-headroom/20), the peak backoff */
+  int                     endless; /* the composer resolved --continuous */
+  dp_sample_clock_t      *clk;     /* NULL unless the run is real-time */
 } emit_ctx_t;
 
 /* Open a writer on `fp` and apply the run's gain and clip tracking. */
 static dp_wfm_writer_state_t *
 open_writer (const emit_ctx_t *e, FILE *fp, int file_type)
 {
-  dp_wfm_writer_state_t *w = wfm_writer_open (
+  dp_wfm_writer_state_t *w = dp_wfm_writer_open (
       fp, file_type, e->o->sample_type, e->o->endian, e->fs, e->o->fc, 0, 0.0);
   if (!w)
     return NULL;
-  wfm_writer_set_gain (w, e->gain);
+  dp_wfm_writer_set_gain (w, e->gain);
   if (e->o->clip_report)
     dp_wfm_writer_track_clipping (w, 1);
   return w;
@@ -1351,7 +1351,7 @@ drain_to_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w, int paced)
 {
   float _Complex buf[BLK];
   size_t n, total = 0;
-  while ((n = wfm_compose_execute (e->comp, buf, BLK)) > 0)
+  while ((n = dp_wfm_compose_execute (e->comp, buf, BLK)) > 0)
     {
       dp_wfm_writer_write (w, buf, n);
       total += n;
@@ -1361,7 +1361,7 @@ drain_to_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w, int paced)
         break;
       /* An interrupted capture must still be a VALID capture. The BLUE
          header carries the final sample count and is written by
-         wfm_writer_close, so leaving the loop is what lets the file be
+         dp_wfm_writer_close, so leaving the loop is what lets the file be
          closed properly -- killing the process here would leave a capture
          with no header at all, which is worse than a short one. */
       if (dp_interrupted ())
@@ -1374,10 +1374,10 @@ drain_to_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w, int paced)
 static int
 close_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w)
 {
-  int rc = report_clip (wfm_writer_peak (w), wfm_writer_clip_fraction (w),
-                        e->o->sample_type, e->o->headroom, e->o->clip_report,
-                        e->o->clip_error);
-  wfm_writer_close (w);
+  int rc = report_clip (dp_wfm_writer_peak (w),
+                        dp_wfm_writer_clip_fraction (w), e->o->sample_type,
+                        e->o->headroom, e->o->clip_report, e->o->clip_error);
+  dp_wfm_writer_close (w);
   return rc ? 1 : 0;
 }
 
@@ -1385,13 +1385,13 @@ close_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w)
  *
  * The stream sink lives in the optional libdoppler_stream component (it pulls
  * in the vendored nats.c client). The pure-C core links only weak no-op
- * stubs, so wfm_stream_sink_available() reports 0 unless the real component
+ * stubs, so dp_wfm_stream_sink_available() reports 0 unless the real component
  * is linked — which is a clearer failure than silently publishing nothing. */
 static int
 emit_to_stream (const emit_ctx_t *e)
 {
   const wfmgen_opts_t *o = e->o;
-  if (!wfm_stream_sink_available ())
+  if (!dp_wfm_stream_sink_available ())
     {
       (void)fprintf (stderr,
                      "error: nats output (%s) requires the stream component; "
@@ -1410,22 +1410,23 @@ emit_to_stream (const emit_ctx_t *e)
                STYPE_NAMES[o->sample_type]);
       return 1;
     }
-  wfm_stream_sink_t *sink = wfm_stream_sink_open (o->out_path, o->sample_type);
+  wfm_stream_sink_t *sink
+      = dp_wfm_stream_sink_open (o->out_path, o->sample_type);
   if (!sink)
     {
       (void)fprintf (stderr, "error: cannot open stream sink %s\n",
                      o->out_path);
       return 1;
     }
-  wfm_stream_sink_set_gain (sink, e->gain);
+  dp_wfm_stream_sink_set_gain (sink, e->gain);
   if (o->clip_report)
-    wfm_stream_sink_track_clipping (sink, 1);
+    dp_wfm_stream_sink_track_clipping (sink, 1);
 
   float _Complex buf[BLK];
   size_t n;
-  while ((n = wfm_compose_execute (e->comp, buf, BLK)) > 0)
+  while ((n = dp_wfm_compose_execute (e->comp, buf, BLK)) > 0)
     {
-      wfm_stream_sink_send (sink, buf, n, e->fs, o->fc);
+      dp_wfm_stream_sink_send (sink, buf, n, e->fs, o->fc);
       if (e->clk)
         dp_sample_clock_pace (e->clk, n);
       if (n < BLK)
@@ -1433,16 +1434,16 @@ emit_to_stream (const emit_ctx_t *e)
       if (dp_interrupted ())
         break;
     }
-  int rc = report_clip (wfm_stream_sink_peak (sink),
-                        wfm_stream_sink_clip_fraction (sink), o->sample_type,
-                        o->headroom, o->clip_report, o->clip_error);
+  int rc = report_clip (
+      dp_wfm_stream_sink_peak (sink), dp_wfm_stream_sink_clip_fraction (sink),
+      o->sample_type, o->headroom, o->clip_report, o->clip_error);
 
   /* Say the stream has ended BEFORE draining. The order matters: a drain
      cannot be reversed and refuses sends once it reaches its
      publish-flushing phase, so an EOS issued after one may simply not go.
      Without this a subscriber has only silence to go on, and silence is
      exactly what it cannot interpret. */
-  (void)wfm_stream_sink_send_eos (sink);
+  (void)dp_wfm_stream_sink_send_eos (sink);
 
   /* Drain BEFORE close, on every exit -- interrupted or finished. A send
      returns once the client has the block, not once the server does, so
@@ -1450,7 +1451,7 @@ emit_to_stream (const emit_ctx_t *e)
      flush: 500 ms, no failure report, silently dropped beyond that. The
      budget is reported rather than swallowed, because "wfmgen exited 0" has
      to mean the samples arrived. */
-  int drc = wfm_stream_sink_drain (sink, 0);
+  int drc = dp_wfm_stream_sink_drain (sink, 0);
   if (drc != DP_OK)
     {
       (void)fprintf (stderr,
@@ -1459,7 +1460,7 @@ emit_to_stream (const emit_ctx_t *e)
                      drc);
       rc = 1;
     }
-  wfm_stream_sink_close (sink);
+  dp_wfm_stream_sink_close (sink);
   return rc ? 1 : 0;
 }
 
@@ -1513,8 +1514,8 @@ emit_detached_blue (const emit_ctx_t *e)
                  : fopen (hdr_path, "wb");
   if (!hf)
     return 1;
-  wfm_blue_write_hcb (hf, o->sample_type, o->endian, e->fs, o->fc, 0.0, total,
-                      1, 0.0);
+  dp_wfm_blue_write_hcb (hf, o->sample_type, o->endian, e->fs, o->fc, 0.0,
+                         total, 1, 0.0);
   (void)fclose (hf);
   return rc;
 }
@@ -1524,8 +1525,8 @@ emit_detached_blue (const emit_ctx_t *e)
 static void
 write_sigmf_meta (const emit_ctx_t *e)
 {
-  char *meta = wfm_sigmf_meta_json (e->o->sample_type, e->o->endian, e->fs,
-                                    e->o->fc, 0.0, e->segs, e->n_segs);
+  char *meta = dp_wfm_sigmf_meta_json (e->o->sample_type, e->o->endian, e->fs,
+                                       e->o->fc, 0.0, e->segs, e->n_segs);
   if (!meta)
     return;
   char  meta_path[1024];
@@ -1624,9 +1625,9 @@ emit_to_file (const emit_ctx_t *e)
 static void
 write_record (const emit_ctx_t *e, int repeating)
 {
-  char *json
-      = wfm_spec_to_json (e->segs, e->n_segs, repeating, e->endless,
-                          wfm_compose_seed_advance (e->comp), e->o->headroom);
+  char *json = dp_wfm_spec_to_json (e->segs, e->n_segs, repeating, e->endless,
+                                    dp_wfm_compose_seed_advance (e->comp),
+                                    e->o->headroom);
   if (!json)
     return;
   FILE *rf = fopen (e->o->record_path, "w");
@@ -1750,17 +1751,17 @@ check_continuous_dsss (const wfmgen_opts_t *o)
 /**
  * @brief Refuse a frame this waveform type cannot carry — with the reason.
  *
- * The rule itself is `wfm_source_frame_error()`, shared with the standalone
+ * The rule itself is `dp_wfm_source_frame_error()`, shared with the standalone
  * Synth and the composer so all three faces answer identically. What this adds
  * is the CLI's half of the contract: a named exit code and the reason on
  * stderr, rather than the generic build failure a NULL from
- * `wfm_compose_create()` produces. Both refuse; only one of them tells you
+ * `dp_wfm_compose_create()` produces. Both refuse; only one of them tells you
  * what to do instead.
  */
 static int
 check_frame (const wfmgen_opts_t *o)
 {
-  const char *why = wfm_source_frame_error (&o->src);
+  const char *why = dp_wfm_source_frame_error (&o->src);
   if (!why)
     return 0;
   (void)fprintf (stderr, "error: %s\n", why);
@@ -1776,7 +1777,7 @@ run_json_template (int argc, char *argv[])
 {
   const char *tpl_path
       = (argc >= 3 && strcmp (argv[2], "-") != 0) ? argv[2] : NULL;
-  char *json = wfm_spec_template_json ();
+  char *json = dp_wfm_spec_template_json ();
   if (!json)
     {
       (void)fprintf (stderr, "error: out of memory building the template\n");
@@ -1812,8 +1813,9 @@ run_json_template (int argc, char *argv[])
 int
 doppler_wfmgen (int argc, char *argv[])
 {
-  wfm_compose_state_t *comp = NULL; /* wfm_compose_destroy tolerates NULL */
-  int                  rc   = 0;
+  dp_wfm_compose_state_t *comp
+      = NULL; /* dp_wfm_compose_destroy tolerates NULL */
+  int rc = 0;
 
   /* FIRST, before parsing or opening anything. A signal arriving before this
    * is not ignored, it terminates the process -- and the window is real:
@@ -1897,7 +1899,7 @@ doppler_wfmgen (int argc, char *argv[])
          so it exits here rather than falling through to the generic line
          below — two messages for one fault reads as two faults. */
       const char *why = NULL;
-      comp            = wfm_compose_from_json_why (spec, &why);
+      comp            = dp_wfm_compose_from_json_why (spec, &why);
       if (!comp && why)
         {
           (void)fprintf (stderr, "error: %s\n", why);
@@ -1906,7 +1908,7 @@ doppler_wfmgen (int argc, char *argv[])
           goto done;
         }
       if (!o.headroom_set)
-        o.headroom = wfm_spec_headroom (spec);
+        o.headroom = dp_wfm_spec_headroom (spec);
       free (spec);
     }
   else
@@ -1917,8 +1919,8 @@ doppler_wfmgen (int argc, char *argv[])
       rc = check_frame (&o);
       if (rc)
         goto done;
-      comp = wfm_compose_create (&o.seg, 1, o.repeat, o.continuous);
-      wfm_compose_set_seed_advance (comp, o.seed_advance);
+      comp = dp_wfm_compose_create (&o.seg, 1, o.repeat, o.continuous);
+      dp_wfm_compose_set_seed_advance (comp, o.seed_advance);
     }
   if (!comp)
     {
@@ -1930,7 +1932,7 @@ doppler_wfmgen (int argc, char *argv[])
   /* Borrow the resolved segments (for --record / SigMF) + the capture fs. */
   size_t               n_segs = 0;
   int                  r = 0, c = 0;
-  const wfm_segment_t *segs = wfm_compose_segments (comp, &n_segs, &r, &c);
+  const wfm_segment_t *segs = dp_wfm_compose_segments (comp, &n_segs, &r, &c);
   double               fs   = n_segs ? segs[0].fs : o.seg.fs;
 
   /* Real-time pacing: throttle the emit loop to fs, mimicking a sample clock
@@ -1966,10 +1968,10 @@ doppler_wfmgen (int argc, char *argv[])
 
   /* The success path falls in here; every failure jumps to it. The composer
      deep-copied whatever it was handed, so the CLI-owned copies are always
-     ours to release, and wfm_compose_destroy tolerates the NULL `comp` an
+     ours to release, and dp_wfm_compose_destroy tolerates the NULL `comp` an
      exit taken before the composer was built leaves behind. */
 done:
-  wfm_compose_destroy (comp);
+  dp_wfm_compose_destroy (comp);
   source_free (&o.src);
   return rc;
 }

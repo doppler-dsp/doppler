@@ -9,7 +9,7 @@ advertise ``--continuous --realtime --output nats://…`` in their own
 The two halves fail differently, which is why both are asserted:
 
 - **file** — the BLUE header carries the final sample count and is written
-  by ``wfm_writer_close``. A killed process never reaches it, so the
+  by ``dp_wfm_writer_close``. A killed process never reaches it, so the
   capture is left with no valid header. That is worse than a short file:
   a short file reads, a headerless one does not.
 - **nats** — a send returns once the *client* has the block, not once the

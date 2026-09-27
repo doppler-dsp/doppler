@@ -444,7 +444,7 @@ subsystem) are all **feature** bumps. A bug-fix-only release off 0.8.0 would
 have been 0.8.1.
 
 A release can be a feature bump *and* carry breakage: the one that added
-`wfm.Reader.header` and `wfm_kw_check_standard()` also changed 38 C kernel
+`wfm.Reader.header` and `dp_wfm_kw_check_standard()` also changed 38 C kernel
 signatures. It took the FEATURE digit because it added functionality — the
 breakage went under `### Breaking` in the changelog and had no bearing on
 which digit moved.

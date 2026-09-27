@@ -16,7 +16,7 @@ throughout — never "the flag was accepted", always "the samples moved, and
 moved to the descriptor's own bits".
 
 The three interfaces are the point. They converge on one construction path
-(``wfm_compose_build_synth``), so a frame honoured on one and dropped on
+(``dp_wfm_compose_build_synth``), so a frame honoured on one and dropped on
 another is the failure this file exists to catch:
 
 - Python kwargs through ``Segment`` / ``Composer``;
@@ -162,7 +162,7 @@ def test_a_frame_the_type_cannot_carry_is_refused(wtype):
     These source their symbols from the PN LFSR, so there is no length to
     bound a payload. The composer used to accept them and drop the frame; a
     build-time failure would have become a silent gap, so the check runs in
-    ``wfm_compose_create`` before anything exists.
+    ``dp_wfm_compose_create`` before anything exists.
     """
     kw = _seg_kwargs(True, 256) | {"type": wtype}
     kw.pop("bits")

@@ -10,7 +10,7 @@
  *   - it OWNS its literal arrays, so a descriptor outlives the buffers it was
  *     built from (a Python array is released the moment the constructor
  *     returns; borrowing would read freed memory on the first bits() call);
- *   - it agrees with wfm_frame_bits() BIT FOR BIT, because the whole reason
+ *   - it agrees with dp_wfm_frame_bits() BIT FOR BIT, because the whole reason
  *     for it is that a receiver and a generator hold the same descriptor;
  *   - it REFUSES what cannot be materialised, at construction, rather than
  *     handing back an object that produces a frame with a hole in it;
@@ -83,23 +83,23 @@ main (void)
     w.payload.len   = 16;
     w.crc           = 1;
 
-    size_t nb = wfm_frame_nbits (&w);
+    size_t nb = dp_wfm_frame_nbits (&w);
     DP_REQUIRE_MSG (nb == 4 * 3 + 13 + 16 + 16, "12 + 13 + 16 + 16");
     DP_REQUIRE_MSG (f->nbits == nb, "the object reports the same length");
 
     uint8_t *want = malloc (nb);
     uint8_t *got  = malloc (nb);
     DP_REQUIRE_MSG (want && got, "alloc");
-    DP_REQUIRE_MSG (wfm_frame_bits (&w, want, nb) == nb, "reference bits");
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&w, want, nb) == nb, "reference bits");
     DP_REQUIRE_MSG (dp_frame_bits (f, 1, got, nb) == nb, "object bits");
     DP_REQUIRE_MSG (memcmp (want, got, nb) == 0,
-                    "the object's bits ARE wfm_frame_bits of the same "
+                    "the object's bits ARE dp_wfm_frame_bits of the same "
                     "descriptor");
 
     /* The layout is handed back, not recomputed. */
     wfm_frame_layout_t l = dp_frame_layout (f);
     wfm_frame_layout_t r;
-    wfm_frame_layout (&w, &r);
+    dp_wfm_frame_layout (&w, &r);
     DP_REQUIRE_MSG (memcmp (&l, &r, sizeof l) == 0,
                     "and so is the layout, field for field");
 
@@ -143,7 +143,7 @@ main (void)
 
     uint8_t *got = malloc (f->nbits);
     DP_REQUIRE_MSG (got, "alloc");
-    DP_REQUIRE_MSG (wfm_frame_bits (&f->f, got, f->nbits) == f->nbits,
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&f->f, got, f->nbits) == f->nbits,
                     "the descriptor still materialises on its own");
     DP_REQUIRE_MSG (memcmp (got, SYNC, 13) == 0,
                     "and its sync word outlived the buffer it came from");

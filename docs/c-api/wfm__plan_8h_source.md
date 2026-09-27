@@ -15,7 +15,7 @@
  *
  *     segment = Σ_k gain_k · signal_k  +  noise
  *
- * (wfm_resolve_noise() cleans every signal source and appends one
+ * (dp_wfm_resolve_noise() cleans every signal source and appends one
  * WFM_SYNTH_NOISE source at the shared floor, for a multi-source segment; a
  * lone source carrying its own real SNR keeps it — its AWGN is baked into
  * its own synth, "bundled"). The expensive DSP — LFSR spread, RRC
@@ -23,7 +23,7 @@
  * which are INVARIANT across a parameter sweep and across a segment's
  * `repeats` instances (only the AWGN, and any ranged gap length, vary per
  * instance). So a Plan renders each segment's signal ON-time ONCE (via the
- * composer's own wfm_compose_build_synth, so a cached render is
+ * composer's own dp_wfm_compose_build_synth, so a cached render is
  * byte-identical to a full compose), caches it, and then re-materializes
  * any variation as a cheap re-weighted sum per segment/instance plus a
  * regenerated noise synth spanning that instance's delay+on+off:
@@ -49,7 +49,7 @@
  * invalidate its cached render, defeating the "expensive DSP once"
  * guarantee this exists to provide.
  *
- * `wfm_plan_len()` is a WORST-CASE capacity (every ranged gap at its `hi`
+ * `dp_wfm_plan_len()` is a WORST-CASE capacity (every ranged gap at its `hi`
  * bound): `render()`/`at()` write up to that many samples but return the
  * ACTUAL length of that specific draw — trailing samples beyond the
  * return value are zero padding. A `seed` override drives both the noise
@@ -63,12 +63,12 @@
  *
  * `gains`/`phases`/`enable` override arrays are flat and segment-major
  * (segment 0's sources in scene order, then segment 1's, ...) — length
- * `wfm_plan_n_sources()`.
+ * `dp_wfm_plan_n_sources()`.
  *
  * The Plan is a re-creatable derived cache, not evolving state. The cheapest,
  * most portable persistence is therefore the spec JSON (Composer.to_json())
- * plus a rebuild — KB, and always tracks the current DSP. wfm_plan_save() /
- * wfm_plan_restore() are the OPTIONAL fast-path alternative: they serialize
+ * plus a rebuild — KB, and always tracks the current DSP. dp_wfm_plan_save() /
+ * dp_wfm_plan_restore() are the OPTIONAL fast-path alternative: they serialize
  * the cached sample buffers alongside the embedded spec so a restore SKIPS the
  * expensive DSP (build_synth) that dominates prepare(). This is a versioned
  * performance cache, NOT the dp_state.h elastic-state contract — it is gated
@@ -94,31 +94,31 @@ extern "C"
 
   typedef struct wfm_plan wfm_plan_t;
 
-  wfm_plan_t *wfm_plan_prepare (const char *spec_json);
+  wfm_plan_t *dp_wfm_plan_prepare (const char *spec_json);
 
-  size_t wfm_plan_len (const wfm_plan_t *p);
+  size_t dp_wfm_plan_len (const wfm_plan_t *p);
 
-  size_t wfm_plan_n_sources (const wfm_plan_t *p);
+  size_t dp_wfm_plan_n_sources (const wfm_plan_t *p);
 
-  uint64_t wfm_plan_anchor_seed (const wfm_plan_t *p);
+  uint64_t dp_wfm_plan_anchor_seed (const wfm_plan_t *p);
 
-  size_t wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
+  size_t dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
                           float _Complex *out);
 
-  size_t wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
+  size_t dp_wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
                       float _Complex *out);
 
-  size_t wfm_plan_save_bytes (const wfm_plan_t *p);
+  size_t dp_wfm_plan_save_bytes (const wfm_plan_t *p);
 
-  size_t wfm_plan_save (const wfm_plan_t *p, void *blob);
+  size_t dp_wfm_plan_save (const wfm_plan_t *p, void *blob);
 
-  wfm_plan_t *wfm_plan_restore (const void *blob, size_t n);
+  wfm_plan_t *dp_wfm_plan_restore (const void *blob, size_t n);
 
-  int wfm_plan_dump (const wfm_plan_t *p, const char *path);
+  int dp_wfm_plan_dump (const wfm_plan_t *p, const char *path);
 
-  wfm_plan_t *wfm_plan_load (const char *path);
+  wfm_plan_t *dp_wfm_plan_load (const char *path);
 
-  void wfm_plan_destroy (wfm_plan_t *p);
+  void dp_wfm_plan_destroy (wfm_plan_t *p);
 
 #ifdef __cplusplus
 }

@@ -48,7 +48,7 @@ test_exact_layout (void)
   double  fc = 1.2345e9;
 
   /* 8 header + 8 value + 3 tag = 19 -> padded to 24 */
-  size_t n = wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &fc, 1, 0);
+  size_t n = dp_wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &fc, 1, 0);
   DP_REQUIRE_MSG (n == 24, "lkey is padded to a multiple of 8");
   DP_REQUIRE_MSG (rd32 (buf + 0) == 24, "lkey field");
   DP_REQUIRE_MSG (rd16 (buf + 4) == 16, "lext = 8 header + 3 tag + 5 pad");
@@ -65,13 +65,13 @@ test_exact_layout (void)
                   "value length is lkey - lext");
 
   /* An entry that needs no padding: 8 + 8 value + 8 tag = 24 exactly. */
-  n = wfm_kw_encode (buf, sizeof buf, "TAGTAGTA", 'D', &fc, 1, 0);
+  n = dp_wfm_kw_encode (buf, sizeof buf, "TAGTAGTA", 'D', &fc, 1, 0);
   DP_REQUIRE_MSG (n == 24, "already a multiple of 8 -> no padding added");
   DP_REQUIRE_MSG (rd16 (buf + 4) == 16, "lext = 8 + 8 tag + 0 pad");
 
   /* 'A' in a keyword is a variable-length string, NOT the 8-char DATA form. */
   const char *s = "10 dB pad";
-  n = wfm_kw_encode (buf, sizeof buf, "COMMENT", 'A', s, strlen (s), 0);
+  n = dp_wfm_kw_encode (buf, sizeof buf, "COMMENT", 'A', s, strlen (s), 0);
   DP_REQUIRE_MSG (n == 24, "8 + 9 string + 7 tag = 24");
   DP_REQUIRE_MSG (buf[7] == 'A' && rd16 (buf + 4) == 15,
                   "A: lext = 8 + 7 tag + 0 pad");
@@ -102,12 +102,12 @@ test_roundtrip_types (void)
       for (size_t count = 1; count <= 5; count++)
         {
           size_t vb = count * T[t].esz;
-          size_t n  = wfm_kw_encode (buf, sizeof buf, "TAG", T[t].type, src,
-                                     count, be);
+          size_t n  = dp_wfm_kw_encode (buf, sizeof buf, "TAG", T[t].type, src,
+                                        count, be);
           DP_REQUIRE_MSG (n > 0 && n % 8 == 0, "encoded, 8-aligned");
           wfm_keyword_t kw;
           size_t        used = 0;
-          DP_REQUIRE_MSG (wfm_kw_decode (buf, n, be, &kw, &used) == 0,
+          DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, be, &kw, &used) == 0,
                           "decodes");
           DP_REQUIRE_MSG (used == n, "consumed the whole entry");
           DP_REQUIRE_MSG (kw.type == T[t].type, "type survives");
@@ -128,8 +128,8 @@ test_endianness_is_real (void)
 {
   uint8_t le[32], be[32];
   int32_t v = 0x01020304;
-  size_t  a = wfm_kw_encode (le, sizeof le, "N", 'L', &v, 1, 0);
-  size_t  b = wfm_kw_encode (be, sizeof be, "N", 'L', &v, 1, 1);
+  size_t  a = dp_wfm_kw_encode (le, sizeof le, "N", 'L', &v, 1, 0);
+  size_t  b = dp_wfm_kw_encode (be, sizeof be, "N", 'L', &v, 1, 1);
   DP_REQUIRE_MSG (a == b && a > 0, "same length either way");
   DP_REQUIRE_MSG (memcmp (le, be, a) != 0, "the encodings actually differ");
   DP_REQUIRE_MSG (le[8] == 0x04 && be[8] == 0x01, "value bytes are reversed");
@@ -138,13 +138,13 @@ test_endianness_is_real (void)
 
   /* an array in BE: each element reversed independently, order preserved */
   int16_t arr[3] = { 0x0102, 0x0304, 0x0506 };
-  size_t  n      = wfm_kw_encode (be, sizeof be, "A", 'I', arr, 3, 1);
+  size_t  n      = dp_wfm_kw_encode (be, sizeof be, "A", 'I', arr, 3, 1);
   DP_REQUIRE_MSG (be[8] == 0x01 && be[9] == 0x02, "elem 0 reversed in place");
   DP_REQUIRE_MSG (be[10] == 0x03 && be[12] == 0x05,
                   "element ORDER is preserved");
   wfm_keyword_t kw;
   size_t        used;
-  DP_REQUIRE_MSG (wfm_kw_decode (be, n, 1, &kw, &used) == 0,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (be, n, 1, &kw, &used) == 0,
                   "BE array decodes");
   DP_REQUIRE_MSG (memcmp (kw.value, arr, sizeof arr) == 0,
                   "array survives BE");
@@ -164,14 +164,14 @@ test_unknown_type_is_skipped (void)
   size_t        used;
 
   int32_t v = 42;
-  size_t  n = wfm_kw_encode (buf, sizeof buf, "N", 'L', &v, 1, 0);
+  size_t  n = dp_wfm_kw_encode (buf, sizeof buf, "N", 'L', &v, 1, 0);
   /* forge the type into codes that are illegal or reserved in keywords */
   static const char BAD[] = { 'O', 'P', 'N', 'S', 'Z', '?' };
   for (size_t i = 0; i < sizeof BAD; i++)
     {
       buf[7] = (uint8_t)BAD[i];
       used   = 0;
-      DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == 1,
+      DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == 1,
                       "reports skip");
       DP_REQUIRE_MSG (used == n,
                       "still consumes the full entry so the walk continues");
@@ -179,7 +179,7 @@ test_unknown_type_is_skipped (void)
 
   /* 'T' is the deprecated pre-4.9.0 spelling of a 32-bit integer: decodable */
   buf[7] = 'T';
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == 0, "T decodes");
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == 0, "T decodes");
   DP_REQUIRE_MSG (kw.elem_size == 4 && kw.count == 1, "T is a 32-bit integer");
   free (kw.value);
   return 0;
@@ -195,44 +195,44 @@ test_malformed_is_rejected (void)
   wfm_keyword_t kw;
   size_t        used;
   double        d = 1.0;
-  size_t        n = wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
+  size_t        n = dp_wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
 
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, 7, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, 7, 0, &kw, &used) == -1,
                   "short of a header");
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n - 1, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n - 1, 0, &kw, &used) == -1,
                   "entry overruns the region");
 
   int32_t z = 0;
   memcpy (buf, &z, 4); /* lkey = 0 would spin a walk forever */
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
                   "lkey = 0 rejected");
   z = -8;
   memcpy (buf, &z, 4);
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
                   "negative lkey");
 
-  n           = wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
+  n           = dp_wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
   int16_t bad = 4; /* lext < 8: smaller than the header itself */
   memcpy (buf + 4, &bad, 2);
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
                   "lext < 8 rejected");
 
-  n   = wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
+  n   = dp_wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
   bad = 32; /* lext > lkey: value length would go negative */
   memcpy (buf + 4, &bad, 2);
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
                   "lext > lkey rejected");
 
-  n      = wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
+  n      = dp_wfm_kw_encode (buf, sizeof buf, "F_C", 'D', &d, 1, 0);
   buf[6] = 200; /* ltag that cannot fit alongside the value */
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == -1,
                   "oversized ltag");
 
   /* a value length that is not a whole number of elements is undecodable but
      structurally sound -> skip, not a hard error */
-  n      = wfm_kw_encode (buf, sizeof buf, "F_C", 'B', "abc", 3, 0);
+  n      = dp_wfm_kw_encode (buf, sizeof buf, "F_C", 'B', "abc", 3, 0);
   buf[7] = 'D'; /* claim 8-byte elements over a 3-byte value */
-  DP_REQUIRE_MSG (wfm_kw_decode (buf, n, 0, &kw, &used) == 1,
+  DP_REQUIRE_MSG (dp_wfm_kw_decode (buf, n, 0, &kw, &used) == 1,
                   "ragged value is skipped");
   return 0;
 }
@@ -242,13 +242,13 @@ test_encode_guards (void)
 {
   uint8_t buf[64];
   double  d = 1.0;
-  DP_REQUIRE_MSG (wfm_kw_encode (buf, sizeof buf, "", 'D', &d, 1, 0) == 0,
+  DP_REQUIRE_MSG (dp_wfm_kw_encode (buf, sizeof buf, "", 'D', &d, 1, 0) == 0,
                   "empty tag refused");
-  DP_REQUIRE_MSG (wfm_kw_encode (buf, sizeof buf, "T", 'O', &d, 1, 0) == 0,
+  DP_REQUIRE_MSG (dp_wfm_kw_encode (buf, sizeof buf, "T", 'O', &d, 1, 0) == 0,
                   "offset-byte type refused (illegal in keywords)");
-  DP_REQUIRE_MSG (wfm_kw_encode (buf, sizeof buf, "T", 'D', &d, 0, 0) == 0,
+  DP_REQUIRE_MSG (dp_wfm_kw_encode (buf, sizeof buf, "T", 'D', &d, 0, 0) == 0,
                   "zero count refused");
-  DP_REQUIRE_MSG (wfm_kw_encode (buf, 16, "T", 'D', &d, 4, 0) == 0,
+  DP_REQUIRE_MSG (dp_wfm_kw_encode (buf, 16, "T", 'D', &d, 4, 0) == 0,
                   "too small a buffer refused, nothing written");
   return 0;
 }
@@ -261,47 +261,55 @@ test_standard_keyword_conformance (void)
 {
   /* ACQDATE: YY.DDD, or YYYYMMDD as the Platinum-era alternate 3.4.2.1
      explicitly permits. */
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQDATE", 'A', "13.322", 6) == 1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQDATE", 'A', "13.322", 6) == 1,
                   "YY.DDD");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQDATE", 'A', "20131118", 8) == 1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQDATE", 'A', "20131118", 8)
+                      == 1,
                   "YYYYMMDD alternate");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQDATE", 'A', "13/322", 6) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQDATE", 'A', "13/322", 6) == -1,
                   "wrong separator");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQDATE", 'A', "13.32", 5) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQDATE", 'A', "13.32", 5) == -1,
                   "wrong width");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQDATE", 'D', "13.322", 6) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQDATE", 'D', "13.322", 6) == -1,
                   "wrong type");
 
   /* ACQTIME: exactly HH:MM:SS, leading zeros required. */
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQTIME", 'A', "12:34:56", 8) == 1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQTIME", 'A', "12:34:56", 8)
+                      == 1,
                   "HH:MM:SS");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQTIME", 'A', "1:34:56", 7) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQTIME", 'A', "1:34:56", 7)
+                      == -1,
                   "leading zero required");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("ACQTIME", 'A', "12-34-56", 8) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("ACQTIME", 'A', "12-34-56", 8)
+                      == -1,
                   "wrong separator");
 
   /* Free-form, but text. */
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("COMMENT", 'A', "anything", 8) == 1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("COMMENT", 'A', "anything", 8)
+                      == 1,
                   "COMMENT is free-form");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("COMMENT", 'L', "\0\0\0\0", 1) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("COMMENT", 'L', "\0\0\0\0", 1)
+                      == -1,
                   "COMMENT must be text");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("TIMELINE", 'A', "x", 1) == 1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("TIMELINE", 'A', "x", 1) == 1,
                   "TIMELINE");
 
   /* Structures a type-1000 file does not have. */
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("SUBREC_DEF", 'A', "x", 1) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("SUBREC_DEF", 'A', "x", 1) == -1,
                   "type 6000 only");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("SUBREC_DESCRIP", 'A', "x", 1) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("SUBREC_DESCRIP", 'A', "x", 1)
+                      == -1,
                   "type 6000 only");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("T4INDEX", 'L', "\0\0\0\0", 1) == -1,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("T4INDEX", 'L', "\0\0\0\0", 1)
+                      == -1,
                   "type 4000 only");
 
   /* A user keyword is nobody's business but the caller's. */
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("MY_TAG", 'A', "whatever", 8) == 0,
+  DP_REQUIRE_MSG (dp_wfm_kw_check_standard ("MY_TAG", 'A', "whatever", 8) == 0,
                   "user tag unpoliced");
-  DP_REQUIRE_MSG (wfm_kw_check_standard ("SRATE", 'D', "\0\0\0\0\0\0\0\0", 1)
-                      == 0,
-                  "user numeric unpoliced");
+  DP_REQUIRE_MSG (
+      dp_wfm_kw_check_standard ("SRATE", 'D', "\0\0\0\0\0\0\0\0", 1) == 0,
+      "user numeric unpoliced");
   return 0;
 }
 

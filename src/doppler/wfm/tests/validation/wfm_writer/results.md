@@ -160,9 +160,9 @@ The sample rate comes back with it: the sidecar records `core:sample_rate` = 100
 
 ### 2.6 What the Python face does not reach
 
-- `wfm_writer_open` -- the `FILE*`-taking constructor. Python gets `dp_wfm_writer_create`, which owns the file; a caller who already has a stream is a C caller.
-- `wfm_writer_set_gain` -- reachable, but only as the `headroom` dB argument at construction (§2.4), never as a linear gain and never mid-capture.
-- `wfm_writer_peak` -- the linear peak. Python exposes `peak_dbfs` and `clipped`, both derived from it; the raw magnitude is C-only.
+- `dp_wfm_writer_open` -- the `FILE*`-taking constructor. Python gets `dp_wfm_writer_create`, which owns the file; a caller who already has a stream is a C caller.
+- `dp_wfm_writer_set_gain` -- reachable, but only as the `headroom` dB argument at construction (§2.4), never as a linear gain and never mid-capture.
+- `dp_wfm_writer_peak` -- the linear peak. Python exposes `peak_dbfs` and `clipped`, both derived from it; the raw magnitude is C-only.
 - `dp_wfm_writer_destroy` -- the same function as `close()` under the binding's name, so Python reaches the behaviour through `close()` and the C test covers the identity.
 
 Each is certified in C instead -- none is a gap in the binding.
@@ -175,7 +175,7 @@ Each is certified in C instead -- none is a gap in the binding.
 
 - **F3 · BY DESIGN** — **A float capture reports a peak here and does not through `StreamSink`, and the sink says it mirrors this object.** `wfm_writer`'s header: floats "never clip but still report a peak", and they do (§2.3). `wfm_sink.h`'s clip block opens "mirroring wfm_writer" and then excludes the float paths entirely -- "the cf32 path is left untouched ... it never clips and is the streaming hot path" -- so a caller who moves a pipeline from a file capture to a stream loses the peak reading with nothing to say so. Both behaviours are deliberate and both are documented; what is wrong is the word "mirroring", which promises a parity that does not exist. Recorded rather than changed: the streaming hot path has a real reason to skip the compare.
 
-- **F4 · C-ONLY** — **Four header entry points are not on the Python face** (§2.6), and one of them is worth naming: `wfm_writer_set_gain` is reachable only as the `headroom` argument at construction, in dB. A caller cannot change the gain mid-capture from Python, which is the right default -- a level that moves partway through a file is a file whose samples mean two different things -- but it means the linear-gain path is exercised in C alone.
+- **F4 · C-ONLY** — **Four header entry points are not on the Python face** (§2.6), and one of them is worth naming: `dp_wfm_writer_set_gain` is reachable only as the `headroom` argument at construction, in dB. A caller cannot change the gain mid-capture from Python, which is the right default -- a level that moves partway through a file is a file whose samples mean two different things -- but it means the linear-gain path is exercised in C alone.
 
 - **F5 · FIXED** — **The writer recorded the sample type in a sidecar the reader did not read** (gh-1120, fixed). Every raw capture gets a `<path>.sigmf-meta` beside it carrying `core:datatype` and `core:sample_rate` -- the writer's own comment says the sidecar exists because raw and CSV otherwise "hand back a file nobody could interpret" -- and `Reader`, opening the same path, did not look. It reported `cf32`, `fs = 0.0` against the 1000000 recorded beside it, half the samples and garbage values, with nothing raised. `Reader` now consults that sidecar for a headerless capture when the caller names no type, and §2.5 measures all 9 cases coming back as written, with `fs = 1000000`. A named `sample_type=` still wins, so a stale sidecar can be overridden. What does NOT change is `trailing_bytes`: it stays silent in 9 of 9 cases and can never fire for ci32 read as cf32, so it was never capable of being the safeguard the docstring offered -- that claim is gone from the header too.
 

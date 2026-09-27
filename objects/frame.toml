@@ -1,7 +1,7 @@
 # frame — a frame's bit layout, describable from Python.
 #
 # The RECEIVE half of the frame story. `wfm_frame_t` (native/inc/doppler/wfm/wfm_frame.h)
-# is what the generator builds a frame from and what `wfm_frame_crc_ok()` scores
+# is what the generator builds a frame from and what `dp_wfm_frame_crc_ok()` scores
 # one against; until now only C could hold one, so `doppler.ber.FrameMeter` --
 # which exists precisely to turn CRC outcomes into an exact FER interval -- had
 # no way to be fed from Python. This object closes that: describe the frame,
@@ -32,7 +32,7 @@ no_reset = "true"
 class_name = "Frame"
 create_error = "ValueError"
 create_error_message = "frame geometry is empty or a field is unbuildable (a literal with no array, or a generated field with no register width)"
-# wfm_frame_core holds wfm_frame_bits/_layout/_crc_ok; pn/gold back the
+# wfm_frame_core holds dp_wfm_frame_bits/_layout/_crc_ok; pn/gold back the
 # generated sequence kinds it calls into.
 # ccsds_tm: `build()` runs the coded stages a description may name, and
 # ccsds_tm has no binding of its own -- so this object is where a Python

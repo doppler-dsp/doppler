@@ -97,7 +97,7 @@ run_once (int rounds, int w_blocks, int r_reads, long gap_ms,
   if (!fp)
     return out;
   dp_wfm_writer_state_t *w
-      = wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
+      = dp_wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
   if (!w)
     {
       fclose (fp);
@@ -108,7 +108,7 @@ run_once (int rounds, int w_blocks, int r_reads, long gap_ms,
   dp_wfm_reader_state_t *r = dp_wfm_reader_create (PATH, STYPE, 0);
   if (!r)
     {
-      wfm_writer_close (w);
+      dp_wfm_writer_close (w);
       fclose (fp);
       return out;
     }
@@ -144,7 +144,7 @@ run_once (int rounds, int w_blocks, int r_reads, long gap_ms,
   out.elapsed_s   = now_s () - t0;
 
   dp_wfm_reader_destroy (r);
-  wfm_writer_close (w);
+  dp_wfm_writer_close (w);
   fclose (fp);
   remove (PATH);
   return out;

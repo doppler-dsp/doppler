@@ -11,9 +11,9 @@
  * Every entry below is the SAME struct with different `wfm_seq_t` values.
  * There is no per-name code path, no switch in the builder that changes what
  * a field means, and no second layout — five rows of a table, materialised by
- * the one `wfm_frame_bits()`. Sync and payload draw from the same generators
- * independently, so a Gold sync with a PN payload is a configuration this set
- * simply does not happen to name.
+ * the one `dp_wfm_frame_bits()`. Sync and payload draw from the same
+ * generators independently, so a Gold sync with a PN payload is a
+ * configuration this set simply does not happen to name.
  *
  * | name             | preamble       | sync        | payload    | crc | bits
  * | | ---------------- | -------------- | ----------- | ---------- | --- |
@@ -150,8 +150,8 @@ dp_frame_label (dp_frame_name_t name)
  * @brief The named frame @p name, by value.
  *
  * Returns a frame with `preamble.len == 0` for a name outside the set, which
- * `wfm_frame_nbits()` reports as 0 bits — a caller that fails to check gets an
- * empty frame it cannot transmit, not a plausible one it can.
+ * `dp_wfm_frame_nbits()` reports as 0 bits — a caller that fails to check gets
+ * an empty frame it cannot transmit, not a plausible one it can.
  */
 static inline wfm_frame_t
 dp_frame_named (dp_frame_name_t name)

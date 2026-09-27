@@ -134,7 +134,7 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
      doppler.interrupt is the same object this module reads. Before that fix
      it would have been a different variable and this line would have looked
      like it worked. */
-  wfm_reader_set_stop_fn (self->handle, dp_interrupted);
+  dp_wfm_reader_set_stop_fn (self->handle, dp_interrupted);
   return 0;
 }
 
@@ -837,24 +837,24 @@ Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = wfm_reader_num_keywords (self->handle);
+  size_t    _n = dp_wfm_reader_num_keywords (self->handle);
   PyObject *_c = PyDict_New ();
   if (!_c)
     return NULL;
   for (size_t _i = 0; _i < _n; _i++)
     {
-      const char *_k = wfm_reader_keyword_tag (self->handle, _i);
+      const char *_k = dp_wfm_reader_keyword_tag (self->handle, _i);
       if (!_k)
         {
           PyErr_Format (
               PyExc_RuntimeError,
-              "keywords: wfm_reader_keyword_tag returned NULL at index %zu",
+              "keywords: dp_wfm_reader_keyword_tag returned NULL at index %zu",
               _i);
           Py_DECREF (_c);
           return NULL;
         }
       PyObject *_v
-          = Reader_decode_keywords (wfm_reader_keyword (self->handle, _i));
+          = Reader_decode_keywords (dp_wfm_reader_keyword (self->handle, _i));
       if (!_v)
         {
           Py_DECREF (_c);
@@ -1007,23 +1007,24 @@ Reader_getprop_header (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = wfm_reader_num_header_fields (self->handle);
+  size_t    _n = dp_wfm_reader_num_header_fields (self->handle);
   PyObject *_c = PyDict_New ();
   if (!_c)
     return NULL;
   for (size_t _i = 0; _i < _n; _i++)
     {
-      const char *_k = wfm_reader_header_tag (self->handle, _i);
+      const char *_k = dp_wfm_reader_header_tag (self->handle, _i);
       if (!_k)
         {
           PyErr_Format (
               PyExc_RuntimeError,
-              "header: wfm_reader_header_tag returned NULL at index %zu", _i);
+              "header: dp_wfm_reader_header_tag returned NULL at index %zu",
+              _i);
           Py_DECREF (_c);
           return NULL;
         }
-      PyObject *_v
-          = Reader_decode_header (wfm_reader_header_field (self->handle, _i));
+      PyObject *_v = Reader_decode_header (
+          dp_wfm_reader_header_field (self->handle, _i));
       if (!_v)
         {
           Py_DECREF (_c);

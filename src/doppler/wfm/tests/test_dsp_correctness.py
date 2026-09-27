@@ -334,7 +334,7 @@ class TestRRC:
         upsample+FIR pulse shaper to float precision.
 
         This is the crux PR1's TX pulse-shaping optimisation rests on: the C
-        `wfm_rrc_polyphase_bank` deals the sqrt(sps)-scaled `rrc_taps`
+        `dp_wfm_rrc_polyphase_bank` deals the sqrt(sps)-scaled `rrc_taps`
         prototype into `bank[p, t] = proto[t*sps + p]`, and running that bank
         as an interpolate-by-`sps` Resampler computes the identical
         convolution the dense FIR does — from only the nonzero contributions.
@@ -349,7 +349,8 @@ class TestRRC:
         proto_len = 2 * span * sps + 1
         ntaps = 2 * span + 1
 
-        # Polyphase decomposition — the numpy twin of wfm_rrc_polyphase_bank.
+        # Polyphase decomposition — the numpy twin of
+        # dp_wfm_rrc_polyphase_bank.
         bank = np.zeros((sps, ntaps), dtype=np.float32)
         for p in range(sps):
             for t in range(ntaps):

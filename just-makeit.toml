@@ -242,7 +242,7 @@ package = "wfm"
 
 # ── wfm_plan: "prepare once, materialize many" stimulus engine ───────────────
 # Constructed from a spec-JSON string (Composer.to_json()); render/at return a
-# cf32 array sized from the handle (wfm_plan_len) — the jm 0.25.0 string-arg +
+# cf32 array sized from the handle (dp_wfm_plan_len) — the jm 0.25.0 string-arg +
 # out_len_fn handle features. The core (wfm_plan.c) is compiled into
 # wfm_compose_core, so the .so links the SAME cores as the composer module.
 [module.wfm_plan]
@@ -252,8 +252,8 @@ header          = "doppler/wfm/wfm_plan.h"
 package         = "wfm"
 type_name       = "Plan"
 context_manager = true
-close_fn        = "wfm_plan_destroy"
-create_fn       = "wfm_plan_prepare"
+close_fn        = "dp_wfm_plan_destroy"
+create_fn       = "dp_wfm_plan_prepare"
 extra_link_libs = ["wfm_draw_core", "wfm_cjson_core"]
 
 # The Plan cache renders through the composer's wfm_render_* path, which
@@ -274,7 +274,7 @@ name = "wfm_frame"
 link = true
 
 # ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
-# framed source through wfm_frame_assemble, and the coding stages a source may
+# framed source through dp_wfm_frame_assemble, and the coding stages a source may
 # select are CCSDS's picks. wfm_frame.c cannot call them -- ccsds_tm depends
 # on it -- so they arrive as a kernel table and every consumer must carry the
 # objects.
@@ -319,9 +319,9 @@ type = "string"
 # the composer/json/resolve; the rest are the synth engine it reuses.
 [[module.wfm_plan.methods]]
 name = "render"
-fn = "wfm_plan_render"
+fn = "dp_wfm_plan_render"
 returns = "float _Complex[]"
-out_len_fn = "wfm_plan_len"
+out_len_fn = "dp_wfm_plan_len"
 nogil = true
 [[module.wfm_plan.methods.args]]
 name = "overrides_json"
@@ -330,9 +330,9 @@ type = "string"
 # Scalar fast-path for the hot SNR/Monte-Carlo loop (no JSON parse).
 [[module.wfm_plan.methods]]
 name = "at"
-fn = "wfm_plan_at"
+fn = "dp_wfm_plan_at"
 returns = "float _Complex[]"
-out_len_fn = "wfm_plan_len"
+out_len_fn = "dp_wfm_plan_len"
 nogil = true
 [[module.wfm_plan.methods.args]]
 name = "snr"
@@ -345,15 +345,15 @@ type = "uint64_t"
 # for render()'s default seed and n_sources to size override arrays.
 [[module.wfm_plan.methods]]
 name = "length"
-fn = "wfm_plan_len"
+fn = "dp_wfm_plan_len"
 returns = "size_t"
 [[module.wfm_plan.methods]]
 name = "n_sources"
-fn = "wfm_plan_n_sources"
+fn = "dp_wfm_plan_n_sources"
 returns = "size_t"
 [[module.wfm_plan.methods]]
 name = "anchor_seed"
-fn = "wfm_plan_anchor_seed"
+fn = "dp_wfm_plan_anchor_seed"
 returns = "uint64_t"
 
 # Zero-binding save/restore (jm gh-565): a prepared Plan persists to bytes/file
@@ -361,14 +361,14 @@ returns = "uint64_t"
 # save() -> bytes: out_len_fn sizes the blob, fn fills a temp buffer.
 [[module.wfm_plan.methods]]
 name = "save"
-fn = "wfm_plan_save"
-out_len_fn = "wfm_plan_save_bytes"
+fn = "dp_wfm_plan_save"
+out_len_fn = "dp_wfm_plan_save_bytes"
 returns = "bytes"
 # dump(path) -> None: path arg (os.fspath -> const char*), int return raises
 # OSError on a non-zero result (a failed write) -- keeps file I/O in C.
 [[module.wfm_plan.methods]]
 name = "dump"
-fn = "wfm_plan_dump"
+fn = "dp_wfm_plan_dump"
 returns = "int"
 error = "OSError"
 [[module.wfm_plan.methods.args]]
@@ -379,11 +379,11 @@ type = "path"
 # file. A mismatched DSP fingerprint transparently rebuilds (never wrong).
 [[module.wfm_plan.factories]]
 name = "PlanFromBlob"
-create_fn = "wfm_plan_restore"
+create_fn = "dp_wfm_plan_restore"
 init_params = [{ name = "blob", type = "bytes" }]
 [[module.wfm_plan.factories]]
 name = "PlanFromFile"
-create_fn = "wfm_plan_load"
+create_fn = "dp_wfm_plan_load"
 init_params = [{ name = "path", type = "path" }]
 
 [module.sample_clock]
@@ -526,7 +526,7 @@ type = "path"
 # fs is second, mirroring Writer(path, fs, ...) — one rule across every entry
 # point that writes a rate. jm generates this function's call positionally, so
 # the position also fixes the injected prototype and the hand-written shim in
-# write_blue_header.c; the FILE-based kernel (wfm_blue_write_hcb) is untouched,
+# write_blue_header.c; the FILE-based kernel (dp_wfm_blue_write_hcb) is untouched,
 # and the shim has no other caller.
 #
 # What makes it mandatory is having NO `default`, and nothing else. A module
@@ -584,8 +584,8 @@ header          = "doppler/wfm/wfm_sink.h"
 package         = "wfm"
 type_name       = "StreamSink"
 context_manager = true
-close_fn        = "wfm_stream_sink_close"
-create_fn       = "wfm_stream_sink_open"
+close_fn        = "dp_wfm_stream_sink_close"
+create_fn       = "dp_wfm_stream_sink_open"
 # dp_tlm_core: stream_core_obj's tlm_sink.c references dp_tlm_read.
 # dp_interrupt_obj: stream_core.c's deprecated dp_stream_interrupt* forward
 # to the core primitive, and this extension embeds stream objects rather
@@ -614,7 +614,7 @@ default = "cf32"
 kwonly = true
 [[module.wfm_sink.methods]]
 name = "send"
-fn = "wfm_stream_sink_send"
+fn = "dp_wfm_stream_sink_send"
 returns = "int"
 nogil = true
 
@@ -632,7 +632,7 @@ type = "double"
 
 [[module.wfm_sink.methods]]
 name = "send_eos"
-fn = "wfm_stream_sink_send_eos"
+fn = "dp_wfm_stream_sink_send_eos"
 # `returns` is the C signature; `error = "OSError"` makes the binding RAISE
 # rather than hand the status back, so the stub is `-> None`. It read `-> int`
 # until the 0.67.1 pin: jm honoured `error` in the annotation only on the
@@ -644,7 +644,7 @@ error = "OSError"
 
 [[module.wfm_sink.methods]]
 name = "drain"
-fn = "wfm_stream_sink_drain"
+fn = "dp_wfm_stream_sink_drain"
 # returns="int", NOT status_return: on a HANDLE method jm rejects
 # status_return outright ("error requires an `int` status return"). The
 # object-method form in objects/dp_tlm_capture.toml is the other spelling.
@@ -661,7 +661,7 @@ default = "0"
 
 [[module.wfm_sink.methods]]
 name = "track_clipping"
-fn = "wfm_stream_sink_track_clipping"
+fn = "dp_wfm_stream_sink_track_clipping"
 
 [[module.wfm_sink.methods.args]]
 name = "on"
@@ -670,7 +670,7 @@ default = "1"
 [[module.wfm_sink.getters]]
 [[module.wfm_sink.getters.fields]]
 name = "clip_fraction"
-getter = "wfm_stream_sink_clip_fraction"
+getter = "dp_wfm_stream_sink_clip_fraction"
 type = "double"
 
 # `returns` types the `tmp` the `expr` below operates on, and jm REFUSES an
@@ -678,14 +678,14 @@ type = "double"
 # truncates the getter's value before the expr runs, silently).
 [[module.wfm_sink.getters.fields]]
 name = "peak_dbfs"
-getter = "wfm_stream_sink_peak"
+getter = "dp_wfm_stream_sink_peak"
 type = "double"
 returns = "double"
 expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
 
 [[module.wfm_sink.getters.fields]]
 name = "clipped"
-getter = "wfm_stream_sink_peak"
+getter = "dp_wfm_stream_sink_peak"
 type = "bool"
 returns = "double"
 expr = "tmp > 1.0 && self->sample_type >= 2"
@@ -1041,7 +1041,7 @@ name = "sf"
 type = "int"
 [module.wfm_compose]
 kind         = "composer"
-backing      = "wfm_compose"
+backing      = "dp_wfm_compose"
 capsule_name = "doppler.wfm.compose_state"
 package      = "wfm"
 header       = "doppler/wfm/wfm_compose.h"
@@ -1083,7 +1083,7 @@ name = "wfm_frame"
 link = true
 
 # ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
-# framed source through wfm_frame_assemble, and the coding stages a source may
+# framed source through dp_wfm_frame_assemble, and the coding stages a source may
 # select are CCSDS's picks. wfm_frame.c cannot call them -- ccsds_tm depends
 # on it -- so they arrive as a kernel table and every consumer must carry the
 # objects.
@@ -1461,32 +1461,32 @@ header = "doppler/timing/timing_core.h"
 
 [module.wfm_compose.json]
 enabled = true
-to_json_fn = "wfm_spec_to_json"
+to_json_fn = "dp_wfm_spec_to_json"
 # The trailing literals are spliced after (segs, n, repeat, continuous), so the
 # order here IS the C signature's. `self->state` is in scope in jm's generated
 # to_json, which is what lets the composer stay the SSOT for seed_advance --
 # without it the Python face emitted a spec that replayed a different waveform
 # (doppler#978). headroom is a writer gain, not composer state, so it is still
 # the literal 0.0: a Python Composer has none.
-to_json_trailing = ["wfm_compose_seed_advance (self->state)", "0.0"]
+to_json_trailing = ["dp_wfm_compose_seed_advance (self->state)", "0.0"]
 
 # The drawn per-instance values, as JSON. Declared as a serializer because
 # that is jm's shape for "call a C function with this composer's segments and
 # hand back a string" -- the same mechanism to_sigmf uses, so the two read the
-# same rows through wfm_compose_draws() and cannot disagree (doppler#1112).
+# same rows through dp_wfm_compose_draws() and cannot disagree (doppler#1112).
 [[module.wfm_compose.serializers]]
 # Private on purpose: the public way to read a scene's draws is
 # doppler.wfm.draws(), which parses these rows into records. Naming it with a
 # leading underscore keeps one public surface rather than two, and keeps a
 # method jm cannot yet give a docstring out of the public API meter.
 name = "_draws_json"
-fn = "wfm_draws_json"
+fn = "dp_wfm_draws_json"
 returns = "str"
 header = "doppler/wfm/wfm_compose.h"
 
 [[module.wfm_compose.serializers]]
 name = "to_sigmf"
-fn = "wfm_sigmf_meta_json"
+fn = "dp_wfm_sigmf_meta_json"
 returns = "str"
 header = "doppler/wfm_writer/wfm_writer_core.h"
 
@@ -1505,7 +1505,7 @@ default = "le"
 # Left OPTIONAL where Writer and write_blue_header require it, because this
 # is the one caller that does not need to be asked: a Composer already HOLDS
 # a rate per segment, and this very document uses it — the annotation edges
-# are ±fs/(2*sps) from `s->fs`. So `wfm_sigmf_meta_json` now DERIVES an
+# are ±fs/(2*sps) from `s->fs`. So `dp_wfm_sigmf_meta_json` now DERIVES an
 # unstated rate from the segments (when they agree), and requiring the
 # argument would only make the caller restate what the scene already knows,
 # while still permitting a stated rate that contradicts the edges beside it.

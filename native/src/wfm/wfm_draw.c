@@ -3,7 +3,7 @@
  *
  * The draw never consumes RNG state: it hashes (seed, epoch, instance,
  * segment, source, field) afresh each time (splitmix64), so a ranged scene
- * replays byte-for-byte from --from-file and wfm_compose_spans() can report
+ * replays byte-for-byte from --from-file and dp_wfm_compose_spans() can report
  * the exact rendered instance timeline without rendering anything.
  */
 #include "wfm_draw.h"
@@ -22,8 +22,8 @@ draw_u01 (uint64_t key)
 }
 
 double
-wfm_draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
-                size_t src, unsigned field, double lo, double hi)
+dp_wfm_draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
+                   size_t src, unsigned field, double lo, double hi)
 {
   uint64_t key = (uint64_t)seed * 0xD1B54A32D192ED03ull
                  ^ ((uint64_t)epoch << 32) ^ ((uint64_t)inst << 48)
@@ -36,14 +36,14 @@ size_t
 dp__wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
                       unsigned field, size_t lo, size_t hi)
 {
-  double v = wfm_draw_range (seed, epoch, inst, seg, 0, field, (double)lo,
-                             (double)hi);
+  double v = dp_wfm_draw_range (seed, epoch, inst, seg, 0, field, (double)lo,
+                                (double)hi);
   return (size_t)(v + 0.5);
 }
 
 void
-wfm_draw_segment (const wfm_segment_t *g, unsigned epoch, size_t inst,
-                  size_t seg, wfm_seg_draw_t *out)
+dp_wfm_draw_segment (const wfm_segment_t *g, unsigned epoch, size_t inst,
+                     size_t seg, wfm_seg_draw_t *out)
 {
   /* The timing draws key off the FIRST source's seed, so every source of an
      instance shares one timeline -- they are one emission, not several. */
@@ -66,42 +66,43 @@ wfm_draw_segment (const wfm_segment_t *g, unsigned epoch, size_t inst,
 }
 
 void
-wfm_draw_source (const wfm_source_t *src, unsigned epoch, size_t inst,
-                 size_t seg, size_t k, wfm_src_draw_t *out)
+dp_wfm_draw_source (const wfm_source_t *src, unsigned epoch, size_t inst,
+                    size_t seg, size_t k, wfm_src_draw_t *out)
 {
   out->freq = (src->ranged & WFM_RANGE_FREQ)
-                  ? wfm_draw_range (src->seed, epoch, inst, seg, k,
-                                    WFM_RANGE_FREQ, src->freq, src->freq_hi)
+                  ? dp_wfm_draw_range (src->seed, epoch, inst, seg, k,
+                                       WFM_RANGE_FREQ, src->freq, src->freq_hi)
                   : src->freq;
   out->snr  = (src->ranged & WFM_RANGE_SNR)
-                  ? wfm_draw_range (src->seed, epoch, inst, seg, k,
-                                    WFM_RANGE_SNR, src->snr, src->snr_hi)
+                  ? dp_wfm_draw_range (src->seed, epoch, inst, seg, k,
+                                       WFM_RANGE_SNR, src->snr, src->snr_hi)
                   : src->snr;
   out->level
       = (src->ranged & WFM_RANGE_LEVEL)
-            ? wfm_draw_range (src->seed, epoch, inst, seg, k, WFM_RANGE_LEVEL,
-                              src->level, src->level_hi)
+            ? dp_wfm_draw_range (src->seed, epoch, inst, seg, k,
+                                 WFM_RANGE_LEVEL, src->level, src->level_hi)
             : src->level;
-  out->f_end = (src->ranged & WFM_RANGE_FEND)
-                   ? wfm_draw_range (src->seed, epoch, inst, seg, k,
-                                     WFM_RANGE_FEND, src->f_end, src->f_end_hi)
-                   : src->f_end;
-  out->doppler
-      = (src->ranged & WFM_RANGE_DOPPLER)
-            ? wfm_draw_range (src->seed, epoch, inst, seg, k,
-                              WFM_RANGE_DOPPLER, src->doppler, src->doppler_hi)
-            : src->doppler;
+  out->f_end
+      = (src->ranged & WFM_RANGE_FEND)
+            ? dp_wfm_draw_range (src->seed, epoch, inst, seg, k,
+                                 WFM_RANGE_FEND, src->f_end, src->f_end_hi)
+            : src->f_end;
+  out->doppler = (src->ranged & WFM_RANGE_DOPPLER)
+                     ? dp_wfm_draw_range (src->seed, epoch, inst, seg, k,
+                                          WFM_RANGE_DOPPLER, src->doppler,
+                                          src->doppler_hi)
+                     : src->doppler;
   out->doppler_rate
       = (src->ranged & WFM_RANGE_DOPPLER_RATE)
-            ? wfm_draw_range (src->seed, epoch, inst, seg, k,
-                              WFM_RANGE_DOPPLER_RATE, src->doppler_rate,
-                              src->doppler_rate_hi)
+            ? dp_wfm_draw_range (src->seed, epoch, inst, seg, k,
+                                 WFM_RANGE_DOPPLER_RATE, src->doppler_rate,
+                                 src->doppler_rate_hi)
             : src->doppler_rate;
 }
 
 size_t
-wfm_compose_spans (const wfm_segment_t *segs, size_t n_segs, wfm_span_t *out,
-                   size_t cap)
+dp_wfm_compose_spans (const wfm_segment_t *segs, size_t n_segs,
+                      wfm_span_t *out, size_t cap)
 {
   size_t total = 0, pos = 0;
   for (size_t i = 0; i < n_segs; i++)
@@ -113,7 +114,7 @@ wfm_compose_spans (const wfm_segment_t *segs, size_t n_segs, wfm_span_t *out,
           /* Identical draw keys to the streaming composer (epoch 0): the
            * replayed spans are the rendered spans, sample for sample. */
           wfm_seg_draw_t d;
-          wfm_draw_segment (g, 0, inst, i, &d);
+          dp_wfm_draw_segment (g, 0, inst, i, &d);
           if (out && total < cap)
             out[total] = (wfm_span_t){ .seg      = i,
                                        .instance = inst,
@@ -129,8 +130,8 @@ wfm_compose_spans (const wfm_segment_t *segs, size_t n_segs, wfm_span_t *out,
 }
 
 size_t
-wfm_compose_draws (const wfm_segment_t *segs, size_t n_segs, wfm_draw_t *out,
-                   size_t cap)
+dp_wfm_compose_draws (const wfm_segment_t *segs, size_t n_segs,
+                      wfm_draw_t *out, size_t cap)
 {
   size_t total = 0, pos = 0;
   for (size_t i = 0; i < n_segs; i++)
@@ -140,13 +141,13 @@ wfm_compose_draws (const wfm_segment_t *segs, size_t n_segs, wfm_draw_t *out,
       for (size_t inst = 0; inst < reps; inst++)
         {
           wfm_seg_draw_t d;
-          wfm_draw_segment (g, 0, inst, i, &d);
+          dp_wfm_draw_segment (g, 0, inst, i, &d);
           /* One row per SOURCE: an annotation describes a source, and the
              sources of one instance share its timeline. */
           for (size_t k = 0; k < g->n_sources; k++)
             {
               wfm_src_draw_t v;
-              wfm_draw_source (&g->sources[k], 0, inst, i, k, &v);
+              dp_wfm_draw_source (&g->sources[k], 0, inst, i, k, &v);
               if (out && total < cap)
                 out[total] = (wfm_draw_t){ .seg          = i,
                                            .instance     = inst,

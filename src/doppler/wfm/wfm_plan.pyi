@@ -42,10 +42,10 @@ class Plan:
         `overrides_json` is a small JSON object, all keys optional:
         `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB,
         "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and
-        segment-major, length = wfm_plan_n_sources()). An empty object (or
+        segment-major, length = dp_wfm_plan_n_sources()). An empty object (or
         NULL) renders the baseline — bit-identical to
-        `Composer(scene).compose()`. Writes up to `wfm_plan_len(p)` samples to
-        `out`.
+        `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples
+        to `out`.
 
         Parameters
         ----------
@@ -55,13 +55,13 @@ class Plan:
         Returns
         -------
         NDArray[Any]
-            Samples actually written for this draw (<= wfm_plan_len(p)).
+            Samples actually written for this draw (<= dp_wfm_plan_len(p)).
         """
     def at(self, snr: float, seed: int) -> NDArray[Any]:
         """Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
 
         `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;
-        writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with
+        writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with
         only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override
         here.
 
@@ -75,7 +75,7 @@ class Plan:
         Returns
         -------
         NDArray[Any]
-            Samples actually written for this draw (<= wfm_plan_len(p)).
+            Samples actually written for this draw (<= dp_wfm_plan_len(p)).
         """
     def length(self) -> int:
         """Worst-case materialized length in samples (every ranged gap at its
@@ -99,7 +99,7 @@ class Plan:
         """The noise seed that reproduces a full compose.
 
         The first noisy segment's default seed (its first source's `seed`
-        field). Passing this as `wfm_plan_at`'s seed (with the scene's base
+        field). Passing this as `dp_wfm_plan_at`'s seed (with the scene's base
         SNR) yields the byte-identical output of `wfm_compose` for a
         single-segment scene; for a multi-segment scene each segment still
         draws from its own default seed unless overridden. Varying the seed
@@ -112,13 +112,13 @@ class Plan:
             Output.
         """
     def save(self) -> bytes:
-        """Serialize a Plan into blob (wfm_plan_save_bytes(p) bytes).
+        """Serialize a Plan into blob (dp_wfm_plan_save_bytes(p) bytes).
 
         Native-endian. The blob embeds the spec JSON, so a restore is
         self-contained. Returns the number of bytes written (==
-        wfm_plan_save_bytes(p)) — the actual-length contract a variable-output
-        binding needs, so `save() -> bytes` generates with no hand-written
-        glue.
+        dp_wfm_plan_save_bytes(p)) — the actual-length contract a
+        variable-output binding needs, so `save() -> bytes` generates with no
+        hand-written glue.
 
         Returns
         -------
@@ -126,7 +126,7 @@ class Plan:
             Output.
         """
     def dump(self, path: str | os.PathLike) -> None:
-        """Save a Plan to a file (wfm_plan_save() bytes at path).
+        """Save a Plan to a file (dp_wfm_plan_save() bytes at path).
 
         Parameters
         ----------
@@ -137,7 +137,8 @@ class Plan:
         ------
         OSError
             If the C call returns a non-zero status. The exception message is
-            ``wfm_plan_dump failed``, with the return code appended (gh-869).
+            ``dp_wfm_plan_dump failed``, with the return code appended
+            (gh-869).
         """
     def close(self) -> None:
         """Release the handle and free resources."""
@@ -147,7 +148,7 @@ class Plan:
         """Exit context and close the handle."""
 
 def PlanFromBlob(blob: bytes) -> Plan:
-    """Construct a Plan via wfm_plan_restore."""
+    """Construct a Plan via dp_wfm_plan_restore."""
 
 def PlanFromFile(path: str | os.PathLike) -> Plan:
-    """Construct a Plan via wfm_plan_load."""
+    """Construct a Plan via dp_wfm_plan_load."""

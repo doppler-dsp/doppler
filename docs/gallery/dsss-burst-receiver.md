@@ -233,7 +233,7 @@ now exist; the ordering does not.
 The [C example](https://github.com/doppler-dsp/doppler/blob/main/native/examples/dsss_burst_receiver_demo.c)
 demonstrates the same sections and prints the same numbers,
 because both build their capture from **one wfmgen scene** through the same
-engine — `wfm_compose_create()` in C, `Composer`/`Segment` in Python.
+engine — `dp_wfm_compose_create()` in C, `Composer`/`Segment` in Python.
 Neither tiles a preamble, spreads a frame, appends a CRC or draws noise.
 (The per-burst estimates of the read-back section are the one place the two
 faces differ in the last decimal: the payload bits are drawn differently, so

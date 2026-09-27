@@ -295,6 +295,7 @@ nav:
       - The FEC Receive Half: design/fec-receive.md
       - Receiver Test Harness: design/rx-test.md
       - A Frame as a Description: design/frame-description.md
+      - "A Frame as a Description: the measurement record": design/frame-description-measurements.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - wfmgen — the waveform generator: design/wfmgen.md

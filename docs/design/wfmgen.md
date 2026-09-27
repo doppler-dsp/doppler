@@ -185,15 +185,59 @@ ones the tool exists for, are the least gated of all.
     holdover cannot exist on one side and not the other.
     *Gated:* `test_wfm_compose.c`.
 
-1. **Adding a knob cannot fork an API.** The C struct field is the
-    declaration, and JSON, Python and the CLI each reach it from there
-    rather than restating it; enum names have one C home. *Gated:* `make drift-check`, `check_wfm_enum_tables.py`,
-    `check_wfmgen_flag_docs.py`, `gen_wfmgen_flag_matrix.py`.
+1. **Adding a knob cannot fork an API.** One declaration per parameter, in
+    the manifest, and every face generated from it. *Today this holds for
+    Python and the C defaults only* — jm generates the one and
+    `gen_wfm_defaults.py` the other, and enum names have one C home
+    (`check_wfm_enum_tables.py`). The CLI option table, the help text, the
+    JSON reader and writer, the schema and the reference docs each restate a
+    parameter by hand, about six declarations apiece, and they have already
+    drifted: the JSON reader defaults `seed`, `sps` and `pn_length` to
+    1 / 8 / 7 against the manifest's 0 / 1 / 15
+    ([#1596](https://github.com/doppler-dsp/doppler/issues/1596)).
+    [One surface table](#one-surface-table) is the design that makes the goal
+    true.
 
 1. **0 dBFS (decibels relative to full scale) is unit average power**, and
     clipping is observable rather than
     silent. *Gated:* `TestQuantization`; the peak-to-average power ratio
     (PAPR) budget behind it is not measured, see [Unknowns](#unknowns).
+
+## One surface table
+
+A parameter is declared **once**, in the manifest (`just-makeit.toml`,
+`[module.wfm_compose.source]` and `segment`), and every face is generated
+from that declaration. jm already generates the Python face from it, and
+`scripts/gen_wfm_defaults.py` the C defaults; the rest follows the second
+path, because it is doppler's own and needs no new jm mechanism.
+
+**What the manifest declares, per field,** beyond what jm reads: the CLI
+spelling (`cli`, `cli_aliases`), the JSON key where it differs from the field
+name (`asm`, `conv`), the help text and metavar, which faces expose it, and
+`kind = "field"` for the four that take a
+[Field](frame-description.md#f-the-field-one-text-form). Options that exist
+only on the command line (`--output`, `--realtime`, `--record`, …) are
+declared in a sibling table.
+
+**What is generated from it,** by `gen_wfm_defaults.py`, each file refused
+if edited by hand:
+
+| output                                                                                                                 | replaces                                                |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `wfm_defaults.h`                                                                                                       | (already generated)                                     |
+| `wfm_surface.h` — one row per parameter: JSON key, CLI spelling and aliases, offset, type, choice table, default, help | nothing yet; the table the rest read                    |
+| the CLI option table and `--help` text                                                                                 | `OPTS[]` and `USAGE[]` in `wfmgen.c`, hand-written      |
+| the JSON reader and writer, as one loop over the table                                                                 | the per-key code in `wfm_json.c`, with its own defaults |
+| `docs/schema/wfmgen.schema.json`                                                                                       | the hand-written schema                                 |
+| a reference page: CLI · JSON · Python · type · default · help                                                          | three separate flag tables in the guide                 |
+
+**Proven, not assumed.** The flag-matrix golden and every `--record` replay
+must come out byte-identical when the table replaces the hand-written code,
+the only allowed differences being the help-text corrections already filed
+([#1598](https://github.com/doppler-dsp/doppler/issues/1598)). After that the
+generator's `--check`, inside `make lint`, fails on a stale output, and a
+round-trip test holds CLI → `--record` → JSON → CLI to a fixed point for
+every row.
 
 ## What it composes, and what it does not re-implement
 
@@ -272,9 +316,18 @@ decision already made. Each is first a measurement (the *explore* phase of
 [Adding an algorithm](../dev/contributing/adding-algorithms.md)) and then a
 stated limit (its *certify* phase).
 
-1. **The envelope itself.** No `wfm` object is certified, so a user is
-    handed a generator with no statement of what it guarantees — the largest
-    gap, and the one the others are found by.
+1. **Whether jm keeps the surface table's keys.** [One surface
+    table](#one-surface-table) adds keys jm does not read to the manifest's
+    field rows. jm accepts an unknown key, but a `jm` edit that re-saves the
+    manifest has dropped unknown keys before (gh-1184). Checked with a
+    scaffold before it is relied on; if they do not survive, the keys move
+    to a sibling table keyed by field name, which the generator cross-checks.
+1. **The envelope beyond each object.** The objects are certified — Gold,
+    PN, `Synth`, the composer, `Frame`, `Plan`, `Reader`, `Writer` and
+    `wfmgen` itself each have a report
+    ([Validation Log](../dev/contributing/validation-log.md)). What no report
+    states is the envelope of a whole *scene*, which is where the unknowns
+    below live.
 1. **Realised Es/N0 in `esno`, `ebno` and `auto`.** Only `fs` mode has a
     realised-SNR test. The requested-versus-measured error, and its
     dependence on `sps` and pulse shape, is unmeasured — and

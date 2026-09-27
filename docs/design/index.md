@@ -71,8 +71,13 @@ instead.)
 - [A Frame as a Description](frame-description.md) — a frame as a list of
     fields and a list of stages, each stage carrying the span it covers: why a
     chain of optional transforms is the representation that cannot express
-    CCSDS, how a caller adds a stage doppler has never heard of, and how far
-    that openness actually reaches
+    CCSDS, how a caller adds a stage doppler has never heard of, how far
+    that openness actually reaches, and the Field: one text form for a run of
+    bits, passed by every face
+- [A Frame as a Description — the measurement record](frame-description-measurements.md) —
+    the dated record behind it: the survey that counted seven spellings of a
+    field, the prototype that proved one grammar lossless, and how the CCSDS
+    sites were settled, under the same section letters
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

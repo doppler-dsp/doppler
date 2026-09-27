@@ -11,6 +11,11 @@ configuration that exercises `cover` asymmetrically. Every claim below is
 about the general model; where CCSDS still shapes the generic path, that is
 recorded as a defect with a gate on it, not as the design.
 
+This page states what is. What was measured to get here — the survey that
+counted seven spellings of a field, the prototype that proved the grammar
+lossless — is on the [measurement record](frame-description-measurements.md),
+under the same section letters.
+
 ______________________________________________________________________
 
 ## Why — a general primitive plus a configuration
@@ -30,11 +35,21 @@ CCSDS that shared nothing with it and could not express it. Neither could
 express the other, and a user wanting a frame doppler had not anticipated had
 no move except to add a third framer.
 
+The description fixed the frame, and the 38 arguments survived it. They were
+never a framing problem. Each cluster of twelve — `preamble_kind`,
+`preamble`, `preamble_nbits`, `preamble_poly`, … — is one **field** spelled
+out parameter by parameter, because a field had no value of its own to pass.
+The same cluster was spelled again as a CLI triple (`--sync`, `--sync-hex`,
+`--sync-gen`), a JSON literal key plus a `*_gen` object, and a fifteen-argument
+`add_field`. The missing piece is the **Field** as a value: one text form that
+every face passes and one C function parses ([§F](#f-the-field-one-text-form)).
+
 ## Use cases — who calls this, and what they do with the answer
 
 - **`wfmgen`, generating a test waveform.** Framing is an axis there rather
     than a waveform type: `--acq-code`/`--sync` describe a frame, layered on
-    `--type bits` and the user's own `--bits`. Coding is the next stage on
+    `--type bits` and the user's own `--bits`, each taking one Field
+    (`--sync 0x1ACFFC1D`, `--acq-code 'pn:1023:10*4'`). Coding is the next stage on
     that same axis — randomise this, Reed-Solomon it at depth 5, prepend this
     marker, convolutionally code the lot, over bits the caller supplied.
 - **The scoring path, measuring a capture.** The description is read from
@@ -134,6 +149,113 @@ are bit machines. Both are right, so the conversion belongs in exactly one
 place rather than hidden inside a kernel that then works for one caller. The
 general assembler owns it, per stage, and a stage declares which
 representation it consumes.
+
+______________________________________________________________________
+
+## F. The Field — one text form
+
+A **Field** is `wfm_field_t` given a value a person can write: where its bits
+come from, how long it is, and how many times it repeats. It is the unit a
+caller hands to every face — the CLI, a JSON scene, Python and C — and it has
+exactly one spelling.
+
+### F.1 The grammar
+
+```text
+field  := seq [ "*" REPS ]                        REPS >= 1, default 1
+seq    := bin | hex | pn | gold | dotted
+bin    := [01_]+                                   "_" separates, nothing else is allowed
+hex    := "0x" [0-9A-Fa-f_]+                       4 bits per digit, MSB first
+pn     := "pn:" LEN ":" REG [":" SEED [":" POLY]] [":" LFSR]
+gold   := "gold:" LEN ":" REG ":" TA ":" SA ":" TB ":" SB
+dotted := "dotted:" LEN
+LFSR   := "galois" | "fibonacci"                   default galois
+```
+
+Numbers take decimal or `0x` hex, and a token must be consumed whole. `LEN`
+is the **output** length and `REG` the register width, `1..64`; they are named
+apart for the reason [the field kinds](#1-fields-where-a-run-of-bits-comes-from)
+give. A `0`/`1` string with any other character in it is refused, never
+filtered — a typo that quietly shortens a sync word is the failure this
+closes.
+
+| writes as                           | means                                         |
+| ----------------------------------- | --------------------------------------------- |
+| `1110_1011`                         | eight literal bits                            |
+| `0x1ACFFC1D`                        | the 32-bit CCSDS marker                       |
+| `pn:1023:10`                        | a 1023-bit m-sequence, 10-bit Galois register |
+| `pn:64:7:0x5:0:fibonacci`           | 64 bits, seed 5, default poly, Fibonacci      |
+| `gold:64:10:0x3A6:0x15E:0x237:0x49` | a Gold code from two registers                |
+| `dotted:16`                         | `1010…`, 16 bits                              |
+| `pn:31:5*4`                         | a 31-chip code, sent four times (a preamble)  |
+
+**`reps` belongs to the Field**, because `wfm_field_t` carries it: a preamble
+is not a fifth kind but any of the four repeated. `*` needs quoting in a
+shell (`--acq-code 'pn:31:5*4'`); the docs always quote it.
+
+### F.2 One parser, one printer
+
+`dp_wfm_field_parse(spec, &field, &owned, &why)` is the only place the grammar
+is read, and `dp_wfm_field_format(&field, buf, cap)` the only place it is
+written. Every face calls them; none restates the grammar.
+
+- **Ownership follows the existing rule** — the caller owns literal bits, the
+    description borrows them. `owned` receives the allocated array for a
+    literal and `NULL` for a generated kind.
+- **A refusal names its cause.** The return is `DP_OK`, `DP_ERR_INVALID` or
+    `DP_ERR_MEMORY` ([the convention](../dev/contributing/error-convention.md)),
+    and the optional `why` receives a **static** sentence, the shape
+    `dp_wfm_compose_from_json_why()` already uses for a refused frame. The CLI
+    prefixes the flag and the JSON reader the key.
+- **The printed form is canonical and round-trips:** hex when the length is a
+    multiple of four, binary otherwise; a generator prints only what differs
+    from its defaults. `parse(format(f)) == f` for every Field.
+
+### F.3 Every face carries the same string
+
+| face            | a Field is                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| CLI             | one flag per field — `--sync`, `--acq-code`, `--data-code`, `--payload` (`--bits` stays the bits-type alias)                |
+| JSON            | one key per field, whose value is the Field string                                                                          |
+| a carried frame | `{"name", "spec"}`, or `{"name", "derived_by", "bits"}` for a derived field                                                 |
+| Python          | `Frame(preamble=, sync=, payload=, crc=)` and `FrameDesc.add_field(name, spec)` take the string; `Field(spec)` inspects one |
+| C               | `dp_wfm_field_parse()` into a `wfm_field_t`                                                                                 |
+
+**A derived field has no text form**, and that is correct: nobody writes a
+CRC trailer's bits. It is declared by the stage that produces it
+(`add_derived`) and appears in a carried frame only as its name and length.
+
+The spellings this replaces are **refused, not aliased**, each with a message
+naming its replacement: `--X-hex`, `--X-gen`, `--payload-gen`,
+`--payload-len`, `--bits-hex`, `--acq-reps`, and the JSON keys `*_gen`,
+`pattern`, `acq_reps`, `lit` and `gen`. Two spellings of one thing is the
+condition this section exists to end.
+
+______________________________________________________________________
+
+## R. One frame representation
+
+The description is **the** frame. Everything that expressed a frame another
+way either compiles into it through one function or is deleted.
+
+| representation                                                                                                                                                                                                    | fate                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `wfm_frame_desc_t`                                                                                                                                                                                                | **the frame**: fields + stages                                                            |
+| the flat framing fields on a `wfm_source_t` (`payload`, `acq_code`, `data_code`, `sync` as Fields; `crc`, `rs_depth`, `randomise`, `attach_asm`, `convolutional`, `interleave_*`) and the CLI flags that set them | **sugar**, compiled only by `dp_wfm_source_describe_frame()`                              |
+| a carried `frame` on a source                                                                                                                                                                                     | the description, as given                                                                 |
+| both at once                                                                                                                                                                                                      | **refused** — a source says its frame one way                                             |
+| `wfm_frame_t` / `wfm_frame_layout_t`, `dp_wfm_frame_describe()`, the four-field DSSS helpers (`dp_wfm_frame_dsss_nchips/_chips`), `dp_wfm_synth_set_dsss()`                                                       | **deleted**; their callers read the description                                           |
+| `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                                                                                           | **deleted**: literal-only, and a second derivation of the covers the bridge already makes |
+| `ccsds_tm_frame_cfg_t`                                                                                                                                                                                            | **kept** — it configures the codec's kernels, not a generated frame                       |
+| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                                                                                                  | **replaced** by Field strings                                                             |
+
+**Why the flat fields stay as sugar rather than resolving at parse time.** A
+caller who wrote `--asm --rs-depth 5` should find `asm` and `rs_depth` in the
+record, not six fields and five stages; the generated Python `Synth` writes
+the struct directly; and a DSSS preamble sits outside the description, which
+the bridge already handles. What makes it safe is that nothing else compiles
+them: one function turns sugar into a frame, and every consumer — render,
+length, check — goes through it.
 
 ______________________________________________________________________
 
@@ -259,13 +381,15 @@ Each is enforced where the description is read, not documented and hoped for.
 All exist because the failure mode of this design is a frame that still
 assembles, still decodes against itself, and syncs to nothing.
 
-| invariant                                                                                                                                                | why                                                                                                                       | enforced in                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **A stage's cover is what it OCCUPIES on the wire** — information and derived check symbols together; what it *reads* is the cover minus what it derives | both from one declaration, so the two cannot disagree                                                                     | `wfm_frame.h` (the struct's contract) |
-| **A derived field must be the LAST field of its producing stage's cover**                                                                                | lets one `in_unit` signature serve every in-place stage; the alternative is parity in the middle of the data              | `wfm_frame.c:156`                     |
-| **At most one emitting stage, and it must cover the whole frame**                                                                                        | two streams is not a frame; a partial emit has no defined wire order                                                      | `wfm_frame.c:206-215`                 |
-| **A stage whose kind is in neither table is a refusal, never a skip**                                                                                    | a stage that quietly did not run is the exact failure this design prevents; it is pre-flighted before any byte is written | `wfm_frame.c:451-458`                 |
-| **A stage covering no caller-supplied bits derives nothing**                                                                                             | a CRC over an empty payload protects nothing and is not emitted                                                           | `wfm_frame.c:162`                     |
+| invariant                                                                                                                                                | why                                                                                                                       | enforced in                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **A stage's cover is what it OCCUPIES on the wire** — information and derived check symbols together; what it *reads* is the cover minus what it derives | both from one declaration, so the two cannot disagree                                                                     | `wfm_frame.h` (the struct's contract)             |
+| **A derived field must be the LAST field of its producing stage's cover**                                                                                | lets one `in_unit` signature serve every in-place stage; the alternative is parity in the middle of the data              | `wfm_frame.c:156`                                 |
+| **At most one emitting stage, and it must cover the whole frame**                                                                                        | two streams is not a frame; a partial emit has no defined wire order                                                      | `wfm_frame.c:206-215`                             |
+| **A stage whose kind is in neither table is a refusal, never a skip**                                                                                    | a stage that quietly did not run is the exact failure this design prevents; it is pre-flighted before any byte is written | `wfm_frame.c:451-458`                             |
+| **A stage covering no caller-supplied bits derives nothing**                                                                                             | a CRC over an empty payload protects nothing and is not emitted                                                           | `wfm_frame.c:162`                                 |
+| **A Field is refused, never repaired** — a stray character, a zero length, a register outside `1..64`                                                    | a typo that silently shortens a sync word still assembles and syncs to nothing                                            | `dp_wfm_field_parse` (§F; lands with #853)        |
+| **A source says its frame one way** — a carried `frame` and any flat framing field together are refused                                                  | two descriptions of one frame is a render that can disagree with its own length check                                     | `dp_wfm_source_frame_error` (§R; lands with #853) |
 
 ## The limits, as numbers
 
@@ -333,44 +457,17 @@ on `wfm/wfm_frame.h`, which knows nothing about CCSDS — no include, no
 constant, no default, no kernel. The direction **into** the descriptor from
 the layers above it is now clean as well.
 
-### The sites, and how each was settled
+### Where a caller meets CCSDS
 
-Of the five the earlier plan listed, **site 1 is done** —
-`dp_wfm_source_describe_frame()` builds through the by-name builder rather than
-`dp_ccsds_tm_frame_desc_of()`. Three others turned out not to be leaks at all:
-`frame_core.c`, `wfm_synth_bridge.c` and `burst_demod_core.c` include
-`ccsds_tm` to *compose* it, in the acyclic direction the design intends, and
-each is the place a caller is meant to meet the standard's kernels.
-
-The fifth was a different kind of thing, and it is **closed**
-([#1220](https://github.com/doppler-dsp/doppler/issues/1220)):
-
-| site                              | what it was                                                                                | how it was settled                                                                                                                                                             |
-| --------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| the marker's own translation unit | a CCSDS translation unit compiled into the **general** `wfm_core`, under `native/src/wfm/` | deleted. The marker is `doppler.ccsds.asm_bits()` now, over a `ccsds` component that delegates to `dp_ccsds_tm_asm_bits` — the standard beside the general layer, not under it |
-
-A marker one standard picked is a **literal field of a preset**, not a symbol
-in the general namespace. The move needed somewhere to put it, and every
-existing module says in its own docstring that it is general — `coding`'s
-opening line is *"the general channel codes … rather than any standard's
-picks"* — so `doppler.ccsds` was created to be the one place a published
-literal is at home. Its rule is narrow, and stated on the component's own
-header so it travels with the code: **a literal a mission copies out of the
-Blue Book belongs there; a transform does not.** The outer code, the
-randomiser and the inner code stay reachable only by describing a CADU, which
-is the next section's point.
-
-Two things changed with site 1 that the plan did not anticipate:
-
-- **A source carries `wfm_seq_t`** for its preamble, spreading code and sync
-    word, rather than three pointer/length pairs. Those pairs could only ever
-    describe a LITERAL run, so the four field kinds were reachable from no
-    face at all — the descriptor supported them and every route into it
-    flattened them away
-    ([#762](https://github.com/doppler-dsp/doppler/issues/762)).
-- **`dp_wfm_source_has_frame()` tests LENGTH, not the pointer.** A generated
-    sequence has no array, so a pointer test read a PN sync as *unframed* and
-    emitted the payload bare.
+Three components include `ccsds_tm` to **compose** it — `frame_core.c`,
+`wfm_synth_bridge.c` and `burst_demod_core.c` — in the acyclic direction the
+design intends; each is the place a caller is meant to meet the standard's
+kernels. The marker a mission copies out of the Blue Book is
+`doppler.ccsds.asm_bits()`, over a `ccsds` component that sits **beside** the
+general layer, not under it. Its rule is narrow, and stated on the component's
+own header so it travels with the code: **a literal a mission copies out of
+the Blue Book belongs there; a transform does not.** How each of these was
+settled is on the [measurement record](frame-description-measurements.md#c-the-ccsds-sites).
 
 ### What is deliberately *not* extraction
 
@@ -393,15 +490,9 @@ comments — the header explains the layering *by naming* the component on the
 other side of it — and fails on an include, on a call reached through a
 forward declaration, or on reading nothing at all.
 
-That is the rule the header states about itself, and no more. An earlier
-version of this gate scanned every component and allowlisted the four that
-include a `ccsds_tm` header, as a ratchet meant to fall to zero. That was
-wrong, and worth recording because the mistake is easy to repeat: **a consumer
-composing the two is the design working.** `frame -> ccsds_tm -> wfm_frame` is
-acyclic and deliberate — `ccsds_tm` has no Python binding and is not getting
-one, so `frame` is where a caller meets the outer code, the randomiser and the
-inner code. A ratchet over a rule that should never reach zero is a slow push
-toward a refactor nobody wants.
+That is the rule the header states about itself, and no more: **a consumer
+composing the two is the design working.** `frame -> ccsds_tm -> wfm_frame`
+is acyclic and deliberate.
 
 What a cycle would actually cost is not a link error. It is a general layer
 that quietly acquires a standard's defaults, and a build that starts depending
@@ -412,18 +503,28 @@ ______________________________________________________________________
 
 ## Unknowns
 
-The numbers and shapes this design still does not know:
+The numbers and shapes this design still does not know, each stated before
+it is measured:
 
 - **Contiguous vs bitmask `cover`.** Every configuration so far covers a
     contiguous field range. A standard that interleaves coverage would need a
     mask, and nothing has demanded one.
 - **Whether 16 fields and 8 stages are the right bounds.** They were sized
     against the deepest description that exists, not against a class of them.
-- **The DSSS path still reads named offsets** rather than an indexed field
-    list, and the migration cost is unmeasured.
-- **Whether the flat wfmgen coding flags should ever collapse** into the one
-    `frame` key. They were kept as sugar deliberately, and the prediction that
-    they would collapse has not held.
+- **The migration cost of the DSSS path.** It reads the four named offsets
+    of `wfm_frame_t` rather than an indexed field list; §R deletes that
+    struct, so this is measured when the path moves, not guessed now.
+- **Whether `*N` survives real use.** It needs shell quoting. Today a
+    repetition count appears 8 times across the docs and examples, always on
+    the acquisition code and always `4`, and 4 times in the flag-matrix
+    golden — rare enough that quoting is cheap, common enough that a separate
+    key would be a second spelling of one field. Revisit if a user trips on
+    it.
+- **Two things jm must do, checked with a scaffold before they are relied
+    on.** A `const char *` constructor parameter with an empty default (else:
+    required strings, `""` meaning absent); and whether the extra manifest
+    keys the surface table needs survive a `jm` re-save
+    ([`wfmgen.md` — one surface table](wfmgen.md#one-surface-table)).
 
 ## Deliberately not in scope
 
@@ -432,5 +533,10 @@ The numbers and shapes this design still does not know:
     ([#813](https://github.com/doppler-dsp/doppler/issues/813)). The
     generalization makes that refusal *user-visible*, which is an argument for
     fixing it, not for hiding it behind padding.
-- **New coding stages.** Turbo, LDPC and a channel interleaver are
-    configurations this model should grow into. None is being added.
+- **New coding stages.** Turbo and LDPC are configurations this model should
+    grow into; the block interleaver already ships as `INTERLEAVE`. None is
+    being added here.
+- **The receive side.** `BurstDemod` and `DsssBurstReceiver` still take raw
+    code arrays and a hand-computed `frame_syms`. Moving them onto Fields and
+    a `FrameDesc` is its own pass through the lifecycle, after this one
+    ([#853](https://github.com/doppler-dsp/doppler/issues/853)).

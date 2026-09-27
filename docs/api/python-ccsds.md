@@ -84,6 +84,6 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Design** — [A Frame as a Description](../design/frame-description.md)
+**Design** — [A Frame as a Description — the measurement record](../design/frame-description-measurements.md), [A Frame as a Description](../design/frame-description.md)
 
 <!-- related-pages:end -->

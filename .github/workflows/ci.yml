@@ -560,6 +560,12 @@ jobs:
       # avoid, moved one step later.
       run: make test-examples-python
 
+    # BEFORE nats-down: the uno-q NATS transport needs the broker this job
+    # started. Both patterns end to end -- pub/sub and JetStream push/pull --
+    # every frame delivered once and held to the example's self-test checks.
+    - name: UNO Q NATS transport (pub/sub + push/pull)
+      run: make uno-q-nats-check
+
     - name: Stop NATS broker
       if: always()
       run: make nats-down

@@ -11,12 +11,13 @@ four Cortex-A53-class cores, Debian 13), but nothing in it is board-specific.
 It builds and runs anywhere doppler does, which is how CI checks it. Copy the
 directory as the starting point for an SDR front end.
 
-## Two modes
+## Three modes
 
-| command                                   | input                             | what it does                                                                                                                                                                                                  |
-| ----------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uno_q [flags]`                           | none                              | **Self-test.** Synthesises one second of what an RTL-SDR would send (a tone at `--offset` in noise, through a model of its 8-bit ADC), runs the chain and checks the result. Any failed check exits non-zero. |
-| `uno_q [flags] -` or `uno_q [flags] FILE` | `cu8` on stdin, or a capture file | **Live.** Reports throughput, CPU load, the strongest peaks and the level in the channel. Nothing is checked, because live RF is not known in advance.                                                        |
+| command                                   | input                                   | what it does                                                                                                                                                                                                  |
+| ----------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uno_q [flags]`                           | none                                    | **Self-test.** Synthesises one second of what an RTL-SDR would send (a tone at `--offset` in noise, through a model of its 8-bit ADC), runs the chain and checks the result. Any failed check exits non-zero. |
+| `uno_q [flags] -` or `uno_q [flags] FILE` | `cu8` on stdin, or a capture file       | **Live.** Reports throughput, CPU load, the strongest peaks and the level in the channel. Nothing is checked, because live RF is not known in advance.                                                        |
+| `uno_q [flags] --nats URL`                | `ci8` frames from `uno_q_pub` over NATS | **NATS.** Counts lost and repeated frames from the wire header, then runs the same chain. Built when the doppler install has its stream component.                                                            |
 
 | flag          | default   | meaning                                                                            |
 | ------------- | --------- | ---------------------------------------------------------------------------------- |
@@ -25,6 +26,9 @@ directory as the starting point for an SDR front end.
 | `--rate R`    | `0.125`   | DDC output/input rate                                                              |
 | `--n N`       | `1024`    | PSD frame length                                                                   |
 | `--seconds S` | until EOF | live only: stop after `S` seconds of input                                         |
+| `--nats URL`  | none      | NATS mode: receive from this endpoint                                              |
+| `--pattern P` | `sub`     | NATS: `sub` (core pub/sub) or `pull` (JetStream work queue)                        |
+| `--check`     | off       | NATS: apply the self-test's checks to what arrived                                 |
 
 ## Build and run
 
@@ -121,6 +125,68 @@ used for comparison ran it at 275 MSa/s.
     a fixed one with `nmcli`.
 - Under `adb shell`, `TMPDIR` is `/data/local/tmp`, which doesn't exist on
     Debian. Set `TMPDIR=/tmp`, or use SSH.
+
+## Over NATS: every frame accounted for
+
+`librtlsdr` and `rtl_tcp` never report lost samples. doppler's own wire
+header numbers every frame, so over NATS a missing frame is a gap in the
+sequence and a redelivered one is a repeat, and the receiver counts both
+exactly. The end-of-stream frame takes the next number, so loss at the tail
+is counted too.
+
+`uno_q_pub` puts the dongle on the wire. The wire has no unsigned-8
+format, so it sends each code as `x - 128` (`ci8`). The receiver decodes
+that with `I8ToF32`, which is bit-identical to `U8ToF32("shift")` on the
+original bytes.
+
+```sh
+nats-server -js                                                  # a broker
+rtl_sdr -f 100e6 -s 2.4e6 - | build/uno_q_pub --nats nats://127.0.0.1:4222/rtl --fs 2.4e6 --fc 100e6
+build/uno_q_shared --nats nats://127.0.0.1:4222/rtl --offset -100e3 --rate 0.25 --seconds 10
+```
+
+Two patterns, with the same code on both ends:
+
+| pattern                 | flags                     | delivery                                           | what a failure looks like                                                                                                                                      |
+| ----------------------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **pub/sub** (default)   | `--pattern pub` / `sub`   | at-most-once, freshest data                        | a lost frame is a **gap** in the count                                                                                                                         |
+| **JetStream push/pull** | `--pattern push` / `pull` | at-least-once, the broker keeps frames until acked | nothing lost across a consumer stall or broker restart; a frame the broker refused is counted by the **publisher**; a redelivery is dropped as a **duplicate** |
+
+**Measured** (x86 PC, local broker):
+
+- **A 1.5 s broker restart mid-stream:** pub/sub delivered 367 of 367 frames,
+    because the publisher's reconnect buffer held the frames and the
+    subscriber resubscribed. Push/pull delivered 367 of 367 after riding out
+    one receive error, because the durable consumer resumed.
+- **A 400 MB burst into a subscriber stalled for 5 s:** 6104 of 6104 frames on
+    both patterns. doppler's subscriber queues without limit, so pub/sub
+    loss comes from a lost connection or a link slower than the stream, not
+    from a slow reader.
+- **On the UNO Q**, with the dongle on the PC and the broker reached through
+    `adb reverse tcp:4222 tcp:4222`: 733 frames of live FM, 0 lost, 0
+    repeated. That's 10.01 s of input in 9.99 s at 46% of one core,
+    against 32% for the same chain on a raw pipe; the difference is the
+    NATS client and per-frame handling.
+
+`make nats-check` runs both patterns end to end against a broker
+(`NATS_URL`, default `nats://127.0.0.1:4222`). Each run is held to the
+self-test's checks.
+
+**The source rate needs a long window.** The receiver estimates it from the
+headers' capture times. `rtl_sdr` hands over a USB transfer (four frames) at
+a time, so the frames of one transfer carry nearly the same timestamp. Over
+2 s the estimate read +1.4%; over 10 s it read −60 ppm.
+
+### Watching it live
+
+doppler's spectrum analyzer subscribes to the same stream:
+
+```sh
+doppler-specan --source socket --address nats://127.0.0.1:4222/rtl --web
+```
+
+It needs the `specan` and `specan-web` extras. The display centres on the
+frequency the stream's header reports, unless you give `--center`.
 
 ## Live input from an RTL-SDR
 

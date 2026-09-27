@@ -17,6 +17,7 @@ Two complementary coverage strategies:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from typing import TYPE_CHECKING, Any
 
@@ -54,10 +55,10 @@ def _bin() -> str:
 
 
 def _record(tmp_path: Path, *flags: str) -> dict[str, Any]:
-    """Run wfmgen with *flags* + ``--output /dev/null --record FILE``."""
+    """Run wfmgen with *flags* + ``--output os.devnull --record FILE``."""
     rec = tmp_path / "record.json"
     p = subprocess.run(
-        [_bin(), *flags, "--output", "/dev/null", "--record", str(rec)],
+        [_bin(), *flags, "--output", os.devnull, "--record", str(rec)],
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()
@@ -394,7 +395,7 @@ def test_from_file_record_validates(validator, tmp_path):
             "--from-file",
             str(tpl),
             "--output",
-            "/dev/null",
+            os.devnull,
             "--record",
             str(rec),
         ],

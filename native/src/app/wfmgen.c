@@ -23,7 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
-#include <io.h> /* isatty, fileno (the UCRT's POSIX names) */
+#include <fcntl.h> /* _O_BINARY */
+#include <io.h>    /* isatty, fileno (the UCRT's POSIX names), _setmode */
 #else
 #include <unistd.h> /* isatty */
 #endif
@@ -1851,6 +1852,13 @@ dp_doppler_wfmgen (int argc, char *argv[])
    * sends SIGINT, and losing the tail should not depend on which. */
   (void)dp_interrupt_on_signal (SIGINT);
   (void)dp_interrupt_on_signal (SIGTERM);
+
+#ifdef _WIN32
+  /* stdout carries the bytes a file would: every file is opened "wb", and
+   * the Windows CRT's text-mode stdout turns each 0x0A into 0x0D 0x0A --
+   * inside binary IQ that shifts every sample after it. */
+  (void)_setmode (_fileno (stdout), _O_BINARY);
+#endif
 
   /* --help / --version short-circuit before any spec is built, so they work
    * regardless of the other flags and never leak a partially-parsed source. */

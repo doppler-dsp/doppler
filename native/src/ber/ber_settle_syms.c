@@ -12,7 +12,7 @@
 #endif
 
 size_t
-ber_settle_syms (double bn_timing, double bn_carrier)
+dp_ber_settle_syms (double bn_timing, double bn_carrier)
 {
   double s = 0.0;
   if (bn_timing > 0.0)

@@ -96,23 +96,23 @@ run_once (int rounds, int w_blocks, int r_reads, long gap_ms,
   FILE    *fp  = fopen (PATH, "wb+");
   if (!fp)
     return out;
-  wfm_writer_state_t *w
+  dp_wfm_writer_state_t *w
       = wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
   if (!w)
     {
       fclose (fp);
       return out;
     }
-  wfm_writer_flush (w); /* header down, so the reader detects BLUE */
+  dp_wfm_writer_flush (w); /* header down, so the reader detects BLUE */
 
-  wfm_reader_state_t *r = wfm_reader_create (PATH, STYPE, 0);
+  dp_wfm_reader_state_t *r = dp_wfm_reader_create (PATH, STYPE, 0);
   if (!r)
     {
       wfm_writer_close (w);
       fclose (fp);
       return out;
     }
-  wfm_reader_set_follow_timeout_ms (r, slice_budget_ms);
+  dp_wfm_reader_set_follow_timeout_ms (r, slice_budget_ms);
 
   float _Complex src[BLK], dst[BLK];
   for (size_t i = 0; i < BLK; i++)
@@ -122,15 +122,15 @@ run_once (int rounds, int w_blocks, int r_reads, long gap_ms,
   for (int k = 0; k < rounds; k++)
     {
       for (int b = 0; b < w_blocks; b++)
-        out.n_written += wfm_writer_write (w, src, BLK);
-      wfm_writer_flush (w);
+        out.n_written += dp_wfm_writer_write (w, src, BLK);
+      dp_wfm_writer_flush (w);
       if (gap_ms)
         nap_ms (gap_ms);
 
       for (int i = 0; i < r_reads; i++)
         {
           double t      = now_s ();
-          size_t g      = wfm_reader_read_follow (r, BLK, dst, BLK);
+          size_t g      = dp_wfm_reader_read_follow (r, BLK, dst, BLK);
           double waited = (now_s () - t) * 1e3;
           out.n_read += g;
           if (g == 0 && waited > out.wait_ms_max)
@@ -143,7 +143,7 @@ run_once (int rounds, int w_blocks, int r_reads, long gap_ms,
   out.backlog_end = (double)(out.n_written - out.n_read);
   out.elapsed_s   = now_s () - t0;
 
-  wfm_reader_destroy (r);
+  dp_wfm_reader_destroy (r);
   wfm_writer_close (w);
   fclose (fp);
   remove (PATH);

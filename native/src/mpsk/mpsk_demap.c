@@ -7,7 +7,7 @@
 #include "doppler/mpsk/mpsk_core.h"
 
 void
-mpsk_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)
+dp_mpsk_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)
 {
   float _Complex ahat;
   for (size_t i = 0; i < x_len; i++)

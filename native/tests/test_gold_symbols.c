@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_gold[] = {
-    (jm_any_fn)gold_create,
-    (jm_any_fn)gold_destroy,
-    (jm_any_fn)gold_reset,
-    (jm_any_fn)gold_state_bytes,
-    (jm_any_fn)gold_get_state,
-    (jm_any_fn)gold_set_state,
-    (jm_any_fn)gold_generate_max_out,
-    (jm_any_fn)gold_generate,
+    (jm_any_fn)dp_gold_create,
+    (jm_any_fn)dp_gold_destroy,
+    (jm_any_fn)dp_gold_reset,
+    (jm_any_fn)dp_gold_state_bytes,
+    (jm_any_fn)dp_gold_get_state,
+    (jm_any_fn)dp_gold_set_state,
+    (jm_any_fn)dp_gold_generate_max_out,
+    (jm_any_fn)dp_gold_generate,
 };

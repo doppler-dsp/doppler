@@ -80,7 +80,7 @@ main (void)
   for (int p = 0; p < 2; p++)
     for (int a = 0; a < 2; a++)
       {
-        mpsk_receiver_state_t *rx
+        dp_mpsk_receiver_state_t *rx
             = mpsk_receiver_create_bpsk (SYM_RATE * spss[p], SYM_RATE, 0.0, 0,
                                          0.35, 8, 0.01, 0.01, 0, agcs[a]);
         if (!rx)
@@ -91,11 +91,11 @@ main (void)
                            spss[p], agcs[a]);
             return 1;
           }
-        size_t cap = mpsk_receiver_steps_max_out (rx);
+        size_t cap = dp_mpsk_receiver_steps_max_out (rx);
         if (cap == 0 || cap > BENCH_N)
           cap = BENCH_N;
 
-        size_t       got     = mpsk_receiver_steps (rx, x, BENCH_N, out, cap);
+        size_t       got = dp_mpsk_receiver_steps (rx, x, BENCH_N, out, cap);
         const size_t want_lo = (size_t)((double)BENCH_N / spss[p] * 0.5);
         if (got < want_lo)
           {
@@ -111,7 +111,7 @@ main (void)
         w0 = jm_bench_now_ns ();
         do
           {
-            sink += mpsk_receiver_steps (rx, x, BENCH_N, out, cap);
+            sink += dp_mpsk_receiver_steps (rx, x, BENCH_N, out, cap);
             w1 = jm_bench_now_ns ();
           }
         while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -119,7 +119,7 @@ main (void)
         for (int r = 0; r < ITERATIONS; r++)
           {
             t0 = jm_bench_now_ns ();
-            sink += mpsk_receiver_steps (rx, x, BENCH_N, out, cap);
+            sink += dp_mpsk_receiver_steps (rx, x, BENCH_N, out, cap);
             t1            = jm_bench_now_ns ();
             t_st[p][a][r] = jm_bench_elapsed_sec (t0, t1);
           }
@@ -131,7 +131,7 @@ main (void)
         printf ("  %-24s %7.2f ns/sample  %8.1f MSa/s  %7.2f Msym/s\n", name,
                 sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6,
                 (double)BENCH_N / spss[p] / sec / 1e6);
-        mpsk_receiver_destroy (rx);
+        dp_mpsk_receiver_destroy (rx);
       }
 
   printf ("\n  AGC adds %.0f%% at sps=4 -- the single largest per-sample\n"

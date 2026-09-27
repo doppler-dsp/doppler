@@ -25,7 +25,7 @@ _bind_ber_theory_ser (PyObject *self, PyObject *args, PyObject *kwds)
   double       esn0      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "id", _kwlist, &m, &esn0))
     return NULL;
-  return PyFloat_FromDouble (ber_theory_ser (m, esn0));
+  return PyFloat_FromDouble (dp_ber_theory_ser (m, esn0));
 }
 
 static PyObject *
@@ -37,7 +37,7 @@ _bind_ber_theory_ber (PyObject *self, PyObject *args, PyObject *kwds)
   double       esn0      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "id", _kwlist, &m, &esn0))
     return NULL;
-  return PyFloat_FromDouble (ber_theory_ber (m, esn0));
+  return PyFloat_FromDouble (dp_ber_theory_ber (m, esn0));
 }
 
 static PyObject *
@@ -49,7 +49,7 @@ _bind_ber_esn0_db_for_ser (PyObject *self, PyObject *args, PyObject *kwds)
   double       ser       = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "id", _kwlist, &m, &ser))
     return NULL;
-  return PyFloat_FromDouble (ber_esn0_db_for_ser (m, ser));
+  return PyFloat_FromDouble (dp_ber_esn0_db_for_ser (m, ser));
 }
 
 static PyObject *
@@ -60,7 +60,7 @@ _bind_ber_evm_scatter_floor_db (PyObject *self, PyObject *args, PyObject *kwds)
   int          m         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &m))
     return NULL;
-  return PyFloat_FromDouble (ber_evm_scatter_floor_db (m));
+  return PyFloat_FromDouble (dp_ber_evm_scatter_floor_db (m));
 }
 
 static PyObject *
@@ -74,7 +74,7 @@ _bind_ber_settle_syms (PyObject *self, PyObject *args, PyObject *kwds)
                                     &bn_carrier))
     return NULL;
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_settle_syms (bn_timing, bn_carrier));
+      (unsigned long long)dp_ber_settle_syms (bn_timing, bn_carrier));
 }
 
 static PyObject *
@@ -97,7 +97,7 @@ _bind_ber_lock_symbol (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *flags     = (const uint8_t *)PyArray_DATA (flags_arr);
   size_t         flags_len = (size_t)PyArray_SIZE (flags_arr);
-  int            _r = ber_lock_symbol (flags, flags_len, sustain, min_frac);
+  int            _r = dp_ber_lock_symbol (flags, flags_len, sustain, min_frac);
   Py_DECREF (flags_arr);
   return PyLong_FromLong ((long)_r);
 }
@@ -124,7 +124,7 @@ _bind_ber_evm_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  double                _r     = ber_evm_db (rx, rx_len, lo, hi, m);
+  double                _r     = dp_ber_evm_db (rx, rx_len, lo, hi, m);
   Py_DECREF (rx_arr);
   return PyFloat_FromDouble (_r);
 }
@@ -141,8 +141,8 @@ _bind_ber_settle_from (PyObject *self, PyObject *args, PyObject *kwds)
                                     &timing_lock, &carrier_lock))
     return NULL;
   size_t budget = (size_t)budget_raw;
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)ber_settle_from (budget, timing_lock, carrier_lock));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)dp_ber_settle_from (
+      budget, timing_lock, carrier_lock));
 }
 
 /* ======================================================== */
@@ -208,9 +208,9 @@ static PyMethodDef ber_module_methods[] = {
     "in dB is comparable across M and across operating points; a ratio of\n"
     "rates is not.\n"
     "\n"
-    "Bisects ber_theory_ser(), which is monotone decreasing, over -10 to 40\n"
-    "dB and clamps to that range: 40.0 for a rate below the bound at 40 dB,\n"
-    "-10.0 for one at or above the bound at -10 dB. A rate that is not\n"
+    "Bisects dp_ber_theory_ser(), which is monotone decreasing, over -10 to\n"
+    "40 dB and clamps to that range: 40.0 for a rate below the bound at 40\n"
+    "dB, -10.0 for one at or above the bound at -10 dB. A rate that is not\n"
     "positive also returns -10.0.\n"
     "\n"
     "Parameters\n"
@@ -415,19 +415,18 @@ static PyMethodDef ber_module_methods[] = {
     "than remaining as an argument that could only be passed -1.\n"
     "\n"
     "Pass -1 for any indicator the receiver does not publish (which is what\n"
-    "ber_lock_symbol() returns for \"never locked\"). **A -1 timing or "
-    "carrier\n"
-    "lock means there is NO valid steady-state window** — check that\n"
+    "dp_ber_lock_symbol() returns for \"never locked\"). **A -1 timing or\n"
+    "carrier lock means there is NO valid steady-state window** — check that\n"
     "yourself before trusting the return.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "budget : int\n"
-    "    ber_settle_syms() of the loops in use.\n"
+    "    dp_ber_settle_syms() of the loops in use.\n"
     "timing_lock : int\n"
-    "    ber_lock_symbol() of the timing flag, or -1.\n"
+    "    dp_ber_lock_symbol() of the timing flag, or -1.\n"
     "carrier_lock : int\n"
-    "    ber_lock_symbol() of the carrier flag, or -1.\n"
+    "    dp_ber_lock_symbol() of the carrier flag, or -1.\n"
     "\n"
     "Returns\n"
     "-------\n"

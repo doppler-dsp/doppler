@@ -50,11 +50,11 @@ static uint8_t dcode[DATA_SF];
 static void
 build_codes (void)
 {
-  pn_state_t *pn = pn_create (pn_mls_poly (5), 1u, 5u, 0);
+  dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5), 1u, 5u, 0);
   for (size_t i = 0; i < ACQ_SF; i++)
     code[i] = pn ? pn_step (pn) : (uint8_t)(i & 1u);
   if (pn)
-    pn_destroy (pn);
+    dp_pn_destroy (pn);
   for (size_t i = 0; i < DATA_SF; i++)
     dcode[i] = (uint8_t)((i >> 1) & 1u);
 }
@@ -111,23 +111,24 @@ time_push (jm_bench_t *b, const char *name, const char *path,
       /* The preamble is the code's samples: bin_to_nrz, held SPC. */
       static float nrz[ACQ_SF];
       static float _Complex pre[ACQ_SF * SPC];
-      (void)bin_to_nrz (code, ACQ_SF, nrz, ACQ_SF);
+      (void)dp_bin_to_nrz (code, ACQ_SF, nrz, ACQ_SF);
       for (size_t i = 0; i < ACQ_SF * SPC; i++)
         pre[i] = nrz[i / SPC];
-      const double           fs = 1.0e6 * SPC;
-      burst_capture_state_t *c
+      const double              fs = 1.0e6 * SPC;
+      dp_burst_capture_state_t *c
           = path ? burst_capture_create_backed (path, pre, ACQ_SF * SPC,
                                                 BURST_LEN, REPS, fs, 55.0, 0.0,
                                                 1e-3, 0.9, 0, 0.0)
-                 : burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
-                                         fs, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+                 : dp_burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
+                                            fs, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
       if (!c)
         return;
       t0 = jm_bench_now_ns ();
-      (void)burst_capture_push (c, x, BENCH_N, out, sizeof out / sizeof *out);
+      (void)dp_burst_capture_push (c, x, BENCH_N, out,
+                                   sizeof out / sizeof *out);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
-      burst_capture_destroy (c);
+      dp_burst_capture_destroy (c);
     }
   jm_bench_add (b, name, times, ITERATIONS, BENCH_N);
 }

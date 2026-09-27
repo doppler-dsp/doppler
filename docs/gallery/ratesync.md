@@ -167,7 +167,7 @@ int main(void)
     /* 17.33389 samples/symbol -- a free-running ADC clock against the
        symbol clock -- RRC beta 0.35 span 8, m = 2 outputs/symbol, a
        1024-arm bank, bn 0.01, zeta 0.707, blind Gardner detector. */
-    ratesync_state_t *rs = ratesync_create(17.33389, RATESYNC_PULSE_RRC,
+    dp_ratesync_state_t *rs = dp_ratesync_create(17.33389, RATESYNC_PULSE_RRC,
                                            0.35, 8, 2, 1024, 0.01, 0.707,
                                            RATESYNC_TED_GARDNER);
     if (!rs)
@@ -178,7 +178,7 @@ int main(void)
         x[i] = 0.0f;  /* your baseband goes here */
 
     /* One input in, at most one symbol out. This is the call a receiver
-       inlines; ratesync_steps() is the block form over the same body. */
+       inlines; dp_ratesync_steps() is the block form over the same body. */
     float complex sym;
     long got = 0;
     for (int i = 0; i < 4096; i++)
@@ -186,8 +186,8 @@ int main(void)
             got++;
 
     printf("%ld symbols, rate %.5f, locked %d\n", got,
-           ratesync_get_rate(rs), ratesync_get_locked(rs));
-    ratesync_destroy(rs);
+           dp_ratesync_get_rate(rs), dp_ratesync_get_locked(rs));
+    dp_ratesync_destroy(rs);
     return 0;
 }
 ```

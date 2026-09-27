@@ -893,8 +893,8 @@ def review(d: Data) -> None:
         "FIXED",
         "**`step()` on a chirp emitted a flat CW tone, and an unpinned "
         "chirp's sweep depended on how the caller chunked its reads** "
-        "(gh-1115). `wfm_synth_steps()` self-pinned the span to its first "
-        "block and `wfm_synth_step()` never pinned, so one configuration "
+        "(gh-1115). `dp_wfm_synth_steps()` self-pinned the span to its first "
+        "block and `dp_wfm_synth_step()` never pinned, so one configuration "
         "was three waveforms 2.0 apart -- the largest two unit-modulus "
         "signals can differ by -- and a mid-sweep state resume re-pinned "
         "to whatever the resumed instance read first, since the span is "
@@ -907,7 +907,7 @@ def review(d: Data) -> None:
         "still defaults it to `num_samples`. Now: the three read patterns "
         f"differ by {max(d.chirp_step_gap, d.chirp_block_gap):.3g} (§2.6), "
         "chirp joins the step()/steps() and resume tables (§2.7, §2.8). "
-        "Sabotage: restoring the self-pin in `wfm_synth_steps()` turns the "
+        "Sabotage: restoring the self-pin in `dp_wfm_synth_steps()` turns the "
         "C unpinned-parity case and the §2.6 limit red.",
     )
     R.find(
@@ -928,7 +928,7 @@ def review(d: Data) -> None:
         "F4",
         "BY DESIGN",
         "**`create()` and the composer resolve `auto` differently for "
-        "dsss, and they must.** `wfm_synth_create` resolves an `auto` SNR "
+        "dsss, and they must.** `dp_wfm_synth_create` resolves an `auto` SNR "
         "mode to fs for a DSSS source while `wfm_snr_over_fs` resolves the "
         "same source to Es/No. That reads as drift and is not: the codes "
         "that set the spreading factor attach AFTER create(), so the "

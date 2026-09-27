@@ -97,11 +97,11 @@ class ConvEncoder:
         """
 
     def encode_max_out(self, n_in: int) -> int:
-        """Symbols conv_enc_encode writes for n_in input bits.
+        """Symbols dp_conv_enc_encode writes for n_in input bits.
 
         Exactly `n_in * n` — a convolutional code has no fill and no latency on
 
-        the encode side, which is the asymmetry with viterbi_decode_max_out,
+        the encode side, which is the asymmetry with dp_viterbi_decode_max_out,
 
         where the traceback still owes bits at the start of a stream.
 
@@ -295,10 +295,10 @@ class Viterbi:
         branches of a stream produce no output — the traceback walks `depth -
         1` steps back, so a decision needs that many branches BEHIND it — and
         thereafter one bit is emitted per `n` symbols consumed.
-        viterbi_decode_max_out is the same statement as arithmetic, and is what
-        a caller should size a buffer with rather than repeating this sentence:
-        they disagreed by one until a test asserted the count against a
-        literal.
+        dp_viterbi_decode_max_out is the same statement as arithmetic, and is
+        what a caller should size a buffer with rather than repeating this
+        sentence: they disagreed by one until a test asserted the count against
+        a literal.
 
         Parameters
         ----------
@@ -325,7 +325,7 @@ class Viterbi:
         """
 
     def decode_max_out(self, n_in: int) -> int:
-        """Bits viterbi_decode will emit for n_in soft symbols.
+        """Bits dp_viterbi_decode will emit for n_in soft symbols.
 
         Accounts for the fill still owed at the start of a stream, so a caller
         can
@@ -509,14 +509,14 @@ class ReedSolomon:
         transmitted in. `rs_encode` computes the parity; this places it.
 
         The WHOLE codeword rather than the parity alone, because that is the
-        unit every other method here takes — rs_codec_decode,
-        rs_codec_syndromes and rs_codec_codeword_ok all read `n` symbols, and a
-        caller who wants the parity by itself can take the last `nroots` of the
-        answer. (`rs_encode` is the other split, and is still there for a frame
-        assembler that has already placed the information.)
+        unit every other method here takes — dp_rs_codec_decode,
+        dp_rs_codec_syndromes and dp_rs_codec_codeword_ok all read `n` symbols,
+        and a caller who wants the parity by itself can take the last `nroots`
+        of the answer. (`rs_encode` is the other split, and is still there for
+        a frame assembler that has already placed the information.)
 
-        out may alias in — `rs_codec_encode (rs, buf, k, buf, n)` appends the
-        parity to a buffer that already holds the information, which is the
+        out may alias in — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends
+        the parity to a buffer that already holds the information, which is the
         call a frame assembler makes and the one `rs_encode` exists for.
 
         Parameters
@@ -548,8 +548,8 @@ class ReedSolomon:
         """
 
     def encode_max_out(self, n_in: int) -> int:
-        """Symbols rs_codec_encode writes for n_in information symbols: a whole
-        codeword, `n`.
+        """Symbols dp_rs_codec_encode writes for n_in information symbols: a
+        whole codeword, `n`.
 
         Parameters
         ----------
@@ -571,7 +571,7 @@ class ReedSolomon:
 
         **It either refuses or leaves a codeword.** On success the key equation
         has zeroed every syndrome by construction, so the result passes
-        rs_codec_codeword_ok. On refusal codeword is untouched.
+        dp_rs_codec_codeword_ok. On refusal codeword is untouched.
 
         A refusal is not the same claim as "more than `E` errors". Beyond `E` a
         bounded-distance decoder can land inside another codeword's sphere and
@@ -617,8 +617,8 @@ class ReedSolomon:
 
         All zero is the DEFINING property of the code: it needs no encoder and
         no decoder to check, which is what makes it usable both as a test
-        oracle and as a receiver's error detector. rs_codec_codeword_ok is this
-        reduced to the one bit most callers want.
+        oracle and as a receiver's error detector. dp_rs_codec_codeword_ok is
+        this reduced to the one bit most callers want.
 
         Parameters
         ----------
@@ -647,7 +647,7 @@ class ReedSolomon:
         """
 
     def syndromes_max_out(self, n_in: int) -> int:
-        """Syndromes rs_codec_syndromes writes: `nroots`.
+        """Syndromes dp_rs_codec_syndromes writes: `nroots`.
 
         Parameters
         ----------
@@ -953,7 +953,8 @@ class Interleaver:
     def deinterleave_max_out(self, n_in: int) -> int:
         """Output bits for n_in input bits — the same number.
 
-        Identical to interleaver_interleave_max_out, and for the same reason:
+        Identical to dp_interleaver_interleave_max_out, and for the same
+        reason:
 
         the inverse of a permutation is a permutation.
 
@@ -1212,7 +1213,8 @@ class Deinterleaver:
     def deinterleave_max_out(self, n_in: int) -> int:
         """Output bits for n_in input bits — the same number.
 
-        Identical to interleaver_interleave_max_out, and for the same reason:
+        Identical to dp_interleaver_interleave_max_out, and for the same
+        reason:
 
         the inverse of a permutation is a permutation.
 

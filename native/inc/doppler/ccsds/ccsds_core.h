@@ -14,8 +14,8 @@
  * what keeps `wfm/wfm_frame.h` free of CCSDS. See
  * docs/design/frame-description.md.
  */
-#ifndef CCSDS_CORE_H
-#define CCSDS_CORE_H
+#ifndef DP_CCSDS_CORE_H
+#define DP_CCSDS_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -57,7 +57,7 @@ extern "C" {
  * True
  * @endcode
  */
-void asm_bits(uint8_t *out);
+void dp_asm_bits(uint8_t *out);
 
 #ifdef __cplusplus
 }

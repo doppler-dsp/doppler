@@ -21,7 +21,7 @@ name = "compensate"
 type = "int"
 default = "0"
 
-# The matched FLAVOR (gh-504): same RateConverter_state_t, same methods, one
+# The matched FLAVOR (gh-504): same dp_RateConverter_state_t, same methods, one
 # different constructor. The terminal stage carries a pulse-shaped bank
 # instead of the Kaiser anti-alias one, so the cascade converts the rate AND
 # matched-filters in a single dot product, and that stage's polyphase arm is

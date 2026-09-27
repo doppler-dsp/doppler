@@ -429,12 +429,12 @@ class Despreader:
         than forcing a caller who needs this control to drop to raw Dll+Costas
         composition.
 
-        Thin forwarder to costas_configure_lock() on the embedded Costas loop —
-        symmetric with despreader_get_carrier_locked() exposing its state:
-        state is readable, so config should be writable too, rather than
+        Thin forwarder to dp_costas_configure_lock() on the embedded Costas
+        loop — symmetric with dp_despreader_get_carrier_locked() exposing its
+        state: state is readable, so config should be writable too, rather than
         forcing a caller who needs this control to drop to raw Dll+Costas
-        composition instead of Despreader. See costas_configure_lock() for the
-        parameter semantics.
+        composition instead of Despreader. See dp_costas_configure_lock() for
+        the parameter semantics.
 
         Parameters
         ----------
@@ -469,11 +469,12 @@ class Despreader:
         Dll-only control for a caller that composes Dll+Costas directly).
         Raises ValueError for pfa outside (0, 1).
 
-        Thin forwarder to dll_configure_lock() on the embedded DLL — the
+        Thin forwarder to dp_dll_configure_lock() on the embedded DLL — the
         derived (pfa-style) entry point, matching Despreader's role as the
-        "easy" composed API (Dll's raw escape hatch, dll_configure_lock_raw(),
-        stays a Dll-only control for a caller that composes Dll+Costas
-        directly). See dll_configure_lock() for the parameter semantics.
+        "easy" composed API (Dll's raw escape hatch,
+        dp_dll_configure_lock_raw(), stays a Dll-only control for a caller that
+        composes Dll+Costas directly). See dp_dll_configure_lock() for the
+        parameter semantics.
 
         Parameters
         ----------
@@ -483,7 +484,7 @@ class Despreader:
             Non-coherent integration depth N (looks); clamped >= 1.
         ref_snr_db : float
             Noise-reference estimator SNR in dB (> 0), or 0 to derive from
-            n_looks (see dll_configure_lock()).
+            n_looks (see dp_dll_configure_lock()).
 
         Raises
         ------
@@ -838,9 +839,9 @@ class BurstDespreader:
         loops pull in even a wide residual) before switching to the data code
         for the payload. Call before feeding the burst; the acq mode clears
         automatically once the preamble is consumed, and re-arms on
-        burst_despreader_reset(). NB: set_acq re-arms the PREAMBLE only — the
-        cumulative burst statistics (lock_metric / snr_est / lock_stat /
-        stat_n) are re-armed by burst_despreader_reset(); call it between
+        dp_burst_despreader_reset(). NB: set_acq re-arms the PREAMBLE only —
+        the cumulative burst statistics (lock_metric / snr_est / lock_stat /
+        stat_n) are re-armed by dp_burst_despreader_reset(); call it between
         bursts.
 
         Parameters
@@ -883,7 +884,7 @@ class BurstDespreader:
         the seed chip, zeroes the loop accumulators, and clears the cumulative
         burst read-backs (lock_metric / snr_est / lock_stat / stat_n) — the
         spreading code and bandwidths are kept. Call it between bursts so each
-        burst's statistics start clean; a prior burst_despreader_set_acq()
+        burst's statistics start clean; a prior dp_burst_despreader_set_acq()
         preamble is also re-armed.
 
         Examples
@@ -1427,7 +1428,7 @@ class BurstDemod:
         """
 
     def llrs_max_out(self, n: int) -> int:
-        """Max LLRs burst_demod_llrs() writes: the frame's length in bits.
+        """Max LLRs dp_burst_demod_llrs() writes: the frame's length in bits.
 
         Parameters
         ----------
@@ -1460,7 +1461,7 @@ class BurstDemod:
         already characterised well enough to know. It was built either way and
         freed unread (doppler#1087).
 
-        Same span and same normalisation as burst_demod_llrs(): the whole
+        Same span and same normalisation as dp_burst_demod_llrs(): the whole
         frame, scaled to unit mean-|Re| by the burst's own estimate, so
         `crealf(symbols[k])` is that bit's LLR up to est_n0.
 
@@ -1503,7 +1504,7 @@ class BurstDemod:
         """
 
     def symbols_max_out(self, n: int) -> int:
-        """Max symbols burst_demod_symbols() writes: the frame's length.
+        """Max symbols dp_burst_demod_symbols() writes: the frame's length.
 
         Parameters
         ----------
@@ -1972,8 +1973,8 @@ class DsssReceiver:
         failed pin leaves the receiver tracking on its prior grid, not
         half-destroyed. Only meaningful once tracking (the grid defaults still
         apply to create-time auto-sizing for the next hit while searching; call
-        `dsss_receiver_create()` with different `segments`/`sps` for that, or
-        re-pin here again after the next hit).
+        `dp_dsss_receiver_create()` with different `segments`/`sps` for that,
+        or re-pin here again after the next hit).
 
         Parameters
         ----------
@@ -2227,7 +2228,7 @@ class AsyncDsssReceiver:
         Nominal RF carrier frequency, Hz, enabling carrier->code aiding; 0.0
         (default) = off. When > 0, the coupled code-rate Doppler
         (carrier_offset/carrier_freq) is fed to the tracking Dll via
-        dll_set_rate_aid() so the code loop rides a dilated clock the
+        dp_dll_set_rate_aid() so the code loop rides a dilated clock the
         discriminator alone can't pull in at low SNR. Set to the receiver's own
         downlink RF frequency for a physically-coupled Doppler capture.
     lost_confirm_s : float, default 0.0

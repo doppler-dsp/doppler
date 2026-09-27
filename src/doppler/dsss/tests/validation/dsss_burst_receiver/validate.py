@@ -1055,7 +1055,7 @@ def review(d: Data) -> None:
         "first -- 6/6 decoded with 333-sample blocks against 1/6 with one "
         "large one. Three separate sites: an early return that never looked "
         "at `x` at all, a `break` that left the remainder unwritten, and a "
-        "single `acq_push` per chunk, which stops once its result array is "
+        "single `dp_acq_push` per chunk, which stops once its result array is "
         "full and abandons its own input suffix. All three are gone: the "
         "loop runs to the end of `x`, acq is re-fed until it has absorbed "
         "the chunk, and `push()` returns EVERY burst it completed. "

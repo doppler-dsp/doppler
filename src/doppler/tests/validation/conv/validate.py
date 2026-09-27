@@ -543,7 +543,7 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C13",
-                "`viterbi_decode` refuses a non-multiple or a short buffer",
+                "`dp_viterbi_decode` refuses a non-multiple or a short buffer",
                 "viterbi §7",
                 "—",
             ],

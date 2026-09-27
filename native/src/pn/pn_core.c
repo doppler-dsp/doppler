@@ -9,13 +9,13 @@
  * period 2^L - 1. Output chips are 0/1 (uint8); map to ±1 downstream.
  */
 
-pn_state_t *
-pn_create (uint64_t poly, uint64_t seed, uint32_t length, int lfsr)
+dp_pn_state_t *
+dp_pn_create (uint64_t poly, uint64_t seed, uint32_t length, int lfsr)
 {
   /* all-zero register is a fixed point; register holds up to 64 bits */
   if (seed == 0 || length == 0 || length > 64)
     return NULL;
-  pn_state_t *obj = calloc (1, sizeof (*obj));
+  dp_pn_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   obj->mask = (length >= 64) ? ~(uint64_t)0 : (((uint64_t)1 << length) - 1u);
@@ -40,13 +40,13 @@ pn_create (uint64_t poly, uint64_t seed, uint32_t length, int lfsr)
 }
 
 void
-pn_destroy (pn_state_t *state)
+dp_pn_destroy (dp_pn_state_t *state)
 {
   free (state);
 }
 
 void
-pn_reset (pn_state_t *state)
+dp_pn_reset (dp_pn_state_t *state)
 {
   state->reg = state->seed;
 }
@@ -56,42 +56,42 @@ pn_reset (pn_state_t *state)
  * topshift are config restored by create(). */
 
 size_t
-pn_state_bytes (const pn_state_t *state)
+dp_pn_state_bytes (const dp_pn_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t);
 }
 
 void
-pn_get_state (const pn_state_t *state, void *blob)
+dp_pn_get_state (const dp_pn_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, pn_state_bytes (state));
-  dp_w_hdr (&w, PN_STATE_MAGIC, PN_STATE_VERSION, pn_state_bytes (state));
+  dp_writer_t w = dp_writer_init (blob, dp_pn_state_bytes (state));
+  dp_w_hdr (&w, PN_STATE_MAGIC, PN_STATE_VERSION, dp_pn_state_bytes (state));
   dp_w_u64 (&w, state->reg);
 }
 
 int
-pn_set_state (pn_state_t *state, const void *blob)
+dp_pn_set_state (dp_pn_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, pn_state_bytes (state), PN_STATE_MAGIC,
+  int rc = dp_state_validate (blob, dp_pn_state_bytes (state), PN_STATE_MAGIC,
                               PN_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, pn_state_bytes (state));
+  dp_reader_t r = dp_reader_init (blob, dp_pn_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   state->reg    = dp_r_u64 (&r);
   return DP_OK;
 }
 
 size_t
-pn_generate_max_out (pn_state_t *state)
+dp_pn_generate_max_out (dp_pn_state_t *state)
 {
   (void)state;
   return 0; /* output length is the caller-requested n */
 }
 
 size_t
-pn_generate (pn_state_t *state, size_t n, uint8_t *out, size_t max_out)
+dp_pn_generate (dp_pn_state_t *state, size_t n, uint8_t *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)

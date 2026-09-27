@@ -51,7 +51,7 @@
  * **2. The loop stays open until the cascade is primed.** A cascade's first
  * outputs are its delay lines filling, not signal (the eye statistic swings
  * over its whole +-2 range through them). Steering on them is meaningless and
- * was worth one lost acquisition in sixteen. ratesync_create() computes the
+ * was worth one lost acquisition in sixteen. dp_ratesync_create() computes the
  * prime length from the terminal bank's own geometry.
  *
  * ## The T/2 role ambiguity resolves itself
@@ -100,17 +100,17 @@
  * Lifecycle: `create -> (step / steps / reset)* -> destroy`
  *
  * @code
- * ratesync_state_t *rx = ratesync_create (17.33389, RATESYNC_PULSE_RRC, 0.35,
+ * dp_ratesync_state_t *rx = dp_ratesync_create (17.33389, RATESYNC_PULSE_RRC, 0.35,
  *                                         8, 2, 1024, 0.01, 0.707,
  *                                         RATESYNC_TED_GARDNER);
  * float _Complex sym;
  * if (ratesync_step (rx, x, &sym))
  *   consume (sym);
- * ratesync_destroy (rx);
+ * dp_ratesync_destroy (rx);
  * @endcode
  */
-#ifndef RATESYNC_CORE_H
-#define RATESYNC_CORE_H
+#ifndef DP_RATESYNC_CORE_H
+#define DP_RATESYNC_CORE_H
 
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/cic/cic_core.h"
@@ -134,7 +134,7 @@ extern "C"
 {
 #endif
 
-  /** @brief Timing-error-detector selection for ratesync_state_t::ted. */
+  /** @brief Timing-error-detector selection for dp_ratesync_state_t::ted. */
   enum
   {
     RATESYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).   */
@@ -201,7 +201,7 @@ extern "C"
    */
   typedef struct
   {
-    loop_filter_state_t lf; /**< 2nd-order timing PI loop.               */
+    dp_loop_filter_state_t lf; /**< 2nd-order timing PI loop.               */
 
     /* ── config (restored by the owner's create(), never packed) ────── */
     double sps;        /**< nominal samples per symbol (any double).      */
@@ -247,7 +247,7 @@ extern "C"
     size_t lock_count;    /**< looks accumulated in the current block.       */
     size_t avgs;          /**< non-coherent block size (looks/decision).     */
     double lock_stat;     /**< last block-averaged lock_signal.              */
-    lockdet_state_t lock; /**< declare/drop rule stepped on lock_stat.    */
+    dp_lockdet_state_t lock; /**< declare/drop rule stepped on lock_stat.    */
 
     ratesync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs.  */
   } ratesync_loop_t;
@@ -260,7 +260,7 @@ extern "C"
    */
   typedef struct
   {
-    RateConverter_state_t *mf;   /**< cascade; terminal stage is the MF.  */
+    dp_RateConverter_state_t *mf;   /**< cascade; terminal stage is the MF.  */
     ratesync_loop_t        loop; /**< timing loop closed around it.       */
 
     /* ── config (restored by create(), never packed in a state blob) ── */
@@ -268,7 +268,7 @@ extern "C"
     double beta;       /**< RRC roll-off.                                 */
     size_t span;       /**< one-sided RRC span, symbols.                  */
     size_t num_phases; /**< bank arms (power of two).                     */
-  } ratesync_state_t;
+  } dp_ratesync_state_t;
 
   /* ------------------------------------------------------------------
    * The timing loop on its own (shared with the receivers)
@@ -319,7 +319,7 @@ extern "C"
    * @param rc  The cascade whose terminal stage the loop steers.
    */
   void ratesync_loop_bind_cascade (ratesync_loop_t             *l,
-                                   const RateConverter_state_t *rc);
+                                   const dp_RateConverter_state_t *rc);
 
   /** @brief Re-seed the loop: integrator, strobe ring, lock detector and the
    *         prime countdown. Configuration and cascade geometry are kept.
@@ -330,12 +330,12 @@ extern "C"
   void ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
 
   /** @brief Set the lock detector's geometry; see
-   *         ratesync_configure_lock_raw(), which forwards here. */
+   *         dp_ratesync_configure_lock_raw(), which forwards here. */
   void ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
                                          double up_thresh, double down_thresh,
                                          uint32_t n_up, uint32_t n_down);
 
-  /** @brief Register the six timing probes; see ratesync_set_telemetry(),
+  /** @brief Register the six timing probes; see dp_ratesync_set_telemetry(),
    *         which forwards here. NULL @p tlm detaches. */
   int ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
@@ -403,7 +403,7 @@ extern "C"
    *
    * **Nothing here reports either end reliably.** Over-drive is reported
    * only on the subset of plans that happen to contain a CIC:
-   * ratesync_get_clipped() is a CIC quantiser flag, and whether the plan HAS
+   * dp_ratesync_get_clipped() is a CIC quantiser flag, and whether the plan HAS
    * a CIC is the planner's decision, not the caller's — a CIC-free cascade
    * (which is what `sps = 8` plans) reads 0 however hard it is driven.
    * Under-drive has no flag on any plan at all; that gap is tracked as
@@ -444,15 +444,15 @@ extern "C"
    *                    (decision-directed; BPSK/QPSK only).
    * @return Heap-allocated state, or NULL if a parameter is out of range or
    *         allocation fails.
-   * @note Caller must call ratesync_destroy() when done.
+   * @note Caller must call dp_ratesync_destroy() when done.
    */
-  ratesync_state_t *ratesync_create (double sps, int pulse, double beta,
+  dp_ratesync_state_t *dp_ratesync_create (double sps, int pulse, double beta,
                                      size_t span, size_t m, size_t num_phases,
                                      double bn, double zeta, int ted);
 
   /** @brief Destroy a RateSync instance and release all memory.
    *  @param state  May be NULL. */
-  void ratesync_destroy (ratesync_state_t *state);
+  void dp_ratesync_destroy (dp_ratesync_state_t *state);
 
   /**
    * @brief Reset to the post-create state: the cascade, the loop integrator,
@@ -479,7 +479,7 @@ extern "C"
    *
    * @endcode
    */
-  void ratesync_reset (ratesync_state_t *state);
+  void dp_ratesync_reset (dp_ratesync_state_t *state);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -567,7 +567,7 @@ extern "C"
     double e      = num * s->ted_scale;
     s->last_error = e;
 
-    /* loop_filter_step returns a correction in symbols per symbol; `ctrl` is
+    /* dp_loop_filter_step returns a correction in symbols per symbol; `ctrl` is
        a rate deviation the TERMINAL stage adds to its accumulator once per
        one of ITS OWN inputs — not once per cascade input. Those differ by the
        whole integer decimation in front, so scaling by the cascade rate m/sps
@@ -579,7 +579,7 @@ extern "C"
        rate_term, with no reference to sps or the decimation at all.
        e > 0 means the strobe is LATE and a positive ctrl advances it — the
        classic Gardner polarity. */
-    s->ctrl = loop_filter_step (&s->lf, e) * s->term_rate;
+    s->ctrl = dp_loop_filter_step (&s->lf, e) * s->term_rate;
 
     /* Tracked samples/symbol from the loop INTEGRATOR, not the instantaneous
        control. The integrator is the rate memory (loop_filter_core.h: "kp*e
@@ -605,7 +605,7 @@ extern "C"
     if (++s->lock_count >= s->avgs)
       {
         s->lock_stat = s->lock_sum / (double)s->avgs;
-        (void)lockdet_step (&s->lock, s->lock_stat);
+        (void)dp_lockdet_step (&s->lock, s->lock_stat);
         s->lock_sum   = 0.0;
         s->lock_count = 0;
       }
@@ -618,7 +618,7 @@ extern "C"
   /**
    * @brief Per-input timing step with the TED selection as a parameter.
    *
-   * The workhorse behind ratesync_step()/ratesync_steps(). Pushes one input
+   * The workhorse behind ratesync_step()/dp_ratesync_steps(). Pushes one input
    * through the cascade at the current control deviation, which emits **up
    * to two** terminal-stage outputs for that one input: `rate = m/sps <= 1`
    * bounds it at two, and a terminal rate at or near 1.0 — what an integer
@@ -644,7 +644,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  ratesync_step_ted (ratesync_state_t *s, float _Complex x,
+  ratesync_step_ted (dp_ratesync_state_t *s, float _Complex x,
                      float _Complex *y_out, int ted)
   {
     /* One input can complete MORE THAN ONE output period. It happens
@@ -658,7 +658,7 @@ extern "C"
        with m >= 2 those can contain at most one on-time strobe: the
        single-symbol return of this function is still correct. */
     float _Complex ys[4];
-    size_t n = RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
+    size_t n = dp_RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
                                                 sizeof (ys) / sizeof (ys[0]));
     int    emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
@@ -678,7 +678,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  ratesync_step (ratesync_state_t *s, float _Complex x, float _Complex *y_out)
+  ratesync_step (dp_ratesync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = ratesync_step_ted (s, x, y_out, s->loop.ted);
     if (r && s->loop.tlm.ctx)
@@ -689,7 +689,7 @@ extern "C"
   /** @brief Output-buffer hint for the generated binding; 0 means "the input
    *  length is already a safe bound" — with `sps >= m >= 2` a block can never
    *  yield more symbols than it has samples (mirrors symsync). */
-  size_t ratesync_steps_max_out (ratesync_state_t *state);
+  size_t dp_ratesync_steps_max_out (dp_ratesync_state_t *state);
 
   /**
    * @brief Recover symbols from a block of oversampled cf32 baseband.
@@ -719,7 +719,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t ratesync_steps (ratesync_state_t *state, const float _Complex *x,
+  size_t dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
                          size_t x_len, float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
@@ -756,39 +756,39 @@ extern "C"
    *
    * @endcode
    */
-  void   ratesync_configure (ratesync_state_t *state, double bn, double zeta);
+  void   dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta);
   /** @brief Timing-loop noise bandwidth, normalised to the symbol rate.
    *  Writing it re-derives the loop gains at the damping already in use,
    *  exactly as configure() does. */
-  double ratesync_get_bn (const ratesync_state_t *state);
-  void   ratesync_set_bn (ratesync_state_t *state, double val);
+  double dp_ratesync_get_bn (const dp_ratesync_state_t *state);
+  void   dp_ratesync_set_bn (dp_ratesync_state_t *state, double val);
 
   /** @brief Last normalised TED error — the loop stress. */
-  double ratesync_get_timing_error (const ratesync_state_t *state);
+  double dp_ratesync_get_timing_error (const dp_ratesync_state_t *state);
 
   /** @brief Smoothed tracked samples per symbol. Departs from the nominal
    *         `sps` by exactly the sample-clock offset being tracked, so it is
    *         the estimator a rate-disciplining caller reads. */
-  double ratesync_get_rate (const ratesync_state_t *state);
+  double dp_ratesync_get_rate (const dp_ratesync_state_t *state);
 
   /** @brief Current per-input control deviation steering the strobe. */
-  double ratesync_get_ctrl (const ratesync_state_t *state);
+  double dp_ratesync_get_ctrl (const dp_ratesync_state_t *state);
 
   /** @brief Last block-averaged lock statistic (the eye-opening ratio).
    *
    *  This, not an error-vector magnitude, is the honest lock indicator: a
    *  single cycle slip during acquisition drags a windowed EVM by 20 dB while
    *  the eye stays wide open at +0.75. Judge lock here. */
-  double ratesync_get_lock_stat (const ratesync_state_t *state);
+  double dp_ratesync_get_lock_stat (const dp_ratesync_state_t *state);
 
   /** @brief Current lock decision (1 = locked), verify-counted. */
-  int ratesync_get_locked (const ratesync_state_t *state);
+  int dp_ratesync_get_locked (const dp_ratesync_state_t *state);
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *         reset? Forwarded from the RateConverter: a CIC bounds its input
    *         to +-1.0 and clips silently past that, which no timing metric
    *         reveals. Always 0 when the plan has no CIC stage. */
-  int ratesync_get_clipped (const ratesync_state_t *state);
+  int dp_ratesync_get_clipped (const dp_ratesync_state_t *state);
 
   /**
    * @brief Set the lock detector's geometry directly.
@@ -822,7 +822,7 @@ extern "C"
    *
    * @endcode
    */
-  void ratesync_configure_lock_raw (ratesync_state_t *state, size_t avgs,
+  void dp_ratesync_configure_lock_raw (dp_ratesync_state_t *state, size_t avgs,
                                     double up_thresh, double down_thresh,
                                     uint32_t n_up, uint32_t n_down);
 
@@ -862,7 +862,7 @@ extern "C"
    *
    * @endcode
    */
-  int ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
+  int dp_ratesync_set_telemetry (dp_ratesync_state_t *state, dp_tlm_t *tlm,
                               const char *prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ─────────
@@ -874,13 +874,13 @@ extern "C"
 #define RATESYNC_STATE_MAGIC DP_FOURCC ('R', 'A', 'T', 'S')
 #define RATESYNC_STATE_VERSION 2u /* v2: running state moved into the loop */
 
-  /** @brief Bytes ratesync_get_state() writes (envelope + payload + child). */
-  size_t ratesync_state_bytes (const ratesync_state_t *state);
+  /** @brief Bytes dp_ratesync_get_state() writes (envelope + payload + child). */
+  size_t dp_ratesync_state_bytes (const dp_ratesync_state_t *state);
   /** @brief Serialize the mutable state into @p blob. */
-  void ratesync_get_state (const ratesync_state_t *state, void *blob);
+  void dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob into an identically built
    *  instance. @return DP_OK, or DP_ERR_INVALID if any envelope rejects. */
-  int ratesync_set_state (ratesync_state_t *state, const void *blob);
+  int dp_ratesync_set_state (dp_ratesync_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

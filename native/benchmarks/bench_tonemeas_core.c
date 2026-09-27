@@ -2,7 +2,7 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891).
  *
- * `tonemeas_analyze` is a whole-capture measurement, not a streaming one:
+ * `dp_tonemeas_analyze` is a whole-capture measurement, not a streaming one:
  * window, FFT, find the fundamental, sum the harmonics, sum the rest. So
  * the honest unit is TIME PER CAPTURE and the useful sweep is capture
  * size, because that is the knob a bench operator turns when they want a
@@ -66,7 +66,8 @@ main (void)
           xc[i]    = (float)(0.5 * cos (p)) + (float)(0.5 * sin (p)) * I;
         }
 
-      tonemeas_state_t *m = tonemeas_create (n, 1.0, N_HARM, 1.0, 0, 90.0, 0);
+      dp_tonemeas_state_t *m
+          = dp_tonemeas_create (n, 1.0, N_HARM, 1.0, 0, 90.0, 0);
       if (!m)
         {
           (void)fprintf (stderr, "bench_tonemeas: create(n=%zu) NULL\n", n);
@@ -75,7 +76,7 @@ main (void)
 
       /* Precondition: a capture that measures nothing would time the
          early-out, not the analysis. */
-      tone_meas_t probe = tonemeas_analyze (m, x, n);
+      tone_meas_t probe = dp_tonemeas_analyze (m, x, n);
       if (!(probe.sfdr_dbc > 0.0))
         {
           (void)fprintf (stderr,
@@ -89,7 +90,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += tonemeas_analyze (m, x, n).sfdr_dbc;
+          sink += dp_tonemeas_analyze (m, x, n).sfdr_dbc;
           t1         = jm_bench_now_ns ();
           t_re[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -102,7 +103,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += tonemeas_analyze_complex (m, xc, n).sfdr_dbc;
+          sink += dp_tonemeas_analyze_complex (m, xc, n).sfdr_dbc;
           t1         = jm_bench_now_ns ();
           t_cx[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -112,7 +113,7 @@ main (void)
               min_sec (t_cx[k], ITERATIONS) * 1e6,
               min_sec (t_cx[k], ITERATIONS) / (double)n * 1e9);
 
-      tonemeas_destroy (m);
+      dp_tonemeas_destroy (m);
       free (x);
       free (xc);
     }

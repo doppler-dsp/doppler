@@ -58,12 +58,12 @@ main (void)
     for (size_t j = 0; j < nx; j++)
       ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
-    corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
-    corr2d_execute (obj, in, n, out, n); /* warmup */
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
+    dp_corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        corr2d_execute (obj, in, n, out, n);
+        dp_corr2d_execute (obj, in, n, out, n);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -75,7 +75,7 @@ main (void)
             (double)n / (sum / ITERATIONS) / 1e6, obj->fast_path);
 
     free (ref);
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── genuinely multi-row reference -- general 2-D path ────────────────── */
@@ -84,12 +84,12 @@ main (void)
     for (size_t k = 0; k < n; k++)
       ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
-    corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
-    corr2d_execute (obj, in, n, out, n); /* warmup */
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
+    dp_corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        corr2d_execute (obj, in, n, out, n);
+        dp_corr2d_execute (obj, in, n, out, n);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -101,7 +101,7 @@ main (void)
             (double)n / (sum / ITERATIONS) / 1e6, obj->fast_path);
 
     free (ref);
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   free (in);

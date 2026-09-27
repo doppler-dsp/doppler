@@ -40,9 +40,9 @@ main (void)
 {
   /* ── measure_min_samples: RBW = ENBW * fs / n, so n scales as 1/RBW ─ */
   {
-    const size_t n1k  = measure_min_samples (FS, 1000.0, 12, 0.0, 1);
-    const size_t n500 = measure_min_samples (FS, 500.0, 12, 0.0, 1);
-    const size_t n250 = measure_min_samples (FS, 250.0, 12, 0.0, 1);
+    const size_t n1k  = dp_measure_min_samples (FS, 1000.0, 12, 0.0, 1);
+    const size_t n500 = dp_measure_min_samples (FS, 500.0, 12, 0.0, 1);
+    const size_t n250 = dp_measure_min_samples (FS, 250.0, 12, 0.0, 1);
 
     DP_CHECK (n1k > 0);
     DP_CHECK (n500 > n1k);
@@ -57,40 +57,41 @@ main (void)
 
     /* A deeper ADC asks for more dynamic range, which asks for a wider
        window, which costs samples at the same RBW. */
-    DP_CHECK (measure_min_samples (FS, 1000.0, 16, 0.0, 1)
-              >= measure_min_samples (FS, 1000.0, 8, 0.0, 1));
+    DP_CHECK (dp_measure_min_samples (FS, 1000.0, 16, 0.0, 1)
+              >= dp_measure_min_samples (FS, 1000.0, 8, 0.0, 1));
 
     /* An explicit dynamic-range override is used INSTEAD of `bits`, so
        the same override under two different bit depths must agree. */
-    DP_CHECK (measure_min_samples (FS, 1000.0, 8, 90.0, 1)
-              == measure_min_samples (FS, 1000.0, 16, 90.0, 1));
+    DP_CHECK (dp_measure_min_samples (FS, 1000.0, 8, 90.0, 1)
+              == dp_measure_min_samples (FS, 1000.0, 16, 90.0, 1));
 
     /* target_rbw <= 0 defaults to span/1000, and the span differs between
        real and complex -- so the two must NOT come out equal. */
-    const size_t def_c = measure_min_samples (FS, 0.0, 12, 0.0, 1);
-    const size_t def_r = measure_min_samples (FS, 0.0, 12, 0.0, 0);
+    const size_t def_c = dp_measure_min_samples (FS, 0.0, 12, 0.0, 1);
+    const size_t def_r = dp_measure_min_samples (FS, 0.0, 12, 0.0, 0);
     DP_CHECK (def_c > 0 && def_r > 0);
     DP_CHECK (def_c != def_r);
 
     /* Bad args return 0, per the docstring -- not a plausible length. */
-    DP_CHECK (measure_min_samples (0.0, 1000.0, 12, 0.0, 1) == 0);
-    DP_CHECK (measure_min_samples (-1.0, 1000.0, 12, 0.0, 1) == 0);
+    DP_CHECK (dp_measure_min_samples (0.0, 1000.0, 12, 0.0, 1) == 0);
+    DP_CHECK (dp_measure_min_samples (-1.0, 1000.0, 12, 0.0, 1) == 0);
   }
 
   /* ── measure_rec_nfft: next_pow_two(n * max(pad, 1)) ───────────────── */
   {
-    DP_CHECK (measure_rec_nfft (1024, 1) == 1024); /* already a power of two */
-    DP_CHECK (measure_rec_nfft (1000, 1) == 1024);
-    DP_CHECK (measure_rec_nfft (1024, 2) == 2048);
-    DP_CHECK (measure_rec_nfft (1000, 4) == 4096);
+    DP_CHECK (dp_measure_rec_nfft (1024, 1)
+              == 1024); /* already a power of two */
+    DP_CHECK (dp_measure_rec_nfft (1000, 1) == 1024);
+    DP_CHECK (dp_measure_rec_nfft (1024, 2) == 2048);
+    DP_CHECK (dp_measure_rec_nfft (1000, 4) == 4096);
 
     /* pad of 0 is treated as 1, which is what max(pad, 1) means. */
-    DP_CHECK (measure_rec_nfft (1000, 0) == measure_rec_nfft (1000, 1));
+    DP_CHECK (dp_measure_rec_nfft (1000, 0) == dp_measure_rec_nfft (1000, 1));
 
     /* Whatever it returns must BE a power of two and must not lose data. */
     for (size_t n = 1; n <= 5000; n = n * 3 + 1)
       {
-        const size_t k = measure_rec_nfft (n, 1);
+        const size_t k = dp_measure_rec_nfft (n, 1);
         DP_CHECK (k >= n);
         DP_CHECK ((k & (k - 1)) == 0);
       }
@@ -98,12 +99,13 @@ main (void)
 
   /* ── measure_proc_gain: 10*log10(nfft / 2) ──────────────────────── */
   {
-    DP_CHECK (fabs (measure_proc_gain (2) - 0.0) < 1e-9);
-    DP_CHECK (fabs (measure_proc_gain (2048) - 10.0 * log10 (1024.0)) < 1e-9);
+    DP_CHECK (fabs (dp_measure_proc_gain (2) - 0.0) < 1e-9);
+    DP_CHECK (fabs (dp_measure_proc_gain (2048) - 10.0 * log10 (1024.0))
+              < 1e-9);
 
     /* Doubling the transform length buys 3.01 dB, every time. */
     for (size_t n = 64; n <= 65536; n *= 2)
-      DP_CHECK (fabs ((measure_proc_gain (2 * n) - measure_proc_gain (n))
+      DP_CHECK (fabs ((dp_measure_proc_gain (2 * n) - dp_measure_proc_gain (n))
                       - 10.0 * log10 (2.0))
                 < 1e-9);
   }

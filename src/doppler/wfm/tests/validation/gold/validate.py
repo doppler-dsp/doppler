@@ -187,7 +187,7 @@ def measure_family(d: Data) -> None:
             [
                 "seeds available",
                 str(P),
-                "`gold_create` rejects a zero seed, so 2^length **- 1**",
+                "`dp_gold_create` rejects a zero seed, so 2^length **- 1**",
             ],
             [
                 "distinct codes reached",
@@ -382,7 +382,7 @@ def review(d: Data) -> None:
         'family (2^length members)"* -- 1024 at length=10 -- and repeated '
         '"the 1024-code Gold family" in `@param seed_a`. Measured over '
         f"every nonzero seed: **{d.n_distinct}** distinct codes. Only "
-        "2^length **- 1** seeds exist, because `gold_create` rejects "
+        "2^length **- 1** seeds exist, because `dp_gold_create` rejects "
         "zero; and the classical Gold set for a preferred pair has 2^n "
         f"**+ 1** = {P + 2} members -- these plus the two constituent "
         "m-sequences, which this generator can never emit because it "
@@ -400,7 +400,7 @@ def review(d: Data) -> None:
         "was never exercised: every existing call passed `max_out == n`, "
         'so *"emission stops there"* and *"@return min(n, max_out)"* '
         'were prose. Nor was *"requesting more than one period is valid '
-        '-- the sequence simply wraps"*, nor `gold_destroy(NULL)` as a '
+        '-- the sequence simply wraps"*, nor `dp_gold_destroy(NULL)` as a '
         "documented no-op. All three are now pinned in "
         "`test_gold_core.c`, with the capacity case also requiring the "
         "untouched tail of the caller's buffer to stay untouched and a "

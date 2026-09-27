@@ -70,13 +70,13 @@ main (void)
      autocorrelation sidelobe is near its peak sets the CFAR reference from
      its own structure rather than from noise, and roughly halves the burst
      offsets that are found at all. */
-  uint8_t     acq_code[ACQ_SF], data_code[DATA_SF];
-  pn_state_t *pn = pn_create (pn_mls_poly (5), 1u, 5u, 0);
+  uint8_t        acq_code[ACQ_SF], data_code[DATA_SF];
+  dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5), 1u, 5u, 0);
   if (!pn)
     return 1;
   for (size_t i = 0; i < ACQ_SF; i++)
     acq_code[i] = pn_step (pn);
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
   for (size_t i = 0; i < DATA_SF; i++)
     data_code[i] = (uint8_t)((i >> 1) & 1u);
 
@@ -109,19 +109,19 @@ main (void)
    * because every term is known here and a caller asked to size a history
    * buffer is a caller handed a way to lose bursts silently. */
   /* The capture takes the preamble as its SAMPLES, one period. A PN code
-   * becomes one by the library's chip rule, bin_to_nrz() (0 -> +1,
+   * becomes one by the library's chip rule, dp_bin_to_nrz() (0 -> +1,
    * 1 -> -1), with each chip held SPC samples, at fs = chip_rate * SPC. */
   float nrz[ACQ_SF];
   float _Complex pre[ACQ_SF * SPC];
-  (void)bin_to_nrz (acq_code, ACQ_SF, nrz, ACQ_SF);
+  (void)dp_bin_to_nrz (acq_code, ACQ_SF, nrz, ACQ_SF);
   for (size_t i = 0; i < ACQ_SF * SPC; i++)
     pre[i] = nrz[i / SPC];
-  burst_capture_state_t *cap
-      = burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
-                              CHIP_RATE * SPC, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+  dp_burst_capture_state_t *cap = dp_burst_capture_create (
+      pre, ACQ_SF * SPC, BURST_LEN, REPS, CHIP_RATE * SPC, 55.0, 0.0, 1e-3,
+      0.9, 0, 0.0);
   if (!cap)
     {
-      fprintf (stderr, "burst_capture_create failed\n");
+      fprintf (stderr, "dp_burst_capture_create failed\n");
       free (x);
       return 1;
     }
@@ -140,11 +140,11 @@ main (void)
    * block of n samples completes at most n/burst_len + 1 of them, plus
    * whatever is already queued. Sizing by hand is how a caller silently
    * truncates. */
-  size_t         cap_out = burst_capture_push_max_out (cap, BLOCK);
+  size_t         cap_out = dp_burst_capture_push_max_out (cap, BLOCK);
   float complex *out     = malloc (cap_out * sizeof *out);
   if (!out)
     {
-      burst_capture_destroy (cap);
+      dp_burst_capture_destroy (cap);
       free (x);
       return 1;
     }
@@ -160,7 +160,7 @@ main (void)
   for (size_t off = 0; off < N_TOTAL; off += BLOCK)
     {
       size_t blk = N_TOTAL - off < BLOCK ? N_TOTAL - off : BLOCK;
-      size_t n   = burst_capture_push (cap, x + off, blk, out, cap_out);
+      size_t n   = dp_burst_capture_push (cap, x + off, blk, out, cap_out);
 
       /* n is a whole number of windows, always -- half a burst is not a
          burst, so a short buffer truncates at a window boundary. */
@@ -201,11 +201,11 @@ main (void)
   printf ("\n  captured %zu window(s); %zu detection(s) still awaiting "
           "samples; %llu sample(s) dropped\n",
           n_found, cap->pending,
-          (unsigned long long)burst_capture_get_dropped (cap));
+          (unsigned long long)dp_burst_capture_get_dropped (cap));
   printf ("  wrote burst_capture_window.csv (first 512 samples of burst 1)\n");
 
   /* ── Destroy ──────────────────────────────────────────────────────── */
-  burst_capture_destroy (cap);
+  dp_burst_capture_destroy (cap);
   free (out);
   free (x);
   return 0;

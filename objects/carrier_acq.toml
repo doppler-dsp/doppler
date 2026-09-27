@@ -55,7 +55,7 @@ name = "symbol_rate_hz"
 type = "double"
 required = true
 
-# 0.0 is a sentinel meaning "auto": carrier_acq_create() substitutes
+# 0.0 is a sentinel meaning "auto": dp_carrier_acq_create() substitutes
 # symbol_rate_hz/10.0 internally (a reasonable default granularity for
 # the residual this stage estimates, matching the reference's own
 # resolution-driven sizing philosophy). A caller-supplied value sizes
@@ -82,7 +82,7 @@ default = "0.0f"
 
 # Known PSD-shape template to correlate the measured power spectrum
 # against ("what you're searching for") -- empty (the default) means
-# "not supplied": carrier_acq_create() computes the default
+# "not supplied": dp_carrier_acq_create() computes the default
 # rectangular-pulse sinc^2 template internally from symbol_rate_hz (the
 # average spectral shape of a random NRZ BPSK symbol stream). A
 # caller-supplied array must be length nfft (== next_pow_two(n_fft*zero_pad))

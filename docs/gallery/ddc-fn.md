@@ -26,18 +26,18 @@ predicted, and phase-continuously (no filter-history reset).
 ## One object over opaque C state
 
 `Ddcr` is a generated class: a typed Python object over an
-opaque `ddcr_state_t *`. It unifies what were once two faces (a `DDCR` object
+opaque `dp_ddcr_state_t *`. It unifies what were once two faces (a `DDCR` object
 and `ddcr_*` free functions) into one — it **owns** the C state like an object,
 yet `execute()` writes into a **caller-provided** output buffer like the old
 functional API, so allocation and lifetime stay explicit.
 
-| Aspect   | `Ddcr`                                                      |
-| -------- | ----------------------------------------------------------- |
-| State    | opaque `ddcr_state_t *`, owned by the object (RAII `close`) |
-| Output   | written into a **caller-owned** `complex64` buffer          |
-| Retune   | `ddcr.norm_freq = …` (live, phase-continuous)               |
-| Use when | real-ADC input; you manage your own arrays / want zero      |
-|          | per-call allocation in a hot loop                           |
+| Aspect   | `Ddcr`                                                         |
+| -------- | -------------------------------------------------------------- |
+| State    | opaque `dp_ddcr_state_t *`, owned by the object (RAII `close`) |
+| Output   | written into a **caller-owned** `complex64` buffer             |
+| Retune   | `ddcr.norm_freq = …` (live, phase-continuous)                  |
+| Use when | real-ADC input; you manage your own arrays / want zero         |
+|          | per-call allocation in a hot loop                              |
 
 ## How it works
 
@@ -142,7 +142,7 @@ So the caller-buffer model buys you:
 ## Parallelism — `execute` releases the GIL
 
 The C kernel runs with the **GIL released** (`Py_BEGIN_ALLOW_THREADS` around the
-`ddcr_execute` call). It's safe precisely because of the one-handle-per-stream
+`dp_ddcr_execute` call). It's safe precisely because of the one-handle-per-stream
 contract: the kernel touches only that stream's state and the caller's
 buffers — no Python objects, no shared mutable state. So a **thread-per-shard**
 worker — each thread owning its own handle and `out` buffer — scales across

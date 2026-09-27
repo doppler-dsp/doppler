@@ -9,4 +9,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern size_t next_pow_two (size_t n);
+extern size_t dp_next_pow_two (size_t n);

@@ -75,23 +75,23 @@ quantise (wfm_stream_sink_t *s, int wtype, float qscale, float v)
     {
     case WT_CI32:
       {
-        f32_to_i32_state_t q = { .scale = qscale, .clipped = 0 };
-        code                 = f32_to_i32_step (&q, v);
-        hit                  = q.clipped;
+        dp_f32_to_i32_state_t q = { .scale = qscale, .clipped = 0 };
+        code                    = dp_f32_to_i32_step (&q, v);
+        hit                     = q.clipped;
         break;
       }
     case WT_CI16:
       {
-        f32_to_i16_state_t q = { .scale = qscale, .clipped = 0 };
-        code                 = f32_to_i16_step (&q, v);
-        hit                  = q.clipped;
+        dp_f32_to_i16_state_t q = { .scale = qscale, .clipped = 0 };
+        code                    = dp_f32_to_i16_step (&q, v);
+        hit                     = q.clipped;
         break;
       }
     default:
       {
-        f32_to_i8_state_t q = { .scale = qscale, .clipped = 0 };
-        code                = f32_to_i8_step (&q, v);
-        hit                 = q.clipped;
+        dp_f32_to_i8_state_t q = { .scale = qscale, .clipped = 0 };
+        code                   = dp_f32_to_i8_step (&q, v);
+        hit                    = q.clipped;
         break;
       }
     }

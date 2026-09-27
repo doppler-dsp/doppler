@@ -17,7 +17,7 @@
  * own underflow bug: the previous chi-square/Poisson CDF term was
  * built by a term-by-term recurrence starting from a raw exp(-v) --
  * for v large enough that exp(-v) underflows to exactly 0.0 (v
- * gtrsim 745, i.e. b gtrsim ~39, which real det_n_noncoh() calls at
+ * gtrsim 745, i.e. b gtrsim ~39, which real dp_det_n_noncoh() calls at
  * large dwell counts reach routinely), EVERY subsequent term stayed
  * stuck at exactly 0 (0 times any finite ratio is still 0), silently
  * corrupting the result -- observed directly as Pd collapsing from
@@ -127,7 +127,7 @@ marcum_poisson_pmf (double v, int n)
 }
 
 double
-marcum_q (int m, double a, double b)
+dp_marcum_q (int m, double a, double b)
 {
   const double EPS = 1e-14;
   if (b <= 0.0)

@@ -23,16 +23,17 @@ main (void)
 {
 
   /* A NULL/empty preamble is rejected, same as acq_create_burst() itself. */
-  DP_CHECK (burst_acq_create (NULL, 0, 1, 4.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0)
-            == NULL);
+  DP_CHECK (
+      dp_burst_acq_create (NULL, 0, 1, 4.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0)
+      == NULL);
 
   const size_t spc   = 2;
   const size_t nx    = 7 * spc; /* code_bins = sf*spc = 14 */
   const double crate = 1.0e6;
 
-  float _Complex    *pre = dp_code_preamble (CODE7, 7, spc);
-  burst_acq_state_t *obj = burst_acq_create (pre, nx, 8, crate * (double)spc,
-                                             65.0, 0.0, 1e-2, 0.9, 0, 0.0);
+  float _Complex       *pre = dp_code_preamble (CODE7, 7, spc);
+  dp_burst_acq_state_t *obj = dp_burst_acq_create (
+      pre, nx, 8, crate * (double)spc, 65.0, 0.0, 1e-2, 0.9, 0, 0.0);
   free (pre);
   DP_CHECK (obj != NULL);
   if (!obj)
@@ -54,7 +55,7 @@ main (void)
           burst[k]     = (chip & 1u) ? -1.0f : 1.0f;
         }
       acq_result_t hits[4];
-      size_t       nh = burst_acq_push (obj, burst, frame, hits, 4);
+      size_t       nh = dp_burst_acq_push (obj, burst, frame, hits, 4);
       DP_CHECK (nh == 1);
       if (nh == 1)
         {
@@ -64,29 +65,29 @@ main (void)
       free (burst);
     }
 
-  burst_acq_reset (obj);
+  dp_burst_acq_reset (obj);
 
   /* configure_search_raw reaches the embedded engine. */
-  DP_CHECK (burst_acq_configure_search_raw (obj, 3, 1) == 0);
-  DP_CHECK (burst_acq_configure_search_raw (obj, 0, 1)
+  DP_CHECK (dp_burst_acq_configure_search_raw (obj, 3, 1) == 0);
+  DP_CHECK (dp_burst_acq_configure_search_raw (obj, 0, 1)
             == -1); /* out of range */
 
   /* State triplet round-trip. */
-  size_t nbytes = burst_acq_state_bytes (obj);
+  size_t nbytes = dp_burst_acq_state_bytes (obj);
   DP_CHECK (nbytes > 0);
   void *blob = malloc (nbytes);
   DP_CHECK (blob != NULL);
   if (blob)
     {
-      burst_acq_get_state (obj, blob);
-      DP_CHECK (burst_acq_set_state (obj, blob) == 0);
+      dp_burst_acq_get_state (obj, blob);
+      DP_CHECK (dp_burst_acq_set_state (obj, blob) == 0);
       ((char *)blob)[0] ^= (char)0xFF; /* clobber the header magic */
-      DP_CHECK (burst_acq_set_state (obj, blob) != 0);
+      DP_CHECK (dp_burst_acq_set_state (obj, blob) != 0);
       free (blob);
     }
 
-  burst_acq_destroy (obj);
-  burst_acq_destroy (NULL); /* must not crash */
+  dp_burst_acq_destroy (obj);
+  dp_burst_acq_destroy (NULL); /* must not crash */
 
   DP_TEST_END ("test_burst_acq_core");
 }

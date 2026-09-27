@@ -613,8 +613,8 @@ def section_summary() -> None:
     R.md("## 1. The object — design and expectations")
     R.md()
     R.md(
-        "`carrier_nda_state_t` is **carrier recovery that needs neither data "
-        "nor symbol timing**. Per sample it de-rotates the input with an "
+        "`dp_carrier_nda_state_t` is **carrier recovery that needs neither "
+        "data nor symbol timing**. Per sample it de-rotates the input with an "
         "integer-phase NCO, slides a free-running I/Q boxcar of `sps/n` "
         "samples, and runs an M-th-power discriminator on the window average "
         "— raising the arm sample to the Mth power strips the M-PSK "

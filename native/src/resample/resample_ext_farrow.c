@@ -6,14 +6,14 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* FarrowObject — wraps farrow_state_t *       */
+/* FarrowObject — wraps dp_farrow_state_t *       */
 /* ======================================================== */
 
 #include "doppler/farrow/farrow_core.h"
 
 typedef struct
 {
-  PyObject_HEAD farrow_state_t *handle;
+  PyObject_HEAD dp_farrow_state_t *handle;
   float _Complex *_delay_buf;     /* pre-allocated output for delay */
   size_t          _delay_buf_cap; /* allocated capacity for delay */
   void          **_delay_retired; /* gh-219 deferred free */
@@ -25,7 +25,7 @@ static void
 FarrowObj_dealloc (FarrowObject *self)
 {
   if (self->handle)
-    farrow_destroy (self->handle);
+    dp_farrow_destroy (self->handle);
   free (self->_delay_buf);
   for (size_t _i = 0; _i < self->_delay_retired_n; _i++)
     free (self->_delay_retired[_i]);
@@ -65,14 +65,14 @@ FarrowObj_init (FarrowObject *self, PyObject *args, PyObject *kwds)
                     order_str);
       return -1;
     }
-  self->handle = farrow_create (order);
+  self->handle = dp_farrow_create (order);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "farrow_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_farrow_create returned NULL");
       return -1;
     }
   {
-    size_t _max = farrow_delay_max_out (self->handle);
+    size_t _max = dp_farrow_delay_max_out (self->handle);
     if (_max)
       {
         self->_delay_buf = malloc (_max * sizeof (float _Complex));
@@ -95,7 +95,7 @@ FarrowObj_delay_max_out (FarrowObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (farrow_delay_max_out (self->handle));
+  return PyLong_FromSize_t (dp_farrow_delay_max_out (self->handle));
 }
 
 static PyObject *
@@ -146,7 +146,7 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = farrow_delay_max_out (self->handle);
+      size_t _omax    = dp_farrow_delay_max_out (self->handle);
       size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
       size_t _min_cap = _omax > _n_in ? _omax : _n_in;
       if (_cap < _min_cap)
@@ -163,7 +163,7 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
       float _Complex *_ng2o = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = farrow_delay (self->handle, _ng0o, _ng1o, mu, _ng2o, _cap);
+        n_out = dp_farrow_delay (self->handle, _ng0o, _ng1o, mu, _ng2o, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -181,7 +181,7 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_delay_buf || self->_delay_buf_cap < _need)
     {
-      size_t _max = farrow_delay_max_out (self->handle);
+      size_t _max = dp_farrow_delay_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_delay_buf
@@ -219,8 +219,8 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = farrow_delay (self->handle, _ng0, _ng1, mu, self->_delay_buf,
-                          self->_delay_buf_cap);
+    n_out = dp_farrow_delay (self->handle, _ng0, _ng1, mu, self->_delay_buf,
+                             self->_delay_buf_cap);
   Py_END_ALLOW_THREADS
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr
@@ -241,7 +241,7 @@ FarrowObj_reset (FarrowObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  farrow_reset (self->handle);
+  dp_farrow_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -253,7 +253,7 @@ FarrowObj_state_bytes (FarrowObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (farrow_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_farrow_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -264,11 +264,11 @@ FarrowObj_get_state (FarrowObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = farrow_state_bytes (self->handle);
+  size_t    _n = dp_farrow_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  farrow_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_farrow_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -285,12 +285,12 @@ FarrowObj_set_state (FarrowObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != farrow_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_farrow_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (farrow_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_farrow_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -307,7 +307,7 @@ Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)farrow_get_group_delay (self->handle));
+      (unsigned long long)dp_farrow_get_group_delay (self->handle));
 }
 
 static PyGetSetDef Farrow_getset[]
@@ -320,7 +320,7 @@ FarrowObj_destroy (FarrowObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      farrow_destroy (self->handle);
+      dp_farrow_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -339,7 +339,7 @@ FarrowObj_exit (FarrowObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      farrow_destroy (self->handle);
+      dp_farrow_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

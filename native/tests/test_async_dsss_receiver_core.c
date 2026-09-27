@@ -54,7 +54,7 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 /* Stream `x` through `rx` in fixed-size chunks, collecting every emitted
  * symbol; return the symbol count and fill `*syms_out` (caller frees). */
 static size_t
-_stream (async_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
+_stream (dp_async_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
          size_t chunk, float _Complex **syms_out)
 {
   float _Complex *syms = malloc (n * sizeof *syms); /* generous upper bound */
@@ -62,8 +62,8 @@ _stream (async_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
   for (size_t pos = 0; pos < n; pos += chunk)
     {
       size_t take = (pos + chunk <= n) ? chunk : (n - pos);
-      n_syms += async_dsss_receiver_steps (rx, x + pos, take, syms + n_syms,
-                                           n - n_syms);
+      n_syms += dp_async_dsss_receiver_steps (rx, x + pos, take, syms + n_syms,
+                                              n - n_syms);
     }
   *syms_out = syms;
   return n_syms;
@@ -115,52 +115,52 @@ _best_ber (const float _Complex *syms, size_t n_syms, const double *data,
 static int
 _test_arg_validation (void)
 {
-  DP_CHECK (async_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
-                                        8, false, 100000, 0.0, 0.0)
+  DP_CHECK (dp_async_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3,
+                                           0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0,
+                                           64, 8, false, 100000, 0.0, 0.0)
             == NULL);
-  DP_CHECK (async_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
-                                        8, false, 100000, 0.0, 0.0)
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0)
             == NULL); /* chip_rate <= 0 */
-  DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
-                                        8, false, 100000, 0.0, 0.0)
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0)
             == NULL); /* m not in {2,4,8} */
-  DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 0, 8, 0, 0.5, 4, 14.0, 64,
-                                        8, false, 100000, 0.0, 0.0)
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 0, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0)
             == NULL); /* segments < 1 */
-  DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
-                                        8, false, 100000, -1.0, 0.0)
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, -1.0, 0.0)
             == NULL); /* carrier_freq_hz < 0 */
-  DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
-                                        8, false, 100000, 0.0, -1.0)
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 0.0, -1.0)
             == NULL); /* lost_confirm_s < 0 */
   DP_CHECK (async_dsss_receiver_create_cell (CODE7, 7, 1e6, 1e3, 2, 2, 55.0,
                                              1e-3, 0.9, 4, 8, 0, 0.0, NAN, 100,
                                              0.125, 4)
             == NULL); /* lost_confirm_s NaN, cell flavor */
 
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
       14.0, 64, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (rx)
     {
-      DP_CHECK (async_dsss_receiver_get_tracking (rx) == 0);
-      DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
-      DP_CHECK (async_dsss_receiver_get_segments (rx) == 4);
-      DP_CHECK (async_dsss_receiver_get_sps (rx) == 8);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
+      DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
+      DP_CHECK (dp_async_dsss_receiver_get_segments (rx) == 4);
+      DP_CHECK (dp_async_dsss_receiver_get_sps (rx) == 8);
       /* `n` is MpskReceiver's m_out (terminal outputs per symbol) since the
          cascade rebuild, so it derives to the coherent-bound default rather
          than the retired arm rule's "largest divisor of sps in {4,2,1}". */
-      DP_CHECK (async_dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
-      DP_CHECK (async_dsss_receiver_get_chip_phase (rx) == 0.0);
-      DP_CHECK (async_dsss_receiver_get_code_rate (rx) == 1.0);
-      async_dsss_receiver_destroy (rx);
+      DP_CHECK (dp_async_dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
+      DP_CHECK (dp_async_dsss_receiver_get_chip_phase (rx) == 0.0);
+      DP_CHECK (dp_async_dsss_receiver_get_code_rate (rx) == 1.0);
+      dp_async_dsss_receiver_destroy (rx);
     }
   return 0;
 }
@@ -185,7 +185,7 @@ _test_acquire_and_decode (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
@@ -199,10 +199,10 @@ _test_acquire_and_decode (void)
   float _Complex *syms;
   size_t          n_syms = _stream (rx, x, n, te, &syms);
 
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
   DP_CHECK (n_syms > 20);
-  DP_CHECK (async_dsss_receiver_get_cn0_dbhz_est (rx) > 0.0);
+  DP_CHECK (dp_async_dsss_receiver_get_cn0_dbhz_est (rx) > 0.0);
 
   double ber = _best_ber (syms, n_syms, data, n_sym + 4);
   DP_CHECK (ber < 0.05);
@@ -211,65 +211,66 @@ _test_acquire_and_decode (void)
   DP_CHECK (dp_test_m2m4_snr_db (syms, n_syms) > 8.0);
 
   /* ── state-serialization round trip, while tracking ─────────────────── */
-  size_t cb   = async_dsss_receiver_state_bytes (rx);
+  size_t cb   = dp_async_dsss_receiver_state_bytes (rx);
   void  *blob = malloc (cb);
-  async_dsss_receiver_get_state (rx, blob);
+  dp_async_dsss_receiver_get_state (rx, blob);
 
-  async_dsss_receiver_state_t *rx2 = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx2 = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
-      DP_CHECK (async_dsss_receiver_set_state (rx2, blob) == DP_OK);
-      DP_CHECK (async_dsss_receiver_get_tracking (rx2) == 1);
-      DP_CHECK (fabs (async_dsss_receiver_get_chip_phase (rx2)
-                      - async_dsss_receiver_get_chip_phase (rx))
+      DP_CHECK (dp_async_dsss_receiver_set_state (rx2, blob) == DP_OK);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rx2) == 1);
+      DP_CHECK (fabs (dp_async_dsss_receiver_get_chip_phase (rx2)
+                      - dp_async_dsss_receiver_get_chip_phase (rx))
                 < 1e-9);
 
       /* a corrupted envelope must be rejected, not reinterpreted. */
       ((char *)blob)[0] ^= (char)0xFF;
-      DP_CHECK (async_dsss_receiver_set_state (rx2, blob) == DP_ERR_INVALID);
-      async_dsss_receiver_destroy (rx2);
+      DP_CHECK (dp_async_dsss_receiver_set_state (rx2, blob)
+                == DP_ERR_INVALID);
+      dp_async_dsss_receiver_destroy (rx2);
     }
   free (blob);
 
   /* ── state-serialization round trip, while searching ─────────────────── */
-  async_dsss_receiver_state_t *rx3 = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx3 = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx3 != NULL);
   if (rx3)
     {
-      size_t cb3   = async_dsss_receiver_state_bytes (rx3);
+      size_t cb3   = dp_async_dsss_receiver_state_bytes (rx3);
       void  *blob3 = malloc (cb3);
-      async_dsss_receiver_get_state (rx3, blob3);
+      dp_async_dsss_receiver_get_state (rx3, blob3);
 
-      async_dsss_receiver_state_t *rx4 = async_dsss_receiver_create (
+      dp_async_dsss_receiver_state_t *rx4 = dp_async_dsss_receiver_create (
           CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
           0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
       DP_CHECK (rx4 != NULL);
       if (rx4)
         {
-          DP_CHECK (async_dsss_receiver_set_state (rx4, blob3) == DP_OK);
-          DP_CHECK (async_dsss_receiver_get_tracking (rx4) == 0);
-          DP_CHECK (async_dsss_receiver_get_refining (rx4) == 0);
-          async_dsss_receiver_destroy (rx4);
+          DP_CHECK (dp_async_dsss_receiver_set_state (rx4, blob3) == DP_OK);
+          DP_CHECK (dp_async_dsss_receiver_get_tracking (rx4) == 0);
+          DP_CHECK (dp_async_dsss_receiver_get_refining (rx4) == 0);
+          dp_async_dsss_receiver_destroy (rx4);
         }
       free (blob3);
-      async_dsss_receiver_destroy (rx3);
+      dp_async_dsss_receiver_destroy (rx3);
     }
 
   /* ── reset() returns to searching ─────────────────────────────────────── */
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_chip_phase (rx) == 0.0);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_chip_phase (rx) == 0.0);
 
   free (syms);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -303,7 +304,7 @@ _test_give_up_cap (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 9,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 16, 4, true, 1 /* refine_max_n_blocks: forces give-up */,
       0.0 /* carrier_freq_hz: aiding off */, 0.0);
@@ -318,11 +319,11 @@ _test_give_up_cap (void)
   float _Complex *syms; /* _stream() allocates it; see its three siblings */
   size_t          n_syms = _stream (rx, x, n, te, &syms);
 
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   /* Give-up: doppler estimate stays the UNREFINED coarse handoff value --
    * 0.0 Hz here, since _make_signal() injects no real Doppler offset. */
-  DP_CHECK (fabs (async_dsss_receiver_get_doppler_hz (rx) - 0.0) < 1e-6);
+  DP_CHECK (fabs (dp_async_dsss_receiver_get_doppler_hz (rx) - 0.0) < 1e-6);
   /* Still tracking/decoding despite the unrefined seed -- the give-up
    * path must not otherwise break the object. */
   DP_CHECK (n_syms > 20);
@@ -330,7 +331,7 @@ _test_give_up_cap (void)
   free (syms);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -383,7 +384,7 @@ _test_spec_ramp_decode (void)
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
                         pre_silence, 21, &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
       0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
@@ -400,7 +401,7 @@ _test_spec_ramp_decode (void)
 
   double ber = _best_ber (syms, n_syms, data, n_sym + 4);
 
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > (n_sym / 2));
   DP_CHECK (ber < 0.05);
   /* Truth-free corroboration under the ramp: a real lock, not a lucky lag. */
@@ -411,7 +412,7 @@ _test_spec_ramp_decode (void)
   free (x);
   free (data);
   free (code);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -492,7 +493,7 @@ _test_handover_under_clock_offset (void)
       dp_dsss_dilated_capture (code, sf, spc, fs, tsym, carrier, sign * ppm,
                                0.0, cn0, n_sym, pre_silence, seed, &x, &n,
                                &data);
-      async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+      dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9,
           1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 0.5, 4, margin_db, 64, 8, false,
           100000, carrier, 0.0);
@@ -503,12 +504,12 @@ _test_handover_under_clock_offset (void)
       printf ("  hand-over at %+.0f ppm, %.0f dB-Hz, seed %u: tracking %d, "
               "code %d, symbol %d, %zu symbols, BER %.3f, Doppler est "
               "%.0f Hz (truth %.0f), chip %.2f\n",
-              sign * ppm, cn0, seed, async_dsss_receiver_get_tracking (rx),
-              async_dsss_receiver_get_code_locked (rx),
-              async_dsss_receiver_get_locked (rx), n_syms, ber,
-              async_dsss_receiver_get_doppler_hz (rx),
+              sign * ppm, cn0, seed, dp_async_dsss_receiver_get_tracking (rx),
+              dp_async_dsss_receiver_get_code_locked (rx),
+              dp_async_dsss_receiver_get_locked (rx), n_syms, ber,
+              dp_async_dsss_receiver_get_doppler_hz (rx),
               sign * ppm * 1e-6 * carrier,
-              async_dsss_receiver_get_chip_phase (rx));
+              dp_async_dsss_receiver_get_chip_phase (rx));
       /* The hand-over's own claim, per seed: the live chain locks the
          dilated code. The carrier and the decode ride on the refine's
          Doppler; on the shipped look-back (0.5 dB, eleven dumps per
@@ -516,16 +517,16 @@ _test_handover_under_clock_offset (void)
          the retired 100 dB look-back this test used to pass, the
          estimate keeps a third of the seed's error (#1252, measured by
          validate_refine_bias) and only a majority decoded. */
-      DP_CHECK_MSG (async_dsss_receiver_get_tracking (rx) == 1
-                        && async_dsss_receiver_get_code_locked (rx) == 1,
+      DP_CHECK_MSG (dp_async_dsss_receiver_get_tracking (rx) == 1
+                        && dp_async_dsss_receiver_get_code_locked (rx) == 1,
                     "the live chain locks the dilated code from the "
                     "hand-over");
-      decoded += async_dsss_receiver_get_locked (rx) == 1 && n_syms > n_sym / 2
-                 && ber < 0.05;
+      decoded += dp_async_dsss_receiver_get_locked (rx) == 1
+                 && n_syms > n_sym / 2 && ber < 0.05;
       free (syms);
       free (x);
       free (data);
-      async_dsss_receiver_destroy (rx);
+      dp_async_dsss_receiver_destroy (rx);
     }
   DP_CHECK_MSG (decoded == 8, "and the carrier locks and decodes on "
                               "every seed at both operating points");
@@ -578,7 +579,7 @@ _test_spec_combined_scenario_at_spec_floor (void)
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
                         pre_silence, 21, &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
       0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
@@ -594,15 +595,15 @@ _test_spec_combined_scenario_at_spec_floor (void)
   size_t          n_syms = _stream (rx, x, n, te, &syms);
   (void)n_syms;
 
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
-  double dh = async_dsss_receiver_get_doppler_hz (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  double dh = dp_async_dsss_receiver_get_doppler_hz (rx);
   DP_CHECK (isfinite (dh));
 
   free (syms);
   free (x);
   free (data);
   free (code);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -631,10 +632,10 @@ _test_awgn_esn0_floor (void)
   const double cps   = chip_rate / sym_rate; /* 1136.67, non-integer */
   const size_t n_sym = 1500;
 
-  uint8_t      *code = malloc (sf);
-  gold_state_t *g    = gold_create (934, 350, 567, 73, 10);
-  gold_generate (g, sf, code, sf);
-  gold_destroy (g);
+  uint8_t         *code = malloc (sf);
+  dp_gold_state_t *g    = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (g, sf, code, sf);
+  dp_gold_destroy (g);
   size_t ones = 0;
   for (size_t i = 0; i < sf; i++)
     ones += code[i];
@@ -676,7 +677,7 @@ _test_awgn_esn0_floor (void)
       for (size_t i = 0; i < n; i++)
         x[pre + i] += (float)(1.0 - 2.0 * (double)chips[i / spc]);
 
-      async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+      dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-3, 0.9, 100.0, 4, 8,
           0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
       float _Complex *syms   = NULL;
@@ -692,11 +693,12 @@ _test_awgn_esn0_floor (void)
          validators that can't be fooled by a lucky-lag false pass. */
       printf ("    Es/N0=%4.1f dB  cn0=%5.1f dB-Hz  tracking=%d  ber=%.4f  "
               "evm=%6.1f dB  m2m4_snr=%5.1f dB\n",
-              esn0_pts[p], cn0, rx ? async_dsss_receiver_get_tracking (rx) : 0,
-              ber, evm, snr);
+              esn0_pts[p], cn0,
+              rx ? dp_async_dsss_receiver_get_tracking (rx) : 0, ber, evm,
+              snr);
 
       free (syms);
-      async_dsss_receiver_destroy (rx);
+      dp_async_dsss_receiver_destroy (rx);
       free (x);
       free (chips);
       free (dsym);
@@ -754,7 +756,7 @@ _noise_tail (size_t n, double fs, double cn0_dbhz, uint32_t seed)
  * interval -- the lifecycle tests below ran on the hand-off flavor until it
  * was retired (design section 12.28), and the lifecycle past the seed is
  * the same object's. */
-static async_dsss_receiver_state_t *
+static dp_async_dsss_receiver_state_t *
 _seeded_rx (double cn0, double lost_confirm_s)
 {
   return async_dsss_receiver_create_cell (
@@ -785,7 +787,7 @@ _test_cell_seed_and_decode (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.0);
+  dp_async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -793,12 +795,12 @@ _test_cell_seed_and_decode (void)
       free (data);
       return 1;
     }
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_lost (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 0);
   DP_CHECK (rx->acq == NULL); /* no engine was built */
-  DP_CHECK (async_dsss_receiver_configure_search_raw (rx, 1, 1) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 1, 1) == -1);
 
   /* Idle: the whole capture -- the emitter included, at chip 0 -- fed in
    * odd-sized blocks, changes nothing and emits nothing; a receiver that
@@ -808,50 +810,50 @@ _test_cell_seed_and_decode (void)
   for (size_t pos = 0; pos < n; pos += 1021)
     {
       size_t take = (pos + 1021 <= n) ? 1021 : n - pos;
-      n_idle += async_dsss_receiver_steps (rx, x + pos, take, tmp, 1021);
+      n_idle += dp_async_dsss_receiver_steps (rx, x + pos, take, tmp, 1021);
     }
   DP_CHECK (n_idle == 0);
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_chip_phase (rx) == 0.0);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_chip_phase (rx) == 0.0);
   DP_CHECK (rx->state_samples == (uint64_t)n);
 
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_doppler_hz (rx) == 0.0);
-  DP_CHECK (async_dsss_receiver_get_cn0_dbhz_est (rx) == cn0);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (rx) == 0.0);
+  DP_CHECK (dp_async_dsss_receiver_get_cn0_dbhz_est (rx) == cn0);
   /* Assigned once: refused while refining ... */
-  DP_CHECK (async_dsss_receiver_seed (rx, 1.0, 0.0, cn0) == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_doppler_hz (rx) == 0.0);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 1.0, 0.0, cn0) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (rx) == 0.0);
 
   float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
   DP_CHECK (_best_ber (syms, n_syms, data, n_sym + 4) < 0.05);
   DP_CHECK (dp_test_evm_db_hard (syms, n_syms) < -8.0);
   DP_CHECK (dp_test_m2m4_snr_db (syms, n_syms) > 8.0);
   /* ... and while tracking. */
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   free (syms);
 
   /* reset() is the release: back to idle, not to a search it has not got,
    * and the same object takes its next seed. */
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_chip_phase (rx) == 0.0);
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_chip_phase (rx) == 0.0);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (_best_ber (syms, n_syms, data, n_sym + 4) < 0.05);
   free (syms);
 
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -876,7 +878,7 @@ _test_seed_on_searching_flavor (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
@@ -886,35 +888,37 @@ _test_seed_on_searching_flavor (void)
       free (data);
       return 1;
     }
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 0); /* searching, not idle */
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx)
+            == 0); /* searching, not idle */
 
   /* Range: the code has 7 chips, so 7.0 is one past the end. */
-  DP_CHECK (async_dsss_receiver_seed (rx, 7.0, 0.0, cn0) == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_seed (rx, -0.5, 0.0, cn0) == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_seed (rx, NAN, 0.0, cn0) == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, INFINITY, cn0)
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 7.0, 0.0, cn0) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, -0.5, 0.0, cn0)
             == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 0); /* untouched */
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, NAN, 0.0, cn0) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, INFINITY, cn0)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0); /* untouched */
 
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 1);
 
   float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
   DP_CHECK (_best_ber (syms, n_syms, data, n_sym + 4) < 0.05);
   DP_CHECK (dp_test_evm_db_hard (syms, n_syms) < -8.0);
 
   /* reset() on this flavor is still the search. */
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 0);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 0);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
 
   free (syms);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -923,7 +927,7 @@ _test_seed_on_searching_flavor (void)
  * at the moment lost first reads 1 (or at the end). Returns 1 if lost
  * fired. */
 static int
-_feed_until_lost (async_dsss_receiver_state_t *rx, const float _Complex *x,
+_feed_until_lost (dp_async_dsss_receiver_state_t *rx, const float _Complex *x,
                   size_t n, size_t chunk, uint64_t *both_down_run_at_lost,
                   uint64_t *fed_at_lost)
 {
@@ -934,13 +938,13 @@ _feed_until_lost (async_dsss_receiver_state_t *rx, const float _Complex *x,
   for (size_t pos = 0; pos < n && !lost; pos += chunk)
     {
       size_t take = (pos + chunk <= n) ? chunk : n - pos;
-      (void)async_dsss_receiver_steps (rx, x + pos, take, tmp, chunk);
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, take, tmp, chunk);
       fed += take;
-      lost = async_dsss_receiver_get_lost (rx);
+      lost = dp_async_dsss_receiver_get_lost (rx);
       /* Read AFTER the call, as the object does; a lost receiver's flags
        * are frozen where they were. */
-      if (async_dsss_receiver_get_code_locked (rx)
-          || async_dsss_receiver_get_locked (rx))
+      if (dp_async_dsss_receiver_get_code_locked (rx)
+          || dp_async_dsss_receiver_get_locked (rx))
         run = 0;
       else
         run += take;
@@ -982,20 +986,20 @@ _test_lost_after_switch_off (void)
   const int    expect[3]    = { 1, 0, 0 };
   for (int k = 0; k < 3; k++)
     {
-      async_dsss_receiver_state_t *rx = _seeded_rx (cn0, intervals[k]);
+      dp_async_dsss_receiver_state_t *rx = _seeded_rx (cn0, intervals[k]);
       DP_CHECK (rx != NULL);
       if (!rx)
         continue;
-      DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+      DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
       float _Complex *syms;
       size_t          n_syms
           = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
       free (syms);
       DP_CHECK (n_syms > 20);
-      DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
-      DP_CHECK (async_dsss_receiver_get_code_locked (rx) == 1);
-      DP_CHECK (async_dsss_receiver_get_locked (rx) == 1);
-      DP_CHECK (async_dsss_receiver_get_lost (rx) == 0);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+      DP_CHECK (dp_async_dsss_receiver_get_code_locked (rx) == 1);
+      DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+      DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 0);
 
       uint64_t run = 0, fed = 0;
       int      lost = _feed_until_lost (rx, off, tail_n, chunk, &run, &fed);
@@ -1009,45 +1013,45 @@ _test_lost_after_switch_off (void)
                     == (uint64_t)llround (confirm_s * fs));
           DP_CHECK (run > rx->lost_confirm_samples);
           DP_CHECK (fed < (uint64_t)tail_n); /* well inside the tail */
-          DP_CHECK (async_dsss_receiver_get_tracking (rx) == 0);
+          DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
 
           /* Lost is inert: samples are discarded, a seed is refused, the
            * blob carries the state, and reset() gives the object back. */
           float _Complex tmp[64];
-          double chip_before = async_dsss_receiver_get_chip_phase (rx);
+          double chip_before = dp_async_dsss_receiver_get_chip_phase (rx);
           DP_CHECK (
-              async_dsss_receiver_steps (rx, x + pre_silence, 64, tmp, 64)
+              dp_async_dsss_receiver_steps (rx, x + pre_silence, 64, tmp, 64)
               == 0);
-          DP_CHECK (async_dsss_receiver_get_lost (rx) == 1);
-          DP_CHECK (async_dsss_receiver_get_chip_phase (rx) == chip_before);
-          DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0)
+          DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 1);
+          DP_CHECK (dp_async_dsss_receiver_get_chip_phase (rx) == chip_before);
+          DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0)
                     == DP_ERR_INVALID);
 
-          size_t cb   = async_dsss_receiver_state_bytes (rx);
+          size_t cb   = dp_async_dsss_receiver_state_bytes (rx);
           void  *blob = malloc (cb);
-          async_dsss_receiver_get_state (rx, blob);
-          async_dsss_receiver_state_t *rx2 = _seeded_rx (cn0, intervals[k]);
+          dp_async_dsss_receiver_get_state (rx, blob);
+          dp_async_dsss_receiver_state_t *rx2 = _seeded_rx (cn0, intervals[k]);
           DP_CHECK (rx2 != NULL);
           if (rx2)
             {
-              DP_CHECK (async_dsss_receiver_set_state (rx2, blob) == DP_OK);
-              DP_CHECK (async_dsss_receiver_get_lost (rx2) == 1);
-              async_dsss_receiver_destroy (rx2);
+              DP_CHECK (dp_async_dsss_receiver_set_state (rx2, blob) == DP_OK);
+              DP_CHECK (dp_async_dsss_receiver_get_lost (rx2) == 1);
+              dp_async_dsss_receiver_destroy (rx2);
             }
           free (blob);
 
-          async_dsss_receiver_reset (rx);
-          DP_CHECK (async_dsss_receiver_get_lost (rx) == 0);
-          DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
-          DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+          dp_async_dsss_receiver_reset (rx);
+          DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 0);
+          DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
+          DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
         }
       else
         {
           /* Still tracking, on noise: the rule did not fire. */
-          DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
-          DP_CHECK (async_dsss_receiver_get_lost (rx) == 0);
+          DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+          DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 0);
         }
-      async_dsss_receiver_destroy (rx);
+      dp_async_dsss_receiver_destroy (rx);
     }
 
   free (off);
@@ -1079,7 +1083,7 @@ _test_one_flag_down_is_a_degrade (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = _seeded_rx (cn0, confirm_s);
+  dp_async_dsss_receiver_state_t *rx = _seeded_rx (cn0, confirm_s);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -1087,31 +1091,31 @@ _test_one_flag_down_is_a_degrade (void)
       free (data);
       return 1;
     }
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   const size_t    split = pre_silence + (size_t)(400.0 * tsym);
   float _Complex *syms;
   size_t          n_syms
       = _stream (rx, x + pre_silence, split - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (n_syms > 20);
-  DP_CHECK (async_dsss_receiver_get_code_locked (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_locked (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_code_locked (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
 
   /* Pin the code detector out of reach: it drops within its own down-count
    * and never comes back, while the symbol detector is untouched. */
-  async_dsss_receiver_configure_lock_raw (rx, 1e30, 1e30, 8, 0.1, 1, 1);
+  dp_async_dsss_receiver_configure_lock_raw (rx, 1e30, 1e30, 8, 0.1, 1, 1);
 
   size_t code_down_blocks = 0, sym_up_blocks = 0, blocks = 0;
   float _Complex tmp[1024];
   for (size_t pos = split; pos < n; pos += 1024)
     {
       size_t take = (pos + 1024 <= n) ? 1024 : n - pos;
-      (void)async_dsss_receiver_steps (rx, x + pos, take, tmp, 1024);
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, take, tmp, 1024);
       blocks++;
-      code_down_blocks += !async_dsss_receiver_get_code_locked (rx);
-      sym_up_blocks += async_dsss_receiver_get_locked (rx);
-      DP_CHECK (async_dsss_receiver_get_lost (rx) == 0);
-      if (async_dsss_receiver_get_lost (rx))
+      code_down_blocks += !dp_async_dsss_receiver_get_code_locked (rx);
+      sym_up_blocks += dp_async_dsss_receiver_get_locked (rx);
+      DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 0);
+      if (dp_async_dsss_receiver_get_lost (rx))
         break;
     }
   /* The premise held: code lock was down for nearly all of it and symbol
@@ -1119,11 +1123,11 @@ _test_one_flag_down_is_a_degrade (void)
   DP_CHECK ((double)(n - split) / fs > 5.0 * confirm_s);
   DP_CHECK (code_down_blocks > blocks * 9 / 10);
   DP_CHECK (sym_up_blocks == blocks);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
 
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1143,29 +1147,30 @@ _test_refine_dwell_floor (void)
   uint32_t cst = 13;
   for (size_t i = 0; i < 1023; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
       14.0, 64, 8, false, 100000, 2.5e9, 2.0);
   DP_REQUIRE (rx != NULL);
   DP_CHECK (rx->refine_min_blocks == ASYNC_DSSS_RX_REFINE_MIN_BLOCKS);
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
   printf ("  refine dwell at 45 dB-Hz, margin 14: %zu blocks (floor %zu)\n",
           rx->ca->dwell_target, rx->refine_min_blocks);
   DP_CHECK_MSG (rx->ca->dwell_target >= ASYNC_DSSS_RX_REFINE_MIN_BLOCKS,
                 "the dwell is floored at refine_min_blocks");
   /* Without the floor the detection sizing alone: two blocks here. */
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 0) == DP_OK);
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_set_refine_min_blocks (rx, 0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
   DP_CHECK_MSG (rx->ca->dwell_target < ASYNC_DSSS_RX_REFINE_MIN_BLOCKS,
                 "with the floor removed the detection sizing is shorter -- "
                 "the floor was binding");
   /* A floor above the give-up cap is clamped to it. */
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 1000000) == DP_OK);
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_set_refine_min_blocks (rx, 1000000)
+            == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
   DP_CHECK (rx->ca->dwell_target == rx->ca->max_n_blocks);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1189,8 +1194,8 @@ _test_seeded_blob_keyed_by_flavor (void)
 
   /* Idle round trip first: the cheapest blob, and the state the pool
    * checkpoints most. */
-  async_dsss_receiver_state_t *ra = _seeded_rx (cn0, 2.0);
-  async_dsss_receiver_state_t *rb = _seeded_rx (cn0, 2.0);
+  dp_async_dsss_receiver_state_t *ra = _seeded_rx (cn0, 2.0);
+  dp_async_dsss_receiver_state_t *rb = _seeded_rx (cn0, 2.0);
   DP_CHECK (ra != NULL && rb != NULL);
   if (!ra || !rb)
     {
@@ -1199,21 +1204,21 @@ _test_seeded_blob_keyed_by_flavor (void)
       return 1;
     }
   {
-    size_t cb   = async_dsss_receiver_state_bytes (ra);
+    size_t cb   = dp_async_dsss_receiver_state_bytes (ra);
     void  *blob = malloc (cb);
-    async_dsss_receiver_get_state (ra, blob);
+    dp_async_dsss_receiver_get_state (ra, blob);
     DP_CHECK (((async_dsss_receiver_extra_t *)((char *)blob
                                                + sizeof (dp_state_hdr_t)))
                   ->cell
               == 1);
-    DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_OK);
-    DP_CHECK (async_dsss_receiver_get_idle (rb) == 1);
+    DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob) == DP_OK);
+    DP_CHECK (dp_async_dsss_receiver_get_idle (rb) == 1);
     free (blob);
   }
 
   /* Tracking: split the stream, resume the second receiver from the blob,
    * and require the two to emit identical symbols from there on. */
-  DP_CHECK (async_dsss_receiver_seed (ra, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (ra, 0.0, 0.0, cn0) == DP_OK);
   /* 900 epochs before the split: the refine's dwell is floored at seven
      blocks (#1265), 3 ms at this rate, and the split must find the
      receiver tracking with symbols already out. */
@@ -1222,14 +1227,14 @@ _test_seeded_blob_keyed_by_flavor (void)
   size_t n_a = _stream (ra, x + pre_silence, split - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (n_a > 20);
-  DP_CHECK (async_dsss_receiver_get_tracking (ra) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (ra) == 1);
 
-  size_t cb   = async_dsss_receiver_state_bytes (ra);
+  size_t cb   = dp_async_dsss_receiver_state_bytes (ra);
   void  *blob = malloc (cb);
-  async_dsss_receiver_get_state (ra, blob);
-  DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_OK);
-  DP_CHECK (async_dsss_receiver_get_tracking (rb) == 1);
-  DP_CHECK (async_dsss_receiver_get_idle (rb) == 0);
+  dp_async_dsss_receiver_get_state (ra, blob);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rb) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rb) == 0);
 
   float _Complex *sa, *sb;
   size_t          na = _stream (ra, x + split, n - split, te, &sa);
@@ -1243,31 +1248,32 @@ _test_seeded_blob_keyed_by_flavor (void)
   free (sb);
 
   /* Across flavors: refused both ways, and the envelope reject still holds. */
-  async_dsss_receiver_state_t *rs = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rs = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 32, 8, false, 100000, 0.0, 2.0);
   DP_CHECK (rs != NULL);
   if (rs)
     {
-      DP_CHECK (async_dsss_receiver_set_state (rs, blob) == DP_ERR_INVALID);
-      DP_CHECK (async_dsss_receiver_get_tracking (rs) == 0);
-      size_t cbs   = async_dsss_receiver_state_bytes (rs);
+      DP_CHECK (dp_async_dsss_receiver_set_state (rs, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rs) == 0);
+      size_t cbs   = dp_async_dsss_receiver_state_bytes (rs);
       void  *blobs = malloc (cbs);
-      async_dsss_receiver_get_state (rs, blobs);
+      dp_async_dsss_receiver_get_state (rs, blobs);
       DP_CHECK (cbs != cb); /* the search engine is in one, not the other */
-      DP_CHECK (async_dsss_receiver_set_state (rb, blobs) == DP_ERR_INVALID);
-      DP_CHECK (async_dsss_receiver_get_tracking (rb) == 1); /* untouched */
+      DP_CHECK (dp_async_dsss_receiver_set_state (rb, blobs)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rb) == 1); /* untouched */
       free (blobs);
-      async_dsss_receiver_destroy (rs);
+      dp_async_dsss_receiver_destroy (rs);
     }
   ((char *)blob)[0] ^= (char)0xFF;
-  DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob) == DP_ERR_INVALID);
   free (blob);
 
   free (x);
   free (data);
-  async_dsss_receiver_destroy (ra);
-  async_dsss_receiver_destroy (rb);
+  dp_async_dsss_receiver_destroy (ra);
+  dp_async_dsss_receiver_destroy (rb);
   return 0;
 }
 
@@ -1293,7 +1299,7 @@ _test_status_record (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.02);
+  dp_async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.02);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -1303,49 +1309,51 @@ _test_status_record (void)
     }
 
   /* Idle: nothing to report but the state and the clock. */
-  async_dsss_receiver_status_t st = async_dsss_receiver_status (rx);
+  async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
   DP_CHECK (st.state == ASYNC_DSSS_RX_IDLE);
   DP_CHECK (st.doppler_hz == 0.0);
   DP_CHECK (st.code_locked == 0 && st.locked == 0);
   DP_CHECK (st.state_samples == 0 && st.both_down_samples == 0);
   float _Complex tmp[64];
-  (void)async_dsss_receiver_steps (rx, x, 37, tmp, 64);
-  DP_CHECK (async_dsss_receiver_status (rx).state_samples == 37);
+  (void)dp_async_dsss_receiver_steps (rx, x, 37, tmp, 64);
+  DP_CHECK (dp_async_dsss_receiver_status (rx).state_samples == 37);
 
   /* Refining: the seed IS the estimate, and the clock restarted. */
-  DP_CHECK (async_dsss_receiver_seed (rx, 2.5, -1234.0, 51.0) == DP_OK);
-  st = async_dsss_receiver_status (rx);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 2.5, -1234.0, 51.0) == DP_OK);
+  st = dp_async_dsss_receiver_status (rx);
   DP_CHECK (st.state == ASYNC_DSSS_RX_REFINING);
   DP_CHECK (fabs (st.doppler_hz + 1234.0) < 1e-6);
   DP_CHECK (st.cn0_dbhz_est == 51.0);
   DP_CHECK (st.state_samples == 0);
-  async_dsss_receiver_reset (rx);
+  dp_async_dsss_receiver_reset (rx);
 
   /* Tracking on the real capture: every field equals its getter, and the
    * live Doppler is the carrier loop's, in Hz at the front-end rate. */
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (n_syms > 20);
-  st = async_dsss_receiver_status (rx);
+  st = dp_async_dsss_receiver_status (rx);
   DP_CHECK (st.state == ASYNC_DSSS_RX_TRACKING);
-  DP_CHECK (st.chip_phase == async_dsss_receiver_get_chip_phase (rx));
-  DP_CHECK (st.code_rate == async_dsss_receiver_get_code_rate (rx));
-  DP_CHECK (st.cn0_dbhz_est == async_dsss_receiver_get_cn0_dbhz_est (rx));
-  DP_CHECK (st.code_locked == async_dsss_receiver_get_code_locked (rx));
-  DP_CHECK (st.locked == async_dsss_receiver_get_locked (rx));
+  DP_CHECK (st.chip_phase == dp_async_dsss_receiver_get_chip_phase (rx));
+  DP_CHECK (st.code_rate == dp_async_dsss_receiver_get_code_rate (rx));
+  DP_CHECK (st.cn0_dbhz_est == dp_async_dsss_receiver_get_cn0_dbhz_est (rx));
+  DP_CHECK (st.code_locked == dp_async_dsss_receiver_get_code_locked (rx));
+  DP_CHECK (st.locked == dp_async_dsss_receiver_get_locked (rx));
   DP_CHECK (st.code_locked == 1 && st.locked == 1);
-  DP_CHECK (st.lock_metric == async_dsss_receiver_get_lock_metric (rx));
-  DP_CHECK (st.lock_threshold == async_dsss_receiver_get_lock_threshold (rx));
-  DP_CHECK (st.car_last_error == async_dsss_receiver_get_car_last_error (rx));
+  DP_CHECK (st.lock_metric == dp_async_dsss_receiver_get_lock_metric (rx));
+  DP_CHECK (st.lock_threshold
+            == dp_async_dsss_receiver_get_lock_threshold (rx));
+  DP_CHECK (st.car_last_error
+            == dp_async_dsss_receiver_get_car_last_error (rx));
   DP_CHECK (st.mpsk_last_error
-            == async_dsss_receiver_get_mpsk_last_error (rx));
+            == dp_async_dsss_receiver_get_mpsk_last_error (rx));
   /* doppler#1261: the whole carrier estimate -- loop 1 plus what loop 2
      took up beyond it, the sum configure_chain_raw() re-seeds from. */
   DP_CHECK (fabs (st.doppler_hz
-                  - (costas_get_norm_freq (&rx->car) * fs
-                     + async_dsss_receiver_get_norm_freq (rx)
+                  - (dp_costas_get_norm_freq (&rx->car) * fs
+                     + dp_async_dsss_receiver_get_norm_freq (rx)
                            * ((double)rx->sps * rx->symbol_rate)))
             < 1e-9);
   DP_CHECK (fabs (st.doppler_hz) < 50.0); /* the capture has no Doppler */
@@ -1360,25 +1368,27 @@ _test_status_record (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, 0, 11, &x2, &n2,
                    &data2);
   {
-    async_dsss_receiver_state_t *rd = _seeded_rx (cn0, 0.0);
+    dp_async_dsss_receiver_state_t *rd = _seeded_rx (cn0, 0.0);
     DP_CHECK (rd != NULL);
     if (rd)
       {
-        DP_CHECK (async_dsss_receiver_seed (rd, 0.0, 0.0, cn0) == DP_OK);
+        DP_CHECK (dp_async_dsss_receiver_seed (rd, 0.0, 0.0, cn0) == DP_OK);
         float _Complex *sd;
         size_t n_sd = _stream (rd, x + pre_silence, n - pre_silence, te, &sd);
         free (sd);
         DP_CHECK (n_sd > 20);
-        async_dsss_receiver_configure_lock_raw (rd, 1e30, 1e30, 8, 0.1, 1, 1);
+        dp_async_dsss_receiver_configure_lock_raw (rd, 1e30, 1e30, 8, 0.1, 1,
+                                                   1);
         n_sd = _stream (rd, x2, n2, 1024, &sd);
         free (sd);
-        async_dsss_receiver_status_t sd_st = async_dsss_receiver_status (rd);
+        async_dsss_receiver_status_t sd_st
+            = dp_async_dsss_receiver_status (rd);
         DP_CHECK (sd_st.state == ASYNC_DSSS_RX_TRACKING);
         DP_CHECK (sd_st.code_locked == 0 && sd_st.locked == 1);
         DP_CHECK (sd_st.code_locked
-                  == async_dsss_receiver_get_code_locked (rd));
-        DP_CHECK (sd_st.locked == async_dsss_receiver_get_locked (rd));
-        async_dsss_receiver_destroy (rd);
+                  == dp_async_dsss_receiver_get_code_locked (rd));
+        DP_CHECK (sd_st.locked == dp_async_dsss_receiver_get_locked (rd));
+        dp_async_dsss_receiver_destroy (rd);
       }
   }
   free (x2);
@@ -1390,14 +1400,14 @@ _test_status_record (void)
   uint64_t        run = 0, fed = 0;
   double          doppler_before = st.doppler_hz;
   DP_CHECK (_feed_until_lost (rx, off, (size_t)(0.25 * fs), 1024, &run, &fed));
-  st = async_dsss_receiver_status (rx);
+  st = dp_async_dsss_receiver_status (rx);
   DP_CHECK (st.state == ASYNC_DSSS_RX_LOST);
   DP_CHECK (st.both_down_samples > rx->lost_confirm_samples);
   DP_CHECK (st.both_down_samples == rx->both_down_samples);
   DP_CHECK (st.code_locked == 0 && st.locked == 0);
   /* Frozen: more input changes nothing the record reports. */
-  (void)async_dsss_receiver_steps (rx, off, 1024, tmp, 64);
-  async_dsss_receiver_status_t st2 = async_dsss_receiver_status (rx);
+  (void)dp_async_dsss_receiver_steps (rx, off, 1024, tmp, 64);
+  async_dsss_receiver_status_t st2 = dp_async_dsss_receiver_status (rx);
   DP_CHECK (st2.doppler_hz == st.doppler_hz);
   DP_CHECK (st2.both_down_samples == st.both_down_samples + 1024);
   DP_CHECK (st2.state_samples == st.state_samples + 1024);
@@ -1406,14 +1416,14 @@ _test_status_record (void)
   free (off);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
 static int
 _test_accessor_coverage (void)
 {
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
       14.0, 64, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
@@ -1421,31 +1431,31 @@ _test_accessor_coverage (void)
     return 1;
 
   /* Read-only accessors: each executes its one-line body on live state. */
-  (void)async_dsss_receiver_get_lock (rx);
-  (void)async_dsss_receiver_get_idle (rx);
-  (void)async_dsss_receiver_get_lost (rx);
-  (void)async_dsss_receiver_get_locked (rx);
-  (void)async_dsss_receiver_get_code_locked (rx);
-  (void)async_dsss_receiver_get_lock_metric (rx);
-  DP_CHECK (async_dsss_receiver_get_lock_threshold (rx) > 0.0);
-  (void)async_dsss_receiver_get_norm_freq (rx);
-  (void)async_dsss_receiver_get_nco_freq (rx);
-  (void)async_dsss_receiver_get_car_nco_freq (rx);
-  (void)async_dsss_receiver_get_car_last_error (rx);
-  (void)async_dsss_receiver_get_mpsk_last_error (rx);
-  (void)async_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
+  (void)dp_async_dsss_receiver_get_lock (rx);
+  (void)dp_async_dsss_receiver_get_idle (rx);
+  (void)dp_async_dsss_receiver_get_lost (rx);
+  (void)dp_async_dsss_receiver_get_locked (rx);
+  (void)dp_async_dsss_receiver_get_code_locked (rx);
+  (void)dp_async_dsss_receiver_get_lock_metric (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_lock_threshold (rx) > 0.0);
+  (void)dp_async_dsss_receiver_get_norm_freq (rx);
+  (void)dp_async_dsss_receiver_get_nco_freq (rx);
+  (void)dp_async_dsss_receiver_get_car_nco_freq (rx);
+  (void)dp_async_dsss_receiver_get_car_last_error (rx);
+  (void)dp_async_dsss_receiver_get_mpsk_last_error (rx);
+  (void)dp_async_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
 
   /* Raw sub-loop reconfiguration: valid grids/detectors, then the chain's
    * accept + both reject branches (segments < 1, and sps not a multiple of n).
    */
-  DP_CHECK (async_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
-  DP_CHECK (async_dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
-  async_dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
-  DP_CHECK (async_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
-  DP_CHECK (async_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
-  DP_CHECK (async_dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
+  DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
+  dp_async_dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
 
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1456,7 +1466,7 @@ _test_accessor_coverage (void)
  * sample and put back once an interval at a held phase corrected by a  *
  * gain times its interval-mean discriminator.                           *
  * ------------------------------------------------------------------ */
-static async_dsss_receiver_state_t *
+static dp_async_dsss_receiver_state_t *
 _cell_rx (double cn0, double lost_confirm_s, double carrier_hz,
           size_t correct_periods, double gain, size_t pullin)
 {
@@ -1494,30 +1504,30 @@ _test_cell_lifecycle_and_args (void)
   DP_CHECK (_cell_rx (cn0, 0.0, 0.0, 0, 0.125, 4) == NULL); /* period */
   DP_CHECK (_cell_rx (cn0, 0.0, 0.0, 100, 0.0, 4) == NULL); /* gain 0 */
   DP_CHECK (_cell_rx (cn0, 0.0, 0.0, 100, 1.5, 4) == NULL); /* gain>1 */
-  async_dsss_receiver_state_t *rx = _cell_rx (cn0, 0.0, 0.0, 100, 0.125, 4);
+  dp_async_dsss_receiver_state_t *rx = _cell_rx (cn0, 0.0, 0.0, 100, 0.125, 4);
   DP_CHECK (rx != NULL);
   if (!rx)
     return 1;
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
   /* No search and no refine chain; the pull-in's estimator is its own. */
   DP_CHECK (rx->acq == NULL && rx->ca != NULL && rx->refine_dll == NULL);
   DP_CHECK (rx->cell == 1);
-  DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 3)
+  DP_CHECK (dp_async_dsss_receiver_set_refine_min_blocks (rx, 3)
             == DP_ERR_INVALID);
-  DP_CHECK (async_dsss_receiver_configure_search_raw (rx, 1, 1) == -1);
-  DP_CHECK (async_dsss_receiver_seed (rx, 1.0, 0.0, cn0) == DP_OK);
-  DP_CHECK (async_dsss_receiver_get_refining (rx) == 1); /* the pull-in */
+  DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 1, 1) == -1);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 1.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 1); /* the pull-in */
   DP_CHECK (rx->held_phase == 1.0);
   DP_CHECK (rx->dll->coast == 1); /* held from the first sample */
-  DP_CHECK (async_dsss_receiver_seed (rx, 2.0, 0.0, cn0) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 2.0, 0.0, cn0) == DP_ERR_INVALID);
   /* Idle consumes and discards; refining decodes: fed a little noise,
      the pull-in receiver emits (garbage) symbols where idle emits none. */
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
   DP_CHECK (rx->held_phase == 0.0 && rx->intervals == 0);
-  DP_CHECK (async_dsss_receiver_seed (rx, 6.5, -100.0, cn0) == DP_OK);
-  DP_CHECK (async_dsss_receiver_get_doppler_hz (rx) == -100.0);
-  async_dsss_receiver_destroy (rx);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 6.5, -100.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (rx) == -100.0);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1558,33 +1568,34 @@ _test_cell_seed_past_pullin_is_estimated (void)
   double         *data;
   dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
                            6000, 0, 11, &x, &n, &data);
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
-  const double delay = doppler_channel_get_delay_samples (ch);
-  doppler_channel_destroy (ch);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = dp_doppler_channel_get_delay_samples (ch);
+  dp_doppler_channel_destroy (ch);
   /* The offsets, in bounds: zero, and then past where the loops alone
      acquire -- measured by sabotage (the fold skipped): at this toy
      geometry the loops pull in 4 bounds by themselves, and fail at 16. */
   const double offs[3] = { 0.0, 4.0 * bound, 16.0 * bound };
   for (int k = 0; k < 3; k++)
     {
-      async_dsss_receiver_state_t *rx
+      dp_async_dsss_receiver_state_t *rx
           = _cell_rx (cn0, 0.0, carrier_hz, periods, 0.125, 4);
       DP_REQUIRE (rx != NULL);
       double seed = fmod (
           _dilated_truth (0.0, ppm, delay, spc, sf) + 7.0 * 4.0, (double)sf);
-      DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz + offs[k], cn0)
-                == DP_OK);
+      DP_CHECK (
+          dp_async_dsss_receiver_seed (rx, seed, doppler_hz + offs[k], cn0)
+          == DP_OK);
       float _Complex *syms       = malloc (n * sizeof *syms);
       size_t          refined_at = 0;
       for (size_t pos = 0; pos + interval <= n; pos += interval)
         {
-          (void)async_dsss_receiver_steps (rx, x + pos, interval, syms, n);
+          (void)dp_async_dsss_receiver_steps (rx, x + pos, interval, syms, n);
           if (rx->cell_refined && !refined_at)
             refined_at = pos / interval + 1;
         }
       free (syms);
-      async_dsss_receiver_status_t st = async_dsss_receiver_status (rx);
+      async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
       printf ("  cell: seed %+.0f Hz off (%.1f bounds): estimate folded by "
               "interval %zu; tracking %d code %d sym %d, Doppler %+.0f Hz "
               "off the truth\n",
@@ -1599,7 +1610,7 @@ _test_cell_seed_past_pullin_is_estimated (void)
                       : "a seed inside the bound tracks with both flags");
       DP_CHECK_MSG (fabs (st.doppler_hz - doppler_hz) < 0.1 * bound,
                     "the Doppler reported is the emitter's");
-      async_dsss_receiver_destroy (rx);
+      dp_async_dsss_receiver_destroy (rx);
     }
   free (x);
   free (data);
@@ -1628,10 +1639,10 @@ _test_cell_holds_and_decodes (void)
   double         *data;
   dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
                            n_sym, 0, 11, &x, &n, &data);
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
-  const double delay = doppler_channel_get_delay_samples (ch);
-  doppler_channel_destroy (ch);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = dp_doppler_channel_get_delay_samples (ch);
+  dp_doppler_channel_destroy (ch);
   /* The truth is the channel's own mapping; the Dll's convention is the
      code phase at the next sample, so no constant is calibrated -- the
      coasting loop reads the mapping to a hundredth of a chip (the running
@@ -1643,27 +1654,27 @@ _test_cell_holds_and_decodes (void)
   double       sig[2]   = { 0.0, 0.0 };
   for (int g = 0; g < 2; g++)
     {
-      async_dsss_receiver_state_t *rx
+      dp_async_dsss_receiver_state_t *rx
           = _cell_rx (cn0, 0.0, carrier_hz, periods, gains[g], 4);
       DP_CHECK (rx != NULL);
       double seed = _dilated_truth (0.0, ppm, delay, spc, sf) + c + 0.4;
       seed        = fmod (seed + 7.0 * 4.0, (double)sf);
-      DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz + 5.0, cn0)
+      DP_CHECK (dp_async_dsss_receiver_seed (rx, seed, doppler_hz + 5.0, cn0)
                 == DP_OK);
       float _Complex *syms = malloc (n * sizeof *syms);
       size_t          ns = 0, k = 0, worst_i = 0;
       double          se = 0.0, se2 = 0.0, worst = 0.0;
       for (size_t pos = 0; pos + interval <= n; pos += interval)
         {
-          ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
-                                           n - ns);
+          ns += dp_async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                              n - ns);
           /* Settled: past the pull-in and a few intervals of the design
              gain; the phase the receiver holds against the truth here. */
           size_t i = pos / interval;
           if (i < 30)
             continue;
           double e
-              = _wrap_chips (async_dsss_receiver_get_chip_phase (rx)
+              = _wrap_chips (dp_async_dsss_receiver_get_chip_phase (rx)
                                  - _dilated_truth ((double)(pos + interval),
                                                    ppm, delay, spc, sf)
                                  - c,
@@ -1684,12 +1695,12 @@ _test_cell_holds_and_decodes (void)
               "%.3f (interval %zu) over %zu intervals; tracking %d code %d "
               "sym %d; %zu symbols\n",
               gains[g], bias, sig[g], worst, worst_i, k,
-              async_dsss_receiver_get_tracking (rx),
-              async_dsss_receiver_get_code_locked (rx),
-              async_dsss_receiver_get_locked (rx), ns);
-      DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
-      DP_CHECK (async_dsss_receiver_get_code_locked (rx) == 1);
-      DP_CHECK (async_dsss_receiver_get_locked (rx) == 1);
+              dp_async_dsss_receiver_get_tracking (rx),
+              dp_async_dsss_receiver_get_code_locked (rx),
+              dp_async_dsss_receiver_get_locked (rx), ns);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+      DP_CHECK (dp_async_dsss_receiver_get_code_locked (rx) == 1);
+      DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
       DP_CHECK (rx->intervals > 100);
       /* The Dll's own loop never closed: it coasted through the run, the
          interval correction its only steer (the design's claim, 12.22). */
@@ -1703,10 +1714,10 @@ _test_cell_holds_and_decodes (void)
       DP_CHECK (_best_ber (syms, ns, data, n_sym + 4) < 0.05);
       DP_CHECK (dp_test_evm_db_hard (syms + ns / 2, ns - ns / 2) < -8.0);
       /* The seed is refused while tracking; a re-seed after reset works. */
-      DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0)
+      DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0)
                 == DP_ERR_INVALID);
       free (syms);
-      async_dsss_receiver_destroy (rx);
+      dp_async_dsss_receiver_destroy (rx);
     }
   DP_CHECK_MSG (sig[0] < 0.75 * sig[1],
                 "cell mode: gain 1/8 holds under three quarters of gain 1's "
@@ -1742,10 +1753,10 @@ _test_cell_holds_through_switch_off (void)
   double         *data;
   dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
                            n_sym, 0, 13, &x, &n, &data);
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
-  const double delay = doppler_channel_get_delay_samples (ch);
-  doppler_channel_destroy (ch);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = dp_doppler_channel_get_delay_samples (ch);
+  dp_doppler_channel_destroy (ch);
   const double c = 0.0;
   /* The tail: the emitter gone, the same noise at the receiver. */
   const size_t    n_tail = (size_t)(lost_s * fs) * 2;
@@ -1757,22 +1768,22 @@ _test_cell_holds_through_switch_off (void)
 
   /* Gain 1: a correction taken on noise would move the phase by the whole
      read, so the gate on the code flag is what this test sees. */
-  async_dsss_receiver_state_t *rx
+  dp_async_dsss_receiver_state_t *rx
       = _cell_rx (cn0, lost_s, carrier_hz, periods, 1.0, 4);
   DP_CHECK (rx != NULL);
   double seed = fmod (_dilated_truth (0.0, ppm, delay, spc, sf) + c + 28.0,
                       (double)sf);
-  DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, seed, doppler_hz, cn0) == DP_OK);
   float _Complex *syms = malloc ((n + n_tail) * sizeof *syms);
   size_t          ns = 0, pos = 0;
   for (; pos + interval <= n; pos += interval)
-    ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
-                                     n + n_tail - ns);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
-  DP_CHECK (async_dsss_receiver_get_code_locked (rx) == 1
-            && async_dsss_receiver_get_locked (rx) == 1);
+    ns += dp_async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                        n + n_tail - ns);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_code_locked (rx) == 1
+            && dp_async_dsss_receiver_get_locked (rx) == 1);
   const double e_on = _wrap_chips (
-      async_dsss_receiver_get_chip_phase (rx)
+      dp_async_dsss_receiver_get_chip_phase (rx)
           - _dilated_truth ((double)pos, ppm, delay, spc, sf) - c,
       sf);
   DP_CHECK (fabs (e_on) < 0.05);
@@ -1784,23 +1795,23 @@ _test_cell_holds_through_switch_off (void)
   double         e_off        = 0.0;
   for (; tp + interval <= n_tail; tp += interval)
     {
-      ns += async_dsss_receiver_steps (rx, tail + tp, interval, syms + ns,
-                                       n + n_tail - ns);
-      if (lost_at < 0 && async_dsss_receiver_get_lost (rx))
+      ns += dp_async_dsss_receiver_steps (rx, tail + tp, interval, syms + ns,
+                                          n + n_tail - ns);
+      if (lost_at < 0 && dp_async_dsss_receiver_get_lost (rx))
         {
           /* Lost: the receiver stops updating and its phase is where the
              emitter left it (section 10) -- read it at the interval the
              rule fired on, dead-reckoned to there. */
           lost_at = (int)(tp / interval);
           e_off   = _wrap_chips (
-              async_dsss_receiver_get_chip_phase (rx)
+              dp_async_dsss_receiver_get_chip_phase (rx)
                   - _dilated_truth ((double)(pos + tp + interval), ppm, delay,
                                     spc, sf)
                   - c,
               sf);
         }
     }
-  DP_CHECK (async_dsss_receiver_get_lost (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_lost (rx) == 1);
   DP_CHECK (lost_at > 0);
   printf ("  cell: switched off -- lost after %d intervals of %zu; held "
           "phase %+.3f chips from the hold point (%+.3f at switch-off), "
@@ -1810,14 +1821,14 @@ _test_cell_holds_through_switch_off (void)
   DP_CHECK_MSG (fabs (e_off - e_on) < 0.03,
                 "cell mode: switched off, the held phase dead-reckons and "
                 "does not walk");
-  async_dsss_receiver_reset (rx);
-  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
-  DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz, cn0) == DP_OK);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, seed, doppler_hz, cn0) == DP_OK);
   free (syms);
   free (tail);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1846,33 +1857,33 @@ _test_cell_ramp (void)
   double         *data;
   dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, 0.0, ppm_s,
                            cn0, n_sym, 0, 17, &x, &n, &data);
-  async_dsss_receiver_state_t *rx
+  dp_async_dsss_receiver_state_t *rx
       = _cell_rx (cn0, 0.0, carrier_hz, periods, 0.125, 4);
   DP_CHECK (rx != NULL);
   /* The truth's phase at sample 0 is the channel's delay; no ramp yet. */
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, carrier_hz, 0.0, ppm_s);
-  const double delay = doppler_channel_get_delay_samples (ch);
-  doppler_channel_destroy (ch);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, carrier_hz, 0.0, ppm_s);
+  const double delay = dp_doppler_channel_get_delay_samples (ch);
+  dp_doppler_channel_destroy (ch);
   const double seed
       = fmod (_dilated_truth (0.0, 0.0, delay, spc, sf) + 28.0, (double)sf);
-  DP_CHECK (async_dsss_receiver_seed (rx, seed, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, seed, 0.0, cn0) == DP_OK);
   float _Complex *syms = malloc (n * sizeof *syms);
   size_t          ns = 0, unlocked_after = 0, pos = 0;
   for (; pos + interval <= n; pos += interval)
     {
-      ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
-                                       n - ns);
-      if (pos > n / 4 && !async_dsss_receiver_get_locked (rx))
+      ns += dp_async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                          n - ns);
+      if (pos > n / 4 && !dp_async_dsss_receiver_get_locked (rx))
         unlocked_after++;
     }
   const double                 t_end  = (double)pos / fs;
   const double                 f_true = carrier_hz * ppm_s * 1e-6 * t_end;
-  async_dsss_receiver_status_t st     = async_dsss_receiver_status (rx);
+  async_dsss_receiver_status_t st     = dp_async_dsss_receiver_status (rx);
   printf ("  cell: ramp -- truth %.0f Hz at the end, status %.0f; intervals "
           "with the symbol flag down after the first quarter: %zu of %zu\n",
           f_true, st.doppler_hz, unlocked_after, pos / interval);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK_MSG (fabs (st.doppler_hz - f_true) < 60.0,
                 "cell mode: the carrier loop follows the ramp");
   DP_CHECK_MSG (unlocked_after == 0,
@@ -1881,7 +1892,7 @@ _test_cell_ramp (void)
   free (syms);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1918,30 +1929,30 @@ _test_cell_ramp_at_spec (void)
   double         *data;
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_s, cn0, n_sym, pre,
                         23, &x, &n, &data);
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.0, 0.0,
       periods, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
   DP_CHECK (rx != NULL);
   /* Chip 0 on the first signal sample, the ramp from 0 Hz: the seed is the
      truth, as the cell-mode tests seed. */
-  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   float _Complex *syms = malloc (n * sizeof *syms);
   size_t          ns = 0, down = 0, pos = pre, k = 0;
   for (; pos + interval <= n; pos += interval, k++)
     {
-      ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
-                                       n - ns);
-      if (k >= 8 && !async_dsss_receiver_get_locked (rx))
+      ns += dp_async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                          n - ns);
+      if (k >= 8 && !dp_async_dsss_receiver_get_locked (rx))
         down++;
     }
   const double                 t_end  = (double)(pos - pre) / fs;
   const double                 f_true = rate_hz_s * t_end;
-  async_dsss_receiver_status_t st     = async_dsss_receiver_status (rx);
+  async_dsss_receiver_status_t st     = dp_async_dsss_receiver_status (rx);
   printf ("  cell: ramp at SPEC -- truth %.0f Hz at the end, status %.0f; "
           "intervals with the symbol flag down after the pull-in: %zu of "
           "%zu; %zu symbols\n",
           f_true, st.doppler_hz, down, k, ns);
-  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK_MSG (fabs (st.doppler_hz - f_true) < 60.0,
                 "cell mode at SPEC: the carrier loop follows the ramp");
   DP_CHECK_MSG (down == 0,
@@ -1953,7 +1964,7 @@ _test_cell_ramp_at_spec (void)
   free (x);
   free (data);
   free (code);
-  async_dsss_receiver_destroy (rx);
+  dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
 
@@ -1982,51 +1993,53 @@ _test_cell_state_roundtrip (void)
   double         *data;
   dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
                            n_sym, 0, 19, &x, &n, &data);
-  doppler_channel_state_t *ch
-      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
-  const double delay = doppler_channel_get_delay_samples (ch);
-  doppler_channel_destroy (ch);
+  dp_doppler_channel_state_t *ch
+      = dp_doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = dp_doppler_channel_get_delay_samples (ch);
+  dp_doppler_channel_destroy (ch);
 
-  async_dsss_receiver_state_t *ra
+  dp_async_dsss_receiver_state_t *ra
       = _cell_rx (cn0, 2.0, carrier_hz, periods, 0.125, 4);
-  async_dsss_receiver_state_t *rb
+  dp_async_dsss_receiver_state_t *rb
       = _cell_rx (cn0, 2.0, carrier_hz, periods, 0.125, 4);
   DP_CHECK (ra && rb);
   /* Idle: the mode in the blob; a searching receiver's blob is refused. */
   {
-    size_t cb   = async_dsss_receiver_state_bytes (ra);
+    size_t cb   = dp_async_dsss_receiver_state_bytes (ra);
     void  *blob = malloc (cb);
-    async_dsss_receiver_get_state (ra, blob);
+    dp_async_dsss_receiver_get_state (ra, blob);
     const async_dsss_receiver_extra_t *ex
         = (const async_dsss_receiver_extra_t *)((const char *)blob
                                                 + sizeof (dp_state_hdr_t));
     DP_CHECK (ex->cell == 1);
-    DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_OK);
+    DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob) == DP_OK);
     free (blob);
-    async_dsss_receiver_state_t *rh = async_dsss_receiver_create (
+    dp_async_dsss_receiver_state_t *rh = dp_async_dsss_receiver_create (
         CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
         4, 14.0, 64, 8, false, 100000, carrier_hz, 2.0);
-    size_t ch_b = async_dsss_receiver_state_bytes (rh);
+    size_t ch_b = dp_async_dsss_receiver_state_bytes (rh);
     void  *hb   = malloc (ch_b);
-    async_dsss_receiver_get_state (rh, hb);
-    DP_CHECK (async_dsss_receiver_set_state (rb, hb) == DP_ERR_INVALID);
+    dp_async_dsss_receiver_get_state (rh, hb);
+    DP_CHECK (dp_async_dsss_receiver_set_state (rb, hb) == DP_ERR_INVALID);
     free (hb);
-    async_dsss_receiver_destroy (rh);
+    dp_async_dsss_receiver_destroy (rh);
   }
   const double seed
       = fmod (_dilated_truth (0.0, ppm, delay, spc, sf) + 28.0, (double)sf);
-  DP_CHECK (async_dsss_receiver_seed (ra, seed, doppler_hz, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_seed (ra, seed, doppler_hz, cn0) == DP_OK);
   float _Complex *sa = malloc (n * sizeof *sa), *sb = malloc (n * sizeof *sb);
   size_t          na = 0, nb = 0, pos = 0;
   /* Forty intervals in, tracking, mid-interval: the split. */
   const size_t split = 40 * interval + interval / 3;
   for (; pos + interval <= split; pos += interval)
-    na += async_dsss_receiver_steps (ra, x + pos, interval, sa + na, n - na);
-  na += async_dsss_receiver_steps (ra, x + pos, split - pos, sa + na, n - na);
+    na += dp_async_dsss_receiver_steps (ra, x + pos, interval, sa + na,
+                                        n - na);
+  na += dp_async_dsss_receiver_steps (ra, x + pos, split - pos, sa + na,
+                                      n - na);
   pos = split;
-  DP_CHECK (async_dsss_receiver_get_tracking (ra) == 1);
-  DP_STATE_ROUNDTRIP_TEST (async_dsss_receiver, ra, rb);
-  DP_CHECK (async_dsss_receiver_get_tracking (rb) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (ra) == 1);
+  DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_receiver, ra, rb);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rb) == 1);
   DP_CHECK (rb->held_phase == ra->held_phase
             && rb->period_count == ra->period_count
             && rb->intervals == ra->intervals);
@@ -2034,13 +2047,15 @@ _test_cell_state_roundtrip (void)
   nb         = 0;
   for (; pos + interval <= n; pos += interval)
     {
-      na += async_dsss_receiver_steps (ra, x + pos, interval, sa + na, n - na);
-      nb += async_dsss_receiver_steps (rb, x + pos, interval, sb + nb, n - nb);
+      na += dp_async_dsss_receiver_steps (ra, x + pos, interval, sa + na,
+                                          n - na);
+      nb += dp_async_dsss_receiver_steps (rb, x + pos, interval, sb + nb,
+                                          n - nb);
     }
   DP_CHECK (na - na0 == nb && nb > 100);
   DP_CHECK (memcmp (sa + na0, sb, nb * sizeof *sb) == 0);
-  async_dsss_receiver_status_t sta = async_dsss_receiver_status (ra),
-                               stb = async_dsss_receiver_status (rb);
+  async_dsss_receiver_status_t sta = dp_async_dsss_receiver_status (ra),
+                               stb = dp_async_dsss_receiver_status (rb);
   DP_CHECK (sta.chip_phase == stb.chip_phase
             && sta.doppler_hz == stb.doppler_hz
             && sta.code_locked == stb.code_locked && sta.locked == stb.locked);
@@ -2048,8 +2063,8 @@ _test_cell_state_roundtrip (void)
   free (sb);
   free (x);
   free (data);
-  async_dsss_receiver_destroy (ra);
-  async_dsss_receiver_destroy (rb);
+  dp_async_dsss_receiver_destroy (ra);
+  dp_async_dsss_receiver_destroy (rb);
   return 0;
 }
 

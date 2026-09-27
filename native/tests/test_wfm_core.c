@@ -29,7 +29,7 @@ main (void)
     const uint8_t bits[6] = { 0, 1, 0, 1, 0xFE, 0xFF };
     float _Complex out[6];
 
-    bpsk_map (bits, 6, out);
+    dp_bpsk_map (bits, 6, out);
     DP_CHECK (crealf (out[0]) == 1.0f && cimagf (out[0]) == 0.0f);
     DP_CHECK (crealf (out[1]) == -1.0f && cimagf (out[1]) == 0.0f);
     /* "only the LSB of each byte is used" -- 0xFE is even, 0xFF odd. */
@@ -44,7 +44,7 @@ main (void)
     const uint8_t idx[4] = { 0, 1, 2, 3 };
     float _Complex out[4];
 
-    qpsk_map (idx, 4, out);
+    dp_qpsk_map (idx, 4, out);
 
     /* Unit magnitude, one point per quadrant, no duplicates. */
     for (int i = 0; i < 4; i++)
@@ -70,27 +70,28 @@ main (void)
   {
     /* 0 dB SNR on unit power: total noise power 1, split over I and Q,
        so each component carries sigma^2 = 0.5 -> sigma = 0.7071. */
-    DP_CHECK (fabsf (wfm_awgn_amplitude (0.0f, 1.0f) - 0.707107f) < 1e-5f);
+    DP_CHECK (fabsf (dp_wfm_awgn_amplitude (0.0f, 1.0f) - 0.707107f) < 1e-5f);
 
     /* Every 10 dB divides the amplitude by sqrt(10). */
-    const float s0  = wfm_awgn_amplitude (0.0f, 1.0f);
-    const float s10 = wfm_awgn_amplitude (10.0f, 1.0f);
-    const float s20 = wfm_awgn_amplitude (20.0f, 1.0f);
+    const float s0  = dp_wfm_awgn_amplitude (0.0f, 1.0f);
+    const float s10 = dp_wfm_awgn_amplitude (10.0f, 1.0f);
+    const float s20 = dp_wfm_awgn_amplitude (20.0f, 1.0f);
     DP_CHECK (fabsf (s0 / s10 - sqrtf (10.0f)) < 1e-4f);
     DP_CHECK (fabsf (s10 / s20 - sqrtf (10.0f)) < 1e-4f);
 
     /* Noise scales with the square root of signal power at fixed SNR --
        otherwise the SNR a caller asked for is not the one they get. */
-    DP_CHECK (fabsf (wfm_awgn_amplitude (10.0f, 4.0f) - 2.0f * s10) < 1e-5f);
+    DP_CHECK (fabsf (dp_wfm_awgn_amplitude (10.0f, 4.0f) - 2.0f * s10)
+              < 1e-5f);
   }
 
   /* ── wfm_ebno_to_snr_db: the oversampling and rate terms ────────── */
   {
     /* SNR = Eb/N0 + 10log10(bits_per_symbol / sps). */
-    DP_CHECK (fabsf (wfm_ebno_to_snr_db (10.0f, 2, 8.0f)
+    DP_CHECK (fabsf (dp_wfm_ebno_to_snr_db (10.0f, 2, 8.0f)
                      - (10.0f + 10.0f * log10f (2.0f / 8.0f)))
               < 1e-4f);
-    DP_CHECK (fabsf (wfm_ebno_to_snr_db (10.0f, 1, 8.0f)
+    DP_CHECK (fabsf (dp_wfm_ebno_to_snr_db (10.0f, 1, 8.0f)
                      - (10.0f + 10.0f * log10f (1.0f / 8.0f)))
               < 1e-4f);
 
@@ -98,30 +99,30 @@ main (void)
        SNR than BPSK for the same Eb/N0 -- the sign of that term is the
        classic place to be off, and inverting it is invisible in any
        single-modulation test. */
-    DP_CHECK (wfm_ebno_to_snr_db (10.0f, 2, 8.0f)
-              > wfm_ebno_to_snr_db (10.0f, 1, 8.0f));
+    DP_CHECK (dp_wfm_ebno_to_snr_db (10.0f, 2, 8.0f)
+              > dp_wfm_ebno_to_snr_db (10.0f, 1, 8.0f));
     /* More oversampling spreads the same energy over more bandwidth. */
-    DP_CHECK (wfm_ebno_to_snr_db (10.0f, 2, 16.0f)
-              < wfm_ebno_to_snr_db (10.0f, 2, 8.0f));
+    DP_CHECK (dp_wfm_ebno_to_snr_db (10.0f, 2, 16.0f)
+              < dp_wfm_ebno_to_snr_db (10.0f, 2, 8.0f));
     /* Eb/N0 passes through one-for-one. */
-    DP_CHECK (fabsf ((wfm_ebno_to_snr_db (20.0f, 2, 8.0f)
-                      - wfm_ebno_to_snr_db (10.0f, 2, 8.0f))
+    DP_CHECK (fabsf ((dp_wfm_ebno_to_snr_db (20.0f, 2, 8.0f)
+                      - dp_wfm_ebno_to_snr_db (10.0f, 2, 8.0f))
                      - 10.0f)
               < 1e-4f);
   }
 
   /* ── mls_poly: a primitive polynomial, and the documented range ─── */
   {
-    DP_CHECK (mls_poly (7) == 0x41); /* the header's worked example */
-    DP_CHECK (mls_poly (1) == 0);    /* below the range */
-    DP_CHECK (mls_poly (65) == 0);   /* above it */
+    DP_CHECK (dp_mls_poly (7) == 0x41); /* the header's worked example */
+    DP_CHECK (dp_mls_poly (1) == 0);    /* below the range */
+    DP_CHECK (dp_mls_poly (65) == 0);   /* above it */
 
     /* Every length in [2, 64] has an entry, and a tap mask must have the
        top stage set -- a mask without it describes a shorter LFSR and
        silently halves the sequence period. */
     for (uint32_t n = 2; n <= 64; n++)
       {
-        const uint64_t p = mls_poly (n);
+        const uint64_t p = dp_mls_poly (n);
         DP_CHECK (p != 0);
         DP_CHECK (p < (n == 64 ? UINT64_MAX : (1ULL << n)));
       }
@@ -139,21 +140,21 @@ main (void)
       for (int b = 7; b >= 0; b--)
         bits[k++] = (uint8_t)((msg[i] >> b) & 1);
 
-    DP_CHECK (crc16 (bits, k) == 0x29B1);
+    DP_CHECK (dp_crc16 (bits, k) == 0x29B1);
 
     /* Init 0xFFFF, not 0x0000: an empty message returns the init value,
        which is the cheapest way to see which of the two it is. */
-    DP_CHECK (crc16 (bits, 0) == 0xFFFF);
+    DP_CHECK (dp_crc16 (bits, 0) == 0xFFFF);
 
     /* A single flipped bit anywhere must change the CRC -- that is the
        entire job. */
     for (size_t i = 0; i < k; i += 7)
       {
         bits[i] ^= 1;
-        DP_CHECK (crc16 (bits, k) != 0x29B1);
+        DP_CHECK (dp_crc16 (bits, k) != 0x29B1);
         bits[i] ^= 1;
       }
-    DP_CHECK (crc16 (bits, k) == 0x29B1); /* restored */
+    DP_CHECK (dp_crc16 (bits, k) == 0x29B1); /* restored */
   }
 
   /* ── rrc_h / rc_h: even, and NOT the same filter ────────────────── */
@@ -164,8 +165,8 @@ main (void)
     for (int i = 0; i < 9; i++)
       t[i] = (double)(i - 4); /* -4 .. +4 symbol times */
 
-    rrc_h (t, 9, hr, beta);
-    rc_h (t, 9, hc, beta);
+    dp_rrc_h (t, 9, hr, beta);
+    dp_rc_h (t, 9, hc, beta);
 
     /* Both are even in t: an odd component is a group-delay error. */
     for (int i = 0; i < 4; i++)
@@ -200,7 +201,7 @@ main (void)
     const int n = 2 * span * sps + 1;
     float     taps[2 * 4 * 4 + 1];
 
-    rrc_taps (0.35, sps, span, taps);
+    dp_rrc_taps (0.35, sps, span, taps);
     DP_CHECK (n % 2 == 1);
     for (int i = 0; i < n; i++)
       DP_CHECK (fabsf (taps[i] - taps[n - 1 - i]) < 1e-6f);
@@ -219,7 +220,7 @@ main (void)
     const int     sf             = 4;
     float _Complex out[8];
 
-    dsss_spread (syms, 2, code, 4, sf, out);
+    dp_dsss_spread (syms, 2, code, 4, sf, out);
 
     /* A 0 chip maps to +1 and a 1 chip to -1, so the spread symbol is
        the symbol times that sign -- and the magnitude never changes. */

@@ -7,21 +7,21 @@
  * Do NOT compile this file directly — only impairment_ext.c is compiled.
  */
 /* ======================================================== */
-/* DopplerChannelObject — wraps doppler_channel_state_t *       */
+/* DopplerChannelObject — wraps dp_doppler_channel_state_t *       */
 /* ======================================================== */
 
 #include "doppler/doppler_channel/doppler_channel_core.h"
 
 typedef struct
 {
-  PyObject_HEAD doppler_channel_state_t *handle;
+  PyObject_HEAD dp_doppler_channel_state_t *handle;
 } DopplerChannelObject;
 
 static void
 DopplerChannelObj_dealloc (DopplerChannelObject *self)
 {
   if (self->handle)
-    doppler_channel_destroy (self->handle);
+    dp_doppler_channel_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -50,12 +50,12 @@ DopplerChannelObj_init (DopplerChannelObject *self, PyObject *args,
                                     &carrier_hz, &doppler_ppm,
                                     &doppler_rate_ppm_s))
     return -1;
-  self->handle = doppler_channel_create (fs, carrier_hz, doppler_ppm,
-                                         doppler_rate_ppm_s);
+  self->handle = dp_doppler_channel_create (fs, carrier_hz, doppler_ppm,
+                                            doppler_rate_ppm_s);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "doppler_channel_create returned NULL");
+                       "dp_doppler_channel_create returned NULL");
       return -1;
     }
   return 0;
@@ -70,7 +70,7 @@ DopplerChannelObj_execute_max_out (DopplerChannelObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (doppler_channel_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_doppler_channel_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -117,7 +117,7 @@ DopplerChannelObj_execute (DopplerChannelObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = doppler_channel_execute_max_out (self->handle);
+      size_t _omax    = dp_doppler_channel_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -139,7 +139,8 @@ DopplerChannelObj_execute (DopplerChannelObject *self, PyObject *args,
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = doppler_channel_execute (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_doppler_channel_execute (self->handle, _ng0, _ng1, _ng2,
+                                            _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -160,7 +161,7 @@ DopplerChannelObj_execute (DopplerChannelObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = doppler_channel_execute_max_out (self->handle);
+  size_t _cap  = dp_doppler_channel_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -179,7 +180,7 @@ DopplerChannelObj_execute (DopplerChannelObject *self, PyObject *args,
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = doppler_channel_execute (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_doppler_channel_execute (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -207,7 +208,7 @@ DopplerChannelObj_reset (DopplerChannelObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  doppler_channel_reset (self->handle);
+  dp_doppler_channel_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -220,7 +221,7 @@ DopplerChannelObj_state_bytes (DopplerChannelObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (doppler_channel_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_doppler_channel_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -232,11 +233,11 @@ DopplerChannelObj_get_state (DopplerChannelObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = doppler_channel_state_bytes (self->handle);
+  size_t    _n = dp_doppler_channel_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  doppler_channel_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_doppler_channel_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -254,12 +255,13 @@ DopplerChannelObj_set_state (DopplerChannelObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != doppler_channel_state_bytes (self->handle))
+      != dp_doppler_channel_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (doppler_channel_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_doppler_channel_set_state (self->handle, PyBytes_AS_STRING (arg))
+      != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -320,7 +322,7 @@ DopplerChannel_getprop_elapsed_s (DopplerChannelObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (doppler_channel_get_elapsed_s (self->handle));
+  return PyFloat_FromDouble (dp_doppler_channel_get_elapsed_s (self->handle));
 }
 static PyObject *
 DopplerChannel_getprop_delay_samples (DopplerChannelObject *self,
@@ -332,7 +334,8 @@ DopplerChannel_getprop_delay_samples (DopplerChannelObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (doppler_channel_get_delay_samples (self->handle));
+  return PyFloat_FromDouble (
+      dp_doppler_channel_get_delay_samples (self->handle));
 }
 static PyObject *
 DopplerChannel_getprop_offset_hz (DopplerChannelObject *self,
@@ -344,7 +347,7 @@ DopplerChannel_getprop_offset_hz (DopplerChannelObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (doppler_channel_get_offset_hz (self->handle));
+  return PyFloat_FromDouble (dp_doppler_channel_get_offset_hz (self->handle));
 }
 
 static PyGetSetDef DopplerChannel_getset[] = {
@@ -381,7 +384,7 @@ DopplerChannelObj_destroy (DopplerChannelObject *self,
 {
   if (self->handle)
     {
-      doppler_channel_destroy (self->handle);
+      dp_doppler_channel_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -401,7 +404,7 @@ DopplerChannelObj_exit (DopplerChannelObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      doppler_channel_destroy (self->handle);
+      dp_doppler_channel_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

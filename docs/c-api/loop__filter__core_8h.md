@@ -32,7 +32,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**loop\_filter\_state\_t**](structloop__filter__state__t.md) <br>_Second-order PI loop filter state (embeddable by value)._  |
+| struct | [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) <br>_Second-order PI loop filter state (embeddable by value)._  |
 
 
 
@@ -59,16 +59,16 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**loop\_filter\_configure**](#function-loop_filter_configure) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
-|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* | [**loop\_filter\_create**](#function-loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
-|  void | [**loop\_filter\_destroy**](#function-loop_filter_destroy) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
-|  void | [**loop\_filter\_get\_state**](#function-loop_filter_get_state) (const [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
-|  void | [**loop\_filter\_init**](#function-loop_filter_init) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
-|  void | [**loop\_filter\_reset**](#function-loop_filter_reset) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
-|  int | [**loop\_filter\_set\_state**](#function-loop_filter_set_state) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
-|  size\_t | [**loop\_filter\_state\_bytes**](#function-loop_filter_state_bytes) (const [**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**loop\_filter\_step**](#function-loop_filter_step) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
-|  void | [**loop\_filter\_steps**](#function-loop_filter_steps) ([**loop\_filter\_state\_t**](structloop__filter__state__t.md) \* state, const double \* x, double \* out, size\_t n) <br>_Filter a whole block of loop errors, returning the control value for each update._  |
+|  void | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
+|  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
+|  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
+|  void | [**dp\_loop\_filter\_get\_state**](#function-dp_loop_filter_get_state) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
+|  void | [**dp\_loop\_filter\_reset**](#function-dp_loop_filter_reset) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
+|  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
+|  size\_t | [**dp\_loop\_filter\_state\_bytes**](#function-dp_loop_filter_state_bytes) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dp\_loop\_filter\_step**](#function-dp_loop_filter_step) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
+|  void | [**dp\_loop\_filter\_steps**](#function-dp_loop_filter_steps) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const double \* x, double \* out, size\_t n) <br>_Filter a whole block of loop errors, returning the control value for each update._  |
+|  void | [**loop\_filter\_init**](#function-loop_filter_init) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
 |  double | [**loop\_filter\_wn**](#function-loop_filter_wn) (double bn, double zeta) <br>_Natural frequency implied by a loop bandwidth and damping._  |
 
 
@@ -123,7 +123,7 @@ The promise assumes the REST of the loop has unit gain (`Kd*K0 = 1`): a discrimi
 Settling follows from the same number: a step settles to +-5% within about 2.3 loop constants (`2.3/bn` updates) at zeta = 0.707, so the `5/bn` rule used throughout this library is comfortable rather than tight.
 
 
-The state struct is **public** so a tracker can embed it by value (no heap) and drive it with [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)/loop\_filter\_step() — e.g. a despreader keeps one for the carrier loop and one for the code loop. [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the heap path used by the Python wrapper.
+The state struct is **public** so a tracker can embed it by value (no heap) and drive it with [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)/dp\_loop\_filter\_step() — e.g. a despreader keeps one for the carrier loop and one for the code loop. [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the heap path used by the Python wrapper.
 
 
 Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
@@ -131,9 +131,9 @@ Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
 
 
 ```C++
-loop_filter_state_t *lf = loop_filter_create(0.01, 0.707, 1.0);
-double ctl = loop_filter_step(lf, 0.25);   // integ += ki*e; ret integ+kp*e
-loop_filter_destroy(lf);
+dp_loop_filter_state_t *lf = dp_loop_filter_create(0.01, 0.707, 1.0);
+double ctl = dp_loop_filter_step(lf, 0.25);   // integ += ki*e; ret integ+kp*e
+dp_loop_filter_destroy(lf);
 ```
  
 
@@ -145,12 +145,12 @@ loop_filter_destroy(lf);
 
 
 
-### function loop\_filter\_configure 
+### function dp\_loop\_filter\_configure 
 
 _Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._
 ```C++
-void loop_filter_configure (
-    loop_filter_state_t * state,
+void dp_loop_filter_configure (
+    dp_loop_filter_state_t * state,
     double bn,
     double zeta,
     double t
@@ -193,11 +193,11 @@ True
 
 
 
-### function loop\_filter\_create 
+### function dp\_loop\_filter\_create 
 
 _Create a loop\_filter instance, validating its arguments._ 
 ```C++
-loop_filter_state_t * loop_filter_create (
+dp_loop_filter_state_t * dp_loop_filter_create (
     double bn,
     double zeta,
     double t
@@ -229,7 +229,7 @@ Heap-allocated state, or NULL if any argument is outside the domain above or on 
 
 **Note:**
 
-Caller must call [**loop\_filter\_destroy()**](loop__filter__core_8h.md#function-loop_filter_destroy) when done. 
+Caller must call [**dp\_loop\_filter\_destroy()**](loop__filter__core_8h.md#function-dp_loop_filter_destroy) when done. 
 
 
 
@@ -241,12 +241,12 @@ Caller must call [**loop\_filter\_destroy()**](loop__filter__core_8h.md#function
 
 
 
-### function loop\_filter\_destroy 
+### function dp\_loop\_filter\_destroy 
 
 _Destroy a loop\_filter instance and release all memory._ 
 ```C++
-void loop_filter_destroy (
-    loop_filter_state_t * state
+void dp_loop_filter_destroy (
+    dp_loop_filter_state_t * state
 ) 
 ```
 
@@ -268,12 +268,12 @@ void loop_filter_destroy (
 
 
 
-### function loop\_filter\_get\_state 
+### function dp\_loop\_filter\_get\_state 
 
 _Serialize the loop state into_ `blob` _._
 ```C++
-void loop_filter_get_state (
-    const loop_filter_state_t * state,
+void dp_loop_filter_get_state (
+    const dp_loop_filter_state_t * state,
     void * blob
 ) 
 ```
@@ -285,51 +285,12 @@ void loop_filter_get_state (
 
 
 
-### function loop\_filter\_init 
-
-_Initialise a loop filter in place (no allocation)._ 
-```C++
-void loop_filter_init (
-    loop_filter_state_t * state,
-    double bn,
-    double zeta,
-    double t
-) 
-```
-
-
-
-Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/sample), damping `zeta`, and update period `t` (samples), and stores `bn` / `zeta` / `t`. Does **not** touch `integ`, so it doubles as a reconfigure that preserves lock. Use this for a `loop_filter_state_t` embedded by value; [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is calloc + [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init).
-
-
-**Arguments are NOT validated here, on purpose.** This is the by-value path taken by the objects that embed a filter, all of which validate upstream; [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the boundary that faces an untrusted caller and it rejects the same domain this documents. Passing `t = 0` here yields `kp = ki = 0` — a loop that never moves — and a non-finite argument yields NaN gains that never recover.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
-* `zeta` Damping factor (typically 0.707), &gt; 0. 
-* `t` Update period in samples (&gt; 0). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function loop\_filter\_reset 
+### function dp\_loop\_filter\_reset 
 
 _Zero the integrator memory while keeping the configured gains._ 
 ```C++
-void loop_filter_reset (
-    loop_filter_state_t * state
+void dp_loop_filter_reset (
+    dp_loop_filter_state_t * state
 ) 
 ```
 
@@ -366,12 +327,12 @@ Clears the accumulated frequency/rate estimate (`integ`) back to zero but leaves
 
 
 
-### function loop\_filter\_set\_state 
+### function dp\_loop\_filter\_set\_state 
 
 _Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._ 
 ```C++
-int loop_filter_set_state (
-    loop_filter_state_t * state,
+int dp_loop_filter_set_state (
+    dp_loop_filter_state_t * state,
     const void * blob
 ) 
 ```
@@ -383,12 +344,12 @@ int loop_filter_set_state (
 
 
 
-### function loop\_filter\_state\_bytes 
+### function dp\_loop\_filter\_state\_bytes 
 
 _Serialized-state byte size._ 
 ```C++
-size_t loop_filter_state_bytes (
-    const loop_filter_state_t * state
+size_t dp_loop_filter_state_bytes (
+    const dp_loop_filter_state_t * state
 ) 
 ```
 
@@ -399,12 +360,12 @@ size_t loop_filter_state_bytes (
 
 
 
-### function loop\_filter\_step 
+### function dp\_loop\_filter\_step 
 
 _Advance the loop one update with error_ `x` _and return the control value the tracker should apply._
 ```C++
-JM_FORCEINLINE  JM_HOT double loop_filter_step (
-    loop_filter_state_t * state,
+JM_FORCEINLINE  JM_HOT double dp_loop_filter_step (
+    dp_loop_filter_state_t * state,
     double x
 ) 
 ```
@@ -450,12 +411,12 @@ Control value `integ+kp*x` to drive the NCO / interpolator.
 
 
 
-### function loop\_filter\_steps 
+### function dp\_loop\_filter\_steps 
 
 _Filter a whole block of loop errors, returning the control value for each update._ 
 ```C++
-void loop_filter_steps (
-    loop_filter_state_t * state,
+void dp_loop_filter_steps (
+    dp_loop_filter_state_t * state,
     const double * x,
     double * out,
     size_t n
@@ -464,7 +425,7 @@ void loop_filter_steps (
 
 
 
-Equivalent to calling [**loop\_filter\_step()**](loop__filter__core_8h.md#function-loop_filter_step) once per element of `x` in order, carrying the integrator across the block, so the loop's memory and lock state persist from one call to the next. This is the block path used to run a captured error sequence through the filter in one shot — a plain per-element loop, not a vectorized one: the recurrence is sequential, so each update depends on the one before it.
+Equivalent to calling [**dp\_loop\_filter\_step()**](loop__filter__core_8h.md#function-dp_loop_filter_step) once per element of `x` in order, carrying the integrator across the block, so the loop's memory and lock state persist from one call to the next. This is the block path used to run a captured error sequence through the filter in one shot — a plain per-element loop, not a vectorized one: the recurrence is sequential, so each update depends on the one before it.
 
 
 
@@ -497,6 +458,45 @@ Equivalent to calling [**loop\_filter\_step()**](loop__filter__core_8h.md#functi
 
 
 
+### function loop\_filter\_init 
+
+_Initialise a loop filter in place (no allocation)._ 
+```C++
+void loop_filter_init (
+    dp_loop_filter_state_t * state,
+    double bn,
+    double zeta,
+    double t
+) 
+```
+
+
+
+Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/sample), damping `zeta`, and update period `t` (samples), and stores `bn` / `zeta` / `t`. Does **not** touch `integ`, so it doubles as a reconfigure that preserves lock. Use this for a `dp_loop_filter_state_t` embedded by value; [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is calloc + [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init).
+
+
+**Arguments are NOT validated here, on purpose.** This is the by-value path taken by the objects that embed a filter, all of which validate upstream; [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the boundary that faces an untrusted caller and it rejects the same domain this documents. Passing `t = 0` here yields `kp = ki = 0` — a loop that never moves — and a non-finite argument yields NaN gains that never recover.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
+* `zeta` Damping factor (typically 0.707), &gt; 0. 
+* `t` Update period in samples (&gt; 0). 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function loop\_filter\_wn 
 
 _Natural frequency implied by a loop bandwidth and damping._ 
@@ -518,7 +518,7 @@ Public because it is the number every closed form about this loop is written in,
 The formula had five copies (this file, the loop's own C test, a validation harness, an example and a validation script) and no home; a gain error that moved `wn` would have had to be found five times.
 
 
-Unguarded, like [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) and for the same reason: this is the trusting path, and [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the boundary that rejects the domain. `zeta = 0` divides by zero here exactly as it always has.
+Unguarded, like [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) and for the same reason: this is the trusting path, and [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the boundary that rejects the domain. `zeta = 0` divides by zero here exactly as it always has.
 
 
 

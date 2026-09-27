@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern double ema_alpha_decim (double alpha, size_t d);
+extern double dp_ema_alpha_decim (double alpha, size_t d);

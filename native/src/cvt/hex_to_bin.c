@@ -21,7 +21,7 @@ hex_digit (char c)
 }
 
 size_t
-hex_to_bin (const char *hex, uint8_t *out, size_t out_len, int bitorder)
+dp_hex_to_bin (const char *hex, uint8_t *out, size_t out_len, int bitorder)
 {
   if (!hex || !out)
     return 0;

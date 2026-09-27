@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef INTERLEAVER_CORE_H
-#define INTERLEAVER_CORE_H
+#ifndef DP_INTERLEAVER_CORE_H
+#define DP_INTERLEAVER_CORE_H
 
 #include "doppler/dp_interleave.h"
 
@@ -27,45 +27,45 @@ extern "C"
     size_t rows;      
     size_t cols;      
     size_t unit_bits; 
-  } interleaver_state_t;
+  } dp_interleaver_state_t;
 
-  interleaver_state_t *interleaver_create (size_t rows, size_t cols,
+  dp_interleaver_state_t *dp_interleaver_create (size_t rows, size_t cols,
                                            size_t unit_bits);
 
-  interleaver_state_t *interleaver_create_rx (size_t rows, size_t cols,
+  dp_interleaver_state_t *interleaver_create_rx (size_t rows, size_t cols,
                                               size_t unit_bits);
 
-  void interleaver_destroy (interleaver_state_t *state);
+  void dp_interleaver_destroy (dp_interleaver_state_t *state);
 
-  void interleaver_reset (interleaver_state_t *state);
+  void dp_interleaver_reset (dp_interleaver_state_t *state);
 
-  size_t interleaver_get_block_bits (const interleaver_state_t *state);
+  size_t dp_interleaver_get_block_bits (const dp_interleaver_state_t *state);
 
-  size_t interleaver_interleave_max_out (const interleaver_state_t *state,
+  size_t dp_interleaver_interleave_max_out (const dp_interleaver_state_t *state,
                                          size_t n_in);
 
-  size_t interleaver_deinterleave_max_out (const interleaver_state_t *state,
+  size_t dp_interleaver_deinterleave_max_out (const dp_interleaver_state_t *state,
                                            size_t n_in);
 
   size_t
-  interleaver_deinterleave_soft_max_out (const interleaver_state_t *state,
+  dp_interleaver_deinterleave_soft_max_out (const dp_interleaver_state_t *state,
                                          size_t n_in);
 
-  size_t interleaver_interleave (interleaver_state_t *state,
+  size_t dp_interleaver_interleave (dp_interleaver_state_t *state,
                                  const uint8_t *in, size_t n_in, uint8_t *out,
                                  size_t max_out);
 
-  size_t interleaver_deinterleave (interleaver_state_t *state,
+  size_t dp_interleaver_deinterleave (dp_interleaver_state_t *state,
                                    const uint8_t *in, size_t n_in,
                                    uint8_t *out, size_t max_out);
 
-  size_t interleaver_deinterleave_soft (interleaver_state_t *state,
+  size_t dp_interleaver_deinterleave_soft (dp_interleaver_state_t *state,
                                         const float *in, size_t n_in,
                                         float *out, size_t max_out);
 
-  size_t interleaver_get_burst_len (const interleaver_state_t *state);
+  size_t dp_interleaver_get_burst_len (const dp_interleaver_state_t *state);
 
-  size_t interleaver_get_separation (const interleaver_state_t *state);
+  size_t dp_interleaver_get_separation (const dp_interleaver_state_t *state);
 
 #ifdef __cplusplus
 }

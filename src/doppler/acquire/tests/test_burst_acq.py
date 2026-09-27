@@ -1,6 +1,6 @@
 """``BurstAcquisition`` is a thin composing object: a genuinely separate jm
 object (``objects/burst_acq.toml``) whose C core (``burst_acq_core.c``) is a
-pure forwarder onto the SAME shared ``acq_state_t``/``acq_core.c`` engine
+pure forwarder onto the SAME shared ``dp_acq_state_t``/``acq_core.c`` engine
 ``Acquisition`` (continuous) uses -- the two public front doors onto one
 engine that ``SPEC.md``'s Acquisition/BurstAcquisition split calls for.
 ``test_acq.py`` already exhaustively covers this class's own streaming/

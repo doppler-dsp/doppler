@@ -200,6 +200,11 @@ jobs:
       # the path exists on this machine -- so this reads the export's text.
       run: make exported-link-check
 
+    - name: Verify no new exported symbol lacks the dp_ prefix
+      # A bare export collides with any other library that exports the same
+      # name, and only the consumer's link notices. Ratcheted (#1565).
+      run: make symbol-prefix-check
+
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
       # Installs the fresh build to a scratch prefix and builds the
       # core+stream consumer via all three documented faces, asserting

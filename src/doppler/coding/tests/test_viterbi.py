@@ -124,7 +124,7 @@ def test_reset_returns_the_decoder_to_its_start():
 
 
 def test_context_manager_and_destroy():
-    """Both release paths reach `viterbi_destroy`; a second `destroy` is a
+    """Both release paths reach `dp_viterbi_destroy`; a second `destroy` is a
     no-op rather than a double free."""
     with Viterbi(CCSDS_POLY) as v:
         assert len(np.asarray(v.decode(np.ones(256, dtype=np.float32)))) > 0

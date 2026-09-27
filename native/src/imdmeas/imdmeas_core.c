@@ -24,27 +24,27 @@ fold_real (double f, double fs)
   return (g <= fs / 2.0) ? g : (fs - g);
 }
 
-imdmeas_state_t *
-imdmeas_create (size_t n, double fs, double full_scale, size_t bits,
-                double dynamic_range_db)
+dp_imdmeas_state_t *
+dp_imdmeas_create (size_t n, double fs, double full_scale, size_t bits,
+                   double dynamic_range_db)
 {
   if (n < 2 || fs <= 0.0)
     return NULL;
-  imdmeas_state_t *s = (imdmeas_state_t *)calloc (1, sizeof (*s));
+  dp_imdmeas_state_t *s = (dp_imdmeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
   /* Auto-window: minimum Kaiser beta meeting the dynamic-range target. */
   double dr   = measure_resolve_dr (dynamic_range_db, bits);
-  double beta = kaiser_beta_for_sidelobe (dr);
+  double beta = dp_kaiser_beta_for_sidelobe (dr);
 
   /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
    * s->psd->full_scale so it is defined exactly once. */
-  s->psd = psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
-                       full_scale, bits, ACC_TRACE_MEAN, 0.0);
+  s->psd = dp_psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
+                          full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
-      imdmeas_destroy (s);
+      dp_imdmeas_destroy (s);
       return NULL;
     }
   s->n    = n;
@@ -55,7 +55,7 @@ imdmeas_create (size_t n, double fs, double full_scale, size_t bits,
   s->pwr  = (float *)malloc (s->nfft * sizeof (float));
   if (!s->pwr)
     {
-      imdmeas_destroy (s);
+      dp_imdmeas_destroy (s);
       return NULL;
     }
   /* L: main-lobe half-width for power integration; spur_guard_bins (>= L) is
@@ -70,25 +70,25 @@ imdmeas_create (size_t n, double fs, double full_scale, size_t bits,
 }
 
 void
-imdmeas_destroy (imdmeas_state_t *state)
+dp_imdmeas_destroy (dp_imdmeas_state_t *state)
 {
   if (!state)
     return;
   if (state->psd)
-    psd_destroy (state->psd);
+    dp_psd_destroy (state->psd);
   free (state->pwr);
   free (state);
 }
 
 void
-imdmeas_reset (imdmeas_state_t *state)
+dp_imdmeas_reset (dp_imdmeas_state_t *state)
 {
   (void)state;
 }
 
 /* Integrate pwr over the lobe centred on frequency f (folded into band). */
 static double
-lobe_at (const imdmeas_state_t *s, size_t nbins, double f, double df,
+lobe_at (const dp_imdmeas_state_t *s, size_t nbins, double f, double df,
          long *bin_out)
 {
   long L = (long)s->lobe_bins;
@@ -107,14 +107,14 @@ lobe_at (const imdmeas_state_t *s, size_t nbins, double f, double df,
 }
 
 imd_meas_t
-imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
+dp_imdmeas_analyze (dp_imdmeas_state_t *s, const float *x, size_t n_in)
 {
   imd_meas_t r;
   memset (&r, 0, sizeof (r));
-  psd_reset (s->psd);
-  psd_accumulate_real (s->psd, x, n_in);
-  size_t nbins
-      = psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr, s->nfft / 2 + 1);
+  dp_psd_reset (s->psd);
+  dp_psd_accumulate_real (s->psd, x, n_in);
+  size_t nbins = dp_psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr,
+                                        s->nfft / 2 + 1);
   if (nbins == 0)
     return r; /* capture holds no full frame */
   double df = s->fs / (double)s->nfft;
@@ -186,21 +186,21 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
 }
 
 size_t
-imdmeas_spectrum_dbfs_max_out (imdmeas_state_t *state)
+dp_imdmeas_spectrum_dbfs_max_out (dp_imdmeas_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-imdmeas_spectrum_dbfs (imdmeas_state_t *state, const float *x, size_t x_len,
-                       float *out, size_t max_out)
+dp_imdmeas_spectrum_dbfs (dp_imdmeas_state_t *state, const float *x,
+                          size_t x_len, float *out, size_t max_out)
 {
   /* DC-centred two-sided dBFS view of the capture (analyzer display): the same
    * averaged PSD the metrics use, scaled to the shared 0-dBFS reference. */
-  psd_reset (state->psd);
-  psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft
-      = psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
+  dp_psd_reset (state->psd);
+  dp_psd_accumulate_real (state->psd, x, x_len);
+  size_t nfft = dp_psd_power_twosided (state->psd, state->nfft, state->pwr,
+                                       state->nfft);
   if (nfft == 0)
     return 0;
   /* Emission stops at the caller's capacity (jm gh-138). The count

@@ -35,7 +35,7 @@ corr2d_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
  * (nx -> nx_out) into ztmp, then columns (ny -> ny_out) into out.  The
  * even-axis Nyquist split is handled per axis by corr2d_zeropad_1d. */
 static void
-corr2d_zeropad_2d (corr2d_state_t *s, const float _Complex *p,
+corr2d_zeropad_2d (dp_corr2d_state_t *s, const float _Complex *p,
                    float _Complex *out)
 {
   for (size_t i = 0; i < s->ny; i++)
@@ -64,11 +64,13 @@ corr2d_is_single_row_ref (const float _Complex *ref, size_t ny, size_t nx)
   return 1;
 }
 
-corr2d_state_t *
-corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
-               int nthreads, size_t ny_out, size_t nx_out, int col_out)
+dp_corr2d_state_t *
+dp_corr2d_create (const float _Complex *ref, size_t ny, size_t nx,
+                  size_t dwell, int nthreads, size_t ny_out, size_t nx_out,
+                  int col_out)
 {
-  corr2d_state_t *state = calloc (1, sizeof (*state)); /* NULL-init pointers */
+  dp_corr2d_state_t *state
+      = calloc (1, sizeof (*state)); /* NULL-init pointers */
   if (!state)
     return NULL;
 
@@ -86,7 +88,7 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
      accumulates every frame it is given and emits nothing until count wraps
      at SIZE_MAX. A caller whose dwell came from a computed value that
      underflowed gets silence and unbounded accumulation rather than an
-     error. detector2d_create forwards its own dwell straight here, so
+     error. dp_detector2d_create forwards its own dwell straight here, so
      validating at the primitive covers both objects. */
   if (dwell < 1)
     {
@@ -117,8 +119,8 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
 
   if (fast)
     {
-      state->fwd1d = fft_create (nx, -1, nthreads);
-      state->inv1d = fft_create (nxo, +1, nthreads);
+      state->fwd1d = dp_fft_create (nx, -1, nthreads);
+      state->inv1d = dp_fft_create (nxo, +1, nthreads);
       if (!state->fwd1d || !state->inv1d)
         goto fail;
 
@@ -127,7 +129,7 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
         goto fail;
       /* row_ref_spec = conj(FFT_nx(ref row 0)) — ref's rows 1..ny-1 are all
        * zero (just checked above), so only row 0 need be transformed. */
-      fft_execute_cf32 (state->fwd1d, ref, nx, state->row_ref_spec, nx);
+      dp_fft_execute_cf32 (state->fwd1d, ref, nx, state->row_ref_spec, nx);
       for (size_t k = 0; k < nx; k++)
         state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
 
@@ -140,8 +142,8 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
     }
   else
     {
-      state->fwd = fft2d_create (ny, nx, -1, nthreads);
-      state->inv = fft2d_create (nyo, nxo, +1, nthreads);
+      state->fwd = dp_fft2d_create (ny, nx, -1, nthreads);
+      state->inv = dp_fft2d_create (nyo, nxo, +1, nthreads);
       if (!state->fwd || !state->inv)
         goto fail;
 
@@ -162,7 +164,7 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
 
       /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT2(ref)).
        */
-      fft2d_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
+      dp_fft2d_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
       for (size_t k = 0; k < n; k++)
         state->ref_spec[k] = conjf (state->ref_spec[k]);
     }
@@ -200,23 +202,23 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
   return state;
 
 fail:
-  corr2d_destroy (state);
+  dp_corr2d_destroy (state);
   return NULL;
 }
 
 void
-corr2d_destroy (corr2d_state_t *state)
+dp_corr2d_destroy (dp_corr2d_state_t *state)
 {
   if (!state)
     return;
   if (state->fwd)
-    fft2d_destroy (state->fwd);
+    dp_fft2d_destroy (state->fwd);
   if (state->inv)
-    fft2d_destroy (state->inv);
+    dp_fft2d_destroy (state->inv);
   if (state->fwd1d)
-    fft_destroy (state->fwd1d);
+    dp_fft_destroy (state->fwd1d);
   if (state->inv1d)
-    fft_destroy (state->inv1d);
+    dp_fft_destroy (state->inv1d);
   free (state->ref_spec);
   free (state->row_ref_spec);
   free (state->col_ref);
@@ -231,7 +233,7 @@ corr2d_destroy (corr2d_state_t *state)
 }
 
 void
-corr2d_reset (corr2d_state_t *state)
+dp_corr2d_reset (dp_corr2d_state_t *state)
 {
   memset (state->accum, 0, state->n * sizeof (*state->accum));
   state->count = 0;
@@ -240,33 +242,33 @@ corr2d_reset (corr2d_state_t *state)
 /* Serializable state — running accumulator (ny*nx) + frame count; the 2-D FFT
  * plans and the reference spectrum are config, recomputed by create(). */
 size_t
-corr2d_state_bytes (const corr2d_state_t *s)
+dp_corr2d_state_bytes (const dp_corr2d_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
          + s->n * sizeof (float _Complex);
 }
 
 void
-corr2d_get_state (const corr2d_state_t *s, void *blob)
+dp_corr2d_get_state (const dp_corr2d_state_t *s, void *blob)
 {
   DP_GET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
-               corr2d_state_bytes (s));
+               dp_corr2d_state_bytes (s));
   dp_w_u64 (&_w, s->count);
   dp_w_cf32 (&_w, s->accum, s->n);
 }
 
 int
-corr2d_set_state (corr2d_state_t *s, const void *blob)
+dp_corr2d_set_state (dp_corr2d_state_t *s, const void *blob)
 {
   DP_SET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
-               corr2d_state_bytes (s));
+               dp_corr2d_state_bytes (s));
   s->count = (size_t)dp_r_u64 (&_r);
   dp_r_cf32 (&_r, s->accum, s->n);
   return DP_OK;
 }
 
 int
-corr2d_set_ref (corr2d_state_t *state, const float _Complex *ref)
+corr2d_set_ref (dp_corr2d_state_t *state, const float _Complex *ref)
 {
   if (state->fast_path)
     {
@@ -275,8 +277,8 @@ corr2d_set_ref (corr2d_state_t *state, const float _Complex *ref)
        * longer fits the single-row assumption row_ref_spec relies on. */
       if (!corr2d_is_single_row_ref (ref, state->ny, state->nx))
         return -1;
-      fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec,
-                        state->nx);
+      dp_fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec,
+                           state->nx);
       for (size_t k = 0; k < state->nx; k++)
         state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
       /* The known-lag path reads the TIME-domain replica, so refreshing
@@ -288,24 +290,24 @@ corr2d_set_ref (corr2d_state_t *state, const float _Complex *ref)
     }
   else
     {
-      fft2d_execute_cf32 (state->fwd, ref, state->n, state->ref_spec,
-                          state->n);
+      dp_fft2d_execute_cf32 (state->fwd, ref, state->n, state->ref_spec,
+                             state->n);
       for (size_t k = 0; k < state->n; k++)
         state->ref_spec[k] = conjf (state->ref_spec[k]);
     }
-  corr2d_reset (state);
+  dp_corr2d_reset (state);
   return 0;
 }
 
 size_t
-corr2d_execute_max_out (corr2d_state_t *state)
+dp_corr2d_execute_max_out (dp_corr2d_state_t *state)
 {
   return state->n_out;
 }
 
 /* Fast path: ref is single-row and ny_out == ny, so (see the header doc
  * comment for the full derivation) the row axis of the 2-D transform pair
- * cancels to an exact identity and corr2d_execute reduces, per row i, to
+ * cancels to an exact identity and dp_corr2d_execute reduces, per row i, to
  *
  *   R(i,j) = IFFT_nx( FFT_nx(row_i) · conj(FFT_nx(ref_row0)) )(j) / nx
  *
@@ -313,7 +315,7 @@ corr2d_execute_max_out (corr2d_state_t *state)
  * 1/nx (NOT 1/n = ny*nx: the row-axis orthogonality sum contributes the
  * extra factor of ny that turns 1/n into 1/nx — see the derivation). */
 static size_t
-corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
+corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
                      float _Complex *out)
 {
   const size_t ny = state->ny, nx = state->nx, nxo = state->nx_out;
@@ -345,8 +347,8 @@ corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
     }
 
   for (size_t i = 0; i < ny; i++)
-    fft_execute_cf32 (state->fwd1d, in + i * nx, nx, state->work_fft + i * nx,
-                      nx);
+    dp_fft_execute_cf32 (state->fwd1d, in + i * nx, nx,
+                         state->work_fft + i * nx, nx);
 
   for (size_t i = 0; i < ny; i++)
     for (size_t v = 0; v < nx; v++)
@@ -359,8 +361,8 @@ corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
       if (nxo == nx)
         {
           for (size_t i = 0; i < ny; i++)
-            fft_execute_cf32 (state->inv1d, state->accum + i * nx, nx,
-                              out + i * nx, nx);
+            dp_fft_execute_cf32 (state->inv1d, state->accum + i * nx, nx,
+                                 out + i * nx, nx);
         }
       else
         {
@@ -368,8 +370,8 @@ corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
             corr2d_zeropad_1d (state->accum + i * nx, nx,
                                state->work_pad + i * nxo, nxo);
           for (size_t i = 0; i < ny; i++)
-            fft_execute_cf32 (state->inv1d, state->work_pad + i * nxo, nxo,
-                              out + i * nxo, nxo);
+            dp_fft_execute_cf32 (state->inv1d, state->work_pad + i * nxo, nxo,
+                                 out + i * nxo, nxo);
         }
       for (size_t k = 0; k < state->n_out; k++)
         out[k] *= inv_nx;
@@ -381,8 +383,8 @@ corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
 }
 
 size_t
-corr2d_execute (corr2d_state_t *state, const float _Complex *in, size_t n_in,
-                float _Complex *out, size_t max_out)
+dp_corr2d_execute (dp_corr2d_state_t *state, const float _Complex *in,
+                   size_t n_in, float _Complex *out, size_t max_out)
 {
   (void)n_in;
 
@@ -436,7 +438,7 @@ corr2d_execute (corr2d_state_t *state, const float _Complex *in, size_t n_in,
    *
    * Equivalence is exact in real arithmetic; in cf32 it differs from the
    * per-frame sum only by accumulation-order rounding (~1e-5 relative). */
-  fft2d_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
+  dp_fft2d_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
 
   for (size_t k = 0; k < state->n; k++)
     state->accum[k] += state->work_fft[k] * state->ref_spec[k];
@@ -454,7 +456,7 @@ corr2d_execute (corr2d_state_t *state, const float _Complex *in, size_t n_in,
           corr2d_zeropad_2d (state, state->accum, state->work_pad);
           src = state->work_pad;
         }
-      fft2d_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
+      dp_fft2d_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
       const float inv_n = 1.0f / (float)state->n;
       for (size_t k = 0; k < state->n_out; k++)
         dst[k] *= inv_n;

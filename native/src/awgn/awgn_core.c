@@ -28,7 +28,7 @@
  *
  * That made every AWGN-derived number — BER curves, EVM, validation output —
  * silently unreproducible across platforms, and nothing noticed, because the
- * only reproducibility test compared a stream to itself after `awgn_reset`
+ * only reproducibility test compared a stream to itself after `dp_awgn_reset`
  * (same path, same machine) and passes identically under either.
  *
  * Two measurements decided the removal rather than a rewrite:
@@ -66,8 +66,8 @@
  * xoshiro256++'s own `jump()`.
  *
  * `vs[4][8]` is still seeded and serialized. Dropping it would change
- * `awgn_state_bytes`, which `wfm_synth_state_bytes` includes, churning the
- * state protocol of two objects to save 256 bytes. `test_awgn_core.c` pins
+ * `dp_awgn_state_bytes`, which `dp_wfm_synth_state_bytes` includes, churning
+ * the state protocol of two objects to save 256 bytes. `test_awgn_core.c` pins
  * the sequence, so a future vectorisation has to reproduce it.
  *
  * ### Sin/cos LUT
@@ -159,11 +159,11 @@ seed_state (uint64_t s[4], uint64_t seed)
 /* Lifecycle                                                           */
 /* ================================================================== */
 
-awgn_state_t *
-awgn_create (uint64_t seed, float amplitude)
+dp_awgn_state_t *
+dp_awgn_create (uint64_t seed, float amplitude)
 {
   lut_init ();
-  awgn_state_t *s = malloc (sizeof *s);
+  dp_awgn_state_t *s = malloc (sizeof *s);
   if (!s)
     return NULL;
   s->seed      = seed;
@@ -185,13 +185,13 @@ awgn_create (uint64_t seed, float amplitude)
 }
 
 void
-awgn_destroy (awgn_state_t *state)
+dp_awgn_destroy (dp_awgn_state_t *state)
 {
   free (state);
 }
 
 void
-awgn_reset (awgn_state_t *state)
+dp_awgn_reset (dp_awgn_state_t *state)
 {
   seed_state (state->s, state->seed);
   for (int j = 0; j < 8; j++)
@@ -210,7 +210,7 @@ awgn_reset (awgn_state_t *state)
  * seed / amplitude are config restored by create(). */
 
 size_t
-awgn_state_bytes (const awgn_state_t *state)
+dp_awgn_state_bytes (const dp_awgn_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 4
@@ -218,23 +218,23 @@ awgn_state_bytes (const awgn_state_t *state)
 }
 
 void
-awgn_get_state (const awgn_state_t *state, void *blob)
+dp_awgn_get_state (const dp_awgn_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, awgn_state_bytes (state));
+  dp_writer_t w = dp_writer_init (blob, dp_awgn_state_bytes (state));
   dp_w_hdr (&w, AWGN_STATE_MAGIC, AWGN_STATE_VERSION,
-            awgn_state_bytes (state));
+            dp_awgn_state_bytes (state));
   dp_w_bytes (&w, state->s, sizeof state->s);
   dp_w_bytes (&w, state->vs, sizeof state->vs);
 }
 
 int
-awgn_set_state (awgn_state_t *state, const void *blob)
+dp_awgn_set_state (dp_awgn_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, awgn_state_bytes (state), AWGN_STATE_MAGIC,
-                              AWGN_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_awgn_state_bytes (state),
+                              AWGN_STATE_MAGIC, AWGN_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, awgn_state_bytes (state));
+  dp_reader_t r = dp_reader_init (blob, dp_awgn_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   dp_r_bytes (&r, state->s, sizeof state->s);
   dp_r_bytes (&r, state->vs, sizeof state->vs);
@@ -246,26 +246,26 @@ awgn_set_state (awgn_state_t *state, const void *blob)
 /* ================================================================== */
 
 float
-awgn_get_amplitude (const awgn_state_t *state)
+dp_awgn_get_amplitude (const dp_awgn_state_t *state)
 {
   return state->amplitude;
 }
 
 void
-awgn_set_amplitude (awgn_state_t *state, float val)
+dp_awgn_set_amplitude (dp_awgn_state_t *state, float val)
 {
   state->amplitude = val;
 }
 
 void
-awgn_reseed (awgn_state_t *state, uint64_t seed)
+dp_awgn_reseed (dp_awgn_state_t *state, uint64_t seed)
 {
   state->seed = seed;
-  awgn_reset (state);
+  dp_awgn_reset (state);
 }
 
 size_t
-awgn_generate_max_out (awgn_state_t *state)
+dp_awgn_generate_max_out (dp_awgn_state_t *state)
 {
   (void)state;
   return 65536;
@@ -276,7 +276,7 @@ awgn_generate_max_out (awgn_state_t *state)
 /* ================================================================== */
 
 static void
-generate_scalar (awgn_state_t *state, size_t n, float _Complex *out)
+generate_scalar (dp_awgn_state_t *state, size_t n, float _Complex *out)
 {
   const float amp = state->amplitude;
   uint64_t   *s   = state->s;
@@ -298,8 +298,8 @@ generate_scalar (awgn_state_t *state, size_t n, float _Complex *out)
 /* ================================================================== */
 
 size_t
-awgn_generate (awgn_state_t *state, size_t n, float _Complex *out,
-               size_t max_out)
+dp_awgn_generate (dp_awgn_state_t *state, size_t n, float _Complex *out,
+                  size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
@@ -311,11 +311,11 @@ awgn_generate (awgn_state_t *state, size_t n, float _Complex *out,
 int
 awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
 {
-  awgn_state_t *g = awgn_create (seed, amplitude);
+  dp_awgn_state_t *g = dp_awgn_create (seed, amplitude);
   if (!g)
     return DP_ERR_MEMORY;
-  awgn_generate (g, n, out, n);
-  awgn_destroy (g);
+  dp_awgn_generate (g, n, out, n);
+  dp_awgn_destroy (g);
   return DP_OK;
 }
 

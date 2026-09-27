@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef SYMSYNC_CORE_H
-#define SYMSYNC_CORE_H
+#ifndef DP_SYMSYNC_CORE_H
+#define DP_SYMSYNC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -49,9 +49,9 @@ extern "C"
 
   typedef struct
   {
-    nco_state_t         timing; 
-    farrow_state_t      farrow; 
-    loop_filter_state_t lf;     
+    dp_nco_state_t         timing; 
+    dp_farrow_state_t      farrow; 
+    dp_loop_filter_state_t lf;     
     size_t              sps;    
     uint32_t      base_inc;     
     int           ted;          
@@ -68,9 +68,9 @@ extern "C"
     size_t lock_count;    
     size_t avgs;          
     double lock_stat;     
-    lockdet_state_t lock; 
+    dp_lockdet_state_t lock; 
     symsync_tlm_t tlm; 
-  } symsync_state_t;
+  } dp_symsync_state_t;
 
   JM_FORCEINLINE double
   gardner_ted (float _Complex mid, float _Complex diff)
@@ -98,7 +98,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  symsync_step_ted (symsync_state_t *s, float _Complex x, float _Complex *y_out,
+  symsync_step_ted (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out,
                     int ted)
   {
     const uint32_t HALF = 0x80000000u;
@@ -137,7 +137,7 @@ extern "C"
         s->pwr_avg += 0.01 * (inst_pwr - s->pwr_avg);
         double e       = num / (s->pwr_avg + 1e-6);
         s->last_error  = e;
-        double control = loop_filter_step (&s->lf, e);
+        double control = dp_loop_filter_step (&s->lf, e);
         s->timing.phase_inc
             = (uint32_t)((double)s->base_inc * (1.0 + control));
         double inst = (double)s->sps / (1.0 + control);
@@ -152,10 +152,10 @@ extern "C"
          * on-time sample vs. the mid-symbol/transition-gate sample already
          * used by the TED, reusing inst_pwr from above). Non-coherently
          * block-averaged over `avgs` looks before the decision, mirroring
-         * dll_state_t's lock_sum/lock_count/n_looks tumbling window (a
+         * dp_dll_state_t's lock_sum/lock_count/n_looks tumbling window (a
          * sliding window would break the verify-count independence
          * assumption the same way it would for the DLL -- see
-         * dll_configure_lock's derivation). See symsync_configure_lock()
+         * dp_dll_configure_lock's derivation). See dp_symsync_configure_lock()
          * for how avgs/threshold are sized from (rolloff, esno_min, pfa,
          * pd). */
         float _Complex md = s->mid;
@@ -167,7 +167,7 @@ extern "C"
         if (++s->lock_count >= s->avgs)
           {
             s->lock_stat = s->lock_sum / (double)s->avgs;
-            (void)lockdet_step (&s->lock, s->lock_stat);
+            (void)dp_lockdet_step (&s->lock, s->lock_stat);
             s->lock_sum   = 0.0;
             s->lock_count = 0;
           }
@@ -180,10 +180,10 @@ extern "C"
     return emit;
   }
 
-  void symsync_tlm_flush (const symsync_state_t *s);
+  void symsync_tlm_flush (const dp_symsync_state_t *s);
 
   JM_FORCEINLINE JM_HOT int
-  symsync_step (symsync_state_t *s, float _Complex x, float _Complex *y_out)
+  symsync_step (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = symsync_step_ted (s, x, y_out, s->ted);
     if (r && s->tlm.ctx)
@@ -191,39 +191,39 @@ extern "C"
     return r;
   }
 
-  void symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
+  void symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);
 
-  symsync_state_t *symsync_create (size_t sps, double bn, double zeta,
+  dp_symsync_state_t *dp_symsync_create (size_t sps, double bn, double zeta,
                                    int order, int ted);
 
-  void symsync_destroy (symsync_state_t *state);
+  void dp_symsync_destroy (dp_symsync_state_t *state);
 
-  void symsync_reset (symsync_state_t *state);
+  void dp_symsync_reset (dp_symsync_state_t *state);
 
-  size_t symsync_steps_max_out (symsync_state_t *state);
+  size_t dp_symsync_steps_max_out (dp_symsync_state_t *state);
 
-  size_t symsync_steps (symsync_state_t *state, const float _Complex *x,
+  size_t dp_symsync_steps (dp_symsync_state_t *state, const float _Complex *x,
                         size_t x_len, float _Complex *out, size_t max_out);
 
-  void   symsync_configure (symsync_state_t *state, double bn, double zeta);
-  double symsync_get_bn (const symsync_state_t *state);
-  void   symsync_set_bn (symsync_state_t *state, double val);
-  double symsync_get_timing_error (const symsync_state_t *state);
-  double symsync_get_rate (const symsync_state_t *state);
+  void   dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
+  double dp_symsync_get_bn (const dp_symsync_state_t *state);
+  void   dp_symsync_set_bn (dp_symsync_state_t *state, double val);
+  double dp_symsync_get_timing_error (const dp_symsync_state_t *state);
+  double dp_symsync_get_rate (const dp_symsync_state_t *state);
 
-  double symsync_get_lock_stat (const symsync_state_t *state);
+  double dp_symsync_get_lock_stat (const dp_symsync_state_t *state);
 
-  int symsync_get_locked (const symsync_state_t *state);
+  int dp_symsync_get_locked (const dp_symsync_state_t *state);
 
-  int symsync_configure_lock (symsync_state_t *state, double rolloff,
+  int dp_symsync_configure_lock (dp_symsync_state_t *state, double rolloff,
                               double esno_min_db, double pfa, double pd);
 
-  void symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
+  void dp_symsync_configure_lock_raw (dp_symsync_state_t *state, size_t avgs,
                                    double up_thresh, double down_thresh,
                                    uint32_t n_up, uint32_t n_down);
 
-  int symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
+  int dp_symsync_set_telemetry (dp_symsync_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * pointer-free composition: nco + farrow + loop_filter embedded by value
@@ -232,9 +232,9 @@ extern "C"
 #define SYMSYNC_STATE_VERSION                                                 \
   5u /* v5: block-averaged lock_signal statistic (avgs/lock_sum/lock_count)   \
       */
-  size_t symsync_state_bytes (const symsync_state_t *state);
-  void   symsync_get_state (const symsync_state_t *state, void *blob);
-  int    symsync_set_state (symsync_state_t *state, const void *blob);
+  size_t dp_symsync_state_bytes (const dp_symsync_state_t *state);
+  void   dp_symsync_get_state (const dp_symsync_state_t *state, void *blob);
+  int    dp_symsync_set_state (dp_symsync_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

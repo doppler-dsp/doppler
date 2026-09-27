@@ -15,4 +15,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern double ema_step (double state, double x, double alpha);
+extern double dp_ema_step (double state, double x, double alpha);

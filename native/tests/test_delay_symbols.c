@@ -23,16 +23,16 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_delay[] = {
-    (jm_any_fn)delay_create,
-    (jm_any_fn)delay_destroy,
-    (jm_any_fn)delay_reset,
-    (jm_any_fn)delay_push,
-    (jm_any_fn)delay_ptr_max_out,
-    (jm_any_fn)delay_ptr,
-    (jm_any_fn)delay_push_ptr_max_out,
-    (jm_any_fn)delay_push_ptr,
-    (jm_any_fn)delay_write,
-    (jm_any_fn)delay_state_bytes,
-    (jm_any_fn)delay_get_state,
-    (jm_any_fn)delay_set_state,
+    (jm_any_fn)dp_delay_create,
+    (jm_any_fn)dp_delay_destroy,
+    (jm_any_fn)dp_delay_reset,
+    (jm_any_fn)dp_delay_push,
+    (jm_any_fn)dp_delay_ptr_max_out,
+    (jm_any_fn)dp_delay_ptr,
+    (jm_any_fn)dp_delay_push_ptr_max_out,
+    (jm_any_fn)dp_delay_push_ptr,
+    (jm_any_fn)dp_delay_write,
+    (jm_any_fn)dp_delay_state_bytes,
+    (jm_any_fn)dp_delay_get_state,
+    (jm_any_fn)dp_delay_set_state,
 };

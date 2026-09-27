@@ -110,7 +110,7 @@ seed_offset_cyc_per_sample (double bn, int m, double frac, unsigned tsamps)
 static int
 acquires (double bn, double f0, float sigma, int modulated, uint32_t seed)
 {
-  costas_state_t *c = costas_create (bn, 0.707, 0.0, TSAMPS, 0.0);
+  dp_costas_state_t *c = dp_costas_create (bn, 0.707, 0.0, TSAMPS, 0.0);
   if (!c)
     return 0;
   uint32_t      ds = seed * 7919u + 1u, ns = seed;
@@ -135,16 +135,16 @@ acquires (double bn, double f0, float sigma, int modulated, uint32_t seed)
                        + (float complex) (sym * sin (ph)) * I + sigma * n_re
                        + sigma * n_im * I;
         }
-      (void)costas_steps (c, in, TSAMPS, out, 4);
+      (void)dp_costas_steps (c, in, TSAMPS, out, 4);
     }
 
-  /* costas_get_norm_freq is cycles per SAMPLE, the same units as f0. The
+  /* dp_costas_get_norm_freq is cycles per SAMPLE, the same units as f0. The
      tolerance is a tenth of the bound: tight enough that a loop parked at the
      wrong rate fails, loose enough that steady-state jitter does not. */
   double tol = fabs (seed_offset_cyc_per_sample (bn, M_BPSK, 0.1, TSAMPS));
-  int    ok  = fabs (costas_get_norm_freq (c) - f0) < tol
-               && costas_get_lock_metric (c) > 0.5;
-  costas_destroy (c);
+  int    ok  = fabs (dp_costas_get_norm_freq (c) - f0) < tol
+               && dp_costas_get_lock_metric (c) > 0.5;
+  dp_costas_destroy (c);
   return ok;
 }
 

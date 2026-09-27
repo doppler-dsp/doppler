@@ -59,7 +59,7 @@ main (void)
 {
 
   /* Invalid args -> NULL (not a silent zero state). */
-  DP_CHECK (burst_despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01)
+  DP_CHECK (dp_burst_despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01)
             == NULL);
 
   size_t  sf = 31, sps = 4, nsym = 120;
@@ -72,51 +72,51 @@ main (void)
 
   /* (1) Genie: zero offset, no noise -> exact recovery. */
   float _Complex *burst = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
-  burst_despreader_state_t *d
-      = burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
+  dp_burst_despreader_state_t *d
+      = dp_burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
   DP_CHECK (d != NULL);
-  size_t n_out = burst_despreader_bits (d, burst, blen, rx, nsym);
+  size_t n_out = dp_burst_despreader_bits (d, burst, blen, rx, nsym);
   DP_CHECK (n_out == nsym);
   DP_CHECK (amb_ber (rx, tx, 0, n_out) == 0.0);
-  burst_despreader_destroy (d);
+  dp_burst_despreader_destroy (d);
   free (burst);
 
   /* (2) Carrier offset, seeded at the true frequency -> exact recovery,
    *     loop holds the frequency. */
   double f0 = 0.0006;
   burst     = make_burst (code, sf, sps, nsym, f0, tx, &blen);
-  d         = burst_despreader_create (code, sf, sf, sps, f0, 0.0, 0.05, 0.01);
-  n_out     = burst_despreader_bits (d, burst, blen, rx, nsym);
+  d     = dp_burst_despreader_create (code, sf, sf, sps, f0, 0.0, 0.05, 0.01);
+  n_out = dp_burst_despreader_bits (d, burst, blen, rx, nsym);
   DP_CHECK (amb_ber (rx, tx, n_out / 4, n_out) == 0.0);
-  DP_CHECK (fabs (burst_despreader_get_norm_freq (d) - f0) < 1e-4);
-  DP_CHECK (burst_despreader_get_lock_metric (d) > 0.9);
+  DP_CHECK (fabs (dp_burst_despreader_get_norm_freq (d) - f0) < 1e-4);
+  DP_CHECK (dp_burst_despreader_get_lock_metric (d) > 0.9);
 
   /* (3) reset re-seeds; a second identical run reproduces the first. */
-  burst_despreader_reset (d);
+  dp_burst_despreader_reset (d);
   uint8_t *rx2 = malloc (nsym);
-  size_t   n2  = burst_despreader_bits (d, burst, blen, rx2, nsym);
+  size_t   n2  = dp_burst_despreader_bits (d, burst, blen, rx2, nsym);
   DP_CHECK (n2 == n_out);
   DP_CHECK (amb_ber (rx2, tx, n2 / 4, n2) == 0.0);
 
   /* (4) property accessors round-trip. */
-  burst_despreader_set_bn_carrier (d, 0.06);
-  DP_CHECK (burst_despreader_get_bn_carrier (d) == 0.06);
-  burst_despreader_set_bn_code (d, 0.02);
-  DP_CHECK (burst_despreader_get_bn_code (d) == 0.02);
-  burst_despreader_set_norm_freq (d, 0.001);
-  DP_CHECK (fabs (burst_despreader_get_norm_freq (d) - 0.001) < 1e-9);
-  (void)burst_despreader_get_code_phase (d);
-  (void)burst_despreader_get_lock_metric (d);
-  (void)burst_despreader_get_snr_est (d);
+  dp_burst_despreader_set_bn_carrier (d, 0.06);
+  DP_CHECK (dp_burst_despreader_get_bn_carrier (d) == 0.06);
+  dp_burst_despreader_set_bn_code (d, 0.02);
+  DP_CHECK (dp_burst_despreader_get_bn_code (d) == 0.02);
+  dp_burst_despreader_set_norm_freq (d, 0.001);
+  DP_CHECK (fabs (dp_burst_despreader_get_norm_freq (d) - 0.001) < 1e-9);
+  (void)dp_burst_despreader_get_code_phase (d);
+  (void)dp_burst_despreader_get_lock_metric (d);
+  (void)dp_burst_despreader_get_snr_est (d);
 
   /* (5) set_acq enable then disable (payload-only). */
   uint8_t acq[16];
   for (size_t i = 0; i < 16; i++)
     acq[i] = (uint8_t)(i & 1u);
-  burst_despreader_set_acq (d, acq, 16, 3);
-  burst_despreader_set_acq (d, NULL, 0, 0); /* disable */
+  dp_burst_despreader_set_acq (d, acq, 16, 3);
+  dp_burst_despreader_set_acq (d, NULL, 0, 0); /* disable */
 
-  burst_despreader_destroy (d);
+  dp_burst_despreader_destroy (d);
   free (burst);
   free (rx2);
 
@@ -143,24 +143,24 @@ main (void)
      * term A^2*sigma_phi^2 and converges to it as bn -> 0 (at bn = 0.05
      * the gap is ~6 dB; at 0.005, ~2 dB). That is the BER-relevant
      * quantity a consumer wants; the window below brackets it. */
-    d = burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.005, 0.005);
-    DP_CHECK (burst_despreader_get_stat_n (d) == 0);
-    DP_CHECK (burst_despreader_get_lock_stat (d) == 0.0);
-    (void)burst_despreader_bits (d, burst, blen, rx, nsym);
-    DP_CHECK (burst_despreader_get_stat_n (d) == nsym);
-    DP_CHECK (burst_despreader_get_lock_metric (d) > 0.85);
+    d = dp_burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.005, 0.005);
+    DP_CHECK (dp_burst_despreader_get_stat_n (d) == 0);
+    DP_CHECK (dp_burst_despreader_get_lock_stat (d) == 0.0);
+    (void)dp_burst_despreader_bits (d, burst, blen, rx, nsym);
+    DP_CHECK (dp_burst_despreader_get_stat_n (d) == nsym);
+    DP_CHECK (dp_burst_despreader_get_lock_metric (d) > 0.85);
     /* AWGN-only post-despread per-component SNR = tsamps = sf*sps at
      * A = sigma = 1; the effective estimate lands under it by the
      * seed-dependent jitter term (bounds sized off a 200-seed sweep). */
     double snr_true = (double)(sf * sps);
-    double snr_hat  = burst_despreader_get_snr_est (d);
+    double snr_hat  = dp_burst_despreader_get_snr_est (d);
     DP_CHECK (snr_hat > 0.3 * snr_true && snr_hat < 1.3 * snr_true);
-    DP_CHECK (burst_despreader_get_lock_stat (d) > 30.0);
-    burst_despreader_reset (d);
-    DP_CHECK (burst_despreader_get_stat_n (d) == 0);
-    DP_CHECK (burst_despreader_get_lock_stat (d) == 0.0);
-    DP_CHECK (burst_despreader_get_snr_est (d) == 0.0);
-    burst_despreader_destroy (d);
+    DP_CHECK (dp_burst_despreader_get_lock_stat (d) > 30.0);
+    dp_burst_despreader_reset (d);
+    DP_CHECK (dp_burst_despreader_get_stat_n (d) == 0);
+    DP_CHECK (dp_burst_despreader_get_lock_stat (d) == 0.0);
+    DP_CHECK (dp_burst_despreader_get_snr_est (d) == 0.0);
+    dp_burst_despreader_destroy (d);
     free (burst);
   }
 
@@ -175,17 +175,17 @@ main (void)
     float _Complex rx[256], sym[8];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
-    burst_despreader_state_t *a
-        = burst_despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
-    burst_despreader_state_t *b
-        = burst_despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    dp_burst_despreader_state_t *a
+        = dp_burst_despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    dp_burst_despreader_state_t *b
+        = dp_burst_despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
     DP_CHECK (a != NULL && b != NULL);
-    (void)burst_despreader_steps (a, rx, 256, sym, 8);
-    DP_STATE_ROUNDTRIP_TEST (burst_despreader, a, b);
+    (void)dp_burst_despreader_steps (a, rx, 256, sym, 8);
+    DP_STATE_ROUNDTRIP_TEST (dp_burst_despreader, a, b);
     DP_CHECK (b->car_phase == a->car_phase && b->acc_p == a->acc_p);
     DP_CHECK (b->code != NULL && b->code != a->code);
-    burst_despreader_destroy (a);
-    burst_despreader_destroy (b);
+    dp_burst_despreader_destroy (a);
+    dp_burst_despreader_destroy (b);
   }
 
   /* ── lock_metric's two documented constants ───────────────────────────
@@ -207,8 +207,8 @@ main (void)
 
     /* Noise only: no carrier to lock to, so |Re P|/|P| averages |cos| of a
        uniform phase = 2/pi. */
-    burst_despreader_state_t *d
-        = burst_despreader_create (c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);
+    dp_burst_despreader_state_t *d = dp_burst_despreader_create (
+        c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);
     DP_CHECK (d != NULL);
     if (d)
       {
@@ -228,12 +228,12 @@ main (void)
               }
             float _Complex out[64];
             for (size_t off = 0; off + 64 <= n; off += 64)
-              (void)burst_despreader_steps (d, x + off, 64, out, 64);
-            double lm = burst_despreader_get_lock_metric (d);
+              (void)dp_burst_despreader_steps (d, x + off, 64, out, 64);
+            double lm = dp_burst_despreader_get_lock_metric (d);
             DP_CHECK (lm > 0.55 && lm < 0.72); /* 2/pi = 0.6366 */
             free (x);
           }
-        burst_despreader_destroy (d);
+        dp_burst_despreader_destroy (d);
       }
   }
 
@@ -254,14 +254,14 @@ main (void)
     for (size_t i = 0; i < 31; i++)
       c31[i] = (uint8_t)(i & 1u);
 
-    burst_despreader_state_t *d
-        = burst_despreader_create (c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);
+    dp_burst_despreader_state_t *d = dp_burst_despreader_create (
+        c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);
     DP_CHECK (d != NULL);
     if (d)
       {
         /* (a) nothing fed yet */
-        DP_CHECK (burst_despreader_get_stat_n (d) == 0);
-        DP_CHECK (burst_despreader_get_lock_stat (d) == 0.0);
+        DP_CHECK (dp_burst_despreader_get_stat_n (d) == 0);
+        DP_CHECK (dp_burst_despreader_get_lock_stat (d) == 0.0);
 
         size_t          n = nsyml * sfl * spsl;
         float _Complex *x = malloc (n * sizeof *x);
@@ -275,13 +275,13 @@ main (void)
               }
             float _Complex out[64];
             for (size_t off = 0; off + 64 <= n; off += 64)
-              (void)burst_despreader_steps (d, x + off, 64, out, 64);
+              (void)dp_burst_despreader_steps (d, x + off, 64, out, 64);
             /* (b) payload folded, but the quadrature sum is exactly zero */
-            DP_CHECK (burst_despreader_get_stat_n (d) > 0);
-            DP_CHECK (burst_despreader_get_lock_stat (d) == 0.0);
+            DP_CHECK (dp_burst_despreader_get_stat_n (d) > 0);
+            DP_CHECK (dp_burst_despreader_get_lock_stat (d) == 0.0);
             free (x);
           }
-        burst_despreader_destroy (d);
+        dp_burst_despreader_destroy (d);
       }
   }
 
@@ -322,32 +322,32 @@ main (void)
           }
         float _Complex out[64];
 
-        burst_despreader_state_t *a = burst_despreader_create (
+        dp_burst_despreader_state_t *a = dp_burst_despreader_create (
             c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);
         DP_CHECK (a != NULL);
         if (a)
           {
-            burst_despreader_set_acq (a, acq, asf, areps);
+            dp_burst_despreader_set_acq (a, acq, asf, areps);
             for (size_t off = 0; off + 64 <= pre_n + pay_n; off += 64)
-              (void)burst_despreader_steps (a, x + off, 64, out, 64);
-            size_t with_acq = burst_despreader_get_stat_n (a);
+              (void)dp_burst_despreader_steps (a, x + off, 64, out, 64);
+            size_t with_acq = dp_burst_despreader_get_stat_n (a);
 
-            burst_despreader_state_t *b = burst_despreader_create (
+            dp_burst_despreader_state_t *b = dp_burst_despreader_create (
                 c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);
             DP_CHECK (b != NULL);
             if (b)
               {
                 for (size_t off = 0; off + 64 <= pre_n + pay_n; off += 64)
-                  (void)burst_despreader_steps (b, x + off, 64, out, 64);
-                size_t without = burst_despreader_get_stat_n (b);
+                  (void)dp_burst_despreader_steps (b, x + off, 64, out, 64);
+                size_t without = dp_burst_despreader_get_stat_n (b);
                 /* Declaring the preamble EXCLUDES it; not declaring it
                    folds the preamble's prompts in. The inequality is the
                    whole claim -- an equal count would mean the preamble
                    was never excluded. */
                 DP_CHECK (with_acq < without);
-                burst_despreader_destroy (b);
+                dp_burst_despreader_destroy (b);
               }
-            burst_despreader_destroy (a);
+            dp_burst_despreader_destroy (a);
           }
         free (x);
       }

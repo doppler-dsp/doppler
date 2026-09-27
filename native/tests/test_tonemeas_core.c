@@ -35,7 +35,7 @@ main (void)
    *       any sub-bin offset (the headline correctness property) ── */
   /* dynamic_range_db = 90 -> Kaiser beta ~12 (window-sidelobe formula),
    * matching the old fixed beta=12 default so the legacy assertions hold. */
-  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
+  dp_tonemeas_state_t *m = dp_tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
   DP_CHECK (m != NULL);
   for (int t = 0; t < 3; t++)
     {
@@ -43,7 +43,7 @@ main (void)
       for (size_t i = 0; i < NCAP; i++)
         x[i] = 0.0f;
       add_cos (x, NCAP, 300.0 + off, 1.0);
-      r = tonemeas_analyze (m, x, NCAP);
+      r = dp_tonemeas_analyze (m, x, NCAP);
       DP_CHECK (fabs (r.fund_dbfs) < 0.1); /* full-scale -> ~0 dBFS */
       DP_CHECK (fabs (r.fund_freq - (300.0 + off) / NCAP) < 2e-3);
     }
@@ -53,7 +53,7 @@ main (void)
     x[i] = 0.0f;
   add_cos (x, NCAP, 200.0, 1.0);
   add_cos (x, NCAP, 400.0, 0.01); /* 2nd harmonic */
-  r = tonemeas_analyze (m, x, NCAP);
+  r = dp_tonemeas_analyze (m, x, NCAP);
   DP_CHECK (fabs (r.thd - (-40.0)) < 0.5);
   DP_CHECK (fabs (r.thd_pct - 1.0) < 0.1); /* 100*sqrt(1e-4) = 1% */
 
@@ -62,7 +62,7 @@ main (void)
     x[i] = 0.0f;
   add_cos (x, NCAP, 200.0, 1.0);
   add_cos (x, NCAP, 777.0, 0.001); /* -60 dBc, non-harmonic */
-  r = tonemeas_analyze (m, x, NCAP);
+  r = dp_tonemeas_analyze (m, x, NCAP);
   DP_CHECK (fabs (r.sfdr_dbc - 60.0) < 1.0);
   DP_CHECK (r.worst_spur_is_harm == 0);
   DP_CHECK (fabs (r.worst_spur_freq - 777.0 / NCAP) < 2e-3);
@@ -76,7 +76,7 @@ main (void)
     add_cos (x, NCAP, 211.0, A);
     for (size_t i = 0; i < NCAP; i++)
       x[i] += (float)(a * urand ());
-    r                 = tonemeas_analyze (m, x, NCAP);
+    r                 = dp_tonemeas_analyze (m, x, NCAP);
     double snr_expect = 10.0 * log10 ((A * A / 2.0) / (sigma * sigma));
     DP_CHECK (fabs (r.snr - snr_expect) < 1.5);
     /* ENOB derives from SINAD (~SNR here, no harmonics) */
@@ -90,7 +90,7 @@ main (void)
     for (size_t i = 0; i < NCAP; i++)
       xc[i] = (float _Complex) (
           1.0 * cexp (-2.0 * I * M_PI * 137.0 * (double)i / (double)NCAP));
-    r = tonemeas_analyze_complex (m, xc, NCAP);
+    r = dp_tonemeas_analyze_complex (m, xc, NCAP);
     DP_CHECK (fabs (r.fund_freq - (-137.0 / NCAP)) < 2e-3);
     DP_CHECK (fabs (r.fund_dbfs)
               < 0.2); /* full-scale complex tone -> ~0 dBFS */
@@ -106,7 +106,7 @@ main (void)
       x[i] = 0.0f;
     add_cos (x, NCAP, n3, 1.0);
     add_cos (x, NCAP, 0.1 * NCAP, 0.01); /* aliased 3rd harmonic, -40 dBc */
-    r = tonemeas_analyze (m, x, NCAP);
+    r = dp_tonemeas_analyze (m, x, NCAP);
     DP_CHECK (r.thd > -45.0 && r.thd < -35.0); /* folded harmonic detected */
   }
 
@@ -116,7 +116,7 @@ main (void)
       x[i] = 0.0f;
     add_cos (x, NCAP, 50.0, 0.8);
     time_stats_t ts;
-    ts = tonemeas_time_stats (m, x, NCAP);
+    ts = dp_tonemeas_time_stats (m, x, NCAP);
     DP_CHECK (fabs (ts.crest_db - 3.01) < 0.1);
     DP_CHECK (fabs (ts.fs_util_pct - 80.0) < 1.0);
     DP_CHECK (fabs (ts.dc_offset) < 1e-3);
@@ -133,11 +133,11 @@ main (void)
     for (size_t i = 0; i < NCAP; i++)
       x[i] = 0.0f;
     add_cos (x, NCAP, 211.0, 0.5);
-    tone_meas_t r1 = tonemeas_analyze (m, x, NCAP);
+    tone_meas_t r1 = dp_tonemeas_analyze (m, x, NCAP);
     for (size_t f = 0; f < K; f++)
       for (size_t i = 0; i < NCAP; i++)
         xk[f * NCAP + i] = x[i];
-    tone_meas_t rk = tonemeas_analyze (m, xk, K * NCAP);
+    tone_meas_t rk = dp_tonemeas_analyze (m, xk, K * NCAP);
     DP_CHECK (fabs (rk.fund_dbfs - r1.fund_dbfs) < 1e-4);
     DP_CHECK (fabs (rk.fund_freq - r1.fund_freq) < 1e-9);
 
@@ -151,7 +151,7 @@ main (void)
         for (size_t i = 0; i < NCAP; i++)
           xk[f * NCAP + i] += (float)(a * urand ());
       }
-    tone_meas_t rn         = tonemeas_analyze (m, xk, K * NCAP);
+    tone_meas_t rn         = dp_tonemeas_analyze (m, xk, K * NCAP);
     double      snr_expect = 10.0 * log10 ((A * A / 2.0) / (sigma * sigma));
     DP_CHECK (fabs (rn.snr - snr_expect) < 1.5);
     DP_CHECK (fabs (rn.fund_freq - 211.0 / NCAP) < 2e-3);
@@ -169,13 +169,14 @@ main (void)
    *  lobe (so the fundamental's first sidelobe is excluded from spur search).
    */
   {
-    tonemeas_state_t *mb = tonemeas_create (NCAP, 1.0, 8, 1.0, 12, 0.0, 0);
+    dp_tonemeas_state_t *mb
+        = dp_tonemeas_create (NCAP, 1.0, 8, 1.0, 12, 0.0, 0);
     DP_CHECK (mb != NULL);
     double dr_expect   = measure_dr_from_bits (12);
-    double beta_expect = kaiser_beta_for_sidelobe (dr_expect);
+    double beta_expect = dp_kaiser_beta_for_sidelobe (dr_expect);
     DP_CHECK (fabs (mb->beta - beta_expect) < 1e-9);
     DP_CHECK (mb->spur_guard_bins > mb->lobe_bins);
-    tonemeas_destroy (mb);
+    dp_tonemeas_destroy (mb);
   }
 
   /* ── 11. SFDR is not capped by the window's own sidelobes (the spur fix) ──
@@ -187,26 +188,26 @@ main (void)
    * report).
    */
   {
-    const double      DR = 70.0;
-    tonemeas_state_t *ms = tonemeas_create (NCAP, 1.0, 8, 1.0, 0, DR, 0);
+    const double         DR = 70.0;
+    dp_tonemeas_state_t *ms = dp_tonemeas_create (NCAP, 1.0, 8, 1.0, 0, DR, 0);
     DP_CHECK (ms != NULL);
     for (size_t i = 0; i < NCAP; i++)
       x[i] = 0.0f;
     add_cos (x, NCAP, 300.0, 1.0); /* clean full-scale tone, no spur */
-    tone_meas_t rc = tonemeas_analyze (ms, x, NCAP);
+    tone_meas_t rc = dp_tonemeas_analyze (ms, x, NCAP);
     /* worst "spur" must be the residual below the DR target, not the first
      * sidelobe sitting just past the main lobe. */
     DP_CHECK (rc.sfdr_dbc > DR);
     /* and it must be found away from the fundamental's keep-out zone */
     double guard_hz = (double)ms->spur_guard_bins * rc.bin_hz;
     DP_CHECK (fabs (rc.worst_spur_freq - rc.fund_freq) > 0.5 * guard_hz);
-    tonemeas_destroy (ms);
+    dp_tonemeas_destroy (ms);
   }
 
   /* (measure_min_samples round-trip is covered by the Python measure tests,
    *  which link the measure module core.) */
 
-  tonemeas_destroy (m);
+  dp_tonemeas_destroy (m);
   free (x);
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
@@ -216,29 +217,30 @@ main (void)
      * NB: feed a FULL capture (NCAP), not a short one -- with fewer samples
      * than one frame nothing accumulates, spectrum_dbfs returns 0, and a
      * "<= max_out" assertion would hold whether or not the clamp exists. */
-    tonemeas_state_t *m   = tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
-    size_t            cap = tonemeas_spectrum_dbfs_max_out (m); /* == nfft */
-    float            *xs  = (float *)malloc (NCAP * sizeof (float));
-    float            *o   = (float *)malloc (cap * sizeof (float));
+    dp_tonemeas_state_t *m
+        = dp_tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
+    size_t cap = dp_tonemeas_spectrum_dbfs_max_out (m); /* == nfft */
+    float *xs  = (float *)malloc (NCAP * sizeof (float));
+    float *o   = (float *)malloc (cap * sizeof (float));
     DP_CHECK (m && xs && o);
     for (size_t i = 0; i < NCAP; i++)
       xs[i] = (float)sin (0.05 * (double)i);
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
 
-    DP_CHECK (tonemeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
+    DP_CHECK (dp_tonemeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
     for (size_t i = 5; i < cap; i++)
       DP_CHECK (o[i] == 42.0f); /* tail untouched */
 
     /* Zero capacity emits nothing. */
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
-    DP_CHECK (tonemeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
+    DP_CHECK (dp_tonemeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
     for (size_t i = 0; i < cap; i++)
       DP_CHECK (o[i] == 42.0f);
     free (xs);
     free (o);
-    tonemeas_destroy (m);
+    dp_tonemeas_destroy (m);
   }
 
   DP_TEST_END ("test_tonemeas_core");

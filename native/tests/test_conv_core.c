@@ -123,7 +123,7 @@ main (void)
    * — a trellis derived the other way round is self-consistent and decodes
    * nothing a conforming encoder produced. Both were exercised only THROUGH
    * `conv_encode`, which is the caller that happens to agree with them; a
-   * user building a trellis (which is what `viterbi_create` does, and what
+   * user building a trellis (which is what `dp_viterbi_create` does, and what
    * anyone extending this must do) reads them directly.
    *
    * So: run the description BY HAND — `conv_outputs` for the symbols,

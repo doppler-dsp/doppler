@@ -48,7 +48,7 @@ The campaign's order is header first. This table is the inventory that produced 
 | C10 | positive LLR means symbol 0, agreeing with a hard slicer | viterbi §5b | — |
 | C11 | a positive scale cannot move the maximum-likelihood path | viterbi §5 | — |
 | C12 | `depth-1` branches are owed, then one bit per `n` symbols | viterbi §4, §5b | — |
-| C13 | `viterbi_decode` refuses a non-multiple or a short buffer | viterbi §7 | — |
+| C13 | `dp_viterbi_decode` refuses a non-multiple or a short buffer | viterbi §7 | — |
 | C14 | `d_free = 10` for the CCSDS code | viterbi §6d | F1 |
 | C15 | traceback depth 60 is measured, not a rule of thumb | — | §2.3 |
 | C16 | soft decisions are worth about 2 dB | — | §2.1, §2.2 |

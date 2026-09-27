@@ -45,9 +45,9 @@ static int
 write_capture (const char *path, wfm_filetype_t ft)
 {
   float _Complex buf[NUM_SAMPLES];
-  wfm_writer_state_t *w;
-  size_t              i;
-  int                 rc;
+  dp_wfm_writer_state_t *w;
+  size_t                 i;
+  int                    rc;
 
   /* A deterministic ramp well inside full scale: nothing clips, so no
      quantisation argument is needed, and every sample is distinct so a stride
@@ -55,12 +55,12 @@ write_capture (const char *path, wfm_filetype_t ft)
   for (i = 0; i < NUM_SAMPLES; i++)
     buf[i] = (float)(i % 64) / 128.0f + I * (float)(i % 32) / 128.0f;
 
-  w = wfm_writer_create (path, FS, (int)ft, ST_CI16, ENDIAN_LE, FC, 0, 0.0,
-                         0.0, false);
+  w = dp_wfm_writer_create (path, FS, (int)ft, ST_CI16, ENDIAN_LE, FC, 0, 0.0,
+                            0.0, false);
   if (w == NULL)
     return -1;
 
-  rc = (wfm_writer_write (w, buf, NUM_SAMPLES) == NUM_SAMPLES) ? 0 : -1;
+  rc = (dp_wfm_writer_write (w, buf, NUM_SAMPLES) == NUM_SAMPLES) ? 0 : -1;
   if (wfm_writer_close (w) != 0)
     rc = -1;
   return rc;

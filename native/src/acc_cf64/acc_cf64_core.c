@@ -1,9 +1,9 @@
 #include "doppler/acc_cf64/acc_cf64_core.h"
 
-acc_cf64_state_t *
-acc_cf64_create (double _Complex acc)
+dp_acc_cf64_state_t *
+dp_acc_cf64_create (double _Complex acc)
 {
-  acc_cf64_state_t *state = calloc (1, sizeof (*state));
+  dp_acc_cf64_state_t *state = calloc (1, sizeof (*state));
   if (!state)
     return NULL;
   state->acc = acc;
@@ -11,20 +11,20 @@ acc_cf64_create (double _Complex acc)
 }
 
 void
-acc_cf64_destroy (acc_cf64_state_t *state)
+dp_acc_cf64_destroy (dp_acc_cf64_state_t *state)
 {
   free (state);
 }
 
 void
-acc_cf64_reset (acc_cf64_state_t *state)
+dp_acc_cf64_reset (dp_acc_cf64_state_t *state)
 {
   state->acc = 0.0 + 0.0 * I;
 }
 
 /* Serializable state — whole-struct POD snapshot, pointer-free (see
  * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (acc_cf64, acc_cf64_state_t, ACC_CF64_STATE_MAGIC,
+DP_DEFINE_POD_STATE (dp_acc_cf64, dp_acc_cf64_state_t, ACC_CF64_STATE_MAGIC,
                      ACC_CF64_STATE_VERSION)
 
 /* JM_RESTRICT unlocks auto-vectorisation by eliminating the aliasing hazard.
@@ -33,8 +33,8 @@ DP_DEFINE_POD_STATE (acc_cf64, acc_cf64_state_t, ACC_CF64_STATE_MAGIC,
  * (Explicit JM_VEC_F64 for interleaved complex requires deinterleaving that
  * is not in the JM macro set; auto-vec gets us the same result cleanly.) */
 JM_HOT void
-acc_cf64_steps (acc_cf64_state_t *JM_RESTRICT      state,
-                const double _Complex *JM_RESTRICT input, size_t n)
+dp_acc_cf64_steps (dp_acc_cf64_state_t *JM_RESTRICT   state,
+                   const double _Complex *JM_RESTRICT input, size_t n)
 {
   double re = 0.0, im = 0.0;
   for (size_t i = 0; i < n; i++)
@@ -45,20 +45,23 @@ acc_cf64_steps (acc_cf64_state_t *JM_RESTRICT      state,
   state->acc += re + im * I;
 }
 
-double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state)
+double _Complex dp_acc_cf64_get_acc (const dp_acc_cf64_state_t *state)
 {
   return state->acc;
 }
 
 void
-acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value)
+dp_acc_cf64_set_acc (dp_acc_cf64_state_t *state, double _Complex value)
 {
   state->acc = value;
 }
 
-double _Complex acc_cf64_get (acc_cf64_state_t *state) { return state->acc; }
+double _Complex dp_acc_cf64_get (dp_acc_cf64_state_t *state)
+{
+  return state->acc;
+}
 
-double _Complex acc_cf64_dump (acc_cf64_state_t *state)
+double _Complex dp_acc_cf64_dump (dp_acc_cf64_state_t *state)
 {
   double _Complex v = state->acc;
   state->acc        = 0.0 + 0.0 * I;
@@ -66,8 +69,8 @@ double _Complex acc_cf64_dump (acc_cf64_state_t *state)
 }
 
 void
-acc_cf64_madd (acc_cf64_state_t *state, const double _Complex *x, size_t x_len,
-               const float *h, size_t h_len)
+dp_acc_cf64_madd (dp_acc_cf64_state_t *state, const double _Complex *x,
+                  size_t x_len, const float *h, size_t h_len)
 {
   size_t n = x_len < h_len ? x_len : h_len;
   for (size_t i = 0; i < n; i++)
@@ -75,16 +78,16 @@ acc_cf64_madd (acc_cf64_state_t *state, const double _Complex *x, size_t x_len,
 }
 
 void
-acc_cf64_add2d (acc_cf64_state_t *state, const double _Complex *x,
-                size_t x_len)
+dp_acc_cf64_add2d (dp_acc_cf64_state_t *state, const double _Complex *x,
+                   size_t x_len)
 {
   for (size_t i = 0; i < x_len; i++)
     state->acc += x[i];
 }
 
 void
-acc_cf64_madd2d (acc_cf64_state_t *state, const double _Complex *x,
-                 size_t x_len, const float *h, size_t h_len)
+dp_acc_cf64_madd2d (dp_acc_cf64_state_t *state, const double _Complex *x,
+                    size_t x_len, const float *h, size_t h_len)
 {
   size_t n = x_len < h_len ? x_len : h_len;
   for (size_t i = 0; i < n; i++)

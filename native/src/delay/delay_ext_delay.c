@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only delay_ext.c is compiled.
  */
 /* ======================================================== */
-/* DelayCf64Object — wraps delay_state_t *       */
+/* DelayCf64Object — wraps dp_delay_state_t *       */
 /* ======================================================== */
 
 #include "doppler/delay/delay_core.h"
 
 typedef struct
 {
-  PyObject_HEAD delay_state_t *handle;
+  PyObject_HEAD dp_delay_state_t *handle;
 } DelayCf64Object;
 
 static void
 DelayCf64Obj_dealloc (DelayCf64Object *self)
 {
   if (self->handle)
-    delay_destroy (self->handle);
+    dp_delay_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -42,10 +42,10 @@ DelayCf64Obj_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", kwlist, &num_taps_raw))
     return -1;
   size_t num_taps = (size_t)num_taps_raw;
-  self->handle    = delay_create (num_taps);
+  self->handle    = dp_delay_create (num_taps);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "delay_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_delay_create returned NULL");
       return -1;
     }
   return 0;
@@ -59,7 +59,7 @@ DelayCf64Obj_reset (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  delay_reset (self->handle);
+  dp_delay_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -76,7 +76,7 @@ DelayCf64Obj_push (DelayCf64Object *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "D", _kwlist, &x_raw))
     return NULL;
   double _Complex x = x_raw.real + x_raw.imag * I;
-  delay_push (self->handle, x);
+  dp_delay_push (self->handle, x);
   Py_RETURN_NONE;
 }
 
@@ -91,7 +91,7 @@ DelayCf64Obj_ptr_max_out (DelayCf64Object *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
-  return PyLong_FromSize_t (delay_ptr_max_out (self->handle, (size_t)n));
+  return PyLong_FromSize_t (dp_delay_ptr_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -129,7 +129,7 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = delay_ptr_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_delay_ptr_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -139,8 +139,8 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out
-          = delay_ptr (self->handle, (size_t)n,
-                       (double _Complex *)PyArray_DATA (out_arr), _cap);
+          = dp_delay_ptr (self->handle, (size_t)n,
+                          (double _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
                                                     PyArray_DATA (out_arr));
@@ -159,7 +159,7 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = delay_ptr_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_delay_ptr_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX128);
@@ -169,7 +169,7 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
     }
   double _Complex *_d0
       = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = delay_ptr (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_delay_ptr (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -195,7 +195,7 @@ DelayCf64Obj_push_ptr_max_out (DelayCf64Object *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (delay_push_ptr_max_out (self->handle));
+  return PyLong_FromSize_t (dp_delay_push_ptr_max_out (self->handle));
 }
 
 static PyObject *
@@ -235,10 +235,10 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = delay_push_ptr_max_out (self->handle);
-      size_t _min_cap = _omax > delay_push_ptr_max_out (self->handle)
+      size_t _omax    = dp_delay_push_ptr_max_out (self->handle);
+      size_t _min_cap = _omax > dp_delay_push_ptr_max_out (self->handle)
                             ? _omax
-                            : (delay_push_ptr_max_out (self->handle));
+                            : (dp_delay_push_ptr_max_out (self->handle));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -246,7 +246,7 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = delay_push_ptr (
+      size_t n_out = dp_delay_push_ptr (
           self->handle, x, (double _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -265,8 +265,8 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
-  size_t _need = delay_push_ptr_max_out (self->handle);
-  size_t _cap  = delay_push_ptr_max_out (self->handle);
+  size_t _need = dp_delay_push_ptr_max_out (self->handle);
+  size_t _cap  = dp_delay_push_ptr_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -277,7 +277,7 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
     }
   double _Complex *_d0
       = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = delay_push_ptr (self->handle, x, _d0, _cap);
+  size_t n_out = dp_delay_push_ptr (self->handle, x, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -306,7 +306,7 @@ DelayCf64Obj_write (DelayCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
   double _Complex x = x_raw.real + x_raw.imag * I;
-  delay_write (self->handle, x);
+  dp_delay_write (self->handle, x);
   Py_RETURN_NONE;
 }
 
@@ -318,7 +318,7 @@ DelayCf64Obj_state_bytes (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (delay_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_delay_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -329,11 +329,11 @@ DelayCf64Obj_get_state (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = delay_state_bytes (self->handle);
+  size_t    _n = dp_delay_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  delay_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_delay_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -350,12 +350,12 @@ DelayCf64Obj_set_state (DelayCf64Object *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != delay_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_delay_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (delay_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_delay_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -397,7 +397,7 @@ DelayCf64Obj_destroy (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      delay_destroy (self->handle);
+      dp_delay_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -416,7 +416,7 @@ DelayCf64Obj_exit (DelayCf64Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      delay_destroy (self->handle);
+      dp_delay_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -506,13 +506,13 @@ static PyMethodDef DelayCf64Obj_methods[] = {
   { "ptr_max_out", (PyCFunction)DelayCf64Obj_ptr_max_out, METH_VARARGS,
     "ptr_max_out(n) -> int\n"
     "\n"
-    "Maximum samples delay_ptr() writes for a request of n. Returns\n"
+    "Maximum samples dp_delay_ptr() writes for a request of n. Returns\n"
     "min(n, num_taps) — the tight per-call bound (gh-607).\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "n : int\n"
-    "    Number of samples the matching delay_ptr() call requests.\n"
+    "    Number of samples the matching dp_delay_ptr() call requests.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -523,7 +523,7 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "push_ptr(x, out) -> ndarray\n"
     "\n"
     "Atomically push a sample and snapshot the current window. Equivalent\n"
-    "to calling delay_push() then delay_ptr(num_taps), but avoids the\n"
+    "to calling dp_delay_push() then dp_delay_ptr(num_taps), but avoids the\n"
     "overhead of a second function call. Always writes exactly num_taps\n"
     "samples to out. The Python binding returns an independent NumPy array\n"
     "per call; pass `out=` to reuse one buffer across pushes.\n"
@@ -552,21 +552,21 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     METH_NOARGS,
     "push_ptr_max_out() -> int\n"
     "\n"
-    "Return the maximum output capacity for delay_push_ptr(). Returns\n"
+    "Return the maximum output capacity for dp_delay_push_ptr(). Returns\n"
     "num_taps; the Python binding sizes each call's output array with it,\n"
     "and checks a caller's `out=` buffer against it.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    num_taps (number of samples delay_push_ptr() will write).\n" },
+    "    num_taps (number of samples dp_delay_push_ptr() will write).\n" },
   { "write", (PyCFunction)DelayCf64Obj_write, METH_VARARGS,
     "write(x) -> None\n"
     "\n"
-    "Alias for delay_push(); insert a sample without reading back.\n"
+    "Alias for dp_delay_push(); insert a sample without reading back.\n"
     "Provided for API symmetry with write-then-read patterns where the\n"
     "caller wants to decouple sample ingestion from window inspection.\n"
-    "Internally delegates to delay_push() with no additional overhead.\n"
+    "Internally delegates to dp_delay_push() with no additional overhead.\n"
     "\n"
     "Parameters\n"
     "----------\n"

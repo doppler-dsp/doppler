@@ -23,12 +23,12 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_loop_filter[] = {
-    (jm_any_fn)loop_filter_create,
-    (jm_any_fn)loop_filter_destroy,
-    (jm_any_fn)loop_filter_configure,
-    (jm_any_fn)loop_filter_reset,
-    (jm_any_fn)loop_filter_state_bytes,
-    (jm_any_fn)loop_filter_get_state,
-    (jm_any_fn)loop_filter_set_state,
-    (jm_any_fn)loop_filter_steps,
+    (jm_any_fn)dp_loop_filter_create,
+    (jm_any_fn)dp_loop_filter_destroy,
+    (jm_any_fn)dp_loop_filter_configure,
+    (jm_any_fn)dp_loop_filter_reset,
+    (jm_any_fn)dp_loop_filter_state_bytes,
+    (jm_any_fn)dp_loop_filter_get_state,
+    (jm_any_fn)dp_loop_filter_set_state,
+    (jm_any_fn)dp_loop_filter_steps,
 };

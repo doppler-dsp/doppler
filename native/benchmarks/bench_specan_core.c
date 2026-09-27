@@ -64,20 +64,20 @@ main (void)
   for (int k = 0; k < 3; k++)
     {
       /* window 1, navg 1, no offset, full scale 1.0, float input (bits 0) */
-      specan_state_t *s
-          = specan_create (FS, SPAN, rbws[k], 0.0, 0.0, 0.0, 1.0, 0, 1, 1);
+      dp_specan_state_t *s
+          = dp_specan_create (FS, SPAN, rbws[k], 0.0, 0.0, 0.0, 1.0, 0, 1, 1);
       if (!s)
         {
           (void)fprintf (stderr, "bench_specan: create(rbw=%.0f) NULL\n",
                          rbws[k]);
           return 1;
         }
-      size_t cap = specan_execute_max_out (s);
+      size_t cap = dp_specan_execute_max_out (s);
       float *out = malloc ((cap ? cap : 1) * sizeof *out);
       if (!out)
         return 1;
 
-      size_t got = specan_execute (s, x, BLOCK, out, cap);
+      size_t got = dp_specan_execute (s, x, BLOCK, out, cap);
       if (got == 0)
         {
           (void)fprintf (stderr,
@@ -91,7 +91,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += specan_execute (s, x, BLOCK, out, cap);
+          sink += dp_specan_execute (s, x, BLOCK, out, cap);
           t1         = jm_bench_now_ns ();
           t_ex[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -108,7 +108,7 @@ main (void)
           for (int r = 0; r < ITERATIONS; r++)
             {
               t0 = jm_bench_now_ns ();
-              specan_retune (s, (r & 1) ? 1.0e5 : -1.0e5);
+              dp_specan_retune (s, (r & 1) ? 1.0e5 : -1.0e5);
               t1      = jm_bench_now_ns ();
               t_rt[r] = jm_bench_elapsed_sec (t0, t1);
             }
@@ -119,7 +119,7 @@ main (void)
         }
 
       free (out);
-      specan_destroy (s);
+      dp_specan_destroy (s);
     }
 
   printf ("\n  100x finer RBW costs %.2fx per sample. A finer RBW is a\n"

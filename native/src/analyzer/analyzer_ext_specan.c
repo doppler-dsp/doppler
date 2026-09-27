@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only analyzer_ext.c is compiled.
  */
 /* ======================================================== */
-/* SpecanObject — wraps specan_state_t *       */
+/* SpecanObject — wraps dp_specan_state_t *       */
 /* ======================================================== */
 
 #include "doppler/specan/specan_core.h"
 
 typedef struct
 {
-  PyObject_HEAD specan_state_t *handle;
+  PyObject_HEAD dp_specan_state_t *handle;
 } SpecanObject;
 
 static void
 SpecanObj_dealloc (SpecanObject *self)
 {
   if (self->handle)
-    specan_destroy (self->handle);
+    dp_specan_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -68,11 +68,11 @@ SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t navg  = (size_t)navg_raw;
-  self->handle = specan_create (fs, span, rbw, src_center, center, offset_db,
-                                full_scale, bits, window, navg);
+  self->handle = dp_specan_create (fs, span, rbw, src_center, center,
+                                   offset_db, full_scale, bits, window, navg);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "specan_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_specan_create returned NULL");
       return -1;
     }
   return 0;
@@ -86,7 +86,7 @@ SpecanObj_execute_max_out (SpecanObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (specan_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_specan_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -131,7 +131,7 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = specan_execute_max_out (self->handle);
+      size_t _omax    = dp_specan_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -153,7 +153,7 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
       float *_ng2 = (float *)PyArray_DATA (out_arr);
       size_t n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = specan_execute (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_specan_execute (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if (!n_out)
@@ -179,7 +179,7 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = specan_execute_max_out (self->handle);
+  size_t _cap  = dp_specan_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -198,7 +198,7 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = specan_execute (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_specan_execute (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if (!n_out)
@@ -234,7 +234,7 @@ SpecanObj_retune (SpecanObject *self, PyObject *args, PyObject *kwds)
   double       center    = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &center))
     return NULL;
-  specan_retune (self->handle, center);
+  dp_specan_retune (self->handle, center);
   Py_RETURN_NONE;
 }
 
@@ -246,7 +246,7 @@ SpecanObj_reset (SpecanObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  specan_reset (self->handle);
+  dp_specan_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -258,7 +258,7 @@ SpecanObj_state_bytes (SpecanObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (specan_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_specan_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -269,11 +269,11 @@ SpecanObj_get_state (SpecanObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = specan_state_bytes (self->handle);
+  size_t    _n = dp_specan_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  specan_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_specan_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -290,12 +290,12 @@ SpecanObj_set_state (SpecanObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != specan_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_specan_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (specan_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_specan_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -421,7 +421,7 @@ SpecanObj_destroy (SpecanObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      specan_destroy (self->handle);
+      dp_specan_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -440,7 +440,7 @@ SpecanObj_exit (SpecanObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      specan_destroy (self->handle);
+      dp_specan_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -486,7 +486,7 @@ static PyMethodDef SpecanObj_methods[] = {
   { "execute_max_out", (PyCFunction)SpecanObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Output capacity hint for specan_execute(); equals disp_n.\n"
+    "Output capacity hint for dp_specan_execute(); equals disp_n.\n"
     "\n"
     "Returns\n"
     "-------\n"

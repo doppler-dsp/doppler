@@ -4,7 +4,7 @@
  *
  * The core data path is:
  *   push(x[M]) → ring buffer → non-blocking drain →
- *   corr_execute (FFT correlator + int-dump) →
+ *   dp_corr_execute (FFT correlator + int-dump) →
  *   |·|² + argmax → noise estimate → threshold gate → det_result_t[]
  *
  * Ring buffer sizing:
@@ -34,10 +34,10 @@
  *
  * Fills the four result fields in @p state from the correlation output
  * already stored in state->out_buf (n complex samples).  Call immediately
- * after a dump (corr_execute returned n).
+ * after a dump (dp_corr_execute returned n).
  */
 static void
-detector_compute_stat (detector_state_t *state)
+detector_compute_stat (dp_detector_state_t *state)
 {
   const size_t n = state->n;
 
@@ -65,13 +65,13 @@ detector_compute_stat (detector_state_t *state)
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector_state_t *
-detector_create (const float _Complex *ref, size_t n, size_t dwell,
-                 size_t noise_lo, size_t noise_hi, det_noise_mode_t noise_mode,
-                 float threshold, int nthreads)
+dp_detector_state_t *
+dp_detector_create (const float _Complex *ref, size_t n, size_t dwell,
+                    size_t noise_lo, size_t noise_hi,
+                    det_noise_mode_t noise_mode, float threshold, int nthreads)
 {
-  detector_state_t *state
-      = (detector_state_t *)calloc (1, sizeof (detector_state_t));
+  dp_detector_state_t *state
+      = (dp_detector_state_t *)calloc (1, sizeof (dp_detector_state_t));
   if (!state)
     return NULL;
 
@@ -93,7 +93,7 @@ detector_create (const float _Complex *ref, size_t n, size_t dwell,
     goto fail;
   state->ring_cap = state->ring->capacity;
 
-  state->corr = corr_create (ref, n, dwell, nthreads, 0);
+  state->corr = dp_corr_create (ref, n, dwell, nthreads, 0);
   if (!state->corr)
     goto fail;
 
@@ -113,19 +113,19 @@ detector_create (const float _Complex *ref, size_t n, size_t dwell,
   return state;
 
 fail:
-  detector_destroy (state);
+  dp_detector_destroy (state);
   return NULL;
 }
 
 void
-detector_destroy (detector_state_t *state)
+dp_detector_destroy (dp_detector_state_t *state)
 {
   if (!state)
     return;
   if (state->ring)
     dp_f32_destroy (state->ring);
   if (state->corr)
-    corr_destroy (state->corr);
+    dp_corr_destroy (state->corr);
   free (state->out_buf);
   free (state->mag_buf);
   free (state->noise_scratch);
@@ -133,12 +133,12 @@ detector_destroy (detector_state_t *state)
 }
 
 void
-detector_reset (detector_state_t *state)
+dp_detector_reset (dp_detector_state_t *state)
 {
   /* Drain the ring by resetting head/tail via atomic stores. */
   DP_STORE_REL (&state->ring->head, 0);
   DP_STORE_REL (&state->ring->tail, 0);
-  corr_reset (state->corr);
+  dp_corr_reset (state->corr);
   state->_last_corr_valid = 0;
 }
 
@@ -146,19 +146,19 @@ detector_reset (detector_state_t *state)
  * ring's unconsumed samples (zero-padded to ring_cap so the blob is canonical)
  * + the last-dump result fields. Mirrors acq's ring serialization. */
 size_t
-detector_state_bytes (const detector_state_t *s)
+dp_detector_state_bytes (const dp_detector_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + corr_state_bytes (s->corr)
+  return sizeof (dp_state_hdr_t) + dp_corr_state_bytes (s->corr)
          + sizeof (uint64_t) + s->ring_cap * sizeof (float _Complex)
          + sizeof (uint64_t) + 3 * sizeof (float) + sizeof (uint32_t);
 }
 
 void
-detector_get_state (const detector_state_t *s, void *blob)
+dp_detector_get_state (const dp_detector_state_t *s, void *blob)
 {
   DP_GET_OPEN (DETECTOR_STATE_MAGIC, DETECTOR_STATE_VERSION,
-               detector_state_bytes (s));
-  DP_W_CHILD (&_w, corr, s->corr);
+               dp_detector_state_bytes (s));
+  DP_W_CHILD (&_w, dp_corr, s->corr);
   size_t h   = DP_LOAD_ACQ (&s->ring->head);
   size_t t   = DP_LOAD_RLX (&s->ring->tail);
   size_t nun = h - t;
@@ -180,11 +180,11 @@ detector_get_state (const detector_state_t *s, void *blob)
 }
 
 int
-detector_set_state (detector_state_t *s, const void *blob)
+dp_detector_set_state (dp_detector_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DETECTOR_STATE_MAGIC, DETECTOR_STATE_VERSION,
-               detector_state_bytes (s));
-  DP_R_CHILD (&_r, corr, s->corr);
+               dp_detector_state_bytes (s));
+  DP_R_CHILD (&_r, dp_corr, s->corr);
   size_t nun = (size_t)dp_r_u64 (&_r);
   if (nun > s->ring_cap)
     return DP_ERR_INVALID;
@@ -203,14 +203,14 @@ detector_set_state (detector_state_t *s, const void *blob)
 }
 
 void
-detector_set_ref (detector_state_t *state, const float _Complex *ref)
+detector_set_ref (dp_detector_state_t *state, const float _Complex *ref)
 {
-  detector_reset (state);
+  dp_detector_reset (state);
   corr_set_ref (state->corr, ref);
 }
 
 void
-detector_set_threshold (detector_state_t *state, float threshold)
+detector_set_threshold (dp_detector_state_t *state, float threshold)
 {
   state->threshold = threshold;
 }
@@ -218,8 +218,8 @@ detector_set_threshold (detector_state_t *state, float threshold)
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 size_t
-detector_push (detector_state_t *state, const float _Complex *in, size_t n_in,
-               det_result_t *result, size_t max_results)
+dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
+                  size_t n_in, det_result_t *result, size_t max_results)
 {
   size_t ndet = 0;
   size_t off  = 0; /* samples consumed from in[] */
@@ -255,8 +255,8 @@ detector_push (detector_state_t *state, const float _Complex *in, size_t n_in,
           float _Complex *frame
               = (float _Complex *)(state->ring->data
                                    + (t & state->ring->mask) * 2);
-          size_t n_out = corr_execute (state->corr, frame, state->n,
-                                       state->out_buf, state->n);
+          size_t n_out = dp_corr_execute (state->corr, frame, state->n,
+                                          state->out_buf, state->n);
           dp_f32_consume (state->ring, state->n);
 
           if (n_out == 0)

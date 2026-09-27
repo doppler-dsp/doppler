@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only arith_ext.c is compiled.
  */
 /* ======================================================== */
-/* AccQ15Object — wraps acc_q15_state_t *       */
+/* AccQ15Object — wraps dp_acc_q15_state_t *       */
 /* ======================================================== */
 
 #include "doppler/acc_q15/acc_q15_core.h"
 
 typedef struct
 {
-  PyObject_HEAD acc_q15_state_t *handle;
+  PyObject_HEAD dp_acc_q15_state_t *handle;
 } AccQ15Object;
 
 static void
 AccQ15_dealloc (AccQ15Object *self)
 {
   if (self->handle)
-    acc_q15_destroy (self->handle);
+    dp_acc_q15_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -42,10 +42,10 @@ AccQ15_init (AccQ15Object *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|L", kwlist, &acc_raw))
     return -1;
   int64_t acc  = (int64_t)acc_raw;
-  self->handle = acc_q15_create (acc);
+  self->handle = dp_acc_q15_create (acc);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "acc_q15_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_acc_q15_create returned NULL");
       return -1;
     }
   return 0;
@@ -59,7 +59,7 @@ AccQ15_reset (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  acc_q15_reset (self->handle);
+  dp_acc_q15_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -75,7 +75,7 @@ AccQ15_step (AccQ15Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "i", &x_raw))
     return NULL;
   int16_t x = (int16_t)x_raw;
-  acc_q15_step (self->handle, x);
+  dp_acc_q15_step (self->handle, x);
   Py_RETURN_NONE;
 }
 
@@ -96,8 +96,8 @@ AccQ15_steps (AccQ15Object *self, PyObject *args)
   if (!in_arr)
     return NULL;
 
-  acc_q15_steps (self->handle, (const int16_t *)PyArray_DATA (in_arr),
-                 (size_t)PyArray_SIZE (in_arr));
+  dp_acc_q15_steps (self->handle, (const int16_t *)PyArray_DATA (in_arr),
+                    (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
   Py_RETURN_NONE;
 }
@@ -110,7 +110,7 @@ AccQ15_get_acc (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLongLong ((long long)acc_q15_get_acc (self->handle));
+  return PyLong_FromLongLong ((long long)dp_acc_q15_get_acc (self->handle));
 }
 
 static PyObject *
@@ -125,7 +125,7 @@ AccQ15_set_acc (AccQ15Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "L", &v_raw))
     return NULL;
   int64_t v = (int64_t)v_raw;
-  acc_q15_set_acc (self->handle, v);
+  dp_acc_q15_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -136,7 +136,7 @@ AccQ15_get (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int64_t y = acc_q15_get (self->handle);
+  int64_t y = dp_acc_q15_get (self->handle);
   return PyLong_FromLongLong ((long long)y);
 }
 
@@ -148,7 +148,7 @@ AccQ15_dump (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int64_t y = acc_q15_dump (self->handle);
+  int64_t y = dp_acc_q15_dump (self->handle);
   return PyLong_FromLongLong ((long long)y);
 }
 
@@ -182,7 +182,7 @@ AccQ15_madd (AccQ15Object *self, PyObject *args, PyObject *kwds)
     }
   const int16_t *b     = (const int16_t *)PyArray_DATA (b_arr);
   size_t         b_len = (size_t)PyArray_SIZE (b_arr);
-  acc_q15_madd (self->handle, a, a_len, b, b_len);
+  dp_acc_q15_madd (self->handle, a, a_len, b, b_len);
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
   Py_RETURN_NONE;
@@ -196,7 +196,7 @@ AccQ15_state_bytes (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (acc_q15_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_acc_q15_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -207,11 +207,11 @@ AccQ15_get_state (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = acc_q15_state_bytes (self->handle);
+  size_t    _n = dp_acc_q15_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  acc_q15_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_acc_q15_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -228,12 +228,12 @@ AccQ15_set_state (AccQ15Object *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != acc_q15_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_acc_q15_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (acc_q15_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_acc_q15_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -246,7 +246,7 @@ AccQ15_destroy (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      acc_q15_destroy (self->handle);
+      dp_acc_q15_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -265,7 +265,7 @@ AccQ15_exit (AccQ15Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      acc_q15_destroy (self->handle);
+      dp_acc_q15_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

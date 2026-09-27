@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only measure_ext.c is compiled.
  */
 /* ======================================================== */
-/* IMDMeasureObject — wraps imdmeas_state_t *       */
+/* IMDMeasureObject — wraps dp_imdmeas_state_t *       */
 /* ======================================================== */
 
 #include "doppler/imdmeas/imdmeas_core.h"
 
 typedef struct
 {
-  PyObject_HEAD imdmeas_state_t *handle;
+  PyObject_HEAD dp_imdmeas_state_t *handle;
 } IMDMeasureObject;
 
 static void
 IMDMeasureObj_dealloc (IMDMeasureObject *self)
 {
   if (self->handle)
-    imdmeas_destroy (self->handle);
+    dp_imdmeas_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -49,10 +49,10 @@ IMDMeasureObj_init (IMDMeasureObject *self, PyObject *args, PyObject *kwds)
     return -1;
   size_t n     = (size_t)n_raw;
   size_t bits  = (size_t)bits_raw;
-  self->handle = imdmeas_create (n, fs, full_scale, bits, dynamic_range_db);
+  self->handle = dp_imdmeas_create (n, fs, full_scale, bits, dynamic_range_db);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "imdmeas_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_imdmeas_create returned NULL");
       return -1;
     }
   return 0;
@@ -66,7 +66,7 @@ IMDMeasureObj_reset (IMDMeasureObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  imdmeas_reset (self->handle);
+  dp_imdmeas_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -127,7 +127,7 @@ IMDMeasureObj_analyze (IMDMeasureObject *self, PyObject *args)
   const float *_ng0 = (const float *)PyArray_DATA (in_arr);
   imd_meas_t   _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = imdmeas_analyze (self->handle, _ng0, n_in);
+    _r = dp_imdmeas_analyze (self->handle, _ng0, n_in);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (IMDMeasureObj_analyze_type);
@@ -157,7 +157,7 @@ IMDMeasureObj_spectrum_dbfs_max_out (IMDMeasureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (imdmeas_spectrum_dbfs_max_out (self->handle));
+  return PyLong_FromSize_t (dp_imdmeas_spectrum_dbfs_max_out (self->handle));
 }
 
 static PyObject *
@@ -203,7 +203,7 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = imdmeas_spectrum_dbfs_max_out (self->handle);
+      size_t _omax    = dp_imdmeas_spectrum_dbfs_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -215,7 +215,7 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t n_out = imdmeas_spectrum_dbfs (
+      size_t n_out = dp_imdmeas_spectrum_dbfs (
           self->handle, (const float *)PyArray_DATA (x_arr),
           (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
@@ -237,7 +237,7 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = imdmeas_spectrum_dbfs_max_out (self->handle);
+  size_t _cap  = dp_imdmeas_spectrum_dbfs_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -248,7 +248,7 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = imdmeas_spectrum_dbfs (
+  size_t n_out = dp_imdmeas_spectrum_dbfs (
       self->handle, (const float *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
@@ -312,7 +312,7 @@ IMDMeasureObj_destroy (IMDMeasureObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      imdmeas_destroy (self->handle);
+      dp_imdmeas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -331,7 +331,7 @@ IMDMeasureObj_exit (IMDMeasureObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      imdmeas_destroy (self->handle);
+      dp_imdmeas_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

@@ -113,7 +113,7 @@ parse_hex_string (const char *s, size_t *n)
   uint8_t     *b     = malloc (nbits ? nbits : 1);
   if (!b)
     return NULL;
-  if (nbits && hex_to_bin (s, b, nbits, DP_BITORDER_BIG) != nbits)
+  if (nbits && dp_hex_to_bin (s, b, nbits, DP_BITORDER_BIG) != nbits)
     {
       free (b);
       return NULL;
@@ -1327,16 +1327,16 @@ typedef struct
 } emit_ctx_t;
 
 /* Open a writer on `fp` and apply the run's gain and clip tracking. */
-static wfm_writer_state_t *
+static dp_wfm_writer_state_t *
 open_writer (const emit_ctx_t *e, FILE *fp, int file_type)
 {
-  wfm_writer_state_t *w = wfm_writer_open (
+  dp_wfm_writer_state_t *w = wfm_writer_open (
       fp, file_type, e->o->sample_type, e->o->endian, e->fs, e->o->fc, 0, 0.0);
   if (!w)
     return NULL;
   wfm_writer_set_gain (w, e->gain);
   if (e->o->clip_report)
-    wfm_writer_track_clipping (w, 1);
+    dp_wfm_writer_track_clipping (w, 1);
   return w;
 }
 
@@ -1347,13 +1347,13 @@ open_writer (const emit_ctx_t *e, FILE *fp, int file_type)
  * detached path does NOT pace and never has — see emit_detached_blue.
  */
 static size_t
-drain_to_writer (const emit_ctx_t *e, wfm_writer_state_t *w, int paced)
+drain_to_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w, int paced)
 {
   float _Complex buf[BLK];
   size_t n, total = 0;
   while ((n = wfm_compose_execute (e->comp, buf, BLK)) > 0)
     {
-      wfm_writer_write (w, buf, n);
+      dp_wfm_writer_write (w, buf, n);
       total += n;
       if (paced && e->clk)
         dp_sample_clock_pace (e->clk, n);
@@ -1372,7 +1372,7 @@ drain_to_writer (const emit_ctx_t *e, wfm_writer_state_t *w, int paced)
 
 /* Close a writer, reporting (and with --clip-error, failing on) clipping. */
 static int
-close_writer (const emit_ctx_t *e, wfm_writer_state_t *w)
+close_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w)
 {
   int rc = report_clip (wfm_writer_peak (w), wfm_writer_clip_fraction (w),
                         e->o->sample_type, e->o->headroom, e->o->clip_report,
@@ -1493,9 +1493,9 @@ emit_detached_blue (const emit_ctx_t *e)
       return 1;
     }
 
-  int                 rc    = 0;
-  size_t              total = 0;
-  wfm_writer_state_t *w     = open_writer (e, df, WFM_FT_RAW);
+  int                    rc    = 0;
+  size_t                 total = 0;
+  dp_wfm_writer_state_t *w     = open_writer (e, df, WFM_FT_RAW);
   if (w)
     {
       /* Unpaced, unlike the stream and file paths, and now unreachable with
@@ -1598,8 +1598,8 @@ emit_to_file (const emit_ctx_t *e)
       return 1;
     }
 
-  int                 rc = 0;
-  wfm_writer_state_t *w
+  int                    rc = 0;
+  dp_wfm_writer_state_t *w
       = open_writer (e, fp, sigmf ? WFM_FT_RAW : o->file_type);
   if (!w)
     {

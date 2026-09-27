@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* MpskReceiverRObject — wraps mpsk_receiver_state_t *       */
+/* MpskReceiverRObject — wraps dp_mpsk_receiver_state_t *       */
 /* ======================================================== */
 
 #include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 
 typedef struct
 {
-  PyObject_HEAD mpsk_receiver_state_t *handle;
+  PyObject_HEAD dp_mpsk_receiver_state_t *handle;
 } MpskReceiverRObject;
 
 static void
 MpskReceiverRObj_dealloc (MpskReceiverRObject *self)
 {
   if (self->handle)
-    mpsk_receiver_destroy (self->handle);
+    dp_mpsk_receiver_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -140,7 +140,7 @@ MpskReceiverRObj_set_telemetry (MpskReceiverRObject *self, PyObject *args,
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int _rc = mpsk_receiver_set_telemetry (self->handle, tlm, prefix, decim);
+  int _rc = dp_mpsk_receiver_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -159,7 +159,7 @@ MpskReceiverRObj_reset (MpskReceiverRObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  mpsk_receiver_reset (self->handle);
+  dp_mpsk_receiver_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -432,7 +432,7 @@ MpskReceiverRObj_state_bytes (MpskReceiverRObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (mpsk_receiver_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_mpsk_receiver_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -444,11 +444,11 @@ MpskReceiverRObj_get_state (MpskReceiverRObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = mpsk_receiver_state_bytes (self->handle);
+  size_t    _n = dp_mpsk_receiver_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  mpsk_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_mpsk_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -466,12 +466,12 @@ MpskReceiverRObj_set_state (MpskReceiverRObject *self, PyObject *arg)
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != mpsk_receiver_state_bytes (self->handle))
+      != dp_mpsk_receiver_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (mpsk_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_mpsk_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -488,7 +488,7 @@ MpskReceiverR_getprop_agc_gain_db (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_agc_gain_db (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_agc_gain_db (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_norm_freq (MpskReceiverRObject *self,
@@ -500,7 +500,7 @@ MpskReceiverR_getprop_norm_freq (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_norm_freq (self->handle));
 }
 static int
 MpskReceiverR_setprop_norm_freq (MpskReceiverRObject *self, PyObject *value,
@@ -514,7 +514,7 @@ MpskReceiverR_setprop_norm_freq (MpskReceiverRObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  mpsk_receiver_set_norm_freq (self->handle, v);
+  dp_mpsk_receiver_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -527,7 +527,7 @@ MpskReceiverR_getprop_lock (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_lock (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_lock (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_zeta (MpskReceiverRObject *self,
@@ -539,7 +539,7 @@ MpskReceiverR_getprop_zeta (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_zeta (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_zeta (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_num_phases (MpskReceiverRObject *self,
@@ -552,7 +552,7 @@ MpskReceiverR_getprop_num_phases (MpskReceiverRObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)mpsk_receiver_get_num_phases (self->handle));
+      (unsigned long long)dp_mpsk_receiver_get_num_phases (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_lock_thresh (MpskReceiverRObject *self,
@@ -564,7 +564,7 @@ MpskReceiverR_getprop_lock_thresh (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_lock_thresh (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_lock_thresh (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_lock_drop_thresh (MpskReceiverRObject *self,
@@ -577,7 +577,7 @@ MpskReceiverR_getprop_lock_drop_thresh (MpskReceiverRObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      mpsk_receiver_get_lock_drop_thresh (self->handle));
+      dp_mpsk_receiver_get_lock_drop_thresh (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_sync_lock_thresh (MpskReceiverRObject *self,
@@ -590,7 +590,7 @@ MpskReceiverR_getprop_sync_lock_thresh (MpskReceiverRObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      mpsk_receiver_get_sync_lock_thresh (self->handle));
+      dp_mpsk_receiver_get_sync_lock_thresh (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_sync_lock_drop_thresh (MpskReceiverRObject *self,
@@ -603,7 +603,7 @@ MpskReceiverR_getprop_sync_lock_drop_thresh (MpskReceiverRObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
+      dp_mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_bn_agc_ratio (MpskReceiverRObject *self,
@@ -615,7 +615,7 @@ MpskReceiverR_getprop_bn_agc_ratio (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_bn_agc_ratio (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_bn_agc_ratio (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_lock_time (MpskReceiverRObject *self,
@@ -628,7 +628,7 @@ MpskReceiverR_getprop_lock_time (MpskReceiverRObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLongLong (
-      (long long)mpsk_receiver_get_lock_time (self->handle));
+      (long long)dp_mpsk_receiver_get_lock_time (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_timing_rate (MpskReceiverRObject *self,
@@ -640,7 +640,7 @@ MpskReceiverR_getprop_timing_rate (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_timing_rate (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_timing_rate (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_m (MpskReceiverRObject *self, void *Py_UNUSED (closure))
@@ -651,7 +651,7 @@ MpskReceiverR_getprop_m (MpskReceiverRObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)mpsk_receiver_get_m (self->handle));
+  return PyLong_FromLong ((long)dp_mpsk_receiver_get_m (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_sps (MpskReceiverRObject *self,
@@ -663,7 +663,7 @@ MpskReceiverR_getprop_sps (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (mpsk_receiver_get_sps (self->handle));
+  return PyFloat_FromDouble (dp_mpsk_receiver_get_sps (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_m_out (MpskReceiverRObject *self,
@@ -676,7 +676,7 @@ MpskReceiverR_getprop_m_out (MpskReceiverRObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)mpsk_receiver_get_m_out (self->handle));
+      (unsigned long long)dp_mpsk_receiver_get_m_out (self->handle));
 }
 static PyObject *
 MpskReceiverR_getprop_clipped (MpskReceiverRObject *self,
@@ -688,7 +688,7 @@ MpskReceiverR_getprop_clipped (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)mpsk_receiver_get_clipped (self->handle));
+  return PyLong_FromLong ((long)dp_mpsk_receiver_get_clipped (self->handle));
 }
 
 static PyObject *
@@ -701,7 +701,7 @@ MpskReceiverR_getprop_locked (MpskReceiverRObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)mpsk_receiver_get_locked (self->handle));
+  return PyLong_FromLong ((long)dp_mpsk_receiver_get_locked (self->handle));
 }
 
 static PyGetSetDef MpskReceiverR_getset[] = {
@@ -826,7 +826,7 @@ MpskReceiverRObj_destroy (MpskReceiverRObject *self,
 {
   if (self->handle)
     {
-      mpsk_receiver_destroy (self->handle);
+      dp_mpsk_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -846,7 +846,7 @@ MpskReceiverRObj_exit (MpskReceiverRObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      mpsk_receiver_destroy (self->handle);
+      dp_mpsk_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -868,7 +868,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "recovered\n"
     "symbol -- then the front end's AGC under \"<prefix>.agc\"\n"
     "(\"<prefix>.agc.gain_db\" and \"<prefix>.agc.level_db\"; see\n"
-    "agc_set_telemetry()). Twelve probes total, all thinned by decim.\n"
+    "dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.\n"
     "Passing NULL detaches everything.\n"
     "\n"
     "Instrumenting it matters because it is FIRST in the chain, and a level\n"
@@ -994,7 +994,8 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "bits(differential) or a sync word. Read norm_freq for the tracked\n"
     "carrier and lock for the carrier lock metric.\n"
     "\n"
-    "mpsk_receiver_steps() taking real samples: the R2C halfband makes them\n"
+    "dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes "
+    "them\n"
     "complex before anything else touches them, and the per-sample body is\n"
     "the same one. Requires a state built by mpsk_receiver_create_real().\n"
     "\n"
@@ -1052,7 +1053,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "(rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the\n"
     "symbol-error rate). Same per-sample carrier/timing recovery as steps().\n"
     "\n"
-    "mpsk_receiver_bits() taking real samples. Requires a state built by\n"
+    "dp_mpsk_receiver_bits() taking real samples. Requires a state built by\n"
     "mpsk_receiver_create_real().\n"
     "\n"
     "Parameters\n"
@@ -1219,7 +1220,7 @@ static PyTypeObject MpskReceiverRObjType = {
     "Parameters\n"
     "----------\n"
     "m : int, default 4\n"
-    "    As mpsk_receiver_create().\n"
+    "    As dp_mpsk_receiver_create().\n"
     "sps : float, default 32.0\n"
     "    Samples per symbol. Any double **strictly greater than `2 * "
     "m_out`**\n"
@@ -1267,18 +1268,19 @@ static PyTypeObject MpskReceiverRObjType = {
     "    (NDA arm dumps per symbol): the cascade's own outputs now feed the\n"
     "    carrier discriminator, so there is no separate arm to size.\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"iandd\"\n"
-    "    As mpsk_receiver_create().\n"
+    "    As dp_mpsk_receiver_create().\n"
     "rrc_beta : float, default 0.35\n"
-    "    As mpsk_receiver_create().\n"
+    "    As dp_mpsk_receiver_create().\n"
     "rrc_span : int, default 8\n"
-    "    As mpsk_receiver_create().\n"
+    "    As dp_mpsk_receiver_create().\n"
     "bn_carrier : float, default 0.01\n"
-    "    As mpsk_receiver_create(). Still normalised to the SYMBOL rate: the\n"
+    "    As dp_mpsk_receiver_create(). Still normalised to the SYMBOL rate: "
+    "the\n"
     "    halfband moves the LO's clock, not the loop's units.\n"
     "zeta : float, default 0.0\n"
-    "    As mpsk_receiver_create(); 0 derives.\n"
+    "    As dp_mpsk_receiver_create(); 0 derives.\n"
     "bn_timing : float, default 0.01\n"
-    "    As mpsk_receiver_create().\n"
+    "    As dp_mpsk_receiver_create().\n"
     "lock_thresh : float, default 0.0\n"
     "    Declare threshold for the carrier lock indicator, on the carrier "
     "lock\n"
@@ -1303,7 +1305,7 @@ static PyTypeObject MpskReceiverRObjType = {
     "is\n"
     "    the centre a tap buys pull-in *around* rather than from nothing.\n"
     "differential : int, default 0\n"
-    "    As mpsk_receiver_create().\n"
+    "    As dp_mpsk_receiver_create().\n"
     "num_phases : int, default 0\n"
     "    Matched-filter bank arms; a power of two. Sets the "
     "fractional-timing\n"

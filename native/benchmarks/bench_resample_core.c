@@ -58,17 +58,17 @@ run (int cfg, int i)
   switch (cfg)
     {
     case C_BETA:
-      sink += kaiser_beta (atten);
+      sink += dp_kaiser_beta (atten);
       break;
     case C_NUM_TAPS:
-      sink += (double)kaiser_num_taps (1, atten, 0.10, 0.15);
+      sink += (double)dp_kaiser_num_taps (1, atten, 0.10, 0.15);
       break;
     case C_CICCOMP_5:
-      ciccompmf (comp, 4u, 16u + (uint32_t)(i & 15), 5u);
+      dp_ciccompmf (comp, 4u, 16u + (uint32_t)(i & 15), 5u);
       sink += comp[0];
       break;
     default:
-      ciccompmf (comp, 4u, 16u + (uint32_t)(i & 15), CIC_MAX_M);
+      dp_ciccompmf (comp, 4u, 16u + (uint32_t)(i & 15), CIC_MAX_M);
       sink += comp[0];
       break;
     }

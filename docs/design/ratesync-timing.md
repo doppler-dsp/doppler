@@ -109,7 +109,7 @@ ______________________________________________________________________
 This is the convention most likely to be got wrong, because the obvious
 choice is wrong.
 
-`loop_filter_step` returns a correction in symbols per symbol. `ctrl` is a
+`dp_loop_filter_step` returns a correction in symbols per symbol. `ctrl` is a
 rate deviation the **terminal stage** adds to its accumulator once per one of
 **its own** inputs — not once per cascade input. Those differ by the whole
 integer decimation in front.
@@ -279,7 +279,7 @@ not monotone in level — it improves slightly below the contracted amplitude
 before collapsing — so a receiver tuned against EVM alone is rewarded for
 drifting toward a cliff.
 
-`ratesync_get_clipped()` reports the subset of over-drive a CIC's input
+`dp_ratesync_get_clipped()` reports the subset of over-drive a CIC's input
 quantiser sees (a CIC bounds its input to ±1.0 and clips silently past that).
 It is not a level check: on a plan the planner built without a CIC there is
 nothing to clip, and over-driving costs EVM with the flag reading clean. The
@@ -309,17 +309,17 @@ ______________________________________________________________________
 
 ## 9. What is deliberately not here
 
-- **A (pfa, pd) sizing entry point.** `symsync_configure_lock()`'s constants
+- **A (pfa, pd) sizing entry point.** `dp_symsync_configure_lock()`'s constants
     were calibrated against symsync's own geometry by Monte Carlo. Re-exposing
     the formula for a different front end without repeating that validation
     would be asserting a calibration nobody measured, so `RateSync` ships
     symsync's empirically validated operating point as the default
     (`avgs = 133`, threshold 0.311, `n_up = 1`, `n_down = 8`) and exposes
-    `ratesync_configure_lock_raw()` for a caller that sizes its own. See
+    `dp_ratesync_configure_lock_raw()` for a caller that sizes its own. See
     [Timing Lock Detector](timing_lock_detector.md).
 - **A second timing mechanism.** The terminal stage's accumulator is the only
     thing that decides when a sample is taken. Nothing else adjusts timing.
-- **Droop compensation as a choice.** `ratesync_create()` builds the cascade
+- **Droop compensation as a choice.** `dp_ratesync_create()` builds the cascade
     with CIC droop compensation on unconditionally: it folds into the terminal
     bank at six taps per arm, costs no extra stage and no extra pass, and is
     worth ~28 dB of EVM on any plan containing a CIC. There is no

@@ -151,7 +151,7 @@ def test_a_snapshot_survives_the_next_one():
 
 def test_ptr_max_out_is_a_per_call_bound():
     # gh-761 gave *_max_out the arity its C prototype declares:
-    # delay_ptr_max_out(state, n) is per-call, min(n, num_taps), so it
+    # dp_delay_ptr_max_out(state, n) is per-call, min(n, num_taps), so it
     # answers "how much for THIS request" rather than one fixed cap. The
     # old no-arg spelling returned num_taps whatever you were about to ask
     # for, which over-sized a small request and told you nothing about a

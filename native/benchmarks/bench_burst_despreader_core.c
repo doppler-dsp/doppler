@@ -70,19 +70,19 @@ main (void)
       for (size_t i = 0; i < sf; i++)
         code[i] = (uint8_t)(((i * 2246822519u) >> 31) & 1u);
 
-      burst_despreader_state_t *d
-          = burst_despreader_create (code, sf, sf, SPS, 0.0, 0.0, 0.05, 0.01);
+      dp_burst_despreader_state_t *d = dp_burst_despreader_create (
+          code, sf, sf, SPS, 0.0, 0.0, 0.05, 0.01);
       if (!d)
         {
           (void)fprintf (stderr,
                          "bench_burst_despreader: create(sf=%zu) NULL\n", sf);
           return 1;
         }
-      size_t cap = burst_despreader_steps_max_out (d);
+      size_t cap = dp_burst_despreader_steps_max_out (d);
       if (cap == 0 || cap > BENCH_N)
         cap = BENCH_N;
 
-      size_t got = burst_despreader_steps (d, x, BENCH_N, out, cap);
+      size_t got = dp_burst_despreader_steps (d, x, BENCH_N, out, cap);
       if (got == 0)
         {
           (void)fprintf (stderr,
@@ -96,7 +96,7 @@ main (void)
       w0 = jm_bench_now_ns ();
       do
         {
-          sink += burst_despreader_steps (d, x, BENCH_N, out, cap);
+          sink += dp_burst_despreader_steps (d, x, BENCH_N, out, cap);
           w1 = jm_bench_now_ns ();
         }
       while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -104,7 +104,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += burst_despreader_steps (d, x, BENCH_N, out, cap);
+          sink += dp_burst_despreader_steps (d, x, BENCH_N, out, cap);
           t1         = jm_bench_now_ns ();
           t_st[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -115,7 +115,7 @@ main (void)
       printf ("  %-18s %7.2f ns/sample  %8.1f MSa/s  %8.3f Msym/s\n", name,
               sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6,
               (double)BENCH_N / (double)(sf * SPS) / sec / 1e6);
-      burst_despreader_destroy (d);
+      dp_burst_despreader_destroy (d);
     }
 
   printf ("\n  sf 15 -> 63 costs %.2fx per SAMPLE. Flat means processing\n"

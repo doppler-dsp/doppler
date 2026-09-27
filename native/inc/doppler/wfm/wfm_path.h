@@ -56,7 +56,7 @@ wfm_swap_ext (const char *path, const char *ext, char *out, size_t cap)
  *   `cap.sigmf-data` in one directory the SAME sidecar name, so writing one
  *   capture would silently overwrite the other's metadata. Appending keeps
  *   the sidecar 1:1 with the file it describes, which is also what makes it
- *   safe to read back by exact name: wfm_reader_create deliberately does NOT
+ *   safe to read back by exact name: dp_wfm_reader_create deliberately does NOT
  *   sniff for `<base>.sigmf-meta` beside an arbitrary file, because a shared
  *   base name hijacked two unrelated files the first time that was tried.
  *

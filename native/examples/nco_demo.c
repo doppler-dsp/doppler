@@ -7,10 +7,10 @@
  *      (1,0) → (0,1) → (-1,0) → (0,-1) → ...
  *
  *   2. FM-modulated LO: a sine-wave modulation signal applied to
- *      the per-sample frequency control port via lo_steps_ctrl().
+ *      the per-sample frequency control port via dp_lo_steps_ctrl().
  *
  *   3. Raw NCO: uint32 phase accumulator and overflow-carry output
- *      via nco_steps_u32_ovf().
+ *      via dp_nco_steps_u32_ovf().
  *
  * Build:
  *   make build
@@ -44,15 +44,15 @@ main (void)
   printf ("%-6s  %9s  %9s\n", "sample", "I", "Q");
   printf ("------  ---------  ---------\n");
 
-  lo_state_t *lo = lo_create (0.25);
+  dp_lo_state_t *lo = dp_lo_create (0.25);
   float _Complex out[N_FREE];
-  lo_steps (lo, N_FREE, out, N_FREE);
+  dp_lo_steps (lo, N_FREE, out, N_FREE);
 
   for (int i = 0; i < N_FREE; i++)
     printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)crealf (out[i]),
             (double)cimagf (out[i]));
 
-  lo_destroy (lo);
+  dp_lo_destroy (lo);
 
   /* ------------------------------------------------------------------ *
    * 2. FM-modulated LO                                                  *
@@ -69,15 +69,15 @@ main (void)
   for (int i = 0; i < N_FM; i++)
     ctrl[i] = FM_DEV * sin (2.0 * M_PI * FM_RATE * (double)i);
 
-  lo_state_t *fm = lo_create (0.1);
+  dp_lo_state_t *fm = dp_lo_create (0.1);
   float _Complex fmo[N_FM];
-  lo_steps_ctrl (fm, ctrl, N_FM, fmo, N_FM);
+  dp_lo_steps_ctrl (fm, ctrl, N_FM, fmo, N_FM);
 
   for (int i = 0; i < N_FM; i++)
     printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i, (double)crealf (fmo[i]),
             (double)cimagf (fmo[i]), 0.1 + ctrl[i]);
 
-  lo_destroy (fm);
+  dp_lo_destroy (fm);
 
   /* ------------------------------------------------------------------ *
    * 3. Raw NCO — uint32 phase + per-sample carry flag                  *
@@ -87,14 +87,14 @@ main (void)
   printf ("%-6s  %12s  %5s\n", "sample", "phase", "carry");
   printf ("------  ------------  -----\n");
 
-  nco_state_t *nco = nco_create (0.25, 0);
-  uint32_t     phase[N_NCO];
-  uint8_t      carry[N_NCO];
-  nco_steps_u32_ovf (nco, N_NCO, phase, carry, N_NCO);
+  dp_nco_state_t *nco = dp_nco_create (0.25, 0);
+  uint32_t        phase[N_NCO];
+  uint8_t         carry[N_NCO];
+  dp_nco_steps_u32_ovf (nco, N_NCO, phase, carry, N_NCO);
 
   for (int i = 0; i < N_NCO; i++)
     printf ("%-6d  %12u  %5u\n", i, phase[i], carry[i]);
 
-  nco_destroy (nco);
+  dp_nco_destroy (nco);
   return 0;
 }

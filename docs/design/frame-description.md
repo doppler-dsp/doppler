@@ -148,12 +148,12 @@ third framer with extra steps.
 
 A field's kind answers one question only: who produces the bits.
 
-| kind      | bits come from              | parameters                                         |
-| --------- | --------------------------- | -------------------------------------------------- |
-| `LITERAL` | a 0/1 array the caller owns | the array                                          |
-| `PN`      | `pn_create()` — one LFSR    | `poly`, `seed`, `reg_bits`, `lfsr`                 |
-| `GOLD`    | `gold_create()` — two LFSRs | `taps_a`, `seed_a`, `taps_b`, `seed_b`, `reg_bits` |
-| `DOTTED`  | alternating `1010…`         | none — a line at Rs/2 to settle on                 |
+| kind      | bits come from                 | parameters                                         |
+| --------- | ------------------------------ | -------------------------------------------------- |
+| `LITERAL` | a 0/1 array the caller owns    | the array                                          |
+| `PN`      | `dp_pn_create()` — one LFSR    | `poly`, `seed`, `reg_bits`, `lfsr`                 |
+| `GOLD`    | `dp_gold_create()` — two LFSRs | `taps_a`, `seed_a`, `taps_b`, `seed_b`, `reg_bits` |
+| `DOTTED`  | alternating `1010…`            | none — a line at Rs/2 to settle on                 |
 
 Two properties sit **across** the kinds rather than inside them, which is what
 keeps the table four rows long instead of eight: **`reps`** repeats the run

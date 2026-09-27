@@ -20,7 +20,7 @@ enum
 int
 main (void)
 {
-  f64_buffer_state_t *ab = dp_f64_create (1024);
+  dp_f64_buffer_state_t *ab = dp_f64_create (1024);
   DP_REQUIRE (ab != NULL);
 
   double _Complex x[N];
@@ -60,13 +60,13 @@ main (void)
   DP_CHECK (dp_f64_space (ab) == 0);
   free (big);
 
-  DP_CHECK (f64_buffer_get_capacity (ab) == cap);
-  DP_CHECK (f64_buffer_get_available (ab) == cap);
-  DP_CHECK (f64_buffer_get_space (ab) == 0);
-  DP_CHECK (f64_buffer_get_dropped (ab) == cap + 1);
-  DP_CHECK (!f64_buffer_get_closed (ab));
+  DP_CHECK (dp_f64_buffer_get_capacity (ab) == cap);
+  DP_CHECK (dp_f64_buffer_get_available (ab) == cap);
+  DP_CHECK (dp_f64_buffer_get_space (ab) == 0);
+  DP_CHECK (dp_f64_buffer_get_dropped (ab) == cap + 1);
+  DP_CHECK (!dp_f64_buffer_get_closed (ab));
   dp_f64_close (ab);
-  DP_CHECK (f64_buffer_get_closed (ab));
+  DP_CHECK (dp_f64_buffer_get_closed (ab));
 
   dp_f64_destroy (ab);
   DP_TEST_END ("test_f64_buffer_core");

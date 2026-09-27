@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef MEASURE_CORE_H
-#define MEASURE_CORE_H
+#ifndef DP_MEASURE_CORE_H
+#define DP_MEASURE_CORE_H
 
 #include "doppler/clib_common.h"
 
@@ -120,12 +120,12 @@ typedef struct {
  * Pure functions that answer "how much data, and at what frequency?" for an
  * IEEE-1241 single-tone test.  See docs/design/measurement-suite.md. */
 
-size_t measure_min_samples(double fs, double target_rbw, size_t bits,
+size_t dp_measure_min_samples(double fs, double target_rbw, size_t bits,
                            double dynamic_range_db, int complex_input);
 
-size_t measure_rec_nfft(size_t n, size_t pad);
+size_t dp_measure_rec_nfft(size_t n, size_t pad);
 
-double measure_proc_gain(size_t nfft);
+double dp_measure_proc_gain(size_t nfft);
 
 double dp_coherent_freq(double fs, double f_target, size_t N);
 

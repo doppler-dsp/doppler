@@ -61,7 +61,7 @@ ibeta (double a, double b, double x)
 }
 
 double
-det_threshold_f (double pfa, int n)
+dp_det_threshold_f (double pfa, int n)
 {
   /* Upper quantile of F(n, n): the exact H0 law of a ratio-of-equal-DOF
    * chi-square statistic whose noise reference is ESTIMATED from the same

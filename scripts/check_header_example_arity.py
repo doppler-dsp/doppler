@@ -7,7 +7,7 @@ block is compiled by nothing — it is rendered by doxygen, published to
 ``docs/c-api/**``, and, for a constructor, transplanted by jm into the
 ``.pyi`` a Python user reads. None of those paths type-check it.
 
-So ``mpsk_receiver_create()``'s example passed **sixteen** arguments to a
+So ``dp_mpsk_receiver_create()``'s example passed **sixteen** arguments to a
 **fifteen**-parameter function, and had done for as long as the parameter it
 still carried had been retired (doppler#1082). Fifteen unlabelled positional
 literals are why: nobody counts commas, and nothing else was going to.

@@ -26,7 +26,7 @@ _bind_marcum_q (PyObject *self, PyObject *args, PyObject *kwds)
   double       b         = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "idd", _kwlist, &m, &a, &b))
     return NULL;
-  return PyFloat_FromDouble (marcum_q (m, a, b));
+  return PyFloat_FromDouble (dp_marcum_q (m, a, b));
 }
 
 static PyObject *
@@ -37,7 +37,7 @@ _bind_det_threshold (PyObject *self, PyObject *args, PyObject *kwds)
   double       pfa       = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &pfa))
     return NULL;
-  return PyFloat_FromDouble (det_threshold (pfa));
+  return PyFloat_FromDouble (dp_det_threshold (pfa));
 }
 
 static PyObject *
@@ -51,7 +51,7 @@ _bind_det_pd (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "did", _kwlist, &snr, &dwell,
                                     &threshold))
     return NULL;
-  return PyFloat_FromDouble (det_pd (snr, dwell, threshold));
+  return PyFloat_FromDouble (dp_det_pd (snr, dwell, threshold));
 }
 
 static PyObject *
@@ -66,7 +66,7 @@ _bind_det_dwell (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddi", _kwlist, &snr, &pd_min,
                                     &pfa, &max_dwell))
     return NULL;
-  return PyLong_FromLong ((long)det_dwell (snr, pd_min, pfa, max_dwell));
+  return PyLong_FromLong ((long)dp_det_dwell (snr, pd_min, pfa, max_dwell));
 }
 
 static PyObject *
@@ -80,7 +80,7 @@ _bind_det_snr (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "idd", _kwlist, &dwell,
                                     &pd_min, &pfa))
     return NULL;
-  return PyFloat_FromDouble (det_snr (dwell, pd_min, pfa));
+  return PyFloat_FromDouble (dp_det_snr (dwell, pd_min, pfa));
 }
 
 static PyObject *
@@ -94,7 +94,7 @@ _bind_det_threshold_noncoherent (PyObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "di", _kwlist, &pfa,
                                     &n_noncoh))
     return NULL;
-  return PyFloat_FromDouble (det_threshold_noncoherent (pfa, n_noncoh));
+  return PyFloat_FromDouble (dp_det_threshold_noncoherent (pfa, n_noncoh));
 }
 
 static PyObject *
@@ -105,7 +105,7 @@ _bind_det_q_inv (PyObject *self, PyObject *args, PyObject *kwds)
   double       p         = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &p))
     return NULL;
-  return PyFloat_FromDouble (det_q_inv (p));
+  return PyFloat_FromDouble (dp_det_q_inv (p));
 }
 
 static PyObject *
@@ -120,7 +120,7 @@ _bind_det_dwell_gauss (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &mean, &var,
                                     &pd, &pfa))
     return NULL;
-  return PyLong_FromLong ((long)det_dwell_gauss (mean, var, pd, pfa));
+  return PyLong_FromLong ((long)dp_det_dwell_gauss (mean, var, pd, pfa));
 }
 
 static PyObject *
@@ -134,7 +134,7 @@ _bind_det_threshold_gauss (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &mean, &pd,
                                     &pfa))
     return NULL;
-  return PyFloat_FromDouble (det_threshold_gauss (mean, pd, pfa));
+  return PyFloat_FromDouble (dp_det_threshold_gauss (mean, pd, pfa));
 }
 
 static PyObject *
@@ -147,7 +147,7 @@ _bind_det_ema_alpha (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &snr_in_db,
                                     &snr_out_db))
     return NULL;
-  return PyFloat_FromDouble (det_ema_alpha (snr_in_db, snr_out_db));
+  return PyFloat_FromDouble (dp_det_ema_alpha (snr_in_db, snr_out_db));
 }
 
 static PyObject *
@@ -160,7 +160,7 @@ _bind_det_verify_count (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &p_look,
                                     &p_target))
     return NULL;
-  return PyLong_FromLong ((long)det_verify_count (p_look, p_target));
+  return PyLong_FromLong ((long)dp_det_verify_count (p_look, p_target));
 }
 
 static PyObject *
@@ -172,7 +172,7 @@ _bind_det_verify_delay (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "di", _kwlist, &p_look, &n))
     return NULL;
-  return PyFloat_FromDouble (det_verify_delay (p_look, n));
+  return PyFloat_FromDouble (dp_det_verify_delay (p_look, n));
 }
 
 static PyObject *
@@ -184,7 +184,7 @@ _bind_det_threshold_f (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "di", _kwlist, &pfa, &n))
     return NULL;
-  return PyFloat_FromDouble (det_threshold_f (pfa, n));
+  return PyFloat_FromDouble (dp_det_threshold_f (pfa, n));
 }
 
 static PyObject *
@@ -200,7 +200,7 @@ _bind_det_pd_noncoherent (PyObject *self, PyObject *args, PyObject *kwds)
                                     &n_noncoh, &threshold))
     return NULL;
   return PyFloat_FromDouble (
-      det_pd_noncoherent (snr, n_coh, n_noncoh, threshold));
+      dp_det_pd_noncoherent (snr, n_coh, n_noncoh, threshold));
 }
 
 static PyObject *
@@ -218,7 +218,7 @@ _bind_det_n_noncoh (PyObject *self, PyObject *args, PyObject *kwds)
                                     &pd_min, &pfa, &max_n_noncoh))
     return NULL;
   return PyLong_FromLong (
-      (long)det_n_noncoh (snr, n_coh, pd_min, pfa, max_n_noncoh));
+      (long)dp_det_n_noncoh (snr, n_coh, pd_min, pfa, max_n_noncoh));
 }
 
 static PyObject *
@@ -229,7 +229,7 @@ _bind_det_threshold_power (PyObject *self, PyObject *args, PyObject *kwds)
   double       pfa       = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &pfa))
     return NULL;
-  return PyFloat_FromDouble (det_threshold_power (pfa));
+  return PyFloat_FromDouble (dp_det_threshold_power (pfa));
 }
 
 static PyObject *
@@ -243,7 +243,8 @@ _bind_det_pd_power (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "did", _kwlist, &snr_power,
                                     &dwell, &power_threshold))
     return NULL;
-  return PyFloat_FromDouble (det_pd_power (snr_power, dwell, power_threshold));
+  return PyFloat_FromDouble (
+      dp_det_pd_power (snr_power, dwell, power_threshold));
 }
 
 static PyObject *
@@ -259,7 +260,7 @@ _bind_det_dwell_power (PyObject *self, PyObject *args, PyObject *kwds)
                                     &pd_min, &pfa, &max_dwell))
     return NULL;
   return PyLong_FromLong (
-      (long)det_dwell_power (snr_power, pd_min, pfa, max_dwell));
+      (long)dp_det_dwell_power (snr_power, pd_min, pfa, max_dwell));
 }
 
 static PyObject *
@@ -273,7 +274,7 @@ _bind_det_snr_power (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "idd", _kwlist, &dwell,
                                     &pd_min, &pfa))
     return NULL;
-  return PyFloat_FromDouble (det_snr_power (dwell, pd_min, pfa));
+  return PyFloat_FromDouble (dp_det_snr_power (dwell, pd_min, pfa));
 }
 
 static PyObject *
@@ -285,7 +286,7 @@ _bind_det_pfa_cell (PyObject *self, PyObject *args, PyObject *kwds)
   double       n_cells   = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &pfa, &n_cells))
     return NULL;
-  return PyFloat_FromDouble (det_pfa_cell (pfa, n_cells));
+  return PyFloat_FromDouble (dp_det_pfa_cell (pfa, n_cells));
 }
 
 static PyObject *
@@ -297,7 +298,7 @@ _bind_det_cn0_to_snr (PyObject *self, PyObject *args, PyObject *kwds)
   double       fs        = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &cn0_dbhz, &fs))
     return NULL;
-  return PyFloat_FromDouble (det_cn0_to_snr (cn0_dbhz, fs));
+  return PyFloat_FromDouble (dp_det_cn0_to_snr (cn0_dbhz, fs));
 }
 
 static PyObject *
@@ -309,7 +310,7 @@ _bind_det_snr_to_cn0 (PyObject *self, PyObject *args, PyObject *kwds)
   double       fs        = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &snr, &fs))
     return NULL;
-  return PyFloat_FromDouble (det_snr_to_cn0 (snr, fs));
+  return PyFloat_FromDouble (dp_det_snr_to_cn0 (snr, fs));
 }
 
 static PyObject *
@@ -329,7 +330,7 @@ _bind_det_pd_cfar (PyObject *self, PyObject *args, PyObject *kwds)
                                     &leak_cells))
     return NULL;
   return PyFloat_FromDouble (
-      det_pd_cfar (snr, dwell, threshold, k, leak, leak_cells));
+      dp_det_pd_cfar (snr, dwell, threshold, k, leak, leak_cells));
 }
 
 /* ======================================================== */
@@ -437,7 +438,7 @@ static PyMethodDef detection_module_methods[] = {
     "dwell : int\n"
     "    Coherent integration depth; must be >= 1.\n"
     "threshold : float\n"
-    "    Test-stat threshold eta, e.g. from det_threshold().\n"
+    "    Test-stat threshold eta, e.g. from dp_det_threshold().\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -456,9 +457,9 @@ static PyMethodDef detection_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Minimum dwell such that Pd >= pd_min for the given SNR and Pfa.\n"
     "\n"
-    "Iterates dwell = 1, 2, ..., max_dwell, computing det_pd() at each step.\n"
-    "Returns the first dwell that satisfies the Pd requirement, or -1 if\n"
-    "none is found within max_dwell iterations.\n"
+    "Iterates dwell = 1, 2, ..., max_dwell, computing dp_det_pd() at each\n"
+    "step. Returns the first dwell that satisfies the Pd requirement, or -1\n"
+    "if none is found within max_dwell iterations.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -554,7 +555,7 @@ static PyMethodDef detection_module_methods[] = {
     "zero-mean Gaussian statistic wants `det_q_inv(pfa) * sd_H0`.\n"
     "\n"
     "**Signed, and that matters.** Above the median the quantile is\n"
-    "negative, which is exactly why det_dwell_gauss()'s `Q_inv(pfa) -\n"
+    "negative, which is exactly why dp_det_dwell_gauss()'s `Q_inv(pfa) -\n"
     "Q_inv(pd)` is a sum of two tails rather than a difference: every\n"
     "caller's `pd` is above 0.5. Clamping it to zero there halves the dwell\n"
     "without failing anything.\n"
@@ -708,7 +709,7 @@ static PyMethodDef detection_module_methods[] = {
     "(lockdet_core.h), which is lower, so sizing on p^n over-provisions n\n"
     "rather than under. The gap is ~p -- negligible where a detector is\n"
     "really sized, 10% at p = 0.1 -- so pick n here and predict what a\n"
-    "caller will observe with det_verify_delay().\n"
+    "caller will observe with dp_det_verify_delay().\n"
     "\n"
     "One function serves both sides of a lock detector (lockdet_core.h): the\n"
     "declare count from (per-look pfa, false-declare budget) and the drop\n"
@@ -832,7 +833,7 @@ static PyMethodDef detection_module_methods[] = {
     "n_noncoh : int\n"
     "    Number of non-coherent looks; must be >= 1.\n"
     "threshold : float\n"
-    "    Threshold eta_nc, e.g. from det_threshold_noncoherent().\n"
+    "    Threshold eta_nc, e.g. from dp_det_threshold_noncoherent().\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -916,8 +917,8 @@ static PyMethodDef detection_module_methods[] = {
     "\n"
     "Pd = Q_1(sqrt(2·dwell·snr_power), sqrt(2·power_threshold))\n"
     "\n"
-    "The result equals det_pd() at the equivalent amplitude SNR: power SNR\n"
-    "`s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments\n"
+    "The result equals dp_det_pd() at the equivalent amplitude SNR: power\n"
+    "SNR `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments\n"
     "match.\n"
     "\n"
     "Parameters\n"
@@ -928,7 +929,7 @@ static PyMethodDef detection_module_methods[] = {
     "dwell : int\n"
     "    Coherent integration depth; must be >= 1.\n"
     "power_threshold : float\n"
-    "    Threshold p, e.g. from det_threshold_power().\n"
+    "    Threshold p, e.g. from dp_det_threshold_power().\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1006,7 +1007,7 @@ static PyMethodDef detection_module_methods[] = {
     "\n"
     "The search false-alarms when ANY cell does, so n cells each at pc miss\n"
     "together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa\n"
-    "gives pc = 1 - (1 - pfa)^(1/n), computed through complement_power()\n"
+    "gives pc = 1 - (1 - pfa)^(1/n), computed through dp_complement_power()\n"
     "because the direct form cancels at the small pfa every search uses.\n"
     "\n"
     "Exact for independent cells, and for Gaussian noise an upper bound on\n"
@@ -1045,7 +1046,8 @@ static PyMethodDef detection_module_methods[] = {
     "C/N0 and a sample rate.\n"
     "\n"
     "Power SNR per sample is (C/N0)/fs, and snr is its square root: the\n"
-    "convention of det_pd(), det_dwell() and every coherent function here.\n"
+    "convention of dp_det_pd(), dp_det_dwell() and every coherent function\n"
+    "here.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1070,7 +1072,7 @@ static PyMethodDef detection_module_methods[] = {
   { "det_snr_to_cn0", (PyCFunction)(void *)_bind_det_snr_to_cn0,
     METH_VARARGS | METH_KEYWORDS,
     "The C/N0, dB-Hz, of a per-sample amplitude SNR at a sample rate: the\n"
-    "inverse of det_cn0_to_snr().\n"
+    "inverse of dp_det_cn0_to_snr().\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1091,11 +1093,11 @@ static PyMethodDef detection_module_methods[] = {
     "60.0\n" },
   { "det_pd_cfar", (PyCFunction)(void *)_bind_det_pd_cfar,
     METH_VARARGS | METH_KEYWORDS,
-    "Pd of a cell-averaging CFAR test: the gate is det_pd()'s threshold\n"
-    "scaled by a noise reference MEASURED as the mean magnitude of k cells,\n"
-    "the test cell's own included.\n"
+    "Pd of a cell-averaging CFAR test: the gate is dp_det_pd()'s\n"
+    "threshold scaled by a noise reference MEASURED as the mean magnitude of\n"
+    "k cells, the test cell's own included.\n"
     "\n"
-    "det_pd() prices the noise as known. A detector that measures it pays\n"
+    "dp_det_pd() prices the noise as known. A detector that measures it pays\n"
     "twice: the reference is noisy, and it contains the signal. With T =\n"
     "threshold*sqrt(2/pi) in mean-magnitude units, the test fires when the\n"
     "peak R clears T times the mean of the k cells; moving the peak's own\n"
@@ -1106,25 +1108,25 @@ static PyMethodDef detection_module_methods[] = {
     "(sidelobes, and what a straddle slid out of the peak), spread over\n"
     "leak_cells of them: a cell holding non-centrality nu^2 has mean\n"
     "magnitude ~ sqrt(pi/2 + nu^2), exact at 0 and for a large one. The\n"
-    "expectation over S is 2-point Gauss-Hermite (gauss_hermite()), within\n"
-    "5e-5 of 6 points.\n"
+    "expectation over S is 2-point Gauss-Hermite (dp_gauss_hermite()),\n"
+    "within 5e-5 of 6 points.\n"
     "\n"
-    "k -> infinity is det_pd() at threshold exactly, and a reference too\n"
-    "small to hold the gate (k <= T + 1) is answered as det_pd().\n"
+    "k -> infinity is dp_det_pd() at threshold exactly, and a reference too\n"
+    "small to hold the gate (k <= T + 1) is answered as dp_det_pd().\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "snr : float\n"
     "    Per-sample amplitude SNR of the test cell.\n"
     "dwell : int\n"
-    "    Coherent integration length M, as in det_pd().\n"
+    "    Coherent integration length M, as in dp_det_pd().\n"
     "threshold : float\n"
-    "    The known-noise threshold eta, as det_threshold().\n"
+    "    The known-noise threshold eta, as dp_det_threshold().\n"
     "k : float\n"
     "    Reference cells, the test cell included.\n"
     "leak : float\n"
     "    Signal non-centrality energy in the other k-1 cells, in the units\n"
-    "    of det_pd()'s a^2 = 2 M snr^2; <= 0 is none.\n"
+    "    of dp_det_pd()'s a^2 = 2 M snr^2; <= 0 is none.\n"
     "leak_cells : float\n"
     "    Cells that energy is spread over, at most k-1; <= 0 spreads it over\n"
     "    all of them.\n"

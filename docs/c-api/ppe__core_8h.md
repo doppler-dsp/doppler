@@ -34,8 +34,8 @@ _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) <br>_PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._  |
 | struct | [**ppe\_result\_t**](structppe__result__t.md) <br>_Polynomial-phase estimate (one search)._  |
-| struct | [**ppe\_state\_t**](structppe__state__t.md) <br>_PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._  |
 
 
 
@@ -62,10 +62,10 @@ _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe\_create**](#function-ppe_create) (size\_t max\_len, double max\_rate) <br>_Create a polynomial-phase estimator._  |
-|  void | [**ppe\_destroy**](#function-ppe_destroy) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_Destroy an estimator._  |
-|  [**ppe\_result\_t**](structppe__result__t.md) | [**ppe\_estimate**](#function-ppe_estimate) ([**ppe\_state\_t**](structppe__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in) <br>_Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._  |
-|  void | [**ppe\_reset**](#function-ppe_reset) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_Do nothing — the estimator keeps no running state between calls._  |
+|  [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) \* | [**dp\_ppe\_create**](#function-dp_ppe_create) (size\_t max\_len, double max\_rate) <br>_Create a polynomial-phase estimator._  |
+|  void | [**dp\_ppe\_destroy**](#function-dp_ppe_destroy) ([**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) \* state) <br>_Destroy an estimator._  |
+|  [**ppe\_result\_t**](structppe__result__t.md) | [**dp\_ppe\_estimate**](#function-dp_ppe_estimate) ([**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in) <br>_Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._  |
+|  void | [**dp\_ppe\_reset**](#function-dp_ppe_reset) ([**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) \* state) <br>_Do nothing — the estimator keeps no running state between calls._  |
 
 
 
@@ -108,9 +108,9 @@ Stateless by-value analyzer (the measure-suite pattern). Composes fft\_core + th
 
 
 ```C++
-ppe_state_t *p = ppe_create(4096, 0.0);     // Doppler only (single FFT)
-ppe_result_t e = ppe_estimate(p, y, n);     // e.freq_norm, e.rate_norm
-ppe_destroy(p);
+dp_ppe_state_t *p = dp_ppe_create(4096, 0.0);     // Doppler only (single FFT)
+ppe_result_t e = dp_ppe_estimate(p, y, n);     // e.freq_norm, e.rate_norm
+dp_ppe_destroy(p);
 ```
  
 
@@ -121,11 +121,11 @@ ppe_destroy(p);
 
 
 
-### function ppe\_create 
+### function dp\_ppe\_create 
 
 _Create a polynomial-phase estimator._ 
 ```C++
-ppe_state_t * ppe_create (
+dp_ppe_state_t * dp_ppe_create (
     size_t max_len,
     double max_rate
 ) 
@@ -157,12 +157,12 @@ Heap state, or NULL on bad args / allocation failure.
 
 
 
-### function ppe\_destroy 
+### function dp\_ppe\_destroy 
 
 _Destroy an estimator._ 
 ```C++
-void ppe_destroy (
-    ppe_state_t * state
+void dp_ppe_destroy (
+    dp_ppe_state_t * state
 ) 
 ```
 
@@ -184,12 +184,12 @@ void ppe_destroy (
 
 
 
-### function ppe\_estimate 
+### function dp\_ppe\_estimate 
 
 _Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._ 
 ```C++
-ppe_result_t ppe_estimate (
-    ppe_state_t * state,
+ppe_result_t dp_ppe_estimate (
+    dp_ppe_state_t * state,
     const float _Complex * x,
     size_t n_in
 ) 
@@ -240,12 +240,12 @@ The estimate; all fields are zeroed if `n_in` is out of range.
 
 
 
-### function ppe\_reset 
+### function dp\_ppe\_reset 
 
 _Do nothing — the estimator keeps no running state between calls._ 
 ```C++
-void ppe_reset (
-    ppe_state_t * state
+void dp_ppe_reset (
+    dp_ppe_state_t * state
 ) 
 ```
 

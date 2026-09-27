@@ -33,7 +33,7 @@ _Scale-and-saturate float to Q15-in-uint64 converter._ [More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) <br>_F32ToI16U64 state._  |
+| struct | [**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) <br>_F32ToI16U64 state._  |
 
 
 
@@ -60,14 +60,14 @@ _Scale-and-saturate float to Q15-in-uint64 converter._ [More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
-|  [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* | [**f32\_to\_i16u64\_create**](#function-f32_to_i16u64_create) (float scale) <br>_Create a f32\_to\_i16u64 instance._  |
-|  void | [**f32\_to\_i16u64\_destroy**](#function-f32_to_i16u64_destroy) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u64 instance and release all memory._  |
-|  void | [**f32\_to\_i16u64\_get\_state**](#function-f32_to_i16u64_get_state) (const [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, void \* blob) <br> |
-|  void | [**f32\_to\_i16u64\_reset**](#function-f32_to_i16u64_reset) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**f32\_to\_i16u64\_set\_state**](#function-f32_to_i16u64_set_state) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**f32\_to\_i16u64\_state\_bytes**](#function-f32_to_i16u64_state_bytes) (const [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint64\_t | [**f32\_to\_i16u64\_step**](#function-f32_to_i16u64_step) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, float x) <br>_Scale one float sample to a saturated Q15 code packed in a uint64._  |
-|  void | [**f32\_to\_i16u64\_steps**](#function-f32_to_i16u64_steps) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, const float \* input, uint64\_t \* output, size\_t n) <br>_Process a block of float samples to Q15-in-uint64._  |
+|  [**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* | [**dp\_f32\_to\_i16u64\_create**](#function-dp_f32_to_i16u64_create) (float scale) <br>_Create a f32\_to\_i16u64 instance._  |
+|  void | [**dp\_f32\_to\_i16u64\_destroy**](#function-dp_f32_to_i16u64_destroy) ([**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u64 instance and release all memory._  |
+|  void | [**dp\_f32\_to\_i16u64\_get\_state**](#function-dp_f32_to_i16u64_get_state) (const [**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_i16u64\_reset**](#function-dp_f32_to_i16u64_reset) ([**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
+|  int | [**dp\_f32\_to\_i16u64\_set\_state**](#function-dp_f32_to_i16u64_set_state) ([**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_f32\_to\_i16u64\_state\_bytes**](#function-dp_f32_to_i16u64_state_bytes) (const [**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint64\_t | [**dp\_f32\_to\_i16u64\_step**](#function-dp_f32_to_i16u64_step) ([**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state, float x) <br>_Scale one float sample to a saturated Q15 code packed in a uint64._  |
+|  void | [**dp\_f32\_to\_i16u64\_steps**](#function-dp_f32_to_i16u64_steps) ([**dp\_f32\_to\_i16u64\_state\_t**](structdp__f32__to__i16u64__state__t.md) \* state, const float \* input, uint64\_t \* output, size\_t n) <br>_Process a block of float samples to Q15-in-uint64._  |
 
 
 
@@ -141,11 +141,11 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 
 
-### function f32\_to\_i16u64\_create 
+### function dp\_f32\_to\_i16u64\_create 
 
 _Create a f32\_to\_i16u64 instance._ 
 ```C++
-f32_to_i16u64_state_t * f32_to_i16u64_create (
+dp_f32_to_i16u64_state_t * dp_f32_to_i16u64_create (
     float scale
 ) 
 ```
@@ -173,7 +173,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 **Note:**
 
-Caller must call [**f32\_to\_i16u64\_destroy()**](f32__to__i16u64__core_8h.md#function-f32_to_i16u64_destroy) when done. 
+Caller must call [**dp\_f32\_to\_i16u64\_destroy()**](f32__to__i16u64__core_8h.md#function-dp_f32_to_i16u64_destroy) when done. 
 
 
 
@@ -185,12 +185,12 @@ Caller must call [**f32\_to\_i16u64\_destroy()**](f32__to__i16u64__core_8h.md#fu
 
 
 
-### function f32\_to\_i16u64\_destroy 
+### function dp\_f32\_to\_i16u64\_destroy 
 
 _Destroy a f32\_to\_i16u64 instance and release all memory._ 
 ```C++
-void f32_to_i16u64_destroy (
-    f32_to_i16u64_state_t * state
+void dp_f32_to_i16u64_destroy (
+    dp_f32_to_i16u64_state_t * state
 ) 
 ```
 
@@ -212,11 +212,11 @@ void f32_to_i16u64_destroy (
 
 
 
-### function f32\_to\_i16u64\_get\_state 
+### function dp\_f32\_to\_i16u64\_get\_state 
 
 ```C++
-void f32_to_i16u64_get_state (
-    const f32_to_i16u64_state_t * state,
+void dp_f32_to_i16u64_get_state (
+    const dp_f32_to_i16u64_state_t * state,
     void * blob
 ) 
 ```
@@ -228,12 +228,12 @@ void f32_to_i16u64_get_state (
 
 
 
-### function f32\_to\_i16u64\_reset 
+### function dp\_f32\_to\_i16u64\_reset 
 
 _Clear the sticky clip flag, starting a fresh saturation history._ 
 ```C++
-void f32_to_i16u64_reset (
-    f32_to_i16u64_state_t * state
+void dp_f32_to_i16u64_reset (
+    dp_f32_to_i16u64_state_t * state
 ) 
 ```
 
@@ -268,11 +268,11 @@ False
 
 
 
-### function f32\_to\_i16u64\_set\_state 
+### function dp\_f32\_to\_i16u64\_set\_state 
 
 ```C++
-int f32_to_i16u64_set_state (
-    f32_to_i16u64_state_t * state,
+int dp_f32_to_i16u64_set_state (
+    dp_f32_to_i16u64_state_t * state,
     const void * blob
 ) 
 ```
@@ -284,11 +284,11 @@ int f32_to_i16u64_set_state (
 
 
 
-### function f32\_to\_i16u64\_state\_bytes 
+### function dp\_f32\_to\_i16u64\_state\_bytes 
 
 ```C++
-size_t f32_to_i16u64_state_bytes (
-    const f32_to_i16u64_state_t * state
+size_t dp_f32_to_i16u64_state_bytes (
+    const dp_f32_to_i16u64_state_t * state
 ) 
 ```
 
@@ -299,12 +299,12 @@ size_t f32_to_i16u64_state_bytes (
 
 
 
-### function f32\_to\_i16u64\_step 
+### function dp\_f32\_to\_i16u64\_step 
 
 _Scale one float sample to a saturated Q15 code packed in a uint64._ 
 ```C++
-JM_FORCEINLINE  JM_HOT uint64_t f32_to_i16u64_step (
-    f32_to_i16u64_state_t * state,
+JM_FORCEINLINE  JM_HOT uint64_t dp_f32_to_i16u64_step (
+    dp_f32_to_i16u64_state_t * state,
     float x
 ) 
 ```
@@ -347,12 +347,12 @@ Q15 code in the low 16 bits of a uint64; e.g. -32768 -&gt; 0x8000.
 
 
 
-### function f32\_to\_i16u64\_steps 
+### function dp\_f32\_to\_i16u64\_steps 
 
 _Process a block of float samples to Q15-in-uint64._ 
 ```C++
-void f32_to_i16u64_steps (
-    f32_to_i16u64_state_t * state,
+void dp_f32_to_i16u64_steps (
+    dp_f32_to_i16u64_state_t * state,
     const float * input,
     uint64_t * output,
     size_t n

@@ -76,7 +76,7 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (obj != NULL);
     DP_CHECK (obj->ny == NY);
     DP_CHECK (obj->nx == NX);
@@ -86,10 +86,10 @@ main (void)
     DP_CHECK (obj->fast_path == 1);
     DP_CHECK (obj->fwd == NULL && obj->inv == NULL);
     DP_CHECK (obj->fwd1d != NULL && obj->inv1d != NULL);
-    corr2d_reset (obj);
+    dp_corr2d_reset (obj);
     DP_CHECK (obj->count == 0);
-    corr2d_destroy (obj);
-    corr2d_destroy (NULL);
+    dp_corr2d_destroy (obj);
+    dp_corr2d_destroy (NULL);
   }
 
   /* ── self-correlation of 2-D unit impulse ─────────────────────────── *
@@ -98,16 +98,16 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f + 0.0f * I;
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
     float _Complex out[16];
-    size_t n_out = corr2d_execute (obj, ref, N, out, N);
+    size_t n_out = dp_corr2d_execute (obj, ref, N, out, N);
 
     DP_CHECK (n_out == N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
     for (size_t k = 1; k < N; k++)
       DP_CHECK (dp_cnearf (out[k], 0.0f + 0.0f * I, TOL));
 
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── integrate-and-dump: dwell=2 ─────────────────────────────────── */
@@ -115,21 +115,21 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 2, 1, 0, 0, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 2, 1, 0, 0, -1);
     float _Complex out[16];
 
-    size_t n1 = corr2d_execute (obj, ref, N, out, N);
+    size_t n1 = dp_corr2d_execute (obj, ref, N, out, N);
     DP_CHECK (n1 == 0);
     DP_CHECK (obj->count == 1);
 
-    size_t n2 = corr2d_execute (obj, ref, N, out, N);
+    size_t n2 = dp_corr2d_execute (obj, ref, N, out, N);
     DP_CHECK (n2 == N); /* dump on second call */
     DP_CHECK (obj->count == 0);
 
     /* Two frames of impulse × impulse = 2.0 at lag (0,0). */
     DP_CHECK (crealf (out[0]) > 1.9f && crealf (out[0]) < 2.1f);
 
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── 2-D shift: shifted input produces shifted peak ──────────────── *
@@ -142,9 +142,9 @@ main (void)
     ref[0]                 = 1.0f;
     in[NX]                 = 1.0f; /* row 1, col 0 */
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
     float _Complex out[16];
-    corr2d_execute (obj, in, N, out, N);
+    dp_corr2d_execute (obj, in, N, out, N);
 
     /* Peak should be at row=1, col=0 → flat index = 1*NX + 0 = NX */
     size_t peak_idx = NX;
@@ -155,16 +155,16 @@ main (void)
       if (k != peak_idx)
         DP_CHECK (dp_cnearf (out[k], 0.0f + 0.0f * I, TOL));
 
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── max_out returns n_out (native = ny*nx) ──────────────────────── */
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
-    corr2d_state_t *obj    = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
-    DP_CHECK (corr2d_execute_max_out (obj) == N);
-    corr2d_destroy (obj);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    DP_CHECK (dp_corr2d_execute_max_out (obj) == N);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── decoupled inverse: interpolated output size + peak location ──── *
@@ -175,24 +175,24 @@ main (void)
     ref[0]                 = 1.0f;
     float _Complex in[16]  = { 0 };
     in[NX]                 = 1.0f; /* row 1, col 0 */
-    corr2d_state_t *obj    = corr2d_create (ref, NY, NX, 1, 1, 8, 8, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 8, 8, -1);
     DP_CHECK (obj->ny_out == 8 && obj->nx_out == 8);
     /* ny_out (8) != ny (4) -- Doppler-axis interpolation is requested, so
      * the fast path's identity doesn't apply (see corr2d.h); must fall
      * back to the general 2-D path even though ref is single-row. */
     DP_CHECK (obj->fast_path == 0);
     DP_CHECK (obj->fwd != NULL && obj->inv != NULL);
-    DP_CHECK (corr2d_execute_max_out (obj) == 64);
+    DP_CHECK (dp_corr2d_execute_max_out (obj) == 64);
 
     float _Complex out[64];
-    size_t no = corr2d_execute (obj, in, N, out, 64);
+    size_t no = dp_corr2d_execute (obj, in, N, out, 64);
     DP_CHECK (no == 64);
     size_t pk = 0;
     for (size_t k = 1; k < 64; k++)
       if (cabsf (out[k]) > cabsf (out[pk]))
         pk = k;
     DP_CHECK (pk / 8 == 2 && pk % 8 == 0);
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── dense-signal correctness vs. a brute-force reference, both paths ── */
@@ -206,26 +206,28 @@ main (void)
       dense_in[k] = _rand_cplx (&seed);
 
     /* single-row ref -> fast path */
-    corr2d_state_t *fast = corr2d_create (dense_ref, ny, nx, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *fast
+        = dp_corr2d_create (dense_ref, ny, nx, 1, 1, 0, 0, -1);
     DP_CHECK (fast != NULL && fast->fast_path == 1);
-    corr2d_execute (fast, dense_in, n, out, n);
+    dp_corr2d_execute (fast, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
-    corr2d_destroy (fast);
+    dp_corr2d_destroy (fast);
 
     /* genuinely multi-row ref -> general path; the pre-existing suite had
      * no non-impulse correctness check for this path either. */
     float _Complex dense_ref2[35];
     for (size_t k = 0; k < n; k++)
       dense_ref2[k] = _rand_cplx (&seed);
-    corr2d_state_t *slow = corr2d_create (dense_ref2, ny, nx, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *slow
+        = dp_corr2d_create (dense_ref2, ny, nx, 1, 1, 0, 0, -1);
     DP_CHECK (slow != NULL && slow->fast_path == 0);
-    corr2d_execute (slow, dense_in, n, out, n);
+    dp_corr2d_execute (slow, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref2, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
-    corr2d_destroy (slow);
+    dp_corr2d_destroy (slow);
   }
 
   /* ── fast path + nx_out interpolation (code-axis only, ny_out==ny) ────── *
@@ -237,14 +239,14 @@ main (void)
     ref[0]                 = 1.0f;
     float _Complex in[16]  = { 0 };
     in[1]                  = 1.0f; /* row 0, col 1 */
-    corr2d_state_t *obj    = corr2d_create (ref, NY, NX, 1, 1, 0, 8, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 8, -1);
     DP_CHECK (obj->fast_path
               == 1); /* ny_out==ny native; nx_out interpolated */
     DP_CHECK (obj->ny_out == NY && obj->nx_out == 8);
-    DP_CHECK (corr2d_execute_max_out (obj) == NY * 8);
+    DP_CHECK (dp_corr2d_execute_max_out (obj) == NY * 8);
 
     float _Complex out[32];
-    size_t no = corr2d_execute (obj, in, N, out, 32);
+    size_t no = dp_corr2d_execute (obj, in, N, out, 32);
     DP_CHECK (no == NY * 8);
     size_t pk = 0;
     for (size_t k = 1; k < NY * 8; k++)
@@ -252,7 +254,7 @@ main (void)
         pk = k;
     /* native peak at (row=0, col=1); interpolated col = 1 * (8/4) = 2 */
     DP_CHECK (pk / 8 == 0 && pk % 8 == 2);
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── corr2d_set_ref: fast-path accept vs. reject ──────────────────────── */
@@ -262,7 +264,7 @@ main (void)
     ref2[1]     = 1.0f; /* still single-row -- row 0, col 1 */
     bad_ref[NX] = 1.0f; /* row 1 nonzero -- no longer single-row */
 
-    corr2d_state_t *obj = corr2d_create (ref1, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref1, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (obj->fast_path == 1);
 
     /* accept: still single-row */
@@ -270,16 +272,16 @@ main (void)
     float _Complex in[16] = { 0 };
     in[1]                 = 1.0f; /* row 0, col 1 -- matches ref2's replica */
     float _Complex out[16];
-    corr2d_execute (obj, in, N, out, N);
+    dp_corr2d_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
     DP_CHECK (corr2d_set_ref (obj, bad_ref) == -1);
-    corr2d_execute (obj, in, N, out, N);
+    dp_corr2d_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
-    corr2d_destroy (obj);
+    dp_corr2d_destroy (obj);
   }
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
@@ -303,15 +305,15 @@ main (void)
     for (int which = 0; which < 2; which++)
       {
         const float _Complex *rf = which ? full_ref : row_ref;
-        corr2d_state_t       *a  = corr2d_create (rf, ny, nx, 1, 1, 0, 0, -1);
-        corr2d_state_t       *b  = corr2d_create (rf, ny, nx, 1, 1, 0, 0, -1);
+        dp_corr2d_state_t *a = dp_corr2d_create (rf, ny, nx, 1, 1, 0, 0, -1);
+        dp_corr2d_state_t *b = dp_corr2d_create (rf, ny, nx, 1, 1, 0, 0, -1);
         DP_CHECK (a != NULL && b != NULL);
         DP_CHECK (a->fast_path == (which ? 0 : 1)); /* both paths covered */
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
 
-        DP_CHECK (corr2d_execute (a, input, n, full, n) == n);
-        DP_CHECK (corr2d_execute (b, input, n, part, 6) == 6);
+        DP_CHECK (dp_corr2d_execute (a, input, n, full, n) == n);
+        DP_CHECK (dp_corr2d_execute (b, input, n, part, 6) == 6);
         for (size_t k = 0; k < 6; k++)
           DP_CHECK (dp_cnearf (part[k], full[k],
                                TOL)); /* prefix is the same surface */
@@ -321,11 +323,11 @@ main (void)
 
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
-        DP_CHECK (corr2d_execute (b, input, n, part, 0) == 0);
+        DP_CHECK (dp_corr2d_execute (b, input, n, part, 0) == 0);
         for (size_t k = 0; k < n; k++)
           DP_CHECK (dp_cnearf (part[k], 42.0f + 42.0f * I, TOL));
-        corr2d_destroy (a);
-        corr2d_destroy (b);
+        dp_corr2d_destroy (a);
+        dp_corr2d_destroy (b);
       }
   }
 
@@ -338,14 +340,14 @@ main (void)
         ref[i] = (float)(i % 4) + 0.5f * I;
         in[i]  = (float)(i % 3) - 1.0f + 0.2f * I;
       }
-    corr2d_state_t *a = corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
-    corr2d_state_t *b = corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_corr2d_state_t *a = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_corr2d_state_t *b = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)corr2d_execute (a, in, 16, out, 16);
-    DP_STATE_ROUNDTRIP_TEST (corr2d, a, b);
+    (void)dp_corr2d_execute (a, in, 16, out, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_corr2d, a, b);
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
-    corr2d_destroy (a);
-    corr2d_destroy (b);
+    dp_corr2d_destroy (a);
+    dp_corr2d_destroy (b);
   }
 
   /* serializable state, fast path: accum's CONTENT differs (per-row nx
@@ -357,20 +359,20 @@ main (void)
     ref[0]                 = 1.0f;
     for (int i = 0; i < 16; i++)
       in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
-    corr2d_state_t *a = corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
-    corr2d_state_t *b = corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_corr2d_state_t *a = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_corr2d_state_t *b = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
     DP_CHECK (a->fast_path == 1 && b->fast_path == 1);
-    (void)corr2d_execute (a, in, 16, out, 16);
-    DP_STATE_ROUNDTRIP_TEST (corr2d, a, b);
+    (void)dp_corr2d_execute (a, in, 16, out, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_corr2d, a, b);
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
-    corr2d_destroy (a);
-    corr2d_destroy (b);
+    dp_corr2d_destroy (a);
+    dp_corr2d_destroy (b);
   }
 
   /* ── reset really zeroes the ACCUMULATOR, not just the counter ────────
    *
-   * The pre-existing lifecycle check called corr2d_reset() on a freshly
+   * The pre-existing lifecycle check called dp_corr2d_reset() on a freshly
    * created object and asserted `count == 0` -- which was already true
    * before the call, so a reset() with an empty body passed it. That is
    * the vacuous-reject shape docs/dev/contributing/validation.md warns
@@ -394,14 +396,14 @@ main (void)
     for (size_t k = 0; k < n; k++)
       fresh[k] = _rand_cplx (&seed);
 
-    corr2d_state_t *a = corr2d_create (ref, ny, nx, 2, 1, 0, 0, -1);
-    corr2d_state_t *b = corr2d_create (ref, ny, nx, 2, 1, 0, 0, -1);
+    dp_corr2d_state_t *a = dp_corr2d_create (ref, ny, nx, 2, 1, 0, 0, -1);
+    dp_corr2d_state_t *b = dp_corr2d_create (ref, ny, nx, 2, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
 
     /* `a` takes one frame of a dwell-2 cycle, so its accumulator is
        non-zero and its counter is 1 -- the precondition the old test
        lacked. Assert it, or this test can go vacuous the same way. */
-    DP_CHECK (corr2d_execute (a, stale, n, out_a, n) == 0);
+    DP_CHECK (dp_corr2d_execute (a, stale, n, out_a, n) == 0);
     DP_CHECK (a->count == 1);
     int accum_nonzero = 0;
     for (size_t k = 0; k < n; k++)
@@ -409,28 +411,28 @@ main (void)
         accum_nonzero = 1;
     DP_CHECK (accum_nonzero);
 
-    corr2d_reset (a);
+    dp_corr2d_reset (a);
     DP_CHECK (a->count == 0);
 
     /* Both now drive a full dwell-2 cycle over identical input. */
-    DP_CHECK (corr2d_execute (a, fresh, n, out_a, n) == 0);
-    DP_CHECK (corr2d_execute (b, fresh, n, out_b, n) == 0);
-    size_t na = corr2d_execute (a, fresh, n, out_a, n);
-    size_t nb = corr2d_execute (b, fresh, n, out_b, n);
+    DP_CHECK (dp_corr2d_execute (a, fresh, n, out_a, n) == 0);
+    DP_CHECK (dp_corr2d_execute (b, fresh, n, out_b, n) == 0);
+    size_t na = dp_corr2d_execute (a, fresh, n, out_a, n);
+    size_t nb = dp_corr2d_execute (b, fresh, n, out_b, n);
     DP_CHECK (na == n && nb == n);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (out_a[k] == out_b[k]); /* bit-for-bit: same arithmetic */
 
-    corr2d_destroy (a);
-    corr2d_destroy (b);
+    dp_corr2d_destroy (a);
+    dp_corr2d_destroy (b);
   }
 
   /* ── nthreads is accepted and IGNORED, as the header says ─────────────
    *
    * A documented no-op is still a claim. Be precise about what this can
-   * catch, because it CANNOT be sabotaged today: corr2d_state_t has no
+   * catch, because it CANNOT be sabotaged today: dp_corr2d_state_t has no
    * nthreads member at all -- create() forwards the argument to
-   * fft_create/fft2d_create, and both of those open with
+   * dp_fft_create/dp_fft2d_create, and both of those open with
    * `(void)nthreads;`. So the parameter is discarded at the bottom of the
    * stack and there is no state to corrupt.
    *
@@ -453,20 +455,21 @@ main (void)
 
     for (int path = 0; path < 2; path++)
       {
-        const float _Complex *r  = path ? refN : ref1;
-        corr2d_state_t       *c0 = corr2d_create (r, ny, nx, 1, 1, 0, 0, -1);
+        const float _Complex *r = path ? refN : ref1;
+        dp_corr2d_state_t *c0   = dp_corr2d_create (r, ny, nx, 1, 1, 0, 0, -1);
         DP_CHECK (c0 != NULL && c0->fast_path == (path ? 0 : 1));
-        DP_CHECK (corr2d_execute (c0, in, n, base, n) == n);
-        corr2d_destroy (c0);
+        DP_CHECK (dp_corr2d_execute (c0, in, n, base, n) == n);
+        dp_corr2d_destroy (c0);
 
         for (size_t nt = 2; nt <= 8; nt *= 2)
           {
-            corr2d_state_t *c = corr2d_create (r, ny, nx, 1, nt, 0, 0, -1);
+            dp_corr2d_state_t *c
+                = dp_corr2d_create (r, ny, nx, 1, nt, 0, 0, -1);
             DP_CHECK (c != NULL);
-            DP_CHECK (corr2d_execute (c, in, n, other, n) == n);
+            DP_CHECK (dp_corr2d_execute (c, in, n, other, n) == n);
             for (size_t k = 0; k < n; k++)
               DP_CHECK (other[k] == base[k]);
-            corr2d_destroy (c);
+            dp_corr2d_destroy (c);
           }
       }
   }
@@ -480,18 +483,18 @@ main (void)
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
-    corr2d_state_t *nat    = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *nat = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (nat != NULL);
     DP_CHECK (nat->ny_out == NY && nat->nx_out == NX);
     DP_CHECK (nat->work_pad == NULL && nat->ztmp == NULL);
     DP_CHECK (nat->zcol == NULL && nat->zcolout == NULL);
-    corr2d_destroy (nat);
+    dp_corr2d_destroy (nat);
 
     /* ... and the padded path DOES allocate them, so the check above is
        not passing because the fields are always NULL. */
-    corr2d_state_t *pad = corr2d_create (ref, NY, NX, 1, 1, 8, 8, -1);
+    dp_corr2d_state_t *pad = dp_corr2d_create (ref, NY, NX, 1, 1, 8, 8, -1);
     DP_CHECK (pad != NULL && pad->work_pad != NULL);
-    corr2d_destroy (pad);
+    dp_corr2d_destroy (pad);
   }
 
   /* ── sub-bin interpolation recovers a FRACTIONAL peak ─────────────────
@@ -550,10 +553,10 @@ main (void)
                         + (float _Complex) (ai / (double)nx) * I;
               }
 
-            corr2d_state_t *fine
-                = corr2d_create (ref, 1, nx, 1, 1, 0, nx * up, -1);
+            dp_corr2d_state_t *fine
+                = dp_corr2d_create (ref, 1, nx, 1, 1, 0, nx * up, -1);
             DP_CHECK (fine != NULL);
-            size_t no = corr2d_execute (fine, in, nx, out, nx * up);
+            size_t no = dp_corr2d_execute (fine, in, nx, out, nx * up);
             DP_CHECK (no == nx * up);
 
             size_t pk = 0;
@@ -562,7 +565,7 @@ main (void)
                 pk = k;
             double got = (double)pk / (double)up;
             DP_CHECK (fabs (got - frac) < 0.02);
-            corr2d_destroy (fine);
+            dp_corr2d_destroy (fine);
           }
 
         /* The native grid genuinely cannot do this: at a half-bin offset
@@ -585,16 +588,17 @@ main (void)
               in[j] = (float _Complex) (ar / (double)nx)
                       + (float _Complex) (ai / (double)nx) * I;
             }
-          corr2d_state_t *nat = corr2d_create (ref, 1, nx, 1, 1, 0, 0, -1);
+          dp_corr2d_state_t *nat
+              = dp_corr2d_create (ref, 1, nx, 1, 1, 0, 0, -1);
           DP_CHECK (nat != NULL);
           float _Complex onat[16];
-          DP_CHECK (corr2d_execute (nat, in, nx, onat, nx) == nx);
+          DP_CHECK (dp_corr2d_execute (nat, in, nx, onat, nx) == nx);
           size_t pk = 0;
           for (size_t k = 1; k < nx; k++)
             if (cabsf (onat[k]) > cabsf (onat[pk]))
               pk = k;
           DP_CHECK (fabs ((double)pk - frac) >= 0.5 - 1e-9);
-          corr2d_destroy (nat);
+          dp_corr2d_destroy (nat);
         }
       }
   }
@@ -624,9 +628,10 @@ main (void)
     for (size_t j = 0; j < nx; j++)
       in[j] = (j == 3) ? 1.0f : (j == 4) ? 0.7f : (j == 11) ? -0.4f : 0.0f;
 
-    corr2d_state_t *fine = corr2d_create (ref, 1, nx, 1, 1, 0, nx * up, -1);
+    dp_corr2d_state_t *fine
+        = dp_corr2d_create (ref, 1, nx, 1, 1, 0, nx * up, -1);
     DP_CHECK (fine != NULL);
-    size_t no = corr2d_execute (fine, in, nx, out, nx * up);
+    size_t no = dp_corr2d_execute (fine, in, nx, out, nx * up);
     DP_CHECK (no == nx * up);
 
     float worst = 0.0f;
@@ -642,7 +647,7 @@ main (void)
       if (fabsf (crealf (out[k])) > peak)
         peak = fabsf (crealf (out[k]));
     DP_CHECK (peak > 0.5f);
-    corr2d_destroy (fine);
+    dp_corr2d_destroy (fine);
   }
 
   /* ── dwell = 0 is refused, not silently accepted ──────────────────────
@@ -654,7 +659,7 @@ main (void)
    * emitted nothing until count wrapped. A caller whose dwell came from a
    * computed value that underflowed got silence and unbounded growth.
    *
-   * Checked here rather than only in detector2d because detector2d_create
+   * Checked here rather than only in detector2d because dp_detector2d_create
    * forwards its own dwell straight into this call -- one validation at
    * the primitive covers both objects, and a copy in each would be the
    * thing that drifts.
@@ -666,13 +671,13 @@ main (void)
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
-    DP_CHECK (corr2d_create (ref, NY, NX, 0, 1, 0, 0, -1) == NULL);
+    DP_CHECK (dp_corr2d_create (ref, NY, NX, 0, 1, 0, 0, -1) == NULL);
     /* Not vacuous: the neighbouring value builds. */
-    corr2d_state_t *ok = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *ok = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (ok != NULL);
-    corr2d_destroy (ok);
+    dp_corr2d_destroy (ok);
     /* The pre-existing output-grid rule still holds. */
-    DP_CHECK (corr2d_create (ref, NY, NX, 1, 1, 0, NX - 1, -1) == NULL);
+    DP_CHECK (dp_corr2d_create (ref, NY, NX, 1, 1, 0, NX - 1, -1) == NULL);
   }
 
   /* ── a known output column equals that column of the full map ─────────
@@ -713,35 +718,35 @@ main (void)
       {
         const size_t nxo = nxo_cases[c] ? nxo_cases[c] : nx;
 
-        corr2d_state_t *full
-            = corr2d_create (ref, ny, nx, 1, 1, 0, nxo_cases[c], -1);
+        dp_corr2d_state_t *full
+            = dp_corr2d_create (ref, ny, nx, 1, 1, 0, nxo_cases[c], -1);
         DP_CHECK (full != NULL);
         float _Complex *map = malloc (ny * nxo * sizeof (*map));
         DP_CHECK (map != NULL);
-        DP_CHECK (corr2d_execute (full, in, ny * nx, map, ny * nxo)
+        DP_CHECK (dp_corr2d_execute (full, in, ny * nx, map, ny * nxo)
                   == ny * nxo);
 
         for (size_t j0 = 0; j0 < nxo; j0++)
           {
-            corr2d_state_t *one
-                = corr2d_create (ref, ny, nx, 1, 1, 0, nxo_cases[c], (int)j0);
+            dp_corr2d_state_t *one = dp_corr2d_create (ref, ny, nx, 1, 1, 0,
+                                                       nxo_cases[c], (int)j0);
             DP_CHECK (one != NULL);
             /* One value per ROW, not a map. */
             DP_CHECK (one->n_out == ny);
-            DP_CHECK (corr2d_execute_max_out (one) == ny);
+            DP_CHECK (dp_corr2d_execute_max_out (one) == ny);
 
             float _Complex col[ny];
-            DP_CHECK (corr2d_execute (one, in, ny * nx, col, ny) == ny);
+            DP_CHECK (dp_corr2d_execute (one, in, ny * nx, col, ny) == ny);
             for (size_t i = 0; i < ny; i++)
               {
                 const float _Complex want = map[i * nxo + j0];
                 DP_CHECK (cabsf (col[i] - want)
                           <= 1e-4f * (cabsf (want) + 1.0f));
               }
-            corr2d_destroy (one);
+            dp_corr2d_destroy (one);
           }
         free (map);
-        corr2d_destroy (full);
+        dp_corr2d_destroy (full);
       }
   }
 
@@ -767,23 +772,23 @@ main (void)
     for (size_t k = 0; k < ny * nx; k++)
       in[k] = (float)(k + 1);
 
-    corr2d_state_t *c = corr2d_create (r0, ny, nx, 1, 1, 0, 0, 0);
+    dp_corr2d_state_t *c = dp_corr2d_create (r0, ny, nx, 1, 1, 0, 0, 0);
     DP_CHECK (c != NULL);
     float _Complex a[ny], b[ny];
-    DP_CHECK (corr2d_execute (c, in, ny * nx, a, ny) == ny);
+    DP_CHECK (dp_corr2d_execute (c, in, ny * nx, a, ny) == ny);
     DP_CHECK (corr2d_set_ref (c, r1) == 0);
-    DP_CHECK (corr2d_execute (c, in, ny * nx, b, ny) == ny);
+    DP_CHECK (dp_corr2d_execute (c, in, ny * nx, b, ny) == ny);
     /* A stale replica would return the same answer for both codes. */
     DP_CHECK (cabsf (a[0] - b[0]) > 1e-3f);
     /* ... and the new answer is the one r1 actually selects. */
-    corr2d_state_t *fresh = corr2d_create (r1, ny, nx, 1, 1, 0, 0, 0);
+    dp_corr2d_state_t *fresh = dp_corr2d_create (r1, ny, nx, 1, 1, 0, 0, 0);
     DP_CHECK (fresh != NULL);
     float _Complex f[ny];
-    DP_CHECK (corr2d_execute (fresh, in, ny * nx, f, ny) == ny);
+    DP_CHECK (dp_corr2d_execute (fresh, in, ny * nx, f, ny) == ny);
     for (size_t i = 0; i < ny; i++)
       DP_CHECK (cabsf (b[i] - f[i]) <= 1e-5f);
-    corr2d_destroy (fresh);
-    corr2d_destroy (c);
+    dp_corr2d_destroy (fresh);
+    dp_corr2d_destroy (c);
   }
 
   /* ── col_out is refused where it has no meaning ───────────────────────
@@ -794,22 +799,22 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
     /* Past the output grid. */
-    DP_CHECK (corr2d_create (ref, NY, NX, 1, 1, 0, 0, NX) == NULL);
+    DP_CHECK (dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, NX) == NULL);
     /* A decoupled grid: an interpolated column is a fractional lag. */
-    DP_CHECK (corr2d_create (ref, NY, NX, 1, 1, 0, 2 * NX, 0) == NULL);
+    DP_CHECK (dp_corr2d_create (ref, NY, NX, 1, 1, 0, 2 * NX, 0) == NULL);
     /* Not the single-row shape the fast path needs: energy outside row 0. */
     float _Complex dense[16];
     for (size_t k = 0; k < 16; k++)
       dense[k] = 1.0f;
-    DP_CHECK (corr2d_create (dense, NY, NX, 1, 1, 0, 0, 0) == NULL);
+    DP_CHECK (dp_corr2d_create (dense, NY, NX, 1, 1, 0, 0, 0) == NULL);
     /* Not vacuous: the same shapes build with col_out disabled, and the
        single-row reference builds WITH it. */
-    corr2d_state_t *a = corr2d_create (dense, NY, NX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *a = dp_corr2d_create (dense, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (a != NULL);
-    corr2d_destroy (a);
-    corr2d_state_t *b = corr2d_create (ref, NY, NX, 1, 1, 0, 0, 0);
+    dp_corr2d_destroy (a);
+    dp_corr2d_state_t *b = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, 0);
     DP_CHECK (b != NULL);
-    corr2d_destroy (b);
+    dp_corr2d_destroy (b);
   }
 
   DP_TEST_END ("test_corr2d_core");

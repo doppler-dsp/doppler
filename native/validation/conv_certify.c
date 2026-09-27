@@ -77,43 +77,43 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
   float complex *nz   = malloc (nsym * sizeof *nz);
   float         *llr  = malloc (nsym * sizeof *llr);
   uint8_t       *chip = malloc (nbits);
-  pn_state_t    *pn   = pn_create (wfm_synth_mls_poly (15), 1u, 15, 0);
+  dp_pn_state_t *pn   = dp_pn_create (wfm_synth_mls_poly (15), 1u, 15, 0);
 
   double errs = -1.0;
   if (!in || !sym || !dec || !mod || !nz || !llr || !chip || !pn)
     goto done;
 
-  pn_generate (pn, nbits, chip, nbits);
+  dp_pn_generate (pn, nbits, chip, nbits);
   for (size_t i = 0; i < nbits; i++)
     in[i] = (uint8_t)(chip[i] & 1u);
 
   conv_enc_t e;
   conv_enc_init (&e);
   conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
-  mpsk_map (sym, nsym, mod, 2);
+  dp_mpsk_map (sym, nsym, mod, 2);
 
-  const float   sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
-  const float   n0    = 2.0f * sigma * sigma;
-  awgn_state_t *ch    = awgn_create (seed, sigma);
+  const float      sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
+  const float      n0    = 2.0f * sigma * sigma;
+  dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   if (!ch)
     goto done;
-  awgn_generate (ch, nsym, nz, nsym);
-  awgn_destroy (ch);
+  dp_awgn_generate (ch, nsym, nz, nsym);
+  dp_awgn_destroy (ch);
   for (size_t i = 0; i < nsym; i++)
     mod[i] += nz[i];
 
-  mpsk_soft_demap (mod, nsym, llr, nsym, 2, n0);
+  dp_mpsk_soft_demap (mod, nsym, llr, nsym, 2, n0);
   if (hard)
     {
       for (size_t i = 0; i < nsym; i++)
         llr[i] = llr[i] < 0.0f ? -1.0f : 1.0f;
     }
 
-  viterbi_state_t *v = viterbi_create_code (&CCSDS, depth);
+  dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, depth);
   if (!v)
     goto done;
-  const size_t got = viterbi_decode (v, llr, nsym, dec, nbits);
-  viterbi_destroy (v);
+  const size_t got = dp_viterbi_decode (v, llr, nsym, dec, nbits);
+  dp_viterbi_destroy (v);
 
   size_t bad = 0;
   for (size_t i = 0; i < got; i++)
@@ -126,7 +126,7 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
   errs = got ? (double)bad / (double)got : -1.0;
 
 done:
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
   free (in);
   free (sym);
   free (dec);
@@ -153,33 +153,33 @@ node_point (double esn0_db, size_t win, uint64_t seed, double *in_sync,
   float complex *nz   = malloc (nsym * sizeof *nz);
   float         *llr  = malloc (nsym * sizeof *llr);
   uint8_t       *chip = malloc (nbits);
-  pn_state_t    *pn   = pn_create (wfm_synth_mls_poly (15), 3u, 15, 0);
+  dp_pn_state_t *pn   = dp_pn_create (wfm_synth_mls_poly (15), 3u, 15, 0);
 
   *in_sync = *wrong = *margin = -1.0;
   if (!in || !sym || !mod || !nz || !llr || !chip || !pn)
     goto done;
 
-  pn_generate (pn, nbits, chip, nbits);
+  dp_pn_generate (pn, nbits, chip, nbits);
   for (size_t i = 0; i < nbits; i++)
     in[i] = (uint8_t)(chip[i] & 1u);
 
   conv_enc_t e;
   conv_enc_init (&e);
   conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
-  mpsk_map (sym, nsym, mod, 2);
+  dp_mpsk_map (sym, nsym, mod, 2);
 
-  const float   sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
-  const float   n0    = 2.0f * sigma * sigma;
-  awgn_state_t *ch    = awgn_create (seed, sigma);
+  const float      sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
+  const float      n0    = 2.0f * sigma * sigma;
+  dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   if (!ch)
     goto done;
-  awgn_generate (ch, nsym, nz, nsym);
-  awgn_destroy (ch);
+  dp_awgn_generate (ch, nsym, nz, nsym);
+  dp_awgn_destroy (ch);
   for (size_t i = 0; i < nsym; i++)
     mod[i] += nz[i];
-  mpsk_soft_demap (mod, nsym, llr, nsym, 2, n0);
+  dp_mpsk_soft_demap (mod, nsym, llr, nsym, 2, n0);
 
-  viterbi_state_t *v = viterbi_create_code (&CCSDS, DEPTH);
+  dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, DEPTH);
   if (!v)
     goto done;
   node_sync_t ns;
@@ -189,10 +189,10 @@ node_point (double esn0_db, size_t win, uint64_t seed, double *in_sync,
       *wrong   = (double)ns.next / (double)ns.symbols;
       *margin  = (double)(ns.next - ns.errors) / (double)ns.symbols;
     }
-  viterbi_destroy (v);
+  dp_viterbi_destroy (v);
 
 done:
-  pn_destroy (pn);
+  dp_pn_destroy (pn);
   free (in);
   free (sym);
   free (mod);

@@ -207,7 +207,7 @@ def section_object() -> None:
             ],
             [
                 "`dwell` must be >= 1",
-                "C, refusal inherited from `corr2d_create`",
+                "C, refusal inherited from `dp_corr2d_create`",
                 "§2.7",
             ],
             [
@@ -675,7 +675,7 @@ def review(d: Data) -> None:
         "allocation failure, and jm's generated NULL check raises "
         '`MemoryError` — explicitly called "correct for the pointer '
         'convention". The refusal itself is new: it was added to '
-        "`corr2d_create` during that object's certification, and this one "
+        "`dp_corr2d_create` during that object's certification, and this one "
         "inherits it by forwarding rather than by carrying a second copy "
         "of the rule.",
     )

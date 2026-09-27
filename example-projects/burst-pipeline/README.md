@@ -47,7 +47,7 @@ you reading the output.
     the marker is **rebuilt from the frame's own declaration**
     (`wfm_seq_bits` over the same generated field the transmitter used, not a
     second copy that can drift), and the tolerance is **derived** by
-    `syncword_max_errors_for` from how much stream is searched rather than
+    `dp_syncword_max_errors_for` from how much stream is searched rather than
     guessed. Each frame the search lands on is checked with
     `wfm_frame_desc_crc_ok`, which needs no payload truth, so the result is a
     frame error rate a receiver could compute on a capture it did not
@@ -71,18 +71,18 @@ one is where a missing transitive dependency shows up.
 Use the library's measurement rather than writing your own — one fewer local
 convention to drift from the one doppler ships.
 
-| you want                                   | call                                                                  |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| SNR of a burst, knowing what was sent      | `snr_data_aided_db`                                                   |
-| SNR of a burst, knowing nothing about it   | `snr_m2m4_db`                                                         |
-| to tell a silent gap from a noisy one      | `snr_m2m4_db` — NaN on a block with zero power                        |
-| to find a marker in a bit stream           | `syncword_find` — offset, polarity and Hamming distance in one answer |
-| to choose how many bit errors to tolerate  | `syncword_max_errors_for`, `syncword_pfa`                             |
-| to know whether a received frame is intact | `wfm_frame_desc_crc_ok` — no payload truth needed                     |
+| you want                                   | call                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------ |
+| SNR of a burst, knowing what was sent      | `snr_data_aided_db`                                                      |
+| SNR of a burst, knowing nothing about it   | `snr_m2m4_db`                                                            |
+| to tell a silent gap from a noisy one      | `snr_m2m4_db` — NaN on a block with zero power                           |
+| to find a marker in a bit stream           | `dp_syncword_find` — offset, polarity and Hamming distance in one answer |
+| to choose how many bit errors to tolerate  | `dp_syncword_max_errors_for`, `dp_syncword_pfa`                          |
+| to know whether a received frame is intact | `wfm_frame_desc_crc_ok` — no payload truth needed                        |
 
 ### Pick the marker length for the window you search, not by eye
 
-`syncword_max_errors_for` answers "how many bit errors may I accept?" and it
+`dp_syncword_max_errors_for` answers "how many bit errors may I accept?" and it
 needs to know **how much stream you are searching**, because the search
 returns the *first* acceptable offset — every offset ahead of the real one is
 its own chance to hit first. Over this scene's 1361-bit window a 31-bit marker
@@ -97,7 +97,7 @@ sent.
 
 ### The search works in bits, so give it bits
 
-`syncword_find` answers in the symbol domain: which **bit** the marker starts
+`dp_syncword_find` answers in the symbol domain: which **bit** the marker starts
 on, in which polarity, at what Hamming distance. It cannot resolve timing finer
 than a symbol and is not meant to — recovering a fractional-sample offset is a
 timing loop's job (`symsync`, `ratesync`).
@@ -123,7 +123,7 @@ read:
     calls `log10()` and `fabs()`; without `m` on the link line the static target
     fails at link time. doppler's own libm use comes with the imported target —
     yours does not.
-- **`wfm_writer_destroy` *is* `wfm_writer_close`.** The header says C callers
+- **`dp_wfm_writer_destroy` *is* `wfm_writer_close`.** The header says C callers
     may use either name. Calling both, as a create/destroy pair invites, closes
     the `FILE` twice and segfaults inside `ferror()`. Call one, and check its
     status.

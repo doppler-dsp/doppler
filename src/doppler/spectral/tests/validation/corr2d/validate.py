@@ -677,7 +677,7 @@ def review(d: Data) -> None:
     R.find(
         "F1",
         "FIXED",
-        "`corr2d_reset` was pinned **vacuously**, which is the shape "
+        "`dp_corr2d_reset` was pinned **vacuously**, which is the shape "
         "`docs/dev/contributing/validation.md` warns about by name. The C "
         "test called it on a freshly created object and asserted "
         "`count == 0` — already true before the call — so a `reset()` with "
@@ -717,9 +717,10 @@ def review(d: Data) -> None:
         "F4",
         "BY DESIGN",
         '`nthreads` is documented *"accepted for API compatibility; '
-        'ignored"* and cannot be sabotaged: `corr2d_state_t` has no such '
+        'ignored"* and cannot be sabotaged: `dp_corr2d_state_t` has no such '
         "member, `create()` forwards the argument to "
-        "`fft_create`/`fft2d_create`, and both open with `(void)nthreads;`. "
+        "`dp_fft_create`/`dp_fft2d_create`, and both open with "
+        "`(void)nthreads;`. "
         "So nothing stores it and there is no state to corrupt. The C test "
         "checks bit-identical output across four values anyway, described "
         "there as a forward guard rather than a proof — it fires the day "
@@ -730,7 +731,7 @@ def review(d: Data) -> None:
     R.find(
         "F6",
         "FIXED",
-        '`corr2d_create` documented `dwell` as *"must be >= 1"* and '
+        '`dp_corr2d_create` documented `dwell` as *"must be >= 1"* and '
         "enforced only the output-grid rule, so `dwell = 0` built an "
         "object that was not merely degenerate but **silent**: the dump "
         "test is `++count == dwell`, which zero never satisfies, so it "
@@ -739,7 +740,7 @@ def review(d: Data) -> None:
         "computed value that underflowed got silence and unbounded growth "
         "rather than a refusal. Found by §2.9's refusal check, which "
         "failed on the first run. Fixed at the primitive rather than in "
-        "each caller: `detector2d_create` forwards its own `dwell` "
+        "each caller: `dp_detector2d_create` forwards its own `dwell` "
         "straight into this call, so both objects now refuse it and a "
         "second copy of the rule cannot drift. NULL is the whole error "
         "report by design — `docs/dev/contributing/error-convention.md` "

@@ -2,7 +2,7 @@
 #
 # doppler#1031. The transform is `dp_interleave.h`, header-only and stateless;
 # this owns the configured GEOMETRY built over one. The same split
-# conv/conv_enc established: `interleaver_interleave` calls
+# conv/conv_enc established: `dp_interleaver_interleave` calls
 # `dp_interleave_u8`, it is not a second implementation.
 #
 # Opaque heap state so no_state/no_step -- but nothing in it is RUNNING state,

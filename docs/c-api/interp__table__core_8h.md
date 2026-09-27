@@ -31,7 +31,7 @@ _Periodically-extended interpolated lookup table._ [More...](#detailed-descripti
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**interp\_table\_state\_t**](structinterp__table__state__t.md) <br>_InterpolatedTable state._  |
+| struct | [**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) <br>_InterpolatedTable state._  |
 
 
 
@@ -58,11 +58,11 @@ _Periodically-extended interpolated lookup table._ [More...](#detailed-descripti
 
 | Type | Name |
 | ---: | :--- |
-|  [**interp\_table\_state\_t**](structinterp__table__state__t.md) \* | [**interp\_table\_create**](#function-interp_table_create) (const double \_Complex \* table, size\_t table\_len, int method) <br>_Create an InterpolatedTable instance._  |
-|  void | [**interp\_table\_destroy**](#function-interp_table_destroy) ([**interp\_table\_state\_t**](structinterp__table__state__t.md) \* state) <br>_Destroy an interp\_table instance and release all memory._  |
-|  size\_t | [**interp\_table\_execute**](#function-interp_table_execute) ([**interp\_table\_state\_t**](structinterp__table__state__t.md) \* state, const double \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Evaluate the table at each of_ `n_in` _points via periodic interpolation._ |
-|  size\_t | [**interp\_table\_execute\_max\_out**](#function-interp_table_execute_max_out) ([**interp\_table\_state\_t**](structinterp__table__state__t.md) \* state) <br>_No fixed cap_  _execute()'s output is always sized to exactly match its own input length, so an_`out=` _buffer only ever needs to be at least that many elements (never a larger, unrelated minimum)._ |
-|  void | [**interp\_table\_reset**](#function-interp_table_reset) ([**interp\_table\_state\_t**](structinterp__table__state__t.md) \* state) <br>_No-op: InterpolatedTable is purely a function of (table, method, point) with no running state to reset._  |
+|  [**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) \* | [**dp\_interp\_table\_create**](#function-dp_interp_table_create) (const double \_Complex \* table, size\_t table\_len, int method) <br>_Create an InterpolatedTable instance._  |
+|  void | [**dp\_interp\_table\_destroy**](#function-dp_interp_table_destroy) ([**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) \* state) <br>_Destroy an interp\_table instance and release all memory._  |
+|  size\_t | [**dp\_interp\_table\_execute**](#function-dp_interp_table_execute) ([**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) \* state, const double \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Evaluate the table at each of_ `n_in` _points via periodic interpolation._ |
+|  size\_t | [**dp\_interp\_table\_execute\_max\_out**](#function-dp_interp_table_execute_max_out) ([**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) \* state) <br>_No fixed cap_  _execute()'s output is always sized to exactly match its own input length, so an_`out=` _buffer only ever needs to be at least that many elements (never a larger, unrelated minimum)._ |
+|  void | [**dp\_interp\_table\_reset**](#function-dp_interp_table_reset) ([**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) \* state) <br>_No-op: InterpolatedTable is purely a function of (table, method, point) with no running state to reset._  |
 
 
 
@@ -118,11 +118,11 @@ array([1.1+0.j])
 
 
 
-### function interp\_table\_create 
+### function dp\_interp\_table\_create 
 
 _Create an InterpolatedTable instance._ 
 ```C++
-interp_table_state_t * interp_table_create (
+dp_interp_table_state_t * dp_interp_table_create (
     const double _Complex * table,
     size_t table_len,
     int method
@@ -154,7 +154,7 @@ Heap-allocated state, or NULL on allocation failure or table\_len == 0.
 
 **Note:**
 
-Caller must call [**interp\_table\_destroy()**](interp__table__core_8h.md#function-interp_table_destroy) when done. 
+Caller must call [**dp\_interp\_table\_destroy()**](interp__table__core_8h.md#function-dp_interp_table_destroy) when done. 
 ```C++
 >>> from doppler.interp import InterpolatedTable
 >>> import numpy as np
@@ -176,12 +176,12 @@ Caller must call [**interp\_table\_destroy()**](interp__table__core_8h.md#functi
 
 
 
-### function interp\_table\_destroy 
+### function dp\_interp\_table\_destroy 
 
 _Destroy an interp\_table instance and release all memory._ 
 ```C++
-void interp_table_destroy (
-    interp_table_state_t * state
+void dp_interp_table_destroy (
+    dp_interp_table_state_t * state
 ) 
 ```
 
@@ -203,12 +203,12 @@ void interp_table_destroy (
 
 
 
-### function interp\_table\_execute 
+### function dp\_interp\_table\_execute 
 
 _Evaluate the table at each of_ `n_in` _points via periodic interpolation._
 ```C++
-size_t interp_table_execute (
-    interp_table_state_t * state,
+size_t dp_interp_table_execute (
+    dp_interp_table_state_t * state,
     const double * in,
     size_t n_in,
     double _Complex * out,
@@ -262,12 +262,12 @@ array([0.5+0.j, 1.1+0.j])
 
 
 
-### function interp\_table\_execute\_max\_out 
+### function dp\_interp\_table\_execute\_max\_out 
 
 _No fixed cap_  _execute()'s output is always sized to exactly match its own input length, so an_`out=` _buffer only ever needs to be at least that many elements (never a larger, unrelated minimum)._
 ```C++
-size_t interp_table_execute_max_out (
-    interp_table_state_t * state
+size_t dp_interp_table_execute_max_out (
+    dp_interp_table_state_t * state
 ) 
 ```
 
@@ -278,12 +278,12 @@ size_t interp_table_execute_max_out (
 
 
 
-### function interp\_table\_reset 
+### function dp\_interp\_table\_reset 
 
 _No-op: InterpolatedTable is purely a function of (table, method, point) with no running state to reset._ 
 ```C++
-void interp_table_reset (
-    interp_table_state_t * state
+void dp_interp_table_reset (
+    dp_interp_table_state_t * state
 ) 
 ```
 

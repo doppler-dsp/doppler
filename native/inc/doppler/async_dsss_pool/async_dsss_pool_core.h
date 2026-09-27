@@ -82,8 +82,8 @@
  *
  * @endcode
  */
-#ifndef ASYNC_DSSS_POOL_CORE_H
-#define ASYNC_DSSS_POOL_CORE_H
+#ifndef DP_ASYNC_DSSS_POOL_CORE_H
+#define DP_ASYNC_DSSS_POOL_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -183,7 +183,7 @@ extern "C"
   /**
    * @brief AsyncDsssPool state.
    *
-   * Allocate with async_dsss_pool_create().
+   * Allocate with dp_async_dsss_pool_create().
    */
   typedef struct
   {
@@ -208,8 +208,8 @@ extern "C"
     size_t   max_peaks;
     int      threads;
     /* The children. */
-    acq_state_t                  *acq;
-    async_dsss_receiver_state_t **rx;   /**< n_slots, created idle.        */
+    dp_acq_state_t                  *acq;
+    dp_async_dsss_receiver_state_t **rx;   /**< n_slots, created idle.        */
     dp_pool_t                    *pool; /**< the receivers' threads          */
     dp_event_log_t               *log;  /**< borrowed; NULL = none attached */
 
@@ -223,7 +223,7 @@ extern "C"
     /* The feed's scratch: the block every receiver sees, for the fan. */
     const float _Complex *feed_x;
     size_t                feed_n;
-  } async_dsss_pool_state_t;
+  } dp_async_dsss_pool_state_t;
 
 /**
  * @brief Create a async_dsss_pool instance: the population on cell
@@ -293,7 +293,7 @@ extern "C"
  * @return Heap-allocated state, or NULL on an invalid argument, a searcher
  *         whose depth or row a cell receiver cannot take, or allocation
  *         failure.
- * @note Caller must call async_dsss_pool_destroy() when done.
+ * @note Caller must call dp_async_dsss_pool_destroy() when done.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import AsyncDsssPool
@@ -310,13 +310,13 @@ extern "C"
  *
  * @endcode
  */
-async_dsss_pool_state_t *async_dsss_pool_create(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double gain, size_t pullin_intervals);
+dp_async_dsss_pool_state_t *dp_async_dsss_pool_create(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double gain, size_t pullin_intervals);
 
 /**
  * @brief Destroy a async_dsss_pool instance and release all memory.
  * @param state  May be NULL.
  */
-void async_dsss_pool_destroy(async_dsss_pool_state_t *state);
+void dp_async_dsss_pool_destroy(dp_async_dsss_pool_state_t *state);
 
 /**
  * @brief Release every slot and start over: the searcher reset, every
@@ -342,7 +342,7 @@ void async_dsss_pool_destroy(async_dsss_pool_state_t *state);
  *
  * @endcode
  */
-void async_dsss_pool_reset(async_dsss_pool_state_t *state);
+void dp_async_dsss_pool_reset(dp_async_dsss_pool_state_t *state);
 
 /**
  * @brief One block of raw cf32 samples through the population.
@@ -376,7 +376,7 @@ void async_dsss_pool_reset(async_dsss_pool_state_t *state);
  *
  * @endcode
  */
-size_t async_dsss_pool_push(async_dsss_pool_state_t *state, const float _Complex *x, size_t x_len);
+size_t dp_async_dsss_pool_push(dp_async_dsss_pool_state_t *state, const float _Complex *x, size_t x_len);
 
 /**
  * @brief One slot's picture, by value (async_dsss_pool_slot_t).
@@ -402,11 +402,11 @@ size_t async_dsss_pool_push(async_dsss_pool_state_t *state, const float _Complex
  *
  * @endcode
  */
-async_dsss_pool_slot_t async_dsss_pool_status(async_dsss_pool_state_t *state, size_t slot);
+async_dsss_pool_slot_t dp_async_dsss_pool_status(dp_async_dsss_pool_state_t *state, size_t slot);
 
 /** @brief The per-slot symbol capacity `symbols()` can return -- grown
  *  with the largest block pushed so far (0 before the first push). */
-size_t async_dsss_pool_symbols_max_out(async_dsss_pool_state_t *state);
+size_t dp_async_dsss_pool_symbols_max_out(dp_async_dsss_pool_state_t *state);
 
 /**
  * @brief The symbols slot @p slot's receiver decided on the last push().
@@ -433,7 +433,7 @@ size_t async_dsss_pool_symbols_max_out(async_dsss_pool_state_t *state);
  *
  * @endcode
  */
-size_t async_dsss_pool_symbols(async_dsss_pool_state_t *state, size_t slot, float _Complex *out, size_t max_out);
+size_t dp_async_dsss_pool_symbols(dp_async_dsss_pool_state_t *state, size_t slot, float _Complex *out, size_t max_out);
 
 /**
  * @brief Attach the run's event log (design section 8.1); NULL detaches.
@@ -465,7 +465,7 @@ size_t async_dsss_pool_symbols(async_dsss_pool_state_t *state, size_t slot, floa
  *
  * @endcode
  */
-int async_dsss_pool_set_event_log(async_dsss_pool_state_t *state, dp_event_log_t * log);
+int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event_log_t * log);
 
   /* ── Serializable state (docs/design/state-serialization.md) ──────────
    * A composition: the pool's own counters and the table, then the
@@ -474,10 +474,10 @@ int async_dsss_pool_set_event_log(async_dsss_pool_state_t *state, dp_event_log_t
    * restored by create(), not the blob; a blob from a pool of another
    * slot count is rejected. The symbol buffer is scratch -- the last
    * push's symbols do not survive a hand-off. */
-  size_t async_dsss_pool_state_bytes (const async_dsss_pool_state_t *state);
-  void   async_dsss_pool_get_state (const async_dsss_pool_state_t *state,
+  size_t dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *state);
+  void   dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *state,
                                     void                          *blob);
-  int    async_dsss_pool_set_state (async_dsss_pool_state_t *state,
+  int    dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *state,
                                     const void              *blob);
 
 #ifdef __cplusplus

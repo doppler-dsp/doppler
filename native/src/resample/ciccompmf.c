@@ -50,7 +50,7 @@ ciccomp_solve (double *A, double *b, int n)
 }
 
 void
-ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
+dp_ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
 {
   double *h = out;
   double  A[9 * 9], b[9], a[9];

@@ -4,7 +4,7 @@
 #include "doppler/arith/arith_core.h"
 
 int32_t
-dot_q8 (const int8_t *a, size_t a_len, const int8_t *b, size_t b_len)
+dp_dot_q8 (const int8_t *a, size_t a_len, const int8_t *b, size_t b_len)
 {
   size_t  n   = a_len < b_len ? a_len : b_len;
   int32_t acc = 0;

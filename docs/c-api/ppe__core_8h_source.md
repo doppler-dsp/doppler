@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef PPE_CORE_H
-#define PPE_CORE_H
+#ifndef DP_PPE_CORE_H
+#define DP_PPE_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -36,22 +36,22 @@ extern "C"
     double max_rate; 
     size_t n_rate;   
     double drate;    
-    fft_state_t   *fft;    
+    dp_fft_state_t   *fft;    
     float _Complex *buf;    
     float _Complex *spec;   
     float         *mag;    
     float         *win;    
     double        *rowpk;  
     double        *rowfrq; 
-  } ppe_state_t;
+  } dp_ppe_state_t;
 
-  ppe_state_t *ppe_create (size_t max_len, double max_rate);
+  dp_ppe_state_t *dp_ppe_create (size_t max_len, double max_rate);
 
-  void ppe_destroy (ppe_state_t *state);
+  void dp_ppe_destroy (dp_ppe_state_t *state);
 
-  void ppe_reset (ppe_state_t *state);
+  void dp_ppe_reset (dp_ppe_state_t *state);
 
-  ppe_result_t ppe_estimate (ppe_state_t *state, const float _Complex *x,
+  ppe_result_t dp_ppe_estimate (dp_ppe_state_t *state, const float _Complex *x,
                              size_t n_in);
 
 #ifdef __cplusplus

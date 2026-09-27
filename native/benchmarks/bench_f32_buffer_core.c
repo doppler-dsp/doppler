@@ -18,8 +18,8 @@
 int
 main (void)
 {
-  f32_buffer_state_t *ab     = dp_f32_create (16 * FRAME);
-  jm_bench_t          _bench = { 0 };
+  dp_f32_buffer_state_t *ab     = dp_f32_create (16 * FRAME);
+  jm_bench_t             _bench = { 0 };
   static float _Complex x[FRAME];
   static double times[ITERATIONS];
   size_t        sink = 0;

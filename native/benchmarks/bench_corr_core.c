@@ -1,6 +1,6 @@
 /* bench_corr_core.c -- what a dwell buys, and what the dump costs.
  *
- * `corr_execute` has two prices behind one signature. Every call runs a
+ * `dp_corr_execute` has two prices behind one signature. Every call runs a
  * forward FFT of the frame, multiplies pointwise by the stored reference
  * spectrum and adds that into a coherent accumulator. Only the
  * `dwell`-th call also runs the INVERSE transform and normalises, and
@@ -59,13 +59,13 @@ static const char *kind_name[N_KIND]
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  uint64_t        t0, t1;
-  static double   t[N_CFG][ITERATIONS];
-  corr_state_t   *corr[N_LEN] = { 0 };
-  const size_t    n_max       = frame_n[N_LEN - 1];
-  float _Complex *ref = NULL, *in = NULL, *out = NULL;
-  char            name[64];
+  jm_bench_t       _bench = { 0 };
+  uint64_t         t0, t1;
+  static double    t[N_CFG][ITERATIONS];
+  dp_corr_state_t *corr[N_LEN] = { 0 };
+  const size_t     n_max       = frame_n[N_LEN - 1];
+  float _Complex  *ref = NULL, *in = NULL, *out = NULL;
+  char             name[64];
 
   ref = malloc (n_max * sizeof *ref);
   in  = malloc (n_max * sizeof *in);
@@ -84,7 +84,7 @@ main (void)
 
   for (int l = 0; l < N_LEN; l++)
     {
-      corr[l] = corr_create (ref, frame_n[l], DWELL, 1, frame_n[l]);
+      corr[l] = dp_corr_create (ref, frame_n[l], DWELL, 1, frame_n[l]);
       if (!corr[l])
         return 1;
     }
@@ -93,7 +93,7 @@ main (void)
   printf ("%d rounds, min over rounds\n\n", ITERATIONS);
 
   DP_BENCH_SETTLE (
-      (void)corr_execute (corr[0], in, frame_n[0], out, frame_n[0]));
+      (void)dp_corr_execute (corr[0], in, frame_n[0], out, frame_n[0]));
 
   /* Rounds outside, (length, call kind) inside. The dump/accumulate ratio
      is the file's whole output, so both halves of it must see the same
@@ -106,17 +106,17 @@ main (void)
       {
         const size_t n = frame_n[l];
 
-        corr_reset (corr[l]);
+        dp_corr_reset (corr[l]);
         for (size_t f = 0; f + 2 < DWELL; f++)
-          (void)corr_execute (corr[l], in, n, out, n);
+          (void)dp_corr_execute (corr[l], in, n, out, n);
 
         t0 = jm_bench_now_ns ();
-        (void)corr_execute (corr[l], in, n, out, n);
+        (void)dp_corr_execute (corr[l], in, n, out, n);
         t1                         = jm_bench_now_ns ();
         t[l * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
 
         t0 = jm_bench_now_ns ();
-        (void)corr_execute (corr[l], in, n, out, n);
+        (void)dp_corr_execute (corr[l], in, n, out, n);
         t1                          = jm_bench_now_ns ();
         t[l * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -151,7 +151,7 @@ main (void)
           "  dwell, because it cannot defer the inverse at all.\n");
 
   for (int l = 0; l < N_LEN; l++)
-    corr_destroy (corr[l]);
+    dp_corr_destroy (corr[l]);
   free (ref);
   free (in);
   free (out);

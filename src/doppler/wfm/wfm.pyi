@@ -318,11 +318,12 @@ class PN:
 class _SynthEngine:
     """Allocate and configure a waveform synthesiser. The synthesiser combines
     a local oscillator (LO), optional AWGN, and an optional PN LFSR into a
-    single streaming source. One call to wfm_synth_step() or wfm_synth_steps()
-    advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN (100
-    dB) skips AWGN entirely — clean waveforms pay no noise overhead. When
-    ``snr_mode`` is "auto" the library picks the natural reference: Es/No for
-    modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.
+    single streaming source. One call to dp_wfm_synth_step() or
+    dp_wfm_synth_steps() advances all sub-components in lock-step. SNR >=
+    WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no
+    noise overhead. When ``snr_mode`` is "auto" the library picks the natural
+    reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for
+    tone/noise/PN.
 
     Parameters
     ----------
@@ -362,9 +363,10 @@ class _SynthEngine:
     f_end : float, default 0.0
         Chirp end frequency in Hz (type=chirp only; ignored otherwise). With
         ``freq`` as the start, the instantaneous frequency sweeps linearly from
-        ``freq`` to ``f_end`` over the span set by wfm_synth_set_chirp_span(),
-        then holds at ``f_end``. Until a span is pinned the slope is 0 (a CW
-        tone at ``freq``). ``f_end < freq`` is a down-chirp. Default 0.0.
+        ``freq`` to ``f_end`` over the span set by
+        dp_wfm_synth_set_chirp_span(), then holds at ``f_end``. Until a span is
+        pinned the slope is 0 (a CW tone at ``freq``). ``f_end < freq`` is a
+        down-chirp. Default 0.0.
 
     Examples
     --------
@@ -432,7 +434,7 @@ class _SynthEngine:
         """
 
     def steps(self, n: int = 1) -> NDArray[np.complex64]:
-        """Generate a block of output samples. Calls wfm_synth_step() in a
+        """Generate a block of output samples. Calls dp_wfm_synth_step() in a
         tight loop, writing each cf32 sample into ``output``. The Python
         binding returns a freshly allocated NumPy complex64 array; ownership is
         transferred to the caller.
@@ -469,12 +471,12 @@ class _SynthEngine:
         number of samples the sweep occupies — must be known before generation.
         The composer calls this with the source's declared span or the segment
         length. A synth that is never pinned does not sweep: it holds the start
-        frequency on wfm_synth_step() and wfm_synth_steps() alike, so the
+        frequency on dp_wfm_synth_step() and dp_wfm_synth_steps() alike, so the
         waveform never depends on how reads are chunked. Only the first pin
         (while the span is still 0) takes effect, so it is safe to call
-        unconditionally after wfm_synth_create(); span 0 is a no-op.
+        unconditionally after dp_wfm_synth_create(); span 0 is a no-op.
 
-        The span is configuration, not running state: wfm_synth_get_state()
+        The span is configuration, not running state: dp_wfm_synth_get_state()
         does not carry it, so pin a resumed instance exactly as the original
         was pinned.
 
@@ -593,7 +595,7 @@ class _SynthEngine:
 
     def set_sym_pos(self, value: int) -> None:
         """Override the symbol-position counter in-place. Injecting 0 forces
-        the next wfm_synth_step() to latch a new PN chip; any other value
+        the next dp_wfm_synth_step() to latch a new PN chip; any other value
         fast-forwards into the middle of the current symbol hold.
 
         Parameters
@@ -617,7 +619,7 @@ class _SynthEngine:
 
     def set_cur_re(self, value: float) -> None:
         """Override the held-symbol real (I) component in-place. Takes effect
-        on the next wfm_synth_step() within the current symbol hold.
+        on the next dp_wfm_synth_step() within the current symbol hold.
 
         Parameters
         ----------
@@ -638,7 +640,7 @@ class _SynthEngine:
 
     def set_cur_im(self, value: float) -> None:
         """Override the held-symbol imaginary (Q) component in-place. Takes
-        effect on the next wfm_synth_step() within the current symbol hold.
+        effect on the next dp_wfm_synth_step() within the current symbol hold.
 
         Parameters
         ----------
@@ -1128,7 +1130,7 @@ class Frame:
         """
 
     def bits_max_out(self, n: int) -> int:
-        """Bits frame_bits will write for n frames — `n * nbits`.
+        """Bits dp_frame_bits will write for n frames — `n * nbits`.
 
         Parameters
         ----------
@@ -1542,7 +1544,7 @@ class Frame:
         `ValueError`.
 
         The form to reach for when a literal fits in 64 bits: exact, and with
-        no failure mode a typo can reach. Wider ones want frame_add_hex.
+        no failure mode a typo can reach. Wider ones want dp_frame_add_hex.
 
         Parameters
         ----------
@@ -1589,7 +1591,7 @@ class Frame:
         Returns the new field's index; a refusal raises `ValueError`.
 
         A field with a declared length and no source: a CRC trailer, a block of
-        check symbols. Its producer is wired by frame_add_stage_over rather
+        check symbols. Its producer is wired by dp_frame_add_stage_over rather
         than named here, because no stage exists yet when the field it derives
         is appended — fields are ordered by POSITION and stages by APPLICATION.
 
@@ -1703,7 +1705,7 @@ class Frame:
         it is empty, unbuildable, names a stage no kernel here covers, or was
         already built.
 
-        The point at which a description is checked, which for frame_create
+        The point at which a description is checked, which for dp_frame_create
         happens inside the constructor: a description that cannot produce its
         own bits is not a frame. It is separate here only because the
         description arrives over several calls and there is no earlier moment
@@ -1766,8 +1768,8 @@ class Frame:
 
         Returns the frame with every reversible stage undone, in place order: a
         randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
-        The payload is then a slice, at frame_field_off of the payload field —
-        which is the caller's arithmetic because a description does not
+        The payload is then a slice, at dp_frame_field_off of the payload field
+        — which is the caller's arithmetic because a description does not
         privilege one field over another.
 
         The verdict comes back as read-backs (`ok`, `units`, `checked`,
@@ -1817,7 +1819,7 @@ class Frame:
         """
 
     def deframe_max_out(self, rx_bits_len: int) -> int:
-        """Max bits frame_deframe() writes: the frame's own length.
+        """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
         not
@@ -1853,8 +1855,8 @@ class Frame:
         inner code is the case, being undone before frame synchronisation --
         and such a stage is reported as not checked, never as passed.
 
-        The receive mirror of frame_bits, reading the same description — so a
-        transmitter and a receiver holding the same `Frame` cannot disagree
+        The receive mirror of dp_frame_bits, reading the same description — so
+        a transmitter and a receiver holding the same `Frame` cannot disagree
         about which stage covered what.
 
         **This is the truth-free frame error rate on a coded link.** It needs
@@ -2353,7 +2355,7 @@ class FrameDesc:
         """
 
     def bits_max_out(self, n: int) -> int:
-        """Bits frame_bits will write for n frames — `n * nbits`.
+        """Bits dp_frame_bits will write for n frames — `n * nbits`.
 
         Parameters
         ----------
@@ -2767,7 +2769,7 @@ class FrameDesc:
         `ValueError`.
 
         The form to reach for when a literal fits in 64 bits: exact, and with
-        no failure mode a typo can reach. Wider ones want frame_add_hex.
+        no failure mode a typo can reach. Wider ones want dp_frame_add_hex.
 
         Parameters
         ----------
@@ -2814,7 +2816,7 @@ class FrameDesc:
         Returns the new field's index; a refusal raises `ValueError`.
 
         A field with a declared length and no source: a CRC trailer, a block of
-        check symbols. Its producer is wired by frame_add_stage_over rather
+        check symbols. Its producer is wired by dp_frame_add_stage_over rather
         than named here, because no stage exists yet when the field it derives
         is appended — fields are ordered by POSITION and stages by APPLICATION.
 
@@ -2928,7 +2930,7 @@ class FrameDesc:
         it is empty, unbuildable, names a stage no kernel here covers, or was
         already built.
 
-        The point at which a description is checked, which for frame_create
+        The point at which a description is checked, which for dp_frame_create
         happens inside the constructor: a description that cannot produce its
         own bits is not a frame. It is separate here only because the
         description arrives over several calls and there is no earlier moment
@@ -2991,8 +2993,8 @@ class FrameDesc:
 
         Returns the frame with every reversible stage undone, in place order: a
         randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.
-        The payload is then a slice, at frame_field_off of the payload field —
-        which is the caller's arithmetic because a description does not
+        The payload is then a slice, at dp_frame_field_off of the payload field
+        — which is the caller's arithmetic because a description does not
         privilege one field over another.
 
         The verdict comes back as read-backs (`ok`, `units`, `checked`,
@@ -3042,7 +3044,7 @@ class FrameDesc:
         """
 
     def deframe_max_out(self, rx_bits_len: int) -> int:
-        """Max bits frame_deframe() writes: the frame's own length.
+        """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
         not
@@ -3078,8 +3080,8 @@ class FrameDesc:
         inner code is the case, being undone before frame synchronisation --
         and such a stage is reported as not checked, never as passed.
 
-        The receive mirror of frame_bits, reading the same description — so a
-        transmitter and a receiver holding the same `Frame` cannot disagree
+        The receive mirror of dp_frame_bits, reading the same description — so
+        a transmitter and a receiver holding the same `Frame` cannot disagree
         about which stage covered what.
 
         **This is the truth-free frame error rate on a coded link.** It needs

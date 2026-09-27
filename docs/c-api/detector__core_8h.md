@@ -32,8 +32,8 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**det\_result\_t**](structdet__result__t.md) <br>_Detection event returned by_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _._ |
-| struct | [**detector\_state\_t**](structdetector__state__t.md) <br>_1-D signal detector state._  |
+| struct | [**det\_result\_t**](structdet__result__t.md) <br>_Detection event returned by_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _._ |
+| struct | [**dp\_detector\_state\_t**](structdp__detector__state__t.md) <br>_1-D signal detector state._  |
 
 
 ## Public Types
@@ -65,15 +65,15 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 
 | Type | Name |
 | ---: | :--- |
-|  [**detector\_state\_t**](structdetector__state__t.md) \* | [**detector\_create**](#function-detector_create) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**corr\_state\_t**_](structcorr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._ |
-|  void | [**detector\_destroy**](#function-detector_destroy) ([**detector\_state\_t**](structdetector__state__t.md) \* state) <br>_Destroy and free a detector instance._  |
-|  void | [**detector\_get\_state**](#function-detector_get_state) (const [**detector\_state\_t**](structdetector__state__t.md) \* state, void \* blob) <br> |
-|  size\_t | [**detector\_push**](#function-detector_push) ([**detector\_state\_t**](structdetector__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the detector pipeline. Writes samples into the ring buffer, drains complete n-sample frames through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._  |
-|  void | [**detector\_reset**](#function-detector_reset) ([**detector\_state\_t**](structdetector__state__t.md) \* state) <br>_Reset the correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._  |
-|  void | [**detector\_set\_ref**](#function-detector_set_ref) ([**detector\_state\_t**](structdetector__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
-|  int | [**detector\_set\_state**](#function-detector_set_state) ([**detector\_state\_t**](structdetector__state__t.md) \* state, const void \* blob) <br> |
-|  void | [**detector\_set\_threshold**](#function-detector_set_threshold) ([**detector\_state\_t**](structdetector__state__t.md) \* state, float threshold) <br>_Change the threshold without rebuilding the object._  |
-|  size\_t | [**detector\_state\_bytes**](#function-detector_state_bytes) (const [**detector\_state\_t**](structdetector__state__t.md) \* state) <br> |
+|  void | [**detector\_set\_ref**](#function-detector_set_ref) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
+|  void | [**detector\_set\_threshold**](#function-detector_set_threshold) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, float threshold) <br>_Change the threshold without rebuilding the object._  |
+|  [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* | [**dp\_detector\_create**](#function-dp_detector_create) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_corr\_state\_t**_](structdp__corr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._ |
+|  void | [**dp\_detector\_destroy**](#function-dp_detector_destroy) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Destroy and free a detector instance._  |
+|  void | [**dp\_detector\_get\_state**](#function-dp_detector_get_state) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_detector\_push**](#function-dp_detector_push) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the detector pipeline. Writes samples into the ring buffer, drains complete n-sample frames through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._  |
+|  void | [**dp\_detector\_reset**](#function-dp_detector_reset) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Reset the correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._  |
+|  int | [**dp\_detector\_set\_state**](#function-dp_detector_set_state) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_detector\_state\_bytes**](#function-dp_detector_state_bytes) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br> |
 
 
 
@@ -112,7 +112,7 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 ## Detailed Description
 
 
-Wraps a [**corr\_state\_t**](structcorr__state__t.md) (FFT correlator + coherent int-dump) behind a double-mapped ring buffer so that arbitrary-length sample streams can be fed in any chunk size. After every int-dump a test statistic is computed:
+Wraps a [**dp\_corr\_state\_t**](structdp__corr__state__t.md) (FFT correlator + coherent int-dump) behind a double-mapped ring buffer so that arbitrary-length sample streams can be fed in any chunk size. After every int-dump a test statistic is computed:
 
 
 test\_stat = peak\_mag / noise\_est
@@ -121,22 +121,22 @@ test\_stat = peak\_mag / noise\_est
 where peak\_mag = max\|R&#91;τ&#93;\| and noise\_est is an aggregate (mean, median, min, or max) of \|R&#91;τ&#93;\| over a user-supplied bin range &#91;noise\_lo, noise\_hi&#93;. A detection event is emitted when test\_stat &gt; threshold (or whenever threshold == 0.0, which means "always fire").
 
 
-The detector operates as a single-threaded object; do not call [**detector\_push()**](detector__core_8h.md#function-detector_push) concurrently from multiple threads.
+The detector operates as a single-threaded object; do not call [**dp\_detector\_push()**](detector__core_8h.md#function-dp_detector_push) concurrently from multiple threads.
 
 
 Lifecycle: 
 ```C++
 float _Complex ref[N] = { ... };
-detector_state_t *det = detector_create(ref, N, 1,
+dp_detector_state_t *det = dp_detector_create(ref, N, 1,
     1, N-1, DET_NOISE_MEAN, 0.0f, 1);
 det_result_t results[64];
 // stream loop
 while (recv(chunk, CHUNK_SZ)) {
-    size_t n = detector_push(det, chunk, CHUNK_SZ, results, 64);
+    size_t n = dp_detector_push(det, chunk, CHUNK_SZ, results, 64);
     for (size_t i = 0; i < n; i++)
         printf("lag=%zu stat=%.2f\n", results[i].lag, results[i].test_stat);
 }
-detector_destroy(det);
+dp_detector_destroy(det);
 ```
  
 
@@ -167,11 +167,72 @@ enum det_noise_mode_t {
 
 
 
-### function detector\_create 
+### function detector\_set\_ref 
 
-_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**corr\_state\_t**_](structcorr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._
+_Replace the reference signal and recompute conj(FFT(ref))._ 
 ```C++
-detector_state_t * detector_create (
+void detector_set_ref (
+    dp_detector_state_t * state,
+    const float _Complex * ref
+) 
+```
+
+
+
+Also resets (see [**dp\_detector\_reset()**](detector__core_8h.md#function-dp_detector_reset)). The new reference must have the same length `n` that was passed to [**dp\_detector\_create()**](detector__core_8h.md#function-dp_detector_create).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ref` New reference, CF32, length state-&gt;n. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function detector\_set\_threshold 
+
+_Change the threshold without rebuilding the object._ 
+```C++
+void detector_set_threshold (
+    dp_detector_state_t * state,
+    float threshold
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `threshold` New threshold; 0.0 = always fire. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_detector\_create 
+
+_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_corr\_state\_t**_](structdp__corr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._
+```C++
+dp_detector_state_t * dp_detector_create (
     const float _Complex * ref,
     size_t ref_len,
     size_t dwell,
@@ -225,12 +286,12 @@ Heap-allocated state, or NULL on allocation failure.
 
 
 
-### function detector\_destroy 
+### function dp\_detector\_destroy 
 
 _Destroy and free a detector instance._ 
 ```C++
-void detector_destroy (
-    detector_state_t * state
+void dp_detector_destroy (
+    dp_detector_state_t * state
 ) 
 ```
 
@@ -252,11 +313,11 @@ void detector_destroy (
 
 
 
-### function detector\_get\_state 
+### function dp\_detector\_get\_state 
 
 ```C++
-void detector_get_state (
-    const detector_state_t * state,
+void dp_detector_get_state (
+    const dp_detector_state_t * state,
     void * blob
 ) 
 ```
@@ -268,12 +329,12 @@ void detector_get_state (
 
 
 
-### function detector\_push 
+### function dp\_detector\_push 
 
 _Stream an arbitrary-length CF32 chunk through the detector pipeline. Writes samples into the ring buffer, drains complete n-sample frames through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._ 
 ```C++
-size_t detector_push (
-    detector_state_t * state,
+size_t dp_detector_push (
+    dp_detector_state_t * state,
     const float _Complex * in,
     size_t n_in,
     det_result_t * result,
@@ -324,12 +385,12 @@ Number of [**det\_result\_t**](structdet__result__t.md) entries written to `resu
 
 
 
-### function detector\_reset 
+### function dp\_detector\_reset 
 
 _Reset the correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._ 
 ```C++
-void detector_reset (
-    detector_state_t * state
+void dp_detector_reset (
+    dp_detector_state_t * state
 ) 
 ```
 
@@ -356,43 +417,11 @@ void detector_reset (
 
 
 
-### function detector\_set\_ref 
-
-_Replace the reference signal and recompute conj(FFT(ref))._ 
-```C++
-void detector_set_ref (
-    detector_state_t * state,
-    const float _Complex * ref
-) 
-```
-
-
-
-Also resets (see [**detector\_reset()**](detector__core_8h.md#function-detector_reset)). The new reference must have the same length `n` that was passed to [**detector\_create()**](detector__core_8h.md#function-detector_create).
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `ref` New reference, CF32, length state-&gt;n. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function detector\_set\_state 
+### function dp\_detector\_set\_state 
 
 ```C++
-int detector_set_state (
-    detector_state_t * state,
+int dp_detector_set_state (
+    dp_detector_state_t * state,
     const void * blob
 ) 
 ```
@@ -404,40 +433,11 @@ int detector_set_state (
 
 
 
-### function detector\_set\_threshold 
-
-_Change the threshold without rebuilding the object._ 
-```C++
-void detector_set_threshold (
-    detector_state_t * state,
-    float threshold
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `threshold` New threshold; 0.0 = always fire. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function detector\_state\_bytes 
+### function dp\_detector\_state\_bytes 
 
 ```C++
-size_t detector_state_bytes (
-    const detector_state_t * state
+size_t dp_detector_state_bytes (
+    const dp_detector_state_t * state
 ) 
 ```
 

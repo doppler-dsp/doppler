@@ -62,7 +62,7 @@ wfm_rc_h(double t, double beta)
         return (beta / 2.0) * sin(M_PI / (2.0 * beta));
     }
     double den = 1.0 - (2.0 * beta * t) * (2.0 * beta * t);
-    return sinc(t) * cos(M_PI * beta * t) / den;
+    return dp_sinc(t) * cos(M_PI * beta * t) / den;
 }
 
 void wfm_rrc_taps(double beta, int sps, int span, float *taps);

@@ -80,13 +80,13 @@ _bind_write_blue_header (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t total = (size_t)total_raw;
-  int    _rc
-      = write_blue_header (PyBytes_AS_STRING (path), fs, _arg_sample_type,
-                           _arg_endian, fc, data_start, total, detached, t0);
+  int    _rc   = dp_write_blue_header (PyBytes_AS_STRING (path), fs,
+                                       _arg_sample_type, _arg_endian, fc,
+                                       data_start, total, detached, t0);
   Py_XDECREF (path);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_RuntimeError, "write_blue_header failed (rc=%d)",
+      PyErr_Format (PyExc_RuntimeError, "dp_write_blue_header failed (rc=%d)",
                     (int)_rc);
       return NULL;
     }

@@ -866,7 +866,7 @@ C/N0, noise from the shipped awgn after the channel.
     luck.
 - **One declaration.** The carrier moved from `acq_build_handoff()`'s
     argument (#1258, the previous PR) to the engine:
-    `acq_set_carrier_freq_hz()`, a jm method with a read-back property,
+    `dp_acq_set_carrier_freq_hz()`, a jm method with a read-back property,
     drives both the block's alignment and the hand-off's advance. Config,
     not running state: it is not in the blob, so a resumed engine wants it
     set again by its holder. The searching receiver sets it from its own
@@ -1526,13 +1526,13 @@ ______________________________________________________________________
 **What was built.** Three reads of what the block-coherent engine
 already holds per cell before a magnitude is taken, declared on the
 manifest so the Python face follows, each a copy in the engine's own
-size and 0 where the engine has none: `acq_surface_complex()`, the
+size and 0 where the engine has none: `dp_acq_surface_complex()`, the
 coherent dump the last dwell was decided on (a non-coherent dwell is a
-power sum and reads 0); `acq_block_prompt(tile, col)`, one cell's column
+power sum and reads 0); `dp_acq_block_prompt(tile, col)`, one cell's column
 of the last whole block — the D per-epoch complex correlations at that
 code phase, rolled to the tile's centre and shifted to the block's
 middle by the tile's code-rate hypothesis, the despread stream at epoch
-rate; `acq_block_raw()`, the block's D epochs as pushed, for a
+rate; `dp_acq_block_raw()`, the block's D epochs as pushed, for a
 re-correlation at any phase, rate or symbol boundary the engine's grid
 does not have. `test_acq_core` pins the modulus against `mag_buf`, the
 maximum against the reported cell, the raw block against the pushed
@@ -1617,7 +1617,7 @@ samples. No new correlator — the shipped `Dll`, its loop held
 symbol window on, fed the block wiped of the held Doppler by the shipped
 `LO`, as a receiver's Costas wipes it before its DLL, and **put at the
 cell's phase at every block's start**. That last needed one primitive the
-loop did not have, `dll_set_code_phase(chips)`: the NCO moved, nothing
+loop did not have, `dp_dll_set_code_phase(chips)`: the NCO moved, nothing
 else touched, the other half of the coast for a holder on another clock.
 It also found two defects on the coast itself, fixed here: `steer()`
 returned before computing the discriminator, so a coasting loop's `.e`
@@ -1836,7 +1836,7 @@ them is [#1284](https://github.com/doppler-dsp/doppler/issues/1284), a
 certified-behaviour change on its own. Second, `dll_take_error()`: every
 steer adds its clamped discriminator to a running sum, coasting or not;
 take returns the count and the sum and zeroes them. Third, a held loop
-takes a new rate aid at once — `dll_set_rate_aid()` only stored the aid
+takes a new rate aid at once — `dp_dll_set_rate_aid()` only stored the aid
 for the next steer to fold in, and a coasting loop has no next steer, so
 it kept the aid it was held with (the harness never met this: it set the
 aid once, before coasting; a receiver refreshing the Doppler it holds
@@ -1894,7 +1894,7 @@ each found by a measurement that went red and corrected in the build:
     and no `fold_hz`. Running, the ramp is followed to 3 Hz at its end
     with the symbol flag never down.
 - **Never a phase kick at a period boundary.** The plan put the `Dll` at
-    the corrected phase with `dll_set_code_phase()` once an interval. A
+    the corrected phase with `dp_dll_set_code_phase()` once an interval. A
     receiver fed whole periods is always at a boundary, a kick there
     lands on the code's wrap, and moved across it the `Dll`'s partial
     bookkeeping emits or skips a period's partials: a symbol slip every

@@ -49,8 +49,8 @@ _dc_block (size_t n)
 static void
 test_invalid_rate (void)
 {
-  DP_CHECK (RateConverter_create (0.0, 0) == NULL);
-  DP_CHECK (RateConverter_create (-1.0, 0) == NULL);
+  DP_CHECK (dp_RateConverter_create (0.0, 0) == NULL);
+  DP_CHECK (dp_RateConverter_create (-1.0, 0) == NULL);
 }
 
 /* ------------------------------------------------------------------ */
@@ -62,98 +62,98 @@ test_stage_labels (void)
 
   /* rate >= 1: Resampler */
   {
-    RateConverter_state_t *rc = RateConverter_create (2.0, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (2.0, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strncmp (buf, "Resampler", 9) == 0);
     DP_CHECK (RateConverter_stage_label (rc, 1, buf, sizeof (buf)) == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* rate = 1.0: Resampler(1) */
   {
-    RateConverter_state_t *rc = RateConverter_create (1.0, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strncmp (buf, "Resampler", 9) == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 2 (rate = 0.5): single HalfbandDecimator */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.5, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strcmp (buf, "HalfbandDecimator") == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 4 (rate = 0.25): two HalfbandDecimator stages */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.25, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 2);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strcmp (buf, "HalfbandDecimator") == 0);
     DP_CHECK (RateConverter_stage_label (rc, 1, buf, sizeof (buf)));
     DP_CHECK (strcmp (buf, "HalfbandDecimator") == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 8 (rate = 0.125): CIC(8), no comp */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.125, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.125, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strcmp (buf, "CIC(8)") == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 8, compensate=1: CIC(8)+FIR */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.125, 1);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.125, 1);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strcmp (buf, "CIC(8)+FIR") == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 16 (rate = 1/16): CIC(16), exact power-of-2, n>=3 */
   {
-    RateConverter_state_t *rc = RateConverter_create (1.0 / 16.0, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 16.0, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strcmp (buf, "CIC(16)") == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 12 (rate = 1/12): non-power-of-2, D >= 8.
    * Nearest power-of-2 to 12 is 16; plan: CIC(16) + Resampler. */
   {
-    RateConverter_state_t *rc = RateConverter_create (1.0 / 12.0, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 12.0, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 2);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strncmp (buf, "CIC", 3) == 0);
     DP_CHECK (RateConverter_stage_label (rc, 1, buf, sizeof (buf)));
     DP_CHECK (strncmp (buf, "Resampler", 9) == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* D = 3 (2 <= D < 8, non-integer): Resampler */
   {
-    RateConverter_state_t *rc = RateConverter_create (1.0 / 3.0, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 3.0, 0);
     DP_CHECK (rc != NULL);
     DP_CHECK (rc->n_stages == 1);
     DP_CHECK (RateConverter_stage_label (rc, 0, buf, sizeof (buf)));
     DP_CHECK (strncmp (buf, "Resampler", 9) == 0);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 }
 
@@ -173,29 +173,29 @@ test_output_length (void)
 
   /* rate = 0.5: expect exactly 512 out */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.5, 0);
     DP_CHECK (rc != NULL);
-    size_t n = RateConverter_execute (rc, in, N_IN, out, N_OUT);
+    size_t n = dp_RateConverter_execute (rc, in, N_IN, out, N_OUT);
     DP_CHECK (n == N_IN / 2);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* rate = 0.25: expect exactly 256 out */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.25, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
     DP_CHECK (rc != NULL);
-    size_t n = RateConverter_execute (rc, in, N_IN, out, N_OUT);
+    size_t n = dp_RateConverter_execute (rc, in, N_IN, out, N_OUT);
     DP_CHECK (n == N_IN / 4);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* rate = 0.125: expect exactly 128 out */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.125, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.125, 0);
     DP_CHECK (rc != NULL);
-    size_t n = RateConverter_execute (rc, in, N_IN, out, N_OUT);
+    size_t n = dp_RateConverter_execute (rc, in, N_IN, out, N_OUT);
     DP_CHECK (n == N_IN / 8);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   free (in);
@@ -217,23 +217,23 @@ test_set_rate (void)
   float _Complex *out = malloc (N * sizeof (float _Complex));
   DP_CHECK (in && out);
 
-  RateConverter_state_t *rc = RateConverter_create (0.5, 0);
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (0.5, 0);
   DP_CHECK (rc != NULL);
 
-  size_t n1 = RateConverter_execute (rc, in, N, out, N);
+  size_t n1 = dp_RateConverter_execute (rc, in, N, out, N);
   DP_CHECK (n1 == N / 2);
 
-  RateConverter_set_rate (rc, 0.25);
-  DP_CHECK (_near (RateConverter_get_rate (rc), 0.25, 1e-9));
+  dp_RateConverter_set_rate (rc, 0.25);
+  DP_CHECK (_near (dp_RateConverter_get_rate (rc), 0.25, 1e-9));
 
-  size_t n2 = RateConverter_execute (rc, in, N, out, N);
+  size_t n2 = dp_RateConverter_execute (rc, in, N, out, N);
   DP_CHECK (n2 == N / 4);
 
   /* rate <= 0 silently ignored */
-  RateConverter_set_rate (rc, 0.0);
-  DP_CHECK (_near (RateConverter_get_rate (rc), 0.25, 1e-9));
+  dp_RateConverter_set_rate (rc, 0.0);
+  DP_CHECK (_near (dp_RateConverter_get_rate (rc), 0.25, 1e-9));
 
-  RateConverter_destroy (rc);
+  dp_RateConverter_destroy (rc);
   free (in);
   free (out);
 }
@@ -252,18 +252,18 @@ test_reset_reproducible (void)
   float _Complex *out2 = malloc (N * sizeof (float _Complex));
   DP_CHECK (in && out1 && out2);
 
-  RateConverter_state_t *rc = RateConverter_create (0.125, 0);
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (0.125, 0);
   DP_CHECK (rc != NULL);
 
-  size_t n1 = RateConverter_execute (rc, in, N, out1, N);
-  RateConverter_reset (rc);
-  size_t n2 = RateConverter_execute (rc, in, N, out2, N);
+  size_t n1 = dp_RateConverter_execute (rc, in, N, out1, N);
+  dp_RateConverter_reset (rc);
+  size_t n2 = dp_RateConverter_execute (rc, in, N, out2, N);
 
   DP_CHECK (n1 == n2);
   if (n1 == n2 && n1 > 0)
     DP_CHECK (memcmp (out1, out2, n1 * sizeof (float _Complex)) == 0);
 
-  RateConverter_destroy (rc);
+  dp_RateConverter_destroy (rc);
   free (in);
   free (out1);
   free (out2);
@@ -276,21 +276,21 @@ test_execute_max_out (void)
 {
   /* Decimation: max_out should bound 65536-sample block output. */
   {
-    RateConverter_state_t *rc = RateConverter_create (0.125, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (0.125, 0);
     DP_CHECK (rc != NULL);
-    size_t m = RateConverter_execute_max_out (rc);
+    size_t m = dp_RateConverter_execute_max_out (rc);
     DP_CHECK (m >= 2);
     DP_CHECK (m <= 65536 + 2);
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 
   /* Interpolation: max_out must be >= n_in * rate. */
   {
-    RateConverter_state_t *rc = RateConverter_create (4.0, 0);
+    dp_RateConverter_state_t *rc = dp_RateConverter_create (4.0, 0);
     DP_CHECK (rc != NULL);
-    size_t m = RateConverter_execute_max_out (rc);
+    size_t m = dp_RateConverter_execute_max_out (rc);
     DP_CHECK (m >= (size_t)(65536 * 4));
-    RateConverter_destroy (rc);
+    dp_RateConverter_destroy (rc);
   }
 }
 
@@ -309,10 +309,10 @@ test_convert (void)
     in[i] = 1.0f + 0.0f * _Complex_I;
 
   /* Reference: stateful path */
-  RateConverter_state_t *rc = RateConverter_create (1.0, 0);
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0, 0);
   DP_CHECK (rc != NULL);
-  size_t n_ref = RateConverter_execute (rc, in, N_IN, ref, N_OUT);
-  RateConverter_destroy (rc);
+  size_t n_ref = dp_RateConverter_execute (rc, in, N_IN, ref, N_OUT);
+  dp_RateConverter_destroy (rc);
 
   /* One-shot */
   size_t n_out = RateConverter_convert (1.0, 0, in, N_IN, out, N_OUT);
@@ -347,24 +347,24 @@ test_state_roundtrip (void)
   for (size_t i = 0; i < L; i++)
     in[i] = (float)cos (0.03 * (double)i) + I * (float)sin (0.03 * (double)i);
 
-  RateConverter_state_t *ra = RateConverter_create (0.5, 0);
-  size_t                 nA = RateConverter_execute (ra, in, L, outA, CAP);
-  RateConverter_destroy (ra);
+  dp_RateConverter_state_t *ra = dp_RateConverter_create (0.5, 0);
+  size_t nA = dp_RateConverter_execute (ra, in, L, outA, CAP);
+  dp_RateConverter_destroy (ra);
 
-  RateConverter_state_t *r1   = RateConverter_create (0.5, 0);
-  size_t                 nB   = RateConverter_execute (r1, in, CUT, outB, CAP);
-  size_t                 sb   = RateConverter_state_bytes (r1);
-  void                  *blob = malloc (sb);
-  RateConverter_get_state (r1, blob);
-  RateConverter_destroy (r1);
+  dp_RateConverter_state_t *r1 = dp_RateConverter_create (0.5, 0);
+  size_t nB   = dp_RateConverter_execute (r1, in, CUT, outB, CAP);
+  size_t sb   = dp_RateConverter_state_bytes (r1);
+  void  *blob = malloc (sb);
+  dp_RateConverter_get_state (r1, blob);
+  dp_RateConverter_destroy (r1);
 
-  RateConverter_state_t *r2 = RateConverter_create (0.5, 0);
-  DP_CHECK (RateConverter_set_state (r2, blob) == DP_OK);
+  dp_RateConverter_state_t *r2 = dp_RateConverter_create (0.5, 0);
+  DP_CHECK (dp_RateConverter_set_state (r2, blob) == DP_OK);
   ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
-  DP_CHECK (RateConverter_set_state (r2, blob) == DP_ERR_INVALID);
+  DP_CHECK (dp_RateConverter_set_state (r2, blob) == DP_ERR_INVALID);
   ((char *)blob)[0] ^= (char)0xFF;
-  nB += RateConverter_execute (r2, in + CUT, L - CUT, outB + nB, CAP - nB);
-  RateConverter_destroy (r2);
+  nB += dp_RateConverter_execute (r2, in + CUT, L - CUT, outB + nB, CAP - nB);
+  dp_RateConverter_destroy (r2);
   free (blob);
 
   DP_CHECK (nA == nB);
@@ -407,11 +407,11 @@ test_execute_ctrl (void)
 
   /* rate 0.8 → a single Resampler stage. */
   {
-    RateConverter_state_t *a = RateConverter_create (0.8, 0);
-    RateConverter_state_t *b = RateConverter_create (0.8, 0);
+    dp_RateConverter_state_t *a = dp_RateConverter_create (0.8, 0);
+    dp_RateConverter_state_t *b = dp_RateConverter_create (0.8, 0);
     DP_CHECK (a && b && a->stage_types[a->n_stages - 1] == RC_STAGE_RESAMP);
-    size_t n0 = RateConverter_execute_ctrl (a, in, N, 0.0, o0, CAP);
-    size_t nr = RateConverter_execute_ctrl (b, in, N, 0.0, oc, CAP);
+    size_t n0 = dp_RateConverter_execute_ctrl (a, in, N, 0.0, o0, CAP);
+    size_t nr = dp_RateConverter_execute_ctrl (b, in, N, 0.0, oc, CAP);
     DP_CHECK (n0 == nr); /* deterministic */
     int repro = (n0 == nr);
     for (size_t i = 0; i < n0 && i < nr; i++)
@@ -420,26 +420,26 @@ test_execute_ctrl (void)
     DP_CHECK (repro);
     for (size_t i = 0; i < n0; i++)
       DP_CHECK (isfinite (crealf (o0[i])) && isfinite (cimagf (o0[i])));
-    RateConverter_destroy (b);
-    b            = RateConverter_create (0.8, 0);
-    size_t nc    = RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
+    dp_RateConverter_destroy (b);
+    b            = dp_RateConverter_create (0.8, 0);
+    size_t nc    = dp_RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
     int    moved = (nc != n0);
     for (size_t i = 0; i < n0 && i < nc && !moved; i++)
       if (o0[i] != oc[i])
         moved = 1;
     DP_CHECK (moved); /* a non-zero deviation actually steers the stage */
-    RateConverter_destroy (a);
-    RateConverter_destroy (b);
+    dp_RateConverter_destroy (a);
+    dp_RateConverter_destroy (b);
   }
 
   /* rate 0.1 → CIC + Resampler cascade: ctrl steers the terminal stage. */
   {
-    RateConverter_state_t *a = RateConverter_create (0.1, 0);
-    RateConverter_state_t *b = RateConverter_create (0.1, 0);
+    dp_RateConverter_state_t *a = dp_RateConverter_create (0.1, 0);
+    dp_RateConverter_state_t *b = dp_RateConverter_create (0.1, 0);
     DP_CHECK (a && b && a->n_stages >= 2
               && a->stage_types[a->n_stages - 1] == RC_STAGE_RESAMP);
-    size_t n0    = RateConverter_execute_ctrl (a, in, N, 0.0, o0, CAP);
-    size_t nc    = RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
+    size_t n0    = dp_RateConverter_execute_ctrl (a, in, N, 0.0, o0, CAP);
+    size_t nc    = dp_RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
     int    moved = (nc != n0);
     for (size_t i = 0; i < n0 && i < nc && !moved; i++)
       if (o0[i] != oc[i])
@@ -447,25 +447,25 @@ test_execute_ctrl (void)
     DP_CHECK (moved);
     for (size_t i = 0; i < n0; i++)
       DP_CHECK (isfinite (crealf (o0[i])) && isfinite (cimagf (o0[i])));
-    RateConverter_destroy (a);
-    RateConverter_destroy (b);
+    dp_RateConverter_destroy (a);
+    dp_RateConverter_destroy (b);
   }
 
   /* rate 0.5 → HalfbandDecimator only (no resamp stage): execute_ctrl falls
    * through to execute, ctrl ignored. */
   {
-    RateConverter_state_t *a = RateConverter_create (0.5, 0);
-    RateConverter_state_t *b = RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *a = dp_RateConverter_create (0.5, 0);
+    dp_RateConverter_state_t *b = dp_RateConverter_create (0.5, 0);
     DP_CHECK (a && b && a->stage_types[a->n_stages - 1] != RC_STAGE_RESAMP);
-    size_t na   = RateConverter_execute (a, in, N, o0, CAP);
-    size_t nb   = RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
+    size_t na   = dp_RateConverter_execute (a, in, N, o0, CAP);
+    size_t nb   = dp_RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
     int    same = (na == nb);
     for (size_t i = 0; i < na && i < nb; i++)
       if (o0[i] != oc[i])
         same = 0;
     DP_CHECK (same); /* no fractional stage → ctrl has no effect */
-    RateConverter_destroy (a);
-    RateConverter_destroy (b);
+    dp_RateConverter_destroy (a);
+    dp_RateConverter_destroy (b);
   }
 
   free (in);
@@ -579,16 +579,16 @@ _mf_best_evm_db (double sps, int compensate)
           free (y);
           return 0.0;
         }
-      RateConverter_state_t *rc = RateConverter_create_matched (
+      dp_RateConverter_state_t *rc = RateConverter_create_matched (
           2.0 / sps, compensate, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
       DP_CHECK (rc != NULL);
       if (rc)
         {
-          size_t ny = RateConverter_execute (rc, x, n, y, n);
+          size_t ny = dp_RateConverter_execute (rc, x, n, y, n);
           double e  = _mf_evm (y, ny);
           if (e < best)
             best = e;
-          RateConverter_destroy (rc);
+          dp_RateConverter_destroy (rc);
         }
       free (x);
       free (y);
@@ -597,7 +597,7 @@ _mf_best_evm_db (double sps, int compensate)
 }
 
 static size_t
-_mf_terminal_taps (const RateConverter_state_t *s)
+_mf_terminal_taps (const dp_RateConverter_state_t *s)
 {
   return resamp_get_num_taps (
       (const resamp_state_t *)s->stage_ptrs[s->n_stages - 1]);
@@ -630,7 +630,7 @@ test_matched_invalid_params (void)
   DP_CHECK (
       RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 0.35, 8, 2.0, 1)
       == NULL);
-  /* RC_PULSE_NONE is not a matched filter — use RateConverter_create(). */
+  /* RC_PULSE_NONE is not a matched filter — use dp_RateConverter_create(). */
   DP_CHECK (
       RateConverter_create_matched (0.5, 0, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
       == NULL);
@@ -650,7 +650,7 @@ test_matched_always_has_terminal_stage (void)
   char         buf[64];
   for (size_t i = 0; i < sizeof sps / sizeof sps[0]; i++)
     {
-      RateConverter_state_t *m = RateConverter_create_matched (
+      dp_RateConverter_state_t *m = RateConverter_create_matched (
           2.0 / sps[i], 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
       DP_CHECK (m != NULL);
       if (!m)
@@ -661,13 +661,13 @@ test_matched_always_has_terminal_stage (void)
       DP_CHECK (
           RateConverter_stage_label (m, m->n_stages - 1, buf, sizeof buf));
       DP_CHECK (strstr (buf, "rrc") != NULL);
-      RateConverter_destroy (m);
+      dp_RateConverter_destroy (m);
     }
 
   /* rate = 2/64 is the case that motivated the rule: exactly CIC(32) before,
      CIC(32) + a steerable Resampler(1.0) now. */
-  RateConverter_state_t *p = RateConverter_create (2.0 / 64.0, 0);
-  RateConverter_state_t *m = RateConverter_create_matched (
+  dp_RateConverter_state_t *p = dp_RateConverter_create (2.0 / 64.0, 0);
+  dp_RateConverter_state_t *m = RateConverter_create_matched (
       2.0 / 64.0, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (p && m);
   if (p && m)
@@ -677,8 +677,8 @@ test_matched_always_has_terminal_stage (void)
       DP_CHECK (_near (resamp_get_rate ((resamp_state_t *)m->stage_ptrs[1]),
                        1.0, 1e-12));
     }
-  RateConverter_destroy (p);
-  RateConverter_destroy (m);
+  dp_RateConverter_destroy (p);
+  dp_RateConverter_destroy (m);
 }
 
 static void
@@ -688,10 +688,10 @@ test_matched_bank_is_constant_in_input_rate (void)
      matched-filtering at the input rate costs taps proportional to the input
      samples per symbol (thousands at sps=256).  Here the integer stages have
      already done the bulk decimation, so the tap count barely moves. */
-  size_t                 t4 = 0, t256 = 0;
-  RateConverter_state_t *a = RateConverter_create_matched (
+  size_t                    t4 = 0, t256 = 0;
+  dp_RateConverter_state_t *a = RateConverter_create_matched (
       2.0 / 4.0, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-  RateConverter_state_t *b = RateConverter_create_matched (
+  dp_RateConverter_state_t *b = RateConverter_create_matched (
       2.0 / 256.0, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (a && b);
   if (a && b)
@@ -703,27 +703,27 @@ test_matched_bank_is_constant_in_input_rate (void)
       /* ~2*span*pulse_sps taps, not ~2*span*sps. */
       DP_CHECK (t256 < 4 * _MF_SPAN * 2 + 8);
     }
-  RateConverter_destroy (a);
-  RateConverter_destroy (b);
+  dp_RateConverter_destroy (a);
+  dp_RateConverter_destroy (b);
 
   /* The rectangle is one symbol wide whatever span says, so it is smaller
      still. */
-  RateConverter_state_t *r = RateConverter_create_matched (
+  dp_RateConverter_state_t *r = RateConverter_create_matched (
       2.0 / 17.333333333, 0, RC_PULSE_IANDD, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (r != NULL);
   if (r)
     {
       DP_CHECK (_mf_terminal_taps (r) < t256);
-      RateConverter_destroy (r);
+      dp_RateConverter_destroy (r);
     }
 }
 
 static void
 test_matched_droop_folds_into_bank (void)
 {
-  RateConverter_state_t *off = RateConverter_create_matched (
+  dp_RateConverter_state_t *off = RateConverter_create_matched (
       2.0 / 17.333333333, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-  RateConverter_state_t *on = RateConverter_create_matched (
+  dp_RateConverter_state_t *on = RateConverter_create_matched (
       2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (off && on);
   if (off && on)
@@ -738,8 +738,8 @@ test_matched_droop_folds_into_bank (void)
       /* The fold is a per-arm convolution with the 7-tap compensator. */
       DP_CHECK (_mf_terminal_taps (on) == _mf_terminal_taps (off) + 6);
     }
-  RateConverter_destroy (off);
-  RateConverter_destroy (on);
+  dp_RateConverter_destroy (off);
+  dp_RateConverter_destroy (on);
 
   /* And it works: on a CIC cascade the fold is worth ~28 dB of EVM, which is
      why `compensate` is effectively mandatory on this path. */
@@ -775,7 +775,7 @@ _gain_measured (double rate, int compensate)
   {
     N_IN = 32768
   };
-  RateConverter_state_t *rc = RateConverter_create (rate, compensate);
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (rate, compensate);
   if (!rc)
     return 0.0 / 0.0;
   size_t          cap = (size_t)(N_IN * (rate > 1.0 ? rate : 1.0)) + 64;
@@ -787,8 +787,8 @@ _gain_measured (double rate, int compensate)
       double f = rate / 512.0;
       for (size_t i = 0; i < N_IN; i++)
         in[i] = (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
-      RateConverter_execute (rc, in, N_IN, out, cap);
-      size_t n = RateConverter_execute (rc, in, N_IN, out, cap);
+      dp_RateConverter_execute (rc, in, N_IN, out, cap);
+      size_t n = dp_RateConverter_execute (rc, in, N_IN, out, cap);
       if (n)
         {
           double s    = 0.0;
@@ -800,7 +800,7 @@ _gain_measured (double rate, int compensate)
     }
   free (in);
   free (out);
-  RateConverter_destroy (rc);
+  dp_RateConverter_destroy (rc);
   return g;
 }
 
@@ -834,13 +834,14 @@ test_plain_cascade_is_unity_gain (void)
   for (size_t r = 0; r < sizeof rates / sizeof *rates; r++)
     for (int comp = 0; comp < 2; comp++)
       {
-        RateConverter_state_t *rc = RateConverter_create (rates[r], comp);
+        dp_RateConverter_state_t *rc
+            = dp_RateConverter_create (rates[r], comp);
         DP_CHECK (rc != NULL);
         if (!rc)
           continue;
         double calc = RateConverter_gain (rc);
         double meas = _gain_measured (rates[r], comp);
-        RateConverter_destroy (rc);
+        dp_RateConverter_destroy (rc);
 
         int ok = fabs (calc - 1.0) < 2e-3 && fabs (meas - calc) < 1e-3;
         DP_CHECK (ok);
@@ -907,15 +908,15 @@ _mf_recovered_amp (double sps, double beta, int compensate)
       float _Complex *y = calloc (n, sizeof *y);
       if (x && y)
         {
-          RateConverter_state_t *rc = RateConverter_create_matched (
+          dp_RateConverter_state_t *rc = RateConverter_create_matched (
               2.0 / sps, compensate, RC_PULSE_RRC, beta, _MF_SPAN, 2.0, 1024);
           if (rc)
             {
-              size_t ny = RateConverter_execute (rc, x, n, y, n);
+              size_t ny = dp_RateConverter_execute (rc, x, n, y, n);
               double g  = _mf_gain_at (y, ny);
               if (fabs (g) > fabs (best))
                 best = g;
-              RateConverter_destroy (rc);
+              dp_RateConverter_destroy (rc);
             }
         }
       free (x);
@@ -978,7 +979,7 @@ _mf_amp_scaled (double scale, int use_agc)
         {
           for (size_t i = 0; i < n; i++)
             x[i] *= (float)scale;
-          RateConverter_state_t *rc = RateConverter_create_matched (
+          dp_RateConverter_state_t *rc = RateConverter_create_matched (
               2.0 / sps, 0, RC_PULSE_RRC, beta, _MF_SPAN, 2.0, 1024);
           if (rc)
             {
@@ -989,12 +990,12 @@ _mf_amp_scaled (double scale, int use_agc)
                  level that arrived. */
               if (use_agc)
                 DP_CHECK (RateConverter_enable_agc (rc, 0.05, 0.05) == DP_OK);
-              size_t ny = RateConverter_execute (rc, x, n, y, n);
+              size_t ny = dp_RateConverter_execute (rc, x, n, y, n);
               /* Settled window: past the turn-on transient either way. */
               double g = _mf_gain_from (y, ny, use_agc ? 250 : 40);
               if (fabs (g) > fabs (best))
                 best = g;
-              RateConverter_destroy (rc);
+              dp_RateConverter_destroy (rc);
             }
         }
       free (x);
@@ -1008,7 +1009,7 @@ test_agc_is_off_unless_asked_and_needs_a_pulse (void)
 {
   /* Off is what every constructor builds, and the unity-gain contract is
      what proves the wedge did not leak into the default path. */
-  RateConverter_state_t *plain = RateConverter_create (1.0 / 12.0, 1);
+  dp_RateConverter_state_t *plain = dp_RateConverter_create (1.0 / 12.0, 1);
   DP_CHECK (plain != NULL);
   if (plain)
     {
@@ -1025,10 +1026,10 @@ test_agc_is_off_unless_asked_and_needs_a_pulse (void)
       DP_CHECK (RateConverter_enable_agc (plain, 1e-3, 0.05)
                 == DP_ERR_INVALID);
       DP_CHECK (RateConverter_agc_gain_db (plain) == 0.0);
-      RateConverter_destroy (plain);
+      dp_RateConverter_destroy (plain);
     }
 
-  RateConverter_state_t *mf = RateConverter_create_matched (
+  dp_RateConverter_state_t *mf = RateConverter_create_matched (
       0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (mf != NULL);
   if (mf)
@@ -1042,7 +1043,7 @@ test_agc_is_off_unless_asked_and_needs_a_pulse (void)
       DP_CHECK (RateConverter_enable_agc (mf, 1e-3, 2.0) == DP_ERR_INVALID);
       DP_CHECK (RateConverter_agc_gain_db (mf) == 0.0);
       DP_CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
-      RateConverter_destroy (mf);
+      dp_RateConverter_destroy (mf);
     }
 }
 
@@ -1058,14 +1059,14 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
         telemetry should not have to know which way that went. DP_OK, and
         nothing registered, so a reader sees an honest empty probe set. */
   {
-    dp_tlm_t              *t     = dp_tlm_create (256);
-    RateConverter_state_t *plain = RateConverter_create (1.0 / 12.0, 1);
+    dp_tlm_t                 *t     = dp_tlm_create (256);
+    dp_RateConverter_state_t *plain = dp_RateConverter_create (1.0 / 12.0, 1);
     DP_CHECK (t != NULL && plain != NULL);
     if (t && plain)
       {
         DP_CHECK (RateConverter_set_telemetry (plain, t, "agc", 1) == DP_OK);
         DP_CHECK (dp_tlm_probe_count (t) == 0);
-        RateConverter_destroy (plain);
+        dp_RateConverter_destroy (plain);
       }
     dp_tlm_destroy (t);
   }
@@ -1074,8 +1075,8 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
         component name appended -- there is nothing here to disambiguate it
         from), and running the cascade actually fills them. */
   {
-    dp_tlm_t              *t  = dp_tlm_create (1 << 12);
-    RateConverter_state_t *mf = RateConverter_create_matched (
+    dp_tlm_t                 *t  = dp_tlm_create (1 << 12);
+    dp_RateConverter_state_t *mf = RateConverter_create_matched (
         0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
     DP_CHECK (t != NULL && mf != NULL);
     if (t && mf)
@@ -1089,7 +1090,7 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
         float _Complex in[512], out[1024];
         for (int i = 0; i < 512; i++)
           in[i] = 0.5f + 0.0f * I;
-        (void)RateConverter_execute (mf, in, 512, out, 1024);
+        (void)dp_RateConverter_execute (mf, in, 512, out, 1024);
         dp_tlm_rec_t r[64];
         DP_CHECK (dp_tlm_read (t, 64, r, 64) > 0);
 
@@ -1101,25 +1102,25 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
               name is idempotent, so the ids a reader already holds stay
               valid and the table does not grow. */
         int id_gain = dp_tlm_probe_id (t, "rx.agc.gain_db");
-        RateConverter_set_rate (mf, 0.25);
+        dp_RateConverter_set_rate (mf, 0.25);
         DP_CHECK (dp_tlm_probe_count (t) == 2); /* no leaked duplicates */
         DP_CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") == id_gain);
         while (dp_tlm_read (t, 64, r, 64) > 0)
           ; /* drain */
-        (void)RateConverter_execute (mf, in, 512, out, 1024);
+        (void)dp_RateConverter_execute (mf, in, 512, out, 1024);
         DP_CHECK (dp_tlm_read (t, 64, r, 64) > 0); /* still emitting */
 
         /* Detach reaches the child too, and stays detached across a re-plan
            (the request is dropped, not merely unapplied). */
         DP_CHECK (RateConverter_set_telemetry (mf, NULL, "rx.agc", 1)
                   == DP_OK);
-        RateConverter_set_rate (mf, 0.5);
+        dp_RateConverter_set_rate (mf, 0.5);
         while (dp_tlm_read (t, 64, r, 64) > 0)
           ;
-        (void)RateConverter_execute (mf, in, 512, out, 1024);
+        (void)dp_RateConverter_execute (mf, in, 512, out, 1024);
         DP_CHECK (dp_tlm_read (t, 64, r, 64) == 0);
 
-        RateConverter_destroy (mf);
+        dp_RateConverter_destroy (mf);
       }
     dp_tlm_destroy (t);
   }
@@ -1128,8 +1129,8 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
         when enable_agc builds it. Documented on RateConverter_set_telemetry()
         as the ordering that returns DP_OK without registering yet. */
   {
-    dp_tlm_t              *t  = dp_tlm_create (256);
-    RateConverter_state_t *mf = RateConverter_create_matched (
+    dp_tlm_t                 *t  = dp_tlm_create (256);
+    dp_RateConverter_state_t *mf = RateConverter_create_matched (
         0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
     DP_CHECK (t != NULL && mf != NULL);
     if (t && mf)
@@ -1138,7 +1139,7 @@ test_agc_telemetry_forwards_and_survives_a_replan (void)
         DP_CHECK (dp_tlm_probe_count (t) == 0); /* nothing to register yet */
         DP_CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
         DP_CHECK (dp_tlm_probe_count (t) == 2); /* applied on build */
-        RateConverter_destroy (mf);
+        dp_RateConverter_destroy (mf);
       }
     dp_tlm_destroy (t);
   }
@@ -1218,13 +1219,13 @@ test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail (void)
     {
       size_t r    = rc_i / 2;
       int    comp = (int)(rc_i % 2); /* comp=1 adds the CIC's FIR trim */
-      RateConverter_state_t *a = RateConverter_create (rates[r], comp);
-      RateConverter_state_t *b = RateConverter_create (rates[r], comp);
+      dp_RateConverter_state_t *a = dp_RateConverter_create (rates[r], comp);
+      dp_RateConverter_state_t *b = dp_RateConverter_create (rates[r], comp);
       DP_CHECK (a && b);
       if (!a || !b)
         {
-          RateConverter_destroy (a);
-          RateConverter_destroy (b);
+          dp_RateConverter_destroy (a);
+          dp_RateConverter_destroy (b);
           continue;
         }
       /* Non-vacuity: this test means nothing if the planner gave us a
@@ -1245,7 +1246,7 @@ test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail (void)
                                                              &pre, &n_pre);
             /* The NULL-tap wrapper must be the same filter: same outputs,
                and no crash when the tap pointers are absent. */
-            size_t nb = RateConverter_execute_ctrl_push (b, x, 0.0, yb, 4);
+            size_t nb = dp_RateConverter_execute_ctrl_push (b, x, 0.0, yb, 4);
             DP_CHECK (na == nb);
             for (size_t k = 0; k < na; k++)
               DP_CHECK (ya[k] == yb[k]);
@@ -1266,8 +1267,8 @@ test_pre_terminal_tap_on_a_cascade_with_no_fractional_tail (void)
           }
         DP_CHECK (saw_tap);
       }
-      RateConverter_destroy (a);
-      RateConverter_destroy (b);
+      dp_RateConverter_destroy (a);
+      dp_RateConverter_destroy (b);
     }
 }
 
@@ -1292,15 +1293,15 @@ test_matched_push_equals_block (void)
           free (z);
           continue;
         }
-      RateConverter_state_t *a = RateConverter_create_matched (
+      dp_RateConverter_state_t *a = RateConverter_create_matched (
           2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-      RateConverter_state_t *b = RateConverter_create_matched (
+      dp_RateConverter_state_t *b = RateConverter_create_matched (
           2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-      RateConverter_state_t *c = RateConverter_create_matched (
+      dp_RateConverter_state_t *c = RateConverter_create_matched (
           2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
       DP_CHECK (a && b && c);
       /* The AGC is ON for this comparison, which is the whole reason its tap
-         is per-sample in BOTH paths. agc_steps() would vectorise the block
+         is per-sample in BOTH paths. dp_agc_steps() would vectorise the block
          form and is documented as NOT bit-identical to the per-sample loop,
          so taking it would break this equality -- and with it the guarantee
          that the closed-loop (push) and open-loop (block) paths are the same
@@ -1313,11 +1314,11 @@ test_matched_push_equals_block (void)
         }
       if (a && b && c)
         {
-          size_t ny = RateConverter_execute_ctrl (a, x, n, 0.0, y, n);
+          size_t ny = dp_RateConverter_execute_ctrl (a, x, n, 0.0, y, n);
           size_t nz = 0;
           for (size_t i = 0; i < n; i++)
-            nz += RateConverter_execute_ctrl_push (b, x[i], 0.0, z + nz,
-                                                   n - nz);
+            nz += dp_RateConverter_execute_ctrl_push (b, x[i], 0.0, z + nz,
+                                                      n - nz);
           int same = (ny == nz);
           for (size_t i = 0; same && i < nz; i++)
             same = (y[i] == z[i]);
@@ -1327,15 +1328,15 @@ test_matched_push_equals_block (void)
              pulse bank is laid out for the unified accumulator, while
              resamp_execute()'s decimating path is transposed-form and indexes
              arms the other way. */
-          size_t nw    = RateConverter_execute (c, x, n, z, n);
+          size_t nw    = dp_RateConverter_execute (c, x, n, z, n);
           int    same2 = (ny == nw);
           for (size_t i = 0; same2 && i < nw; i++)
             same2 = (y[i] == z[i]);
           DP_CHECK (same2);
         }
-      RateConverter_destroy (a);
-      RateConverter_destroy (b);
-      RateConverter_destroy (c);
+      dp_RateConverter_destroy (a);
+      dp_RateConverter_destroy (b);
+      dp_RateConverter_destroy (c);
       free (x);
       free (y);
       free (z);
@@ -1358,9 +1359,9 @@ test_matched_state_roundtrip (void)
       return;
     }
 
-  RateConverter_state_t *a = RateConverter_create_matched (
+  dp_RateConverter_state_t *a = RateConverter_create_matched (
       2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-  RateConverter_state_t *b = RateConverter_create_matched (
+  dp_RateConverter_state_t *b = RateConverter_create_matched (
       2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (a && b);
   if (a && b)
@@ -1368,28 +1369,28 @@ test_matched_state_roundtrip (void)
       size_t half = n / 2;
       /* Run a to mid-stream, hand its state to a fresh b, and require the
          remainder to match bit-for-bit. */
-      RateConverter_execute (a, x, half, y, n);
-      size_t nb = RateConverter_state_bytes (a);
+      dp_RateConverter_execute (a, x, half, y, n);
+      size_t nb = dp_RateConverter_state_bytes (a);
       void  *bl = malloc (nb);
       DP_CHECK (bl != NULL);
       if (bl)
         {
-          RateConverter_get_state (a, bl);
-          DP_CHECK (RateConverter_set_state (b, bl) == DP_OK);
-          size_t na   = RateConverter_execute (a, x + half, n - half, y, n);
-          size_t nz   = RateConverter_execute (b, x + half, n - half, z, n);
+          dp_RateConverter_get_state (a, bl);
+          DP_CHECK (dp_RateConverter_set_state (b, bl) == DP_OK);
+          size_t na   = dp_RateConverter_execute (a, x + half, n - half, y, n);
+          size_t nz   = dp_RateConverter_execute (b, x + half, n - half, z, n);
           int    same = (na == nz);
           for (size_t i = 0; same && i < nz; i++)
             same = (y[i] == z[i]);
           DP_CHECK (same);
           /* Envelope reject: a clobbered blob must not be reinterpreted. */
           ((char *)bl)[0] ^= 0xFF;
-          DP_CHECK (RateConverter_set_state (b, bl) == DP_ERR_INVALID);
+          DP_CHECK (dp_RateConverter_set_state (b, bl) == DP_ERR_INVALID);
           free (bl);
         }
     }
-  RateConverter_destroy (a);
-  RateConverter_destroy (b);
+  dp_RateConverter_destroy (a);
+  dp_RateConverter_destroy (b);
   free (x);
   free (y);
   free (z);
@@ -1417,9 +1418,9 @@ test_agc_state_roundtrip_mid_convergence (void)
       return;
     }
 
-  RateConverter_state_t *a = RateConverter_create_matched (
+  dp_RateConverter_state_t *a = RateConverter_create_matched (
       2.0 / sps, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
-  RateConverter_state_t *b = RateConverter_create_matched (
+  dp_RateConverter_state_t *b = RateConverter_create_matched (
       2.0 / sps, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (a && b);
   if (a && b)
@@ -1430,32 +1431,32 @@ test_agc_state_roundtrip_mid_convergence (void)
       /* A short prefix: long enough that the loop has moved off unity,
          short enough that it is nowhere near settled. */
       size_t cut = n / 20;
-      RateConverter_execute (a, x, cut, y, n);
+      dp_RateConverter_execute (a, x, cut, y, n);
       /* Non-vacuous: the gain really is mid-flight at the split. */
       double g_cut = RateConverter_agc_gain_db (a);
       DP_CHECK (g_cut != 0.0);
       DP_CHECK (fabs (g_cut) < 20.0);
 
-      size_t nb = RateConverter_state_bytes (a);
+      size_t nb = dp_RateConverter_state_bytes (a);
       void  *bl = malloc (nb);
       DP_CHECK (bl != NULL);
       if (bl)
         {
-          RateConverter_get_state (a, bl);
-          DP_CHECK (RateConverter_set_state (b, bl) == DP_OK);
-          size_t na   = RateConverter_execute (a, x + cut, n - cut, y, n);
-          size_t nz   = RateConverter_execute (b, x + cut, n - cut, z, n);
+          dp_RateConverter_get_state (a, bl);
+          DP_CHECK (dp_RateConverter_set_state (b, bl) == DP_OK);
+          size_t na   = dp_RateConverter_execute (a, x + cut, n - cut, y, n);
+          size_t nz   = dp_RateConverter_execute (b, x + cut, n - cut, z, n);
           int    same = (na == nz && na > 0);
           for (size_t i = 0; same && i < nz; i++)
             same = (y[i] == z[i]);
           DP_CHECK (same);
           ((char *)bl)[0] ^= 0xFF;
-          DP_CHECK (RateConverter_set_state (b, bl) == DP_ERR_INVALID);
+          DP_CHECK (dp_RateConverter_set_state (b, bl) == DP_ERR_INVALID);
           free (bl);
         }
     }
-  RateConverter_destroy (a);
-  RateConverter_destroy (b);
+  dp_RateConverter_destroy (a);
+  dp_RateConverter_destroy (b);
   free (x);
   free (y);
   free (z);
@@ -1466,12 +1467,12 @@ test_matched_set_rate_keeps_pulse (void)
 {
   /* set_rate() re-plans; the pulse is configuration, not part of the plan,
      so it must survive — including the always-append rule. */
-  RateConverter_state_t *m = RateConverter_create_matched (
+  dp_RateConverter_state_t *m = RateConverter_create_matched (
       2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
   DP_CHECK (m != NULL);
   if (m)
     {
-      RateConverter_set_rate (m, 2.0 / 64.0);
+      dp_RateConverter_set_rate (m, 2.0 / 64.0);
       char buf[64];
       DP_CHECK (m->stage_types[m->n_stages - 1] == RC_STAGE_RESAMP);
       DP_CHECK (
@@ -1480,7 +1481,7 @@ test_matched_set_rate_keeps_pulse (void)
       /* Still folded, still no comp FIR stage. */
       DP_CHECK (RateConverter_stage_label (m, 0, buf, sizeof buf));
       DP_CHECK (strstr (buf, "FIR") == NULL);
-      RateConverter_destroy (m);
+      dp_RateConverter_destroy (m);
     }
 }
 
@@ -1505,12 +1506,12 @@ test_capped_cic_still_delivers_the_requested_rate (void)
 
   for (i = 0; i < sizeof Ds / sizeof *Ds; i++)
     {
-      double                 D  = Ds[i];
-      RateConverter_state_t *rc = RateConverter_create (1.0 / D, 1);
-      size_t                 n  = (size_t)(D * 40.0);
-      float _Complex        *x, *o;
-      size_t                 m;
-      double                 got;
+      double                    D  = Ds[i];
+      dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / D, 1);
+      size_t                    n  = (size_t)(D * 40.0);
+      float _Complex           *x, *o;
+      size_t                    m;
+      double                    got;
 
       DP_CHECK (rc != NULL);
       if (!rc)
@@ -1522,14 +1523,14 @@ test_capped_cic_still_delivers_the_requested_rate (void)
         {
           free (x);
           free (o);
-          RateConverter_destroy (rc);
+          dp_RateConverter_destroy (rc);
           continue;
         }
       /* Well inside the CIC's +-2.0 input bound, so this measures the RATE
          and not the clip. */
       for (m = 0; m < n; m++)
         x[m] = 0.25f + 0.0f * I;
-      m   = RateConverter_execute (rc, x, n, o, n);
+      m   = dp_RateConverter_execute (rc, x, n, o, n);
       got = (double)m / (double)n;
       /* 2% covers the cascade's startup transient at these lengths; the
          defect was a factor of 2, 4 and 8, so the tolerance is nowhere near
@@ -1537,11 +1538,11 @@ test_capped_cic_still_delivers_the_requested_rate (void)
       DP_CHECK_MSG (fabs (got - 1.0 / D) <= 0.02 / D, "capped CIC lost rate");
       free (x);
       free (o);
-      RateConverter_destroy (rc);
+      dp_RateConverter_destroy (rc);
     }
 }
 
-/* The cap itself: cic_create refuses past CIC_R_MAX, and the planner never
+/* The cap itself: dp_cic_create refuses past CIC_R_MAX, and the planner never
  * asks. Both halves matter -- a cap the planner honours while the constructor
  * does not is one bad call site away from the accumulator it protects. */
 static void
@@ -1549,15 +1550,15 @@ test_cic_ratio_is_capped_at_both_layers (void)
 {
   {
     /* One create, asserted AND released. The assertion used to be its own
-       throwaway `cic_create(...) != NULL`, which proved the same thing and
+       throwaway `dp_cic_create(...) != NULL`, which proved the same thing and
        leaked the state it proved. */
-    cic_state_t *c = cic_create (CIC_R_MAX);
+    dp_cic_state_t *c = dp_cic_create (CIC_R_MAX);
     DP_CHECK (c != NULL);
     if (c)
-      cic_destroy (c);
+      dp_cic_destroy (c);
   }
-  DP_CHECK (cic_create (CIC_R_MAX * 2u) == NULL);
-  DP_CHECK (cic_create (CIC_R_MAX * 4u) == NULL);
+  DP_CHECK (dp_cic_create (CIC_R_MAX * 2u) == NULL);
+  DP_CHECK (dp_cic_create (CIC_R_MAX * 4u) == NULL);
 }
 
 int

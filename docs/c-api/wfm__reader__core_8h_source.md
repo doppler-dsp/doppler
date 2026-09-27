@@ -25,7 +25,7 @@ extern "C"
 {
 #endif
 
-  typedef struct wfm_reader_state wfm_reader_state_t;
+  typedef struct wfm_reader_state dp_wfm_reader_state_t;
 
 
   typedef enum
@@ -89,72 +89,72 @@ extern "C"
     int    t0_source;   
   } wfm_reader_info_t;
 
-wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int endian);
+dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
 
-  void wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info);
+  void wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
 
-size_t wfm_reader_read(wfm_reader_state_t *state, size_t n,
+size_t dp_wfm_reader_read(dp_wfm_reader_state_t *state, size_t n,
                        float _Complex *out, size_t max_out);
 
-size_t wfm_reader_read_max_out(wfm_reader_state_t *state, size_t n);
+size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
 
-size_t wfm_reader_num_keywords(const wfm_reader_state_t *state);
+size_t wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
 
-  const wfm_keyword_t *wfm_reader_keyword (const wfm_reader_state_t *r, size_t i);
+  const wfm_keyword_t *wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
 
-const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
+const char *wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);
 
-  size_t wfm_reader_num_header_fields(const wfm_reader_state_t *state);
+  size_t wfm_reader_num_header_fields(const dp_wfm_reader_state_t *state);
 
-  const wfm_keyword_t *wfm_reader_header_field(const wfm_reader_state_t *state,
+  const wfm_keyword_t *wfm_reader_header_field(const dp_wfm_reader_state_t *state,
                                                size_t i);
 
-  const char *wfm_reader_header_tag(const wfm_reader_state_t *state, size_t i);
+  const char *wfm_reader_header_tag(const dp_wfm_reader_state_t *state, size_t i);
 
   const wfm_keyword_t *
-  wfm_reader_find_header_field(const wfm_reader_state_t *state,
+  wfm_reader_find_header_field(const dp_wfm_reader_state_t *state,
                                const char *name);
 
-  const wfm_keyword_t *wfm_reader_find_keyword (const wfm_reader_state_t *r,
+  const wfm_keyword_t *wfm_reader_find_keyword (const dp_wfm_reader_state_t *r,
                                                 const char        *tag);
 
-void wfm_reader_reset(wfm_reader_state_t *state);
+void dp_wfm_reader_reset(dp_wfm_reader_state_t *state);
 
-int wfm_reader_seek(wfm_reader_state_t *state, int64_t index);
+int dp_wfm_reader_seek(dp_wfm_reader_state_t *state, int64_t index);
 
-int wfm_reader_seek_time(wfm_reader_state_t *state, double seconds);
+int dp_wfm_reader_seek_time(dp_wfm_reader_state_t *state, double seconds);
 
-  void wfm_reader_set_stop_fn (wfm_reader_state_t *state, int (*fn) (void));
+  void wfm_reader_set_stop_fn (dp_wfm_reader_state_t *state, int (*fn) (void));
 
 
-void wfm_reader_destroy(wfm_reader_state_t *state);
+void dp_wfm_reader_destroy(dp_wfm_reader_state_t *state);
 
-int wfm_reader_get_fc_source(const wfm_reader_state_t *state);
+int dp_wfm_reader_get_fc_source(const dp_wfm_reader_state_t *state);
 
-int wfm_reader_get_fs_source(const wfm_reader_state_t *state);
+int dp_wfm_reader_get_fs_source(const dp_wfm_reader_state_t *state);
 
-double wfm_reader_get_t0(const wfm_reader_state_t *state);
+double dp_wfm_reader_get_t0(const dp_wfm_reader_state_t *state);
 
-int wfm_reader_get_t0_source(const wfm_reader_state_t *state);
+int dp_wfm_reader_get_t0_source(const dp_wfm_reader_state_t *state);
 
-size_t wfm_reader_get_trailing_bytes(const wfm_reader_state_t *state);
+size_t dp_wfm_reader_get_trailing_bytes(const dp_wfm_reader_state_t *state);
 
-size_t wfm_reader_get_position(const wfm_reader_state_t *state);
+size_t dp_wfm_reader_get_position(const dp_wfm_reader_state_t *state);
 
-int wfm_reader_get_file_type(const wfm_reader_state_t *state);
-int wfm_reader_get_sample_type(const wfm_reader_state_t *state);
-int wfm_reader_get_mode(const wfm_reader_state_t *state);
-int wfm_reader_get_endian(const wfm_reader_state_t *state);
-double wfm_reader_get_fs(const wfm_reader_state_t *state);
-double wfm_reader_get_fc(const wfm_reader_state_t *state);
-size_t wfm_reader_get_num_samples(const wfm_reader_state_t *state);
-size_t wfm_reader_read_follow_max_out(wfm_reader_state_t *state, size_t n);
-size_t wfm_reader_read_follow(wfm_reader_state_t *state, size_t n, float _Complex *out, size_t max_out);
-uint32_t wfm_reader_get_follow_timeout_ms(const wfm_reader_state_t *state);
-void wfm_reader_set_follow_timeout_ms(wfm_reader_state_t *state, uint32_t val);
-uint32_t wfm_reader_get_follow_grace_ms(const wfm_reader_state_t *state);
-void wfm_reader_set_follow_grace_ms(wfm_reader_state_t *state, uint32_t val);
-int wfm_reader_get_ending(const wfm_reader_state_t *state);
+int dp_wfm_reader_get_file_type(const dp_wfm_reader_state_t *state);
+int dp_wfm_reader_get_sample_type(const dp_wfm_reader_state_t *state);
+int dp_wfm_reader_get_mode(const dp_wfm_reader_state_t *state);
+int dp_wfm_reader_get_endian(const dp_wfm_reader_state_t *state);
+double dp_wfm_reader_get_fs(const dp_wfm_reader_state_t *state);
+double dp_wfm_reader_get_fc(const dp_wfm_reader_state_t *state);
+size_t dp_wfm_reader_get_num_samples(const dp_wfm_reader_state_t *state);
+size_t dp_wfm_reader_read_follow_max_out(dp_wfm_reader_state_t *state, size_t n);
+size_t dp_wfm_reader_read_follow(dp_wfm_reader_state_t *state, size_t n, float _Complex *out, size_t max_out);
+uint32_t dp_wfm_reader_get_follow_timeout_ms(const dp_wfm_reader_state_t *state);
+void dp_wfm_reader_set_follow_timeout_ms(dp_wfm_reader_state_t *state, uint32_t val);
+uint32_t dp_wfm_reader_get_follow_grace_ms(const dp_wfm_reader_state_t *state);
+void dp_wfm_reader_set_follow_grace_ms(dp_wfm_reader_state_t *state, uint32_t val);
+int dp_wfm_reader_get_ending(const dp_wfm_reader_state_t *state);
 #ifdef __cplusplus
 }
 #endif

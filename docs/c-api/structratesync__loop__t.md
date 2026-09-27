@@ -41,8 +41,8 @@ _The symbol-timing loop, independent of what feeds it._ [More...](#detailed-desc
 |  double | [**ctrl**](#variable-ctrl)  <br> |
 |  int | [**have\_prev**](#variable-have_prev)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
-|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
-|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
+|  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
+|  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  size\_t | [**lock\_count**](#variable-lock_count)  <br> |
 |  double | [**lock\_stat**](#variable-lock_stat)  <br> |
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
@@ -216,7 +216,7 @@ last normalised TED error.
 ### variable lf 
 
 ```C++
-loop_filter_state_t ratesync_loop_t::lf;
+dp_loop_filter_state_t ratesync_loop_t::lf;
 ```
 
 
@@ -234,7 +234,7 @@ loop_filter_state_t ratesync_loop_t::lf;
 ### variable lock 
 
 ```C++
-lockdet_state_t ratesync_loop_t::lock;
+dp_lockdet_state_t ratesync_loop_t::lock;
 ```
 
 

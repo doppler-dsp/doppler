@@ -46,7 +46,7 @@ main (void)
   float *x = (float *)malloc (NCAP * sizeof (float));
 
   /* dynamic_range_db = 90 -> Kaiser beta ~12, matching the old default. */
-  nprmeas_state_t *m = nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
+  dp_nprmeas_state_t *m = dp_nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
   DP_CHECK (m != NULL);
 
   /* active band [0.06, 0.46], notch [0.20, 0.25] (k in [200,250] over n) ->
@@ -59,14 +59,14 @@ main (void)
     {
       notched_noise (x, NCAP, -(double)depth);
       npr_meas_t r;
-      r = nprmeas_analyze (m, x, NCAP, alo, ahi, nlo, nhi, guard);
+      r = dp_nprmeas_analyze (m, x, NCAP, alo, ahi, nlo, nhi, guard);
       /* measured NPR should track the synthesised notch depth (loose: the
        * window skirts and finite bins blur it). */
       DP_CHECK (fabs (r.npr_db - (double)depth) < 8.0);
       DP_CHECK (r.n_inband_bins > 0 && r.n_notch_bins > 0);
     }
 
-  nprmeas_destroy (m);
+  dp_nprmeas_destroy (m);
   free (x);
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
   {
@@ -75,29 +75,29 @@ main (void)
      * NB: feed a FULL capture (NCAP), not a short one -- with fewer samples
      * than one frame nothing accumulates, spectrum_dbfs returns 0, and a
      * "<= max_out" assertion would hold whether or not the clamp exists. */
-    nprmeas_state_t *m   = nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
-    size_t           cap = nprmeas_spectrum_dbfs_max_out (m); /* == nfft */
-    float           *xs  = (float *)malloc (NCAP * sizeof (float));
-    float           *o   = (float *)malloc (cap * sizeof (float));
+    dp_nprmeas_state_t *m = dp_nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
+    size_t cap            = dp_nprmeas_spectrum_dbfs_max_out (m); /* == nfft */
+    float *xs             = (float *)malloc (NCAP * sizeof (float));
+    float *o              = (float *)malloc (cap * sizeof (float));
     DP_CHECK (m && xs && o);
     for (size_t i = 0; i < NCAP; i++)
       xs[i] = (float)sin (0.05 * (double)i);
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
 
-    DP_CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
+    DP_CHECK (dp_nprmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
     for (size_t i = 5; i < cap; i++)
       DP_CHECK (o[i] == 42.0f); /* tail untouched */
 
     /* Zero capacity emits nothing. */
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
-    DP_CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
+    DP_CHECK (dp_nprmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
     for (size_t i = 0; i < cap; i++)
       DP_CHECK (o[i] == 42.0f);
     free (xs);
     free (o);
-    nprmeas_destroy (m);
+    dp_nprmeas_destroy (m);
   }
 
   DP_TEST_END ("test_nprmeas_core");

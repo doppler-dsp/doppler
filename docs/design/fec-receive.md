@@ -25,7 +25,7 @@ about:
 | -------------- | ------------------------------------------------------ | ----------------------------------- |
 | soft demapping | per-bit LLRs from the constellation                    | `mpsk_soft_demap`                   |
 | node sync      | which symbol starts a `(C1, C2)` pair                  | `node_sync_scan` (§9 of viterbi.md) |
-| inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | `viterbi_decode`                    |
+| inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | `dp_viterbi_decode`                 |
 | ASM search     | the marker in the **decoded** bits, and its complement | `ccsds_tm_asm_find`                 |
 | derandomise    | XOR the sequence the link chose (10.4.1 or 10.4.2)     | involutive — the same call          |
 | outer decode   | R-S (255,223) E = 16, de-interleaved                   | `ccsds_tm_rs_decode_block`          |

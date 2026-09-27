@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef LO_CORE_H
-#define LO_CORE_H
+#ifndef DP_LO_CORE_H
+#define DP_LO_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -26,13 +26,13 @@ extern "C"
     uint32_t phase;     /* current accumulator value [0, 2^32)          */
     uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
     double norm_freq;   /* normalised frequency (cycles/sample)           */
-  } lo_state_t;
+  } dp_lo_state_t;
 
 /* ---- Inline composition API (C-only; not exposed as Python methods) ----
  *
- * lo_init / lo_step let a tracking loop embed lo_state_t BY VALUE and de-rotate
+ * lo_init / lo_step let a tracking loop embed dp_lo_state_t BY VALUE and de-rotate
  * a sample stream one sample at a time with zero call overhead — the block
- * generators below (lo_steps) stay the fast path for bulk synthesis.  The
+ * generators below (dp_lo_steps) stay the fast path for bulk synthesis.  The
  * shared sin LUT is exposed here so the inline step can index it directly.   */
 #define LO_LUT_BITS 16u
 #define LO_LUT_SIZE (1u << LO_LUT_BITS) /* 65536                    */
@@ -40,9 +40,9 @@ extern "C"
 
   extern float lo_sin_lut[LO_LUT_SIZE];
 
-  void lo_init (lo_state_t *state, double norm_freq);
+  void lo_init (dp_lo_state_t *state, double norm_freq);
 
-  JM_FORCEINLINE JM_HOT float _Complex lo_step (lo_state_t *state)
+  JM_FORCEINLINE JM_HOT float _Complex lo_step (dp_lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
     float _Complex out
@@ -52,7 +52,7 @@ extern "C"
     return out;
   }
 
-  JM_FORCEINLINE JM_HOT float _Complex lo_step_ctrl (lo_state_t *state,
+  JM_FORCEINLINE JM_HOT float _Complex lo_step_ctrl (dp_lo_state_t *state,
                                                     double ctrl)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
@@ -69,19 +69,19 @@ extern "C"
     return out;
   }
 
-  lo_state_t *lo_create (double norm_freq);
+  dp_lo_state_t *dp_lo_create (double norm_freq);
 
-  void lo_destroy (lo_state_t *state);
+  void dp_lo_destroy (dp_lo_state_t *state);
 
-  void lo_reset (lo_state_t *state);
+  void dp_lo_reset (dp_lo_state_t *state);
 
   /* ---- Properties ---- */
 
-  double lo_get_norm_freq (const lo_state_t *state);
-  void lo_set_norm_freq (lo_state_t *state, double norm_freq);
+  double dp_lo_get_norm_freq (const dp_lo_state_t *state);
+  void dp_lo_set_norm_freq (dp_lo_state_t *state, double norm_freq);
 
-  uint32_t lo_get_phase (const lo_state_t *state);
-  void lo_set_phase (lo_state_t *state, uint32_t phase);
+  uint32_t dp_lo_get_phase (const dp_lo_state_t *state);
+  void dp_lo_set_phase (dp_lo_state_t *state, uint32_t phase);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Every composable filter exposes this triplet so a pure transducer
@@ -93,22 +93,22 @@ extern "C"
 #define LO_STATE_MAGIC DP_FOURCC ('L', 'O', '_', '_')
 #define LO_STATE_VERSION 1u
 
-  size_t lo_state_bytes (const lo_state_t *state);
-  void lo_get_state (const lo_state_t *state, void *blob);
-  int lo_set_state (lo_state_t *state, const void *blob);
+  size_t dp_lo_state_bytes (const dp_lo_state_t *state);
+  void dp_lo_get_state (const dp_lo_state_t *state, void *blob);
+  int dp_lo_set_state (dp_lo_state_t *state, const void *blob);
 
-  uint32_t lo_get_phase_inc (const lo_state_t *state);
+  uint32_t dp_lo_get_phase_inc (const dp_lo_state_t *state);
 
   /* ---- Block generators ---- */
 
-  size_t lo_steps_max_out (lo_state_t *state);
+  size_t dp_lo_steps_max_out (dp_lo_state_t *state);
 
-  size_t lo_steps (lo_state_t *state, size_t n, float _Complex *out,
+  size_t dp_lo_steps (dp_lo_state_t *state, size_t n, float _Complex *out,
                    size_t max_out);
 
-  size_t lo_steps_ctrl_max_out (lo_state_t *state);
+  size_t dp_lo_steps_ctrl_max_out (dp_lo_state_t *state);
 
-  size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
+  size_t dp_lo_steps_ctrl (dp_lo_state_t *state, const double *ctrl, size_t ctrl_len,
                         float _Complex *out, size_t max_out);
 
 #ifdef __cplusplus

@@ -4,9 +4,9 @@ from numpy.typing import NDArray
 def mpsk_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
     """Map Gray-coded M-PSK labels to unit-amplitude constellation points.
 
-    Element-wise inverse of mpsk_demap(): each input byte is one symbol's
-    log2(M) Gray-coded bits (0..M-1), each output is its cf32 point.
-    Memoryless (absolute phase). out must hold sym_len points.
+    Element-wise inverse of dp_mpsk_demap(): each input byte is one
+    symbol's log2(M) Gray-coded bits (0..M-1), each output is its cf32
+    point. Memoryless (absolute phase). out must hold sym_len points.
 
     Parameters
     ----------
@@ -36,10 +36,10 @@ def mpsk_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
 def mpsk_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     """Hard-decide M-PSK symbols to their Gray-coded label bytes.
 
-    Element-wise inverse of mpsk_map(): each cf32 symbol is sliced to the
-    nearest constellation point and its Gray label (0..M-1) is written out.
-    A slip to an adjacent point flips exactly one bit (Gray). out must hold
-    x_len bytes.
+    Element-wise inverse of dp_mpsk_map(): each cf32 symbol is sliced to
+    the nearest constellation point and its Gray label (0..M-1) is written
+    out. A slip to an adjacent point flips exactly one bit (Gray). out must
+    hold x_len bytes.
 
     Parameters
     ----------
@@ -107,7 +107,7 @@ def mpsk_diff_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
 def mpsk_diff_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     """Differential M-PSK demap: decide from the phase DIFFERENCE.
 
-    Inverse of mpsk_diff_map(): the Gray label of each symbol is decided
+    Inverse of dp_mpsk_diff_map(): the Gray label of each symbol is decided
     from the phase difference between consecutive sliced indices (the first
     references an implicit zero-phase start). Invariant to an unknown
     constant carrier phase.
@@ -142,7 +142,7 @@ def mpsk_soft_demap(
 ) -> None:
     """Soft-demap M-PSK symbols to per-bit log-likelihood ratios.
 
-    The soft counterpart of mpsk_demap(): instead of one label byte per
+    The soft counterpart of dp_mpsk_demap(): instead of one label byte per
     symbol it writes `log2(M)` LLRs, one per bit, which is what a
     soft-input decoder (a Viterbi, for the CCSDS inner code) needs. A hard
     decision throws away roughly 2 dB of the coding gain such a decoder
@@ -153,7 +153,7 @@ def mpsk_soft_demap(
     L_i = log( P(bit i = 0 | y) / P(bit i = 1 | y) )
 
     so **positive means bit 0** and the hard decision is `L < 0`. That is
-    not a separate rule: `mpsk_demap()` is what this reproduces, and the
+    not a separate rule: `dp_mpsk_demap()` is what this reproduces, and the
     sign agreeing with it at every M and every SNR is asserted in
     test_mpsk_core.c rather than assumed. The repository has ONE decision
     rule; this is a second view of it, not a second copy.

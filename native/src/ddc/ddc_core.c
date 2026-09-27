@@ -2,7 +2,7 @@
  * @file ddc_core.c
  * @brief Digital Down-Converter implementation.
  *
- * Ddc: lo_steps → element-wise multiply → RateConverter_execute.  The
+ * Ddc: dp_lo_steps → element-wise multiply → dp_RateConverter_execute.  The
  * real-input twin lives in ddcr/ddcr_core.c.
  *
  * execute() allocates a temporary mix buffer per call.
@@ -12,10 +12,11 @@
  * RateConverter selects the cheapest cascade (CIC + optional HB +
  * polyphase) at create time, matching the rate automatically.
  *
- * The control-port variants replace lo_steps with a per-sample lo_step_ctrl
- * and RateConverter_execute with RateConverter_execute_ctrl; the push forms
- * do the same one sample at a time.  Nothing else differs — the two ports are
- * the LO's and the terminal stage's own accumulators, steered in place.
+ * The control-port variants replace dp_lo_steps with a per-sample lo_step_ctrl
+ * and dp_RateConverter_execute with dp_RateConverter_execute_ctrl; the push
+ * forms do the same one sample at a time.  Nothing else differs — the two
+ * ports are the LO's and the terminal stage's own accumulators, steered in
+ * place.
  */
 #include "doppler/ddc/ddc_core.h"
 #include "doppler/RateConverter/RateConverter_core.h"
@@ -29,16 +30,16 @@
    stage's bank, so they share a body; the two public entry points exist
    because they are different objects to a caller (and different Python
    flavors: DDC and MatchedDDC). */
-static ddc_state_t *
+static dp_ddc_state_t *
 ddc_ddc_new (double norm_freq, double rate, int pulse, double beta,
              size_t span, double pulse_sps, size_t num_phases)
 {
   if (rate <= 0.0)
     return NULL;
-  ddc_state_t *s = malloc (sizeof *s);
+  dp_ddc_state_t *s = malloc (sizeof *s);
   if (!s)
     return NULL;
-  s->lo = lo_create (norm_freq);
+  s->lo = dp_lo_create (norm_freq);
   if (!s->lo)
     {
       free (s);
@@ -48,12 +49,12 @@ ddc_ddc_new (double norm_freq, double rate, int pulse, double beta,
      fold is worth 28 dB for six taps per arm, folded into a bank the cascade
      already evaluates, so no matched-filter operating point wants it off. */
   s->rc = (pulse == RC_PULSE_NONE)
-              ? RateConverter_create (rate, 0)
+              ? dp_RateConverter_create (rate, 0)
               : RateConverter_create_matched (rate, 1, pulse, beta, span,
                                               pulse_sps, num_phases);
   if (!s->rc)
     {
-      lo_destroy (s->lo);
+      dp_lo_destroy (s->lo);
       free (s);
       return NULL;
     }
@@ -66,59 +67,59 @@ ddc_ddc_new (double norm_freq, double rate, int pulse, double beta,
   return s;
 }
 
-ddc_state_t *
-ddc_create (double norm_freq, double rate)
+dp_ddc_state_t *
+dp_ddc_create (double norm_freq, double rate)
 {
   return ddc_ddc_new (norm_freq, rate, RC_PULSE_NONE, 0.0, 0, 0.0, 0);
 }
 
-ddc_state_t *
+dp_ddc_state_t *
 ddc_create_matched (double norm_freq, double rate, int pulse, double beta,
                     size_t span, double pulse_sps, size_t num_phases)
 {
-  if (pulse == RC_PULSE_NONE) /* use ddc_create() for a plain conversion */
+  if (pulse == RC_PULSE_NONE) /* use dp_ddc_create() for a plain conversion */
     return NULL;
   return ddc_ddc_new (norm_freq, rate, pulse, beta, span, pulse_sps,
                       num_phases);
 }
 
 void
-ddc_destroy (ddc_state_t *s)
+dp_ddc_destroy (dp_ddc_state_t *s)
 {
   if (!s)
     return;
-  lo_destroy (s->lo);
-  RateConverter_destroy (s->rc);
+  dp_lo_destroy (s->lo);
+  dp_RateConverter_destroy (s->rc);
   free (s);
 }
 
 void
-ddc_reset (ddc_state_t *s)
+dp_ddc_reset (dp_ddc_state_t *s)
 {
-  lo_reset (s->lo);
-  RateConverter_reset (s->rc);
+  dp_lo_reset (s->lo);
+  dp_RateConverter_reset (s->rc);
 }
 
 double
-ddc_get_norm_freq (const ddc_state_t *s)
+dp_ddc_get_norm_freq (const dp_ddc_state_t *s)
 {
-  return lo_get_norm_freq (s->lo);
+  return dp_lo_get_norm_freq (s->lo);
 }
 
 void
-ddc_set_norm_freq (ddc_state_t *s, double norm_freq)
+dp_ddc_set_norm_freq (dp_ddc_state_t *s, double norm_freq)
 {
-  lo_set_norm_freq (s->lo, norm_freq);
+  dp_lo_set_norm_freq (s->lo, norm_freq);
 }
 
 double
-ddc_get_rate (const ddc_state_t *s)
+dp_ddc_get_rate (const dp_ddc_state_t *s)
 {
   return s->rc->rate;
 }
 
 size_t
-ddc_execute_max_out (ddc_state_t *s, size_t x_len)
+dp_ddc_execute_max_out (dp_ddc_state_t *s, size_t x_len)
 {
   /* gh-607: the binding sizes the output buffer to this per-call bound and
      resizes down to the actual count. A DDC decimates (or passes at unity),
@@ -129,8 +130,8 @@ ddc_execute_max_out (ddc_state_t *s, size_t x_len)
 }
 
 size_t
-ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
-             float _Complex *out, size_t max_out)
+dp_ddc_execute (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
+                float _Complex *out, size_t max_out)
 {
   if (n_in == 0)
     return 0;
@@ -140,37 +141,37 @@ ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
     return 0;
 
   /* Generate LO phasors and multiply with input in one pass. */
-  lo_steps (s->lo, n_in, mix, n_in);
+  dp_lo_steps (s->lo, n_in, mix, n_in);
   for (size_t i = 0; i < n_in; i++)
     mix[i] = in[i] * mix[i];
 
-  size_t nout = RateConverter_execute (s->rc, mix, n_in, out, max_out);
+  size_t nout = dp_RateConverter_execute (s->rc, mix, n_in, out, max_out);
   free (mix);
   return nout;
 }
 
 size_t
-ddc_execute_ctrl_max_out (ddc_state_t *s, size_t x_len)
+dp_ddc_execute_ctrl_max_out (dp_ddc_state_t *s, size_t x_len)
 {
-  /* Output never exceeds the input length (see ddc_execute_max_out). */
+  /* Output never exceeds the input length (see dp_ddc_execute_max_out). */
   (void)s;
   return x_len;
 }
 
 size_t
-ddc_execute_ctrl_push_max_out (ddc_state_t *s)
+dp_ddc_execute_ctrl_push_max_out (dp_ddc_state_t *s)
 {
   /* A single input completes at most ceil(rate) + 1 output periods, and the
      binding has no input block to size its buffer from here — unlike the
      block forms, whose 0 means "size it from the input". */
-  double rate = ddc_get_rate (s);
+  double rate = dp_ddc_get_rate (s);
   return (size_t)(rate > 1.0 ? rate : 1.0) + 2;
 }
 
 size_t
-ddc_execute_ctrl (ddc_state_t *s, const float _Complex *in, size_t n_in,
-                  double rate_ctrl, double freq_ctrl, float _Complex *out,
-                  size_t max_out)
+dp_ddc_execute_ctrl (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
+                     double rate_ctrl, double freq_ctrl, float _Complex *out,
+                     size_t max_out)
 {
   if (n_in == 0)
     return 0;
@@ -180,31 +181,33 @@ ddc_execute_ctrl (ddc_state_t *s, const float _Complex *in, size_t n_in,
     return 0;
 
   /* One LO step per input, carrying the frequency control.  lo_step_ctrl with
-     ctrl == 0 is bit-identical to the vectorised lo_steps() path (both index
-     the same LUT off the same integer accumulator), so no fast path is worth
-     the branch here. */
+     ctrl == 0 is bit-identical to the vectorised dp_lo_steps() path (both
+     index the same LUT off the same integer accumulator), so no fast path is
+     worth the branch here. */
   for (size_t i = 0; i < n_in; i++)
     mix[i] = in[i] * lo_step_ctrl (s->lo, freq_ctrl);
 
-  size_t nout
-      = RateConverter_execute_ctrl (s->rc, mix, n_in, rate_ctrl, out, max_out);
+  size_t nout = dp_RateConverter_execute_ctrl (s->rc, mix, n_in, rate_ctrl,
+                                               out, max_out);
   free (mix);
   return nout;
 }
 
 size_t
-ddc_execute_ctrl_push_tap (ddc_state_t *s, float _Complex x, double rate_ctrl,
-                           double freq_ctrl, float _Complex *out,
-                           size_t max_out, float _Complex *lo_out, int *n_lo)
+ddc_execute_ctrl_push_tap (dp_ddc_state_t *s, float _Complex x,
+                           double rate_ctrl, double freq_ctrl,
+                           float _Complex *out, size_t max_out,
+                           float _Complex *lo_out, int *n_lo)
 {
   return ddc_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out, max_out,
                                      lo_out, n_lo, NULL, NULL);
 }
 
 size_t
-ddc_execute_ctrl_push_tap2 (ddc_state_t *s, float _Complex x, double rate_ctrl,
-                            double freq_ctrl, float _Complex *out,
-                            size_t max_out, float _Complex *lo_out, int *n_lo,
+ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *s, float _Complex x,
+                            double rate_ctrl, double freq_ctrl,
+                            float _Complex *out, size_t max_out,
+                            float _Complex *lo_out, int *n_lo,
                             float _Complex *pre_out, int *n_pre)
 {
   float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
@@ -217,33 +220,34 @@ ddc_execute_ctrl_push_tap2 (ddc_state_t *s, float _Complex x, double rate_ctrl,
 }
 
 double
-ddc_get_bank_sps (const ddc_state_t *s)
+ddc_get_bank_sps (const dp_ddc_state_t *s)
 {
   return RateConverter_get_bank_sps (s->rc);
 }
 
 size_t
-ddc_execute_ctrl_push (ddc_state_t *s, float _Complex x, double rate_ctrl,
-                       double freq_ctrl, float _Complex *out, size_t max_out)
+dp_ddc_execute_ctrl_push (dp_ddc_state_t *s, float _Complex x,
+                          double rate_ctrl, double freq_ctrl,
+                          float _Complex *out, size_t max_out)
 {
   return ddc_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out, max_out,
                                     NULL, NULL);
 }
 
 bool
-ddc_get_narrow_pulse (const ddc_state_t *s)
+dp_ddc_get_narrow_pulse (const dp_ddc_state_t *s)
 {
   return s->narrow_pulse;
 }
 
 bool
-ddc_get_clipped (const ddc_state_t *s)
+dp_ddc_get_clipped (const dp_ddc_state_t *s)
 {
-  return RateConverter_get_clipped (s->rc) != 0;
+  return dp_RateConverter_get_clipped (s->rc) != 0;
 }
 
 int
-ddc_set_telemetry (ddc_state_t *s, dp_tlm_t *tlm, const char *prefix,
+ddc_set_telemetry (dp_ddc_state_t *s, dp_tlm_t *tlm, const char *prefix,
                    uint32_t decim)
 {
   return RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
@@ -253,30 +257,30 @@ ddc_set_telemetry (ddc_state_t *s, dp_tlm_t *tlm, const char *prefix,
  * Layout: [dp_state_hdr_t][ddc_extra_t][lo][rc]; see dp_state.h. */
 
 size_t
-ddc_state_bytes (const ddc_state_t *s)
+dp_ddc_state_bytes (const dp_ddc_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (ddc_extra_t)
-         + lo_state_bytes (s->lo) + RateConverter_state_bytes (s->rc);
+         + dp_lo_state_bytes (s->lo) + dp_RateConverter_state_bytes (s->rc);
 }
 
 void
-ddc_get_state (const ddc_state_t *s, void *blob)
+dp_ddc_get_state (const dp_ddc_state_t *s, void *blob)
 {
-  DP_GET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, ddc_state_bytes (s));
+  DP_GET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, dp_ddc_state_bytes (s));
   dp_w_f64 (&_w, s->rc->rate); /* ddc_extra_t */
-  DP_W_CHILD (&_w, lo, s->lo);
-  DP_W_CHILD (&_w, RateConverter, s->rc);
+  DP_W_CHILD (&_w, dp_lo, s->lo);
+  DP_W_CHILD (&_w, dp_RateConverter, s->rc);
 }
 
 int
-ddc_set_state (ddc_state_t *s, const void *blob)
+dp_ddc_set_state (dp_ddc_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, ddc_state_bytes (s));
+  DP_SET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, dp_ddc_state_bytes (s));
   if (dp_r_f64 (&_r) != s->rc->rate) /* ddc_extra_t.rate is the layout key */
     return DP_ERR_INVALID;
-  DP_R_CHILD (&_r, lo, s->lo);
-  DP_R_CHILD (&_r, RateConverter, s->rc);
+  DP_R_CHILD (&_r, dp_lo, s->lo);
+  DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   return DP_OK;
 }
 
-DP_DEFINE_RUN (ddc, ddc_state_t, float _Complex, float _Complex)
+DP_DEFINE_RUN (dp_ddc, dp_ddc_state_t, float _Complex, float _Complex)

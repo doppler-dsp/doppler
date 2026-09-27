@@ -88,25 +88,26 @@ main (void)
 
   /* 1. Lifecycle / guard / parity */
   {
-    DP_CHECK (despreader_create (NULL, 0, sps, 0.0, 0.0, 0.05, 0.005, 0.0,
-                                 0.707, 0.5, 1)
+    DP_CHECK (dp_despreader_create (NULL, 0, sps, 0.0, 0.0, 0.05, 0.005, 0.0,
+                                    0.707, 0.5, 1)
               == NULL);
     uint8_t code[127];
     make_code (code, sf, 1u);
-    despreader_state_t *c = despreader_create (code, sf, sps, 0.001, 0.0, 0.05,
-                                               0.005, 0.0, 0.707, 0.5, 1);
+    dp_despreader_state_t *c = dp_despreader_create (
+        code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
-    DP_CHECK (fabs (despreader_get_norm_freq (c) - 0.001) < 1e-9); /* seeded */
-    DP_CHECK (despreader_get_code_rate (c) == 1.0);
-    despreader_state_t v;
+    DP_CHECK (fabs (dp_despreader_get_norm_freq (c) - 0.001)
+              < 1e-9); /* seeded */
+    DP_CHECK (dp_despreader_get_code_rate (c) == 1.0);
+    dp_despreader_state_t v;
     despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707,
                      0.5, 1);
     DP_CHECK (v.car.lf.kp == c->car.lf.kp);
     DP_CHECK (v.code.sf == sf && v.code.owns_code == 0);
     free (v.flip_hist);
-    despreader_destroy (c);
+    dp_despreader_destroy (c);
   }
 
   /* 2. Full receiver — small residual locks, zero BER on the tail */
@@ -118,24 +119,24 @@ main (void)
     int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 3u);
 
-    despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                                 0.005, 0.0, 0.707, 0.5, 1);
-    float _Complex     *sym = malloc (nper * sizeof (*sym));
-    size_t              k   = despreader_steps (c, rx, n, sym, nper);
-    DP_CHECK (fabs (despreader_get_norm_freq (c) - 5e-5) < 1e-5);
-    DP_CHECK (despreader_get_lock_metric (c) > 0.9);
+    dp_despreader_state_t *c = dp_despreader_create (
+        code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    size_t          k   = dp_despreader_steps (c, rx, n, sym, nper);
+    DP_CHECK (fabs (dp_despreader_get_norm_freq (c) - 5e-5) < 1e-5);
+    DP_CHECK (dp_despreader_get_lock_metric (c) > 0.9);
     /* both embedded lock detectors are live in composition: the carrier
      * decision (verify-counted on the Costas metric EMA) and the code
      * decision (the DLL's always-on CFAR detector, fed by the offset
      * noise tap the composition path now accumulates). */
-    DP_CHECK (despreader_get_carrier_locked (c) == 1);
-    DP_CHECK (despreader_get_code_locked (c) == 1);
+    DP_CHECK (dp_despreader_get_carrier_locked (c) == 1);
+    DP_CHECK (dp_despreader_get_code_locked (c) == 1);
     DP_CHECK (c->code.lock_stat > 0.0 && c->code.noise_ema > 0.0);
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
     DP_CHECK (amb_errors (dec, data, k / 2, k) == 0);
-    despreader_destroy (c);
+    dp_despreader_destroy (c);
     free (rx);
     free (data);
     free (sym);
@@ -153,24 +154,26 @@ main (void)
     int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, f0, 0.0f, 11u);
 
-    despreader_state_t *pll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                                 0.005, 0.0, 0.707, 0.5, 1);
-    float _Complex     *sym = malloc (nper * sizeof (*sym));
-    despreader_steps (pll, rx, n, sym, nper);
-    DP_CHECK (despreader_get_lock_metric (pll) < 0.8); /* bare PLL misses it */
-    DP_CHECK (despreader_get_carrier_locked (pll) == 0); /* decision agrees */
-    despreader_destroy (pll);
+    dp_despreader_state_t *pll = dp_despreader_create (
+        code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    dp_despreader_steps (pll, rx, n, sym, nper);
+    DP_CHECK (dp_despreader_get_lock_metric (pll)
+              < 0.8); /* bare PLL misses it */
+    DP_CHECK (dp_despreader_get_carrier_locked (pll)
+              == 0); /* decision agrees */
+    dp_despreader_destroy (pll);
 
-    despreader_state_t *fll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                                 0.005, 0.03, 0.707, 0.5, 1);
-    size_t              k   = despreader_steps (fll, rx, n, sym, nper);
-    DP_CHECK (fabs (despreader_get_norm_freq (fll) - f0) < 2e-5);
-    DP_CHECK (despreader_get_lock_metric (fll) > 0.9);
+    dp_despreader_state_t *fll = dp_despreader_create (
+        code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1);
+    size_t k = dp_despreader_steps (fll, rx, n, sym, nper);
+    DP_CHECK (fabs (dp_despreader_get_norm_freq (fll) - f0) < 2e-5);
+    DP_CHECK (dp_despreader_get_lock_metric (fll) > 0.9);
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
     DP_CHECK (amb_errors (dec, data, k / 2, k) == 0);
-    despreader_destroy (fll);
+    dp_despreader_destroy (fll);
     free (rx);
     free (data);
     free (sym);
@@ -187,15 +190,15 @@ main (void)
     int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 4e-5, 0.0f, 17u);
 
-    despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                               0.005, 0.0, 0.707, 0.5, 1);
-    uint8_t            *bits = malloc (nper);
-    size_t              k    = despreader_bits (c, rx, n, bits, nper);
-    int                *dec  = malloc (k * sizeof (int));
+    dp_despreader_state_t *c = dp_despreader_create (
+        code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
+    uint8_t *bits = malloc (nper);
+    size_t   k    = dp_despreader_bits (c, rx, n, bits, nper);
+    int     *dec  = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = bits[i] ? 1 : -1;
     DP_CHECK (amb_errors (dec, data, k / 2, k) == 0);
-    despreader_destroy (c);
+    dp_despreader_destroy (c);
     free (rx);
     free (data);
     free (bits);
@@ -213,18 +216,18 @@ main (void)
     int            *data = malloc (nbits * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, N, 3e-5, 0.0f, 23u);
 
-    despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                               0.005, 0.0, 0.707, 0.5, N);
-    uint8_t            *bits = malloc (nbits);
-    size_t              k    = despreader_bits (c, rx, n, bits, nbits);
+    dp_despreader_state_t *c = dp_despreader_create (
+        code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, N);
+    uint8_t *bits = malloc (nbits);
+    size_t   k    = dp_despreader_bits (c, rx, n, bits, nbits);
     DP_CHECK (k >= nbits - 3); /* ~one bit per periods_per_bit periods */
-    DP_CHECK (despreader_get_bit_phase (c) == 0); /* boundary at epoch 0 */
+    DP_CHECK (dp_despreader_get_bit_phase (c) == 0); /* boundary at epoch 0 */
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = bits[i] ? 1 : -1;
     /* tail: after bit-sync settles, recovered bits match the data */
     DP_CHECK (amb_errors (dec, data, k / 3, k) == 0);
-    despreader_destroy (c);
+    dp_despreader_destroy (c);
     free (rx);
     free (data);
     free (bits);
@@ -241,17 +244,17 @@ main (void)
     int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 5u);
 
-    despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                                 0.005, 0.0, 0.707, 0.5, 1);
-    float _Complex     *sym = malloc (nper * sizeof (*sym));
-    despreader_steps (c, rx, n, sym, nper);
-    double f1 = despreader_get_norm_freq (c),
-           l1 = despreader_get_lock_metric (c);
-    despreader_reset (c);
-    despreader_steps (c, rx, n, sym, nper);
-    DP_CHECK (f1 == despreader_get_norm_freq (c));
-    DP_CHECK (l1 == despreader_get_lock_metric (c));
-    despreader_destroy (c);
+    dp_despreader_state_t *c = dp_despreader_create (
+        code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    dp_despreader_steps (c, rx, n, sym, nper);
+    double f1 = dp_despreader_get_norm_freq (c),
+           l1 = dp_despreader_get_lock_metric (c);
+    dp_despreader_reset (c);
+    dp_despreader_steps (c, rx, n, sym, nper);
+    DP_CHECK (f1 == dp_despreader_get_norm_freq (c));
+    DP_CHECK (l1 == dp_despreader_get_lock_metric (c));
+    dp_despreader_destroy (c);
     free (rx);
     free (data);
     free (sym);
@@ -269,19 +272,19 @@ main (void)
     float _Complex rx[256], sym[16];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
-    despreader_state_t *a = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
-                                               0.005, 0.0, 0.707, 0.5, 1);
-    despreader_state_t *b = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
-                                               0.005, 0.0, 0.707, 0.5, 1);
+    dp_despreader_state_t *a = dp_despreader_create (
+        code, 31, 2, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
+    dp_despreader_state_t *b = dp_despreader_create (
+        code, 31, 2, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)despreader_steps (a, rx, 256, sym, 16);
-    DP_STATE_ROUNDTRIP_TEST (despreader, a, b);
+    (void)dp_despreader_steps (a, rx, 256, sym, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_despreader, a, b);
     DP_CHECK (b->epoch_count == a->epoch_count);
     DP_CHECK (b->car.acc == a->car.acc);       /* costas child */
     DP_CHECK (b->code.acc_p == a->code.acc_p); /* dll child */
     DP_CHECK (b->code_copy != NULL && b->code.code == b->code_copy);
-    despreader_destroy (a);
-    despreader_destroy (b);
+    dp_despreader_destroy (a);
+    dp_despreader_destroy (b);
   }
 
   /* telemetry attach — a pure forward to both embedded loops: seven
@@ -301,30 +304,30 @@ main (void)
     dp_tlm_rec_t recs[512];
     for (int i = 0; i < L; i++)
       rx[i] = (code[(size_t)(i / 2) % 31] & 1u) ? -1.0f : 1.0f;
-    dp_tlm_t           *tlm = dp_tlm_create (4096);
-    despreader_state_t *ch  = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
-                                                 0.005, 0.0, 0.707, 0.5, 1);
+    dp_tlm_t              *tlm = dp_tlm_create (4096);
+    dp_despreader_state_t *ch  = dp_despreader_create (
+        code, 31, 2, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1);
     DP_CHECK (tlm != NULL && ch != NULL);
-    DP_CHECK (despreader_set_telemetry (ch, tlm, "ch0", 1) == DP_OK);
+    DP_CHECK (dp_despreader_set_telemetry (ch, tlm, "ch0", 1) == DP_OK);
     DP_CHECK (dp_tlm_probe_id (tlm, "ch0.car.lock") == ch->car.tlm.id_lock);
     DP_CHECK (dp_tlm_probe_id (tlm, "ch0.code.e") == ch->code.tlm.id_e);
     DP_CHECK (ch->tlm_ctx == tlm && ch->car.tlm.ctx == tlm
               && ch->code.tlm.ctx == tlm);
 
-    size_t k     = despreader_steps (ch, rx, L, sym, 64);
+    size_t k     = dp_despreader_steps (ch, rx, L, sym, 64);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
     DP_CHECK (k > 0 && n_rec == 8 * k); /* both loops flush per period */
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     uint8_t bit_out[64];
-    (void)despreader_bits (ch, rx, L, bit_out, 64);
+    (void)dp_despreader_bits (ch, rx, L, bit_out, 64);
     DP_CHECK (dp_tlm_read (tlm, 512, recs, 512) > 0);
 
     /* Detach cascades to both children. */
-    DP_CHECK (despreader_set_telemetry (ch, NULL, "ch0", 1) == DP_OK);
+    DP_CHECK (dp_despreader_set_telemetry (ch, NULL, "ch0", 1) == DP_OK);
     DP_CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
               && ch->code.tlm.ctx == NULL);
-    (void)despreader_steps (ch, rx, L, sym, 64);
+    (void)dp_despreader_steps (ch, rx, L, sym, 64);
     DP_CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
     /* Partial registration failure unwinds: leave exactly four free
@@ -338,10 +341,11 @@ main (void)
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm, pname, 1);
       }
-    DP_CHECK (despreader_set_telemetry (ch, tlm, "nope", 1) == DP_ERR_INVALID);
+    DP_CHECK (dp_despreader_set_telemetry (ch, tlm, "nope", 1)
+              == DP_ERR_INVALID);
     DP_CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
               && ch->code.tlm.ctx == NULL);
-    despreader_destroy (ch);
+    dp_despreader_destroy (ch);
     dp_tlm_destroy (tlm);
   }
 

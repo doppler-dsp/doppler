@@ -103,18 +103,18 @@ class DDC:
     ) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
 
-        The control-port form of ddc_execute(): the LO advances by `phase_inc +
-        freq_ctrl` on every sample of this block, and the cascade's terminal
-        stage runs at `stage_rate + rate_ctrl`. Neither deviation is persisted
-        — the centre norm_freq and rate are untouched — so a tracking loop
-        passes its full filter output on every call and the DDC holds no loop
-        state of its own.
+        The control-port form of dp_ddc_execute(): the LO advances by
+        `phase_inc + freq_ctrl` on every sample of this block, and the
+        cascade's terminal stage runs at `stage_rate + rate_ctrl`. Neither
+        deviation is persisted — the centre norm_freq and rate are untouched —
+        so a tracking loop passes its full filter output on every call and the
+        DDC holds no loop state of its own.
 
-        Feeding a stream through ddc_execute_ctrl_push() one sample at a time
-        reproduces this call bit-for-bit when both controls are held constant,
-        so the cheap block form stays correct for open-loop use (a fixed
-        Doppler offset, a rate trim) and the push form is what a closed loop
-        uses.
+        Feeding a stream through dp_ddc_execute_ctrl_push() one sample at a
+        time reproduces this call bit-for-bit when both controls are held
+        constant, so the cheap block form stays correct for open-loop use (a
+        fixed Doppler offset, a rate trim) and the push form is what a closed
+        loop uses.
 
         Parameters
         ----------
@@ -158,11 +158,11 @@ class DDC:
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of ddc_execute_ctrl(), and the only form a
-        closed loop can use: a block call has to know its whole control history
-        up front, whereas a carrier or timing loop computes each correction
-        *from* the outputs already emitted. Both loops close once per symbol,
-        so both ports need this form.
+        The per-input streaming form of dp_ddc_execute_ctrl(), and the only
+        form a closed loop can use: a block call has to know its whole control
+        history up front, whereas a carrier or timing loop computes each
+        correction *from* the outputs already emitted. Both loops close once
+        per symbol, so both ports need this form.
 
         The mix costs one LO step per input; the cascade then emits 0 outputs
         (the common decimating case, between strobes), 1, or several.
@@ -357,14 +357,14 @@ class MatchedDDC:
     Parameters
     ----------
     norm_freq : float, default 0.0
-        LO frequency in cycles/sample at the input rate, as ddc_create().
+        LO frequency in cycles/sample at the input rate, as dp_ddc_create().
     rate : float, default 0.25
         Output-to-input sample rate ratio. Rate-agnostic: a caller wanting `m`
         outputs per symbol asks for `rate = m/sps`; the cascade never learns
         about symbols.
     pulse : Literal["iandd", "rrc"], default "rrc"
         RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
-        ddc_create() for a plain down-conversion.
+        dp_ddc_create() for a plain down-conversion.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -468,18 +468,18 @@ class MatchedDDC:
     ) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
 
-        The control-port form of ddc_execute(): the LO advances by `phase_inc +
-        freq_ctrl` on every sample of this block, and the cascade's terminal
-        stage runs at `stage_rate + rate_ctrl`. Neither deviation is persisted
-        — the centre norm_freq and rate are untouched — so a tracking loop
-        passes its full filter output on every call and the DDC holds no loop
-        state of its own.
+        The control-port form of dp_ddc_execute(): the LO advances by
+        `phase_inc + freq_ctrl` on every sample of this block, and the
+        cascade's terminal stage runs at `stage_rate + rate_ctrl`. Neither
+        deviation is persisted — the centre norm_freq and rate are untouched —
+        so a tracking loop passes its full filter output on every call and the
+        DDC holds no loop state of its own.
 
-        Feeding a stream through ddc_execute_ctrl_push() one sample at a time
-        reproduces this call bit-for-bit when both controls are held constant,
-        so the cheap block form stays correct for open-loop use (a fixed
-        Doppler offset, a rate trim) and the push form is what a closed loop
-        uses.
+        Feeding a stream through dp_ddc_execute_ctrl_push() one sample at a
+        time reproduces this call bit-for-bit when both controls are held
+        constant, so the cheap block form stays correct for open-loop use (a
+        fixed Doppler offset, a rate trim) and the push form is what a closed
+        loop uses.
 
         Parameters
         ----------
@@ -523,11 +523,11 @@ class MatchedDDC:
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of ddc_execute_ctrl(), and the only form a
-        closed loop can use: a block call has to know its whole control history
-        up front, whereas a carrier or timing loop computes each correction
-        *from* the outputs already emitted. Both loops close once per symbol,
-        so both ports need this form.
+        The per-input streaming form of dp_ddc_execute_ctrl(), and the only
+        form a closed loop can use: a block call has to know its whole control
+        history up front, whereas a carrier or timing loop computes each
+        correction *from* the outputs already emitted. Both loops close once
+        per symbol, so both ports need this form.
 
         The mix costs one LO step per input; the cascade then emits 0 outputs
         (the common decimating case, between strobes), 1, or several.
@@ -810,8 +810,8 @@ class Ddcr:
     ) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
 
-        The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
-        semantics, which are identical except for where the LO lives.
+        The control-port form of dp_ddcr_execute(); see dp_ddc_execute_ctrl()
+        for the semantics, which are identical except for where the LO lives.
 
         Parameters
         ----------
@@ -855,11 +855,11 @@ class Ddcr:
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
-        The halfband consumes two inputs per intermediate sample, so every
-        other push does no mixing and emits nothing at all — the LO advances
-        (and its control is applied) once per *intermediate* sample, which is
-        the rate the LO runs at.
+        The per-input streaming form of dp_ddcr_execute_ctrl(), for a closed
+        loop. The halfband consumes two inputs per intermediate sample, so
+        every other push does no mixing and emits nothing at all — the LO
+        advances (and its control is applied) once per *intermediate* sample,
+        which is the rate the LO runs at.
 
         Parameters
         ----------
@@ -1060,12 +1060,12 @@ class MatchedDdcr:
     ----------
     norm_freq : float, default 0.0
         Fine NCO frequency at the INTERMEDIATE rate (fs_in/2) — the same
-        reference ddcr_create() uses.
+        reference dp_ddcr_create() uses.
     rate : float, default 0.25
         Total output/input rate; must be in (0, 0.5).
     pulse : Literal["iandd", "rrc"], default "rrc"
         RC_PULSE_RRC / RC_PULSE_IANDD (RC_PULSE_NONE is invalid here — use
-        ddcr_create()).
+        dp_ddcr_create()).
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -1156,8 +1156,8 @@ class MatchedDdcr:
     ) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
 
-        The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
-        semantics, which are identical except for where the LO lives.
+        The control-port form of dp_ddcr_execute(); see dp_ddc_execute_ctrl()
+        for the semantics, which are identical except for where the LO lives.
 
         Parameters
         ----------
@@ -1201,11 +1201,11 @@ class MatchedDdcr:
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
-        The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
-        The halfband consumes two inputs per intermediate sample, so every
-        other push does no mixing and emits nothing at all — the LO advances
-        (and its control is applied) once per *intermediate* sample, which is
-        the rate the LO runs at.
+        The per-input streaming form of dp_ddcr_execute_ctrl(), for a closed
+        loop. The halfband consumes two inputs per intermediate sample, so
+        every other push does no mixing and emits nothing at all — the LO
+        advances (and its control is applied) once per *intermediate* sample,
+        which is the rate the LO runs at.
 
         Parameters
         ----------

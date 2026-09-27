@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* BurstDemodObject — wraps burst_demod_state_t *       */
+/* BurstDemodObject — wraps dp_burst_demod_state_t *       */
 /* ======================================================== */
 
 #include "doppler/burst_demod/burst_demod_core.h"
 
 typedef struct
 {
-  PyObject_HEAD burst_demod_state_t *handle;
+  PyObject_HEAD dp_burst_demod_state_t *handle;
 } BurstDemodObject;
 
 static void
 BurstDemodObj_dealloc (BurstDemodObject *self)
 {
   if (self->handle)
-    burst_demod_destroy (self->handle);
+    dp_burst_demod_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -61,13 +61,14 @@ BurstDemodObj_init (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t data_code_len = (size_t)PyArray_SIZE (data_code_arr);
-  self->handle         = burst_demod_create (
+  self->handle         = dp_burst_demod_create (
       (const uint8_t *)PyArray_DATA (data_code_arr), data_code_len, spc,
       chip_rate, carrier_hz, max_rate, frame_syms, est_segments);
   Py_DECREF (data_code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "burst_demod_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_burst_demod_create returned NULL");
       return -1;
     }
   return 0;
@@ -81,7 +82,7 @@ BurstDemodObj_reset (BurstDemodObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  burst_demod_reset (self->handle);
+  dp_burst_demod_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -109,7 +110,7 @@ BurstDemodObj_set_preamble (BurstDemodObject *self, PyObject *args,
     }
   const uint8_t *acq_code     = (const uint8_t *)PyArray_DATA (acq_code_arr);
   size_t         acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
-  burst_demod_set_preamble (self->handle, acq_code, acq_code_len, reps);
+  dp_burst_demod_set_preamble (self->handle, acq_code, acq_code_len, reps);
   Py_DECREF (acq_code_arr);
   Py_RETURN_NONE;
 }
@@ -134,7 +135,7 @@ BurstDemodObj_set_sync (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *sync     = (const uint8_t *)PyArray_DATA (sync_arr);
   size_t         sync_len = (size_t)PyArray_SIZE (sync_arr);
-  burst_demod_set_sync (self->handle, sync, sync_len);
+  dp_burst_demod_set_sync (self->handle, sync, sync_len);
   Py_DECREF (sync_arr);
   Py_RETURN_NONE;
 }
@@ -151,7 +152,7 @@ BurstDemodObj_llrs_max_out (BurstDemodObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
   return PyLong_FromSize_t (
-      burst_demod_llrs_max_out (self->handle, (size_t)n));
+      dp_burst_demod_llrs_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -188,7 +189,7 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = burst_demod_llrs_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_burst_demod_llrs_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -197,8 +198,8 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = burst_demod_llrs (self->handle, (size_t)n,
-                                       (float *)PyArray_DATA (out_arr), _cap);
+      size_t n_out = dp_burst_demod_llrs (
+          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
                                                     PyArray_DATA (out_arr));
@@ -211,7 +212,7 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = burst_demod_llrs_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_burst_demod_llrs_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
@@ -220,7 +221,7 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = burst_demod_llrs (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_burst_demod_llrs (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -249,7 +250,7 @@ BurstDemodObj_symbols_max_out (BurstDemodObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
   return PyLong_FromSize_t (
-      burst_demod_symbols_max_out (self->handle, (size_t)n));
+      dp_burst_demod_symbols_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -286,8 +287,8 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = burst_demod_symbols_max_out (self->handle, (size_t)n);
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = dp_burst_demod_symbols_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -296,7 +297,7 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = burst_demod_symbols (
+      size_t n_out = dp_burst_demod_symbols (
           self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
           _cap);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -311,7 +312,7 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = burst_demod_symbols_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_burst_demod_symbols_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
@@ -320,7 +321,7 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -353,7 +354,7 @@ BurstDemodObj_set_prior (BurstDemodObject *self, PyObject *args,
                                     &start_raw))
     return NULL;
   size_t start = (size_t)start_raw;
-  burst_demod_set_prior (self->handle, f0_coarse, start);
+  dp_burst_demod_set_prior (self->handle, f0_coarse, start);
   Py_RETURN_NONE;
 }
 
@@ -366,7 +367,7 @@ BurstDemodObj_demod_max_out (BurstDemodObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (burst_demod_demod_max_out (self->handle));
+  return PyLong_FromSize_t (dp_burst_demod_demod_max_out (self->handle));
 }
 
 static PyObject *
@@ -411,7 +412,7 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = burst_demod_demod_max_out (self->handle);
+      size_t _omax    = dp_burst_demod_demod_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -433,7 +434,7 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = burst_demod_demod (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_burst_demod_demod (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -448,7 +449,7 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = burst_demod_demod_max_out (self->handle);
+  size_t _cap  = dp_burst_demod_demod_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -467,7 +468,7 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = burst_demod_demod (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_burst_demod_demod (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -630,7 +631,7 @@ BurstDemodObj_destroy (BurstDemodObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      burst_demod_destroy (self->handle);
+      dp_burst_demod_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -649,7 +650,7 @@ BurstDemodObj_exit (BurstDemodObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      burst_demod_destroy (self->handle);
+      dp_burst_demod_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -802,7 +803,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
   { "llrs_max_out", (PyCFunction)BurstDemodObj_llrs_max_out, METH_VARARGS,
     "llrs_max_out(n) -> int\n"
     "\n"
-    "Max LLRs burst_demod_llrs() writes: the frame's length in bits.\n"
+    "Max LLRs dp_burst_demod_llrs() writes: the frame's length in bits.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -832,7 +833,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "already characterised well enough to know. It was built either way and\n"
     "freed unread (doppler#1087).\n"
     "\n"
-    "Same span and same normalisation as burst_demod_llrs(): the whole\n"
+    "Same span and same normalisation as dp_burst_demod_llrs(): the whole\n"
     "frame, scaled to unit mean-|Re| by the burst's own estimate, so\n"
     "`crealf(symbols[k])` is that bit's LLR up to est_n0.\n"
     "\n"
@@ -875,7 +876,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     METH_VARARGS,
     "symbols_max_out(n) -> int\n"
     "\n"
-    "Max symbols burst_demod_symbols() writes: the frame's length.\n"
+    "Max symbols dp_burst_demod_symbols() writes: the frame's length.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -925,7 +926,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "`frame_syms` symbols to bits. It writes the frame as received — sync\n"
     "word first — and makes no claim about what those bits are for: undoing\n"
     "the frame needs a description, and that is a caller's, not this\n"
-    "object's. The soft twin of the same decisions is burst_demod_llrs().\n"
+    "object's. The soft twin of the same decisions is dp_burst_demod_llrs().\n"
     "\n"
     "On return the read-back fields report the outcome — frame_offset,\n"
     "n_symbols, and the est_freq_hz / est_rate_hz / est_cn0_dbhz /\n"

@@ -6,15 +6,15 @@
  * Do NOT compile this file directly — only buffer_ext.c is compiled.
  */
 /* ======================================================== */
-/* F32BufferObject — wraps f32_buffer_state_t *       */
+/* F32BufferObject — wraps dp_f32_buffer_state_t *       */
 /* ======================================================== */
 
 #include "doppler/f32_buffer/f32_buffer_core.h"
 
 typedef struct
 {
-  PyObject_HEAD f32_buffer_state_t *handle;
-  size_t                            _jm_borrowed; /* last borrow's count */
+  PyObject_HEAD dp_f32_buffer_state_t *handle;
+  size_t                               _jm_borrowed; /* last borrow's count */
 } F32BufferObject;
 
 static void
@@ -172,7 +172,8 @@ F32BufferObj_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (
               PyExc_ValueError,
               "wait(%lld) can never be satisfied: the ring holds %lld",
-              (long long)n, (long long)f32_buffer_get_capacity (self->handle));
+              (long long)n,
+              (long long)dp_f32_buffer_get_capacity (self->handle));
           return NULL;
         case DP_WAIT_CLOSED:
           PyErr_SetString (PyExc_EOFError,
@@ -228,7 +229,8 @@ F32BufferObj_peek (F32BufferObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (
               PyExc_ValueError,
               "peek(%lld) can never be satisfied: the ring holds %lld",
-              (long long)n, (long long)f32_buffer_get_capacity (self->handle));
+              (long long)n,
+              (long long)dp_f32_buffer_get_capacity (self->handle));
           return NULL;
         case DP_WAIT_CLOSED:
           PyErr_SetString (PyExc_EOFError,
@@ -330,7 +332,7 @@ F32Buffer_getprop_capacity (F32BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)f32_buffer_get_capacity (self->handle));
+      (unsigned long long)dp_f32_buffer_get_capacity (self->handle));
 }
 static PyObject *
 F32Buffer_getprop_available (F32BufferObject *self, void *Py_UNUSED (closure))
@@ -342,7 +344,7 @@ F32Buffer_getprop_available (F32BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)f32_buffer_get_available (self->handle));
+      (unsigned long long)dp_f32_buffer_get_available (self->handle));
 }
 static PyObject *
 F32Buffer_getprop_space (F32BufferObject *self, void *Py_UNUSED (closure))
@@ -354,7 +356,7 @@ F32Buffer_getprop_space (F32BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)f32_buffer_get_space (self->handle));
+      (unsigned long long)dp_f32_buffer_get_space (self->handle));
 }
 static PyObject *
 F32Buffer_getprop_dropped (F32BufferObject *self, void *Py_UNUSED (closure))
@@ -366,7 +368,7 @@ F32Buffer_getprop_dropped (F32BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)f32_buffer_get_dropped (self->handle));
+      (unsigned long long)dp_f32_buffer_get_dropped (self->handle));
 }
 static PyObject *
 F32Buffer_getprop_closed (F32BufferObject *self, void *Py_UNUSED (closure))
@@ -377,7 +379,7 @@ F32Buffer_getprop_closed (F32BufferObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(f32_buffer_get_closed (self->handle)));
+  return PyBool_FromLong ((long)(dp_f32_buffer_get_closed (self->handle)));
 }
 
 static PyGetSetDef F32Buffer_getset[] = {

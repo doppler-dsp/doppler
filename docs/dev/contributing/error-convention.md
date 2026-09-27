@@ -62,9 +62,9 @@ int main(void)
   float complex in[4096]  = { 0 };
   float complex out[4096];
 
-  RateConverter_state_t *rc = RateConverter_create(0.5, 0);   /* NULL = OOM */
+  dp_RateConverter_state_t *rc = dp_RateConverter_create(0.5, 0);   /* NULL = OOM */
   if (!rc) return 1;
-  size_t n = RateConverter_execute(rc, in, 4096, out, 4096);  /* always succeeds */
+  size_t n = dp_RateConverter_execute(rc, in, 4096, out, 4096);  /* always succeeds */
   (void) n;
   return 0;
 }
@@ -86,9 +86,9 @@ allocation failure or invalid arguments.
 
 int main(void)
 {
-  awgn_state_t *g = awgn_create(0, 1.0f);
+  dp_awgn_state_t *g = dp_awgn_create(0, 1.0f);
   if (!g) { /* OOM or invalid amplitude */ return 1; }
-  awgn_destroy(g);
+  dp_awgn_destroy(g);
   return 0;
 }
 ```

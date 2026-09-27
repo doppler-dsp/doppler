@@ -153,14 +153,14 @@ the boundary.
 
 Power is measured **after** the gain, so the gain applied to sample `n` is
 computed from samples up to `n−1`. `gain_db` is therefore the loop's
-*command* and `agc_get_applied_gain_db()` is what the signal actually saw;
+*command* and `dp_agc_get_applied_gain_db()` is what the signal actually saw;
 they differ by one update and converge to the same value. Two accessors,
 because "what is the loop asking for" and "what did this sample get" are
 different questions and only the second explains an output.
 
 ### 2.4 The block form is a first-order hold, not a staircase
 
-`agc_steps()` runs the detector and filter once per chunk of `decim`
+`dp_agc_steps()` runs the detector and filter once per chunk of `decim`
 samples, but interpolates the applied gain **linearly across the chunk** so
 there is no inter-chunk step. Measured on a hot input at `decim = 8`, the
 first commanded chunk ramps 0.983485 → 0.867881 in eight exactly equal
@@ -173,7 +173,7 @@ trajectories track each other sample-for-sample, not merely to the same
 endpoint. The standing precondition is `loop_bw ≪ 1/(4·decim)`; past that
 the decimated loop is sampling its own transient.
 
-`agc_step()` carries the same idea on the streaming path as
+`dp_agc_step()` carries the same idea on the streaming path as
 `gain_update_period`: the detector and gain-apply run every sample while the
 filter command refreshes once per period, amortising the transcendentals.
 Measured at P = 1/8/32 the converged gain agrees to 2e-4 dB.
@@ -282,7 +282,7 @@ Measured at the default settings, feeding exact zeros:
 | 3000 samples                                            | `gain_db = −66095`                                                     |
 | a returning unit-amplitude signal, 200000 samples later | output railed at the clip level, `gain_db = −6.2e6`, `p_avg` still NaN |
 
-`agc_steps()` fails identically, so it is not a per-sample-path quirk. The
+`dp_agc_steps()` fails identically, so it is not a per-sample-path quirk. The
 degradation is graded and then cliffs:
 
 | silent gap     | samples to recover |
@@ -322,7 +322,7 @@ enormous but finite — already leave `p_avg` finite at 7.5e36, 7.3e38 and
 
 `p_avg` guarded is a convex combination of a finite `p_avg` and a saturated
 `p`, so it cannot leave the interval once it starts inside — which
-`agc_create()` and `agc_reset()` guarantee by seeding it with the reference
+`dp_agc_create()` and `dp_agc_reset()` guarantee by seeding it with the reference
 power.
 
 **The primitives keep their own contracts.** `agc_exp10_` saturates rather
@@ -336,7 +336,7 @@ absolute error is **7.8e-4**, against a documented ~1e-3.
 
 **One accessor needed the same treatment.** State being total is not the
 same as everything *derived* from it being total:
-`agc_get_applied_gain_db()` returned `20·log10(0) = −INF` once an extreme
+`dp_agc_get_applied_gain_db()` returned `20·log10(0) = −INF` once an extreme
 commanded gain underflowed `g_last`, handing a caller a non-finite number
 out of a perfectly well-formed object. It saturates to the smallest normal
 double, reading about `−6153 dB` — finite, and unmistakably "off".
@@ -381,14 +381,14 @@ as a safety fix.
 Every row was proven by sabotage: reverting the guard turns the named test
 red, and the observed failure is the one in the last column.
 
-| mechanism                               | prevents                                                        | pinned by          | failure when reverted                          |
-| --------------------------------------- | --------------------------------------------------------------- | ------------------ | ---------------------------------------------- |
-| `saturate` at the EMA input, `agc_step` | one non-finite sample poisoning `p_avg` for the rest of the run | §13 ×4, §14 (step) | `p_avg` NaN; never recovers in 100 000 samples |
-| the same guard in `agc_steps`           | the block path, which folds the detector over a chunk mean      | §14 (steps)        | `p_avg` NaN via the chunk mean                 |
-| `agc_exp10_` bounds `z` first           | a **negative** gain — signal inversion, not lost precision      | §15                | `(309) = −3.09e−308`, `(−400) = −3.23e+216`    |
-| `agc_log10_` saturates its argument     | a fabricated level that looks plausible                         | §16                | `(NaN) = 308.431`                              |
-| `saturate` in the applied-gain accessor | a non-finite value escaping a public getter                     | §17                | `−inf`                                         |
-| `nan_to` being a **parameter**          | the safe direction being guessed                                | §18, §13 ×2        | NaN → `lo`: "unknown level drove gain **UP**"  |
+| mechanism                                  | prevents                                                        | pinned by          | failure when reverted                          |
+| ------------------------------------------ | --------------------------------------------------------------- | ------------------ | ---------------------------------------------- |
+| `saturate` at the EMA input, `dp_agc_step` | one non-finite sample poisoning `p_avg` for the rest of the run | §13 ×4, §14 (step) | `p_avg` NaN; never recovers in 100 000 samples |
+| the same guard in `dp_agc_steps`           | the block path, which folds the detector over a chunk mean      | §14 (steps)        | `p_avg` NaN via the chunk mean                 |
+| `agc_exp10_` bounds `z` first              | a **negative** gain — signal inversion, not lost precision      | §15                | `(309) = −3.09e−308`, `(−400) = −3.23e+216`    |
+| `agc_log10_` saturates its argument        | a fabricated level that looks plausible                         | §16                | `(NaN) = 308.431`                              |
+| `saturate` in the applied-gain accessor    | a non-finite value escaping a public getter                     | §17                | `−inf`                                         |
+| `nan_to` being a **parameter**             | the safe direction being guessed                                | §18, §13 ×2        | NaN → `lo`: "unknown level drove gain **UP**"  |
 
 That last row is the one worth dwelling on. Written the obvious way —
 `fmin(fmax(v, lo), hi)` — NaN lands on `lo` on this platform, which for a
@@ -555,16 +555,16 @@ cost is below this benchmark's resolution, bounded at about 1%.**
 
 The operation count says the same thing independently, which matters because
 a noisy benchmark should not be the whole argument. At the default
-`gain_update_period = 1`, `agc_step` already runs *both* `agc_exp10_` and
+`gain_update_period = 1`, `dp_agc_step` already runs *both* `agc_exp10_` and
 `agc_log10_` per sample — a 4th-order Taylor series, two `memcpy`s and a
 divide each. The guard adds about six comparisons on top: two at the EMA,
 two inside each primitive. `saturate` is `always_inline`, so it cannot have
 become a call.
 
 **The production path is the cheaper one.** A receiver's AGC runs inside the
-`RateConverter` cascade through `agc_steps`, where the guard fires once per
+`RateConverter` cascade through `dp_agc_steps`, where the guard fires once per
 `decim`-sample chunk — eight times less often — behind a SIMD reduction that
-dominates. `agc_step` is the per-sample reference and conformance path.
+dominates. `dp_agc_step` is the per-sample reference and conformance path.
 
 **A caveat worth carrying to any future perf gate on this object**: the
 run-to-run spread above is 10–24% on one quiet machine. That is

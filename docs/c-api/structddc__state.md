@@ -36,9 +36,9 @@ _Ddc state — an LO and the cascade it feeds._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**lo\_state\_t**](structlo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
+|  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
 |  bool | [**narrow\_pulse**](#variable-narrow_pulse)  <br> |
-|  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
+|  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 
 
 
@@ -86,7 +86,7 @@ _Ddc state — an LO and the cascade it feeds._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Do not initialise directly; use [**ddc\_create()**](ddc__core_8h.md#function-ddc_create) or [**ddc\_create\_matched()**](ddc__core_8h.md#function-ddc_create_matched). 
+Do not initialise directly; use [**dp\_ddc\_create()**](ddc__core_8h.md#function-dp_ddc_create) or [**ddc\_create\_matched()**](ddc__core_8h.md#function-ddc_create_matched). 
 
 
     
@@ -98,7 +98,7 @@ Do not initialise directly; use [**ddc\_create()**](ddc__core_8h.md#function-ddc
 ### variable lo 
 
 ```C++
-lo_state_t* ddc_state::lo;
+dp_lo_state_t* ddc_state::lo;
 ```
 
 
@@ -132,7 +132,7 @@ Set when the matched flavor was built with a rectangular pulse too narrow to be 
 ### variable rc 
 
 ```C++
-RateConverter_state_t* ddc_state::rc;
+dp_RateConverter_state_t* ddc_state::rc;
 ```
 
 

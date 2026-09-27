@@ -122,7 +122,7 @@ extern "C"
 #define MPSK_RX_NUM_PHASES 1024u
 
 /* Default terminal outputs per symbol — where an I&D matched filter reaches
- * the coherent bound (see mpsk_receiver_create's @p m_out for the
+ * the coherent bound (see dp_mpsk_receiver_create's @p m_out for the
  * measurements). Same role as MPSK_RX_NUM_PHASES above: what a composing C
  * caller passes when it has no reason to want anything else, so the composed
  * receivers do not each carry their own copy of the number.
@@ -203,12 +203,12 @@ mpsk_rx_derive_m_out (double cap, int strict)
   {
     ratesync_loop_t timing; 
     /* ── carrier loop ────────────────────────────────────────────────── */
-    loop_filter_state_t car_lf;  
+    dp_loop_filter_state_t car_lf;  
     double freq_ctrl;   
     double freq_scale;  
     double car_error;   
     double lock;        
-    lockdet_state_t car_lock;   
+    dp_lockdet_state_t car_lock;   
     /* ── config (restored by the owner's create(), never packed) ─────── */
     int    m;          
     double sps;        
@@ -265,7 +265,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
   mpsk_rx_steer (mpsk_rx_loops_t *l, double pe)
   {
     l->car_error = pe;
-    l->freq_ctrl = -loop_filter_step (&l->car_lf, pe) * l->freq_scale;
+    l->freq_ctrl = -dp_loop_filter_step (&l->car_lf, pe) * l->freq_scale;
   }
 
   JM_FORCEINLINE JM_HOT void
@@ -282,7 +282,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
        re-acquire does not restamp it, because the question a caller is
        asking is "how long did this receiver take to lock", not "when did it
        last hold". Reset clears it back to -1. */
-    if (lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
+    if (dp_lockdet_step (&l->car_lock, l->lock) && l->lock_time < 0)
       l->lock_time = (int64_t)l->sym_count;
     mpsk_rx_steer (l, pe);
   }

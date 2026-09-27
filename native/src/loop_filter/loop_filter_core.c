@@ -12,7 +12,7 @@ loop_filter_wn (double bn, double zeta)
      Deliberately UNGUARDED, so extracting it changes loop_filter_init()'s
      behaviour by exactly nothing — including the non-finite case that
      function's own docstring documents ("a non-finite argument yields NaN
-     gains that never recover"). loop_filter_create() is the boundary that
+     gains that never recover"). dp_loop_filter_create() is the boundary that
      rejects that domain, and test_loop_filter_core.c pins it doing so;
      a second guard here would make the header's statement false and buy
      nothing. */
@@ -20,7 +20,8 @@ loop_filter_wn (double bn, double zeta)
 }
 
 void
-loop_filter_init (loop_filter_state_t *state, double bn, double zeta, double t)
+loop_filter_init (dp_loop_filter_state_t *state, double bn, double zeta,
+                  double t)
 {
   /* Standard 2nd-order PI loop-filter gains. bn is the loop noise bandwidth
    * (normalized, cycles/sample), zeta the damping factor, t the update period
@@ -37,8 +38,8 @@ loop_filter_init (loop_filter_state_t *state, double bn, double zeta, double t)
   state->ki   = (4.0 * th * th) / den;
 }
 
-loop_filter_state_t *
-loop_filter_create (double bn, double zeta, double t)
+dp_loop_filter_state_t *
+dp_loop_filter_create (double bn, double zeta, double t)
 {
   /* This is the UNTRUSTED boundary and the only one: `LoopFilter(...)` hands
      a Python caller's arbitrary doubles straight here, where t = 0 used to
@@ -57,7 +58,7 @@ loop_filter_create (double bn, double zeta, double t)
       || !isfinite (zeta) || !isfinite (t))
     return NULL; /* NaN fails every comparison above, by construction */
 
-  loop_filter_state_t *obj = calloc (1, sizeof (*obj));
+  dp_loop_filter_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   loop_filter_init (obj, bn, zeta, t); /* integ already zeroed by calloc */
@@ -65,33 +66,33 @@ loop_filter_create (double bn, double zeta, double t)
 }
 
 void
-loop_filter_destroy (loop_filter_state_t *state)
+dp_loop_filter_destroy (dp_loop_filter_state_t *state)
 {
   free (state);
 }
 
 void
-loop_filter_configure (loop_filter_state_t *state, double bn, double zeta,
-                       double t)
+dp_loop_filter_configure (dp_loop_filter_state_t *state, double bn,
+                          double zeta, double t)
 {
   loop_filter_init (state, bn, zeta, t); /* recompute gains, keep integ */
 }
 
 void
-loop_filter_reset (loop_filter_state_t *state)
+dp_loop_filter_reset (dp_loop_filter_state_t *state)
 {
   state->integ = 0.0;
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot
  * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (loop_filter, loop_filter_state_t, LOOP_FILTER_STATE_MAGIC,
-                     LOOP_FILTER_STATE_VERSION)
+DP_DEFINE_POD_STATE (dp_loop_filter, dp_loop_filter_state_t,
+                     LOOP_FILTER_STATE_MAGIC, LOOP_FILTER_STATE_VERSION)
 
 void
-loop_filter_steps (loop_filter_state_t *state, const double *x, double *out,
-                   size_t n)
+dp_loop_filter_steps (dp_loop_filter_state_t *state, const double *x,
+                      double *out, size_t n)
 {
   for (size_t i = 0; i < n; i++)
-    out[i] = loop_filter_step (state, x[i]);
+    out[i] = dp_loop_filter_step (state, x[i]);
 }

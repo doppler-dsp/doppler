@@ -7,4 +7,4 @@
  */
 #include "doppler/util/util_core.h"
 
-extern double sinc (double u);
+extern double dp_sinc (double u);

@@ -23,8 +23,8 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_ppe[] = {
-    (jm_any_fn)ppe_create,
-    (jm_any_fn)ppe_destroy,
-    (jm_any_fn)ppe_reset,
-    (jm_any_fn)ppe_estimate,
+    (jm_any_fn)dp_ppe_create,
+    (jm_any_fn)dp_ppe_destroy,
+    (jm_any_fn)dp_ppe_reset,
+    (jm_any_fn)dp_ppe_estimate,
 };

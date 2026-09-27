@@ -6,13 +6,13 @@
  * Independent of the variance -- that sets how many looks are needed to
  * reach this point, not where the point is. */
 double
-det_threshold_gauss (double mean, double pd, double pfa)
+dp_det_threshold_gauss (double mean, double pd, double pfa)
 {
   if (!(mean > 0.0))
     return NAN;
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0) || !(pd > pfa))
     return NAN;
-  double qa = det_q_inv (pfa), sep = qa - det_q_inv (pd);
+  double qa = dp_det_q_inv (pfa), sep = qa - dp_det_q_inv (pd);
   if (!(sep > 0.0))
     return NAN;
   return qa * mean / sep;

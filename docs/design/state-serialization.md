@@ -109,22 +109,22 @@ pointer arithmetic. The cursors use a **sticky-error** model: an overrun sets
 
 ```c
 void
-lo_get_state (const lo_state_t *s, void *blob)
+dp_lo_get_state (const dp_lo_state_t *s, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, lo_state_bytes (s));
-  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, lo_state_bytes (s));
+  dp_writer_t w = dp_writer_init (blob, dp_lo_state_bytes (s));
+  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, dp_lo_state_bytes (s));
   dp_w_f64 (&w, s->phase);          /* pack the module's own fields */
   dp_w_f64 (&w, s->phase_inc);
 }
 
 int
-lo_set_state (lo_state_t *s, const void *blob)
+dp_lo_set_state (dp_lo_state_t *s, const void *blob)
 {
-  int rc = dp_state_validate (blob, lo_state_bytes (s),
+  int rc = dp_state_validate (blob, dp_lo_state_bytes (s),
                               LO_STATE_MAGIC, LO_STATE_VERSION);
   if (rc != DP_OK)
     return rc;                       /* wrong object / version / size → reject */
-  dp_reader_t r = dp_reader_init (blob, lo_state_bytes (s));
+  dp_reader_t r = dp_reader_init (blob, dp_lo_state_bytes (s));
   r.off = sizeof (dp_state_hdr_t);
   s->phase     = dp_r_f64 (&r);
   s->phase_inc = dp_r_f64 (&r);
@@ -145,14 +145,14 @@ triplet is a few lines, not a hand-rolled envelope. All live in `dp_state.h`.
 A **pointer-free** struct *is* its own state — snapshot it whole. Defines all
 three functions; place it once beside `reset`. Restoring the config fields is a
 harmless no-op into an identically-built instance. An embedded **POD child**
-(e.g. a `loop_filter_state_t` by value) is captured automatically, so a
+(e.g. a `dp_loop_filter_state_t` by value) is captured automatically, so a
 composition of by-value POD members is still one `DP_DEFINE_POD_STATE`.
 
 <!-- docs-snippet: skip=usage excerpt (real macro invocation, but not a standalone compilable program) -->
 
 ```c
 /* native/src/loop_filter/loop_filter_core.c */
-DP_DEFINE_POD_STATE(loop_filter, loop_filter_state_t,
+DP_DEFINE_POD_STATE(dp_loop_filter, dp_loop_filter_state_t,
                     LOOP_FILTER_STATE_MAGIC, LOOP_FILTER_STATE_VERSION)
 ```
 
@@ -168,20 +168,20 @@ function parameters **must** be named `s` (the state) and `blob`.
 <!-- docs-snippet: skip=illustrative excerpt (design pattern), not a standalone compilable program -->
 
 ```c
-size_t delay_state_bytes(const delay_state_t *s)
+size_t dp_delay_state_bytes(const dp_delay_state_t *s)
 { return sizeof(dp_state_hdr_t) + sizeof(uint64_t)
          + 2 * s->capacity * sizeof(double _Complex); }
 
-void delay_get_state(const delay_state_t *s, void *blob)
+void dp_delay_get_state(const dp_delay_state_t *s, void *blob)
 {
-  DP_GET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes(s));
+  DP_GET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, dp_delay_state_bytes(s));
   dp_w_u64(&_w, s->head);
   dp_w_bytes(&_w, s->buf, 2 * s->capacity * sizeof(double _Complex));
 }
 
-int delay_set_state(delay_state_t *s, const void *blob)
+int dp_delay_set_state(dp_delay_state_t *s, const void *blob)
 {
-  DP_SET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes(s));
+  DP_SET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, dp_delay_state_bytes(s));
   s->head = (size_t)dp_r_u64(&_r);
   dp_r_bytes(&_r, s->buf, 2 * s->capacity * sizeof(double _Complex));
   return DP_OK;
@@ -192,7 +192,7 @@ int delay_set_state(delay_state_t *s, const void *blob)
 > table) is config, not state. Don't serialize its *address* — it differs across
 > instances and makes the blob non-canonical. Either skip it (field-wise) or, if
 > you snapshot the whole struct, NULL it in the serialized copy and preserve the
-> live value in `set_state`. See `dll_get_state`.
+> live value in `set_state`. See `dp_dll_get_state`.
 
 > A **wall-clock or other non-deterministic quantity** (a `dp_sample_clock_t`
 > anchor, a running sample counter kept only for cross-call bookkeeping) is
@@ -202,7 +202,7 @@ int delay_set_state(delay_state_t *s, const void *blob)
 > way a borrowed pointer is re-established by `create()` rather than carried in
 > the blob. `DsssReceiver`'s own `samples_fed` (a plain cross-call sample
 > counter, tracked only to diff against a child's post-hit offset) is already
-> deliberately excluded from `dsss_receiver_get_state`/`set_state` on exactly
+> deliberately excluded from `dp_dsss_receiver_get_state`/`set_state` on exactly
 > this basis — follow that precedent rather than inventing a new one.
 
 ### Composition — `DP_W_CHILD` / `DP_R_CHILD`
@@ -217,15 +217,15 @@ atomic-by-validation.
 <!-- docs-snippet: skip=illustrative excerpt (design pattern), not a standalone compilable program -->
 
 ```c
-size_t mpsk_receiver_state_bytes(const mpsk_receiver_state_t *s)
-{ return sizeof(dp_state_hdr_t) + carrier_nda_state_bytes(&s->car)
-         + symsync_state_bytes(&s->sync) + fir_state_bytes(s->mf)
+size_t dp_mpsk_receiver_state_bytes(const dp_mpsk_receiver_state_t *s)
+{ return sizeof(dp_state_hdr_t) + dp_carrier_nda_state_bytes(&s->car)
+         + dp_symsync_state_bytes(&s->sync) + dp_fir_state_bytes(s->mf)
          + /* running scalars … */; }
 
-void mpsk_receiver_get_state(const mpsk_receiver_state_t *s, void *blob)
+void dp_mpsk_receiver_get_state(const dp_mpsk_receiver_state_t *s, void *blob)
 {
   DP_GET_OPEN(MPSK_RECEIVER_STATE_MAGIC, MPSK_RECEIVER_STATE_VERSION,
-              mpsk_receiver_state_bytes(s));
+              dp_mpsk_receiver_state_bytes(s));
   DP_W_CHILD(&_w, carrier_nda, &s->car);   /* embedded by value      */
   DP_W_CHILD(&_w, symsync,     &s->sync);
   DP_W_CHILD(&_w, fir,         s->mf);      /* pointer member         */

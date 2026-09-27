@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* CICObject — wraps cic_state_t *       */
+/* CICObject — wraps dp_cic_state_t *       */
 /* ======================================================== */
 
 #include "doppler/cic/cic_core.h"
 
 typedef struct
 {
-  PyObject_HEAD cic_state_t *handle;
+  PyObject_HEAD dp_cic_state_t *handle;
 } CICObject;
 
 static void
 CICObj_dealloc (CICObject *self)
 {
   if (self->handle)
-    cic_destroy (self->handle);
+    dp_cic_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -42,10 +42,10 @@ CICObj_init (CICObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|k", kwlist, &R_raw))
     return -1;
   uint32_t R   = (uint32_t)R_raw;
-  self->handle = cic_create (R);
+  self->handle = dp_cic_create (R);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "cic_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_cic_create returned NULL");
       return -1;
     }
   return 0;
@@ -59,7 +59,7 @@ CICObj_reset (CICObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  cic_reset (self->handle);
+  dp_cic_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -76,7 +76,7 @@ CICObj_reconfigure (CICObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "k", _kwlist, &R_raw))
     return NULL;
   uint32_t R = (uint32_t)R_raw;
-  cic_reconfigure (self->handle, R);
+  dp_cic_reconfigure (self->handle, R);
   Py_RETURN_NONE;
 }
 
@@ -88,7 +88,7 @@ CICObj_decimate_max_out (CICObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (cic_decimate_max_out (self->handle));
+  return PyLong_FromSize_t (dp_cic_decimate_max_out (self->handle));
 }
 
 static PyObject *
@@ -134,7 +134,7 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = cic_decimate_max_out (self->handle);
+      size_t _omax    = dp_cic_decimate_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -144,7 +144,7 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = cic_decimate (
+      size_t n_out = dp_cic_decimate (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -160,7 +160,7 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = cic_decimate_max_out (self->handle);
+  size_t _cap  = dp_cic_decimate_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -171,9 +171,9 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = cic_decimate (self->handle,
-                               (const float _Complex *)PyArray_DATA (in_arr),
-                               (size_t)n, _d0, _cap);
+  size_t          n_out = dp_cic_decimate (
+      self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
+      _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -199,7 +199,7 @@ CICObj_state_bytes (CICObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (cic_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_cic_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -210,11 +210,11 @@ CICObj_get_state (CICObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = cic_state_bytes (self->handle);
+  size_t    _n = dp_cic_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  cic_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_cic_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -231,12 +231,12 @@ CICObj_set_state (CICObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != cic_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_cic_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (cic_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_cic_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -292,7 +292,7 @@ CICObj_destroy (CICObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      cic_destroy (self->handle);
+      dp_cic_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -311,7 +311,7 @@ CICObj_exit (CICObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      cic_destroy (self->handle);
+      dp_cic_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -346,7 +346,7 @@ static PyMethodDef CICObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "R : int\n"
-    "    New decimation ratio. Same constraints as cic_create().\n"
+    "    New decimation ratio. Same constraints as dp_cic_create().\n"
     "\n"
     "Examples\n"
     "--------\n"

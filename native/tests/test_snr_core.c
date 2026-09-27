@@ -71,8 +71,8 @@ main (void)
           x[i]
               = (float _Complex)a + (float _Complex) (sigma * dp_cgauss (&st));
         }
-      double blind = snr_m2m4_db (x, NSYM);
-      double aided = snr_data_aided_db (x, NSYM, bits, NSYM);
+      double blind = dp_snr_m2m4_db (x, NSYM);
+      double aided = dp_snr_data_aided_db (x, NSYM, bits, NSYM);
       char   msg[160];
       snprintf (msg, sizeof msg,
                 "at Es/N0 %.0f dB: m2m4 %.2f, data-aided %.2f", esn0_db, blind,
@@ -103,29 +103,29 @@ main (void)
         double a = bits[i] ? -1.0 : 1.0;
         x[i] = (float _Complex)a + (float _Complex) (sigma * dp_cgauss (&st));
       }
-    double base_blind = snr_m2m4_db (x, NSYM);
-    double base_aided = snr_data_aided_db (x, NSYM, bits, NSYM);
+    double base_blind = dp_snr_m2m4_db (x, NSYM);
+    double base_aided = dp_snr_data_aided_db (x, NSYM, bits, NSYM);
 
     static float _Complex y[NSYM];
     const float _Complex rot = (float _Complex) (cos (0.7) + sin (0.7) * I);
     for (size_t i = 0; i < NSYM; i++)
       y[i] = x[i] * rot;
-    DP_REQUIRE_MSG (fabs (snr_m2m4_db (y, NSYM) - base_blind) < 0.05,
+    DP_REQUIRE_MSG (fabs (dp_snr_m2m4_db (y, NSYM) - base_blind) < 0.05,
                     "m2m4: a residual rotation must not move the estimate");
 
     for (size_t i = 0; i < NSYM; i++)
       y[i] = x[i] * 37.5f;
-    DP_REQUIRE_MSG (fabs (snr_data_aided_db (y, NSYM, bits, NSYM) - base_aided)
-                        < 0.05,
-                    "data-aided: scale-invariant");
-    DP_REQUIRE_MSG (fabs (snr_m2m4_db (y, NSYM) - base_blind) < 0.05,
+    DP_REQUIRE_MSG (
+        fabs (dp_snr_data_aided_db (y, NSYM, bits, NSYM) - base_aided) < 0.05,
+        "data-aided: scale-invariant");
+    DP_REQUIRE_MSG (fabs (dp_snr_m2m4_db (y, NSYM) - base_blind) < 0.05,
                     "m2m4: scale-invariant too (a ratio of moments)");
 
     for (size_t i = 0; i < NSYM; i++)
       y[i] = -x[i];
-    DP_REQUIRE_MSG (fabs (snr_data_aided_db (y, NSYM, bits, NSYM) - base_aided)
-                        < 0.05,
-                    "data-aided: a global sign flip changes nothing");
+    DP_REQUIRE_MSG (
+        fabs (dp_snr_data_aided_db (y, NSYM, bits, NSYM) - base_aided) < 0.05,
+        "data-aided: a global sign flip changes nothing");
 
     /* The data-aided estimator is data-AIDED: hand it the wrong bits and it
        must NOT keep reporting a healthy link. This is the property that makes
@@ -133,7 +133,7 @@ main (void)
     static uint8_t wrong[NSYM];
     for (size_t i = 0; i < NSYM; i++)
       wrong[i] = (uint8_t)(dp_uni (&st) > 0.5);
-    double misfed = snr_data_aided_db (x, NSYM, wrong, NSYM);
+    double misfed = dp_snr_data_aided_db (x, NSYM, wrong, NSYM);
     char   m2[128];
     snprintf (m2, sizeof m2, "wrong bits still read %.2f dB", misfed);
     DP_REQUIRE_MSG (misfed < 1.0, m2);
@@ -150,7 +150,7 @@ main (void)
   {
     for (size_t i = 0; i < NSYM; i++)
       x[i] = dp_cgauss (&st); /* unit-power noise, no signal */
-    double npure = snr_m2m4_db (x, NSYM);
+    double npure = dp_snr_m2m4_db (x, NSYM);
     char   m3[96];
     snprintf (m3, sizeof m3, "pure noise reads %.2f dB", npure);
     /* 0 linear is -inf dB; the estimator floors rather than diverging, so the
@@ -159,23 +159,23 @@ main (void)
 
     for (size_t i = 0; i < NSYM; i++)
       x[i] = (i & 1) ? 1.0f : -1.0f; /* noiseless BPSK */
-    double clean = snr_m2m4_db (x, NSYM);
+    double clean = dp_snr_m2m4_db (x, NSYM);
     snprintf (m3, sizeof m3, "noiseless reads %.2f dB", clean);
     DP_REQUIRE_MSG (clean > 40.0 || isinf (clean), m3);
 
-    DP_REQUIRE_MSG (isnan (snr_m2m4_db (x, 0)), "m2m4: empty block is NaN");
+    DP_REQUIRE_MSG (isnan (dp_snr_m2m4_db (x, 0)), "m2m4: empty block is NaN");
     for (size_t i = 0; i < 64; i++)
       x[i] = 0.0f;
-    DP_REQUIRE_MSG (isnan (snr_m2m4_db (x, 64)), "m2m4: zero power is NaN");
+    DP_REQUIRE_MSG (isnan (dp_snr_m2m4_db (x, 64)), "m2m4: zero power is NaN");
 
-    DP_REQUIRE_MSG (isnan (snr_data_aided_db (x, 0, bits, 0)),
+    DP_REQUIRE_MSG (isnan (dp_snr_data_aided_db (x, 0, bits, 0)),
                     "data-aided: empty block is NaN");
     for (size_t i = 0; i < 64; i++)
       {
         bits[i] = 0;
         x[i]    = 1.0f; /* exactly the nominal symbol: zero residual */
       }
-    DP_REQUIRE_MSG (isnan (snr_data_aided_db (x, 64, bits, 64)),
+    DP_REQUIRE_MSG (isnan (dp_snr_data_aided_db (x, 64, bits, 64)),
                     "data-aided: zero residual power is NaN");
 
     /* "over min(soft_len, sign_bits_len) paired samples" -- the shorter array
@@ -186,8 +186,8 @@ main (void)
         double a = bits[i] ? -1.0 : 1.0;
         x[i] = (float _Complex)a + (float _Complex) (0.1 * dp_cgauss (&st));
       }
-    double full   = snr_data_aided_db (x, 4096, bits, 4096);
-    double short_ = snr_data_aided_db (x, 4096, bits, 2048);
+    double full   = dp_snr_data_aided_db (x, 4096, bits, 4096);
+    double short_ = dp_snr_data_aided_db (x, 4096, bits, 2048);
     DP_REQUIRE_MSG (fabs (full - short_) < 1.0,
                     "data-aided: pairs over min(len), same link either way");
   }

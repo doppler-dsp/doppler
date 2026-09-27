@@ -87,7 +87,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  int | [**mpsk\_rx\_loops\_set\_state**](#function-mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
 |  size\_t | [**mpsk\_rx\_loops\_state\_bytes**](#function-mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._ |
 |  void | [**mpsk\_rx\_set\_freq\_est**](#function-mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
-|  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) _, which forwards here._ |
+|  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
 |  int | [**mpsk\_rx\_symbol\_to\_bits**](#function-mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, float \_Complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
@@ -538,7 +538,7 @@ void mpsk_rx_set_freq_est (
 
 ### function mpsk\_rx\_set\_telemetry 
 
-_Attach (or detach) telemetry across both loops; see_ [_**mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) _, which forwards here._
+_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._
 ```C++
 int mpsk_rx_set_telemetry (
     mpsk_rx_loops_t * l,
@@ -816,7 +816,7 @@ the statistic be before noise alone rarely reaches it". The other half of a dete
 At 0 dB the loops are tracking — the statistic is positive throughout, and a concatenated link over that same record delivers **error-free frames** (`docs/design/fec-receive.md` §8). What refuses is the threshold.
 
 
-**So this default is an UNCODED-link indicator.** A caller running below its own SER = 1e-3 anchor — which is where forward error correction exists to put you — must not gate on `mpsk_receiver_get_locked()`. Pass a threshold sized for the link, or gate on something that works there: frame synchronization, or the node-sync statistic (`node_sync_score`), which in lock reads the channel symbol error rate directly.
+**So this default is an UNCODED-link indicator.** A caller running below its own SER = 1e-3 anchor — which is where forward error correction exists to put you — must not gate on `dp_mpsk_receiver_get_locked()`. Pass a threshold sized for the link, or gate on something that works there: frame synchronization, or the node-sync statistic (`node_sync_score`), which in lock reads the channel symbol error rate directly.
 
 
 doppler#835 carries the measurement and the options; nothing here has changed behaviour, because a threshold that moves silently is worse than one whose scope is written down. 

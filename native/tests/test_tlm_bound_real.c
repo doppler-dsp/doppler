@@ -52,14 +52,15 @@ main (void)
   const size_t BLOCK = 512;
   const int    NBLK  = 40;
 
-  carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, SPS, 4, 4);
-  dp_tlm_t            *t = dp_tlm_create (1);
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (0.01, 0.707, 0.0, SPS, 4, 4);
+  dp_tlm_t *t = dp_tlm_create (1);
   DP_CHECK (c && t);
   if (!c || !t)
     return 1;
 
   /* decim = 1: every event on every probe, the densest the object can be. */
-  DP_CHECK (carrier_nda_set_telemetry (c, t, "car", 1) == DP_OK);
+  DP_CHECK (dp_carrier_nda_set_telemetry (c, t, "car", 1) == DP_OK);
 
   size_t probes = dp_tlm_probe_count (t);
   /* 4, all its own. Was 5 until gh-657 retired the embedded arm AGC and with
@@ -91,7 +92,7 @@ main (void)
       if (blk > 0 && got - prev > worst)
         worst = got - prev;
       prev = got;
-      (void)carrier_nda_steps (c, x, BLOCK, y, BLOCK);
+      (void)dp_carrier_nda_steps (c, x, BLOCK, y, BLOCK);
     }
   DP_CHECK (dp_tlm_capture_close (cap) == DP_OK);
 
@@ -136,7 +137,7 @@ main (void)
 
   dp_tlm_capture_destroy (cap);
   dp_tlm_destroy (t);
-  carrier_nda_destroy (c);
+  dp_carrier_nda_destroy (c);
   free (x);
   free (y);
 

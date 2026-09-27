@@ -36,20 +36,20 @@
  * used throughout this library is comfortable rather than tight.
  *
  * The state struct is **public** so a tracker can embed it by value (no heap)
- * and drive it with loop_filter_init()/loop_filter_step() — e.g. a despreader
+ * and drive it with loop_filter_init()/dp_loop_filter_step() — e.g. a despreader
  * keeps one for the carrier loop and one for the code loop.
- * loop_filter_create() is the heap path used by the Python wrapper.
+ * dp_loop_filter_create() is the heap path used by the Python wrapper.
  *
  * Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
  *
  * @code
- * loop_filter_state_t *lf = loop_filter_create(0.01, 0.707, 1.0);
- * double ctl = loop_filter_step(lf, 0.25);   // integ += ki*e; ret integ+kp*e
- * loop_filter_destroy(lf);
+ * dp_loop_filter_state_t *lf = dp_loop_filter_create(0.01, 0.707, 1.0);
+ * double ctl = dp_loop_filter_step(lf, 0.25);   // integ += ki*e; ret integ+kp*e
+ * dp_loop_filter_destroy(lf);
  * @endcode
  */
-#ifndef LOOP_FILTER_CORE_H
-#define LOOP_FILTER_CORE_H
+#ifndef DP_LOOP_FILTER_CORE_H
+#define DP_LOOP_FILTER_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -70,7 +70,7 @@ extern "C"
     double bn;    /**< loop noise bandwidth, normalized cycles/sample.  */
     double zeta;  /**< damping factor (0.707 = critically damped).     */
     double t;     /**< update period in samples.                       */
-  } loop_filter_state_t;
+  } dp_loop_filter_state_t;
 
   /**
    * @brief Initialise a loop filter in place (no allocation).
@@ -78,12 +78,12 @@ extern "C"
    * Computes @c kp / @c ki from the loop noise bandwidth @p bn (normalized,
    * cycles/sample), damping @p zeta, and update period @p t (samples), and
    * stores @p bn / @p zeta / @p t. Does **not** touch @c integ, so it doubles
-   * as a reconfigure that preserves lock. Use this for a `loop_filter_state_t`
-   * embedded by value; loop_filter_create() is calloc + loop_filter_init().
+   * as a reconfigure that preserves lock. Use this for a `dp_loop_filter_state_t`
+   * embedded by value; dp_loop_filter_create() is calloc + loop_filter_init().
    *
    * **Arguments are NOT validated here, on purpose.** This is the by-value
    * path taken by the objects that embed a filter, all of which validate
-   * upstream; loop_filter_create() is the boundary that faces an untrusted
+   * upstream; dp_loop_filter_create() is the boundary that faces an untrusted
    * caller and it rejects the same domain this documents. Passing `t = 0`
    * here yields `kp = ki = 0` — a loop that never moves — and a non-finite
    * argument yields NaN gains that never recover.
@@ -93,7 +93,7 @@ extern "C"
    * @param zeta   Damping factor (typically 0.707), > 0.
    * @param t      Update period in samples (> 0).
    */
-  void loop_filter_init(loop_filter_state_t *state, double bn, double zeta,
+  void loop_filter_init(dp_loop_filter_state_t *state, double bn, double zeta,
                         double t);
 
   /**
@@ -117,7 +117,7 @@ extern "C"
    * gain error that moved `wn` would have had to be found five times.
    *
    * Unguarded, like loop_filter_init() and for the same reason: this is the
-   * trusting path, and loop_filter_create() is the boundary that rejects the
+   * trusting path, and dp_loop_filter_create() is the boundary that rejects the
    * domain. `zeta = 0` divides by zero here exactly as it always has.
    *
    * @param bn    Loop noise bandwidth, normalized (>= 0).
@@ -142,15 +142,15 @@ extern "C"
    * @return Heap-allocated state, or NULL if any argument is outside the
    *         domain above or on allocation failure. The Python binding turns
    *         the former into a @c ValueError.
-   * @note Caller must call loop_filter_destroy() when done.
+   * @note Caller must call dp_loop_filter_destroy() when done.
    */
-  loop_filter_state_t *loop_filter_create(double bn, double zeta, double t);
+  dp_loop_filter_state_t *dp_loop_filter_create(double bn, double zeta, double t);
 
   /**
    * @brief Destroy a loop_filter instance and release all memory.
    * @param state  May be NULL.
    */
-  void loop_filter_destroy(loop_filter_state_t *state);
+  void dp_loop_filter_destroy(dp_loop_filter_state_t *state);
 
   /**
    * @brief Retune the loop gains @c kp / @c ki for a new (bn, zeta, t) without
@@ -179,7 +179,7 @@ extern "C"
    *
    * @endcode
    */
-  void loop_filter_configure(loop_filter_state_t *state, double bn, double zeta,
+  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   /**
@@ -205,7 +205,7 @@ extern "C"
    *
    * @endcode
    */
-  void loop_filter_reset(loop_filter_state_t *state);
+  void dp_loop_filter_reset(dp_loop_filter_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Whole-struct POD snapshot (pointer-free); config fields restore identically
@@ -215,11 +215,11 @@ extern "C"
 #define LOOP_FILTER_STATE_VERSION 1u
 
   /** @brief Serialized-state byte size. */
-  size_t loop_filter_state_bytes(const loop_filter_state_t *state);
+  size_t dp_loop_filter_state_bytes(const dp_loop_filter_state_t *state);
   /** @brief Serialize the loop state into @p blob. */
-  void loop_filter_get_state(const loop_filter_state_t *state, void *blob);
+  void dp_loop_filter_get_state(const dp_loop_filter_state_t *state, void *blob);
   /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
-  int loop_filter_set_state(loop_filter_state_t *state, const void *blob);
+  int dp_loop_filter_set_state(dp_loop_filter_state_t *state, const void *blob);
 
   /**
    * @brief Advance the loop one update with error @p x and return the control
@@ -252,7 +252,7 @@ extern "C"
    * @endcode
    */
   JM_FORCEINLINE JM_HOT double
-  loop_filter_step (loop_filter_state_t *state, double x)
+  dp_loop_filter_step (dp_loop_filter_state_t *state, double x)
   {
     state->integ += state->ki * x;
     return state->integ + state->kp * x;
@@ -262,7 +262,7 @@ extern "C"
    * @brief Filter a whole block of loop errors, returning the control value
    *        for each update.
    *
-   * Equivalent to calling loop_filter_step() once per element of @p x in order,
+   * Equivalent to calling dp_loop_filter_step() once per element of @p x in order,
    * carrying the integrator across the block, so the loop's memory and lock
    * state persist from one call to the next. This is the block path used to
    * run a captured error sequence through the filter in one shot — a plain
@@ -286,7 +286,7 @@ extern "C"
    *
    * @endcode
    */
-  void loop_filter_steps (loop_filter_state_t *state, const double *x,
+  void dp_loop_filter_steps (dp_loop_filter_state_t *state, const double *x,
                           double *out, size_t n);
 
 #ifdef __cplusplus

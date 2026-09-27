@@ -32,7 +32,7 @@ _bind_bin_to_signed (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   size_t bin    = (size_t)bin_raw;
   size_t n_bins = (size_t)n_bins_raw;
-  return PyLong_FromLong ((long)bin_to_signed (bin, n_bins));
+  return PyLong_FromLong ((long)dp_bin_to_signed (bin, n_bins));
 }
 
 /* ======================================================== */

@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CIC_CORE_H
-#define CIC_CORE_H
+#ifndef DP_CIC_CORE_H
+#define DP_CIC_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -33,13 +33,13 @@ typedef struct {
     uint32_t phase;           /* input sample counter 0..R-1           */
     uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
     uint8_t  clipped;         /* sticky: input exceeded +-1.0          */
-} cic_state_t;
+} dp_cic_state_t;
 
-cic_state_t *cic_create(uint32_t R);
+dp_cic_state_t *dp_cic_create(uint32_t R);
 
-void cic_destroy(cic_state_t *state);
+void dp_cic_destroy(dp_cic_state_t *state);
 
-void cic_reset(cic_state_t *state);
+void dp_cic_reset(dp_cic_state_t *state);
 
 /* Serializable state (reusable elastic-resume convention): the integrator and
  * comb accumulators, the decimation phase counter and the sticky clip flag —
@@ -54,16 +54,16 @@ void cic_reset(cic_state_t *state);
 
 #define CIC_PAPR_HEADROOM 2.0f
 
-size_t cic_state_bytes(const cic_state_t *state);
-void cic_get_state(const cic_state_t *state, void *blob);
-int cic_set_state(cic_state_t *state, const void *blob);
+size_t dp_cic_state_bytes(const dp_cic_state_t *state);
+void dp_cic_get_state(const dp_cic_state_t *state, void *blob);
+int dp_cic_set_state(dp_cic_state_t *state, const void *blob);
 
-size_t cic_decimate_max_out(cic_state_t *state);
+size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
 
-double cic_dc_gain(const cic_state_t *state);
+double cic_dc_gain(const dp_cic_state_t *state);
 
 JM_FORCEINLINE JM_HOT size_t
-cic_decimate(cic_state_t *state, const float _Complex *in,
+dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
              size_t n_in, float _Complex *out, size_t max_out)
 {
     const uint32_t R     = state->R;
@@ -130,7 +130,7 @@ cic_decimate(cic_state_t *state, const float _Complex *in,
     return n_out;
 }
 
-void cic_reconfigure(cic_state_t *state, uint32_t R);
+void dp_cic_reconfigure(dp_cic_state_t *state, uint32_t R);
 
 #ifdef __cplusplus
 }

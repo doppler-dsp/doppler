@@ -21,7 +21,7 @@ kaiser_i0 (double x)
 }
 
 void
-kaiser_window (float *w, size_t w_len, float beta)
+dp_kaiser_window (float *w, size_t w_len, float beta)
 {
   if (w_len == 1)
     {

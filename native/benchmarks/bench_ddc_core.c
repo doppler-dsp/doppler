@@ -15,8 +15,8 @@
  * The thing the column settles is the disbelief above -- whether cost
  * tracks the output count at all. It does not.
  *
- * The second axis is the one that costs real money. `ddc_execute` takes a
- * block; `ddc_execute_ctrl_push` takes ONE sample, and it is the only form
+ * The second axis is the one that costs real money. `dp_ddc_execute` takes a
+ * block; `dp_ddc_execute_ctrl_push` takes ONE sample, and it is the only form
  * a closed loop can use -- a carrier or timing loop computes each
  * correction from outputs already emitted, so it cannot hand a whole
  * block's control history over in advance. Feeding the same samples one
@@ -71,7 +71,7 @@ main (void)
   jm_bench_t      _bench = { 0 };
   uint64_t        t0, t1;
   static double   t[N_CFG][ITERATIONS];
-  ddc_state_t    *ddc[N_RATE] = { 0 };
+  dp_ddc_state_t *ddc[N_RATE] = { 0 };
   float _Complex *in = NULL, *out = NULL;
   size_t          cap;
   size_t          emitted[N_RATE] = { 0 };
@@ -86,13 +86,13 @@ main (void)
 
   for (int s = 0; s < N_RATE; s++)
     {
-      ddc[s] = ddc_create (-0.1, rates[s]);
+      ddc[s] = dp_ddc_create (-0.1, rates[s]);
       if (!ddc[s])
         return 1;
     }
 
   /* One buffer, sized for the loosest decimation in the sweep. */
-  cap = ddc_execute_max_out (ddc[0], BLOCK);
+  cap = dp_ddc_execute_max_out (ddc[0], BLOCK);
   out = malloc ((cap ? cap : BLOCK) * sizeof *out);
   if (!out)
     return 1;
@@ -101,7 +101,8 @@ main (void)
           BLOCK);
   printf ("%d rounds, min over rounds, ns per INPUT sample\n\n", ITERATIONS);
 
-  DP_BENCH_SETTLE ((void)ddc_execute (ddc[REF_RATE_IDX], in, BLOCK, out, cap));
+  DP_BENCH_SETTLE (
+      (void)dp_ddc_execute (ddc[REF_RATE_IDX], in, BLOCK, out, cap));
 
   /* Rounds outside, configurations inside. Both questions here are ratios
      -- rate against rate, face against face -- so no row may own the ramp.
@@ -111,21 +112,21 @@ main (void)
       for (int s = 0; s < N_RATE; s++)
         {
           t0         = jm_bench_now_ns ();
-          emitted[s] = ddc_execute (ddc[s], in, BLOCK, out, cap);
+          emitted[s] = dp_ddc_execute (ddc[s], in, BLOCK, out, cap);
           t1         = jm_bench_now_ns ();
           t[s][r]    = jm_bench_elapsed_sec (t0, t1);
         }
 
       t0 = jm_bench_now_ns ();
-      (void)ddc_execute_ctrl (ddc[REF_RATE_IDX], in, BLOCK, 0.0, 0.0, out,
-                              cap);
+      (void)dp_ddc_execute_ctrl (ddc[REF_RATE_IDX], in, BLOCK, 0.0, 0.0, out,
+                                 cap);
       t1           = jm_bench_now_ns ();
       t[N_RATE][r] = jm_bench_elapsed_sec (t0, t1);
 
       t0 = jm_bench_now_ns ();
       for (size_t i = 0; i < BLOCK; i++)
-        (void)ddc_execute_ctrl_push (ddc[REF_RATE_IDX], in[i], 0.0, 0.0, out,
-                                     cap);
+        (void)dp_ddc_execute_ctrl_push (ddc[REF_RATE_IDX], in[i], 0.0, 0.0,
+                                        out, cap);
       t1               = jm_bench_now_ns ();
       t[N_RATE + 1][r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -168,7 +169,7 @@ main (void)
           "  the per-sample form whether or not it wants it.\n");
 
   for (int s = 0; s < N_RATE; s++)
-    ddc_destroy (ddc[s]);
+    dp_ddc_destroy (ddc[s]);
   free (in);
   free (out);
   jm_bench_write_json (&_bench, "ddc");

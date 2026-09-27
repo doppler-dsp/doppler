@@ -40,8 +40,8 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dll\_state\_t**](structdll__state__t.md) <br>_DLL state._  |
 | struct | [**dll\_tlm\_t**](structdll__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per code epoch. Zeroed in state blobs and preserved across set\_state (the hand-written triplet treats it like the borrowed_ `code` _)._ |
+| struct | [**dp\_dll\_state\_t**](structdp__dll__state__t.md) <br>_DLL state._  |
 
 
 
@@ -68,48 +68,48 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 
 | Type | Name |
 | ---: | :--- |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float \_Complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_chip\_sign**](#function-dll_chip_sign) (uint8\_t c) <br> |
-|  void | [**dll\_configure**](#function-dll_configure) ([**dll\_state\_t**](structdll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
-|  int | [**dll\_configure\_lock**](#function-dll_configure_lock) ([**dll\_state\_t**](structdll__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Tune the always-on code-lock detector to a target (pfa, n\_looks)._  |
-|  void | [**dll\_configure\_lock\_raw**](#function-dll_configure_lock_raw) ([**dll\_state\_t**](structdll__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
-|  [**dll\_state\_t**](structdll__state__t.md) \* | [**dll\_create**](#function-dll_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_Create a code/timing delay-locked loop over a spreading code._  |
-|  void | [**dll\_destroy**](#function-dll_destroy) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Destroy a DLL instance and release all memory (incl. the code copy)._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dll\_dwell\_center\_chip\_pos**](#function-dll_dwell_center_chip_pos) (const [**dll\_state\_t**](structdll__state__t.md) \* s) <br>_This sample's dwell-CENTER code phase, chips._  |
-|  double | [**dll\_get\_bn**](#function-dll_get_bn) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  double | [**dll\_get\_code\_phase**](#function-dll_get_code_phase) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  double | [**dll\_get\_code\_rate**](#function-dll_get_code_rate) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  double | [**dll\_get\_last\_error**](#function-dll_get_last_error) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  double | [**dll\_get\_lock\_stat**](#function-dll_get_lock_stat) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Last lock test statistic R (compare against the configured eta)._  |
-|  int | [**dll\_get\_locked**](#function-dll_get_locked) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dll\_configure\_lock)._  |
-|  double | [**dll\_get\_noise\_est**](#function-dll_get_noise_est) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._  |
-|  size\_t | [**dll\_get\_segments**](#function-dll_get_segments) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  void | [**dll\_get\_state**](#function-dll_get_state) (const [**dll\_state\_t**](structdll__state__t.md) \* state, void \* blob) <br> |
-|  size\_t | [**dll\_get\_symbol\_window**](#function-dll_get_symbol_window) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
-|  void | [**dll\_hold\_here**](#function-dll_hold_here) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
-|  void | [**dll\_init**](#function-dll_init) ([**dll\_state\_t**](structdll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
-|  void | [**dll\_lock\_epoch**](#function-dll_lock_epoch) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
-|  void | [**dll\_lock\_look**](#function-dll_lock_look) ([**dll\_state\_t**](structdll__state__t.md) \* s, double norm) <br>_Fold one look into the lock detector; clear the offset tap._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dll\_dwell\_center\_chip\_pos**](#function-dll_dwell_center_chip_pos) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_This sample's dwell-CENTER code phase, chips._  |
+|  void | [**dll\_hold\_here**](#function-dll_hold_here) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
+|  void | [**dll\_init**](#function-dll_init) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
+|  void | [**dll\_lock\_epoch**](#function-dll_lock_epoch) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
+|  void | [**dll\_lock\_look**](#function-dll_lock_look) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double norm) <br>_Fold one look into the lock detector; clear the offset tap._  |
 |  size\_t | [**dll\_lookback\_segments**](#function-dll_lookback_segments) (size\_t tsamps, double max\_error\_db) <br>_Derive a principled_ `segments` _count from a max tolerable async-lookback correlation-power loss, instead of hand-picking one._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica**](#function-dll_replica) (const [**dll\_state\_t**](structdll__state__t.md) \* s, double c) <br>_Sub-chip code replica at fractional code phase_ `c` _(one tap)._ |
-|  void | [**dll\_reset**](#function-dll_reset) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
-|  void | [**dll\_set\_bn**](#function-dll_set_bn) ([**dll\_state\_t**](structdll__state__t.md) \* state, double val) <br> |
-|  void | [**dll\_set\_coast**](#function-dll_set_coast) ([**dll\_state\_t**](structdll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
-|  void | [**dll\_set\_code\_phase**](#function-dll_set_code_phase) ([**dll\_state\_t**](structdll__state__t.md) \* state, double chips) <br>_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._  |
-|  int | [**dll\_set\_lock\_verify**](#function-dll_set_lock_verify) ([**dll\_state\_t**](structdll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
-|  void | [**dll\_set\_rate\_aid**](#function-dll_set_rate_aid) ([**dll\_state\_t**](structdll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
-|  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**dll\_set\_symbol\_period**](#function-dll_set_symbol_period) ([**dll\_state\_t**](structdll__state__t.md) \* state, double partials\_per\_symbol) <br>_Give the loop the data-symbol period, so the lock detector's looks and the code discriminator's windows are coherent over a symbol instead of a quarter-epoch partial._  |
-|  int | [**dll\_set\_telemetry**](#function-dll_set_telemetry) ([**dll\_state\_t**](structdll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
-|  size\_t | [**dll\_state\_bytes**](#function-dll_state_bytes) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dll\_state\_t**](structdll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
-|  size\_t | [**dll\_steps**](#function-dll_steps) ([**dll\_state\_t**](structdll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
-|  size\_t | [**dll\_steps\_max\_out**](#function-dll_steps_max_out) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  size\_t | [**dll\_take\_error**](#function-dll_take_error) ([**dll\_state\_t**](structdll__state__t.md) \* state, double \* sum) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
-|  double | [**dll\_take\_error\_mean**](#function-dll_take_error_mean) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>[_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
-|  void | [**dll\_tlm\_flush**](#function-dll_tlm_flush) (const [**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Emit the code loop's telemetry records for the epoch just closed._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica**](#function-dll_replica) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double c) <br>_Sub-chip code replica at fractional code phase_ `c` _(one tap)._ |
+|  void | [**dll\_set\_coast**](#function-dll_set_coast) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
+|  size\_t | [**dll\_take\_error**](#function-dll_take_error) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double \* sum) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
+|  void | [**dll\_tlm\_flush**](#function-dll_tlm_flush) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Emit the code loop's telemetry records for the epoch just closed._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
+|  void | [**dp\_dll\_configure**](#function-dp_dll_configure) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
+|  int | [**dp\_dll\_configure\_lock**](#function-dp_dll_configure_lock) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Tune the always-on code-lock detector to a target (pfa, n\_looks)._  |
+|  void | [**dp\_dll\_configure\_lock\_raw**](#function-dp_dll_configure_lock_raw) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
+|  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dp\_dll\_create**](#function-dp_dll_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_Create a code/timing delay-locked loop over a spreading code._  |
+|  void | [**dp\_dll\_destroy**](#function-dp_dll_destroy) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Destroy a DLL instance and release all memory (incl. the code copy)._  |
+|  double | [**dp\_dll\_get\_bn**](#function-dp_dll_get_bn) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  double | [**dp\_dll\_get\_code\_phase**](#function-dp_dll_get_code_phase) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  double | [**dp\_dll\_get\_code\_rate**](#function-dp_dll_get_code_rate) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  double | [**dp\_dll\_get\_last\_error**](#function-dp_dll_get_last_error) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  double | [**dp\_dll\_get\_lock\_stat**](#function-dp_dll_get_lock_stat) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Last lock test statistic R (compare against the configured eta)._  |
+|  int | [**dp\_dll\_get\_locked**](#function-dp_dll_get_locked) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_dll\_configure\_lock)._  |
+|  double | [**dp\_dll\_get\_noise\_est**](#function-dp_dll_get_noise_est) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._  |
+|  size\_t | [**dp\_dll\_get\_segments**](#function-dp_dll_get_segments) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  void | [**dp\_dll\_get\_state**](#function-dp_dll_get_state) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_dll\_get\_symbol\_window**](#function-dp_dll_get_symbol_window) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
+|  void | [**dp\_dll\_reset**](#function-dp_dll_reset) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
+|  void | [**dp\_dll\_set\_bn**](#function-dp_dll_set_bn) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double val) <br> |
+|  void | [**dp\_dll\_set\_code\_phase**](#function-dp_dll_set_code_phase) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double chips) <br>_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._  |
+|  int | [**dp\_dll\_set\_lock\_verify**](#function-dp_dll_set_lock_verify) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
+|  void | [**dp\_dll\_set\_rate\_aid**](#function-dp_dll_set_rate_aid) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
+|  int | [**dp\_dll\_set\_state**](#function-dp_dll_set_state) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_dll\_set\_symbol\_period**](#function-dp_dll_set_symbol_period) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double partials\_per\_symbol) <br>_Give the loop the data-symbol period, so the lock detector's looks and the code discriminator's windows are coherent over a symbol instead of a quarter-epoch partial._  |
+|  int | [**dp\_dll\_set\_telemetry**](#function-dp_dll_set_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
+|  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_dll\_steps**](#function-dp_dll_steps) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
+|  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  double | [**dp\_dll\_take\_error\_mean**](#function-dp_dll_take_error_mean) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>[_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
 
 
 
@@ -149,23 +149,23 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 ## Detailed Description
 
 
-Tracks the code phase of a continuous, repeating spreading code (e.g. a PN / Gold sequence) on a _carrier-wiped_ sample stream. Per sample it correlates the input against three taps of a 2-samples/chip interpolated local-code replica — early (`+spacing` chips), prompt, late (`-spacing` chips) — accumulating an integrate-and-dump over one code period; per period it runs the power-domain non-coherent early-minus-late discriminator `0.5 * (|E|^2 - |L|^2) / |P|^2`, filters it through an embedded 2nd-order [**loop\_filter\_state\_t**](structloop__filter__state__t.md), and steers an embedded fixed-point NCO ([**nco\_state\_t**](structnco__state__t.md)) that tracks the code phase — a 32-bit phase accumulator, exact integer wraparound, no open-ended floating-point drift.
+Tracks the code phase of a continuous, repeating spreading code (e.g. a PN / Gold sequence) on a _carrier-wiped_ sample stream. Per sample it correlates the input against three taps of a 2-samples/chip interpolated local-code replica — early (`+spacing` chips), prompt, late (`-spacing` chips) — accumulating an integrate-and-dump over one code period; per period it runs the power-domain non-coherent early-minus-late discriminator `0.5 * (|E|^2 - |L|^2) / |P|^2`, filters it through an embedded 2nd-order [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md), and steers an embedded fixed-point NCO ([**dp\_nco\_state\_t**](structdp__nco__state__t.md)) that tracks the code phase — a 32-bit phase accumulator, exact integer wraparound, no open-ended floating-point drift.
 
 
-It pairs with the carrier loop ([**costas\_core.h**](costas__core_8h.md)): the carrier loop wipes the carrier, the DLL wipes the code. The block API (dll\_steps) is the Python face; the JM\_FORCEINLINE [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate)/dll\_update() are the C composition API a tracking channel inlines into its own sample loop.
+It pairs with the carrier loop ([**costas\_core.h**](costas__core_8h.md)): the carrier loop wipes the carrier, the DLL wipes the code. The block API (dp\_dll\_steps) is the Python face; the JM\_FORCEINLINE [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate)/dll\_update() are the C composition API a tracking channel inlines into its own sample loop.
 
 
-Lifecycle: `dll_create -> (steps / configure / reset)* -> dll_destroy`, or embed by value with [**dll\_init()**](dll__core_8h.md#function-dll_init) (which BORROWS the caller-owned code, and always runs with `segments == 1` — there is no by-value counterpart to `dll_create()`'s `segments` parameter).
+Lifecycle: `dp_dll_create -> (steps / configure / reset)* -> dp_dll_destroy`, or embed by value with [**dll\_init()**](dll__core_8h.md#function-dll_init) (which BORROWS the caller-owned code, and always runs with `segments == 1` — there is no by-value counterpart to `dp_dll_create()`'s `segments` parameter).
 
 
 
 ```C++
 uint8_t code[31] = { ... };  // 0/1 chips, one period
-dll_state_t *d = dll_create(code, 31, 2, 0.0, 0.01, 0.707, 0.5);
+dp_dll_state_t *d = dp_dll_create(code, 31, 2, 0.0, 0.01, 0.707, 0.5);
 float _Complex sym[16];
-size_t k = dll_steps(d, rx, rx_len, sym, 16);  // one prompt per period
+size_t k = dp_dll_steps(d, rx, rx_len, sym, 16);  // one prompt per period
 double phase = d->chip_pos;                     // tracked code phase, chips
-dll_destroy(d);
+dp_dll_destroy(d);
 ```
  
 
@@ -181,14 +181,14 @@ dll_destroy(d);
 _Per-sample early/prompt/late correlate + fixed-point code-phase advance._ 
 ```C++
 JM_FORCEINLINE  JM_HOT int dll_accumulate (
-    dll_state_t * s,
+    dp_dll_state_t * s,
     float _Complex d
 ) 
 ```
 
 
 
-Correlates the carrier-wiped sample `d` against the early, prompt and late code taps at this sample's dwell-CENTER phase ([**dll\_dwell\_center\_chip\_pos**](dll__core_8h.md#function-dll_dwell_center_chip_pos), wrapped over the periodic code), then advances the embedded fixed-point NCO by one sample and re-derives `chip_pos` from its POST-advance (dwell-START-of-next-sample) phase (never independently accumulated — see [**dll\_state\_t::chip\_pos**](structdll__state__t.md#variable-chip_pos)). Inline, zero call overhead.
+Correlates the carrier-wiped sample `d` against the early, prompt and late code taps at this sample's dwell-CENTER phase ([**dll\_dwell\_center\_chip\_pos**](dll__core_8h.md#function-dll_dwell_center_chip_pos), wrapped over the periodic code), then advances the embedded fixed-point NCO by one sample and re-derives `chip_pos` from its POST-advance (dwell-START-of-next-sample) phase (never independently accumulated — see [**dp\_dll\_state\_t::chip\_pos**](structdp__dll__state__t.md#variable-chip_pos)). Inline, zero call overhead.
 
 
 
@@ -234,292 +234,12 @@ JM_FORCEINLINE float dll_chip_sign (
 
 
 
-### function dll\_configure 
-
-_Recompute the loop gains for a new (bn, zeta); keep the code state._ 
-```C++
-void dll_configure (
-    dll_state_t * state,
-    double bn,
-    double zeta
-) 
-```
-
-
-
-Re-derives the 2nd-order loop filter's proportional and integral gains for a new noise bandwidth and damping, leaving the tracked code phase, code rate and correlator accumulators untouched — retune the loop mid-run (e.g. narrow the bandwidth once pulled in) without dropping lock.
-
-
-
-
-**Parameters:**
-
-
-* `state` DLL state. Must be non-NULL. 
-* `bn` Loop noise bandwidth, normalised to the code-period rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
-```C++
->>> import numpy as np
->>> from doppler.track import Dll
->>> rng = np.random.default_rng(1)
->>> code = rng.integers(0, 2, 31).astype(np.uint8)
->>> d = Dll(code=code, sps=2, bn=0.01)
->>> d.configure(bn=0.02, zeta=0.707)   # widen the bandwidth mid-run
->>> round(d.bn, 3)
-0.02
-```
- 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_configure\_lock 
-
-_Tune the always-on code-lock detector to a target (pfa, n\_looks)._ 
-```C++
-int dll_configure_lock (
-    dll_state_t * state,
-    double pfa,
-    size_t n_looks,
-    double ref_snr_db
-) 
-```
-
-
-
-The DLL carries a lock detector that reuses acquisition's non-coherent test statistic. Every emitted look (a partial in segments mode, or the full-epoch prompt when segments == 1) is also correlated at a _random off-peak_ code phase — re-drawn each epoch and kept `noise_guard` chips clear of the prompt/early/late lobe — to give a signal-free CFAR noise sample (valid for a low-sidelobe code, e.g. Gold). The offset power feeds an EMA reference `E|O|^2`; the prompt powers of `n_looks` consecutive looks are summed into `S = sum|P_k|^2`, and the detector declares lock when
-
-
-R = sqrt(2 \* S / E\|O\|^2) &gt; det\_threshold\_noncoherent(pfa, n\_looks)
-
-
-which under H0 has `P(R > eta) = marcum_q(n_looks, 0, eta)`. Size `n_looks` with det\_n\_noncoh(snr, ...) for the operating C/N0.
-
-
-The noise-reference EMA bandwidth is sized probabilistically via [**det\_ema\_alpha()**](detection__core_8h.md#function-det_ema_alpha): the signal-free `|O|^2` samples are exponential (0 dB estimator SNR per sample — a DC level in fluctuation of equal power), and `ref_snr_db` chooses the EMA output's estimator SNR (mean^2/variance). Passing 0 derives it from `n_looks:` the reference's relative std is held to an eighth of the statistic's intrinsic H0 spread (`1/sqrt(N)`), floored at ~33 dB — which reproduces the classic `1/alpha = max(1024, 32*N)` sizing exactly, now as a consequence instead of a constant.
-
-
-The detector needs an off-peak code phase to sample noise from: with a very short code (fewer than ~2\*(spacing+2)+1 chips, i.e. sf &lt;= 6 at the default spacing) no offset clears the prompt/early/late lobe, the noise tap aliases the prompt, and the statistic pins below threshold — locked stays 0 (fail-closed) no matter the signal. Use a code of &gt;= 7 chips (real spreading codes are far longer) for a meaningful lock decision.
-
-
-The decision itself runs through an embedded lock detector ([**lockdet\_core.h**](lockdet__core_8h.md)) rather than a single-comparison latch: `locked` flips up only after det\_verify\_count(pfa, pfa\*1e-3) CONSECUTIVE above-threshold decisions (the false-declare budget held three decades under the per-decision `pfa` — 2 straight for the default 1e-3), and drops only after 2 straight below-threshold decisions, so a statistic grazing the threshold cannot chatter the flag. Full control of the verify counts and a split declare/drop threshold pair is C-only via [**dll\_configure\_lock\_raw()**](dll__core_8h.md#function-dll_configure_lock_raw).
-
-
-
-
-**Parameters:**
-
-
-* `state` DLL state. Must be non-NULL. 
-* `pfa` Per-decision false-alarm probability, in (0, 1). 
-* `n_looks` Non-coherent integration depth N (looks); clamped &gt;= 1. 
-* `ref_snr_db` Noise-reference estimator SNR in dB (&gt; 0), or 0 to derive from `n_looks` as above. 
-
-
-
-**Returns:**
-
-DP\_OK, or DP\_ERR\_INVALID when `pfa` is outside (0, 1). 
-```C++
->>> import numpy as np
->>> from doppler.track import Dll
->>> d = Dll(code=np.zeros(31, dtype=np.uint8), sps=2)
->>> d.configure_lock(1e-3, 20)
->>> d.locked
-False
->>> d.configure_lock(1e-3, 20, ref_snr_db=20.0)   # ~50-look reference
->>> d.configure_lock(2.0, 20)
-Traceback (most recent call last):
-    ...
-ValueError: configure_lock failed (rc=-4)
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_configure\_lock\_raw 
-
-_Set the lock detector's raw geometry directly._ 
-```C++
-void dll_configure_lock_raw (
-    dll_state_t * state,
-    double up_thresh,
-    double down_thresh,
-    size_t n_looks,
-    double alpha,
-    uint32_t n_up,
-    uint32_t n_down
-) 
-```
-
-
-
-The escape hatch under [**dll\_configure\_lock()**](dll__core_8h.md#function-dll_configure_lock) for a composing C caller that derives its own threshold/EMA/hysteresis geometry — the full lockdet decision rule is exposed: a split declare/drop threshold pair (level hysteresis) and both verify counts (time hysteresis; size them with [**det\_verify\_count()**](detection__core_8h.md#function-det_verify_count)). Re-tuning clears the in-flight statistic and drops the lock so the next decision uses only looks gathered under the new config.
-
-
-
-
-**Parameters:**
-
-
-* `state` DLL state. Must be non-NULL. 
-* `up_thresh` Declare threshold on the statistic R (e.g. the CFAR eta from [**det\_threshold\_noncoherent()**](detection__core_8h.md#function-det_threshold_noncoherent)). 
-* `down_thresh` Drop threshold on R; choose &lt;= up\_thresh for level hysteresis. 
-* `n_looks` Non-coherent integration depth N (looks); clamped &gt;= 1. 
-* `alpha` EMA coefficient for the noise reference, in (0, 1]. 
-* `n_up` Consecutive above-threshold decisions to declare lock; clamped to &gt;= 1. 
-* `n_down` Consecutive below-threshold decisions to drop it; clamped to &gt;= 1. 
-```C++
->>> import numpy as np
->>> from doppler.track import Dll
->>> rng = np.random.default_rng(1)
->>> # >= 7 chips gives a usable lock statistic
->>> code = rng.integers(0, 2, 63).astype(np.uint8)
->>> chip = np.where(code & 1, -1.0, 1.0)
->>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)
->>> d = Dll(code, sps=4, bn=0.005)
->>> # raw geometry: declare at R>3, drop at R<2.5, 8-look,
->>> # 2-of-2 hysteresis
->>> d.configure_lock_raw(3.0, 2.5, 8, 1.0 / 1024, 2, 2)
->>> _ = d.steps(x)
->>> d.locked                       # cleared the declare threshold
-True
->>> bool(d.lock_stat > 3.0)
-True
-```
- 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_create 
-
-_Create a code/timing delay-locked loop over a spreading code._ 
-```C++
-dll_state_t * dll_create (
-    const uint8_t * code,
-    size_t code_len,
-    size_t sps,
-    double init_chip,
-    double bn,
-    double zeta,
-    double spacing,
-    size_t segments
-) 
-```
-
-
-
-A non-coherent early/prompt/late DLL that tracks the code phase of a repeating spreading sequence (PN / Gold) on a carrier-wiped sample stream. Each code period it correlates the input against three replica taps — early (`+spacing` chips), prompt, late (`-spacing` chips) — runs the power-domain early-minus-late discriminator, filters it through a 2nd-order loop, and steers a fixed-point code-phase NCO. With `segments == 1` it emits one prompt symbol per period (a coherent full-epoch integrate-and-dump); with `segments > 1` it splits each epoch into that many partial correlations and tracks non-coherently across them, robust to an asynchronous data-symbol clock. An always-on CFAR lock detector (see [**dll\_configure\_lock**](dll__core_8h.md#function-dll_configure_lock)) reports whether the loop is tracking; carrier-aiding ([**dll\_set\_rate\_aid**](dll__core_8h.md#function-dll_set_rate_aid)) lets the code NCO ride a physically-coupled Doppler the discriminator alone cannot pull in at low SNR.
-
-
-
-
-**Parameters:**
-
-
-* `code` Spreading code (0/1 chips), one period; copied internally. 
-* `code_len` Code length (chips per period). 
-* `sps` Samples per chip (default 2). 
-* `init_chip` Seed code phase, chips (default 0.0). 
-* `bn` Loop noise bandwidth (default 0.01). 
-* `zeta` Damping factor (default 0.707). 
-* `spacing` Early/late tap offset, chips (default 0.5). 
-* `segments` Partial correlations per code epoch (default 1). 1 = a coherent full-epoch integrate-and-dump (one prompt/period). &gt;1 splits each epoch into that many sub-epoch partials: it emits that many partial prompts/period and tracks the code non-coherently across them (robust to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when the symbol rate is near the code rate, so choose &gt;= 2 for symbol-timing recovery. 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL on allocation failure. 
-
-
-
-
-**Note:**
-
-Caller must call [**dll\_destroy()**](dll__core_8h.md#function-dll_destroy) when done. 
-```C++
->>> import numpy as np
->>> from doppler.track import Dll
->>> rng = np.random.default_rng(1)
->>> code = rng.integers(0, 2, 31).astype(np.uint8)  # a 31-chip PN code
->>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
->>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)
->>> d = Dll(code=code, sps=2)               # 2 samples/chip loop
->>> sym = d.steps(x)                        # one prompt per period
->>> sym.shape                               # 60 despread symbols
-(60,)
->>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
-1.0
->>> round(d.code_rate, 3)                   # code NCO at nominal rate
-1.0
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_destroy 
-
-_Destroy a DLL instance and release all memory (incl. the code copy)._ 
-```C++
-void dll_destroy (
-    dll_state_t * state
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `state` May be NULL. 
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dll\_dwell\_center\_chip\_pos 
 
 _This sample's dwell-CENTER code phase, chips._ 
 ```C++
 JM_FORCEINLINE double dll_dwell_center_chip_pos (
-    const dll_state_t * s
+    const dp_dll_state_t * s
 ) 
 ```
 
@@ -551,178 +271,12 @@ Dwell-center code phase, chips.
 
 
 
-### function dll\_get\_bn 
-
-```C++
-double dll_get_bn (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_code\_phase 
-
-```C++
-double dll_get_code_phase (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_code\_rate 
-
-```C++
-double dll_get_code_rate (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_last\_error 
-
-```C++
-double dll_get_last_error (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_lock\_stat 
-
-_Last lock test statistic R (compare against the configured eta)._ 
-```C++
-double dll_get_lock_stat (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_locked 
-
-_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dll\_configure\_lock)._ 
-```C++
-int dll_get_locked (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_noise\_est 
-
-_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._ 
-```C++
-double dll_get_noise_est (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_segments 
-
-```C++
-size_t dll_get_segments (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_state 
-
-```C++
-void dll_get_state (
-    const dll_state_t * state,
-    void * blob
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dll\_get\_symbol\_window 
-
-_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._
-```C++
-size_t dll_get_symbol_window (
-    const dll_state_t * state
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dll\_hold\_here 
 
 _Mark the point a coast returns to: this rate and this filter._ 
 ```C++
 void dll_hold_here (
-    dll_state_t * state
+    dp_dll_state_t * state
 ) 
 ```
 
@@ -752,7 +306,7 @@ Call while the loop is known to be on its signal; dll\_set\_coast(1) restores th
 _Initialise a DLL in place (no allocation); BORROWS_ `code` _._
 ```C++
 void dll_init (
-    dll_state_t * s,
+    dp_dll_state_t * s,
     const uint8_t * code,
     size_t code_len,
     size_t sps,
@@ -765,7 +319,7 @@ void dll_init (
 
 
 
-The by-value counterpart to [**dll\_create()**](dll__core_8h.md#function-dll_create): a tracking channel that embeds a [**dll\_state\_t**](structdll__state__t.md) initialises it here and retains ownership of `code` (it is not copied or freed). `code` must hold `code_len` chips for the loop's lifetime.
+The by-value counterpart to [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create): a tracking channel that embeds a [**dp\_dll\_state\_t**](structdp__dll__state__t.md) initialises it here and retains ownership of `code` (it is not copied or freed). `code` must hold `code_len` chips for the loop's lifetime.
 
 
 
@@ -796,7 +350,7 @@ The by-value counterpart to [**dll\_create()**](dll__core_8h.md#function-dll_cre
 _Per-sample offset (noise) tap for the always-on lock detector._ 
 ```C++
 JM_FORCEINLINE  JM_HOT void dll_lock_accumulate (
-    dll_state_t * s,
+    dp_dll_state_t * s,
     float _Complex d
 ) 
 ```
@@ -828,7 +382,7 @@ The composition sibling of [**dll\_accumulate()**](dll__core_8h.md#function-dll_
 _Per-epoch lock-detector housekeeping: re-draw the noise offset._ 
 ```C++
 void dll_lock_epoch (
-    dll_state_t * s
+    dp_dll_state_t * s
 ) 
 ```
 
@@ -858,7 +412,7 @@ Call once per code epoch (after the period's [**dll\_lock\_look()**](dll__core_8
 _Fold one look into the lock detector; clear the offset tap._ 
 ```C++
 void dll_lock_look (
-    dll_state_t * s,
+    dp_dll_state_t * s,
     double norm
 ) 
 ```
@@ -929,7 +483,7 @@ Segment count in `[1, tsamps]` that evenly divides `tsamps` (1 if `tsamps` == 0)
 _Sub-chip code replica at fractional code phase_ `c` _(one tap)._
 ```C++
 JM_FORCEINLINE float dll_replica (
-    const dll_state_t * s,
+    const dp_dll_state_t * s,
     double c
 ) 
 ```
@@ -963,12 +517,648 @@ Linearly-interpolated ±1 replica value for this tap and sample.
 
 
 
-### function dll\_reset 
+### function dll\_set\_coast 
+
+_Hold the loop (1) or run it (0, the default)._ 
+```C++
+void dll_set_coast (
+    dp_dll_state_t * state,
+    int coast
+) 
+```
+
+
+
+Coasting, the loop filter takes no update and the NCO is not steered: on entry the filter is restored to the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here) and the rate to that filter's integrator  the loop's frequency memory, without the proportional term of a steer, which is a phase correction for one interval and held as a rate walks the phase off at chips per second  and the code phase then advances at that rate, the carrier aid as the caller leaves it, while the lock detector keeps looking at the prompt so a signal that returns at that phase is seen. The caller marks the hold point while it knows the loop is genuinely on its signal (the receiver: both of its flags up), so a flag that blips on a passing neighbour does not move it. The reason it exists: a loop left running on noise after its emitter leaves free-runs at whatever the filter holds, sweeps its phase through every other emitter's, and can capture one whose code phase crosses its own slowly enough  measured in the pool's ten-minute soak, a departed receiver followed a neighbour's chips at 44.8 chips per second and its code flag returned sixteen times in fourteen seconds (doppler#1271). The caller decides when: async\_dsss\_receiver coasts while both of its lock flags are down after a lock it once had.
+
+
+
+
+**Parameters:**
+
+
+* `state` The loop. 
+* `coast` 1 to hold, 0 to run. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_steer 
+
+_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._
+```C++
+JM_FORCEINLINE  JM_HOT void dll_steer (
+    dp_dll_state_t * s,
+    double ep,
+    double lp,
+    double pp
+) 
+```
+
+
+
+Runs the power-domain non-coherent early-minus-late discriminator `0.5 * (|E|^2 - |L|^2) / |P|^2` on the given powers (the prompt power is the normalizing "signal + noise power" reference  the validated design from `docs/design/async-dsss-receiver.md` §3.6, not a magnitude-domain `(|E|-|L|)/(|E|+|L|)` ratio), clamps it, records it (`last_error`, the `.e` probe, and the running sum [**dll\_take\_error()**](dll__core_8h.md#function-dll_take_error) reads), and then  unless the loop is held ([**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast))  filters it and steers `phase_inc` (sample-and-hold, constant until the next call) from BOTH the integrator and the proportional term, spread smoothly across the whole next update interval rather than kicked directly into `phase`. Two things were tried and rejected while porting this design: (1) folding the loop filter's full combined control (`integ + kp*e`) into `phase_inc` as a single rate (mirroring `symsync_core.h`) massively over-corrects  a rate held for a whole `sf*sps`-sample period turns a `kp*e`-chip correction into a `kp*e*sf`-chip one, unstable at any non-tiny `bn`; (2) kicking `phase` directly once per period (mirroring `costas_core.c`) is unsafe right after a wrap (when `phase` is near zero)  a negative kick pushes phase backward across the just-crossed boundary, and the very next sample's forward step re-crosses it, registering a second, spurious wrap.
+
+
+How the filter's two terms reach `phase_inc` and `code_rate` is the state's gain table (`ctrl_i`, `ctrl_p`, `rate_i`, `rate_p`, set by segments at configuration and scaled by `inv_upd` when the symbol aid re-times the update): the coherent full-epoch loop (`segments == 1`) treats the integrator as a code-rate ratio and the proportional term as chips per epoch; the partial-correlation loop (`segments > 1`) treats the filter's output as chips over `sps`. Until this function existed each path carried its own copy of the discriminator and steer, and a fix to one (the coast hold, design §12.22) did not reach the other. The gain tables are the two loops' separately pinned behaviour, kept as data.
+
+
+The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample, set once in seed() and never touched directly); this function only ever computes a pure correction (`ctrl`, built entirely from the loop filter's terms  no "1.0"/nominal anywhere in it) and adds it on top when steering `phase_inc`, beside the rate aid. Keeping the control path free of the nominal rate is what lets a second correction source sum in cleanly, and is what `code_rate` (a _public_, ratio-form observable  1.0 = nominal, unrelated to how phase\_inc is actually steered) must never be substituted for internally. Inline; no division.
+
+
+
+
+**Parameters:**
+
+
+* `s` DLL state. Must be non-NULL. 
+* `ep` Early power \|E\|^2 over the update's window. 
+* `lp` Late power \|L\|^2. 
+* `pp` Prompt power \|P\|^2 (the reference), on the same scale. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_take\_error 
+
+_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._ 
+```C++
+size_t dll_take_error (
+    dp_dll_state_t * state,
+    double * sum
+) 
+```
+
+
+
+Every steer adds its clamped discriminator to a running sum, coasting or not. A holder correcting a coasting loop on another clock (a searcher-timed receiver, design §12.22-12.24) reads the sum once per interval, divides by the count for the block mean, moves the loop by a gain times it ([**dp\_dll\_set\_code\_phase()**](dll__core_8h.md#function-dp_dll_set_code_phase)), and the next interval starts from zero. The count is the number of steers  one per epoch on the coherent full-epoch path, one per symbol window on the symbol-aided partial path  so the mean is over the same updates the loop itself would have filtered. Zero steers leaves `*sum` at 0 and returns 0.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `sum` Written with the sum of the steers taken (non-NULL). 
+
+
+
+**Returns:**
+
+The number of steers taken. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 63).astype(np.uint8)
+>>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+>>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+>>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
+>>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+>>> m = d.take_error_mean()               # the 200 steers' mean
+>>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
+True
+>>> import math
+>>> math.isnan(d.take_error_mean())       # taken: nothing left
+True
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_tlm\_flush 
+
+_Emit the code loop's telemetry records for the epoch just closed._ 
+```C++
+void dll_tlm_flush (
+    const dp_dll_state_t * s
+) 
+```
+
+
+
+Out-of-line on purpose: the emit machinery must not inline into the per-sample correlator loop (inlined ring-write expansions bloat the loop body and an extern call site forces per-iteration state reloads — both measured ~20% slower detached on other loops). Callers gate on `s->tlm.ctx` and call this once per code-epoch update. Records "&lt;prefix&gt;.e" (the E-L envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips per nominal chip), "&lt;prefix&gt;.lock" (the CFAR lock statistic R, refreshed every n\_looks looks) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1 — plotted against .lock it shows exactly where the declare/drop rule fired). A composing tracking channel (the DSSS despreader) calls this from its own per-epoch update.
+
+
+
+
+**Parameters:**
+
+
+* `s` State with a non-NULL tlm.ctx (caller-checked). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_update 
+
+_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._ 
+```C++
+JM_FORCEINLINE  JM_HOT void dll_update (
+    dp_dll_state_t * s
+) 
+```
+
+
+
+Takes the powers of `acc_e`/`acc_l`/`acc_p` and hands them to [**dll\_steer()**](dll__core_8h.md#function-dll_steer). Call this at a period boundary ([**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate) returned 1) after reading the prompt, then the caller resets the accumulators. The period wrap itself is NOT handled here  it falls out of [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate)'s own NCO advance (which wraps mod 2^32 on its own). Inline.
+
+
+
+
+**Parameters:**
+
+
+* `s` DLL state. Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_configure 
+
+_Recompute the loop gains for a new (bn, zeta); keep the code state._ 
+```C++
+void dp_dll_configure (
+    dp_dll_state_t * state,
+    double bn,
+    double zeta
+) 
+```
+
+
+
+Re-derives the 2nd-order loop filter's proportional and integral gains for a new noise bandwidth and damping, leaving the tracked code phase, code rate and correlator accumulators untouched — retune the loop mid-run (e.g. narrow the bandwidth once pulled in) without dropping lock.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalised to the code-period rate. 
+* `zeta` Damping factor (0.707 = critically damped). 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> rng = np.random.default_rng(1)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)
+>>> d = Dll(code=code, sps=2, bn=0.01)
+>>> d.configure(bn=0.02, zeta=0.707)   # widen the bandwidth mid-run
+>>> round(d.bn, 3)
+0.02
+```
+ 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_configure\_lock 
+
+_Tune the always-on code-lock detector to a target (pfa, n\_looks)._ 
+```C++
+int dp_dll_configure_lock (
+    dp_dll_state_t * state,
+    double pfa,
+    size_t n_looks,
+    double ref_snr_db
+) 
+```
+
+
+
+The DLL carries a lock detector that reuses acquisition's non-coherent test statistic. Every emitted look (a partial in segments mode, or the full-epoch prompt when segments == 1) is also correlated at a _random off-peak_ code phase — re-drawn each epoch and kept `noise_guard` chips clear of the prompt/early/late lobe — to give a signal-free CFAR noise sample (valid for a low-sidelobe code, e.g. Gold). The offset power feeds an EMA reference `E|O|^2`; the prompt powers of `n_looks` consecutive looks are summed into `S = sum|P_k|^2`, and the detector declares lock when
+
+
+R = sqrt(2 \* S / E\|O\|^2) &gt; det\_threshold\_noncoherent(pfa, n\_looks)
+
+
+which under H0 has `P(R > eta) = marcum_q(n_looks, 0, eta)`. Size `n_looks` with det\_n\_noncoh(snr, ...) for the operating C/N0.
+
+
+The noise-reference EMA bandwidth is sized probabilistically via [**dp\_det\_ema\_alpha()**](detection__core_8h.md#function-dp_det_ema_alpha): the signal-free `|O|^2` samples are exponential (0 dB estimator SNR per sample — a DC level in fluctuation of equal power), and `ref_snr_db` chooses the EMA output's estimator SNR (mean^2/variance). Passing 0 derives it from `n_looks:` the reference's relative std is held to an eighth of the statistic's intrinsic H0 spread (`1/sqrt(N)`), floored at ~33 dB — which reproduces the classic `1/alpha = max(1024, 32*N)` sizing exactly, now as a consequence instead of a constant.
+
+
+The detector needs an off-peak code phase to sample noise from: with a very short code (fewer than ~2\*(spacing+2)+1 chips, i.e. sf &lt;= 6 at the default spacing) no offset clears the prompt/early/late lobe, the noise tap aliases the prompt, and the statistic pins below threshold — locked stays 0 (fail-closed) no matter the signal. Use a code of &gt;= 7 chips (real spreading codes are far longer) for a meaningful lock decision.
+
+
+The decision itself runs through an embedded lock detector ([**lockdet\_core.h**](lockdet__core_8h.md)) rather than a single-comparison latch: `locked` flips up only after det\_verify\_count(pfa, pfa\*1e-3) CONSECUTIVE above-threshold decisions (the false-declare budget held three decades under the per-decision `pfa` — 2 straight for the default 1e-3), and drops only after 2 straight below-threshold decisions, so a statistic grazing the threshold cannot chatter the flag. Full control of the verify counts and a split declare/drop threshold pair is C-only via [**dp\_dll\_configure\_lock\_raw()**](dll__core_8h.md#function-dp_dll_configure_lock_raw).
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `pfa` Per-decision false-alarm probability, in (0, 1). 
+* `n_looks` Non-coherent integration depth N (looks); clamped &gt;= 1. 
+* `ref_snr_db` Noise-reference estimator SNR in dB (&gt; 0), or 0 to derive from `n_looks` as above. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when `pfa` is outside (0, 1). 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> d = Dll(code=np.zeros(31, dtype=np.uint8), sps=2)
+>>> d.configure_lock(1e-3, 20)
+>>> d.locked
+False
+>>> d.configure_lock(1e-3, 20, ref_snr_db=20.0)   # ~50-look reference
+>>> d.configure_lock(2.0, 20)
+Traceback (most recent call last):
+    ...
+ValueError: configure_lock failed (rc=-4)
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_configure\_lock\_raw 
+
+_Set the lock detector's raw geometry directly._ 
+```C++
+void dp_dll_configure_lock_raw (
+    dp_dll_state_t * state,
+    double up_thresh,
+    double down_thresh,
+    size_t n_looks,
+    double alpha,
+    uint32_t n_up,
+    uint32_t n_down
+) 
+```
+
+
+
+The escape hatch under [**dp\_dll\_configure\_lock()**](dll__core_8h.md#function-dp_dll_configure_lock) for a composing C caller that derives its own threshold/EMA/hysteresis geometry — the full lockdet decision rule is exposed: a split declare/drop threshold pair (level hysteresis) and both verify counts (time hysteresis; size them with [**dp\_det\_verify\_count()**](detection__core_8h.md#function-dp_det_verify_count)). Re-tuning clears the in-flight statistic and drops the lock so the next decision uses only looks gathered under the new config.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `up_thresh` Declare threshold on the statistic R (e.g. the CFAR eta from [**dp\_det\_threshold\_noncoherent()**](detection__core_8h.md#function-dp_det_threshold_noncoherent)). 
+* `down_thresh` Drop threshold on R; choose &lt;= up\_thresh for level hysteresis. 
+* `n_looks` Non-coherent integration depth N (looks); clamped &gt;= 1. 
+* `alpha` EMA coefficient for the noise reference, in (0, 1]. 
+* `n_up` Consecutive above-threshold decisions to declare lock; clamped to &gt;= 1. 
+* `n_down` Consecutive below-threshold decisions to drop it; clamped to &gt;= 1. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> rng = np.random.default_rng(1)
+>>> # >= 7 chips gives a usable lock statistic
+>>> code = rng.integers(0, 2, 63).astype(np.uint8)
+>>> chip = np.where(code & 1, -1.0, 1.0)
+>>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)
+>>> d = Dll(code, sps=4, bn=0.005)
+>>> # raw geometry: declare at R>3, drop at R<2.5, 8-look,
+>>> # 2-of-2 hysteresis
+>>> d.configure_lock_raw(3.0, 2.5, 8, 1.0 / 1024, 2, 2)
+>>> _ = d.steps(x)
+>>> d.locked                       # cleared the declare threshold
+True
+>>> bool(d.lock_stat > 3.0)
+True
+```
+ 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_create 
+
+_Create a code/timing delay-locked loop over a spreading code._ 
+```C++
+dp_dll_state_t * dp_dll_create (
+    const uint8_t * code,
+    size_t code_len,
+    size_t sps,
+    double init_chip,
+    double bn,
+    double zeta,
+    double spacing,
+    size_t segments
+) 
+```
+
+
+
+A non-coherent early/prompt/late DLL that tracks the code phase of a repeating spreading sequence (PN / Gold) on a carrier-wiped sample stream. Each code period it correlates the input against three replica taps — early (`+spacing` chips), prompt, late (`-spacing` chips) — runs the power-domain early-minus-late discriminator, filters it through a 2nd-order loop, and steers a fixed-point code-phase NCO. With `segments == 1` it emits one prompt symbol per period (a coherent full-epoch integrate-and-dump); with `segments > 1` it splits each epoch into that many partial correlations and tracks non-coherently across them, robust to an asynchronous data-symbol clock. An always-on CFAR lock detector (see [**dp\_dll\_configure\_lock**](dll__core_8h.md#function-dp_dll_configure_lock)) reports whether the loop is tracking; carrier-aiding ([**dp\_dll\_set\_rate\_aid**](dll__core_8h.md#function-dp_dll_set_rate_aid)) lets the code NCO ride a physically-coupled Doppler the discriminator alone cannot pull in at low SNR.
+
+
+
+
+**Parameters:**
+
+
+* `code` Spreading code (0/1 chips), one period; copied internally. 
+* `code_len` Code length (chips per period). 
+* `sps` Samples per chip (default 2). 
+* `init_chip` Seed code phase, chips (default 0.0). 
+* `bn` Loop noise bandwidth (default 0.01). 
+* `zeta` Damping factor (default 0.707). 
+* `spacing` Early/late tap offset, chips (default 0.5). 
+* `segments` Partial correlations per code epoch (default 1). 1 = a coherent full-epoch integrate-and-dump (one prompt/period). &gt;1 splits each epoch into that many sub-epoch partials: it emits that many partial prompts/period and tracks the code non-coherently across them (robust to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when the symbol rate is near the code rate, so choose &gt;= 2 for symbol-timing recovery. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on allocation failure. 
+
+
+
+
+**Note:**
+
+Caller must call [**dp\_dll\_destroy()**](dll__core_8h.md#function-dp_dll_destroy) when done. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> rng = np.random.default_rng(1)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)  # a 31-chip PN code
+>>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
+>>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)
+>>> d = Dll(code=code, sps=2)               # 2 samples/chip loop
+>>> sym = d.steps(x)                        # one prompt per period
+>>> sym.shape                               # 60 despread symbols
+(60,)
+>>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
+1.0
+>>> round(d.code_rate, 3)                   # code NCO at nominal rate
+1.0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_destroy 
+
+_Destroy a DLL instance and release all memory (incl. the code copy)._ 
+```C++
+void dp_dll_destroy (
+    dp_dll_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` May be NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_get\_bn 
+
+```C++
+double dp_dll_get_bn (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_code\_phase 
+
+```C++
+double dp_dll_get_code_phase (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_code\_rate 
+
+```C++
+double dp_dll_get_code_rate (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_last\_error 
+
+```C++
+double dp_dll_get_last_error (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_lock\_stat 
+
+_Last lock test statistic R (compare against the configured eta)._ 
+```C++
+double dp_dll_get_lock_stat (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_locked 
+
+_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_dll\_configure\_lock)._ 
+```C++
+int dp_dll_get_locked (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_noise\_est 
+
+_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._ 
+```C++
+double dp_dll_get_noise_est (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_segments 
+
+```C++
+size_t dp_dll_get_segments (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_state 
+
+```C++
+void dp_dll_get_state (
+    const dp_dll_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_dll\_get\_symbol\_window 
+
+_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._
+```C++
+size_t dp_dll_get_symbol_window (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_reset 
 
 _Re-seed the loop to its create-time code phase; keep config._ 
 ```C++
-void dll_reset (
-    dll_state_t * state
+void dp_dll_reset (
+    dp_dll_state_t * state
 ) 
 ```
 
@@ -1010,11 +1200,11 @@ True
 
 
 
-### function dll\_set\_bn 
+### function dp\_dll\_set\_bn 
 
 ```C++
-void dll_set_bn (
-    dll_state_t * state,
+void dp_dll_set_bn (
+    dp_dll_state_t * state,
     double val
 ) 
 ```
@@ -1026,44 +1216,12 @@ void dll_set_bn (
 
 
 
-### function dll\_set\_coast 
-
-_Hold the loop (1) or run it (0, the default)._ 
-```C++
-void dll_set_coast (
-    dll_state_t * state,
-    int coast
-) 
-```
-
-
-
-Coasting, the loop filter takes no update and the NCO is not steered: on entry the filter is restored to the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here) and the rate to that filter's integrator  the loop's frequency memory, without the proportional term of a steer, which is a phase correction for one interval and held as a rate walks the phase off at chips per second  and the code phase then advances at that rate, the carrier aid as the caller leaves it, while the lock detector keeps looking at the prompt so a signal that returns at that phase is seen. The caller marks the hold point while it knows the loop is genuinely on its signal (the receiver: both of its flags up), so a flag that blips on a passing neighbour does not move it. The reason it exists: a loop left running on noise after its emitter leaves free-runs at whatever the filter holds, sweeps its phase through every other emitter's, and can capture one whose code phase crosses its own slowly enough  measured in the pool's ten-minute soak, a departed receiver followed a neighbour's chips at 44.8 chips per second and its code flag returned sixteen times in fourteen seconds (doppler#1271). The caller decides when: async\_dsss\_receiver coasts while both of its lock flags are down after a lock it once had.
-
-
-
-
-**Parameters:**
-
-
-* `state` The loop. 
-* `coast` 1 to hold, 0 to run. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_set\_code\_phase 
+### function dp\_dll\_set\_code\_phase 
 
 _Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._ 
 ```C++
-void dll_set_code_phase (
-    dll_state_t * state,
+void dp_dll_set_code_phase (
+    dp_dll_state_t * state,
     double chips
 ) 
 ```
@@ -1104,12 +1262,12 @@ Moves the code NCO to `chips` (modulo the code length): the loop filter, the rat
 
 
 
-### function dll\_set\_lock\_verify 
+### function dp\_dll\_set\_lock\_verify 
 
 _Set the lock detector's verify counts, keeping its thresholds._ 
 ```C++
-int dll_set_lock_verify (
-    dll_state_t * state,
+int dp_dll_set_lock_verify (
+    dp_dll_state_t * state,
     uint32_t n_up,
     uint32_t n_down
 ) 
@@ -1117,7 +1275,7 @@ int dll_set_lock_verify (
 
 
 
-[**dll\_configure\_lock()**](dll__core_8h.md#function-dll_configure_lock) derives the declare count from `pfa` and fixes the drop count at 2. A caller that has sized `n_looks` for a target Pd knows the per-decision miss probability `1 - pd`, and det\_verify\_count(1 - pd, budget) is the drop count that holds the false-drop rate under a budget  three consecutive misses for pd = 0.99 at 1e-6 per decision. This sets both counts without touching the thresholds or the noise reference; the running verify counter and the flag restart.
+[**dp\_dll\_configure\_lock()**](dll__core_8h.md#function-dp_dll_configure_lock) derives the declare count from `pfa` and fixes the drop count at 2. A caller that has sized `n_looks` for a target Pd knows the per-decision miss probability `1 - pd`, and det\_verify\_count(1 - pd, budget) is the drop count that holds the false-drop rate under a budget  three consecutive misses for pd = 0.99 at 1e-6 per decision. This sets both counts without touching the thresholds or the noise reference; the running verify counter and the flag restart.
 
 
 
@@ -1155,12 +1313,12 @@ False
 
 
 
-### function dll\_set\_rate\_aid 
+### function dp\_dll\_set\_rate\_aid 
 
 _Set the carrier-aiding code-rate deviation (ratio; 0 = off)._ 
 ```C++
-void dll_set_rate_aid (
-    dll_state_t * state,
+void dp_dll_set_rate_aid (
+    dp_dll_state_t * state,
     double rate_aid
 ) 
 ```
@@ -1207,11 +1365,11 @@ A fixed fractional rate bias summed into the sample-and-hold `phase_inc` on top 
 
 
 
-### function dll\_set\_state 
+### function dp\_dll\_set\_state 
 
 ```C++
-int dll_set_state (
-    dll_state_t * state,
+int dp_dll_set_state (
+    dp_dll_state_t * state,
     const void * blob
 ) 
 ```
@@ -1223,19 +1381,19 @@ int dll_set_state (
 
 
 
-### function dll\_set\_symbol\_period 
+### function dp\_dll\_set\_symbol\_period 
 
 _Give the loop the data-symbol period, so the lock detector's looks and the code discriminator's windows are coherent over a symbol instead of a quarter-epoch partial._ 
 ```C++
-int dll_set_symbol_period (
-    dll_state_t * state,
+int dp_dll_set_symbol_period (
+    dp_dll_state_t * state,
     double partials_per_symbol
 ) 
 ```
 
 
 
-In `segments > 1` mode every partial is a look for the code-lock detector ([**dll\_configure\_lock()**](dll__core_8h.md#function-dll_configure_lock)) and the discriminator sees one epoch through the per-epoch look-back: the smallest integrations the asynchronous data allows when nothing is known about where its transitions fall, and therefore the weakest. This is the same max-power search the per-epoch look-back already runs, lifted to the symbol scale once the symbol PERIOD is known: with `P = partials_per_symbol` the transitions recur every `P` partials, so `ceil(P)` boundary-phase hypotheses each define a transition-free window of `L = min(floor(P) - 1, 4 * segments)` partials per symbol. Each hypothesis accumulates the power of its coherently summed windows (an EMA over the last ~32 symbols); the one with the most power IS the symbol timing, and its windows become the detector's looks and the discriminator's windows. A look then integrates `L` partials coherently  at SPEC's 1.8 epochs per symbol and four partials per epoch, six partials instead of one, 7.8 dB more per look  and never straddles a transition. Size `n_looks` for it with detection.det\_n\_noncoh() over `L * (sf * sps / segments)` samples.
+In `segments > 1` mode every partial is a look for the code-lock detector ([**dp\_dll\_configure\_lock()**](dll__core_8h.md#function-dp_dll_configure_lock)) and the discriminator sees one epoch through the per-epoch look-back: the smallest integrations the asynchronous data allows when nothing is known about where its transitions fall, and therefore the weakest. This is the same max-power search the per-epoch look-back already runs, lifted to the symbol scale once the symbol PERIOD is known: with `P = partials_per_symbol` the transitions recur every `P` partials, so `ceil(P)` boundary-phase hypotheses each define a transition-free window of `L = min(floor(P) - 1, 4 * segments)` partials per symbol. Each hypothesis accumulates the power of its coherently summed windows (an EMA over the last ~32 symbols); the one with the most power IS the symbol timing, and its windows become the detector's looks and the discriminator's windows. A look then integrates `L` partials coherently  at SPEC's 1.8 epochs per symbol and four partials per epoch, six partials instead of one, 7.8 dB more per look  and never straddles a transition. Size `n_looks` for it with detection.det\_n\_noncoh() over `L * (sf * sps / segments)` samples.
 
 
 The code loop steers once per symbol, on the early/prompt/late sums over the winning window, instead of once per epoch on the look-back's: the same discriminator on a window half again as long and never across a transition. The loop filter is re-timed to the symbol interval, so `bn` keeps its per-epoch meaning and the tracked rate is continuous across the switch either way  a loop that has pulled in a code Doppler keeps it when the aid is turned on or off. Measured against the per-epoch loop at the operating point (docs/design/async-dsss-receiver-measurements.md §12.5, `validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter 0.8x the per-epoch loop's above 45 dB-Hz  where the look-back's own handling of the data transitions sets it  and 1.2-1.4x at the 40 dB-Hz floor, where the noise sets it and the window's unused partials cost more than its coherence buys; hundredths of a chip either way. The emitted partial stream is untouched: the look-back still supplies its normalisation. The search is blind to WHICH hypothesis is right on any one symbol  it needs no decision and no external timing  so it costs nothing at cold start and follows a slowly drifting symbol clock by itself. `L` is capped at four epochs of partials so a long symbol (a low data rate) does not ask for coherence across more carrier than the wipe-off holds.
@@ -1278,12 +1436,12 @@ DP\_OK; DP\_ERR\_INVALID when `segments <= 1` or the period is in (0, 2).
 
 
 
-### function dll\_set\_telemetry 
+### function dp\_dll\_set\_telemetry 
 
 _Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
-int dll_set_telemetry (
-    dll_state_t * state,
+int dp_dll_set_telemetry (
+    dp_dll_state_t * state,
     dp_tlm_t * tlm,
     const char * prefix,
     uint32_t decim
@@ -1335,11 +1493,11 @@ True
 
 
 
-### function dll\_state\_bytes 
+### function dp\_dll\_state\_bytes 
 
 ```C++
-size_t dll_state_bytes (
-    const dll_state_t * state
+size_t dp_dll_state_bytes (
+    const dp_dll_state_t * state
 ) 
 ```
 
@@ -1350,54 +1508,12 @@ size_t dll_state_bytes (
 
 
 
-### function dll\_steer 
-
-_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._
-```C++
-JM_FORCEINLINE  JM_HOT void dll_steer (
-    dll_state_t * s,
-    double ep,
-    double lp,
-    double pp
-) 
-```
-
-
-
-Runs the power-domain non-coherent early-minus-late discriminator `0.5 * (|E|^2 - |L|^2) / |P|^2` on the given powers (the prompt power is the normalizing "signal + noise power" reference  the validated design from `docs/design/async-dsss-receiver.md` §3.6, not a magnitude-domain `(|E|-|L|)/(|E|+|L|)` ratio), clamps it, records it (`last_error`, the `.e` probe, and the running sum [**dll\_take\_error()**](dll__core_8h.md#function-dll_take_error) reads), and then  unless the loop is held ([**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast))  filters it and steers `phase_inc` (sample-and-hold, constant until the next call) from BOTH the integrator and the proportional term, spread smoothly across the whole next update interval rather than kicked directly into `phase`. Two things were tried and rejected while porting this design: (1) folding the loop filter's full combined control (`integ + kp*e`) into `phase_inc` as a single rate (mirroring `symsync_core.h`) massively over-corrects  a rate held for a whole `sf*sps`-sample period turns a `kp*e`-chip correction into a `kp*e*sf`-chip one, unstable at any non-tiny `bn`; (2) kicking `phase` directly once per period (mirroring `costas_core.c`) is unsafe right after a wrap (when `phase` is near zero)  a negative kick pushes phase backward across the just-crossed boundary, and the very next sample's forward step re-crosses it, registering a second, spurious wrap.
-
-
-How the filter's two terms reach `phase_inc` and `code_rate` is the state's gain table (`ctrl_i`, `ctrl_p`, `rate_i`, `rate_p`, set by segments at configuration and scaled by `inv_upd` when the symbol aid re-times the update): the coherent full-epoch loop (`segments == 1`) treats the integrator as a code-rate ratio and the proportional term as chips per epoch; the partial-correlation loop (`segments > 1`) treats the filter's output as chips over `sps`. Until this function existed each path carried its own copy of the discriminator and steer, and a fix to one (the coast hold, design §12.22) did not reach the other. The gain tables are the two loops' separately pinned behaviour, kept as data.
-
-
-The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample, set once in seed() and never touched directly); this function only ever computes a pure correction (`ctrl`, built entirely from the loop filter's terms  no "1.0"/nominal anywhere in it) and adds it on top when steering `phase_inc`, beside the rate aid. Keeping the control path free of the nominal rate is what lets a second correction source sum in cleanly, and is what `code_rate` (a _public_, ratio-form observable  1.0 = nominal, unrelated to how phase\_inc is actually steered) must never be substituted for internally. Inline; no division.
-
-
-
-
-**Parameters:**
-
-
-* `s` DLL state. Must be non-NULL. 
-* `ep` Early power \|E\|^2 over the update's window. 
-* `lp` Late power \|L\|^2. 
-* `pp` Prompt power \|P\|^2 (the reference), on the same scale. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_steps 
+### function dp\_dll\_steps 
 
 _Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._ 
 ```C++
-size_t dll_steps (
-    dll_state_t * state,
+size_t dp_dll_steps (
+    dp_dll_state_t * state,
     const float _Complex * x,
     size_t x_len,
     float _Complex * out,
@@ -1454,11 +1570,11 @@ dtype('complex64')
 
 
 
-### function dll\_steps\_max\_out 
+### function dp\_dll\_steps\_max\_out 
 
 ```C++
-size_t dll_steps_max_out (
-    dll_state_t * state
+size_t dp_dll_steps_max_out (
+    dp_dll_state_t * state
 ) 
 ```
 
@@ -1469,74 +1585,18 @@ size_t dll_steps_max_out (
 
 
 
-### function dll\_take\_error 
-
-_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._ 
-```C++
-size_t dll_take_error (
-    dll_state_t * state,
-    double * sum
-) 
-```
-
-
-
-Every steer adds its clamped discriminator to a running sum, coasting or not. A holder correcting a coasting loop on another clock (a searcher-timed receiver, design §12.22-12.24) reads the sum once per interval, divides by the count for the block mean, moves the loop by a gain times it ([**dll\_set\_code\_phase()**](dll__core_8h.md#function-dll_set_code_phase)), and the next interval starts from zero. The count is the number of steers  one per epoch on the coherent full-epoch path, one per symbol window on the symbol-aided partial path  so the mean is over the same updates the loop itself would have filtered. Zero steers leaves `*sum` at 0 and returns 0.
-
-
-
-
-**Parameters:**
-
-
-* `state` DLL state. Must be non-NULL. 
-* `sum` Written with the sum of the steers taken (non-NULL). 
-
-
-
-**Returns:**
-
-The number of steers taken. 
-```C++
->>> import numpy as np
->>> from doppler.track import Dll
->>> rng = np.random.default_rng(3)
->>> code = rng.integers(0, 2, 63).astype(np.uint8)
->>> idx = (np.arange(63 * 4 * 200) // 4) % 63
->>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
->>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
->>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
->>> m = d.take_error_mean()               # the 200 steers' mean
->>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
-True
->>> import math
->>> math.isnan(d.take_error_mean())       # taken: nothing left
-True
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_take\_error\_mean 
+### function dp\_dll\_take\_error\_mean 
 
 [_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._
 ```C++
-double dll_take_error_mean (
-    dll_state_t * state
+double dp_dll_take_error_mean (
+    dp_dll_state_t * state
 ) 
 ```
 
 
 
-The block-mean discriminator a holder corrects a coasting loop on ([**dll\_set\_code\_phase()**](dll__core_8h.md#function-dll_set_code_phase)), read once per interval; each read starts the next interval's sum from zero.
+The block-mean discriminator a holder corrects a coasting loop on ([**dp\_dll\_set\_code\_phase()**](dll__core_8h.md#function-dp_dll_set_code_phase)), read once per interval; each read starts the next interval's sum from zero.
 
 
 
@@ -1569,66 +1629,6 @@ True
 ```
  
 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_tlm\_flush 
-
-_Emit the code loop's telemetry records for the epoch just closed._ 
-```C++
-void dll_tlm_flush (
-    const dll_state_t * s
-) 
-```
-
-
-
-Out-of-line on purpose: the emit machinery must not inline into the per-sample correlator loop (inlined ring-write expansions bloat the loop body and an extern call site forces per-iteration state reloads — both measured ~20% slower detached on other loops). Callers gate on `s->tlm.ctx` and call this once per code-epoch update. Records "&lt;prefix&gt;.e" (the E-L envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips per nominal chip), "&lt;prefix&gt;.lock" (the CFAR lock statistic R, refreshed every n\_looks looks) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1 — plotted against .lock it shows exactly where the declare/drop rule fired). A composing tracking channel (the DSSS despreader) calls this from its own per-epoch update.
-
-
-
-
-**Parameters:**
-
-
-* `s` State with a non-NULL tlm.ctx (caller-checked). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_update 
-
-_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._ 
-```C++
-JM_FORCEINLINE  JM_HOT void dll_update (
-    dll_state_t * s
-) 
-```
-
-
-
-Takes the powers of `acc_e`/`acc_l`/`acc_p` and hands them to [**dll\_steer()**](dll__core_8h.md#function-dll_steer). Call this at a period boundary ([**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate) returned 1) after reading the prompt, then the caller resets the accumulators. The period wrap itself is NOT handled here  it falls out of [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate)'s own NCO advance (which wraps mod 2^32 on its own). Inline.
-
-
-
-
-**Parameters:**
-
-
-* `s` DLL state. Must be non-NULL. 
 
 
 

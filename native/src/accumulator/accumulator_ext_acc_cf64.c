@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only accumulator_ext.c is compiled.
  */
 /* ======================================================== */
-/* AccCf64Object — wraps acc_cf64_state_t *       */
+/* AccCf64Object — wraps dp_acc_cf64_state_t *       */
 /* ======================================================== */
 
 #include "doppler/acc_cf64/acc_cf64_core.h"
 
 typedef struct
 {
-  PyObject_HEAD acc_cf64_state_t *handle;
+  PyObject_HEAD dp_acc_cf64_state_t *handle;
 } AccCf64Object;
 
 static void
 AccCf64_dealloc (AccCf64Object *self)
 {
   if (self->handle)
-    acc_cf64_destroy (self->handle);
+    dp_acc_cf64_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -42,10 +42,10 @@ AccCf64_init (AccCf64Object *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|D", kwlist, &acc_raw))
     return -1;
   double _Complex acc = acc_raw.real + acc_raw.imag * I;
-  self->handle        = acc_cf64_create (acc);
+  self->handle        = dp_acc_cf64_create (acc);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "acc_cf64_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_acc_cf64_create returned NULL");
       return -1;
     }
   return 0;
@@ -59,7 +59,7 @@ AccCf64_reset (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  acc_cf64_reset (self->handle);
+  dp_acc_cf64_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -75,7 +75,7 @@ AccCf64_step (AccCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
   double _Complex x = x_raw.real + x_raw.imag * I;
-  acc_cf64_step (self->handle, x);
+  dp_acc_cf64_step (self->handle, x);
   Py_RETURN_NONE;
 }
 
@@ -96,8 +96,9 @@ AccCf64_steps (AccCf64Object *self, PyObject *args)
   if (!in_arr)
     return NULL;
 
-  acc_cf64_steps (self->handle, (const double _Complex *)PyArray_DATA (in_arr),
-                  (size_t)PyArray_SIZE (in_arr));
+  dp_acc_cf64_steps (self->handle,
+                     (const double _Complex *)PyArray_DATA (in_arr),
+                     (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
   Py_RETURN_NONE;
 }
@@ -110,8 +111,8 @@ AccCf64_get_acc (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyComplex_FromDoubles (creal (acc_cf64_get_acc (self->handle)),
-                                cimag (acc_cf64_get_acc (self->handle)));
+  return PyComplex_FromDoubles (creal (dp_acc_cf64_get_acc (self->handle)),
+                                cimag (dp_acc_cf64_get_acc (self->handle)));
 }
 
 static PyObject *
@@ -126,7 +127,7 @@ AccCf64_set_acc (AccCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &v_raw))
     return NULL;
   double _Complex v = v_raw.real + v_raw.imag * I;
-  acc_cf64_set_acc (self->handle, v);
+  dp_acc_cf64_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -137,7 +138,7 @@ AccCf64_get (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  double _Complex y = acc_cf64_get (self->handle);
+  double _Complex y = dp_acc_cf64_get (self->handle);
   return PyComplex_FromDoubles (creal (y), cimag (y));
 }
 
@@ -149,7 +150,7 @@ AccCf64_dump (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  double _Complex y = acc_cf64_dump (self->handle);
+  double _Complex y = dp_acc_cf64_dump (self->handle);
   return PyComplex_FromDoubles (creal (y), cimag (y));
 }
 
@@ -183,7 +184,7 @@ AccCf64_madd (AccCf64Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
-  acc_cf64_madd (self->handle, x, x_len, h, h_len);
+  dp_acc_cf64_madd (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
   Py_RETURN_NONE;
@@ -209,7 +210,7 @@ AccCf64_add2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
     }
   const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
   size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
-  acc_cf64_add2d (self->handle, x, x_len);
+  dp_acc_cf64_add2d (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -244,7 +245,7 @@ AccCf64_madd2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
-  acc_cf64_madd2d (self->handle, x, x_len, h, h_len);
+  dp_acc_cf64_madd2d (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
   Py_RETURN_NONE;
@@ -258,7 +259,7 @@ AccCf64_state_bytes (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (acc_cf64_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_acc_cf64_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -269,11 +270,11 @@ AccCf64_get_state (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = acc_cf64_state_bytes (self->handle);
+  size_t    _n = dp_acc_cf64_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  acc_cf64_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_acc_cf64_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -290,12 +291,12 @@ AccCf64_set_state (AccCf64Object *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != acc_cf64_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_acc_cf64_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (acc_cf64_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_acc_cf64_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -308,7 +309,7 @@ AccCf64_destroy (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      acc_cf64_destroy (self->handle);
+      dp_acc_cf64_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -327,7 +328,7 @@ AccCf64_exit (AccCf64Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      acc_cf64_destroy (self->handle);
+      dp_acc_cf64_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -337,7 +338,8 @@ static PyMethodDef AccCf64_methods[] = {
   { "reset", (PyCFunction)AccCf64_reset, METH_NOARGS,
     "Zero the accumulator, restoring the same state as a fresh\n"
     "``AccCf64(0j)`` — regardless of the value supplied to\n"
-    "``acc_cf64_create``. Both the real and imaginary parts are set to 0.0.\n"
+    "``dp_acc_cf64_create``. Both the real and imaginary parts are set to "
+    "0.0.\n"
     "Subsequent ``get`` / ``dump`` calls return ``0j`` until new samples are\n"
     "processed.\n"
     "\n"
@@ -354,7 +356,7 @@ static PyMethodDef AccCf64_methods[] = {
     "\n"
     "Add one complex sample to the running sum (``acc += x``). This is\n"
     "the hot-path entry for sample-by-sample processing. For block inputs\n"
-    "prefer ``acc_cf64_steps`` to amortise call overhead.\n"
+    "prefer ``dp_acc_cf64_steps`` to amortise call overhead.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -373,7 +375,8 @@ static PyMethodDef AccCf64_methods[] = {
     "steps(x[, out]) -> ndarray\n"
     "\n"
     "Add all samples in ``input`` to the running sum. Equivalent to\n"
-    "calling ``acc_cf64_step`` for each element; iterates element-by-element\n"
+    "calling ``dp_acc_cf64_step`` for each element; iterates "
+    "element-by-element\n"
     "over double-precision complex samples.\n"
     "\n"
     "Parameters\n"
@@ -395,7 +398,7 @@ static PyMethodDef AccCf64_methods[] = {
     "Return the current accumulator value without modifying state. Use this "
     "when you need to read the running sum mid-accumulation without "
     "disturbing it. For a read-and-reset in one call use "
-    "``acc_cf64_dump``.\n" },
+    "``dp_acc_cf64_dump``.\n" },
   { "set_acc", (PyCFunction)AccCf64_set_acc, METH_VARARGS,
     "Overwrite the accumulator with a new complex value. Useful for seeding "
     "the accumulator to a known baseline before processing a new segment "

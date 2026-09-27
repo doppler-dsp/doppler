@@ -53,15 +53,15 @@ main (void)
 
   /* --- steps throughput --- */
   {
-    costas_state_t *c = costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
-    costas_steps (c, rx, TSAMPS * 4, out, BENCH_N); /* warmup */
+    dp_costas_state_t *c = dp_costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
+    dp_costas_steps (c, rx, TSAMPS * 4, out, BENCH_N); /* warmup */
 
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        costas_reset (c);
+        dp_costas_reset (c);
         t0 = jm_bench_now_ns ();
-        costas_steps (c, rx, BENCH_N, out, BENCH_N);
+        dp_costas_steps (c, rx, BENCH_N, out, BENCH_N);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -71,17 +71,17 @@ main (void)
       sum += times[r];
     printf ("  steps    %8.1f MSa/s\n",
             (double)BENCH_N / (sum / ITERATIONS) / 1e6);
-    costas_destroy (c);
+    dp_costas_destroy (c);
   }
 
   /* --- acquisition time: samples to lock_metric > 0.9 --- */
   {
-    costas_state_t *c       = costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
-    long            acq_smp = -1;
+    dp_costas_state_t *c = dp_costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
+    long               acq_smp = -1;
     for (int s = 0; s < BENCH_N / TSAMPS; s++)
       {
-        costas_steps (c, rx + s * TSAMPS, TSAMPS, out, 1);
-        if (costas_get_lock_metric (c) > 0.9)
+        dp_costas_steps (c, rx + s * TSAMPS, TSAMPS, out, 1);
+        if (dp_costas_get_lock_metric (c) > 0.9)
           {
             acq_smp = (long)(s + 1) * TSAMPS;
             break;
@@ -89,7 +89,7 @@ main (void)
       }
     printf ("  acq      %ld samples to lock (%.1f symbols)\n", acq_smp,
             (double)acq_smp / TSAMPS);
-    costas_destroy (c);
+    dp_costas_destroy (c);
   }
 
   jm_bench_write_json (&_bench, "costas");

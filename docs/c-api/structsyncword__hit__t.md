@@ -8,7 +8,7 @@
 
 
 
-_What_ [_**syncword\_find**_](syncword__core_8h.md#function-syncword_find) _found._[More...](#detailed-description)
+_What_ [_**dp\_syncword\_find**_](syncword__core_8h.md#function-dp_syncword_find) _found._[More...](#detailed-description)
 
 * `#include <syncword_core.h>`
 

@@ -3,13 +3,13 @@
 #include <math.h>
 #include <string.h>
 
-interp_table_state_t *
-interp_table_create (const double _Complex *table, size_t table_len,
-                     int method)
+dp_interp_table_state_t *
+dp_interp_table_create (const double _Complex *table, size_t table_len,
+                        int method)
 {
   if (table_len == 0)
     return NULL;
-  interp_table_state_t *obj = malloc (sizeof (*obj));
+  dp_interp_table_state_t *obj = malloc (sizeof (*obj));
   if (!obj)
     return NULL;
   obj->table = malloc (table_len * sizeof (double _Complex));
@@ -25,7 +25,7 @@ interp_table_create (const double _Complex *table, size_t table_len,
 }
 
 void
-interp_table_destroy (interp_table_state_t *state)
+dp_interp_table_destroy (dp_interp_table_state_t *state)
 {
   if (!state)
     return;
@@ -34,13 +34,13 @@ interp_table_destroy (interp_table_state_t *state)
 }
 
 void
-interp_table_reset (interp_table_state_t *state)
+dp_interp_table_reset (dp_interp_table_state_t *state)
 {
   (void)state;
 }
 
 size_t
-interp_table_execute_max_out (interp_table_state_t *state)
+dp_interp_table_execute_max_out (dp_interp_table_state_t *state)
 {
   (void)state;
   return 0; /* one value per input point, so outputs == inputs */
@@ -55,8 +55,8 @@ wrap_index (double floor_pt, size_t n)
 }
 
 size_t
-interp_table_execute (interp_table_state_t *state, const double *in,
-                      size_t n_in, double _Complex *out, size_t max_out)
+dp_interp_table_execute (dp_interp_table_state_t *state, const double *in,
+                         size_t n_in, double _Complex *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). This block is
      1:1 and stateless, so a truncated call simply drops the tail --

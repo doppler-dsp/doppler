@@ -11,7 +11,7 @@
 #include "doppler/spectral/spectral_core.h"
 
 double
-obw_from_power (const double *pwr, size_t pwr_len, double fs, double frac)
+dp_obw_from_power (const double *pwr, size_t pwr_len, double fs, double frac)
 {
   if (pwr_len == 0)
     return 0.0;

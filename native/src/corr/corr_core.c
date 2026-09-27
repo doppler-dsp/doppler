@@ -29,11 +29,12 @@ corr_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
     }
 }
 
-corr_state_t *
-corr_create (const float _Complex *ref, size_t n, size_t dwell, int nthreads,
-             size_t n_out)
+dp_corr_state_t *
+dp_corr_create (const float _Complex *ref, size_t n, size_t dwell,
+                int nthreads, size_t n_out)
 {
-  corr_state_t *state = calloc (1, sizeof (*state)); /* NULL-init pointers */
+  dp_corr_state_t *state
+      = calloc (1, sizeof (*state)); /* NULL-init pointers */
   if (!state)
     return NULL;
 
@@ -45,8 +46,8 @@ corr_create (const float _Complex *ref, size_t n, size_t dwell, int nthreads,
     }
   int decoupled = (no != n);
 
-  state->fwd = fft_create (n, -1, nthreads);
-  state->inv = fft_create (no, +1, nthreads);
+  state->fwd = dp_fft_create (n, -1, nthreads);
+  state->inv = dp_fft_create (no, +1, nthreads);
   if (!state->fwd || !state->inv)
     goto fail;
 
@@ -64,7 +65,7 @@ corr_create (const float _Complex *ref, size_t n, size_t dwell, int nthreads,
     }
 
   /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT(ref)). */
-  fft_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
+  dp_fft_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
   for (size_t k = 0; k < n; k++)
     state->ref_spec[k] = conjf (state->ref_spec[k]);
 
@@ -75,19 +76,19 @@ corr_create (const float _Complex *ref, size_t n, size_t dwell, int nthreads,
   return state;
 
 fail:
-  corr_destroy (state);
+  dp_corr_destroy (state);
   return NULL;
 }
 
 void
-corr_destroy (corr_state_t *state)
+dp_corr_destroy (dp_corr_state_t *state)
 {
   if (!state)
     return;
   if (state->fwd)
-    fft_destroy (state->fwd);
+    dp_fft_destroy (state->fwd);
   if (state->inv)
-    fft_destroy (state->inv);
+    dp_fft_destroy (state->inv);
   free (state->ref_spec);
   free (state->work_fft);
   free (state->accum);
@@ -97,7 +98,7 @@ corr_destroy (corr_state_t *state)
 }
 
 void
-corr_reset (corr_state_t *state)
+dp_corr_reset (dp_corr_state_t *state)
 {
   memset (state->accum, 0, state->n * sizeof (*state->accum));
   state->count = 0;
@@ -107,47 +108,47 @@ corr_reset (corr_state_t *state)
  * the reference spectrum are config, recomputed by create() from the same ref.
  */
 size_t
-corr_state_bytes (const corr_state_t *s)
+dp_corr_state_bytes (const dp_corr_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
          + s->n * sizeof (float _Complex);
 }
 
 void
-corr_get_state (const corr_state_t *s, void *blob)
+dp_corr_get_state (const dp_corr_state_t *s, void *blob)
 {
-  DP_GET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, corr_state_bytes (s));
+  DP_GET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, dp_corr_state_bytes (s));
   dp_w_u64 (&_w, s->count);
   dp_w_cf32 (&_w, s->accum, s->n);
 }
 
 int
-corr_set_state (corr_state_t *s, const void *blob)
+dp_corr_set_state (dp_corr_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, corr_state_bytes (s));
+  DP_SET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, dp_corr_state_bytes (s));
   s->count = (size_t)dp_r_u64 (&_r);
   dp_r_cf32 (&_r, s->accum, s->n);
   return DP_OK;
 }
 
 void
-corr_set_ref (corr_state_t *state, const float _Complex *ref)
+corr_set_ref (dp_corr_state_t *state, const float _Complex *ref)
 {
-  fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec, state->n);
+  dp_fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec, state->n);
   for (size_t k = 0; k < state->n; k++)
     state->ref_spec[k] = conjf (state->ref_spec[k]);
-  corr_reset (state);
+  dp_corr_reset (state);
 }
 
 size_t
-corr_execute_max_out (corr_state_t *state)
+dp_corr_execute_max_out (dp_corr_state_t *state)
 {
   return state->n_out;
 }
 
 size_t
-corr_execute (corr_state_t *state, const float _Complex *in, size_t n_in,
-              float _Complex *out, size_t max_out)
+dp_corr_execute (dp_corr_state_t *state, const float _Complex *in, size_t n_in,
+                 float _Complex *out, size_t max_out)
 {
   (void)n_in; /* must equal state->n; caller's responsibility */
 
@@ -158,7 +159,7 @@ corr_execute (corr_state_t *state, const float _Complex *in, size_t n_in,
    * applied once) — and only because the dwell is COHERENT (a complex sum); a
    * non- coherent (Σ_k |IFFT(P_k)|²) integration is nonlinear and must invert
    * per frame. */
-  fft_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
+  dp_fft_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
 
   for (size_t k = 0; k < state->n; k++)
     state->accum[k] += state->work_fft[k] * state->ref_spec[k];
@@ -192,7 +193,7 @@ corr_execute (corr_state_t *state, const float _Complex *in, size_t n_in,
           dst   = state->work_trunc;
           n_out = max_out;
         }
-      fft_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
+      dp_fft_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
       const float inv_n = 1.0f / (float)state->n;
       for (size_t k = 0; k < n_out; k++)
         dst[k] *= inv_n;

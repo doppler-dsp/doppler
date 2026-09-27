@@ -1,6 +1,6 @@
 /* bench_pn_core.c — the maximal-length sequence, both realizations.
  *
- * `pn_generate` is the spreading-code and test-pattern source under DSSS,
+ * `dp_pn_generate` is the spreading-code and test-pattern source under DSSS,
  * the frame randomiser and every PN stimulus in the test suite. It was a jm
  * scaffold that wrote `"benchmarks": []`, so `jm bench` ran it faithfully
  * and collected nothing (doppler#891).
@@ -29,7 +29,7 @@
 #define ITERATIONS 100
 
 /* Primitive polynomials for the swept lengths, in the packed form
-   `pn_create` takes (bit i set == tap at stage i+1). Lifted from the same
+   `dp_pn_create` takes (bit i set == tap at stage i+1). Lifted from the same
    family test_pn_core.c exercises. */
 #define POLY_11 0x005u /* x^11 + x^2 + 1  */
 #define POLY_15 0x006u /* x^15 + x^1 + 1  */
@@ -69,20 +69,20 @@ main (void)
   for (int k = 0; k < 2; k++)
     for (int i = 0; i < 3; i++)
       {
-        pn_state_t *p = pn_create (polys[i], 1u, lens[i], kinds[k]);
+        dp_pn_state_t *p = dp_pn_create (polys[i], 1u, lens[i], kinds[k]);
         if (!p)
           {
             (void)fprintf (stderr,
-                           "bench_pn: pn_create(%llu, 1, %u, %s) "
+                           "bench_pn: dp_pn_create(%llu, 1, %u, %s) "
                            "returned NULL\n",
                            (unsigned long long)polys[i], lens[i], kname[k]);
             return 1;
           }
         for (int r = 0; r < ITERATIONS; r++)
           {
-            pn_reset (p);
+            dp_pn_reset (p);
             t0 = jm_bench_now_ns ();
-            sink += pn_generate (p, BENCH_N, out, BENCH_N);
+            sink += dp_pn_generate (p, BENCH_N, out, BENCH_N);
             t1             = jm_bench_now_ns ();
             times[k][i][r] = jm_bench_elapsed_sec (t0, t1);
           }
@@ -93,7 +93,7 @@ main (void)
         double s = min_sec (times[k][i], ITERATIONS);
         printf ("  %-28s %7.2f ns/bit  %8.1f Mbit/s\n", name,
                 s / (double)BENCH_N * 1e9, (double)BENCH_N / s / 1e6);
-        pn_destroy (p);
+        dp_pn_destroy (p);
       }
 
   /* A vectorizable store over the same buffer. This bounds the OUTPUT

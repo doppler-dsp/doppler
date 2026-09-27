@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
-/* FrameObject — wraps frame_state_t *       */
+/* FrameObject — wraps dp_frame_state_t *       */
 /* ======================================================== */
 
 #include "doppler/frame/frame_core.h"
 
 typedef struct
 {
-  PyObject_HEAD frame_state_t *handle;
+  PyObject_HEAD dp_frame_state_t *handle;
 } FrameObject;
 
 static void
 FrameObj_dealloc (FrameObject *self)
 {
   if (self->handle)
-    frame_destroy (self->handle);
+    dp_frame_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -273,7 +273,7 @@ FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t payload_len = (size_t)PyArray_SIZE (payload_arr);
-  self->handle       = frame_create (
+  self->handle       = dp_frame_create (
       preamble_kind, (const uint8_t *)PyArray_DATA (preamble_arr),
       preamble_len, preamble_nbits, preamble_reps, preamble_poly,
       preamble_seed, preamble_reg_bits, preamble_lfsr, preamble_taps_a,
@@ -334,7 +334,7 @@ FrameObj_bits_max_out (FrameObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
-  return PyLong_FromSize_t (frame_bits_max_out (self->handle, (size_t)n));
+  return PyLong_FromSize_t (dp_frame_bits_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -371,7 +371,7 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = frame_bits_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_frame_bits_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -387,7 +387,7 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
       uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = frame_bits (self->handle, (size_t)n, _ng0, _cap);
+        n_out = dp_frame_bits (self->handle, (size_t)n, _ng0, _cap);
       Py_END_ALLOW_THREADS
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
@@ -401,7 +401,7 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = frame_bits_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_frame_bits_max_out (self->handle, (size_t)n);
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -416,7 +416,7 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
    * state/buffers and the caller's input. */
   size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = frame_bits (self->handle, (size_t)n, _d0, _cap);
+    n_out = dp_frame_bits (self->handle, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
   if ((size_t)n_out == _cap)
     {
@@ -469,7 +469,7 @@ FrameObj_layout (FrameObject *self, PyObject *args)
       if (!FrameObj_layout_type)
         return NULL;
     }
-  wfm_frame_layout_t _r = frame_layout (self->handle);
+  wfm_frame_layout_t _r = dp_frame_layout (self->handle);
   PyObject          *_o = PyStructSequence_New (FrameObj_layout_type);
   if (!_o)
     return NULL;
@@ -517,7 +517,7 @@ FrameObj_crc_ok (FrameObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
   size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
-  int            y = frame_crc_ok (self->handle, rx_bits, rx_bits_len);
+  int            y = dp_frame_crc_ok (self->handle, rx_bits, rx_bits_len);
   Py_DECREF (rx_bits_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -588,9 +588,10 @@ FrameObj_add_field (FrameObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *lit     = (const uint8_t *)PyArray_DATA (lit_arr);
   size_t         lit_len = (size_t)PyArray_SIZE (lit_arr);
-  int _rc = frame_add_field (self->handle, lit, lit_len, _arg_kind, gen_len,
-                             reps, poly, seed, reg_bits, _arg_lfsr, taps_a,
-                             seed_a, taps_b, seed_b, derived_by, derived_bits);
+  int            _rc
+      = dp_frame_add_field (self->handle, lit, lit_len, _arg_kind, gen_len,
+                            reps, poly, seed, reg_bits, _arg_lfsr, taps_a,
+                            seed_a, taps_b, seed_b, derived_by, derived_bits);
   Py_DECREF (lit_arr);
   if (_rc < 0)
     {
@@ -631,8 +632,8 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
   uint32_t emit_num    = (uint32_t)emit_num_raw;
   uint32_t emit_den    = (uint32_t)emit_den_raw;
   uint32_t unit_bits   = (uint32_t)unit_bits_raw;
-  int _rc = frame_add_stage (self->handle, kind, first_field, n_fields, depth,
-                             emit_num, emit_den, unit_bits);
+  int      _rc = dp_frame_add_stage (self->handle, kind, first_field, n_fields,
+                                     depth, emit_num, emit_den, unit_bits);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -656,7 +657,7 @@ FrameObj_field_index (FrameObject *self, PyObject *args, PyObject *kwds)
   const char  *name      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &name))
     return NULL;
-  int y = frame_field_index (self->handle, name);
+  int y = dp_frame_field_index (self->handle, name);
   return PyLong_FromLong ((long)y);
 }
 
@@ -675,7 +676,7 @@ FrameObj_name_field (FrameObject *self, PyObject *args, PyObject *kwds)
                                     &name))
     return NULL;
   uint32_t index = (uint32_t)index_raw;
-  int      _rc   = frame_name_field (self->handle, index, name);
+  int      _rc   = dp_frame_name_field (self->handle, index, name);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -704,7 +705,7 @@ FrameObj_add_hex (FrameObject *self, PyObject *args, PyObject *kwds)
                                     &reps_raw))
     return NULL;
   size_t reps = (size_t)reps_raw;
-  int    _rc  = frame_add_hex (self->handle, name, hex, reps);
+  int    _rc  = dp_frame_add_hex (self->handle, name, hex, reps);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -735,7 +736,7 @@ FrameObj_add_value (FrameObject *self, PyObject *args, PyObject *kwds)
   uint64_t value = (uint64_t)value_raw;
   uint32_t bits  = (uint32_t)bits_raw;
   size_t   reps  = (size_t)reps_raw;
-  int      _rc   = frame_add_value (self->handle, name, value, bits, reps);
+  int      _rc   = dp_frame_add_value (self->handle, name, value, bits, reps);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -763,7 +764,7 @@ FrameObj_add_derived (FrameObject *self, PyObject *args, PyObject *kwds)
                                     &bits_raw))
     return NULL;
   size_t bits = (size_t)bits_raw;
-  int    _rc  = frame_add_derived (self->handle, name, bits);
+  int    _rc  = dp_frame_add_derived (self->handle, name, bits);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -795,8 +796,8 @@ FrameObj_add_stage_over (FrameObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   uint32_t depth     = (uint32_t)depth_raw;
   uint32_t unit_bits = (uint32_t)unit_bits_raw;
-  int      _rc = frame_add_stage_over (self->handle, kind, first, last, depth,
-                                       unit_bits);
+  int _rc = dp_frame_add_stage_over (self->handle, kind, first, last, depth,
+                                     unit_bits);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -817,7 +818,7 @@ FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = frame_build (self->handle);
+  int _rc = dp_frame_build (self->handle);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -842,7 +843,7 @@ FrameObj_deframe_max_out (FrameObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "n", &rx_bits_len))
     return NULL;
   return PyLong_FromSize_t (
-      frame_deframe_max_out (self->handle, (size_t)rx_bits_len));
+      dp_frame_deframe_max_out (self->handle, (size_t)rx_bits_len));
 }
 
 static PyObject *
@@ -887,7 +888,7 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = frame_deframe_max_out (
+      size_t _omax = dp_frame_deframe_max_out (
           self->handle, (size_t)PyArray_SIZE (rx_bits_arr));
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -898,7 +899,7 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (rx_bits_arr);
           return NULL;
         }
-      size_t n_out = frame_deframe (
+      size_t n_out = dp_frame_deframe (
           self->handle, (const uint8_t *)PyArray_DATA (rx_bits_arr),
           (size_t)PyArray_SIZE (rx_bits_arr),
           (uint8_t *)PyArray_DATA (out_arr), _cap);
@@ -915,8 +916,8 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (rx_bits_arr);
-  size_t _cap  = frame_deframe_max_out (self->handle,
-                                        (size_t)PyArray_SIZE (rx_bits_arr));
+  size_t _cap  = dp_frame_deframe_max_out (self->handle,
+                                           (size_t)PyArray_SIZE (rx_bits_arr));
   (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
@@ -925,10 +926,10 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (rx_bits_arr);
       return NULL;
     }
-  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = frame_deframe (self->handle,
-                                (const uint8_t *)PyArray_DATA (rx_bits_arr),
-                                (size_t)PyArray_SIZE (rx_bits_arr), _d0, _cap);
+  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t   n_out = dp_frame_deframe (
+      self->handle, (const uint8_t *)PyArray_DATA (rx_bits_arr),
+      (size_t)PyArray_SIZE (rx_bits_arr), _d0, _cap);
   Py_DECREF (rx_bits_arr);
   if ((size_t)n_out == _cap)
     {
@@ -1004,7 +1005,7 @@ FrameObj_check (FrameObject *self, PyObject *args, PyObject *kwds)
    * object per stream). */
   frame_check_t _r;
   Py_BEGIN_ALLOW_THREADS
-    _r = frame_check (self->handle, rx_bits, rx_bits_len);
+    _r = dp_frame_check (self->handle, rx_bits, rx_bits_len);
   Py_END_ALLOW_THREADS
   Py_DECREF (rx_bits_arr);
   PyObject *_o = PyStructSequence_New (FrameObj_check_type);
@@ -1034,7 +1035,7 @@ FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = frame_n_fields (self->handle);
+  size_t y = dp_frame_n_fields (self->handle);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
@@ -1046,7 +1047,7 @@ FrameObj_n_stages (FrameObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = frame_n_stages (self->handle);
+  size_t y = dp_frame_n_stages (self->handle);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
@@ -1063,7 +1064,7 @@ FrameObj_field_off (FrameObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
     return NULL;
   size_t i = (size_t)i_raw;
-  size_t y = frame_field_off (self->handle, i);
+  size_t y = dp_frame_field_off (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
@@ -1080,7 +1081,7 @@ FrameObj_field_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
     return NULL;
   size_t i = (size_t)i_raw;
-  size_t y = frame_field_bits (self->handle, i);
+  size_t y = dp_frame_field_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
@@ -1097,7 +1098,7 @@ FrameObj_stage_first (FrameObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
     return NULL;
   size_t i = (size_t)i_raw;
-  size_t y = frame_stage_first (self->handle, i);
+  size_t y = dp_frame_stage_first (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
@@ -1114,7 +1115,7 @@ FrameObj_stage_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
     return NULL;
   size_t i = (size_t)i_raw;
-  size_t y = frame_stage_bits (self->handle, i);
+  size_t y = dp_frame_stage_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 static PyObject *
@@ -1195,7 +1196,7 @@ FrameObj_destroy (FrameObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      frame_destroy (self->handle);
+      dp_frame_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -1214,7 +1215,7 @@ FrameObj_exit (FrameObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      frame_destroy (self->handle);
+      dp_frame_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -1263,7 +1264,7 @@ static PyMethodDef FrameObj_methods[] = {
   { "bits_max_out", (PyCFunction)FrameObj_bits_max_out, METH_VARARGS,
     "bits_max_out(n) -> int\n"
     "\n"
-    "Bits frame_bits will write for n frames — `n * nbits`.\n"
+    "Bits dp_frame_bits will write for n frames — `n * nbits`.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1656,7 +1657,7 @@ static PyMethodDef FrameObj_methods[] = {
     "`ValueError`.\n"
     "\n"
     "The form to reach for when a literal fits in 64 bits: exact, and with\n"
-    "no failure mode a typo can reach. Wider ones want frame_add_hex.\n"
+    "no failure mode a typo can reach. Wider ones want dp_frame_add_hex.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1703,7 +1704,7 @@ static PyMethodDef FrameObj_methods[] = {
     "Returns the new field's index; a refusal raises `ValueError`.\n"
     "\n"
     "A field with a declared length and no source: a CRC trailer, a block of\n"
-    "check symbols. Its producer is wired by frame_add_stage_over rather\n"
+    "check symbols. Its producer is wired by dp_frame_add_stage_over rather\n"
     "than named here, because no stage exists yet when the field it derives\n"
     "is appended — fields are ordered by POSITION and stages by APPLICATION.\n"
     "\n"
@@ -1809,7 +1810,7 @@ static PyMethodDef FrameObj_methods[] = {
     "it is empty, unbuildable, names a stage no kernel here covers, or was\n"
     "already built.\n"
     "\n"
-    "The point at which a description is checked, which for frame_create\n"
+    "The point at which a description is checked, which for dp_frame_create\n"
     "happens inside the constructor: a description that cannot produce its\n"
     "own bits is not a frame. It is separate here only because the\n"
     "description arrives over several calls and there is no earlier moment\n"
@@ -1868,7 +1869,8 @@ static PyMethodDef FrameObj_methods[] = {
     "\n"
     "Returns the frame with every reversible stage undone, in place order: a\n"
     "randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.\n"
-    "The payload is then a slice, at frame_field_off of the payload field —\n"
+    "The payload is then a slice, at dp_frame_field_off of the payload field "
+    "—\n"
     "which is the caller's arithmetic because a description does not\n"
     "privilege one field over another.\n"
     "\n"
@@ -1920,7 +1922,7 @@ static PyMethodDef FrameObj_methods[] = {
   { "deframe_max_out", (PyCFunction)FrameObj_deframe_max_out, METH_VARARGS,
     "deframe_max_out(rx_bits_len) -> int\n"
     "\n"
-    "Max bits frame_deframe() writes: the frame's own length.\n"
+    "Max bits dp_frame_deframe() writes: the frame's own length.\n"
     "\n"
     "Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,\n"
     "not the input's: a frame is as long as its fields say, so how many bits\n"
@@ -1941,20 +1943,20 @@ static PyMethodDef FrameObj_methods[] = {
     "check(rx_bits) -> FrameCheck record (passed, stages, checked, units, ok, "
     "corrected, symbols)\n"
     "\n"
-    "Undo the description's stages over a received frame and report what\n"
-    "was found -- the receive mirror of `bits()`, reading the same\n"
-    "description, so a transmitter and a receiver holding the same `Frame`\n"
-    "cannot disagree about which stage covered what. This is the truth-free\n"
-    "frame error rate on a CODED link: it needs no payload truth, so it\n"
-    "works on a real capture, and an outer code is a strictly better\n"
-    "detector than a CRC because it reports how much repair it took rather\n"
-    "than one bit of right-or-wrong. `checked` is smaller than `stages` when\n"
-    "the description names a stage the receiver does not reverse here -- the\n"
-    "inner code is the case, being undone before frame synchronisation --\n"
-    "and such a stage is reported as not checked, never as passed.\n"
+    "Undo the description's stages over a received frame and report what was "
+    "found -- the receive mirror of `bits()`, reading the same description, "
+    "so a transmitter and a receiver holding the same `Frame` cannot disagree "
+    "about which stage covered what. This is the truth-free frame error rate "
+    "on a CODED link: it needs no payload truth, so it works on a real "
+    "capture, and an outer code is a strictly better detector than a CRC "
+    "because it reports how much repair it took rather than one bit of "
+    "right-or-wrong. `checked` is smaller than `stages` when the description "
+    "names a stage the receiver does not reverse here -- the inner code is "
+    "the case, being undone before frame synchronisation -- and such a stage "
+    "is reported as not checked, never as passed.\n"
     "\n"
-    "The receive mirror of frame_bits, reading the same description — so a\n"
-    "transmitter and a receiver holding the same `Frame` cannot disagree\n"
+    "The receive mirror of dp_frame_bits, reading the same description — so\n"
+    "a transmitter and a receiver holding the same `Frame` cannot disagree\n"
     "about which stage covered what.\n"
     "\n"
     "**This is the truth-free frame error rate on a coded link.** It needs\n"

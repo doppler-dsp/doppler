@@ -62,15 +62,15 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 | Type | Name |
 | ---: | :--- |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_confidence**](#function-ber_confidence) (size\_t errors, size\_t symbols, double conf) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
-|  double | [**ber\_esn0\_db\_for\_ser**](#function-ber_esn0_db_for_ser) (int m, double ser) <br>_Es/N0 (dB) at which the coherent bound equals_ `ser` _._ |
-|  double | [**ber\_evm\_db**](#function-ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
-|  double | [**ber\_evm\_scatter\_floor\_db**](#function-ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
-|  int | [**ber\_lock\_symbol**](#function-ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
 |  double | [**ber\_qfunc**](#function-ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
-|  size\_t | [**ber\_settle\_from**](#function-ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
-|  size\_t | [**ber\_settle\_syms**](#function-ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
-|  double | [**ber\_theory\_ber**](#function-ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._ |
-|  double | [**ber\_theory\_ser**](#function-ber_theory_ser) (int m, double esn0) <br>_Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR)._  |
+|  double | [**dp\_ber\_esn0\_db\_for\_ser**](#function-dp_ber_esn0_db_for_ser) (int m, double ser) <br>_Es/N0 (dB) at which the coherent bound equals_ `ser` _._ |
+|  double | [**dp\_ber\_evm\_db**](#function-dp_ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
+|  double | [**dp\_ber\_evm\_scatter\_floor\_db**](#function-dp_ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
+|  int | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
+|  size\_t | [**dp\_ber\_settle\_from**](#function-dp_ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
+|  size\_t | [**dp\_ber\_settle\_syms**](#function-dp_ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
+|  double | [**dp\_ber\_theory\_ber**](#function-dp_ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._ |
+|  double | [**dp\_ber\_theory\_ser**](#function-dp_ber_theory_ser) (int m, double esn0) <br>_Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR)._  |
 
 
 
@@ -117,9 +117,9 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 
 
 
-* **Is it SETTLED?** A second-order loop needs ~5/Bn symbols; two cascaded loops ADD their budgets; joint tracking DOUBLES the sum. So the floor is `2*(5/bn_timing + 5/bn_carrier)` — [**ber\_settle\_syms()**](ber__core_8h.md#function-ber_settle_syms) — and the window must additionally clear every lock indicator the receiver publishes, plus the handover instant again when one is enabled. Measuring inside that window measures settling and reports it as steady state: measured cost, -9.0 dB EVM where the settled answer is -23.2 dB, and SER 5.9x the coherent bound where the settled answer is 1.7x.
+* **Is it SETTLED?** A second-order loop needs ~5/Bn symbols; two cascaded loops ADD their budgets; joint tracking DOUBLES the sum. So the floor is `2*(5/bn_timing + 5/bn_carrier)` — [**dp\_ber\_settle\_syms()**](ber__core_8h.md#function-dp_ber_settle_syms) — and the window must additionally clear every lock indicator the receiver publishes, plus the handover instant again when one is enabled. Measuring inside that window measures settling and reports it as steady state: measured cost, -9.0 dB EVM where the settled answer is -23.2 dB, and SER 5.9x the coherent bound where the settled answer is 1.7x.
 * **Have we counted enough ERRORS?** Fix the ERROR count and let the symbol count fall out (inverse binomial sampling). The relative standard error is then `1/sqrt(r)` — a function of the error count ALONE — so the error target IS the precision. Stopping on a fixed symbol count makes precision depend on the very rate being measured: 20 000 symbols at SER 1e-3 gives ~20 errors and ~22% relative error, which reads as real seed-to-seed variation in the receiver and is not.
-* **Does it MAKE SENSE?** Cross-check against measurements that cannot fail the same way: the truth-free EVM ([**ber\_evm\_scatter\_floor\_db()**](ber__core_8h.md#function-ber_evm_scatter_floor_db) bounds what it can prove) and the coherent theory curve ([**ber\_theory\_ser()**](ber__core_8h.md#function-ber_theory_ser)).
+* **Does it MAKE SENSE?** Cross-check against measurements that cannot fail the same way: the truth-free EVM ([**dp\_ber\_evm\_scatter\_floor\_db()**](ber__core_8h.md#function-dp_ber_evm_scatter_floor_db) bounds what it can prove) and the coherent theory curve ([**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser)).
 
 
 
@@ -131,7 +131,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 The historic footgun is scoring `min over (lag, rotation)` of the error count. That is not a measurement of the receiver, it is an optimisation over the answer, and it fails both ways: a wide search on a short window finds a lucky low-error alignment on garbage (false PASS), and a narrow one misses the true alignment on a healthy receiver and reports chance (false FLOOR). Both have shipped here — a committed "~12 dB floor" that was really ~5 dB, and an "SER 0.48" on a receiver running at 0.0000 that needed lag -34.
 
 
-[**ber\_meter\_align()**](ber__meter__core_8h.md#function-ber_meter_align) _detects_ the alignment instead, correlating against a known marker (a sync word, a PN code period, or — in a simulation, where truth exists — a stretch of the truth sequence itself). It returns the lag and the absolute carrier phase from the correlation peak, gated by a false-alarm probability through the canonical detection primitives and Sidak-corrected over the lags searched. A marker too short to identify an alignment reports `ok = 0` rather than a plausible wrong lag, and the marker's own symbols are excluded from scoring so the symbols that fixed the alignment cannot also flatter the rate.
+[**dp\_ber\_meter\_align()**](ber__meter__core_8h.md#function-dp_ber_meter_align) _detects_ the alignment instead, correlating against a known marker (a sync word, a PN code period, or — in a simulation, where truth exists — a stretch of the truth sequence itself). It returns the lag and the absolute carrier phase from the correlation peak, gated by a false-alarm probability through the canonical detection primitives and Sidak-corrected over the lags searched. A marker too short to identify an alignment reports `ok = 0` rather than a plausible wrong lag, and the marker's own symbols are excluded from scoring so the symbols that fixed the alignment cannot also flatter the rate.
 
 
 
@@ -139,7 +139,7 @@ The historic footgun is scoring `min over (lag, rotation)` of the error count. T
 
 
 
-Nothing numeric is invented here. The confidence interval is the exact Gamma/chi-square one and its quantiles come from `det_threshold()` / `det_threshold_noncoherent()` — doppler's own inverse regularized incomplete gamma, already validated in the detection module — rather than a second copy of a series/continued-fraction kernel. Verified bit-identical to SciPy's `chi2.ppf` at r = 1, 2, 20, 200 and 1000. Gray coding comes from `mpsk`, the blind SNR from `snr`. 
+Nothing numeric is invented here. The confidence interval is the exact Gamma/chi-square one and its quantiles come from `dp_det_threshold()` / `dp_det_threshold_noncoherent()` — doppler's own inverse regularized incomplete gamma, already validated in the detection module — rather than a second copy of a series/continued-fraction kernel. Verified bit-identical to SciPy's `chi2.ppf` at r = 1, 2, 20, 200 and 1000. Gray coding comes from `mpsk`, the blind SNR from `snr`. 
 
 
 
@@ -174,11 +174,27 @@ With `r = 0` there is no point estimate, but the exact one-sided upper limit `-l
 
 
 
-### function ber\_esn0\_db\_for\_ser 
+### function ber\_qfunc 
+
+_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._
+```C++
+double ber_qfunc (
+    double x
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ber\_esn0\_db\_for\_ser 
 
 _Es/N0 (dB) at which the coherent bound equals_ `ser` _._
 ```C++
-double ber_esn0_db_for_ser (
+double dp_ber_esn0_db_for_ser (
     int m,
     double ser
 ) 
@@ -189,7 +205,7 @@ double ber_esn0_db_for_ser (
 How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not.
 
 
-Bisects [**ber\_theory\_ser()**](ber__core_8h.md#function-ber_theory_ser), which is monotone decreasing, over -10 to 40 dB and clamps to that range: 40.0 for a rate below the bound at 40 dB, -10.0 for one at or above the bound at -10 dB. A rate that is not positive also returns -10.0. 
+Bisects [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser), which is monotone decreasing, over -10 to 40 dB and clamps to that range: 40.0 for a rate below the bound at 40 dB, -10.0 for one at or above the bound at -10 dB. A rate that is not positive also returns -10.0. 
 
 
         
@@ -198,11 +214,11 @@ Bisects [**ber\_theory\_ser()**](ber__core_8h.md#function-ber_theory_ser), which
 
 
 
-### function ber\_evm\_db 
+### function dp\_ber\_evm\_db 
 
 _Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._
 ```C++
-double ber_evm_db (
+double dp_ber_evm_db (
     const float _Complex * rx,
     size_t rx_len,
     size_t lo,
@@ -238,11 +254,11 @@ EVM in dB, or 0.0 ("no lock") for a window under 20 symbols.
 
 
 
-### function ber\_evm\_scatter\_floor\_db 
+### function dp\_ber\_evm\_scatter\_floor\_db 
 
 _EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._ 
 ```C++
-double ber_evm_scatter_floor_db (
+double dp_ber_evm_scatter_floor_db (
     int m
 ) 
 ```
@@ -261,11 +277,11 @@ The FLOOR of a self-referenced EVM: what a completely destroyed constant-modulus
 
 
 
-### function ber\_lock\_symbol 
+### function dp\_ber\_lock\_symbol 
 
 _First symbol from which a verify-counted flag is SUSTAINED._ 
 ```C++
-int ber_lock_symbol (
+int dp_ber_lock_symbol (
     const uint8_t * flags,
     size_t flags_len,
     size_t sustain,
@@ -294,27 +310,11 @@ The symbol index, or -1 for "never locked" — the honest answer, which forces t
 
 
 
-### function ber\_qfunc 
-
-_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._
-```C++
-double ber_qfunc (
-    double x
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function ber\_settle\_from 
+### function dp\_ber\_settle\_from 
 
 _Combine an analytic settling budget with measured lock instants._ 
 ```C++
-size_t ber_settle_from (
+size_t dp_ber_settle_from (
     size_t budget,
     int timing_lock,
     int carrier_lock
@@ -329,7 +329,7 @@ The POLICY for where a steady-state window may start, in one place: `max(budget,
 There was a fourth term until doppler#877. A receiver that handed the carrier from an NDA discriminator to a decision-directed one settled last of all — the handover fired after every lock indicator and the new loop then had its own transient, so it contributed `its instant + the budget again` (measured on 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a 2000-symbol budget, and 5.95x the coherent bound if the window started at 2000 rather than 4525). No receiver in this library hands over any more, so the term went with the handover rather than remaining as an argument that could only be passed -1.
 
 
-Pass -1 for any indicator the receiver does not publish (which is what [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) returns for "never locked"). **A -1 timing or carrier lock means there is NO valid steady-state window** — check that yourself before trusting the return.
+Pass -1 for any indicator the receiver does not publish (which is what [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol) returns for "never locked"). **A -1 timing or carrier lock means there is NO valid steady-state window** — check that yourself before trusting the return.
 
 
 
@@ -337,9 +337,9 @@ Pass -1 for any indicator the receiver does not publish (which is what [**ber\_l
 **Parameters:**
 
 
-* `budget` [**ber\_settle\_syms()**](ber__core_8h.md#function-ber_settle_syms) of the loops in use. 
-* `timing_lock` [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) of the timing flag, or -1. 
-* `carrier_lock` [**ber\_lock\_symbol()**](ber__core_8h.md#function-ber_lock_symbol) of the carrier flag, or -1. 
+* `budget` [**dp\_ber\_settle\_syms()**](ber__core_8h.md#function-dp_ber_settle_syms) of the loops in use. 
+* `timing_lock` [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol) of the timing flag, or -1. 
+* `carrier_lock` [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol) of the carrier flag, or -1. 
 
 
 
@@ -357,11 +357,11 @@ First symbol of the measurement window.
 
 
 
-### function ber\_settle\_syms 
+### function dp\_ber\_settle\_syms 
 
 _Symbols to discard before a steady-state measurement means anything._ 
 ```C++
-size_t ber_settle_syms (
+size_t dp_ber_settle_syms (
     double bn_timing,
     double bn_carrier
 ) 
@@ -381,11 +381,11 @@ This is a floor, not the answer — take the max of it and every lock indicator 
 
 
 
-### function ber\_theory\_ber 
+### function dp\_ber\_theory\_ber 
 
 _Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._
 ```C++
-double ber_theory_ber (
+double dp_ber_theory_ber (
     int m,
     double esn0
 ) 
@@ -398,11 +398,11 @@ double ber_theory_ber (
 
 
 
-### function ber\_theory\_ser 
+### function dp\_ber\_theory\_ser 
 
 _Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR)._ 
 ```C++
-double ber_theory_ser (
+double dp_ber_theory_ser (
     int m,
     double esn0
 ) 

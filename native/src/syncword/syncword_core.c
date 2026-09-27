@@ -3,15 +3,15 @@
  *
  * Every line of arithmetic here is dp_syncword.h's. What this file owns is
  * the marker's LIFETIME: a searcher copies the pattern it was built from, so
- * `SyncFinder(asm_bits())` — a temporary that numpy frees the moment
+ * `SyncFinder(dp_asm_bits())` — a temporary that numpy frees the moment
  * the constructor returns — is a valid searcher rather than a dangling one.
  */
 #include "doppler/syncword/syncword_core.h"
 
 #include <stdlib.h>
 
-syncword_state_t *
-syncword_create (const uint8_t *marker, size_t marker_len)
+dp_syncword_state_t *
+dp_syncword_create (const uint8_t *marker, size_t marker_len)
 {
   /* An empty marker matches at every offset with zero errors, which is not
      a degenerate search but a wrong one -- it would report frame sync
@@ -20,7 +20,7 @@ syncword_create (const uint8_t *marker, size_t marker_len)
   if (!marker || marker_len == 0u)
     return NULL;
 
-  syncword_state_t *obj = calloc (1, sizeof (*obj));
+  dp_syncword_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
 
@@ -42,7 +42,7 @@ syncword_create (const uint8_t *marker, size_t marker_len)
 }
 
 void
-syncword_destroy (syncword_state_t *state)
+dp_syncword_destroy (dp_syncword_state_t *state)
 {
   if (!state)
     return;
@@ -51,8 +51,8 @@ syncword_destroy (syncword_state_t *state)
 }
 
 syncword_hit_t
-syncword_find (syncword_state_t *state, const uint8_t *bits, size_t bits_len,
-               uint32_t max_errors)
+dp_syncword_find (dp_syncword_state_t *state, const uint8_t *bits,
+                  size_t bits_len, uint32_t max_errors)
 {
   syncword_hit_t    r = { 0, 0u, 0, 0u };
   dp_syncword_hit_t h;
@@ -69,14 +69,14 @@ syncword_find (syncword_state_t *state, const uint8_t *bits, size_t bits_len,
 }
 
 double
-syncword_pfa (syncword_state_t *state, uint32_t max_errors)
+dp_syncword_pfa (dp_syncword_state_t *state, uint32_t max_errors)
 {
   return dp_syncword_search_pfa (state->nbits, (unsigned)max_errors);
 }
 
 int
-syncword_max_errors_for (syncword_state_t *state, size_t window_bits,
-                         double pfa)
+dp_syncword_max_errors_for (dp_syncword_state_t *state, size_t window_bits,
+                            double pfa)
 {
   return dp_syncword_max_errors (state->nbits, window_bits, pfa);
 }

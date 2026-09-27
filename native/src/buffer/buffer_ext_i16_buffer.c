@@ -6,15 +6,15 @@
  * Do NOT compile this file directly — only buffer_ext.c is compiled.
  */
 /* ======================================================== */
-/* I16BufferObject — wraps i16_buffer_state_t *       */
+/* I16BufferObject — wraps dp_i16_buffer_state_t *       */
 /* ======================================================== */
 
 #include "doppler/i16_buffer/i16_buffer_core.h"
 
 typedef struct
 {
-  PyObject_HEAD i16_buffer_state_t *handle;
-  size_t                            _jm_borrowed; /* last borrow's count */
+  PyObject_HEAD dp_i16_buffer_state_t *handle;
+  size_t                               _jm_borrowed; /* last borrow's count */
 } I16BufferObject;
 
 static void
@@ -337,7 +337,8 @@ I16BufferObj_wait (I16BufferObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (
               PyExc_ValueError,
               "wait(%lld) can never be satisfied: the ring holds %lld",
-              (long long)n, (long long)i16_buffer_get_capacity (self->handle));
+              (long long)n,
+              (long long)dp_i16_buffer_get_capacity (self->handle));
           return NULL;
         case DP_WAIT_CLOSED:
           PyErr_SetString (PyExc_EOFError,
@@ -445,7 +446,8 @@ I16BufferObj_peek (I16BufferObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (
               PyExc_ValueError,
               "peek(%lld) can never be satisfied: the ring holds %lld",
-              (long long)n, (long long)i16_buffer_get_capacity (self->handle));
+              (long long)n,
+              (long long)dp_i16_buffer_get_capacity (self->handle));
           return NULL;
         case DP_WAIT_CLOSED:
           PyErr_SetString (PyExc_EOFError,
@@ -550,7 +552,7 @@ I16Buffer_getprop_capacity (I16BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)i16_buffer_get_capacity (self->handle));
+      (unsigned long long)dp_i16_buffer_get_capacity (self->handle));
 }
 static PyObject *
 I16Buffer_getprop_available (I16BufferObject *self, void *Py_UNUSED (closure))
@@ -562,7 +564,7 @@ I16Buffer_getprop_available (I16BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)i16_buffer_get_available (self->handle));
+      (unsigned long long)dp_i16_buffer_get_available (self->handle));
 }
 static PyObject *
 I16Buffer_getprop_space (I16BufferObject *self, void *Py_UNUSED (closure))
@@ -574,7 +576,7 @@ I16Buffer_getprop_space (I16BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)i16_buffer_get_space (self->handle));
+      (unsigned long long)dp_i16_buffer_get_space (self->handle));
 }
 static PyObject *
 I16Buffer_getprop_dropped (I16BufferObject *self, void *Py_UNUSED (closure))
@@ -586,7 +588,7 @@ I16Buffer_getprop_dropped (I16BufferObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)i16_buffer_get_dropped (self->handle));
+      (unsigned long long)dp_i16_buffer_get_dropped (self->handle));
 }
 static PyObject *
 I16Buffer_getprop_closed (I16BufferObject *self, void *Py_UNUSED (closure))
@@ -597,7 +599,7 @@ I16Buffer_getprop_closed (I16BufferObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(i16_buffer_get_closed (self->handle)));
+  return PyBool_FromLong ((long)(dp_i16_buffer_get_closed (self->handle)));
 }
 
 static PyGetSetDef I16Buffer_getset[]

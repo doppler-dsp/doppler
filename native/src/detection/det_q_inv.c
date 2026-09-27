@@ -35,7 +35,7 @@ erfcinv_ (double y)
  * in test_detection_core.c. Only p outside (0, 1) fails closed, to NaN:
  * 0.0 is the median's quantile, so it cannot also mean "invalid". */
 double
-det_q_inv (double p)
+dp_det_q_inv (double p)
 {
   if (!(p > 0.0) || !(p < 1.0))
     return NAN;

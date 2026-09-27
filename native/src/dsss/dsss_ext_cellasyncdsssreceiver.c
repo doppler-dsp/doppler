@@ -7,21 +7,21 @@
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* CellAsyncDsssReceiverObject — wraps async_dsss_receiver_state_t *       */
+/* CellAsyncDsssReceiverObject — wraps dp_async_dsss_receiver_state_t * */
 /* ======================================================== */
 
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 
 typedef struct
 {
-  PyObject_HEAD async_dsss_receiver_state_t *handle;
+  PyObject_HEAD dp_async_dsss_receiver_state_t *handle;
 } CellAsyncDsssReceiverObject;
 
 static void
 CellAsyncDsssReceiverObj_dealloc (CellAsyncDsssReceiverObject *self)
 {
   if (self->handle)
-    async_dsss_receiver_destroy (self->handle);
+    dp_async_dsss_receiver_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -116,7 +116,8 @@ CellAsyncDsssReceiverObj_steps_max_out (CellAsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (async_dsss_receiver_steps_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_async_dsss_receiver_steps_max_out (self->handle));
 }
 
 static PyObject *
@@ -163,7 +164,7 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = async_dsss_receiver_steps_max_out (self->handle);
+      size_t _omax    = dp_async_dsss_receiver_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -185,8 +186,8 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = async_dsss_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_async_dsss_receiver_steps (self->handle, _ng0, _ng1, _ng2,
+                                              _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -201,7 +202,7 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = async_dsss_receiver_steps_max_out (self->handle);
+  size_t _cap  = dp_async_dsss_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -220,7 +221,7 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = async_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_async_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -256,8 +257,8 @@ CellAsyncDsssReceiverObj_seed (CellAsyncDsssReceiverObject *self,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &chip_phase,
                                     &doppler_hz_est, &cn0_dbhz_est))
     return NULL;
-  int _rc = async_dsss_receiver_seed (self->handle, chip_phase, doppler_hz_est,
-                                      cn0_dbhz_est);
+  int _rc = dp_async_dsss_receiver_seed (self->handle, chip_phase,
+                                         doppler_hz_est, cn0_dbhz_est);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -316,7 +317,8 @@ CellAsyncDsssReceiverObj_status (CellAsyncDsssReceiverObject *self,
       if (!CellAsyncDsssReceiverObj_status_type)
         return NULL;
     }
-  async_dsss_receiver_status_t _r = async_dsss_receiver_status (self->handle);
+  async_dsss_receiver_status_t _r
+      = dp_async_dsss_receiver_status (self->handle);
   PyObject *_o = PyStructSequence_New (CellAsyncDsssReceiverObj_status_type);
   if (!_o)
     return NULL;
@@ -364,8 +366,8 @@ CellAsyncDsssReceiverObj_configure_lock_raw (CellAsyncDsssReceiverObject *self,
   size_t   n_looks = (size_t)n_looks_raw;
   uint32_t n_up    = (uint32_t)n_up_raw;
   uint32_t n_down  = (uint32_t)n_down_raw;
-  async_dsss_receiver_configure_lock_raw (self->handle, up_thresh, down_thresh,
-                                          n_looks, alpha, n_up, n_down);
+  dp_async_dsss_receiver_configure_lock_raw (
+      self->handle, up_thresh, down_thresh, n_looks, alpha, n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -387,7 +389,7 @@ CellAsyncDsssReceiverObj_configure_chain_raw (
     return NULL;
   size_t segments = (size_t)segments_raw;
   size_t sps      = (size_t)sps_raw;
-  int    _rc = async_dsss_receiver_configure_chain_raw (self->handle, segments,
+  int _rc = dp_async_dsss_receiver_configure_chain_raw (self->handle, segments,
                                                         sps, n);
   if (_rc != 0)
     {
@@ -407,7 +409,7 @@ CellAsyncDsssReceiverObj_reset (CellAsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  async_dsss_receiver_reset (self->handle);
+  dp_async_dsss_receiver_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -420,7 +422,7 @@ CellAsyncDsssReceiverObj_state_bytes (CellAsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (async_dsss_receiver_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_async_dsss_receiver_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -432,11 +434,11 @@ CellAsyncDsssReceiverObj_get_state (CellAsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = async_dsss_receiver_state_bytes (self->handle);
+  size_t    _n = dp_async_dsss_receiver_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  async_dsss_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_async_dsss_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -455,12 +457,12 @@ CellAsyncDsssReceiverObj_set_state (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   if ((size_t)PyBytes_GET_SIZE (arg)
-      != async_dsss_receiver_state_bytes (self->handle))
+      != dp_async_dsss_receiver_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (async_dsss_receiver_set_state (self->handle, PyBytes_AS_STRING (arg))
+  if (dp_async_dsss_receiver_set_state (self->handle, PyBytes_AS_STRING (arg))
       != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
@@ -479,7 +481,7 @@ CellAsyncDsssReceiver_getprop_tracking (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong (
-      (long)async_dsss_receiver_get_tracking (self->handle));
+      (long)dp_async_dsss_receiver_get_tracking (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_refining (CellAsyncDsssReceiverObject *self,
@@ -492,7 +494,7 @@ CellAsyncDsssReceiver_getprop_refining (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong (
-      (long)async_dsss_receiver_get_refining (self->handle));
+      (long)dp_async_dsss_receiver_get_refining (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_idle (CellAsyncDsssReceiverObject *self,
@@ -504,7 +506,8 @@ CellAsyncDsssReceiver_getprop_idle (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)async_dsss_receiver_get_idle (self->handle));
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_idle (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_lost (CellAsyncDsssReceiverObject *self,
@@ -516,7 +519,8 @@ CellAsyncDsssReceiver_getprop_lost (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)async_dsss_receiver_get_lost (self->handle));
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_lost (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_doppler_hz (CellAsyncDsssReceiverObject *self,
@@ -529,7 +533,7 @@ CellAsyncDsssReceiver_getprop_doppler_hz (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_doppler_hz (self->handle));
+      dp_async_dsss_receiver_get_doppler_hz (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_cn0_dbhz_est (CellAsyncDsssReceiverObject *self,
@@ -542,7 +546,7 @@ CellAsyncDsssReceiver_getprop_cn0_dbhz_est (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_cn0_dbhz_est (self->handle));
+      dp_async_dsss_receiver_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_segments (CellAsyncDsssReceiverObject *self,
@@ -555,7 +559,7 @@ CellAsyncDsssReceiver_getprop_segments (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)async_dsss_receiver_get_segments (self->handle));
+      (unsigned long long)dp_async_dsss_receiver_get_segments (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_sps (CellAsyncDsssReceiverObject *self,
@@ -568,7 +572,7 @@ CellAsyncDsssReceiver_getprop_sps (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)async_dsss_receiver_get_sps (self->handle));
+      (unsigned long long)dp_async_dsss_receiver_get_sps (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_n (CellAsyncDsssReceiverObject *self,
@@ -580,7 +584,7 @@ CellAsyncDsssReceiver_getprop_n (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)async_dsss_receiver_get_n (self->handle));
+  return PyLong_FromLong ((long)dp_async_dsss_receiver_get_n (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_chip_phase (CellAsyncDsssReceiverObject *self,
@@ -593,7 +597,7 @@ CellAsyncDsssReceiver_getprop_chip_phase (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_chip_phase (self->handle));
+      dp_async_dsss_receiver_get_chip_phase (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_code_rate (CellAsyncDsssReceiverObject *self,
@@ -605,7 +609,8 @@ CellAsyncDsssReceiver_getprop_code_rate (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (async_dsss_receiver_get_code_rate (self->handle));
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_code_rate (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_lock (CellAsyncDsssReceiverObject *self,
@@ -617,7 +622,7 @@ CellAsyncDsssReceiver_getprop_lock (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (async_dsss_receiver_get_lock (self->handle));
+  return PyFloat_FromDouble (dp_async_dsss_receiver_get_lock (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_norm_freq (CellAsyncDsssReceiverObject *self,
@@ -629,7 +634,8 @@ CellAsyncDsssReceiver_getprop_norm_freq (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (async_dsss_receiver_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_norm_freq (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_nco_freq (CellAsyncDsssReceiverObject *self,
@@ -641,7 +647,8 @@ CellAsyncDsssReceiver_getprop_nco_freq (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (async_dsss_receiver_get_nco_freq (self->handle));
+  return PyFloat_FromDouble (
+      dp_async_dsss_receiver_get_nco_freq (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_locked (CellAsyncDsssReceiverObject *self,
@@ -653,7 +660,8 @@ CellAsyncDsssReceiver_getprop_locked (CellAsyncDsssReceiverObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)async_dsss_receiver_get_locked (self->handle));
+  return PyLong_FromLong (
+      (long)dp_async_dsss_receiver_get_locked (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_lock_metric (CellAsyncDsssReceiverObject *self,
@@ -666,7 +674,7 @@ CellAsyncDsssReceiver_getprop_lock_metric (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_lock_metric (self->handle));
+      dp_async_dsss_receiver_get_lock_metric (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_lock_threshold (
@@ -679,7 +687,7 @@ CellAsyncDsssReceiver_getprop_lock_threshold (
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_lock_threshold (self->handle));
+      dp_async_dsss_receiver_get_lock_threshold (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_car_last_error (
@@ -692,7 +700,7 @@ CellAsyncDsssReceiver_getprop_car_last_error (
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_car_last_error (self->handle));
+      dp_async_dsss_receiver_get_car_last_error (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_car_nco_freq (CellAsyncDsssReceiverObject *self,
@@ -705,7 +713,7 @@ CellAsyncDsssReceiver_getprop_car_nco_freq (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_car_nco_freq (self->handle));
+      dp_async_dsss_receiver_get_car_nco_freq (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_mpsk_last_error (
@@ -718,7 +726,7 @@ CellAsyncDsssReceiver_getprop_mpsk_last_error (
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      async_dsss_receiver_get_mpsk_last_error (self->handle));
+      dp_async_dsss_receiver_get_mpsk_last_error (self->handle));
 }
 static PyObject *
 CellAsyncDsssReceiver_getprop_code_locked (CellAsyncDsssReceiverObject *self,
@@ -731,7 +739,7 @@ CellAsyncDsssReceiver_getprop_code_locked (CellAsyncDsssReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong (
-      (long)async_dsss_receiver_get_code_locked (self->handle));
+      (long)dp_async_dsss_receiver_get_code_locked (self->handle));
 }
 
 static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
@@ -836,7 +844,7 @@ CellAsyncDsssReceiverObj_destroy (CellAsyncDsssReceiverObject *self,
 {
   if (self->handle)
     {
-      async_dsss_receiver_destroy (self->handle);
+      dp_async_dsss_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -857,7 +865,7 @@ CellAsyncDsssReceiverObj_exit (CellAsyncDsssReceiverObject *self,
   (void)args;
   if (self->handle)
     {
-      async_dsss_receiver_destroy (self->handle);
+      dp_async_dsss_receiver_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

@@ -12,18 +12,18 @@ serializable = "true"
 create_error = "ValueError"
 create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
 # The under-powered UserWarning is declared (gh-481): its condition is a
-# bool field of burst_acq_state_t, which mirrors the engine's at
+# bool field of dp_burst_acq_state_t, which mirrors the engine's at
 # construction -- the same warning objects/acq.toml declares.
 warnings = [
   { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstAcquisition is under-powered: pd_burst < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow doppler_uncertainty." },
 ]
-# Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
+# Composes acq's shared engine (dp_acq_state_t/acq_core.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
 # unchanged, including its wideband fallback for doppler_uncertainty beyond
 # the native span (coherent depth structurally can't cover more than one
 # native span, regardless of class). The hand-written burst_acq_core.h/.c
-# (below) is a thin forwarder onto acq_create_burst()/acq_push()/etc -- the
+# (below) is a thin forwarder onto acq_create_burst()/dp_acq_push()/etc -- the
 # entire algorithm lives in acq_core.c exactly once.
 depends_on = [
     { name = "acq", link = true },

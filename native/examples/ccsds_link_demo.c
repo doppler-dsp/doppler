@@ -147,7 +147,7 @@ transmit (void)
                              g_tx_sym + (size_t)f * SYM_PER_FRAME,
                              SYM_PER_FRAME);
     }
-  mpsk_map (g_tx_sym, TOTAL_SYM, g_mod, 2);
+  dp_mpsk_map (g_tx_sym, TOTAL_SYM, g_mod, 2);
 }
 
 /* One pass of the receiver. Returns the number of CADUs fully recovered, and
@@ -158,16 +158,16 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
 {
   /* One place answers "per rail or total power?", so a 3 dB error cannot be
      introduced here by deriving sigma by hand. */
-  const float   sigma = awgn_amplitude_for_snr (esn0_db, 1.0f);
-  const float   n0    = 2.0f * sigma * sigma;
-  awgn_state_t *ch    = awgn_create (seed, sigma);
-  awgn_generate (ch, TOTAL_SYM, g_noise, TOTAL_SYM);
-  awgn_destroy (ch);
+  const float      sigma = awgn_amplitude_for_snr (esn0_db, 1.0f);
+  const float      n0    = 2.0f * sigma * sigma;
+  dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
+  dp_awgn_generate (ch, TOTAL_SYM, g_noise, TOTAL_SYM);
+  dp_awgn_destroy (ch);
 
   for (size_t i = 0; i < TOTAL_SYM; i++)
     g_mod[i] += g_noise[i];
 
-  mpsk_soft_demap (g_mod, TOTAL_SYM, g_llr, TOTAL_SYM, 2, n0);
+  dp_mpsk_soft_demap (g_mod, TOTAL_SYM, g_llr, TOTAL_SYM, 2, n0);
 
   /* Undo the noise so the caller's modulated copy can be reused. */
   for (size_t i = 0; i < TOTAL_SYM; i++)
@@ -181,14 +181,14 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
       (*chan_errs)++;
 
   /* The capture starts SKIP_SYM symbols in, so the decoder never sees the
-     head of the stream -- and starts from viterbi_reset's all-zero prior,
+     head of the stream -- and starts from dp_viterbi_reset's all-zero prior,
      which is simply wrong here. It is a wrong PRIOR rather than a wrong
      answer: the survivor paths are determined by the data within a few
      constraint lengths, long before the first marker this finds. */
-  viterbi_state_t *v    = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
-  const size_t     n_rx = viterbi_decode (
+  dp_viterbi_state_t *v    = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
+  const size_t        n_rx = dp_viterbi_decode (
       v, g_llr + SKIP_SYM, TOTAL_SYM - SKIP_SYM, g_rx_bits, TOTAL_SYM);
-  viterbi_destroy (v);
+  dp_viterbi_destroy (v);
 
   /* Decision i is emitted after depth-1 further bits, so the output is ALIGNED
      with the decoder's input and merely stops short -- g_rx_bits[i] is the

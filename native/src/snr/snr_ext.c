@@ -40,7 +40,7 @@ _bind_snr_data_aided_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *sign_bits     = (const uint8_t *)PyArray_DATA (sign_bits_arr);
   size_t         sign_bits_len = (size_t)PyArray_SIZE (sign_bits_arr);
-  double _r = snr_data_aided_db (soft, soft_len, sign_bits, sign_bits_len);
+  double _r = dp_snr_data_aided_db (soft, soft_len, sign_bits, sign_bits_len);
   Py_DECREF (soft_arr);
   Py_DECREF (sign_bits_arr);
   return PyFloat_FromDouble (_r);
@@ -62,7 +62,7 @@ _bind_snr_m2m4_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  double                _r    = snr_m2m4_db (x, x_len);
+  double                _r    = dp_snr_m2m4_db (x, x_len);
   Py_DECREF (x_arr);
   return PyFloat_FromDouble (_r);
 }
@@ -104,8 +104,9 @@ _bind_snr_data_aided_db_series (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (sign_bits_arr);
       return NULL;
     }
-  snr_data_aided_db_series (soft, soft_len, sign_bits, sign_bits_len, window,
-                            (double *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_snr_data_aided_db_series (soft, soft_len, sign_bits, sign_bits_len,
+                               window,
+                               (double *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (soft_arr);
   Py_DECREF (sign_bits_arr);
   return _out;
@@ -137,8 +138,8 @@ _bind_snr_m2m4_db_series (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  snr_m2m4_db_series (x, x_len, window,
-                      (double *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_snr_m2m4_db_series (x, x_len, window,
+                         (double *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (x_arr);
   return _out;
 }
@@ -223,8 +224,8 @@ static PyMethodDef snr_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift.\n"
     "\n"
-    "Same estimator as snr_data_aided_db(), applied to a ``[i - window/2, i\n"
-    "+ window/2]`` window centered (clamped at the edges) on each output\n"
+    "Same estimator as dp_snr_data_aided_db(), applied to a ``[i - window/2,\n"
+    "i + window/2]`` window centered (clamped at the edges) on each output\n"
     "index -- for visualizing SNR drift vs time/index rather than reading\n"
     "one block-average scalar.\n"
     "\n"
@@ -245,7 +246,7 @@ static PyMethodDef snr_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing drift.\n"
     "\n"
-    "Same estimator as snr_m2m4_db(), applied to a ``[i - window/2, i +\n"
+    "Same estimator as dp_snr_m2m4_db(), applied to a ``[i - window/2, i +\n"
     "window/2]`` window centered (clamped at the edges) on each output\n"
     "index.\n"
     "\n"

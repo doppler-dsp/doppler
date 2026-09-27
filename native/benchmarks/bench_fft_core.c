@@ -60,7 +60,7 @@ main (void)
   jm_bench_t       _bench = { 0 };
   uint64_t         t0, t1;
   static double    t[N_CFG][ITERATIONS];
-  fft_state_t     *plan[N_SIZE] = { 0 };
+  dp_fft_state_t  *plan[N_SIZE] = { 0 };
   const size_t     n_max        = sizes[N_SIZE - 1];
   float _Complex  *in32 = NULL, *out32 = NULL;
   double _Complex *in64 = NULL, *out64 = NULL;
@@ -96,7 +96,7 @@ main (void)
 
   for (int s = 0; s < N_SIZE; s++)
     {
-      plan[s] = fft_create (sizes[s], FFT_FORWARD, 1);
+      plan[s] = dp_fft_create (sizes[s], FFT_FORWARD, 1);
       if (!plan[s])
         return 1;
     }
@@ -105,7 +105,7 @@ main (void)
   printf ("%d rounds, min over rounds\n\n", ITERATIONS);
 
   DP_BENCH_SETTLE (
-      fft_execute_cf32 (plan[0], in32, sizes[0], out32, sizes[0]));
+      dp_fft_execute_cf32 (plan[0], in32, sizes[0], out32, sizes[0]));
 
   /* Rounds outside, (size, format) inside: every number here is read
      against another one -- format against format at one size, size
@@ -119,13 +119,13 @@ main (void)
           switch (k)
             {
             case CFG_CF32:
-              fft_execute_cf32 (plan[s], in32, n, out32, n);
+              dp_fft_execute_cf32 (plan[s], in32, n, out32, n);
               break;
             case CFG_CF64:
-              fft_execute_cf64 (plan[s], in64, n, out64, n);
+              dp_fft_execute_cf64 (plan[s], in64, n, out64, n);
               break;
             case CFG_INPLACE:
-              fft_execute_inplace_cf32 (plan[s], in32, n, out32, n);
+              dp_fft_execute_inplace_cf32 (plan[s], in32, n, out32, n);
               break;
             case CFG_CI16:
               fft_execute_ci16 (plan[s], in16, n, out32);
@@ -179,7 +179,7 @@ main (void)
           "  paying for itself and the difference is the format.\n");
 
   for (int s = 0; s < N_SIZE; s++)
-    fft_destroy (plan[s]);
+    dp_fft_destroy (plan[s]);
   free (in32);
   free (out32);
   free (in64);

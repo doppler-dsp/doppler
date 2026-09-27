@@ -79,7 +79,7 @@
  *
  * The flush is the CALLER's, which is the composition API's contract
  * (`mpsk_rx_tlm_flush`: "Out-of-line on purpose; callers gate on
- * `l->tlm.ctx`"). `mpsk_receiver_steps()` does it for you and pins
+ * `l->tlm.ctx`"). `dp_mpsk_receiver_steps()` does it for you and pins
  * `RATESYNC_TED_GARDNER`; this harness needs DTTL, so it steps and flushes
  * itself. Omitting that flush is why an earlier version of this measurement
  * came back with only the two AGC probes populated and every loop probe
@@ -230,7 +230,7 @@ rx_dyn_measure (int ted, const char *path)
   /* Stage 2 -- IMPAIR. One call moves the carrier and every clock together,
      because a Doppler shift dilates the whole received time base. */
   {
-    doppler_channel_state_t *ch = doppler_channel_create (
+    dp_doppler_channel_state_t *ch = dp_doppler_channel_create (
         fs, RX_DYN_CARRIER_HZ, 0.0, RX_DYN_RATE_PPM_S);
     size_t got = 0;
     if (!ch)
@@ -240,10 +240,10 @@ rx_dyn_measure (int ted, const char *path)
         size_t m = nsamp - o < DOPPLER_CHANNEL_MAX_BLOCK
                        ? nsamp - o
                        : DOPPLER_CHANNEL_MAX_BLOCK;
-        got += doppler_channel_execute (ch, x + o, m, y + got, nsamp - got);
+        got += dp_doppler_channel_execute (ch, x + o, m, y + got, nsamp - got);
       }
     nsamp = got;
-    doppler_channel_destroy (ch);
+    dp_doppler_channel_destroy (ch);
   }
 
   /* Stage 3 -- AWGN at the stated matched-filter-output Es/N0. */
@@ -267,11 +267,11 @@ rx_dyn_measure (int ted, const char *path)
 
   /* Stage 4 -- the receiver, with its own telemetry attached. */
   {
-    const size_t           BL  = 1024;
-    dp_tlm_t              *tlm = NULL;
-    dp_tlm_capture_t      *cap = NULL;
-    dp_sample_clock_t      clk;
-    mpsk_receiver_state_t *rx = mpsk_receiver_create (
+    const size_t              BL  = 1024;
+    dp_tlm_t                 *tlm = NULL;
+    dp_tlm_capture_t         *cap = NULL;
+    dp_sample_clock_t         clk;
+    dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create (
         2, RX_DYN_SPS, RX_DYN_M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
         RX_DYN_BN_CARRIER, 0.0, RX_DYN_BN_TIMING, 0.0, 0.0, 0, 0, 1, 0.0);
     size_t nsym_seen = 0;
@@ -287,7 +287,7 @@ rx_dyn_measure (int ted, const char *path)
       {
         /* Probes FIRST: the capture sizes its ring from the probe table. */
         tlm = dp_tlm_create (1u << 16);
-        if (tlm && mpsk_receiver_set_telemetry (rx, tlm, "rx", 1) == 0)
+        if (tlm && dp_mpsk_receiver_set_telemetry (rx, tlm, "rx", 1) == 0)
           {
             dp_sample_clock_init (&clk, fs, 0);
             cap = dp_tlm_capture_open (tlm, BL, path, &clk);
@@ -310,7 +310,7 @@ rx_dyn_measure (int ted, const char *path)
               mpsk_rx_tlm_flush (&rx->l, sym);
 
             {
-              double lk = mpsk_receiver_get_lock (rx);
+              double lk = dp_mpsk_receiver_get_lock (rx);
               nsym_seen++;
               /* The settled half of the quiet stretch: the first half is the
                  cold-start transient and averaging it in would report
@@ -336,16 +336,16 @@ rx_dyn_measure (int ted, const char *path)
     r.lock_quiet   = n_quiet ? s_quiet / (double)n_quiet : -2.0;
     r.lock_min     = lmin;
     r.lock_recover = lrec;
-    r.lock_end     = mpsk_receiver_get_lock (rx);
+    r.lock_end     = dp_mpsk_receiver_get_lock (rx);
     r.rate_end     = rx->l.timing.rate_est;
-    r.nco_end      = mpsk_receiver_get_norm_freq (rx);
-    r.clipped      = mpsk_receiver_get_clipped (rx);
+    r.nco_end      = dp_mpsk_receiver_get_norm_freq (rx);
+    r.clipped      = dp_mpsk_receiver_get_clipped (rx);
 
     if (cap)
       dp_tlm_capture_close (cap);
     if (tlm)
       dp_tlm_destroy (tlm);
-    mpsk_receiver_destroy (rx);
+    dp_mpsk_receiver_destroy (rx);
   }
 
 done:

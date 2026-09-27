@@ -37,15 +37,15 @@
  * Lifecycle
  * ---------
  * @code
- *   hbdecim_q15_state_t *r = hbdecim_q15_create(num_taps, h_fir);
+ *   dp_hbdecim_q15_state_t *r = dp_hbdecim_q15_create(num_taps, h_fir);
  *   // in:  interleaved int16_t IQ, 2*n_in elements
  *   // out: interleaved int16_t IQ, 2*n_out elements (n_out <= n_in/2)
- *   size_t n = hbdecim_q15_execute(r, in, n_in, out, max_out);
- *   hbdecim_q15_destroy(r);
+ *   size_t n = dp_hbdecim_q15_execute(r, in, n_in, out, max_out);
+ *   dp_hbdecim_q15_destroy(r);
  * @endcode
  */
-#ifndef HBDECIM_Q15_CORE_H
-#define HBDECIM_Q15_CORE_H
+#ifndef DP_HBDECIM_Q15_CORE_H
+#define DP_HBDECIM_Q15_CORE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -81,7 +81,7 @@ typedef struct {
     int      has_pending; /* 1 when a trailing even IQ pair is buffered    */
     int16_t  pending_I;
     int16_t  pending_Q;
-} hbdecim_q15_state_t;
+} dp_hbdecim_q15_state_t;
 
 /**
  * @brief Allocate and initialise a fixed-point halfband 2:1 decimator.
@@ -104,7 +104,7 @@ typedef struct {
  * 0.5
  * @endcode
  */
-hbdecim_q15_state_t *hbdecim_q15_create(size_t num_taps, const float *h);
+dp_hbdecim_q15_state_t *dp_hbdecim_q15_create(size_t num_taps, const float *h);
 
 /**
  * @brief Free all heap resources owned by the decimator state.
@@ -124,7 +124,7 @@ hbdecim_q15_state_t *hbdecim_q15_create(size_t num_taps, const float *h);
  * dtype('int16')
  * @endcode
  */
-void hbdecim_q15_destroy(hbdecim_q15_state_t *r);
+void dp_hbdecim_q15_destroy(dp_hbdecim_q15_state_t *r);
 
 /**
  * @brief Zero all delay rings and clear the pending-sample flag.
@@ -146,7 +146,7 @@ void hbdecim_q15_destroy(hbdecim_q15_state_t *r);
  * [0, 0, 625, 0]
  * @endcode
  */
-void hbdecim_q15_reset(hbdecim_q15_state_t *r);
+void dp_hbdecim_q15_reset(dp_hbdecim_q15_state_t *r);
 
 /**
  * @brief Decimate a block of interleaved IQ int16 samples by 2.
@@ -181,7 +181,7 @@ void hbdecim_q15_reset(hbdecim_q15_state_t *r);
  * [0, 0, 625, 0]
  * @endcode
  */
-size_t hbdecim_q15_execute(hbdecim_q15_state_t *r,
+size_t dp_hbdecim_q15_execute(dp_hbdecim_q15_state_t *r,
                            const int16_t *in, size_t n_in,
                            int16_t *out, size_t max_out);
 
@@ -191,7 +191,7 @@ size_t hbdecim_q15_execute(hbdecim_q15_state_t *r,
  * Returns 0 to trigger the lazy-alloc path in the Python glue: the
  * output buffer is sized to n_in on first call (always sufficient for 2:1).
  */
-size_t hbdecim_q15_execute_max_out(hbdecim_q15_state_t *r);
+size_t dp_hbdecim_q15_execute_max_out(dp_hbdecim_q15_state_t *r);
 
 /**
  * @brief The sample-rate reduction factor; always 0.5 for 2:1 decimation.
@@ -205,7 +205,7 @@ size_t hbdecim_q15_execute_max_out(hbdecim_q15_state_t *r);
  * 0.5
  * @endcode
  */
-double hbdecim_q15_get_rate(const hbdecim_q15_state_t *r);
+double dp_hbdecim_q15_get_rate(const dp_hbdecim_q15_state_t *r);
 
 /**
  * @brief FIR branch length as supplied to the constructor.
@@ -220,15 +220,15 @@ double hbdecim_q15_get_rate(const hbdecim_q15_state_t *r);
  * 3
  * @endcode
  */
-size_t hbdecim_q15_get_num_taps(const hbdecim_q15_state_t *r);
+size_t dp_hbdecim_q15_get_num_taps(const dp_hbdecim_q15_state_t *r);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack four dual-write rings + heads + pending; coeffs restored by create. */
 #define HBDECIM_Q15_STATE_MAGIC DP_FOURCC ('H','B','1','5')
 #define HBDECIM_Q15_STATE_VERSION 1u
-size_t hbdecim_q15_state_bytes (const hbdecim_q15_state_t *state);
-void hbdecim_q15_get_state (const hbdecim_q15_state_t *state, void *blob);
-int hbdecim_q15_set_state (hbdecim_q15_state_t *state, const void *blob);
+size_t dp_hbdecim_q15_state_bytes (const dp_hbdecim_q15_state_t *state);
+void dp_hbdecim_q15_get_state (const dp_hbdecim_q15_state_t *state, void *blob);
+int dp_hbdecim_q15_set_state (dp_hbdecim_q15_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

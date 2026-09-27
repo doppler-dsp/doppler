@@ -9,18 +9,18 @@
 #define PPE_OVERSAMPLE 2.0
 #define PPE_MAX_RATE_BINS 8192
 
-ppe_state_t *
-ppe_create (size_t max_len, double max_rate)
+dp_ppe_state_t *
+dp_ppe_create (size_t max_len, double max_rate)
 {
   if (max_len < 4 || max_rate < 0.0)
     return NULL;
-  ppe_state_t *s = calloc (1, sizeof (*s));
+  dp_ppe_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
   s->max_len = max_len;
   /* 4x zero-pad: finer frequency grid + accurate parabolic peak interpolation
    * (the input is often short — preamble partials / symbol streams). */
-  s->nfft     = next_pow_two (max_len) << 2;
+  s->nfft     = dp_next_pow_two (max_len) << 2;
   s->max_rate = max_rate;
 
   /* Chirp-rate grid: resolution ~ 1/L^2 (a rate error r smears the dechirped
@@ -45,7 +45,7 @@ ppe_create (size_t max_len, double max_rate)
       s->drate  = 2.0 * max_rate / (double)(nr - 1);
     }
 
-  s->fft    = fft_create (s->nfft, -1, 1); /* forward */
+  s->fft    = dp_fft_create (s->nfft, -1, 1); /* forward */
   s->buf    = malloc (s->nfft * sizeof (float _Complex));
   s->spec   = malloc (s->nfft * sizeof (float _Complex));
   s->mag    = malloc (s->nfft * sizeof (float));
@@ -55,19 +55,19 @@ ppe_create (size_t max_len, double max_rate)
   if (!s->fft || !s->buf || !s->spec || !s->mag || !s->win || !s->rowpk
       || !s->rowfrq)
     {
-      ppe_destroy (s);
+      dp_ppe_destroy (s);
       return NULL;
     }
   return s;
 }
 
 void
-ppe_destroy (ppe_state_t *s)
+dp_ppe_destroy (dp_ppe_state_t *s)
 {
   if (!s)
     return;
   if (s->fft)
-    fft_destroy (s->fft);
+    dp_fft_destroy (s->fft);
   free (s->buf);
   free (s->spec);
   free (s->mag);
@@ -78,7 +78,7 @@ ppe_destroy (ppe_state_t *s)
 }
 
 void
-ppe_reset (ppe_state_t *s)
+dp_ppe_reset (dp_ppe_state_t *s)
 {
   (void)s; /* no running state */
 }
@@ -87,7 +87,7 @@ ppe_reset (ppe_state_t *s)
  * s->win, FFT, and return the dominant peak's DC-centred normalized frequency
  * (@p freq) and its peak-to-mean prominence in dB (@p ptm). */
 static void
-row_peak (ppe_state_t *s, const float _Complex *y, size_t len, double r,
+row_peak (dp_ppe_state_t *s, const float _Complex *y, size_t len, double r,
           double *freq, double *peak_out, double *ptm)
 {
   const size_t nfft = s->nfft;
@@ -100,8 +100,8 @@ row_peak (ppe_state_t *s, const float _Complex *y, size_t len, double r,
   for (size_t m = len; m < nfft; m++)
     s->buf[m] = 0.0f;
 
-  fft_execute_cf32 (s->fft, s->buf, nfft, s->spec, nfft);
-  magnitude_db_cf32 (s->spec, nfft, s->mag, 1e-20f, 0.0f);
+  dp_fft_execute_cf32 (s->fft, s->buf, nfft, s->spec, nfft);
+  dp_magnitude_db_cf32 (s->spec, nfft, s->mag, 1e-20f, 0.0f);
 
   /* find_peaks_f32 expects a DC-centred spectrum; swap halves in place. */
   const size_t h = nfft / 2;
@@ -114,7 +114,7 @@ row_peak (ppe_state_t *s, const float _Complex *y, size_t len, double r,
 
   dp_peak_t pk;
   double    fn, peak_db;
-  if (find_peaks_f32 (s->mag, nfft, 1, -1.0e30f, &pk) >= 1)
+  if (dp_find_peaks_f32 (s->mag, nfft, 1, -1.0e30f, &pk) >= 1)
     {
       fn      = (double)pk.freq_norm;
       peak_db = (double)pk.amplitude_db;
@@ -138,14 +138,14 @@ row_peak (ppe_state_t *s, const float _Complex *y, size_t len, double r,
 }
 
 ppe_result_t
-ppe_estimate (ppe_state_t *s, const float _Complex *y, size_t L)
+dp_ppe_estimate (dp_ppe_state_t *s, const float _Complex *y, size_t L)
 {
   ppe_result_t r = { 0.0, 0.0, 0.0 };
   if (L < 4 || L > s->max_len)
     return r;
 
   /* The taper is identical for every rate row — compute it once. */
-  kaiser_window (s->win, L, (float)kaiser_beta_for_sidelobe (50.0));
+  dp_kaiser_window (s->win, L, (float)dp_kaiser_beta_for_sidelobe (50.0));
 
   /* Scan the chirp-rate hypotheses; the dechirp that concentrates the spectrum
    * best (max peak-to-mean) is the true rate. */

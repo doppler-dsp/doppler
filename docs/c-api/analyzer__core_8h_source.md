@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef ANALYZER_CORE_H
-#define ANALYZER_CORE_H
+#ifndef DP_ANALYZER_CORE_H
+#define DP_ANALYZER_CORE_H
 
 #include "doppler/clib_common.h"
 

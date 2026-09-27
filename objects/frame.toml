@@ -51,7 +51,7 @@ depends_on = [
     { name = "gold", link = true },
     # hex and value field literals expand through cvt's int_to_bin /
     # hex_to_bin rather than a second parser here. This object is where the
-    # link belongs because it is where the STORAGE is: frame_state_t already
+    # link belongs because it is where the STORAGE is: dp_frame_state_t already
     # owns a copy of every literal field, and the descriptor itself keeps
     # borrowed pointers on purpose.
     { name = "cvt", link = true },

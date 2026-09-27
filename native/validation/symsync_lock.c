@@ -3,7 +3,7 @@
  * @brief Monte-Carlo validation: SymbolSync's timing-lock detector actually
  *        hits its configured (pfa, pd) operating point.
  *
- * symsync_configure_lock()'s (avgs, threshold) sizing is a formula supplied
+ * dp_symsync_configure_lock()'s (avgs, threshold) sizing is a formula supplied
  * directly by a doppler user (not re-derived against a primary source --
  * see symsync_core.c's SYMSYNC_LOCK_DEFAULT_* comment). This harness is the
  * empirical check that formula actually delivers the (pfa, pd) it claims,
@@ -11,7 +11,7 @@
  *
  *  - PFA: feed pure AWGN, recompute lock_signal independently per symbol
  *    (reading the object's public on-time/mid state directly, bypassing its
- *    own lockdet_step/locked hysteresis so this measures the *raw*
+ *    own dp_lockdet_step/locked hysteresis so this measures the *raw*
  *    per-block declare rate, not the sticky whole-run flag), block-average
  *    over the configured avgs looks, and count how often that average
  *    exceeds the configured threshold.
@@ -57,7 +57,7 @@ rc (double t, double beta, double T)
 
 /* Same statistic as symsync_step_ted()'s lock_signal, recomputed
  * independently so the block average here is untouched by the object's own
- * lockdet_step/n_up/n_down hysteresis (which would make a raw pfa/pd
+ * dp_lockdet_step/n_up/n_down hysteresis (which would make a raw pfa/pd
  * measurement whole-run-sticky rather than per-decision). */
 static double
 lock_signal (float complex y, float complex mid)
@@ -72,12 +72,12 @@ lock_signal (float complex y, float complex mid)
 static double
 measure_pfa (size_t avgs, double threshold, long n_blocks, uint32_t seed)
 {
-  symsync_state_t *s
-      = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-  uint32_t st  = seed;
-  long     got = 0, exceed = 0;
-  double   block_sum = 0.0;
-  size_t   block_n   = 0;
+  dp_symsync_state_t *s   = dp_symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC,
+                                               SYMSYNC_TED_GARDNER);
+  uint32_t            st  = seed;
+  long                got = 0, exceed = 0;
+  double              block_sum = 0.0;
+  size_t              block_n   = 0;
   while (got < n_blocks)
     {
       float complex x = dp_cgauss (&st);
@@ -95,7 +95,7 @@ measure_pfa (size_t avgs, double threshold, long n_blocks, uint32_t seed)
             }
         }
     }
-  symsync_destroy (s);
+  dp_symsync_destroy (s);
   return (double)exceed / (double)n_blocks;
 }
 
@@ -112,13 +112,13 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
   float complex *rx   = malloc (n * sizeof (*rx));
   int           *bits = malloc (chunk_sym * sizeof (*bits));
 
-  symsync_state_t *s
-      = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-  uint32_t bit_st = 999u, noise_st = 4242u;
-  long     got = 0, exceed = 0;
-  double   block_sum = 0.0;
-  size_t   block_n   = 0;
-  int      warmed_up = 0;
+  dp_symsync_state_t *s = dp_symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC,
+                                             SYMSYNC_TED_GARDNER);
+  uint32_t            bit_st = 999u, noise_st = 4242u;
+  long                got = 0, exceed = 0;
+  double              block_sum = 0.0;
+  size_t              block_n   = 0;
+  int                 warmed_up = 0;
 
   while (got < n_blocks)
     {
@@ -169,7 +169,7 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
     }
   free (rx);
   free (bits);
-  symsync_destroy (s);
+  dp_symsync_destroy (s);
   return (double)exceed / (double)n_blocks;
 }
 
@@ -180,16 +180,16 @@ main (int argc, char **argv)
 
   const double rolloff = 0.35, esno_min_db = 10.0, pfa = 1e-3, pd = 0.9;
 
-  /* Derive (avgs, threshold) exactly as symsync_configure_lock() does, so
+  /* Derive (avgs, threshold) exactly as dp_symsync_configure_lock() does, so
    * this harness stays honest about what the *shipped* defaults produce
    * (not a hand-copied constant that could drift from the real formula). */
-  symsync_state_t *probe
-      = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-  (void)symsync_configure_lock (probe, rolloff, esno_min_db, pfa, pd);
+  dp_symsync_state_t *probe = dp_symsync_create (
+      SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+  (void)dp_symsync_configure_lock (probe, rolloff, esno_min_db, pfa, pd);
   size_t avgs = probe->avgs;
   double threshold
       = probe->lock.up_thresh; /* configure_lock sets up == down */
-  symsync_destroy (probe);
+  dp_symsync_destroy (probe);
 
   long pfa_blocks = check ? 5000 : 500000;
   long pd_blocks  = check ? 500 : 2000;

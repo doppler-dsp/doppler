@@ -83,7 +83,7 @@ class LoopFilter:
         """Filter a whole block of loop errors, returning the control value for
         each update.
 
-        Equivalent to calling loop_filter_step() once per element of x in
+        Equivalent to calling dp_loop_filter_step() once per element of x in
         order, carrying the integrator across the block, so the loop's memory
         and lock state persist from one call to the next. This is the block
         path used to run a captured error sequence through the filter in one
@@ -410,7 +410,7 @@ class Costas:
         lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator
         output — the loop stress), "<prefix>.freq" (the tracked NCO frequency,
         cycles/sample) and "<prefix>.locked" (the verify-counted lock decision,
-        0/1 — see costas_configure_lock). Passing NULL detaches. Setup path,
+        0/1 — see dp_costas_configure_lock). Passing NULL detaches. Setup path,
         never hot: call before the producer thread starts stepping; the context
         is borrowed and must outlive the attachment (SPSC rules in
         dp_tlm/dp_tlm_core.h).
@@ -962,7 +962,7 @@ class Dll:
         when none were -- the Python face of the primitive.
 
         The block-mean discriminator a holder corrects a coasting loop on
-        (dll_set_code_phase()), read once per interval; each read starts the
+        (dp_dll_set_code_phase()), read once per interval; each read starts the
         next interval's sum from zero.
 
         Returns
@@ -1050,7 +1050,7 @@ class Dll:
         segments <= 1 or the period is in (0, 2).
 
         In `segments > 1` mode every partial is a look for the code-lock
-        detector (dll_configure_lock()) and the discriminator sees one epoch
+        detector (dp_dll_configure_lock()) and the discriminator sees one epoch
         through the per-epoch look-back: the smallest integrations the
         asynchronous data allows when nothing is known about where its
         transitions fall, and therefore the weakest. This is the same max-power
@@ -1129,8 +1129,8 @@ class Dll:
         decision). The running verify counter and the flag restart. Raises
         ValueError when either count is 0.
 
-        dll_configure_lock() derives the declare count from `pfa` and fixes the
-        drop count at 2. A caller that has sized `n_looks` for a target Pd
+        dp_dll_configure_lock() derives the declare count from `pfa` and fixes
+        the drop count at 2. A caller that has sized `n_looks` for a target Pd
         knows the per-decision miss probability `1 - pd`, and
         det_verify_count(1 - pd, budget) is the drop count that holds the
         false-drop rate under a budget -- three consecutive misses for pd =
@@ -1206,9 +1206,9 @@ class Dll:
         n_looks with det_n_noncoh(snr, ...) for the operating C/N0.
 
         The noise-reference EMA bandwidth is sized probabilistically via
-        det_ema_alpha(): the signal-free `|O|^2` samples are exponential (0 dB
-        estimator SNR per sample — a DC level in fluctuation of equal power),
-        and ref_snr_db chooses the EMA output's estimator SNR
+        dp_det_ema_alpha(): the signal-free `|O|^2` samples are exponential (0
+        dB estimator SNR per sample — a DC level in fluctuation of equal
+        power), and ref_snr_db chooses the EMA output's estimator SNR
         (mean^2/variance). Passing 0 derives it from n_looks: the reference's
         relative std is held to an eighth of the statistic's intrinsic H0
         spread (`1/sqrt(N)`), floored at ~33 dB — which reproduces the classic
@@ -1230,7 +1230,7 @@ class Dll:
         drops only after 2 straight below-threshold decisions, so a statistic
         grazing the threshold cannot chatter the flag. Full control of the
         verify counts and a split declare/drop threshold pair is C-only via
-        dll_configure_lock_raw().
+        dp_dll_configure_lock_raw().
 
         Parameters
         ----------
@@ -1286,19 +1286,19 @@ class Dll:
         detection.det_verify_count. Read the result from the locked / lock_stat
         / noise_est properties.
 
-        The escape hatch under dll_configure_lock() for a composing C caller
+        The escape hatch under dp_dll_configure_lock() for a composing C caller
         that derives its own threshold/EMA/hysteresis geometry — the full
         lockdet decision rule is exposed: a split declare/drop threshold pair
         (level hysteresis) and both verify counts (time hysteresis; size them
-        with det_verify_count()). Re-tuning clears the in-flight statistic and
-        drops the lock so the next decision uses only looks gathered under the
-        new config.
+        with dp_det_verify_count()). Re-tuning clears the in-flight statistic
+        and drops the lock so the next decision uses only looks gathered under
+        the new config.
 
         Parameters
         ----------
         up_thresh : float
             Declare threshold on the statistic R (e.g. the CFAR eta from
-            det_threshold_noncoherent()).
+            dp_det_threshold_noncoherent()).
         down_thresh : float
             Drop threshold on R; choose <= up_thresh for level hysteresis.
         n_looks : int
@@ -1731,8 +1731,8 @@ class SymbolSync:
         oversized); 2000/2000 true declares at the esno_min design SNR against
         a nominal pd=0.9 -- see native/validation/symsync_lock.c for the
         harness. No level hysteresis by default (up = down = threshold,
-        matching dll_configure_lock's shape); the raw escape hatch
-        (symsync_configure_lock_raw) exposes split thresholds, an explicit
+        matching dp_dll_configure_lock's shape); the raw escape hatch
+        (dp_symsync_configure_lock_raw) exposes split thresholds, an explicit
         avgs, and independent n_up/n_down.
 
         Parameters
@@ -1784,7 +1784,7 @@ class SymbolSync:
         the in-flight block sum and drops the lock so the next decision uses
         only looks gathered under the new config.
 
-        The escape hatch under symsync_configure_lock() for a caller that
+        The escape hatch under dp_symsync_configure_lock() for a caller that
         derives its own averaging/threshold geometry: the block size (avgs), a
         split declare/drop threshold pair on lock_stat (level hysteresis), and
         both verify counts (time hysteresis). Re-tuning clears the in-flight
@@ -2590,7 +2590,7 @@ class CarrierMpsk:
         Returns the NCO to the seed carrier passed at construction, zeroes the
         integrate-and-dump accumulator, the FLL history, and the lock/error
         diagnostics, and re-primes the loop integrator to the matching
-        per-symbol frequency — the exact state a fresh carrier_mpsk_create()
+        per-symbol frequency — the exact state a fresh dp_carrier_mpsk_create()
         leaves. The tuning (bn, zeta, bn_fll, tsamps, m) is untouched. Call it
         at a capture boundary so a lock reached on one segment does not bias an
         unrelated next one.
@@ -2934,7 +2934,7 @@ class CarrierNda:
         n_up rather than lower it unless you have re-measured. A live lock
         survives the re-tune; the in-flight verify run restarts.
 
-        Full lockdet control, mirroring costas_configure_lock(): a split
+        Full lockdet control, mirroring dp_costas_configure_lock(): a split
         declare/drop threshold pair on the lock-signal EMA (level hysteresis)
         and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32
         down) start from MpskReceiver's own pre-existing acquisition<->
@@ -3305,7 +3305,7 @@ class MpskReceiver:
         ".lock" / ".locked" / ".mu" -- ten probes emitted once per recovered
         symbol -- then the front end's AGC under "<prefix>.agc"
         ("<prefix>.agc.gain_db" and "<prefix>.agc.level_db"; see
-        agc_set_telemetry()). Twelve probes total, all thinned by decim.
+        dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.
         Passing NULL detaches everything.
 
         Instrumenting it matters because it is FIRST in the chain, and a level
@@ -3467,10 +3467,10 @@ class MpskReceiver:
         (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the
         symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
-        Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
-        nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
-        the differential option set at create time, the Gray label is taken
-        from the phase *difference* between consecutive symbols
+        Like dp_mpsk_receiver_steps(), but each recovered symbol is sliced to
+        its nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first).
+        With the differential option set at create time, the Gray label is
+        taken from the phase *difference* between consecutive symbols
         (rotation-invariant — it resolves the M-fold carrier ambiguity), else
         from the absolute (coherent) decision.
 
@@ -3879,7 +3879,7 @@ class BpskReceiver:
         ".lock" / ".locked" / ".mu" -- ten probes emitted once per recovered
         symbol -- then the front end's AGC under "<prefix>.agc"
         ("<prefix>.agc.gain_db" and "<prefix>.agc.level_db"; see
-        agc_set_telemetry()). Twelve probes total, all thinned by decim.
+        dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.
         Passing NULL detaches everything.
 
         Instrumenting it matters because it is FIRST in the chain, and a level
@@ -4041,10 +4041,10 @@ class BpskReceiver:
         (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the
         symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
-        Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
-        nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
-        the differential option set at create time, the Gray label is taken
-        from the phase *difference* between consecutive symbols
+        Like dp_mpsk_receiver_steps(), but each recovered symbol is sliced to
+        its nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first).
+        With the differential option set at create time, the Gray label is
+        taken from the phase *difference* between consecutive symbols
         (rotation-invariant — it resolves the M-fold carrier ambiguity), else
         from the absolute (coherent) decision.
 
@@ -4380,7 +4380,7 @@ class MpskReceiverR:
     Parameters
     ----------
     m : int, default 4
-        As mpsk_receiver_create().
+        As dp_mpsk_receiver_create().
     sps : float, default 32.0
         Samples per symbol. Any double **strictly greater than `2 * m_out`**
         (the cascade behind the R2C halfband runs at twice the overall rate,
@@ -4411,18 +4411,18 @@ class MpskReceiverR:
         (NDA arm dumps per symbol): the cascade's own outputs now feed the
         carrier discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
-        As mpsk_receiver_create().
+        As dp_mpsk_receiver_create().
     rrc_beta : float, default 0.35
-        As mpsk_receiver_create().
+        As dp_mpsk_receiver_create().
     rrc_span : int, default 8
-        As mpsk_receiver_create().
+        As dp_mpsk_receiver_create().
     bn_carrier : float, default 0.01
-        As mpsk_receiver_create(). Still normalised to the SYMBOL rate: the
+        As dp_mpsk_receiver_create(). Still normalised to the SYMBOL rate: the
         halfband moves the LO's clock, not the loop's units.
     zeta : float, default 0.0
-        As mpsk_receiver_create(); 0 derives.
+        As dp_mpsk_receiver_create(); 0 derives.
     bn_timing : float, default 0.01
-        As mpsk_receiver_create().
+        As dp_mpsk_receiver_create().
     lock_thresh : float, default 0.0
         Declare threshold for the carrier lock indicator, on the carrier lock
         EMA. **0 (the default) derives it** as `sigma_H0 * eta(Pfa)` = 0.4999
@@ -4440,7 +4440,7 @@ class MpskReceiverR:
         not acquire from a cold zero: a real IF must be tuned near, so this is
         the centre a tap buys pull-in *around* rather than from nothing.
     differential : int, default 0
-        As mpsk_receiver_create().
+        As dp_mpsk_receiver_create().
     num_phases : int, default 0
         Matched-filter bank arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period. **0 (the default)
@@ -4542,7 +4542,7 @@ class MpskReceiverR:
         ".lock" / ".locked" / ".mu" -- ten probes emitted once per recovered
         symbol -- then the front end's AGC under "<prefix>.agc"
         ("<prefix>.agc.gain_db" and "<prefix>.agc.level_db"; see
-        agc_set_telemetry()). Twelve probes total, all thinned by decim.
+        dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.
         Passing NULL detaches everything.
 
         Instrumenting it matters because it is FIRST in the chain, and a level
@@ -4672,9 +4672,9 @@ class MpskReceiverR:
         bits(differential) or a sync word. Read norm_freq for the tracked
         carrier and lock for the carrier lock metric.
 
-        mpsk_receiver_steps() taking real samples: the R2C halfband makes them
-        complex before anything else touches them, and the per-sample body is
-        the same one. Requires a state built by mpsk_receiver_create_real().
+        dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes
+        them complex before anything else touches them, and the per-sample body
+        is the same one. Requires a state built by mpsk_receiver_create_real().
 
         Parameters
         ----------
@@ -4733,7 +4733,7 @@ class MpskReceiverR:
         (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the
         symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
-        mpsk_receiver_bits() taking real samples. Requires a state built by
+        dp_mpsk_receiver_bits() taking real samples. Requires a state built by
         mpsk_receiver_create_real().
 
         Parameters

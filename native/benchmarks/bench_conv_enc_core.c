@@ -8,7 +8,7 @@
  *                    cost should not move with k. Measured because that
  *                    asymmetry is the reason the two are separate objects,
  *                    and because "should not move" is a prediction.
- *   object vs raw    conv_enc_encode is one call to conv_encode over a code
+ *   object vs raw    dp_conv_enc_encode is one call to conv_encode over a code
  *                    and register held together. The header claims it adds
  *                    nothing; this is what that costs in nanoseconds.
  *
@@ -81,11 +81,11 @@ main (void)
   printf ("=== conv_enc benchmark ===\n");
   printf ("rate 1/2, %zu info bits/round, %d rounds\n\n", n_in, ITERATIONS);
 
-  conv_enc_state_t *enc[N_CODES];
-  static double     t_enc[N_CODES][ITERATIONS];
+  dp_conv_enc_state_t *enc[N_CODES];
+  static double        t_enc[N_CODES][ITERATIONS];
   for (size_t c = 0; c < N_CODES; c++)
     {
-      enc[c] = conv_enc_create (CODES[c].poly, 2, CODES[c].k, 0u);
+      enc[c] = dp_conv_enc_create (CODES[c].poly, 2, CODES[c].k, 0u);
       if (!enc[c])
         {
           (void)fprintf (stderr, "bench_conv_enc: create(k=%u) NULL\n",
@@ -93,7 +93,7 @@ main (void)
           return 1;
         }
       /* An encoder that emitted nothing would time the refusal. */
-      if (conv_enc_encode (enc[c], in, n_in, out, n_sym) != n_sym)
+      if (dp_conv_enc_encode (enc[c], in, n_in, out, n_sym) != n_sym)
         {
           (void)fprintf (stderr, "bench_conv_enc: k=%u wrote nothing\n",
                          CODES[c].k);
@@ -106,7 +106,7 @@ main (void)
   w0 = jm_bench_now_ns ();
   do
     {
-      sink += conv_enc_encode (enc[0], in, n_in, out, n_sym);
+      sink += dp_conv_enc_encode (enc[0], in, n_in, out, n_sym);
       w1 = jm_bench_now_ns ();
     }
   while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -117,7 +117,7 @@ main (void)
     for (size_t c = 0; c < N_CODES; c++)
       {
         t0 = jm_bench_now_ns ();
-        sink += conv_enc_encode (enc[c], in, n_in, out, n_sym);
+        sink += dp_conv_enc_encode (enc[c], in, n_in, out, n_sym);
         t1          = jm_bench_now_ns ();
         t_enc[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -129,14 +129,14 @@ main (void)
       const double sec = min_sec (t_enc[c], ITERATIONS);
       printf ("  %-14s %14.2f %14.2f\n", CODES[c].name,
               sec / (double)n_in * 1e9, (double)n_in / sec / 1e6);
-      conv_enc_destroy (enc[c]);
+      dp_conv_enc_destroy (enc[c]);
     }
 
   /* ── what the object costs over the kernel it calls ──────────────────── */
   {
-    const conv_code_t c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
-    conv_enc_t        raw;
-    conv_enc_state_t *obj = conv_enc_create (CODES[2].poly, 2, 7u, 0x2u);
+    const conv_code_t    c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
+    conv_enc_t           raw;
+    dp_conv_enc_state_t *obj = dp_conv_enc_create (CODES[2].poly, 2, 7u, 0x2u);
     if (!obj)
       return 1;
     conv_enc_init (&raw);
@@ -150,7 +150,7 @@ main (void)
         t_raw[r] = jm_bench_elapsed_sec (t0, t1);
 
         t0 = jm_bench_now_ns ();
-        sink += conv_enc_encode (obj, in, n_in, out, n_sym);
+        sink += dp_conv_enc_encode (obj, in, n_in, out, n_sym);
         t1       = jm_bench_now_ns ();
         t_obj[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -164,7 +164,7 @@ main (void)
             "  it holds the code and the register together and calls\n"
             "  conv_encode once, which is the whole of it.\n",
             obj_s / raw_s, n_in);
-    conv_enc_destroy (obj);
+    dp_conv_enc_destroy (obj);
   }
 
   printf ("\n  Cost is flat in k: the encoder computes n parities per input\n"

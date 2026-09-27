@@ -37,7 +37,7 @@ static const double fstop[N_CFG] = { 0.40, 0.26, 0.215 };
 static size_t
 taps_for (double fp, double fs)
 {
-  return (size_t)(kaiser_num_taps (1, ATTEN_DB, fp / 2.0, fs / 2.0) | 1);
+  return (size_t)(dp_kaiser_num_taps (1, ATTEN_DB, fp / 2.0, fs / 2.0) | 1);
 }
 
 int
@@ -65,7 +65,7 @@ main (void)
   printf ("atten = %.0f dB, fpass = %.2f, %d rounds\n\n", ATTEN_DB, FPASS,
           ITERATIONS);
 
-  DP_BENCH_SETTLE (design_lowpass (FPASS, fstop[0], ATTEN_DB, out));
+  DP_BENCH_SETTLE (dp_design_lowpass (FPASS, fstop[0], ATTEN_DB, out));
 
   /* Rounds outside, designs inside: ns/tap is compared across the three,
      so a thermal step must not land on one transition width alone. */
@@ -73,7 +73,7 @@ main (void)
     for (int c = 0; c < N_CFG; c++)
       {
         t0 = jm_bench_now_ns ();
-        design_lowpass (FPASS, fstop[c], ATTEN_DB, out);
+        dp_design_lowpass (FPASS, fstop[c], ATTEN_DB, out);
         t1      = jm_bench_now_ns ();
         t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }

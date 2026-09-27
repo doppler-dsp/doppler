@@ -10,7 +10,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly */
 
 uint64_t
-mls_poly (uint32_t n)
+dp_mls_poly (uint32_t n)
 {
   return wfm_synth_mls_poly (n);
 }

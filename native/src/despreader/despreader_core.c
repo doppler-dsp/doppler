@@ -6,7 +6,7 @@
 
 /* Reset the bit-sync state (histogram + accumulators). */
 static void
-bitsync_reset (despreader_state_t *ch)
+bitsync_reset (dp_despreader_state_t *ch)
 {
   if (ch->flip_hist)
     memset (ch->flip_hist, 0, ch->periods_per_bit * sizeof (*ch->flip_hist));
@@ -19,10 +19,11 @@ bitsync_reset (despreader_state_t *ch)
 }
 
 void
-despreader_init (despreader_state_t *ch, const uint8_t *code, size_t code_len,
-                 size_t sps, double init_norm_freq, double init_chip,
-                 double bn_carrier, double bn_code, double bn_fll, double zeta,
-                 double spacing, size_t periods_per_bit)
+despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
+                 size_t code_len, size_t sps, double init_norm_freq,
+                 double init_chip, double bn_carrier, double bn_code,
+                 double bn_fll, double zeta, double spacing,
+                 size_t periods_per_bit)
 {
   size_t tsamps = (code_len ? code_len : 1) * (sps ? sps : 1);
   /* one carrier-loop update per code period (the integrate-and-dump window) */
@@ -37,15 +38,15 @@ despreader_init (despreader_state_t *ch, const uint8_t *code, size_t code_len,
   bitsync_reset (ch);
 }
 
-despreader_state_t *
-despreader_create (const uint8_t *code, size_t code_len, size_t sps,
-                   double init_norm_freq, double init_chip, double bn_carrier,
-                   double bn_code, double bn_fll, double zeta, double spacing,
-                   size_t periods_per_bit)
+dp_despreader_state_t *
+dp_despreader_create (const uint8_t *code, size_t code_len, size_t sps,
+                      double init_norm_freq, double init_chip,
+                      double bn_carrier, double bn_code, double bn_fll,
+                      double zeta, double spacing, size_t periods_per_bit)
 {
   if (!code || code_len == 0)
     return NULL;
-  despreader_state_t *ch = calloc (1, sizeof (*ch));
+  dp_despreader_state_t *ch = calloc (1, sizeof (*ch));
   if (!ch)
     return NULL;
   uint8_t *copy = malloc (code_len);
@@ -63,7 +64,7 @@ despreader_create (const uint8_t *code, size_t code_len, size_t sps,
 }
 
 void
-despreader_destroy (despreader_state_t *state)
+dp_despreader_destroy (dp_despreader_state_t *state)
 {
   if (!state)
     return;
@@ -73,22 +74,22 @@ despreader_destroy (despreader_state_t *state)
 }
 
 void
-despreader_reset (despreader_state_t *state)
+dp_despreader_reset (dp_despreader_state_t *state)
 {
-  costas_reset (&state->car);
-  dll_reset (&state->code);
+  dp_costas_reset (&state->car);
+  dp_dll_reset (&state->code);
   bitsync_reset (state);
 }
 
 int
-despreader_set_telemetry (despreader_state_t *state, dp_tlm_t *tlm,
-                          const char *prefix, uint32_t decim)
+dp_despreader_set_telemetry (dp_despreader_state_t *state, dp_tlm_t *tlm,
+                             const char *prefix, uint32_t decim)
 {
   if (!tlm) /* detach both embedded loops */
     {
       state->tlm_ctx = NULL;
-      (void)costas_set_telemetry (&state->car, NULL, prefix, decim);
-      (void)dll_set_telemetry (&state->code, NULL, prefix, decim);
+      (void)dp_costas_set_telemetry (&state->car, NULL, prefix, decim);
+      (void)dp_dll_set_telemetry (&state->code, NULL, prefix, decim);
       return DP_OK;
     }
   const char *p = prefix ? prefix : "ch";
@@ -97,14 +98,14 @@ despreader_set_telemetry (despreader_state_t *state, dp_tlm_t *tlm,
    * under "<prefix>.code"; if the second registration fails the first is
    * unwound so nothing is left half-armed. */
   (void)snprintf (name, sizeof (name), "%s.car", p);
-  int rc = costas_set_telemetry (&state->car, tlm, name, decim);
+  int rc = dp_costas_set_telemetry (&state->car, tlm, name, decim);
   if (rc != DP_OK)
     return rc;
   (void)snprintf (name, sizeof (name), "%s.code", p);
-  rc = dll_set_telemetry (&state->code, tlm, name, decim);
+  rc = dp_dll_set_telemetry (&state->code, tlm, name, decim);
   if (rc != DP_OK)
     {
-      (void)costas_set_telemetry (&state->car, NULL, p, decim);
+      (void)dp_costas_set_telemetry (&state->car, NULL, p, decim);
       return rc;
     }
   state->tlm_ctx = tlm; /* the block loops gate on this */
@@ -112,9 +113,9 @@ despreader_set_telemetry (despreader_state_t *state, dp_tlm_t *tlm,
 }
 
 /* Emit both loops' telemetry for the code period just closed. Out-of-line
- * on purpose (see the hoisted split in despreader_steps). */
+ * on purpose (see the hoisted split in dp_despreader_steps). */
 static void
-despreader_tlm_flush_ (const despreader_state_t *ch)
+despreader_tlm_flush_ (const dp_despreader_state_t *ch)
 {
   costas_tlm_flush (&ch->car);
   dll_tlm_flush (&ch->code);
@@ -124,21 +125,21 @@ despreader_tlm_flush_ (const despreader_state_t *ch)
  * running bit-sync histogram + scalars; the owned code copy is config
  * (create). */
 size_t
-despreader_state_bytes (const despreader_state_t *s)
+dp_despreader_state_bytes (const dp_despreader_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + costas_state_bytes (&s->car)
-         + dll_state_bytes (&s->code)
+  return sizeof (dp_state_hdr_t) + dp_costas_state_bytes (&s->car)
+         + dp_dll_state_bytes (&s->code)
          + (s->flip_hist ? s->periods_per_bit * sizeof (size_t) : 0)
          + 3 * sizeof (uint64_t) + sizeof (double) + 2 * sizeof (uint32_t);
 }
 
 void
-despreader_get_state (const despreader_state_t *s, void *blob)
+dp_despreader_get_state (const dp_despreader_state_t *s, void *blob)
 {
   DP_GET_OPEN (DESPREADER_STATE_MAGIC, DESPREADER_STATE_VERSION,
-               despreader_state_bytes (s));
-  DP_W_CHILD (&_w, costas, &s->car);
-  DP_W_CHILD (&_w, dll, &s->code);
+               dp_despreader_state_bytes (s));
+  DP_W_CHILD (&_w, dp_costas, &s->car);
+  DP_W_CHILD (&_w, dp_dll, &s->code);
   if (s->flip_hist)
     dp_w_bytes (&_w, s->flip_hist, s->periods_per_bit * sizeof (size_t));
   dp_w_u64 (&_w, s->epoch_count);
@@ -150,12 +151,12 @@ despreader_get_state (const despreader_state_t *s, void *blob)
 }
 
 int
-despreader_set_state (despreader_state_t *s, const void *blob)
+dp_despreader_set_state (dp_despreader_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DESPREADER_STATE_MAGIC, DESPREADER_STATE_VERSION,
-               despreader_state_bytes (s));
-  DP_R_CHILD (&_r, costas, &s->car);
-  DP_R_CHILD (&_r, dll, &s->code);
+               dp_despreader_state_bytes (s));
+  DP_R_CHILD (&_r, dp_costas, &s->car);
+  DP_R_CHILD (&_r, dp_dll, &s->code);
   if (s->flip_hist)
     dp_r_bytes (&_r, s->flip_hist, s->periods_per_bit * sizeof (size_t));
   s->epoch_count   = (size_t)dp_r_u64 (&_r);
@@ -170,8 +171,8 @@ despreader_set_state (despreader_state_t *s, const void *blob)
 /* Process one input sample. On a code-period boundary, dump the prompt, update
  * both loops, and return 1 with the normalised prompt in *prompt. */
 static int
-process_sample (despreader_state_t *ch, float _Complex x,
-                float _Complex     *prompt)
+process_sample (dp_despreader_state_t *ch, float _Complex x,
+                float _Complex        *prompt)
 {
   float _Complex d = costas_wipeoff (&ch->car, x); /* carrier wipe-off */
   dll_lock_accumulate (&ch->code, d); /* off-peak noise tap (lock det) */
@@ -183,7 +184,7 @@ process_sample (despreader_state_t *ch, float _Complex x,
   dll_update (&ch->code);      /* code loop on the early/late envelopes */
   costas_update (&ch->car, P); /* carrier loop on the prompt symbol */
   /* Fold this period into the code-lock detector (full-epoch look) and
-   * re-draw the noise offset — the same always-on CFAR detector dll_steps
+   * re-draw the noise offset — the same always-on CFAR detector dp_dll_steps
    * runs, so `code.locked` / `code.lock_stat` are live in composition. */
   dll_lock_look (&ch->code, (double)(ch->code.sf * ch->code.sps));
   ch->code.acc_e = ch->code.acc_p = ch->code.acc_l = 0.0f;
@@ -193,15 +194,15 @@ process_sample (despreader_state_t *ch, float _Complex x,
 }
 
 size_t
-despreader_steps_max_out (despreader_state_t *state)
+dp_despreader_steps_max_out (dp_despreader_state_t *state)
 {
   (void)state;
   return 0; /* one prompt per code period, so prompts <= inputs */
 }
 
 size_t
-despreader_steps (despreader_state_t *state, const float _Complex *x,
-                  size_t x_len, float _Complex *out, size_t max_out)
+dp_despreader_steps (dp_despreader_state_t *state, const float _Complex *x,
+                     size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
@@ -239,7 +240,7 @@ despreader_steps (despreader_state_t *state, const float _Complex *x,
  * of periods_per_bit prompts completes. Returns 1 (and sets *bit) when a bit
  * is emitted. For periods_per_bit == 1 every prompt is a bit. */
 static int
-bit_sync (despreader_state_t *ch, float _Complex P, uint8_t *bit)
+bit_sync (dp_despreader_state_t *ch, float _Complex P, uint8_t *bit)
 {
   size_t N  = ch->periods_per_bit;
   double re = (double)crealf (P);
@@ -283,15 +284,15 @@ bit_sync (despreader_state_t *ch, float _Complex P, uint8_t *bit)
 }
 
 size_t
-despreader_bits_max_out (despreader_state_t *state)
+dp_despreader_bits_max_out (dp_despreader_state_t *state)
 {
   (void)state;
   return 0; /* one bit per periods_per_bit periods, so bits <= inputs */
 }
 
 size_t
-despreader_bits (despreader_state_t *state, const float _Complex *x,
-                 size_t x_len, uint8_t *out, size_t max_out)
+dp_despreader_bits (dp_despreader_state_t *state, const float _Complex *x,
+                    size_t x_len, uint8_t *out, size_t max_out)
 {
   size_t emitted = 0;
   /* Guarded in-loop flush (not the steps() split): this loop already
@@ -312,88 +313,88 @@ despreader_bits (despreader_state_t *state, const float _Complex *x,
 }
 
 double
-despreader_get_norm_freq (const despreader_state_t *state)
+dp_despreader_get_norm_freq (const dp_despreader_state_t *state)
 {
   return state->car.nco.norm_freq;
 }
 
 void
-despreader_set_norm_freq (despreader_state_t *state, double val)
+dp_despreader_set_norm_freq (dp_despreader_state_t *state, double val)
 {
-  costas_set_norm_freq (&state->car, val);
+  dp_costas_set_norm_freq (&state->car, val);
 }
 
 double
-despreader_get_code_phase (const despreader_state_t *state)
+dp_despreader_get_code_phase (const dp_despreader_state_t *state)
 {
   return state->code.chip_pos;
 }
 
 double
-despreader_get_code_rate (const despreader_state_t *state)
+dp_despreader_get_code_rate (const dp_despreader_state_t *state)
 {
   return state->code.code_rate;
 }
 
 double
-despreader_get_lock_metric (const despreader_state_t *state)
+dp_despreader_get_lock_metric (const dp_despreader_state_t *state)
 {
   return state->car.lock_metric;
 }
 
 int
-despreader_get_carrier_locked (const despreader_state_t *state)
+dp_despreader_get_carrier_locked (const dp_despreader_state_t *state)
 {
   return state->car.lock.locked;
 }
 
 int
-despreader_get_code_locked (const despreader_state_t *state)
+dp_despreader_get_code_locked (const dp_despreader_state_t *state)
 {
   return state->code.lock.locked;
 }
 
 void
-despreader_configure_carrier_lock (despreader_state_t *state, double up_thresh,
-                                   double down_thresh, uint32_t n_up,
-                                   uint32_t n_down)
+dp_despreader_configure_carrier_lock (dp_despreader_state_t *state,
+                                      double up_thresh, double down_thresh,
+                                      uint32_t n_up, uint32_t n_down)
 {
-  costas_configure_lock (&state->car, up_thresh, down_thresh, n_up, n_down);
+  dp_costas_configure_lock (&state->car, up_thresh, down_thresh, n_up, n_down);
 }
 
 int
-despreader_configure_code_lock (despreader_state_t *state, double pfa,
-                                size_t n_looks, double ref_snr_db)
+dp_despreader_configure_code_lock (dp_despreader_state_t *state, double pfa,
+                                   size_t n_looks, double ref_snr_db)
 {
-  return dll_configure_lock (&state->code, pfa, n_looks, ref_snr_db);
+  return dp_dll_configure_lock (&state->code, pfa, n_looks, ref_snr_db);
 }
 
 size_t
-despreader_get_bit_phase (const despreader_state_t *state)
+dp_despreader_get_bit_phase (const dp_despreader_state_t *state)
 {
   return state->bit_phase;
 }
 
 double
-despreader_get_bn_carrier (const despreader_state_t *state)
+dp_despreader_get_bn_carrier (const dp_despreader_state_t *state)
 {
   return state->car.bn;
 }
 
 void
-despreader_set_bn_carrier (despreader_state_t *state, double val)
+dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val)
 {
-  costas_set_bn (&state->car, val);
+  dp_costas_set_bn (&state->car, val);
 }
 
 double
-despreader_get_bn_code (const despreader_state_t *state)
+dp_despreader_get_bn_code (const dp_despreader_state_t *state)
 {
   return state->code.bn;
 }
 
 void
-despreader_set_bn_code (despreader_state_t *state, double val)
+dp_despreader_set_bn_code (dp_despreader_state_t *state, double val)
 {
-  dll_set_bn (&state->code, val);
+  dp_dll_set_bn (&state->code, val);
 }

@@ -38,7 +38,7 @@
  *   raw     the symbol-aligned re-correlation on `block_raw` (§12.22):
  *           the shipped DLL, its loop held (dll_set_coast), its rate
  *           aided by the held Doppler, its symbol window on, PUT AT THE
- *           CELL'S PHASE at every block's start (dll_set_code_phase --
+ *           CELL'S PHASE at every block's start (dp_dll_set_code_phase --
  *           a coasting loop drifts on its NCO's quantisation of the aid,
  *           measured here in chips per second) and fed the block wiped of
  *           the held Doppler by the shipped LO, as a receiver's Costas
@@ -166,12 +166,12 @@ static const double HELD_GAINS[] = { 1.0, 0.5, 0.25, 0.125 };
 /* The stimulus: one emitter through the channel, noise after it. */
 typedef struct
 {
-  wfm_synth_state_t       *syn;
-  doppler_channel_state_t *ch;
-  awgn_state_t            *g;
-  double                   ppm, delay;
-  float complex           *sig, *fifo, *blk, *nz;
-  size_t                   pend;
+  dp_wfm_synth_state_t       *syn;
+  dp_doppler_channel_state_t *ch;
+  dp_awgn_state_t            *g;
+  double                      ppm, delay;
+  float complex              *sig, *fifo, *blk, *nz;
+  size_t                      pend;
 } stim_t;
 
 /* One decided dwell, as the sink saw it. */
@@ -225,24 +225,24 @@ struct scurve;
 
 typedef struct
 {
-  acq_state_t  *a;
-  const stim_t *st;
-  double        c0;   /* NAN during calibration: read at the argmax cell   */
-  double        f_hz; /* the truth Doppler                                 */
-  double       *hz;   /* per surface row                                   */
-  double       *chip; /* per column                                        */
-  size_t        rows, cols, tile_rows;
-  size_t        dwell_len; /* samples per decided dwell                      */
-  size_t        win_sym;   /* the stimulus's code-only symbols per frame     */
-  dwell_t      *d;
-  size_t        n, cap;
+  dp_acq_state_t *a;
+  const stim_t   *st;
+  double          c0;   /* NAN during calibration: read at the argmax cell   */
+  double          f_hz; /* the truth Doppler                                 */
+  double         *hz;   /* per surface row                                   */
+  double         *chip; /* per column                                        */
+  size_t          rows, cols, tile_rows;
+  size_t   dwell_len; /* samples per decided dwell                      */
+  size_t   win_sym;   /* the stimulus's code-only symbols per frame     */
+  dwell_t *d;
+  size_t   n, cap;
   /* The re-correlator: a persistent DLL, coasting, rate-aided by the
      held Doppler, seeded once at the cell plus DLL_U0; NULL = off. */
-  dll_state_t    *dll;
+  dp_dll_state_t *dll;
   dp_tlm_t       *tlm;
   int             id_e;
   int             id_locked;
-  lo_state_t     *lo;     /* the carrier wipe at the held Doppler          */
+  dp_lo_state_t  *lo;     /* the carrier wipe at the held Doppler          */
   float _Complex *lo_buf; /* D * code_bins phasors                          */
   double          u0;     /* the seed\'s offset from the truth, chips        */
   double c_dll; /* the DLL\'s phase convention against the cell, chips */
@@ -272,7 +272,7 @@ typedef struct
      epochs the engine is pushed from the epoch after its seed, seeded
      from the surface at the first window dwell as the held mode is,
      scored on its status(); its symbols kept for the BER. */
-  async_dsss_receiver_state_t *rx;
+  dp_async_dsss_receiver_state_t *rx;
   double          rx_gain; /* NAN = no receiver                    */
   int             rx_seeded;
   uint64_t        rx_seed_at;  /* samples_consumed at the seed         */
@@ -293,9 +293,9 @@ static int    dll_open (sink_ctx_t *c, double seed_chip, double f_hz);
 static void
 gold_1023 (uint8_t *code)
 {
-  gold_state_t *gd = gold_create (934, 350, 567, 73, 10);
-  gold_generate (gd, SF, code, SF);
-  gold_destroy (gd);
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, SF, code, SF);
+  dp_gold_destroy (gd);
 }
 
 static double
@@ -326,25 +326,25 @@ stim_open (stim_t *s, const uint8_t *code, double ppm, double cn0_dbhz,
 {
   memset (s, 0, sizeof *s);
   s->ppm = ppm;
-  s->syn = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             seed, (int)SPC, 15, 0, 0, 0.0);
+  s->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN,
+                                1, seed, (int)SPC, 15, 0, 0, 0.0);
   if (!s->syn
       || wfm_synth_set_dsss_cont (s->syn, code, SF, CPS, WFM_DSSS_DATA_BITS,
                                   bits, N_BITS)
              != 0
       || wfm_synth_set_dsss_window (s->syn, win_sym, F_SYM) != 0)
     return 1;
-  s->ch = doppler_channel_create (FS, CARRIER_HZ, ppm, 0.0);
+  s->ch = dp_doppler_channel_create (FS, CARRIER_HZ, ppm, 0.0);
   if (!s->ch)
     return 1;
-  s->delay = doppler_channel_get_delay_samples (s->ch);
+  s->delay = dp_doppler_channel_get_delay_samples (s->ch);
   if (cn0_dbhz < WFM_SYNTH_SNR_CLEAN)
     {
       /* C/N0 to SNR over fs is the one conversion; the amplitude is the
          library's answer to "per rail or total". */
-      s->g = awgn_create (seed * 7919u + 1u,
-                          awgn_amplitude_for_snr (
-                              (float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
+      s->g = dp_awgn_create (seed * 7919u + 1u,
+                             awgn_amplitude_for_snr (
+                                 (float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
       if (!s->g)
         return 1;
     }
@@ -357,9 +357,9 @@ stim_open (stim_t *s, const uint8_t *code, double ppm, double cn0_dbhz,
   size_t dropped = 0;
   while (dropped < DISCARD)
     {
-      wfm_synth_steps (s->syn, s->sig, TE);
-      s->pend += doppler_channel_execute (s->ch, s->sig, TE, s->fifo + s->pend,
-                                          2 * TE);
+      dp_wfm_synth_steps (s->syn, s->sig, TE);
+      s->pend += dp_doppler_channel_execute (s->ch, s->sig, TE,
+                                             s->fifo + s->pend, 2 * TE);
       size_t take = s->pend < DISCARD - dropped ? s->pend : DISCARD - dropped;
       memmove (s->fifo, s->fifo + take, (s->pend - take) * sizeof *s->fifo);
       s->pend -= take;
@@ -374,16 +374,16 @@ stim_block (stim_t *s)
 {
   while (s->pend < TE)
     {
-      wfm_synth_steps (s->syn, s->sig, TE);
-      s->pend += doppler_channel_execute (s->ch, s->sig, TE, s->fifo + s->pend,
-                                          2 * TE);
+      dp_wfm_synth_steps (s->syn, s->sig, TE);
+      s->pend += dp_doppler_channel_execute (s->ch, s->sig, TE,
+                                             s->fifo + s->pend, 2 * TE);
     }
   memcpy (s->blk, s->fifo, TE * sizeof *s->blk);
   s->pend -= TE;
   memmove (s->fifo, s->fifo + TE, s->pend * sizeof *s->fifo);
   if (s->g)
     {
-      awgn_generate (s->g, TE, s->nz, TE);
+      dp_awgn_generate (s->g, TE, s->nz, TE);
       for (size_t i = 0; i < TE; i++)
         s->blk[i] += s->nz[i];
     }
@@ -397,9 +397,9 @@ stim_close (stim_t *s)
   free (s->blk);
   free (s->fifo);
   free (s->sig);
-  awgn_destroy (s->g);
-  doppler_channel_destroy (s->ch);
-  wfm_synth_destroy (s->syn);
+  dp_awgn_destroy (s->g);
+  dp_doppler_channel_destroy (s->ch);
+  dp_wfm_synth_destroy (s->syn);
 }
 
 /* The surface cell nearest a chip phase (the columns are circular). */
@@ -518,7 +518,7 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
   d->u  = row + 1 < rows ? s[(row + 1) * cols + col] : 0.0;
   d->b  = row > 0 ? s[(row - 1) * cols + col] : 0.0;
 
-  /* The complex cells underneath, read in place: acq_surface_complex()
+  /* The complex cells underneath, read in place: dp_acq_surface_complex()
      copies the whole surface for a caller who wants it; five cells of it
      are wanted here, and the engine's buffer is the one the sink is being
      handed the magnitude of (the same dwell, decided on it). */
@@ -535,9 +535,9 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
   if (D > 1 && D <= 1024)
     {
       float _Complex pe[1024], pl[1024], pk[1024];
-      if (acq_block_prompt (c->a, tile, cm, pe, D) == D
-          && acq_block_prompt (c->a, tile, col, pk, D) == D
-          && acq_block_prompt (c->a, tile, cp, pl, D) == D)
+      if (dp_acq_block_prompt (c->a, tile, cm, pe, D) == D
+          && dp_acq_block_prompt (c->a, tile, col, pk, D) == D
+          && dp_acq_block_prompt (c->a, tile, cp, pl, D) == D)
         {
           d->have_blk = 1;
           double num = 0.0, den = 0.0;
@@ -632,7 +632,7 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
              Doppler. Fed from the next epoch on. */
           const double ph_end
               = h_mid + c->h_rate * 0.5 * (double)c->dwell_len + c->c_dll;
-          DP_CHECK_MSG (async_dsss_receiver_seed (
+          DP_CHECK_MSG (dp_async_dsss_receiver_seed (
                             c->rx, dp_fmod_pos (ph_end, (double)SF), c->f_h,
                             c->a->cn0_dbhz)
                             == DP_OK,
@@ -654,7 +654,7 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
      is at this dwell's end less one epoch. */
   if (c->rx && c->rx_seeded && samples_consumed > c->rx_seed_at)
     {
-      async_dsss_receiver_status_t st = async_dsss_receiver_status (c->rx);
+      async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (c->rx);
       d->rx_have                      = 1;
       d->rx_err                       = wrap_chips (
           st.chip_phase
@@ -669,7 +669,7 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
      -- the symbol-aided window on the searcher's timing. */
   d->dll_e = NAN;
   if (c->dll && D > 1
-      && acq_block_raw (c->a, c->raw, D * c->cols) == D * c->cols)
+      && dp_acq_block_raw (c->a, c->raw, D * c->cols) == D * c->cols)
     {
       /* The correction a tracker applies once per block: the loop put at
          the cell's phase -- the truth's, as every other read, or the
@@ -681,19 +681,20 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
           d->h_have = 1;
           d->h_err  = wrap_chips (c->h + c->h_rate * 0.5 * (double)c->dwell_len
                                   - (t_mid + c->c0));
-          dll_set_code_phase (c->dll, c->h + c->c_dll + c->u0);
+          dp_dll_set_code_phase (c->dll, c->h + c->c_dll + c->u0);
         }
       else if (!c->track)
-        dll_set_code_phase (c->dll,
-                            truth_chips (c->st, (double)samples_consumed
-                                                    - (double)c->dwell_len)
-                                + c->c0 + c->c_dll + c->u0);
-      const size_t cap = dll_steps_max_out (c->dll), nb = D * c->cols;
-      (void)lo_steps (c->lo, nb, c->lo_buf, nb);
+        dp_dll_set_code_phase (c->dll,
+                               truth_chips (c->st, (double)samples_consumed
+                                                       - (double)c->dwell_len)
+                                   + c->c0 + c->c_dll + c->u0);
+      const size_t cap = dp_dll_steps_max_out (c->dll), nb = D * c->cols;
+      (void)dp_lo_steps (c->lo, nb, c->lo_buf, nb);
       for (size_t i = 0; i < nb; i++)
         c->raw[i] *= c->lo_buf[i];
       for (size_t k = 0; k < D; k++)
-        (void)dll_steps (c->dll, c->raw + k * c->cols, c->cols, c->prt, cap);
+        (void)dp_dll_steps (c->dll, c->raw + k * c->cols, c->cols, c->prt,
+                            cap);
       dp_tlm_rec_t rec[256];
       double       se = 0.0, se2 = 0.0;
       size_t       ne = 0, got;
@@ -742,9 +743,9 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
       /* Tracking (the convention's calibration): the loop's phase at the
          block's end against the truth there, in the searcher's terms. */
       c->last_phase_err = wrap_chips (
-          dll_get_code_phase (c->dll)
+          dp_dll_get_code_phase (c->dll)
           - (truth_chips (c->st, (double)samples_consumed) + c->c0 + c->u0));
-      c->last_rate = dll_get_code_rate (c->dll);
+      c->last_rate = dp_dll_get_code_rate (c->dll);
       d->dll_u     = wrap_chips (c->last_phase_err + c->u0 - c->c_dll);
     }
   c->n++;
@@ -775,11 +776,12 @@ parabola (double a, double b, double c)
 static int
 dll_open (sink_ctx_t *c, double seed_chip, double f_hz)
 {
-  const acq_state_t *a = c->a;
-  c->dll = dll_create (c->code, SF, SPC, seed_chip, BN, 0.707, 0.5, SEGMENTS);
+  const dp_acq_state_t *a = c->a;
+  c->dll
+      = dp_dll_create (c->code, SF, SPC, seed_chip, BN, 0.707, 0.5, SEGMENTS);
   DP_REQUIRE_MSG (c->dll != NULL, "the DLL opens");
-  DP_REQUIRE (dll_set_symbol_period (c->dll, P_SYM) == DP_OK);
-  dll_set_rate_aid (c->dll, f_hz / CARRIER_HZ);
+  DP_REQUIRE (dp_dll_set_symbol_period (c->dll, P_SYM) == DP_OK);
+  dp_dll_set_rate_aid (c->dll, f_hz / CARRIER_HZ);
   if (!c->track)
     {
       dll_hold_here (c->dll);
@@ -787,7 +789,7 @@ dll_open (sink_ctx_t *c, double seed_chip, double f_hz)
     }
   c->tlm = dp_tlm_create (1u << 14);
   DP_REQUIRE (c->tlm != NULL);
-  DP_REQUIRE (dll_set_telemetry (c->dll, c->tlm, "dll", 1) == DP_OK);
+  DP_REQUIRE (dp_dll_set_telemetry (c->dll, c->tlm, "dll", 1) == DP_OK);
   c->id_e      = dp_tlm_probe_id (c->tlm, "dll.e");
   c->id_locked = dp_tlm_probe_id (c->tlm, "dll.locked");
   DP_REQUIRE (c->id_e >= 0);
@@ -798,16 +800,16 @@ dll_open (sink_ctx_t *c, double seed_chip, double f_hz)
      carrier un-wiped, a 17 dB loss a clean stream survives and a
      noisy one does not. The shipped LO, phase-continuous across
      blocks. */
-  c->lo = lo_create (-f_hz / FS);
+  c->lo = dp_lo_create (-f_hz / FS);
   DP_REQUIRE_MSG (c->lo != NULL, "the wipe's LO opens");
   c->lo_buf = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->lo_buf);
-  c->prt    = dp_xmalloc (dll_steps_max_out (c->dll) * sizeof *c->prt);
+  c->prt    = dp_xmalloc (dp_dll_steps_max_out (c->dll) * sizeof *c->prt);
   return 0;
 }
 
 /* Run one stimulus through one engine for `n` decided dwells. */
 static int
-run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
+run (dp_acq_state_t *a, const uint8_t *code, double ppm, double cn0,
      uint32_t seed, double c0, size_t win_sym, double u0, sink_ctx_t *c,
      size_t n)
 {
@@ -857,7 +859,7 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
           = (size_t)((double)n * (double)c->dwell_len * SYM_RATE / FS) + 4096;
       c->rx_syms = dp_xmalloc (c->rx_syms_cap * sizeof *c->rx_syms);
     }
-  acq_reset (a);
+  dp_acq_reset (a);
   acq_set_surface_sink (a, on_surface, c, 1u);
   acq_result_t hits[16];
   while (c->n < n)
@@ -865,10 +867,11 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
       const float complex *blk = stim_block (&st);
       /* Seeded at a dwell's end inside this push: fed from the next. */
       const int fed = c->rx && c->rx_seeded;
-      (void)acq_push (a, blk, TE, hits, 16);
+      (void)dp_acq_push (a, blk, TE, hits, 16);
       if (fed)
         {
-          size_t k = async_dsss_receiver_steps (c->rx, blk, TE, c->rx_out, TE);
+          size_t k
+              = dp_async_dsss_receiver_steps (c->rx, blk, TE, c->rx_out, TE);
           if (c->rx_nsyms + k <= c->rx_syms_cap)
             memcpy (c->rx_syms + c->rx_nsyms, c->rx_out,
                     k * sizeof *c->rx_out);
@@ -879,7 +882,7 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   stim_close (&st);
   if (c->rx)
     {
-      async_dsss_receiver_destroy (c->rx);
+      dp_async_dsss_receiver_destroy (c->rx);
       c->rx = NULL;
       free (c->rx_out);
       c->rx_out = NULL;
@@ -889,9 +892,9 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
       free (c->prt);
       free (c->raw);
       free (c->lo_buf);
-      lo_destroy (c->lo);
+      dp_lo_destroy (c->lo);
       c->lo = NULL;
-      dll_destroy (c->dll);
+      dp_dll_destroy (c->dll);
       dp_tlm_destroy (c->tlm);
       c->dll = NULL;
       c->tlm = NULL;
@@ -1004,7 +1007,7 @@ in_window (const dwell_t *d)
    the raw truth is c0 plus a zero-mean offset u; the discriminator
    against -u gives the gain. */
 static int
-calibrate (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
+calibrate (dp_acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
            size_t n)
 {
   if (run (a, code, 18.0, WFM_SYNTH_SNR_CLEAN, 5u, NAN, F_SYM, NAN, c, n))
@@ -1105,7 +1108,7 @@ calibrate (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
    the truth. A coasting loop cannot pull this constant in; the hand-off's
    refine does, from up to half a chip (§12.11). */
 static int
-calibrate_dll_phase (acq_state_t *a, const uint8_t *code, sink_ctx_t *c,
+calibrate_dll_phase (dp_acq_state_t *a, const uint8_t *code, sink_ctx_t *c,
                      cal_t *cal, size_t n, double *rate)
 {
   c->c_dll = 0.0;
@@ -1128,8 +1131,8 @@ calibrate_dll_phase (acq_state_t *a, const uint8_t *code, sink_ctx_t *c,
    (measured below, chips per second), so the seed is where it started
    and not where each block read. Blocks inside the cell only. */
 static int
-calibrate_dll (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *cal,
-               size_t n_per)
+calibrate_dll (dp_acq_state_t *a, const uint8_t *code, sink_ctx_t *c,
+               cal_t *cal, size_t n_per)
 {
   memset (&cal->dll, 0, sizeof cal->dll);
   cal->dll_drift = 0.0;
@@ -1338,20 +1341,20 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
   o->snr = ss / n;
 }
 
-static acq_state_t *
+static dp_acq_state_t *
 make_engine (const uint8_t *code, double cn0, sink_ctx_t *c)
 {
-  acq_state_t *a
+  dp_acq_state_t *a
       = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE, cn0, DU,
                                PFA, PD, 0, CODE_ONLY_EPOCHS, DOPPLER_RATE);
   if (!a)
     return NULL;
-  if (acq_set_carrier_freq_hz (a, CARRIER_HZ) != DP_OK)
+  if (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) != DP_OK)
     {
-      acq_destroy (a);
+      dp_acq_destroy (a);
       return NULL;
     }
-  (void)acq_set_threads (a, THREADS);
+  (void)dp_acq_set_threads (a, THREADS);
   /* The axes, once: a decided dwell has surface_rows x code_bins cells. */
   c->cols = a->code_bins;
   c->rows = a->window_bins * a->coherent_bins * a->interp;
@@ -1359,12 +1362,12 @@ make_engine (const uint8_t *code, double cn0, sink_ctx_t *c)
   c->chip = dp_xmalloc (c->cols * sizeof *c->chip);
   /* The axes read back their full length, or the engine is not the one
      this harness understands. */
-  if (acq_surface_doppler_hz (a, c->hz, c->rows) != c->rows
-      || acq_surface_chip_phase (a, c->chip, c->cols) != c->cols)
+  if (dp_acq_surface_doppler_hz (a, c->hz, c->rows) != c->rows
+      || dp_acq_surface_chip_phase (a, c->chip, c->cols) != c->cols)
     {
       fprintf (stderr, "the surface's axes do not read %zu x %zu\n", c->rows,
                c->cols);
-      acq_destroy (a);
+      dp_acq_destroy (a);
       return NULL;
     }
   c->tile_rows = c->rows / a->window_bins;
@@ -1372,7 +1375,7 @@ make_engine (const uint8_t *code, double cn0, sink_ctx_t *c)
 }
 
 static void
-print_engine (const acq_state_t *a, const sink_ctx_t *c)
+print_engine (const dp_acq_state_t *a, const sink_ctx_t *c)
 {
   printf ("  engine: %zu tiles x D = %zu, interp %zu (%zu rows of %.1f Hz), "
           "n_noncoh %zu, dwell %.1f ms; sized at %.0f dB-Hz\n",
@@ -1571,7 +1574,7 @@ main (int argc, char **argv)
 
   for (size_t ci = 0; ci < n_cn0; ci++)
     {
-      acq_state_t *a = make_engine (code, cn0s[ci], &c);
+      dp_acq_state_t *a = make_engine (code, cn0s[ci], &c);
       DP_REQUIRE_MSG (a != NULL, "the engine opens at the operating point");
       printf ("\n=== sized at %.0f dB-Hz ===\n", cn0s[ci]);
       print_engine (a, &c);
@@ -1840,7 +1843,7 @@ main (int argc, char **argv)
                             "closed-loop jitter and without bias");
             }
         }
-      acq_destroy (a);
+      dp_acq_destroy (a);
       free (c.hz);
       free (c.chip);
       c.hz = c.chip = NULL;

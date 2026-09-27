@@ -42,16 +42,16 @@
  * +0.75 are the same phase word. Anything that needs direction (carry vs
  * borrow) must therefore form the signed quantity BEFORE folding.
  *
- * ## 2. nco_state_t — the 32-bit phase accumulator
+ * ## 2. dp_nco_state_t — the 32-bit phase accumulator
  *
  * A phase register advancing by phase_inc every sample, wrapping naturally
  * at 2^32. Three output mappings, each with a matching per-sample
  * control-port variant (`_ctrl`) and a single-sample primitive
  * (nco_step_u32*):
  *
- *   nco_steps_u32        raw accumulator value  [0, 2^32)
- *   nco_steps_u32_scaled (uint64)phase * nmax >> 32  ->  [0, nmax)
- *   nco_steps_u32_ovf    raw phase + a per-sample cycle-boundary flag
+ *   dp_nco_steps_u32        raw accumulator value  [0, 2^32)
+ *   dp_nco_steps_u32_scaled (uint64)phase * nmax >> 32  ->  [0, nmax)
+ *   dp_nco_steps_u32_ovf    raw phase + a per-sample cycle-boundary flag
  *
  * The `_ovf` flag is signed by the composite rate, not by the raw carry:
  * a forward crossing is a carry (one EXTRA output due), a backward one a
@@ -63,21 +63,21 @@
  * phase only; norm_freq and nmax are unchanged. Serializable via the
  * standard bytes interface (dp_state.h).
  *
- * Lifecycle: nco_create -> (steps / reset)* -> nco_destroy. Owners that
+ * Lifecycle: dp_nco_create -> (steps / reset)* -> dp_nco_destroy. Owners that
  * want it by value (symsync, dll, resamp) embed the struct and set
  * phase/phase_inc/norm_freq directly.
  *
  * @code
- * nco_state_t *nco = nco_create(0.25, 0);
+ * dp_nco_state_t *nco = dp_nco_create(0.25, 0);
  * uint32_t out[4];
- * nco_steps_u32 (nco, 4, out, 4);
+ * dp_nco_steps_u32 (nco, 4, out, 4);
  * // out[0]=0x00000000, out[1]=0x40000000,
  * // out[2]=0x80000000, out[3]=0xC0000000
- * nco_destroy(nco);
+ * dp_nco_destroy(nco);
  * @endcode
  */
-#ifndef NCO_CORE_H
-#define NCO_CORE_H
+#ifndef DP_NCO_CORE_H
+#define DP_NCO_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -246,7 +246,7 @@ extern "C"
    * Floor-normalises @p norm into `[0, 1)` before scaling and
    * TRUNCATES toward zero (the bare C99 float->unsigned cast, 6.3.1.4)
    * to an integer phase step -- deliberately NOT `llround`. Every
-   * caller that needs this conversion (`nco_create`/`nco_set_norm_freq`,
+   * caller that needs this conversion (`dp_nco_create`/`dp_nco_set_norm_freq`,
    * `LO`'s own phase accumulator, `Dll`'s code-phase NCO steering) MUST
    * go through one of the two faces rather than growing its own private
    * copy -- duplicated copies of this exact formula have already drifted
@@ -445,7 +445,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /**
    * @brief NCO state.
    *
-   * Allocate with nco_create().  All fields are managed by the library;
+   * Allocate with dp_nco_create().  All fields are managed by the library;
    * read phase and phase_inc via the property accessors.
    */
   typedef struct
@@ -454,7 +454,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
     uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
     double   norm_freq; /* normalised frequency (cycles/sample)          */
     uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
-  } nco_state_t;
+  } dp_nco_state_t;
 
   /**
    * @brief Emit the current raw phase, then advance the accumulator.
@@ -462,7 +462,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * Single-sample form, suitable for inlining into another module's own
    * per-sample loop (e.g. a code-tracking loop's phase steer) with zero
    * call overhead -- the canonical primitive every batch stepper below
-   * and every OTHER module embedding an nco_state_t by value should
+   * and every OTHER module embedding an dp_nco_state_t by value should
    * compose, rather than reimplementing this advance inline (see
    * nco_norm_fold_()'s own doc comment on why duplicated copies of
    * this exact class of arithmetic have already drifted once).
@@ -471,7 +471,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @return Phase value BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32 (nco_state_t *state)
+  nco_step_u32 (dp_nco_state_t *state)
   {
     uint32_t ph = state->phase;
     state->phase = ph + state->phase_inc;
@@ -480,13 +480,13 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   /**
    * @brief Emit the current phase scaled to `[0, nmax)`, then advance.
-   * Single-sample form of nco_steps_u32_scaled() -- see that function's
+   * Single-sample form of dp_nco_steps_u32_scaled() -- see that function's
    * doc comment for the scaling identity and the nmax==0 special case.
    * @param state  NCO state.  Must be non-NULL.
    * @return Scaled phase value (or raw, if nmax == 0) BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_scaled (nco_state_t *state)
+  nco_step_u32_scaled (dp_nco_state_t *state)
   {
     uint32_t ph   = state->phase;
     uint32_t nmax = state->nmax;
@@ -496,14 +496,14 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   /**
    * @brief Emit the current raw phase and this step's carry, then advance.
-   * Single-sample form of nco_steps_u32_ovf().
+   * Single-sample form of dp_nco_steps_u32_ovf().
    * @param state  NCO state.  Must be non-NULL.
    * @param carry  Out-param: set to 1 if this step's advance wrapped past
    *               2^32, else 0. Must be non-NULL.
    * @return Phase value BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_ovf (nco_state_t *state, uint8_t *carry)
+  nco_step_u32_ovf (dp_nco_state_t *state, uint8_t *carry)
   {
     uint32_t ph = state->phase;
     *carry      = NCO_ADD_OVF (ph, state->phase_inc, &state->phase);
@@ -512,7 +512,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   /**
    * @brief Emit the current raw phase, then advance by phase_inc + ctrl.
-   * Single-sample form of nco_steps_u32_ctrl() -- the control port for a
+   * Single-sample form of dp_nco_steps_u32_ctrl() -- the control port for a
    * tracking loop, see that function's doc comment. phase_inc/norm_freq
    * are never modified; only the running phase advances.
    * @param state  NCO state.  Must be non-NULL.
@@ -522,7 +522,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @return Phase value BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_ctrl (nco_state_t *state, double ctrl)
+  nco_step_u32_ctrl (dp_nco_state_t *state, double ctrl)
   {
     uint32_t ph = state->phase;
     state->phase = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
@@ -532,13 +532,13 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /**
    * @brief Emit the current phase scaled to `[0, nmax)`, then advance by
    *        phase_inc + ctrl.
-   * Single-sample form of nco_steps_u32_scaled_ctrl().
+   * Single-sample form of dp_nco_steps_u32_scaled_ctrl().
    * @param state  NCO state.  Must be non-NULL.
    * @param ctrl   Per-sample normalised-frequency control offset.
    * @return Scaled phase value (or raw, if nmax == 0) BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_scaled_ctrl (nco_state_t *state, double ctrl)
+  nco_step_u32_scaled_ctrl (dp_nco_state_t *state, double ctrl)
   {
     uint32_t ph   = state->phase;
     uint32_t nmax = state->nmax;
@@ -550,7 +550,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @brief Emit the current raw phase and this step's cycle-boundary
    *        event, then advance by phase_inc + ctrl.
    *
-   * Single-sample form of nco_steps_u32_ovf_ctrl(). The event flags
+   * Single-sample form of dp_nco_steps_u32_ovf_ctrl(). The event flags
    * THIS step's true advance crossing a full-cycle boundary, in the
    * direction the composite rate is going: a **carry** when the phase
    * runs forward past 2^32 (one EXTRA output/load for the consumer),
@@ -590,7 +590,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @return Phase value BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
-  nco_step_u32_ovf_ctrl (nco_state_t *state, double ctrl, uint8_t *carry)
+  nco_step_u32_ovf_ctrl (dp_nco_state_t *state, double ctrl, uint8_t *carry)
   {
     uint32_t ph = state->phase;
     /* Wrapping u32 add: bit-for-bit the modulo advance the 64-bit sum
@@ -613,12 +613,12 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * Allocates and initialises the phase accumulator to zero, converts
    * norm_freq to the integer phase_inc = floor(frac(norm_freq) × 2^32),
    * and stores nmax for scaled output.  The NCO is immediately ready to
-   * call nco_steps_u32 / nco_steps_u32_scaled / nco_steps_u32_ovf.
+   * call dp_nco_steps_u32 / dp_nco_steps_u32_scaled / dp_nco_steps_u32_ovf.
    *
    * @param norm_freq  Normalised frequency in cycles per sample.
    *                   Any real value; only the fractional part matters.
    *                   Negative values fold correctly (−0.25 → 3×2^30).
-   * @param nmax       Wrap target for nco_steps_u32_scaled.
+   * @param nmax       Wrap target for dp_nco_steps_u32_scaled.
    *                   Pass 0 to return the raw 32-bit accumulator.
    * @return Heap-allocated state, or NULL on allocation failure.
    * @code
@@ -628,14 +628,14 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 1073741824
    * @endcode
    */
-  nco_state_t *nco_create (double norm_freq, uint32_t nmax);
+  dp_nco_state_t *dp_nco_create (double norm_freq, uint32_t nmax);
 
   /** Free all resources.  May be NULL (no-op). */
-  void nco_destroy (nco_state_t *state);
+  void dp_nco_destroy (dp_nco_state_t *state);
 
   /**
    * @brief Zero the phase accumulator.
-   * Sets phase to 0 so the next nco_steps_u32 call starts from the
+   * Sets phase to 0 so the next dp_nco_steps_u32 call starts from the
    * beginning of the cycle.  norm_freq, phase_inc, and nmax are
    * unchanged; the NCO is ready to generate samples again immediately.
    *
@@ -652,7 +652,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 0.25
    * @endcode
    */
-  void nco_reset (nco_state_t *state);
+  void dp_nco_reset (dp_nco_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Only the running phase accumulator is serialized; phase_inc / nmax are
@@ -663,12 +663,12 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 #define NCO_STATE_VERSION 1u
 
   /** @brief Serialized-state byte size. */
-  size_t nco_state_bytes (const nco_state_t *state);
+  size_t dp_nco_state_bytes (const dp_nco_state_t *state);
   /** @brief Serialize the phase accumulator into @p blob. */
-  void nco_get_state (const nco_state_t *state, void *blob);
+  void dp_nco_get_state (const dp_nco_state_t *state, void *blob);
   /** @brief Restore phase; DP_OK, or DP_ERR_INVALID if the envelope rejects.
    */
-  int nco_set_state (nco_state_t *state, const void *blob);
+  int dp_nco_set_state (dp_nco_state_t *state, const void *blob);
 
   /* ---- Properties ---- */
 
@@ -687,8 +687,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 2147483648
    * @endcode
    */
-  double nco_get_norm_freq (const nco_state_t *state);
-  void   nco_set_norm_freq (nco_state_t *state, double norm_freq);
+  double dp_nco_get_norm_freq (const dp_nco_state_t *state);
+  void   dp_nco_set_norm_freq (dp_nco_state_t *state, double norm_freq);
 
   /**
    * @brief Current phase accumulator value (read/write).
@@ -706,8 +706,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 2147483648
    * @endcode
    */
-  uint32_t nco_get_phase (const nco_state_t *state);
-  void     nco_set_phase (nco_state_t *state, uint32_t phase);
+  uint32_t dp_nco_get_phase (const dp_nco_state_t *state);
+  void     dp_nco_set_phase (dp_nco_state_t *state, uint32_t phase);
 
   /**
    * @brief Per-sample phase increment (read-only).
@@ -722,7 +722,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 1073741824
    * @endcode
    */
-  uint32_t nco_get_phase_inc (const nco_state_t *state);
+  uint32_t dp_nco_get_phase_inc (const dp_nco_state_t *state);
 
   /* ---- Block generators ---- */
 
@@ -738,7 +738,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * correct samples for a 70000-sample request.  Size an @c out= buffer
    * with this, or ignore it and let the binding allocate.
    */
-  size_t nco_steps_u32_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_max_out (dp_nco_state_t *state);
 
   /**
    * @brief Advance n samples; write raw uint32 accumulator values.
@@ -747,7 +747,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * wraps silently at 2^32, giving the full-resolution integer ramp
    * that the scaled and carry variants derive from.  Returns n.
    *
-   * @param state  NCO state returned by nco_create().
+   * @param state  NCO state returned by dp_nco_create().
    * @param n      Number of samples to generate.
    * @param out    Output buffer; must hold at least n uint32_t values.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
@@ -763,10 +763,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 1073741824, 2147483648, 3221225472]
    * @endcode
    */
-  size_t nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out,
+  size_t dp_nco_steps_u32 (dp_nco_state_t *state, size_t n, uint32_t *out,
                         size_t max_out);
 
-  size_t nco_steps_u32_scaled_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_scaled_max_out (dp_nco_state_t *state);
 
   /**
    * @brief Advance n samples; values scaled to `[0, nmax)`.
@@ -774,10 +774,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    *   `out[i]` = (uint64_t)phase * nmax >> 32
    * to map the full accumulator range uniformly onto [0, nmax) without
    * a modulo operation.  When nmax == 0 falls back to the raw accumulator
-   * (identical to nco_steps_u32).  Useful for polyphase filter bank
+   * (identical to dp_nco_steps_u32).  Useful for polyphase filter bank
    * indexing and direct LUT addressing.  Returns n.
    *
-   * @param state  NCO state returned by nco_create().
+   * @param state  NCO state returned by dp_nco_create().
    * @param n      Number of samples to generate.
    * @param out    Output buffer; must hold at least n uint32_t values.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
@@ -793,21 +793,21 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 1, 2, 3]
    * @endcode
    */
-  size_t nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out,
+  size_t dp_nco_steps_u32_scaled (dp_nco_state_t *state, size_t n, uint32_t *out,
                                size_t max_out);
 
-  size_t nco_steps_u32_ovf_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_ovf_max_out (dp_nco_state_t *state);
 
   /**
    * @brief Advance n samples; write raw phase values and per-sample carry.
-   * Identical to nco_steps_u32 for the phase array, but simultaneously
+   * Identical to dp_nco_steps_u32 for the phase array, but simultaneously
    * fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that
    * produced `out[i]`'s post-increment phase wrapped past 2^32, else 0.
    * The carry marks the exact boundary of one input period and is the
    * primitive for polyphase sample-clock and rational resampling engines.
    * Returns n.
    *
-   * @param state  NCO state returned by nco_create().
+   * @param state  NCO state returned by dp_nco_create().
    * @param n      Number of samples to generate.
    * @param out    Phase output buffer; must hold at least n uint32_t values.
    * @param out1   Carry output buffer; must hold at least n uint8_t values.
@@ -827,10 +827,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * dtype('uint8')
    * @endcode
    */
-  size_t nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out,
+  size_t dp_nco_steps_u32_ovf (dp_nco_state_t *state, size_t n, uint32_t *out,
                             uint8_t *out1, size_t max_out);
 
-  size_t nco_steps_u32_ctrl_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_ctrl_max_out (dp_nco_state_t *state);
 
   /**
    * @brief Advance ctrl_len samples; raw phase, with a per-sample control
@@ -843,10 +843,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * by `phase_inc + ctrl_inc` each sample -- so a loop filter can drive the
    * NCO with its full per-sample output (integrator + proportional term)
    * without the caller ever touching the NCO's own configured rate. Mirrors
-   * `lo_step_ctrl`/`lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which does
+   * `lo_step_ctrl`/`dp_lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which does
    * this for the CF32 phasor output; this is the same control-port pattern
    * for NCO's raw phase output. With every `ctrl[i] == 0` this is
-   * bit-identical to nco_steps_u32(). Returns ctrl_len.
+   * bit-identical to dp_nco_steps_u32(). Returns ctrl_len.
    *
    * Python's `out=` keyword writes into a caller-supplied buffer instead
    * of allocating a fresh one.  This used to claim it was "essential for
@@ -864,7 +864,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * prototype).  The returned view is correctly sliced to `len(ctrl)`
    * regardless of the buffer's size.
    *
-   * @param state     NCO state returned by nco_create().
+   * @param state     NCO state returned by dp_nco_create().
    * @param ctrl      Per-sample normalised-frequency control offsets in
    *                  `double`, any sign (the fractional cycle is taken, so
    *                  it wraps correctly).  `double` because that is the
@@ -891,25 +891,25 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 0.0
    * @endcode
    */
-  size_t nco_steps_u32_ctrl (nco_state_t *state, const double *ctrl,
+  size_t dp_nco_steps_u32_ctrl (dp_nco_state_t *state, const double *ctrl,
                              size_t ctrl_len, uint32_t *out,
                              size_t max_out);
 
-  size_t nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_scaled_ctrl_max_out (dp_nco_state_t *state);
 
   /**
    * @brief Advance ctrl_len samples; values scaled to `[0, nmax)`, with a
    *        per-sample control offset added on top of phase_inc.
    *
-   * The @ref nco_steps_u32_scaled output mapping (nmax=0 falls back to
-   * the raw accumulator) driven by the @ref nco_steps_u32_ctrl control
+   * The @ref dp_nco_steps_u32_scaled output mapping (nmax=0 falls back to
+   * the raw accumulator) driven by the @ref dp_nco_steps_u32_ctrl control
    * port -- every stepper has a matching control-input counterpart, so
    * a tracking loop can drive LUT-indexed output (nmax = table length)
    * exactly as it would raw phase output, without ever touching
    * phase_inc/norm_freq. With every `ctrl[i] == 0` this is bit-identical
-   * to nco_steps_u32_scaled(). Returns ctrl_len.
+   * to dp_nco_steps_u32_scaled(). Returns ctrl_len.
    *
-   * @param state     NCO state returned by nco_create().
+   * @param state     NCO state returned by dp_nco_create().
    * @param ctrl      Per-sample normalised-frequency control offsets in
    *                  `double`, any sign (the fractional cycle is taken, so
    *                  it wraps correctly).  `double` because that is the
@@ -934,19 +934,19 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 1, 2, 3]
    * @endcode
    */
-  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const double *ctrl,
+  size_t dp_nco_steps_u32_scaled_ctrl (dp_nco_state_t *state, const double *ctrl,
                                     size_t ctrl_len, uint32_t *out,
                                     size_t max_out);
 
-  size_t nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state);
+  size_t dp_nco_steps_u32_ovf_ctrl_max_out (dp_nco_state_t *state);
 
   /**
    * @brief Advance ctrl_len samples; raw phase + per-sample carry, with a
    *        per-sample control offset added on top of phase_inc.
    *
-   * The @ref nco_steps_u32_ovf output mapping (raw phase plus a flag
+   * The @ref dp_nco_steps_u32_ovf output mapping (raw phase plus a flag
    * marking each sample whose advance crossed a cycle boundary) driven
-   * by the @ref nco_steps_u32_ctrl control port -- every stepper has a
+   * by the @ref dp_nco_steps_u32_ctrl control port -- every stepper has a
    * matching control-input counterpart. The flag reflects THIS sample's
    * true SIGNED advance (`norm_freq + ctrl`, formed in cycles before
    * either term is folded into the accumulator), not just phase_inc
@@ -957,9 +957,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * backward one a borrow (one FEWER); see @ref nco_step_u32_ovf_ctrl
    * for why the sign cannot be recovered after the fold, nor taken from
    * `ctrl` alone. With every `ctrl[i] == 0` and `norm_freq` in [0, 1)
-   * this is bit-identical to nco_steps_u32_ovf(). Returns ctrl_len.
+   * this is bit-identical to dp_nco_steps_u32_ovf(). Returns ctrl_len.
    *
-   * @param state     NCO state returned by nco_create().
+   * @param state     NCO state returned by dp_nco_create().
    * @param ctrl      Per-sample normalised-frequency control offsets in
    *                  `double`, any sign (the fractional cycle is taken, so
    *                  it wraps correctly).  `double` because that is the
@@ -990,7 +990,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 0, 0, 1]
    * @endcode
    */
-  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const double *ctrl,
+  size_t dp_nco_steps_u32_ovf_ctrl (dp_nco_state_t *state, const double *ctrl,
                                  size_t ctrl_len, uint32_t *out,
                                  uint8_t *out1, size_t max_out);
 

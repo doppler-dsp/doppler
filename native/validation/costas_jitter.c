@@ -5,15 +5,15 @@
  *        threshold.
  *
  * The C harness reads the loop's actual tracking state — the integer NCO phase
- * `costas_state_t.nco.phase` — so it measures the true closed-loop phase-error
- * variance sigma_phi^2, not just the discriminator output. For a 2nd-order PLL
- * driven by white phase-measurement noise of variance sigma_disc^2, theory
- * says sigma_phi^2 = G * sigma_disc^2 where G is the loop NOISE GAIN — the sum
- * of squares of the loop's (noise -> phase) impulse response, computed here
- * analytically from the loop filter gains kp, ki. G is proportional to the
- * loop bandwidth bn, so the jitter scales with bn (the defining property of
- * the loop noise bandwidth). At low SNR the loop loses lock and sigma_phi^2
- * explodes — the PLL tracking threshold.
+ * `dp_costas_state_t.nco.phase` — so it measures the true closed-loop
+ * phase-error variance sigma_phi^2, not just the discriminator output. For a
+ * 2nd-order PLL driven by white phase-measurement noise of variance
+ * sigma_disc^2, theory says sigma_phi^2 = G * sigma_disc^2 where G is the loop
+ * NOISE GAIN — the sum of squares of the loop's (noise -> phase) impulse
+ * response, computed here analytically from the loop filter gains kp, ki. G is
+ * proportional to the loop bandwidth bn, so the jitter scales with bn (the
+ * defining property of the loop noise bandwidth). At low SNR the loop loses
+ * lock and sigma_phi^2 explodes — the PLL tracking threshold.
  *
  * Validated: sigma_phi^2 tracks G*sigma_disc^2 to a stable linearization
  * factor
@@ -62,11 +62,11 @@ noise_gain (double kp, double ki)
 
 /* open-loop discriminator variance at phi=0 (frozen loop). */
 static double
-disc_var (double snr, awgn_state_t *g, float *nb, long n)
+disc_var (double snr, dp_awgn_state_t *g, float *nb, long n)
 {
-  awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
-  awgn_reset (g);
-  costas_state_t s;
+  dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
+  dp_awgn_reset (g);
+  dp_costas_state_t s;
   costas_init (&s, 1e-9, 0.707, 0.0, 1, 0.0);
   long   have = 0, pos = 0;
   double m = 0, m2 = 0;
@@ -74,7 +74,7 @@ disc_var (double snr, awgn_state_t *g, float *nb, long n)
     {
       if (pos + 2 > have)
         {
-          awgn_generate (g, NB, (float complex *)nb, NB);
+          dp_awgn_generate (g, NB, (float complex *)nb, NB);
           have = 2 * NB;
           pos  = 0;
         }
@@ -90,11 +90,11 @@ disc_var (double snr, awgn_state_t *g, float *nb, long n)
 
 /* closed-loop NCO phase-error variance sigma_phi^2. */
 static double
-phase_var (double snr, double bn, awgn_state_t *g, float *nb, long n)
+phase_var (double snr, double bn, dp_awgn_state_t *g, float *nb, long n)
 {
-  awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
-  awgn_reset (g);
-  costas_state_t s;
+  dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
+  dp_awgn_reset (g);
+  dp_costas_state_t s;
   costas_init (&s, bn, 0.707, 0.0, 1, 0.0);
   long   have = 0, pos = 0, warm = n / 4;
   double m = 0, m2 = 0;
@@ -102,7 +102,7 @@ phase_var (double snr, double bn, awgn_state_t *g, float *nb, long n)
     {
       if (pos + 2 > have)
         {
-          awgn_generate (g, NB, (float complex *)nb, NB);
+          dp_awgn_generate (g, NB, (float complex *)nb, NB);
           have = 2 * NB;
           pos  = 0;
         }
@@ -123,13 +123,13 @@ phase_var (double snr, double bn, awgn_state_t *g, float *nb, long n)
 int
 main (int argc, char **argv)
 {
-  int           check = (argc > 1 && strcmp (argv[1], "--check") == 0);
-  awgn_state_t *g     = awgn_create (7, 1.0f);
-  float        *nb    = malloc ((size_t)2 * NB * sizeof (float));
-  long          N     = check ? 1500000 : 4000000;
-  int           fail  = 0;
+  int              check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  dp_awgn_state_t *g     = dp_awgn_create (7, 1.0f);
+  float           *nb    = malloc ((size_t)2 * NB * sizeof (float));
+  long             N     = check ? 1500000 : 4000000;
+  int              fail  = 0;
 
-  costas_state_t s;
+  dp_costas_state_t s;
   costas_init (&s, 0.02, 0.707, 0.0, 1, 0.0);
   double gain = noise_gain (s.lf.kp, s.lf.ki);
   printf ("Costas phase jitter  (tsamps=1, bn=0.02, noise gain G=%.4f)\n",
@@ -183,7 +183,7 @@ main (int argc, char **argv)
         fail = 1;
     }
   free (nb);
-  awgn_destroy (g);
+  dp_awgn_destroy (g);
   if (fail)
     {
       fprintf (stderr, "Costas jitter deviates from loop theory — FAIL\n");

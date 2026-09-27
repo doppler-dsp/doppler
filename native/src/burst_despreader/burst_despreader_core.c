@@ -17,10 +17,10 @@ chip_sign (uint8_t c)
 
 /* Seed/clear the per-symbol and loop state to the create-time conditions. */
 static void
-burst_despreader_seed (burst_despreader_state_t *s)
+burst_despreader_seed (dp_burst_despreader_state_t *s)
 {
-  loop_filter_reset (&s->lf_car);
-  loop_filter_reset (&s->lf_code);
+  dp_loop_filter_reset (&s->lf_car);
+  dp_loop_filter_reset (&s->lf_code);
   /* The carrier integrator holds the per-symbol phase advance; seed it from
    * the create-time per-sample angular frequency. */
   s->lf_car.integ = s->seed_w * (double)s->tsamps;
@@ -38,16 +38,16 @@ burst_despreader_seed (burst_despreader_state_t *s)
   s->preamble_left = s->acq_reps; /* re-arm preamble-aided pull-in */
 }
 
-burst_despreader_state_t *
-burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
-                         size_t sps, double init_norm_freq,
-                         double init_chip_phase, double bn_carrier,
-                         double bn_code)
+dp_burst_despreader_state_t *
+dp_burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
+                            size_t sps, double init_norm_freq,
+                            double init_chip_phase, double bn_carrier,
+                            double bn_code)
 {
   if (!code || code_len == 0 || sf == 0 || code_len < sf || sps < 2)
     return NULL;
 
-  burst_despreader_state_t *s = calloc (1, sizeof (*s));
+  dp_burst_despreader_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -76,7 +76,7 @@ burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
 }
 
 void
-burst_despreader_destroy (burst_despreader_state_t *state)
+dp_burst_despreader_destroy (dp_burst_despreader_state_t *state)
 {
   if (!state)
     return;
@@ -86,9 +86,9 @@ burst_despreader_destroy (burst_despreader_state_t *state)
 }
 
 void
-burst_despreader_set_acq (burst_despreader_state_t *state,
-                          const uint8_t *acq_code, size_t acq_code_len,
-                          size_t acq_reps)
+dp_burst_despreader_set_acq (dp_burst_despreader_state_t *state,
+                             const uint8_t *acq_code, size_t acq_code_len,
+                             size_t acq_reps)
 {
   free (state->acq_code);
   state->acq_code      = NULL;
@@ -108,7 +108,7 @@ burst_despreader_set_acq (burst_despreader_state_t *state,
 }
 
 void
-burst_despreader_reset (burst_despreader_state_t *state)
+dp_burst_despreader_reset (dp_burst_despreader_state_t *state)
 {
   burst_despreader_seed (state);
 }
@@ -117,28 +117,30 @@ burst_despreader_reset (burst_despreader_state_t *state)
  * POD-embedded, so their bytes are their state); the owned code + acq_code
  * pointers are config (restored by create) and preserved across set_state. */
 size_t
-burst_despreader_state_bytes (const burst_despreader_state_t *s)
+dp_burst_despreader_state_bytes (const dp_burst_despreader_state_t *s)
 {
   (void)s;
-  return sizeof (dp_state_hdr_t) + sizeof (burst_despreader_state_t);
+  return sizeof (dp_state_hdr_t) + sizeof (dp_burst_despreader_state_t);
 }
 
 void
-burst_despreader_get_state (const burst_despreader_state_t *s, void *blob)
+dp_burst_despreader_get_state (const dp_burst_despreader_state_t *s,
+                               void                              *blob)
 {
   DP_GET_OPEN (BURST_DESPREADER_STATE_MAGIC, BURST_DESPREADER_STATE_VERSION,
-               burst_despreader_state_bytes (s));
-  burst_despreader_state_t tmp = *s;
+               dp_burst_despreader_state_bytes (s));
+  dp_burst_despreader_state_t tmp = *s;
   tmp.code     = NULL; /* config pointers — not machine addresses */
   tmp.acq_code = NULL;
   dp_w_bytes (&_w, &tmp, sizeof tmp);
 }
 
 int
-burst_despreader_set_state (burst_despreader_state_t *s, const void *blob)
+dp_burst_despreader_set_state (dp_burst_despreader_state_t *s,
+                               const void                  *blob)
 {
   DP_SET_OPEN (BURST_DESPREADER_STATE_MAGIC, BURST_DESPREADER_STATE_VERSION,
-               burst_despreader_state_bytes (s));
+               dp_burst_despreader_state_bytes (s));
   uint8_t *code = s->code; /* this instance's owned codes (config) */
   uint8_t *acq  = s->acq_code;
   dp_r_bytes (&_r, s, sizeof *s);
@@ -151,7 +153,7 @@ burst_despreader_set_state (burst_despreader_state_t *s, const void *blob)
  * per-symbol integrate-and-dump driving the two tracking loops. Exactly one of
  * csym / bits is non-NULL; returns the number of symbols emitted. */
 static size_t
-despread_run (burst_despreader_state_t *s, const float _Complex *x,
+despread_run (dp_burst_despreader_state_t *s, const float _Complex *x,
               size_t x_len, float _Complex *bitsym_csym, uint8_t *bits,
               size_t max_out)
 {
@@ -216,7 +218,7 @@ despread_run (burst_despreader_state_t *s, const float _Complex *x,
       /* DLL: normalized non-coherent early-minus-late envelope. */
       float  me = cabsf (s->acc_e), ml = cabsf (s->acc_l);
       double e_dll = (double)(me - ml) / ((double)(me + ml) + 1e-12);
-      loop_filter_step (&s->lf_code, e_dll);
+      dp_loop_filter_step (&s->lf_code, e_dll);
       s->code_rate = 1.0 + s->lf_code.integ;
       s->chip_pos -= (double)cur_sf;
       s->chip_pos
@@ -229,7 +231,7 @@ despread_run (burst_despreader_state_t *s, const float _Complex *x,
       float  aP    = cabsf (P) + 1e-12f;
       double e_cos = preamble ? (double)atan2f (imP, reP)
                               : (double)(((reP >= 0.0f) ? imP : -imP) / aP);
-      loop_filter_step (&s->lf_car, e_cos);
+      dp_loop_filter_step (&s->lf_car, e_cos);
       s->car_w
           = s->lf_car.integ / (double)cur_tsamps; /* per-symbol -> /sample */
       s->car_phase += s->lf_car.kp * e_cos;       /* phase nudge (rad) */
@@ -238,7 +240,7 @@ despread_run (burst_despreader_state_t *s, const float _Complex *x,
        * is one-shot, and a fixed-alpha smoother is warmup-dominated for
        * its entire length (alpha = 0.1 is a ~19-symbol memory). Cumulative
        * sums weight every prompt equally and feed the calibrated
-       * whole-burst lock statistic (burst_despreader_get_lock_stat).
+       * whole-burst lock statistic (dp_burst_despreader_get_lock_stat).
        * PAYLOAD prompts only: a preamble prompt integrates a different
        * code length (acq_sf vs sf — mixed variance scales would break
        * both the F(n,n) H0 law and the SNR calibration) and carries
@@ -281,85 +283,85 @@ despread_run (burst_despreader_state_t *s, const float _Complex *x,
 }
 
 size_t
-burst_despreader_steps_max_out (burst_despreader_state_t *state)
+dp_burst_despreader_steps_max_out (dp_burst_despreader_state_t *state)
 {
   (void)state;
   return 0; /* binding sizes the buffer to the input length (>= #symbols) */
 }
 
 size_t
-burst_despreader_steps (burst_despreader_state_t *state,
-                        const float _Complex *x, size_t x_len,
-                        float _Complex *out, size_t max_out)
+dp_burst_despreader_steps (dp_burst_despreader_state_t *state,
+                           const float _Complex *x, size_t x_len,
+                           float _Complex *out, size_t max_out)
 {
   return despread_run (state, x, x_len, out, NULL, max_out);
 }
 
 size_t
-burst_despreader_bits_max_out (burst_despreader_state_t *state)
+dp_burst_despreader_bits_max_out (dp_burst_despreader_state_t *state)
 {
   (void)state;
   return 0; /* one hard bit per code period, so bits <= inputs */
 }
 
 size_t
-burst_despreader_bits (burst_despreader_state_t *state,
-                       const float _Complex *x, size_t x_len, uint8_t *out,
-                       size_t max_out)
+dp_burst_despreader_bits (dp_burst_despreader_state_t *state,
+                          const float _Complex *x, size_t x_len, uint8_t *out,
+                          size_t max_out)
 {
   return despread_run (state, x, x_len, NULL, out, max_out);
 }
 
 /* ── property accessors ── */
 double
-burst_despreader_get_bn_carrier (const burst_despreader_state_t *s)
+dp_burst_despreader_get_bn_carrier (const dp_burst_despreader_state_t *s)
 {
   return s->lf_car.bn;
 }
 void
-burst_despreader_set_bn_carrier (burst_despreader_state_t *s, double val)
+dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *s, double val)
 {
-  loop_filter_configure (&s->lf_car, val, s->lf_car.zeta, s->lf_car.t);
+  dp_loop_filter_configure (&s->lf_car, val, s->lf_car.zeta, s->lf_car.t);
 }
 double
-burst_despreader_get_bn_code (const burst_despreader_state_t *s)
+dp_burst_despreader_get_bn_code (const dp_burst_despreader_state_t *s)
 {
   return s->lf_code.bn;
 }
 void
-burst_despreader_set_bn_code (burst_despreader_state_t *s, double val)
+dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *s, double val)
 {
-  loop_filter_configure (&s->lf_code, val, s->lf_code.zeta, s->lf_code.t);
+  dp_loop_filter_configure (&s->lf_code, val, s->lf_code.zeta, s->lf_code.t);
 }
 double
-burst_despreader_get_norm_freq (const burst_despreader_state_t *s)
+dp_burst_despreader_get_norm_freq (const dp_burst_despreader_state_t *s)
 {
   return s->car_w / (2.0 * M_PI); /* rad/sample -> cycles/sample */
 }
 void
-burst_despreader_set_norm_freq (burst_despreader_state_t *s, double val)
+dp_burst_despreader_set_norm_freq (dp_burst_despreader_state_t *s, double val)
 {
   s->car_w        = val * 2.0 * M_PI;
   s->lf_car.integ = s->car_w * (double)s->tsamps;
 }
 double
-burst_despreader_get_code_phase (const burst_despreader_state_t *s)
+dp_burst_despreader_get_code_phase (const dp_burst_despreader_state_t *s)
 {
   return s->chip_pos;
 }
 double
-burst_despreader_get_lock_metric (const burst_despreader_state_t *s)
+dp_burst_despreader_get_lock_metric (const dp_burst_despreader_state_t *s)
 {
   return s->lock_metric;
 }
 double
-burst_despreader_get_snr_est (const burst_despreader_state_t *s)
+dp_burst_despreader_get_snr_est (const dp_burst_despreader_state_t *s)
 {
   return s->snr_est;
 }
 
 double
-burst_despreader_get_lock_stat (const burst_despreader_state_t *s)
+dp_burst_despreader_get_lock_stat (const dp_burst_despreader_state_t *s)
 {
   if (s->stat_n == 0 || s->sum_im2 <= 0.0)
     return 0.0;
@@ -367,7 +369,7 @@ burst_despreader_get_lock_stat (const burst_despreader_state_t *s)
 }
 
 size_t
-burst_despreader_get_stat_n (const burst_despreader_state_t *s)
+dp_burst_despreader_get_stat_n (const dp_burst_despreader_state_t *s)
 {
   return s->stat_n;
 }

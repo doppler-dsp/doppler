@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only detection_ext.c is compiled.
  */
 /* ======================================================== */
-/* LockDetObject — wraps lockdet_state_t *       */
+/* LockDetObject — wraps dp_lockdet_state_t *       */
 /* ======================================================== */
 
 #include "doppler/lockdet/lockdet_core.h"
 
 typedef struct
 {
-  PyObject_HEAD lockdet_state_t *handle;
+  PyObject_HEAD dp_lockdet_state_t *handle;
 } LockDetObject;
 
 static void
 LockDetObj_dealloc (LockDetObject *self)
 {
   if (self->handle)
-    lockdet_destroy (self->handle);
+    dp_lockdet_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -48,10 +48,10 @@ LockDetObj_init (LockDetObject *self, PyObject *args, PyObject *kwds)
     return -1;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  self->handle    = lockdet_create (up_thresh, down_thresh, n_up, n_down);
+  self->handle    = dp_lockdet_create (up_thresh, down_thresh, n_up, n_down);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "lockdet_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_lockdet_create returned NULL");
       return -1;
     }
   return 0;
@@ -68,7 +68,7 @@ LockDet_step (LockDetObject *self, PyObject *args)
   double x;
   if (!PyArg_ParseTuple (args, "d", &x))
     return NULL;
-  int y = lockdet_step (self->handle, x);
+  int y = dp_lockdet_step (self->handle, x);
   return PyLong_FromLong ((long)y);
 }
 
@@ -124,8 +124,8 @@ LockDet_steps (LockDetObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      lockdet_steps (self->handle, (const double *)PyArray_DATA (in_arr),
-                     (int *)PyArray_DATA (out_arr), (size_t)n);
+      dp_lockdet_steps (self->handle, (const double *)PyArray_DATA (in_arr),
+                        (int *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -138,8 +138,8 @@ LockDet_steps (LockDetObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  lockdet_steps (self->handle, (const double *)PyArray_DATA (in_arr),
-                 (int *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
+  dp_lockdet_steps (self->handle, (const double *)PyArray_DATA (in_arr),
+                    (int *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -164,7 +164,7 @@ LockDetObj_configure (LockDetObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  lockdet_configure (self->handle, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_configure (self->handle, up_thresh, down_thresh, n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -176,7 +176,7 @@ LockDetObj_reset (LockDetObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  lockdet_reset (self->handle);
+  dp_lockdet_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -188,7 +188,7 @@ LockDetObj_state_bytes (LockDetObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (lockdet_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_lockdet_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -199,11 +199,11 @@ LockDetObj_get_state (LockDetObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = lockdet_state_bytes (self->handle);
+  size_t    _n = dp_lockdet_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  lockdet_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_lockdet_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -220,12 +220,12 @@ LockDetObj_set_state (LockDetObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != lockdet_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_lockdet_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (lockdet_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_lockdet_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -347,7 +347,7 @@ LockDetObj_destroy (LockDetObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      lockdet_destroy (self->handle);
+      dp_lockdet_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -366,7 +366,7 @@ LockDetObj_exit (LockDetObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      lockdet_destroy (self->handle);
+      dp_lockdet_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -416,7 +416,7 @@ static PyMethodDef LockDetObj_methods[] = {
     "steps(x[, out]) -> ndarray\n"
     "\n"
     "Run a block of lock-metric looks through the detector. Applies\n"
-    "lockdet_step() to each look in turn, so the decision flag and the\n"
+    "dp_lockdet_step() to each look in turn, so the decision flag and the\n"
     "in-flight verify run carry across the block exactly as they would look\n"
     "by look — a signal can be processed in frames of any size with no seam.\n"
     "\n"

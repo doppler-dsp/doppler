@@ -29,10 +29,10 @@ main (void)
   add_cos (x, NCAP, 50.0, 0.003);
 
   /* dynamic_range_db = 90 -> Kaiser beta ~12, matching the old default. */
-  imdmeas_state_t *m = imdmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
+  dp_imdmeas_state_t *m = dp_imdmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
   DP_CHECK (m != NULL);
   imd_meas_t r;
-  r = imdmeas_analyze (m, x, NCAP);
+  r = dp_imdmeas_analyze (m, x, NCAP);
 
   DP_CHECK (fabs (r.f1 - 200.0 / NCAP) < 2e-3);
   DP_CHECK (fabs (r.f2 - 250.0 / NCAP) < 2e-3);
@@ -44,7 +44,7 @@ main (void)
   DP_CHECK (fabs (r.toi_dbfs - 20.0) < 0.5);
   DP_CHECK (fabs (r.p1_dbfs) < 0.2 && fabs (r.p2_dbfs) < 0.2);
 
-  imdmeas_destroy (m);
+  dp_imdmeas_destroy (m);
   free (x);
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
   {
@@ -53,29 +53,29 @@ main (void)
      * NB: feed a FULL capture (NCAP), not a short one -- with fewer samples
      * than one frame nothing accumulates, spectrum_dbfs returns 0, and a
      * "<= max_out" assertion would hold whether or not the clamp exists. */
-    imdmeas_state_t *m   = imdmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
-    size_t           cap = imdmeas_spectrum_dbfs_max_out (m); /* == nfft */
-    float           *xs  = (float *)malloc (NCAP * sizeof (float));
-    float           *o   = (float *)malloc (cap * sizeof (float));
+    dp_imdmeas_state_t *m = dp_imdmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
+    size_t cap            = dp_imdmeas_spectrum_dbfs_max_out (m); /* == nfft */
+    float *xs             = (float *)malloc (NCAP * sizeof (float));
+    float *o              = (float *)malloc (cap * sizeof (float));
     DP_CHECK (m && xs && o);
     for (size_t i = 0; i < NCAP; i++)
       xs[i] = (float)sin (0.05 * (double)i);
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
 
-    DP_CHECK (imdmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
+    DP_CHECK (dp_imdmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
     for (size_t i = 5; i < cap; i++)
       DP_CHECK (o[i] == 42.0f); /* tail untouched */
 
     /* Zero capacity emits nothing. */
     for (size_t i = 0; i < cap; i++)
       o[i] = 42.0f;
-    DP_CHECK (imdmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
+    DP_CHECK (dp_imdmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
     for (size_t i = 0; i < cap; i++)
       DP_CHECK (o[i] == 42.0f);
     free (xs);
     free (o);
-    imdmeas_destroy (m);
+    dp_imdmeas_destroy (m);
   }
 
   DP_TEST_END ("test_imdmeas_core");

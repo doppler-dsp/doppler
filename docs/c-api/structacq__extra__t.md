@@ -99,7 +99,7 @@ The state blob is the _only_ thing a fresh engine needs to continue a stream fro
 `[  dp_state_hdr_t ] [ acq_extra_t ]` `[ float _Complex unconsumed[n_unconsumed] ]` (partial frame, &lt; n samples) `[ float nc_surface[n] ]` (only when n\_noncoh &gt; 1) `[ uint32_t twins[2 * max_peaks] ]` (held row, col pairs)
 
 
-Build the byte buffer with [**acq\_state\_bytes()**](acq__core_8h.md#function-acq_state_bytes); set\_state validates the envelope (magic/version/size) plus n / n\_noncoh below, rejecting a mismatch rather than reinterpreting it. 
+Build the byte buffer with [**dp\_acq\_state\_bytes()**](acq__core_8h.md#function-dp_acq_state_bytes); set\_state validates the envelope (magic/version/size) plus n / n\_noncoh below, rejecting a mismatch rather than reinterpreting it. 
 
 
     

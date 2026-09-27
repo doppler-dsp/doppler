@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CORR_CORE_H
-#define CORR_CORE_H
+#ifndef DP_CORR_CORE_H
+#define DP_CORR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 typedef struct {
-  fft_state_t *fwd;         
-  fft_state_t *inv;         
+  dp_fft_state_t *fwd;         
+  dp_fft_state_t *inv;         
   float _Complex *ref_spec;  
   float _Complex *work_fft;  
   float _Complex *accum;     
@@ -32,20 +32,20 @@ typedef struct {
   size_t dwell;             
   size_t count;             
   float _Complex *work_trunc;
-} corr_state_t;
+} dp_corr_state_t;
 
-corr_state_t *corr_create(const float _Complex *ref, size_t ref_len, size_t dwell,
+dp_corr_state_t *dp_corr_create(const float _Complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
-void corr_destroy(corr_state_t *state);
+void dp_corr_destroy(dp_corr_state_t *state);
 
-void corr_reset(corr_state_t *state);
+void dp_corr_reset(dp_corr_state_t *state);
 
-void corr_set_ref(corr_state_t *state, const float _Complex *ref);
+void corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
 
-size_t corr_execute_max_out(corr_state_t *state);
+size_t dp_corr_execute_max_out(dp_corr_state_t *state);
 
-size_t corr_execute(corr_state_t *state, const float _Complex *in, size_t n_in,
+size_t dp_corr_execute(dp_corr_state_t *state, const float _Complex *in, size_t n_in,
                     float _Complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
@@ -53,9 +53,9 @@ size_t corr_execute(corr_state_t *state, const float _Complex *in, size_t n_in,
  * FFT plans + ref_spec are config, rebuilt by create. */
 #define CORR_STATE_MAGIC DP_FOURCC ('C','O','R','R')
 #define CORR_STATE_VERSION 1u
-size_t corr_state_bytes (const corr_state_t *state);
-void corr_get_state (const corr_state_t *state, void *blob);
-int corr_set_state (corr_state_t *state, const void *blob);
+size_t dp_corr_state_bytes (const dp_corr_state_t *state);
+void dp_corr_get_state (const dp_corr_state_t *state, void *blob);
+int dp_corr_set_state (dp_corr_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

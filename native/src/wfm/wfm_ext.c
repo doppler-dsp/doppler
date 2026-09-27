@@ -42,8 +42,8 @@ _bind_bpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (bits_arr);
       return NULL;
     }
-  bpsk_map (bits, bits_len,
-            (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_bpsk_map (bits, bits_len,
+               (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (bits_arr);
   return _out;
 }
@@ -71,8 +71,8 @@ _bind_qpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (syms_arr);
       return NULL;
     }
-  qpsk_map (syms, syms_len,
-            (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_qpsk_map (syms, syms_len,
+               (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (syms_arr);
   return _out;
 }
@@ -88,7 +88,7 @@ _bind_wfm_awgn_amplitude (PyObject *self, PyObject *args, PyObject *kwds)
                                     &signal_power))
     return NULL;
   return PyFloat_FromDouble (
-      (double)wfm_awgn_amplitude (snr_db, signal_power));
+      (double)dp_wfm_awgn_amplitude (snr_db, signal_power));
 }
 
 static PyObject *
@@ -103,7 +103,7 @@ _bind_wfm_ebno_to_snr_db (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "fif", _kwlist, &ebno_db,
                                     &bits_per_symbol, &samples_per_symbol))
     return NULL;
-  return PyFloat_FromDouble ((double)wfm_ebno_to_snr_db (
+  return PyFloat_FromDouble ((double)dp_wfm_ebno_to_snr_db (
       ebno_db, bits_per_symbol, samples_per_symbol));
 }
 
@@ -116,7 +116,7 @@ _bind_mls_poly (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "k", _kwlist, &n_raw))
     return NULL;
   uint32_t n = (uint32_t)n_raw;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)mls_poly (n));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)dp_mls_poly (n));
 }
 
 static PyObject *
@@ -135,7 +135,7 @@ _bind_crc16 (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
   size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
-  uint16_t       _r       = crc16 (bits, bits_len);
+  uint16_t       _r       = dp_crc16 (bits, bits_len);
   Py_DECREF (bits_arr);
   return PyLong_FromUnsignedLong ((unsigned long)_r);
 }
@@ -164,7 +164,7 @@ _bind_rrc_h (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (t_arr);
       return NULL;
     }
-  rrc_h (t, t_len, (double *)PyArray_DATA ((PyArrayObject *)_out), beta);
+  dp_rrc_h (t, t_len, (double *)PyArray_DATA ((PyArrayObject *)_out), beta);
   Py_DECREF (t_arr);
   return _out;
 }
@@ -193,7 +193,7 @@ _bind_rc_h (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (t_arr);
       return NULL;
     }
-  rc_h (t, t_len, (double *)PyArray_DATA ((PyArrayObject *)_out), beta);
+  dp_rc_h (t, t_len, (double *)PyArray_DATA ((PyArrayObject *)_out), beta);
   Py_DECREF (t_arr);
   return _out;
 }
@@ -215,7 +215,7 @@ _bind_rrc_taps (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  rrc_taps (beta, sps, span, (float *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_rrc_taps (beta, sps, span, (float *)PyArray_DATA ((PyArrayObject *)_out));
   return _out;
 }
 
@@ -255,8 +255,8 @@ _bind_dsss_spread (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (code_arr);
       return NULL;
     }
-  dsss_spread (syms, syms_len, code, code_len, sf,
-               (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
+  dp_dsss_spread (syms, syms_len, code, code_len, sf,
+                  (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (syms_arr);
   Py_DECREF (code_arr);
   return _out;

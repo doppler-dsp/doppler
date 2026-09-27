@@ -52,16 +52,16 @@ _Wfmgen module — public C API._
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**bpsk\_map**](#function-bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float \_Complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
-|  uint16\_t | [**crc16**](#function-crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
-|  void | [**dsss\_spread**](#function-dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br> |
-|  uint64\_t | [**mls\_poly**](#function-mls_poly) (uint32\_t n) <br>_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._ |
-|  void | [**qpsk\_map**](#function-qpsk_map) (const uint8\_t \* syms, size\_t syms\_len, float \_Complex \* out) <br>_Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._  |
-|  void | [**rc\_h**](#function-rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
-|  void | [**rrc\_h**](#function-rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
-|  void | [**rrc\_taps**](#function-rrc_taps) (double beta, int sps, int span, float \* out) <br> |
-|  float | [**wfm\_awgn\_amplitude**](#function-wfm_awgn_amplitude) (float snr\_db, float signal\_power) <br>_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`awgn_create` _to get the exact noise level that corresponds to the requested SNR._ |
-|  float | [**wfm\_ebno\_to\_snr\_db**](#function-wfm_ebno_to_snr_db) (float ebno\_db, int bits\_per\_symbol, float samples\_per\_symbol) <br>_Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._  |
+|  void | [**dp\_bpsk\_map**](#function-dp_bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float \_Complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
+|  uint16\_t | [**dp\_crc16**](#function-dp_crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
+|  void | [**dp\_dsss\_spread**](#function-dp_dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br> |
+|  uint64\_t | [**dp\_mls\_poly**](#function-dp_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._ |
+|  void | [**dp\_qpsk\_map**](#function-dp_qpsk_map) (const uint8\_t \* syms, size\_t syms\_len, float \_Complex \* out) <br>_Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._  |
+|  void | [**dp\_rc\_h**](#function-dp_rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
+|  void | [**dp\_rrc\_h**](#function-dp_rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
+|  void | [**dp\_rrc\_taps**](#function-dp_rrc_taps) (double beta, int sps, int span, float \* out) <br> |
+|  float | [**dp\_wfm\_awgn\_amplitude**](#function-dp_wfm_awgn_amplitude) (float snr\_db, float signal\_power) <br>_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`dp_awgn_create` _to get the exact noise level that corresponds to the requested SNR._ |
+|  float | [**dp\_wfm\_ebno\_to\_snr\_db**](#function-dp_wfm_ebno_to_snr_db) (float ebno\_db, int bits\_per\_symbol, float samples\_per\_symbol) <br>_Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._  |
 
 
 
@@ -95,11 +95,11 @@ _Wfmgen module — public C API._
 
 
 
-### function bpsk\_map 
+### function dp\_bpsk\_map 
 
 _Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._ 
 ```C++
-void bpsk_map (
+void dp_bpsk_map (
     const uint8_t * bits,
     size_t bits_len,
     float _Complex * out
@@ -134,11 +134,11 @@ void bpsk_map (
 
 
 
-### function crc16 
+### function dp\_crc16 
 
 _CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._
 ```C++
-uint16_t crc16 (
+uint16_t dp_crc16 (
     const uint8_t * bits,
     size_t bits_len
 ) 
@@ -178,10 +178,10 @@ The 16-bit CRC.
 
 
 
-### function dsss\_spread 
+### function dp\_dsss\_spread 
 
 ```C++
-void dsss_spread (
+void dp_dsss_spread (
     const float _Complex * syms,
     size_t syms_len,
     const uint8_t * code,
@@ -198,11 +198,11 @@ void dsss_spread (
 
 
 
-### function mls\_poly 
+### function dp\_mls\_poly 
 
 _Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._
 ```C++
-uint64_t mls_poly (
+uint64_t dp_mls_poly (
     uint32_t n
 ) 
 ```
@@ -238,11 +238,11 @@ Primitive-polynomial tap mask, or 0 if `n` is out of range.
 
 
 
-### function qpsk\_map 
+### function dp\_qpsk\_map 
 
 _Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._ 
 ```C++
-void qpsk_map (
+void dp_qpsk_map (
     const uint8_t * syms,
     size_t syms_len,
     float _Complex * out
@@ -280,10 +280,10 @@ void qpsk_map (
 
 
 
-### function rc\_h 
+### function dp\_rc\_h 
 
 ```C++
-void rc_h (
+void dp_rc_h (
     const double * t,
     size_t t_len,
     double * out,
@@ -298,10 +298,10 @@ void rc_h (
 
 
 
-### function rrc\_h 
+### function dp\_rrc\_h 
 
 ```C++
-void rrc_h (
+void dp_rrc_h (
     const double * t,
     size_t t_len,
     double * out,
@@ -316,10 +316,10 @@ void rrc_h (
 
 
 
-### function rrc\_taps 
+### function dp\_rrc\_taps 
 
 ```C++
-void rrc_taps (
+void dp_rrc_taps (
     double beta,
     int sps,
     int span,
@@ -334,11 +334,11 @@ void rrc_taps (
 
 
 
-### function wfm\_awgn\_amplitude 
+### function dp\_wfm\_awgn\_amplitude 
 
-_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`awgn_create` _to get the exact noise level that corresponds to the requested SNR._
+_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`dp_awgn_create` _to get the exact noise level that corresponds to the requested SNR._
 ```C++
-float wfm_awgn_amplitude (
+float dp_wfm_awgn_amplitude (
     float snr_db,
     float signal_power
 ) 
@@ -378,11 +378,11 @@ Per-component AWGN amplitude (sigma for one I or Q channel).
 
 
 
-### function wfm\_ebno\_to\_snr\_db 
+### function dp\_wfm\_ebno\_to\_snr\_db 
 
 _Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._ 
 ```C++
-float wfm_ebno_to_snr_db (
+float dp_wfm_ebno_to_snr_db (
     float ebno_db,
     int bits_per_symbol,
     float samples_per_symbol

@@ -39,20 +39,20 @@
  * |phasor| - 1 stays under 6e-08, four orders below the half-bin phase
  * error of 0.5/65536 cycles.
  *
- * The shared LUT is initialised lazily on the first lo_create() call.
+ * The shared LUT is initialised lazily on the first dp_lo_create() call.
  *
- * Lifecycle: lo_create → (steps / steps_ctrl / reset)* → lo_destroy
+ * Lifecycle: dp_lo_create → (steps / steps_ctrl / reset)* → dp_lo_destroy
  *
  * @code
- * lo_state_t *lo = lo_create(0.25);
+ * dp_lo_state_t *lo = dp_lo_create(0.25);
  * float _Complex out[4];
- * lo_steps (lo, 4, out, 4);
+ * dp_lo_steps (lo, 4, out, 4);
  * // out ≈ { 1+0j, 0+1j, -1+0j, 0-1j }
- * lo_destroy(lo);
+ * dp_lo_destroy(lo);
  * @endcode
  */
-#ifndef LO_CORE_H
-#define LO_CORE_H
+#ifndef DP_LO_CORE_H
+#define DP_LO_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -66,9 +66,9 @@ extern "C"
   /**
    * @brief LO state.
    *
-   * Allocate with lo_create(), or embed by value and lo_init() (see the
+   * Allocate with dp_lo_create(), or embed by value and lo_init() (see the
    * inline composition API below).  The shared 65536-entry LUT is
-   * initialised lazily on the first lo_create()/lo_init() call and never
+   * initialised lazily on the first dp_lo_create()/lo_init() call and never
    * freed.
    */
   typedef struct
@@ -76,13 +76,13 @@ extern "C"
     uint32_t phase;     /* current accumulator value [0, 2^32)          */
     uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
     double norm_freq;   /* normalised frequency (cycles/sample)           */
-  } lo_state_t;
+  } dp_lo_state_t;
 
 /* ---- Inline composition API (C-only; not exposed as Python methods) ----
  *
- * lo_init / lo_step let a tracking loop embed lo_state_t BY VALUE and de-rotate
+ * lo_init / lo_step let a tracking loop embed dp_lo_state_t BY VALUE and de-rotate
  * a sample stream one sample at a time with zero call overhead — the block
- * generators below (lo_steps) stay the fast path for bulk synthesis.  The
+ * generators below (dp_lo_steps) stay the fast path for bulk synthesis.  The
  * shared sin LUT is exposed here so the inline step can index it directly.   */
 #define LO_LUT_BITS 16u
 #define LO_LUT_SIZE (1u << LO_LUT_BITS) /* 65536                    */
@@ -91,7 +91,7 @@ extern "C"
   /**
    * @brief Shared 2^16-entry sine LUT (read-only after init).
    *
-   * Filled by the first lo_create()/lo_init().  Indexed by the top 16 bits of
+   * Filled by the first dp_lo_create()/lo_init().  Indexed by the top 16 bits of
    * the phase accumulator; the quarter-cycle offset LO_LUT_QTR maps sin→cos.
    * Do not write.  Exposed only so lo_step() can be a header inline.
    */
@@ -100,41 +100,41 @@ extern "C"
   /**
    * @brief Initialise an LO in place (no allocation).
    *
-   * The by-value counterpart to lo_create(): a tracking loop that embeds an
-   * lo_state_t initialises it with lo_init() instead of owning a heap pointer.
+   * The by-value counterpart to dp_lo_create(): a tracking loop that embeds an
+   * dp_lo_state_t initialises it with lo_init() instead of owning a heap pointer.
    * Sets phase=0, derives phase_inc from norm_freq, and fills the shared LUT
-   * on first use (same single-threaded caveat as lo_create()).
+   * on first use (same single-threaded caveat as dp_lo_create()).
    *
    * @param state      LO state to initialise in place.  Must be non-NULL.
    * @param norm_freq  Normalised frequency in cycles per sample (fractional
    *                   part only).
    * @code
    * >>> from doppler.source import LO
-   * >>> lo = LO(0.25)          # the Python type calls lo_create
+   * >>> lo = LO(0.25)          # the Python type calls dp_lo_create
    * >>> lo.phase_inc
    * 1073741824
    * @endcode
    */
-  void lo_init (lo_state_t *state, double norm_freq);
+  void lo_init (dp_lo_state_t *state, double norm_freq);
 
   /**
    * @brief Emit the current CF32 phasor, then advance the accumulator.
    *
-   * Single-sample form of lo_steps(), same emit-before-increment convention
+   * Single-sample form of dp_lo_steps(), same emit-before-increment convention
    * and bit-for-bit the same LUT math, suitable for inlining into a
    * sample-by-sample loop (e.g. carrier wipe-off ahead of a matched filter).
-   * The caller must have run lo_create()/lo_init() so the LUT is populated.
+   * The caller must have run dp_lo_create()/lo_init() so the LUT is populated.
    *
    * @param state  LO state.  Must be non-NULL with phase/phase_inc set.
    * @return cos(θ) + j·sin(θ) at the phase BEFORE the increment.
    * @code
-   * lo_state_t lo;            // embedded by value, no heap
+   * dp_lo_state_t lo;            // embedded by value, no heap
    * lo_init (&lo, 0.25);
    * float _Complex s0 = lo_step (&lo);   // 1 + 0j
    * float _Complex s1 = lo_step (&lo);   // 0 + 1j
    * @endcode
    */
-  JM_FORCEINLINE JM_HOT float _Complex lo_step (lo_state_t *state)
+  JM_FORCEINLINE JM_HOT float _Complex lo_step (dp_lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
     float _Complex out
@@ -160,12 +160,12 @@ extern "C"
    *               fractional cycle is taken, so it wraps correctly).
    * @return cos(θ) + j·sin(θ) at the phase BEFORE the increment.
    * @code
-   * lo_state_t lo;
+   * dp_lo_state_t lo;
    * lo_init (&lo, 0.0);                 // centre at DC
    * float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
    * @endcode
    */
-  JM_FORCEINLINE JM_HOT float _Complex lo_step_ctrl (lo_state_t *state,
+  JM_FORCEINLINE JM_HOT float _Complex lo_step_ctrl (dp_lo_state_t *state,
                                                     double ctrl)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
@@ -186,7 +186,7 @@ extern "C"
    * @brief Create an LO instance.
    * Allocates state, sets phase to 0, and derives phase_inc from
    * norm_freq.  Initialises the shared 65536-entry float LUT on the
-   * first call (single-threaded concern: call lo_create() before
+   * first call (single-threaded concern: call dp_lo_create() before
    * spawning threads that share LO instances).
    *
    * @param norm_freq  Normalised frequency in cycles per sample.
@@ -199,14 +199,14 @@ extern "C"
    * 1073741824
    * @endcode
    */
-  lo_state_t *lo_create (double norm_freq);
+  dp_lo_state_t *dp_lo_create (double norm_freq);
 
   /** Free all resources.  May be NULL (no-op). */
-  void lo_destroy (lo_state_t *state);
+  void dp_lo_destroy (dp_lo_state_t *state);
 
   /**
    * @brief Zero the phase accumulator.
-   * Sets phase to 0 so the next lo_steps call starts at angle 0 (1+0j).
+   * Sets phase to 0 so the next dp_lo_steps call starts at angle 0 (1+0j).
    * norm_freq and phase_inc are unchanged.
    *
    * @code
@@ -222,14 +222,14 @@ extern "C"
    * 0.25
    * @endcode
    */
-  void lo_reset (lo_state_t *state);
+  void dp_lo_reset (dp_lo_state_t *state);
 
   /* ---- Properties ---- */
 
   /**
    * @brief Normalised frequency (read/write).
    * Setting norm_freq recomputes phase_inc = floor(frac(v) × 2^32) and
-   * takes effect on the next lo_steps call; phase is NOT reset.
+   * takes effect on the next dp_lo_steps call; phase is NOT reset.
    *
    * @code
    * >>> from doppler.source import LO
@@ -241,8 +241,8 @@ extern "C"
    * 2147483648
    * @endcode
    */
-  double lo_get_norm_freq (const lo_state_t *state);
-  void lo_set_norm_freq (lo_state_t *state, double norm_freq);
+  double dp_lo_get_norm_freq (const dp_lo_state_t *state);
+  void dp_lo_set_norm_freq (dp_lo_state_t *state, double norm_freq);
 
   /**
    * @brief Current phase accumulator value (read/write).
@@ -259,8 +259,8 @@ extern "C"
    * 1073741824
    * @endcode
    */
-  uint32_t lo_get_phase (const lo_state_t *state);
-  void lo_set_phase (lo_state_t *state, uint32_t phase);
+  uint32_t dp_lo_get_phase (const dp_lo_state_t *state);
+  void dp_lo_set_phase (dp_lo_state_t *state, uint32_t phase);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Every composable filter exposes this triplet so a pure transducer
@@ -272,13 +272,13 @@ extern "C"
 #define LO_STATE_MAGIC DP_FOURCC ('L', 'O', '_', '_')
 #define LO_STATE_VERSION 1u
 
-  /** @brief Bytes lo_get_state() writes for @p state (envelope + payload). */
-  size_t lo_state_bytes (const lo_state_t *state);
-  /** @brief Serialize @p state's mutable state into @p blob (>= lo_state_bytes). */
-  void lo_get_state (const lo_state_t *state, void *blob);
+  /** @brief Bytes dp_lo_get_state() writes for @p state (envelope + payload). */
+  size_t dp_lo_state_bytes (const dp_lo_state_t *state);
+  /** @brief Serialize @p state's mutable state into @p blob (>= dp_lo_state_bytes). */
+  void dp_lo_get_state (const dp_lo_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob.
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
-  int lo_set_state (lo_state_t *state, const void *blob);
+  int dp_lo_set_state (dp_lo_state_t *state, const void *blob);
 
   /**
    * @brief Per-sample phase increment (read-only).
@@ -292,14 +292,14 @@ extern "C"
    * 1073741824
    * @endcode
    */
-  uint32_t lo_get_phase_inc (const lo_state_t *state);
+  uint32_t dp_lo_get_phase_inc (const dp_lo_state_t *state);
 
   /* ---- Block generators ---- */
 
   /**
    * @brief Maximum samples per call (determines pre-allocated buffer size).
    */
-  size_t lo_steps_max_out (lo_state_t *state);
+  size_t dp_lo_steps_max_out (dp_lo_state_t *state);
 
   /**
    * @brief Generate n CF32 phasors at the current norm_freq.
@@ -309,7 +309,7 @@ extern "C"
    * frequency and ~96 dBc at a typical one — see the file header for
    * why those are two different numbers.  Returns n.
    *
-   * @param state  LO state returned by lo_create().
+   * @param state  LO state returned by dp_lo_create().
    * @param n      Number of phasors to generate.
    * @param out    Output buffer; must hold at least n float _Complex values.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
@@ -327,10 +327,10 @@ extern "C"
    * [1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  size_t lo_steps (lo_state_t *state, size_t n, float _Complex *out,
+  size_t dp_lo_steps (dp_lo_state_t *state, size_t n, float _Complex *out,
                    size_t max_out);
 
-  size_t lo_steps_ctrl_max_out (lo_state_t *state);
+  size_t dp_lo_steps_ctrl_max_out (dp_lo_state_t *state);
 
   /**
    * @brief Generate CF32 phasors with per-sample FM deviation.
@@ -342,10 +342,10 @@ extern "C"
    * and frequency-hopping.  Output length equals ctrl_len.  Returns
    * ctrl_len.
    *
-   * @param state     LO state returned by lo_create().
+   * @param state     LO state returned by dp_lo_create().
    * @param ctrl      Per-sample normalised-frequency deviations in
    *                  `double`.  Only the fractional part of each element
-   *                  contributes.  See nco_steps_u32_ctrl() on why the
+   *                  contributes.  See dp_nco_steps_u32_ctrl() on why the
    *                  port is `double` and not float32.
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len float _Complex
@@ -367,7 +367,7 @@ extern "C"
    * [1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
+  size_t dp_lo_steps_ctrl (dp_lo_state_t *state, const double *ctrl, size_t ctrl_len,
                         float _Complex *out, size_t max_out);
 
 #ifdef __cplusplus

@@ -622,7 +622,7 @@ def review(d: Data) -> None:
         "F4",
         "BY DESIGN",
         "The frequency axis's sub-bin refinement is **not in this object**: "
-        "`ppe_estimate` delegates to `find_peaks_f32` from `spectral_core` "
+        "`dp_ppe_estimate` delegates to `find_peaks_f32` from `spectral_core` "
         "and only falls back to a raw argmax if that returns nothing. The "
         "header's \"refined sub-bin in both axes by parabolic "
         'interpolation" is therefore accurate about the behaviour and '

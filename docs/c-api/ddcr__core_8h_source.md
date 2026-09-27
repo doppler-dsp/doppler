@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef DDCR_CORE_H
-#define DDCR_CORE_H
+#ifndef DP_DDCR_CORE_H
+#define DP_DDCR_CORE_H
 
 #include "doppler/dp_complex.h"
 #include <stdbool.h>
@@ -34,21 +34,21 @@ extern "C"
   typedef struct ddcr_state
   {
     hbdecim_r2c_state_t   *r2c;  
-    lo_state_t            *lo;   
-    RateConverter_state_t *rc;   
+    dp_lo_state_t            *lo;   
+    dp_RateConverter_state_t *rc;   
     double                 rate; 
     bool narrow_pulse;
-  } ddcr_state_t;
+  } dp_ddcr_state_t;
 
-  ddcr_state_t *ddcr_create (double norm_freq, double rate);
+  dp_ddcr_state_t *dp_ddcr_create (double norm_freq, double rate);
 
-  ddcr_state_t *ddcr_create_matched (double norm_freq, double rate, int pulse,
+  dp_ddcr_state_t *ddcr_create_matched (double norm_freq, double rate, int pulse,
                                      double beta, size_t span,
                                      double pulse_sps, size_t num_phases);
 
-  void ddcr_destroy (ddcr_state_t *s);
+  void dp_ddcr_destroy (dp_ddcr_state_t *s);
 
-  void ddcr_reset (ddcr_state_t *s);
+  void dp_ddcr_reset (dp_ddcr_state_t *s);
 
   /* ── Serializable state — the elastic / pure-transducer face ───────────────
    *
@@ -67,53 +67,53 @@ extern "C"
 #define DDCR_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', 'R')
 #define DDCR_STATE_VERSION 1u
 
-  size_t ddcr_state_bytes (const ddcr_state_t *s);
-  void ddcr_get_state (const ddcr_state_t *s, void *blob);
-  int ddcr_set_state (ddcr_state_t *s, const void *blob);
+  size_t dp_ddcr_state_bytes (const dp_ddcr_state_t *s);
+  void dp_ddcr_get_state (const dp_ddcr_state_t *s, void *blob);
+  int dp_ddcr_set_state (dp_ddcr_state_t *s, const void *blob);
 
-  size_t ddcr_run (ddcr_state_t *s, const void *state_in, void *state_out,
+  size_t dp_ddcr_run (dp_ddcr_state_t *s, const void *state_in, void *state_out,
                    const float *in, size_t n_in, float _Complex *out,
                    size_t max_out);
 
-  double ddcr_get_norm_freq (const ddcr_state_t *s);
+  double dp_ddcr_get_norm_freq (const dp_ddcr_state_t *s);
 
-  void ddcr_set_norm_freq (ddcr_state_t *s, double norm_freq);
+  void dp_ddcr_set_norm_freq (dp_ddcr_state_t *s, double norm_freq);
 
-  double ddcr_get_rate (const ddcr_state_t *s);
+  double dp_ddcr_get_rate (const dp_ddcr_state_t *s);
 
-  size_t ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
+  size_t dp_ddcr_execute (dp_ddcr_state_t *s, const float *in, size_t n_in,
                        float _Complex *out, size_t max_out);
 
-  size_t ddcr_execute_max_out (ddcr_state_t *s);
-  size_t ddcr_execute_ctrl_max_out (ddcr_state_t *s);
-  size_t ddcr_execute_ctrl_push_max_out (ddcr_state_t *s);
+  size_t dp_ddcr_execute_max_out (dp_ddcr_state_t *s);
+  size_t dp_ddcr_execute_ctrl_max_out (dp_ddcr_state_t *s);
+  size_t dp_ddcr_execute_ctrl_push_max_out (dp_ddcr_state_t *s);
 
-  size_t ddcr_execute_ctrl (ddcr_state_t *s, const float *x, size_t n_in,
+  size_t dp_ddcr_execute_ctrl (dp_ddcr_state_t *s, const float *x, size_t n_in,
                             double rate_ctrl, double freq_ctrl,
                             float _Complex *out, size_t max_out);
 
-  size_t ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
+  size_t dp_ddcr_execute_ctrl_push (dp_ddcr_state_t *s, float x, double rate_ctrl,
                                  double freq_ctrl, float _Complex *out,
                                  size_t max_out);
 
-  size_t ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x,
+  size_t ddcr_execute_ctrl_push_tap (dp_ddcr_state_t *s, float x,
                                      double rate_ctrl, double freq_ctrl,
                                      float _Complex *out, size_t max_out,
                                      float _Complex *lo_out, int *n_lo);
 
-  size_t ddcr_execute_ctrl_push_tap2 (ddcr_state_t *s, float x,
+  size_t ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x,
                                       double rate_ctrl, double freq_ctrl,
                                       float _Complex *out, size_t max_out,
                                       float _Complex *lo_out, int *n_lo,
                                       float _Complex *pre_out, int *n_pre);
 
-  double ddcr_get_bank_sps (const ddcr_state_t *s);
+  double ddcr_get_bank_sps (const dp_ddcr_state_t *s);
 
-  bool ddcr_get_narrow_pulse (const ddcr_state_t *s);
+  bool dp_ddcr_get_narrow_pulse (const dp_ddcr_state_t *s);
 
-  bool ddcr_get_clipped (const ddcr_state_t *s);
+  bool dp_ddcr_get_clipped (const dp_ddcr_state_t *s);
 
-  int ddcr_set_telemetry (ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+  int ddcr_set_telemetry (dp_ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
                           uint32_t decim);
 
 

@@ -49,23 +49,23 @@ min_sec (const double *t, int n)
 static int
 write_fixture (void)
 {
-  float _Complex     *buf = malloc (NUM_SAMPLES * sizeof *buf);
-  wfm_writer_state_t *w;
-  int                 rc;
+  float _Complex        *buf = malloc (NUM_SAMPLES * sizeof *buf);
+  dp_wfm_writer_state_t *w;
+  int                    rc;
 
   if (!buf)
     return -1;
   for (size_t i = 0; i < NUM_SAMPLES; i++)
     buf[i] = (float)(i % 64) / 128.0f + I * (float)(i % 32) / 128.0f;
 
-  w = wfm_writer_create (FIXTURE, FS, (int)WFM_FT_BLUE, ST_CI16, ENDIAN_LE, FC,
-                         0, 0.0, 0.0, false);
+  w = dp_wfm_writer_create (FIXTURE, FS, (int)WFM_FT_BLUE, ST_CI16, ENDIAN_LE,
+                            FC, 0, 0.0, 0.0, false);
   if (w == NULL)
     {
       free (buf);
       return -1;
     }
-  rc = (wfm_writer_write (w, buf, NUM_SAMPLES) == NUM_SAMPLES) ? 0 : -1;
+  rc = (dp_wfm_writer_write (w, buf, NUM_SAMPLES) == NUM_SAMPLES) ? 0 : -1;
   if (wfm_writer_close (w) != 0)
     rc = -1;
   free (buf);

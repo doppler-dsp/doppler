@@ -1,9 +1,9 @@
 """Tests for doppler.ddc.Ddcr (the generated kind="handle" class).
 
 Ddcr consolidates the former DDCR object class and the seven ddcr_* free
-functions into one typed handle over the opaque ddcr_state_t. execute() takes a
-caller-provided writable complex64 output buffer (jm#316 shape d) and returns a
-zero-copy view out[:n_out].
+functions into one typed handle over the opaque dp_ddcr_state_t. execute()
+takes a caller-provided writable complex64 output buffer (jm#316 shape d)
+and returns a zero-copy view out[:n_out].
 """
 
 from __future__ import annotations

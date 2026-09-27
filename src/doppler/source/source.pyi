@@ -8,8 +8,8 @@ class NCO:
     """Create an NCO instance. Allocates and initialises the phase accumulator
     to zero, converts norm_freq to the integer phase_inc =
     floor(frac(norm_freq) × 2^32), and stores nmax for scaled output. The NCO
-    is immediately ready to call nco_steps_u32 / nco_steps_u32_scaled /
-    nco_steps_u32_ovf.
+    is immediately ready to call dp_nco_steps_u32 / dp_nco_steps_u32_scaled /
+    dp_nco_steps_u32_ovf.
 
     Parameters
     ----------
@@ -18,8 +18,8 @@ class NCO:
         fractional part matters. Negative values fold correctly (−0.25 →
         3×2^30).
     nmax : int, default 0
-        Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw 32-bit
-        accumulator.
+        Wrap target for dp_nco_steps_u32_scaled. Pass 0 to return the raw
+        32-bit accumulator.
 
     Examples
     --------
@@ -33,9 +33,9 @@ class NCO:
     def __init__(self, norm_freq: float = 0.0, nmax: int = 0) -> None: ...
     def reset(self) -> None:
         """Zero the phase accumulator. Sets phase to 0 so the next
-        nco_steps_u32 call starts from the beginning of the cycle. norm_freq,
-        phase_inc, and nmax are unchanged; the NCO is ready to generate samples
-        again immediately.
+        dp_nco_steps_u32 call starts from the beginning of the cycle.
+        norm_freq, phase_inc, and nmax are unchanged; the NCO is ready to
+        generate samples again immediately.
 
         Examples
         --------
@@ -123,8 +123,8 @@ class NCO:
         fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the
         full accumulator range uniformly onto [0, nmax) without a modulo
         operation. When nmax == 0 falls back to the raw accumulator (identical
-        to nco_steps_u32). Useful for polyphase filter bank indexing and direct
-        LUT addressing. Returns n.
+        to dp_nco_steps_u32). Useful for polyphase filter bank indexing and
+        direct LUT addressing. Returns n.
 
         Parameters
         ----------
@@ -172,7 +172,7 @@ class NCO:
         count: int = 1,
     ) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance n samples; write raw phase values and per-sample carry.
-        Identical to nco_steps_u32 for the phase array, but simultaneously
+        Identical to dp_nco_steps_u32 for the phase array, but simultaneously
         fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that
         produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The
         carry marks the exact boundary of one input period and is the primitive
@@ -219,10 +219,10 @@ class NCO:
         + ctrl_inc` each sample -- so a loop filter can drive the NCO with its
         full per-sample output (integrator + proportional term) without the
         caller ever touching the NCO's own configured rate. Mirrors
-        `lo_step_ctrl`/`lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which
-        does this for the CF32 phasor output; this is the same control-port
-        pattern for NCO's raw phase output. With every `ctrl[i] == 0` this is
-        bit-identical to nco_steps_u32(). Returns ctrl_len.
+        `lo_step_ctrl`/`dp_lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h),
+        which does this for the CF32 phasor output; this is the same
+        control-port pattern for NCO's raw phase output. With every `ctrl[i] ==
+        0` this is bit-identical to dp_nco_steps_u32(). Returns ctrl_len.
 
         Python's `out=` keyword writes into a caller-supplied buffer instead of
         allocating a fresh one. This used to claim it was "essential for a hot
@@ -295,13 +295,13 @@ class NCO:
         """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a
         per-sample control offset added on top of phase_inc.
 
-        The nco_steps_u32_scaled output mapping (nmax=0 falls back to the raw
-        accumulator) driven by the nco_steps_u32_ctrl control port -- every
-        stepper has a matching control-input counterpart, so a tracking loop
-        can drive LUT-indexed output (nmax = table length) exactly as it would
-        raw phase output, without ever touching phase_inc/norm_freq. With every
-        `ctrl[i] == 0` this is bit-identical to nco_steps_u32_scaled(). Returns
-        ctrl_len.
+        The dp_nco_steps_u32_scaled output mapping (nmax=0 falls back to the
+        raw accumulator) driven by the dp_nco_steps_u32_ctrl control port --
+        every stepper has a matching control-input counterpart, so a tracking
+        loop can drive LUT-indexed output (nmax = table length) exactly as it
+        would raw phase output, without ever touching phase_inc/norm_freq. With
+        every `ctrl[i] == 0` this is bit-identical to
+        dp_nco_steps_u32_scaled(). Returns ctrl_len.
 
         Parameters
         ----------
@@ -355,9 +355,9 @@ class NCO:
         """Advance ctrl_len samples; raw phase + per-sample carry, with a
         per-sample control offset added on top of phase_inc.
 
-        The nco_steps_u32_ovf output mapping (raw phase plus a flag marking
+        The dp_nco_steps_u32_ovf output mapping (raw phase plus a flag marking
         each sample whose advance crossed a cycle boundary) driven by the
-        nco_steps_u32_ctrl control port -- every stepper has a matching
+        dp_nco_steps_u32_ctrl control port -- every stepper has a matching
         control-input counterpart. The flag reflects THIS sample's true SIGNED
         advance (`norm_freq + ctrl`, formed in cycles before either term is
         folded into the accumulator), not just phase_inc alone -- needed by any
@@ -367,7 +367,7 @@ class NCO:
         (one EXTRA output/load), a backward one a borrow (one FEWER); see
         nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the
         fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and
-        `norm_freq` in [0, 1) this is bit-identical to nco_steps_u32_ovf().
+        `norm_freq` in [0, 1) this is bit-identical to dp_nco_steps_u32_ovf().
         Returns ctrl_len.
 
         Parameters
@@ -528,8 +528,8 @@ class NCO:
 class LO:
     """Create an LO instance. Allocates state, sets phase to 0, and derives
     phase_inc from norm_freq. Initialises the shared 65536-entry float LUT on
-    the first call (single-threaded concern: call lo_create() before spawning
-    threads that share LO instances).
+    the first call (single-threaded concern: call dp_lo_create() before
+    spawning threads that share LO instances).
 
     Parameters
     ----------
@@ -548,7 +548,7 @@ class LO:
 
     def __init__(self, norm_freq: float = 0.0) -> None: ...
     def reset(self) -> None:
-        """Zero the phase accumulator. Sets phase to 0 so the next lo_steps
+        """Zero the phase accumulator. Sets phase to 0 so the next dp_lo_steps
         call starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged.
 
         Examples
@@ -632,7 +632,8 @@ class LO:
         ctrl : NDArray[np.float64]
             Per-sample normalised-frequency deviations in `double`. Only the
             fractional part of each element contributes. See
-            nco_steps_u32_ctrl() on why the port is `double` and not float32.
+            dp_nco_steps_u32_ctrl() on why the port is `double` and not
+            float32.
         out : NDArray[np.complex64] | None
             Output buffer; must hold at least ctrl_len float _Complex values.
 
@@ -728,8 +729,8 @@ class LO:
     @property
     def norm_freq(self) -> float:
         """Normalised frequency (read/write). Setting norm_freq recomputes
-        phase_inc = floor(frac(v) × 2^32) and takes effect on the next lo_steps
-        call; phase is NOT reset.
+        phase_inc = floor(frac(v) × 2^32) and takes effect on the next
+        dp_lo_steps call; phase is NOT reset.
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
@@ -798,7 +799,7 @@ class LO:
 class AWGN:
     """Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG
     via SplitMix64, and sets up both the scalar and the AVX2 parallel streams.
-    The initial seed is stored so awgn_reset() can reproduce the exact same
+    The initial seed is stored so dp_awgn_reset() can reproduce the exact same
     stream.
 
     Parameters
@@ -823,8 +824,8 @@ class AWGN:
     def reset(self) -> None:
         """Reset RNG to the seed supplied at create time. Re-runs the
         SplitMix64 seeding procedure with the original seed so the next
-        awgn_generate() call produces exactly the same samples as the first
-        call after awgn_create(). amplitude is not changed.
+        dp_awgn_generate() call produces exactly the same samples as the first
+        call after dp_awgn_create(). amplitude is not changed.
 
         Examples
         --------
@@ -896,8 +897,8 @@ class AWGN:
 
     def reseed(self, seed: int) -> None:
         """Reseed the RNG and reset all xoshiro256++ state. Equivalent to
-        calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the
-        existing allocation. amplitude is unchanged.
+        calling dp_awgn_destroy() and dp_awgn_create(seed, amplitude) but
+        reuses the existing allocation. amplitude is unchanged.
 
         Parameters
         ----------

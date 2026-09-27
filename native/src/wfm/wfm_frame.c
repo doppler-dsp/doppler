@@ -41,29 +41,29 @@ wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
     case WFM_SEQ_PN:
       {
         /* poly 0 is "the maximal-length one for this register", the same
-           resolution wfm_synth_create() applies to its --pn-poly. Passing 0
-           through to pn_create() instead means a register with NO FEEDBACK:
+           resolution dp_wfm_synth_create() applies to its --pn-poly. Passing 0
+           through to dp_pn_create() instead means a register with NO FEEDBACK:
            it shifts the seed out and emits zeros for ever, which is a
            constant field that still looks like a field. */
-        pn_state_t *p
-            = pn_create (s->poly ? s->poly : pn_mls_poly (s->reg_bits),
-                         s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
+        dp_pn_state_t *p
+            = dp_pn_create (s->poly ? s->poly : pn_mls_poly (s->reg_bits),
+                            s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
         if (!p)
           return 0;
-        size_t n = pn_generate (p, s->len, out, cap);
-        pn_destroy (p);
+        size_t n = dp_pn_generate (p, s->len, out, cap);
+        dp_pn_destroy (p);
         return n;
       }
 
     case WFM_SEQ_GOLD:
       {
-        gold_state_t *g
-            = gold_create (s->taps_a, s->seed_a ? s->seed_a : 1u, s->taps_b,
-                           s->seed_b ? s->seed_b : 1u, s->reg_bits);
+        dp_gold_state_t *g
+            = dp_gold_create (s->taps_a, s->seed_a ? s->seed_a : 1u, s->taps_b,
+                              s->seed_b ? s->seed_b : 1u, s->reg_bits);
         if (!g)
           return 0;
-        size_t n = gold_generate (g, s->len, out, cap);
-        gold_destroy (g);
+        size_t n = dp_gold_generate (g, s->len, out, cap);
+        dp_gold_destroy (g);
         return n;
       }
     }
@@ -744,7 +744,7 @@ wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name)
  *
  * Appending, rather than a constructor per shape. A field count baked into a
  * prototype forces every field's every parameter into it -- which is what
- * `frame_create()`'s 38 arguments are -- so a fifth field has to be an
+ * `dp_frame_create()`'s 38 arguments are -- so a fifth field has to be an
  * append, not a signature change.
  */
 

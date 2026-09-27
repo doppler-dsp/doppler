@@ -2,7 +2,7 @@
  *
  * Benchmarks the three ways to generate a phasor stream:
  *   step   — inline single-sample lo_step()      (tracking-loop hot path)
- *   steps  — block lo_steps()                     (bulk synthesis, SIMD)
+ *   steps  — block dp_lo_steps()                     (bulk synthesis, SIMD)
  *   cexpf  — double-phase accumulator + cexpf()   (the baseline lo replaces)
  *
  * The point of the integer NCO is that step is at least as fast as the
@@ -48,7 +48,7 @@ main (void)
 
   /* --- step: inline single-sample lo_step() (the loop hot path) --- */
   {
-    lo_state_t     s;
+    dp_lo_state_t  s;
     volatile float sink = 0.0f;
     lo_init (&s, 0.123);
     for (int i = 0; i < 16; i++)
@@ -71,20 +71,20 @@ main (void)
 
   /* --- steps: block generator (SIMD bulk path) --- */
   {
-    lo_state_t *lo = lo_create (0.123);
-    lo_steps (lo, 16, out, 16); /* warmup */
+    dp_lo_state_t *lo = dp_lo_create (0.123);
+    dp_lo_steps (lo, 16, out, 16); /* warmup */
 
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        lo_steps (lo, BENCH_N, out, BENCH_N);
+        dp_lo_steps (lo, BENCH_N, out, BENCH_N);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "steps", times, ITERATIONS, BENCH_N);
     report ("steps", times);
-    lo_destroy (lo);
+    dp_lo_destroy (lo);
   }
 
   /* --- cexpf baseline: double-phase accumulator + cexpf() --- */

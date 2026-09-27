@@ -39,8 +39,8 @@
  * [64, -64, 127]
  * @endcode
  */
-#ifndef F32_TO_I8_CORE_H
-#define F32_TO_I8_CORE_H
+#ifndef DP_F32_TO_I8_CORE_H
+#define DP_F32_TO_I8_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
@@ -53,7 +53,7 @@ extern "C" {
 /**
  * @brief F32ToI8 state.
  *
- * Allocate with f32_to_i8_create().
+ * Allocate with dp_f32_to_i8_create().
  *
  * @c clipped is sticky: set to 1 by the first sample whose pre-saturation
  * scaled value falls outside `[-128, 127]`; cleared only by reset().
@@ -61,7 +61,7 @@ extern "C" {
 typedef struct {
     float   scale;   /* multiply factor applied before saturation */
     uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
-} f32_to_i8_state_t;
+} dp_f32_to_i8_state_t;
 
 /**
  * @brief Create a f32_to_i8 instance.
@@ -75,15 +75,15 @@ typedef struct {
  *               (default: 128.0f).  Use 128.0 to convert a normalised
  *               `[-1, +1]` signal to the full 8-bit range.
  * @return Heap-allocated state, or NULL if @p scale is not positive.
- * @note Caller must call f32_to_i8_destroy() when done.
+ * @note Caller must call dp_f32_to_i8_destroy() when done.
  */
-f32_to_i8_state_t *f32_to_i8_create(float scale);
+dp_f32_to_i8_state_t *dp_f32_to_i8_create(float scale);
 
 /**
  * @brief Destroy a f32_to_i8 instance and release all memory.
  * @param state  May be NULL.
  */
-void f32_to_i8_destroy(f32_to_i8_state_t *state);
+void dp_f32_to_i8_destroy(dp_f32_to_i8_state_t *state);
 
 /**
  * @brief Clear the sticky clip flag, starting a fresh saturation history.
@@ -105,7 +105,7 @@ void f32_to_i8_destroy(f32_to_i8_state_t *state);
  *
  * @endcode
  */
-void f32_to_i8_reset(f32_to_i8_state_t *state);
+void dp_f32_to_i8_reset(dp_f32_to_i8_state_t *state);
 
 /**
  * @brief Scale one float sample by @c scale, round, and saturate to int8.
@@ -132,7 +132,7 @@ void f32_to_i8_reset(f32_to_i8_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT int8_t
-f32_to_i8_step(f32_to_i8_state_t *state, float x)
+dp_f32_to_i8_step(dp_f32_to_i8_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
@@ -164,8 +164,8 @@ f32_to_i8_step(f32_to_i8_state_t *state, float x)
  *
  * @endcode
  */
-void f32_to_i8_steps(
-    f32_to_i8_state_t *state,
+void dp_f32_to_i8_steps(
+    dp_f32_to_i8_state_t *state,
     const float    *input,
     int8_t          *output,
     size_t               n);
@@ -175,9 +175,9 @@ void f32_to_i8_steps(
  * identically-built instance. */
 #define F32_TO_I8_STATE_MAGIC DP_FOURCC ('F','2','_','8')
 #define F32_TO_I8_STATE_VERSION 1u
-size_t f32_to_i8_state_bytes (const f32_to_i8_state_t *state);
-void f32_to_i8_get_state (const f32_to_i8_state_t *state, void *blob);
-int f32_to_i8_set_state (f32_to_i8_state_t *state, const void *blob);
+size_t dp_f32_to_i8_state_bytes (const dp_f32_to_i8_state_t *state);
+void dp_f32_to_i8_get_state (const dp_f32_to_i8_state_t *state, void *blob);
+int dp_f32_to_i8_set_state (dp_f32_to_i8_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

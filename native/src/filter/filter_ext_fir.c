@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only filter_ext.c is compiled.
  */
 /* ======================================================== */
-/* FIRObject — wraps fir_state_t *       */
+/* FIRObject — wraps dp_fir_state_t *       */
 /* ======================================================== */
 
 #include "doppler/fir/fir_core.h"
 
 typedef struct
 {
-  PyObject_HEAD fir_state_t *handle;
+  PyObject_HEAD dp_fir_state_t *handle;
 } FIRObject;
 
 static void
 FIRObj_dealloc (FIRObject *self)
 {
   if (self->handle)
-    fir_destroy (self->handle);
+    dp_fir_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -41,7 +41,7 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &taps_obj))
     return -1;
-  /* dtype dispatch: float → fir_create_real, float _Complex → fir_create */
+  /* dtype dispatch: float → fir_create_real, float _Complex → dp_fir_create */
   {
     PyArrayObject *_taps_probe = (PyArrayObject *)PyArray_CheckFromAny (
         taps_obj, NULL, 1, 1, NPY_ARRAY_C_CONTIGUOUS, NULL);
@@ -69,14 +69,14 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
             return -1;
           }
         size_t taps_len = (size_t)PyArray_SIZE (taps_arr);
-        self->handle    = fir_create (
+        self->handle    = dp_fir_create (
             (const float _Complex *)PyArray_DATA (taps_arr), taps_len);
         Py_DECREF (taps_arr);
       }
   }
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "fir_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_fir_create returned NULL");
       return -1;
     }
   return 0;
@@ -90,7 +90,7 @@ FIRObj_reset (FIRObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  fir_reset (self->handle);
+  dp_fir_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -102,7 +102,7 @@ FIRObj_execute_max_out (FIRObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (fir_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_fir_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -150,7 +150,7 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = fir_execute_max_out (self->handle);
+      size_t _omax    = dp_fir_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -160,7 +160,7 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = fir_execute (
+      size_t n_out = dp_fir_execute (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr));
       Py_DECREF (in_arr);
@@ -182,7 +182,7 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = fir_execute_max_out (self->handle);
+  size_t _cap  = dp_fir_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -193,9 +193,9 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = fir_execute (self->handle,
-                              (const float _Complex *)PyArray_DATA (in_arr),
-                              (size_t)n, _d0);
+  size_t n_out = dp_fir_execute (self->handle,
+                                 (const float _Complex *)PyArray_DATA (in_arr),
+                                 (size_t)n, _d0);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -221,7 +221,7 @@ FIRObj_state_bytes (FIRObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (fir_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_fir_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -232,11 +232,11 @@ FIRObj_get_state (FIRObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = fir_state_bytes (self->handle);
+  size_t    _n = dp_fir_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  fir_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_fir_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -253,12 +253,12 @@ FIRObj_set_state (FIRObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != fir_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != dp_fir_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (fir_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_fir_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -285,7 +285,7 @@ FIR_getprop_is_real (FIRObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(fir_get_is_real (self->handle)));
+  return PyBool_FromLong ((long)(dp_fir_get_is_real (self->handle)));
 }
 
 static PyGetSetDef FIR_getset[] = {
@@ -308,7 +308,7 @@ FIRObj_destroy (FIRObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      fir_destroy (self->handle);
+      dp_fir_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -327,7 +327,7 @@ FIRObj_exit (FIRObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      fir_destroy (self->handle);
+      dp_fir_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -396,7 +396,7 @@ static PyMethodDef FIRObj_methods[] = {
     "\n"
     "Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.\n"
     "\n"
-    "fir_execute() always writes exactly n_in samples; there is no\n"
+    "dp_fir_execute() always writes exactly n_in samples; there is no\n"
     "call-independent upper bound smaller than the input length for this\n"
     "function to report. An `out=` buffer must be sized to exactly `len(x)`,\n"
     "not to this function's return value.\n"

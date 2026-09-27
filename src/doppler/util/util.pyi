@@ -212,9 +212,9 @@ def ema_step(state: float, x: float, alpha: float) -> float:
     NOT total in `x`: a non-finite observation poisons the state
     permanently, because an EMA remembers. That is deliberate — the guard
     belongs at the boundary where an untrusted value first becomes
-    persistent state, which is this function's input. Use ::saturate there,
-    as `agc_steps` does. See `agc_core.h` for what one unguarded non-finite
-    sample cost.
+    persistent state, which is this function's input. Use ::dp_saturate
+    there, as `dp_agc_steps` does. See `agc_core.h` for what one unguarded
+    non-finite sample cost.
 
     Examples
     --------
@@ -253,11 +253,11 @@ def ema_alpha_decim(alpha: float, d: int) -> float:
     | 0.05    | 6 ulps off             | exact         |
     | 1e-5    | 26865 ulps off         | exact         |
 
-    `agc_steps` used the repeated-multiply form and had this defect; it now
-    forms BOTH its per-chunk coefficients with this function. Being exact
-    at `d == 1` is the property that lets a caller set `decim = 1` and get
-    bit-for-bit the undecimated recursion, so the decimated and per-sample
-    paths can be compared at all.
+    `dp_agc_steps` used the repeated-multiply form and had this defect; it
+    now forms BOTH its per-chunk coefficients with this function. Being
+    exact at `d == 1` is the property that lets a caller set `decim = 1`
+    and get bit-for-bit the undecimated recursion, so the decimated and
+    per-sample paths can be compared at all.
 
     Parameters
     ----------
@@ -370,8 +370,8 @@ def mean_sinc(umax: float) -> float:
     The average amplitude loss of a signal whose offset from the nearest
     bin centre is uniform over `umax` bins: the scalloping a Pd model
     averages over, where sinc(umax) would be only the worst case.
-    64-interval Simpson (simpson_weights()) over segments of at most half a
-    bin: within 3e-10 at any umax, far below any model this feeds.
+    64-interval Simpson (dp_simpson_weights()) over segments of at most
+    half a bin: within 3e-10 at any umax, far below any model this feeds.
 
     Parameters
     ----------

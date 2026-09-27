@@ -9,7 +9,7 @@
 # The same split `viterbi` established: `conv` owns the CODE — the
 # description, the trellis arithmetic and the `conv_encode` kernel — and this
 # owns the stateful ENCODER built over one. It is not a second
-# implementation; `conv_enc_encode` calls `conv_encode`.
+# implementation; `dp_conv_enc_encode` calls `conv_encode`.
 #
 # Opaque heap state (the code, plus the shift register that must carry across
 # calls) so no_state/no_step; the register is running state, hence

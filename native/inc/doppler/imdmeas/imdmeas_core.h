@@ -9,8 +9,8 @@
  *
  * Lifecycle: create -> `[analyze]*` -> destroy
  */
-#ifndef IMDMEAS_CORE_H
-#define IMDMEAS_CORE_H
+#ifndef DP_IMDMEAS_CORE_H
+#define DP_IMDMEAS_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -24,7 +24,7 @@ extern "C" {
 
 /** @brief IMDMeasure state: owned window, FFT plan and one-sided power scratch. */
 typedef struct {
-    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, one-sided power       */
     double enbw;            /* window equivalent noise bandwidth (bins)     */
     double beta;            /* auto-selected Kaiser shape (from DR target)   */
@@ -33,7 +33,7 @@ typedef struct {
     size_t n;               /**< Capture / frame length, samples.            */
     size_t nfft;            /**< Zero-padded transform length, bins.         */
     double fs;              /**< Sample rate, Hz.                            */
-} imdmeas_state_t;
+} dp_imdmeas_state_t;
 
 /**
  * @brief Create an IMDMeasure analyser (auto Kaiser window).
@@ -53,11 +53,11 @@ typedef struct {
  *                         when > 0, else derived from @p bits.
  * @return Heap state, or NULL on bad args / allocation failure.
  */
-imdmeas_state_t *imdmeas_create(size_t n, double fs, double full_scale,
+dp_imdmeas_state_t *dp_imdmeas_create(size_t n, double fs, double full_scale,
                                 size_t bits, double dynamic_range_db);
 
 /** @brief Destroy an IMDMeasure analyser. @param state May be NULL. */
-void imdmeas_destroy(imdmeas_state_t *state);
+void dp_imdmeas_destroy(dp_imdmeas_state_t *state);
 
 /**
  * @brief Reset the analyser (a no-op: each analyze() call is independent).
@@ -78,7 +78,7 @@ void imdmeas_destroy(imdmeas_state_t *state);
  *
  * @endcode
  */
-void imdmeas_reset(imdmeas_state_t *state);
+void dp_imdmeas_reset(dp_imdmeas_state_t *state);
 
 /**
  * @brief Two-tone IMD/TOI of a real capture (finds the two strongest tones).
@@ -99,10 +99,10 @@ void imdmeas_reset(imdmeas_state_t *state);
  *
  * @endcode
  */
-imd_meas_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in);
+imd_meas_t dp_imdmeas_analyze(dp_imdmeas_state_t *state, const float *x, size_t n_in);
 
 /** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
-size_t imdmeas_spectrum_dbfs_max_out(imdmeas_state_t *state);
+size_t dp_imdmeas_spectrum_dbfs_max_out(dp_imdmeas_state_t *state);
 
 /**
  * @brief DC-centred dBFS magnitude spectrum of a capture (length nfft).
@@ -133,7 +133,7 @@ size_t imdmeas_spectrum_dbfs_max_out(imdmeas_state_t *state);
  *
  * @endcode
  */
-size_t imdmeas_spectrum_dbfs(imdmeas_state_t *state, const float *x,
+size_t dp_imdmeas_spectrum_dbfs(dp_imdmeas_state_t *state, const float *x,
                              size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus

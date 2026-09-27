@@ -64,18 +64,18 @@ main (void)
     size_t          n;
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
-    carrier_acq_state_t *ca = carrier_acq_create (
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
         2.0, /*sequential=*/true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
-        carrier_acq_steps (ca, x, n);
+        dp_carrier_acq_steps (ca, x, n);
         DP_CHECK (ca->ready);
         if (ca->ready)
           DP_CHECK (fabs (ca->residual_hz - TONE_HZ) < 5.0);
         DP_CHECK (ca->n_blocks <= ca->max_n_blocks);
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_destroy (ca);
       }
     free (x);
   }
@@ -85,20 +85,20 @@ main (void)
     size_t          n;
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
-    carrier_acq_state_t *ca = carrier_acq_create (
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
         2.0, /*sequential=*/false, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
-        carrier_acq_steps (ca, x, n);
+        dp_carrier_acq_steps (ca, x, n);
         DP_CHECK (ca->ready);
         if (ca->ready)
           {
             DP_CHECK (fabs (ca->residual_hz - TONE_HZ) < 5.0);
             DP_CHECK (ca->n_blocks == ca->dwell_target);
           }
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_destroy (ca);
       }
     free (x);
   }
@@ -109,9 +109,9 @@ main (void)
     size_t          n;
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
-    carrier_acq_state_t *ca
-        = carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f,
-                              NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -119,12 +119,12 @@ main (void)
         for (size_t off = 0; off < n && !ca->ready; off += chunk)
           {
             size_t take = (n - off < chunk) ? n - off : chunk;
-            carrier_acq_steps (ca, x + off, take);
+            dp_carrier_acq_steps (ca, x + off, take);
           }
         DP_CHECK (ca->ready);
         if (ca->ready)
           DP_CHECK (fabs (ca->residual_hz - TONE_HZ) < 5.0);
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_destroy (ca);
       }
     free (x);
   }
@@ -132,7 +132,7 @@ main (void)
   /* ── pure noise, non-sequential mode: never confidently detects, gives
      up at dwell_target (the fixed, design_snr-driven wait point) ── */
   {
-    carrier_acq_state_t *ca = carrier_acq_create (
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
         2.0, /*sequential=*/false, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
@@ -142,11 +142,11 @@ main (void)
             = (size_t)llround (SAMPLE_RATE_HZ / (SYMBOL_RATE_HZ / 10.0));
         size_t          n     = (ca->dwell_target + 2) * nfft_frame;
         float _Complex *noise = _make_noise (n, 999u);
-        carrier_acq_steps (ca, noise, n);
+        dp_carrier_acq_steps (ca, noise, n);
         DP_CHECK (!ca->ready);
         DP_CHECK (ca->n_blocks == ca->dwell_target);
         free (noise);
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_destroy (ca);
       }
   }
 
@@ -155,8 +155,8 @@ main (void)
      as small as 1) -- gives up only at its OWN, separate max_n_blocks
      cap. A small explicit max_n_blocks keeps this fast. ── */
   {
-    const size_t         small_cap = 5;
-    carrier_acq_state_t *ca        = carrier_acq_create (
+    const size_t            small_cap = 5;
+    dp_carrier_acq_state_t *ca        = dp_carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
         2.0, /*sequential=*/true, small_cap);
     DP_CHECK (ca != NULL);
@@ -167,25 +167,25 @@ main (void)
             = (size_t)llround (SAMPLE_RATE_HZ / (SYMBOL_RATE_HZ / 10.0));
         size_t          n     = (small_cap + 2) * nfft_frame;
         float _Complex *noise = _make_noise (n, 999u);
-        carrier_acq_steps (ca, noise, n);
+        dp_carrier_acq_steps (ca, noise, n);
         DP_CHECK (!ca->ready);
         DP_CHECK (ca->n_blocks == small_cap);
         free (noise);
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_destroy (ca);
       }
   }
 
   /* ── template override: a caller-supplied shape is used verbatim,
      runs to completion without crashing ── */
   {
-    carrier_acq_state_t *probe
-        = carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f,
-                              NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
+    dp_carrier_acq_state_t *probe = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
     DP_CHECK (probe != NULL);
     if (probe)
       {
         size_t nfft = probe->nfft;
-        carrier_acq_destroy (probe);
+        dp_carrier_acq_destroy (probe);
 
         float *tmpl = malloc (nfft * sizeof (float));
         /* A single sharp spike at DC (bin nfft/2, DC-centred) instead of
@@ -193,19 +193,19 @@ main (void)
         for (size_t k = 0; k < nfft; k++)
           tmpl[k] = (k == nfft / 2) ? 1.0f : 0.0f;
 
-        size_t               n;
-        float _Complex      *x  = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ,
-                                                TONE_HZ, 12345u, &n);
-        carrier_acq_state_t *ca = carrier_acq_create (
+        size_t          n;
+        float _Complex *x = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ,
+                                          TONE_HZ, 12345u, &n);
+        dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
             SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, tmpl, nfft, 1e-3,
             0.9, 2.0, true, MAX_N_BLOCKS);
         DP_CHECK (ca != NULL);
         if (ca)
           {
             DP_CHECK (ca->nfft == nfft);
-            carrier_acq_steps (ca, x, n);
+            dp_carrier_acq_steps (ca, x, n);
             DP_CHECK (ca->n_blocks > 0);
-            carrier_acq_destroy (ca);
+            dp_carrier_acq_destroy (ca);
           }
         free (x);
         free (tmpl);
@@ -213,8 +213,8 @@ main (void)
   }
 
   /* ── invalid args rejected ── */
-  DP_CHECK (carrier_acq_create (0.0, 0.0, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-                                2.0, true, MAX_N_BLOCKS)
+  DP_CHECK (dp_carrier_acq_create (0.0, 0.0, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3,
+                                   0.9, 2.0, true, MAX_N_BLOCKS)
             == NULL);
 
   /* ── state roundtrip + envelope reject; resumed instance continues
@@ -223,66 +223,66 @@ main (void)
     size_t          n;
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 777u, &n);
-    carrier_acq_state_t *a
-        = carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f,
-                              NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
-    carrier_acq_state_t *b
-        = carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f,
-                              NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
+    dp_carrier_acq_state_t *a = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
+    dp_carrier_acq_state_t *b = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
     DP_CHECK (a != NULL && b != NULL);
     if (a && b)
       {
         size_t half = n / 2 + 3; /* mid-stream, not block-aligned */
         if (half > n)
           half = n;
-        carrier_acq_steps (a, x, half);
-        DP_STATE_ROUNDTRIP_TEST (carrier_acq, a, b);
+        dp_carrier_acq_steps (a, x, half);
+        DP_STATE_ROUNDTRIP_TEST (dp_carrier_acq, a, b);
         DP_CHECK (b->n_blocks == a->n_blocks);
         DP_CHECK (b->ready == a->ready);
 
-        carrier_acq_steps (a, x + half, n - half);
-        carrier_acq_steps (b, x + half, n - half);
+        dp_carrier_acq_steps (a, x + half, n - half);
+        dp_carrier_acq_steps (b, x + half, n - half);
         DP_CHECK (a->ready == b->ready);
         DP_CHECK (a->n_blocks == b->n_blocks);
         if (a->ready && b->ready)
           DP_CHECK (fabs (a->residual_hz - b->residual_hz) < 1e-9);
       }
     if (a)
-      carrier_acq_destroy (a);
+      dp_carrier_acq_destroy (a);
     if (b)
-      carrier_acq_destroy (b);
+      dp_carrier_acq_destroy (b);
     free (x);
   }
 
   /* ── state-serialization round trip (mid-dwell split) + envelope reject +
      reset ── the standard's "resume bit-for-bit" contract for a stateful
-     object; also exercises carrier_acq_reset(). ── */
+     object; also exercises dp_carrier_acq_reset(). ── */
   {
     size_t          n;
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 999u, &n);
-    carrier_acq_state_t *ca = carrier_acq_create (
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
         2.0, /*sequential=*/true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
         size_t half = n / 2;
-        carrier_acq_steps (ca, x, half);
+        dp_carrier_acq_steps (ca, x, half);
 
-        size_t nb   = carrier_acq_state_bytes (ca);
+        size_t nb   = dp_carrier_acq_state_bytes (ca);
         void  *blob = malloc (nb);
-        carrier_acq_get_state (ca, blob);
+        dp_carrier_acq_get_state (ca, blob);
 
-        carrier_acq_state_t *cr = carrier_acq_create (
+        dp_carrier_acq_state_t *cr = dp_carrier_acq_create (
             SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3,
             0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
         DP_CHECK (cr != NULL);
         if (cr)
           {
-            DP_CHECK (carrier_acq_set_state (cr, blob) == DP_OK);
-            carrier_acq_steps (ca, x + half, n - half);
-            carrier_acq_steps (cr, x + half, n - half);
+            DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_OK);
+            dp_carrier_acq_steps (ca, x + half, n - half);
+            dp_carrier_acq_steps (cr, x + half, n - half);
             DP_CHECK (ca->ready == cr->ready);
             DP_CHECK (ca->n_blocks == cr->n_blocks);
             if (ca->ready && cr->ready)
@@ -290,12 +290,12 @@ main (void)
 
             /* a corrupted envelope must be rejected, not reinterpreted */
             ((char *)blob)[0] ^= (char)0xFF;
-            DP_CHECK (carrier_acq_set_state (cr, blob) == DP_ERR_INVALID);
-            carrier_acq_destroy (cr);
+            DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_ERR_INVALID);
+            dp_carrier_acq_destroy (cr);
           }
         free (blob);
-        carrier_acq_reset (ca);
-        carrier_acq_destroy (ca);
+        dp_carrier_acq_reset (ca);
+        dp_carrier_acq_destroy (ca);
       }
     free (x);
   }

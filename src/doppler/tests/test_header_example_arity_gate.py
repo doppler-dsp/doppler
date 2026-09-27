@@ -5,7 +5,7 @@ block is compiled by NOTHING. `docs/**` fences are built `-Werror` against
 `libdoppler.a`; a header's block is rendered by doxygen, published to
 `docs/c-api/**`, and — for a constructor — transplanted by jm into the
 `.pyi` a Python user reads. Not one of those paths type-checks it, so
-`mpsk_receiver_create()`'s example passed SIXTEEN arguments to a fifteen-
+`dp_mpsk_receiver_create()`'s example passed SIXTEEN arguments to a fifteen-
 parameter function and said so to nobody (doppler#1082).
 
 The cases below seed a fake `native/inc/`, because a gate that can only be

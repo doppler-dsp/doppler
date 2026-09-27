@@ -23,13 +23,13 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_farrow[] = {
-    (jm_any_fn)farrow_create,
-    (jm_any_fn)farrow_destroy,
-    (jm_any_fn)farrow_reset,
-    (jm_any_fn)farrow_delay_max_out,
-    (jm_any_fn)farrow_delay,
-    (jm_any_fn)farrow_get_group_delay,
-    (jm_any_fn)farrow_state_bytes,
-    (jm_any_fn)farrow_get_state,
-    (jm_any_fn)farrow_set_state,
+    (jm_any_fn)dp_farrow_create,
+    (jm_any_fn)dp_farrow_destroy,
+    (jm_any_fn)dp_farrow_reset,
+    (jm_any_fn)dp_farrow_delay_max_out,
+    (jm_any_fn)dp_farrow_delay,
+    (jm_any_fn)dp_farrow_get_group_delay,
+    (jm_any_fn)dp_farrow_state_bytes,
+    (jm_any_fn)dp_farrow_get_state,
+    (jm_any_fn)dp_farrow_set_state,
 };

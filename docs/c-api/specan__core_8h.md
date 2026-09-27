@@ -46,7 +46,7 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**specan\_state\_t**](structspecan__state__t.md) <br>_Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#function-specan_create) _._ |
+| struct | [**dp\_specan\_state\_t**](structdp__specan__state__t.md) <br>_Specan state. Allocate with_ [_**dp\_specan\_create()**_](specan__core_8h.md#function-dp_specan_create) _._ |
 
 
 
@@ -73,15 +73,15 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  [**specan\_state\_t**](structspecan__state__t.md) \* | [**specan\_create**](#function-specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, int window, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
-|  void | [**specan\_destroy**](#function-specan_destroy) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
-|  size\_t | [**specan\_execute**](#function-specan_execute) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
-|  size\_t | [**specan\_execute\_max\_out**](#function-specan_execute_max_out) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Output capacity hint for_ [_**specan\_execute()**_](specan__core_8h.md#function-specan_execute) _; equals disp\_n._ |
-|  void | [**specan\_get\_state**](#function-specan_get_state) (const [**specan\_state\_t**](structspecan__state__t.md) \* state, void \* blob) <br> |
-|  void | [**specan\_reset**](#function-specan_reset) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Drop pending samples and the running average; LO/filter history zero._  |
-|  void | [**specan\_retune**](#function-specan_retune) ([**specan\_state\_t**](structspecan__state__t.md) \* state, double center) <br>_Retune the display center without rebuilding the chain._  |
-|  int | [**specan\_set\_state**](#function-specan_set_state) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**specan\_state\_bytes**](#function-specan_state_bytes) (const [**specan\_state\_t**](structspecan__state__t.md) \* state) <br> |
+|  [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* | [**dp\_specan\_create**](#function-dp_specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, int window, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
+|  void | [**dp\_specan\_destroy**](#function-dp_specan_destroy) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
+|  size\_t | [**dp\_specan\_execute**](#function-dp_specan_execute) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
+|  size\_t | [**dp\_specan\_execute\_max\_out**](#function-dp_specan_execute_max_out) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _; equals disp\_n._ |
+|  void | [**dp\_specan\_get\_state**](#function-dp_specan_get_state) (const [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_specan\_reset**](#function-dp_specan_reset) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Drop pending samples and the running average; LO/filter history zero._  |
+|  void | [**dp\_specan\_retune**](#function-dp_specan_retune) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, double center) <br>_Retune the display center without rebuilding the chain._  |
+|  int | [**dp\_specan\_set\_state**](#function-dp_specan_set_state) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**dp\_specan\_state\_bytes**](#function-dp_specan_state_bytes) (const [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br> |
 
 
 
@@ -137,13 +137,13 @@ cf32 in (fs_in)  →  Ddc  (mix center→DC, decimate to fs_out = span·1.28)
 
 
 
-* [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) is the tuner/decimator (LO mix + RateConverter cascade); retuning the center is a cheap, seamless LO phase change.
-* [**psd\_state\_t**](structpsd__state__t.md) is the one averaging-PSD core shared with the measurement suite; `navg = 1` gives a responsive single-periodogram frame, larger `navg` trades update rate for a smoother, lower-variance trace.
+* [**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) is the tuner/decimator (LO mix + RateConverter cascade); retuning the center is a cheap, seamless LO phase change.
+* [**dp\_psd\_state\_t**](structdp__psd__state__t.md) is the one averaging-PSD core shared with the measurement suite; `navg = 1` gives a responsive single-periodogram frame, larger `navg` trades update rate for a smoother, lower-variance trace.
 
 
 
 
-The display band length and the bin→frequency map are fixed at create time: bin `i` of the returned spectrum maps to `center + (i − disp_n/2)·fs_out/nfft` Hz. Peaks are intentionally NOT computed here — compose [**find\_peaks\_f32**](spectral__core_8h.md#function-find_peaks_f32) on the returned trace.
+The display band length and the bin→frequency map are fixed at create time: bin `i` of the returned spectrum maps to `center + (i − disp_n/2)·fs_out/nfft` Hz. Peaks are intentionally NOT computed here — compose [**dp\_find\_peaks\_f32**](spectral__core_8h.md#function-dp_find_peaks_f32) on the returned trace.
 
 
 Lifecycle: create → (execute / retune / reset)\* → destroy.
@@ -152,11 +152,11 @@ Lifecycle: create → (execute / retune / reset)\* → destroy.
 
 ```C++
 // 200 kHz span, 500 Hz RBW around DC of a 2.048 MHz cf32 stream
-specan_state_t *sa = specan_create(2.048e6, 200e3, 500.0, 0.0, 0.0,
+dp_specan_state_t *sa = dp_specan_create(2.048e6, 200e3, 500.0, 0.0, 0.0,
                                    0.0, 1, 1);
 float disp[8192];
-size_t n = specan_execute(sa, iq, 65536, disp, 8192);  // 0 until a frame
-specan_destroy(sa);
+size_t n = dp_specan_execute(sa, iq, 65536, disp, 8192);  // 0 until a frame
+dp_specan_destroy(sa);
 ```
  
 
@@ -167,11 +167,11 @@ specan_destroy(sa);
 
 
 
-### function specan\_create 
+### function dp\_specan\_create 
 
 _Create a natural-parameter spectrum analyzer._ 
 ```C++
-specan_state_t * specan_create (
+dp_specan_state_t * dp_specan_create (
     double fs,
     double span,
     double rbw,
@@ -217,7 +217,7 @@ Heap-allocated state, or NULL on invalid argument or OOM.
 
 **Note:**
 
-Caller must call [**specan\_destroy()**](specan__core_8h.md#function-specan_destroy) when done. Argument order keeps the required parameters (fs, span, rbw) first, matching the generated constructor's hoisting of jm `required` init params.
+Caller must call [**dp\_specan\_destroy()**](specan__core_8h.md#function-dp_specan_destroy) when done. Argument order keeps the required parameters (fs, span, rbw) first, matching the generated constructor's hoisting of jm `required` init params.
 
 
 
@@ -238,12 +238,12 @@ True
 
 
 
-### function specan\_destroy 
+### function dp\_specan\_destroy 
 
 _Destroy a Specan instance and release all memory._ 
 ```C++
-void specan_destroy (
-    specan_state_t * state
+void dp_specan_destroy (
+    dp_specan_state_t * state
 ) 
 ```
 
@@ -265,12 +265,12 @@ void specan_destroy (
 
 
 
-### function specan\_execute 
+### function dp\_specan\_execute 
 
 _Mix, decimate, average and return one display spectrum, or nothing._ 
 ```C++
-size_t specan_execute (
-    specan_state_t * state,
+size_t dp_specan_execute (
+    dp_specan_state_t * state,
     const float _Complex * x,
     size_t x_len,
     float * out,
@@ -321,12 +321,12 @@ True
 
 
 
-### function specan\_execute\_max\_out 
+### function dp\_specan\_execute\_max\_out 
 
-_Output capacity hint for_ [_**specan\_execute()**_](specan__core_8h.md#function-specan_execute) _; equals disp\_n._
+_Output capacity hint for_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _; equals disp\_n._
 ```C++
-size_t specan_execute_max_out (
-    specan_state_t * state
+size_t dp_specan_execute_max_out (
+    dp_specan_state_t * state
 ) 
 ```
 
@@ -337,11 +337,11 @@ size_t specan_execute_max_out (
 
 
 
-### function specan\_get\_state 
+### function dp\_specan\_get\_state 
 
 ```C++
-void specan_get_state (
-    const specan_state_t * state,
+void dp_specan_get_state (
+    const dp_specan_state_t * state,
     void * blob
 ) 
 ```
@@ -353,12 +353,12 @@ void specan_get_state (
 
 
 
-### function specan\_reset 
+### function dp\_specan\_reset 
 
 _Drop pending samples and the running average; LO/filter history zero._ 
 ```C++
-void specan_reset (
-    specan_state_t * state
+void dp_specan_reset (
+    dp_specan_state_t * state
 ) 
 ```
 
@@ -380,12 +380,12 @@ void specan_reset (
 
 
 
-### function specan\_retune 
+### function dp\_specan\_retune 
 
 _Retune the display center without rebuilding the chain._ 
 ```C++
-void specan_retune (
-    specan_state_t * state,
+void dp_specan_retune (
+    dp_specan_state_t * state,
     double center
 ) 
 ```
@@ -412,11 +412,11 @@ Updates the Ddc LO phase increment (seamless across blocks — no resampler or w
 
 
 
-### function specan\_set\_state 
+### function dp\_specan\_set\_state 
 
 ```C++
-int specan_set_state (
-    specan_state_t * state,
+int dp_specan_set_state (
+    dp_specan_state_t * state,
     const void * blob
 ) 
 ```
@@ -428,11 +428,11 @@ int specan_set_state (
 
 
 
-### function specan\_state\_bytes 
+### function dp\_specan\_state\_bytes 
 
 ```C++
-size_t specan_state_bytes (
-    const specan_state_t * state
+size_t dp_specan_state_bytes (
+    const dp_specan_state_t * state
 ) 
 ```
 

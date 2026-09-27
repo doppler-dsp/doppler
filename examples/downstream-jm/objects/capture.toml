@@ -1,7 +1,7 @@
 # capture — a downstream façade over doppler's wfm_reader.
 #
 # This object owns NO DSP. Its state is a small struct holding doppler's opaque
-# `wfm_reader_state_t *` plus the metadata a headerless capture cannot carry;
+# `dp_wfm_reader_state_t *` plus the metadata a headerless capture cannot carry;
 # every method delegates straight into `wfm_reader_*` from libdoppler.a. That
 # is the whole point of the example — a downstream project reuses doppler's C
 # core exactly once and adds only its own presentation.

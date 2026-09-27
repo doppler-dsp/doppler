@@ -66,7 +66,7 @@ Each check has been shown to fail when the thing it guards is broken:
 
 Two lessons are built into how it measures:
 
-- **Measure noise where the signal is.** `psd_noise_floor()` is a median over
+- **Measure noise where the signal is.** `dp_psd_noise_floor()` is a median over
     the whole output band. The plain DDC uses an uncompensated CIC (see
     `ddc_core.h`), so the band isn't flat: −0.2 dB within ±0.1 of the output
     rate, −3.5 dB at ±0.25 and −12 dB near the edge. Against the band-wide

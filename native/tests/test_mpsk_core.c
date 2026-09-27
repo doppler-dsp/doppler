@@ -92,7 +92,7 @@ main (void)
     /* The out-of-line wrapper is a second face of one claim, not a second
      * implementation: it must agree everywhere, including on the rejects. */
     for (int m = -8; m <= 32; m++)
-      DP_CHECK (mpsk_bits_per_symbol (m) == mpsk_bps (m));
+      DP_CHECK (dp_mpsk_bits_per_symbol (m) == mpsk_bps (m));
   }
 
   /* ── 2. the constellation offset ───────────────────────────────────────
@@ -336,8 +336,8 @@ main (void)
         int m = M_ALL[mi];
         for (int g = 0; g < m; g++)
           sym[g] = (uint8_t)g;
-        mpsk_map (sym, (size_t)m, pts, m);
-        mpsk_demap (pts, (size_t)m, back, m);
+        dp_mpsk_map (sym, (size_t)m, pts, m);
+        dp_mpsk_demap (pts, (size_t)m, back, m);
         for (int g = 0; g < m; g++)
           DP_CHECK (back[g] == sym[g]);
       }
@@ -364,8 +364,8 @@ main (void)
           fwd[i] = (uint8_t)(dp_xs32 (&rs) % (uint32_t)m);
         for (int i = 0; i < N; i++)
           rev[i] = fwd[N - 1 - i];
-        mpsk_map (fwd, N, pf, m);
-        mpsk_map (rev, N, pr, m);
+        dp_mpsk_map (fwd, N, pf, m);
+        dp_mpsk_map (rev, N, pr, m);
         for (int i = 0; i < N; i++)
           DP_CHECK (pf[i] == pr[N - 1 - i]);
 
@@ -374,8 +374,8 @@ main (void)
         float _Complex sf[N];
         for (int i = 0; i < N; i++)
           sf[i] = pf[i] * (float)(0.01 + 100.0 * dp_uni (&rs));
-        mpsk_demap (sf, N, df, m);
-        mpsk_demap (pf, N, dr, m);
+        dp_mpsk_demap (sf, N, df, m);
+        dp_mpsk_demap (pf, N, dr, m);
         for (int i = 0; i < N; i++)
           {
             DP_CHECK (df[i] == fwd[i]);
@@ -405,17 +405,17 @@ main (void)
         for (int i = 0; i < N; i++)
           sym[i] = (uint8_t)(i % m);
         pts[N] = pts[N + 1] = 12345.0f + 6789.0f * I;
-        mpsk_map (sym, N, pts, m);
+        dp_mpsk_map (sym, N, pts, m);
         DP_CHECK (pts[N] == (float _Complex) (12345.0f + 6789.0f * I));
         DP_CHECK (pts[N + 1] == (float _Complex) (12345.0f + 6789.0f * I));
 
         out[N] = out[N + 1] = 0xABu;
-        mpsk_demap (pts, N, out, m);
+        dp_mpsk_demap (pts, N, out, m);
         DP_CHECK (out[N] == 0xABu && out[N + 1] == 0xABu);
 
         /* Zero length must touch nothing at all. */
         out[0] = 0xCDu;
-        mpsk_demap (pts, 0, out, m);
+        dp_mpsk_demap (pts, 0, out, m);
         DP_CHECK (out[0] == 0xCDu);
       }
   }
@@ -442,8 +442,8 @@ main (void)
         for (int i = 0; i < N; i++)
           sym[i] = (uint8_t)(dp_xs32 (&rs) % (uint32_t)m);
 
-        mpsk_diff_map (sym, N, pts, m);
-        mpsk_diff_demap (pts, N, back, m);
+        dp_mpsk_diff_map (sym, N, pts, m);
+        dp_mpsk_diff_demap (pts, N, back, m);
         for (int i = 0; i < N; i++)
           DP_CHECK (back[i] == sym[i]);
 
@@ -484,7 +484,7 @@ main (void)
         int m = M_ALL[mi];
         for (int i = 0; i < N; i++)
           sym[i] = (uint8_t)(dp_xs32 (&rs) % (uint32_t)m);
-        mpsk_diff_map (sym, N, pts, m);
+        dp_mpsk_diff_map (sym, N, pts, m);
 
         for (int j = 0; j < m + 5; j++)
           {
@@ -494,7 +494,7 @@ main (void)
             float _Complex r = (float)cos (phi) + (float)sin (phi) * I;
             for (int i = 0; i < N; i++)
               rot[i] = pts[i] * r;
-            mpsk_diff_demap (rot, N, back, m);
+            dp_mpsk_diff_demap (rot, N, back, m);
             for (int i = 1; i < N; i++)
               DP_CHECK (back[i] == sym[i]);
           }
@@ -530,8 +530,8 @@ main (void)
         DP_CHECK (varied); /* precondition, not decoration */
         for (int i = 0; i < N; i++)
           rev[i] = fwd[N - 1 - i];
-        mpsk_diff_map (fwd, N, pf, m);
-        mpsk_diff_map (rev, N, pr, m);
+        dp_mpsk_diff_map (fwd, N, pf, m);
+        dp_mpsk_diff_map (rev, N, pr, m);
         int differs = 0;
         for (int i = 0; i < N; i++)
           if (cabsf (pf[i] - pr[N - 1 - i]) > 1e-6f)
@@ -586,8 +586,9 @@ main (void)
                 y[i]             = mpsk_constellation (g, m)
                                    + (float)sqrt (n0) * dp_cgauss (&st);
               }
-            mpsk_demap (y, N, hard, m);
-            mpsk_soft_demap (y, N, llr, (size_t)N * (size_t)nb, m, (float)n0);
+            dp_mpsk_demap (y, N, hard, m);
+            dp_mpsk_soft_demap (y, N, llr, (size_t)N * (size_t)nb, m,
+                                (float)n0);
 
             for (int i = 0; i < N; i++)
               {
@@ -638,12 +639,12 @@ main (void)
     for (int i = 0; i < N; i++)
       y[i] = 1.7f * dp_cgauss (&st); /* well off the unit circle, on purpose */
 
-    mpsk_soft_demap (y, N, llr, N, 2, n0);
+    dp_mpsk_soft_demap (y, N, llr, N, 2, n0);
     for (int i = 0; i < N; i++)
       DP_CHECK_NEAR ((double)llr[i], (double)(4.0f * crealf (y[i]) * inv),
                      2e-4);
 
-    mpsk_soft_demap (y, N, llr, (size_t)N * 2u, 4, n0);
+    dp_mpsk_soft_demap (y, N, llr, (size_t)N * 2u, 4, n0);
     for (int i = 0; i < N; i++)
       {
         DP_CHECK_NEAR ((double)llr[2 * i], (double)(axq * crealf (y[i]) * inv),
@@ -674,8 +675,8 @@ main (void)
       {
         const int m  = M_ALL[mi];
         const int nb = mpsk_bps (m);
-        mpsk_soft_demap (y, N, a, (size_t)N * (size_t)nb, m, 1.0f);
-        mpsk_soft_demap (y, N, b, (size_t)N * (size_t)nb, m, 0.25f);
+        dp_mpsk_soft_demap (y, N, a, (size_t)N * (size_t)nb, m, 1.0f);
+        dp_mpsk_soft_demap (y, N, b, (size_t)N * (size_t)nb, m, 0.25f);
         for (int i = 0; i < N * nb; i++)
           DP_CHECK_NEAR ((double)b[i], 4.0 * (double)a[i], 1e-4);
       }
@@ -708,7 +709,7 @@ main (void)
         const int nb     = mpsk_bps (m);
         float _Complex o = 0.0f + 0.0f * I;
 
-        mpsk_soft_demap (&o, 1, llr, (size_t)nb, m, 1.0f);
+        dp_mpsk_soft_demap (&o, 1, llr, (size_t)nb, m, 1.0f);
         for (int b = 0; b < nb; b++)
           DP_CHECK_MSG (llr[b] == 0.0f,
                         "the origin is equidistant from every point: no bit "
@@ -725,7 +726,7 @@ main (void)
             for (int s = 1; s <= 4; s++)
               {
                 float _Complex ys = (float)(0.25 * s) * a;
-                mpsk_soft_demap (&ys, 1, llr, (size_t)nb, m, 1.0f);
+                dp_mpsk_soft_demap (&ys, 1, llr, (size_t)nb, m, 1.0f);
                 for (int b = 0; b < nb; b++)
                   {
                     DP_CHECK_MSG (fabsf (llr[b]) > prev[b],
@@ -779,7 +780,7 @@ main (void)
       {
         for (int i = 0; i < N * 3; i++)
           llr[i] = -12345.0f;
-        mpsk_soft_demap (y, N, llr, bad[c].cap, bad[c].m, bad[c].n0);
+        dp_mpsk_soft_demap (y, N, llr, bad[c].cap, bad[c].m, bad[c].n0);
         int untouched = 1;
         for (int i = 0; i < N * 3; i++)
           if (llr[i] != -12345.0f)
@@ -791,7 +792,7 @@ main (void)
        a bound rather than a wall. */
     for (int i = 0; i < N * 3; i++)
       llr[i] = -12345.0f;
-    mpsk_soft_demap (y, N, llr, (size_t)N * 3u, 8, 1.0f);
+    dp_mpsk_soft_demap (y, N, llr, (size_t)N * 3u, 8, 1.0f);
     int wrote = 0;
     for (int i = 0; i < N * 3; i++)
       if (llr[i] != -12345.0f)

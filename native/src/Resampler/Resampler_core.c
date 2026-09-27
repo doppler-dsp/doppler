@@ -1,12 +1,12 @@
 #include "doppler/Resampler/Resampler_core.h"
 
-Resampler_state_t *
-Resampler_create (double rate)
+dp_Resampler_state_t *
+dp_Resampler_create (double rate)
 {
   return resamp_create (rate);
 }
 
-Resampler_state_t *
+dp_Resampler_state_t *
 Resampler_create_custom (size_t num_phases, size_t num_taps, const float *bank,
                          double rate)
 {
@@ -14,13 +14,13 @@ Resampler_create_custom (size_t num_phases, size_t num_taps, const float *bank,
 }
 
 void
-Resampler_destroy (Resampler_state_t *state)
+dp_Resampler_destroy (dp_Resampler_state_t *state)
 {
   resamp_destroy (state);
 }
 
 void
-Resampler_reset (Resampler_state_t *state)
+dp_Resampler_reset (dp_Resampler_state_t *state)
 {
   resamp_reset (state);
 }
@@ -29,33 +29,33 @@ Resampler_reset (Resampler_state_t *state)
  * alias for resamp_state_t), so the blob carries the leaf's RSMP envelope. */
 
 size_t
-Resampler_state_bytes (const Resampler_state_t *state)
+dp_Resampler_state_bytes (const dp_Resampler_state_t *state)
 {
   return resamp_state_bytes (state);
 }
 
 void
-Resampler_get_state (const Resampler_state_t *state, void *blob)
+dp_Resampler_get_state (const dp_Resampler_state_t *state, void *blob)
 {
   resamp_get_state (state, blob);
 }
 
 int
-Resampler_set_state (Resampler_state_t *state, const void *blob)
+dp_Resampler_set_state (dp_Resampler_state_t *state, const void *blob)
 {
   return resamp_set_state (state, blob);
 }
 
 size_t
-Resampler_execute_max_out (Resampler_state_t *state)
+dp_Resampler_execute_max_out (dp_Resampler_state_t *state)
 {
   (void)state;
   return RESAMPLER_MAX_OUT;
 }
 
 size_t
-Resampler_execute (Resampler_state_t *state, const float _Complex *x,
-                   size_t x_len, float _Complex *out, size_t max_out)
+dp_Resampler_execute (dp_Resampler_state_t *state, const float _Complex *x,
+                      size_t x_len, float _Complex *out, size_t max_out)
 {
   /* The leaf already clamps; hand it the caller's real capacity instead
      of the fixed cap (jm gh-138). */
@@ -63,16 +63,17 @@ Resampler_execute (Resampler_state_t *state, const float _Complex *x,
 }
 
 size_t
-Resampler_execute_ctrl_max_out (Resampler_state_t *state)
+dp_Resampler_execute_ctrl_max_out (dp_Resampler_state_t *state)
 {
   (void)state;
   return RESAMPLER_MAX_OUT;
 }
 
 size_t
-Resampler_execute_ctrl (Resampler_state_t *state, const float _Complex *x,
-                        size_t x_len, const double *ctrl, size_t ctrl_len,
-                        float _Complex *out, size_t max_out)
+dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
+                           const float _Complex *x, size_t x_len,
+                           const double *ctrl, size_t ctrl_len,
+                           float _Complex *out, size_t max_out)
 {
   size_t n = x_len < ctrl_len ? x_len : ctrl_len;
   /* The leaf already clamps; hand it the caller's real capacity instead
@@ -81,37 +82,37 @@ Resampler_execute_ctrl (Resampler_state_t *state, const float _Complex *x,
 }
 
 double
-Resampler_get_rate (const Resampler_state_t *state)
+dp_Resampler_get_rate (const dp_Resampler_state_t *state)
 {
   return resamp_get_rate (state);
 }
 
 void
-Resampler_set_rate (Resampler_state_t *state, double rate)
+dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate)
 {
   resamp_set_rate (state, rate);
 }
 
 double
-Resampler_get_ctrl_acc (const Resampler_state_t *state)
+dp_Resampler_get_ctrl_acc (const dp_Resampler_state_t *state)
 {
   return resamp_get_ctrl_acc (state);
 }
 
 size_t
-Resampler_get_num_phases (const Resampler_state_t *state)
+dp_Resampler_get_num_phases (const dp_Resampler_state_t *state)
 {
   return resamp_get_num_phases (state);
 }
 
 size_t
-Resampler_get_num_taps (const Resampler_state_t *state)
+dp_Resampler_get_num_taps (const dp_Resampler_state_t *state)
 {
   return resamp_get_num_taps (state);
 }
 
 double
-Resampler_get_delay (const Resampler_state_t *state)
+dp_Resampler_get_delay (const dp_Resampler_state_t *state)
 {
   return resamp_get_delay (state);
 }

@@ -91,7 +91,7 @@ main (void)
                                     + sin (M_PI_2 * q + M_PI_4) * I)
                   + (float _Complex) (sigma * dp_cgauss (&st));
         }
-      double evm = ber_evm_db (rx, NSYM, 0, NSYM, 4);
+      double evm = dp_ber_evm_db (rx, NSYM, 0, NSYM, 4);
       char   msg[160];
       snprintf (msg, sizeof msg,
                 "Es/N0 %.0f dB should read EVM %.0f dB, reads %.2f", esn0_db,
@@ -121,7 +121,7 @@ main (void)
                                       + sin (M_PI_2 * q + M_PI_4) * I)
                     + (float _Complex) (sigma * dp_cgauss (&st));
           }
-        double flat = -(ber_evm_db (rx, NSYM, 0, NSYM, 4)) - pts[k];
+        double flat = -(dp_ber_evm_db (rx, NSYM, 0, NSYM, 4)) - pts[k];
         char   msg[160];
         snprintf (msg, sizeof msg, "Es/N0 %.0f dB: EVM flatters by %.2f dB",
                   pts[k], flat);
@@ -141,13 +141,13 @@ main (void)
                                   + sin (M_PI_2 * q + M_PI_4) * I)
                 + (float _Complex) (sigma * dp_cgauss (&st));
       }
-    double base = ber_evm_db (rx, NSYM, 0, NSYM, 4);
+    double base = dp_ber_evm_db (rx, NSYM, 0, NSYM, 4);
 
     static float _Complex y[NSYM];
     const float _Complex rot = (float _Complex) (cos (0.31) + sin (0.31) * I);
     for (size_t i = 0; i < NSYM; i++)
       y[i] = rx[i] * rot;
-    DP_REQUIRE_MSG (fabs (ber_evm_db (y, NSYM, 0, NSYM, 4) - base) < 0.05,
+    DP_REQUIRE_MSG (fabs (dp_ber_evm_db (y, NSYM, 0, NSYM, 4) - base) < 0.05,
                     "EVM must not move under a global rotation");
 
     /* A cyclic shift is the strongest statement of "no lag": every symbol is
@@ -155,7 +155,7 @@ main (void)
        collapse. */
     for (size_t i = 0; i < NSYM; i++)
       y[i] = rx[(i + 12345) % NSYM];
-    DP_REQUIRE_MSG (fabs (ber_evm_db (y, NSYM, 0, NSYM, 4) - base) < 0.05,
+    DP_REQUIRE_MSG (fabs (dp_ber_evm_db (y, NSYM, 0, NSYM, 4) - base) < 0.05,
                     "EVM must not move under a cyclic shift");
   }
 
@@ -173,8 +173,8 @@ main (void)
         if (i >= NSYM / 2)
           rx[i] += (float _Complex) (sigma * dp_cgauss (&st));
       }
-    double first = ber_evm_db (rx, NSYM, 0, NSYM / 2, 4);
-    double last  = ber_evm_db (rx, NSYM, NSYM / 2, NSYM, 4);
+    double first = dp_ber_evm_db (rx, NSYM, 0, NSYM / 2, 4);
+    double last  = dp_ber_evm_db (rx, NSYM, NSYM / 2, NSYM, 4);
     char   msg[160];
     snprintf (msg, sizeof msg, "clean half %.1f dB, noisy half %.1f dB", first,
               last);
@@ -185,11 +185,11 @@ main (void)
 
   /* ── claim 5: a window under 20 symbols is "no lock", not a number ───── */
   {
-    DP_REQUIRE_MSG (ber_evm_db (rx, NSYM, 0, 19, 4) == 0.0,
+    DP_REQUIRE_MSG (dp_ber_evm_db (rx, NSYM, 0, 19, 4) == 0.0,
                     "19 symbols must read 0.0 (no lock)");
-    DP_REQUIRE_MSG (ber_evm_db (rx, NSYM, 0, 0, 4) == 0.0,
+    DP_REQUIRE_MSG (dp_ber_evm_db (rx, NSYM, 0, 0, 4) == 0.0,
                     "an empty window must read 0.0 (no lock)");
-    DP_REQUIRE_MSG (ber_evm_db (rx, NSYM, NSYM, NSYM, 4) == 0.0,
+    DP_REQUIRE_MSG (dp_ber_evm_db (rx, NSYM, NSYM, NSYM, 4) == 0.0,
                     "an inverted/empty window must read 0.0 (no lock)");
   }
 
@@ -208,8 +208,8 @@ main (void)
             double ph = 2.0 * M_PI * dp_uni (&st);
             rx[i]     = (float _Complex) (cos (ph) + sin (ph) * I);
           }
-        double evm   = ber_evm_db (rx, NSYM, 0, NSYM, m);
-        double floor = ber_evm_scatter_floor_db (m);
+        double evm   = dp_ber_evm_db (rx, NSYM, 0, NSYM, m);
+        double floor = dp_ber_evm_scatter_floor_db (m);
         char   msg[160];
         snprintf (msg, sizeof msg, "m=%d: scattered reads %.2f, floor is %.2f",
                   m, evm, floor);

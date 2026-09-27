@@ -61,7 +61,7 @@ main (void)
           x[i]     = (float)(0.3 * u);
         }
 
-      nprmeas_state_t *m = nprmeas_create (n, 1.0, 1.0, 0, 90.0);
+      dp_nprmeas_state_t *m = dp_nprmeas_create (n, 1.0, 1.0, 0, 90.0);
       if (!m)
         {
           (void)fprintf (stderr, "bench_nprmeas: create(n=%zu) NULL\n", n);
@@ -72,7 +72,7 @@ main (void)
          the spectrum with a notch inside it, plus a guard. */
       const double lo = 0.05, hi = 0.45, nlo = 0.20, nhi = 0.24, guard = 0.005;
 
-      npr_meas_t probe = nprmeas_analyze (m, x, n, lo, hi, nlo, nhi, guard);
+      npr_meas_t probe = dp_nprmeas_analyze (m, x, n, lo, hi, nlo, nhi, guard);
       if (!isfinite (probe.npr_db))
         {
           (void)fprintf (stderr,
@@ -85,7 +85,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += nprmeas_analyze (m, x, n, lo, hi, nlo, nhi, guard).npr_db;
+          sink += dp_nprmeas_analyze (m, x, n, lo, hi, nlo, nhi, guard).npr_db;
           t1         = jm_bench_now_ns ();
           t_an[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -96,7 +96,7 @@ main (void)
               min_sec (t_an[k], ITERATIONS) * 1e6,
               min_sec (t_an[k], ITERATIONS) / (double)n * 1e9);
 
-      nprmeas_destroy (m);
+      dp_nprmeas_destroy (m);
       free (x);
     }
 

@@ -19,8 +19,8 @@
  *
  * Lifecycle: create -> (accumulate / reset)* -> value -> destroy
  */
-#ifndef ACC_TRACE_CORE_H
-#define ACC_TRACE_CORE_H
+#ifndef DP_ACC_TRACE_CORE_H
+#define DP_ACC_TRACE_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
@@ -41,7 +41,7 @@ typedef enum {
 } acc_trace_mode_t;
 
 /**
- * @brief AccTrace state.  Allocate with acc_trace_create().
+ * @brief AccTrace state.  Allocate with dp_acc_trace_create().
  */
 typedef struct {
     double *acc;            /**< Running trace, length n (double). */
@@ -49,7 +49,7 @@ typedef struct {
     acc_trace_mode_t mode;  /**< Reduction mode.                  */
     double alpha;           /**< EMA smoothing factor (exp mode). */
     uint64_t count;         /**< Frames folded in so far.         */
-} acc_trace_state_t;
+} dp_acc_trace_state_t;
 
 /**
  * @brief Create a length-@p n trace accumulator.
@@ -58,7 +58,7 @@ typedef struct {
  * @param mode   Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
  * @param alpha  EMA smoothing factor used only by @c exp mode (0 < alpha <= 1).
  * @return Heap-allocated state, or NULL on invalid argument or OOM.
- * @note Caller must call acc_trace_destroy() when done.
+ * @note Caller must call dp_acc_trace_destroy() when done.
  *
  * @code
  * >>> from doppler.accumulator import AccTrace
@@ -67,13 +67,13 @@ typedef struct {
  * (8, 0)
  * @endcode
  */
-acc_trace_state_t *acc_trace_create(size_t n, int mode, double alpha);
+dp_acc_trace_state_t *dp_acc_trace_create(size_t n, int mode, double alpha);
 
 /**
  * @brief Destroy an AccTrace instance and release all memory.
  * @param state  May be NULL (no-op).
  */
-void acc_trace_destroy(acc_trace_state_t *state);
+void dp_acc_trace_destroy(dp_acc_trace_state_t *state);
 
 /**
  * @brief Discard the running trace; the next accumulate re-seeds it.
@@ -90,7 +90,7 @@ void acc_trace_destroy(acc_trace_state_t *state);
  * 0
  * @endcode
  */
-void acc_trace_reset(acc_trace_state_t *state);
+void dp_acc_trace_reset(dp_acc_trace_state_t *state);
 
 /**
  * @brief Fold one length-n frame into the running trace.
@@ -113,11 +113,11 @@ void acc_trace_reset(acc_trace_state_t *state);
  * [2.0, 4.0, 6.0, 8.0]
  * @endcode
  */
-void acc_trace_accumulate(acc_trace_state_t *state, const float *p,
+void dp_acc_trace_accumulate(dp_acc_trace_state_t *state, const float *p,
                           size_t p_len);
 
 /** @brief Output capacity hint for value(); equals the trace length n. */
-size_t acc_trace_value_max_out(acc_trace_state_t *state);
+size_t dp_acc_trace_value_max_out(dp_acc_trace_state_t *state);
 
 /**
  * @brief Return the current reduced trace, one value per bin.
@@ -148,15 +148,15 @@ size_t acc_trace_value_max_out(acc_trace_state_t *state);
  *
  * @endcode
  */
-size_t acc_trace_value(acc_trace_state_t *state, size_t n, float *out,
+size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
                        size_t max_out);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running trace + fold count; n/mode/alpha restored by create. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
 #define ACC_TRACE_STATE_VERSION 1u
-size_t acc_trace_state_bytes (const acc_trace_state_t *state);
-void acc_trace_get_state (const acc_trace_state_t *state, void *blob);
-int acc_trace_set_state (acc_trace_state_t *state, const void *blob);
+size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);
+void dp_acc_trace_get_state (const dp_acc_trace_state_t *state, void *blob);
+int dp_acc_trace_set_state (dp_acc_trace_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

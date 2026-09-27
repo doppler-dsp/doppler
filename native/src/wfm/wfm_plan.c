@@ -197,7 +197,7 @@ segment_noise_gain (const wfm_plan_segment_t *ps, double snr, int snr_given)
  * external multiply). BUNDLED: an SNR override replaces the source's own
  * (already-resolved-units) snr directly, since its AWGN is baked into
  * creation, not a separable multiply. */
-static wfm_synth_state_t *
+static dp_wfm_synth_state_t *
 build_gap_synth (const wfm_plan_segment_t *ps, double fs, double snr,
                  int snr_given, uint32_t seed, size_t instance)
 {
@@ -216,7 +216,8 @@ build_gap_synth (const wfm_plan_segment_t *ps, double fs, double snr,
 /* Draw noise_steps(n) from syn and add gain*sample into out (used for both
  * the delay/off gaps and the always-on ON-time noise addition). */
 static void
-add_noise (wfm_synth_state_t *syn, float _Complex *out, size_t n, float gain)
+add_noise (dp_wfm_synth_state_t *syn, float _Complex *out, size_t n,
+           float gain)
 {
   if (n == 0)
     return;
@@ -282,7 +283,7 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
           else
             ext_gain = segment_noise_gain (ps, snr, snr_given);
 
-          wfm_synth_state_t *gsyn
+          dp_wfm_synth_state_t *gsyn
               = build_gap_synth (ps, p->fs, snr, snr_given, noise_seed, inst);
 
           if (gsyn && !ps->gap_noise)
@@ -330,7 +331,7 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
           pos += off;
 
           if (gsyn)
-            wfm_synth_destroy (gsyn);
+            dp_wfm_synth_destroy (gsyn);
         }
     }
   return pos;

@@ -51,15 +51,15 @@ main (void)
 
   /* ── search: feed silence, never locks, pure Acquisition cost ─────────── */
   {
-    dsss_receiver_state_t *rx = dsss_receiver_create (
+    dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
         CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
     float _Complex *x   = calloc (BENCH_N, sizeof *x);
     float _Complex *out = malloc (BENCH_N * sizeof *out);
-    dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N); /* warmup */
+    dp_dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N);
+        dp_dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -69,10 +69,10 @@ main (void)
       sum += times[r];
     printf ("  search   %8.1f MSa/s (tracking=%d)\n",
             (double)BENCH_N / (sum / ITERATIONS) / 1e6,
-            dsss_receiver_get_tracking (rx));
+            dp_dsss_receiver_get_tracking (rx));
     free (x);
     free (out);
-    dsss_receiver_destroy (rx);
+    dp_dsss_receiver_destroy (rx);
   }
 
   /* ── track: acquire once on a real signal, then benchmark steady-state
@@ -105,23 +105,23 @@ main (void)
         x[pre_silence + idx] += (float)si * csign[cph];
       }
 
-    dsss_receiver_state_t *rx = dsss_receiver_create (
+    dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
         CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
     float _Complex *out = malloc (BENCH_N * sizeof *out);
     size_t          pos = 0;
     /* stream until locked (search cost not timed) */
-    while (!dsss_receiver_get_tracking (rx) && pos + te <= total)
+    while (!dp_dsss_receiver_get_tracking (rx) && pos + te <= total)
       {
-        dsss_receiver_steps (rx, x + pos, te, out, BENCH_N);
+        dp_dsss_receiver_steps (rx, x + pos, te, out, BENCH_N);
         pos += te;
       }
     printf ("  (locked after %zu samples, tracking=%d)\n", pos,
-            dsss_receiver_get_tracking (rx));
+            dp_dsss_receiver_get_tracking (rx));
 
     for (int r = 0; r < ITERATIONS && pos + BENCH_N <= total; r++)
       {
         t0 = jm_bench_now_ns ();
-        dsss_receiver_steps (rx, x + pos, BENCH_N, out, BENCH_N);
+        dp_dsss_receiver_steps (rx, x + pos, BENCH_N, out, BENCH_N);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
         pos += BENCH_N;
@@ -132,11 +132,11 @@ main (void)
       sum += times[r];
     printf ("  track    %8.1f MSa/s (tracking=%d)\n",
             (double)BENCH_N / (sum / ITERATIONS) / 1e6,
-            dsss_receiver_get_tracking (rx));
+            dp_dsss_receiver_get_tracking (rx));
 
     free (x);
     free (out);
-    dsss_receiver_destroy (rx);
+    dp_dsss_receiver_destroy (rx);
   }
 
   jm_bench_write_json (&_bench, "dsss_receiver");

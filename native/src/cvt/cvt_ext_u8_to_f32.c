@@ -6,21 +6,21 @@
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
-/* U8ToF32Object — wraps u8_to_f32_state_t *       */
+/* U8ToF32Object — wraps dp_u8_to_f32_state_t *       */
 /* ======================================================== */
 
 #include "doppler/u8_to_f32/u8_to_f32_core.h"
 
 typedef struct
 {
-  PyObject_HEAD u8_to_f32_state_t *handle;
+  PyObject_HEAD dp_u8_to_f32_state_t *handle;
 } U8ToF32Object;
 
 static void
 U8ToF32Obj_dealloc (U8ToF32Object *self)
 {
   if (self->handle)
-    u8_to_f32_destroy (self->handle);
+    dp_u8_to_f32_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -53,10 +53,10 @@ U8ToF32Obj_init (U8ToF32Object *self, PyObject *args, PyObject *kwds)
                     mode_str);
       return -1;
     }
-  self->handle = u8_to_f32_create (mode);
+  self->handle = dp_u8_to_f32_create (mode);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "u8_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_u8_to_f32_create returned NULL");
       return -1;
     }
   return 0;
@@ -70,7 +70,7 @@ U8ToF32Obj_reset (U8ToF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  u8_to_f32_reset (self->handle);
+  dp_u8_to_f32_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -86,7 +86,7 @@ U8ToF32_step (U8ToF32Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "I", &x_raw))
     return NULL;
   uint8_t x = (uint8_t)x_raw;
-  float   y = u8_to_f32_step (self->handle, x);
+  float   y = dp_u8_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -142,8 +142,8 @@ U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
-                       (float *)PyArray_DATA (out_arr), (size_t)n);
+      dp_u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
+                          (float *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -156,9 +156,9 @@ U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
-                   (float *)PyArray_DATA ((PyArrayObject *)out_arr),
-                   (size_t)n);
+  dp_u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
+                      (float *)PyArray_DATA ((PyArrayObject *)out_arr),
+                      (size_t)n);
 
   Py_DECREF (in_arr);
   return out_arr;
@@ -169,7 +169,7 @@ U8ToF32Obj_destroy (U8ToF32Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      u8_to_f32_destroy (self->handle);
+      dp_u8_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -188,7 +188,7 @@ U8ToF32Obj_exit (U8ToF32Object *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      u8_to_f32_destroy (self->handle);
+      dp_u8_to_f32_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

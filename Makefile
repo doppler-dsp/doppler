@@ -627,9 +627,12 @@ COMPILE_DB = symlink
 # package-c-tarball just built, a recipe that reconfigures the build tree
 # without Python and must not be run on a dev box by `make gates`; and
 # vcpkg-smoke needs a bootstrapped vcpkg (VCPKG_ROOT), which the Windows
-# runner image carries and a dev box has no reason to. Excluded
+# runner image carries and a dev box has no reason to; and wheel-smoke
+# (ci.yml's wheel-smoke-windows, doppler#1586) installs the wheel that job's
+# `make wheel` just built -- `make gates` builds none. Excluded
 # by name, like provisioning, so that adding one is a visible decision.
-GATES_WINDOWS_ONLY = complex-helpers-check package-c-smoke vcpkg-smoke
+GATES_WINDOWS_ONLY = complex-helpers-check package-c-smoke vcpkg-smoke \
+                     wheel-smoke
 # ci-changes is ci.yml's `changes` job: it CLASSIFIES the diff (is it a
 # version bump alone?) so the matrix can skip, and gates nothing itself --
 # the gating is `CI passed`'s, in scripts/ci_passed.py.
@@ -637,7 +640,7 @@ GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
                   apt-stall-config \
-                  package-c-tarball ci-changes $(GATES_WINDOWS_ONLY) \
+                  package-c-tarball wheel ci-changes $(GATES_WINDOWS_ONLY) \
                   package-deb package-rpm package-linux
 GATES_DEPS    = lint changelog-check release-notes-size-check \
                 drift-check doxygen-check docs-check \

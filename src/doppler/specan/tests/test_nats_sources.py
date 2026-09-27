@@ -30,7 +30,12 @@ class _FakeTransport:
         self._q = list(type(self).frames)
 
     def recv(self, timeout_ms=None):
-        return self._q.pop(0) if self._q else (None, None)
+        if not self._q:
+            return (None, None)
+        item = self._q.pop(0)
+        if isinstance(item, BaseException):
+            raise item  # what the bindings do on an end-of-stream frame
+        return item
 
     def __enter__(self):
         return self
@@ -68,3 +73,25 @@ def test_a_nats_source_decodes_integer_frames(monkeypatch, source_cls, attr):
     assert got.dtype == np.complex64
     np.testing.assert_allclose(got, want, rtol=1e-6)
     assert (fs, cf) == (FS, FC)  # read from the dict header
+
+
+@pytest.mark.parametrize(
+    "source_cls, attr", [(SocketSource, "Subscriber"), (PullSource, "Pull")]
+)
+def test_end_of_stream_returns_the_buffered_samples(
+    monkeypatch, source_cls, attr
+):
+    # recv raises EOFError on the end-of-stream frame every publisher sends
+    # on exit (uno_q_pub always does); the source must hand back what it
+    # holds, like a timeout, not raise into the DSP loop.
+    frames, want = _frames()
+    fake = type(
+        "Fake", (_FakeTransport,), {"frames": [*frames, EOFError("eos")]}
+    )
+    monkeypatch.setattr(doppler.stream, attr, fake)
+
+    src = source_cls("nats://127.0.0.1:1/test", timeout_ms=10)
+    got, fs, cf = src.read(len(want) + 16)  # more than will ever arrive
+
+    np.testing.assert_allclose(got, want, rtol=1e-6)
+    assert (fs, cf) == (FS, FC)

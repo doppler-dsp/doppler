@@ -640,8 +640,23 @@ nats_receive (const char *url, int pull, double fs_flag, double offset,
           if (h.sample_rate > 0.0)
             fs = h.sample_rate;
           fc = h.center_freq;
+          /* main() checked --offset against --fs; the stream's own rate
+             is the one the DDC normalises by, so check it again here. */
+          if (fabs (offset) >= fs / 2.0)
+            {
+              (void)fprintf (stderr,
+                             "--offset %.1f Hz is outside the stream's "
+                             "+/- %.1f Hz (sample_rate %.1f)\n",
+                             offset, fs / 2.0, fs);
+              dp_msg_free (msg);
+              return 2;
+            }
           if (!chain_init (&c, fs, offset, rate, n))
-            return 1;
+            {
+              (void)fprintf (stderr, "could not build the chain\n");
+              dp_msg_free (msg);
+              return 1;
+            }
           have_chain = 1;
           t0         = now_s ();
           c0         = cpu_s ();

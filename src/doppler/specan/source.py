@@ -431,7 +431,12 @@ class SocketSource(Source):
 
         # Drain packets until the buffer holds >= n samples
         while len(self._buf) < n:
-            data, hdr = sub.recv(timeout_ms=self._timeout_ms)
+            try:
+                data, hdr = sub.recv(timeout_ms=self._timeout_ms)
+            except EOFError:
+                # The publisher's end-of-stream frame: nothing more is
+                # coming, so hand back what is buffered, as on a timeout.
+                break
             if data is None:
                 # Timeout — return what we have (may be empty)
                 break
@@ -498,7 +503,10 @@ class PullSource(Source):
         pull = self._get_pull()
 
         while len(self._buf) < n:
-            data, hdr = pull.recv(timeout_ms=self._timeout_ms)
+            try:
+                data, hdr = pull.recv(timeout_ms=self._timeout_ms)
+            except EOFError:
+                break  # end of stream -- see SocketSource.read
             if data is None:
                 break
             data = to_complex64(data)

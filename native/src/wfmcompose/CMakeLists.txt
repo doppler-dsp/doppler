@@ -245,6 +245,31 @@ target_include_directories(timing_core PUBLIC
 # time. Measured, not assumed -- it was written that way first. Targets that
 # link libdoppler instead get it from the archive.
 
+# The wfm stream sink and its test: every platform since #1575 (the stream
+# layer builds on Windows). Defined ahead of the POSIX-only block below, whose
+# wfmgen targets link it.
+if(DP_WITH_STREAM)
+add_library(wfm_sink_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
+target_include_directories(wfm_sink_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
+target_link_libraries(wfm_sink_core PUBLIC ${DP_MATH_LIBRARY})
+
+add_executable(test_wfm_sink
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_sink.c)
+target_link_libraries(test_wfm_sink PRIVATE
+    wfm_sink_core
+    $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
+    dp_tlm_core timing_core
+    nats_vendor_static
+    Threads::Threads ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_sink PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
+set_tests_properties(test_wfm_sink PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
 if(NOT WIN32)
     find_package(Threads REQUIRED)
 
@@ -270,25 +295,6 @@ if(NOT WIN32)
     # Container codec benchmarks (make bench). POSIX-only too: the writer bench
     # isolates the codec via open_memstream and the reader bench uses temp
     # files — neither is on the Windows portability path (no Windows wheels).
-    add_library(wfm_sink_core OBJECT
-        ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
-    target_include_directories(wfm_sink_core PUBLIC
-        ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
-    target_link_libraries(wfm_sink_core PUBLIC ${DP_MATH_LIBRARY})
-
-    add_executable(test_wfm_sink
-        ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_sink.c)
-    target_link_libraries(test_wfm_sink PRIVATE
-        wfm_sink_core
-        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-        dp_tlm_core
-        nats_vendor_static
-        Threads::Threads ${DP_MATH_LIBRARY})
-    target_include_directories(test_wfm_sink PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc)
-    add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
-    set_tests_properties(test_wfm_sink PROPERTIES SKIP_RETURN_CODE 77)
 
     # ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / nats / record).
     #    Hand-written (a composer is not a single-object jm-app generator); thin

@@ -41,6 +41,18 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     if(NOT _rc EQUAL 0)
         message(FATAL_ERROR "merge_static_libs: libtool failed (${_rc})")
     endif()
+elseif(CMAKE_HOST_WIN32)
+    # MSVC-style toolchains (clang-cl's llvm-lib, or lib.exe) merge archives
+    # natively: `lib /OUT:merged.lib a.lib b.lib` (#1575).
+    if(NOT AR)
+        message(FATAL_ERROR "merge_static_libs: AR (lib/llvm-lib) is required")
+    endif()
+    execute_process(
+        COMMAND "${AR}" /nologo "/OUT:${_out}" "${DEST}" "${SRC}"
+        RESULT_VARIABLE _rc)
+    if(NOT _rc EQUAL 0)
+        message(FATAL_ERROR "merge_static_libs: ${AR} failed (${_rc})")
+    endif()
 else()
     # GNU/LLVM ar: drive an MRI script. Build a *fresh* output archive from both
     # inputs (never read+write the same file), then atomically replace TARGET.

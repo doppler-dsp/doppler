@@ -1,3 +1,4 @@
+#include "doppler/dp_isotime.h"
 #include "doppler/stream/stream.h"
 #include "stream_internal.h"
 
@@ -98,8 +99,11 @@ dp_msg_free (dp_msg_t *msg)
 uint64_t
 dp_get_timestamp_ns (void)
 {
-  struct timespec ts;
-  clock_gettime (CLOCK_REALTIME, &ts);
+  /* dp_isotime_wall is the header-only portable wall clock (C11
+     timespec_get on Windows): no link dependency for the many targets that
+     embed stream_core_obj (#1575). */
+  struct timespec ts = { 0, 0 }; /* a failed read leaves 0: "unset" */
+  (void)dp_isotime_wall (&ts);
   return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 

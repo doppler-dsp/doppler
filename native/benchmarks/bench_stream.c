@@ -39,15 +39,15 @@
 #endif
 #include "doppler/dp_complex.h"
 #include <math.h>
-#include <pthread.h>
-#include <semaphore.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "doppler/dp_thread.h"
 #include "doppler/stream/stream.h"
+#include "doppler/timing/timing_core.h"
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
 /* Endpoints default to the NATS JetStream work-queue tier on a local broker
@@ -79,40 +79,50 @@ reqrep_endpoint (void)
   return (e && *e) ? e : REQREP_EP_DEFAULT;
 }
 
-/* ─── portable 2-party barrier via a pair of semaphores ─────────────────── */
+/* ─── 2-party barrier: a mutex, a condition and a generation count ──────
+ * dp_thread.h's primitives, so it builds on Windows (#1575). It replaced a
+ * pair of unnamed POSIX semaphores, which Windows lacks and macOS never
+ * implemented (sem_init there fails with ENOSYS). */
 typedef struct
 {
-  sem_t a; /* producer posts when ready; consumer waits */
-  sem_t b; /* consumer posts when ready; producer waits */
+  dp_mutex_t m;
+  dp_cond_t  c;
+  int        arrived;    /* parties waiting in the current generation */
+  unsigned   generation; /* bumped each time both parties have arrived */
 } bench_barrier_t;
 
 static void
 barrier_init (bench_barrier_t *br)
 {
-  sem_init (&br->a, 0, 0);
-  sem_init (&br->b, 0, 0);
+  dp_mutex_init (&br->m);
+  dp_cond_init (&br->c);
+  br->arrived    = 0;
+  br->generation = 0;
 }
 
 static void
 barrier_wait (bench_barrier_t *br, int is_producer)
 {
-  if (is_producer)
+  (void)is_producer; /* symmetric: whichever party arrives second releases */
+  dp_mutex_lock (&br->m);
+  unsigned gen = br->generation;
+  if (++br->arrived == 2)
     {
-      sem_post (&br->a);
-      sem_wait (&br->b);
+      br->arrived = 0;
+      br->generation++;
+      dp_cond_broadcast (&br->c);
     }
   else
-    {
-      sem_post (&br->b);
-      sem_wait (&br->a);
-    }
+    while (gen == br->generation)
+      dp_cond_wait (&br->c, &br->m);
+  dp_mutex_unlock (&br->m);
 }
 
 static void
 barrier_destroy (bench_barrier_t *br)
 {
-  sem_destroy (&br->a);
-  sem_destroy (&br->b);
+  dp_cond_destroy (&br->c);
+  dp_mutex_destroy (&br->m);
 }
 
 /* ─── shared state ──────────────────────────────────────────────────────── */
@@ -141,14 +151,11 @@ typedef struct
 static uint64_t
 now_ns (void)
 {
-  struct timespec ts;
-  clock_gettime (CLOCK_REALTIME, &ts);
-  return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+  return dp_real_ns (); /* the header's timestamp_ns clock, on both ends */
 }
 
 /* ─── producer ──────────────────────────────────────────────────────────── */
-static void *
-producer (void *arg)
+DP_THREAD_FN (producer, arg)
 {
   bench_state_t  *s   = arg;
   size_t          n   = s->block_sz;
@@ -166,7 +173,7 @@ producer (void *arg)
       free (buf);
       s->producer_done = 1; /* let the consumer stop waiting */
       barrier_wait (&s->ready, 1);
-      return NULL;
+      DP_THREAD_RETURN;
     }
 
   barrier_wait (&s->ready, 1);
@@ -185,12 +192,11 @@ producer (void *arg)
   dp_push_destroy (ctx);
   free (buf);
   s->producer_done = 1; /* signal the consumer: no more frames are coming */
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 /* ─── consumer ──────────────────────────────────────────────────────────── */
-static void *
-consumer (void *arg)
+DP_THREAD_FN (consumer, arg)
 {
   bench_state_t *s = arg;
   /* The NATS JetStream pull consumer attaches to the work-queue stream that
@@ -203,15 +209,14 @@ consumer (void *arg)
       ctx = dp_pull_create (firehose_endpoint ());
       if (!ctx)
         {
-          struct timespec ts = { 0, 20L * 1000 * 1000 }; /* 20 ms */
-          nanosleep (&ts, NULL);
+          dp_thread_sleep_us (20000); /* 20 ms */
         }
     }
   if (!ctx)
     {
       fputs ("bench_stream: pull create failed\n", stderr);
       barrier_wait (&s->ready, 0);
-      return NULL;
+      DP_THREAD_RETURN;
     }
 
   barrier_wait (&s->ready, 0);
@@ -273,7 +278,7 @@ consumer (void *arg)
 
   s->timed_blks = timed;
   dp_pull_destroy (ctx);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 /* ─── histogram stats ───────────────────────────────────────────────────── */
@@ -318,8 +323,7 @@ hist_stats (const bench_state_t *s, double *min_us, double *mean_us,
  * lock-step (one request outstanding at a time), so a ping-pong of a
  * STATUS_MSG_BYTES payload measures the genuine request→reply round trip with
  * no queueing — the "query current state" latency. One-way ≈ RTT / 2. */
-static void *
-replier (void *arg)
+DP_THREAD_FN (replier, arg)
 {
   bench_state_t *s   = arg;
   dp_rep_t      *rep = dp_rep_create (reqrep_endpoint ());
@@ -327,7 +331,7 @@ replier (void *arg)
     {
       fputs ("bench_stream: rep create failed\n", stderr);
       barrier_wait (&s->ready, 0);
-      return NULL;
+      DP_THREAD_RETURN;
     }
   barrier_wait (&s->ready, 0);
 
@@ -346,21 +350,21 @@ replier (void *arg)
         break;
     }
   dp_rep_destroy (rep);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 static int
 run_reqrep (bench_state_t *s)
 {
-  pthread_t rep_tid;
-  pthread_create (&rep_tid, NULL, replier, s);
+  dp_thread_t rep_tid;
+  dp_thread_create (&rep_tid, replier, s);
 
   dp_req_t *req = dp_req_create (reqrep_endpoint ());
   if (!req)
     {
       fputs ("bench_stream: req create failed\n", stderr);
       barrier_wait (&s->ready, 1);
-      pthread_join (rep_tid, NULL);
+      dp_thread_join (rep_tid);
       return 1;
     }
   barrier_wait (&s->ready, 1);
@@ -373,8 +377,7 @@ run_reqrep (bench_state_t *s)
    * the server. The barrier guarantees the replier's dp_rep_create returned,
    * but the SubscribeSync registration still has to propagate before the
    * first request, so let it settle. */
-  struct timespec settle_ts = { 0, 200L * 1000 * 1000 }; /* 200 ms */
-  nanosleep (&settle_ts, NULL);
+  dp_thread_sleep_us (200000); /* 200 ms */
 
   unsigned char payload[STATUS_MSG_BYTES] = { 0 };
   size_t        timed                     = 0;
@@ -405,7 +408,7 @@ run_reqrep (bench_state_t *s)
     }
   s->timed_blks = timed;
   dp_req_destroy (req);
-  pthread_join (rep_tid, NULL);
+  dp_thread_join (rep_tid);
 
   if (timed == 0)
     {
@@ -491,11 +494,11 @@ main (int argc, char *argv[])
   printf ("block_sz\tnum_blocks\ttput_mss\ttput_mbs"
           "\tlat_min_us\tlat_mean_us\tlat_p99_us\tlat_max_us\n");
 
-  pthread_t prod_tid, cons_tid;
-  pthread_create (&cons_tid, NULL, consumer, s);
-  pthread_create (&prod_tid, NULL, producer, s);
-  pthread_join (prod_tid, NULL);
-  pthread_join (cons_tid, NULL);
+  dp_thread_t prod_tid, cons_tid;
+  dp_thread_create (&cons_tid, consumer, s);
+  dp_thread_create (&prod_tid, producer, s);
+  dp_thread_join (prod_tid);
+  dp_thread_join (cons_tid);
 
   barrier_destroy (&s->ready);
 

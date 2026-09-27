@@ -2,110 +2,94 @@
 # extension and the standalone streaming examples.
 # nats_vendor_static provides NATS headers and the static libnats.a (the
 # nats:// transport; pure C, TLS/STAN off — see the root CMakeLists).
-# Skipped on Windows: the NATS stream layer (pthreads + the vendored nats.c)
-# is not ported there -- a carve-out tracked on #1364.
-if(NOT WIN32)
-    # tlm_sink.c is the telemetry NATS sink (stream/tlm_sink.h): stream-
-    # component code because it publishes through dp_pub_*. Its dp_tlm_read
-    # reference resolves against dp_tlm_core, which lives in the core lib
-    # — consumers link doppler::stream alongside the core; targets here that
-    # embed stream_core_obj directly link dp_tlm_core explicitly.
-    add_library(stream_core_obj OBJECT stream_core.c stream_nats.c
-        tlm_sink.c)
-    target_include_directories(stream_core_obj PUBLIC
-        ${CMAKE_SOURCE_DIR}/native/inc)
-    target_link_libraries(stream_core_obj PUBLIC
-        nats_vendor_static)
-    set_target_properties(stream_core_obj PROPERTIES
-        POSITION_INDEPENDENT_CODE ON)
-endif()
+# Every platform: nats.c ships a Windows port, threads go through dp_thread.h
+# and Threads::Threads, and the wall clock through timing_core (#1575).
+# tlm_sink.c is the telemetry NATS sink (stream/tlm_sink.h): stream-
+# component code because it publishes through dp_pub_*. Its dp_tlm_read
+# reference resolves against dp_tlm_core, which lives in the core lib
+# — consumers link doppler::stream alongside the core; targets here that
+# embed stream_core_obj directly link dp_tlm_core explicitly.
+if(DP_WITH_STREAM) # see the root CMakeLists (#1575)
 
-if(NOT WIN32)
-    add_executable(bench_stream
-        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_stream.c)
-    target_link_libraries(bench_stream PRIVATE
-        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-        dp_tlm_core
-        nats_vendor_static
-        ${DP_MATH_LIBRARY} pthread)
-    target_include_directories(bench_stream PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc)
-    set_target_properties(bench_stream PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/native/benchmarks")
-endif()
+add_library(stream_core_obj OBJECT stream_core.c stream_nats.c
+    tlm_sink.c)
+target_include_directories(stream_core_obj PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(stream_core_obj PUBLIC
+    nats_vendor_static)
+set_target_properties(stream_core_obj PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
+
+  add_executable(bench_stream
+      ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_stream.c)
+  target_link_libraries(bench_stream PRIVATE
+      $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
+      dp_tlm_core timing_core
+      nats_vendor_static
+      ${DP_MATH_LIBRARY} Threads::Threads)
+  target_include_directories(bench_stream PRIVATE
+      ${CMAKE_SOURCE_DIR}/native/inc)
+  set_target_properties(bench_stream PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/native/benchmarks")
 
 # The wire format itself: layout, magic, BLUE codes, flag mask. No broker,
 # so unlike the round-trip tests below it runs everywhere -- which is the
 # point, since the layout is what a third party implements from stream.h.
-#
-# "Everywhere" has never included Windows, and the guard below is what makes
-# that visible rather than fatal. The test needs no broker, but it LINKS
-# stream_core_obj, nats_vendor_static and pthread, all defined only inside
-# the `if(NOT WIN32)` block -- so on Windows CMake's generate step died on
-# the dangling $<TARGET_OBJECTS:>. Guarding the reference is the honest
-# minimum; making the wire-format test genuinely portable is separate work,
-# filed as #1361 rather than faked. `if(TARGET)` keeps the platform rule in
-# one place -- the definition above owns which platforms get it.
-if(TARGET stream_core_obj)
-  add_executable(test_stream_wire
-      ${CMAKE_SOURCE_DIR}/native/tests/test_stream_wire.c)
-  target_link_libraries(test_stream_wire PRIVATE
+# Windows included since #1575 (closes #1361).
+add_executable(test_stream_wire
+    ${CMAKE_SOURCE_DIR}/native/tests/test_stream_wire.c)
+target_link_libraries(test_stream_wire PRIVATE
+    $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
+    dp_tlm_core timing_core
+    nats_vendor_static
+    ${DP_MATH_LIBRARY} Threads::Threads)
+target_include_directories(test_stream_wire PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_stream_wire COMMAND test_stream_wire)
+
+  add_executable(test_stream_nats_core
+      ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_core.c)
+  target_link_libraries(test_stream_nats_core PRIVATE
       $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-      dp_tlm_core
+      dp_tlm_core timing_core
       nats_vendor_static
-      ${DP_MATH_LIBRARY} pthread)
-  target_include_directories(test_stream_wire PRIVATE
+      ${DP_MATH_LIBRARY} Threads::Threads)
+  # The vendored nats headers, for the one test that must forge a frame
+  # doppler's own writers cannot emit (an unparseable one). The target
+  # already links nats_vendor_static; this only lets it see the header.
+  target_include_directories(test_stream_nats_core PRIVATE
+      ${CMAKE_SOURCE_DIR}/native/inc
+      ${CMAKE_SOURCE_DIR}/vendor/nats.c/src)
+  add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
+  set_tests_properties(test_stream_nats_core PROPERTIES
+      SKIP_RETURN_CODE 77)
+
+  # Telemetry-ring -> NATS round-trip (skips without a live broker, like
+  # test_stream_nats_core).
+  add_executable(test_tlm_sink
+      ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_sink.c)
+  target_link_libraries(test_tlm_sink PRIVATE
+      $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
+      dp_tlm_core timing_core
+      nats_vendor_static
+      ${DP_MATH_LIBRARY} Threads::Threads)
+  target_include_directories(test_tlm_sink PRIVATE
       ${CMAKE_SOURCE_DIR}/native/inc)
-  add_test(NAME test_stream_wire COMMAND test_stream_wire)
-endif()
+  add_test(NAME test_tlm_sink COMMAND test_tlm_sink)
+  set_tests_properties(test_tlm_sink PROPERTIES
+      SKIP_RETURN_CODE 77)
 
-if(NOT WIN32)
-    add_executable(test_stream_nats_core
-        ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_core.c)
-    target_link_libraries(test_stream_nats_core PRIVATE
-        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-        dp_tlm_core
-        nats_vendor_static
-        ${DP_MATH_LIBRARY} pthread)
-    # The vendored nats headers, for the one test that must forge a frame
-    # doppler's own writers cannot emit (an unparseable one). The target
-    # already links nats_vendor_static; this only lets it see the header.
-    target_include_directories(test_stream_nats_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/vendor/nats.c/src)
-    add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
-    set_tests_properties(test_stream_nats_core PROPERTIES
-        SKIP_RETURN_CODE 77)
-
-    # Telemetry-ring -> NATS round-trip (skips without a live broker, like
-    # test_stream_nats_core).
-    add_executable(test_tlm_sink
-        ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_sink.c)
-    target_link_libraries(test_tlm_sink PRIVATE
-        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-        dp_tlm_core
-        nats_vendor_static
-        ${DP_MATH_LIBRARY} pthread)
-    target_include_directories(test_tlm_sink PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc)
-    add_test(NAME test_tlm_sink COMMAND test_tlm_sink)
-    set_tests_properties(test_tlm_sink PROPERTIES
-        SKIP_RETURN_CODE 77)
-endif()
-
-# Same `if(TARGET)` guard as test_stream_wire above, for the same reason: the
-# extension embeds stream_core_obj, which does not exist on Windows (#1364),
-# so an unguarded reference killed a Windows BUILD_PYTHON configure at the
-# generate step. There, `doppler.stream` is absent rather than broken.
-if(BUILD_PYTHON AND TARGET stream_core_obj)
+if(BUILD_PYTHON)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-        dp_tlm_core
+        dp_tlm_core timing_core
         nats_vendor_static
         Python3::NumPy
-        ${DP_MATH_LIBRARY} pthread)
+        ${DP_MATH_LIBRARY} Threads::Threads)
     target_include_directories(stream PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     set_target_properties(stream PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/stream")
 endif()
+
+endif() # DP_WITH_STREAM

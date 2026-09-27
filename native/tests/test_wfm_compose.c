@@ -10,6 +10,7 @@
 #include "doppler/gold/gold_core.h"
 #include "doppler/pn/pn_core.h"
 #include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_defaults.h" /* WFM_SOURCE_DEFAULTS */
 #include "doppler/wfm/wfm_dsp.h" /* wfm_frame_dsss_* for the dsss burst section */
 #include "doppler/wfm/wfm_frame.h" /* the descriptor the unspread frame section reads */
 #include "doppler/wfm_synth/wfm_synth_core.h"
@@ -442,12 +443,11 @@ test_a_carried_frame_survives_the_scene_json (void)
   DP_REQUIRE_MSG (dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "code", "check")
                       == 0,
                   "json-frame: add_stage crc16 == 0");
-  /* A kind doppler has NEVER heard of, which is the case a name-only
-     encoding could not carry at all -- the whole reason the wire form takes
-     an integer as well as a name. */
+  /* A second named kind, renderable, so this scene is one the composer
+     accepts; the caller's-own-kind case is its own block after this one. */
   DP_REQUIRE_MSG (
-      dp_wfm_frame_add_stage (&d, WFM_STAGE_USER + 1u, "mark", "check") == 1,
-      "json-frame: add_stage user+1 == 1");
+      dp_wfm_frame_add_stage (&d, WFM_STAGE_RANDOMISE, "mark", "check") == 1,
+      "json-frame: add_stage randomise == 1");
   /* A stage carrying NON-ZERO geometry, and deliberately geometry no assert
      below reads back field-by-field. That is what gives the byte-identical
      re-emit something to catch that nothing else here would: a parser that
@@ -457,8 +457,11 @@ test_a_carried_frame_survives_the_scene_json (void)
   DP_REQUIRE_MSG (
       dp_wfm_frame_add_stage (&d, WFM_STAGE_INTERLEAVE, "mark", "check") == 2,
       "json-frame: add_stage interleave == 2");
-  d.stage[2].depth     = 4u;
-  d.stage[2].unit_bits = 8u;
+  /* depth x unit_bits must divide the 55 bits it covers (8 + 31 + 16), or
+     the interleaver refuses and -- since the composer builds each source at
+     create -- so does the scene. 5 x 11 keeps both keys non-zero. */
+  d.stage[2].depth     = 5u;
+  d.stage[2].unit_bits = 11u;
 
   /* BITS rather than BPSK: the spec writes a literal payload back only for
      a bits source ("pattern"), and a payload that does not survive the round
@@ -485,8 +488,7 @@ test_a_carried_frame_survives_the_scene_json (void)
   /* A named kind reads as its name, a caller's own as its number. */
   DP_REQUIRE_MSG (strstr (js1, "\"crc16\""),
                   "json-frame: a named kind is written by NAME");
-  DP_REQUIRE_MSG (strstr (js1, "4097"),
-                  "json-frame: a caller's own kind is written as its integer");
+  /* (the caller's own kind: see the block after this one) */
 
   dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (js1);
   DP_REQUIRE_MSG (c, "json-frame: from_json");
@@ -518,8 +520,8 @@ test_a_carried_frame_survives_the_scene_json (void)
                       && g->field[2].derived_by == d.field[2].derived_by,
                   "json-frame: a derived field's length and producer survive");
   DP_REQUIRE_MSG (g->stage[0].kind == WFM_STAGE_CRC16
-                      && g->stage[1].kind == WFM_STAGE_USER + 1u,
-                  "json-frame: both a named and a caller's own kind survive");
+                      && g->stage[1].kind == WFM_STAGE_RANDOMISE,
+                  "json-frame: every named kind survives");
   DP_REQUIRE_MSG (g->stage[0].first_field == d.stage[0].first_field
                       && g->stage[0].n_fields == d.stage[0].n_fields
                       && g->stage[1].first_field == d.stage[1].first_field
@@ -535,6 +537,27 @@ test_a_carried_frame_survives_the_scene_json (void)
   free (js2);
   dp_wfm_compose_destroy (c);
   free (js1);
+
+  /* A kind doppler has NEVER heard of. The wire form carries it -- as an
+     integer, the case a name-only encoding could not carry at all -- but a
+     composer runs only the built-in and ccsds_tm kernels, so a scene naming
+     it can never render. Since doppler#1590 that is refused at create rather
+     than accepted and rendered as a silent gap: both halves are pinned. */
+  {
+    wfm_frame_desc_t du = d;
+    du.stage[1].kind    = WFM_STAGE_USER + 1u;
+    wfm_source_t su     = src;
+    su.frame            = &du;
+    wfm_segment_t sgu   = seg;
+    sgu.sources         = &su;
+    char *ju            = dp_wfm_spec_to_json (&sgu, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (
+        ju && strstr (ju, "4097"),
+        "json-frame: a caller's own kind is written as its integer");
+    DP_REQUIRE_MSG (dp_wfm_compose_from_json (ju) == NULL,
+                    "json-frame: a kind with no kernel is refused at create");
+    free (ju);
+  }
 
   /* Each reject below differs from THIS scene by exactly one thing: the
      frame defect under test. Asserting the control PARSES is what stops
@@ -1510,6 +1533,22 @@ main (void)
     DP_REQUIRE_MSG (dp_wfm_compose_create (&gbad, 1, 0, 0) == NULL,
                     "bad dsss is refused at create, not silently gapped");
 
+    /* The same rule for EVERY source the synth cannot build, not only a bad
+     * frame (doppler#1590). A PN register with no m-sequence polynomial
+     * (length 1, or past 64) made dp_wfm_synth_create return NULL, which the
+     * streaming path turned into a silent gap: `wfmgen --pn-length 65` wrote
+     * zero bytes and exited 0. Asked of the builder itself, so no second
+     * copy of the synth's rules exists here. */
+    for (int len = 0; len < 2; len++)
+      {
+        wfm_source_t pn
+            = { .type = WFM_SYNTH_PN, .sps = 1, .pn_length = len ? 65 : 1 };
+        wfm_segment_t gpn
+            = { .sources = &pn, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+        DP_REQUIRE_MSG (dp_wfm_compose_create (&gpn, 1, 0, 0) == NULL,
+                        "a PN length with no m-sequence is refused at create");
+      }
+
     /* Same answer inside a multi-source sum: one source that cannot be built
      * refuses the whole composition rather than summing the others and
      * quietly leaving this one out. */
@@ -2138,6 +2177,77 @@ main (void)
                          "builds -- the last place gh-762's flattening "
                          "survived was this descriptor's payload field");
     dp_wfm_synth_destroy (gsy);
+
+    /* doppler#1592: the two paths that still read the POINTER. A generated
+       payload has no array, so an unframed `bits` source refused it and a
+       continuous dsss source silently swapped it for the PRBS default. Each is
+       held to the same bits given LITERALLY, and the continuous one also to
+       the diverging default, so a path that ignored the payload cannot pass
+       by emitting something plausible. */
+    {
+      const wfm_seq_t gen = { .kind = WFM_SEQ_PN, .len = 64, .reg_bits = 7 };
+      uint8_t         lit[64];
+      DP_REQUIRE_MSG (dp_wfm_seq_bits (&gen, lit, 64) == 64,
+                      "the generated payload materialises");
+      const wfm_seq_t litq
+          = { .kind = WFM_SEQ_LITERAL, .len = 64, .bits = lit };
+      /* 8192 samples: ~100 data symbols at 80 samples each on the
+         continuous leg. Fewer, and the first bits of two PN streams seeded
+         alike can coincide, so the fixture stops telling them apart. */
+      enum
+      {
+        N = 8192
+      };
+      static float _Complex a[N], b[N];
+
+      wfm_source_t ub          = WFM_SOURCE_DEFAULTS;
+      ub.type                  = WFM_SYNTH_BITS;
+      ub.payload               = gen;
+      dp_wfm_synth_state_t *ga = dp_wfm_source_to_synth (&ub, 1e6);
+      ub.payload               = litq;
+      dp_wfm_synth_state_t *la = dp_wfm_source_to_synth (&ub, 1e6);
+      DP_REQUIRE_MSG (ga && la, "an unframed bits source builds from a "
+                                "GENERATED payload, not only a literal one");
+      dp_wfm_synth_steps (ga, a, N);
+      dp_wfm_synth_steps (la, b, N);
+      DP_CHECK_MSG (memcmp (a, b, sizeof a) == 0,
+                    "unframed bits: generated == the same bits literally");
+      dp_wfm_synth_destroy (ga);
+      dp_wfm_synth_destroy (la);
+
+      uint8_t      dcode[4] = { 1, 0, 1, 1 };
+      wfm_source_t cd       = WFM_SOURCE_DEFAULTS;
+      cd.type               = WFM_SYNTH_DSSS;
+      cd.sps                = 2;
+      cd.symbol_rate        = 12500.0;
+      cd.crc                = 0; /* unframed: the default crc16 would make
+                                    this a FRAME, and the payload would ride
+                                    attach_frame instead of the data path
+                                    under test -- which is exactly how the
+                                    first version of this pin passed with the
+                                    defect put back */
+      cd.data_code
+          = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 4, .bits = dcode };
+      cd.payload               = gen;
+      dp_wfm_synth_state_t *gc = dp_wfm_source_to_synth (&cd, 1e6);
+      cd.payload               = litq;
+      dp_wfm_synth_state_t *lc = dp_wfm_source_to_synth (&cd, 1e6);
+      cd.payload               = (wfm_seq_t){ 0 };
+      dp_wfm_synth_state_t *pc = dp_wfm_source_to_synth (&cd, 1e6);
+      static float _Complex c[N];
+      DP_REQUIRE_MSG (gc && lc && pc, "continuous dsss builds all three");
+      dp_wfm_synth_steps (gc, a, N);
+      dp_wfm_synth_steps (lc, b, N);
+      dp_wfm_synth_steps (pc, c, N);
+      DP_CHECK_MSG (memcmp (a, c, sizeof a) != 0,
+                    "precondition: the payload and the PRBS default differ");
+      DP_CHECK_MSG (memcmp (a, b, sizeof a) == 0,
+                    "continuous dsss: a generated payload is SENT, not "
+                    "silently replaced by the PRBS default");
+      dp_wfm_synth_destroy (gc);
+      dp_wfm_synth_destroy (lc);
+      dp_wfm_synth_destroy (pc);
+    }
 
     wfm_source_t framed_empty = framed;
     framed_empty.payload.bits = NULL;
@@ -3257,6 +3367,37 @@ main (void)
                     "a fixed doppler reports its scalar on every instance");
   }
 
+  /* doppler#1596: a key a scene OMITS takes the manifest's default -- the
+     same value the flags and Python give -- not one the JSON reader typed for
+     itself. Compared against the generated macros, never against a restated
+     number, so this cannot drift with them. */
+  {
+    const wfm_source_t      ds = WFM_SOURCE_DEFAULTS;
+    const wfm_segment_t     dg = WFM_SEGMENT_DEFAULTS;
+    dp_wfm_compose_state_t *jc = dp_wfm_compose_from_json (
+        "{\"version\":1,\"segments\":[{\"type\":\"pn\",\"fs\":1000}]}");
+    DP_REQUIRE_MSG (jc, "a scene that omits every default parses");
+    size_t               jn = 0;
+    int                  jr = 0, jct = 0;
+    const wfm_segment_t *js = dp_wfm_compose_segments (jc, &jn, &jr, &jct);
+    DP_REQUIRE_MSG (js && jn == 1 && js[0].n_sources == 1,
+                    "one segment, one source");
+    const wfm_source_t *jsrc = &js[0].sources[0];
+    DP_CHECK_MSG (js[0].num_samples == dg.num_samples,
+                  "omitted num_samples is the manifest default, not 0 (an "
+                  "empty segment)");
+    DP_CHECK_MSG (jsrc->seed == ds.seed, "omitted seed is the default");
+    DP_CHECK_MSG (jsrc->sps == ds.sps, "omitted sps is the default");
+    DP_CHECK_MSG (jsrc->pn_length == ds.pn_length,
+                  "omitted pn_length is the default");
+    DP_CHECK_MSG (jsrc->snr == ds.snr && jsrc->acq_reps == ds.acq_reps
+                      && jsrc->rrc_beta == ds.rrc_beta
+                      && jsrc->rrc_span == ds.rrc_span
+                      && jsrc->modulation == ds.modulation,
+                  "every other omitted default matches the manifest too");
+    dp_wfm_compose_destroy (jc);
+  }
+
   if (test_the_create_snr_seam ())
     return 1;
   if (test_the_two_faces_agree ())
@@ -3272,5 +3413,8 @@ main (void)
       "dsss burst, unspread frame, repeats, doppler block-invariance, "
       "persist-through-gap, ranged doppler, doppler json, doppler draws)\n",
       total);
-  return 0;
+  /* Reports the DP_CHECK accumulator. Until doppler#1592's pins this file
+     asserted only through DP_REQUIRE, so a bare `return 0` was latent; the
+     first accumulating check would have been decoration without this. */
+  DP_TEST_END ("test_wfm_compose");
 }

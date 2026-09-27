@@ -29,11 +29,18 @@ extern "C" {
  * byte-identical to invoking the CLI with the same arguments — it is the same
  * code path, not a reimplementation.
  *
- * Process-global only in the ways the CLI is: it may write to @c stdout /
- * @c stderr and create the @c --output / @c --record files. It installs no
- * signal handlers, registers no `atexit` hooks, and keeps no mutable global
- * state, so it is safe to call repeatedly within one process. Not reentrant
- * across threads (it shares @c stdout).
+ * Process-global only in the ways the CLI is, and each is stated:
+ * - it writes to @c stdout / @c stderr and creates the @c --output /
+ *   @c --record files;
+ * - it installs SIGINT and SIGTERM handlers for the length of the call, so a
+ *   stop signal ends the run cleanly instead of killing it mid-write, and
+ *   puts the caller's own handlers back before it returns, on every exit;
+ * - on Windows it sets @c stdout to binary mode for the process, because IQ
+ *   written in text mode is corrupted, and leaves it so.
+ *
+ * It registers no `atexit` hooks, so it is safe to call repeatedly within one
+ * process. Not reentrant across threads: it shares @c stdout and the
+ * process's signal handlers.
  *
  * @param argc Argument count, including @c argv`[0]` (the program name).
  * @param argv Argument vector; @c argv`[0]` is used only in diagnostics/usage.

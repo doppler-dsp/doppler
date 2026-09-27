@@ -486,16 +486,31 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
          regenerate. (Code-only, --data none, arrives with the CLI flag.) */
       double cps
           = (src->sps > 0) ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
+      /* LENGTH, not the pointer: a generated payload has no array, and
+         reading it as "none" sent the PRBS default in its place, silently
+         (doppler#1592). It is materialised the way every other sequence
+         here is. */
       int      mode = src->dsss_code_only ? WFM_DSSS_DATA_NONE
-                      : (src->payload.bits && src->payload.len)
-                          ? WFM_DSSS_DATA_BITS
-                          : WFM_DSSS_DATA_PRBS;
+                      : src->payload.len  ? WFM_DSSS_DATA_BITS
+                                          : WFM_DSSS_DATA_PRBS;
       size_t   dn   = 0;
       uint8_t *dchp = seq_to_chips (&src->data_code, &dn);
       if (!dchp)
         return -1;
-      const int rc = dp_wfm_synth_set_dsss_cont (
-          syn, dchp, dn, cps, mode, src->payload.bits, src->payload.len);
+      size_t   pn  = 0;
+      uint8_t *pay = NULL;
+      if (mode == WFM_DSSS_DATA_BITS)
+        {
+          pay = seq_to_chips (&src->payload, &pn);
+          if (!pay)
+            {
+              free (dchp);
+              return -1;
+            }
+        }
+      const int rc
+          = dp_wfm_synth_set_dsss_cont (syn, dchp, dn, cps, mode, pay, pn);
+      free (pay);
       free (dchp);
       return rc;
     }
@@ -563,7 +578,7 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
      so the generated Synth_ensure_gen turns this NULL into an error at first
      generation (the old Synth.__init__ raised eagerly; standalone generation
      is lazy, so the guard moves to first steps()/step()). */
-  if (src->type == WFM_SYNTH_BITS && (!src->payload.bits || !src->payload.len))
+  if (src->type == WFM_SYNTH_BITS && src->payload.len == 0)
     return NULL;
   /* Likewise a "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
@@ -571,11 +586,11 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* A "dsss" BURST needs valid frame geometry (a preamble and/or a data-coded
      frame; frame bits require a data code). A CONTINUOUS stream (symbol_rate >
      0) has no frame — it needs only a spreading code. */
+  /* Checked through the ONE compiler the render uses, so a carried frame and
+     its stages are what is validated -- not a four-field sum the render never
+     reads (doppler#1593). */
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate <= 0.0
-      && dp_wfm_frame_dsss_nchips (src->acq_code.len, src->acq_reps,
-                                   src->data_code.len, src->sync.len,
-                                   src->payload.len, src->crc)
-             == 0)
+      && dp_wfm_source_dsss_nchips (src) == 0)
     return NULL;
   /* LEN, not `bits`. A generated spreading code carries `bits == NULL` by
      construction -- the parameters ARE the code -- so testing the pointer

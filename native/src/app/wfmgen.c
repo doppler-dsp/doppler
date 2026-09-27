@@ -633,6 +633,7 @@ typedef struct
   int           sample_type, file_type, endian;
   int           data_flag_set;   /* --data given (continuous dsss only) */
   int           symbol_rate_set; /* --symbol-rate given (reject <= 0) */
+  int crc_set; /* --crc given: its value defaults, so presence is separate */
   /* --payload-len: a payload BOUNDED rather than spelled. Resolved after the
      whole line is read, because it is expressed in the source's own PN
      parameters and those may be typed after it. */
@@ -944,6 +945,7 @@ static const opt_t OPTS[] = {
   { .name = "--crc",
     .kind = OPT_CHOICE,
     .off  = OFF (src.crc),
+    .seen = SEEN (crc_set),
     CHOICES (CRC_NAMES) },
   /* Channel coding, as STAGES over the frame's fields. Each is separately
      optional because the standard makes it so, and they do not all cover the
@@ -1499,10 +1501,14 @@ emit_detached_blue (const emit_ctx_t *e)
       (void)fprintf (stderr, "error: --detached needs --output\n");
       return 2;
     }
-  if (e->endless)
+  /* The .hdr is written when the run ends, so a run that never ends has no
+     header. --repeat loops the spec forever exactly as --continuous does;
+     refusing only one of them let the other write until the disk filled
+     (doppler#1591). */
+  if (e->endless || o->repeat)
     {
       (void)fprintf (stderr, "error: --detached requires finite output "
-                             "(not --continuous)\n");
+                             "(not --continuous or --repeat)\n");
       return 2;
     }
   char det_path[1024];
@@ -1751,19 +1757,22 @@ check_continuous_dsss (const wfmgen_opts_t *o)
       (void)fprintf (stderr, "error: --symbol-rate is only for --type dsss\n");
       return 2;
     }
-  if (!o->src.data_code.bits)
+  /* LENGTH, not the pointer: a generated sequence (--data-code-gen,
+     --sync-gen) has no array, so a pointer test read a real code as absent
+     and a real sync as absent (doppler#1592) -- the has_frame bug again. */
+  if (o->src.data_code.len == 0)
     {
       (void)fprintf (stderr, "error: continuous dsss (--symbol-rate) needs "
                              "--data-code\n");
       return 2;
     }
-  if (o->src.acq_code.bits || o->src.sync.bits)
+  if (o->src.acq_code.len || o->src.sync.len || o->crc_set)
     {
-      (void)fprintf (stderr, "error: --acq-code/--sync are burst-frame flags, "
-                             "meaningless with --symbol-rate\n");
+      (void)fprintf (stderr, "error: --acq-code/--sync/--crc are burst-frame "
+                             "flags, meaningless with --symbol-rate\n");
       return 2;
     }
-  if (o->data_flag_set && o->src.payload.bits)
+  if (o->data_flag_set && o->src.payload.len)
     {
       (void)fprintf (stderr,
                      "error: --data and --bits both set the data; use one\n");
@@ -1834,31 +1843,12 @@ run_json_template (int argc, char *argv[])
  * destroys the composer. `comp` and `rc` are therefore declared here rather
  * than at first use: a `goto` that jumps past a declaration leaves it
  * uninitialised, and the label reads both. */
-int
-dp_doppler_wfmgen (int argc, char *argv[])
+static int
+wfmgen_run (int argc, char *argv[])
 {
   dp_wfm_compose_state_t *comp
       = NULL; /* dp_wfm_compose_destroy tolerates NULL */
   int rc = 0;
-
-  /* FIRST, before parsing or opening anything. A signal arriving before this
-   * is not ignored, it terminates the process -- and the window is real:
-   * measured at ~5 ms for a dynamically linked binary, which is long enough
-   * for a supervisor's stop signal to land inside it. Installing here rather
-   * than beside the emit loop is the difference between "Ctrl+C is handled"
-   * and "Ctrl+C is handled once we get that far".
-   *
-   * Both signals, because a container runtime sends SIGTERM and a terminal
-   * sends SIGINT, and losing the tail should not depend on which. */
-  (void)dp_interrupt_on_signal (SIGINT);
-  (void)dp_interrupt_on_signal (SIGTERM);
-
-#ifdef _WIN32
-  /* stdout carries the bytes a file would: every file is opened "wb", and
-   * the Windows CRT's text-mode stdout turns each 0x0A into 0x0D 0x0A --
-   * inside binary IQ that shifts every sample after it. */
-  (void)_setmode (_fileno (stdout), _O_BINARY);
-#endif
 
   /* --help / --version short-circuit before any spec is built, so they work
    * regardless of the other flags and never leak a partially-parsed source. */
@@ -2004,5 +1994,39 @@ dp_doppler_wfmgen (int argc, char *argv[])
 done:
   dp_wfm_compose_destroy (comp);
   source_free (&o.src);
+  return rc;
+}
+
+/* The public entry: the handlers go in FIRST and come out LAST, around the
+ * whole run, so every one of wfmgen_run's exits -- --help, --version, a usage
+ * error, done: -- leaves the caller's handlers as it found them
+ * (doppler#1594). Restoring at each return instead is how one of them gets
+ * missed.
+ *
+ * FIRST, before parsing or opening anything. A signal arriving before this
+ * is not ignored, it terminates the process -- and the window is real:
+ * measured at ~5 ms for a dynamically linked binary, which is long enough for
+ * a supervisor's stop signal to land inside it. Both signals, because a
+ * container runtime sends SIGTERM and a terminal sends SIGINT, and losing the
+ * tail should not depend on which. */
+int
+dp_doppler_wfmgen (int argc, char *argv[])
+{
+  (void)dp_interrupt_on_signal (SIGINT);
+  (void)dp_interrupt_on_signal (SIGTERM);
+
+#ifdef _WIN32
+  /* stdout carries the bytes a file would: every file is opened "wb", and
+   * the Windows CRT's text-mode stdout turns each 0x0A into 0x0D 0x0A --
+   * inside binary IQ that shifts every sample after it. Left binary on
+   * return: stdout's mode is the process's, and a caller of an IQ
+   * generator is not reading text from it. */
+  (void)_setmode (_fileno (stdout), _O_BINARY);
+#endif
+
+  const int rc = wfmgen_run (argc, argv);
+
+  (void)dp_restore_signal (SIGTERM);
+  (void)dp_restore_signal (SIGINT);
   return rc;
 }

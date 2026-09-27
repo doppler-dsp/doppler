@@ -1104,6 +1104,58 @@
       "version": 1
     }
   },
+  "dsss_continuous_data_code_gen": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code-gen",
+      "pn:15:4",
+      "--data",
+      "prbs",
+      "--fs",
+      "48000",
+      "--count",
+      "64"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "data_code_gen": {
+            "kind": "pn",
+            "len": 15,
+            "lfsr": 0,
+            "poly": "0x0",
+            "reg_bits": 4,
+            "seed": "0x0"
+          },
+          "freq": 0,
+          "fs": 48000,
+          "lfsr": "galois",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "symbol_rate": 100,
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
   "dsss_payload_gen": {
     "argv": [
       "--type",
@@ -1211,6 +1263,36 @@
     "outputs": {},
     "record": null
   },
+  "err_dsss_crc_in_continuous": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code",
+      "1011",
+      "--crc",
+      "crc16"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_dsss_sync_gen_in_continuous": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code",
+      "1011",
+      "--sync-gen",
+      "pn:15:4"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_framed_chirp": {
     "argv": [
       "--type",
@@ -1263,6 +1345,19 @@
       "64"
     ],
     "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_pn_length_no_msequence": {
+    "argv": [
+      "--type",
+      "pn",
+      "--pn-length",
+      "65",
+      "--count",
+      "64"
+    ],
+    "exit": 1,
     "outputs": {},
     "record": null
   },

@@ -1,0 +1,141 @@
+# A Frame as a Description — the measurement record
+
+*The dated record behind [the design page](frame-description.md): what was
+measured, in the order it was measured, with the numbers, the wrong guesses
+and what corrected them. The design page states what is; this page is why.
+Section letters are shared — an `§F.2` cited in an issue, a test or a code
+comment is the same entry here and there — and nothing is rewritten after the
+fact: a later entry corrects an earlier one in its own words.*
+
+______________________________________________________________________
+
+## F. The Field
+
+### F.1 How many ways a field was spelled (2026-09-27)
+
+A read-only survey of `main` at `7b51ac4b`, taken to answer one question before
+designing anything: is the shape wrong, or is only the Field missing? The
+primitives were right — `wfm_seq_t`, `wfm_field_t` and `wfm_frame_desc_t` in
+`native/inc/doppler/wfm/wfm_frame.h`, with one transmit compiler,
+`dp_wfm_source_describe_frame()` in `wfm_synth_bridge.c` — and around them
+the same two concepts had been restated many times.
+
+**Seven representations of a sequence of bits:**
+
+| #   | representation                                                                    | where                                                                                                           |
+| --- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 1   | `wfm_seq_t` — the canonical one                                                   | `wfm_frame.h`                                                                                                   |
+| 2   | a `(uint8_t *, len)` pair                                                         | `ccsds_tm_frame_spec_t`, `dp_wfm_synth_set_dsss`, the four-field DSSS helpers, every receiver's init parameters |
+| 3   | twelve flattened arguments per field                                              | `dp_frame_create`, `dp_frame_create_desc`, `add_field`                                                          |
+| 4   | the loose PN parameters of a source, borrowed by `--payload-len`                  | `wfm_compose.h`, `wfmgen.c`                                                                                     |
+| 5   | the CLI triple `--X` / `--X-hex` / `--X-gen`                                      | `wfmgen.c` option table                                                                                         |
+| 6   | a JSON literal string plus a `*_gen` object; `lit` / `gen` inside a carried frame | `wfm_json.c`                                                                                                    |
+| 7   | the kind strings in the generated `Frame` bindings                                | `wfm_ext_frame*.c`                                                                                              |
+
+**Six representations of a frame:** `wfm_frame_desc_t`; the fixed-slot
+`wfm_frame_t` with its own `wfm_frame_layout_t`; the flat framing fields of a
+source; `ccsds_tm_frame_spec_t`; `ccsds_tm_frame_cfg_t`; and the receivers'
+own parameters (`acq_code`, `data_code`, `sync`, `reps`, a scalar
+`frame_syms`).
+
+**The same work, done more than once:**
+
+- **Two sequence grammars that disagree.** The CLI's `pn:LEN:REG…` could not
+    set `lfsr`; the JSON `*_gen` object could.
+- **Four bit-string parsers.** `wfmgen.c` refuses a stray character; the JSON
+    reader skips it; jm's `bit_pattern` coercion is a third; `Frame`'s a fourth.
+    A typo reads as a shorter sync word on one face and a refusal on another.
+- **The `reg_bits` range checked at five sites** across `wfmgen.c` and
+    `wfm_json.c`.
+- **Checks that test the pointer, not the length** — which a generated
+    sequence, having no array, fails
+    ([#1592](https://github.com/doppler-dsp/doppler/issues/1592)); the same
+    class `dp_wfm_source_has_frame()` had already been fixed for
+    ([§C.1](#c1-the-sites-and-how-each-was-settled)).
+
+The answer: the shape is right and the Field is missing. Every one of the
+seven exists because a field had no value of its own to pass.
+
+### F.2 The grammar, prototyped before any C (2026-09-27)
+
+A throwaway Python parser and printer for the grammar in §F.1 of the design
+page — never committed — was run against every sequence the flag-matrix
+golden (`native/tests/wfmgen_flag_matrix.json`) records.
+
+| measured                                                                                  | result                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| golden sequences converted old spelling → Field                                           | **40 / 40** lossless: same kind, length, parameters and bits                                                                                                                     |
+| `parse(format(f)) == f` and `format` stable                                               | **40 / 40**                                                                                                                                                                      |
+| by kind                                                                                   | 27 literal, 10 pn, 2 gold, 1 dotted                                                                                                                                              |
+| malformed specs refused (empty, `0102`, `0x`, `pn:31:65`, `dotted`, `1101*0`, a space, …) | **16 / 16**                                                                                                                                                                      |
+| a repetition count other than 1, in the golden                                            | 4, all `2`, all on the acquisition code                                                                                                                                          |
+| old spellings in `docs/` and `src/doppler/examples/`                                      | **58** — `--bits-hex` 23, `--acq-reps` 8, `--acq-code-hex` 5, `--sync-gen` 4, `--payload-len` 4, `--payload-gen` 4, `--data-code-hex` 4, `--data-code-gen` 3, `--acq-code-gen` 3 |
+| `--acq-reps` values in docs and examples                                                  | 4 of 4 occurrences with a value are `4`                                                                                                                                          |
+
+What it settled: the grammar expresses everything every face currently
+records, with nothing lost; the printed form round-trips; and `*N` is rare
+enough that quoting it is cheap.
+
+### F.3 How a refusal names its cause (2026-09-27)
+
+The [error convention](../dev/contributing/error-convention.md) gives an
+`int` function `DP_OK` or a negative code and no reason, and a CLI that says
+only "invalid" about a malformed Field teaches nothing. The wfm module had
+already met this: `dp_wfm_compose_from_json_why(json, const char **why)`
+returns a **static** sentence through an optional out-parameter, because "a
+NULL return is the one answer that cannot teach anything"
+(`wfm_compose.h`). `dp_wfm_field_parse` takes the same shape rather than a
+new convention.
+
+______________________________________________________________________
+
+## C. The CCSDS sites
+
+### C.1 The sites, and how each was settled
+
+Moved here from the design page on 2026-09-27, unchanged, when the page was
+narrowed to state what is.
+
+Of the five the earlier plan listed, **site 1 is done** —
+`dp_wfm_source_describe_frame()` builds through the by-name builder rather than
+`dp_ccsds_tm_frame_desc_of()`. Three others turned out not to be leaks at all:
+`frame_core.c`, `wfm_synth_bridge.c` and `burst_demod_core.c` include
+`ccsds_tm` to *compose* it, in the acyclic direction the design intends, and
+each is the place a caller is meant to meet the standard's kernels.
+
+The fifth was a different kind of thing, and it is **closed**
+([#1220](https://github.com/doppler-dsp/doppler/issues/1220)):
+
+| site                              | what it was                                                                                | how it was settled                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| the marker's own translation unit | a CCSDS translation unit compiled into the **general** `wfm_core`, under `native/src/wfm/` | deleted. The marker is `doppler.ccsds.asm_bits()` now, over a `ccsds` component that delegates to `dp_ccsds_tm_asm_bits` — the standard beside the general layer, not under it |
+
+A marker one standard picked is a **literal field of a preset**, not a symbol
+in the general namespace. The move needed somewhere to put it, and every
+existing module says in its own docstring that it is general — `coding`'s
+opening line is *"the general channel codes … rather than any standard's
+picks"* — so `doppler.ccsds` was created to be the one place a published
+literal is at home.
+
+Two things changed with site 1 that the plan did not anticipate:
+
+- **A source carries `wfm_seq_t`** for its preamble, spreading code and sync
+    word, rather than three pointer/length pairs. Those pairs could only ever
+    describe a LITERAL run, so the four field kinds were reachable from no
+    face at all — the descriptor supported them and every route into it
+    flattened them away
+    ([#762](https://github.com/doppler-dsp/doppler/issues/762)).
+- **`dp_wfm_source_has_frame()` tests LENGTH, not the pointer.** A generated
+    sequence has no array, so a pointer test read a PN sync as *unframed* and
+    emitted the payload bare.
+
+### C.2 The isolation gate was once too broad
+
+An earlier version of `make ccsds-isolation-check` scanned every component
+and allowlisted the four that include a `ccsds_tm` header, as a ratchet meant
+to fall to zero. That was wrong, and worth recording because the mistake is
+easy to repeat: **a consumer composing the two is the design working.**
+`frame -> ccsds_tm -> wfm_frame` is acyclic and deliberate — `ccsds_tm` has no
+Python binding and is not getting one, so `frame` is where a caller meets the
+outer code, the randomiser and the inner code. A ratchet over a rule that
+should never reach zero is a slow push toward a refactor nobody wants.

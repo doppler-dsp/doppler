@@ -323,6 +323,19 @@ foreach(_dt doppler_lib doppler_lib_static)
         $<TARGET_OBJECTS:wfm_sink_stub_core>)
 endforeach()
 
+# dp_doppler_wfmgen() restores the caller's SIGINT/SIGTERM handlers on every
+# exit (doppler#1594). POSIX only: it reads the handler back with sigaction(),
+# and Windows installs a console control handler instead, with no read-back.
+if(NOT WIN32)
+    add_executable(test_wfmgen_entry
+        ${CMAKE_SOURCE_DIR}/native/tests/test_wfmgen_entry.c)
+    target_link_libraries(test_wfmgen_entry PRIVATE
+        doppler_lib_static ${DP_MATH_LIBRARY})
+    target_include_directories(test_wfmgen_entry PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+    add_test(NAME test_wfmgen_entry COMMAND test_wfmgen_entry)
+endif()
+
 if(DP_WITH_STREAM) # the CLI links the stream layer (#1575)
     add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen_main.c)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)

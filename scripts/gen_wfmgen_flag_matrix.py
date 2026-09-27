@@ -727,6 +727,66 @@ def cases() -> list[tuple[str, list[str]]]:
                 "1010",
             ],
         ),
+        # A GENERATED data code is a data code; the check read the
+        # pointer (#1592).
+        (
+            "dsss_continuous_data_code_gen",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code-gen",
+                "pn:15:4",
+                "--data",
+                "prbs",
+                "--fs",
+                "48000",
+                "--count",
+                "64",
+            ],
+        ),
+        # A generated sync is still a burst-frame field (#1592).
+        (
+            "err_dsss_sync_gen_in_continuous",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code",
+                "1011",
+                "--sync-gen",
+                "pn:15:4",
+            ],
+        ),
+        # --crc is a burst-frame flag too, as --help says (#1595).
+        (
+            "err_dsss_crc_in_continuous",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code",
+                "1011",
+                "--crc",
+                "crc16",
+            ],
+        ),
+        # A PN length with no m-sequence was a silent 0-byte run, exit 0,
+        # until the composer built each source at create (#1590).
+        (
+            "err_pn_length_no_msequence",
+            [
+                "--type",
+                "pn",
+                "--pn-length",
+                "65",
+                "--count",
+                "64",
+            ],
+        ),
         # ---- the payload: bounded, or generated ----
         # gh-762's last two flags. `--payload-len` retires #755's refusal:
         # a PN-sourced waveform was refused a frame outright because its

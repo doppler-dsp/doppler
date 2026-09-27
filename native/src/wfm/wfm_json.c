@@ -21,7 +21,16 @@
    wfmgen's, which was harmless only because this file compared its index to
    a literal instead of assigning it -- the shared table's order IS
    wfm_source_t.dsss_code_only, and read_dsss_source now assigns it. */
+#include "doppler/wfm/wfm_defaults.h" /* DEF_SRC / DEF_SEG */
 #include "doppler/wfm/wfm_names.h"
+
+/* A key a scene omits takes the MANIFEST's default -- the value the flags and
+ * Python give for the same parameter -- read from the generated initialisers
+ * rather than typed here. Typed here, they drifted: seed/sps/pn_length read
+ * 1/8/7 against 0/1/15, and an omitted num_samples made an empty segment
+ * (doppler#1596), the same way `fs` once rendered a tone at DC. */
+static const wfm_source_t  DEF_SRC = WFM_SOURCE_DEFAULTS;
+static const wfm_segment_t DEF_SEG = WFM_SEGMENT_DEFAULTS;
 
 /* Emit a source's RRC pulse-shaping fields when shaping is on (so a default
  * rect spec stays byte-identical). */
@@ -836,7 +845,7 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
       free_src_bits (out, 1);
       return -1;
     }
-  out->acq_reps = (size_t)num (so, "acq_reps", 1);
+  out->acq_reps = (size_t)num (so, "acq_reps", (double)DEF_SRC.acq_reps);
   int c         = name_index (
       cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
       CRC_NAMES, 2);
@@ -919,7 +928,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
   double freq_hi = 0, snr_hi = 0, level_hi = 0, f_end_hi = 0;
   int    rf = 0, rs = 0, rl = 0, re = 0;
   double freq  = num_or_range (so, "freq", 0.0, &freq_hi, &rf);
-  double snr   = num_or_range (so, "snr", 100.0, &snr_hi, &rs);
+  double snr   = num_or_range (so, "snr", DEF_SRC.snr, &snr_hi, &rs);
   double level = num_or_range (so, "level", 0.0, &level_hi, &rl);
   double f_end = num_or_range (so, "f_end", 0.0, &f_end_hi, &re);
   *out         = (wfm_source_t){
@@ -927,9 +936,9 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     .freq      = freq,
     .snr       = snr,
     .snr_mode  = (m < 0) ? 0 : m,
-    .seed      = (uint32_t)num (so, "seed", 1),
-    .sps       = (int)num (so, "sps", 8),
-    .pn_length = (int)num (so, "pn_length", 7),
+    .seed      = (uint32_t)num (so, "seed", DEF_SRC.seed),
+    .sps       = (int)num (so, "sps", DEF_SRC.sps),
+    .pn_length = (int)num (so, "pn_length", DEF_SRC.pn_length),
     .pn_poly   = (uint64_t)num (so, "pn_poly", 0),
     .lfsr  = (name_index (cJSON_GetStringValue (
                               cJSON_GetObjectItemCaseSensitive (so, "lfsr")),
@@ -950,6 +959,12 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     .snr_hi   = snr_hi,
     .level_hi = level_hi,
     .f_end_hi = f_end_hi,
+    /* read below only on the branch that uses them; the default still
+       stands for every other source, as it does on the other faces */
+    .modulation = DEF_SRC.modulation,
+    .rrc_beta   = DEF_SRC.rrc_beta,
+    .rrc_span   = DEF_SRC.rrc_span,
+    .acq_reps   = DEF_SRC.acq_reps,
   };
   read_doppler_fields (so, out);
   if (t == WFM_SYNTH_BITS)
@@ -958,7 +973,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           cJSON_GetStringValue (
               cJSON_GetObjectItemCaseSensitive (so, "modulation")),
           BITMOD_NAMES, 3);
-      out->modulation       = (bm < 0) ? 1 : bm;
+      out->modulation       = (bm < 0) ? DEF_SRC.modulation : bm;
       const cJSON *pat      = cJSON_GetObjectItemCaseSensitive (so, "pattern");
       const char  *patt_str = cJSON_GetStringValue (pat);
       if (patt_str)
@@ -1082,8 +1097,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
       == 1)
     {
       out->pulse    = 1;
-      out->rrc_beta = num (so, "rrc_beta", 0.35);
-      out->rrc_span = (int)num (so, "rrc_span", 8);
+      out->rrc_beta = num (so, "rrc_beta", DEF_SRC.rrc_beta);
+      out->rrc_span = (int)num (so, "rrc_span", DEF_SRC.rrc_span);
     }
   return 0;
 }
@@ -1351,12 +1366,13 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
             goto reject;
           }
       }
-    double      num_hi = 0, off_hi = 0, dly_hi = 0;
-    int         rn = 0, ro = 0, rd = 0;
-    double      n_samp = num_or_range (s, "num_samples", 0, &num_hi, &rn);
-    double      o_samp = num_or_range (s, "off_samples", 0, &off_hi, &ro);
-    double      d_samp = num_or_range (s, "delay_samples", 0, &dly_hi, &rd);
-    const char *gn     = cJSON_GetStringValue (
+    double num_hi = 0, off_hi = 0, dly_hi = 0;
+    int    rn = 0, ro = 0, rd = 0;
+    double n_samp  = num_or_range (s, "num_samples",
+                                   (double)DEF_SEG.num_samples, &num_hi, &rn);
+    double o_samp  = num_or_range (s, "off_samples", 0, &off_hi, &ro);
+    double d_samp  = num_or_range (s, "delay_samples", 0, &dly_hi, &rd);
+    const char *gn = cJSON_GetStringValue (
         cJSON_GetObjectItemCaseSensitive (s, "gap_noise"));
     segs[i] = (wfm_segment_t){
       .sources   = srcs,
@@ -1369,7 +1385,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
          faces of one generator and may not disagree about a default. Found
          by rate_converter_demo failing its own frequency check with the tone
          1245 bins off. */
-      .fs               = num (s, "fs", 1.0),
+      .fs               = num (s, "fs", DEF_SEG.fs),
       .num_samples      = (size_t)n_samp,
       .off_samples      = (size_t)o_samp,
       .ranged           = (unsigned)((rn ? WFM_RANGE_NUM_SAMPLES : 0)
@@ -1377,7 +1393,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
                                      | (rd ? WFM_RANGE_DELAY_SAMPLES : 0)),
       .num_samples_hi   = (size_t)num_hi,
       .off_samples_hi   = (size_t)off_hi,
-      .repeats          = (size_t)num (s, "repeats", 1),
+      .repeats          = (size_t)num (s, "repeats", (double)DEF_SEG.repeats),
       .delay_samples    = (size_t)d_samp,
       .delay_samples_hi = (size_t)dly_hi,
       .gap_noise        = (gn && strcmp (gn, "off") == 0) ? 1 : 0,

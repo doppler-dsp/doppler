@@ -585,6 +585,24 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
     for (size_t k = 0; k < segs[i].n_sources; k++)
       if (dp_wfm_source_frame_error (&segs[i].sources[k]) != NULL)
         return NULL;
+  /* The frame is not the only thing a source can get wrong: anything the
+     synth itself refuses (a PN length with no m-sequence, doppler#1590) took
+     the same silent-gap path. So build each source once, here, through the
+     SAME builder the render uses, and refuse the scene if any cannot be
+     built. Asking the builder rather than restating its rules keeps one
+     validator; the ranged fields are drawn per instance and do not decide
+     whether a source can exist, so the base values stand for them. */
+  for (size_t i = 0; i < n_segs; i++)
+    for (size_t k = 0; k < segs[i].n_sources; k++)
+      {
+        const wfm_source_t   *src = &segs[i].sources[k];
+        dp_wfm_synth_state_t *syn = dp_wfm_compose_build_synth (
+            src, segs[i].fs, segs[i].num_samples, src->freq, src->snr,
+            src->f_end, 0u, WFM_SEED_ADVANCE_NONE, 0u);
+        if (!syn)
+          return NULL;
+        dp_wfm_synth_destroy (syn);
+      }
   dp_wfm_compose_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;

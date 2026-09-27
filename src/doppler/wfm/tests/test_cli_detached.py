@@ -28,6 +28,7 @@ flag-matrix exclusion did not.
 from __future__ import annotations
 
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -38,8 +39,28 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+#: Largest file a run here may write. The failure this file guards includes
+#: a run that never ends (--detached --repeat, doppler#1591), which writes
+#: at ~500 MB/s: its first red run filled a 7.6 GB /tmp before a timeout
+#: fired. So the red state must bound its own damage -- a size cap kills the
+#: child long before the disk notices, and the timeout is the fallback where
+#: there is no rlimit (Windows).
+_MAX_FILE = 64 << 20
+
+
+def _cap_file_size() -> None:
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_FSIZE, (_MAX_FILE, _MAX_FILE))
+
+
 def _run(*args: str) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run([cli._runnable(), *args], capture_output=True)
+    return subprocess.run(
+        [cli._runnable(), *args],
+        capture_output=True,
+        timeout=20,
+        preexec_fn=None if sys.platform == "win32" else _cap_file_size,
+    )
 
 
 #: Every invocation that names --detached where it cannot be honoured, with
@@ -59,6 +80,20 @@ REFUSED = [
         ["--detached"],
         b"needs --file-type blue",
         id="not-blue",
+    ),
+    # A detached pair is a header plus data, and the header is written when
+    # the run ends -- so a run that never ends has no header. --continuous
+    # was refused; --repeat, just as unbounded, ran until the disk filled
+    # (3.1 GB in 5 s) and left no .hdr (doppler#1591).
+    pytest.param(
+        ["--file-type", "blue", "--detached", "--continuous"],
+        b"finite",
+        id="continuous",
+    ),
+    pytest.param(
+        ["--file-type", "blue", "--detached", "--repeat"],
+        b"finite",
+        id="repeat",
     ),
 ]
 

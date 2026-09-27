@@ -487,7 +487,7 @@
         "pn_poly":    { "$ref": "#/$defs/source/properties/pn_poly" },
         "lfsr":       { "$ref": "#/$defs/source/properties/lfsr" },
         "num_samples": {
-          "default": 0,
+          "default": 1024,
           "description": "On-time length (samples). The synth runs for exactly this many samples before the off-time gap. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
           "oneOf": [
             { "type": "integer", "minimum": 0 },
@@ -570,7 +570,7 @@
           "description": "Sample rate (Hz) shared by all sources in this segment. Omitted means 1.0, which makes every frequency field normalised (cycles per sample) — the same contract wfmgen's --fs flag documents."
         },
         "num_samples": {
-          "default": 0,
+          "default": 1024,
           "description": "On-time length (samples). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
           "oneOf": [
             { "type": "integer", "minimum": 0 },

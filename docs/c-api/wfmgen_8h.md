@@ -100,7 +100,15 @@ int dp_doppler_wfmgen (
 Parses `argv` exactly as the `wfmgen` binary does (`--type`, `--count`, `--from-file`, `--output`, `--record`, the file-type/wire/endian flags, the `nats://` sink, `--realtime` pacing, …), composes the waveform, and writes it to the chosen destination (a file, stdout, or a NATS PUB subject). Output is byte-identical to invoking the CLI with the same arguments — it is the same code path, not a reimplementation.
 
 
-Process-global only in the ways the CLI is: it may write to `stdout` / `stderr` and create the `--output` / `--record` files. It installs no signal handlers, registers no `atexit` hooks, and keeps no mutable global state, so it is safe to call repeatedly within one process. Not reentrant across threads (it shares `stdout`).
+Process-global only in the ways the CLI is, and each is stated:
+* it writes to `stdout` / `stderr` and creates the `--output` / `--record` files;
+* it installs SIGINT and SIGTERM handlers for the length of the call, so a stop signal ends the run cleanly instead of killing it mid-write, and puts the caller's own handlers back before it returns, on every exit;
+* on Windows it sets `stdout` to binary mode for the process, because IQ written in text mode is corrupted, and leaves it so.
+
+
+
+
+It registers no `atexit` hooks, so it is safe to call repeatedly within one process. Not reentrant across threads: it shares `stdout` and the process's signal handlers.
 
 
 

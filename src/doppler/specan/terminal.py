@@ -197,6 +197,7 @@ class TerminalDisplay:
         # Key-step sizes (set from first frame)
         self._freq_step = 0.0
         self._defaults = (cfg.center, cfg.span, cfg.level)
+        self._center_was_pinned = cfg.center_pinned
 
         # Last DSP-loop error, surfaced in the display so a persistent
         # failure (e.g. an extension-API mismatch) shows a diagnostic
@@ -275,7 +276,10 @@ class TerminalDisplay:
             self._top_dbm = self._cfg.level or 10.0
             self._bottom_dbm = self._top_dbm - _DISPLAY_ROWS * 10
             self._engine.zoom(self._cfg.span)
-            self._engine.retune(self._cfg.center)
+            if self._center_was_pinned:
+                self._engine.retune(self._cfg.center)
+            else:  # it followed the source at start-up; follow it again
+                self._engine.follow_source()
             self._freq_step = 0.0
         elif key == "ESC[D":  # left arrow
             self._cfg.center -= step

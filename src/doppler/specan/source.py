@@ -39,6 +39,41 @@ if TYPE_CHECKING:
 # ------------------------------------------------------------------
 
 
+def to_complex64(data: np.ndarray) -> np.ndarray:
+    """Decode one received frame to complex64 samples.
+
+    A frame's array is complex (``CF32``/``CF64``) or, for the integer wire
+    formats, INTERLEAVED ``I, Q, I, Q, ...`` integers of length ``2*n``
+    (``CI8``/``CI16``/``CI32``). Casting the integers straight to complex --
+    what the sources used to do -- turns each of I and Q into its own real
+    sample: twice the samples, no imaginary part, unscaled, and a spectrum
+    that looks plausible while being wrong. Integers are decoded with the
+    library's own converters at their full scale, ``2**(N-1)``, and viewed as
+    complex.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> to_complex64(np.array([64, -128, 0, 127], np.int8)).tolist()
+    [(0.5-1j), 0.9921875j]
+    """
+    if data.dtype == np.complex64:
+        return data
+    if data.dtype == np.complex128:
+        return data.astype(np.complex64)
+    from doppler.cvt import I8ToF32, I16ToF32, I32ToF32
+
+    decoders = {
+        np.dtype(np.int8): I8ToF32,
+        np.dtype(np.int16): I16ToF32,
+        np.dtype(np.int32): I32ToF32,
+    }
+    if data.dtype not in decoders:
+        raise TypeError(f"no decoder for a {data.dtype} frame")
+    flat = np.ascontiguousarray(data.ravel())
+    return decoders[data.dtype]().steps(flat).view(np.complex64)
+
+
 class Source(ABC):
     """Abstract IQ source."""
 
@@ -385,7 +420,7 @@ class SocketSource(Source):
 
     def _get_sub(self) -> Subscriber:
         if self._sub is None:
-            from doppler import Subscriber
+            from doppler.stream import Subscriber
 
             self._sub = Subscriber(self._address)
             self._sub.__enter__()
@@ -400,11 +435,9 @@ class SocketSource(Source):
             if data is None:
                 # Timeout — return what we have (may be empty)
                 break
-            # Convert to complex64 if needed
-            if data.dtype != np.complex64:
-                data = data.astype(np.complex64)
-            self._fs = float(hdr.sample_rate)
-            self._cf = float(hdr.center_freq)
+            data = to_complex64(data)
+            self._fs = float(hdr["sample_rate"])
+            self._cf = float(hdr["center_freq"])
             self._buf = np.concatenate([self._buf, data.ravel()])
 
         out = self._buf[:n].copy()
@@ -455,7 +488,7 @@ class PullSource(Source):
 
     def _get_pull(self) -> Pull:
         if self._pull is None:
-            from doppler import Pull
+            from doppler.stream import Pull
 
             self._pull = Pull(self._address)
             self._pull.__enter__()
@@ -468,8 +501,7 @@ class PullSource(Source):
             data, hdr = pull.recv(timeout_ms=self._timeout_ms)
             if data is None:
                 break
-            if data.dtype != np.complex64:
-                data = data.astype(np.complex64)
+            data = to_complex64(data)
             self._fs = float(hdr["sample_rate"])
             self._cf = float(hdr["center_freq"])
             self._buf = np.concatenate([self._buf, data.ravel()])

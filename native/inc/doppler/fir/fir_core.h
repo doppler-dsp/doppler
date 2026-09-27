@@ -5,7 +5,7 @@
  * Two constructors select the tap type at creation time:
  *
  *   dp_fir_create()      — complex CF32 taps (general case)
- *   fir_create_real() — real float taps   (1 FMA/tap; use for real-valued
+ *   dp_fir_create_real() — real float taps   (1 FMA/tap; use for real-valued
  * designs)
  *
  * All execute functions accept CF32 input and write CF32 output.
@@ -14,7 +14,7 @@
  *
  * @code
  * float taps[63] = { ... };
- * dp_fir_state_t *fir = fir_create_real(taps, 63);
+ * dp_fir_state_t *fir = dp_fir_create_real(taps, 63);
  * float _Complex out[4096];
  * dp_fir_execute(fir, signal, 4096, out);
  * dp_fir_destroy(fir);
@@ -60,12 +60,12 @@ extern "C"
    * multi-sample block can differ a little more from SIMD reassociation. Cost is
    * `num_taps` MACs plus an O(num_taps) delay-line shift per sample.
    *
-   * @note **Real-tap filters only** (fir_create_real). Pulse-shape matched
+   * @note **Real-tap filters only** (dp_fir_create_real). Pulse-shape matched
    *   filters — RRC, raised-cosine, integrate-and-dump — are real-valued, which
    *   is the streaming use case this serves; a complex-tap variant would add a
    *   complex MAC branch and is left until a consumer needs it.
    *
-   * @param s  Real-tap filter state (fir_create_real).  Must be non-NULL.
+   * @param s  Real-tap filter state (dp_fir_create_real).  Must be non-NULL.
    * @param x  One input sample.
    * @return The filtered output sample.
    */
@@ -74,7 +74,7 @@ extern "C"
   {
     size_t               M = s->num_taps;
     const float _Complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
-    const float         *h = s->rtaps;  /* real taps (fir_create_real)   */
+    const float         *h = s->rtaps;  /* real taps (dp_fir_create_real)   */
     float                re = 0.0f, im = 0.0f;
     for (size_t k = 0; k < M; k++)
       {
@@ -96,7 +96,7 @@ extern "C"
    * @brief Create a FIR filter from complex CF32 tap coefficients.
    * Implements a direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`.
    * The tap array is copied at creation; the caller may free it afterward.
-   * Use fir_create_real() instead when all imaginary parts are zero —
+   * Use dp_fir_create_real() instead when all imaginary parts are zero —
    * that path costs 1 FMA/tap versus 2 FMA + permute + mul here.
    * @param taps     Array of taps_len CF32 coefficients (I+jQ each), copied.
    * @param taps_len Filter length (>= 1).
@@ -124,7 +124,7 @@ extern "C"
    * @param num_taps  Filter length (>= 1).
    * @return Heap-allocated state, or NULL on allocation failure.
    */
-  dp_fir_state_t *fir_create_real (const float *taps, size_t num_taps);
+  dp_fir_state_t *dp_fir_create_real (const float *taps, size_t num_taps);
 
   /**
    * @brief Zero the delay line; preserve taps and scratch capacity.
@@ -194,7 +194,7 @@ extern "C"
 
   /**
    * @brief True when the filter was created with real-valued tap coefficients.
-   * Real-tap filters (fir_create_real) use a cheaper inner loop: 1 FMA/tap
+   * Real-tap filters (dp_fir_create_real) use a cheaper inner loop: 1 FMA/tap
    * versus the 2 FMA + lane permute required for complex multiplication.
    * Use this flag to confirm which constructor path was used at runtime.
    * @code
@@ -221,12 +221,12 @@ extern "C"
    *
    * @code
    * float h[3] = { 0.25f, 0.5f, 0.25f };
-   * dp_fir_state_t *f = fir_create_real (h, 3);
-   * printf ("%.4f\n", fir_dc_gain (f));   // 1.0000
+   * dp_fir_state_t *f = dp_fir_create_real (h, 3);
+   * printf ("%.4f\n", dp_fir_dc_gain (f));   // 1.0000
    * dp_fir_destroy (f);
    * @endcode
    */
-  double fir_dc_gain (const dp_fir_state_t *state);
+  double dp_fir_dc_gain (const dp_fir_state_t *state);
 
   /**
    * @brief Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.

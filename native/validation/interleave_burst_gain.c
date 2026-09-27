@@ -54,7 +54,7 @@
  * exists when there are several codewords to spread a burst ACROSS.
  *
  * That is also the difference between this and the outer code's own depth.
- * `ccsds_tm_rs_encode_block(depth)` interleaves `depth` codewords and gets
+ * `dp_ccsds_tm_rs_encode_block(depth)` interleaves `depth` codewords and gets
  * exactly this property for free -- its header says so. A block interleaver
  * is the general form: it works over whatever span it is given, including
  * many codeblocks and codes with no interleaving of their own, and it is a
@@ -98,8 +98,8 @@ trial (unsigned n_cw, unsigned interleaved, size_t unit_bits, size_t burst,
   /* Each codeword encoded ALONE (depth 1), so the only burst protection in
      play is the interleaver under test and not the outer code's own. */
   for (unsigned c = 0; c < n_cw; c++)
-    if (ccsds_tm_rs_encode_block (info + (size_t)c * k_syms, 1u,
-                                  tx + (size_t)c * n_syms)
+    if (dp_ccsds_tm_rs_encode_block (info + (size_t)c * k_syms, 1u,
+                                     tx + (size_t)c * n_syms)
         == 0)
       {
         free (info);
@@ -163,7 +163,7 @@ trial (unsigned n_cw, unsigned interleaved, size_t unit_bits, size_t burst,
   for (unsigned c = 0; c < n_cw && !bad; c++)
     {
       uint8_t *cw = rx + (size_t)c * n_syms;
-      if (ccsds_tm_rs_decode_block (cw, 1u, NULL) == 0)
+      if (dp_ccsds_tm_rs_decode_block (cw, 1u, NULL) == 0)
         bad = 1;
       else if (memcmp (cw, info + (size_t)c * k_syms, k_syms) != 0)
         bad = 1;

@@ -88,11 +88,11 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
     in[i] = (uint8_t)(chip[i] & 1u);
 
   conv_enc_t e;
-  conv_enc_init (&e);
-  conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
+  dp_conv_enc_init (&e);
+  dp_conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
   dp_mpsk_map (sym, nsym, mod, 2);
 
-  const float      sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
+  const float      sigma = dp_awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
   const float      n0    = 2.0f * sigma * sigma;
   dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   if (!ch)
@@ -109,7 +109,7 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
         llr[i] = llr[i] < 0.0f ? -1.0f : 1.0f;
     }
 
-  dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, depth);
+  dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, depth);
   if (!v)
     goto done;
   const size_t got = dp_viterbi_decode (v, llr, nsym, dec, nbits);
@@ -164,11 +164,11 @@ node_point (double esn0_db, size_t win, uint64_t seed, double *in_sync,
     in[i] = (uint8_t)(chip[i] & 1u);
 
   conv_enc_t e;
-  conv_enc_init (&e);
-  conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
+  dp_conv_enc_init (&e);
+  dp_conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
   dp_mpsk_map (sym, nsym, mod, 2);
 
-  const float      sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
+  const float      sigma = dp_awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
   const float      n0    = 2.0f * sigma * sigma;
   dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   if (!ch)
@@ -179,11 +179,11 @@ node_point (double esn0_db, size_t win, uint64_t seed, double *in_sync,
     mod[i] += nz[i];
   dp_mpsk_soft_demap (mod, nsym, llr, nsym, 2, n0);
 
-  dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, DEPTH);
+  dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, DEPTH);
   if (!v)
     goto done;
   node_sync_t ns;
-  if (node_sync_scan (v, llr, nsym, &ns) && ns.symbols)
+  if (dp_node_sync_scan (v, llr, nsym, &ns) && ns.symbols)
     {
       *in_sync = (double)ns.errors / (double)ns.symbols;
       *wrong   = (double)ns.next / (double)ns.symbols;

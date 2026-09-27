@@ -37,7 +37,7 @@
  * period checks (a dead sequence repeats with every period and matches no
  * earlier one) and was caught only by the published prefix.
  */
-const ccsds_tm_rand_t CCSDS_TM_RAND = {
+const ccsds_tm_rand_t dp_CCSDS_TM_RAND = {
   /* .taps   */ (1u << 16) | (1u << 2),
   /* 10.4.3: '11000111000111000', loaded so its LAST printed bit leaves
      FIRST — the string reads along figure 10-2's register and the stage that
@@ -49,7 +49,7 @@ const ccsds_tm_rand_t CCSDS_TM_RAND = {
   /* .period */ 131071u
 };
 
-const ccsds_tm_rand_t CCSDS_TM_RAND_LEGACY = {
+const ccsds_tm_rand_t dp_CCSDS_TM_RAND_LEGACY = {
   /* .taps   */ (1u << 7) | (1u << 4) | (1u << 2) | (1u << 0),
   /* .seed   */ 0xFFu,
   /* .stages */ 8u,
@@ -57,17 +57,17 @@ const ccsds_tm_rand_t CCSDS_TM_RAND_LEGACY = {
 };
 
 void
-ccsds_tm_rand_init (ccsds_tm_rand_state_t *s, const ccsds_tm_rand_t *r)
+dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s, const ccsds_tm_rand_t *r)
 {
   if (r == NULL)
-    r = &CCSDS_TM_RAND;
+    r = &dp_CCSDS_TM_RAND;
   s->reg    = r->seed & (uint32_t)((1u << r->stages) - 1u);
   s->taps   = r->taps;
   s->stages = r->stages;
 }
 
 uint8_t
-ccsds_tm_rand_step (ccsds_tm_rand_state_t *s)
+dp_ccsds_tm_rand_step (ccsds_tm_rand_state_t *s)
 {
   const uint32_t mask = (uint32_t)((1u << s->stages) - 1u);
   const uint8_t  out  = (uint8_t)((s->reg >> (s->stages - 1u)) & 1u);
@@ -85,31 +85,31 @@ ccsds_tm_rand_step (ccsds_tm_rand_state_t *s)
 }
 
 void
-ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out, size_t n)
+dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out, size_t n)
 {
   ccsds_tm_rand_state_t s;
-  ccsds_tm_rand_init (&s, r);
+  dp_ccsds_tm_rand_init (&s, r);
   for (size_t i = 0; i < n; i++)
-    out[i] = ccsds_tm_rand_step (&s);
+    out[i] = dp_ccsds_tm_rand_step (&s);
 }
 
 void
-ccsds_tm_rand_seq (uint8_t *out, size_t n)
+dp_ccsds_tm_rand_seq (uint8_t *out, size_t n)
 {
-  ccsds_tm_rand_seq_with (NULL, out, n);
+  dp_ccsds_tm_rand_seq_with (NULL, out, n);
 }
 
 void
-ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits, size_t n)
+dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits, size_t n)
 {
   ccsds_tm_rand_state_t s;
-  ccsds_tm_rand_init (&s, r);
+  dp_ccsds_tm_rand_init (&s, r);
   for (size_t i = 0; i < n; i++)
-    bits[i] = (uint8_t)((bits[i] ^ ccsds_tm_rand_step (&s)) & 1u);
+    bits[i] = (uint8_t)((bits[i] ^ dp_ccsds_tm_rand_step (&s)) & 1u);
 }
 
 void
-ccsds_tm_randomise (uint8_t *bits, size_t n)
+dp_ccsds_tm_randomise (uint8_t *bits, size_t n)
 {
-  ccsds_tm_randomise_with (NULL, bits, n);
+  dp_ccsds_tm_randomise_with (NULL, bits, n);
 }

@@ -65,12 +65,12 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* | [**dp\_lockdet\_create**](#function-dp_lockdet_create) (double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Create a lockdet instance._  |
 |  void | [**dp\_lockdet\_destroy**](#function-dp_lockdet_destroy) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Destroy a lockdet instance and release all memory._  |
 |  void | [**dp\_lockdet\_get\_state**](#function-dp_lockdet_get_state) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, void \* blob) <br>_Serialize the detector state into_ `blob` _._ |
+|  void | [**dp\_lockdet\_init**](#function-dp_lockdet_init) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Initialise a lock detector in place (no allocation)._  |
 |  void | [**dp\_lockdet\_reset**](#function-dp_lockdet_reset) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Drop the lock and clear the verify counter; keep the config. Returns the detector to the unlocked state with an empty verify run, as if freshly constructed with the same thresholds. Call it at a segment boundary so a decision made on one capture does not leak into an unrelated next one._  |
 |  int | [**dp\_lockdet\_set\_state**](#function-dp_lockdet_set_state) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**dp\_lockdet\_state\_bytes**](#function-dp_lockdet_state_bytes) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dp\_lockdet\_step**](#function-dp_lockdet_step) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double x) <br>_Feed one look of the lock metric; return the current decision._  |
 |  void | [**dp\_lockdet\_steps**](#function-dp_lockdet_steps) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const double \* x, int \* out, size\_t n) <br>_Run a block of lock-metric looks through the detector. Applies_ [_**dp\_lockdet\_step()**_](lockdet__core_8h.md#function-dp_lockdet_step) _to each look in turn, so the decision flag and the in-flight verify run carry across the block exactly as they would look by look — a signal can be processed in frames of any size with no seam._ |
-|  void | [**lockdet\_init**](#function-lockdet_init) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Initialise a lock detector in place (no allocation)._  |
 
 
 
@@ -120,7 +120,7 @@ long enough" to drop it? This component is that rule, factored out once:
 
 
 
-The state struct is **public** so a tracker embeds it by value (no heap) and drives it with [**lockdet\_init()**](lockdet__core_8h.md#function-lockdet_init)/dp\_lockdet\_step() — e.g. the DLL steps one on its CFAR statistic each N-look decision, the MPSK receiver steps one on the carrier lock metric each recovered symbol. [**dp\_lockdet\_create()**](lockdet__core_8h.md#function-dp_lockdet_create) is the heap path used by the Python wrapper. Pointer-free POD: it rides an embedding composer's whole-struct state snapshot with no extra packing.
+The state struct is **public** so a tracker embeds it by value (no heap) and drives it with [**dp\_lockdet\_init()**](lockdet__core_8h.md#function-dp_lockdet_init)/dp\_lockdet\_step() — e.g. the DLL steps one on its CFAR statistic each N-look decision, the MPSK receiver steps one on the carrier lock metric each recovered symbol. [**dp\_lockdet\_create()**](lockdet__core_8h.md#function-dp_lockdet_create) is the heap path used by the Python wrapper. Pointer-free POD: it rides an embedding composer's whole-struct state snapshot with no extra packing.
 
 
 Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
@@ -129,7 +129,7 @@ Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
 
 ```C++
 dp_lockdet_state_t d;
-lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
+dp_lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
 dp_lockdet_reset (&d);                      // cnt = 0, locked = 0
 int locked = dp_lockdet_step (&d, metric);  // one look -> current flag
 ```
@@ -276,6 +276,44 @@ void dp_lockdet_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_lockdet\_init 
+
+_Initialise a lock detector in place (no allocation)._ 
+```C++
+void dp_lockdet_init (
+    dp_lockdet_state_t * state,
+    double up_thresh,
+    double down_thresh,
+    uint32_t n_up,
+    uint32_t n_down
+) 
+```
+
+
+
+Stores the thresholds and verify counts (each count clamped to &gt;= 1; a count of 1 means no time hysteresis on that side). Does **not** touch `cnt` / `locked`, so it doubles as a reconfigure that preserves the current decision. Use this for a `dp_lockdet_state_t` embedded by value; [**dp\_lockdet\_create()**](lockdet__core_8h.md#function-dp_lockdet_create) is calloc + [**dp\_lockdet\_init()**](lockdet__core_8h.md#function-dp_lockdet_init).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `up_thresh` Declare threshold (hit when metric &gt; up\_thresh). 
+* `down_thresh` Drop threshold (miss when metric &lt; down\_thresh); choose &lt;= up\_thresh for level hysteresis. 
+* `n_up` Consecutive hits to declare; clamped to &gt;= 1. 
+* `n_down` Consecutive misses to drop; clamped to &gt;= 1. 
+
+
+
+
+        
 
 <hr>
 
@@ -436,44 +474,6 @@ void dp_lockdet_steps (
 [0, 1, 1, 1]
 ```
  
-
-
-
-
-        
-
-<hr>
-
-
-
-### function lockdet\_init 
-
-_Initialise a lock detector in place (no allocation)._ 
-```C++
-void lockdet_init (
-    dp_lockdet_state_t * state,
-    double up_thresh,
-    double down_thresh,
-    uint32_t n_up,
-    uint32_t n_down
-) 
-```
-
-
-
-Stores the thresholds and verify counts (each count clamped to &gt;= 1; a count of 1 means no time hysteresis on that side). Does **not** touch `cnt` / `locked`, so it doubles as a reconfigure that preserves the current decision. Use this for a `dp_lockdet_state_t` embedded by value; [**dp\_lockdet\_create()**](lockdet__core_8h.md#function-dp_lockdet_create) is calloc + [**lockdet\_init()**](lockdet__core_8h.md#function-lockdet_init).
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `up_thresh` Declare threshold (hit when metric &gt; up\_thresh). 
-* `down_thresh` Drop threshold (miss when metric &lt; down\_thresh); choose &lt;= up\_thresh for level hysteresis. 
-* `n_up` Consecutive hits to declare; clamped to &gt;= 1. 
-* `n_down` Consecutive misses to drop; clamped to &gt;= 1. 
 
 
 

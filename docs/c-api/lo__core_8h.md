@@ -44,7 +44,7 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
-|  float | [**lo\_sin\_lut**](#variable-lo_sin_lut)  <br>_Shared 2^16-entry sine LUT (read-only after init)._  |
+|  float | [**dp\_lo\_sin\_lut**](#variable-dp_lo_sin_lut)  <br>_Shared 2^16-entry sine LUT (read-only after init)._  |
 
 
 
@@ -71,6 +71,7 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 |  uint32\_t | [**dp\_lo\_get\_phase**](#function-dp_lo_get_phase) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Current phase accumulator value (read/write). Returns the current integer phase in_ `[0, 2^32)` _. Writing overrides the accumulator directly for phase-coherent frequency switching._ |
 |  uint32\_t | [**dp\_lo\_get\_phase\_inc**](#function-dp_lo_get_phase_inc) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Per-sample phase increment (read-only). Derived from norm\_freq as floor(frac(norm\_freq) × 2^32). A freq of 0.25 gives phase\_inc = 1073741824 (0x40000000)._  |
 |  void | [**dp\_lo\_get\_state**](#function-dp_lo_get_state) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _mutable state into_`blob` _(&gt;= dp\_lo\_state\_bytes)._ |
+|  void | [**dp\_lo\_init**](#function-dp_lo_init) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double norm\_freq) <br>_Initialise an LO in place (no allocation)._  |
 |  void | [**dp\_lo\_reset**](#function-dp_lo_reset) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Zero the phase accumulator. Sets phase to 0 so the next dp\_lo\_steps call starts at angle 0 (1+0j). norm\_freq and phase\_inc are unchanged._  |
 |  void | [**dp\_lo\_set\_norm\_freq**](#function-dp_lo_set_norm_freq) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double norm\_freq) <br> |
 |  void | [**dp\_lo\_set\_phase**](#function-dp_lo_set_phase) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, uint32\_t phase) <br> |
@@ -80,7 +81,6 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 |  size\_t | [**dp\_lo\_steps\_ctrl**](#function-dp_lo_steps_ctrl) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Generate CF32 phasors with per-sample FM deviation. For each sample i,_ `ctrl[i]` _'s fractional part is converted to a delta phase-increment (delta = floor(frac(_`ctrl[i]` _) × 2^32)) that is added on top of the base phase\_inc for that one step only. The base norm\_freq and phase\_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping. Output length equals ctrl\_len. Returns ctrl\_len._ |
 |  size\_t | [**dp\_lo\_steps\_ctrl\_max\_out**](#function-dp_lo_steps_ctrl_max_out) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_lo\_steps\_max\_out**](#function-dp_lo_steps_max_out) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
-|  void | [**lo\_init**](#function-lo_init) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double norm\_freq) <br>_Initialise an LO in place (no allocation)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**lo\_step**](#function-lo_step) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Emit the current CF32 phasor, then advance the accumulator._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**lo\_step\_ctrl**](#function-lo_step_ctrl) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double ctrl) <br>_Emit the current CF32 phasor, then advance by phase\_inc + control._  |
 
@@ -172,16 +172,16 @@ dp_lo_destroy(lo);
 
 
 
-### variable lo\_sin\_lut 
+### variable dp\_lo\_sin\_lut 
 
 _Shared 2^16-entry sine LUT (read-only after init)._ 
 ```C++
-float lo_sin_lut[LO_LUT_SIZE];
+float dp_lo_sin_lut[LO_LUT_SIZE];
 ```
 
 
 
-Filled by the first [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)/lo\_init(). Indexed by the top 16 bits of the phase accumulator; the quarter-cycle offset LO\_LUT\_QTR maps sin→cos. Do not write. Exposed only so [**lo\_step()**](lo__core_8h.md#function-lo_step) can be a header inline. 
+Filled by the first [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)/dp\_lo\_init(). Indexed by the top 16 bits of the phase accumulator; the quarter-cycle offset LO\_LUT\_QTR maps sin→cos. Do not write. Exposed only so [**lo\_step()**](lo__core_8h.md#function-lo_step) can be a header inline. 
 
 
         
@@ -351,6 +351,45 @@ void dp_lo_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_lo\_init 
+
+_Initialise an LO in place (no allocation)._ 
+```C++
+void dp_lo_init (
+    dp_lo_state_t * state,
+    double norm_freq
+) 
+```
+
+
+
+The by-value counterpart to [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create): a tracking loop that embeds an [**dp\_lo\_state\_t**](structdp__lo__state__t.md) initialises it with [**dp\_lo\_init()**](lo__core_8h.md#function-dp_lo_init) instead of owning a heap pointer. Sets phase=0, derives phase\_inc from norm\_freq, and fills the shared LUT on first use (same single-threaded caveat as [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)).
+
+
+
+
+**Parameters:**
+
+
+* `state` LO state to initialise in place. Must be non-NULL. 
+* `norm_freq` Normalised frequency in cycles per sample (fractional part only). 
+```C++
+>>> from doppler.source import LO
+>>> lo = LO(0.25)          # the Python type calls dp_lo_create
+>>> lo.phase_inc
+1073741824
+```
+ 
+
+
+
+
+        
 
 <hr>
 
@@ -604,45 +643,6 @@ size_t dp_lo_steps_max_out (
 
 
 
-### function lo\_init 
-
-_Initialise an LO in place (no allocation)._ 
-```C++
-void lo_init (
-    dp_lo_state_t * state,
-    double norm_freq
-) 
-```
-
-
-
-The by-value counterpart to [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create): a tracking loop that embeds an [**dp\_lo\_state\_t**](structdp__lo__state__t.md) initialises it with [**lo\_init()**](lo__core_8h.md#function-lo_init) instead of owning a heap pointer. Sets phase=0, derives phase\_inc from norm\_freq, and fills the shared LUT on first use (same single-threaded caveat as [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)).
-
-
-
-
-**Parameters:**
-
-
-* `state` LO state to initialise in place. Must be non-NULL. 
-* `norm_freq` Normalised frequency in cycles per sample (fractional part only). 
-```C++
->>> from doppler.source import LO
->>> lo = LO(0.25)          # the Python type calls dp_lo_create
->>> lo.phase_inc
-1073741824
-```
- 
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function lo\_step 
 
 _Emit the current CF32 phasor, then advance the accumulator._ 
@@ -654,7 +654,7 @@ JM_FORCEINLINE  JM_HOT float _Complex lo_step (
 
 
 
-Single-sample form of [**dp\_lo\_steps()**](lo__core_8h.md#function-dp_lo_steps), same emit-before-increment convention and bit-for-bit the same LUT math, suitable for inlining into a sample-by-sample loop (e.g. carrier wipe-off ahead of a matched filter). The caller must have run [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)/lo\_init() so the LUT is populated.
+Single-sample form of [**dp\_lo\_steps()**](lo__core_8h.md#function-dp_lo_steps), same emit-before-increment convention and bit-for-bit the same LUT math, suitable for inlining into a sample-by-sample loop (e.g. carrier wipe-off ahead of a matched filter). The caller must have run [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)/dp\_lo\_init() so the LUT is populated.
 
 
 
@@ -671,7 +671,7 @@ Single-sample form of [**dp\_lo\_steps()**](lo__core_8h.md#function-dp_lo_steps)
 cos(θ) + j·sin(θ) at the phase BEFORE the increment. 
 ```C++
 dp_lo_state_t lo;            // embedded by value, no heap
-lo_init (&lo, 0.25);
+dp_lo_init (&lo, 0.25);
 float _Complex s0 = lo_step (&lo);   // 1 + 0j
 float _Complex s1 = lo_step (&lo);   // 0 + 1j
 ```
@@ -717,7 +717,7 @@ The NCO **control port** for a tracking loop: `ctrl` is a per-sample frequency c
 cos(θ) + j·sin(θ) at the phase BEFORE the increment. 
 ```C++
 dp_lo_state_t lo;
-lo_init (&lo, 0.0);                 // centre at DC
+dp_lo_init (&lo, 0.0);                 // centre at DC
 float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 ```
  

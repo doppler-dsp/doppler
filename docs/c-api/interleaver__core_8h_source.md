@@ -32,7 +32,7 @@ extern "C"
   dp_interleaver_state_t *dp_interleaver_create (size_t rows, size_t cols,
                                            size_t unit_bits);
 
-  dp_interleaver_state_t *interleaver_create_rx (size_t rows, size_t cols,
+  dp_interleaver_state_t *dp_interleaver_create_rx (size_t rows, size_t cols,
                                               size_t unit_bits);
 
   void dp_interleaver_destroy (dp_interleaver_state_t *state);

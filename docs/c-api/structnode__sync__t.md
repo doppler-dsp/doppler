@@ -183,7 +183,7 @@ size_t node_sync_t::symbols;
 
 
 
-symbols SCORED per hypothesis, which is fewer than the window — see [**node\_sync\_scored\_symbols**](viterbi__core_8h.md#function-node_sync_scored_symbols) 
+symbols SCORED per hypothesis, which is fewer than the window — see [**dp\_node\_sync\_scored\_symbols**](viterbi__core_8h.md#function-dp_node_sync_scored_symbols) 
  
 
 

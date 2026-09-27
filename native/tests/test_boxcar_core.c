@@ -58,7 +58,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     dp_boxcar_state_t v;
-    boxcar_init (&v, 4, 1.5);
+    dp_boxcar_init (&v, 4, 1.5);
     DP_CHECK (v.len == 4);
     DP_CHECK (fabs (v.gain - 1.5) < 1e-12);
     DP_CHECK (fabsf (v.scale - (float)(1.5 / 4.0)) < 1e-9f);

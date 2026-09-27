@@ -51,9 +51,9 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-|  const [**conv\_code\_t**](structconv__code__t.md) | [**CCSDS\_TM\_CONV**](#variable-ccsds_tm_conv)  <br>_The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._ |
-|  const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) | [**CCSDS\_TM\_RAND**](#variable-ccsds_tm_rand)  <br>_The randomiser 131.0-B-6 10.4.1 requires: 131071 bits, degree 17._  |
-|  const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) | [**CCSDS\_TM\_RAND\_LEGACY**](#variable-ccsds_tm_rand_legacy)  <br>_The randomiser 10.4.2 keeps: 255 bits, degree 8._  |
+|  const [**conv\_code\_t**](structconv__code__t.md) | [**dp\_CCSDS\_TM\_CONV**](#variable-dp_ccsds_tm_conv)  <br>_The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._ |
+|  const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) | [**dp\_CCSDS\_TM\_RAND**](#variable-dp_ccsds_tm_rand)  <br>_The randomiser 131.0-B-6 10.4.1 requires: 131071 bits, degree 17._  |
+|  const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) | [**dp\_CCSDS\_TM\_RAND\_LEGACY**](#variable-dp_ccsds_tm_rand_legacy)  <br>_The randomiser 10.4.2 keeps: 255 bits, degree 8._  |
 
 
 
@@ -74,14 +74,14 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**ccsds\_tm\_asm\_bits**](#function-ccsds_tm_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._ |
-|  int | [**ccsds\_tm\_asm\_find**](#function-ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](ccsds__tm_8h.md#typedef-ccsds_tm_asm_hit_t) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
-|  void | [**ccsds\_tm\_rand\_init**](#function-ccsds_tm_rand_init) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s, const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r) <br>_Load_ `r's` _preset, ready to emit its first bit._ |
-|  void | [**ccsds\_tm\_rand\_seq**](#function-ccsds_tm_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
-|  void | [**ccsds\_tm\_rand\_seq\_with**](#function-ccsds_tm_rand_seq_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* out, size\_t n) <br>[_**ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-ccsds_tm_rand_seq) _with a chosen randomiser._ |
-|  uint8\_t | [**ccsds\_tm\_rand\_step**](#function-ccsds_tm_rand_step) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s) <br>_Emit one bit and advance._  |
-|  void | [**ccsds\_tm\_randomise**](#function-ccsds_tm_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
-|  void | [**ccsds\_tm\_randomise\_with**](#function-ccsds_tm_randomise_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* bits, size\_t n) <br>[_**ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-ccsds_tm_randomise) _with a chosen randomiser._ |
+|  void | [**dp\_ccsds\_tm\_asm\_bits**](#function-dp_ccsds_tm_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._ |
+|  int | [**dp\_ccsds\_tm\_asm\_find**](#function-dp_ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](ccsds__tm_8h.md#typedef-ccsds_tm_asm_hit_t) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
+|  void | [**dp\_ccsds\_tm\_rand\_init**](#function-dp_ccsds_tm_rand_init) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s, const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r) <br>_Load_ `r's` _preset, ready to emit its first bit._ |
+|  void | [**dp\_ccsds\_tm\_rand\_seq**](#function-dp_ccsds_tm_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
+|  void | [**dp\_ccsds\_tm\_rand\_seq\_with**](#function-dp_ccsds_tm_rand_seq_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* out, size\_t n) <br>[_**dp\_ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq) _with a chosen randomiser._ |
+|  uint8\_t | [**dp\_ccsds\_tm\_rand\_step**](#function-dp_ccsds_tm_rand_step) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s) <br>_Emit one bit and advance._  |
+|  void | [**dp\_ccsds\_tm\_randomise**](#function-dp_ccsds_tm_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
+|  void | [**dp\_ccsds\_tm\_randomise\_with**](#function-dp_ccsds_tm_randomise_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* bits, size\_t n) <br>[_**dp\_ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise) _with a chosen randomiser._ |
 
 
 ## Public Static Functions
@@ -151,7 +151,7 @@ Two things B-6 DID change, and only one is adopted here:
 
 
 * **the randomiser default is now the 131071-bit sequence** (10.4.1), and the 255-bit one is kept only "for backward compatibility with legacy
-  systems" (10.4.2). Both ship; see [**CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-ccsds_tm_rand).
+  systems" (10.4.2). Both ship; see [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand).
 * **the ASM is called the CSM** (Code Sync Marker) throughout. The pattern is unchanged; the naming here is not, and renaming reaches a CLI flag and a Python surface. gh-865.
 
 
@@ -220,11 +220,11 @@ An alias for [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) rather th
 
 
 
-### variable CCSDS\_TM\_CONV 
+### variable dp\_CCSDS\_TM\_CONV 
 
 _The CCSDS inner code, as a_ [_**conv\_code\_t**_](structconv__code__t.md) _._
 ```C++
-const conv_code_t CCSDS_TM_CONV;
+const conv_code_t dp_CCSDS_TM_CONV;
 ```
 
 
@@ -232,7 +232,7 @@ const conv_code_t CCSDS_TM_CONV;
 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K = 7 code with `G1 = 1111001` (171 octal), `G2 = 1011011` (133 octal), and — the part that is easy to miss — **symbol inversion on the output path of G2**, which is why `invert` is `0x2` and not `0`.
 
 
-This is a **configuration, not an implementation**: `conv_encode` and `dp_viterbi_decode` do the work and neither knows anything about CCSDS. A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the polynomials from being written down twice — once in an encoder and once in a decoder, where the inversion is exactly the detail that would drift.
+This is a **configuration, not an implementation**: `dp_conv_encode` and `dp_viterbi_decode` do the work and neither knows anything about CCSDS. A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the polynomials from being written down twice — once in an encoder and once in a decoder, where the inversion is exactly the detail that would drift.
 
 
 `test_ccsds_tm_conv.c` holds it to the standard's printed impulse response: C1 must trace `G1`, and C2 the **complement** of `G2`.
@@ -241,8 +241,8 @@ This is a **configuration, not an implementation**: `conv_encode` and `dp_viterb
 
 ```C++
 conv_enc_t s;
-conv_enc_init (&s);
-conv_encode (&s, &CCSDS_TM_CONV, bits, n, sym, sizeof sym);
+dp_conv_enc_init (&s);
+dp_conv_encode (&s, &dp_CCSDS_TM_CONV, bits, n, sym, sizeof sym);
 ```
  
 
@@ -253,16 +253,16 @@ conv_encode (&s, &CCSDS_TM_CONV, bits, n, sym, sizeof sym);
 
 
 
-### variable CCSDS\_TM\_RAND 
+### variable dp\_CCSDS\_TM\_RAND 
 
 _The randomiser 131.0-B-6 10.4.1 requires: 131071 bits, degree 17._ 
 ```C++
-const ccsds_tm_rand_t CCSDS_TM_RAND;
+const ccsds_tm_rand_t dp_CCSDS_TM_RAND;
 ```
 
 
 
-`h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, and it is the `shall`. \*\*This is the default and what [**ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-ccsds_tm_randomise) applies.\*\*
+`h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, and it is the `shall`. \*\*This is the default and what [**dp\_ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise) applies.\*\*
 
 
 The preset is loaded so the LAST bit of that printed string is emitted FIRST — the string reads along the register in figure 10-2, and the stage that leaves first is the far end. Nothing forced that question before, because the legacy preset is all ones and reads the same either way; the published 40-bit prefix is what settles it, and is what `test_ccsds_tm_rand.c` holds it to. 
@@ -274,11 +274,11 @@ The preset is loaded so the LAST bit of that printed string is emitted FIRST —
 
 
 
-### variable CCSDS\_TM\_RAND\_LEGACY 
+### variable dp\_CCSDS\_TM\_RAND\_LEGACY 
 
 _The randomiser 10.4.2 keeps: 255 bits, degree 8._ 
 ```C++
-const ccsds_tm_rand_t CCSDS_TM_RAND_LEGACY;
+const ccsds_tm_rand_t dp_CCSDS_TM_RAND_LEGACY;
 ```
 
 
@@ -300,11 +300,11 @@ full compliance with ITU power flux density limits"\*. Reach for it to talk to s
 
 
 
-### function ccsds\_tm\_asm\_bits 
+### function dp\_ccsds\_tm\_asm\_bits 
 
 _Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._
 ```C++
-void ccsds_tm_asm_bits (
+void dp_ccsds_tm_asm_bits (
     uint8_t * out
 ) 
 ```
@@ -333,11 +333,11 @@ It is a function rather than a table because the marker is wanted at both ends �
 
 
 
-### function ccsds\_tm\_asm\_find 
+### function dp\_ccsds\_tm\_asm\_find 
 
 _Find the first ASM in a run of unpacked bits, either polarity._ 
 ```C++
-int ccsds_tm_asm_find (
+int dp_ccsds_tm_asm_find (
     const uint8_t * bits,
     size_t n_bits,
     unsigned max_errors,
@@ -374,8 +374,8 @@ Non-zero if a marker was found.
 ```C++
 uint8_t       cadu[32 + 64] = { 0 };
 ccsds_tm_asm_hit_t hit;
-ccsds_tm_asm_bits (cadu);
-if (ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
+dp_ccsds_tm_asm_bits (cadu);
+if (dp_ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
   printf ("marker at bit %zu\n", hit.offset);   // marker at bit 0
 ```
  
@@ -387,11 +387,11 @@ if (ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
 
 
 
-### function ccsds\_tm\_rand\_init 
+### function dp\_ccsds\_tm\_rand\_init 
 
 _Load_ `r's` _preset, ready to emit its first bit._
 ```C++
-void ccsds_tm_rand_init (
+void dp_ccsds_tm_rand_init (
     ccsds_tm_rand_state_t * s,
     const ccsds_tm_rand_t * r
 ) 
@@ -405,7 +405,7 @@ void ccsds_tm_rand_init (
 
 
 * `s` Receives the state. 
-* `r` The randomiser; `NULL` selects [**CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-ccsds_tm_rand). 
+* `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
 
 
 
@@ -416,11 +416,11 @@ void ccsds_tm_rand_init (
 
 
 
-### function ccsds\_tm\_rand\_seq 
+### function dp\_ccsds\_tm\_rand\_seq 
 
 _Generate the first_ `n` _bits of the randomiser sequence._
 ```C++
-void ccsds_tm_rand_seq (
+void dp_ccsds_tm_rand_seq (
     uint8_t * out,
     size_t n
 ) 
@@ -448,11 +448,11 @@ Exposed separately because the sequence itself is what CCSDS 131.0-B publishes (
 
 
 
-### function ccsds\_tm\_rand\_seq\_with 
+### function dp\_ccsds\_tm\_rand\_seq\_with 
 
-[_**ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-ccsds_tm_rand_seq) _with a chosen randomiser._
+[_**dp\_ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq) _with a chosen randomiser._
 ```C++
-void ccsds_tm_rand_seq_with (
+void dp_ccsds_tm_rand_seq_with (
     const ccsds_tm_rand_t * r,
     uint8_t * out,
     size_t n
@@ -466,7 +466,7 @@ void ccsds_tm_rand_seq_with (
 **Parameters:**
 
 
-* `r` The randomiser; `NULL` selects [**CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-ccsds_tm_rand). 
+* `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
 * `out` Receives `n` unpacked bits. 
 * `n` Number of bits to generate. 
 
@@ -479,11 +479,11 @@ void ccsds_tm_rand_seq_with (
 
 
 
-### function ccsds\_tm\_rand\_step 
+### function dp\_ccsds\_tm\_rand\_step 
 
 _Emit one bit and advance._ 
 ```C++
-uint8_t ccsds_tm_rand_step (
+uint8_t dp_ccsds_tm_rand_step (
     ccsds_tm_rand_state_t * s
 ) 
 ```
@@ -495,7 +495,7 @@ uint8_t ccsds_tm_rand_step (
 **Parameters:**
 
 
-* `s` A state from [**ccsds\_tm\_rand\_init**](ccsds__tm_8h.md#function-ccsds_tm_rand_init). 
+* `s` A state from [**dp\_ccsds\_tm\_rand\_init**](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_init). 
 
 
 
@@ -513,11 +513,11 @@ The next sequence bit, 0 or 1.
 
 
 
-### function ccsds\_tm\_randomise 
+### function dp\_ccsds\_tm\_randomise 
 
 _Apply the CCSDS pseudo-randomiser to a bit run, in place._ 
 ```C++
-void ccsds_tm_randomise (
+void dp_ccsds_tm_randomise (
     uint8_t * bits,
     size_t n
 ) 
@@ -525,7 +525,7 @@ void ccsds_tm_randomise (
 
 
 
-Applies [**CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-ccsds_tm_rand) — 131.0-B-6 section 10.4.1's degree-17 generator, `h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, period 131071 — XORed bit-for-bit onto the data. It is its own inverse, so the receive side calls the same function. Use [**ccsds\_tm\_randomise\_with**](ccsds__tm_8h.md#function-ccsds_tm_randomise_with) to reach 10.4.2's legacy degree-8 sequence instead; the two are not interchangeable on the wire.
+Applies [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand) — 131.0-B-6 section 10.4.1's degree-17 generator, `h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, period 131071 — XORed bit-for-bit onto the data. It is its own inverse, so the receive side calls the same function. Use [**dp\_ccsds\_tm\_randomise\_with**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise_with) to reach 10.4.2's legacy degree-8 sequence instead; the two are not interchangeable on the wire.
 
 
 (This docblock described the LEGACY generator — 8 stages, all-ones preset, 255-bit period — until the `ccsds_tm` certification read it against the code. Every one of those three facts belonged to the other randomiser, and the difference is not academic: measured, the legacy sequence puts a 91 dB line at 1/255 of the symbol rate on constant data where this one puts none, which is precisely why B-6 demoted it. See `src/doppler/tests/validation/ccsds_tm/results.md` §2.4.)
@@ -548,8 +548,8 @@ Its ABSENCE is a measurement hazard rather than a missing feature: a PN payload 
 
 ```C++
 uint8_t frame[1784] = { 0 };
-ccsds_tm_randomise (frame, sizeof frame);   // now the published sequence
-ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
+dp_ccsds_tm_randomise (frame, sizeof frame);   // now the published sequence
+dp_ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
 ```
  
 
@@ -560,11 +560,11 @@ ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
 
 
 
-### function ccsds\_tm\_randomise\_with 
+### function dp\_ccsds\_tm\_randomise\_with 
 
-[_**ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-ccsds_tm_randomise) _with a chosen randomiser._
+[_**dp\_ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise) _with a chosen randomiser._
 ```C++
-void ccsds_tm_randomise_with (
+void dp_ccsds_tm_randomise_with (
     const ccsds_tm_rand_t * r,
     uint8_t * bits,
     size_t n
@@ -578,7 +578,7 @@ void ccsds_tm_randomise_with (
 **Parameters:**
 
 
-* `r` The randomiser; `NULL` selects [**CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-ccsds_tm_rand). 
+* `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
 * `bits` Unpacked bits (one per byte, LSB); modified in place. 
 * `n` Number of bits. 
 

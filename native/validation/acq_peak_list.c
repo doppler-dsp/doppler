@@ -35,7 +35,7 @@
  * data at 2700 sym/s from the shipped continuous-DSSS synth with its own
  * PRBS data, one synth per emitter, each at its own tile, code phase and
  * level; noise from the shipped awgn generator sized by
- * awgn_amplitude_for_snr() from the strong emitter's C/N0. The engine is
+ * dp_awgn_amplitude_for_snr() from the strong emitter's C/N0. The engine is
  * the continuous front door sized by its own physics at the design C/N0
  * (n_noncoh looks per dwell, whatever it chooses), fed one epoch at a time,
  * with the list at `max_peaks`. A hit matches an emitter when it is on the
@@ -189,15 +189,15 @@ scene_open (scene_t *sc, const uint8_t *code, const emitter_t *em, size_t n_em,
             double cn0_dbhz, double size_cn0, size_t max_peaks, uint32_t seed)
 {
   memset (sc, 0, sizeof *sc);
-  sc->a = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE, size_cn0,
-                                 DU, PFA, PD, 0, 1, 0.0);
+  sc->a = dp_acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE,
+                                    size_cn0, DU, PFA, PD, 0, 1, 0.0);
   if (!sc->a || dp_acq_set_max_peaks (sc->a, max_peaks) != 0)
     return 1;
   sc->W        = sc->a->window_bins;
   sc->n_noncoh = sc->a->n_noncoh;
   sc->g        = dp_awgn_create (
       seed * 7919u + 1u,
-      awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
+      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   sc->epoch = malloc (NX * sizeof *sc->epoch);
   sc->blk   = malloc (NX * sizeof *sc->blk);
   if (!sc->g || !sc->epoch || !sc->blk)
@@ -451,12 +451,12 @@ main (int argc, char **argv)
         for (size_t mp = 1; mp <= 4; mp += 3)
           {
             dp_acq_state_t *a
-                = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE,
-                                         45.0, DU, 1e-2, PD, 0, 1, 0.0);
+                = dp_acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE,
+                                            45.0, DU, 1e-2, PD, 0, 1, 0.0);
             DP_REQUIRE (a != NULL && dp_acq_set_max_peaks (a, mp) == 0);
             dp_awgn_state_t *g = dp_awgn_create (
-                31u, awgn_amplitude_for_snr ((float)(45.0 - 10.0 * log10 (FS)),
-                                             1.0f));
+                31u, dp_awgn_amplitude_for_snr (
+                         (float)(45.0 - 10.0 * log10 (FS)), 1.0f));
             float complex *blk          = malloc (NX * sizeof *blk);
             int            false_dwells = 0;
             const int      dwells       = 2000;
@@ -558,13 +558,13 @@ main (int argc, char **argv)
   const size_t mps[] = { 1, 4, 8 };
   for (int mi = 0; mi < 3; mi++)
     {
-      dp_acq_state_t *a = acq_create_continuous (
+      dp_acq_state_t *a = dp_acq_create_continuous (
           code, SF, SPC, CHIP_RATE, SYM_RATE, 45.0, DU, 1e-2, PD, 0, 1, 0.0);
       if (!a || dp_acq_set_max_peaks (a, mps[mi]) != 0)
         return 1;
       dp_awgn_state_t *g = dp_awgn_create (
           41u + (uint32_t)mi,
-          awgn_amplitude_for_snr ((float)(45.0 - 10.0 * log10 (FS)), 1.0f));
+          dp_awgn_amplitude_for_snr ((float)(45.0 - 10.0 * log10 (FS)), 1.0f));
       float complex *blk    = malloc (NX * sizeof *blk);
       const int      dwells = 20000;
       int            rep = 0, peaks = 0;

@@ -89,7 +89,7 @@ boundary — to the pool, to a C++ application — so it cannot be the grid-rela
 `(doppler_bin, code_phase)`, which mean nothing without also shipping the
 emitting object's `spc` and `doppler_res_hz`. Every field is in a physical unit
 and the record is a flat, pointer-free POD. In C it is what
-`acq_build_handoff()` produces and what seeds the receiver of §4; one record is
+`dp_acq_build_handoff()` produces and what seeds the receiver of §4; one record is
 emitted per hit, on both classes.
 
 | Field              | Type       | Description                                                                                                     |
@@ -106,7 +106,7 @@ emitted per hit, on both classes.
 
 **`chip_phase` is where the code will be, not where it was.** A hit is decided
 at its dwell's end and the seed is wanted at the next sample, so
-`acq_build_handoff()` advances the phase by the drift over half the dwell on the
+`dp_acq_build_handoff()` advances the phase by the drift over half the dwell on the
 hit's own Doppler; when the engine is told the carrier, each tile also walks its
 epochs by its own code rate so a deep block does not smear.
 
@@ -202,7 +202,7 @@ predicted-not-taken branches, and nothing rides in a state blob.
     `surface(out)` gives every cell divided by the reference the gate used, so a
     cell reads as its own test statistic and the gate is a flat plane on a plot,
     with `surface_doppler_hz()`/`surface_chip_phase()` as its axes from the same
-    mapping a `DetectionEvent` carries; `acq_set_surface_sink(fn, ctx, decim)`
+    mapping a `DetectionEvent` carries; `dp_acq_set_surface_sink(fn, ctx, decim)`
     hands every `decim`-th dwell's surface to a callback on the pushing thread.
     Underneath, `surface_complex(out)` is the coherent dump the last dwell was
     decided on, `block_prompt(tile, col, out)` one cell's `D` per-epoch
@@ -448,7 +448,7 @@ continuous receiver, one C object, read back through the `get_*()` family and
 
 - **searching** — samples feed an embedded continuous `Acquisition` (§2,
     window-tiled over `doppler_uncertainty`, `D = 1`). A hit becomes a hand-off
-    through `acq_build_handoff()`, which seeds the refine stage; the unconsumed
+    through `dp_acq_build_handoff()`, which seeds the refine stage; the unconsumed
     tail of the same call is handed straight to it.
 - **refining** — a frozen-carrier derotation at the coarse estimate
     (`costas_wipeoff` with `costas_update` never called) feeds a collection `Dll`
@@ -773,7 +773,7 @@ flowchart LR
         X --> S["the searcher: Acquisition, continuous<br/>D = 154 epochs coherent per window tile (§2.3)<br/>21 tiles, a roll per thread; a list of 16 peaks (§7.1)"]
         S -->|every peak| Z{"within a chip of a<br/>live row's code phase?"}
         Z -->|yes| OWN["that emitter's own:<br/>nothing"]
-        Z -->|no, a slot free| SEED["acq_build_handoff() → seed()<br/>«seeded»"]
+        Z -->|no, a slot free| SEED["dp_acq_build_handoff() → seed()<br/>«seeded»"]
         Z -->|no slot free| DROP["«dropped»"]
         SEED --> RX["12 cell receivers, idle until seeded<br/>pull-in → track (§4, §11); every one fed every block,<br/>across the threads"]
         X --> RX
@@ -862,7 +862,7 @@ holds the zone through a cell receiver's pull-in.
 
 One `push()` per block does, in order: feed the searcher; refresh the table; drop
 every peak within one chip of a live row's code phase, **at any Doppler**, as
-that emitter's own; for each survivor, `acq_build_handoff()` and `seed()` into a
+that emitter's own; for each survivor, `dp_acq_build_handoff()` and `seed()` into a
 free slot, or count it dropped when there is none; feed every receiver across the
 threads; then, for each slot whose receiver reports lost or has held its slot
 past the maximum on-air time, clear the row, `reset()` the receiver to idle and
@@ -1008,7 +1008,7 @@ ______________________________________________________________________
 
 In the pool the search is the searcher's, so the receiver **takes a detection
 from outside** — `seed(chip_phase, doppler_hz_est, cn0_dbhz_est)`, exactly what
-its own `acq_build_handoff()` would have produced — and builds no `Acquisition`
+its own `dp_acq_build_handoff()` would have produced — and builds no `Acquisition`
 of its own: a 21-to-53-tile engine per receiver, twelve times over, is memory and
 work nothing uses. That is a difference in **constructor**, not in method, so it
 is the `ddc`/`MatchedDDC` shape: `CellAsyncDsssReceiver` is a second `create`

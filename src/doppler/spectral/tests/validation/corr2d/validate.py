@@ -752,7 +752,7 @@ def review(d: Data) -> None:
         "F5",
         "C-ONLY",
         "Three claims have no Python face and are certified in "
-        "`native/tests/test_corr2d_core.c` instead: `corr2d_set_ref` (no "
+        "`native/tests/test_corr2d_core.c` instead: `dp_corr2d_set_ref` (no "
         "binding at all — including its contract that a fast-path object "
         "REJECTS a reference that is no longer single-row), the `fast_path` "
         "selection flag, and the native path's promise to allocate no "

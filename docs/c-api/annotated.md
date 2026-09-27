@@ -23,12 +23,12 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — the probe site is then a single predicted-not-taken branch per block loop. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._     
 * **struct** [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._     
 * **struct** [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) _The shape of one CADU, and what each stage covered._     
-* **struct** [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) _What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._    
+* **struct** [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) _What_ [_**dp\_ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_decode) _found on the way through._    
 * **struct** [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md) _A run of CADU bits, as a half-open range_ `[first, first + n)` _._    
 * **struct** [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) _A framed waveform's choices, before they become a description._     
 * **struct** [**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) _A generator part-way through a run._     
 * **struct** [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) _A pseudo-randomiser: a maximal-length generator and its preset._     
-* **struct** [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) _What_ [_**ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_decode_block) _found in one codeblock._    
+* **struct** [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) _What_ [_**dp\_ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_decode_block) _found in one codeblock._    
 * **struct** [**conv\_code\_t**](structconv__code__t.md) _A rate-1/n convolutional code._     
 * **struct** [**conv\_enc\_t**](structconv__enc__t.md) _Encoder state: the shift register, and nothing else._     
 * **struct** [**costas\_tlm\_t**](structcostas__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per symbol. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._     

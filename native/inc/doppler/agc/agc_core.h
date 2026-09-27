@@ -645,7 +645,7 @@ double dp_agc_get_applied_gain_db(const dp_agc_state_t *state);
    * 0
    * @endcode
    */
-  size_t agc_settling_samples (double loop_bw, double alpha,
+  size_t dp_agc_settling_samples (double loop_bw, double alpha,
                                double gain_err_db, double tol_db);
 
   /**

@@ -36,7 +36,7 @@
  *           unsquared in the window and on P^2 under data, with the fit's
  *           residual as the carrier phase noise per epoch;
  *   raw     the symbol-aligned re-correlation on `block_raw` (§12.22):
- *           the shipped DLL, its loop held (dll_set_coast), its rate
+ *           the shipped DLL, its loop held (dp_dll_set_coast), its rate
  *           aided by the held Doppler, its symbol window on, PUT AT THE
  *           CELL'S PHASE at every block's start (dp_dll_set_code_phase --
  *           a coasting loop drifts on its NCO's quantisation of the aid,
@@ -77,10 +77,10 @@
  * through the shipped doppler_channel at 0 and 18 ppm of 2.5 GHz (the
  * chips dilated with the carrier, 45 kHz inside the ±50 kHz span);
  * noise from the shipped awgn after the channel, sized by
- * awgn_amplitude_for_snr() from the C/N0. The engine is the pool's:
- * acq_create_continuous() at ±50 kHz with the window's depth (D = 154
+ * dp_awgn_amplitude_for_snr() from the C/N0. The engine is the pool's:
+ * dp_acq_create_continuous() at ±50 kHz with the window's depth (D = 154
  * under SPEC's Doppler rate) and the carrier told, its surface read
- * through acq_set_surface_sink(). The truth is the synth's own clock
+ * through dp_acq_set_surface_sink(). The truth is the synth's own clock
  * through the channel's documented mapping, at the dwell's middle
  * (§12.11: the block's peak is its middle). Nothing here builds a chip,
  * a bit or a sigma by hand.
@@ -203,7 +203,7 @@ typedef struct
      block: its symbol-aided discriminator\'s mean over the block. */
   double dll_e;  /* mean of "dll.e" over the block; NAN = not read    */
   size_t n_e;    /* discriminator outputs in the block (symbols)      */
-  double dll_es; /* the per-steer mean, dll_take_error (section 12.25) */
+  double dll_es; /* the per-steer mean, dp_dll_take_error (section 12.25) */
   size_t n_es;   /* steers it counted                                  */
   double locked; /* the lock flag's mean over the block               */
   double e_sd;   /* the discriminator's scatter within the block       */
@@ -343,7 +343,7 @@ stim_open (stim_t *s, const uint8_t *code, double ppm, double cn0_dbhz,
       /* C/N0 to SNR over fs is the one conversion; the amplitude is the
          library's answer to "per rail or total". */
       s->g = dp_awgn_create (seed * 7919u + 1u,
-                             awgn_amplitude_for_snr (
+                             dp_awgn_amplitude_for_snr (
                                  (float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
       if (!s->g)
         return 1;
@@ -715,10 +715,10 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
               }
           }
       /* The shipped accumulator beside the probe: every steer summed
-         (dll_take_error), where the probe is each epoch's last steer. */
+         (dp_dll_take_error), where the probe is each epoch's last steer. */
       {
         double ssum;
-        d->n_es   = dll_take_error (c->dll, &ssum);
+        d->n_es   = dp_dll_take_error (c->dll, &ssum);
         d->dll_es = d->n_es ? ssum / (double)d->n_es : NAN;
       }
       d->n_e    = ne;
@@ -768,7 +768,7 @@ parabola (double a, double b, double c)
 }
 
 /* The coasting DLL and its wipe, at a seed phase and a held Doppler: the
-   loop held from the start (dll_hold_here at zero, then coast), the
+   loop held from the start (dp_dll_hold_here at zero, then coast), the
    dilation as a rate aid from the Doppler, the symbol window on, its
    discriminator on telemetry. Opened at the truth's cell before a run,
    or at the searcher's own cell when the held tracker acquires. 0 on
@@ -784,8 +784,8 @@ dll_open (sink_ctx_t *c, double seed_chip, double f_hz)
   dp_dll_set_rate_aid (c->dll, f_hz / CARRIER_HZ);
   if (!c->track)
     {
-      dll_hold_here (c->dll);
-      dll_set_coast (c->dll, 1);
+      dp_dll_hold_here (c->dll);
+      dp_dll_set_coast (c->dll, 1);
     }
   c->tlm = dp_tlm_create (1u << 14);
   DP_REQUIRE (c->tlm != NULL);
@@ -829,7 +829,7 @@ run (dp_acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   c->cap       = n;
   c->dwell_len = a->n_noncoh * a->coherent_bins * TE;
   /* The coasting DLL: created at the truth plus u0 as the searcher's cell
-     would seed it, the loop held from the start (dll_hold_here at zero,
+     would seed it, the loop held from the start (dp_dll_hold_here at zero,
      then coast), the dilation as a rate aid from the held Doppler, the
      symbol window on, its discriminator on telemetry. */
   c->dll      = NULL;
@@ -849,7 +849,7 @@ run (dp_acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   c->rx_nsyms  = 0;
   if (!isnan (c->rx_gain) && a->coherent_bins > 1)
     {
-      c->rx = async_dsss_receiver_create_cell (
+      c->rx = dp_async_dsss_receiver_create_cell (
           code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD, SEGMENTS,
           RX_SPS, 0, CARRIER_HZ, 0.0, a->coherent_bins, c->rx_gain,
           ASYNC_DSSS_RX_CELL_PULLIN);
@@ -860,7 +860,7 @@ run (dp_acq_state_t *a, const uint8_t *code, double ppm, double cn0,
       c->rx_syms = dp_xmalloc (c->rx_syms_cap * sizeof *c->rx_syms);
     }
   dp_acq_reset (a);
-  acq_set_surface_sink (a, on_surface, c, 1u);
+  dp_acq_set_surface_sink (a, on_surface, c, 1u);
   acq_result_t hits[16];
   while (c->n < n)
     {
@@ -878,7 +878,7 @@ run (dp_acq_state_t *a, const uint8_t *code, double ppm, double cn0,
           c->rx_nsyms += k;
         }
     }
-  acq_set_surface_sink (a, NULL, NULL, 1u);
+  dp_acq_set_surface_sink (a, NULL, NULL, 1u);
   stim_close (&st);
   if (c->rx)
     {
@@ -1345,8 +1345,8 @@ static dp_acq_state_t *
 make_engine (const uint8_t *code, double cn0, sink_ctx_t *c)
 {
   dp_acq_state_t *a
-      = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE, cn0, DU,
-                               PFA, PD, 0, CODE_ONLY_EPOCHS, DOPPLER_RATE);
+      = dp_acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE, cn0, DU,
+                                  PFA, PD, 0, CODE_ONLY_EPOCHS, DOPPLER_RATE);
   if (!a)
     return NULL;
   if (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) != DP_OK)
@@ -1417,7 +1417,7 @@ print_row (const char *label, const stat_t *s)
         DLL_U0, s->n_e_sum / (double)s->n_dll, s->e_sd_sum / (double)s->n_dll,
         s->lock_sum / (double)s->n_dll);
   if (s->n_dll)
-    printf ("    %-7s the per-steer sum (dll_take_error): mean %+.4f sigma "
+    printf ("    %-7s the per-steer sum (dp_dll_take_error): mean %+.4f sigma "
             "%.4f over %.1f steers per block, against the probe's %+.4f\n",
             "", s->es_raw / (double)s->n_dll,
             sqrt (fmax (s->es_raw2 / (double)s->n_dll

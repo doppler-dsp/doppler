@@ -20,10 +20,10 @@ live socket.
 
 **Two faces over the one engine, both first-class:**
 
-| face                                                         | what it is                                                                      | for                                                 |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **OO object** (`Acquisition`, `Ddcr`)                        | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
-| **pure run** (`acq_run`, `dp_ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
+| face                                                            | what it is                                                                      | for                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **OO object** (`Acquisition`, `Ddcr`)                           | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
+| **pure run** (`dp_acq_run`, `dp_ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
 
 The two faces are the *same* engine: the OO object owns its state; the pure
 `*_run` face takes `state_in` / `state_out` blobs so a fresh engine (rebuilt
@@ -42,7 +42,7 @@ alongside** the OO API, never a replacement.
     needs." Threaded in → out each call via `state_in` / `state_out`.
 - **scratch** — per-worker workspace; holds no meaning (reused, never state).
     In the shipped engine this lives inside `dp_acq_state_t` alongside the mutable
-    state; the descriptor (the `acq_create_burst`/`acq_create_continuous` args)
+    state; the descriptor (the `dp_acq_create_burst`/`dp_acq_create_continuous` args)
     plays the **config** role.
 
 ## State blobs (flat, versioned POD)
@@ -64,9 +64,9 @@ alongside** the OO API, never a replacement.
 ## C API shape (acq)
 
 The engine stays one opaque `dp_acq_state_t` (descriptor = config, built by
-`acq_create_burst` or `acq_create_continuous`; scratch + mutable state live
+`dp_acq_create_burst` or `dp_acq_create_continuous`; scratch + mutable state live
 inside it). The pure face is the
-serializable triplet + `acq_run`, mirroring `ddcr`:
+serializable triplet + `dp_acq_run`, mirroring `ddcr`:
 
 ```c title="acq_fn C surface"
 #include <complex.h>
@@ -88,11 +88,11 @@ main (void)
   dp_acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
                                 double, double, double, double, double, int,
                                 double)
-      = acq_create_burst;
+      = dp_acq_create_burst;
   dp_acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
                                double, double, double, double, double, int,
                                size_t, double)
-      = acq_create_continuous;
+      = dp_acq_create_continuous;
 
   /* serializable state (jm `serializable` flag generates the Python
      triplet). */
@@ -104,7 +104,7 @@ main (void)
      NULL (NULL in = fresh; NULL out = discard). */
   size_t (*run) (dp_acq_state_t *, const void *, void *, const float complex *,
                  size_t, acq_result_t *, size_t)
-      = acq_run;
+      = dp_acq_run;
 
   printf ("acq_fn surface: %d\n",
           (create_burst != 0) + (create_cont != 0) + (bytes != 0)
@@ -114,7 +114,7 @@ main (void)
 ```
 
 `Acquisition` (the object) owns one `dp_acq_state_t` and forwards `push` →
-`dp_acq_push`; the pure `acq_run` face reuses the same engine with explicit
+`dp_acq_push`; the pure `dp_acq_run` face reuses the same engine with explicit
 `state_in`/`state_out`. Bit-identical to an uninterrupted run.
 
 ## Elastic fan-out
@@ -129,9 +129,9 @@ main (void)
 ## Build sequence
 
 1. **(done — PR #259)** physics sizing API; the foundation.
-1. **(done — PR #260)** `acq_fn` serializable state + `acq_run` — flat-POD state
+1. **(done — PR #260)** `acq_fn` serializable state + `dp_acq_run` — flat-POD state
     (unconsumed ring samples + nc surface + counters) on the existing
-    `dp_acq_state_t`; `dp_acq_state_bytes`/`get_state`/`set_state` + `acq_run`.
+    `dp_acq_state_t`; `dp_acq_state_bytes`/`get_state`/`set_state` + `dp_acq_run`.
     **Bit-exact vs an uninterrupted run + state round-trip**, verified in
     `test_acq_core.c`. (`serializable = true` on `acq.toml` for the
     `Acquisition` Python triplet landed same-day, PR #268.)

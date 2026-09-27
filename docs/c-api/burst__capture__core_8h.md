@@ -71,15 +71,13 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture whose look-back lives in a FILE._  |
-|  const [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* | [**burst\_capture\_event\_at**](#function-burst_capture_event_at) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t i) <br>_Borrow event_ `i` _of the last push(), or NULL if out of range._ |
-|  size\_t | [**burst\_capture\_ready**](#function-burst_capture_ready) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Windows the last push() completed._  |
-|  const float \_Complex \* | [**burst\_capture\_window**](#function-burst_capture_window) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t i) <br>_Borrow window_ `i` _of the last push(), or NULL if out of range._ |
 |  int | [**dp\_burst\_capture\_configure\_search\_raw**](#function-dp_burst_capture_configure_search_raw) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded acquisition's search grid directly._  |
 |  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**dp\_burst\_capture\_create**](#function-dp_burst_capture_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
+|  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**dp\_burst\_capture\_create\_backed**](#function-dp_burst_capture_create_backed) (const char \* path, const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture whose look-back lives in a FILE._  |
 |  void | [**dp\_burst\_capture\_destroy**](#function-dp_burst_capture_destroy) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Release a capture and everything it owns. NULL-safe._  |
 |  size\_t | [**dp\_burst\_capture\_detections**](#function-dp_burst_capture_detections) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* out, size\_t max\_out) <br>_Every hit the search made in the last push(), unfiltered._  |
 |  size\_t | [**dp\_burst\_capture\_detections\_max\_out**](#function-dp_burst_capture_detections_max_out) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n) <br>_Raw detections available from the last push()._ `n` _is ignored._ |
+|  const [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* | [**dp\_burst\_capture\_event\_at**](#function-dp_burst_capture_event_at) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t i) <br>_Borrow event_ `i` _of the last push(), or NULL if out of range._ |
 |  size\_t | [**dp\_burst\_capture\_events**](#function-dp_burst_capture_events) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dp\_burst\_capture\_events\_max\_out**](#function-dp_burst_capture_events_max_out) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n) <br>_Records available from the last push()._ `n` _is ignored._ |
 |  double | [**dp\_burst\_capture\_get\_cn0\_dbhz\_est**](#function-dp_burst_capture_get_cn0_dbhz_est) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
@@ -99,15 +97,17 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**dp\_burst\_capture\_get\_pd\_predicted**](#function-dp_burst_capture_get_pd_predicted) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Detection probability of one dwell wholly inside the preamble._  |
 |  size\_t | [**dp\_burst\_capture\_get\_pending**](#function-dp_burst_capture_get_pending) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
 |  uint64\_t | [**dp\_burst\_capture\_get\_preamble\_start**](#function-dp_burst_capture_get_preamble_start) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
-|  double | [**dp\_burst\_capture\_get\_psl\_db**](#function-dp_burst_capture_get_psl_db) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**acq\_psl\_db()**_](acq__core_8h.md#function-acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
+|  double | [**dp\_burst\_capture\_get\_psl\_db**](#function-dp_burst_capture_get_psl_db) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
 |  void | [**dp\_burst\_capture\_get\_state**](#function-dp_burst_capture_get_state) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
 |  double | [**dp\_burst\_capture\_get\_straddle\_loss**](#function-dp_burst_capture_get_straddle_loss) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
 |  size\_t | [**dp\_burst\_capture\_push**](#function-dp_burst_capture_push) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
 |  size\_t | [**dp\_burst\_capture\_push\_max\_out**](#function-dp_burst_capture_push_max_out) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t x\_len) <br>_Upper bound on samples push() can return for_ `x_len` _input._ |
+|  size\_t | [**dp\_burst\_capture\_ready**](#function-dp_burst_capture_ready) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Windows the last push() completed._  |
 |  int | [**dp\_burst\_capture\_release**](#function-dp_burst_capture_release) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t i) <br>_Give back the span that window_ `i` _of the last push() claimed._ |
 |  void | [**dp\_burst\_capture\_reset**](#function-dp_burst_capture_reset) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Return to the searching state._  |
 |  int | [**dp\_burst\_capture\_set\_state**](#function-dp_burst_capture_set_state) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, const void \* blob) <br>_Restore from_ `blob` _._ |
 |  size\_t | [**dp\_burst\_capture\_state\_bytes**](#function-dp_burst_capture_state_bytes) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Bytes one blob occupies: a pure function of CONFIGURATION._  |
+|  const float \_Complex \* | [**dp\_burst\_capture\_window**](#function-dp_burst_capture_window) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t i) <br>_Borrow window_ `i` _of the last push(), or NULL if out of range._ |
 
 
 
@@ -184,156 +184,6 @@ dp_burst_capture_destroy (cap);
     
 ## Public Functions Documentation
 
-
-
-
-### function burst\_capture\_create\_backed 
-
-_Create a capture whose look-back lives in a FILE._ 
-```C++
-dp_burst_capture_state_t * burst_capture_create_backed (
-    const char * path,
-    const float _Complex * preamble,
-    size_t preamble_len,
-    size_t burst_len,
-    size_t reps,
-    double fs,
-    double cn0_dbhz,
-    double doppler_uncertainty,
-    double pfa,
-    double pd,
-    int noise_mode,
-    double doppler_rate
-) 
-```
-
-
-
-Same object, same behaviour, one difference in where the history ring's pages come from: they are a `MAP_SHARED` mapping of `path`, so the ring's samples ARE the file's contents. There is no copy and no separate flush path — the kernel writes the pages back, and `get_state()` forces the point so a checkpoint and its history agree.
-
-
-Two things follow, and they are the reason to reach for this constructor:
-
-
-
-* **The blob stops carrying the look-back.** For an in-RAM capture the retained history IS the blob (measured 2026-09-24: 2.73 MB at a 1029-symbol frame, 16.84 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus the acquisition child, because the samples are already durable and the blob only has to name where in the ring they sit.
-* **The history outlives the process.** Point a new capture at the same path and the samples are there; restore the blob and it reaches back across the restart into a burst that began before it.
-
-
-
-
-The file is created if absent and truncated to the ring's byte size, which zeroes it. An existing file of exactly that size is adopted as it stands. Because the capacity rounds up to a page, that size is `capacity * sizeof(float _Complex)` — do not compute it from `burst_len`.
-
-
-A blob from a backed capture does NOT restore into an in-RAM one, or the reverse: `state_bytes()` differs, so jm's length check rejects it. That is the intent — they are different configurations, and silently accepting one for the other would resume a capture whose history was somewhere else.
-
-
-
-
-**Parameters:**
-
-
-* `path` File to back the ring with; not NULL and not empty. 
-* `preamble` One period of the preamble, `preamble_len` samples. 
-* `preamble_len` Samples per repetition (&gt;= 1). 
-* `burst_len` Samples in one burst  what gets captured. 
-* `reps` Preamble repetitions (&gt;= 1). 
-* `fs` Sample rate, Hz (&gt; 0). 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
-* `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
-* `pfa` Target false-alarm probability, in (0, 1). 
-* `pd` Target detection probability, in (0, 1). 
-* `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
-
-
-
-**Returns:**
-
-Heap state, or NULL if a parameter is out of range or the file could not be opened, sized or mapped.
-
-
-
-```C++
->>> import numpy as np, tempfile, os
->>> from doppler.acquire import BurstCapture, PersistentBurstCapture
->>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
->>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
->>> cap = PersistentBurstCapture(path, pre, burst_len=512,
-...                             reps=4, fs=2e6)
->>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
->>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
->>> # the look-back is in the file, so the blob stops carrying it
->>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
-True
->>> os.path.getsize(path) > 0
-True
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function burst\_capture\_event\_at 
-
-_Borrow event_ `i` _of the last push(), or NULL if out of range._
-```C++
-const burst_capture_event_t * burst_capture_event_at (
-    const dp_burst_capture_state_t * state,
-    size_t i
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function burst\_capture\_ready 
-
-_Windows the last push() completed._ 
-```C++
-size_t burst_capture_ready (
-    const dp_burst_capture_state_t * state
-) 
-```
-
-
-
-The C consumer's face, and the reason a composing object pays no second copy: [**burst\_capture\_window()**](burst__capture__core_8h.md#function-burst_capture_window) borrows straight out of the scratch that push() filled. 
-
-
-        
-
-<hr>
-
-
-
-### function burst\_capture\_window 
-
-_Borrow window_ `i` _of the last push(), or NULL if out of range._
-```C++
-const float _Complex * burst_capture_window (
-    const dp_burst_capture_state_t * state,
-    size_t i
-) 
-```
-
-
-
-Contiguous, `burst_len` samples, valid until the next push(), reset() or set\_state(). The caller must not free it. 
-
-
-        
-
-<hr>
 
 
 
@@ -453,6 +303,98 @@ True
 
 
 
+### function dp\_burst\_capture\_create\_backed 
+
+_Create a capture whose look-back lives in a FILE._ 
+```C++
+dp_burst_capture_state_t * dp_burst_capture_create_backed (
+    const char * path,
+    const float _Complex * preamble,
+    size_t preamble_len,
+    size_t burst_len,
+    size_t reps,
+    double fs,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode,
+    double doppler_rate
+) 
+```
+
+
+
+Same object, same behaviour, one difference in where the history ring's pages come from: they are a `MAP_SHARED` mapping of `path`, so the ring's samples ARE the file's contents. There is no copy and no separate flush path — the kernel writes the pages back, and `get_state()` forces the point so a checkpoint and its history agree.
+
+
+Two things follow, and they are the reason to reach for this constructor:
+
+
+
+* **The blob stops carrying the look-back.** For an in-RAM capture the retained history IS the blob (measured 2026-09-24: 2.73 MB at a 1029-symbol frame, 16.84 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus the acquisition child, because the samples are already durable and the blob only has to name where in the ring they sit.
+* **The history outlives the process.** Point a new capture at the same path and the samples are there; restore the blob and it reaches back across the restart into a burst that began before it.
+
+
+
+
+The file is created if absent and truncated to the ring's byte size, which zeroes it. An existing file of exactly that size is adopted as it stands. Because the capacity rounds up to a page, that size is `capacity * sizeof(float _Complex)` — do not compute it from `burst_len`.
+
+
+A blob from a backed capture does NOT restore into an in-RAM one, or the reverse: `state_bytes()` differs, so jm's length check rejects it. That is the intent — they are different configurations, and silently accepting one for the other would resume a capture whose history was somewhere else.
+
+
+
+
+**Parameters:**
+
+
+* `path` File to back the ring with; not NULL and not empty. 
+* `preamble` One period of the preamble, `preamble_len` samples. 
+* `preamble_len` Samples per repetition (&gt;= 1). 
+* `burst_len` Samples in one burst  what gets captured. 
+* `reps` Preamble repetitions (&gt;= 1). 
+* `fs` Sample rate, Hz (&gt; 0). 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
+* `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
+* `pfa` Target false-alarm probability, in (0, 1). 
+* `pd` Target detection probability, in (0, 1). 
+* `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
+
+
+
+**Returns:**
+
+Heap state, or NULL if a parameter is out of range or the file could not be opened, sized or mapped.
+
+
+
+```C++
+>>> import numpy as np, tempfile, os
+>>> from doppler.acquire import BurstCapture, PersistentBurstCapture
+>>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
+>>> cap = PersistentBurstCapture(path, pre, burst_len=512,
+...                             reps=4, fs=2e6)
+>>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
+>>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+>>> # the look-back is in the file, so the blob stops carrying it
+>>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
+True
+>>> os.path.getsize(path) > 0
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_burst\_capture\_destroy 
 
 _Release a capture and everything it owns. NULL-safe._ 
@@ -514,6 +456,23 @@ _Raw detections available from the last push()._ `n` _is ignored._
 size_t dp_burst_capture_detections_max_out (
     dp_burst_capture_state_t * state,
     size_t n
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_burst\_capture\_event\_at 
+
+_Borrow event_ `i` _of the last push(), or NULL if out of range._
+```C++
+const burst_capture_event_t * dp_burst_capture_event_at (
+    const dp_burst_capture_state_t * state,
+    size_t i
 ) 
 ```
 
@@ -849,7 +808,7 @@ uint64_t dp_burst_capture_get_preamble_start (
 
 ### function dp\_burst\_capture\_get\_psl\_db 
 
-_The preamble's peak sidelobe level, dB:_ [_**acq\_psl\_db()**_](acq__core_8h.md#function-acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._
+_The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._
 ```C++
 double dp_burst_capture_get_psl_db (
     const dp_burst_capture_state_t * state
@@ -967,6 +926,26 @@ size_t dp_burst_capture_push_max_out (
 
 
 Distinct bursts cannot overlap, so `x_len` samples complete at most `x_len/burst_len + 1` of them, plus whatever is already queued. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_burst\_capture\_ready 
+
+_Windows the last push() completed._ 
+```C++
+size_t dp_burst_capture_ready (
+    const dp_burst_capture_state_t * state
+) 
+```
+
+
+
+The C consumer's face, and the reason a composing object pays no second copy: [**dp\_burst\_capture\_window()**](burst__capture__core_8h.md#function-dp_burst_capture_window) borrows straight out of the scratch that push() filled. 
 
 
         
@@ -1100,6 +1079,27 @@ size_t dp_burst_capture_state_bytes (
 
 
 
+
+<hr>
+
+
+
+### function dp\_burst\_capture\_window 
+
+_Borrow window_ `i` _of the last push(), or NULL if out of range._
+```C++
+const float _Complex * dp_burst_capture_window (
+    const dp_burst_capture_state_t * state,
+    size_t i
+) 
+```
+
+
+
+Contiguous, `burst_len` samples, valid until the next push(), reset() or set\_state(). The caller must not free it. 
+
+
+        
 
 <hr>
 ## Macro Definition Documentation

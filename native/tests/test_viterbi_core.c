@@ -66,11 +66,12 @@ main (void)
 
     dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 35u);
     DP_REQUIRE_MSG (v != NULL, "the CCSDS inner code is constructible");
-    DP_CHECK (viterbi_depth (v) == 35u);
-    DP_CHECK_MSG (viterbi_code (v)->k == 7u, "k survives the constructor");
-    DP_CHECK_MSG (viterbi_code (v)->n == 2u, "n comes from the array length");
-    DP_CHECK (viterbi_code (v)->poly[0] == POLY[0]);
-    DP_CHECK (viterbi_code (v)->poly[1] == POLY[1]);
+    DP_CHECK (dp_viterbi_depth (v) == 35u);
+    DP_CHECK_MSG (dp_viterbi_code (v)->k == 7u, "k survives the constructor");
+    DP_CHECK_MSG (dp_viterbi_code (v)->n == 2u,
+                  "n comes from the array length");
+    DP_CHECK (dp_viterbi_code (v)->poly[0] == POLY[0]);
+    DP_CHECK (dp_viterbi_code (v)->poly[1] == POLY[1]);
     dp_viterbi_destroy (v);
   }
 
@@ -84,13 +85,13 @@ main (void)
   {
     const conv_code_t   c = { 7u, 2u, { 0171u, 0133u }, 0u };
     dp_viterbi_state_t *a = dp_viterbi_create (POLY, 2, 7u, 0u, 60u);
-    dp_viterbi_state_t *b = viterbi_create_code (&c, 60u);
+    dp_viterbi_state_t *b = dp_viterbi_create_code (&c, 60u);
     DP_REQUIRE (a != NULL && b != NULL);
-    DP_CHECK (viterbi_depth (a) == viterbi_depth (b));
-    DP_CHECK (viterbi_code (a)->k == viterbi_code (b)->k);
-    DP_CHECK (viterbi_code (a)->n == viterbi_code (b)->n);
-    DP_CHECK (viterbi_code (a)->poly[0] == viterbi_code (b)->poly[0]);
-    DP_CHECK (viterbi_code (a)->poly[1] == viterbi_code (b)->poly[1]);
+    DP_CHECK (dp_viterbi_depth (a) == dp_viterbi_depth (b));
+    DP_CHECK (dp_viterbi_code (a)->k == dp_viterbi_code (b)->k);
+    DP_CHECK (dp_viterbi_code (a)->n == dp_viterbi_code (b)->n);
+    DP_CHECK (dp_viterbi_code (a)->poly[0] == dp_viterbi_code (b)->poly[0]);
+    DP_CHECK (dp_viterbi_code (a)->poly[1] == dp_viterbi_code (b)->poly[1]);
     DP_CHECK (dp_viterbi_state_bytes (a) == dp_viterbi_state_bytes (b));
     dp_viterbi_destroy (a);
     dp_viterbi_destroy (b);
@@ -112,9 +113,9 @@ main (void)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
     conv_enc_t e;
-    conv_enc_init (&e);
+    dp_conv_enc_init (&e);
     const conv_code_t c  = { 7u, 2u, { 0171u, 0133u }, 0u };
-    const size_t      ns = conv_encode (&e, &c, in, N, sym, sizeof sym);
+    const size_t      ns = dp_conv_encode (&e, &c, in, N, sym, sizeof sym);
     DP_REQUIRE (ns == (size_t)N * 2u);
     for (size_t i = 0; i < ns; i++)
       llr[i] = sym[i] ? -8.0f : 8.0f;
@@ -168,15 +169,15 @@ main (void)
           in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
         conv_enc_t e;
-        conv_enc_init (&e);
-        const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
+        dp_conv_enc_init (&e);
+        const size_t ns = dp_conv_encode (&e, c, in, N, sym, sizeof sym);
         DP_REQUIRE (ns == (size_t)N * c->n);
         to_llr (sym, ns, llr, 8.0f);
 
-        dp_viterbi_state_t *v = viterbi_create_code (c, depth);
+        dp_viterbi_state_t *v = dp_viterbi_create_code (c, depth);
         DP_REQUIRE (v != NULL);
-        DP_CHECK (viterbi_depth (v) == depth);
-        DP_CHECK (viterbi_code (v)->k == c->k);
+        DP_CHECK (dp_viterbi_depth (v) == depth);
+        DP_CHECK (dp_viterbi_code (v)->k == c->k);
 
         const size_t want = dp_viterbi_decode_max_out (v, ns);
         const size_t got  = dp_viterbi_decode (v, llr, ns, dec, sizeof dec);
@@ -215,8 +216,8 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
     conv_enc_t e;
-    conv_enc_init (&e);
-    conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
+    dp_conv_enc_init (&e);
+    dp_conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
 
     /* noisy, so the decision is not trivially unanimous */
     uint32_t ns = 999u;
@@ -227,7 +228,7 @@ main (void)
         l2[i]             = 137.0f * l1[i];
       }
 
-    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
+    dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
     const size_t g1 = dp_viterbi_decode (v, l1, 2u * N, d1, sizeof d1);
     dp_viterbi_reset (v);
@@ -264,7 +265,7 @@ main (void)
     };
     const conv_code_t ident
         = { .k = 2u, .n = 1u, .poly = { 2u }, .invert = 0u };
-    DP_REQUIRE (conv_code_valid (&ident));
+    DP_REQUIRE (dp_conv_code_valid (&ident));
 
     float    llr[N];
     uint8_t  dec[N];
@@ -279,7 +280,7 @@ main (void)
           llr[i] = 0.25f;
       }
 
-    dp_viterbi_state_t *v = viterbi_create_code (&ident, DEPTH);
+    dp_viterbi_state_t *v = dp_viterbi_create_code (&ident, DEPTH);
     DP_REQUIRE (v != NULL);
     const size_t got = dp_viterbi_decode (v, llr, N, dec, sizeof dec);
     dp_viterbi_destroy (v);
@@ -328,8 +329,8 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
     conv_enc_t e;
-    conv_enc_init (&e);
-    conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
+    dp_conv_enc_init (&e);
+    dp_conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
     to_llr (sym, 2u * N, llr, 4.0f);
 
     /* One symbol flipped every 60 -- sparse enough that no constraint window
@@ -342,7 +343,7 @@ main (void)
       }
     DP_REQUIRE (flipped > 15);
 
-    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
+    dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
     const size_t got = dp_viterbi_decode (v, llr, 2u * N, dec, sizeof dec);
     int          bad = 0;
@@ -398,23 +399,23 @@ main (void)
           in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
         conv_enc_t e;
-        conv_enc_init (&e);
-        const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
+        dp_conv_enc_init (&e);
+        const size_t ns = dp_conv_encode (&e, c, in, N, sym, sizeof sym);
         to_llr (sym, ns, llr, 4.0f);
 
-        dp_viterbi_state_t *v = viterbi_create_code (c, 60u);
+        dp_viterbi_state_t *v = dp_viterbi_create_code (c, 60u);
         DP_REQUIRE (v != NULL);
 
         /* On a clean stream the aligned score is the channel's error count,
            which is none. */
-        DP_CHECK_MSG (node_sync_score (v, llr, ns) == 0,
+        DP_CHECK_MSG (dp_node_sync_score (v, llr, ns) == 0,
                       "in sync on a clean stream, the re-encode must agree "
                       "with the received symbols exactly");
 
         /* Every OTHER alignment must be far away — see the note above on
            why the floor is a tenth and not a half. */
         node_sync_t ns_res;
-        DP_REQUIRE (node_sync_scan (v, llr, ns, &ns_res));
+        DP_REQUIRE (dp_node_sync_scan (v, llr, ns, &ns_res));
         DP_CHECK_MSG (ns_res.phase == 0u,
                       "the scan must pick the alignment the stream is on");
         DP_CHECK_MSG (ns_res.errors == 0u, "...at zero errors");
@@ -427,7 +428,7 @@ main (void)
            for every rate -- this is the slip case, and it is why the scan
            takes its window rather than holding state. */
         node_sync_t shifted;
-        DP_REQUIRE (node_sync_scan (v, llr + 1, ns - 1u, &shifted));
+        DP_REQUIRE (dp_node_sync_scan (v, llr + 1, ns - 1u, &shifted));
         DP_CHECK_MSG (shifted.phase == c->n - 1u,
                       "a one-symbol slip must move the winning phase by one");
         DP_CHECK_MSG (shifted.errors == 0u, "...and still score zero");
@@ -438,7 +439,7 @@ main (void)
            holds and only that the phase still wins where it does not. */
         for (size_t i = 0; i < ns; i++)
           llr[i] = -llr[i];
-        const size_t inv         = node_sync_score (v, llr, ns);
+        const size_t inv         = dp_node_sync_score (v, llr, ns);
         int          transparent = 1;
         for (unsigned j = 0; j < c->n; j++)
           {
@@ -486,8 +487,8 @@ main (void)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
     conv_enc_t e;
-    conv_enc_init (&e);
-    conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
+    dp_conv_enc_init (&e);
+    dp_conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
     to_llr (sym, 2u * N, llr, 4.0f);
 
     size_t put = 0;
@@ -497,9 +498,9 @@ main (void)
         put++;
       }
 
-    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 60u);
+    dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, 60u);
     DP_REQUIRE (v != NULL);
-    const size_t got = node_sync_score (v, llr, 2u * N);
+    const size_t got = dp_node_sync_score (v, llr, 2u * N);
     dp_viterbi_destroy (v);
 
     DP_CHECK_MSG (got * 5u >= put * 4u && got * 4u <= put * 5u,
@@ -516,8 +517,8 @@ main (void)
    * `d_free` is the minimum Hamming weight of a nonzero codeword, which for a
    * convolutional code is the lightest path that leaves the all-zero state
    * and returns to it. Computed here by relaxation over the trellis the
-   * DESCRIPTION defines — `conv_outputs` and `conv_next_state`, the same two
-   * a decoder builds from — and compared against values the literature
+   * DESCRIPTION defines — `dp_conv_outputs` and `conv_next_state`, the same
+   * two a decoder builds from — and compared against values the literature
    * publishes for these codes. Nothing in doppler can choose them.
    *
    * The inversion is removed first, and that is not a convenience: a
@@ -554,7 +555,7 @@ main (void)
 
         /* Weight of a branch, with the inversion taken back out. */
 #define BRANCH_W(st, b)                                                       \
-  (unsigned)__builtin_popcount ((conv_outputs (c, (st), (b)) ^ c->invert)     \
+  (unsigned)__builtin_popcount ((dp_conv_outputs (c, (st), (b)) ^ c->invert)  \
                                 & ((1u << c->n) - 1u))
 
         const unsigned INF = 0xFFFFu;
@@ -611,12 +612,12 @@ main (void)
     conv_code_t bad = CCSDS;
     bad.poly[0]     = 0u;
 
-    DP_CHECK (viterbi_create_code (&bad, 60u) == NULL);
-    DP_CHECK_MSG (viterbi_create_code (&CCSDS, 0u) == NULL,
+    DP_CHECK (dp_viterbi_create_code (&bad, 60u) == NULL);
+    DP_CHECK_MSG (dp_viterbi_create_code (&CCSDS, 0u) == NULL,
                   "depth 0 is not a decoder");
     dp_viterbi_destroy (NULL); /* a no-op, not a crash */
 
-    dp_viterbi_state_t *v = viterbi_create_code (&CCSDS, 4u);
+    dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, 4u);
     DP_REQUIRE (v != NULL);
     for (size_t i = 0; i < 16; i++)
       llr[i] = 1.0f;
@@ -655,11 +656,11 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
     conv_enc_t e;
-    conv_enc_init (&e);
-    conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
+    dp_conv_enc_init (&e);
+    dp_conv_encode (&e, &CCSDS, in, N, sym, sizeof sym);
     to_llr (sym, 2u * N, llr, 3.0f);
 
-    dp_viterbi_state_t *a = viterbi_create_code (&CCSDS, DEPTH);
+    dp_viterbi_state_t *a = dp_viterbi_create_code (&CCSDS, DEPTH);
     DP_REQUIRE (a != NULL);
     const size_t n_ref = dp_viterbi_decode (a, llr, 2u * N, ref, sizeof ref);
     DP_REQUIRE (n_ref == (size_t)N - (DEPTH - 1u));
@@ -669,7 +670,7 @@ main (void)
     for (size_t ci = 0; ci < sizeof cuts / sizeof *cuts; ci++)
       {
         const size_t        cut = cuts[ci];
-        dp_viterbi_state_t *b   = viterbi_create_code (&CCSDS, DEPTH);
+        dp_viterbi_state_t *b   = dp_viterbi_create_code (&CCSDS, DEPTH);
         DP_REQUIRE (b != NULL);
         const size_t n1 = dp_viterbi_decode (b, llr, cut, got, sizeof got);
 
@@ -679,7 +680,7 @@ main (void)
         dp_viterbi_destroy (
             b); /* the sender is GONE: only the blob carries it */
 
-        dp_viterbi_state_t *c = viterbi_create_code (&CCSDS, DEPTH);
+        dp_viterbi_state_t *c = dp_viterbi_create_code (&CCSDS, DEPTH);
         DP_REQUIRE (c != NULL);
         DP_CHECK (dp_viterbi_set_state (c, blob) == DP_OK);
 
@@ -698,7 +699,7 @@ main (void)
 
     /* The shared round-trip: fidelity (b re-serializes to a's bytes) plus
        the envelope reject. */
-    dp_viterbi_state_t *r2 = viterbi_create_code (&CCSDS, DEPTH);
+    dp_viterbi_state_t *r2 = dp_viterbi_create_code (&CCSDS, DEPTH);
     DP_REQUIRE (r2 != NULL);
     DP_STATE_ROUNDTRIP_TEST (dp_viterbi, a, r2);
 
@@ -729,7 +730,7 @@ main (void)
     for (size_t i = 0; i < sizeof rejects / sizeof *rejects; i++)
       {
         dp_viterbi_state_t *w
-            = viterbi_create_code (rejects[i].code, rejects[i].depth);
+            = dp_viterbi_create_code (rejects[i].code, rejects[i].depth);
         DP_REQUIRE (w != NULL);
         if (i < 2u)
           DP_REQUIRE_MSG (dp_viterbi_state_bytes (w)

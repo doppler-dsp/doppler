@@ -29,7 +29,7 @@ default = "0"
 # folded into the bank rather than appended as a stage.
 [[RateConverter.views]]
 class_name = "MatchedRateConverter"
-create_fn = "RateConverter_create_matched"
+create_fn = "dp_RateConverter_create_matched"
 init_params = [
   { name = "rate", type = "double", default = "1.0" },
   { name = "compensate", type = "int", default = "1" },

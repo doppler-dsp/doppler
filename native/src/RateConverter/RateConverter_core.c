@@ -283,7 +283,7 @@ rc_pulse_support (int pulse, size_t span)
  *
  * so `support + arm_p' must equal `(n - tau)/sps', the newest LOADED sample's
  * distance behind the wanted instant.  The accumulator
- * (resamp_execute_ctrl_push) emits before it loads, so at output k exactly
+ * (dp_resamp_execute_ctrl_push) emits before it loads, so at output k exactly
  * `L_k = floor(k*T_in)' inputs are in the line, the newest is `n = L_k - 1',
  * and the phase word carries `u_k = k*T_in - L_k' — the fraction of an input
  * interval by which the instant sits AHEAD of that newest sample.  Hence
@@ -300,7 +300,7 @@ rc_pulse_support (int pulse, size_t span)
  * sawtooth (it still "works", it just jitters): the previous layout swept
  * `+u/pulse_sps' symbols, i.e. `+u/R' taps where the derivation wants `-u',
  * so at R = 0.923 the instant swung by 2.08 taps — a whole symbol — and
- * matched EVM fell to -10 dB.  See resamp_execute_ctrl_push().
+ * matched EVM fell to -10 dB.  See dp_resamp_execute_ctrl_push().
  *
  * When `comp' is non-NULL the CIC droop compensator is folded in by convolving
  * every arm with it.  This is exact, not an approximation: ciccompmf's taps
@@ -389,7 +389,7 @@ rc_build_bank (int pulse, double beta, double sps, size_t span,
      unit-power symbols the average power of the pulse train on this grid is
      e0/sps.  One number, two uses — the bank's normaliser and the level that
      makes a unit-amplitude symbol arrive as one.  See
-     RateConverter_enable_agc(). */
+     dp_RateConverter_enable_agc(). */
   *out_e0 = e0;
   return bank;
 }
@@ -406,7 +406,7 @@ rc_stage_destroy (rc_stage_t type, void *ptr)
   switch (type)
     {
     case RC_STAGE_HB:
-      hbdecim_destroy ((hbdecim_state_t *)ptr);
+      dp_hbdecim_destroy ((hbdecim_state_t *)ptr);
       break;
     case RC_STAGE_CIC:
       {
@@ -418,7 +418,7 @@ rc_stage_destroy (rc_stage_t type, void *ptr)
       }
       break;
     case RC_STAGE_RESAMP:
-      resamp_destroy ((resamp_state_t *)ptr);
+      dp_resamp_destroy ((resamp_state_t *)ptr);
       break;
     }
 }
@@ -429,7 +429,7 @@ rc_stage_reset (rc_stage_t type, void *ptr)
   switch (type)
     {
     case RC_STAGE_HB:
-      hbdecim_reset ((hbdecim_state_t *)ptr);
+      dp_hbdecim_reset ((hbdecim_state_t *)ptr);
       break;
     case RC_STAGE_CIC:
       {
@@ -440,7 +440,7 @@ rc_stage_reset (rc_stage_t type, void *ptr)
       }
       break;
     case RC_STAGE_RESAMP:
-      resamp_reset ((resamp_state_t *)ptr);
+      dp_resamp_reset ((resamp_state_t *)ptr);
       break;
     }
 }
@@ -454,7 +454,7 @@ rc_stage_state_bytes (rc_stage_t type, const void *ptr)
   switch (type)
     {
     case RC_STAGE_HB:
-      return hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
+      return dp_hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
     case RC_STAGE_CIC:
       {
         const rc_cic_stage_t *cs = (const rc_cic_stage_t *)ptr;
@@ -464,7 +464,7 @@ rc_stage_state_bytes (rc_stage_t type, const void *ptr)
         return b;
       }
     case RC_STAGE_RESAMP:
-      return resamp_state_bytes ((const resamp_state_t *)ptr);
+      return dp_resamp_state_bytes ((const resamp_state_t *)ptr);
     }
   return 0;
 }
@@ -475,8 +475,8 @@ rc_stage_get_state (rc_stage_t type, const void *ptr, char *p)
   switch (type)
     {
     case RC_STAGE_HB:
-      hbdecim_get_state ((const hbdecim_state_t *)ptr, p);
-      p += hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
+      dp_hbdecim_get_state ((const hbdecim_state_t *)ptr, p);
+      p += dp_hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
       break;
     case RC_STAGE_CIC:
       {
@@ -491,8 +491,8 @@ rc_stage_get_state (rc_stage_t type, const void *ptr, char *p)
       }
       break;
     case RC_STAGE_RESAMP:
-      resamp_get_state ((const resamp_state_t *)ptr, p);
-      p += resamp_state_bytes ((const resamp_state_t *)ptr);
+      dp_resamp_get_state ((const resamp_state_t *)ptr, p);
+      p += dp_resamp_state_bytes ((const resamp_state_t *)ptr);
       break;
     }
   return p;
@@ -504,8 +504,8 @@ rc_stage_set_state (rc_stage_t type, void *ptr, const char *p)
   switch (type)
     {
     case RC_STAGE_HB:
-      hbdecim_set_state ((hbdecim_state_t *)ptr, p);
-      p += hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
+      dp_hbdecim_set_state ((hbdecim_state_t *)ptr, p);
+      p += dp_hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
       break;
     case RC_STAGE_CIC:
       {
@@ -520,8 +520,8 @@ rc_stage_set_state (rc_stage_t type, void *ptr, const char *p)
       }
       break;
     case RC_STAGE_RESAMP:
-      resamp_set_state ((resamp_state_t *)ptr, p);
-      p += resamp_state_bytes ((const resamp_state_t *)ptr);
+      dp_resamp_set_state ((resamp_state_t *)ptr, p);
+      p += dp_resamp_state_bytes ((const resamp_state_t *)ptr);
       break;
     }
   return p;
@@ -538,7 +538,8 @@ rc_stage_exec (rc_stage_t type, void *ptr, const float _Complex *in,
   switch (type)
     {
     case RC_STAGE_HB:
-      return hbdecim_execute ((hbdecim_state_t *)ptr, in, n_in, out, max_out);
+      return dp_hbdecim_execute ((hbdecim_state_t *)ptr, in, n_in, out,
+                                 max_out);
     case RC_STAGE_CIC:
       {
         rc_cic_stage_t *cs = (rc_cic_stage_t *)ptr;
@@ -552,7 +553,7 @@ rc_stage_exec (rc_stage_t type, void *ptr, const float _Complex *in,
         return n;
       }
     case RC_STAGE_RESAMP:
-      return resamp_execute ((resamp_state_t *)ptr, in, n_in, out, max_out);
+      return dp_resamp_execute ((resamp_state_t *)ptr, in, n_in, out, max_out);
     default:
       return 0;
     }
@@ -632,8 +633,8 @@ rc_build_stages (dp_RateConverter_state_t *s, const rc_plan_entry_t *plan,
           s->agc_ref_db = (e0 > 0.0 && bank_sps > 0.0)
                               ? 10.0 * log10 (e0 / bank_sps)
                               : 0.0;
-          obj           = resamp_create_custom (s->num_phases, ntaps, bank,
-                                                plan[i].resamp_rate);
+          obj           = dp_resamp_create_custom (s->num_phases, ntaps, bank,
+                                                   plan[i].resamp_rate);
           free (bank);
           if (!obj)
             goto fail;
@@ -645,7 +646,7 @@ rc_build_stages (dp_RateConverter_state_t *s, const rc_plan_entry_t *plan,
       switch (plan[i].type)
         {
         case RC_STAGE_HB:
-          obj = hbdecim_create (DP_HB_NTAPS, DP_HB_FIR);
+          obj = dp_hbdecim_create (DP_HB_NTAPS, DP_HB_FIR);
           break;
 
         case RC_STAGE_CIC:
@@ -669,7 +670,7 @@ rc_build_stages (dp_RateConverter_state_t *s, const rc_plan_entry_t *plan,
                 float h32[7];
                 for (int j = 0; j < 7; j++)
                   h32[j] = (float)h64[j];
-                cs->fir = fir_create_real (h32, 7);
+                cs->fir = dp_fir_create_real (h32, 7);
                 if (!cs->fir)
                   {
                     dp_cic_destroy (cs->cic);
@@ -682,7 +683,7 @@ rc_build_stages (dp_RateConverter_state_t *s, const rc_plan_entry_t *plan,
           break;
 
         case RC_STAGE_RESAMP:
-          obj = resamp_create (plan[i].resamp_rate);
+          obj = dp_resamp_create (plan[i].resamp_rate);
           break;
         }
 
@@ -708,7 +709,7 @@ fail:
 /* ------------------------------------------------------------------ */
 /* Pre-terminal AGC                                                    */
 /*                                                                     */
-/* Off unless RateConverter_enable_agc() asked for it. The reference    */
+/* Off unless dp_RateConverter_enable_agc() asked for it. The reference    */
 /* and the seed length come from the bank (recorded in rc_build_stages),  */
 /* so a rebuild re-derives both rather than carrying stale numbers.     */
 /* ------------------------------------------------------------------ */
@@ -750,7 +751,7 @@ rc_agc_build (dp_RateConverter_state_t *s)
      anyway (the names are already registered, so each probe is a hit rather
      than a miss); it can only fail on the FIRST application, which happens
      here when the attach arrived before the AGC existed and the probe table
-     was full by then -- documented on RateConverter_set_telemetry(). */
+     was full by then -- documented on dp_RateConverter_set_telemetry(). */
   if (s->agc_tlm_req.ctx)
     (void)dp_agc_set_telemetry (s->agc, s->agc_tlm_req.ctx,
                                 s->agc_tlm_req.prefix, s->agc_tlm_req.decim);
@@ -822,9 +823,9 @@ dp_RateConverter_create (double rate, int compensate)
 }
 
 dp_RateConverter_state_t *
-RateConverter_create_matched (double rate, int compensate, int pulse,
-                              double beta, size_t span, double pulse_sps,
-                              size_t num_phases)
+dp_RateConverter_create_matched (double rate, int compensate, int pulse,
+                                 double beta, size_t span, double pulse_sps,
+                                 size_t num_phases)
 {
   /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
   if (!(rate > 0.0) || !(beta >= 0.0) || !(beta <= 1.0) || span < 1
@@ -865,8 +866,8 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
 }
 
 int
-RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
-                          double alpha)
+dp_RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
+                             double alpha)
 {
   /* A plain cascade has no pulse, so `bank_e0 / bank_sps` describes nothing
      and there is no reference to derive. Refused rather than guessed. */
@@ -889,20 +890,20 @@ RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
 }
 
 double
-RateConverter_agc_ref_db (const dp_RateConverter_state_t *s)
+dp_RateConverter_agc_ref_db (const dp_RateConverter_state_t *s)
 {
   return s->agc_ref_db;
 }
 
 double
-RateConverter_agc_gain_db (const dp_RateConverter_state_t *s)
+dp_RateConverter_agc_gain_db (const dp_RateConverter_state_t *s)
 {
   return s->agc ? dp_agc_get_applied_gain_db (s->agc) : 0.0;
 }
 
 int
-RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
-                             const char *prefix, uint32_t decim)
+dp_RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
+                                const char *prefix, uint32_t decim)
 {
   if (!tlm) /* detach: drop the request too, so a rebuild stays detached */
     {
@@ -1017,10 +1018,11 @@ dp_RateConverter_execute (dp_RateConverter_state_t *s,
     return 0;
 
   /* A pulse-shaped bank is laid out for the unified accumulator (arm p
-     advances the sampling instant), while resamp_execute()'s decimating path
-     is transposed-form and indexes arms the other way — different algorithms,
-     not just different code paths. So a matched cascade always runs through
-     the accumulator, at zero deviation. One structure, one bank layout. */
+     advances the sampling instant), while dp_resamp_execute()'s decimating
+     path is transposed-form and indexes arms the other way — different
+     algorithms, not just different code paths. So a matched cascade always
+     runs through the accumulator, at zero deviation. One structure, one bank
+     layout. */
   if (s->pulse != RC_PULSE_NONE)
     return dp_RateConverter_execute_ctrl (s, in, n_in, 0.0, out, max_out);
 
@@ -1077,7 +1079,7 @@ rc_resamp_exec_ctrl (dp_RateConverter_state_t *s, resamp_state_t *r,
          terminal one — and the input block is const, so gaining it in place
          is not an option. Per-sample is what the push path does anyway. */
       float _Complex v = rc_agc_tap (s, in[i]);
-      oi += resamp_execute_ctrl_push (r, v, ctrl, out + oi, max_out - oi);
+      oi += dp_resamp_execute_ctrl_push (r, v, ctrl, out + oi, max_out - oi);
     }
   return oi;
 }
@@ -1136,10 +1138,10 @@ dp_RateConverter_execute_ctrl (dp_RateConverter_state_t *s,
 }
 
 size_t
-RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
-                                     float _Complex x, double ctrl,
-                                     float _Complex *out, size_t max_out,
-                                     float _Complex *pre_out, int *n_pre)
+dp_RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
+                                        float _Complex x, double ctrl,
+                                        float _Complex *out, size_t max_out,
+                                        float _Complex *pre_out, int *n_pre)
 {
   if (n_pre)
     *n_pre = 0;
@@ -1184,8 +1186,8 @@ RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
     *pre_out = cur;
   if (n_pre)
     *n_pre = 1;
-  return resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last], cur,
-                                   ctrl, out, max_out);
+  return dp_resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last],
+                                      cur, ctrl, out, max_out);
 }
 
 size_t
@@ -1193,12 +1195,12 @@ dp_RateConverter_execute_ctrl_push (dp_RateConverter_state_t *s,
                                     float _Complex x, double ctrl,
                                     float _Complex *out, size_t max_out)
 {
-  return RateConverter_execute_ctrl_push_tap (s, x, ctrl, out, max_out, NULL,
-                                              NULL);
+  return dp_RateConverter_execute_ctrl_push_tap (s, x, ctrl, out, max_out,
+                                                 NULL, NULL);
 }
 
 double
-RateConverter_get_bank_sps (const dp_RateConverter_state_t *s)
+dp_RateConverter_get_bank_sps (const dp_RateConverter_state_t *s)
 {
   return s->bank_sps;
 }
@@ -1254,25 +1256,25 @@ dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s)
 }
 
 double
-RateConverter_gain (const dp_RateConverter_state_t *s)
+dp_RateConverter_gain (const dp_RateConverter_state_t *s)
 {
   double g = 1.0;
   for (int i = 0; i < s->n_stages; i++)
     switch (s->stage_types[i])
       {
       case RC_STAGE_HB:
-        g *= hbdecim_dc_gain ((const hbdecim_state_t *)s->stage_ptrs[i]);
+        g *= dp_hbdecim_dc_gain ((const hbdecim_state_t *)s->stage_ptrs[i]);
         break;
       case RC_STAGE_CIC:
         {
           const rc_cic_stage_t *cs = (const rc_cic_stage_t *)s->stage_ptrs[i];
-          g *= cic_dc_gain (cs->cic);
+          g *= dp_cic_dc_gain (cs->cic);
           if (cs->fir)
-            g *= fir_dc_gain (cs->fir);
+            g *= dp_fir_dc_gain (cs->fir);
         }
         break;
       case RC_STAGE_RESAMP:
-        g *= resamp_dc_gain ((const resamp_state_t *)s->stage_ptrs[i]);
+        g *= dp_resamp_dc_gain ((const resamp_state_t *)s->stage_ptrs[i]);
         break;
       }
   return g;
@@ -1294,8 +1296,8 @@ dp_RateConverter_stages_value (const dp_RateConverter_state_t *s, size_t i)
     return NULL;
   /* stage_label takes a mutable state only because it predates this
      accessor; it reads nothing mutable. */
-  if (!RateConverter_stage_label ((dp_RateConverter_state_t *)s, (int)i, buf,
-                                  sizeof buf))
+  if (!dp_RateConverter_stage_label ((dp_RateConverter_state_t *)s, (int)i,
+                                     buf, sizeof buf))
     return NULL;
   return buf;
 }
@@ -1315,7 +1317,7 @@ dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s, size_t i)
 {
   const resamp_state_t *r
       = (const resamp_state_t *)s->stage_ptrs[s->n_stages - 1];
-  return i == 0 ? resamp_get_num_phases (r) : resamp_get_num_taps (r);
+  return i == 0 ? dp_resamp_get_num_phases (r) : dp_resamp_get_num_taps (r);
 }
 
 size_t
@@ -1333,8 +1335,8 @@ dp_RateConverter_execute_ctrl_push_max_out (dp_RateConverter_state_t *s)
 }
 
 int
-RateConverter_stage_label (dp_RateConverter_state_t *s, int i, char *buf,
-                           size_t len)
+dp_RateConverter_stage_label (dp_RateConverter_state_t *s, int i, char *buf,
+                              size_t len)
 {
   if (i < 0 || i >= s->n_stages)
     return 0;
@@ -1355,7 +1357,7 @@ RateConverter_stage_label (dp_RateConverter_state_t *s, int i, char *buf,
       break;
     case RC_STAGE_RESAMP:
       {
-        double r = resamp_get_rate ((resamp_state_t *)s->stage_ptrs[i]);
+        double r = dp_resamp_get_rate ((resamp_state_t *)s->stage_ptrs[i]);
         /* Only the terminal stage can carry a pulse-shaped bank; naming it
            is how a caller sees that the matched filter is IN the cascade
            rather than a stage someone still has to append. */
@@ -1375,8 +1377,9 @@ RateConverter_stage_label (dp_RateConverter_state_t *s, int i, char *buf,
 }
 
 size_t
-RateConverter_convert (double rate, int compensate, const float _Complex *in,
-                       size_t n_in, float _Complex *out, size_t max_out)
+dp_RateConverter_convert (double rate, int compensate,
+                          const float _Complex *in, size_t n_in,
+                          float _Complex *out, size_t max_out)
 {
   dp_RateConverter_state_t *rc = dp_RateConverter_create (rate, compensate);
   if (!rc)

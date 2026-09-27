@@ -15,7 +15,7 @@
  * Feeds a noisy stream carrying three bursts in 4096-sample blocks — the
  * shape a real caller has, where a burst routinely straddles two calls — and
  * prints one line per captured burst. Writes the first window to
- * burst_capture_window.csv so it can be plotted.
+ * dp_burst_capture_window.csv so it can be plotted.
  *
  * Build:
  *   make build
@@ -169,18 +169,18 @@ main (void)
           /* The event row that belongs to THIS window. The scalar
              read-backs describe only the last one, which is why a call
              completing several needs the list. */
-          const burst_capture_event_t *ev = burst_capture_event_at (cap, i);
+          const burst_capture_event_t *ev = dp_burst_capture_event_at (cap, i);
           printf ("  %-4zu %-12llu %-12.1f %s\n", ++n_found,
                   (unsigned long long)ev->preamble_start, ev->cn0_dbhz_est,
                   ev->cn0_dbhz_est > 52.0 ? "burst" : "likely spurious");
 
           if (n_found == 1u)
             {
-              /* burst_capture_window() BORROWS out of the capture's own
+              /* dp_burst_capture_window() BORROWS out of the capture's own
                  scratch -- contiguous, burst_len long, and valid only until
                  the next push(). Copy it if it has to outlive the call. */
-              const float complex *w = burst_capture_window (cap, i);
-              FILE                *f = fopen ("burst_capture_window.csv", "w");
+              const float complex *w = dp_burst_capture_window (cap, i);
+              FILE *f = fopen ("dp_burst_capture_window.csv", "w");
               if (f && w)
                 {
                   fprintf (f, "n,i,q\n");
@@ -202,7 +202,8 @@ main (void)
           "samples; %llu sample(s) dropped\n",
           n_found, cap->pending,
           (unsigned long long)dp_burst_capture_get_dropped (cap));
-  printf ("  wrote burst_capture_window.csv (first 512 samples of burst 1)\n");
+  printf (
+      "  wrote dp_burst_capture_window.csv (first 512 samples of burst 1)\n");
 
   /* ── Destroy ──────────────────────────────────────────────────────── */
   dp_burst_capture_destroy (cap);

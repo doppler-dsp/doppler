@@ -57,8 +57,8 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**Resampler\_create\_custom**](#function-resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
-|  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**dp\_Resampler\_create**](#function-dp_resampler_create) (double rate) <br>_Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**Resampler\_create\_custom()**_](Resampler__core_8h.md#function-resampler_create_custom) _instead._ |
+|  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**dp\_Resampler\_create**](#function-dp_resampler_create) (double rate) <br>_Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**dp\_Resampler\_create\_custom()**_](Resampler__core_8h.md#function-dp_resampler_create_custom) _instead._ |
+|  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**dp\_Resampler\_create\_custom**](#function-dp_resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
 |  void | [**dp\_Resampler\_destroy**](#function-dp_resampler_destroy) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
 |  size\_t | [**dp\_Resampler\_execute**](#function-dp_resampler_execute) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate &gt;= 1 (interpolation), input-driven transposed-form for rate &lt; 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block._  |
 |  size\_t | [**dp\_Resampler\_execute\_ctrl**](#function-dp_resampler_execute_ctrl) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
@@ -147,49 +147,9 @@ typedef resamp_state_t dp_Resampler_state_t;
 
 
 
-### function Resampler\_create\_custom 
-
-_Create a Resampler with a user-supplied polyphase bank._ 
-```C++
-dp_Resampler_state_t * Resampler_create_custom (
-    size_t num_phases,
-    size_t num_taps,
-    const float * bank,
-    double rate
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `num_phases` Number of polyphase branches (must be power of two). 
-* `num_taps` Taps per branch. 
-* `bank` Row-major float32 array, shape num\_phases × num\_taps. 
-* `rate` Initial resample ratio. 
-
-
-
-**Returns:**
-
-Non-NULL on success, NULL on invalid args or OOM. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_Resampler\_create 
 
-_Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**Resampler\_create\_custom()**_](Resampler__core_8h.md#function-resampler_create_custom) _instead._
+_Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate &gt;= 1.0 to interpolate (upsample); pass rate &lt; 1.0 to decimate (downsample). For a custom bank use_ [_**dp\_Resampler\_create\_custom()**_](Resampler__core_8h.md#function-dp_resampler_create_custom) _instead._
 ```C++
 dp_Resampler_state_t * dp_Resampler_create (
     double rate
@@ -223,6 +183,46 @@ Non-NULL on success, NULL on OOM.
 2.0
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_Resampler\_create\_custom 
+
+_Create a Resampler with a user-supplied polyphase bank._ 
+```C++
+dp_Resampler_state_t * dp_Resampler_create_custom (
+    size_t num_phases,
+    size_t num_taps,
+    const float * bank,
+    double rate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `num_phases` Number of polyphase branches (must be power of two). 
+* `num_taps` Taps per branch. 
+* `bank` Row-major float32 array, shape num\_phases × num\_taps. 
+* `rate` Initial resample ratio. 
+
+
+
+**Returns:**
+
+Non-NULL on success, NULL on invalid args or OOM. 
+
+
+
 
 
         
@@ -451,7 +451,7 @@ double dp_Resampler_get_delay (
 
 
 
-The prototype's centre plus the one input the pipeline holds back ([**resamp\_get\_delay()**](resamp__core_8h.md#function-resamp_get_delay)): output `k` carries the input at `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
+The prototype's centre plus the one input the pipeline holds back ([**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay)): output `k` carries the input at `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
 
 
 

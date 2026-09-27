@@ -273,7 +273,7 @@ FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t payload_len = (size_t)PyArray_SIZE (payload_arr);
-  self->handle       = frame_create_desc (
+  self->handle       = dp_frame_create_desc (
       preamble_kind, (const uint8_t *)PyArray_DATA (preamble_arr),
       preamble_len, preamble_nbits, preamble_reps, preamble_poly,
       preamble_seed, preamble_reg_bits, preamble_lfsr, preamble_taps_a,
@@ -1832,7 +1832,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     "\n"
     "The inner encoder starts from the all-zero register on every build: a\n"
     "description describes ONE frame. A stream of CADUs sharing one register\n"
-    "is a transmitter's job and lives in `ccsds_tm_frame_encode`.\n"
+    "is a transmitter's job and lives in `dp_ccsds_tm_frame_encode`.\n"
     "\n"
     "Raises\n"
     "------\n"

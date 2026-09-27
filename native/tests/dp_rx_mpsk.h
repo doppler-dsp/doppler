@@ -63,7 +63,7 @@ dp_rx_mpsk_norm_freq (const void *h)
 static double
 dp_rx_mpsk_last_error (const void *h)
 {
-  return mpsk_receiver_get_last_error ((const dp_mpsk_receiver_state_t *)h);
+  return dp_mpsk_receiver_get_last_error ((const dp_mpsk_receiver_state_t *)h);
 }
 static double
 dp_rx_mpsk_lock (const void *h)

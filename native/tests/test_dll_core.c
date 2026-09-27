@@ -4,7 +4,7 @@
  *
  * Tests:
  *   1. Lifecycle / NULL-code guard / init==create parity
- *   1b. dll_init defends against a dirty caller stack (rate_aid init)
+ *   1b. dp_dll_init defends against a dirty caller stack (rate_aid init)
  *   2. On-time alignment — discriminator ~0, code_rate ~1
  *   3. Code Doppler — code_rate converges to the incoming chip rate
  *   4. Static phase offset is pulled in (discriminator decays)
@@ -123,7 +123,7 @@ main (void)
     DP_CHECK (dp_dll_get_code_rate (c) == 1.0);
 
     dp_dll_state_t v;
-    dll_init (&v, code, 31, 2, 0.0, 0.02, 0.707, 0.5);
+    dp_dll_init (&v, code, 31, 2, 0.0, 0.02, 0.707, 0.5);
     DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     DP_CHECK (v.owns_code == 0);  /* init borrows */
     DP_CHECK (c->owns_code == 1); /* create copies */
@@ -131,9 +131,9 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
-   * 1b. dll_init defends against a dirty caller stack                 *
+   * 1b. dp_dll_init defends against a dirty caller stack                 *
    *                                                                  *
-   * dll_init() does an in-place init of a caller-owned (often stack) *
+   * dp_dll_init() does an in-place init of a caller-owned (often stack) *
    * dp_dll_state_t, so every field it does not explicitly set starts as *
    * whatever garbage the caller's memory held. rate_aid (carrier-    *
    * aiding config, set only by dp_dll_set_rate_aid) was the one field   *
@@ -149,7 +149,7 @@ main (void)
     make_code (code, 31, 1u);
     dp_dll_state_t g;
     memset (&g, 0xFF, sizeof g); /* 0xFF doubles are NaN — the macOS case */
-    dll_init (&g, code, 31, 2, 0.0, 0.002, 0.707, 0.5);
+    dp_dll_init (&g, code, 31, 2, 0.0, 0.002, 0.707, 0.5);
     DP_CHECK (g.rate_aid == 0.0);         /* zeroed, not NaN */
     DP_CHECK (g.code_nco.phase_inc > 0u); /* NCO not frozen */
     uint32_t inc0 = g.code_nco.phase_inc;
@@ -879,14 +879,14 @@ main (void)
     free (code);
   }
 
-  /* dll_lookback_segments(): ports despreader_coupled.py's
+  /* dp_dll_lookback_segments(): ports despreader_coupled.py's
    * async_lookback_windows() -- the known reference value it derives at
    * this project's own validated point (tsamps=2046, max_error_db=0.5
    * -> windows=11). */
   {
-    DP_CHECK (dll_lookback_segments (2046, 0.5) == 11);
+    DP_CHECK (dp_dll_lookback_segments (2046, 0.5) == 11);
     /* tsamps==0 is a degenerate guard, not a real caller input. */
-    DP_CHECK (dll_lookback_segments (0, 0.5) == 1);
+    DP_CHECK (dp_dll_lookback_segments (0, 0.5) == 1);
     /* Every returned segments count must evenly divide tsamps -- the
      * whole point of the divisor-snapping step. */
     size_t tsamps_probe[] = { 2046, 1024, 63 * 4, 31 * 2, 100 };
@@ -894,7 +894,7 @@ main (void)
          i++)
       {
         size_t t = tsamps_probe[i];
-        size_t s = dll_lookback_segments (t, 0.5);
+        size_t s = dp_dll_lookback_segments (t, 0.5);
         DP_CHECK (s >= 1 && s <= t);
         DP_CHECK (t % s == 0);
       }
@@ -928,8 +928,8 @@ main (void)
     dp_dll_state_t *run
         = dp_dll_create (code, sf, sps, off, 0.005, 0.707, 0.5, 1);
     DP_REQUIRE (held && run);
-    dll_hold_here (held);
-    dll_set_coast (held, 1);
+    dp_dll_hold_here (held);
+    dp_dll_set_coast (held, 1);
     (void)dp_dll_steps (held, rx, n, sym, nper);
     (void)dp_dll_steps (run, rx, n, sym, nper);
     /* Held: the rate is the nominal it was held at, the phase advanced at
@@ -1009,8 +1009,8 @@ main (void)
           dp_dll_state_t *e
               = dp_dll_create (code, sf, sps, init, 0.005, 0.707, 0.5, K);
           DP_REQUIRE (d && e);
-          dll_hold_here (d);
-          dll_set_coast (d, 1);
+          dp_dll_hold_here (d);
+          dp_dll_set_coast (d, 1);
           size_t na = dp_dll_steps (d, rx, m, out, cap);
           DP_CHECK_MSG (na == 10 * K, "before the put: ten epochs");
           /* put onto the signal's own phase at sample m */
@@ -1071,7 +1071,7 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
-   * 9. The coasting read: every steer sums into dll_take_error()     *
+   * 9. The coasting read: every steer sums into dp_dll_take_error()     *
    *    on BOTH correlation paths (the one steer, doppler#1280)        *
    * ---------------------------------------------------------------- */
   /* A holder correcting a coasting loop once a block (design section
@@ -1091,26 +1091,26 @@ main (void)
     dp_dll_state_t *held
         = dp_dll_create (code, sf, sps, 0.15, 0.005, 0.707, 0.5, 1);
     DP_REQUIRE (held);
-    dll_hold_here (held);
-    dll_set_coast (held, 1);
+    dp_dll_hold_here (held);
+    dp_dll_set_coast (held, 1);
     double sum = 1.0;
-    DP_CHECK_MSG (dll_take_error (held, &sum) == 0 && sum == 0.0,
+    DP_CHECK_MSG (dp_dll_take_error (held, &sum) == 0 && sum == 0.0,
                   "a fresh loop has nothing to take");
     (void)dp_dll_steps (held, rx, n, sym, nper);
-    size_t cnt = dll_take_error (held, &sum);
+    size_t cnt = dp_dll_take_error (held, &sum);
     DP_CHECK_MSG (cnt == nper,
                   "full-epoch path: one steer per epoch, coasting or not");
     DP_CHECK_MSG (
         fabs (sum / (double)cnt) > 0.05
             && fabs (sum / (double)cnt - dp_dll_get_last_error (held)) < 0.05,
         "the mean reads the held offset, as the last steer does");
-    DP_CHECK_MSG (dll_take_error (held, &sum) == 0 && sum == 0.0,
+    DP_CHECK_MSG (dp_dll_take_error (held, &sum) == 0 && sum == 0.0,
                   "taken: the sum starts again from zero");
     /* The running loop accumulates too: the same count. */
     dp_dll_state_t *run
         = dp_dll_create (code, sf, sps, 0.15, 0.005, 0.707, 0.5, 1);
     (void)dp_dll_steps (run, rx, n, sym, nper);
-    DP_CHECK (dll_take_error (run, &sum) == nper);
+    DP_CHECK (dp_dll_take_error (run, &sum) == nper);
     /* The Python face: the mean, NaN once taken. */
     (void)dp_dll_steps (held, rx, sf * sps * 10, sym, nper);
     DP_CHECK (fabs (dp_dll_take_error_mean (held)) > 0.05);
@@ -1140,13 +1140,13 @@ main (void)
     dp_dll_state_t *d
         = dp_dll_create (code, sf, sps, 0.1, 0.002, 0.707, 0.5, K);
     DP_REQUIRE (d && dp_dll_set_symbol_period (d, P) == DP_OK);
-    dll_hold_here (d);
-    dll_set_coast (d, 1);
+    dp_dll_hold_here (d);
+    dp_dll_set_coast (d, 1);
     size_t nep = N / te;
     for (size_t e = 0; e < nep; e++)
       dp_dll_steps (d, rx + e * te, te, out, te);
     double sum;
-    size_t cnt = dll_take_error (d, &sum);
+    size_t cnt = dp_dll_take_error (d, &sum);
     DP_CHECK_MSG (cnt > nep / 2 && cnt < nep,
                   "symbol-aided path: one steer per symbol window");
     DP_CHECK_MSG (fabs (sum / (double)cnt) > 0.02,
@@ -1160,7 +1160,7 @@ main (void)
       dp_dll_steps (d, rx + e * te, te, out, te);
     DP_STATE_ROUNDTRIP_TEST (dp_dll, d, b);
     double sb, sd;
-    size_t nb = dll_take_error (b, &sb), nd = dll_take_error (d, &sd);
+    size_t nb = dp_dll_take_error (b, &sb), nd = dp_dll_take_error (d, &sd);
     DP_CHECK_MSG (nb == nd && nb > 0 && sb == sd,
                   "the accumulator rides in the blob");
     dp_dll_destroy (b);
@@ -1191,8 +1191,8 @@ main (void)
     dp_dll_state_t *d
         = dp_dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, 1);
     DP_REQUIRE (d);
-    dll_hold_here (d);
-    dll_set_coast (d, 1);
+    dp_dll_hold_here (d);
+    dp_dll_set_coast (d, 1);
     (void)dp_dll_steps (d, rx, 100 * sf * sps, sym, nper);
     const double aid = 2e-4;
     dp_dll_set_rate_aid (d, aid);

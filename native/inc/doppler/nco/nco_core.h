@@ -127,7 +127,7 @@ extern "C"
    * fold serving two dimensions; one cast can likewise serve two boundary
    * conventions. The cost of the private home was not hypothetical: a file
    * that already owned "the conversion" locally grew a SECOND one beside
-   * it -- `resamp_execute_ctrl_push`'s `(uint32_t)(frac * 2^32 + 0.5)` --
+   * it -- `dp_resamp_execute_ctrl_push`'s `(uint32_t)(frac * 2^32 + 0.5)` --
    * whose rounding could carry past 2^32 into the undefined cast, stalling
    * the interpolator for any composite rate in (1.0, 1.0 + 1.16e-10]. A
    * Doppler ramp crosses that window at closest approach, and it cost a

@@ -21,17 +21,17 @@ A CADU arrives as channel symbols and a caller wants frames. Between those two
 points sit four stages, and only one of them is arithmetic anybody argues
 about:
 
-| stage          | what it needs                                          | exists?                             |
-| -------------- | ------------------------------------------------------ | ----------------------------------- |
-| soft demapping | per-bit LLRs from the constellation                    | `mpsk_soft_demap`                   |
-| node sync      | which symbol starts a `(C1, C2)` pair                  | `node_sync_scan` (§9 of viterbi.md) |
-| inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | `dp_viterbi_decode`                 |
-| ASM search     | the marker in the **decoded** bits, and its complement | `ccsds_tm_asm_find`                 |
-| derandomise    | XOR the sequence the link chose (10.4.1 or 10.4.2)     | involutive — the same call          |
-| outer decode   | R-S (255,223) E = 16, de-interleaved                   | `ccsds_tm_rs_decode_block`          |
+| stage          | what it needs                                          | exists?                                |
+| -------------- | ------------------------------------------------------ | -------------------------------------- |
+| soft demapping | per-bit LLRs from the constellation                    | `mpsk_soft_demap`                      |
+| node sync      | which symbol starts a `(C1, C2)` pair                  | `dp_node_sync_scan` (§9 of viterbi.md) |
+| inner decode   | soft-decision Viterbi, K = 7, r = 1/2                  | `dp_viterbi_decode`                    |
+| ASM search     | the marker in the **decoded** bits, and its complement | `dp_ccsds_tm_asm_find`                 |
+| derandomise    | XOR the sequence the link chose (10.4.1 or 10.4.2)     | involutive — the same call             |
+| outer decode   | R-S (255,223) E = 16, de-interleaved                   | `dp_ccsds_tm_rs_decode_block`          |
 
 Every row was a "no" when this table was written. They landed bottom-up in the
-order §7 gives, and the whole chain is `ccsds_tm_frame_decode`.
+order §7 gives, and the whole chain is `dp_ccsds_tm_frame_decode`.
 
 The order is not the encoder's reversed, and the reason is the ASM: it is
 inserted *third* on transmit and covered by the inner code, so a receiver must
@@ -93,7 +93,7 @@ ______________________________________________________________________
 ## 4. What the prototype settled about the CHAIN
 
 Throwaway, in scratch, **not committed**. It decoded symbols dumped from the
-**shipped** `conv_encode` rather than from a re-derivation of it, so every
+**shipped** `dp_conv_encode` rather than from a re-derivation of it, so every
 number below is measured against the encoder that will be on the other end.
 
 The decoder's own results — that the trellis reproduces the shipped encoder,
@@ -278,7 +278,7 @@ ______________________________________________________________________
     `E+1` — checked at three configurations. See
     [Reed-Solomon](reed-solomon.md).
 
-1. **`ccsds_tm_frame_decode`** — the chain, mirroring `ccsds_tm_frame_encode`'s spans,
+1. **`dp_ccsds_tm_frame_decode`** — the chain, mirroring `dp_ccsds_tm_frame_encode`'s spans,
     with the ASM search resolving polarity.
 
 1. **Coding gain, through the harness that already exists — DONE**, and §8
@@ -323,7 +323,7 @@ randomiser 131.0-B-6 makes the default (10.4.1, the 131071-bit sequence):
 **The gain is quoted as a lower bound, and the bound is the run length rather
 than the code.** Zero errors is not a rate, so the harness takes the exact
 95 % upper limit on the BER from zero errors in 410 320 bits
-(`ber_confidence`), asks what Eb/N0 an uncoded link would have needed to reach
+(`dp_ber_confidence`), asks what Eb/N0 an uncoded link would have needed to reach
 it (`ber_esn0_db_for_ser`, the library's own closed form inverted), and
 subtracts the Eb/N0 this link actually ran at:
 
@@ -426,7 +426,7 @@ including the two points where nothing synchronised at all: **zero**.
 
 It was the harness's job for exactly one measurement.
 [#834](https://github.com/doppler-dsp/doppler/issues/834) is closed: `conv`
-owns it now (`node_sync_score` / `node_sync_scan`,
+owns it now (`dp_node_sync_score` / `dp_node_sync_scan`,
 [The Viterbi Decoder](viterbi.md) §9), it uses §3's re-encoding metric rather
 than the marker correlation the harness had improvised, and it is scored over
 a WINDOW because a slip ends an alignment's validity. Swapping the harness

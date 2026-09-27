@@ -89,7 +89,7 @@ ______________________________________________________________________
 | the suppression window that follows an emitted burst | telemetry about a consumer's estimates           |
 
 `burst_len` is a **construction parameter**, and that is the point of the
-split. `acq_create_burst()` takes search parameters only and has no notion of
+split. `dp_acq_create_burst()` takes search parameters only and has no notion of
 how long a burst is; teaching acquisition frame geometry to support refine
 would be wrong. For a capture the burst length IS the parameter, because it
 is what gets captured — and it is what sizes the retention.
@@ -143,7 +143,7 @@ of any repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), at `fs`
 ([#1470](https://github.com/doppler-dsp/doppler/issues/1470)). A PN code is one
 such preamble -- its chips by `bin_to_nrz()`, each held `spc` samples, at
 `fs = chip_rate · spc` -- and `DsssBurstReceiver` builds it that way from the
-code it is given. The engine is `acq_create_burst()`. Nothing downstream of
+code it is given. The engine is `dp_acq_create_burst()`. Nothing downstream of
 it reads chips: the ring, CLAIM, refine's Doppler cells and the window all
 work in periods and samples.
 
@@ -179,8 +179,8 @@ size_t dp_burst_capture_events (dp_burst_capture_state_t *, size_t n,
                              burst_capture_event_t *out, size_t max_out);
 
 /* The C consumer's face: borrow, do not copy. */
-size_t burst_capture_ready  (const dp_burst_capture_state_t *);
-const float complex *burst_capture_window (const dp_burst_capture_state_t *,
+size_t dp_burst_capture_ready  (const dp_burst_capture_state_t *);
+const float complex *dp_burst_capture_window (const dp_burst_capture_state_t *,
                                            size_t i);
 ```
 
@@ -206,7 +206,7 @@ bursts is not something that capacity promises.
 
 So each emitted window is copied once into a grow-on-demand scratch, and both
 faces read from there: `push()` copies scratch → the caller's buffer, and
-`burst_capture_window()` borrows the scratch. A composing object therefore
+`dp_burst_capture_window()` borrows the scratch. A composing object therefore
 pays **one memcpy per burst** and no more.
 
 That is a real cost and it is named here rather than buried: it is one copy

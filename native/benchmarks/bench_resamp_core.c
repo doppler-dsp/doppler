@@ -39,10 +39,10 @@ main (void)
   for (size_t i = 0; i < maxblock; i++)
     in[i] = CMPLXF (1.0f, 0.0f);
 
-  resamp_state_t *probe   = resamp_create (1.0001);
-  size_t          nphases = resamp_get_num_phases (probe);
-  size_t          ntaps   = resamp_get_num_taps (probe);
-  resamp_destroy (probe);
+  resamp_state_t *probe   = dp_resamp_create (1.0001);
+  size_t          nphases = dp_resamp_get_num_phases (probe);
+  size_t          ntaps   = dp_resamp_get_num_taps (probe);
+  dp_resamp_destroy (probe);
 
   jm_bench_t bench = { 0 };
 
@@ -66,7 +66,7 @@ main (void)
           size_t max_out
               = (rate >= 1.0) ? (size_t)(block * rate + 16) : block + 16;
 
-          resamp_state_t *obj = resamp_create (rate);
+          resamp_state_t *obj = dp_resamp_create (rate);
           if (!obj)
             continue;
 
@@ -75,13 +75,13 @@ main (void)
 
           /* warmup */
           for (int i = 0; i < 4; i++)
-            resamp_execute (obj, in, block, out, max_out);
+            dp_resamp_execute (obj, in, block, out, max_out);
 
           for (int rep = 0; rep < ITERATIONS; rep++)
             {
               t0 = jm_bench_now_ns ();
               for (int i = 0; i < iters; i++)
-                resamp_execute (obj, in, block, out, max_out);
+                dp_resamp_execute (obj, in, block, out, max_out);
               t1         = jm_bench_now_ns ();
               times[rep] = jm_bench_elapsed_sec (t0, t1);
             }
@@ -98,7 +98,7 @@ main (void)
           printf ("  block=%-8zu  %8.1f MSa/s\n", block,
                   (double)TOTAL_PER_ROUND / mean / 1e6);
 
-          resamp_destroy (obj);
+          dp_resamp_destroy (obj);
         }
       printf ("\n");
     }

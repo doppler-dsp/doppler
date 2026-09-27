@@ -113,7 +113,7 @@ because "the sync word is too short at this Es/N0" and "the demodulator is
 making bit errors" are different repairs.
 
 `FrameMeter` stops on an ERROR target for the same reason `BerMeter` does, and
-that is not cosmetic: it hands back `ber_confidence`'s exact interval, which is
+that is not cosmetic: it hands back `dp_ber_confidence`'s exact interval, which is
 the inverse-binomial one. Using it under a fixed-frame-count rule would be the
 wrong sampling model.
 

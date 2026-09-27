@@ -2,14 +2,14 @@
 #
 # doppler#900. `Viterbi` accepts any rate-1/n code and, until this, Python
 # could produce symbols for exactly one of them: CCSDS's, and only inside a
-# `FrameDesc`, because that path's stage kinds bind to `ccsds_tm_frame_ops`
+# `FrameDesc`, because that path's stage kinds bind to `dp_ccsds_tm_frame_ops`
 # and carry a depth rather than a polynomial. Nothing in the library exposed
 # an `encode()` at all.
 #
 # The same split `viterbi` established: `conv` owns the CODE — the
-# description, the trellis arithmetic and the `conv_encode` kernel — and this
+# description, the trellis arithmetic and the `dp_conv_encode` kernel — and this
 # owns the stateful ENCODER built over one. It is not a second
-# implementation; `dp_conv_enc_encode` calls `conv_encode`.
+# implementation; `dp_conv_enc_encode` calls `dp_conv_encode`.
 #
 # Opaque heap state (the code, plus the shift register that must carry across
 # calls) so no_state/no_step; the register is running state, hence
@@ -56,6 +56,6 @@ name = "encode"
 arg_type = "uint8_t"
 return_type = "uint8_t"
 variable_output = true
-# The kernel is told its write limit — `conv_encode` already takes max_out
+# The kernel is told its write limit — `dp_conv_encode` already takes max_out
 # and refuses rather than truncating (jm gh-138).
 pass_capacity = true

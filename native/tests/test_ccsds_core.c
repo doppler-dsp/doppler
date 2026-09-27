@@ -6,9 +6,9 @@
  * the one with nothing checking it. An object has had this file since the
  * beginning.
  *
- * `asm_bits` is an alias over `ccsds_tm_asm_bits`, and the pattern itself is
- * held to the published figure by test_ccsds_tm_asm. What is checked HERE is
- * the thing an alias can get wrong on its own: that the marker survives the
+ * `asm_bits` is an alias over `dp_ccsds_tm_asm_bits`, and the pattern itself
+ * is held to the published figure by test_ccsds_tm_asm. What is checked HERE
+ * is the thing an alias can get wrong on its own: that the marker survives the
  * hop to this face byte for byte, in the same bit order, with all 32 written.
  */
 #include "dp_test.h"
@@ -47,7 +47,7 @@ main (void)
     memset (here, 0xAA, sizeof here);
     memset (there, 0x55, sizeof there);
     dp_asm_bits (here);
-    ccsds_tm_asm_bits (there);
+    dp_ccsds_tm_asm_bits (there);
     /* The whole reason this is a call and not a constant: two expansions
        of 0x1ACFFC1D can disagree, and a receiver that disagrees with the
        assembler syncs to nothing. Assert they cannot. */

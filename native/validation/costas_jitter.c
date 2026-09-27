@@ -67,7 +67,7 @@ disc_var (double snr, dp_awgn_state_t *g, float *nb, long n)
   dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
   dp_awgn_reset (g);
   dp_costas_state_t s;
-  costas_init (&s, 1e-9, 0.707, 0.0, 1, 0.0);
+  dp_costas_init (&s, 1e-9, 0.707, 0.0, 1, 0.0);
   long   have = 0, pos = 0;
   double m = 0, m2 = 0;
   for (long k = 0; k < n; k++)
@@ -95,7 +95,7 @@ phase_var (double snr, double bn, dp_awgn_state_t *g, float *nb, long n)
   dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
   dp_awgn_reset (g);
   dp_costas_state_t s;
-  costas_init (&s, bn, 0.707, 0.0, 1, 0.0);
+  dp_costas_init (&s, bn, 0.707, 0.0, 1, 0.0);
   long   have = 0, pos = 0, warm = n / 4;
   double m = 0, m2 = 0;
   for (long k = 0; k < n; k++)
@@ -130,7 +130,7 @@ main (int argc, char **argv)
   int              fail  = 0;
 
   dp_costas_state_t s;
-  costas_init (&s, 0.02, 0.707, 0.0, 1, 0.0);
+  dp_costas_init (&s, 0.02, 0.707, 0.0, 1, 0.0);
   double gain = noise_gain (s.lf.kp, s.lf.ki);
   printf ("Costas phase jitter  (tsamps=1, bn=0.02, noise gain G=%.4f)\n",
           gain);

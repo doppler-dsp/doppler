@@ -47,27 +47,27 @@ main (void)
    * are typos, and a codec that accepts them produces a code nobody else has.
    */
   {
-    DP_CHECK (conv_code_valid (&CCSDS));
+    DP_CHECK (dp_conv_code_valid (&CCSDS));
     conv_code_t bad = CCSDS;
     bad.k           = 1u;
-    DP_CHECK_MSG (!conv_code_valid (&bad), "k < 2 is not a code");
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "k < 2 is not a code");
     bad   = CCSDS;
     bad.k = CONV_K_MAX + 1u;
-    DP_CHECK (!conv_code_valid (&bad));
+    DP_CHECK (!dp_conv_code_valid (&bad));
     bad   = CCSDS;
     bad.n = 0u;
-    DP_CHECK (!conv_code_valid (&bad));
+    DP_CHECK (!dp_conv_code_valid (&bad));
     bad   = CCSDS;
     bad.n = CONV_N_MAX + 1u;
-    DP_CHECK (!conv_code_valid (&bad));
+    DP_CHECK (!dp_conv_code_valid (&bad));
     bad         = CCSDS;
     bad.poly[1] = 0u;
-    DP_CHECK_MSG (!conv_code_valid (&bad), "a zero polynomial is a typo");
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "a zero polynomial is a typo");
     bad         = CCSDS;
     bad.poly[0] = 1u << CCSDS.k; /* one bit too wide */
-    DP_CHECK_MSG (!conv_code_valid (&bad),
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad),
                   "a polynomial wider than k lost its alignment");
-    DP_CHECK (!conv_code_valid (NULL));
+    DP_CHECK (!dp_conv_code_valid (NULL));
     DP_CHECK (conv_states (&CCSDS) == 64u);
   }
 
@@ -94,8 +94,8 @@ main (void)
         uint8_t            in[CONV_K_MAX] = { 1u };
         uint8_t            out[CONV_K_MAX * CONV_N_MAX];
         conv_enc_t         e;
-        conv_enc_init (&e);
-        const size_t got = conv_encode (&e, c, in, c->k, out, sizeof out);
+        dp_conv_enc_init (&e);
+        const size_t got = dp_conv_encode (&e, c, in, c->k, out, sizeof out);
         DP_REQUIRE (got == (size_t)c->k * c->n);
 
         for (unsigned j = 0; j < c->n; j++)
@@ -115,21 +115,21 @@ main (void)
       }
   }
 
-  /* ── 2b. conv_outputs and conv_next_state, the two the trellis is built
+  /* ── 2b. dp_conv_outputs and conv_next_state, the two the trellis is built
    *      from — and which nothing here had ever called ─────────────────────
    *
-   * The file docstring calls `conv_outputs` "the only place that says what
+   * The file docstring calls `dp_conv_outputs` "the only place that says what
    * this family of codes emits", and the register convention "load-bearing"
    * — a trellis derived the other way round is self-consistent and decodes
    * nothing a conforming encoder produced. Both were exercised only THROUGH
-   * `conv_encode`, which is the caller that happens to agree with them; a
+   * `dp_conv_encode`, which is the caller that happens to agree with them; a
    * user building a trellis (which is what `dp_viterbi_create` does, and what
    * anyone extending this must do) reads them directly.
    *
-   * So: run the description BY HAND — `conv_outputs` for the symbols,
+   * So: run the description BY HAND — `dp_conv_outputs` for the symbols,
    * `conv_next_state` for the state — and require the result to equal what
-   * `conv_encode` produced for the same bits. Two independent expressions of
-   * the same code, which is what the docstring claims this file pins.
+   * `dp_conv_encode` produced for the same bits. Two independent expressions
+   * of the same code, which is what the docstring claims this file pins.
    */
   {
     enum
@@ -152,18 +152,18 @@ main (void)
           in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
         conv_enc_t e;
-        conv_enc_init (&e);
-        const size_t ns = conv_encode (&e, c, in, N, sym, sizeof sym);
+        dp_conv_enc_init (&e);
+        const size_t ns = dp_conv_encode (&e, c, in, N, sym, sizeof sym);
         DP_REQUIRE (ns == (size_t)N * c->n);
 
-        /* The hand-run trellis. It starts where conv_enc_init does — the
+        /* The hand-run trellis. It starts where dp_conv_enc_init does — the
            all-zero state — which is the only thing this borrows from the
            encoder. */
         uint32_t state = 0u;
         int      same  = 1;
         for (int i = 0; i < N; i++)
           {
-            const unsigned w = conv_outputs (c, state, in[i]);
+            const unsigned w = dp_conv_outputs (c, state, in[i]);
             for (unsigned j = 0; j < c->n; j++)
               {
                 /* Output j is BIT j of the word and the j-th symbol emitted
@@ -175,8 +175,8 @@ main (void)
             state = conv_next_state (c, state, in[i]);
           }
         DP_CHECK_MSG (same,
-                      "the trellis run by hand from conv_outputs and "
-                      "conv_next_state must reproduce conv_encode exactly");
+                      "the trellis run by hand from dp_conv_outputs and "
+                      "conv_next_state must reproduce dp_conv_encode exactly");
 
         /* And the state is genuinely the k-1 previous inputs, newest in the
            high stage — read back rather than inferred, because this is the
@@ -207,12 +207,13 @@ main (void)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
     conv_enc_t s;
-    conv_enc_init (&s);
-    conv_encode (&s, &CCSDS, in, N, whole, sizeof whole);
+    dp_conv_enc_init (&s);
+    dp_conv_encode (&s, &CCSDS, in, N, whole, sizeof whole);
 
-    conv_enc_init (&s);
-    conv_encode (&s, &CCSDS, in, 37, split, 74);
-    conv_encode (&s, &CCSDS, in + 37, N - 37, split + 74, sizeof split - 74);
+    dp_conv_enc_init (&s);
+    dp_conv_encode (&s, &CCSDS, in, 37, split, 74);
+    dp_conv_encode (&s, &CCSDS, in + 37, N - 37, split + 74,
+                    sizeof split - 74);
     DP_CHECK_MSG (memcmp (whole, split, 2u * N) == 0,
                   "chunked encoding must equal one call");
   }
@@ -224,11 +225,11 @@ main (void)
     conv_code_t bad = CCSDS;
     bad.poly[0]     = 0u;
 
-    conv_enc_init (&e);
+    dp_conv_enc_init (&e);
     memset (out, 0xAA, sizeof out);
-    DP_CHECK_MSG (conv_encode (&e, &bad, in, 8, out, sizeof out) == 0,
+    DP_CHECK_MSG (dp_conv_encode (&e, &bad, in, 8, out, sizeof out) == 0,
                   "an invalid code must refuse");
-    DP_CHECK_MSG (conv_encode (&e, &CCSDS, in, 8, out, 15) == 0,
+    DP_CHECK_MSG (dp_conv_encode (&e, &CCSDS, in, 8, out, 15) == 0,
                   "one symbol short of the output must refuse");
     for (size_t i = 0; i < sizeof out; i++)
       DP_CHECK (out[i] == 0xAAu);

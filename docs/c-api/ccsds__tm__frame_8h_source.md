@@ -49,11 +49,11 @@ extern "C"
     ccsds_tm_frame_span_t inner;
   } ccsds_tm_frame_layout_t;
 
-  size_t ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg,
+  size_t dp_ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg,
                                size_t              frame_len,
                            ccsds_tm_frame_layout_t *out);
 
-  size_t ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg,
+  size_t dp_ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg,
                                conv_enc_t               *conv,
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
@@ -67,12 +67,12 @@ extern "C"
     unsigned rs_symbols;   
   } ccsds_tm_frame_rx_t;
 
-  size_t ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg,
+  size_t dp_ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg,
                                const uint8_t            *cadu,
                            size_t n_cadu, uint8_t *frame, size_t max_frame,
                            ccsds_tm_frame_rx_t *rx);
 
-  int ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
+  int dp_ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
                                size_t frame_len, const uint8_t *frame_bits,
                                wfm_frame_desc_t *out);
 
@@ -95,10 +95,10 @@ extern "C"
     unsigned interleave_unit_bits;
   } ccsds_tm_frame_spec_t;
 
-  int ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,
+  int dp_ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,
                               wfm_frame_desc_t *d);
 
-  void ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
+  void dp_ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
 
 #ifdef __cplusplus
 }

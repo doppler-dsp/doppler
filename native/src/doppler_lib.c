@@ -5,7 +5,7 @@
 #include "doppler/version.h"
 
 const char *
-doppler_version (void)
+dp_doppler_version (void)
 {
   return DOPPLER_VERSION;
 }

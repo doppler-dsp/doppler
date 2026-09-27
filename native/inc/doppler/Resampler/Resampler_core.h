@@ -41,7 +41,7 @@ extern "C"
    * The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop
    * normalised cutoffs. Pass rate >= 1.0 to interpolate (upsample);
    * pass rate < 1.0 to decimate (downsample). For a custom bank use
-   * Resampler_create_custom() instead.
+   * dp_Resampler_create_custom() instead.
    *
    * @param rate  Output-to-input sample rate ratio (any positive float).
    *              Values >= 1.0 interpolate; values < 1.0 decimate.
@@ -68,7 +68,7 @@ extern "C"
    * @param rate        Initial resample ratio.
    * @return Non-NULL on success, NULL on invalid args or OOM.
    */
-  dp_Resampler_state_t *Resampler_create_custom (size_t num_phases,
+  dp_Resampler_state_t *dp_Resampler_create_custom (size_t num_phases,
                                               size_t num_taps,
                                               const float *bank,
                                               double rate);
@@ -253,7 +253,7 @@ extern "C"
    * @brief Group delay of the interpolator, in input samples.
    *
    * The prototype's centre plus the one input the pipeline holds back
-   * (resamp_get_delay()): output `k` carries the input at
+   * (dp_resamp_get_delay()): output `k` carries the input at
    * `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
    *
    * @code

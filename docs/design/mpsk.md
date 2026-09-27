@@ -185,7 +185,7 @@ with the wires named.
 ```mermaid
 flowchart TB
     X(["x — one input sample"])
-    FE["front end<br/>ddc_execute_ctrl_push_tap2()<br/>LO · MIX · DEC · AGC · MFR"]
+    FE["front end<br/>dp_ddc_execute_ctrl_push_tap2()<br/>LO · MIX · DEC · AGC · MFR"]
     X --> FE
 
     FE -->|"zpre, n_pre"| PMI["mpsk_rx_push_mf_in()"]
@@ -576,7 +576,7 @@ it reads ~1.0 at lock for every M.
 **Normalization — the detector divides out its own amplitude law.** Both
 outputs are normalized by `|z|^M`: the lock signal is `Re((z/|z|)^M)` and the
 phase error is `Im((z/|z|)^M)`. This is the same rule the timing detector
-follows — a TED normalizes by its own slope (`symsync_ted_slope()`) — applied
+follows — a TED normalizes by its own slope (`dp_symsync_ted_slope()`) — applied
 to its sibling. A discriminator's raw output is the phase error multiplied by
 things it did not choose, and amplitude is the largest of them: `Im(z^M)`
 scales as `A^M`, so a 2× level error is 4× loop gain at BPSK and **256×** at
@@ -1152,7 +1152,7 @@ Gardner:  S(tau) = sum_k g(tau-1/2-k) * [ g(tau-k) - g(tau-1-k) ]
 DTTL:     S(tau) = g(tau-1/2) - g(tau+1/2)
 ```
 
-`symsync_ted_slope()` evaluates `|dS/dtau|` at the lock point and the loop
+`dp_symsync_ted_slope()` evaluates `|dS/dtau|` at the lock point and the loop
 stores its **reciprocal**, so the hot path is one multiply. Validated against
 the slope measured open-loop through a real HB + matched cascade: Gardner
 within 1.3–8.6% across roll-off 0.1…0.9, DTTL within **0.2%**. The rectangle
@@ -1357,7 +1357,7 @@ it. `get_m_out`, `get_zeta`, `get_num_phases`, `get_lock_thresh` and
     reason is structural: the fs/4 shift is **embedded in the R2C halfband's
     coefficients**, so the down-conversion is free and the LO only removes the
     *residual* offset from `fs/4`. That is what
-    `ddcr_create_matched(-(2·init_norm_freq + 0.5))` says — the `+0.5` is the
+    `dp_ddcr_create_matched(-(2·init_norm_freq + 0.5))` says — the `+0.5` is the
     filter's shift, so `init_norm_freq = 0.25` tunes the LO to exactly zero.
     Every worked example in the header uses `0.25`.
 
@@ -1383,7 +1383,7 @@ it. `get_m_out`, `get_zeta`, `get_num_phases`, `get_lock_thresh` and
 !!! warning "The real twin's `m_out` rule contradicted the constructor it feeds"
 
     This section previously gave the real twin `min(8, 2·floor(sps/4))`. That
-    rule yields a value `mpsk_receiver_create_real()` **rejects** at exactly the
+    rule yields a value `dp_mpsk_receiver_create_real()` **rejects** at exactly the
     rates where deriving would help most: `sps = 8` yields 4 (needs `8 > 8`)
     and `sps = 16` yields 8 (needs `16 > 16`), against its `sps > 2·m_out`
     constraint — Ddcr needs a decimation ratio below 0.5.
@@ -1892,7 +1892,7 @@ one:
 ```toml
 [[mpsk_receiver.views.methods]]
 name   = "steps"
-fn     = "mpsk_receiver_steps_real"
+fn     = "dp_mpsk_receiver_steps_real"
 params = [{ name = "x", type = "float[]" }]
 ```
 

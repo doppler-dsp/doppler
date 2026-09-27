@@ -4,7 +4,7 @@
  *
  * Two execute paths:
  *
- *   resamp_execute — dual-mode:
+ *   dp_resamp_execute — dual-mode:
  *     - Interpolation (rate >= 1): output-driven, one NCO tick per
  *       output sample, overflow pushes the next input into the delay
  *       line.
@@ -15,7 +15,7 @@
  *       to produce one output.  Bank coefficients are pre-scaled by
  *       rate so the passband gain is unity.
  *
- *   resamp_execute_ctrl — unified, and it rides the INTERPOLATOR at every
+ *   dp_resamp_execute_ctrl — unified, and it rides the INTERPOLATOR at every
  *     rate: emit at every tick, and load an input when the accumulator
  *     fails to advance (`u(k) <= u(k-1)`). The steered rate `rate +
  *     ctrl(i)` sets the step; whole input intervals per output are owed
@@ -37,14 +37,14 @@
  *
  * Default constructor builds a 4096-phase × 19-tap Kaiser bank
  * (60 dB rejection, 0.4/0.6 pass/stop) at first call.  Use
- * resamp_create_custom() to supply your own bank.
+ * dp_resamp_create_custom() to supply your own bank.
  *
  * Lifecycle:
  * @code
- *   resamp_state_t *r = resamp_create(0.5);
+ *   resamp_state_t *r = dp_resamp_create(0.5);
  *   float _Complex out[64];
- *   size_t n = resamp_execute(r, in, 128, out, 64);
- *   resamp_destroy(r);
+ *   size_t n = dp_resamp_execute(r, in, 128, out, 64);
+ *   dp_resamp_destroy(r);
  * @endcode
  */
 #ifndef RESAMP_CORE_H
@@ -106,19 +106,19 @@ extern "C"
    * ------------------------------------------------------------------ */
 
   /** Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop). */
-  resamp_state_t *resamp_create (double rate);
+  resamp_state_t *dp_resamp_create (double rate);
 
   /** User-supplied bank, shape num_phases × num_taps, row-major.
    *  num_phases must be a power of two. */
-  resamp_state_t *resamp_create_custom (size_t num_phases, size_t num_taps,
+  resamp_state_t *dp_resamp_create_custom (size_t num_phases, size_t num_taps,
                                         const float *bank, double rate);
 
   /** Free all resources.  NULL is a no-op. */
-  void resamp_destroy (resamp_state_t *state);
+  void dp_resamp_destroy (resamp_state_t *state);
 
   /** Zero phase accumulator, ctrl accumulator, and delay line.
    *  Rate and bank are preserved. */
-  void resamp_reset (resamp_state_t *state);
+  void dp_resamp_reset (resamp_state_t *state);
 
   /* Serializable state (standard bytes interface; see dp_state.h): after the
    * envelope, the polyphase phase, the fractional ctrl accumulator, the
@@ -130,20 +130,20 @@ extern "C"
    * so a v1 blob is rejected by the envelope rather than misread. */
   /* Floor on the composite rate `rate + ctrl`.  Not a policy about what the
    * bank filters well -- it is what keeps the reciprocal in
-   * resamp_execute_ctrl_push() defined.  Small enough that no real steer
+   * dp_resamp_execute_ctrl_push() defined.  Small enough that no real steer
    * reaches it. */
 #define RESAMP_CTRL_RATE_MIN 1e-6
 
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
 #define RESAMP_STATE_VERSION 2u
 
-  /** @brief Bytes resamp_get_state() writes for @p state (envelope + payload). */
-  size_t resamp_state_bytes (const resamp_state_t *state);
+  /** @brief Bytes dp_resamp_get_state() writes for @p state (envelope + payload). */
+  size_t dp_resamp_state_bytes (const resamp_state_t *state);
   /** @brief Serialize @p state's mutable state into @p blob. */
-  void resamp_get_state (const resamp_state_t *state, void *blob);
+  void dp_resamp_get_state (const resamp_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob (same rate).
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
-  int resamp_set_state (resamp_state_t *state, const void *blob);
+  int dp_resamp_set_state (resamp_state_t *state, const void *blob);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -159,14 +159,14 @@ extern "C"
    * @param max_out  Capacity of out in samples.
    * @return Number of output samples written.
    */
-  size_t resamp_execute (resamp_state_t *state, const float _Complex *in,
+  size_t dp_resamp_execute (resamp_state_t *state, const float _Complex *in,
                          size_t num_in, float _Complex *out, size_t max_out);
 
   /**
    * @brief Resample with per-sample additive rate deviation.
    *
    * rate_i = base_rate + `ctrl[i]`.    The control is real-valued and
-   * double-precision, matching resamp_execute_ctrl_push()'s scalar `ctrl`
+   * double-precision, matching dp_resamp_execute_ctrl_push()'s scalar `ctrl`
    * and the `double` the base rate itself is configured in.
    *
    * Output buffer: allocate ceil(num_in × (rate + max_ctrl)) samples.
@@ -179,7 +179,7 @@ extern "C"
    * @param max_out  Capacity of out in samples.
    * @return Number of output samples written.
    */
-  size_t resamp_execute_ctrl (resamp_state_t *state, const float _Complex *in,
+  size_t dp_resamp_execute_ctrl (resamp_state_t *state, const float _Complex *in,
                               const double *ctrl, size_t num_in,
                               float _Complex *out, size_t max_out);
 
@@ -195,7 +195,7 @@ extern "C"
    *
    * Exact at EVERY rate, not only at an integer interpolation factor, and a
    * caller may rely on it: generate precisely this many inputs, hand them to
-   * resamp_interp_fill(), and there is no over- or under-production. The
+   * dp_resamp_interp_fill(), and there is no over- or under-production. The
    * guarantee is structural rather than numeric — this closed form and the
    * fill loop advance the same accumulator by the same `phase_inc`, so they
    * cannot disagree whatever the rate, and mid-stream phase is carried in
@@ -208,15 +208,15 @@ extern "C"
    * matches the fill because both USE phase_inc, not because it is exact.)
    *
    * Meaningful only for an upsampling resampler (rate >= 1) — the prediction
-   * still matches what resamp_interp_fill() consumes below unity, but that
-   * entry point interpolates, so a decimating caller wants resamp_execute().
+   * still matches what dp_resamp_interp_fill() consumes below unity, but that
+   * entry point interpolates, so a decimating caller wants dp_resamp_execute().
    *
    * @param state    Must be non-NULL, upsampling.
-   * @param max_out  Number of outputs the following resamp_interp_fill() call
+   * @param max_out  Number of outputs the following dp_resamp_interp_fill() call
    *                 will request.
    * @return Inputs that call will consume.
    */
-  size_t resamp_interp_inputs_needed (const resamp_state_t *state,
+  size_t dp_resamp_interp_inputs_needed (const resamp_state_t *state,
                                       size_t max_out);
 
   /**
@@ -224,11 +224,11 @@ extern "C"
    * overflow.
    *
    * The output-count-driven twin of the interpolation branch of
-   * resamp_execute(): it emits one output per phase tick and pushes the next
-   * input on each NCO overflow, but — unlike resamp_execute(), whose loop halts
+   * dp_resamp_execute(): it emits one output per phase tick and pushes the next
+   * input on each NCO overflow, but — unlike dp_resamp_execute(), whose loop halts
    * as soon as the input is exhausted even with output capacity left — it always
    * writes @p max_out outputs. The caller must therefore supply at least
-   * resamp_interp_inputs_needed(state, max_out) inputs in @p in; supplying
+   * dp_resamp_interp_inputs_needed(state, max_out) inputs in @p in; supplying
    * exactly that many (the common case) consumes them all. This is what lets a
    * streaming producer (e.g. a pulse-shaping synth) feed symbols on demand and
    * get a bit-exact match between a single call for @p max_out outputs and
@@ -238,9 +238,9 @@ extern "C"
    * @param in       Inputs to push on overflow (>= inputs_needed available).
    * @param out      Output buffer, capacity >= @p max_out.
    * @param max_out  Number of outputs to emit.
-   * @return Inputs consumed (== resamp_interp_inputs_needed(state, max_out)).
+   * @return Inputs consumed (== dp_resamp_interp_inputs_needed(state, max_out)).
    */
-  size_t resamp_interp_fill (resamp_state_t *state, const float _Complex *in,
+  size_t dp_resamp_interp_fill (resamp_state_t *state, const float _Complex *in,
                              float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
@@ -250,7 +250,7 @@ extern "C"
   /**
    * @brief Push one input at an instantaneous rate deviation; emit any outputs.
    *
-   * The single-input streaming form of resamp_execute_ctrl(): OFFERS @p x to
+   * The single-input streaming form of dp_resamp_execute_ctrl(): OFFERS @p x to
    * the delay line, advances the accumulator by `rate + ctrl`, and emits
    * every output whose period completes (0 for a decimator between strobes,
    * 1 typically, or several for an interpolator) at the polyphase arm the
@@ -258,7 +258,7 @@ extern "C"
    *
    * **The scalar and block forms are INDISTINGUISHABLE.** Feeding a stream
    * one sample at a time through here yields the same outputs, in the same
-   * number, bit-for-bit, as one resamp_execute_ctrl() over the same
+   * number, bit-for-bit, as one dp_resamp_execute_ctrl() over the same
    * `(in, ctrl[])`. Not "close" and not "one sample of delay apart": the
    * same. A caller chooses between them for control flow — the block form
    * when `ctrl[]` is known in advance, this one when each correction
@@ -278,7 +278,7 @@ extern "C"
    * `ctrl_ahead` covers the one case the API cannot decline — @p max_out
    * ending the call before any tick could ask for the offered sample.
    * Feeding a stream of `(x, ctrl)` through this one input at a time reproduces
-   * resamp_execute_ctrl() on the same `(in, ctrl[])` bit-for-bit — but, unlike
+   * dp_resamp_execute_ctrl() on the same `(in, ctrl[])` bit-for-bit — but, unlike
    * the block form's precomputed `ctrl[]`, `ctrl` here can depend on the
    * outputs already emitted. That closes the loop: a timing-recovery or
    * rate-tracking loop reads each emitted output, computes its correction, and
@@ -294,7 +294,7 @@ extern "C"
    * @param max_out  Capacity of @p out (emission stops at this bound).
    * @return Number of outputs emitted into @p out (0, 1, or more).
    */
-  size_t resamp_execute_ctrl_push (resamp_state_t *state, float _Complex x,
+  size_t dp_resamp_execute_ctrl_push (resamp_state_t *state, float _Complex x,
                                    double ctrl, float _Complex *out,
                                    size_t max_out);
 
@@ -302,15 +302,15 @@ extern "C"
    * Properties
    * ------------------------------------------------------------------ */
 
-  double resamp_get_rate (const resamp_state_t *state);
+  double dp_resamp_get_rate (const resamp_state_t *state);
 
   /** Update rate and recompute phase_inc.  Accumulator phase and delay
    *  line are preserved.  Switching between interp and decim modes
    *  requires a new create() + destroy() pair. */
-  void resamp_set_rate (resamp_state_t *state, double rate);
+  void dp_resamp_set_rate (resamp_state_t *state, double rate);
 
-  size_t resamp_get_num_phases (const resamp_state_t *state);
-  size_t resamp_get_num_taps (const resamp_state_t *state);
+  size_t dp_resamp_get_num_phases (const resamp_state_t *state);
+  size_t dp_resamp_get_num_taps (const resamp_state_t *state);
 
   /** @brief Group delay of the interpolator, in INPUT samples.
    *
@@ -331,13 +331,13 @@ extern "C"
    *  and a loop started at the input's phase without it is this far from the
    *  peak (doppler-dsp/doppler#1189: 5 chips at 2 samples per chip, onto a
    *  Gold sidelobe). Closed-form from the bank's geometry, so it is exact
-   *  for the built-in bank; a resamp_create_custom() bank is assumed
+   *  for the built-in bank; a dp_resamp_create_custom() bank is assumed
    *  symmetric about the same centre.
    *
    *  @param state  Must be non-NULL.
    *  @return       The delay in input samples (`>= 1`).
    */
-  double resamp_get_delay (const resamp_state_t *state);
+  double dp_resamp_get_delay (const resamp_state_t *state);
 
   /** @brief The control accumulator's fractional phase, in [0, 1).
    *
@@ -348,7 +348,7 @@ extern "C"
    *  read — the accumulator advances after the emit, so on return it already
    *  describes the output still to come. That holds at EVERY rate, because
    *  the control port rides the interpolating structure at every rate (see
-   *  resamp_execute_ctrl); it is not a peculiarity of a decimating stage.
+   *  dp_resamp_execute_ctrl); it is not a peculiarity of a decimating stage.
    *
    *  A steady `mu` means the loop has settled on a sampling phase. A `mu`
    *  that slews and wraps means a residual RATE error the loop has not
@@ -356,13 +356,13 @@ extern "C"
    *  output period only at rate 1, where the two coincide.
    *
    *  Reports the CONTROL accumulator, so it stays 0.0 for a caller driving
-   *  this object through resamp_execute(): the free-running phase is a
+   *  this object through dp_resamp_execute(): the free-running phase is a
    *  separate accumulator with no accessor.
    *
    *  Pinned by test_resamp_core.c §10 (the arm, read off the output at four
    *  rates), §11 (the wrap's unit, against the counting law) and §12.
    */
-  double resamp_get_ctrl_acc (const resamp_state_t *state);
+  double dp_resamp_get_ctrl_acc (const resamp_state_t *state);
 
   /**
    * @brief The resampler's response to a constant input, from its own bank.
@@ -392,12 +392,12 @@ extern "C"
    *         pulse's own `sum(h)/sum(h^2)` and is not expected to be 1.
    *
    * @code
-   * resamp_state_t *r = resamp_create (0.5);
-   * printf ("%.3f\n", resamp_dc_gain (r));   // 1.000
-   * resamp_destroy (r);
+   * resamp_state_t *r = dp_resamp_create (0.5);
+   * printf ("%.3f\n", dp_resamp_dc_gain (r));   // 1.000
+   * dp_resamp_destroy (r);
    * @endcode
    */
-  double resamp_dc_gain (const resamp_state_t *state);
+  double dp_resamp_dc_gain (const resamp_state_t *state);
 
 #ifdef __cplusplus
 }

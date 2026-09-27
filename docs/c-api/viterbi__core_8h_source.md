@@ -60,11 +60,11 @@ size_t dp_viterbi_decode(dp_viterbi_state_t *state, const float *in, size_t n_in
  * `serializable` flag generates the PYTHON side over it).
  */
 
-dp_viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
+dp_viterbi_state_t *dp_viterbi_create_code (const conv_code_t *c, size_t depth);
 
-const conv_code_t *viterbi_code (const dp_viterbi_state_t *s);
+const conv_code_t *dp_viterbi_code (const dp_viterbi_state_t *s);
 
-size_t viterbi_depth (const dp_viterbi_state_t *s);
+size_t dp_viterbi_depth (const dp_viterbi_state_t *s);
 
 /* ── node synchronization ────────────────────────────────────────────── */
 
@@ -77,11 +77,11 @@ typedef struct
   size_t   margin;  
 } node_sync_t;
 
-size_t node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
+size_t dp_node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
 
-size_t node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
+size_t dp_node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
 
-int node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
+int dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
                     node_sync_t *out);
 
 /* ── the state bytes interface ───────────────────────────────────────────

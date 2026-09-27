@@ -212,7 +212,7 @@ typedef struct
                            acq's code_phase is a residue of, so every epoch
                            ambiguity in this object is stated against it.  */
   size_t burst_len;   /**< Samples in one emitted window. Acquisition has
-                           no notion of this -- acq_create_burst() takes
+                           no notion of this -- dp_acq_create_burst() takes
                            search parameters only -- which is exactly why it
                            is a parameter HERE: for a capture, the burst
                            length is what gets captured.                   */
@@ -239,7 +239,7 @@ typedef struct
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  double _Complex *cell_buf; /**< Refine's cells: acq_cell_corr_grid() of
+  double _Complex *cell_buf; /**< Refine's cells: dp_acq_cell_corr_grid() of
                                  every candidate preamble POSITION (one code
                                  period each) at every Doppler cell inside
                                  the detecting engine's bin, position-major,
@@ -347,7 +347,7 @@ typedef struct
    * derived capacity does not promise. The cost is one memcpy per BURST,
    * not per sample, which is a different order of magnitude from the copy
    * §6.1 weighs (that one is the whole stream). It is also what lets a C
-   * consumer borrow a window through burst_capture_window() and hand it
+   * consumer borrow a window through dp_burst_capture_window() and hand it
    * onward with no further copy. */
   burst_capture_detection_t *det;     /**< Raw hits of the LAST push -- what
                                            the SEARCH found, before the claim
@@ -559,7 +559,7 @@ dp_burst_capture_state_t *dp_burst_capture_create (
  * True
  * @endcode
  */
-dp_burst_capture_state_t *burst_capture_create_backed (
+dp_burst_capture_state_t *dp_burst_capture_create_backed (
     const char *path, const float _Complex *preamble, size_t preamble_len,
     size_t burst_len, size_t reps, double fs, double cn0_dbhz,
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
@@ -687,10 +687,10 @@ size_t dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
  * @brief Windows the last push() completed.
  *
  * The C consumer's face, and the reason a composing object pays no second
- * copy: burst_capture_window() borrows straight out of the scratch that
+ * copy: dp_burst_capture_window() borrows straight out of the scratch that
  * push() filled.
  */
-size_t burst_capture_ready (const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_ready (const dp_burst_capture_state_t *state);
 
 /**
  * @brief Borrow window @p i of the last push(), or NULL if out of range.
@@ -698,12 +698,12 @@ size_t burst_capture_ready (const dp_burst_capture_state_t *state);
  * Contiguous, `burst_len` samples, valid until the next push(), reset() or
  * set_state(). The caller must not free it.
  */
-const float _Complex *burst_capture_window (const dp_burst_capture_state_t *state,
+const float _Complex *dp_burst_capture_window (const dp_burst_capture_state_t *state,
                                            size_t i);
 
 /** @brief Borrow event @p i of the last push(), or NULL if out of range. */
 const burst_capture_event_t *
-burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
+dp_burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
 
 /**
  * @brief Give back the span that window @p i of the last push() claimed.
@@ -807,7 +807,7 @@ double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state)
  * report §2.8). Until doppler#1519 it also lost a code phase along the ZC
  * delay-Doppler ridge and fell 0.026 short at 0.9. */
 double dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state);
-/** @brief The preamble's peak sidelobe level, dB: acq_psl_db() of the
+/** @brief The preamble's peak sidelobe level, dB: dp_acq_psl_db() of the
  *         engine. A burst clearing the threshold by more than `-psl_db`
  *         also detects its own sidelobe, outside the peak zone; -INFINITY
  *         for a perfect sequence. */

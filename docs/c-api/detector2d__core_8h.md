@@ -66,14 +66,14 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**detector2d\_set\_ref**](#function-detector2d_set_ref) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference image and recompute its spectrum._  |
-|  void | [**detector2d\_set\_threshold**](#function-detector2d_set_threshold) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, float threshold) <br>_Change threshold without rebuilding._  |
 |  [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* | [**dp\_detector2d\_create**](#function-dp_detector2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**dp\_detector\_create()**_](detector__core_8h.md#function-dp_detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
 |  void | [**dp\_detector2d\_destroy**](#function-dp_detector2d_destroy) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Destroy and free._  |
 |  void | [**dp\_detector2d\_get\_state**](#function-dp_detector2d_get_state) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_detector2d\_push**](#function-dp_detector2d_push) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the 2-D detector. Identical to_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _except frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._ |
 |  void | [**dp\_detector2d\_reset**](#function-dp_detector2d_reset) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._  |
+|  int | [**dp\_detector2d\_set\_ref**](#function-dp_detector2d_set_ref) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference image and recompute its spectrum._  |
 |  int | [**dp\_detector2d\_set\_state**](#function-dp_detector2d_set_state) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const void \* blob) <br> |
+|  void | [**dp\_detector2d\_set\_threshold**](#function-dp_detector2d_set_threshold) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, float threshold) <br>_Change threshold without rebuilding._  |
 |  size\_t | [**dp\_detector2d\_state\_bytes**](#function-dp_detector2d_state_bytes) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br> |
 
 
@@ -160,74 +160,6 @@ enum det_noise_mode_t {
 <hr>
 ## Public Functions Documentation
 
-
-
-
-### function detector2d\_set\_ref 
-
-_Replace the reference image and recompute its spectrum._ 
-```C++
-int detector2d_set_ref (
-    dp_detector2d_state_t * state,
-    const float _Complex * ref
-) 
-```
-
-
-
-Always resets (ring, corr2d accumulator, last-dump bookkeeping), even if the new reference is subsequently rejected. The new reference must have the same ny\*nx total size; see [**corr2d\_set\_ref()**](corr2d__core_8h.md#function-corr2d_set_ref) for the single-row-fast- path rejection rule this forwards.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `ref` New reference, flat row-major CF32, length ny\*nx. 
-
-
-
-**Returns:**
-
-0 on success, -1 if rejected by [**corr2d\_set\_ref()**](corr2d__core_8h.md#function-corr2d_set_ref). 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function detector2d\_set\_threshold 
-
-_Change threshold without rebuilding._ 
-```C++
-void detector2d_set_threshold (
-    dp_detector2d_state_t * state,
-    float threshold
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `threshold` New threshold; 0.0 = always fire. 
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -422,6 +354,45 @@ void dp_detector2d_reset (
 
 
 
+### function dp\_detector2d\_set\_ref 
+
+_Replace the reference image and recompute its spectrum._ 
+```C++
+int dp_detector2d_set_ref (
+    dp_detector2d_state_t * state,
+    const float _Complex * ref
+) 
+```
+
+
+
+Always resets (ring, corr2d accumulator, last-dump bookkeeping), even if the new reference is subsequently rejected. The new reference must have the same ny\*nx total size; see [**dp\_corr2d\_set\_ref()**](corr2d__core_8h.md#function-dp_corr2d_set_ref) for the single-row-fast- path rejection rule this forwards.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ref` New reference, flat row-major CF32, length ny\*nx. 
+
+
+
+**Returns:**
+
+0 on success, -1 if rejected by [**dp\_corr2d\_set\_ref()**](corr2d__core_8h.md#function-dp_corr2d_set_ref). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_detector2d\_set\_state 
 
 ```C++
@@ -433,6 +404,35 @@ int dp_detector2d_set_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_detector2d\_set\_threshold 
+
+_Change threshold without rebuilding._ 
+```C++
+void dp_detector2d_set_threshold (
+    dp_detector2d_state_t * state,
+    float threshold
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `threshold` New threshold; 0.0 = always fire. 
+
+
+
+
+        
 
 <hr>
 

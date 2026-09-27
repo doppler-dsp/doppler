@@ -100,12 +100,12 @@ static inline float _Complex r2_compute_output (
      complex magnitude comes out at A/2 without this -- 6 dB the real path
      loses and nothing downstream restores, which a timing detector's A^2
      slope then turns into a 4x under-driven loop. The complex sibling
-     (hbdecim_dc_gain(): 2*sum(h) + 0.5) is unity; this now matches it. */
+     (dp_hbdecim_dc_gain(): 2*sum(h) + 0.5) is unity; this now matches it. */
   return CMPLXF (2.0f * ri, 2.0f * rq);
 }
 
 hbdecim_r2c_state_t *
-hbdecim_r2c_create (size_t num_taps, const float *h)
+dp_hbdecim_r2c_create (size_t num_taps, const float *h)
 {
   if (!num_taps || !h)
     return NULL;
@@ -151,7 +151,7 @@ fail:
 }
 
 void
-hbdecim_r2c_destroy (hbdecim_r2c_state_t *r)
+dp_hbdecim_r2c_destroy (hbdecim_r2c_state_t *r)
 {
   if (!r)
     return;
@@ -162,7 +162,7 @@ hbdecim_r2c_destroy (hbdecim_r2c_state_t *r)
 }
 
 void
-hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
+dp_hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
 {
   r->even_head   = 0;
   r->odd_head    = 0;
@@ -177,18 +177,18 @@ hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
  * dual-write delay rings (2*even_cap floats each). */
 
 size_t
-hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r)
+dp_hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r)
 {
   return sizeof (dp_state_hdr_t) + 2 * sizeof (size_t) + 2 * sizeof (int)
          + sizeof (float) + 2 * (2 * r->even_cap * sizeof (float));
 }
 
 void
-hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob)
+dp_hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, hbdecim_r2c_state_bytes (r));
+  dp_writer_t w = dp_writer_init (blob, dp_hbdecim_r2c_state_bytes (r));
   dp_w_hdr (&w, HBDECIM_R2C_STATE_MAGIC, HBDECIM_R2C_STATE_VERSION,
-            hbdecim_r2c_state_bytes (r));
+            dp_hbdecim_r2c_state_bytes (r));
   dp_w_bytes (&w, &r->even_head, sizeof (size_t));
   dp_w_bytes (&w, &r->odd_head, sizeof (size_t));
   dp_w_bytes (&w, &r->has_pending, sizeof (int));
@@ -199,14 +199,14 @@ hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob)
 }
 
 int
-hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
+dp_hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
 {
   int rc
-      = dp_state_validate (blob, hbdecim_r2c_state_bytes (r),
+      = dp_state_validate (blob, dp_hbdecim_r2c_state_bytes (r),
                            HBDECIM_R2C_STATE_MAGIC, HBDECIM_R2C_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t rd = dp_reader_init (blob, hbdecim_r2c_state_bytes (r));
+  dp_reader_t rd = dp_reader_init (blob, dp_hbdecim_r2c_state_bytes (r));
   rd.off         = sizeof (dp_state_hdr_t);
   dp_r_bytes (&rd, &r->even_head, sizeof (size_t));
   dp_r_bytes (&rd, &r->odd_head, sizeof (size_t));
@@ -219,21 +219,21 @@ hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
 }
 
 double
-hbdecim_r2c_get_rate (const hbdecim_r2c_state_t *r)
+dp_hbdecim_r2c_get_rate (const hbdecim_r2c_state_t *r)
 {
   (void)r;
   return 0.5;
 }
 
 size_t
-hbdecim_r2c_get_num_taps (const hbdecim_r2c_state_t *r)
+dp_hbdecim_r2c_get_num_taps (const hbdecim_r2c_state_t *r)
 {
   return r->num_taps;
 }
 
 size_t
-hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in, size_t num_in,
-                     float _Complex *out, size_t max_out)
+dp_hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in, size_t num_in,
+                        float _Complex *out, size_t max_out)
 {
   if (!num_in || !max_out)
     return 0;

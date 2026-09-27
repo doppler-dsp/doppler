@@ -50,7 +50,7 @@ main (void)
   {
     dp_lo_state_t  s;
     volatile float sink = 0.0f;
-    lo_init (&s, 0.123);
+    dp_lo_init (&s, 0.123);
     for (int i = 0; i < 16; i++)
       sink += crealf (lo_step (&s)); /* warmup */
 

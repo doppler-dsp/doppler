@@ -283,7 +283,7 @@ the `(ny,nx)` `dp_fft2d_state_t` plans with a pair of length-`nx`/`nx_out`
 `dp_fft_state_t` 1-D plans and a length-`nx` `row_ref_spec` (replacing the
 full `(ny,nx)` `ref_spec` — smaller, not larger). `dp_corr2d_execute` branches
 on `state->fast_path` at the top; the general path is completely
-untouched. `corr2d_set_ref` now returns `int` (0/-1): on a fast-path
+untouched. `dp_corr2d_set_ref` now returns `int` (0/-1): on a fast-path
 object it rejects a subsequently-supplied non-single-row reference rather
 than silently truncating it — mode is fixed for the object's lifetime, not
 re-derived per call.
@@ -311,7 +311,7 @@ automatically (free regression coverage). Added: a brute-force dense-signal
 correctness check for *both* paths (existing coverage was impulse/shift-
 only, which passes through almost any correlator trivially); fast path +
 `nx_out` interpolation; the `ny_out > ny` fallback (asserts `fast_path==0`
-even for a single-row reference); `corr2d_set_ref` accept/reject; a
+even for a single-row reference); `dp_corr2d_set_ref` accept/reject; a
 fast-path state round-trip. Sanity-break-and-revert confirmed both eligibility
 conditions are load-bearing: forcing `fast_path=0` unconditionally left
 `acq`/`detector2d`/`DsssReceiver`'s own correctness tests passing (they

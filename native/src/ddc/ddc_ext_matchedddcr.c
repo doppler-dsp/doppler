@@ -64,8 +64,8 @@ MatchedDdcrObj_init (MatchedDdcrObject *self, PyObject *args, PyObject *kwds)
     }
   size_t span       = (size_t)span_raw;
   size_t num_phases = (size_t)num_phases_raw;
-  self->handle      = ddcr_create_matched (norm_freq, rate, pulse, beta, span,
-                                           pulse_sps, num_phases);
+  self->handle = dp_ddcr_create_matched (norm_freq, rate, pulse, beta, span,
+                                         pulse_sps, num_phases);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,

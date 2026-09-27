@@ -14,9 +14,9 @@
  *
  * Lifecycle:
  * @code
- *   hbdecim_r2c_state_t *r = hbdecim_r2c_create(num_taps, h);
- *   size_t n = hbdecim_r2c_execute(r, in, num_in, out, max_out);
- *   hbdecim_r2c_destroy(r);
+ *   hbdecim_r2c_state_t *r = dp_hbdecim_r2c_create(num_taps, h);
+ *   size_t n = dp_hbdecim_r2c_execute(r, in, num_in, out, max_out);
+ *   dp_hbdecim_r2c_destroy(r);
  * @endcode
  */
 
@@ -40,19 +40,19 @@ extern "C"
    * @param h         FIR coefficients, float32, length num_taps.
    * @return Non-NULL on success, NULL on invalid args or OOM.
    */
-  hbdecim_r2c_state_t *hbdecim_r2c_create (size_t num_taps, const float *h);
+  hbdecim_r2c_state_t *dp_hbdecim_r2c_create (size_t num_taps, const float *h);
 
   /** Free all resources.  NULL is a no-op. */
-  void hbdecim_r2c_destroy (hbdecim_r2c_state_t *r);
+  void dp_hbdecim_r2c_destroy (hbdecim_r2c_state_t *r);
 
   /** Zero history and output parity without freeing. */
-  void hbdecim_r2c_reset (hbdecim_r2c_state_t *r);
+  void dp_hbdecim_r2c_reset (hbdecim_r2c_state_t *r);
 
   /** Always returns 0.5. */
-  double hbdecim_r2c_get_rate (const hbdecim_r2c_state_t *r);
+  double dp_hbdecim_r2c_get_rate (const hbdecim_r2c_state_t *r);
 
-  /** Returns the FIR branch length passed to hbdecim_r2c_create. */
-  size_t hbdecim_r2c_get_num_taps (const hbdecim_r2c_state_t *r);
+  /** Returns the FIR branch length passed to dp_hbdecim_r2c_create. */
+  size_t dp_hbdecim_r2c_get_num_taps (const hbdecim_r2c_state_t *r);
 
   /**
    * @brief Decimate real float32 input by 2, producing CF32.
@@ -64,7 +64,7 @@ extern "C"
    * @param max_out  Capacity in samples.
    * @return Number of output samples written.
    */
-  size_t hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in,
+  size_t dp_hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in,
                               size_t num_in, float _Complex *out,
                               size_t max_out);
 
@@ -78,13 +78,13 @@ extern "C"
 #define HBDECIM_R2C_STATE_MAGIC DP_FOURCC ('H', 'B', 'R', '2')
 #define HBDECIM_R2C_STATE_VERSION 1u
 
-  /** @brief Bytes hbdecim_r2c_get_state() writes for @p r (envelope+payload). */
-  size_t hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r);
+  /** @brief Bytes dp_hbdecim_r2c_get_state() writes for @p r (envelope+payload). */
+  size_t dp_hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r);
   /** @brief Serialize @p r's mutable state into @p blob. */
-  void hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob);
+  void dp_hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob);
   /** @brief Restore mutable state from @p blob (same num_taps).
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
-  int hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob);
+  int dp_hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob);
 
 #ifdef __cplusplus
 }

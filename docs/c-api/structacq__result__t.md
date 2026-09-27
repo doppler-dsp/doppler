@@ -100,7 +100,7 @@ float acq_result_t::cn0_dbhz_est;
 
 
 
-Estimated carrier-to-noise density (dB-Hz), backed out of test\_stat via the same C/N0 &lt;-&gt; per-sample-amplitude-SNR relationship used to size the engine (see [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst)/ [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous)). Tracks the true C/N0 while receiver AWGN dominates the CFAR noise estimate; saturates at the code's own autocorrelation-sidelobe floor once the true C/N0 exceeds what this code/geometry can resolve — a real ceiling, not a fault. 
+Estimated carrier-to-noise density (dB-Hz), backed out of test\_stat via the same C/N0 &lt;-&gt; per-sample-amplitude-SNR relationship used to size the engine (see [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst)/ [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous)). Tracks the true C/N0 while receiver AWGN dominates the CFAR noise estimate; saturates at the code's own autocorrelation-sidelobe floor once the true C/N0 exceeds what this code/geometry can resolve — a real ceiling, not a fault. 
  
 
 

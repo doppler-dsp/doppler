@@ -54,7 +54,7 @@ extern "C"
    * @brief Boxcar moving-average state (cf32).
    *
    * Pointer-free POD. Allocate with dp_boxcar_create(), or embed by value and
-   * boxcar_init(). The accumulator and ring are internal; read `len`/`gain`
+   * dp_boxcar_init(). The accumulator and ring are internal; read `len`/`gain`
    * for the configured window and output gain.
    */
   typedef struct
@@ -121,7 +121,7 @@ extern "C"
    * @param len   Window length; clamped to `[1, BOXCAR_MAX_LEN]`.
    * @param gain  Output gain (folded into the averaging scale).
    */
-  void boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
+  void dp_boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
 
   /**
    * @brief Create a boxcar instance.

@@ -195,7 +195,7 @@ void dp_cic_reset(dp_cic_state_t *state);
  * against a caller who backs off perfectly, which no caller did.
  *
  * This changes only the encode/decode scale PAIR, never the normalising
- * shift, so the DC gain stays exactly one — see cic_dc_gain().
+ * shift, so the DC gain stays exactly one — see dp_cic_dc_gain().
  */
 #define CIC_PAPR_HEADROOM 2.0f
 
@@ -230,11 +230,11 @@ size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
  *
  * @code
  * dp_cic_state_t *c = dp_cic_create (32);
- * printf ("%.4f\n", cic_dc_gain (c));   // 1.0000
+ * printf ("%.4f\n", dp_cic_dc_gain (c));   // 1.0000
  * dp_cic_destroy (c);
  * @endcode
  */
-double cic_dc_gain(const dp_cic_state_t *state);
+double dp_cic_dc_gain(const dp_cic_state_t *state);
 
 /**
  * @brief Decimate a block of CF32 samples through the CIC pipeline.

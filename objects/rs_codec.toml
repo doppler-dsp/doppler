@@ -1,8 +1,8 @@
 # rs_codec — the Reed-Solomon codec, as an object.
 #
-# doppler#900 (2c), the third and last of the family slices. `rs_encode`,
-# `rs_syndromes` and `rs_codeword_ok` were reachable from Python only through
-# `FrameDesc.add_stage(kind=1)`, which binds to `ccsds_tm_frame_ops` and
+# doppler#900 (2c), the third and last of the family slices. `dp_rs_encode`,
+# `dp_rs_syndromes` and `dp_rs_codeword_ok` were reachable from Python only through
+# `FrameDesc.add_stage(kind=1)`, which binds to `dp_ccsds_tm_frame_ops` and
 # carries an interleaving depth rather than a code — so Python could run
 # exactly ONE Reed-Solomon code, CCSDS's, and only inside a frame.
 #
@@ -15,7 +15,7 @@
 # ## Why the component is not called `rs`
 #
 # jm derives a component's C names from its component name, so `[rs]` would
-# generate `rs_encode` — which already exists, is the kernel this wraps, and
+# generate `dp_rs_encode` — which already exists, is the kernel this wraps, and
 # would be redefined rather than called. `conv`/`conv_enc` is the same pair
 # for the same reason.
 #
@@ -35,7 +35,7 @@ no_step = "true"
 # counter, cursor or register beside them.
 no_reset = "true"
 class_name = "ReedSolomon"
-# A refused code is a bad ARGUMENT, not an allocation failure — `rs_init`
+# A refused code is a bad ARGUMENT, not an allocation failure — `dp_rs_init`
 # rejects a non-primitive field polynomial or a root stride sharing a factor
 # with n long before this reaches malloc (jm gh-482). Both produce arithmetic
 # that is entirely self-consistent, so a round trip cannot see either, which

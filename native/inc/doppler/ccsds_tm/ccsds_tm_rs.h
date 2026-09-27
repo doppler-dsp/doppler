@@ -8,7 +8,7 @@
  *
  * **The algebra is not here.** `rs/rs_core.h` owns the field, the encoder,
  * the syndromes and the Berlekamp-Massey / Chien / Forney decoder, for any
- * Reed-Solomon code; this file holds @ref CCSDS_TM_RS — the five numbers
+ * Reed-Solomon code; this file holds @ref dp_CCSDS_TM_RS — the five numbers
  * 131.0-B-3 picked — plus the two things the standard adds that are *not*
  * properties of the code: the **dual basis** symbols travel in (4.3.9) and
  * the **interleaver** (4.4.1). A standard choosing a code is a different
@@ -102,7 +102,7 @@ extern "C"
    * cannot choose, and the only kind of check a code with a matched decoder
    * cannot pass by agreeing with itself.
    */
-  extern const rs_code_t CCSDS_TM_RS;
+  extern const rs_code_t dp_CCSDS_TM_RS;
 
   /**
    * @brief Convert one symbol from the conventional basis to the dual basis.
@@ -111,18 +111,18 @@ extern "C"
    * `z0` in its most significant bit, because 4.3.9.2 fixes `z0` as the first
    * bit transmitted and this codebase writes MSB-first.
    */
-  uint8_t ccsds_tm_rs_conv_to_dual (uint8_t u);
+  uint8_t dp_ccsds_tm_rs_conv_to_dual (uint8_t u);
 
   /**
    * @brief Convert one symbol from the dual basis back to conventional.
    *
    * 4.3.9.3, second equation, and the test holds it to that matrix as
-   * printed. Exact inverse of @ref ccsds_tm_rs_conv_to_dual across all 256
+   * printed. Exact inverse of @ref dp_ccsds_tm_rs_conv_to_dual across all 256
    * values — but note that inversion ALONE catches only a single
    * mis-transcribed bit, never a wrong pair consistent with itself. The two
    * checks that separate those are described at the top of this file.
    */
-  uint8_t ccsds_tm_rs_dual_to_conv (uint8_t z);
+  uint8_t dp_ccsds_tm_rs_dual_to_conv (uint8_t z);
 
   /**
    * @brief The 33 coefficients of `g(x)`, in conventional representation.
@@ -134,7 +134,7 @@ extern "C"
    * @return Pointer to `CCSDS_TM_RS_2E + 1` bytes, valid for the process
    *         lifetime.
    */
-  const uint8_t *ccsds_tm_rs_generator (void);
+  const uint8_t *dp_ccsds_tm_rs_generator (void);
 
   /**
    * @brief Is this a valid codeword? — all 32 syndromes zero.
@@ -148,19 +148,19 @@ extern "C"
    *                  followed by 32 parity, exactly as transmitted.
    * @return Non-zero when every syndrome is zero.
    */
-  int ccsds_tm_rs_codeword_ok (const uint8_t *codeword);
+  int dp_ccsds_tm_rs_codeword_ok (const uint8_t *codeword);
 
   /**
    * @brief Correct up to `E = 16` symbol errors in one codeword, in place.
    *
-   * The decode is `rs_decode`'s; this transforms the codeword out of the
+   * The decode is `dp_rs_decode`'s; this transforms the codeword out of the
    * dual basis on the way in and back on the way out (4.3.9, figure F-1).
    * Correcting in the transmitted basis instead would produce a decoder that
    * repairs its own encoder's output perfectly and interoperates with
    * nothing — the same failure the field polynomial and the root stride each
    * offer, and the reason this transform is not optional.
    *
-   * It either refuses or returns a codeword; see `rs_decode` for what a
+   * It either refuses or returns a codeword; see `dp_rs_decode` for what a
    * refusal does and does not mean.
    *
    * @param codeword  255 symbols in the dual basis, corrected in place on
@@ -168,10 +168,10 @@ extern "C"
    * @return          Symbols corrected, 0 if the codeword was already valid,
    *                  or -1 if it could not be decoded.
    */
-  int ccsds_tm_rs_decode (uint8_t *codeword);
+  int dp_ccsds_tm_rs_decode (uint8_t *codeword);
 
   /**
-   * @brief What @ref ccsds_tm_rs_decode_block found in one codeblock.
+   * @brief What @ref dp_ccsds_tm_rs_decode_block found in one codeblock.
    *
    * `codewords - uncorrectable` is how many are good afterwards, and
    * @ref symbols is the repair work the outer code actually did — the
@@ -189,7 +189,7 @@ extern "C"
   /**
    * @brief Decode an interleaved codeblock in place (4.3.5, 4.4.1).
    *
-   * The mirror of @ref ccsds_tm_rs_encode_block, over the same S1/S2
+   * The mirror of @ref dp_ccsds_tm_rs_encode_block, over the same S1/S2
    * rotation —
    * written once, here, so the two directions cannot come to disagree about
    * which symbol belongs to which codeword. A rotated de-interleave is
@@ -205,7 +205,7 @@ extern "C"
    *               `CCSDS_TM_RS_K * depth`, or
    *               0 if @p depth is not allowed.
    */
-  size_t ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
+  size_t dp_ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
                               ccsds_tm_rs_block_rx_t *rx);
 
   /**
@@ -232,7 +232,7 @@ extern "C"
    *               symbols.
    * @return The number of symbols written, or 0 if @p depth is not allowed.
    */
-  size_t ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth,
+  size_t dp_ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth,
                               uint8_t *out);
 
   /**
@@ -245,7 +245,7 @@ extern "C"
    * @param info    223 information symbols, in transmission order.
    * @param parity  Receives 32 parity symbols, following the information.
    */
-  void ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity);
+  void dp_ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity);
 
 #ifdef __cplusplus
 }

@@ -17,7 +17,7 @@
  *
  * `wfm_frame.h` must not depend on `ccsds_tm` — this file depends on IT, to
  * get the descriptor — so the general assembler cannot call
- * `ccsds_tm_randomise` directly without the two components forming a cycle.
+ * `dp_ccsds_tm_randomise` directly without the two components forming a cycle.
  * The transforms are passed in as a table instead. That is a layering
  * requirement first and an extension point second, but it is a real one: a
  * caller with a stage doppler has never heard of supplies its own entry.
@@ -52,7 +52,7 @@ enum
  * A description carries a pointer to a field's bits, so the pattern needs a
  * home that outlives the call -- and it must not become a second
  * transcription of 0x1ACFFC1D, which is the whole reason
- * ccsds_tm_asm_bits() exists. Filled lazily, in the shape rs.c already uses
+ * dp_ccsds_tm_asm_bits() exists. Filled lazily, in the shape rs.c already uses
  * for its tables. */
 static uint8_t asm_pattern[CCSDS_TM_ASM_BITS];
 static int     asm_ready = 0;
@@ -62,7 +62,7 @@ marker_bits (void)
 {
   if (!asm_ready)
     {
-      ccsds_tm_asm_bits (asm_pattern);
+      dp_ccsds_tm_asm_bits (asm_pattern);
       asm_ready = 1;
     }
   return asm_pattern;
@@ -110,7 +110,7 @@ outer_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
   uint8_t info[CCSDS_TM_RS_K * CCSDS_TM_RS_MAX_DEPTH];
   uint8_t block[CCSDS_TM_RS_N * CCSDS_TM_RS_MAX_DEPTH];
   pack (bits, (size_t)CCSDS_TM_RS_K * st->depth, info);
-  if (ccsds_tm_rs_encode_block (info, st->depth, block) == 0)
+  if (dp_ccsds_tm_rs_encode_block (info, st->depth, block) == 0)
     return -1;
 
   /* The whole codeblock, not just the parity: 4.4.1 has S2 reassembling the
@@ -130,14 +130,14 @@ outer_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 static const ccsds_tm_rand_t *
 rand_choice (const wfm_stage_t *st)
 {
-  return (st->depth == 2u) ? &CCSDS_TM_RAND_LEGACY : &CCSDS_TM_RAND;
+  return (st->depth == 2u) ? &dp_CCSDS_TM_RAND_LEGACY : &dp_CCSDS_TM_RAND;
 }
 
 static int
 rand_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 {
   (void)user;
-  ccsds_tm_randomise_with (rand_choice (st), bits, n);
+  dp_ccsds_tm_randomise_with (rand_choice (st), bits, n);
   return 0;
 }
 
@@ -145,7 +145,7 @@ rand_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
  * stream, and the only one whose state outlives the frame: 3.3.2 fixes the
  * output as one uninterrupted symbol sequence, so the register belongs to the
  * caller and arrives as `user`. A NULL says "this frame stands alone" rather
- * than "I forgot", exactly as it does for ccsds_tm_frame_encode. */
+ * than "I forgot", exactly as it does for dp_ccsds_tm_frame_encode. */
 static size_t
 inner_emit (const wfm_stage_t *st, const uint8_t *in, size_t n, uint8_t *out,
             size_t max_out, void *user)
@@ -155,10 +155,10 @@ inner_emit (const wfm_stage_t *st, const uint8_t *in, size_t n, uint8_t *out,
   conv_enc_t *s = (conv_enc_t *)user;
   if (s == NULL)
     {
-      conv_enc_init (&own);
+      dp_conv_enc_init (&own);
       s = &own;
     }
-  return conv_encode (s, &CCSDS_TM_CONV, in, n, out, max_out);
+  return dp_conv_encode (s, &dp_CCSDS_TM_CONV, in, n, out, max_out);
 }
 
 /* ── the receive direction ────────────────────────────────────────────
@@ -186,7 +186,7 @@ outer_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
   pack (bits, (size_t)CCSDS_TM_RS_N * st->depth, block);
 
   ccsds_tm_rs_block_rx_t br;
-  if (ccsds_tm_rs_decode_block (block, st->depth, &br) == 0)
+  if (dp_ccsds_tm_rs_decode_block (block, st->depth, &br) == 0)
     return -1;
   unpack (block, (size_t)CCSDS_TM_RS_N * st->depth, bits);
 
@@ -208,7 +208,7 @@ rand_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
            wfm_frame_stage_rx_t *rx, void *user)
 {
   (void)user;
-  ccsds_tm_randomise_with (rand_choice (st), bits, n);
+  dp_ccsds_tm_randomise_with (rand_choice (st), bits, n);
   rx->units   = 1u;
   rx->ok      = 1u;
   rx->checked = 1;
@@ -227,7 +227,7 @@ static const wfm_stage_op_t OPS[] = {
 };
 
 void
-ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv)
+dp_ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv)
 {
   if (out == NULL)
     return;
@@ -237,15 +237,15 @@ ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv)
 }
 
 int
-ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
-                         const uint8_t *frame_bits, wfm_frame_desc_t *out)
+dp_ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
+                            const uint8_t *frame_bits, wfm_frame_desc_t *out)
 {
-  /* The refusals are ccsds_tm_frame_layout's, asked of it rather than
+  /* The refusals are dp_ccsds_tm_frame_layout's, asked of it rather than
      restated: an unallowed depth, an empty frame, or a frame off the
      223*I grid. A second copy of that rule is a second thing to get wrong,
      and this one would be wrong in the direction of describing a CADU the
      encoder refuses to build. */
-  if (out == NULL || ccsds_tm_frame_layout (cfg, frame_len, NULL) == 0)
+  if (out == NULL || dp_ccsds_tm_frame_layout (cfg, frame_len, NULL) == 0)
     return -1;
 
   memset (out, 0, sizeof *out);
@@ -300,7 +300,7 @@ ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
  * two hold one layout rather than each deriving one.
  */
 int
-ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
+dp_ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
 {
   if (!s || !d)
     return -1;
@@ -314,7 +314,7 @@ ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s, wfm_frame_desc_t *d)
   static uint8_t marker[CCSDS_TM_ASM_BITS];
   if (s->attach_asm)
     {
-      ccsds_tm_asm_bits (marker);
+      dp_ccsds_tm_asm_bits (marker);
       d->field[n].seq.kind = WFM_SEQ_LITERAL;
       d->field[n].seq.bits = marker;
       d->field[n].seq.len  = CCSDS_TM_ASM_BITS;

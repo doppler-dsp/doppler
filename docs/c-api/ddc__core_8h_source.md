@@ -39,7 +39,7 @@ extern "C"
 
 dp_ddc_state_t *dp_ddc_create(double norm_freq, double rate);
 
-  dp_ddc_state_t *ddc_create_matched (double norm_freq, double rate, int pulse,
+  dp_ddc_state_t *dp_ddc_create_matched (double norm_freq, double rate, int pulse,
                                    double beta, size_t span, double pulse_sps,
                                    size_t num_phases);
 
@@ -63,24 +63,24 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
                                 double rate_ctrl, double freq_ctrl,
                                 float _Complex *out, size_t max_out);
 
-  size_t ddc_execute_ctrl_push_tap (dp_ddc_state_t *state, float _Complex x,
+  size_t dp_ddc_execute_ctrl_push_tap (dp_ddc_state_t *state, float _Complex x,
                                     double rate_ctrl, double freq_ctrl,
                                     float _Complex *out, size_t max_out,
                                     float _Complex *lo_out, int *n_lo);
 
-  size_t ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *state, float _Complex x,
+  size_t dp_ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *state, float _Complex x,
                                      double rate_ctrl, double freq_ctrl,
                                      float _Complex *out, size_t max_out,
                                      float _Complex *lo_out, int *n_lo,
                                      float _Complex *pre_out, int *n_pre);
 
-  double ddc_get_bank_sps (const dp_ddc_state_t *state);
+  double dp_ddc_get_bank_sps (const dp_ddc_state_t *state);
 
   bool dp_ddc_get_narrow_pulse (const dp_ddc_state_t *state);
 
 bool dp_ddc_get_clipped(const dp_ddc_state_t *state);
 
-  int ddc_set_telemetry (dp_ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+  int dp_ddc_set_telemetry (dp_ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
                          uint32_t decim);
 
 size_t dp_ddc_execute_max_out(dp_ddc_state_t *state, size_t x_len);

@@ -30,21 +30,21 @@ Design and API, not restated here:
 
 ### Claim coverage — every prose claim in the header
 
-The campaign's order is header first. This table is the inventory that produced four new C sections: `conv_outputs` and `conv_next_state` had **zero** mentions, the LLR sign convention was pinned only against the test's own helper, `d_free` was an open unknown, and one claim was off by one.
+The campaign's order is header first. This table is the inventory that produced four new C sections: `dp_conv_outputs` and `conv_next_state` had **zero** mentions, the LLR sign convention was pinned only against the test's own helper, `d_free` was an open unknown, and one claim was off by one.
 
 **Two headers and two test files, since doppler#893.** `viterbi` became its own declared component, so the decoder's claims left `conv_core.h` for `viterbi_core.h` and its C sections left `test_conv_core.c` for `test_viterbi_core.c`, keeping their numbers. The `C section` column says which file each row is in. This report still covers both because the encoder and the decoder are only meaningful against each other -- a decoder matched to a wrong encoder decodes perfectly and interoperates with nothing -- but `viterbi` is owed a certification of its own, which is [#894](https://github.com/doppler-dsp/doppler/issues/894).
 
 | # | claim in the header | C section | here |
 |---|---|---|---|
-| C1 | `conv_outputs` is the one expression both directions read | §2b | F2 |
+| C1 | `dp_conv_outputs` is the one expression both directions read | §2b | F2 |
 | C2 | output `j` is bit `j` of the word and the `j`-th symbol emitted | §2b (NEW) | — |
 | C3 | `invert` bit `j` inverts output `j`; CCSDS inverts G2 | §2 | — |
 | C4 | a state IS the `k-1` previous inputs, newest in the high stage | §2b (NEW) | — |
 | C5 | polynomials are written as the standard writes them | §2 | — |
-| C6 | `conv_code_valid` refuses every out-of-range field | §1 | — |
+| C6 | `dp_conv_code_valid` refuses every out-of-range field | §1 | — |
 | C7 | `conv_states` is `2^(k-1)` | §1 | — |
 | C8 | the encoder is continuous across calls | §3 | — |
-| C9 | `conv_encode` refuses an invalid code or a short buffer, untouched | §7 | — |
+| C9 | `dp_conv_encode` refuses an invalid code or a short buffer, untouched | §7 | — |
 | C10 | positive LLR means symbol 0, agreeing with a hard slicer | viterbi §5b | — |
 | C11 | a positive scale cannot move the maximum-likelihood path | viterbi §5 | — |
 | C12 | `depth-1` branches are owed, then one bit per `n` symbols | viterbi §4, §5b | — |

@@ -8,7 +8,7 @@ class Resampler:
     """Create a Resampler with the built-in 4096×19 Kaiser bank. The bank
     provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs.
     Pass rate >= 1.0 to interpolate (upsample); pass rate < 1.0 to decimate
-    (downsample). For a custom bank use Resampler_create_custom() instead.
+    (downsample). For a custom bank use dp_Resampler_create_custom() instead.
 
     Parameters
     ----------
@@ -823,12 +823,12 @@ class RateConverter:
         The control-port form of dp_RateConverter_execute(): the fixed integer
         stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
         deviation ctrl is forwarded to the **terminal polyphase Resampler
-        stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
-        rate becomes `stage_rate + ctrl` for this call. This exposes the
-        fractional tail's control port that dp_RateConverter_execute() hides: a
-        timing/rate-tracking loop can decimate a high input rate cheaply
-        through the HB/CIC stages and then arbitrary-rate + strobe-align in the
-        last stage, updating ctrl per block.
+        stage's** accumulator (via dp_resamp_execute_ctrl_push) — so its
+        effective rate becomes `stage_rate + ctrl` for this call. This exposes
+        the fractional tail's control port that dp_RateConverter_execute()
+        hides: a timing/rate-tracking loop can decimate a high input rate
+        cheaply through the HB/CIC stages and then arbitrary-rate +
+        strobe-align in the last stage, updating ctrl per block.
 
         `ctrl` is referenced to the terminal stage's (post-decimation) rate,
         not the overall rate. It is meaningful only when the cascade actually
@@ -1207,12 +1207,12 @@ class MatchedRateConverter:
         The control-port form of dp_RateConverter_execute(): the fixed integer
         stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
         deviation ctrl is forwarded to the **terminal polyphase Resampler
-        stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
-        rate becomes `stage_rate + ctrl` for this call. This exposes the
-        fractional tail's control port that dp_RateConverter_execute() hides: a
-        timing/rate-tracking loop can decimate a high input rate cheaply
-        through the HB/CIC stages and then arbitrary-rate + strobe-align in the
-        last stage, updating ctrl per block.
+        stage's** accumulator (via dp_resamp_execute_ctrl_push) — so its
+        effective rate becomes `stage_rate + ctrl` for this call. This exposes
+        the fractional tail's control port that dp_RateConverter_execute()
+        hides: a timing/rate-tracking loop can decimate a high input rate
+        cheaply through the HB/CIC stages and then arbitrary-rate +
+        strobe-align in the last stage, updating ctrl per block.
 
         `ctrl` is referenced to the terminal stage's (post-decimation) rate,
         not the overall rate. It is meaningful only when the cascade actually
@@ -1988,7 +1988,8 @@ def kaiser_num_taps(
     Applies the Kaiser length formula to the per-phase normalised prototype
     (pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical
     length, then divides by num_phases to give taps per branch. The result
-    is the minimum num_taps argument to pass to Resampler_create_custom().
+    is the minimum num_taps argument to pass to
+    dp_Resampler_create_custom().
 
     Parameters
     ----------

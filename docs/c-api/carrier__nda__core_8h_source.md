@@ -134,7 +134,7 @@ extern "C"
      * the detector can divide that out, and it can do it exactly -- |z|^M is a
      * power of p for every M supported here, so it costs one divide and no
      * sqrt. This is the same rule the timing detector follows (a TED
-     * normalises by its own slope, symsync_ted_slope()), applied to its
+     * normalises by its own slope, dp_symsync_ted_slope()), applied to its
      * sibling.
      *
      * At |z| = 1 this is identical to the un-normalised form, so the S-curve
@@ -210,7 +210,7 @@ extern "C"
     *lock = ql * ql - 4.0f * qe * qe; /* Re((z/|z|)^8)     */
   }
 
-  void carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
+  void dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
                          double init_norm_freq, size_t sps, int n, int m);
 
   JM_FORCEINLINE JM_HOT float _Complex
@@ -260,7 +260,7 @@ extern "C"
 
   void dp_carrier_nda_reset (dp_carrier_nda_state_t *state);
 
-  void carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s);
+  void dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s);
 
   int dp_carrier_nda_set_telemetry (dp_carrier_nda_state_t *state, dp_tlm_t *tlm,
                                  const char *prefix, uint32_t decim);
@@ -289,7 +289,7 @@ extern "C"
   size_t dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
                             size_t x_len, float _Complex *out, size_t max_out);
   double dp_carrier_nda_get_norm_freq (const dp_carrier_nda_state_t *state);
-  double carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state);
+  double dp_carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state);
   void   dp_carrier_nda_set_norm_freq (dp_carrier_nda_state_t *state, double val);
   double dp_carrier_nda_get_lock (const dp_carrier_nda_state_t *state);
   double dp_carrier_nda_get_last_error (const dp_carrier_nda_state_t *state);

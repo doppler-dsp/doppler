@@ -25,7 +25,7 @@ int
 main (void)
 {
   uint8_t marker[CCSDS_TM_ASM_BITS];
-  ccsds_tm_asm_bits (marker);
+  dp_ccsds_tm_asm_bits (marker);
 
   /* ── 1. the marker is the published constant, MSB-first ───────────────── */
   {
@@ -55,7 +55,7 @@ main (void)
         uint8_t            bits[N] = { 0 };
         ccsds_tm_asm_hit_t hit     = { 999u, -1, 999u };
         memcpy (bits + at, marker, sizeof marker);
-        DP_REQUIRE (ccsds_tm_asm_find (bits, N, 0u, &hit));
+        DP_REQUIRE (dp_ccsds_tm_asm_find (bits, N, 0u, &hit));
         DP_CHECK_MSG (hit.offset == at,
                       "the marker must be found where it is");
         DP_CHECK (hit.errors == 0u && hit.inverted == 0);
@@ -68,7 +68,7 @@ main (void)
     uint8_t            bits[N] = { 0 };
     ccsds_tm_asm_hit_t hit     = { 999u, -1, 999u };
     memcpy (bits + (N - CCSDS_TM_ASM_BITS), marker, sizeof marker);
-    DP_REQUIRE_MSG (ccsds_tm_asm_find (bits, N, 0u, &hit),
+    DP_REQUIRE_MSG (dp_ccsds_tm_asm_find (bits, N, 0u, &hit),
                     "a marker at the last possible offset must be found");
     DP_CHECK (hit.offset == N - CCSDS_TM_ASM_BITS);
   }
@@ -92,7 +92,7 @@ main (void)
       bits[i] = 1u; /* the complement of the zero background */
     for (unsigned i = 0; i < CCSDS_TM_ASM_BITS; i++)
       bits[64 + i] = (uint8_t)(marker[i] ^ 1u);
-    DP_REQUIRE (ccsds_tm_asm_find (bits, N, 0u, &hit));
+    DP_REQUIRE (dp_ccsds_tm_asm_find (bits, N, 0u, &hit));
     DP_CHECK (hit.offset == 64u && hit.errors == 0u);
     DP_CHECK_MSG (hit.inverted, "an inverted marker must report its polarity");
   }
@@ -116,9 +116,9 @@ main (void)
     bits[32 + 29] ^= 1u;
 
     ccsds_tm_asm_hit_t hit = { 999u, -1, 999u };
-    DP_CHECK_MSG (!ccsds_tm_asm_find (bits, N, 2u, &hit),
+    DP_CHECK_MSG (!dp_ccsds_tm_asm_find (bits, N, 2u, &hit),
                   "three errors must not be found at a tolerance of two");
-    DP_REQUIRE (ccsds_tm_asm_find (bits, N, 3u, &hit));
+    DP_REQUIRE (dp_ccsds_tm_asm_find (bits, N, 3u, &hit));
     DP_CHECK (hit.offset == 32u && hit.errors == 3u && hit.inverted == 0);
   }
 
@@ -152,7 +152,7 @@ main (void)
       bits[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
     ccsds_tm_asm_hit_t hit = { 999u, -1, 999u };
-    DP_CHECK_MSG (!ccsds_tm_asm_find (bits, N, 2u, &hit),
+    DP_CHECK_MSG (!dp_ccsds_tm_asm_find (bits, N, 2u, &hit),
                   "random data must not produce a sync hit");
   }
 
@@ -186,7 +186,7 @@ main (void)
     bits[FIRST + 27] ^= 1u;
     memcpy (bits + BEST, marker, sizeof marker);
 
-    DP_REQUIRE (ccsds_tm_asm_find (bits, N, 3u, &hit));
+    DP_REQUIRE (dp_ccsds_tm_asm_find (bits, N, 3u, &hit));
     DP_CHECK_MSG (hit.offset == FIRST,
                   "the FIRST marker within tolerance wins, even though a "
                   "cleaner one follows it");
@@ -198,7 +198,7 @@ main (void)
        ranking. Without this, a search hard-wired to return offset FIRST
        would satisfy the check above. */
     hit.offset = 999u;
-    DP_REQUIRE (ccsds_tm_asm_find (bits, N, 2u, &hit));
+    DP_REQUIRE (dp_ccsds_tm_asm_find (bits, N, 2u, &hit));
     DP_CHECK_MSG (hit.offset == BEST && hit.errors == 0u,
                   "at a tighter tolerance the later clean marker is the "
                   "first one that qualifies");
@@ -208,7 +208,7 @@ main (void)
   {
     uint8_t            bits[CCSDS_TM_ASM_BITS - 1] = { 0 };
     ccsds_tm_asm_hit_t hit                         = { 999u, -1, 999u };
-    DP_CHECK_MSG (!ccsds_tm_asm_find (bits, sizeof bits, 32u, &hit),
+    DP_CHECK_MSG (!dp_ccsds_tm_asm_find (bits, sizeof bits, 32u, &hit),
                   "a run shorter than the marker cannot contain one");
     DP_CHECK_MSG (hit.offset == 999u,
                   "a miss must leave the caller's hit untouched");

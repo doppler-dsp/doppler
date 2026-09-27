@@ -11,22 +11,22 @@ extern "C"
   typedef struct pocketfft_plan pocketfft_plan;
 
   /* Create 1D plan */
-  pocketfft_plan *pocketfft_plan_1d (size_t n, int sign);
+  pocketfft_plan *dp_pocketfft_plan_1d (size_t n, int sign);
 
   /* Create 2D plan */
-  pocketfft_plan *pocketfft_plan_2d (size_t ny, size_t nx, int sign);
+  pocketfft_plan *dp_pocketfft_plan_2d (size_t ny, size_t nx, int sign);
 
   /*
    * Execute 1D/2D.  in/out must point to an array of interleaved double
    * pairs (real, imag) — i.e. double _Complex[] in C, std::complex<double>[]
    * in C++.  Using void* keeps the header valid in both languages.
    */
-  void pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out);
-  void pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in,
+  void dp_pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out);
+  void dp_pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in,
                                   void *out);
 
-  void pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out);
-  void pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in,
+  void dp_pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out);
+  void dp_pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in,
                                   void *out);
 
   /*
@@ -37,12 +37,12 @@ extern "C"
    * read, so there is no separate conversion pass.  Native-float (PFFFT) on
    * supported sizes, else promote-to-double pocketfft.
    */
-  void pocketfft_execute_1d_ci16 (pocketfft_plan *p, const void *in,
+  void dp_pocketfft_execute_1d_ci16 (pocketfft_plan *p, const void *in,
                                   void *out);
-  void pocketfft_execute_1d_ci8 (pocketfft_plan *p, const void *in, void *out);
+  void dp_pocketfft_execute_1d_ci8 (pocketfft_plan *p, const void *in, void *out);
 
   /* Destroy plan */
-  void pocketfft_destroy_plan (pocketfft_plan *p);
+  void dp_pocketfft_destroy_plan (pocketfft_plan *p);
 
 #ifdef __cplusplus
 }

@@ -142,9 +142,9 @@ static dp_acq_state_t *
 engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
 {
   size_t          W = epochs ? epochs : code_only_epochs_for (chip_rate);
-  dp_acq_state_t *a = acq_create_continuous (code, SF, SPC, chip_rate,
-                                             SYMBOL_RATE, SIZING_CN0, DU, pfa,
-                                             PD, 0, W, epochs ? 0.0 : RATE);
+  dp_acq_state_t *a = dp_acq_create_continuous (
+      code, SF, SPC, chip_rate, SYMBOL_RATE, SIZING_CN0, DU, pfa, PD, 0, W,
+      epochs ? 0.0 : RATE);
   if (a)
     a->keep_surface = 1;
   return a;
@@ -333,7 +333,7 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
   if (cn0_dbhz > 0.0)
     {
       dp_awgn_state_t *g = dp_awgn_create (
-          seed * 7919u + 1u, awgn_amplitude_for_snr (
+          seed * 7919u + 1u, dp_awgn_amplitude_for_snr (
                                  (float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
       float complex *nz = dp_xmalloc (blk * sizeof *nz);
       dp_awgn_generate (g, blk, nz, blk);
@@ -369,11 +369,11 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
                                              .code_phase  = a->peak_col };
   acq_handoff_t ho;
   DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
-  acq_build_handoff (a, &h, SF, SPC, &ho);
+  dp_acq_build_handoff (a, &h, SF, SPC, &ho);
   out->doppler_hz_est = ho.doppler_hz_est;
   out->chip_raw       = ho.chip_phase;
   DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
-  acq_build_handoff (a, &h, SF, SPC, &ho);
+  dp_acq_build_handoff (a, &h, SF, SPC, &ho);
   out->chip_adv = ho.chip_phase;
   DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
   free (s);
@@ -410,7 +410,7 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
   DP_REQUIRE_MSG (ch != NULL, "the channel opens");
   dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
-      awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
+      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
   const size_t   cap = dp_doppler_channel_execute_max_out (ch);
   float complex *in  = dp_xmalloc (nx * sizeof *in);
   float complex *tmp = dp_xmalloc (cap * sizeof *tmp);
@@ -430,7 +430,7 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
       for (size_t h = 0; h < nh; h++)
         {
           acq_handoff_t ho;
-          acq_build_handoff (a, &hit[h], SF, SPC, &ho);
+          dp_acq_build_handoff (a, &hit[h], SF, SPC, &ho);
           const double err = fabs (ho.doppler_hz_est - hz);
           (*n_hits)++;
           if (err > 0.5 * span)

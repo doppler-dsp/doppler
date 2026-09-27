@@ -37,7 +37,7 @@ The campaign's order is header first. This table is the inventory that produced 
 |---|---|---|---|
 | C1 | one description; encoder, checker and decoder cannot disagree | §2, §2b, §3b | §2.3 |
 | C2 | point it at any code a caller brings — DVB, RS(15,11) | §1b | F1 |
-| C3 | `field_poly` must be primitive, and `rs_init` refuses | §1, §1b | — |
+| C3 | `field_poly` must be primitive, and `dp_rs_init` refuses | §1, §1b | — |
 | C4 | `gcd(root_stride, n) = 1`, or the code corrects fewer errors | §1, §1c (NEW) | — |
 | C5 | symbols are packed one per byte, top bits clear at `J < 8` | §3c (NEW) | — |
 | C6 | `k` information then `nroots` parity; index `i` carries `x^(n-1-i)` | §2b (NEW), §3b (NEW) | — |
@@ -45,7 +45,7 @@ The campaign's order is header first. This table is the inventory that produced 
 | C8 | the declared range: `J` in 2..8, `nroots` in 2..64 | §1, §1b (NEW) | — |
 | C9 | `n = 2^J-1`, `k = n-nroots`, `E = nroots/2` | §1b (NEW) | — |
 | C10 | it carries no running state; every function takes it `const` | §8 (NEW) | — |
-| C11 | `rs_code_valid` checks the ranges, evenness and the stride | §1, §1b | — |
+| C11 | `dp_rs_code_valid` checks the ranges, evenness and the stride | §1, §1b | — |
 | C12 | ...and deliberately does NOT check primitivity | §1b (NEW) | — |
 | C13 | `gen[i]` is the coefficient of `x^i`, monic, degree `2E` | §2 | — |
 | C14 | exposed because standards publish it (Annex G) | `test_ccsds_tm_rs.c` | — |

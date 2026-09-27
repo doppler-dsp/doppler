@@ -19,16 +19,17 @@ bitsync_reset (dp_despreader_state_t *ch)
 }
 
 void
-despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
-                 size_t code_len, size_t sps, double init_norm_freq,
-                 double init_chip, double bn_carrier, double bn_code,
-                 double bn_fll, double zeta, double spacing,
-                 size_t periods_per_bit)
+dp_despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
+                    size_t code_len, size_t sps, double init_norm_freq,
+                    double init_chip, double bn_carrier, double bn_code,
+                    double bn_fll, double zeta, double spacing,
+                    size_t periods_per_bit)
 {
   size_t tsamps = (code_len ? code_len : 1) * (sps ? sps : 1);
   /* one carrier-loop update per code period (the integrate-and-dump window) */
-  costas_init (&ch->car, bn_carrier, zeta, init_norm_freq, tsamps, bn_fll);
-  dll_init (&ch->code, code, code_len, sps, init_chip, bn_code, zeta, spacing);
+  dp_costas_init (&ch->car, bn_carrier, zeta, init_norm_freq, tsamps, bn_fll);
+  dp_dll_init (&ch->code, code, code_len, sps, init_chip, bn_code, zeta,
+               spacing);
   ch->code_copy       = NULL;
   ch->tlm_ctx         = NULL; /* start detached (stack-embed safe) */
   ch->periods_per_bit = periods_per_bit ? periods_per_bit : 1;
@@ -56,9 +57,9 @@ dp_despreader_create (const uint8_t *code, size_t code_len, size_t sps,
       return NULL;
     }
   memcpy (copy, code, code_len);
-  despreader_init (ch, copy, code_len, sps, init_norm_freq, init_chip,
-                   bn_carrier, bn_code, bn_fll, zeta, spacing,
-                   periods_per_bit);
+  dp_despreader_init (ch, copy, code_len, sps, init_norm_freq, init_chip,
+                      bn_carrier, bn_code, bn_fll, zeta, spacing,
+                      periods_per_bit);
   ch->code_copy = copy; /* despreader owns the code (dll borrows it) */
   return ch;
 }
@@ -117,8 +118,8 @@ dp_despreader_set_telemetry (dp_despreader_state_t *state, dp_tlm_t *tlm,
 static void
 despreader_tlm_flush_ (const dp_despreader_state_t *ch)
 {
-  costas_tlm_flush (&ch->car);
-  dll_tlm_flush (&ch->code);
+  dp_costas_tlm_flush (&ch->car);
+  dp_dll_tlm_flush (&ch->code);
 }
 
 /* Serializable state — costas + dll children as nested sub-blobs, then the
@@ -186,9 +187,9 @@ process_sample (dp_despreader_state_t *ch, float _Complex x,
   /* Fold this period into the code-lock detector (full-epoch look) and
    * re-draw the noise offset — the same always-on CFAR detector dp_dll_steps
    * runs, so `code.locked` / `code.lock_stat` are live in composition. */
-  dll_lock_look (&ch->code, (double)(ch->code.sf * ch->code.sps));
+  dp_dll_lock_look (&ch->code, (double)(ch->code.sf * ch->code.sps));
   ch->code.acc_e = ch->code.acc_p = ch->code.acc_l = 0.0f;
-  dll_lock_epoch (&ch->code);
+  dp_dll_lock_epoch (&ch->code);
   *prompt = P / (float)(ch->code.sf * ch->code.sps);
   return 1;
 }

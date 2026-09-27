@@ -72,7 +72,7 @@ def _generator(
         for i in range(len(g) - 1):
             g[i] ^= _gf_mul(g[i + 1], root, poly, bits)
     # `g[i]` is already the coefficient of `x**i`, which is the order
-    # `rs_generator` reports and the order Annex G prints.
+    # `dp_rs_generator` reports and the order Annex G prints.
     return np.array(g, dtype=np.uint8)
 
 

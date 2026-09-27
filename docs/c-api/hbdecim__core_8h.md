@@ -58,16 +58,16 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* | [**hbdecim\_create**](#function-hbdecim_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a halfband 2:1 decimator._  |
-|  double | [**hbdecim\_dc\_gain**](#function-hbdecim_dc_gain) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_The filter's response to a constant input, from its own taps._  |
-|  void | [**hbdecim\_destroy**](#function-hbdecim_destroy) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
-|  size\_t | [**hbdecim\_execute**](#function-hbdecim_execute) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples by 2._  |
-|  size\_t | [**hbdecim\_get\_num\_taps**](#function-hbdecim_get_num_taps) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
-|  double | [**hbdecim\_get\_rate**](#function-hbdecim_get_rate) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
-|  void | [**hbdecim\_get\_state**](#function-hbdecim_get_state) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, void \* blob) <br>_Serialize_ `r's` _mutable state into_`blob` _._ |
-|  void | [**hbdecim\_reset**](#function-hbdecim_reset) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
-|  int | [**hbdecim\_set\_state**](#function-hbdecim_set_state) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const void \* blob) <br>_Restore mutable state from_ `blob` _(same num\_taps)._ |
-|  size\_t | [**hbdecim\_state\_bytes**](#function-hbdecim_state_bytes) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Bytes_ [_**hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-hbdecim_get_state) _writes for_`r` _(envelope + payload)._ |
+|  [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* | [**dp\_hbdecim\_create**](#function-dp_hbdecim_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a halfband 2:1 decimator._  |
+|  double | [**dp\_hbdecim\_dc\_gain**](#function-dp_hbdecim_dc_gain) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_The filter's response to a constant input, from its own taps._  |
+|  void | [**dp\_hbdecim\_destroy**](#function-dp_hbdecim_destroy) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  size\_t | [**dp\_hbdecim\_execute**](#function-dp_hbdecim_execute) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples by 2._  |
+|  size\_t | [**dp\_hbdecim\_get\_num\_taps**](#function-dp_hbdecim_get_num_taps) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  double | [**dp\_hbdecim\_get\_rate**](#function-dp_hbdecim_get_rate) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  void | [**dp\_hbdecim\_get\_state**](#function-dp_hbdecim_get_state) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, void \* blob) <br>_Serialize_ `r's` _mutable state into_`blob` _._ |
+|  void | [**dp\_hbdecim\_reset**](#function-dp_hbdecim_reset) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  int | [**dp\_hbdecim\_set\_state**](#function-dp_hbdecim_set_state) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const void \* blob) <br>_Restore mutable state from_ `blob` _(same num\_taps)._ |
+|  size\_t | [**dp\_hbdecim\_state\_bytes**](#function-dp_hbdecim_state_bytes) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Bytes_ [_**dp\_hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-dp_hbdecim_get_state) _writes for_`r` _(envelope + payload)._ |
 
 
 
@@ -119,14 +119,14 @@ Algorithm: two dual-write circular delay lines hold even-indexed and odd-indexed
 Which delay line carries the FIR is determined by N: N even (fir\_on\_even=1): FIR on even\_dl; delay from odd\_dl(centre). N odd (fir\_on\_even=0): FIR on odd\_dl at offset +1; delay from even\_dl(centre).
 
 
-Coefficients are scaled by 0.5 inside hbdecim\_create — this is the polyphase identity normalisation; do not remove it.
+Coefficients are scaled by 0.5 inside dp\_hbdecim\_create — this is the polyphase identity normalisation; do not remove it.
 
 
 Lifecycle: 
 ```C++
-hbdecim_state_t *r = hbdecim_create(num_taps, h_fir);
-size_t n = hbdecim_execute(r, in, num_in, out, max_out);
-hbdecim_destroy(r);
+hbdecim_state_t *r = dp_hbdecim_create(num_taps, h_fir);
+size_t n = dp_hbdecim_execute(r, in, num_in, out, max_out);
+dp_hbdecim_destroy(r);
 ```
  
 
@@ -137,11 +137,11 @@ hbdecim_destroy(r);
 
 
 
-### function hbdecim\_create 
+### function dp\_hbdecim\_create 
 
 _Allocate and initialise a halfband 2:1 decimator._ 
 ```C++
-hbdecim_state_t * hbdecim_create (
+hbdecim_state_t * dp_hbdecim_create (
     size_t num_taps,
     const float * h
 ) 
@@ -173,11 +173,11 @@ Non-NULL on success, NULL on invalid args or OOM.
 
 
 
-### function hbdecim\_dc\_gain 
+### function dp\_hbdecim\_dc\_gain 
 
 _The filter's response to a constant input, from its own taps._ 
 ```C++
-double hbdecim_dc_gain (
+double dp_hbdecim_dc_gain (
     const hbdecim_state_t * r
 ) 
 ```
@@ -203,9 +203,9 @@ The DC gain. 1.0 for a correctly normalised halfband.
 
 
 ```C++
-hbdecim_state_t *d = hbdecim_create (ntaps, h);
-printf ("%.4f\n", hbdecim_dc_gain (d));  // 1.0000
-hbdecim_destroy (d);
+hbdecim_state_t *d = dp_hbdecim_create (ntaps, h);
+printf ("%.4f\n", dp_hbdecim_dc_gain (d));  // 1.0000
+dp_hbdecim_destroy (d);
 ```
  
 
@@ -216,10 +216,10 @@ hbdecim_destroy (d);
 
 
 
-### function hbdecim\_destroy 
+### function dp\_hbdecim\_destroy 
 
 ```C++
-void hbdecim_destroy (
+void dp_hbdecim_destroy (
     hbdecim_state_t * r
 ) 
 ```
@@ -235,11 +235,11 @@ Free all resources. NULL is a no-op.
 
 
 
-### function hbdecim\_execute 
+### function dp\_hbdecim\_execute 
 
 _Decimate a block of CF32 samples by 2._ 
 ```C++
-size_t hbdecim_execute (
+size_t dp_hbdecim_execute (
     hbdecim_state_t * r,
     const float _Complex * in,
     size_t num_in,
@@ -283,17 +283,17 @@ Number of output samples written.
 
 
 
-### function hbdecim\_get\_num\_taps 
+### function dp\_hbdecim\_get\_num\_taps 
 
 ```C++
-size_t hbdecim_get_num_taps (
+size_t dp_hbdecim_get_num_taps (
     const hbdecim_state_t * r
 ) 
 ```
 
 
 
-Returns the FIR branch length passed to hbdecim\_create. 
+Returns the FIR branch length passed to dp\_hbdecim\_create. 
 
 
         
@@ -302,10 +302,10 @@ Returns the FIR branch length passed to hbdecim\_create.
 
 
 
-### function hbdecim\_get\_rate 
+### function dp\_hbdecim\_get\_rate 
 
 ```C++
-double hbdecim_get_rate (
+double dp_hbdecim_get_rate (
     const hbdecim_state_t * r
 ) 
 ```
@@ -321,11 +321,11 @@ Always returns 0.5 (rate is fixed by design).
 
 
 
-### function hbdecim\_get\_state 
+### function dp\_hbdecim\_get\_state 
 
 _Serialize_ `r's` _mutable state into_`blob` _._
 ```C++
-void hbdecim_get_state (
+void dp_hbdecim_get_state (
     const hbdecim_state_t * r,
     void * blob
 ) 
@@ -338,10 +338,10 @@ void hbdecim_get_state (
 
 
 
-### function hbdecim\_reset 
+### function dp\_hbdecim\_reset 
 
 ```C++
-void hbdecim_reset (
+void dp_hbdecim_reset (
     hbdecim_state_t * r
 ) 
 ```
@@ -357,11 +357,11 @@ Zero both delay lines and clear the pending-sample flag. num\_taps and coefficie
 
 
 
-### function hbdecim\_set\_state 
+### function dp\_hbdecim\_set\_state 
 
 _Restore mutable state from_ `blob` _(same num\_taps)._
 ```C++
-int hbdecim_set_state (
+int dp_hbdecim_set_state (
     hbdecim_state_t * r,
     const void * blob
 ) 
@@ -385,11 +385,11 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects.
 
 
 
-### function hbdecim\_state\_bytes 
+### function dp\_hbdecim\_state\_bytes 
 
-_Bytes_ [_**hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-hbdecim_get_state) _writes for_`r` _(envelope + payload)._
+_Bytes_ [_**dp\_hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-dp_hbdecim_get_state) _writes for_`r` _(envelope + payload)._
 ```C++
-size_t hbdecim_state_bytes (
+size_t dp_hbdecim_state_bytes (
     const hbdecim_state_t * r
 ) 
 ```

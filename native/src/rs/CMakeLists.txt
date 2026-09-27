@@ -2,7 +2,7 @@
 #
 # Its own c_dep rather than a library inside `ccsds_tm`, for the reason `conv`
 # is: the code family is not CCSDS's. `ccsds_tm` holds a CONFIGURATION of it
-# (CCSDS_TM_RS) the way any other caller would, together with the dual basis
+# (dp_CCSDS_TM_RS) the way any other caller would, together with the dual basis
 # and the interleaver, which are the standard's and not the code's.
 #
 # Pure-C OBJECT library, no CPython. jm apply only emits the add_subdirectory

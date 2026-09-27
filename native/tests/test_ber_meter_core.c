@@ -3,8 +3,8 @@
  * three primitives every receiver number here rests on.
  *
  * This file was a 24-line jm scaffold: create, reset, destroy. The object it
- * covers ships the whole alignment decision — `ber_align_detect` and the
- * stateful `dp_ber_meter_align`/`score` around it — and `ber_align_detect`
+ * covers ships the whole alignment decision — `dp_ber_align_detect` and the
+ * stateful `dp_ber_meter_align`/`score` around it — and `dp_ber_align_detect`
  * appeared in exactly ONE place tree-wide (`native/tests/dp_ber_test.h`),
  * asserted by nobody. The scaffold passing meant "it constructs".
  *
@@ -94,8 +94,8 @@ main (void)
     for (int k = 0; k < 4; k++)
       {
         build (lags[k], phase, 0.15);
-        ber_align_t a = ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 256,
-                                          0, 200, 0.0);
+        ber_align_t a = dp_ber_align_detect (rx, NSYM, truth, NSYM, M, 1000,
+                                             256, 0, 200, 0.0);
         char        msg[160];
         snprintf (msg, sizeof msg,
                   "planted lag %d: got %d, ok=%d, margin %.1f dB", lags[k],
@@ -119,8 +119,8 @@ main (void)
     for (int k = 0; k < 4; k++)
       {
         build (5, 0.0, sigmas[k]);
-        ber_align_t a = ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 256,
-                                          0, 200, 0.0);
+        ber_align_t a = dp_ber_align_detect (rx, NSYM, truth, NSYM, M, 1000,
+                                             256, 0, 200, 0.0);
         char        msg[128];
         snprintf (msg, sizeof msg, "sigma %.2f: ok=%d lag=%d margin %.1f",
                   sigmas[k], a.ok, a.lag, a.margin_db);
@@ -132,7 +132,7 @@ main (void)
   {
     build (5, 0.0, 0.55);
     ber_align_t a
-        = ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 4, 0, 200, 0.0);
+        = dp_ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 4, 0, 200, 0.0);
     char msg[128];
     snprintf (msg, sizeof msg, "4-symbol marker: ok=%d lag=%d margin %.1f",
               a.ok, a.lag, a.margin_db);
@@ -145,11 +145,11 @@ main (void)
        gate at this noise, and the identical marker repeated every 256 can.
        That difference IS the non-coherent combining claim. */
     build (5, 0.0, 0.5);
-    ber_align_t once
-        = ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 32, 0, 200, 0.0);
-    ber_align_t many
-        = ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 32, 256, 200, 0.0);
-    char msg[192];
+    ber_align_t once = dp_ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 32,
+                                            0, 200, 0.0);
+    ber_align_t many = dp_ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 32,
+                                            256, 200, 0.0);
+    char        msg[192];
     snprintf (msg, sizeof msg,
               "32 syms alone: ok=%d margin %.1f (%zu occ); repeated: ok=%d "
               "margin %.1f (%zu occ)",
@@ -163,7 +163,7 @@ main (void)
   {
     build (40, 0.0, 0.15);
     ber_align_t a
-        = ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 256, 0, 8, 0.0);
+        = dp_ber_align_detect (rx, NSYM, truth, NSYM, M, 1000, 256, 0, 8, 0.0);
     char msg[128];
     snprintf (msg, sizeof msg, "lag 40 in a +-8 search: ok=%d sat=%d lag=%d",
               a.ok, a.saturated, a.lag);
@@ -176,9 +176,9 @@ main (void)
     for (size_t i = 0; i < NSYM; i++)
       other[i] = (uint8_t)(dp_uni (&st) * M);
     build (0, 0.0, 0.15); /* carries `truth` */
-    ber_align_t a
-        = ber_align_detect (rx, NSYM, other, NSYM, M, 1000, 256, 0, 200, 0.0);
-    char msg[128];
+    ber_align_t a = dp_ber_align_detect (rx, NSYM, other, NSYM, M, 1000, 256,
+                                         0, 200, 0.0);
+    char        msg[128];
     snprintf (msg, sizeof msg, "unrelated truth: ok=%d lag=%d margin %.1f",
               a.ok, a.lag, a.margin_db);
     DP_REQUIRE_MSG (!a.ok, msg);

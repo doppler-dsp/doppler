@@ -257,7 +257,8 @@ main (void)
     dp_corr2d_destroy (obj);
   }
 
-  /* ── corr2d_set_ref: fast-path accept vs. reject ──────────────────────── */
+  /* ── dp_corr2d_set_ref: fast-path accept vs. reject ────────────────────────
+   */
   {
     float _Complex ref1[16] = { 0 }, ref2[16] = { 0 }, bad_ref[16] = { 0 };
     ref1[0]     = 1.0f;
@@ -268,7 +269,7 @@ main (void)
     DP_CHECK (obj->fast_path == 1);
 
     /* accept: still single-row */
-    DP_CHECK (corr2d_set_ref (obj, ref2) == 0);
+    DP_CHECK (dp_corr2d_set_ref (obj, ref2) == 0);
     float _Complex in[16] = { 0 };
     in[1]                 = 1.0f; /* row 0, col 1 -- matches ref2's replica */
     float _Complex out[16];
@@ -277,7 +278,7 @@ main (void)
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
-    DP_CHECK (corr2d_set_ref (obj, bad_ref) == -1);
+    DP_CHECK (dp_corr2d_set_ref (obj, bad_ref) == -1);
     dp_corr2d_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
@@ -776,7 +777,7 @@ main (void)
     DP_CHECK (c != NULL);
     float _Complex a[ny], b[ny];
     DP_CHECK (dp_corr2d_execute (c, in, ny * nx, a, ny) == ny);
-    DP_CHECK (corr2d_set_ref (c, r1) == 0);
+    DP_CHECK (dp_corr2d_set_ref (c, r1) == 0);
     DP_CHECK (dp_corr2d_execute (c, in, ny * nx, b, ny) == ny);
     /* A stale replica would return the same answer for both codes. */
     DP_CHECK (cabsf (a[0] - b[0]) > 1e-3f);

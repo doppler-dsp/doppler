@@ -80,9 +80,9 @@ main (void)
   for (int p = 0; p < 2; p++)
     for (int a = 0; a < 2; a++)
       {
-        dp_mpsk_receiver_state_t *rx
-            = mpsk_receiver_create_bpsk (SYM_RATE * spss[p], SYM_RATE, 0.0, 0,
-                                         0.35, 8, 0.01, 0.01, 0, agcs[a]);
+        dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create_bpsk (
+            SYM_RATE * spss[p], SYM_RATE, 0.0, 0, 0.35, 8, 0.01, 0.01, 0,
+            agcs[a]);
         if (!rx)
           {
             (void)fprintf (stderr,

@@ -570,8 +570,8 @@ rx_frame_check (const rx_frame_cfg_t *c, const rx_frame_result_t *r,
       return 1;
     }
   /* The FER anchor. Asserted on the interval's LOWER limit -- the meter's
-     own, `ber_confidence` under the stopping rule it was actually run with --
-     so counting noise cannot flake it, exactly as the SER gate above does.
+     own, `dp_ber_confidence` under the stopping rule it was actually run with
+     -- so counting noise cannot flake it, exactly as the SER gate above does.
      One-sided, because clustered errors hit FEWER frames for the same BER:
      the independent-bit expression is an upper bound, and a measured rate
      significantly ABOVE it means frames are failing for a reason the bit

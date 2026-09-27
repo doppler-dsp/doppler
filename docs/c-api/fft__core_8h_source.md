@@ -57,14 +57,14 @@ extern "C"
                                    size_t n_in, float _Complex *out,
                                    size_t max_out);
 
-  size_t fft_execute_ci16_max_out (dp_fft_state_t *state);
+  size_t dp_fft_execute_ci16_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
+  size_t dp_fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
                            float _Complex *out);
 
-  size_t fft_execute_ci8_max_out (dp_fft_state_t *state);
+  size_t dp_fft_execute_ci8_max_out (dp_fft_state_t *state);
 
-  size_t fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
+  size_t dp_fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
                           float _Complex *out);
 
 #ifdef __cplusplus

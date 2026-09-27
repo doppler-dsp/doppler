@@ -38,7 +38,7 @@ asked for directly: an acquisition instant plus a settling budget.
 **The interface between them is three numbers**: the statistic's H0 law, its
 H1 mean at the operating point, and whether successive looks are independent.
 A new loop does not write a lock detector — it characterises those three and
-calls `lockdet_init`. Everything else follows arithmetically.
+calls `dp_lockdet_init`. Everything else follows arithmetically.
 
 The reason to insist on that split is that the two halves fail differently. A
 wrong statistic produces a detector that is honestly measuring the wrong

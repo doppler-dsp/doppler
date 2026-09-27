@@ -197,7 +197,7 @@ main (void)
     size_t         ndet = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 0);
 
-    detector2d_set_threshold (det, 0.0f);
+    dp_detector2d_set_threshold (det, 0.0f);
     ndet = dp_detector2d_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
 
@@ -339,7 +339,7 @@ main (void)
    *
    * Zero mentions in either test file. The header promises three things:
    * the new reference takes effect, the object ALWAYS resets even when the
-   * reference is accepted, and it returns -1 when corr2d_set_ref refuses.
+   * reference is accepted, and it returns -1 when dp_corr2d_set_ref refuses.
    *
    * That third branch is not hypothetical, and writing this test found it
    * the hard way: an impulse reference is single-row, so the object is on
@@ -364,7 +364,7 @@ main (void)
     /* Dirty EVERY piece of state the reset is supposed to clear, or the
        assertions below pass on things that were already clean. Measured
        while writing this: asserting only `corr->count == 0` is satisfied
-       by corr2d_set_ref's own reset, so it tests corr2d rather than this
+       by dp_corr2d_set_ref's own reset, so it tests corr2d rather than this
        function -- deleting dp_detector2d_reset from set_ref left it green.
        The ring residue and the last-dump flag are what set_ref adds. */
     DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0); /* dwell 1 of 2 */
@@ -378,7 +378,7 @@ main (void)
     DP_CHECK (resid > 0);
 
     /* Accepted, and it reset all three even though the reference was fine. */
-    DP_CHECK (detector2d_set_ref (det, ref_b) == 0);
+    DP_CHECK (dp_detector2d_set_ref (det, ref_b) == 0);
     DP_CHECK (det->corr->count == 0);
     DP_CHECK (det->_last_corr_valid == 0);
     DP_CHECK ((size_t)(DP_LOAD_ACQ (&det->ring->head)
@@ -395,7 +395,7 @@ main (void)
 
     /* A multi-row reference is REFUSED on a fast-path object, and the
        refusal is not destructive -- the object still works afterwards. */
-    DP_CHECK (detector2d_set_ref (det, ref_2d) != 0);
+    DP_CHECK (dp_detector2d_set_ref (det, ref_2d) != 0);
     DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0);
     nd = dp_detector2d_push (det, in, N, res, 4);
     DP_CHECK (nd == 1);
@@ -435,7 +435,7 @@ main (void)
     DP_CHECK (det->peak_row == 0 && det->peak_col == 0);
 
     /* Raise the gate above what the surface produces: nothing emitted ... */
-    detector2d_set_threshold (det, stat_open * 10.0f);
+    dp_detector2d_set_threshold (det, stat_open * 10.0f);
     DP_CHECK (det->threshold == stat_open * 10.0f);
     DP_CHECK (dp_detector2d_push (det, in_b, N, res, 4) == 0);
 
@@ -445,7 +445,7 @@ main (void)
     DP_CHECK (det->_last_corr_valid == 1);
 
     /* Dropping the gate re-opens it with no rebuild. */
-    detector2d_set_threshold (det, 0.0f);
+    dp_detector2d_set_threshold (det, 0.0f);
     DP_CHECK (dp_detector2d_push (det, in_a, N, res, 4) == 1);
     DP_CHECK (det->peak_row == 0 && det->peak_col == 0);
 

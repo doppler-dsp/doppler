@@ -111,27 +111,27 @@ extern "C"
    * The timing loop on its own (shared with the receivers)
    * ------------------------------------------------------------------ */
 
-  void ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
+  void dp_ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
                            double zeta, int ted);
 
-  void ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
+  void dp_ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
                                   size_t prime_taps);
 
-  void ratesync_loop_bind_cascade (ratesync_loop_t             *l,
+  void dp_ratesync_loop_bind_cascade (ratesync_loop_t             *l,
                                    const dp_RateConverter_state_t *rc);
 
-  void ratesync_loop_reset (ratesync_loop_t *l);
+  void dp_ratesync_loop_reset (ratesync_loop_t *l);
 
-  void ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
+  void dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
 
-  void ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
+  void dp_ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
                                          double up_thresh, double down_thresh,
                                          uint32_t n_up, uint32_t n_down);
 
-  int ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
+  int dp_ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
 
-  void ratesync_loop_tlm_flush (const ratesync_loop_t *l);
+  void dp_ratesync_loop_tlm_flush (const ratesync_loop_t *l);
 
 /* ── Serializable state — the loop alone (nested by every owner) ───────────
  * Envelope, this loop's running scalars, then the loop filter's own
@@ -142,9 +142,9 @@ extern "C"
                                         * a construct-time constant, so
                                         * pwr_avg/pwr_seeded are gone */
 
-  size_t ratesync_loop_state_bytes (const ratesync_loop_t *l);
-  void ratesync_loop_get_state (const ratesync_loop_t *l, void *blob);
-  int ratesync_loop_set_state (ratesync_loop_t *l, const void *blob);
+  size_t dp_ratesync_loop_state_bytes (const ratesync_loop_t *l);
+  void dp_ratesync_loop_get_state (const ratesync_loop_t *l, void *blob);
+  int dp_ratesync_loop_set_state (ratesync_loop_t *l, const void *blob);
 
   /* ------------------------------------------------------------------
    * Lifecycle
@@ -307,7 +307,7 @@ extern "C"
   {
     int r = ratesync_step_ted (s, x, y_out, s->loop.ted);
     if (r && s->loop.tlm.ctx)
-      ratesync_loop_tlm_flush (&s->loop);
+      dp_ratesync_loop_tlm_flush (&s->loop);
     return r;
   }
 

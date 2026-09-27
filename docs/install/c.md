@@ -280,7 +280,7 @@ target_link_libraries(my_app PRIVATE doppler::doppler)
 The `wfmgen` composer CLI is archived into the library as a plain callable, so
 a C program can drive the full generator in-process — same flags, same output
 as the command line — without spawning a subprocess. Include `wfm/wfmgen.h`
-and call `doppler_wfmgen(argc, argv)`:
+and call `dp_doppler_wfmgen(argc, argv)`:
 
 ```c
 #include <stddef.h>
@@ -291,12 +291,12 @@ int main(void)
     /* identical to: wfmgen --type qpsk --count 4096 --output out.cf32 */
     char *av[] = { "wfmgen", "--type", "qpsk", "--count", "4096",
                    "--output", "out.cf32", NULL };
-    return doppler_wfmgen(7, av);   /* 0 on success; writes out.cf32 */
+    return dp_doppler_wfmgen(7, av);   /* 0 on success; writes out.cf32 */
 }
 ```
 
 It is the exact code path the `wfmgen` binary runs (which is itself a one-line
-`main` shim over `doppler_wfmgen`), so the output is byte-identical. `wfmgen`
+`main` shim over `dp_doppler_wfmgen`), so the output is byte-identical. `wfmgen`
 lives in the **pure-C core**, so the file/raw/csv/BLUE/SigMF output paths link
 with just `libdoppler.a -lm -lpthread`:
 
@@ -317,7 +317,7 @@ gcc -o app app.c -I "$PREFIX/include" \
     -lpthread -lm
 ```
 
-Without the stream component, `doppler_wfmgen()` still builds and runs; only the
+Without the stream component, `dp_doppler_wfmgen()` still builds and runs; only the
 `nats://` path is unavailable (it reports a clear "requires the stream component"
 error via the weak `wfm_stream_sink_*` seam).
 
@@ -325,7 +325,7 @@ The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 
 !!! note "POSIX only"
 
-    `doppler_wfmgen` is built on the same surface as the `wfmgen` binary,
+    `dp_doppler_wfmgen` is built on the same surface as the `wfmgen` binary,
     including the NATS stream sink, which is not ported to Windows, so it is
     not available there. See [Build from Source](source.md#windows) for what
     the Windows build includes.

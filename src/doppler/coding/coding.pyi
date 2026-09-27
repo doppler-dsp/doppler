@@ -506,18 +506,18 @@ class ReedSolomon:
 
         Systematic: the information symbols are copied through untouched and
         the `nroots` parity symbols follow them, which is the order they are
-        transmitted in. `rs_encode` computes the parity; this places it.
+        transmitted in. `dp_rs_encode` computes the parity; this places it.
 
         The WHOLE codeword rather than the parity alone, because that is the
         unit every other method here takes — dp_rs_codec_decode,
         dp_rs_codec_syndromes and dp_rs_codec_codeword_ok all read `n` symbols,
         and a caller who wants the parity by itself can take the last `nroots`
-        of the answer. (`rs_encode` is the other split, and is still there for
-        a frame assembler that has already placed the information.)
+        of the answer. (`dp_rs_encode` is the other split, and is still there
+        for a frame assembler that has already placed the information.)
 
         out may alias in — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends
         the parity to a buffer that already holds the information, which is the
-        call a frame assembler makes and the one `rs_encode` exists for.
+        call a frame assembler makes and the one `dp_rs_encode` exists for.
 
         Parameters
         ----------
@@ -565,9 +565,10 @@ class ReedSolomon:
     def decode(self, codeword: NDArray[np.uint8]) -> int:
         """Correct up to `E` symbol errors, IN PLACE.
 
-        `rs_decode`, over the caller's own buffer: the corrected symbols land
-        in codeword itself, which is why the binding demands a writable array
-        rather than quietly working on a copy the caller would then discard.
+        `dp_rs_decode`, over the caller's own buffer: the corrected symbols
+        land in codeword itself, which is why the binding demands a writable
+        array rather than quietly working on a copy the caller would then
+        discard.
 
         **It either refuses or leaves a codeword.** On success the key equation
         has zeroed every syndrome by construction, so the result passes

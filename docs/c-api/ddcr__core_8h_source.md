@@ -42,7 +42,7 @@ extern "C"
 
   dp_ddcr_state_t *dp_ddcr_create (double norm_freq, double rate);
 
-  dp_ddcr_state_t *ddcr_create_matched (double norm_freq, double rate, int pulse,
+  dp_ddcr_state_t *dp_ddcr_create_matched (double norm_freq, double rate, int pulse,
                                      double beta, size_t span,
                                      double pulse_sps, size_t num_phases);
 
@@ -96,24 +96,24 @@ extern "C"
                                  double freq_ctrl, float _Complex *out,
                                  size_t max_out);
 
-  size_t ddcr_execute_ctrl_push_tap (dp_ddcr_state_t *s, float x,
+  size_t dp_ddcr_execute_ctrl_push_tap (dp_ddcr_state_t *s, float x,
                                      double rate_ctrl, double freq_ctrl,
                                      float _Complex *out, size_t max_out,
                                      float _Complex *lo_out, int *n_lo);
 
-  size_t ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x,
+  size_t dp_ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x,
                                       double rate_ctrl, double freq_ctrl,
                                       float _Complex *out, size_t max_out,
                                       float _Complex *lo_out, int *n_lo,
                                       float _Complex *pre_out, int *n_pre);
 
-  double ddcr_get_bank_sps (const dp_ddcr_state_t *s);
+  double dp_ddcr_get_bank_sps (const dp_ddcr_state_t *s);
 
   bool dp_ddcr_get_narrow_pulse (const dp_ddcr_state_t *s);
 
   bool dp_ddcr_get_clipped (const dp_ddcr_state_t *s);
 
-  int ddcr_set_telemetry (dp_ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+  int dp_ddcr_set_telemetry (dp_ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
                           uint32_t decim);
 
 

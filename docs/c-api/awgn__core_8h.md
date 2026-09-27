@@ -59,8 +59,8 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**awgn**](#function-awgn) (uint64\_t seed, float amplitude, size\_t n, float \_Complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
-|  float | [**awgn\_amplitude\_for\_snr**](#function-awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
+|  int | [**dp\_awgn**](#function-dp_awgn) (uint64\_t seed, float amplitude, size\_t n, float \_Complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
+|  float | [**dp\_awgn\_amplitude\_for\_snr**](#function-dp_awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
 |  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
 |  void | [**dp\_awgn\_destroy**](#function-dp_awgn_destroy) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_awgn\_generate**](#function-dp_awgn_generate) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
@@ -147,11 +147,11 @@ dp_awgn_destroy(g);
 
 
 
-### function awgn 
+### function dp\_awgn 
 
 _One-shot AWGN generation — no persistent state required._ 
 ```C++
-int awgn (
+int dp_awgn (
     uint64_t seed,
     float amplitude,
     size_t n,
@@ -196,11 +196,11 @@ DP\_OK on success, DP\_ERR\_MEMORY on allocation failure.
 
 
 
-### function awgn\_amplitude\_for\_snr 
+### function dp\_awgn\_amplitude\_for\_snr 
 
 _The_ `amplitude` _that puts a signal at a target SNR._
 ```C++
-float awgn_amplitude_for_snr (
+float dp_awgn_amplitude_for_snr (
     float snr_db,
     float signal_power
 ) 

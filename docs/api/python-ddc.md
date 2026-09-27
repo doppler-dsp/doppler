@@ -342,7 +342,7 @@ Three stages, each optional or reorderable:
 
 `dp_ddc_create(norm_freq, rate)` chains the LO and a RateConverter with built-in
 Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
-rejection); `ddc_create_matched(norm_freq, rate, pulse, …)` puts a
+rejection); `dp_ddc_create_matched(norm_freq, rate, pulse, …)` puts a
 matched-filter bank on the terminal stage instead — see
 [Matched mode](#matched-mode).
 
@@ -481,25 +481,25 @@ int main(void)
 
 #### Architecture B — halfband then DDC
 
-`hbdecim_create` needs real Kaiser-designed halfband taps (see
+`dp_hbdecim_create` needs real Kaiser-designed halfband taps (see
 `native/src/resample/resample_ext_extra.c` for the reference composition —
 tap design is Python-side, via `kaiser_window`), so this sketch omits that
 step to keep the shape of the composition visible:
 
-<!-- docs-snippet: skip=illustrative composition sketch; hbdecim_create needs Kaiser-designed taps (Python-side), omitted here to keep the composition shape visible -->
+<!-- docs-snippet: skip=illustrative composition sketch; dp_hbdecim_create needs Kaiser-designed taps (Python-side), omitted here to keep the composition shape visible -->
 
 ```c
-hbdecim_state_t *hb  = hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
+hbdecim_state_t *hb  = dp_hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
 dp_ddc_state_t     *ddc = dp_ddc_create(norm_freq, rate * 2.0);
 
 float _Complex mid[num_in / 2 + 32];
 float _Complex out[num_in];
 
-size_t n_mid = hbdecim_execute(hb, in, num_in, mid,
+size_t n_mid = dp_hbdecim_execute(hb, in, num_in, mid,
                                sizeof mid / sizeof mid[0]);
 size_t n_out = dp_ddc_execute(ddc, mid, n_mid, out, num_in);
 
-hbdecim_destroy(hb);
+dp_hbdecim_destroy(hb);
 dp_ddc_destroy(ddc);
 ```
 

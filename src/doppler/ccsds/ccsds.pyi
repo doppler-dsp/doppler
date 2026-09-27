@@ -25,7 +25,7 @@ def asm_bits() -> NDArray[np.uint8]:
     MSB-first expansion written out twice is a transcription that can
     disagree with itself. This tree's own doctests were the second copy
     until doppler#900, and this alias exists so the third copy is not a
-    Python one: it delegates to `ccsds_tm_asm_bits`, which is where the
+    Python one: it delegates to `dp_ccsds_tm_asm_bits`, which is where the
     expansion is written and where `test_ccsds_tm_asm` holds it to the
     published pattern.
 

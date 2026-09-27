@@ -17,8 +17,8 @@ dp_ber_theory_ser (int m, double esn0)
   if (esn0 <= 0.0)
     return (m <= 2) ? 0.5 : 1.0 - 1.0 / (double)m;
   if (m <= 2)
-    return ber_qfunc (sqrt (2.0 * esn0));
+    return dp_ber_qfunc (sqrt (2.0 * esn0));
   if (m == 4)
-    return 2.0 * ber_qfunc (sqrt (esn0));
-  return 2.0 * ber_qfunc (sqrt (2.0 * esn0) * sin (M_PI / 8.0));
+    return 2.0 * dp_ber_qfunc (sqrt (esn0));
+  return 2.0 * dp_ber_qfunc (sqrt (2.0 * esn0) * sin (M_PI / 8.0));
 }

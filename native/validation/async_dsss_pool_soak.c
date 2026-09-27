@@ -28,7 +28,7 @@
  * burn-in of up to one frame, so an emitter appears at a random frame
  * phase and nothing in the source restarts (§6.1): visibility is a gain of
  * 1 or 0 at the sum. Noise from the shipped awgn at the receiver, sized by
- * awgn_amplitude_for_snr() from the C/N0, the same for every emitter.
+ * dp_awgn_amplitude_for_snr() from the C/N0, the same for every emitter.
  * Emitter 0 is always on; the others alternate on-times drawn uniformly in
  * [on_min, on_max] and off-times in [off_min, off_max], the first arrival
  * within [0, off_min] -- the design's 5 to 15 minutes scaled to what a
@@ -638,7 +638,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
     DP_REQUIRE (make_emitter (&e[k], k, cfg, code) == 0);
   dp_awgn_state_t *g
       = dp_awgn_create (cfg->seed * 7919u + 1u,
-                        awgn_amplitude_for_snr (
+                        dp_awgn_amplitude_for_snr (
                             (float)(cfg->cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cfg->cn0_dbhz, 1e-3, 0.9, DU,

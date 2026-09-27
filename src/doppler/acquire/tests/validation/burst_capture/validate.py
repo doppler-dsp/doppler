@@ -758,7 +758,8 @@ def review(d: Data) -> None:
         "F5",
         "C-ONLY",
         "**The zero-copy consumer face is not reachable from Python.** "
-        "`burst_capture_ready`/`window`/`event_at` let a composing C object "
+        "`dp_burst_capture_ready`/`window`/`event_at` let a composing C "
+        "object "
         "borrow a window out of the scratch instead of copying it again, "
         "which is what keeps `DsssBurstReceiver` paying one memcpy per burst "
         "rather than two. The binding necessarily copies into a numpy array, "

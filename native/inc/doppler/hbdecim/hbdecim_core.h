@@ -17,14 +17,14 @@
  *   N odd  (fir_on_even=0): FIR on odd_dl at offset +1; delay from
  *                           even_dl(centre).
  *
- * Coefficients are scaled by 0.5 inside hbdecim_create — this is the
+ * Coefficients are scaled by 0.5 inside dp_hbdecim_create — this is the
  * polyphase identity normalisation; do not remove it.
  *
  * Lifecycle:
  * @code
- *   hbdecim_state_t *r = hbdecim_create(num_taps, h_fir);
- *   size_t n = hbdecim_execute(r, in, num_in, out, max_out);
- *   hbdecim_destroy(r);
+ *   hbdecim_state_t *r = dp_hbdecim_create(num_taps, h_fir);
+ *   size_t n = dp_hbdecim_execute(r, in, num_in, out, max_out);
+ *   dp_hbdecim_destroy(r);
  * @endcode
  */
 #ifndef HBDECIM_CORE_H
@@ -71,14 +71,14 @@ extern "C"
    *                  Copied internally and scaled by 0.5.
    * @return Non-NULL on success, NULL on invalid args or OOM.
    */
-  hbdecim_state_t *hbdecim_create (size_t num_taps, const float *h);
+  hbdecim_state_t *dp_hbdecim_create (size_t num_taps, const float *h);
 
   /** Free all resources.  NULL is a no-op. */
-  void hbdecim_destroy (hbdecim_state_t *r);
+  void dp_hbdecim_destroy (hbdecim_state_t *r);
 
   /** Zero both delay lines and clear the pending-sample flag.
    *  num_taps and coefficients are preserved. */
-  void hbdecim_reset (hbdecim_state_t *r);
+  void dp_hbdecim_reset (hbdecim_state_t *r);
 
   /* Serializable state (reusable elastic-resume convention): the even/odd
    * dual-write delay rings, their heads, and the pending even sample.  Coeffs
@@ -88,13 +88,13 @@ extern "C"
 #define HBDECIM_STATE_MAGIC DP_FOURCC ('H', 'B', 'D', 'C')
 #define HBDECIM_STATE_VERSION 1u
 
-  /** @brief Bytes hbdecim_get_state() writes for @p r (envelope + payload). */
-  size_t hbdecim_state_bytes (const hbdecim_state_t *r);
+  /** @brief Bytes dp_hbdecim_get_state() writes for @p r (envelope + payload). */
+  size_t dp_hbdecim_state_bytes (const hbdecim_state_t *r);
   /** @brief Serialize @p r's mutable state into @p blob. */
-  void hbdecim_get_state (const hbdecim_state_t *r, void *blob);
+  void dp_hbdecim_get_state (const hbdecim_state_t *r, void *blob);
   /** @brief Restore mutable state from @p blob (same num_taps).
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
-  int hbdecim_set_state (hbdecim_state_t *r, const void *blob);
+  int dp_hbdecim_set_state (hbdecim_state_t *r, const void *blob);
 
   /**
    * @brief Decimate a block of CF32 samples by 2.
@@ -112,14 +112,14 @@ extern "C"
    * @param max_out  Capacity of out in samples.
    * @return Number of output samples written.
    */
-  size_t hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
+  size_t dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
                           size_t num_in, float _Complex *out, size_t max_out);
 
   /** Always returns 0.5 (rate is fixed by design). */
-  double hbdecim_get_rate (const hbdecim_state_t *r);
+  double dp_hbdecim_get_rate (const hbdecim_state_t *r);
 
-  /** Returns the FIR branch length passed to hbdecim_create. */
-  size_t hbdecim_get_num_taps (const hbdecim_state_t *r);
+  /** Returns the FIR branch length passed to dp_hbdecim_create. */
+  size_t dp_hbdecim_get_num_taps (const hbdecim_state_t *r);
 
   /**
    * @brief The filter's response to a constant input, from its own taps.
@@ -134,12 +134,12 @@ extern "C"
    * @return The DC gain. 1.0 for a correctly normalised halfband.
    *
    * @code
-   * hbdecim_state_t *d = hbdecim_create (ntaps, h);
-   * printf ("%.4f\n", hbdecim_dc_gain (d));  // 1.0000
-   * hbdecim_destroy (d);
+   * hbdecim_state_t *d = dp_hbdecim_create (ntaps, h);
+   * printf ("%.4f\n", dp_hbdecim_dc_gain (d));  // 1.0000
+   * dp_hbdecim_destroy (d);
    * @endcode
    */
-  double hbdecim_dc_gain (const hbdecim_state_t *r);
+  double dp_hbdecim_dc_gain (const hbdecim_state_t *r);
 
 #ifdef __cplusplus
 }

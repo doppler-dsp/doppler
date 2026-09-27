@@ -61,7 +61,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_burst\_acq\_configure\_search\_raw**](#function-dp_burst_acq_configure_search_raw) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing the auto-sizing search._  |
-|  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**dp\_burst\_acq\_create**](#function-dp_burst_acq_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
+|  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**dp\_burst\_acq\_create**](#function-dp_burst_acq_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**dp\_acq\_create\_burst()**_](acq__core_8h.md#function-dp_acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
 |  void | [**dp\_burst\_acq\_destroy**](#function-dp_burst_acq_destroy) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
 |  void | [**dp\_burst\_acq\_get\_state**](#function-dp_burst_acq_get_state) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_burst\_acq\_push**](#function-dp_burst_acq_push) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
@@ -100,7 +100,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 ## Detailed Description
 
 
-Composes [**dp\_acq\_state\_t**](structdp__acq__state__t.md) ([**native/inc/doppler/acq/acq\_core.h**](acq__core_8h.md)) as an embedded pointer, built via [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst)  the BURST front door onto the SAME shared engine `Acquisition` ([**acq\_core.h**](acq__core_8h.md)) composes via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). Every function here is a direct forward to the corresponding acq\_\* call; the entire algorithm lives in acq\_core.c exactly once (see docs/design/async-dsss-receiver.md's Acquisition/BurstAcquisition split and CLAUDE.md's "every algorithm lives in C exactly once" rule).
+Composes [**dp\_acq\_state\_t**](structdp__acq__state__t.md) ([**native/inc/doppler/acq/acq\_core.h**](acq__core_8h.md)) as an embedded pointer, built via [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst)  the BURST front door onto the SAME shared engine `Acquisition` ([**acq\_core.h**](acq__core_8h.md)) composes via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous). Every function here is a direct forward to the corresponding acq\_\* call; the entire algorithm lives in acq\_core.c exactly once (see docs/design/async-dsss-receiver.md's Acquisition/BurstAcquisition split and CLAUDE.md's "every algorithm lives in C exactly once" rule).
 
 
 
@@ -184,7 +184,7 @@ Forwards to [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_
 
 ### function dp\_burst\_acq\_create 
 
-_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._
+_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**dp\_acq\_create\_burst()**_](acq__core_8h.md#function-dp_acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._
 ```C++
 dp_burst_acq_state_t * dp_burst_acq_create (
     const float _Complex * preamble,

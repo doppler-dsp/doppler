@@ -81,7 +81,8 @@ def test_both_rates_come_back_as_intervals():
 def test_enough_counts_errors_not_frames():
     """The stopping rule, which is what makes the interval the right one.
 
-    `ber_confidence` is exact for inverse-binomial sampling -- fix the errors,
+    `dp_ber_confidence` is exact for inverse-binomial sampling -- fix the
+    errors,
     let the trials fall out -- and its relative standard error is 1/sqrt(r),
     a function of the error count ALONE. A meter that stopped on a frame count
     would have precision that depended on the very rate it was measuring.

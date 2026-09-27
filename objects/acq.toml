@@ -8,7 +8,7 @@ class_name = "Acquisition"
 serializable = "true"
 # The continuous front door is a second constructor over the shared engine,
 # not the default acq_create() (gh-509).
-create_fn = "acq_create_continuous"
+create_fn = "dp_acq_create_continuous"
 # C cannot raise a Python warning from a successful create, so the
 # under-powered search is surfaced declaratively after construction (gh-481):
 # the auto-config still built a best-effort grid (bounded by the internal
@@ -45,7 +45,7 @@ extra_link_libs = ["Threads::Threads"]
 # coherently combines across epochs -- BurstAcquisition (objects/burst_acq.toml)
 # is the other front door onto this SAME shared dp_acq_state_t/acq_core.c engine.
 # chip_rate / cn0_dbhz carry valid nonzero placeholder defaults so jm's auto-
-# doctest builds a non-NULL object; acq_create_continuous still rejects an
+# doctest builds a non-NULL object; dp_acq_create_continuous still rejects an
 # explicit 0.
 
 [[acq.init_params]]

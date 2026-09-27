@@ -38,8 +38,8 @@ main (void)
     uint8_t    in[7] = { 1, 0, 0, 0, 0, 0, 0 };
     uint8_t    out[14];
     conv_enc_t s;
-    conv_enc_init (&s);
-    conv_encode (&s, &CCSDS_TM_CONV, in, 7, out, sizeof out);
+    dp_conv_enc_init (&s);
+    dp_conv_encode (&s, &dp_CCSDS_TM_CONV, in, 7, out, sizeof out);
 
     int c1_ok = 1, c2_ok = 1;
     for (size_t i = 0; i < 7; i++)
@@ -59,8 +59,8 @@ main (void)
     uint8_t    in[32] = { 0 };
     uint8_t    out[64];
     conv_enc_t s;
-    conv_enc_init (&s);
-    conv_encode (&s, &CCSDS_TM_CONV, in, 32, out, sizeof out);
+    dp_conv_enc_init (&s);
+    dp_conv_encode (&s, &dp_CCSDS_TM_CONV, in, 32, out, sizeof out);
 
     int c1_zero = 1, c2_one = 1;
     for (size_t i = 0; i < 32; i++)
@@ -83,13 +83,13 @@ main (void)
 
     uint8_t    whole[40], split[40];
     conv_enc_t a, b;
-    conv_enc_init (&a);
-    conv_encode (&a, &CCSDS_TM_CONV, in, 20, whole, sizeof whole);
+    dp_conv_enc_init (&a);
+    dp_conv_encode (&a, &dp_CCSDS_TM_CONV, in, 20, whole, sizeof whole);
 
-    conv_enc_init (&b);
-    conv_encode (&b, &CCSDS_TM_CONV, in, 8, split, sizeof split);
-    conv_encode (&b, &CCSDS_TM_CONV, in + 8, 12, split + 16,
-                 sizeof split - 16);
+    dp_conv_enc_init (&b);
+    dp_conv_encode (&b, &dp_CCSDS_TM_CONV, in, 8, split, sizeof split);
+    dp_conv_encode (&b, &dp_CCSDS_TM_CONV, in + 8, 12, split + 16,
+                    sizeof split - 16);
 
     DP_CHECK_MSG (memcmp (whole, split, sizeof whole) == 0,
                   "encoding in chunks must equal encoding in one call");
@@ -100,9 +100,9 @@ main (void)
     uint8_t    in[9] = { 1, 0, 1, 1, 0, 0, 1, 0, 1 };
     uint8_t    out[18];
     conv_enc_t s;
-    conv_enc_init (&s);
+    dp_conv_enc_init (&s);
     const size_t got
-        = conv_encode (&s, &CCSDS_TM_CONV, in, 9, out, sizeof out);
+        = dp_conv_encode (&s, &dp_CCSDS_TM_CONV, in, 9, out, sizeof out);
     DP_CHECK_MSG (got == 18, "9 bits in must be 18 symbols out");
     DP_CHECK_MSG (got == ccsds_tm_conv_max_out (9),
                   "max_out must agree with what encode actually wrote");

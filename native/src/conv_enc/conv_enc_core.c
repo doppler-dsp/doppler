@@ -2,7 +2,7 @@
  * conv_enc_core.c — the convolutional encoder as an object over `conv`.
  *
  * Every line here is lifecycle and bookkeeping. The encoding itself is
- * `conv_encode`'s, one call in `dp_conv_enc_encode`, because a second
+ * `dp_conv_encode`'s, one call in `dp_conv_enc_encode`, because a second
  * implementation of a code family is how an inversion or an output order
  * comes to differ between the two and interoperate with neither.
  */
@@ -12,16 +12,16 @@
 #include <string.h>
 
 dp_conv_enc_state_t *
-conv_enc_create_code (const conv_code_t *c)
+dp_conv_enc_create_code (const conv_code_t *c)
 {
-  if (!conv_code_valid (c))
+  if (!dp_conv_code_valid (c))
     return NULL;
 
   dp_conv_enc_state_t *s = calloc (1, sizeof *s);
   if (!s)
     return NULL;
   s->code = *c;
-  conv_enc_init (&s->enc);
+  dp_conv_enc_init (&s->enc);
   return s;
 }
 
@@ -31,7 +31,7 @@ dp_conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
 {
   /* Assembled here rather than by the caller: the manifest cannot express a
      conv_code_t, so the declared constructor takes the polynomials and the
-     array's length IS n. conv_code_valid then refuses anything unusable,
+     array's length IS n. dp_conv_code_valid then refuses anything unusable,
      which is what turns a bad argument into a NULL rather than a decoder
      that encodes to nothing. */
   conv_code_t c = { 0 };
@@ -42,7 +42,7 @@ dp_conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
   c.invert = invert;
   for (size_t i = 0; i < poly_len; i++)
     c.poly[i] = poly[i];
-  return conv_enc_create_code (&c);
+  return dp_conv_enc_create_code (&c);
 }
 
 void
@@ -54,11 +54,11 @@ dp_conv_enc_destroy (dp_conv_enc_state_t *state)
 void
 dp_conv_enc_reset (dp_conv_enc_state_t *state)
 {
-  conv_enc_init (&state->enc);
+  dp_conv_enc_init (&state->enc);
 }
 
 const conv_code_t *
-conv_enc_code (const dp_conv_enc_state_t *s)
+dp_conv_enc_code (const dp_conv_enc_state_t *s)
 {
   return &s->code;
 }
@@ -73,7 +73,7 @@ size_t
 dp_conv_enc_encode (dp_conv_enc_state_t *state, const uint8_t *in, size_t n_in,
                     uint8_t *out, size_t max_out)
 {
-  return conv_encode (&state->enc, &state->code, in, n_in, out, max_out);
+  return dp_conv_encode (&state->enc, &state->code, in, n_in, out, max_out);
 }
 
 /* ── the state bytes interface ───────────────────────────────────────────

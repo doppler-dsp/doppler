@@ -41,7 +41,7 @@ void dp_corr_destroy(dp_corr_state_t *state);
 
 void dp_corr_reset(dp_corr_state_t *state);
 
-void corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
+void dp_corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
 
 size_t dp_corr_execute_max_out(dp_corr_state_t *state);
 

@@ -41,7 +41,7 @@
  * `esno_db`. `signal = 0` measures H0 (pure noise, no symbol at all).
  *
  * Noise comes from the SHIPPED generator at the SHIPPED amplitude:
- * awgn_amplitude_for_snr(esno_db, 1.0) is the per-component sigma for unit
+ * dp_awgn_amplitude_for_snr(esno_db, 1.0) is the per-component sigma for unit
  * symbol energy, and dp_awgn_create() takes exactly that. Deriving it here
  * instead is what put a 3 dB error in this file's first pass -- the helper
  * exists precisely so the "is amplitude per-rail or total power" question
@@ -58,7 +58,7 @@ static void
 measure (int m, double esno_db, int signal, size_t n, uint64_t seed,
          double *mean_out, double *var_out)
 {
-  float amp = signal ? awgn_amplitude_for_snr ((float)esno_db, 1.0f) : 1.0f;
+  float amp = signal ? dp_awgn_amplitude_for_snr ((float)esno_db, 1.0f) : 1.0f;
   dp_awgn_state_t *g = dp_awgn_create (seed, amp);
   float complex    buf[NBLK];
   double           s1 = 0.0, s2 = 0.0;

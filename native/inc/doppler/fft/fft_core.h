@@ -191,7 +191,7 @@ extern "C"
                                    size_t max_out);
 
   /** @brief Maximum output samples for the ci16 execute (always == n). */
-  size_t fft_execute_ci16_max_out (dp_fft_state_t *state);
+  size_t dp_fft_execute_ci16_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci16).
@@ -216,15 +216,15 @@ extern "C"
    * [1.0, 0.0, 0.0, 0.0]
    * @endcode
    */
-  size_t fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
+  size_t dp_fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
                            float _Complex *out);
 
   /** @brief Maximum output samples for the ci8 execute (always == n). */
-  size_t fft_execute_ci8_max_out (dp_fft_state_t *state);
+  size_t dp_fft_execute_ci8_max_out (dp_fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci8).
-   * As fft_execute_ci16() but @p in is interleaved int8 I/Q (scale v/128).
+   * As dp_fft_execute_ci16() but @p in is interleaved int8 I/Q (scale v/128).
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Interleaved int8 I/Q, 2*state->n samples.
@@ -240,7 +240,7 @@ extern "C"
    * [1.0, 0.0, 0.0, 0.0]
    * @endcode
    */
-  size_t fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
+  size_t dp_fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
                           float _Complex *out);
 
 #ifdef __cplusplus

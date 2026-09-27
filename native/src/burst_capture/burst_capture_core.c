@@ -26,7 +26,7 @@
  * @param reps          Preamble repetitions.
  * @param fs            Sample rate, Hz.
  * @param cn0_dbhz      Design (minimum) C/N0 the search is sized for,
- *                      dB-Hz; NaN = no design point (see acq_create_burst).
+ *                      dB-Hz; NaN = no design point (see dp_acq_create_burst).
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -214,11 +214,12 @@ dp_burst_capture_create (const float _Complex *preamble, size_t preamble_len,
 }
 
 dp_burst_capture_state_t *
-burst_capture_create_backed (const char *path, const float _Complex *preamble,
-                             size_t preamble_len, size_t burst_len,
-                             size_t reps, double fs, double cn0_dbhz,
-                             double doppler_uncertainty, double pfa, double pd,
-                             int noise_mode, double doppler_rate)
+dp_burst_capture_create_backed (const char           *path,
+                                const float _Complex *preamble,
+                                size_t preamble_len, size_t burst_len,
+                                size_t reps, double fs, double cn0_dbhz,
+                                double doppler_uncertainty, double pfa,
+                                double pd, int noise_mode, double doppler_rate)
 {
   if (!path || !*path)
     return NULL;
@@ -320,7 +321,7 @@ burst_capture_have (const dp_burst_capture_state_t *s, uint64_t pos, size_t n)
  * **Acquisition's statistic, at the settled cell.** Acquisition has
  * already settled the code phase and the Doppler; what is left is the
  * period. So each candidate is scored by the statistic acquisition itself
- * would compute for a preamble starting there -- acq_cell_corr() of every
+ * would compute for a preamble starting there -- dp_acq_cell_corr() of every
  * period the preamble would occupy, mixed at one Doppler on one time
  * reference and summed coherently over the `reps` periods -- and the
  * strongest candidate wins. Only `reps - abs(k)` of the positions still land
@@ -449,8 +450,8 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
   /* The candidate positions are consecutive periods, one contiguous run of
      the double-mapped ring, so every cell of every position is one call
      that despreads each sample once (doppler#1538). */
-  acq_cell_corr_grid (eng, burst_capture_at (s, lo), n_pos, 0, s->cell_f, nf,
-                      0.0, s->cell_buf);
+  dp_acq_cell_corr_grid (eng, burst_capture_at (s, lo), n_pos, 0, s->cell_f,
+                         nf, 0.0, s->cell_buf);
 
   double best   = -1.0;
   size_t best_k = 0;
@@ -964,7 +965,7 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
     }
 
   /* Copy the completed windows out. The scratch is the source of truth for
-     both faces: a C consumer borrows it through burst_capture_window()
+     both faces: a C consumer borrows it through dp_burst_capture_window()
      instead. */
   size_t have = state->ev_len * state->burst_len;
   size_t rows = have < max_out ? have : max_out;
@@ -1013,13 +1014,13 @@ dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
 }
 
 size_t
-burst_capture_ready (const dp_burst_capture_state_t *state)
+dp_burst_capture_ready (const dp_burst_capture_state_t *state)
 {
   return state->ev_len;
 }
 
 const float _Complex *
-burst_capture_window (const dp_burst_capture_state_t *state, size_t i)
+dp_burst_capture_window (const dp_burst_capture_state_t *state, size_t i)
 {
   if (i >= state->ev_len)
     return NULL;
@@ -1027,7 +1028,7 @@ burst_capture_window (const dp_burst_capture_state_t *state, size_t i)
 }
 
 const burst_capture_event_t *
-burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i)
+dp_burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i)
 {
   if (i >= state->ev_len)
     return NULL;
@@ -1200,7 +1201,7 @@ dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state)
 double
 dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state)
 {
-  return acq_psl_db (state->acq->engine);
+  return dp_acq_psl_db (state->acq->engine);
 }
 
 double

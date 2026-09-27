@@ -121,7 +121,7 @@ def signed(adv: int) -> int:
 def read_lut() -> tuple[np.ndarray, np.ndarray]:
     """Read the whole 2^16-entry LUT through the public face.
 
-    `lo_sin_lut` is a header extern with no binding, but it is fully
+    `dp_lo_sin_lut` is a header extern with no binding, but it is fully
     observable: an increment of exactly one LUT bin (norm_freq = 2^-16,
     phase_inc = 65536) walks the index 0, 1, 2, ... in order, so one
     `steps(65536)` call returns `lut[(i + QTR) & 0xFFFF] + j*lut[i]` for
@@ -191,7 +191,7 @@ CLAIM_MAP: list[tuple[str, str]] = [
     ("the LUT is read-only after init", "**absent**"),
     ("phase is the accumulator value in [0, 2^32)", "§7 §11"),
     ("phase_inc = floor(frac(norm_freq) x 2^32)", "§7 §12 §15, literals"),
-    ("lo_init is dp_lo_create without the allocation", "§9"),
+    ("dp_lo_init is dp_lo_create without the allocation", "§9"),
     ("only the fractional part of norm_freq matters", "§12"),
     ("lo_step is bit-for-bit dp_lo_steps, one sample at a time", "§8 §9 §12"),
     ("lo_step_ctrl adds ctrl on top of phase_inc for this step", "§16 NEW"),
@@ -440,7 +440,7 @@ def characterise() -> Data:
     R.md("*(section 6, and the new section 20)*")
     R.md()
     R.md(
-        "`lo_sin_lut` is a header `extern` with no binding, but it is "
+        "`dp_lo_sin_lut` is a header `extern` with no binding, but it is "
         "fully observable through the public face: at `norm_freq = 2^-16` "
         "the increment is exactly one LUT bin, so a single `steps(65536)` "
         "call walks index 0, 1, ... 65535 in order and returns the entire "
@@ -905,8 +905,8 @@ def characterise() -> Data:
     R.md()
     R.md(
         "The bindings expose `steps`/`steps_ctrl` and the properties, but "
-        "the **entire inline composition API** — `lo_init`, `lo_step`, "
-        "`lo_step_ctrl` and the `lo_sin_lut` extern — has no binding at "
+        "the **entire inline composition API** — `dp_lo_init`, `lo_step`, "
+        "`lo_step_ctrl` and the `dp_lo_sin_lut` extern — has no binding at "
         "all. That is by design (they exist so C can embed an "
         "`dp_lo_state_t` by value with zero call overhead), but it means the "
         "control port a tracking loop actually uses is C-only, and until "
@@ -1083,8 +1083,8 @@ def review(d: Data) -> None:
     R.find(
         "F9",
         "C-ONLY",
-        "the whole inline composition API — lo_init, lo_step, "
-        "lo_step_ctrl, lo_sin_lut — has no binding, and lo_step_ctrl had "
+        "the whole inline composition API — dp_lo_init, lo_step, "
+        "lo_step_ctrl, dp_lo_sin_lut — has no binding, and lo_step_ctrl had "
         "no test either: a documented control port with a five-clause "
         "contract (added on top of phase_inc, not persisted, any sign, "
         "folds modulo one cycle, bit-identical to lo_step at ctrl == 0) "
@@ -1463,8 +1463,9 @@ def build(write: bool = True) -> Report:
             "conversion truncates to zero (F6). A stopped oscillator in a "
             "strobe-driven loop is terminal, because no strobe means no "
             "update.",
-            "**The inline composition API is C-only** — `lo_init`, `lo_step`, "
-            "`lo_step_ctrl`, `lo_sin_lut` have no binding (F9), so a "
+            "**The inline composition API is C-only** — `dp_lo_init`, "
+            "`lo_step`, "
+            "`lo_step_ctrl`, `dp_lo_sin_lut` have no binding (F9), so a "
             "Python-side audit cannot see the surface a composing "
             "receiver actually uses.",
         ],

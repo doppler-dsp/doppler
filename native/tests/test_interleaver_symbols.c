@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_interleaver[] = {
     (jm_any_fn)dp_interleaver_create,
-    (jm_any_fn)interleaver_create_rx,
+    (jm_any_fn)dp_interleaver_create_rx,
     (jm_any_fn)dp_interleaver_destroy,
     (jm_any_fn)dp_interleaver_reset,
     (jm_any_fn)dp_interleaver_get_block_bits,

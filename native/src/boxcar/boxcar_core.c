@@ -4,7 +4,7 @@
 #include <string.h>
 
 void
-boxcar_init (dp_boxcar_state_t *s, size_t len, double gain)
+dp_boxcar_init (dp_boxcar_state_t *s, size_t len, double gain)
 {
   if (len == 0)
     len = 1;
@@ -24,7 +24,7 @@ dp_boxcar_create (size_t len, double gain)
   dp_boxcar_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  boxcar_init (s, len, gain);
+  dp_boxcar_init (s, len, gain);
   return s;
 }
 

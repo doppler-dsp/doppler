@@ -90,7 +90,7 @@ _A frame as a description: what is on the wire, and what covers it._ [More...](#
 Two lists, ordered independently, because order and coverage are independent axes: `field` is ordered by POSITION on the wire and `stage` by APPLICATION. In a CCSDS CADU the marker is inserted third and covered by the stage applied fourth, which a single ordered list cannot say.
 
 
-A standard's framing is a CONFIGURATION of this, in the same way `CCSDS_TM_CONV` configures `conv_code_t` and `CCSDS_TM_RS` configures `rs_code_t`. [**wfm\_frame\_t**](structwfm__frame__t.md) is the first such configuration and is built by [**dp\_wfm\_frame\_describe**](wfm__frame_8h.md#function-dp_wfm_frame_describe).
+A standard's framing is a CONFIGURATION of this, in the same way `dp_CCSDS_TM_CONV` configures `conv_code_t` and `dp_CCSDS_TM_RS` configures `rs_code_t`. [**wfm\_frame\_t**](structwfm__frame__t.md) is the first such configuration and is built by [**dp\_wfm\_frame\_describe**](wfm__frame_8h.md#function-dp_wfm_frame_describe).
 
 
 

@@ -100,11 +100,11 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
          double cn0_dbhz, int present, uint32_t seed, floor_t *out)
 {
   dp_acq_state_t *a
-      = acq_create_continuous (code, SF, SPC, chip_rate, SYMBOL_RATE,
-                               SIZING_CN0, DU, PFA, PD, 0, 1, 0.0);
+      = dp_acq_create_continuous (code, SF, SPC, chip_rate, SYMBOL_RATE,
+                                  SIZING_CN0, DU, PFA, PD, 0, 1, 0.0);
   if (!a)
     {
-      fprintf (stderr, "acq_create_continuous failed\n");
+      fprintf (stderr, "dp_acq_create_continuous failed\n");
       return 1;
     }
   out->n_noncoh    = a->n_noncoh;

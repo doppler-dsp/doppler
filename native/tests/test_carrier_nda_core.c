@@ -116,7 +116,7 @@ main (void)
     DP_CHECK (c->arm_len == 2); /* sps/n = 8/4 */
 
     dp_carrier_nda_state_t v;
-    carrier_nda_init (&v, 0.01, 0.707, 0.01, 8, 4, 4);
+    dp_carrier_nda_init (&v, 0.01, 0.707, 0.01, 8, 4, 4);
     DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     DP_CHECK (v.nco.phase_inc == c->nco.phase_inc);
     DP_CHECK (v.arm_len == c->arm_len && v.m == c->m);

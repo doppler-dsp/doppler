@@ -69,8 +69,8 @@ dp_burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
 
   /* Both loops update once per symbol, so the loop-filter update period is one
    * "unit"; bn is the loop noise bandwidth normalized to the symbol rate. */
-  loop_filter_init (&s->lf_car, bn_carrier, 0.707, 1.0);
-  loop_filter_init (&s->lf_code, bn_code, 0.707, 1.0);
+  dp_loop_filter_init (&s->lf_car, bn_carrier, 0.707, 1.0);
+  dp_loop_filter_init (&s->lf_code, bn_code, 0.707, 1.0);
 
   burst_despreader_seed (s);
   return s;

@@ -7,7 +7,7 @@
  * roll-FFT frequency-window hypotheses per epoch (see acq_core.h's "Wideband
  * window-tiling mode" doc comment and bench_freq_bank.py, the Python prototype
  * this reuses), cn0_dbhz = 37.31 (this waveform's real link budget). Built via
- * acq_create_continuous() -- this is exactly the continuous/async scenario
+ * dp_acq_create_continuous() -- this is exactly the continuous/async scenario
  * that engine always window-tiles for.
  *
  * Task #71: a frequency-bank benchmark only measured the
@@ -18,9 +18,9 @@
  * n_noncoh*code_bins samples (one full non-coherent dwell) of a real
  * injected burst + AWGN.
  *
- * n_noncoh itself is picked by acq_create_continuous()'s real physics-driven
- * auto-sizer at three pd targets (0.9/0.99/0.999) rather than forced to
- * SPEC.md's earlier n_noncoh=96/128/192 sweep -- that sweep was a
+ * n_noncoh itself is picked by dp_acq_create_continuous()'s real
+ * physics-driven auto-sizer at three pd targets (0.9/0.99/0.999) rather than
+ * forced to SPEC.md's earlier n_noncoh=96/128/192 sweep -- that sweep was a
  * standalone Python sizing sketch predating this wideband mode's C
  * implementation, and the REAL 34-bin Sidak-corrected model here turns
  * out considerably more optimistic (pd_predicted ~0.999 already by
@@ -174,13 +174,13 @@ main (void)
           /* Let the real auto-sizer pick n_noncoh honestly, bounded only by
            * the internal safety-valve ceiling -- see the file doc comment
            * above. */
-          dp_acq_state_t *a = acq_create_continuous (
+          dp_acq_state_t *a = dp_acq_create_continuous (
               code, SF, SPC, cfg->chip_rate, SYMBOL_RATE, CN0_DBHZ, cfg->du,
               PFA, pd_target, 0, cfg->code_only_epochs,
               cfg->code_only_epochs > 1 ? 500.0 : 0.0);
           if (!a)
             {
-              fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",
+              fprintf (stderr, "dp_acq_create_continuous failed at pd=%.3f\n",
                        pd_target);
               continue;
             }

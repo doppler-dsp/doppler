@@ -10,8 +10,8 @@
  *
  * ## The one expression
  *
- * @ref conv_outputs is what the family of codes emits, and it is the only
- * place that says so. @ref conv_encode calls it to produce symbols; a Viterbi
+ * @ref dp_conv_outputs is what the family of codes emits, and it is the only
+ * place that says so. @ref dp_conv_encode calls it to produce symbols; a Viterbi
  * decoder calls it to build the trellis it searches. An encoder that computed
  * the outputs and a decoder that computed them *again* would be two
  * implementations of one primitive, and the detail that drifts between them is
@@ -27,7 +27,7 @@
  *
  * ## Nothing here is CCSDS
  *
- * The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as @c CCSDS_TM_CONV,
+ * The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as @c dp_CCSDS_TM_CONV,
  * because a channel-coding standard picking a code is not the same fact as the
  * code existing. Point this at the deep-space rate-1/6 code, at a K = 9
  * experiment, or at whatever a caller brings — the trellis is identical and
@@ -92,7 +92,7 @@ extern "C"
    *           non-zero. A zero polynomial is an output that carries no
    *           information, which is a typo rather than a code.
    */
-  int conv_code_valid (const conv_code_t *c);
+  int dp_conv_code_valid (const conv_code_t *c);
 
   /** @brief Number of trellis states, `2^(k-1)`. */
   JM_FORCEINLINE uint32_t
@@ -105,7 +105,7 @@ extern "C"
    * @brief The output word for one branch — **the** expression of the code.
    *
    * Output @c j is bit @c j of the result, matching the order the
-   * polynomials are given in and the order @ref conv_encode emits them — so
+   * polynomials are given in and the order @ref dp_conv_encode emits them — so
    * for CCSDS, bit 0 is C1 and bit 1 is C2.
    *
    * @param c      The code.
@@ -113,7 +113,7 @@ extern "C"
    * @param bit    The new input bit (0 or 1).
    * @return       `n` bits, output @c j in bit @c j, inversion applied.
    */
-  unsigned conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit);
+  unsigned dp_conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit);
 
   /** @brief The state reached from @p state on @p bit. */
   JM_FORCEINLINE uint32_t
@@ -138,7 +138,7 @@ extern "C"
   } conv_enc_t;
 
   /** @brief Reset the encoder to the all-zero state. */
-  void conv_enc_init (conv_enc_t *s);
+  void dp_conv_enc_init (conv_enc_t *s);
 
   /**
    * @brief Encode @p n_in bits, emitting `n_in * c->n` symbols.
@@ -153,7 +153,7 @@ extern "C"
    * @return        Symbols written, or 0 if the code is invalid or @p max_out
    *                is too small — in which case @p out is untouched.
    */
-  size_t conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
+  size_t dp_conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
                       size_t n_in, uint8_t *out, size_t max_out);
 
 #ifdef __cplusplus

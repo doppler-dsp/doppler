@@ -455,7 +455,7 @@ class Acquisition:
         Resizes every buffer/plan that depends on the grid (the slow-time FFT,
         the code correlator, the reference, and every per-frame scratch
         buffer), re-derives the threshold ladder for the pinned grid from the
-        same physics acq_create_burst()/acq_create_continuous() used, and
+        same physics dp_acq_create_burst()/dp_acq_create_continuous() used, and
         clears in-flight accumulation (ring contents, the non-coherent power
         accumulator, dwell bookkeeping) — call between push() calls, never a
         substitute for one.
@@ -575,10 +575,10 @@ class Acquisition:
           without it the block's peak is 13 dB down and 3 chips wide and the
           depth detects nothing at 34 dB-Hz; with it the block reads as a still
           one.
-        - **The hand-off** (acq_build_handoff()) advances the hit's code phase
-          by the drift over half the dwell -- the non-coherent sum's peak is
-          the phase at the dwell's middle, the seed is wanted at its end: 0.9
-          chip at the 40 dB-Hz floor, past a refine loop's pull-in.
+        - **The hand-off** (dp_acq_build_handoff()) advances the hit's code
+          phase by the drift over half the dwell -- the non-coherent sum's peak
+          is the phase at the dwell's middle, the seed is wanted at its end:
+          0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
 
         Config, not running state: it is not in the state blob, so a resumed
         engine wants it set again by its holder, as at create. Default 0.0
@@ -732,7 +732,7 @@ class Acquisition:
         and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on
         the non-coherent path) is a flat plane on a plot. The engine keeps this
         only while `keep_surface` is set (a caller sets it, or
-        acq_set_surface_sink() does): set it, push, then read. `surface_at`
+        dp_acq_set_surface_sink() does): set it, push, then read. `surface_at`
         says which dwell it is; a time-decimated record is the caller reading
         every k-th dwell, or a sink with `decim`.
 
@@ -805,8 +805,8 @@ class Acquisition:
         """The surface's code-phase axis: the chip phase of each column.
 
         One value per surface column, in chips, the same mapping
-        acq_build_handoff() applies to a hit's `code_phase` — so a plotted peak
-        sits at the chip phase the DetectionEvent would carry.
+        dp_acq_build_handoff() applies to a hit's `code_phase` — so a plotted
+        peak sits at the chip phase the DetectionEvent would carry.
 
         Parameters
         ----------
@@ -1280,7 +1280,7 @@ class Acquisition:
 @final
 class BurstAcquisition:
     """Create a burst-mode acquisition engine for any repeated preamble, given
-    as its samples (forwards to acq_create_burst() -- see its doc comment in
+    as its samples (forwards to dp_acq_create_burst() -- see its doc comment in
     acq_core.h for the full physics).
 
     Parameters

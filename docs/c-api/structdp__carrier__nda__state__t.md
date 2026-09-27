@@ -98,7 +98,7 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_carrier\_nda\_create()**](carrier__nda__core_8h.md#function-dp_carrier_nda_create), or embed by value and [**carrier\_nda\_init()**](carrier__nda__core_8h.md#function-carrier_nda_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so a composing receiver can drive the same NCO; treat the arm accumulator and the diagnostics as internal. 
+Allocate with [**dp\_carrier\_nda\_create()**](carrier__nda__core_8h.md#function-dp_carrier_nda_create), or embed by value and [**dp\_carrier\_nda\_init()**](carrier__nda__core_8h.md#function-dp_carrier_nda_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so a composing receiver can drive the same NCO; treat the arm accumulator and the diagnostics as internal. 
 
 
     

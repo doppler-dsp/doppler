@@ -277,7 +277,7 @@ carrier_acq_process_block (dp_carrier_acq_state_t *s,
     s->power_buf[k] = s->pwr_buf[k] + 0.0f * I;
 
   float eta_nc = carrier_acq_ratio_threshold (s, s->n_blocks);
-  detector_set_threshold (s->det, eta_nc);
+  dp_detector_set_threshold (s->det, eta_nc);
 
   det_result_t result[1];
   size_t n_res = dp_detector_push (s->det, s->power_buf, s->nfft, result, 1);

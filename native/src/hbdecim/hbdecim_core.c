@@ -83,7 +83,7 @@ static inline float _Complex compute_output (const hbdecim_state_t *r)
 /* ================================================================== */
 
 hbdecim_state_t *
-hbdecim_create (size_t num_taps, const float *h)
+dp_hbdecim_create (size_t num_taps, const float *h)
 {
   if (!num_taps || !h)
     return NULL;
@@ -127,7 +127,7 @@ fail:
 }
 
 void
-hbdecim_destroy (hbdecim_state_t *r)
+dp_hbdecim_destroy (hbdecim_state_t *r)
 {
   if (!r)
     return;
@@ -138,7 +138,7 @@ hbdecim_destroy (hbdecim_state_t *r)
 }
 
 void
-hbdecim_reset (hbdecim_state_t *r)
+dp_hbdecim_reset (hbdecim_state_t *r)
 {
   r->even_head   = 0;
   r->odd_head    = 0;
@@ -152,7 +152,7 @@ hbdecim_reset (hbdecim_state_t *r)
  * delay rings (2*even_cap cf32 each). */
 
 size_t
-hbdecim_state_bytes (const hbdecim_state_t *r)
+dp_hbdecim_state_bytes (const hbdecim_state_t *r)
 {
   return sizeof (dp_state_hdr_t) + 2 * sizeof (size_t) + sizeof (int)
          + sizeof (float _Complex)
@@ -160,11 +160,11 @@ hbdecim_state_bytes (const hbdecim_state_t *r)
 }
 
 void
-hbdecim_get_state (const hbdecim_state_t *r, void *blob)
+dp_hbdecim_get_state (const hbdecim_state_t *r, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, hbdecim_state_bytes (r));
+  dp_writer_t w = dp_writer_init (blob, dp_hbdecim_state_bytes (r));
   dp_w_hdr (&w, HBDECIM_STATE_MAGIC, HBDECIM_STATE_VERSION,
-            hbdecim_state_bytes (r));
+            dp_hbdecim_state_bytes (r));
   dp_w_bytes (&w, &r->even_head, sizeof (size_t));
   dp_w_bytes (&w, &r->odd_head, sizeof (size_t));
   dp_w_bytes (&w, &r->has_pending, sizeof (int));
@@ -174,13 +174,13 @@ hbdecim_get_state (const hbdecim_state_t *r, void *blob)
 }
 
 int
-hbdecim_set_state (hbdecim_state_t *r, const void *blob)
+dp_hbdecim_set_state (hbdecim_state_t *r, const void *blob)
 {
-  int rc = dp_state_validate (blob, hbdecim_state_bytes (r),
+  int rc = dp_state_validate (blob, dp_hbdecim_state_bytes (r),
                               HBDECIM_STATE_MAGIC, HBDECIM_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t rd = dp_reader_init (blob, hbdecim_state_bytes (r));
+  dp_reader_t rd = dp_reader_init (blob, dp_hbdecim_state_bytes (r));
   rd.off         = sizeof (dp_state_hdr_t);
   dp_r_bytes (&rd, &r->even_head, sizeof (size_t));
   dp_r_bytes (&rd, &r->odd_head, sizeof (size_t));
@@ -196,14 +196,14 @@ hbdecim_set_state (hbdecim_state_t *r, const void *blob)
 /* ================================================================== */
 
 double
-hbdecim_get_rate (const hbdecim_state_t *r)
+dp_hbdecim_get_rate (const hbdecim_state_t *r)
 {
   (void)r;
   return 0.5;
 }
 
 double
-hbdecim_dc_gain (const hbdecim_state_t *r)
+dp_hbdecim_dc_gain (const hbdecim_state_t *r)
 {
   /* Mirrors compute_output() with every input sample equal to 1: each of the
      num_taps/2 stored coefficients is applied to a symmetric PAIR, and the
@@ -215,7 +215,7 @@ hbdecim_dc_gain (const hbdecim_state_t *r)
 }
 
 size_t
-hbdecim_get_num_taps (const hbdecim_state_t *r)
+dp_hbdecim_get_num_taps (const hbdecim_state_t *r)
 {
   return r->num_taps;
 }
@@ -225,8 +225,8 @@ hbdecim_get_num_taps (const hbdecim_state_t *r)
 /* ================================================================== */
 
 size_t
-hbdecim_execute (hbdecim_state_t *r, const float _Complex *in, size_t num_in,
-                 float _Complex *out, size_t max_out)
+dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
+                    size_t num_in, float _Complex *out, size_t max_out)
 {
   if (!num_in || !max_out)
     return 0;

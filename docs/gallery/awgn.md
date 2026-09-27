@@ -95,7 +95,7 @@ rx = LO(0.1).steps(N) + AWGN(seed=0, amplitude=noise_amp).generate(N)
 int main(void)
 {
     float complex out[1024];
-    awgn(0, 1.0f, 1024, out);  /* seed=0, amplitude=1.0; returns 0 on success */
+    dp_awgn(0, 1.0f, 1024, out);  /* seed=0, amplitude=1.0; returns 0 on success */
     return 0;
 }
 ```

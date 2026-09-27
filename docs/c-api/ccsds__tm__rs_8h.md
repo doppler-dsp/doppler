@@ -32,7 +32,7 @@ _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the con
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) <br>_What_ [_**ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_decode_block) _found in one codeblock._ |
+| struct | [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) <br>_What_ [_**dp\_ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_decode_block) _found in one codeblock._ |
 
 
 
@@ -43,7 +43,7 @@ _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the con
 
 | Type | Name |
 | ---: | :--- |
-|  const [**rs\_code\_t**](structrs__code__t.md) | [**CCSDS\_TM\_RS**](#variable-ccsds_tm_rs)  <br>_The five numbers 131.0-B-3 section 4.3 picks._  |
+|  const [**rs\_code\_t**](structrs__code__t.md) | [**dp\_CCSDS\_TM\_RS**](#variable-dp_ccsds_tm_rs)  <br>_The five numbers 131.0-B-3 section 4.3 picks._  |
 
 
 
@@ -64,14 +64,14 @@ _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the con
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**ccsds\_tm\_rs\_codeword\_ok**](#function-ccsds_tm_rs_codeword_ok) (const uint8\_t \* codeword) <br>_Is this a valid codeword? — all 32 syndromes zero._  |
-|  uint8\_t | [**ccsds\_tm\_rs\_conv\_to\_dual**](#function-ccsds_tm_rs_conv_to_dual) (uint8\_t u) <br>_Convert one symbol from the conventional basis to the dual basis._  |
-|  int | [**ccsds\_tm\_rs\_decode**](#function-ccsds_tm_rs_decode) (uint8\_t \* codeword) <br>_Correct up to_ `E = 16` _symbol errors in one codeword, in place._ |
-|  size\_t | [**ccsds\_tm\_rs\_decode\_block**](#function-ccsds_tm_rs_decode_block) (uint8\_t \* block, unsigned depth, [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) \* rx) <br>_Decode an interleaved codeblock in place (4.3.5, 4.4.1)._  |
-|  uint8\_t | [**ccsds\_tm\_rs\_dual\_to\_conv**](#function-ccsds_tm_rs_dual_to_conv) (uint8\_t z) <br>_Convert one symbol from the dual basis back to conventional._  |
-|  void | [**ccsds\_tm\_rs\_encode**](#function-ccsds_tm_rs_encode) (const uint8\_t \* info, uint8\_t \* parity) <br>_Encode one codeword: 223 information symbols in, 32 parity out._  |
-|  size\_t | [**ccsds\_tm\_rs\_encode\_block**](#function-ccsds_tm_rs_encode_block) (const uint8\_t \* info, unsigned depth, uint8\_t \* out) <br>_Encode an interleaved codeblock (4.3.5, 4.4.1)._  |
-|  const uint8\_t \* | [**ccsds\_tm\_rs\_generator**](#function-ccsds_tm_rs_generator) (void) <br>_The 33 coefficients of_ `g(x)` _, in conventional representation._ |
+|  int | [**dp\_ccsds\_tm\_rs\_codeword\_ok**](#function-dp_ccsds_tm_rs_codeword_ok) (const uint8\_t \* codeword) <br>_Is this a valid codeword? — all 32 syndromes zero._  |
+|  uint8\_t | [**dp\_ccsds\_tm\_rs\_conv\_to\_dual**](#function-dp_ccsds_tm_rs_conv_to_dual) (uint8\_t u) <br>_Convert one symbol from the conventional basis to the dual basis._  |
+|  int | [**dp\_ccsds\_tm\_rs\_decode**](#function-dp_ccsds_tm_rs_decode) (uint8\_t \* codeword) <br>_Correct up to_ `E = 16` _symbol errors in one codeword, in place._ |
+|  size\_t | [**dp\_ccsds\_tm\_rs\_decode\_block**](#function-dp_ccsds_tm_rs_decode_block) (uint8\_t \* block, unsigned depth, [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md) \* rx) <br>_Decode an interleaved codeblock in place (4.3.5, 4.4.1)._  |
+|  uint8\_t | [**dp\_ccsds\_tm\_rs\_dual\_to\_conv**](#function-dp_ccsds_tm_rs_dual_to_conv) (uint8\_t z) <br>_Convert one symbol from the dual basis back to conventional._  |
+|  void | [**dp\_ccsds\_tm\_rs\_encode**](#function-dp_ccsds_tm_rs_encode) (const uint8\_t \* info, uint8\_t \* parity) <br>_Encode one codeword: 223 information symbols in, 32 parity out._  |
+|  size\_t | [**dp\_ccsds\_tm\_rs\_encode\_block**](#function-dp_ccsds_tm_rs_encode_block) (const uint8\_t \* info, unsigned depth, uint8\_t \* out) <br>_Encode an interleaved codeblock (4.3.5, 4.4.1)._  |
+|  const uint8\_t \* | [**dp\_ccsds\_tm\_rs\_generator**](#function-dp_ccsds_tm_rs_generator) (void) <br>_The 33 coefficients of_ `g(x)` _, in conventional representation._ |
 
 
 
@@ -115,7 +115,7 @@ _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the con
 CCSDS 131.0-B-3 section 4.3. `J = 8` bits per symbol, `E = 16` correctable symbols, so `n = 255`, `2E = 32` parity symbols and `k = 223`. Systematic.
 
 
-**The algebra is not here.** `rs/rs_core.h` owns the field, the encoder, the syndromes and the Berlekamp-Massey / Chien / Forney decoder, for any Reed-Solomon code; this file holds [**CCSDS\_TM\_RS**](ccsds__tm__rs_8h.md#variable-ccsds_tm_rs) — the five numbers 131.0-B-3 picked — plus the two things the standard adds that are _not_ properties of the code: the **dual basis** symbols travel in (4.3.9) and the **interleaver** (4.4.1). A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the conventions below from being written down twice.
+**The algebra is not here.** `rs/rs_core.h` owns the field, the encoder, the syndromes and the Berlekamp-Massey / Chien / Forney decoder, for any Reed-Solomon code; this file holds [**dp\_CCSDS\_TM\_RS**](ccsds__tm__rs_8h.md#variable-dp_ccsds_tm_rs) — the five numbers 131.0-B-3 picked — plus the two things the standard adds that are _not_ properties of the code: the **dual basis** symbols travel in (4.3.9) and the **interleaver** (4.4.1). A standard choosing a code is a different fact from the code existing, and keeping them apart is what stops the conventions below from being written down twice.
 
 
 Three things here are NOT the textbook Reed-Solomon a reader will expect, and each is invisible to an encode/decode round trip because a matched decoder inverts whatever the encoder did:
@@ -159,11 +159,11 @@ Bit convention follows the rest of `ccsds_tm/`: **packed symbols**, one byte per
 
 
 
-### variable CCSDS\_TM\_RS 
+### variable dp\_CCSDS\_TM\_RS 
 
 _The five numbers 131.0-B-3 section 4.3 picks._ 
 ```C++
-const rs_code_t CCSDS_TM_RS;
+const rs_code_t dp_CCSDS_TM_RS;
 ```
 
 
@@ -182,11 +182,11 @@ The field polynomial (4.3.3), the parity count (4.3.2c), and the roots' first in
 
 
 
-### function ccsds\_tm\_rs\_codeword\_ok 
+### function dp\_ccsds\_tm\_rs\_codeword\_ok 
 
 _Is this a valid codeword? — all 32 syndromes zero._ 
 ```C++
-int ccsds_tm_rs_codeword_ok (
+int dp_ccsds_tm_rs_codeword_ok (
     const uint8_t * codeword
 ) 
 ```
@@ -219,11 +219,11 @@ Non-zero when every syndrome is zero.
 
 
 
-### function ccsds\_tm\_rs\_conv\_to\_dual 
+### function dp\_ccsds\_tm\_rs\_conv\_to\_dual 
 
 _Convert one symbol from the conventional basis to the dual basis._ 
 ```C++
-uint8_t ccsds_tm_rs_conv_to_dual (
+uint8_t dp_ccsds_tm_rs_conv_to_dual (
     uint8_t u
 ) 
 ```
@@ -239,21 +239,21 @@ uint8_t ccsds_tm_rs_conv_to_dual (
 
 
 
-### function ccsds\_tm\_rs\_decode 
+### function dp\_ccsds\_tm\_rs\_decode 
 
 _Correct up to_ `E = 16` _symbol errors in one codeword, in place._
 ```C++
-int ccsds_tm_rs_decode (
+int dp_ccsds_tm_rs_decode (
     uint8_t * codeword
 ) 
 ```
 
 
 
-The decode is `rs_decode`'s; this transforms the codeword out of the dual basis on the way in and back on the way out (4.3.9, figure F-1). Correcting in the transmitted basis instead would produce a decoder that repairs its own encoder's output perfectly and interoperates with nothing — the same failure the field polynomial and the root stride each offer, and the reason this transform is not optional.
+The decode is `dp_rs_decode`'s; this transforms the codeword out of the dual basis on the way in and back on the way out (4.3.9, figure F-1). Correcting in the transmitted basis instead would produce a decoder that repairs its own encoder's output perfectly and interoperates with nothing — the same failure the field polynomial and the root stride each offer, and the reason this transform is not optional.
 
 
-It either refuses or returns a codeword; see `rs_decode` for what a refusal does and does not mean.
+It either refuses or returns a codeword; see `dp_rs_decode` for what a refusal does and does not mean.
 
 
 
@@ -279,11 +279,11 @@ Symbols corrected, 0 if the codeword was already valid, or -1 if it could not be
 
 
 
-### function ccsds\_tm\_rs\_decode\_block 
+### function dp\_ccsds\_tm\_rs\_decode\_block 
 
 _Decode an interleaved codeblock in place (4.3.5, 4.4.1)._ 
 ```C++
-size_t ccsds_tm_rs_decode_block (
+size_t dp_ccsds_tm_rs_decode_block (
     uint8_t * block,
     unsigned depth,
     ccsds_tm_rs_block_rx_t * rx
@@ -292,7 +292,7 @@ size_t ccsds_tm_rs_decode_block (
 
 
 
-The mirror of [**ccsds\_tm\_rs\_encode\_block**](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_encode_block), over the same S1/S2 rotation — written once, here, so the two directions cannot come to disagree about which symbol belongs to which codeword. A rotated de-interleave is invisible against an all-zero payload, whose codewords are identical, so the test that pins this uses structured data.
+The mirror of [**dp\_ccsds\_tm\_rs\_encode\_block**](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_encode_block), over the same S1/S2 rotation — written once, here, so the two directions cannot come to disagree about which symbol belongs to which codeword. A rotated de-interleave is invisible against an all-zero payload, whose codewords are identical, so the test that pins this uses structured data.
 
 
 
@@ -320,18 +320,18 @@ The number of information symbols, `CCSDS_TM_RS_K * depth`, or 0 if `depth` is n
 
 
 
-### function ccsds\_tm\_rs\_dual\_to\_conv 
+### function dp\_ccsds\_tm\_rs\_dual\_to\_conv 
 
 _Convert one symbol from the dual basis back to conventional._ 
 ```C++
-uint8_t ccsds_tm_rs_dual_to_conv (
+uint8_t dp_ccsds_tm_rs_dual_to_conv (
     uint8_t z
 ) 
 ```
 
 
 
-4.3.9.3, second equation, and the test holds it to that matrix as printed. Exact inverse of [**ccsds\_tm\_rs\_conv\_to\_dual**](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_conv_to_dual) across all 256 values — but note that inversion ALONE catches only a single mis-transcribed bit, never a wrong pair consistent with itself. The two checks that separate those are described at the top of this file. 
+4.3.9.3, second equation, and the test holds it to that matrix as printed. Exact inverse of [**dp\_ccsds\_tm\_rs\_conv\_to\_dual**](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_conv_to_dual) across all 256 values — but note that inversion ALONE catches only a single mis-transcribed bit, never a wrong pair consistent with itself. The two checks that separate those are described at the top of this file. 
 
 
         
@@ -340,11 +340,11 @@ uint8_t ccsds_tm_rs_dual_to_conv (
 
 
 
-### function ccsds\_tm\_rs\_encode 
+### function dp\_ccsds\_tm\_rs\_encode 
 
 _Encode one codeword: 223 information symbols in, 32 parity out._ 
 ```C++
-void ccsds_tm_rs_encode (
+void dp_ccsds_tm_rs_encode (
     const uint8_t * info,
     uint8_t * parity
 ) 
@@ -372,11 +372,11 @@ Both `info` and `parity` are in the **dual basis**, i.e. exactly what goes on th
 
 
 
-### function ccsds\_tm\_rs\_encode\_block 
+### function dp\_ccsds\_tm\_rs\_encode\_block 
 
 _Encode an interleaved codeblock (4.3.5, 4.4.1)._ 
 ```C++
-size_t ccsds_tm_rs_encode_block (
+size_t dp_ccsds_tm_rs_encode_block (
     const uint8_t * info,
     unsigned depth,
     uint8_t * out
@@ -423,11 +423,11 @@ The number of symbols written, or 0 if `depth` is not allowed.
 
 
 
-### function ccsds\_tm\_rs\_generator 
+### function dp\_ccsds\_tm\_rs\_generator 
 
 _The 33 coefficients of_ `g(x)` _, in conventional representation._
 ```C++
-const uint8_t * ccsds_tm_rs_generator (
+const uint8_t * dp_ccsds_tm_rs_generator (
     void
 ) 
 ```

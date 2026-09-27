@@ -1,7 +1,7 @@
 /*
  * graceful_shutdown_demo.c — stopping a generator from C.
  *
- * `doppler_wfmgen()` is the wfmgen tool as an ordinary C call, for a
+ * `dp_doppler_wfmgen()` is the wfmgen tool as an ordinary C call, for a
  * program that wants the generator's behaviour without spawning a process.
  * A continuous run has no natural end, so something has to stop it:
  * `dp_interrupt()` asks every blocking wait and every generate loop in the
@@ -80,7 +80,7 @@ main (void)
      is prompt anywhere. */
   char           *args[] = { (char *)"wfmgen", (char *)"--continuous",
                              (char *)"--output", (char *)OUT_PATH, NULL };
-  int             rc     = doppler_wfmgen (4, args);
+  int             rc     = dp_doppler_wfmgen (4, args);
   struct timespec t_returned;
   clock_gettime (CLOCK_MONOTONIC, &t_returned);
 

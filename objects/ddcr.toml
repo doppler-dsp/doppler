@@ -47,7 +47,7 @@ default = "0.25"
 # The matched flavor — the real-input twin of MatchedDDC.
 [[ddcr.views]]
 class_name = "MatchedDdcr"
-create_fn = "ddcr_create_matched"
+create_fn = "dp_ddcr_create_matched"
 init_params = [
   { name = "norm_freq", type = "double", default = "0.0" },
   { name = "rate", type = "double", default = "0.25" },

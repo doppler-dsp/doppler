@@ -226,7 +226,7 @@ resamp_create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
 /* ------------------------------------------------------------------ */
 
 resamp_state_t *
-resamp_create (double rate)
+dp_resamp_create (double rate)
 {
   static const size_t NUM_PHASES = 4096;
   static const double ATTEN      = 60.0;
@@ -241,8 +241,8 @@ resamp_create (double rate)
 }
 
 resamp_state_t *
-resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
-                      double rate)
+dp_resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
+                         double rate)
 {
   if (!num_phases || !num_taps || !bank || rate <= 0.0)
     return NULL;
@@ -256,7 +256,7 @@ resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
 }
 
 void
-resamp_destroy (resamp_state_t *s)
+dp_resamp_destroy (resamp_state_t *s)
 {
   if (!s)
     return;
@@ -268,7 +268,7 @@ resamp_destroy (resamp_state_t *s)
 }
 
 void
-resamp_reset (resamp_state_t *s)
+dp_resamp_reset (resamp_state_t *s)
 {
   s->phase      = 0;
   s->ctrl_phase = 0;
@@ -286,7 +286,7 @@ resamp_reset (resamp_state_t *s)
  * decim_iad (num_taps), decim_tfd (num_taps-1 when num_taps>1). */
 
 size_t
-resamp_state_bytes (const resamp_state_t *s)
+dp_resamp_state_bytes (const resamp_state_t *s)
 {
   size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) + sizeof (size_t)
              + 3 * sizeof (uint32_t)
@@ -298,11 +298,11 @@ resamp_state_bytes (const resamp_state_t *s)
 }
 
 void
-resamp_get_state (const resamp_state_t *s, void *blob)
+dp_resamp_get_state (const resamp_state_t *s, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, resamp_state_bytes (s));
+  dp_writer_t w = dp_writer_init (blob, dp_resamp_state_bytes (s));
   dp_w_hdr (&w, RESAMP_STATE_MAGIC, RESAMP_STATE_VERSION,
-            resamp_state_bytes (s));
+            dp_resamp_state_bytes (s));
   dp_w_u32 (&w, s->phase);
   dp_w_bytes (&w, &s->delay_head, sizeof (size_t));
   dp_w_u32 (&w, s->ctrl_phase);
@@ -315,13 +315,13 @@ resamp_get_state (const resamp_state_t *s, void *blob)
 }
 
 int
-resamp_set_state (resamp_state_t *s, const void *blob)
+dp_resamp_set_state (resamp_state_t *s, const void *blob)
 {
-  int rc = dp_state_validate (blob, resamp_state_bytes (s), RESAMP_STATE_MAGIC,
-                              RESAMP_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_resamp_state_bytes (s),
+                              RESAMP_STATE_MAGIC, RESAMP_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  dp_reader_t r = dp_reader_init (blob, resamp_state_bytes (s));
+  dp_reader_t r = dp_reader_init (blob, dp_resamp_state_bytes (s));
   r.off         = sizeof (dp_state_hdr_t);
   s->phase      = dp_r_u32 (&r);
   dp_r_bytes (&r, &s->delay_head, sizeof (size_t));
@@ -340,13 +340,13 @@ resamp_set_state (resamp_state_t *s, const void *blob)
 /* ------------------------------------------------------------------ */
 
 double
-resamp_get_rate (const resamp_state_t *s)
+dp_resamp_get_rate (const resamp_state_t *s)
 {
   return s->rate;
 }
 
 void
-resamp_set_rate (resamp_state_t *s, double rate)
+dp_resamp_set_rate (resamp_state_t *s, double rate)
 {
   s->rate      = rate;
   s->upsample  = (rate >= 1.0);
@@ -354,19 +354,19 @@ resamp_set_rate (resamp_state_t *s, double rate)
 }
 
 size_t
-resamp_get_num_phases (const resamp_state_t *s)
+dp_resamp_get_num_phases (const resamp_state_t *s)
 {
   return s->num_phases;
 }
 
 size_t
-resamp_get_num_taps (const resamp_state_t *s)
+dp_resamp_get_num_taps (const resamp_state_t *s)
 {
   return s->num_taps;
 }
 
 double
-resamp_get_delay (const resamp_state_t *s)
+dp_resamp_get_delay (const resamp_state_t *s)
 {
   /* The prototype's centre (resamp_build_bank makes the length odd, so
      halflen is exact) over the phases, plus the one input the pipeline
@@ -377,7 +377,7 @@ resamp_get_delay (const resamp_state_t *s)
 }
 
 double
-resamp_dc_gain (const resamp_state_t *s)
+dp_resamp_dc_gain (const resamp_state_t *s)
 {
   double sum = 0.0;
   for (size_t t = 0; t < s->num_taps; t++)
@@ -386,7 +386,7 @@ resamp_dc_gain (const resamp_state_t *s)
 }
 
 double
-resamp_get_ctrl_acc (const resamp_state_t *s)
+dp_resamp_get_ctrl_acc (const resamp_state_t *s)
 {
   /* The phase word as a fraction of one input interval: in [0, 1) by
      construction, which is what this accessor has always promised, and
@@ -483,7 +483,7 @@ interp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
 /* ------------------------------------------------------------------ */
 
 size_t
-resamp_interp_inputs_needed (const resamp_state_t *s, size_t max_out)
+dp_resamp_interp_inputs_needed (const resamp_state_t *s, size_t max_out)
 {
   /* Overflows in max_out ticks from the current phase: the high 32 bits of
      (phase + max_out * phase_inc), computed in 64-bit so it can't wrap. */
@@ -497,8 +497,8 @@ resamp_interp_inputs_needed (const resamp_state_t *s, size_t max_out)
 }
 
 size_t
-resamp_interp_fill (resamp_state_t *s, const float _Complex *in,
-                    float _Complex *out, size_t max_out)
+dp_resamp_interp_fill (resamp_state_t *s, const float _Complex *in,
+                       float _Complex *out, size_t max_out)
 {
   size_t   xi = 0;
   uint32_t ph = s->phase, inc = s->phase_inc;
@@ -575,8 +575,8 @@ decim_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
 /* ------------------------------------------------------------------ */
 
 size_t
-resamp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
-                float _Complex *out, size_t max_out)
+dp_resamp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
+                   float _Complex *out, size_t max_out)
 {
   if (s->upsample)
     return interp_execute (s, in, num_in, out, max_out);
@@ -616,8 +616,8 @@ resamp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
  */
 
 size_t
-resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
-                          float _Complex *out, size_t max_out)
+dp_resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
+                             float _Complex *out, size_t max_out)
 {
   /* NOTE the sample is NOT pushed here.  Nothing enters an interpolator's
      delay line without a load request: a tick emits, the accumulator fails
@@ -715,13 +715,13 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
 /* ------------------------------------------------------------------ */
 
 size_t
-resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
-                     const double *ctrl, size_t num_in, float _Complex *out,
-                     size_t max_out)
+dp_resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
+                        const double *ctrl, size_t num_in, float _Complex *out,
+                        size_t max_out)
 {
   size_t oi = 0;
   for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
-    oi += resamp_execute_ctrl_push (s, in[xi], ctrl[xi], out + oi,
-                                    max_out - oi);
+    oi += dp_resamp_execute_ctrl_push (s, in[xi], ctrl[xi], out + oi,
+                                       max_out - oi);
   return oi;
 }

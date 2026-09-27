@@ -66,9 +66,9 @@ extern "C"
   /**
    * @brief LO state.
    *
-   * Allocate with dp_lo_create(), or embed by value and lo_init() (see the
+   * Allocate with dp_lo_create(), or embed by value and dp_lo_init() (see the
    * inline composition API below).  The shared 65536-entry LUT is
-   * initialised lazily on the first dp_lo_create()/lo_init() call and never
+   * initialised lazily on the first dp_lo_create()/dp_lo_init() call and never
    * freed.
    */
   typedef struct
@@ -80,7 +80,7 @@ extern "C"
 
 /* ---- Inline composition API (C-only; not exposed as Python methods) ----
  *
- * lo_init / lo_step let a tracking loop embed dp_lo_state_t BY VALUE and de-rotate
+ * dp_lo_init / lo_step let a tracking loop embed dp_lo_state_t BY VALUE and de-rotate
  * a sample stream one sample at a time with zero call overhead — the block
  * generators below (dp_lo_steps) stay the fast path for bulk synthesis.  The
  * shared sin LUT is exposed here so the inline step can index it directly.   */
@@ -91,17 +91,17 @@ extern "C"
   /**
    * @brief Shared 2^16-entry sine LUT (read-only after init).
    *
-   * Filled by the first dp_lo_create()/lo_init().  Indexed by the top 16 bits of
+   * Filled by the first dp_lo_create()/dp_lo_init().  Indexed by the top 16 bits of
    * the phase accumulator; the quarter-cycle offset LO_LUT_QTR maps sin→cos.
    * Do not write.  Exposed only so lo_step() can be a header inline.
    */
-  extern float lo_sin_lut[LO_LUT_SIZE];
+  extern float dp_lo_sin_lut[LO_LUT_SIZE];
 
   /**
    * @brief Initialise an LO in place (no allocation).
    *
    * The by-value counterpart to dp_lo_create(): a tracking loop that embeds an
-   * dp_lo_state_t initialises it with lo_init() instead of owning a heap pointer.
+   * dp_lo_state_t initialises it with dp_lo_init() instead of owning a heap pointer.
    * Sets phase=0, derives phase_inc from norm_freq, and fills the shared LUT
    * on first use (same single-threaded caveat as dp_lo_create()).
    *
@@ -115,7 +115,7 @@ extern "C"
    * 1073741824
    * @endcode
    */
-  void lo_init (dp_lo_state_t *state, double norm_freq);
+  void dp_lo_init (dp_lo_state_t *state, double norm_freq);
 
   /**
    * @brief Emit the current CF32 phasor, then advance the accumulator.
@@ -123,13 +123,13 @@ extern "C"
    * Single-sample form of dp_lo_steps(), same emit-before-increment convention
    * and bit-for-bit the same LUT math, suitable for inlining into a
    * sample-by-sample loop (e.g. carrier wipe-off ahead of a matched filter).
-   * The caller must have run dp_lo_create()/lo_init() so the LUT is populated.
+   * The caller must have run dp_lo_create()/dp_lo_init() so the LUT is populated.
    *
    * @param state  LO state.  Must be non-NULL with phase/phase_inc set.
    * @return cos(θ) + j·sin(θ) at the phase BEFORE the increment.
    * @code
    * dp_lo_state_t lo;            // embedded by value, no heap
-   * lo_init (&lo, 0.25);
+   * dp_lo_init (&lo, 0.25);
    * float _Complex s0 = lo_step (&lo);   // 1 + 0j
    * float _Complex s1 = lo_step (&lo);   // 0 + 1j
    * @endcode
@@ -138,8 +138,8 @@ extern "C"
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
     float _Complex out
-        = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                  lo_sin_lut[idx]);
+        = CMPLXF (dp_lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                  dp_lo_sin_lut[idx]);
     state->phase += state->phase_inc;
     return out;
   }
@@ -161,7 +161,7 @@ extern "C"
    * @return cos(θ) + j·sin(θ) at the phase BEFORE the increment.
    * @code
    * dp_lo_state_t lo;
-   * lo_init (&lo, 0.0);                 // centre at DC
+   * dp_lo_init (&lo, 0.0);                 // centre at DC
    * float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
    * @endcode
    */
@@ -170,8 +170,8 @@ extern "C"
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
     float _Complex out
-        = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                  lo_sin_lut[idx]);
+        = CMPLXF (dp_lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                  dp_lo_sin_lut[idx]);
     /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta
      * primitive, and it TRUNCATES -- see nco_core.h for why rounding would
      * make the increment differ by host. This comment claimed the opposite

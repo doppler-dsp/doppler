@@ -25,11 +25,11 @@ dp_rs_codec_create (uint32_t nroots, uint32_t symbol_bits, uint32_t field_poly,
                            .first_root  = (unsigned)first_root,
                            .root_stride = (unsigned)root_stride };
 
-  /* rs_init is where a non-primitive field polynomial and a root stride
+  /* dp_rs_init is where a non-primitive field polynomial and a root stride
      sharing a factor with n are caught. Both produce arithmetic that is
      entirely self-consistent, so this is the ONLY place they can be caught
      -- a round trip against a matching encoder never will be. */
-  if (!rs_init (&obj->rs, &code))
+  if (!dp_rs_init (&obj->rs, &code))
     {
       free (obj);
       return NULL;
@@ -58,9 +58,9 @@ dp_rs_codec_encode (dp_rs_codec_state_t *state, const uint8_t *in, size_t n_in,
   if (n_in != state->rs.k || max_out < n)
     return 0;
 
-  /* Systematic: the information travels untouched and rs_encode appends the
+  /* Systematic: the information travels untouched and dp_rs_encode appends the
      remainder. Placing it here rather than in the kernel is what lets
-     rs_encode stay the parity-only primitive a frame assembler wants, which
+     dp_rs_encode stay the parity-only primitive a frame assembler wants, which
      already has the information in place and must not copy it again.
 
      The guard is not defensive: `out == in` is the in-place call a frame
@@ -68,7 +68,7 @@ dp_rs_codec_encode (dp_rs_codec_state_t *state, const uint8_t *in, size_t n_in,
      behaviour rather than a no-op. */
   if (out != in)
     memcpy (out, in, state->rs.k);
-  rs_encode (&state->rs, in, out + state->rs.k);
+  dp_rs_encode (&state->rs, in, out + state->rs.k);
   return n;
 }
 
@@ -78,7 +78,7 @@ dp_rs_codec_decode (dp_rs_codec_state_t *state, uint8_t *codeword,
 {
   if (codeword_len != state->rs.n)
     return -2;
-  return rs_decode (&state->rs, codeword);
+  return dp_rs_decode (&state->rs, codeword);
 }
 
 size_t
@@ -95,7 +95,7 @@ dp_rs_codec_syndromes (dp_rs_codec_state_t *state, const uint8_t *in,
   const size_t nroots = state->rs.code.nroots;
   if (n_in != state->rs.n || max_out < nroots)
     return 0;
-  rs_syndromes (&state->rs, in, out);
+  dp_rs_syndromes (&state->rs, in, out);
   return nroots;
 }
 
@@ -105,7 +105,7 @@ dp_rs_codec_codeword_ok (dp_rs_codec_state_t *state, const uint8_t *codeword,
 {
   if (codeword_len != state->rs.n)
     return 0;
-  return rs_codeword_ok (&state->rs, codeword) ? 1 : 0;
+  return dp_rs_codeword_ok (&state->rs, codeword) ? 1 : 0;
 }
 
 size_t
@@ -115,7 +115,7 @@ dp_rs_codec_generator (dp_rs_codec_state_t *state, uint8_t *out,
   const size_t len = (size_t)state->rs.code.nroots + 1u;
   if (out_len < len)
     return 0;
-  memcpy (out, rs_generator (&state->rs), len);
+  memcpy (out, dp_rs_generator (&state->rs), len);
   return len;
 }
 

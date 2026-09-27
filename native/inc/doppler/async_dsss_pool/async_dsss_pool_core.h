@@ -29,7 +29,7 @@
  * any Doppler, as that emitter's own (the zone is the code axis alone: a
  * tracked emitter's data blocks put smeared copies of it at its own phase
  * rows away, section 12.14); for each
- * survivor, `acq_build_handoff()` and `seed()` into a free slot, or count
+ * survivor, `dp_acq_build_handoff()` and `seed()` into a free slot, or count
  * it dropped when there is none; feed every receiver; then, for each slot
  * whose receiver reports lost, or has held its slot past the maximum
  * on-air time, clear the row, `reset()` the receiver to idle and log
@@ -231,7 +231,7 @@ extern "C"
  *        section 12.22-12.28, #1283).
  *
  * The lifecycle of the file's doc over `n_slots` CellAsyncDsssReceivers
- * (async_dsss_receiver_create_cell()): a seed
+ * (dp_async_dsss_receiver_create_cell()): a seed
  * builds no refine stage, the receiver's Dll is held from the first sample
  * and corrected once every `correct_periods` code periods -- here the
  * searcher's own block depth D (`coherent_bins`), the timing the design

@@ -30,7 +30,7 @@ extern "C"
 
 /* ---- Inline composition API (C-only; not exposed as Python methods) ----
  *
- * lo_init / lo_step let a tracking loop embed dp_lo_state_t BY VALUE and de-rotate
+ * dp_lo_init / lo_step let a tracking loop embed dp_lo_state_t BY VALUE and de-rotate
  * a sample stream one sample at a time with zero call overhead — the block
  * generators below (dp_lo_steps) stay the fast path for bulk synthesis.  The
  * shared sin LUT is exposed here so the inline step can index it directly.   */
@@ -38,16 +38,16 @@ extern "C"
 #define LO_LUT_SIZE (1u << LO_LUT_BITS) /* 65536                    */
 #define LO_LUT_QTR (LO_LUT_SIZE >> 2u)  /* 16384  (π/2 phase shift) */
 
-  extern float lo_sin_lut[LO_LUT_SIZE];
+  extern float dp_lo_sin_lut[LO_LUT_SIZE];
 
-  void lo_init (dp_lo_state_t *state, double norm_freq);
+  void dp_lo_init (dp_lo_state_t *state, double norm_freq);
 
   JM_FORCEINLINE JM_HOT float _Complex lo_step (dp_lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
     float _Complex out
-        = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                  lo_sin_lut[idx]);
+        = CMPLXF (dp_lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                  dp_lo_sin_lut[idx]);
     state->phase += state->phase_inc;
     return out;
   }
@@ -57,8 +57,8 @@ extern "C"
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
     float _Complex out
-        = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                  lo_sin_lut[idx]);
+        = CMPLXF (dp_lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                  dp_lo_sin_lut[idx]);
     /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta
      * primitive, and it TRUNCATES -- see nco_core.h for why rounding would
      * make the increment differ by host. This comment claimed the opposite

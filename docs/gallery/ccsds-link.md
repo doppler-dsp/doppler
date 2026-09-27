@@ -5,8 +5,8 @@
 A frame is a list of **fields** that appear on the wire and a list of
 **stages** that transform them — each stage carrying the **span it covers**.
 CCSDS is not a mode this library switches into; it is a configuration of that
-description, in the same way `CCSDS_TM_CONV` configures a convolutional code
-and `CCSDS_TM_RS` configures a Reed-Solomon one.
+description, in the same way `dp_CCSDS_TM_CONV` configures a convolutional code
+and `dp_CCSDS_TM_RS` configures a Reed-Solomon one.
 
 Three fields and three covers is the whole of it:
 

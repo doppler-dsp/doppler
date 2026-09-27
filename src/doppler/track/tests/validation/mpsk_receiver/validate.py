@@ -2194,7 +2194,7 @@ def build(write: bool = True) -> Report:
     R.md()
     R.md(
         "**One object, three faces.** `track.MpskReceiverR` is the same "
-        "core reached through `mpsk_receiver_create_real()` — a matched "
+        "core reached through `dp_mpsk_receiver_create_real()` — a matched "
         "DDCR instead of a matched DDC — and is a view rather than a "
         "second type as of the collapse "
         "([`docs/design/mpsk.md`, the collapse]"

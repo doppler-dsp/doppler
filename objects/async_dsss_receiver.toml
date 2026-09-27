@@ -108,7 +108,7 @@ default = "100.0"
 # The LIVE-TRACKING Dll's own segments -- distinct from the refine
 # stage's OWN collection-Dll segments (refine_max_error_db below),
 # deliberately, per Python's WINDOWS vs TRACK_WINDOWS split (see the
-# plan doc's dll_lookback_segments() section).
+# plan doc's dp_dll_lookback_segments() section).
 [[async_dsss_receiver.init_params]]
 name = "segments"
 type = "size_t"
@@ -129,14 +129,14 @@ default = "0"
 
 # Max tolerable async-lookback correlation-power loss driving the
 # refine-stage collection Dll's window/segment count via
-# dll_lookback_segments(). Default 0.5 -- freq_refine.refine_seed_
+# dp_dll_lookback_segments(). Default 0.5 -- freq_refine.refine_seed_
 # carrier_acq()/async_lookback_windows()'s own validated value, which
 # yields segments=11 at this waveform's tsamps=2046.
 #
 # Oversampling the epoch is REQUIRED, not optional, because the data is
 # asynchronous: the residual carrier the PSDMF has to locate rides a
 # ~symbol_rate-wide data-modulated spectrum, so the despread stream must
-# be sampled above that spectrum's Nyquist. dll_lookback_segments()
+# be sampled above that spectrum's Nyquist. dp_dll_lookback_segments()
 # splits each epoch into that many COHERENT integrate-and-dump windows --
 # each window phase-coherent internally (what CarrierAcquisition's
 # per-block FFT consumes), the several windows per epoch raising the
@@ -382,7 +382,7 @@ type = "int"
 [[async_dsss_receiver.properties]]
 name = "chip_phase"
 type = "double"
-doc = "Live Dll code phase in chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment)."
+doc = "Live Dll code phase in chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see dp_acq_build_handoff()'s doc comment)."
 
 [[async_dsss_receiver.properties]]
 name = "code_rate"
@@ -448,7 +448,7 @@ doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pf
 # parent's.
 [[async_dsss_receiver.views]]
 class_name = "CellAsyncDsssReceiver"
-create_fn = "async_dsss_receiver_create_cell"
+create_fn = "dp_async_dsss_receiver_create_cell"
 exclude_methods = ["configure_search_raw", "set_refine_min_blocks"]
 exclude_properties = ["refine_min_blocks"]
 init_params = [

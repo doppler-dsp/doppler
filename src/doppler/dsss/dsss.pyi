@@ -1692,7 +1692,7 @@ class DsssReceiver:
     symbol_rate : float, default 1000.0
         Data-symbol rate, Hz. Required — passed straight to the embedded
         Acquisition's own `symbol_rate` (diagnostic there; see
-        `acq_create_continuous()`).
+        `dp_acq_create_continuous()`).
     spc : int, default 2
         Samples/chip (front-end oversample); default 2 (fs = 2x chip_rate).
     m : int, default 2
@@ -2200,7 +2200,7 @@ class AsyncDsssReceiver:
     refine_max_error_db : float, default 0.5
         Max tolerable async-lookback correlation-power loss driving the
         refine-stage collection Dll's coherent-I&D window count via
-        dll_lookback_segments(). Oversampling the epoch is required for the
+        dp_dll_lookback_segments(). Oversampling the epoch is required for the
         asynchronous data: the residual carrier rides a ~symbol_rate-wide
         data-modulated spectrum, so segments>1 (default yields 11 at
         tsamps=2046) samples it above Nyquist; segments=1 undersamples and
@@ -2822,8 +2822,8 @@ class AsyncDsssReceiver:
     @property
     def segments(self) -> int:
         """Live-tracking Dll's own segments -- distinct from refine_segments
-        above (see the module docstring / dll_lookback_segments()'s own doc on
-        the WINDOWS vs TRACK_WINDOWS split).
+        above (see the module docstring / dp_dll_lookback_segments()'s own doc
+        on the WINDOWS vs TRACK_WINDOWS split).
         """
 
     @property
@@ -2838,7 +2838,7 @@ class AsyncDsssReceiver:
     def chip_phase(self) -> float:
         """Live Dll code phase in chips, Dll's own instantaneous-phase
         convention (the mirror image of acq_result_t::code_phase's
-        correlation-lag convention -- see acq_build_handoff()'s doc
+        correlation-lag convention -- see dp_acq_build_handoff()'s doc
         comment).
         """
 
@@ -3471,8 +3471,8 @@ class CellAsyncDsssReceiver:
     @property
     def segments(self) -> int:
         """Live-tracking Dll's own segments -- distinct from refine_segments
-        above (see the module docstring / dll_lookback_segments()'s own doc on
-        the WINDOWS vs TRACK_WINDOWS split).
+        above (see the module docstring / dp_dll_lookback_segments()'s own doc
+        on the WINDOWS vs TRACK_WINDOWS split).
         """
 
     @property
@@ -3487,7 +3487,7 @@ class CellAsyncDsssReceiver:
     def chip_phase(self) -> float:
         """Live Dll code phase in chips, Dll's own instantaneous-phase
         convention (the mirror image of acq_result_t::code_phase's
-        correlation-lag convention -- see acq_build_handoff()'s doc
+        correlation-lag convention -- see dp_acq_build_handoff()'s doc
         comment).
         """
 

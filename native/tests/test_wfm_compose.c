@@ -2262,7 +2262,8 @@ main (void)
 
   /* ── the interleaver's span INCLUDES the outer code's check symbols ──
    *
-   * `ccsds_tm_frame_desc_of` gives the interleave stage the whole data group
+   * `dp_ccsds_tm_frame_desc_of` gives the interleave stage the whole data
+   * group
    * -- "payload, its CRC, and the outer code's check symbols" -- and the
    * flag guard validated payload + CRC only. So the check ran against a
    * DIFFERENT span from the one the stage permutes, and refused the
@@ -2327,7 +2328,7 @@ main (void)
   /* ── the bridge builds by NAME, and it must build the SAME frame ──────
    *
    * `dp_wfm_source_describe_frame` used to fill a CCSDS-shaped spec struct and
-   * hand it to `ccsds_tm_frame_desc_of`, which made a standard's vocabulary
+   * hand it to `dp_ccsds_tm_frame_desc_of`, which made a standard's vocabulary
    * the only vocabulary -- a frame doppler had never seen had to be spelled
    * in CCSDS's slots or not at all. It now builds through the general
    * by-name builder instead.
@@ -2429,7 +2430,7 @@ main (void)
           .interleave_unit_bits = src.interleave_unit_bits,
         };
         wfm_frame_desc_t by_spec;
-        DP_REQUIRE (ccsds_tm_frame_desc_of (&sp, &by_spec) == 0);
+        DP_REQUIRE (dp_ccsds_tm_frame_desc_of (&sp, &by_spec) == 0);
 
         wfm_frame_desc_layout_t la, lb;
         DP_REQUIRE (dp_wfm_frame_desc_layout (&by_name, &la) == 0);
@@ -2441,10 +2442,10 @@ main (void)
         DP_REQUIRE (a != NULL && b != NULL);
 
         wfm_frame_ops_t ops;
-        ccsds_tm_frame_ops (&ops, NULL);
+        dp_ccsds_tm_frame_ops (&ops, NULL);
         const size_t na
             = dp_wfm_frame_assemble (&by_name, &ops, a, la.out_bits);
-        ccsds_tm_frame_ops (&ops, NULL); /* a fresh inner-code register */
+        dp_ccsds_tm_frame_ops (&ops, NULL); /* a fresh inner-code register */
         const size_t nb
             = dp_wfm_frame_assemble (&by_spec, &ops, b, lb.out_bits);
 

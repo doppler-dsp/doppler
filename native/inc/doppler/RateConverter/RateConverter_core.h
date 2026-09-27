@@ -117,7 +117,7 @@ typedef struct
       sum.  Read by the binding, which turns it into a UserWarning. */
   bool narrow_pulse;
   /* ── Pre-terminal AGC (NULL = off, which is the default and what every
-     constructor builds).  See RateConverter_enable_agc(). ─────────────── */
+     constructor builds).  See dp_RateConverter_enable_agc(). ─────────────── */
   dp_agc_state_t *agc;          /**< NULL when off — one branch per sample  */
   double       bank_sps;     /**< symbol period on the terminal's grid   */
   double       bank_e0;      /**< sum h(t)^2 on that grid; the bank's
@@ -130,7 +130,7 @@ typedef struct
       rebuilt whenever the plan changes (rc_agc_build), and may not exist yet
       when the attach arrives; keeping the request lets every rebuild re-apply
       it. Never packed into a state blob — telemetry is observation.
-      See RateConverter_set_telemetry(). */
+      See dp_RateConverter_set_telemetry(). */
   struct
   {
     dp_tlm_t *ctx;                   /**< NULL = detached              */
@@ -220,7 +220,7 @@ dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
  * @return Non-NULL on success; NULL on a bad parameter or OOM.
  */
 dp_RateConverter_state_t *
-RateConverter_create_matched (double rate, int compensate, int pulse,
+dp_RateConverter_create_matched (double rate, int compensate, int pulse,
                               double beta, size_t span, double pulse_sps,
                               size_t num_phases);
 
@@ -260,8 +260,8 @@ size_t RateConverter_num_stages (const dp_RateConverter_state_t *s);
  * @brief The cascade's response to a constant input, from its stages' own
  *        coefficients — computed, never measured.
  *
- * Each stage answers for itself (hbdecim_dc_gain(), cic_dc_gain() times
- * fir_dc_gain() for a compensated CIC, resamp_dc_gain()) and this is their
+ * Each stage answers for itself (dp_hbdecim_dc_gain(), dp_cic_dc_gain() times
+ * dp_fir_dc_gain() for a compensated CIC, dp_resamp_dc_gain()) and this is their
  * product. So the number tracks whatever the stages actually hold: if a
  * filter's normalisation drifts, this moves with it, and a gate comparing it
  * against a measured DC probe catches the drift from either side.
@@ -280,11 +280,11 @@ size_t RateConverter_num_stages (const dp_RateConverter_state_t *s);
  *
  * @code
  * dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 12.0, 1);
- * printf ("%.4f\n", RateConverter_gain (rc));   // 1.0000
+ * printf ("%.4f\n", dp_RateConverter_gain (rc));   // 1.0000
  * dp_RateConverter_destroy (rc);
  * @endcode
  */
-double RateConverter_gain (const dp_RateConverter_state_t *s);
+double dp_RateConverter_gain (const dp_RateConverter_state_t *s);
 /**
  * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
  *
@@ -310,14 +310,14 @@ size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
  * Wedges an AGC into the cascade immediately BEFORE the terminal polyphase
  * stage — after every integer decimation, ahead of the matched filter and the
  * timing element. Off until this is called, and off is what both constructors
- * build, so a plain cascade is untouched and RateConverter_gain() still reads
+ * build, so a plain cascade is untouched and dp_RateConverter_gain() still reads
  * exactly 1.0.
  *
  * @par Why here and not somewhere else
  * The consumer is a timing-error detector. A TED's raw output is the timing
  * error multiplied by three things it did not choose — the signal amplitude,
  * the transition density, and the detector's own slope — and only the last is
- * the detector's to divide out (symsync_ted_slope(), which is computed at
+ * the detector's to divide out (dp_symsync_ted_slope(), which is computed at
  * construct FOR A UNIT-AMPLITUDE SYMBOL STREAM). Amplitude enters as `A^2`
  * for Gardner and `A^1` for DTTL, so a 4x level error is a 16x loop-gain
  * error. Levelling it is this object's job because this object owns the bank
@@ -334,7 +334,7 @@ size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
  * quantity the bank is already normalised by — so for i.i.d. unit-power
  * symbols at `bank_sps` samples per symbol the pre-terminal average power is
  * `bank_e0 / bank_sps` and that is the reference. No caller supplies a level;
- * read it back with RateConverter_agc_ref_db().
+ * read it back with dp_RateConverter_agc_ref_db().
  *
  * @note This levels signal PLUS noise, so at finite Es/N0 the symbols land
  * slightly low — about 0.95x amplitude at 10 dB Es/N0, i.e. 0.91x Gardner
@@ -360,7 +360,7 @@ size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
  * constant.
  *
  * @param s        Must be non-NULL, and must be a MATCHED cascade
- *                 (RateConverter_create_matched()) — a plain one has no pulse
+ *                 (dp_RateConverter_create_matched()) — a plain one has no pulse
  *                 and therefore no reference to derive.
  * @param bn_sym   AGC loop noise bandwidth in cycles/symbol; > 0.
  * @param alpha    Power-detector EMA coefficient, in (0, 1].
@@ -369,14 +369,14 @@ size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
  *
  * @code
  * dp_RateConverter_state_t *rc =
- *     RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+ *     dp_RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
  *                                   2.0, 1024);
- * RateConverter_enable_agc (rc, 1e-4, 0.01);
- * printf ("%.2f dB\n", RateConverter_agc_ref_db (rc));
+ * dp_RateConverter_enable_agc (rc, 1e-4, 0.01);
+ * printf ("%.2f dB\n", dp_RateConverter_agc_ref_db (rc));
  * dp_RateConverter_destroy (rc);
  * @endcode
  */
-int RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
+int dp_RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
                               double alpha);
 
 /**
@@ -387,18 +387,18 @@ int RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
  * energy. Defined for any MATCHED cascade whether or not the AGC is enabled,
  * because it describes the bank rather than the loop; 0.0 for a plain one.
  */
-double RateConverter_agc_ref_db (const dp_RateConverter_state_t *s);
+double dp_RateConverter_agc_ref_db (const dp_RateConverter_state_t *s);
 
 /**
  * @brief Gain the pre-terminal AGC last applied, in dB; 0.0 when off.
  *
  * The cascade's time-varying gain, kept deliberately separate from
- * RateConverter_gain(): that function reports the response computed from the
+ * dp_RateConverter_gain(): that function reports the response computed from the
  * stages' own COEFFICIENTS, and an AGC has none. A caller asking "what did
  * this cascade do to my amplitude" with the AGC on wants both, and they
  * multiply.
  */
-double RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
+double dp_RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
 
 /**
  * @brief Attach (or detach) a telemetry context on the pre-terminal AGC.
@@ -415,7 +415,7 @@ double RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
  * its carrier and timing probes on one context.
  *
  * With the AGC off (a plain cascade, or a matched one where
- * RateConverter_enable_agc() was never called) there is nothing to instrument
+ * dp_RateConverter_enable_agc() was never called) there is nothing to instrument
  * and this is a successful no-op — DP_OK with no probes registered. That is
  * deliberate: whether the AGC exists is the composing receiver's
  * construction-time choice (`agc = 0`), and a caller attaching telemetry
@@ -444,16 +444,16 @@ double RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
  *
  * @code
  * dp_RateConverter_state_t *rc =
- *     RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+ *     dp_RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
  *                                   2.0, 1024);
- * RateConverter_enable_agc (rc, 1e-4, 0.01);
+ * dp_RateConverter_enable_agc (rc, 1e-4, 0.01);
  * dp_tlm_t *tlm = dp_tlm_create (1 << 12);
- * RateConverter_set_telemetry (rc, tlm, "agc", 1);
+ * dp_RateConverter_set_telemetry (rc, tlm, "agc", 1);
  * dp_RateConverter_destroy (rc);
  * dp_tlm_destroy (tlm);
  * @endcode
  */
-int RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
+int dp_RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
                                  const char *prefix, uint32_t decim);
 
 /** @brief Free all resources.  NULL is a no-op. */
@@ -543,7 +543,7 @@ size_t dp_RateConverter_execute_ctrl_push_max_out (dp_RateConverter_state_t *s);
  * The control-port form of dp_RateConverter_execute(): the fixed integer stages
  * (HalfbandDecimator / CIC) run unchanged, and the scalar rate deviation
  * @p ctrl is forwarded to the **terminal polyphase Resampler stage's**
- * accumulator (via resamp_execute_ctrl_push) — so its effective rate becomes
+ * accumulator (via dp_resamp_execute_ctrl_push) — so its effective rate becomes
  * `stage_rate + ctrl` for this call. This exposes the fractional tail's control
  * port that dp_RateConverter_execute() hides: a timing/rate-tracking loop can
  * decimate a high input rate cheaply through the HB/CIC stages and then
@@ -632,7 +632,7 @@ size_t dp_RateConverter_execute_ctrl_push (dp_RateConverter_state_t *s,
  * matched filter's group delay or its between-symbol ISI.
  *
  * The rate is `bank_sps` samples per symbol, a planner outcome: read it with
- * RateConverter_get_bank_sps() rather than assuming it. A consumer wanting a
+ * dp_RateConverter_get_bank_sps() rather than assuming it. A consumer wanting a
  * fixed clock decimates this stream itself.
  *
  * A non-terminal stage swallows inputs between its decimation strobes, so
@@ -647,7 +647,7 @@ size_t dp_RateConverter_execute_ctrl_push (dp_RateConverter_state_t *s,
  * @param n_pre    Receives 1 if @p pre_out was written, else 0; may be NULL.
  * @return Number of terminal outputs written, as the non-tap form.
  */
-size_t RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
+size_t dp_RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
                                             float _Complex x, double ctrl,
                                             float _Complex *out,
                                             size_t max_out,
@@ -663,7 +663,7 @@ size_t RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
  * rate ratio. Reported for the same reason RateConverter::stages is — a
  * caller who can read back what was planned can check it.
  */
-double RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
+double dp_RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
 
 /**
  * @brief Get / set the output-to-input sample rate ratio.
@@ -704,7 +704,7 @@ void dp_RateConverter_set_rate (dp_RateConverter_state_t *s, double rate);
  * @param len  Capacity of buf in bytes.
  * @return 1 on success, 0 if i is out of range.
  */
-int RateConverter_stage_label (dp_RateConverter_state_t *s, int i,
+int dp_RateConverter_stage_label (dp_RateConverter_state_t *s, int i,
                                char *buf, size_t len);
 
 /**
@@ -729,7 +729,7 @@ int RateConverter_stage_label (dp_RateConverter_state_t *s, int i,
  * @param max_out    Output buffer capacity in samples.
  * @return Number of output samples written; 0 only if OOM or n_in == 0.
  */
-size_t RateConverter_convert (double rate, int compensate,
+size_t dp_RateConverter_convert (double rate, int compensate,
                               const float _Complex *in, size_t n_in,
                               float _Complex *out, size_t max_out);
 

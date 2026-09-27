@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_ddcr[] = {
     (jm_any_fn)dp_ddcr_create,
-    (jm_any_fn)ddcr_create_matched,
+    (jm_any_fn)dp_ddcr_create_matched,
     (jm_any_fn)dp_ddcr_destroy,
     (jm_any_fn)dp_ddcr_reset,
     (jm_any_fn)dp_ddcr_state_bytes,

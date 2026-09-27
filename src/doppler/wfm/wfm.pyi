@@ -1720,7 +1720,7 @@ class Frame:
 
         The inner encoder starts from the all-zero register on every build: a
         description describes ONE frame. A stream of CADUs sharing one register
-        is a transmitter's job and lives in `ccsds_tm_frame_encode`.
+        is a transmitter's job and lives in `dp_ccsds_tm_frame_encode`.
 
         Raises
         ------
@@ -2945,7 +2945,7 @@ class FrameDesc:
 
         The inner encoder starts from the all-zero register on every build: a
         description describes ONE frame. A stream of CADUs sharing one register
-        is a transmitter's job and lives in `ccsds_tm_frame_encode`.
+        is a transmitter's job and lives in `dp_ccsds_tm_frame_encode`.
 
         Raises
         ------

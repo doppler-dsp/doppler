@@ -6,8 +6,8 @@
  * A frame synchroniser correlates a marker it knows against the bits it is
  * handed, in both polarities, and reports the first offset close enough to
  * accept. That is one kernel, and every framing that has a sync word wants
- * it: CCSDS calls its 32-bit marker an ASM and `ccsds_tm_asm_find` is this
- * function configured with `0x1ACFFC1D`, exactly as `CCSDS_TM_CONV`
+ * it: CCSDS calls its 32-bit marker an ASM and `dp_ccsds_tm_asm_find` is this
+ * function configured with `0x1ACFFC1D`, exactly as `dp_CCSDS_TM_CONV`
  * configures `conv_code_t`. The standard picks a pattern; the search is not
  * the standard's.
  *
@@ -16,7 +16,7 @@
  * should not link a Reed-Solomon encoder to do it.
  *
  * Bit convention: **unpacked** bits, one per byte in the LSB, which is what
- * `dp_wfm_frame_bits`, `dp_crc16_ccitt`, `ccsds_tm_randomise` and the spreader
+ * `dp_wfm_frame_bits`, `dp_crc16_ccitt`, `dp_ccsds_tm_randomise` and the spreader
  * already pass around.
  *
  * ## Choosing @p max_errors — it is not a property of the marker

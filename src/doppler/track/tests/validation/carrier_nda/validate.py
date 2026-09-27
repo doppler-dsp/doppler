@@ -1674,7 +1674,7 @@ def characterise() -> Data:
     )
     R.md()
     R.md(
-        "The instantaneous NCO command — `carrier_nda_get_nco_freq`, which "
+        "The instantaneous NCO command — `dp_carrier_nda_get_nco_freq`, which "
         'the header calls *"the right readout for observing the loop track '
         'dynamics"* — has no Python face and no telemetry probe of its '
         "own: `car.freq` emits the integrator estimate, the same quantity "
@@ -1817,7 +1817,7 @@ def review(d: Data) -> None:
     R.find(
         "F9",
         "GAP",
-        "`carrier_nda_get_nco_freq` — the instantaneous NCO command, which "
+        "`dp_carrier_nda_get_nco_freq` — the instantaneous NCO command, which "
         "the header calls the right readout for observing loop dynamics "
         "because its mean rides a ramp with no lag — is reachable from "
         "neither the Python face nor telemetry. `car.freq` emits the "

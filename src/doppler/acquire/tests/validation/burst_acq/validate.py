@@ -6,7 +6,8 @@ Run:  python -m doppler.acquire.tests.validation.burst_acq.validate
 
 `burst_acq_core.c` is a pure forwarder onto `acq_core.c`'s shared engine:
 every function is a direct call through an embedded `dp_acq_state_t` built by
-`acq_create_burst()`. The algorithm lives in `acq` exactly once, which is the
+`dp_acq_create_burst()`. The algorithm lives in `acq` exactly once, which is
+the
 library's rule, and it is certified there.
 
 **So this report deliberately does not re-derive the physics.** Re-measuring
@@ -146,7 +147,7 @@ def section_object() -> None:
     R.md()
     R.md(
         "`BurstAcquisition` composes one `dp_acq_state_t`, built through "
-        "`acq_create_burst()`, and forwards every call to it. There is no "
+        "`dp_acq_create_burst()`, and forwards every call to it. There is no "
         "algorithm here: the physics — coherent depth selection, CFAR "
         "sizing, window tiling, the detection statistic — lives in `acq` "
         "exactly once and is certified in its own report."
@@ -203,7 +204,8 @@ def section_object() -> None:
                 "§2.2",
             ],
             [
-                "the constructor's arguments reach `acq_create_burst` intact",
+                "the constructor's arguments reach `dp_acq_create_burst` "
+                "intact",
                 "**partially** — C builds one object and detects with it",
                 "§2.1",
             ],

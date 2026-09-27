@@ -139,7 +139,7 @@ extern "C"
   /* ── free functions: theory and windows ───────────────────────────────── */
 
   /** @brief Gaussian tail `Q(x) = P(N(0,1) > x)`. */
-  double ber_qfunc (double x);
+  double dp_ber_qfunc (double x);
 
   /**
    * @brief Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR).
@@ -297,7 +297,7 @@ extern "C"
    * limit `-ln(alpha)/N` still holds and is returned — the honest way to report
    * "no errors in N symbols".
    */
-  ber_interval_t ber_confidence (size_t errors, size_t symbols, double conf);
+  ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
 #ifdef __cplusplus
 }

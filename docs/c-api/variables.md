@@ -16,11 +16,7 @@
 
 ## c
 
-* **CCSDS\_TM\_CONV** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
-* **CCSDS\_TM\_RAND** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
-* **CCSDS\_TM\_RAND\_LEGACY** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **ccsds\_tm\_asm\_hit\_t** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
-* **CCSDS\_TM\_RS** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 * **CRC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
@@ -33,6 +29,10 @@
 * **dp\_HalfbandDecimator\_state\_t** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
 * **dp\_Resampler\_state\_t** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_wait\_status\_t** ([**buffer.h**](buffer_8h.md))
+* **dp\_CCSDS\_TM\_CONV** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **dp\_CCSDS\_TM\_RAND** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **dp\_CCSDS\_TM\_RAND\_LEGACY** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **dp\_CCSDS\_TM\_RS** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 * **dp\_bitorder\_t** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
 * **dp\_ddcr\_state\_t** ([**ddcr\_core.h**](ddcr__core_8h.md))
@@ -49,6 +49,7 @@
 * **dp\_f32\_buffer\_state\_t** ([**f32\_buffer\_core.h**](f32__buffer__core_8h.md))
 * **dp\_f64\_buffer\_state\_t** ([**f64\_buffer\_core.h**](f64__buffer__core_8h.md))
 * **dp\_i16\_buffer\_state\_t** ([**i16\_buffer\_core.h**](i16__buffer__core_8h.md))
+* **dp\_lo\_sin\_lut** ([**lo\_core.h**](lo__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **DATA\_SRC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
@@ -86,7 +87,6 @@
 
 ## l
 
-* **lo\_sin\_lut** ([**lo\_core.h**](lo__core_8h.md))
 * **LFSR\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 

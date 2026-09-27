@@ -3,12 +3,12 @@
  * @brief The convolutional encoder, as a stateful object over `conv`.
  *
  * `conv` owns the CODE — the description, the trellis arithmetic, and the
- * `conv_encode` kernel that turns bits into symbols. This owns the ENCODER
+ * `dp_conv_encode` kernel that turns bits into symbols. This owns the ENCODER
  * built over one: a code and the shift register that must survive between
  * calls, bound together so a caller cannot pair the wrong two.
  *
  * **It is not a second implementation.** @ref dp_conv_enc_encode calls
- * `conv_encode`, exactly as @ref dp_viterbi_decode's object calls its own
+ * `dp_conv_encode`, exactly as @ref dp_viterbi_decode's object calls its own
  * kernel. Two encoders for one code family is how a rounding rule or an
  * inversion comes to differ between them.
  *
@@ -16,7 +16,7 @@
  *
  * `Viterbi` accepts any rate-1/n code, and until this the library could
  * produce symbols for exactly one of them — CCSDS's, and only inside a
- * `wfm_frame_desc_t`, whose stage kinds bind to `ccsds_tm_frame_ops` and
+ * `wfm_frame_desc_t`, whose stage kinds bind to `dp_ccsds_tm_frame_ops` and
  * carry a depth rather than a polynomial. Nothing in doppler exposed an
  * `encode()` at all (doppler#900). A decoder whose matching encoder cannot be
  * reached is a decoder that can only be tested against itself, which is the
@@ -116,7 +116,7 @@ extern "C"
    * @param c  The code. Copied, so the caller's may be temporary.
    * @return   The encoder, or NULL if @p c is invalid.
    */
-  dp_conv_enc_state_t *conv_enc_create_code (const conv_code_t *c);
+  dp_conv_enc_state_t *dp_conv_enc_create_code (const conv_code_t *c);
 
   /**
    * @brief Free an encoder. NULL is a no-op.
@@ -189,7 +189,7 @@ extern "C"
                           size_t n_in, uint8_t *out, size_t max_out);
 
   /** @brief The code this encoder was built for. */
-  const conv_code_t *conv_enc_code (const dp_conv_enc_state_t *s);
+  const conv_code_t *dp_conv_enc_code (const dp_conv_enc_state_t *s);
 
   /* ── the state bytes interface ─────────────────────────────────────────
    *

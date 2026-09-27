@@ -66,9 +66,6 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**costas\_get\_nco\_freq**](#function-costas_get_nco_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Effective NCO frequency command (loop-filter output = integrator + proportional), cycles/sample. Mean rides a ramp with no lag, unlike the integrator-only get\_norm\_freq._  |
-|  void | [**costas\_init**](#function-costas_init) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Initialise a Costas loop in place (no allocation)._  |
-|  void | [**costas\_tlm\_flush**](#function-costas_tlm_flush) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s) <br>_Emit the carrier loop's telemetry records for the symbol just dumped._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**costas\_update**](#function-costas_update) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, float \_Complex P) <br>_Per-symbol carrier update: discriminator -&gt; loop filter -&gt; steer NCO._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**costas\_wipeoff**](#function-costas_wipeoff) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
 |  void | [**dp\_costas\_configure**](#function-dp_costas_configure) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop-filter gains for a new (_ `bn` _,_`zeta` _) without disturbing the frequency/phase estimate._ |
@@ -80,8 +77,10 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  double | [**dp\_costas\_get\_last\_error**](#function-dp_costas_get_last_error) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br> |
 |  double | [**dp\_costas\_get\_lock\_metric**](#function-dp_costas_get_lock_metric) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br> |
 |  int | [**dp\_costas\_get\_locked**](#function-dp_costas_get_locked) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Current carrier lock decision (1 = locked, 0 = not), from the verify-counted detector on the lock-metric EMA (see dp\_costas\_configure\_lock)._  |
+|  double | [**dp\_costas\_get\_nco\_freq**](#function-dp_costas_get_nco_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Effective NCO frequency command (loop-filter output = integrator + proportional), cycles/sample. Mean rides a ramp with no lag, unlike the integrator-only get\_norm\_freq._  |
 |  double | [**dp\_costas\_get\_norm\_freq**](#function-dp_costas_get_norm_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br> |
 |  void | [**dp\_costas\_get\_state**](#function-dp_costas_get_state) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
+|  void | [**dp\_costas\_init**](#function-dp_costas_init) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Initialise a Costas loop in place (no allocation)._  |
 |  void | [**dp\_costas\_reset**](#function-dp_costas_reset) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
 |  void | [**dp\_costas\_set\_bn**](#function-dp_costas_set_bn) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
 |  void | [**dp\_costas\_set\_bn\_fll**](#function-dp_costas_set_bn_fll) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
@@ -91,6 +90,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  size\_t | [**dp\_costas\_state\_bytes**](#function-dp_costas_state_bytes) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  size\_t | [**dp\_costas\_steps**](#function-dp_costas_steps) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the carrier NCO, integrate-and-dump each symbol, and emit one decision-directed Costas prompt per symbol._  |
 |  size\_t | [**dp\_costas\_steps\_max\_out**](#function-dp_costas_steps_max_out) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br> |
+|  void | [**dp\_costas\_tlm\_flush**](#function-dp_costas_tlm_flush) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s) <br>_Emit the carrier loop's telemetry records for the symbol just dumped._  |
 
 
 
@@ -136,7 +136,7 @@ A continuous BPSK carrier-recovery loop: per sample it de-rotates the input with
 The block API (dp\_costas\_steps) is the Python face; the JM\_FORCEINLINE [**costas\_wipeoff()**](costas__core_8h.md#function-costas_wipeoff)/costas\_update() are the C composition API a despreader / tracking channel inlines into its own sample loop.
 
 
-Lifecycle: `dp_costas_create -> (steps / configure / reset)* -> dp_costas_destroy`, or embed by value with [**costas\_init()**](costas__core_8h.md#function-costas_init).
+Lifecycle: `dp_costas_create -> (steps / configure / reset)* -> dp_costas_destroy`, or embed by value with [**dp\_costas\_init()**](costas__core_8h.md#function-dp_costas_init).
 
 
 Set `bn_fll > 0` to enable FLL assist (a wide-pull-in frequency-lock loop aiding the PLL) for large or fast-moving residuals; `bn_fll = 0` is a pure Costas PLL.
@@ -156,92 +156,6 @@ dp_costas_destroy(c);
     
 ## Public Functions Documentation
 
-
-
-
-### function costas\_get\_nco\_freq 
-
-_Effective NCO frequency command (loop-filter output = integrator + proportional), cycles/sample. Mean rides a ramp with no lag, unlike the integrator-only get\_norm\_freq._ 
-```C++
-double costas_get_nco_freq (
-    const dp_costas_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function costas\_init 
-
-_Initialise a Costas loop in place (no allocation)._ 
-```C++
-void costas_init (
-    dp_costas_state_t * s,
-    double bn,
-    double zeta,
-    double init_norm_freq,
-    size_t tsamps,
-    double bn_fll
-) 
-```
-
-
-
-The by-value counterpart to [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_create): a tracking channel that embeds a [**dp\_costas\_state\_t**](structdp__costas__state__t.md) initialises it here. Seeds the NCO at `init_norm_freq` and the loop integrator to the matching per-symbol frequency so de-rotation is correct from the first sample.
-
-
-
-
-**Parameters:**
-
-
-* `s` State to initialise. Must be non-NULL. 
-* `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
-* `init_norm_freq` Seed carrier frequency, cycles/sample. 
-* `tsamps` Samples per symbol (the integrate-and-dump period). 
-* `bn_fll` FLL-assist bandwidth (0 = pure PLL). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function costas\_tlm\_flush 
-
-_Emit the carrier loop's telemetry records for the symbol just dumped._ 
-```C++
-void costas_tlm_flush (
-    const dp_costas_state_t * s
-) 
-```
-
-
-
-Out-of-line on purpose: the emit machinery must not inline into a per-sample hot loop (inlined ring-write expansions bloat the loop body and an extern call site forces per-iteration state reloads — both measured ~20% slower detached on other loops). Callers gate on `s->tlm.ctx` and call this once per dumped symbol. Records "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA), "&lt;prefix&gt;.e" (the last PLL discriminator — the loop stress) and "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample). A composing tracking channel (the DSSS despreader) calls this from its own per-epoch update.
-
-
-
-
-**Parameters:**
-
-
-* `s` State with a non-NULL tlm.ctx (caller-checked). 
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -556,6 +470,22 @@ int dp_costas_get_locked (
 
 
 
+### function dp\_costas\_get\_nco\_freq 
+
+_Effective NCO frequency command (loop-filter output = integrator + proportional), cycles/sample. Mean rides a ramp with no lag, unlike the integrator-only get\_norm\_freq._ 
+```C++
+double dp_costas_get_nco_freq (
+    const dp_costas_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dp\_costas\_get\_norm\_freq 
 
 ```C++
@@ -583,6 +513,46 @@ void dp_costas_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_costas\_init 
+
+_Initialise a Costas loop in place (no allocation)._ 
+```C++
+void dp_costas_init (
+    dp_costas_state_t * s,
+    double bn,
+    double zeta,
+    double init_norm_freq,
+    size_t tsamps,
+    double bn_fll
+) 
+```
+
+
+
+The by-value counterpart to [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_create): a tracking channel that embeds a [**dp\_costas\_state\_t**](structdp__costas__state__t.md) initialises it here. Seeds the NCO at `init_norm_freq` and the loop integrator to the matching per-symbol frequency so de-rotation is correct from the first sample.
+
+
+
+
+**Parameters:**
+
+
+* `s` State to initialise. Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalised to the symbol rate. 
+* `zeta` Damping factor (0.707 = critically damped). 
+* `init_norm_freq` Seed carrier frequency, cycles/sample. 
+* `tsamps` Samples per symbol (the integrate-and-dump period). 
+* `bn_fll` FLL-assist bandwidth (0 = pure PLL). 
+
+
+
+
+        
 
 <hr>
 
@@ -849,6 +819,36 @@ size_t dp_costas_steps_max_out (
 
 
 
+
+<hr>
+
+
+
+### function dp\_costas\_tlm\_flush 
+
+_Emit the carrier loop's telemetry records for the symbol just dumped._ 
+```C++
+void dp_costas_tlm_flush (
+    const dp_costas_state_t * s
+) 
+```
+
+
+
+Out-of-line on purpose: the emit machinery must not inline into a per-sample hot loop (inlined ring-write expansions bloat the loop body and an extern call site forces per-iteration state reloads — both measured ~20% slower detached on other loops). Callers gate on `s->tlm.ctx` and call this once per dumped symbol. Records "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA), "&lt;prefix&gt;.e" (the last PLL discriminator — the loop stress) and "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample). A composing tracking channel (the DSSS despreader) calls this from its own per-epoch update.
+
+
+
+
+**Parameters:**
+
+
+* `s` State with a non-NULL tlm.ctx (caller-checked). 
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation

@@ -454,7 +454,7 @@ def build(write: bool = True) -> Report:
     R.md()
     R.md(
         "The campaign's order is header first. This table is the inventory "
-        "that produced four new C sections: `conv_outputs` and "
+        "that produced four new C sections: `dp_conv_outputs` and "
         "`conv_next_state` had **zero** mentions, the LLR sign convention "
         "was pinned only against the test's own helper, `d_free` was an "
         "open unknown, and one claim was off by one."
@@ -478,7 +478,7 @@ def build(write: bool = True) -> Report:
         [
             [
                 "C1",
-                "`conv_outputs` is the one expression both directions read",
+                "`dp_conv_outputs` is the one expression both directions read",
                 "§2b",
                 "F2",
             ],
@@ -510,7 +510,7 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C6",
-                "`conv_code_valid` refuses every out-of-range field",
+                "`dp_conv_code_valid` refuses every out-of-range field",
                 "§1",
                 "—",
             ],
@@ -518,7 +518,7 @@ def build(write: bool = True) -> Report:
             ["C8", "the encoder is continuous across calls", "§3", "—"],
             [
                 "C9",
-                "`conv_encode` refuses an invalid code or a short buffer,"
+                "`dp_conv_encode` refuses an invalid code or a short buffer,"
                 " untouched",
                 "§7",
                 "—",

@@ -11,7 +11,7 @@
  * ## Nothing here is CCSDS
  *
  * The CCSDS configuration lives in `ccsds_tm/ccsds_tm_rs.h` as
- * @c CCSDS_TM_RS, beside
+ * @c dp_CCSDS_TM_RS, beside
  * the two things 131.0-B-3 adds that are *not* properties of the code: the
  * dual-basis symbol representation (4.3.9) and the interleaver (4.4.1). A
  * standard picking a code is not the same fact as the code existing. Point
@@ -33,7 +33,7 @@
  *
  * - **`field_poly` must be primitive.** If `a = x` returns to 1 before `n`
  *   steps the polynomial generates a subgroup rather than the field, and
- *   @ref rs_init refuses.
+ *   @ref dp_rs_init refuses.
  * - **`gcd(root_stride, n)` must be 1**, or the `nroots` roots are not
  *   distinct and the code corrects fewer errors than its parity count claims.
  *   CCSDS 4.3.4 states this as a note about `a^11`; for a general
@@ -100,12 +100,12 @@ extern "C"
    *
    * Transparent and allocation-free so a caller can put one on the stack or
    * in its own state, and so the derived sizes are readable without an
-   * accessor. Build it with @ref rs_init and then treat it as read-only: it
+   * accessor. Build it with @ref dp_rs_init and then treat it as read-only: it
    * carries no running state, and every function below takes it as `const`.
    */
   typedef struct
   {
-    rs_code_t code;               /**< as given to @ref rs_init          */
+    rs_code_t code;               /**< as given to @ref dp_rs_init          */
     unsigned  n;                  /**< symbols per codeword, `2^J - 1`   */
     unsigned  k;                  /**< information symbols, `n - nroots` */
     unsigned  e;                  /**< correctable symbols, `nroots / 2` */
@@ -120,18 +120,18 @@ extern "C"
    * Checks the ranges, that `nroots` is even and leaves room for at least one
    * information symbol, and that `gcd(root_stride, n) == 1`. It does **not**
    * check that @c field_poly is primitive — that costs the table build, so
-   * @ref rs_init reports it instead.
+   * @ref dp_rs_init reports it instead.
    *
    * @param c  The code.
    * @return   Non-zero if usable.
    */
-  int rs_code_valid (const rs_code_t *c);
+  int dp_rs_code_valid (const rs_code_t *c);
 
   /**
    * @brief Build the tables for @p c into @p rs.
    *
    * @param rs  Receives the code and its derived tables.
-   * @param c   The code; see @ref rs_code_valid.
+   * @param c   The code; see @ref dp_rs_code_valid.
    * @return    Non-zero on success. Zero if @p c is not valid or if
    *            @c field_poly is not primitive, in which case @p rs is
    *            unusable and must not be passed to anything below.
@@ -141,11 +141,11 @@ extern "C"
    * const rs_code_t code = { .symbol_bits = 8, .field_poly = 0x1D,
    *                          .nroots = 16, .first_root = 1,
    *                          .root_stride = 1 };
-   * if (!rs_init (&rs, &code))
+   * if (!dp_rs_init (&rs, &code))
    *   return 1;  // not a field, or not a code
    * @endcode
    */
-  int rs_init (rs_t *rs, const rs_code_t *c);
+  int dp_rs_init (rs_t *rs, const rs_code_t *c);
 
   /**
    * @brief The `nroots + 1` coefficients of `g(x)`, `gen[i]` for `x^i`.
@@ -157,7 +157,7 @@ extern "C"
    * @param rs  An initialised code.
    * @return    Pointer into @p rs, valid as long as it is.
    */
-  const uint8_t *rs_generator (const rs_t *rs);
+  const uint8_t *dp_rs_generator (const rs_t *rs);
 
   /**
    * @brief Encode: `k` information symbols in, `nroots` parity symbols out.
@@ -170,7 +170,7 @@ extern "C"
    * @param info    @c rs->k information symbols, in transmission order.
    * @param parity  Receives @c rs->code.nroots parity symbols.
    */
-  void rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity);
+  void dp_rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity);
 
   /**
    * @brief The `nroots` syndromes of @p codeword.
@@ -184,7 +184,7 @@ extern "C"
    * @param codeword  @c rs->n symbols: information then parity.
    * @param syn       Receives @c rs->code.nroots syndromes.
    */
-  void rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn);
+  void dp_rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn);
 
   /**
    * @brief Is this a valid codeword? — every syndrome zero.
@@ -193,7 +193,7 @@ extern "C"
    * @param codeword  @c rs->n symbols.
    * @return          Non-zero when every syndrome is zero.
    */
-  int rs_codeword_ok (const rs_t *rs, const uint8_t *codeword);
+  int dp_rs_codeword_ok (const rs_t *rs, const uint8_t *codeword);
 
   /**
    * @brief Correct up to `E` symbol errors, in place.
@@ -206,7 +206,7 @@ extern "C"
    *
    * **It either refuses or returns a codeword.** When it corrects, the key
    * equation has zeroed every syndrome by construction, so the result passes
-   * @ref rs_codeword_ok. There is no third outcome.
+   * @ref dp_rs_codeword_ok. There is no third outcome.
    *
    * A refusal is not the same claim as "more than `E` errors": beyond `E` a
    * bounded-distance decoder can land inside another codeword's sphere and
@@ -221,12 +221,12 @@ extern "C"
    *                  -1 if the word could not be decoded.
    *
    * @code
-   * const int fixed = rs_decode (&rs, word);
+   * const int fixed = dp_rs_decode (&rs, word);
    * if (fixed < 0)
    *   ;  // too far from every codeword to name one
    * @endcode
    */
-  int rs_decode (const rs_t *rs, uint8_t *codeword);
+  int dp_rs_decode (const rs_t *rs, uint8_t *codeword);
 
 #ifdef __cplusplus
 }

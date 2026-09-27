@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_acq[] = {
-    (jm_any_fn)acq_create_continuous,
+    (jm_any_fn)dp_acq_create_continuous,
     (jm_any_fn)dp_acq_destroy,
     (jm_any_fn)dp_acq_reset,
     (jm_any_fn)dp_acq_configure_search_raw,

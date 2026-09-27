@@ -20,7 +20,7 @@
  * tracking channel inlines into its own sample loop.
  *
  * Lifecycle: `dp_dll_create -> (steps / configure / reset)* -> dp_dll_destroy`, or
- * embed by value with dll_init() (which BORROWS the caller-owned code, and
+ * embed by value with dp_dll_init() (which BORROWS the caller-owned code, and
  * always runs with `segments == 1` — there is no by-value counterpart to
  * `dp_dll_create()`'s `segments` parameter).
  *
@@ -86,7 +86,7 @@ typedef struct {
  * @brief DLL state.
  *
  * Allocate with dp_dll_create() (copies the code), or embed by value and
- * dll_init() (borrows the caller's code). The loop filter `lf` is a public
+ * dp_dll_init() (borrows the caller's code). The loop filter `lf` is a public
  * sub-component so the inline composition helpers can drive it; treat the
  * correlator accumulators and code-phase fields as internal.
  */
@@ -128,11 +128,11 @@ typedef struct {
     int coast;               /**< 1: the loop holds -- the discriminator is
                                   not filtered and phase_inc is not steered,
                                   the NCO advances at the rate of the last
-                                  dll_hold_here() (its filter restored on
+                                  dp_dll_hold_here() (its filter restored on
                                   entry), the lock detector still looks. See
-                                  dll_set_coast().                           */
-    uint32_t held_inc;       /**< phase_inc as of the last dll_hold_here(). */
-    dp_loop_filter_state_t held_lf; /**< the filter as of the last dll_hold_here(). */
+                                  dp_dll_set_coast().                           */
+    uint32_t held_inc;       /**< phase_inc as of the last dp_dll_hold_here(). */
+    dp_loop_filter_state_t held_lf; /**< the filter as of the last dp_dll_hold_here(). */
     /* The steer's gain table: how the loop filter's integrator and
        proportional term reach phase_inc (cycles per sample) and code_rate
        (a ratio), set once by segments in set_segments(). ONE steer,
@@ -147,7 +147,7 @@ typedef struct {
     double rate_i;           /**< integrator -> code_rate - 1, per inv_upd.*/
     double rate_p;           /**< kp*e       -> code_rate - 1, per inv_upd.*/
     double   err_sum;        /**< the discriminator summed since the last
-                                  dll_take_error(): every steer, coasting or
+                                  dp_dll_take_error(): every steer, coasting or
                                   not -- the block-mean read a holder
                                   corrects a coasting loop on (§12.22).  */
     uint64_t err_n;          /**< steers in err_sum.                       */
@@ -175,7 +175,7 @@ typedef struct {
                                   discards the tail there and starts the
                                   epoch clean (#1287).                     */
     /* ── segments>1 chunked output + one-epoch-deep lookback (heap-owned,
-     *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
+     *    length `segments`; NULL when segments==1 -- dp_dll_init()'s embedded/
      *    borrowed path is always segments==1, so this never needs a
      *    deinit contract there, same lifecycle class as `code`/owns_code).
      *    This is the direct C port of the coupled-despreader
@@ -319,7 +319,7 @@ dll_replica(const dp_dll_state_t *s, double c)
  * @param zeta       Damping factor (0.707 = critically damped).
  * @param spacing    Early/late tap offset, chips (0.5 = half-chip).
  */
-void dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
+void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
               double init_chip, double bn, double zeta, double spacing);
 
 /**
@@ -400,7 +400,7 @@ dll_accumulate(dp_dll_state_t *s, float _Complex d)
  * BEFORE it (both taps evaluate this sample's dwell-CENTER chip phase, @ref
  * dll_dwell_center_chip_pos — dll_accumulate() hasn't advanced the NCO yet,
  * so the two calls see the same phase). A composer that skips this (and
- * dll_lock_look()/dll_lock_epoch()) simply leaves the lock detector idle —
+ * dp_dll_lock_look()/dp_dll_lock_epoch()) simply leaves the lock detector idle —
  * locked stays 0, lock_stat/noise_est stay 0.
  *
  * @param s  DLL state.  Must be non-NULL.
@@ -429,17 +429,17 @@ dll_lock_accumulate(dp_dll_state_t *s, float _Complex d)
  * @param s     DLL state.  Must be non-NULL.
  * @param norm  Samples integrated into acc_p/acc_o this look (> 0).
  */
-void dll_lock_look(dp_dll_state_t *s, double norm);
+void dp_dll_lock_look(dp_dll_state_t *s, double norm);
 
 /**
  * @brief Per-epoch lock-detector housekeeping: re-draw the noise offset.
  *
- * Call once per code epoch (after the period's dll_lock_look()) so the next
+ * Call once per code epoch (after the period's dp_dll_lock_look()) so the next
  * epoch's noise tap lands at a fresh random off-peak code phase.
  *
  * @param s  DLL state.  Must be non-NULL.
  */
-void dll_lock_epoch(dp_dll_state_t *s);
+void dp_dll_lock_epoch(dp_dll_state_t *s);
 
 /**
  * @brief The code discriminator, its filter and the NCO steer -- the ONE
@@ -450,8 +450,8 @@ void dll_lock_epoch(dp_dll_state_t *s);
  * is the normalizing "signal + noise power" reference -- the validated
  * design from `docs/design/async-dsss-receiver.md` §3.6, not a
  * magnitude-domain `(|E|-|L|)/(|E|+|L|)` ratio), clamps it, records it
- * (`last_error`, the `.e` probe, and the running sum dll_take_error()
- * reads), and then -- unless the loop is held (dll_set_coast()) --
+ * (`last_error`, the `.e` probe, and the running sum dp_dll_take_error()
+ * reads), and then -- unless the loop is held (dp_dll_set_coast()) --
  * filters it and steers `phase_inc` (sample-and-hold, constant until the
  * next call) from BOTH the integrator and the proportional term, spread
  * smoothly across the whole next update interval rather than kicked
@@ -506,7 +506,7 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     if (s->coast)
         return; /* held: the discriminator read (last_error, the probe, the
                    sum) but not filtered, phase_inc as it stands
-                   (dll_set_coast) -- a holder coasting on another clock
+                   (dp_dll_set_coast) -- a holder coasting on another clock
                    reads where the signal sits against the held phase, which
                    is what it corrects on */
     (void)dp_loop_filter_step(&s->lf, e);
@@ -616,7 +616,7 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, 
  * @return Segment count in `[1, tsamps]` that evenly divides @p tsamps
  *         (1 if @p tsamps == 0).
  */
-size_t dll_lookback_segments(size_t tsamps, double max_error_db);
+size_t dp_dll_lookback_segments(size_t tsamps, double max_error_db);
 
 /**
  * @brief Destroy a DLL instance and release all memory (incl. the code copy).
@@ -734,7 +734,7 @@ void dp_dll_set_bn(dp_dll_state_t *state, double val);
  * Applied continuously across the epoch (via `phase_inc`), not as a phase
  * pulse. Also nudges the current `phase_inc` so the aid takes effect before
  * the first period update. `code_rate` stays the loop's own observable and
- * is unaffected. A HELD loop (dll_set_coast()) takes the new aid at once:
+ * is unaffected. A HELD loop (dp_dll_set_coast()) takes the new aid at once:
  * nothing steers a coasting loop's `phase_inc`, so it is recomputed here
  * from the held filter and the new aid -- a holder that refreshes the
  * Doppler it holds (a searcher-timed receiver's fold) sees the code rate
@@ -769,7 +769,7 @@ void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
  * @brief Hold the loop (1) or run it (0, the default).
  *
  * Coasting, the loop filter takes no update and the NCO is not steered: on
- * entry the filter is restored to the last dll_hold_here() and the rate to
+ * entry the filter is restored to the last dp_dll_hold_here() and the rate to
  * that filter's integrator -- the loop's frequency memory, without the
  * proportional term of a steer, which is a phase correction for one
  * interval and held as a rate walks the phase off at chips per second --
@@ -791,17 +791,17 @@ void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
  * @param state The loop.
  * @param coast 1 to hold, 0 to run.
  */
-void dll_set_coast(dp_dll_state_t *state, int coast);
+void dp_dll_set_coast(dp_dll_state_t *state, int coast);
 
 /**
  * @brief Mark the point a coast returns to: this rate and this filter.
  *
- * Call while the loop is known to be on its signal; dll_set_coast(1)
+ * Call while the loop is known to be on its signal; dp_dll_set_coast(1)
  * restores the filter and the integrator's rate from here.
  *
  * @param state The loop.
  */
-void dll_hold_here(dp_dll_state_t *state);
+void dp_dll_hold_here(dp_dll_state_t *state);
 
 /**
  * @brief Give the loop the data-symbol period, so the lock detector's
@@ -921,7 +921,7 @@ double dp_dll_get_code_phase(const dp_dll_state_t *state);
  * tail of an epoch already closed) and starts the epoch there. Either way a
  * put never emits a burst of short partials and never folds a second
  * period into one epoch. This is the other half
- * of dll_set_coast(): a coasting loop advances at its held rate, which its
+ * of dp_dll_set_coast(): a coasting loop advances at its held rate, which its
  * 32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31 ms
  * block at 5 Mcps (design §12.22) -- so whoever holds it on another clock
  * (a searcher's cell, a carrier aid) puts it back where that clock says,
@@ -983,10 +983,10 @@ double dp_dll_get_code_rate(const dp_dll_state_t *state);
  *
  * @endcode
  */
-size_t dll_take_error(dp_dll_state_t *state, double *sum);
+size_t dp_dll_take_error(dp_dll_state_t *state, double *sum);
 
 /**
- * @brief dll_take_error() as one number: the mean of the steers taken, or
+ * @brief dp_dll_take_error() as one number: the mean of the steers taken, or
  *        NaN when none were -- the Python face of the primitive.
  *
  * The block-mean discriminator a holder corrects a coasting loop on
@@ -1158,7 +1158,7 @@ double dp_dll_get_noise_est(const dp_dll_state_t *state);
  *
  * @param s  State with a non-NULL tlm.ctx (caller-checked).
  */
-void dll_tlm_flush(const dp_dll_state_t *s);
+void dp_dll_tlm_flush(const dp_dll_state_t *s);
 
 /**
  * @brief Attach (or detach) a telemetry context and register the code

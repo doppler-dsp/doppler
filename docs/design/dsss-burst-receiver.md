@@ -24,7 +24,7 @@ Every piece of the burst chain exists and is certified — see
 not exist is the object that puts them together.
 
 The continuous chain has one. `dsss_receiver_core.c` calls
-`acq_build_handoff()` — both convention inversions in one place — and then
+`dp_acq_build_handoff()` — both convention inversions in one place — and then
 derives the unprocessed tail (`samples_fed - samples_consumed`) so no sample
 is lost or reprocessed across acquisition to tracking. Both of those are
 hand-off concerns, and both live in C exactly once.
@@ -146,11 +146,11 @@ event chainable rather than merely consumable.
 **preamble** can, because it has finite extent — its edges break exactly the
 periodicity a bare code correlation is blind to. Score a candidate offset
 with **acquisition's own statistic** at the code phase acquisition settled:
-`acq_cell_corr()` of each of the `REPS` periods the preamble would occupy,
+`dp_acq_cell_corr()` of each of the `REPS` periods the preamble would occupy,
 mixed at one Doppler on one time reference and summed **coherently**, the
 strongest Doppler cell taken. Doppler is a nuisance parameter here; only the
 winning offset is kept. Every cell of every period is one
-`acq_cell_corr_grid()` call, which despreads each sample once rather than
+`dp_acq_cell_corr_grid()` call, which despreads each sample once rather than
 once per cell (doppler#1538). The score at a whole-period offset `k` still follows
 the triangular overlap envelope `(REPS - abs(k)) / REPS`, because only
 `REPS - abs(k)` of those positions land on preamble.
@@ -363,10 +363,10 @@ should receive an answer, not a subtraction to perform. **This is exactly
 the field a caller cannot compute** — it needs the engine's own stream
 position, which is why it must be produced here and not by the caller.
 
-`acq_build_handoff()` also has to learn the burst front door. Its doc comment
+`dp_acq_build_handoff()` also has to learn the burst front door. Its doc comment
 states the current assumption plainly — `state` built via
-`acq_create_continuous()`, because it reads `doppler_bin` as a frequency-
-*window* index — while an engine from `acq_create_burst()` reports a
+`dp_acq_create_continuous()`, because it reads `doppler_bin` as a frequency-
+*window* index — while an engine from `dp_acq_create_burst()` reports a
 *coherent* bin. Extending it is a precondition, not a side quest.
 
 ______________________________________________________________________
@@ -518,7 +518,7 @@ is not settled is its operating envelope.
     `dsss_burst_receiver_core.c`; it moved into the capture as
     `burst_capture_refine()` (`burst_capture_core.c`, §11.3). It does not compose `Corr` as this bullet
     guessed: the candidates are `anchor + k·P` and nothing between, so the
-    stage scores each with acquisition's own statistic — `acq_cell_corr()`
+    stage scores each with acquisition's own statistic — `dp_acq_cell_corr()`
     of every period the preamble would occupy, so the replica has one home —
     summed coherently over a Doppler search (§3.4; doppler#1502 replaced the
     earlier per-period `corr2d` correlation with it). The
@@ -899,7 +899,7 @@ is left is what a demodulator is for.
 covers which, because the answer is a specification's. That table —
 marker/preamble/sync are found-not-decoded, payload/CRC/parity is the data
 group, the inner code covers everything — is CCSDS 131.0-B-6 10.3.4
-generalised, so it lives in `ccsds_tm_frame_desc_of()`, next to the ASM
+generalised, so it lives in `dp_ccsds_tm_frame_desc_of()`, next to the ASM
 bits and the RS parity size it needs. The generator's bridge is an adapter
 over it; a receiver calls neither.
 

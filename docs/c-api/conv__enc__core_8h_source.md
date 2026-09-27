@@ -31,7 +31,7 @@ extern "C"
   dp_conv_enc_state_t *dp_conv_enc_create (const uint32_t *poly, size_t poly_len,
                                      uint32_t k, uint32_t invert);
 
-  dp_conv_enc_state_t *conv_enc_create_code (const conv_code_t *c);
+  dp_conv_enc_state_t *dp_conv_enc_create_code (const conv_code_t *c);
 
   void dp_conv_enc_destroy (dp_conv_enc_state_t *state);
 
@@ -42,7 +42,7 @@ extern "C"
   size_t dp_conv_enc_encode (dp_conv_enc_state_t *state, const uint8_t *in,
                           size_t n_in, uint8_t *out, size_t max_out);
 
-  const conv_code_t *conv_enc_code (const dp_conv_enc_state_t *s);
+  const conv_code_t *dp_conv_enc_code (const dp_conv_enc_state_t *s);
 
   /* ── the state bytes interface ─────────────────────────────────────────
    *

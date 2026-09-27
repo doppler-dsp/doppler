@@ -63,7 +63,7 @@ typedef struct
   size_t num_phases; 
   bool narrow_pulse;
   /* ── Pre-terminal AGC (NULL = off, which is the default and what every
-     constructor builds).  See RateConverter_enable_agc(). ─────────────── */
+     constructor builds).  See dp_RateConverter_enable_agc(). ─────────────── */
   dp_agc_state_t *agc;          
   double       bank_sps;     
   double       bank_e0;      
@@ -81,7 +81,7 @@ typedef struct
 dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
 
 dp_RateConverter_state_t *
-RateConverter_create_matched (double rate, int compensate, int pulse,
+dp_RateConverter_create_matched (double rate, int compensate, int pulse,
                               double beta, size_t span, double pulse_sps,
                               size_t num_phases);
 
@@ -91,7 +91,7 @@ bool dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s);
 
 size_t RateConverter_num_stages (const dp_RateConverter_state_t *s);
 
-double RateConverter_gain (const dp_RateConverter_state_t *s);
+double dp_RateConverter_gain (const dp_RateConverter_state_t *s);
 const char *dp_RateConverter_stages_value (const dp_RateConverter_state_t *s,
                                         size_t i);
 
@@ -99,14 +99,14 @@ size_t RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
 size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
                                        size_t i);
 
-int RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
+int dp_RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
                               double alpha);
 
-double RateConverter_agc_ref_db (const dp_RateConverter_state_t *s);
+double dp_RateConverter_agc_ref_db (const dp_RateConverter_state_t *s);
 
-double RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
+double dp_RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
 
-int RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
+int dp_RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
                                  const char *prefix, uint32_t decim);
 
 void dp_RateConverter_destroy (dp_RateConverter_state_t *s);
@@ -147,23 +147,23 @@ size_t dp_RateConverter_execute_ctrl_push (dp_RateConverter_state_t *s,
                                         float _Complex x, double ctrl,
                                         float _Complex *out, size_t max_out);
 
-size_t RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
+size_t dp_RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
                                             float _Complex x, double ctrl,
                                             float _Complex *out,
                                             size_t max_out,
                                             float _Complex *pre_out,
                                             int *n_pre);
 
-double RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
+double dp_RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
 
 double dp_RateConverter_get_rate (const dp_RateConverter_state_t *s);
 
 void dp_RateConverter_set_rate (dp_RateConverter_state_t *s, double rate);
 
-int RateConverter_stage_label (dp_RateConverter_state_t *s, int i,
+int dp_RateConverter_stage_label (dp_RateConverter_state_t *s, int i,
                                char *buf, size_t len);
 
-size_t RateConverter_convert (double rate, int compensate,
+size_t dp_RateConverter_convert (double rate, int compensate,
                               const float _Complex *in, size_t n_in,
                               float _Complex *out, size_t max_out);
 

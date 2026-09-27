@@ -60,6 +60,7 @@ _Block interleaving as an object — the geometry, held._ [More...](#detailed-de
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* | [**dp\_interleaver\_create**](#function-dp_interleaver_create) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_Build an interleaver over a_ `rows` _x_`cols` _block of_`unit_bits` _units._ |
+|  [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* | [**dp\_interleaver\_create\_rx**](#function-dp_interleaver_create_rx) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_The RECEIVE face of the same interleaver._  |
 |  size\_t | [**dp\_interleaver\_deinterleave**](#function-dp_interleaver_deinterleave) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Undo_ [_**dp\_interleaver\_interleave**_](interleaver__core_8h.md#function-dp_interleaver_interleave) _over the same geometry._ |
 |  size\_t | [**dp\_interleaver\_deinterleave\_max\_out**](#function-dp_interleaver_deinterleave_max_out) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, size\_t n\_in) <br>_Output bits for_ `n_in` _input bits — the same number._ |
 |  size\_t | [**dp\_interleaver\_deinterleave\_soft**](#function-dp_interleaver_deinterleave_soft) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, const float \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Undo an interleave over SOFT values — the receive path that matters._  |
@@ -71,7 +72,6 @@ _Block interleaving as an object — the geometry, held._ [More...](#detailed-de
 |  size\_t | [**dp\_interleaver\_interleave**](#function-dp_interleaver_interleave) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Interleave a whole number of blocks._  |
 |  size\_t | [**dp\_interleaver\_interleave\_max\_out**](#function-dp_interleaver_interleave_max_out) (const [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state, size\_t n\_in) <br>_Output bits for_ `n_in` _input bits — the same number._ |
 |  void | [**dp\_interleaver\_reset**](#function-dp_interleaver_reset) ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* state) <br>_No-op; an interleaver carries nothing between calls._  |
-|  [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md) \* | [**interleaver\_create\_rx**](#function-interleaver_create_rx) (size\_t rows, size\_t cols, size\_t unit\_bits) <br>_The RECEIVE face of the same interleaver._  |
 
 
 
@@ -165,6 +165,61 @@ An interleaver, or NULL if any parameter is zero or the block would overflow.
 >>> il = Interleaver(rows=3, cols=4)
 >>> il.block_bits, il.burst_len, il.separation
 (12, 3, 4)
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_interleaver\_create\_rx 
+
+_The RECEIVE face of the same interleaver._ 
+```C++
+dp_interleaver_state_t * dp_interleaver_create_rx (
+    size_t rows,
+    size_t cols,
+    size_t unit_bits
+) 
+```
+
+
+
+Identical construction — it delegates to `dp_interleaver_create` — and it exists because the two ends of a link are written by different people. Someone working the receive side reaches for a `Deinterleaver`, and a class that is only findable under the transmit name is a class they do not find.
+
+
+The GEOMETRY is why this is a view over one core rather than a second object: `rows`, `cols` and `unit_bits` are exactly what the two ends must agree on, and a mismatch is not an error but a receiver de-interleaving into a different permutation and handing the decoder plausible garbage. One core means one definition of the geometry to get right.
+
+
+
+
+**Parameters:**
+
+
+* `rows` Interleaving depth, as the transmitter used. 
+* `cols` Units per codeword, as the transmitter used. 
+* `unit_bits` Bits per interleaved unit, as the transmitter used. 
+
+
+
+**Returns:**
+
+An interleaver, or NULL on the same refusals as `dp_interleaver_create`.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.coding import Interleaver, Deinterleaver
+>>> tx = Interleaver(rows=3, cols=4)
+>>> rx = Deinterleaver(rows=3, cols=4)
+>>> bits = np.arange(12, dtype=np.uint8)
+>>> wire = np.asarray(tx.interleave(bits))
+>>> np.array_equal(np.asarray(rx.deinterleave(wire)), bits)
+True
 ```
  
 
@@ -630,61 +685,6 @@ Present because the object surface has it, and honest about why it does nothing:
 >>> il.reset()
 >>> il.block_bits
 6
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function interleaver\_create\_rx 
-
-_The RECEIVE face of the same interleaver._ 
-```C++
-dp_interleaver_state_t * interleaver_create_rx (
-    size_t rows,
-    size_t cols,
-    size_t unit_bits
-) 
-```
-
-
-
-Identical construction — it delegates to `dp_interleaver_create` — and it exists because the two ends of a link are written by different people. Someone working the receive side reaches for a `Deinterleaver`, and a class that is only findable under the transmit name is a class they do not find.
-
-
-The GEOMETRY is why this is a view over one core rather than a second object: `rows`, `cols` and `unit_bits` are exactly what the two ends must agree on, and a mismatch is not an error but a receiver de-interleaving into a different permutation and handing the decoder plausible garbage. One core means one definition of the geometry to get right.
-
-
-
-
-**Parameters:**
-
-
-* `rows` Interleaving depth, as the transmitter used. 
-* `cols` Units per codeword, as the transmitter used. 
-* `unit_bits` Bits per interleaved unit, as the transmitter used. 
-
-
-
-**Returns:**
-
-An interleaver, or NULL on the same refusals as `dp_interleaver_create`.
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.coding import Interleaver, Deinterleaver
->>> tx = Interleaver(rows=3, cols=4)
->>> rx = Deinterleaver(rows=3, cols=4)
->>> bits = np.arange(12, dtype=np.uint8)
->>> wire = np.asarray(tx.interleave(bits))
->>> np.array_equal(np.asarray(rx.deinterleave(wire)), bits)
-True
 ```
  
 

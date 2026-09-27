@@ -40,7 +40,7 @@ against it specifically.
 The dilation is a resampling of the whole stream at output/input ratio
 `1/(1+d)`, which is what makes it apply to every clock at once rather than to
 each one separately. It reuses `resample.Resampler`'s per-sample rate control
-(`resamp_execute_ctrl`), whose double-precision accumulator tracks a Doppler
+(`dp_resamp_execute_ctrl`), whose double-precision accumulator tracks a Doppler
 *ramp* exactly instead of approximating it with a piecewise-constant ratio
 re-set once per block. No resampling math is reimplemented.
 

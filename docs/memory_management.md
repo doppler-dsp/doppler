@@ -294,7 +294,7 @@ Two consequences are worth knowing, because both are silent.
 ### Alignment
 
 doppler's float FFT path is [PFFFT](https://bitbucket.org/jpommier/pffft),
-which requires 16-byte-aligned buffers. `pocketfft_execute_1d_cf32` checks
+which requires 16-byte-aligned buffers. `dp_pocketfft_execute_1d_cf32` checks
 `aligned16(in) && aligned16(out)` and transforms straight in→out when both
 qualify; otherwise it bounces the unaligned side through internal aligned
 scratch. The 2-D path never touches caller alignment at all — it copies into

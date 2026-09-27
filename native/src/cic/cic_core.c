@@ -131,7 +131,7 @@ dp_cic_set_state (dp_cic_state_t *state, const void *blob)
 /* ── decimate ──────────────────────────────────────────────────────────── */
 
 double
-cic_dc_gain (const dp_cic_state_t *state)
+dp_cic_dc_gain (const dp_cic_state_t *state)
 {
   return pow ((double)state->R, (double)CIC_N)
          / ldexp (1.0, (int)state->shift);

@@ -36,7 +36,7 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 | ---: | :--- |
 | struct | [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) <br>_Which coding is applied to one Transfer Frame._  |
 | struct | [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) <br>_The shape of one CADU, and what each stage covered._  |
-| struct | [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) <br>_What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._ |
+| struct | [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) <br>_What_ [_**dp\_ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_decode) _found on the way through._ |
 | struct | [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md) <br>_A run of CADU bits, as a half-open range_ `[first, first + n)` _._ |
 | struct | [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) <br>_A framed waveform's choices, before they become a description._  |
 
@@ -65,12 +65,12 @@ _The CCSDS frame assembler — where the ASM goes, and the one place the stages'
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**ccsds\_tm\_frame\_decode**](#function-ccsds_tm_frame_decode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, const uint8\_t \* cadu, size\_t n\_cadu, uint8\_t \* frame, size\_t max\_frame, [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) \* rx) <br>_Recover a Transfer Frame from the bits of one CADU._  |
-|  int | [**ccsds\_tm\_frame\_desc\_of**](#function-ccsds_tm_frame_desc_of) (const [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) \* s, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Turn those choices into a description: fields, stages, covers._  |
-|  int | [**ccsds\_tm\_frame\_describe**](#function-ccsds_tm_frame_describe) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, const uint8\_t \* frame\_bits, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— the standard as DATA._ |
-|  size\_t | [**ccsds\_tm\_frame\_encode**](#function-ccsds_tm_frame_encode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, [**conv\_enc\_t**](structconv__enc__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
-|  size\_t | [**ccsds\_tm\_frame\_layout**](#function-ccsds_tm_frame_layout) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
-|  void | [**ccsds\_tm\_frame\_ops**](#function-ccsds_tm_frame_ops) ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* out, [**conv\_enc\_t**](structconv__enc__t.md) \* conv) <br>_The kernels a described CADU is assembled with._  |
+|  size\_t | [**dp\_ccsds\_tm\_frame\_decode**](#function-dp_ccsds_tm_frame_decode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, const uint8\_t \* cadu, size\_t n\_cadu, uint8\_t \* frame, size\_t max\_frame, [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md) \* rx) <br>_Recover a Transfer Frame from the bits of one CADU._  |
+|  int | [**dp\_ccsds\_tm\_frame\_desc\_of**](#function-dp_ccsds_tm_frame_desc_of) (const [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md) \* s, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Turn those choices into a description: fields, stages, covers._  |
+|  int | [**dp\_ccsds\_tm\_frame\_describe**](#function-dp_ccsds_tm_frame_describe) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, const uint8\_t \* frame\_bits, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— the standard as DATA._ |
+|  size\_t | [**dp\_ccsds\_tm\_frame\_encode**](#function-dp_ccsds_tm_frame_encode) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, [**conv\_enc\_t**](structconv__enc__t.md) \* conv, const uint8\_t \* frame, size\_t frame\_len, uint8\_t \* out, size\_t max\_out) <br>_Encode one Transfer Frame into channel symbols._  |
+|  size\_t | [**dp\_ccsds\_tm\_frame\_layout**](#function-dp_ccsds_tm_frame_layout) (const [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) \* cfg, size\_t frame\_len, [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) \* out) <br>_Work out the CADU shape for a config, without encoding anything._  |
+|  void | [**dp\_ccsds\_tm\_frame\_ops**](#function-dp_ccsds_tm_frame_ops) ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* out, [**conv\_enc\_t**](structconv__enc__t.md) \* conv) <br>_The kernels a described CADU is assembled with._  |
 
 
 
@@ -145,7 +145,7 @@ That is why [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.
 `ccsds_tm_rs.h` takes **packed** symbols, because a Reed-Solomon symbol is a byte; `ccsds_tm.h` takes **unpacked** bits, one per byte, because a randomiser and a convolutional coder are bit machines. Both are right, and the conversion between them belongs to exactly one place rather than being hidden inside a kernel that then only works for one caller.
 
 
-This is that place: [**ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_encode) takes a Transfer Frame as packed octets and returns unpacked channel symbols, the representation `dp_wfm_frame_bits` and the spreader already pass around. Octets go on the wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol the same way.
+This is that place: [**dp\_ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_encode) takes a Transfer Frame as packed octets and returns unpacked channel symbols, the representation `dp_wfm_frame_bits` and the spreader already pass around. Octets go on the wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol the same way.
 
 
 
@@ -172,11 +172,11 @@ Virtual fill (4.4.2's shortened codeblock) is not implemented, so a frame whose 
 
 
 
-### function ccsds\_tm\_frame\_decode 
+### function dp\_ccsds\_tm\_frame\_decode 
 
 _Recover a Transfer Frame from the bits of one CADU._ 
 ```C++
-size_t ccsds_tm_frame_decode (
+size_t dp_ccsds_tm_frame_decode (
     const ccsds_tm_frame_cfg_t * cfg,
     const uint8_t * cadu,
     size_t n_cadu,
@@ -188,14 +188,14 @@ size_t ccsds_tm_frame_decode (
 
 
 
-The mirror of [**ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_encode), over the same spans and reading the same [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) — so the two cannot disagree about which stage covered what, which is the failure `ccsds_tm_frame.h` opens by describing.
+The mirror of [**dp\_ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_encode), over the same spans and reading the same [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) — so the two cannot disagree about which stage covered what, which is the failure `ccsds_tm_frame.h` opens by describing.
 
 
 ### Where the inner code is, and why it is not here
 
 
 
-This begins **after** the inner decode and after frame synchronisation: `cadu` is one marker-plus-codeblock, already Viterbi-decoded and already aligned by [**ccsds\_tm\_asm\_find**](ccsds__tm_8h.md#function-ccsds_tm_asm_find). That is not an omission, it is the only place the boundary can go. A Viterbi is streaming and emits its decisions `depth` bits late, so the bits of one CADU are not a function of that CADU's symbols alone; and the marker that says where a CADU _starts_ is only readable once the inner code has been undone. A function taking channel symbols would therefore have to own a decoder, a search window and a buffer — that is a streaming receiver object, and this is the pure per-frame chain it would call.
+This begins **after** the inner decode and after frame synchronisation: `cadu` is one marker-plus-codeblock, already Viterbi-decoded and already aligned by [**dp\_ccsds\_tm\_asm\_find**](ccsds__tm_8h.md#function-dp_ccsds_tm_asm_find). That is not an omission, it is the only place the boundary can go. A Viterbi is streaming and emits its decisions `depth` bits late, so the bits of one CADU are not a function of that CADU's symbols alone; and the marker that says where a CADU _starts_ is only readable once the inner code has been undone. A function taking channel symbols would therefore have to own a decoder, a search window and a buffer — that is a streaming receiver object, and this is the pure per-frame chain it would call.
 
 
 Consistent with the encoder, where [**conv\_enc\_t**](structconv__enc__t.md) belongs to the caller for the same reason: the inner code is continuous and the frame is not.
@@ -234,12 +234,12 @@ const ccsds_tm_frame_cfg_t cfg
     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
         .convolutional = 1 };
 ccsds_tm_frame_layout_t lay;
-ccsds_tm_frame_layout (&cfg, 223 * 5, &lay);
+dp_ccsds_tm_frame_layout (&cfg, 223 * 5, &lay);
 
 uint8_t        frame[223 * 5];
 ccsds_tm_frame_rx_t rx;
 // `cadu` is lay.cadu_bits of Viterbi output, ASM-aligned.
-const size_t n = ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
+const size_t n = dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
                                    sizeof frame, &rx);
 printf ("%zu octets, R-S %u/%u ok, %u symbols repaired\n", n, rx.rs_ok,
         rx.rs_codewords, rx.rs_symbols);
@@ -254,11 +254,11 @@ printf ("%zu octets, R-S %u/%u ok, %u symbols repaired\n", n, rx.rs_ok,
 
 
 
-### function ccsds\_tm\_frame\_desc\_of 
+### function dp\_ccsds\_tm\_frame\_desc\_of 
 
 _Turn those choices into a description: fields, stages, covers._ 
 ```C++
-int ccsds_tm_frame_desc_of (
+int dp_ccsds_tm_frame_desc_of (
     const ccsds_tm_frame_spec_t * s,
     wfm_frame_desc_t * d
 ) 
@@ -293,11 +293,11 @@ The ONE place this standard's coverage table becomes data, so a generator and wh
 
 
 
-### function ccsds\_tm\_frame\_describe 
+### function dp\_ccsds\_tm\_frame\_describe 
 
 _This CADU as a_ [_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _— the standard as DATA._
 ```C++
-int ccsds_tm_frame_describe (
+int dp_ccsds_tm_frame_describe (
     const ccsds_tm_frame_cfg_t * cfg,
     size_t frame_len,
     const uint8_t * frame_bits,
@@ -307,10 +307,10 @@ int ccsds_tm_frame_describe (
 
 
 
-The same fact `CCSDS_TM_CONV` states about the inner code and `CCSDS_TM_RS` about the outer one, at the level of the frame: 131.0-B-3 section 9 is a CONFIGURATION of a general description, not a framer of its own. Three fields — the marker, the Transfer Frame, and the check symbols the outer code derives — and three stages whose covers are the whole of the coverage table this file opens with.
+The same fact `dp_CCSDS_TM_CONV` states about the inner code and `dp_CCSDS_TM_RS` about the outer one, at the level of the frame: 131.0-B-3 section 9 is a CONFIGURATION of a general description, not a framer of its own. Three fields — the marker, the Transfer Frame, and the check symbols the outer code derives — and three stages whose covers are the whole of the coverage table this file opens with.
 
 
-The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing about CCSDS; if it called this component's kernels the two would form a cycle, so the kernels travel as [**ccsds\_tm\_frame\_ops**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_ops) instead.
+The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing about CCSDS; if it called this component's kernels the two would form a cycle, so the kernels travel as [**dp\_ccsds\_tm\_frame\_ops**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_ops) instead.
 
 
 
@@ -327,7 +327,7 @@ The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing about C
 
 **Returns:**
 
-0, or -1 if the configuration is refused — the same refusals [**ccsds\_tm\_frame\_layout**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_layout) applies, for the same reasons. 
+0, or -1 if the configuration is refused — the same refusals [**dp\_ccsds\_tm\_frame\_layout**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_layout) applies, for the same reasons. 
 
 
 
@@ -339,11 +339,11 @@ The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing about C
 
 
 
-### function ccsds\_tm\_frame\_encode 
+### function dp\_ccsds\_tm\_frame\_encode 
 
 _Encode one Transfer Frame into channel symbols._ 
 ```C++
-size_t ccsds_tm_frame_encode (
+size_t dp_ccsds_tm_frame_encode (
     const ccsds_tm_frame_cfg_t * cfg,
     conv_enc_t * conv,
     const uint8_t * frame,
@@ -378,7 +378,7 @@ The difference is small and it is exactly where it hurts: measured on depth 1, e
 * `frame` `frame_len` **packed** octets, MSB-first on the wire. 
 * `frame_len` Transfer Frame length in octets. 
 * `out` Receives the **unpacked** channel symbols, one per byte. 
-* `max_out` Capacity of `out` in symbols. The CADU is assembled in the TAIL of this buffer, so a short one is not a truncated result but a write past the end — hence a capacity rather than a comment telling you to call [**ccsds\_tm\_frame\_layout**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_layout) first. 
+* `max_out` Capacity of `out` in symbols. The CADU is assembled in the TAIL of this buffer, so a short one is not a truncated result but a write past the end — hence a capacity rather than a comment telling you to call [**dp\_ccsds\_tm\_frame\_layout**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_layout) first. 
 
 
 
@@ -395,9 +395,9 @@ const ccsds_tm_frame_cfg_t cfg
     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
         .convolutional = 1 };
 conv_enc_t conv;
-conv_enc_init (&conv);
+dp_conv_enc_init (&conv);
 const size_t n
-    = ccsds_tm_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
+    = dp_ccsds_tm_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
                         sizeof sym);
 ```
  
@@ -410,11 +410,11 @@ const size_t n
 
 
 
-### function ccsds\_tm\_frame\_layout 
+### function dp\_ccsds\_tm\_frame\_layout 
 
 _Work out the CADU shape for a config, without encoding anything._ 
 ```C++
-size_t ccsds_tm_frame_layout (
+size_t dp_ccsds_tm_frame_layout (
     const ccsds_tm_frame_cfg_t * cfg,
     size_t frame_len,
     ccsds_tm_frame_layout_t * out
@@ -447,7 +447,7 @@ The number of channel symbols the encode will write, or 0 if the configuration i
 const ccsds_tm_frame_cfg_t cfg
     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
         .convolutional = 1 };
-const size_t n = ccsds_tm_frame_layout (&cfg, 223 * 5, NULL);
+const size_t n = dp_ccsds_tm_frame_layout (&cfg, 223 * 5, NULL);
 uint8_t *sym = malloc (n);          // n == (32 + 255 * 5 * 8) * 2
 ```
  
@@ -459,11 +459,11 @@ uint8_t *sym = malloc (n);          // n == (32 + 255 * 5 * 8) * 2
 
 
 
-### function ccsds\_tm\_frame\_ops 
+### function dp\_ccsds\_tm\_frame\_ops 
 
 _The kernels a described CADU is assembled with._ 
 ```C++
-void ccsds_tm_frame_ops (
+void dp_ccsds_tm_frame_ops (
     wfm_frame_ops_t * out,
     conv_enc_t * conv
 ) 
@@ -471,7 +471,7 @@ void ccsds_tm_frame_ops (
 
 
 
-The outer code, the randomiser and the inner code, as the transforms [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble) calls. Each one is the same function [**ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_encode) calls, so the two paths cannot come to disagree about what a stage does — only about which bits it is handed, and that is what the description states.
+The outer code, the randomiser and the inner code, as the transforms [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble) calls. Each one is the same function [**dp\_ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_encode) calls, so the two paths cannot come to disagree about what a stage does — only about which bits it is handed, and that is what the description states.
 
 
 
@@ -480,7 +480,7 @@ The outer code, the randomiser and the inner code, as the transforms [**dp\_wfm\
 
 
 * `out` receives the table. 
-* `conv` inner-encoder state carried across frames, or `NULL` to start each frame from the all-zero register. Exactly [**ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_encode)'s `conv`, and it matters for the same reason: 3.3.2 fixes one uninterrupted symbol sequence. 
+* `conv` inner-encoder state carried across frames, or `NULL` to start each frame from the all-zero register. Exactly [**dp\_ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_encode)'s `conv`, and it matters for the same reason: 3.3.2 fixes one uninterrupted symbol sequence. 
 
 
 

@@ -2,8 +2,8 @@
  * test_acq_core.c — DSSS acquisition engine C-level tests.
  *
  * Covers: argument validation, physics auto-config (C/N0 -> snr, the chosen
- * coherent depth coherent_bins, threshold/eta) for both acq_create_burst()
- * and acq_create_continuous(), noise-free localization of a streamed burst
+ * coherent depth coherent_bins, threshold/eta) for both dp_acq_create_burst()
+ * and dp_acq_create_continuous(), noise-free localization of a streamed burst
  * to the injected (Doppler bin, code phase), and a real AWGN calibration
  * check that acq_result_t::cn0_dbhz_est tracks a known injected C/N0.
  *
@@ -36,7 +36,7 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 /* A burst engine from a PN code: the preamble is the code's samples, mapped
  * by dp_bin_to_nrz() and held `spc` a chip (dp_preamble_test.h), at
  * fs = chip_rate * spc -- how a caller builds one. A missing or empty code
- * still reaches acq_create_burst(), so its refusal is what is tested. */
+ * still reaches dp_acq_create_burst(), so its refusal is what is tested. */
 static dp_acq_state_t *
 burst_from_code (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
                  double chip_rate, double cn0_dbhz, double doppler_uncertainty,
@@ -44,23 +44,23 @@ burst_from_code (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
 {
   const size_t    n   = (code && code_len && spc) ? code_len * spc : 0;
   float _Complex *pre = n ? dp_code_preamble (code, code_len, spc) : NULL;
-  dp_acq_state_t *a = acq_create_burst (pre, n, reps, chip_rate * (double)spc,
-                                        cn0_dbhz, doppler_uncertainty, pfa, pd,
-                                        noise_mode, doppler_rate);
+  dp_acq_state_t *a   = dp_acq_create_burst (
+      pre, n, reps, chip_rate * (double)spc, cn0_dbhz, doppler_uncertainty,
+      pfa, pd, noise_mode, doppler_rate);
   free (pre);
   return a;
 }
 
-/* ── acq_run pure-transducer (state in/out) round-trip ─────────────────────
- * The stateless elastic face: state_in == NULL resets then processes; a fresh
- * engine + state_in reproduces an uninterrupted run; a corrupted blob is
- * rejected (acq_run returns 0). Driven at two explicitly PINNED grids (via
- * dp_acq_configure_search_raw -- deterministic, not left to the auto-sizer's
- * own physics-driven choice, since there's no caller-facing max_noncoh knob
- * left to lean on) so both the coherent and the non-coherent (nc_surface)
- * serialization paths are covered: @p n_noncoh_pin == 1 (coherent-only) vs.
- * > 1 (exercises nc_surface). @p s0d is the oversampled, code-phase-rolled
- * BPSK replica (length @p nx). */
+/* ── dp_acq_run pure-transducer (state in/out) round-trip
+ * ───────────────────── The stateless elastic face: state_in == NULL resets
+ * then processes; a fresh engine + state_in reproduces an uninterrupted run; a
+ * corrupted blob is rejected (dp_acq_run returns 0). Driven at two explicitly
+ * PINNED grids (via dp_acq_configure_search_raw -- deterministic, not left to
+ * the auto-sizer's own physics-driven choice, since there's no caller-facing
+ * max_noncoh knob left to lean on) so both the coherent and the non-coherent
+ * (nc_surface) serialization paths are covered: @p n_noncoh_pin == 1
+ * (coherent-only) vs. > 1 (exercises nc_surface). @p s0d is the oversampled,
+ * code-phase-rolled BPSK replica (length @p nx). */
 static int
 _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
                     double crate, double cn0, size_t n_noncoh_pin)
@@ -88,9 +88,10 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
       s[k]      = s0d[k % nx] * (float _Complex) (cos (ph) + I * sin (ph));
     }
 
-  /* reference: the whole stream via acq_run, state_in == NULL (-> reset). */
+  /* reference: the whole stream via dp_acq_run, state_in == NULL (-> reset).
+   */
   acq_result_t hA[16];
-  size_t       nA = acq_run (ra, NULL, NULL, s, L, hA, 16);
+  size_t       nA = dp_acq_run (ra, NULL, NULL, s, L, hA, 16);
   dp_acq_destroy (ra);
 
   /* split: engine1 emits state_out; a fresh engine2 restores it via state_in.
@@ -107,8 +108,8 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
       size_t       cb   = dp_acq_state_bytes (r1);
       void        *blob = malloc (cb);
       acq_result_t hB[16];
-      size_t       nB = acq_run (r1, NULL, blob, s, cut, hB, 16);
-      nB += acq_run (r2, blob, NULL, s + cut, L - cut, hB + nB, 16 - nB);
+      size_t       nB = dp_acq_run (r1, NULL, blob, s, cut, hB, 16);
+      nB += dp_acq_run (r2, blob, NULL, s + cut, L - cut, hB + nB, 16 - nB);
 
       DP_CHECK (nA >= 1 && nB == nA);
       for (size_t i = 0; i < nA && i < nB; i++)
@@ -118,14 +119,15 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
           DP_CHECK (fabsf (hA[i].test_stat - hB[i].test_stat) < 1e-4f);
         }
 
-      /* a corrupted blob must make acq_run reject (set_state != 0) -> 0 out.
+      /* a corrupted blob must make dp_acq_run reject (set_state != 0) -> 0
+       * out.
        */
       dp_acq_state_t *r3 = burst_from_code (CODE7, 7, 8, spc, crate, cn0, 0.0,
                                             1e-2, 0.9, 0, 0.0);
       DP_CHECK (dp_acq_configure_search_raw (r3, 8, n_noncoh_pin) == 0);
       dp_acq_get_state (r3, blob);
       ((char *)blob)[0] ^= (char)0xFF; /* clobber the state header magic */
-      DP_CHECK (acq_run (r3, blob, NULL, s, cut, hB, 16) == 0);
+      DP_CHECK (dp_acq_run (r3, blob, NULL, s, cut, hB, 16) == 0);
       dp_acq_destroy (r3);
 
       free (blob);
@@ -530,7 +532,7 @@ _acq_wideband_check (void)
      2*span apart, so each side needs ceil((3.5 - 0.5)*span / (2*span)) = 2
      hypotheses beyond DC -> 5.  Odd is required, not incidental: an even
      count folds asymmetrically and puts a bin at exactly n/2, the one index
-     the search and acq_build_handoff() used to read with opposite signs. */
+     the search and dp_acq_build_handoff() used to read with opposite signs. */
   DP_CHECK (w->window_bins == 5);
   DP_CHECK (w->window_bins % 2 == 1);
   DP_CHECK (w->n == w->window_bins * nx);
@@ -583,7 +585,7 @@ _acq_wideband_check (void)
 
 /* The wideband grid's real contract is COVERAGE, not bin count: every Doppler
  * in [-du, +du] must have a hypothesis within half a bin, and the search and
- * acq_build_handoff() must agree on which one.
+ * dp_acq_build_handoff() must agree on which one.
  *
  * This is the regression test for the bug that motivated dp_fftfreq_index().
  * The two used to carry separate fold formulas that disagreed at exactly one
@@ -609,8 +611,8 @@ _acq_wideband_coverage_check (void)
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)(i & 1u);
 
-  dp_acq_state_t *w = acq_create_continuous (code, sf, spc, crate, 2700.0,
-                                             44.31, du, 1e-3, 0.9, 0, 1, 0.0);
+  dp_acq_state_t *w = dp_acq_create_continuous (
+      code, sf, spc, crate, 2700.0, 44.31, du, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (w != NULL);
   if (!w)
     {
@@ -639,7 +641,7 @@ _acq_wideband_coverage_check (void)
       DP_CHECK (k >= -kmax && k <= kmax);
       acq_result_t  hit = { .doppler_bin = b, .code_phase = 0 };
       acq_handoff_t ho;
-      acq_build_handoff (w, &hit, sf, spc, &ho);
+      dp_acq_build_handoff (w, &hit, sf, spc, &ho);
       DP_CHECK (fabs (ho.doppler_hz_est - (double)k * res) < 1e-6);
 
       /* doppler#1254: with the carrier given, the phase is advanced by the
@@ -648,7 +650,7 @@ _acq_wideband_coverage_check (void)
          in [0, sf). Without the carrier, the phase is the raw peak's. */
       acq_handoff_t hc;
       DP_CHECK (dp_acq_set_carrier_freq_hz (w, 2.5e9) == DP_OK);
-      acq_build_handoff (w, &hit, sf, spc, &hc);
+      dp_acq_build_handoff (w, &hit, sf, spc, &hc);
       DP_CHECK (dp_acq_set_carrier_freq_hz (w, 0.0) == DP_OK);
       double expect = (double)k * res / 2.5e9 * 0.5 * (double)w->n_noncoh
                       * (double)w->coherent_bins * (double)sf;
@@ -681,8 +683,8 @@ _acq_wideband_coverage_check (void)
   return 0;
 }
 
-/* acq_create_continuous: ALWAYS window-tiles, even when doppler_uncertainty
- * is narrower than one native span -- unlike acq_create_burst's wideband
+/* dp_acq_create_continuous: ALWAYS window-tiles, even when doppler_uncertainty
+ * is narrower than one native span -- unlike dp_acq_create_burst's wideband
  * fallback (only gated on du > span), this is unconditional and never
  * attempts coherent multi-epoch combining at all (coherent_bins pinned to 1
  * regardless of du). This is the one behavior with zero prior coverage
@@ -703,7 +705,7 @@ _acq_continuous_check (void)
   /* du == 0 (no uncertainty prior at all): still window-tiled at
    * window_bins == 1 -- native span, single window -- never a coherent
    * axis. */
-  dp_acq_state_t *narrow = acq_create_continuous (
+  dp_acq_state_t *narrow = dp_acq_create_continuous (
       CODE31, 31, spc, crate, sym_rate, cn0_dbhz, 0.0, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (narrow != NULL);
   if (narrow)
@@ -717,8 +719,8 @@ _acq_continuous_check (void)
    * the point being it's the SAME mechanism/formula as the du > span case
    * below, not a different code path. */
   dp_acq_state_t *within
-      = acq_create_continuous (CODE31, 31, spc, crate, sym_rate, cn0_dbhz,
-                               0.5 * span, 1e-3, 0.9, 0, 1, 0.0);
+      = dp_acq_create_continuous (CODE31, 31, spc, crate, sym_rate, cn0_dbhz,
+                                  0.5 * span, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (within != NULL);
   if (within)
     {
@@ -728,11 +730,11 @@ _acq_continuous_check (void)
     }
 
   /* du > span: window_bins tiles the uncertainty, exactly like
-   * acq_create_burst's wideband fallback -- coherent_bins stays pinned at 1
+   * dp_acq_create_burst's wideband fallback -- coherent_bins stays pinned at 1
    * either way. */
   dp_acq_state_t *wide
-      = acq_create_continuous (CODE31, 31, spc, crate, sym_rate, cn0_dbhz,
-                               3.5 * span, 1e-3, 0.9, 0, 1, 0.0);
+      = dp_acq_create_continuous (CODE31, 31, spc, crate, sym_rate, cn0_dbhz,
+                                  3.5 * span, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (wide != NULL);
   if (wide)
     {
@@ -807,24 +809,24 @@ _acq_template_check (void)
     float _Complex z[4]    = { 0 };
     float _Complex nan4[4] = { 1, 1, NAN, 1 };
     float _Complex inf4[4] = { 1, 1, INFINITY, 1 };
-    DP_CHECK (acq_create_burst (NULL, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                0.9, 0, 0.0)
+    DP_CHECK (dp_acq_create_burst (NULL, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
+                                   0.9, 0, 0.0)
               == NULL);
-    DP_CHECK (
-        acq_create_burst (z, 0, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0)
-        == NULL);
-    DP_CHECK (
-        acq_create_burst (z, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0)
-        == NULL);
-    DP_CHECK (acq_create_burst (nan4, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                0.9, 0, 0.0)
+    DP_CHECK (dp_acq_create_burst (z, 0, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
+                                   0.9, 0, 0.0)
               == NULL);
-    DP_CHECK (acq_create_burst (inf4, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                0.9, 0, 0.0)
+    DP_CHECK (dp_acq_create_burst (z, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
+                                   0.9, 0, 0.0)
+              == NULL);
+    DP_CHECK (dp_acq_create_burst (nan4, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
+                                   0.9, 0, 0.0)
+              == NULL);
+    DP_CHECK (dp_acq_create_burst (inf4, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
+                                   0.9, 0, 0.0)
               == NULL);
     z[0] = 1.0f;
-    DP_CHECK (acq_create_burst (z, 4, reps, 0.0, ACQ_CN0_NONE, 0.0, 1e-3, 0.9,
-                                0, 0.0)
+    DP_CHECK (dp_acq_create_burst (z, 4, reps, 0.0, ACQ_CN0_NONE, 0.0, 1e-3,
+                                   0.9, 0, 0.0)
               == NULL);
   }
 
@@ -858,8 +860,8 @@ _acq_template_check (void)
     for (size_t k = 0; k < N; k++)
       zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k
                                     * (double)(k + 1) / (double)N);
-    dp_acq_state_t *a = acq_create_burst (zc, N, reps, fs, ACQ_CN0_NONE, 0.0,
-                                          1e-3, 0.9, 0, 0.0);
+    dp_acq_state_t *a = dp_acq_create_burst (zc, N, reps, fs, ACQ_CN0_NONE,
+                                             0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->shape.zone == 1);
     const int nk   = ACQ_DELAY_LOSS_NODES;
@@ -889,8 +891,8 @@ _acq_template_check (void)
     for (size_t k = 0; k < N; k++)
       zc[k] = (float _Complex)cexp (-I * M_PI * 3.0 * (double)(k * k)
                                     / (double)N);
-    dp_acq_state_t *a = acq_create_burst (zc, N, reps, fs, ACQ_CN0_NONE, 0.0,
-                                          1e-3, 0.9, 0, 0.0);
+    dp_acq_state_t *a = dp_acq_create_burst (zc, N, reps, fs, ACQ_CN0_NONE,
+                                             0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->shape.zone == 1);
     for (int k = 0; k < ACQ_DELAY_LOSS_NODES; k++)
@@ -918,9 +920,9 @@ _acq_template_check (void)
         c7[k] = 7.0f * c[k];
       }
     dp_acq_state_t *a
-        = acq_create_burst (c, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
+        = dp_acq_create_burst (c, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
     dp_acq_state_t *b
-        = acq_create_burst (c7, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
+        = dp_acq_create_burst (c7, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL && b != NULL);
     DP_CHECK (a->coherent_bins == b->coherent_bins);
     DP_CHECK (a->threshold == b->threshold && a->eta == b->eta);
@@ -984,7 +986,7 @@ _acq_template_check (void)
         = { { q, 41, 0 }, { q, 7, 3 }, { ch, 55, 0 }, { shaped, 90, 0 } };
     for (int c = 0; c < 4; c++)
       {
-        dp_acq_state_t *a = acq_create_burst (
+        dp_acq_state_t *a = dp_acq_create_burst (
             cases[c].t, N, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
         DP_REQUIRE (a != NULL);
         DP_CHECK (a->coherent_bins == reps);
@@ -1034,8 +1036,8 @@ _acq_burst_pd_check (void)
 
   /* Pinned at every depth: the by-construction ordering. */
   {
-    dp_acq_state_t *a
-        = acq_create_burst (zc, n, reps, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, 0.0);
+    dp_acq_state_t *a = dp_acq_create_burst (zc, n, reps, 1.0, -13.0, 0.0,
+                                             1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL);
     for (size_t d = 1; d <= reps; d++)
       {
@@ -1061,8 +1063,8 @@ _acq_burst_pd_check (void)
     const int    under[3] = { 0, 1, 1 };
     for (int k = 0; k < 3; k++)
       {
-        dp_acq_state_t *a = acq_create_burst (zc, n, reps, 1.0, cn0[k], 0.0,
-                                              1e-3, 0.9, 0, 0.0);
+        dp_acq_state_t *a = dp_acq_create_burst (zc, n, reps, 1.0, cn0[k], 0.0,
+                                                 1e-3, 0.9, 0, 0.0);
         DP_REQUIRE (a != NULL);
         DP_CHECK (a->coherent_bins == depth[k]);
         DP_CHECK (a->underpowered == under[k]);
@@ -1075,8 +1077,8 @@ _acq_burst_pd_check (void)
      coherent look, since non-coherent looks are NAN for their own reason
      and would pass this vacuously (a first version did, at 50 dB-Hz). */
   {
-    dp_acq_state_t *c = acq_create_continuous (CODE7, 7, 2, 1.0e6, 0.0, 80.0,
-                                               200.0e3, 1e-2, 0.9, 0, 1, 0.0);
+    dp_acq_state_t *c = dp_acq_create_continuous (
+        CODE7, 7, 2, 1.0e6, 0.0, 80.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->n_noncoh == 1);
     DP_CHECK (isnan (c->pd_burst) && !isnan (c->pd_predicted));
@@ -1088,7 +1090,7 @@ _acq_burst_pd_check (void)
 /* The burst engine's coherent depth is bounded by a Doppler rate
  * (doppler#1482): at most floor(f_epoch / sqrt(2 * rate)) repetitions, so
  * the carrier's drift over one block stays inside half a slow-time row --
- * the rule acq_create_continuous() already applies to its block depth.
+ * the rule dp_acq_create_continuous() already applies to its block depth.
  * f_epoch = chip_rate / sf. */
 static int
 _acq_doppler_rate_check (void)
@@ -1111,8 +1113,8 @@ _acq_doppler_rate_check (void)
         DP_CHECK (burst_from_code (CODE7, 7, reps, spc, crate, ACQ_CN0_NONE,
                                    0.0, 1e-3, 0.9, 0, bad[i])
                   == NULL);
-        DP_CHECK (acq_create_burst (t, 7, reps, crate, ACQ_CN0_NONE, 0.0, 1e-3,
-                                    0.9, 0, bad[i])
+        DP_CHECK (dp_acq_create_burst (t, 7, reps, crate, ACQ_CN0_NONE, 0.0,
+                                       1e-3, 0.9, 0, bad[i])
                   == NULL);
       }
   }
@@ -1180,8 +1182,8 @@ _acq_doppler_rate_check (void)
     float _Complex t[7];
     for (size_t i = 0; i < 7; i++)
       t[i] = (CODE7[i] & 1u) ? -1.0f : 1.0f;
-    dp_acq_state_t *tp = acq_create_burst (t, 7, reps, crate, ACQ_CN0_NONE,
-                                           0.0, 1e-3, 0.9, 0, rate);
+    dp_acq_state_t *tp = dp_acq_create_burst (t, 7, reps, crate, ACQ_CN0_NONE,
+                                              0.0, 1e-3, 0.9, 0, rate);
     DP_REQUIRE (tp != NULL);
     DP_CHECK (tp->coherent_bins == cap);
     dp_acq_destroy (tp);
@@ -1189,10 +1191,10 @@ _acq_doppler_rate_check (void)
   return 0;
 }
 
-/* acq_cell_corr_grid() against acq_cell_corr(), cell for cell (doppler#1538).
- * An engine with a 510-sample epoch -- uneven blocks (510/16), a mixer
- * resync mid-epoch -- and three epochs at an odd t0 and code phase, so a
- * wrong block edge, resync or epoch advance shows. Frequencies: a fine grid
+/* dp_acq_cell_corr_grid() against dp_acq_cell_corr(), cell for cell
+ * (doppler#1538). An engine with a 510-sample epoch -- uneven blocks (510/16),
+ * a mixer resync mid-epoch -- and three epochs at an odd t0 and code phase, so
+ * a wrong block edge, resync or epoch advance shows. Frequencies: a fine grid
  * plus twins, spread just under a cycle per epoch either side,
  * scored on a coherent tone at the residual's worst and on noise, where
  * the error is normalized by the epoch's sum |x * ref| (what either face
@@ -1210,7 +1212,7 @@ _acq_cell_corr_grid_check (void)
   for (size_t m = 0; m < P; m++)
     pre[m] = dp_cgauss (&rng);
   dp_acq_state_t *a
-      = acq_create_burst (pre, P, 4, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
+      = dp_acq_create_burst (pre, P, 4, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (a != NULL && a->code_bins == P);
 
   enum
@@ -1241,7 +1243,7 @@ _acq_cell_corr_grid_check (void)
                                                          * t / fs)
                            : dp_cgauss (&rng);
         }
-      acq_cell_corr_grid (a, x, E, col, f, NF, t0, got);
+      dp_acq_cell_corr_grid (a, x, E, col, f, NF, t0, got);
       double worst = 0.0;
       for (size_t e = 0; e < E; e++)
         {
@@ -1250,7 +1252,7 @@ _acq_cell_corr_grid_check (void)
             norm += cabsf (x[e * P + m] * pre[(m + P - col) % P]);
           for (size_t j = 0; j < NF; j++)
             {
-              const double _Complex want = acq_cell_corr (
+              const double _Complex want = dp_acq_cell_corr (
                   a, x + e * P, col, f[j], t0 + (double)(e * P));
               const double err = cabs (got[e * NF + j] - want) / norm;
               if (err > worst)
@@ -1264,19 +1266,20 @@ _acq_cell_corr_grid_check (void)
 
   /* Spread two cycles either side: the fallback, the primitive itself. Equal
      to rounding, not bit for bit: arm64 clang contracts to FMA by default, and
-     differently where acq_cell_corr() is inlined than where it is called. */
+     differently where dp_acq_cell_corr() is inlined than where it is called.
+   */
   /* Off the whole-cycle grid: at a multiple of `span` an epoch's time
      offset is whole turns, and a wrong one would pass unseen. */
   const double g5[5]
       = { 0.3 * span, 1.3 * span, 2.3 * span, -0.7 * span, -1.7 * span };
   double _Complex out5[E * 5];
-  acq_cell_corr_grid (a, x, E, col, g5, 5, t0, out5);
+  dp_acq_cell_corr_grid (a, x, E, col, g5, 5, t0, out5);
   double worst5 = 0.0;
   for (size_t e = 0; e < E; e++)
     for (size_t j = 0; j < 5; j++)
       {
-        const double _Complex want
-            = acq_cell_corr (a, x + e * P, col, g5[j], t0 + (double)(e * P));
+        const double _Complex want = dp_acq_cell_corr (
+            a, x + e * P, col, g5[j], t0 + (double)(e * P));
         const double err = cabs (out5[e * 5 + j] - want) / (cabs (want) + 1.0);
         if (err > worst5)
           worst5 = err;
@@ -1329,11 +1332,11 @@ main (void)
   /* A continuous engine has no sizing without a design C/N0 -- non-coherent
      looks are its only lever -- so "none" is an argument error THERE; a
      finite value, 0 included, is a design point. */
-  DP_CHECK (acq_create_continuous (CODE7, 7, spc, crate, 0.0, ACQ_CN0_NONE,
-                                   0.0, 1e-3, 0.9, 0, 1, 0.0)
+  DP_CHECK (dp_acq_create_continuous (CODE7, 7, spc, crate, 0.0, ACQ_CN0_NONE,
+                                      0.0, 1e-3, 0.9, 0, 1, 0.0)
             == NULL);
   {
-    dp_acq_state_t *zero = acq_create_continuous (
+    dp_acq_state_t *zero = dp_acq_create_continuous (
         CODE7, 7, spc, crate, 0.0, 0.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_CHECK (zero != NULL);
     dp_acq_destroy (zero);
@@ -1387,12 +1390,12 @@ main (void)
                                     * (double)(i + 1) / 31.0);
     for (int k = 0; k < 2; k++)
       {
-        pairs[3][k] = acq_create_burst (zc, 31, 8, 1.0e6, 50.0, 0.0, 1e-3, 0.9,
-                                        0, 0.0);
+        pairs[3][k] = dp_acq_create_burst (zc, 31, 8, 1.0e6, 50.0, 0.0, 1e-3,
+                                           0.9, 0, 0.0);
         pairs[0][k] = burst_from_code (CODE7, 7, 8, spc, crate, 45.0, 0.0,
                                        1e-3, 0.9, 0, 0.0);
-        pairs[1][k] = acq_create_continuous (CODE7, 7, spc, crate, 0.0, 40.0,
-                                             3.5 * span, 1e-3, 0.9, 0, 3, 0.0);
+        pairs[1][k] = dp_acq_create_continuous (
+            CODE7, 7, spc, crate, 0.0, 40.0, 3.5 * span, 1e-3, 0.9, 0, 3, 0.0);
         pairs[2][k] = burst_from_code (CODE7, 7, 16, spc, crate, 45.0, 0.0,
                                        1e-3, 0.9, 0, 0.0);
       }
@@ -1429,7 +1432,7 @@ main (void)
         DP_CHECK (weak->pd_predicted < 0.9);
         dp_acq_destroy (weak);
       }
-    dp_acq_state_t *cont = acq_create_continuous (
+    dp_acq_state_t *cont = dp_acq_create_continuous (
         CODE7, 7, spc, crate, 0.0, 20.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_CHECK (cont != NULL);
     if (cont)
@@ -1617,7 +1620,7 @@ main (void)
     dp_acq_destroy (ra);
   }
 
-  /* acq_run pure-transducer round-trip at two explicitly pinned grids:
+  /* dp_acq_run pure-transducer round-trip at two explicitly pinned grids:
    * n_noncoh_pin == 1 (coherent-only) and > 1, the latter covering the
    * nc_surface serialize/restore paths. */
   (void)_acq_run_roundtrip (s0d, nx, spc, crate, 20.0, 1);
@@ -1894,7 +1897,7 @@ main (void)
   /* ── the engine's face: max_peaks bounds, and the held twins in the blob ──
    */
   {
-    dp_acq_state_t *a = acq_create_continuous (
+    dp_acq_state_t *a = dp_acq_create_continuous (
         CODE7, 7, 4, 1.0e6, 1000.0, 50.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->max_peaks == 1);
@@ -1907,7 +1910,7 @@ main (void)
     a->twin_col[0]    = 11;
     a->twin_row[1]    = 0;
     a->twin_col[1]    = 27;
-    dp_acq_state_t *b = acq_create_continuous (
+    dp_acq_state_t *b = dp_acq_create_continuous (
         CODE7, 7, 4, 1.0e6, 1000.0, 50.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_REQUIRE (b != NULL && dp_acq_set_max_peaks (b, 4) == 0);
     size_t nb   = dp_acq_state_bytes (a);
@@ -1935,7 +1938,7 @@ main (void)
   {
     const size_t    spc = 2, sf = 7, nx = sf * spc;
     const double    crate = 1.0e6;
-    dp_acq_state_t *c     = acq_create_continuous (
+    dp_acq_state_t *c     = dp_acq_create_continuous (
         CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->window_bins == 3);
@@ -1948,7 +1951,7 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (t, "acq.conc") >= 0);
     DP_CHECK (c->keep_surface == 0); /* off until a reader asks */
     acq_obs_sink_t sc = { 0, 0, 0, 0.0f };
-    acq_set_surface_sink (c, acq_obs_sink, &sc, 2);
+    dp_acq_set_surface_sink (c, acq_obs_sink, &sc, 2);
     DP_CHECK (c->keep_surface == 1); /* the sink arms the tap */
 
     /* One emitter: the rolled replica on the carrier of tile +1, which is
@@ -2025,7 +2028,7 @@ main (void)
       /* 80 dB-Hz: 70 did until the model priced the CFAR reference
          (doppler#1501); a 7-chip code's sidelobes fill it, and 75 is the
          first design point one look meets. */
-      dp_acq_state_t *cc = acq_create_continuous (
+      dp_acq_state_t *cc = dp_acq_create_continuous (
           CODE7, sf, spc, crate, 0.0, 80.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
       DP_REQUIRE (cc != NULL);
       DP_REQUIRE_MSG (cc->n_noncoh == 1 && cc->n_surf == c->n_surf,
@@ -2060,7 +2063,7 @@ main (void)
        phase-continuous; a partial block reads 0 and a whole one again does
        not; indices out of range read 0. */
     {
-      dp_acq_state_t *bc = acq_create_continuous (
+      dp_acq_state_t *bc = dp_acq_create_continuous (
           CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9, 0, 7, 0.0);
       acq_result_t own[16];
       DP_REQUIRE (bc != NULL);
@@ -2120,7 +2123,7 @@ main (void)
     }
     /* Its axes are the hand-off's numbers for the same cell. */
     acq_handoff_t ho;
-    acq_build_handoff (c, &hits[0], sf, spc, &ho);
+    dp_acq_build_handoff (c, &hits[0], sf, spc, &ho);
     double hz[3], chips[14];
     DP_CHECK (dp_acq_surface_doppler_hz (c, hz, 2) == 0); /* too small */
     DP_CHECK (dp_acq_surface_doppler_hz (c, hz, rows) == rows);
@@ -2137,7 +2140,7 @@ main (void)
               <= 4.0f * FLT_EPSILON * sc.last_max);
 
     /* Detach the sink and the probes: nothing more is written or kept. */
-    acq_set_surface_sink (c, NULL, NULL, 0);
+    dp_acq_set_surface_sink (c, NULL, NULL, 0);
     DP_CHECK (dp_acq_set_telemetry (c, NULL, NULL, 1) == DP_OK);
     c->keep_surface = 0;
     dp_acq_reset (c);
@@ -2211,26 +2214,26 @@ main (void)
     const size_t spc = 2, sf = 7, nx = sf * spc, tiles = 3, D = 4;
     const double crate = 1.0e6, f_epoch = crate / (double)sf;
     /* The window bound, and the rate bound below it. */
-    dp_acq_state_t *w1 = acq_create_continuous (
+    dp_acq_state_t *w1 = dp_acq_create_continuous (
         CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
-    dp_acq_state_t *w7 = acq_create_continuous (
+    dp_acq_state_t *w7 = dp_acq_create_continuous (
         CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 7, 0.0);
     DP_REQUIRE (w1 && w7);
     DP_CHECK_MSG (w7->n_noncoh < w1->n_noncoh,
                   "the depth buys looks: fewer non-coherent dwells at D = 4");
     /* f_epoch/sqrt(2*rate) = 2.9 at this rate: the drift bound wins */
     const double    rate = f_epoch * f_epoch / (2.0 * 2.9 * 2.9);
-    dp_acq_state_t *wr   = acq_create_continuous (
+    dp_acq_state_t *wr   = dp_acq_create_continuous (
         CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 7, rate);
     DP_REQUIRE (w1 && w7 && wr);
     DP_CHECK (w1->coherent_bins == 1 && w1->blk == NULL);
     DP_CHECK_MSG (w7->coherent_bins == D, "D = (code_only_epochs + 1) / 2");
     DP_CHECK_MSG (wr->coherent_bins == 2, "the Doppler rate bounds D");
-    DP_CHECK (acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3,
-                                     1e-2, 0.9, 0, 0, 0.0)
+    DP_CHECK (dp_acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
+                                        200.0e3, 1e-2, 0.9, 0, 0, 0.0)
               == NULL); /* code_only_epochs < 1 */
-    DP_CHECK (acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3,
-                                     1e-2, 0.9, 0, 7, -1.0)
+    DP_CHECK (dp_acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
+                                        200.0e3, 1e-2, 0.9, 0, 7, -1.0)
               == NULL); /* a negative rate */
     dp_acq_destroy (w1);
     dp_acq_destroy (wr);
@@ -2248,8 +2251,8 @@ main (void)
     /* At 70 dB-Hz the sizer needs one look (measured: 7 at D = 1 and 60
        dB-Hz, 2 at D = 4, 1 at D = 8), so one block is one decision. */
     dp_acq_destroy (c);
-    c = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2,
-                               0.9, 0, 7, 0.0);
+    c = dp_acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3,
+                                  1e-2, 0.9, 0, 7, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->n_noncoh == 1 && c->coherent_bins == D);
 
@@ -2277,7 +2280,7 @@ main (void)
                   "the combined grid: tile * D + row, in FFT order");
     DP_CHECK (hits[0].code_phase == d);
     acq_handoff_t ho;
-    acq_build_handoff (c, &hits[0], sf, spc, &ho);
+    dp_acq_build_handoff (c, &hits[0], sf, spc, &ho);
     DP_CHECK_MSG (fabs (ho.doppler_hz_est - f_bins * f_epoch) < 1e-6,
                   "the hand-off folds over tiles * D and scales by f_epoch/D");
     /* The surface axis agrees with the hand-off at the reported row. */
@@ -2311,7 +2314,7 @@ main (void)
       DP_CHECK (dp_acq_push (c, x, per_blk, hn, 4) >= 1);
       DP_CHECK_MSG (hn[0].doppler_bin == 1 * D - 1,
                     "a negative row folds next to its tile's centre");
-      acq_build_handoff (c, &hn[0], sf, spc, &ho);
+      dp_acq_build_handoff (c, &hn[0], sf, spc, &ho);
       DP_CHECK (fabs (ho.doppler_hz_est - f_neg * f_epoch) < 1e-6);
       /* And on tile -1 (index 2), one row below its centre: (-1 - 1/D)
          bins, bin -D - 1 = -5, i.e. tiles*D - 5 = 7 in FFT order -- both
@@ -2330,7 +2333,7 @@ main (void)
       DP_CHECK (dp_acq_push (c, x, per_blk, hn, 4) >= 1);
       DP_CHECK_MSG (hn[0].doppler_bin == tiles * D - D - 1,
                     "a negative tile's negative row folds to the grid's end");
-      acq_build_handoff (c, &hn[0], sf, spc, &ho);
+      dp_acq_build_handoff (c, &hn[0], sf, spc, &ho);
       DP_CHECK (fabs (ho.doppler_hz_est - f_nt * f_epoch) < 1e-6);
       for (size_t k = 0; k < n; k++) /* back to the row-above emitter */
         {
@@ -2346,7 +2349,7 @@ main (void)
     /* A mid-block state split resumes bit-for-bit: engine A runs 1.5
        blocks, its state moves to B, both finish; the same hits. */
     {
-      dp_acq_state_t *b = acq_create_continuous (
+      dp_acq_state_t *b = dp_acq_create_continuous (
           CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9, 0, 7, 0.0);
       DP_REQUIRE (b != NULL);
       dp_acq_reset (c);
@@ -2413,14 +2416,14 @@ main (void)
   {
     const size_t    spc = 2, sf = 7, nx = sf * spc, D = 4;
     const double    crate = 1.0e6;
-    dp_acq_state_t *c     = acq_create_continuous (
+    dp_acq_state_t *c     = dp_acq_create_continuous (
         CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9, 0, 7, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->window_bins == 3 && c->coherent_bins == D);
     DP_REQUIRE (dp_acq_set_max_peaks (c, 4) == 0);
     DP_CHECK_MSG (c->threads >= 1, "a tiled engine starts with a pool");
     DP_CHECK (c->tile_inv != NULL && c->tile_slow != NULL);
-    dp_acq_state_t *one = acq_create_continuous (
+    dp_acq_state_t *one = dp_acq_create_continuous (
         CODE7, sf, spc, crate, 0.0, 70.0, 0.0, 1e-2, 0.9, 0, 1, 0.0);
     DP_REQUIRE (one != NULL);
     DP_CHECK_MSG (one->threads == 1 && one->pool == NULL,
@@ -2493,7 +2496,7 @@ main (void)
     dp_acq_destroy (c);
   }
 
-  /* ── acq_psl_db: the preamble's peak sidelobe (doppler#1470) ─────────
+  /* ── dp_acq_psl_db: the preamble's peak sidelobe (doppler#1470) ─────────
    * Checked against a brute-force periodic autocorrelation computed here,
    * O(n^2) and FFT-free, over the lags outside the engine's own peak zone
    * -- the same boundary the peak list excludes. Three shapes: a code,
@@ -2518,7 +2521,7 @@ main (void)
     double got[3];
     for (int c = 0; c < 3; c++)
       {
-        dp_acq_state_t *a = dp_xnn (acq_create_burst (
+        dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (
             cases[c].t, cases[c].n, 4, 1.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0));
         const size_t    n = cases[c].n, z = a->shape.zone;
         double          r0 = 0.0, best = 0.0;
@@ -2535,7 +2538,7 @@ main (void)
           }
         const double want
             = best / r0 < 1e-6 ? -INFINITY : 20.0 * log10 (best / r0);
-        got[c] = acq_psl_db (a);
+        got[c] = dp_acq_psl_db (a);
         if (isinf (want))
           DP_CHECK (isinf (got[c]) && got[c] < 0.0);
         else

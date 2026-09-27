@@ -57,7 +57,7 @@ typedef struct {
     costas_tlm_t tlm;        
 } dp_costas_state_t;
 
-void costas_init(dp_costas_state_t *s, double bn, double zeta,
+void dp_costas_init(dp_costas_state_t *s, double bn, double zeta,
                  double init_norm_freq, size_t tsamps, double bn_fll);
 
 JM_FORCEINLINE JM_HOT float _Complex
@@ -116,7 +116,7 @@ void dp_costas_destroy(dp_costas_state_t *state);
 
 void dp_costas_reset(dp_costas_state_t *state);
 
-void costas_tlm_flush(const dp_costas_state_t *s);
+void dp_costas_tlm_flush(const dp_costas_state_t *s);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
@@ -136,7 +136,7 @@ void dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
 double dp_costas_get_bn(const dp_costas_state_t *state);
 void dp_costas_set_bn(dp_costas_state_t *state, double val);
 double dp_costas_get_norm_freq(const dp_costas_state_t *state);
-double costas_get_nco_freq(const dp_costas_state_t *state);
+double dp_costas_get_nco_freq(const dp_costas_state_t *state);
 void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
 double dp_costas_get_lock_metric(const dp_costas_state_t *state);
 double dp_costas_get_last_error(const dp_costas_state_t *state);

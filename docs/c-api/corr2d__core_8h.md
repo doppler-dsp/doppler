@@ -60,13 +60,13 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create**](#function-dp_corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**dp\_corr\_create()**_](corr__core_8h.md#function-dp_corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  void | [**dp\_corr2d\_destroy**](#function-dp_corr2d_destroy) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
 |  size\_t | [**dp\_corr2d\_execute**](#function-dp_corr2d_execute) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
 |  size\_t | [**dp\_corr2d\_execute\_max\_out**](#function-dp_corr2d_execute_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._ |
 |  void | [**dp\_corr2d\_get\_state**](#function-dp_corr2d_get_state) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, void \* blob) <br> |
 |  void | [**dp\_corr2d\_reset**](#function-dp_corr2d_reset) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
+|  int | [**dp\_corr2d\_set\_ref**](#function-dp_corr2d_set_ref) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**dp\_corr2d\_set\_state**](#function-dp_corr2d_set_state) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dp\_corr2d\_state\_bytes**](#function-dp_corr2d_state_bytes) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br> |
 
@@ -135,45 +135,6 @@ dp_corr2d_destroy(c);
     
 ## Public Functions Documentation
 
-
-
-
-### function corr2d\_set\_ref 
-
-_Replace the reference and recompute its spectrum._ 
-```C++
-int corr2d_set_ref (
-    dp_corr2d_state_t * state,
-    const float _Complex * ref
-) 
-```
-
-
-
-Also resets accumulator and counter on success. The object's fast-path mode (see the file doc comment) is fixed at create() time and never changes here: on a fast-path object, `ref` must still be nonzero only in row 0, or the call is rejected and the object's existing reference and spectrum are left completely untouched (never a silent partial update) — a caller that needs a genuinely different reference shape must build a new [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md). A general-path object accepts any (ny,nx) `ref` and always succeeds.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `ref` New reference, flat row-major CF32, length ny\*nx. 
-
-
-
-**Returns:**
-
-0 on success, -1 if `state` is fast-path and `ref` is no longer single-row. 
-
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -372,6 +333,45 @@ void dp_corr2d_reset (
 0
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_set\_ref 
+
+_Replace the reference and recompute its spectrum._ 
+```C++
+int dp_corr2d_set_ref (
+    dp_corr2d_state_t * state,
+    const float _Complex * ref
+) 
+```
+
+
+
+Also resets accumulator and counter on success. The object's fast-path mode (see the file doc comment) is fixed at create() time and never changes here: on a fast-path object, `ref` must still be nonzero only in row 0, or the call is rejected and the object's existing reference and spectrum are left completely untouched (never a silent partial update) — a caller that needs a genuinely different reference shape must build a new [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md). A general-path object accepts any (ny,nx) `ref` and always succeeds.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ref` New reference, flat row-major CF32, length ny\*nx. 
+
+
+
+**Returns:**
+
+0 on success, -1 if `state` is fast-path and `ref` is no longer single-row. 
+
+
+
 
 
         

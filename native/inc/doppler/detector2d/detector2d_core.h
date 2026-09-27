@@ -179,21 +179,21 @@ void dp_detector2d_reset (dp_detector2d_state_t *state);
  *
  * Always resets (ring, corr2d accumulator, last-dump bookkeeping), even if
  * the new reference is subsequently rejected.  The new reference must have
- * the same ny*nx total size; see corr2d_set_ref() for the single-row-fast-
+ * the same ny*nx total size; see dp_corr2d_set_ref() for the single-row-fast-
  * path rejection rule this forwards.
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, flat row-major CF32, length ny*nx.
- * @return 0 on success, -1 if rejected by corr2d_set_ref().
+ * @return 0 on success, -1 if rejected by dp_corr2d_set_ref().
  */
-int detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref);
+int dp_detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref);
 
 /**
  * @brief Change threshold without rebuilding.
  * @param state     Must be non-NULL.
  * @param threshold New threshold; 0.0 = always fire.
  */
-void detector2d_set_threshold (dp_detector2d_state_t *state, float threshold);
+void dp_detector2d_set_threshold (dp_detector2d_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 

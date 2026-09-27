@@ -43,7 +43,7 @@ struct dp_viterbi_state_t
 /* The declared constructor. A `conv_code_t *` is not expressible in a
    manifest, so the object takes the polynomials directly -- the array IS the
    code, and its length gives n. Callers holding a conv_code_t already (the
-   CCSDS configuration, the validators) use viterbi_create_code below. */
+   CCSDS configuration, the validators) use dp_viterbi_create_code below. */
 dp_viterbi_state_t *
 dp_viterbi_create (const uint32_t *poly, size_t poly_len, uint32_t k,
                    uint32_t invert, size_t depth)
@@ -56,13 +56,13 @@ dp_viterbi_create (const uint32_t *poly, size_t poly_len, uint32_t k,
   c.invert = invert;
   for (size_t i = 0; i < poly_len; i++)
     c.poly[i] = poly[i];
-  return viterbi_create_code (&c, depth);
+  return dp_viterbi_create_code (&c, depth);
 }
 
 dp_viterbi_state_t *
-viterbi_create_code (const conv_code_t *c, size_t depth)
+dp_viterbi_create_code (const conv_code_t *c, size_t depth)
 {
-  if (!conv_code_valid (c) || depth == 0u)
+  if (!dp_conv_code_valid (c) || depth == 0u)
     return NULL;
 
   dp_viterbi_state_t *s = (dp_viterbi_state_t *)calloc (1, sizeof *s);
@@ -99,8 +99,8 @@ viterbi_create_code (const conv_code_t *c, size_t depth)
       s->inbit[ns]      = b;
       s->pred0[ns]      = p0;
       s->pred1[ns]      = p1;
-      s->out0[ns]       = conv_outputs (c, p0, b);
-      s->out1[ns]       = conv_outputs (c, p1, b);
+      s->out0[ns]       = dp_conv_outputs (c, p0, b);
+      s->out1[ns]       = dp_conv_outputs (c, p1, b);
     }
 
   dp_viterbi_reset (s);
@@ -138,13 +138,13 @@ dp_viterbi_reset (dp_viterbi_state_t *s)
 }
 
 const conv_code_t *
-viterbi_code (const dp_viterbi_state_t *s)
+dp_viterbi_code (const dp_viterbi_state_t *s)
 {
   return &s->code;
 }
 
 size_t
-viterbi_depth (const dp_viterbi_state_t *s)
+dp_viterbi_depth (const dp_viterbi_state_t *s)
 {
   return s->depth;
 }
@@ -355,21 +355,21 @@ dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob)
 #define NODE_SYNC_CHUNK 256u
 
 size_t
-node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr)
+dp_node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr)
 {
-  const conv_code_t *c  = viterbi_code (v);
+  const conv_code_t *c  = dp_viterbi_code (v);
   const size_t       nb = dp_viterbi_decode_max_out (v, (n_llr / c->n) * c->n);
-  const size_t       warm = viterbi_depth (v);
+  const size_t       warm = dp_viterbi_depth (v);
   return nb > warm ? (nb - warm) * c->n : 0;
 }
 
 size_t
-node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
+dp_node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
 {
   if (v == NULL || llr == NULL)
     return 0;
 
-  const conv_code_t *c      = viterbi_code (v);
+  const conv_code_t *c      = dp_viterbi_code (v);
   const size_t       n      = c->n;
   const size_t       usable = (n_llr / n) * n;
 
@@ -387,10 +387,10 @@ node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
      depth is the decoder's own answer to how long its survivors take to be
      determined by the data rather than by where it started, so it is the
      honest quantity to skip. */
-  const size_t warm = viterbi_depth (v);
+  const size_t warm = dp_viterbi_depth (v);
 
   dp_viterbi_reset (v);
-  conv_enc_init (&enc);
+  dp_conv_enc_init (&enc);
 
   while (consumed < usable)
     {
@@ -404,7 +404,7 @@ node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
       if (nb == 0)
         continue;
 
-      conv_encode (&enc, c, bits, nb, sym, nb * n);
+      dp_conv_encode (&enc, c, bits, nb, sym, nb * n);
 
       for (size_t i = 0; i < nb; i++)
         {
@@ -429,13 +429,13 @@ node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
 }
 
 int
-node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
-                node_sync_t *out)
+dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
+                   node_sync_t *out)
 {
   if (v == NULL || llr == NULL)
     return 0;
 
-  const conv_code_t *c = viterbi_code (v);
+  const conv_code_t *c = dp_viterbi_code (v);
   const size_t       n = c->n;
   if (n_llr < n)
     return 0;
@@ -452,7 +452,7 @@ node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
 
   for (unsigned p = 0; p < (unsigned)n; p++)
     {
-      const size_t e = node_sync_score (v, llr + p, span);
+      const size_t e = dp_node_sync_score (v, llr + p, span);
       if (e < best)
         {
           second = best;
@@ -464,7 +464,7 @@ node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
     }
 
   node_sync_t r = { best_p, best, second == SIZE_MAX ? best : second,
-                    node_sync_scored_symbols (v, span), 0u };
+                    dp_node_sync_scored_symbols (v, span), 0u };
   /* A window too short to emit a decision past the traceback scores zero
      everywhere, which is not a decision -- it reports as a margin of 0
      rather than as a confident phase 0. */

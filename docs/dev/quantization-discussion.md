@@ -55,7 +55,7 @@ the one family where it does.
 
 1. **symsync: a private, truncating phase conversion with undefined behaviour
     at `sps = 1`.** [`nominal_inc`][sym] is `(uint32_t)(4294967296.0 / s)`,
-    and [`symsync_init`][symsps] turns `sps = 0` into 1. At 1 that cast is
+    and [`dp_symsync_init`][symsps] turns `sps = 0` into 1. At 1 that cast is
     undefined: x86 gives 0, arm64 gives `0xFFFFFFFF`. The gate's
     [allowlist][allow] already marks it "VIOLATION", and `nco_core.h` cites it
     as one of the cases that motivated a single home. It was never fixed, and

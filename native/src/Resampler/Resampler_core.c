@@ -3,26 +3,26 @@
 dp_Resampler_state_t *
 dp_Resampler_create (double rate)
 {
-  return resamp_create (rate);
+  return dp_resamp_create (rate);
 }
 
 dp_Resampler_state_t *
-Resampler_create_custom (size_t num_phases, size_t num_taps, const float *bank,
-                         double rate)
+dp_Resampler_create_custom (size_t num_phases, size_t num_taps,
+                            const float *bank, double rate)
 {
-  return resamp_create_custom (num_phases, num_taps, bank, rate);
+  return dp_resamp_create_custom (num_phases, num_taps, bank, rate);
 }
 
 void
 dp_Resampler_destroy (dp_Resampler_state_t *state)
 {
-  resamp_destroy (state);
+  dp_resamp_destroy (state);
 }
 
 void
 dp_Resampler_reset (dp_Resampler_state_t *state)
 {
-  resamp_reset (state);
+  dp_resamp_reset (state);
 }
 
 /* Serializable state — forwarded to the resamp leaf (this type is a typedef
@@ -31,19 +31,19 @@ dp_Resampler_reset (dp_Resampler_state_t *state)
 size_t
 dp_Resampler_state_bytes (const dp_Resampler_state_t *state)
 {
-  return resamp_state_bytes (state);
+  return dp_resamp_state_bytes (state);
 }
 
 void
 dp_Resampler_get_state (const dp_Resampler_state_t *state, void *blob)
 {
-  resamp_get_state (state, blob);
+  dp_resamp_get_state (state, blob);
 }
 
 int
 dp_Resampler_set_state (dp_Resampler_state_t *state, const void *blob)
 {
-  return resamp_set_state (state, blob);
+  return dp_resamp_set_state (state, blob);
 }
 
 size_t
@@ -59,7 +59,7 @@ dp_Resampler_execute (dp_Resampler_state_t *state, const float _Complex *x,
 {
   /* The leaf already clamps; hand it the caller's real capacity instead
      of the fixed cap (jm gh-138). */
-  return resamp_execute (state, x, x_len, out, max_out);
+  return dp_resamp_execute (state, x, x_len, out, max_out);
 }
 
 size_t
@@ -78,41 +78,41 @@ dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
   size_t n = x_len < ctrl_len ? x_len : ctrl_len;
   /* The leaf already clamps; hand it the caller's real capacity instead
      of the fixed cap (jm gh-138). */
-  return resamp_execute_ctrl (state, x, ctrl, n, out, max_out);
+  return dp_resamp_execute_ctrl (state, x, ctrl, n, out, max_out);
 }
 
 double
 dp_Resampler_get_rate (const dp_Resampler_state_t *state)
 {
-  return resamp_get_rate (state);
+  return dp_resamp_get_rate (state);
 }
 
 void
 dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate)
 {
-  resamp_set_rate (state, rate);
+  dp_resamp_set_rate (state, rate);
 }
 
 double
 dp_Resampler_get_ctrl_acc (const dp_Resampler_state_t *state)
 {
-  return resamp_get_ctrl_acc (state);
+  return dp_resamp_get_ctrl_acc (state);
 }
 
 size_t
 dp_Resampler_get_num_phases (const dp_Resampler_state_t *state)
 {
-  return resamp_get_num_phases (state);
+  return dp_resamp_get_num_phases (state);
 }
 
 size_t
 dp_Resampler_get_num_taps (const dp_Resampler_state_t *state)
 {
-  return resamp_get_num_taps (state);
+  return dp_resamp_get_num_taps (state);
 }
 
 double
 dp_Resampler_get_delay (const dp_Resampler_state_t *state)
 {
-  return resamp_get_delay (state);
+  return dp_resamp_get_delay (state);
 }

@@ -114,7 +114,7 @@ _The Reed-Solomon codec, as an object over_ `rs` _._[More...](#detailed-descript
 
 
 
-`rs_encode`, `rs_syndromes` and `rs_codeword_ok` were reachable from Python only through `wfm_frame_desc_t`'s Reed-Solomon stage, which binds to `ccsds_tm_frame_ops` and carries an interleaving depth rather than a code. So Python could run exactly ONE Reed-Solomon code — CCSDS's — and only inside a frame (doppler#900).
+`dp_rs_encode`, `dp_rs_syndromes` and `dp_rs_codeword_ok` were reachable from Python only through `wfm_frame_desc_t`'s Reed-Solomon stage, which binds to `dp_ccsds_tm_frame_ops` and carries an interleaving depth rather than a code. So Python could run exactly ONE Reed-Solomon code — CCSDS's — and only inside a frame (doppler#900).
 
 
 
@@ -282,7 +282,7 @@ int dp_rs_codec_decode (
 
 
 
-`rs_decode`, over the caller's own buffer: the corrected symbols land in `codeword` itself, which is why the binding demands a writable array rather than quietly working on a copy the caller would then discard.
+`dp_rs_decode`, over the caller's own buffer: the corrected symbols land in `codeword` itself, which is why the binding demands a writable array rather than quietly working on a copy the caller would then discard.
 
 
 **It either refuses or leaves a codeword.** On success the key equation has zeroed every syndrome by construction, so the result passes [**dp\_rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-dp_rs_codec_codeword_ok). On refusal `codeword` is untouched.
@@ -371,13 +371,13 @@ size_t dp_rs_codec_encode (
 
 
 
-Systematic: the information symbols are copied through untouched and the `nroots` parity symbols follow them, which is the order they are transmitted in. `rs_encode` computes the parity; this places it.
+Systematic: the information symbols are copied through untouched and the `nroots` parity symbols follow them, which is the order they are transmitted in. `dp_rs_encode` computes the parity; this places it.
 
 
-The WHOLE codeword rather than the parity alone, because that is the unit every other method here takes — [**dp\_rs\_codec\_decode**](rs__codec__core_8h.md#function-dp_rs_codec_decode), [**dp\_rs\_codec\_syndromes**](rs__codec__core_8h.md#function-dp_rs_codec_syndromes) and [**dp\_rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-dp_rs_codec_codeword_ok) all read `n` symbols, and a caller who wants the parity by itself can take the last `nroots` of the answer. (`rs_encode` is the other split, and is still there for a frame assembler that has already placed the information.)
+The WHOLE codeword rather than the parity alone, because that is the unit every other method here takes — [**dp\_rs\_codec\_decode**](rs__codec__core_8h.md#function-dp_rs_codec_decode), [**dp\_rs\_codec\_syndromes**](rs__codec__core_8h.md#function-dp_rs_codec_syndromes) and [**dp\_rs\_codec\_codeword\_ok**](rs__codec__core_8h.md#function-dp_rs_codec_codeword_ok) all read `n` symbols, and a caller who wants the parity by itself can take the last `nroots` of the answer. (`dp_rs_encode` is the other split, and is still there for a frame assembler that has already placed the information.)
 
 
-`out` may alias `in` — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends the parity to a buffer that already holds the information, which is the call a frame assembler makes and the one `rs_encode` exists for.
+`out` may alias `in` — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends the parity to a buffer that already holds the information, which is the call a frame assembler makes and the one `dp_rs_encode` exists for.
 
 
 

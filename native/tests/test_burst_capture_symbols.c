@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_burst_capture[] = {
     (jm_any_fn)dp_burst_capture_create,
-    (jm_any_fn)burst_capture_create_backed,
+    (jm_any_fn)dp_burst_capture_create_backed,
     (jm_any_fn)dp_burst_capture_destroy,
     (jm_any_fn)dp_burst_capture_reset,
     (jm_any_fn)dp_burst_capture_push_max_out,

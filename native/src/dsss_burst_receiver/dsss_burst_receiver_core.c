@@ -243,8 +243,8 @@ static size_t
 dsss_br_demod_one (dp_dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
                    size_t max_out)
 {
-  const float _Complex        *w  = burst_capture_window (s->cap, i);
-  const burst_capture_event_t *ce = burst_capture_event_at (s->cap, i);
+  const float _Complex        *w  = dp_burst_capture_window (s->cap, i);
+  const burst_capture_event_t *ce = dp_burst_capture_event_at (s->cap, i);
   if (!w || !ce)
     return 0;
 
@@ -336,7 +336,7 @@ dp_dsss_burst_receiver_push (dp_dsss_burst_receiver_state_t *state,
      four ways for a caller to lose a burst by not following a protocol
      (§8.2). Collection is forced by the return value instead. */
   size_t produced = 0;
-  size_t ready    = burst_capture_ready (state->cap);
+  size_t ready    = dp_burst_capture_ready (state->cap);
   for (size_t i = 0; i < ready; i++)
     {
       size_t room = max_out > produced ? max_out - produced : 0;

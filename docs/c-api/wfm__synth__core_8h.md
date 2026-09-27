@@ -1386,7 +1386,7 @@ JM_FORCEINLINE void wfm_synth_shape (
 
 
 
-The one shaping kernel shared by `dp_wfm_synth_step` (m == 1) and `dp_wfm_synth_steps` (m == block): prime once, generate exactly the `resamp_interp_inputs_needed(shaper, m)` symbols this call consumes into the caller's `syms` scratch, and fill `m` outputs. Because the resampler is block-boundary invariant and both faces call this identical routine, a single m-sample call and m one-sample calls produce bit-identical output — the step()==steps() guarantee. Carrier mix and noise are applied by the caller.
+The one shaping kernel shared by `dp_wfm_synth_step` (m == 1) and `dp_wfm_synth_steps` (m == block): prime once, generate exactly the `dp_resamp_interp_inputs_needed(shaper, m)` symbols this call consumes into the caller's `syms` scratch, and fill `m` outputs. Because the resampler is block-boundary invariant and both faces call this identical routine, a single m-sample call and m one-sample calls produce bit-identical output — the step()==steps() guarantee. Carrier mix and noise are applied by the caller.
 
 
 
@@ -1397,7 +1397,7 @@ The one shaping kernel shared by `dp_wfm_synth_step` (m == 1) and `dp_wfm_synth_
 * `s` Shaper-attached synth state (`s->shaper != NULL`). 
 * `out` Output buffer, capacity &gt;= `m`. 
 * `m` Number of baseband samples to produce. 
-* `syms` Caller scratch, capacity &gt;= resamp\_interp\_inputs\_needed(s, m). 
+* `syms` Caller scratch, capacity &gt;= dp\_resamp\_interp\_inputs\_needed(s, m). 
 
 
 
@@ -1459,7 +1459,7 @@ JM_FORCEINLINE double wfm_synth_snr_over_fs (
 
 **Returns:**
 
-SNR in dB over fs, ready for [**awgn\_amplitude\_for\_snr()**](awgn__core_8h.md#function-awgn_amplitude_for_snr).
+SNR in dB over fs, ready for [**dp\_awgn\_amplitude\_for\_snr()**](awgn__core_8h.md#function-dp_awgn_amplitude_for_snr).
 
 
 \*\*`auto` and `span` are deliberately the CALLER's\*\*, and that is not an oversight: they are the two things that legitimately differ. `wfm_synth` resolves `auto` to fs for a DSSS source because at create() time it cannot do better — the codes attach afterwards, so the spreading factor that sets the symbol span is not yet known — while the composer resolves the same source to Es/No and passes the true span (`sf * sps` for a burst, or `fs/symbol_rate` for a continuous asynchronous stream, which coincide only in the synchronous case that mode exists to avoid). Those differences are inputs, not a second formula. 

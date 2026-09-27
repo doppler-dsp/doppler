@@ -234,7 +234,7 @@ both of them already wrong:
     them after). All four are integers, so code copied from the page would
     have compiled and silently misconfigured the correlator.
 - `acq-fn.md` documented a bare `acq_create` that no longer exists — it was
-    split into `acq_create_burst`/`acq_create_continuous` — carrying a
+    split into `dp_acq_create_burst`/`dp_acq_create_continuous` — carrying a
     `max_noncoh` parameter that had been removed outright.
 
 Reserve `skip=` for listings that *cannot* be pinned: placeholder names

@@ -41,7 +41,7 @@ dp_interleaver_create (size_t rows, size_t cols, size_t unit_bits)
    Deinterleaver is the same object under the name the receive side looks for,
    not a second one that could disagree about the geometry. */
 dp_interleaver_state_t *
-interleaver_create_rx (size_t rows, size_t cols, size_t unit_bits)
+dp_interleaver_create_rx (size_t rows, size_t cols, size_t unit_bits)
 {
   return dp_interleaver_create (rows, cols, unit_bits);
 }

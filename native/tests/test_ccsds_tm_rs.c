@@ -91,7 +91,7 @@ row_byte (const char *row)
 
 /* GF(2^8) multiply and trace, over the field 4.3.3 picks.
  *
- * The tables are rs_core's, built by rs_init from CCSDS_TM_RS -- so the
+ * The tables are rs_core's, built by dp_rs_init from dp_CCSDS_TM_RS -- so the
  * arithmetic below is the code's own field, not a second implementation of
  * it. That matters for what the dual-basis section claims: it derives a
  * property FROM the shipped field, and a private multiply would let the two
@@ -103,7 +103,7 @@ ccsds_field (void)
   static int  ready = 0;
   if (!ready)
     {
-      ready = rs_init (&rs, &CCSDS_TM_RS);
+      ready = dp_rs_init (&rs, &dp_CCSDS_TM_RS);
     }
   return ready ? &rs : NULL;
 }
@@ -134,7 +134,7 @@ main (void)
 {
   /* ── 1. Annex G: the generator polynomial, coefficient by coefficient ─── */
   {
-    const uint8_t *g    = ccsds_tm_rs_generator ();
+    const uint8_t *g    = dp_ccsds_tm_rs_generator ();
     int            same = 1;
     for (size_t i = 0; i < sizeof annex_g; i++)
       {
@@ -162,9 +162,9 @@ main (void)
     for (int v = 0; v < 256; v++)
       {
         const uint8_t u = (uint8_t)v;
-        if (ccsds_tm_rs_dual_to_conv (ccsds_tm_rs_conv_to_dual (u)) != u)
+        if (dp_ccsds_tm_rs_dual_to_conv (dp_ccsds_tm_rs_conv_to_dual (u)) != u)
           round = 0;
-        if (ccsds_tm_rs_conv_to_dual (u) != u)
+        if (dp_ccsds_tm_rs_conv_to_dual (u) != u)
           nontrivial = 1;
       }
     DP_CHECK_MSG (round, "the basis transforms must invert across all 256");
@@ -194,10 +194,12 @@ main (void)
       {
         /* Row i is selected by u(7-i), i.e. by bit 7-i of the byte. */
         const uint8_t basis = (uint8_t)(1u << (7 - i));
-        if (ccsds_tm_rs_conv_to_dual (basis) != row_byte (PUB_CONV_TO_DUAL[i]))
+        if (dp_ccsds_tm_rs_conv_to_dual (basis)
+            != row_byte (PUB_CONV_TO_DUAL[i]))
           rows_ok = 0;
         /* ...and row i of the second equation is selected by z_i. */
-        if (ccsds_tm_rs_dual_to_conv (basis) != row_byte (PUB_DUAL_TO_CONV[i]))
+        if (dp_ccsds_tm_rs_dual_to_conv (basis)
+            != row_byte (PUB_DUAL_TO_CONV[i]))
           rows_ok = 0;
       }
     DP_CHECK_MSG (rows_ok,
@@ -215,8 +217,8 @@ main (void)
                 u ^= row_byte (PUB_DUAL_TO_CONV[i]);
               }
           }
-        if (ccsds_tm_rs_conv_to_dual ((uint8_t)v) != z
-            || ccsds_tm_rs_dual_to_conv ((uint8_t)v) != u)
+        if (dp_ccsds_tm_rs_conv_to_dual ((uint8_t)v) != z
+            || dp_ccsds_tm_rs_dual_to_conv ((uint8_t)v) != u)
           map_ok = 0;
       }
     DP_CHECK_MSG (map_ok,
@@ -271,7 +273,7 @@ main (void)
             int ok = 1;
             for (int v = 0; v < 256 && ok; v++)
               {
-                const uint8_t z   = ccsds_tm_rs_conv_to_dual ((uint8_t)v);
+                const uint8_t z   = dp_ccsds_tm_rs_conv_to_dual ((uint8_t)v);
                 const uint8_t bit = (uint8_t)((z >> (7 - j)) & 1u);
                 if (gf_trace (rs, gf_mul (rs, (uint8_t)cand, (uint8_t)v))
                     != bit)
@@ -318,7 +320,7 @@ main (void)
         for (int j = 0; j < 8; j++)
           {
             const uint8_t beta
-                = ccsds_tm_rs_dual_to_conv ((uint8_t)(1u << (7 - j)));
+                = dp_ccsds_tm_rs_dual_to_conv ((uint8_t)(1u << (7 - j)));
             const uint8_t want = (uint8_t)(i == j);
             if (gf_trace (rs, gf_mul (rs, c[i], beta)) != want)
               delta = 0;
@@ -343,7 +345,7 @@ main (void)
 
     uint8_t before[CCSDS_TM_RS_K];
     memcpy (before, info, sizeof info);
-    ccsds_tm_rs_encode (info, parity);
+    dp_ccsds_tm_rs_encode (info, parity);
 
     DP_CHECK_MSG (memcmp (info, before, sizeof info) == 0,
                   "encoding must not disturb the information symbols");
@@ -360,7 +362,7 @@ main (void)
   /* ── 6. an all-zero codeword has zero parity, in EITHER basis ─────────── */
   {
     uint8_t info[CCSDS_TM_RS_K] = { 0 }, parity[CCSDS_TM_RS_2E];
-    ccsds_tm_rs_encode (info, parity);
+    dp_ccsds_tm_rs_encode (info, parity);
     int zero = 1;
     for (size_t i = 0; i < sizeof parity; i++)
       {
@@ -379,8 +381,8 @@ main (void)
     uint8_t a[CCSDS_TM_RS_K] = { 0 }, b[CCSDS_TM_RS_K] = { 0 };
     uint8_t pa[CCSDS_TM_RS_2E], pb[CCSDS_TM_RS_2E];
     b[100] = 0x01;
-    ccsds_tm_rs_encode (a, pa);
-    ccsds_tm_rs_encode (b, pb);
+    dp_ccsds_tm_rs_encode (a, pa);
+    dp_ccsds_tm_rs_encode (b, pb);
     DP_CHECK_MSG (memcmp (pa, pb, sizeof pa) != 0,
                   "a single changed information symbol must move the parity");
   }
@@ -390,13 +392,13 @@ main (void)
     uint8_t word[CCSDS_TM_RS_N];
     for (int i = 0; i < CCSDS_TM_RS_K; i++)
       word[i] = (uint8_t)(i * 3u + 5u);
-    ccsds_tm_rs_encode (word, word + CCSDS_TM_RS_K);
-    DP_CHECK_MSG (ccsds_tm_rs_codeword_ok (word),
+    dp_ccsds_tm_rs_encode (word, word + CCSDS_TM_RS_K);
+    DP_CHECK_MSG (dp_ccsds_tm_rs_codeword_ok (word),
                   "an encoded codeword must have all 32 syndromes zero");
 
     /* ...and the check must be able to say no, or it proves nothing. */
     word[7] ^= 0x5Au;
-    DP_CHECK_MSG (!ccsds_tm_rs_codeword_ok (word),
+    DP_CHECK_MSG (!dp_ccsds_tm_rs_codeword_ok (word),
                   "a corrupted codeword must NOT pass the syndrome check");
   }
 
@@ -405,8 +407,8 @@ main (void)
     uint8_t info[CCSDS_TM_RS_K], blk[CCSDS_TM_RS_N], parity[CCSDS_TM_RS_2E];
     for (size_t i = 0; i < sizeof info; i++)
       info[i] = (uint8_t)(i * 11u + 2u);
-    const size_t n = ccsds_tm_rs_encode_block (info, 1, blk);
-    ccsds_tm_rs_encode (info, parity);
+    const size_t n = dp_ccsds_tm_rs_encode_block (info, 1, blk);
+    dp_ccsds_tm_rs_encode (info, parity);
     DP_CHECK_MSG (n == CCSDS_TM_RS_N,
                   "depth 1 must emit exactly one codeword");
     DP_CHECK_MSG (memcmp (blk + CCSDS_TM_RS_K, parity, CCSDS_TM_RS_2E) == 0,
@@ -424,7 +426,7 @@ main (void)
     for (size_t i = 0; i < sizeof info; i++)
       info[i] = (uint8_t)(i * 13u + 7u);
 
-    const size_t n = ccsds_tm_rs_encode_block (info, DEPTH, blk);
+    const size_t n = dp_ccsds_tm_rs_encode_block (info, DEPTH, blk);
     DP_CHECK_MSG (n == (size_t)CCSDS_TM_RS_N * DEPTH,
                   "depth 5 emits 5 codewords");
     DP_CHECK_MSG (memcmp (blk, info, sizeof info) == 0,
@@ -439,7 +441,7 @@ main (void)
         for (int p = 0; p < CCSDS_TM_RS_2E; p++)
           word[CCSDS_TM_RS_K + p]
               = blk[(size_t)CCSDS_TM_RS_K * DEPTH + (size_t)p * DEPTH + e];
-        if (!ccsds_tm_rs_codeword_ok (word))
+        if (!dp_ccsds_tm_rs_codeword_ok (word))
           all_ok = 0;
       }
     DP_CHECK_MSG (all_ok,
@@ -449,9 +451,9 @@ main (void)
   /* ── 11. correction happens in the CONVENTIONAL basis ─────────────────── */
   {
     /* The wire carries dual-basis symbols and the algebra is conventional,
-       so ccsds_tm_rs_decode has to transform both ways around rs_decode. Skip
-       either transform and the syndromes of a damaged word are garbage: the
-       decoder refuses, or repairs a position that was never hit. Neither
+       so dp_ccsds_tm_rs_decode has to transform both ways around dp_rs_decode.
+       Skip either transform and the syndromes of a damaged word are garbage:
+       the decoder refuses, or repairs a position that was never hit. Neither
        shows up in a round trip against a decoder making the same mistake,
        which is why the check is EXACT RECOVERY of a word damaged on the
        wire, not "it decoded".
@@ -461,13 +463,13 @@ main (void)
     uint8_t sent[CCSDS_TM_RS_N], rx[CCSDS_TM_RS_N];
     for (int i = 0; i < CCSDS_TM_RS_K; i++)
       sent[i] = (uint8_t)(i * 29u + 17u);
-    ccsds_tm_rs_encode (sent, sent + CCSDS_TM_RS_K);
+    dp_ccsds_tm_rs_encode (sent, sent + CCSDS_TM_RS_K);
 
     memcpy (rx, sent, sizeof rx);
     for (int c = 0; c < CCSDS_TM_RS_E; c++)
       rx[(c * 13 + 4) % CCSDS_TM_RS_N] ^= (uint8_t)(0x1Fu + c * 7u);
 
-    DP_CHECK_MSG (ccsds_tm_rs_decode (rx) == CCSDS_TM_RS_E,
+    DP_CHECK_MSG (dp_ccsds_tm_rs_decode (rx) == CCSDS_TM_RS_E,
                   "E symbol errors on the wire must be repaired, all E");
     DP_CHECK_MSG (memcmp (rx, sent, sizeof rx) == 0,
                   "...and the repair must land in the DUAL basis symbols "
@@ -479,7 +481,8 @@ main (void)
       rx[(c * 13 + 4) % CCSDS_TM_RS_N] ^= (uint8_t)(0x1Fu + c * 7u);
     uint8_t before[CCSDS_TM_RS_N];
     memcpy (before, rx, sizeof rx);
-    DP_CHECK_MSG (ccsds_tm_rs_decode (rx) == -1, "E+1 errors must be refused");
+    DP_CHECK_MSG (dp_ccsds_tm_rs_decode (rx) == -1,
+                  "E+1 errors must be refused");
     DP_CHECK_MSG (memcmp (rx, before, sizeof rx) == 0,
                   "...leaving the buffer untouched");
   }
@@ -499,7 +502,7 @@ main (void)
        map. That trap has hidden two defects in this slice already. */
     for (size_t i = 0; i < sizeof info; i++)
       info[i] = (uint8_t)(i * 13u + 7u);
-    ccsds_tm_rs_encode_block (info, DEPTH, blk);
+    dp_ccsds_tm_rs_encode_block (info, DEPTH, blk);
     memcpy (sent, blk, sizeof sent);
 
     /* A contiguous burst of DEPTH*E symbols: exactly E in each codeword,
@@ -508,7 +511,7 @@ main (void)
       blk[s] ^= (uint8_t)(0x53u + s);
 
     ccsds_tm_rs_block_rx_t rx;
-    DP_CHECK_MSG (ccsds_tm_rs_decode_block (blk, DEPTH, &rx)
+    DP_CHECK_MSG (dp_ccsds_tm_rs_decode_block (blk, DEPTH, &rx)
                       == (size_t)CCSDS_TM_RS_K * DEPTH,
                   "decode_block must report the information length");
     DP_CHECK_MSG (rx.codewords == DEPTH && rx.uncorrectable == 0u
@@ -523,12 +526,12 @@ main (void)
     memcpy (blk, sent, sizeof sent);
     for (unsigned s = 0; s < DEPTH * CCSDS_TM_RS_E + 1u; s++)
       blk[s] ^= (uint8_t)(0x53u + s);
-    DP_CHECK (ccsds_tm_rs_decode_block (blk, DEPTH, &rx)
+    DP_CHECK (dp_ccsds_tm_rs_decode_block (blk, DEPTH, &rx)
               == (size_t)CCSDS_TM_RS_K * DEPTH);
     DP_CHECK_MSG (rx.uncorrectable == 1u && rx.corrected == DEPTH - 1u,
                   "one symbol more must cost exactly one codeword");
 
-    DP_CHECK_MSG (ccsds_tm_rs_decode_block (blk, 6, NULL) == 0,
+    DP_CHECK_MSG (dp_ccsds_tm_rs_decode_block (blk, 6, NULL) == 0,
                   "4.3.5.1 does not allow depth 6");
   }
 
@@ -565,7 +568,7 @@ main (void)
         for (size_t i = 0; i < ksym; i++)
           info[i] = (uint8_t)(i * 13u + 7u + depth);
 
-        DP_REQUIRE (ccsds_tm_rs_encode_block (info, depth, sent) == nsym);
+        DP_REQUIRE (dp_ccsds_tm_rs_encode_block (info, depth, sent) == nsym);
         DP_CHECK_MSG (memcmp (sent, info, ksym) == 0,
                       "4.4.1: the information section passes through "
                       "unchanged at every allowed depth");
@@ -578,7 +581,7 @@ main (void)
         memcpy (blk, sent, nsym);
         for (unsigned b = 0; b < edge; b++)
           blk[b] ^= (uint8_t)(0x53u + b);
-        DP_REQUIRE (ccsds_tm_rs_decode_block (blk, depth, &rx) == ksym);
+        DP_REQUIRE (dp_ccsds_tm_rs_decode_block (blk, depth, &rx) == ksym);
         DP_CHECK_MSG (rx.codewords == depth && rx.uncorrectable == 0u
                           && rx.symbols == edge,
                       "a burst of depth*E must be repaired in full");
@@ -593,7 +596,7 @@ main (void)
         memcpy (blk, sent, nsym);
         for (unsigned b = 0; b < edge + 1u; b++)
           blk[b] ^= (uint8_t)(0x53u + b);
-        DP_REQUIRE (ccsds_tm_rs_decode_block (blk, depth, &rx) == ksym);
+        DP_REQUIRE (dp_ccsds_tm_rs_decode_block (blk, depth, &rx) == ksym);
         DP_CHECK_MSG (rx.uncorrectable == 1u,
                       "one symbol past depth*E must cost exactly one "
                       "codeword");
@@ -612,18 +615,18 @@ main (void)
       for (size_t i = 0; i < sizeof info; i++)
         info[i] = (uint8_t)(i * 17u + 3u);
 
-      ccsds_tm_rs_encode_block (info, 5, blk);
+      dp_ccsds_tm_rs_encode_block (info, 5, blk);
       for (unsigned b = 0; b < burst; b++)
         blk[b] ^= (uint8_t)(0x91u + b);
-      DP_REQUIRE (ccsds_tm_rs_decode_block (blk, 5, &rx) != 0);
+      DP_REQUIRE (dp_ccsds_tm_rs_decode_block (blk, 5, &rx) != 0);
       DP_CHECK_MSG (rx.uncorrectable == 0u,
                     "at depth 5 an 80-symbol burst is 16 per codeword and "
                     "survives");
 
-      ccsds_tm_rs_encode_block (info, 1, blk);
+      dp_ccsds_tm_rs_encode_block (info, 1, blk);
       for (unsigned b = 0; b < burst; b++)
         blk[b] ^= (uint8_t)(0x91u + b);
-      DP_REQUIRE (ccsds_tm_rs_decode_block (blk, 1, &rx) != 0);
+      DP_REQUIRE (dp_ccsds_tm_rs_decode_block (blk, 1, &rx) != 0);
       DP_CHECK_MSG (rx.uncorrectable == 1u,
                     "...and at depth 1 the SAME burst is 80 in one codeword "
                     "and is refused -- the rate is identical either way");
@@ -635,8 +638,8 @@ main (void)
     int                   refused = 1;
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++)
       {
-        if (ccsds_tm_rs_encode_block (scratch, BAD[i], scratch) != 0
-            || ccsds_tm_rs_decode_block (scratch, BAD[i], NULL) != 0)
+        if (dp_ccsds_tm_rs_encode_block (scratch, BAD[i], scratch) != 0
+            || dp_ccsds_tm_rs_decode_block (scratch, BAD[i], NULL) != 0)
           refused = 0;
       }
     DP_CHECK_MSG (refused,

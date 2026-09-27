@@ -7,7 +7,7 @@
  * integrator advancing `integ += ki*e`. The integrator therefore holds the
  * running frequency/rate estimate; `kp*e` is the instantaneous (phase) nudge.
  * Gains @c kp / @c ki come from a loop noise bandwidth, damping, and update
- * period via the standard 2nd-order form (loop_filter_init()).
+ * period via the standard 2nd-order form (dp_loop_filter_init()).
  *
  * ### Keep `bn * t <= 0.0112` and the bandwidth is the one you asked for
  *
@@ -36,7 +36,7 @@
  * used throughout this library is comfortable rather than tight.
  *
  * The state struct is **public** so a tracker can embed it by value (no heap)
- * and drive it with loop_filter_init()/dp_loop_filter_step() — e.g. a despreader
+ * and drive it with dp_loop_filter_init()/dp_loop_filter_step() — e.g. a despreader
  * keeps one for the carrier loop and one for the code loop.
  * dp_loop_filter_create() is the heap path used by the Python wrapper.
  *
@@ -79,7 +79,7 @@ extern "C"
    * cycles/sample), damping @p zeta, and update period @p t (samples), and
    * stores @p bn / @p zeta / @p t. Does **not** touch @c integ, so it doubles
    * as a reconfigure that preserves lock. Use this for a `dp_loop_filter_state_t`
-   * embedded by value; dp_loop_filter_create() is calloc + loop_filter_init().
+   * embedded by value; dp_loop_filter_create() is calloc + dp_loop_filter_init().
    *
    * **Arguments are NOT validated here, on purpose.** This is the by-value
    * path taken by the objects that embed a filter, all of which validate
@@ -93,7 +93,7 @@ extern "C"
    * @param zeta   Damping factor (typically 0.707), > 0.
    * @param t      Update period in samples (> 0).
    */
-  void loop_filter_init(dp_loop_filter_state_t *state, double bn, double zeta,
+  void dp_loop_filter_init(dp_loop_filter_state_t *state, double bn, double zeta,
                         double t);
 
   /**
@@ -116,7 +116,7 @@ extern "C"
    * validation harness, an example and a validation script) and no home; a
    * gain error that moved `wn` would have had to be found five times.
    *
-   * Unguarded, like loop_filter_init() and for the same reason: this is the
+   * Unguarded, like dp_loop_filter_init() and for the same reason: this is the
    * trusting path, and dp_loop_filter_create() is the boundary that rejects the
    * domain. `zeta = 0` divides by zero here exactly as it always has.
    *
@@ -124,13 +124,13 @@ extern "C"
    * @param zeta  Damping factor (typically 0.707), > 0.
    * @return      The natural frequency, in @p bn's units.
    */
-  double loop_filter_wn(double bn, double zeta);
+  double dp_loop_filter_wn(double bn, double zeta);
 
   /**
    * @brief Create a loop_filter instance, validating its arguments.
    *
    * This is the untrusted boundary — the Python constructor passes a
-   * caller's arbitrary doubles here — so unlike loop_filter_init() it
+   * caller's arbitrary doubles here — so unlike dp_loop_filter_init() it
    * **rejects** anything outside the declared domain rather than computing
    * gains from it. `bn = 0` is inside the domain and is accepted: it means a
    * deliberately frozen loop.

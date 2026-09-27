@@ -204,13 +204,13 @@ size_t dp_viterbi_decode(dp_viterbi_state_t *state, const float *in, size_t n_in
  * @return       The decoder, or NULL if @p c is invalid, @p depth is 0, or
  *               allocation failed.
  */
-dp_viterbi_state_t *viterbi_create_code (const conv_code_t *c, size_t depth);
+dp_viterbi_state_t *dp_viterbi_create_code (const conv_code_t *c, size_t depth);
 
 /** @brief The code this decoder was built for. */
-const conv_code_t *viterbi_code (const dp_viterbi_state_t *s);
+const conv_code_t *dp_viterbi_code (const dp_viterbi_state_t *s);
 
 /** @brief Its traceback depth, in input bits. */
-size_t viterbi_depth (const dp_viterbi_state_t *s);
+size_t dp_viterbi_depth (const dp_viterbi_state_t *s);
 
 /* ── node synchronization ────────────────────────────────────────────── */
 
@@ -243,7 +243,7 @@ typedef struct
   size_t   next;    /**< the best competing hypothesis's             */
   size_t   symbols; /**< symbols SCORED per hypothesis, which is
                          fewer than the window — see
-                         @ref node_sync_scored_symbols               */
+                         @ref dp_node_sync_scored_symbols               */
   size_t   margin;  /**< `next - errors`; 0 when nothing separated   */
 } node_sync_t;
 
@@ -279,10 +279,10 @@ typedef struct
  * @return       Disagreements, or 0 if the window is too short to decode
  *               anything past the traceback and the encoder fill.
  */
-size_t node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
+size_t dp_node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
 
 /**
- * @brief Symbols @ref node_sync_score will actually score for a window of
+ * @brief Symbols @ref dp_node_sync_score will actually score for a window of
  *        @p n_llr, which is fewer than @p n_llr.
  *
  * The head of a window is skipped: the decoder starts from its own
@@ -292,13 +292,13 @@ size_t node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr);
  * channel symbol error rate wants this denominator rather than the window
  * length.
  */
-size_t node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
+size_t dp_node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
 
 /**
  * @brief Try every branch alignment and report which one the stream is on.
  *
  * `c->n` hypotheses for a rate-1/n code — the offsets `0 .. n-1` — each
- * scored by @ref node_sync_score over the same window.
+ * scored by @ref dp_node_sync_score over the same window.
  *
  * **Re-runnable, and it has to be.** A symbol slip moves the stream by an
  * odd number of symbols and the alignment changes mid-capture; measured
@@ -318,14 +318,14 @@ size_t node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
  *
  * @code
  * node_sync_t ns;
- * if (node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
+ * if (dp_node_sync_scan (v, llr, 1000, &ns) && ns.margin > 100)
  *   {
  *     dp_viterbi_reset (v);
  *     dp_viterbi_decode (v, llr + ns.phase, n - ns.phase, bits, cap);
  *   }
  * @endcode
  */
-int node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
+int dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
                     node_sync_t *out);
 
 /* ── the state bytes interface ───────────────────────────────────────────

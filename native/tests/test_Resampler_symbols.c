@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_Resampler[] = {
     (jm_any_fn)dp_Resampler_create,
-    (jm_any_fn)Resampler_create_custom,
+    (jm_any_fn)dp_Resampler_create_custom,
     (jm_any_fn)dp_Resampler_destroy,
     (jm_any_fn)dp_Resampler_reset,
     (jm_any_fn)dp_Resampler_execute_max_out,

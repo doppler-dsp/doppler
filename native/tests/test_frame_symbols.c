@@ -29,7 +29,7 @@ const jm_any_fn jm_bound_symbols_frame[] = {
     (jm_any_fn)dp_frame_bits,
     (jm_any_fn)dp_frame_layout,
     (jm_any_fn)dp_frame_crc_ok,
-    (jm_any_fn)frame_create_desc,
+    (jm_any_fn)dp_frame_create_desc,
     (jm_any_fn)dp_frame_add_field,
     (jm_any_fn)dp_frame_add_stage,
     (jm_any_fn)dp_frame_build,

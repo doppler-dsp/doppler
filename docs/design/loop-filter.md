@@ -49,7 +49,7 @@ rather than a smoother:
 
 The integrator is the first, `kp*e` is the second, and `control = integ + kp*e` is the sum. That is the whole object.
 
-Seven objects embed it, at nine `loop_filter_init()` call sites:
+Seven objects embed it, at nine `dp_loop_filter_init()` call sites:
 
 | object             | what its integrator holds      | update period          |
 | ------------------ | ------------------------------ | ---------------------- |
@@ -95,7 +95,7 @@ natural frequency are related by the standard result
 Bn = wn * (zeta + 1 / (4*zeta)) / 2
 ```
 
-`loop_filter_init()` **inverts** it — that single line is the entire reason
+`dp_loop_filter_init()` **inverts** it — that single line is the entire reason
 the parameter is called a noise bandwidth:
 
 ```text
@@ -159,7 +159,7 @@ times before it was recognised as one rule:
 
 - `carrier_nda_disc()` divides out its own `|z|^M`, so its slope does not
     depend on the amplitude reaching it;
-- `ratesync` scales by `symsync_ted_slope()` — the TED's *only*
+- `ratesync` scales by `dp_symsync_ted_slope()` — the TED's *only*
     normalisation is its own slope, which is [MPSK Receiver](mpsk.md) §6.1;
 - the AGC exists in front of both so the amplitude a discriminator sees is
     one.
@@ -179,11 +179,11 @@ The state struct is **public**, and that is a design decision rather than an
 oversight. A tracker holds one by value — often two — and a heap allocation
 per loop inside an object that already owns its own allocation buys nothing
 and costs an indirection in the hot path. `dp_loop_filter_create()` exists for
-the Python binding, and is `calloc` plus `loop_filter_init()`.
+the Python binding, and is `calloc` plus `dp_loop_filter_init()`.
 
 The contract that follows from embedding is small and sharp:
 
-**`loop_filter_init()` does not touch `integ`.** That is what makes it double
+**`dp_loop_filter_init()` does not touch `integ`.** That is what makes it double
 as a retune (§5) — but it also means an embedder is responsible for the
 integrator's initial value, and a `dp_loop_filter_state_t` on the stack starts
 with whatever was there.
@@ -237,7 +237,7 @@ ______________________________________________________________________
 
 ## 6. The boundaries the header declares
 
-`loop_filter_init()`'s documentation constrains two of its three parameters:
+`dp_loop_filter_init()`'s documentation constrains two of its three parameters:
 `bn >= 0` and `t > 0`. `zeta` is described as "typically 0.707" without a
 stated range.
 

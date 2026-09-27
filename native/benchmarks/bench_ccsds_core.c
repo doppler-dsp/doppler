@@ -2,7 +2,7 @@
  *
  * `asm_bits` is 32 shifts, so the question is not "how fast is it" — it is
  * whether the ALIAS costs anything over the expansion it delegates to. This
- * face exists so `doppler.ccsds.asm_bits()` reaches `ccsds_tm_asm_bits`
+ * face exists so `doppler.ccsds.asm_bits()` reaches `dp_ccsds_tm_asm_bits`
  * without Python transcribing 0x1ACFFC1D a third time (doppler#900,
  * doppler#1220), and an alias that showed up in a profile would be an
  * argument for a constant instead.
@@ -10,7 +10,7 @@
  * So both rows are measured against each other:
  *
  *   asm_bits            the module face, one call deep
- *   ccsds_tm_asm_bits   the expansion itself
+ *   dp_ccsds_tm_asm_bits   the expansion itself
  *
  * A `volatile` sink prevents the loops being optimised away.
  */
@@ -52,7 +52,7 @@ main (void)
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         {
-          ccsds_tm_asm_bits (bits);
+          dp_ccsds_tm_asm_bits (bits);
           sink += bits[i & 31];
         }
       t1       = jm_bench_now_ns ();
@@ -60,7 +60,7 @@ main (void)
     }
 
   jm_bench_add (&_bench, "asm_bits", t_face, ITERATIONS, BENCH_N);
-  jm_bench_add (&_bench, "ccsds_tm_asm_bits", t_raw, ITERATIONS, BENCH_N);
+  jm_bench_add (&_bench, "dp_ccsds_tm_asm_bits", t_raw, ITERATIONS, BENCH_N);
 
   jm_bench_write_json (&_bench, "ccsds");
   return 0;

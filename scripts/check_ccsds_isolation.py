@@ -46,7 +46,7 @@ import re
 import sys
 from pathlib import Path
 
-from _layout import PKG, header
+from _layout import C_PREFIX, PKG, header
 
 #: The general primitive. These are the files whose own documentation says
 #: they know nothing about CCSDS, and the only files this gate governs.
@@ -65,7 +65,9 @@ INCLUDE = re.compile(
 
 #: The kernels the primitive must not call, even without including a header —
 #: a forward declaration reaches them just as well.
-SYMBOL = re.compile(r"\bccsds_tm_[a-z_]+\s*\(")
+# Either spelling: the library's calls are `dp_ccsds_tm_*` under
+# `[project] c_prefix` (#1565), a pre-prefix tree's are `ccsds_tm_*`.
+SYMBOL = re.compile(rf"\b(?:{re.escape(C_PREFIX)}_)?ccsds_tm_[a-z_]+\s*\(")
 
 
 def check(paths: list[Path]) -> tuple[list[str], int]:

@@ -1,6 +1,6 @@
 /* bench_ccsds_tm_core.c — the CCSDS transmit chain, stage by stage.
  *
- * `ccsds_tm_frame_encode` runs four stages over a transfer frame: the outer
+ * `dp_ccsds_tm_frame_encode` runs four stages over a transfer frame: the outer
  * RS code, the section-10 randomiser, the ASM, and the section-3 inner
  * convolutional code. A single "frames per second" number would hide which
  * of them costs anything, and the answer is not guessable -- the randomiser
@@ -93,7 +93,7 @@ main (void)
 
   /* Three configurations, peeled one stage at a time. Each needs its own
      output buffer size, so ask the layout rather than computing it here --
-     that is what ccsds_tm_frame_layout is for, and a hand-computed size is
+     that is what dp_ccsds_tm_frame_layout is for, and a hand-computed size is
      the kind of thing that silently goes wrong when the standard's
      defaults move. */
   const ccsds_tm_frame_cfg_t cfgs[3] = {
@@ -107,15 +107,15 @@ main (void)
 
   for (int c = 0; c < 3; c++)
     {
-      size_t   max_out = ccsds_tm_frame_layout (&cfgs[c], FRAME_LEN, NULL);
+      size_t   max_out = dp_ccsds_tm_frame_layout (&cfgs[c], FRAME_LEN, NULL);
       uint8_t *out     = malloc (max_out);
       if (!out)
         return 1;
 
       conv_enc_t conv;
-      conv_enc_init (&conv);
-      if (ccsds_tm_frame_encode (&cfgs[c], &conv, frame, FRAME_LEN, out,
-                                 max_out)
+      dp_conv_enc_init (&conv);
+      if (dp_ccsds_tm_frame_encode (&cfgs[c], &conv, frame, FRAME_LEN, out,
+                                    max_out)
           == 0)
         {
           (void)fprintf (stderr, "bench_ccsds_tm: %s encoded nothing\n",
@@ -125,11 +125,11 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          conv_enc_init (&conv);
+          dp_conv_enc_init (&conv);
           t0 = jm_bench_now_ns ();
           for (int f = 0; f < FRAMES; f++)
-            sink += ccsds_tm_frame_encode (&cfgs[c], &conv, frame, FRAME_LEN,
-                                           out, max_out);
+            sink += dp_ccsds_tm_frame_encode (&cfgs[c], &conv, frame,
+                                              FRAME_LEN, out, max_out);
           t1          = jm_bench_now_ns ();
           t_enc[c][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -149,7 +149,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int f = 0; f < FRAMES; f++)
-        ccsds_tm_randomise (bits, FRAME_LEN * 8);
+        dp_ccsds_tm_randomise (bits, FRAME_LEN * 8);
       t1        = jm_bench_now_ns ();
       t_rand[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -163,12 +163,12 @@ main (void)
   if (!block || !rxblk)
     return 1;
 
-  ccsds_tm_rs_encode_block (frame, DEPTH, block);
+  dp_ccsds_tm_rs_encode_block (frame, DEPTH, block);
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
       for (int f = 0; f < FRAMES; f++)
-        sink += ccsds_tm_rs_encode_block (frame, DEPTH, block);
+        sink += dp_ccsds_tm_rs_encode_block (frame, DEPTH, block);
       t1       = jm_bench_now_ns ();
       t_rse[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -181,7 +181,7 @@ main (void)
       for (int f = 0; f < FRAMES; f++)
         {
           memcpy (rxblk, block, BLOCK_LEN);
-          sink += ccsds_tm_rs_decode_block (rxblk, DEPTH, NULL);
+          sink += dp_ccsds_tm_rs_decode_block (rxblk, DEPTH, NULL);
         }
       t1       = jm_bench_now_ns ();
       t_rsd[r] = jm_bench_elapsed_sec (t0, t1);
@@ -202,13 +202,13 @@ main (void)
     }
   /* Plant a real marker so the search does the work of finding one rather
      than the work of scanning to the end and giving up. */
-  ccsds_tm_asm_bits (stream + SEARCH_BITS / 2);
+  dp_ccsds_tm_asm_bits (stream + SEARCH_BITS / 2);
 
   ccsds_tm_asm_hit_t hit;
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();
-      sink += (size_t)ccsds_tm_asm_find (stream, SEARCH_BITS, 2u, &hit);
+      sink += (size_t)dp_ccsds_tm_asm_find (stream, SEARCH_BITS, 2u, &hit);
       t1       = jm_bench_now_ns ();
       t_asm[r] = jm_bench_elapsed_sec (t0, t1);
     }

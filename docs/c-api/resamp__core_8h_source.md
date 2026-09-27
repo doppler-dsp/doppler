@@ -67,14 +67,14 @@ extern "C"
    * Lifecycle
    * ------------------------------------------------------------------ */
 
-  resamp_state_t *resamp_create (double rate);
+  resamp_state_t *dp_resamp_create (double rate);
 
-  resamp_state_t *resamp_create_custom (size_t num_phases, size_t num_taps,
+  resamp_state_t *dp_resamp_create_custom (size_t num_phases, size_t num_taps,
                                         const float *bank, double rate);
 
-  void resamp_destroy (resamp_state_t *state);
+  void dp_resamp_destroy (resamp_state_t *state);
 
-  void resamp_reset (resamp_state_t *state);
+  void dp_resamp_reset (resamp_state_t *state);
 
   /* Serializable state (standard bytes interface; see dp_state.h): after the
    * envelope, the polyphase phase, the fractional ctrl accumulator, the
@@ -86,25 +86,25 @@ extern "C"
    * so a v1 blob is rejected by the envelope rather than misread. */
   /* Floor on the composite rate `rate + ctrl`.  Not a policy about what the
    * bank filters well -- it is what keeps the reciprocal in
-   * resamp_execute_ctrl_push() defined.  Small enough that no real steer
+   * dp_resamp_execute_ctrl_push() defined.  Small enough that no real steer
    * reaches it. */
 #define RESAMP_CTRL_RATE_MIN 1e-6
 
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
 #define RESAMP_STATE_VERSION 2u
 
-  size_t resamp_state_bytes (const resamp_state_t *state);
-  void resamp_get_state (const resamp_state_t *state, void *blob);
-  int resamp_set_state (resamp_state_t *state, const void *blob);
+  size_t dp_resamp_state_bytes (const resamp_state_t *state);
+  void dp_resamp_get_state (const resamp_state_t *state, void *blob);
+  int dp_resamp_set_state (resamp_state_t *state, const void *blob);
 
   /* ------------------------------------------------------------------
    * Execute
    * ------------------------------------------------------------------ */
 
-  size_t resamp_execute (resamp_state_t *state, const float _Complex *in,
+  size_t dp_resamp_execute (resamp_state_t *state, const float _Complex *in,
                          size_t num_in, float _Complex *out, size_t max_out);
 
-  size_t resamp_execute_ctrl (resamp_state_t *state, const float _Complex *in,
+  size_t dp_resamp_execute_ctrl (resamp_state_t *state, const float _Complex *in,
                               const double *ctrl, size_t num_in,
                               float _Complex *out, size_t max_out);
 
@@ -112,17 +112,17 @@ extern "C"
    * Streaming interpolation (fixed integer rate, output-count driven)
    * ------------------------------------------------------------------ */
 
-  size_t resamp_interp_inputs_needed (const resamp_state_t *state,
+  size_t dp_resamp_interp_inputs_needed (const resamp_state_t *state,
                                       size_t max_out);
 
-  size_t resamp_interp_fill (resamp_state_t *state, const float _Complex *in,
+  size_t dp_resamp_interp_fill (resamp_state_t *state, const float _Complex *in,
                              float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
    * Streaming control port (closed-loop timing / arbitrary rate)
    * ------------------------------------------------------------------ */
 
-  size_t resamp_execute_ctrl_push (resamp_state_t *state, float _Complex x,
+  size_t dp_resamp_execute_ctrl_push (resamp_state_t *state, float _Complex x,
                                    double ctrl, float _Complex *out,
                                    size_t max_out);
 
@@ -130,18 +130,18 @@ extern "C"
    * Properties
    * ------------------------------------------------------------------ */
 
-  double resamp_get_rate (const resamp_state_t *state);
+  double dp_resamp_get_rate (const resamp_state_t *state);
 
-  void resamp_set_rate (resamp_state_t *state, double rate);
+  void dp_resamp_set_rate (resamp_state_t *state, double rate);
 
-  size_t resamp_get_num_phases (const resamp_state_t *state);
-  size_t resamp_get_num_taps (const resamp_state_t *state);
+  size_t dp_resamp_get_num_phases (const resamp_state_t *state);
+  size_t dp_resamp_get_num_taps (const resamp_state_t *state);
 
-  double resamp_get_delay (const resamp_state_t *state);
+  double dp_resamp_get_delay (const resamp_state_t *state);
 
-  double resamp_get_ctrl_acc (const resamp_state_t *state);
+  double dp_resamp_get_ctrl_acc (const resamp_state_t *state);
 
-  double resamp_dc_gain (const resamp_state_t *state);
+  double dp_resamp_dc_gain (const resamp_state_t *state);
 
 #ifdef __cplusplus
 }

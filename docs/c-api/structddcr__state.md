@@ -88,7 +88,7 @@ _DdcR state — the real-to-complex front end, an LO and a cascade._ [More...](#
 ## Detailed Description
 
 
-Do not initialise directly; use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) or [**ddcr\_create\_matched()**](ddcr__core_8h.md#function-ddcr_create_matched). 
+Do not initialise directly; use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) or [**dp\_ddcr\_create\_matched()**](ddcr__core_8h.md#function-dp_ddcr_create_matched). 
 
 
     

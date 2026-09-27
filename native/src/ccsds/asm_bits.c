@@ -14,5 +14,5 @@
 void
 dp_asm_bits (uint8_t *out)
 {
-  ccsds_tm_asm_bits (out);
+  dp_ccsds_tm_asm_bits (out);
 }

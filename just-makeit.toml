@@ -2529,7 +2529,7 @@ type = "double"
 # transmitter to receiver, as opposed to source's awgn/lo/nco, which GENERATE
 # one. DopplerChannel is the first; multipath/fading/phase-noise belong here
 # when they land. doppler_channel.toml's depends_on link=true (gh-225) links
-# resamp_core into the impairment .so — the dilation is resamp_execute_ctrl,
+# resamp_core into the impairment .so — the dilation is dp_resamp_execute_ctrl,
 # not a hand-rolled resampler.
 [module.impairment]
 doc = """
@@ -2996,7 +2996,7 @@ extra_link_libs = ["ccsds_tm_core", "conv_core", "rs_core", "wfm_frame_core", "p
 #
 # doppler#900 (2b). Without it the only Python path to the marker is to
 # transcribe `0x1ACFFC1D` MSB-first by hand -- which is precisely the hazard
-# `ccsds_tm_asm_bits` exists to remove ("an MSB-first expansion written out
+# `dp_ccsds_tm_asm_bits` exists to remove ("an MSB-first expansion written out
 # twice is a transcription that can disagree with itself"), and which this
 # tree's own `.pyi` doctests were doing in four places.
 [[module.ccsds.functions]]

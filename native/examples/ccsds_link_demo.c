@@ -30,13 +30,13 @@
  * its
  * output is ALIGNED with its input and simply stops `depth - 1` bits short.
  * The final CADU is still inside the traceback and needs its successor before
- * it resolves — which is the reason `ccsds_tm_frame_decode` takes CADU bits
+ * it resolves — which is the reason `dp_ccsds_tm_frame_decode` takes CADU bits
  * rather than channel symbols.
  *
  * **The receiver does not start at a frame boundary.** This deliberately
  * throws away the first @ref SKIP_SYM channel symbols before decoding, the
  * way a real capture begins whenever the recorder happened to start. Nothing
- * in the stream says where a frame is; `ccsds_tm_asm_find` correlates for
+ * in the stream says where a frame is; `dp_ccsds_tm_asm_find` correlates for
  * the marker, and the offset it reports is what everything downstream is
  * measured from. The count is EVEN on purpose: an odd one would break the
  * rate-1/2 symbol pairing, and choosing between the two hypotheses is node
@@ -92,7 +92,7 @@ static const ccsds_tm_frame_cfg_t CODED = {
   .rs_depth = RS_DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 1
 };
 
-/* The same coding minus the inner code, which makes ccsds_tm_frame_encode's
+/* The same coding minus the inner code, which makes dp_ccsds_tm_frame_encode's
    output the CADU itself — the reference the receiver is scored against. The
    CADU does not depend on the inner code, so this is the transmitted truth and
    not a second encoding of it. */
@@ -138,14 +138,14 @@ static void
 transmit (void)
 {
   conv_enc_t conv;
-  conv_enc_init (&conv);
+  dp_conv_enc_init (&conv);
   for (unsigned f = 0; f < NFRAMES; f++)
     {
-      ccsds_tm_frame_encode (&CADU_ONLY, NULL, g_frame[f], FRAME_LEN,
-                             g_tx_cadu + (size_t)f * CADU_BITS, CADU_BITS);
-      ccsds_tm_frame_encode (&CODED, &conv, g_frame[f], FRAME_LEN,
-                             g_tx_sym + (size_t)f * SYM_PER_FRAME,
-                             SYM_PER_FRAME);
+      dp_ccsds_tm_frame_encode (&CADU_ONLY, NULL, g_frame[f], FRAME_LEN,
+                                g_tx_cadu + (size_t)f * CADU_BITS, CADU_BITS);
+      dp_ccsds_tm_frame_encode (&CODED, &conv, g_frame[f], FRAME_LEN,
+                                g_tx_sym + (size_t)f * SYM_PER_FRAME,
+                                SYM_PER_FRAME);
     }
   dp_mpsk_map (g_tx_sym, TOTAL_SYM, g_mod, 2);
 }
@@ -158,7 +158,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
 {
   /* One place answers "per rail or total power?", so a 3 dB error cannot be
      introduced here by deriving sigma by hand. */
-  const float      sigma = awgn_amplitude_for_snr (esn0_db, 1.0f);
+  const float      sigma = dp_awgn_amplitude_for_snr (esn0_db, 1.0f);
   const float      n0    = 2.0f * sigma * sigma;
   dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   dp_awgn_generate (ch, TOTAL_SYM, g_noise, TOTAL_SYM);
@@ -185,8 +185,9 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
      which is simply wrong here. It is a wrong PRIOR rather than a wrong
      answer: the survivor paths are determined by the data within a few
      constraint lengths, long before the first marker this finds. */
-  dp_viterbi_state_t *v    = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
-  const size_t        n_rx = dp_viterbi_decode (
+  dp_viterbi_state_t *v
+      = dp_viterbi_create_code (&dp_CCSDS_TM_CONV, TRACEBACK);
+  const size_t n_rx = dp_viterbi_decode (
       v, g_llr + SKIP_SYM, TOTAL_SYM - SKIP_SYM, g_rx_bits, TOTAL_SYM);
   dp_viterbi_destroy (v);
 
@@ -205,7 +206,7 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
      test_ccsds_tm_asm.c carries the arithmetic. */
   const size_t       win = CADU_BITS + CCSDS_TM_ASM_BITS;
   ccsds_tm_asm_hit_t hit;
-  if (!ccsds_tm_asm_find (g_rx_bits, n_rx < win ? n_rx : win, 2u, &hit))
+  if (!dp_ccsds_tm_asm_find (g_rx_bits, n_rx < win ? n_rx : win, 2u, &hit))
     {
       *rs_words = 0;
       *rs_ok    = 0;
@@ -223,8 +224,8 @@ receive (float esn0_db, uint64_t seed, size_t *chan_errs, size_t *bit_errs,
   for (size_t at = hit.offset; at + CADU_BITS <= n_rx; at += CADU_BITS)
     {
       ccsds_tm_frame_rx_t rx;
-      if (ccsds_tm_frame_decode (&CODED, g_rx_bits + at, CADU_BITS, g_back,
-                                 sizeof g_back, &rx)
+      if (dp_ccsds_tm_frame_decode (&CODED, g_rx_bits + at, CADU_BITS, g_back,
+                                    sizeof g_back, &rx)
           == 0)
         break;
       *rs_words += rx.rs_codewords;
@@ -261,7 +262,7 @@ main (void)
   transmit ();
 
   ccsds_tm_frame_layout_t lay;
-  ccsds_tm_frame_layout (&CODED, FRAME_LEN, &lay);
+  dp_ccsds_tm_frame_layout (&CODED, FRAME_LEN, &lay);
   printf ("transfer frame   %d octets\n", FRAME_LEN);
   printf ("codeblock        %zu bits (R-S 255/223, I=%d)\n", lay.block_bits,
           RS_DEPTH);

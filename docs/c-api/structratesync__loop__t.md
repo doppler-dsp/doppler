@@ -114,7 +114,7 @@ Everything RateSync does _after_ the cascade emits an output: the strobe ring, t
 That split is what lets a receiver reuse this loop verbatim. RateSync owns a `RateConverter` and steers it directly; MpskReceiver owns a `Ddc`/`Ddcr` (mix + the same cascade) and steers the _same_ accumulator through the DDC's `rate_ctrl` port. Both drive one implementation of the timing loop, so a fix to the TED or the normaliser reaches both — the two are not peers that can drift apart.
 
 
-The loop must be told the geometry of the accumulator it is steering ([**ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-ratesync_loop_set_cascade)): the terminal stage's own rate, because that is the scale `ctrl` is referenced to, and the terminal bank's tap count, because that is how many outputs are delay-line fill rather than signal. 
+The loop must be told the geometry of the accumulator it is steering ([**dp\_ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_cascade)): the terminal stage's own rate, because that is the scale `ctrl` is referenced to, and the terminal bank's tap count, because that is how many outputs are delay-line fill rather than signal. 
 
 
     
@@ -485,7 +485,7 @@ double ratesync_loop_t::ted_scale;
 
 
 
-Reciprocal of the detector's own slope against this pulse ([**symsync\_ted\_slope()**](symsync__core_8h.md#function-symsync_ted_slope)), computed once by [**ratesync\_loop\_bind\_cascade()**](ratesync__core_8h.md#function-ratesync_loop_bind_cascade). The hot path MULTIPLIES by it: a divide, and the running power estimate it would have divided by, are both construct-time work masquerading as per-symbol work. 
+Reciprocal of the detector's own slope against this pulse ([**dp\_symsync\_ted\_slope()**](symsync__core_8h.md#function-dp_symsync_ted_slope)), computed once by [**dp\_ratesync\_loop\_bind\_cascade()**](ratesync__core_8h.md#function-dp_ratesync_loop_bind_cascade). The hot path MULTIPLIES by it: a divide, and the running power estimate it would have divided by, are both construct-time work masquerading as per-symbol work. 
 
 
         
@@ -502,7 +502,7 @@ const resamp_state_t* ratesync_loop_t::term;
 
 
 
-The terminal stage itself, borrowed for TELEMETRY ONLY: the loop steers this accumulator but does not own it, and `mu` — the sampling phase the steering produces — is otherwise unobservable from outside the cascade. NULL when the owner bound the geometry by hand ([**ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-ratesync_loop_set_cascade)) rather than from a cascade; the probe then reports 0. Never dereferenced on the hot path. 
+The terminal stage itself, borrowed for TELEMETRY ONLY: the loop steers this accumulator but does not own it, and `mu` — the sampling phase the steering produces — is otherwise unobservable from outside the cascade. NULL when the owner bound the geometry by hand ([**dp\_ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_cascade)) rather than from a cascade; the probe then reports 0. Never dereferenced on the hot path. 
 
 
         

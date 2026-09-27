@@ -41,7 +41,8 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &taps_obj))
     return -1;
-  /* dtype dispatch: float → fir_create_real, float _Complex → dp_fir_create */
+  /* dtype dispatch: float → dp_fir_create_real, float _Complex → dp_fir_create
+   */
   {
     PyArrayObject *_taps_probe = (PyArrayObject *)PyArray_CheckFromAny (
         taps_obj, NULL, 1, 1, NPY_ARRAY_C_CONTIGUOUS, NULL);
@@ -56,8 +57,8 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
             return -1;
           }
         size_t taps_len = (size_t)PyArray_SIZE (taps_arr);
-        self->handle = fir_create_real ((const float *)PyArray_DATA (taps_arr),
-                                        taps_len);
+        self->handle    = dp_fir_create_real (
+            (const float *)PyArray_DATA (taps_arr), taps_len);
         Py_DECREF (taps_arr);
       }
     else
@@ -296,7 +297,8 @@ static PyGetSetDef FIR_getset[] = {
     NULL },
   { "is_real", (getter)FIR_getprop_is_real, NULL,
     "True when the filter was created with real-valued tap coefficients. "
-    "Real-tap filters (fir_create_real) use a cheaper inner loop: 1 FMA/tap "
+    "Real-tap filters (dp_fir_create_real) use a cheaper inner loop: 1 "
+    "FMA/tap "
     "versus the 2 FMA + lane permute required for complex multiplication. Use "
     "this flag to confirm which constructor path was used at runtime.\n",
     NULL },
@@ -501,7 +503,8 @@ static PyTypeObject FIRObjType = {
     "direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap "
     "array\n"
     "is copied at creation; the caller may free it afterward. Use\n"
-    "fir_create_real() instead when all imaginary parts are zero — that path\n"
+    "dp_fir_create_real() instead when all imaginary parts are zero — that "
+    "path\n"
     "costs 1 FMA/tap versus 2 FMA + permute + mul here.\n"
     "\n"
     "Parameters\n"

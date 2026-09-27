@@ -28,17 +28,17 @@ extern "C"
 #define CCSDS_TM_RS_2E 32
 #define CCSDS_TM_RS_MAX_DEPTH 8
 
-  extern const rs_code_t CCSDS_TM_RS;
+  extern const rs_code_t dp_CCSDS_TM_RS;
 
-  uint8_t ccsds_tm_rs_conv_to_dual (uint8_t u);
+  uint8_t dp_ccsds_tm_rs_conv_to_dual (uint8_t u);
 
-  uint8_t ccsds_tm_rs_dual_to_conv (uint8_t z);
+  uint8_t dp_ccsds_tm_rs_dual_to_conv (uint8_t z);
 
-  const uint8_t *ccsds_tm_rs_generator (void);
+  const uint8_t *dp_ccsds_tm_rs_generator (void);
 
-  int ccsds_tm_rs_codeword_ok (const uint8_t *codeword);
+  int dp_ccsds_tm_rs_codeword_ok (const uint8_t *codeword);
 
-  int ccsds_tm_rs_decode (uint8_t *codeword);
+  int dp_ccsds_tm_rs_decode (uint8_t *codeword);
 
   typedef struct
   {
@@ -48,13 +48,13 @@ extern "C"
     unsigned symbols;       
   } ccsds_tm_rs_block_rx_t;
 
-  size_t ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
+  size_t dp_ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
                               ccsds_tm_rs_block_rx_t *rx);
 
-  size_t ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth,
+  size_t dp_ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth,
                               uint8_t *out);
 
-  void ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity);
+  void dp_ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity);
 
 #ifdef __cplusplus
 }

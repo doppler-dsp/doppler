@@ -157,7 +157,7 @@ pffft_try_setup (pocketfft_plan *p)
  * Plan lifecycle
  * -------------------------------------------------------------------- */
 pocketfft_plan *
-pocketfft_plan_1d (size_t n, int sign)
+dp_pocketfft_plan_1d (size_t n, int sign)
 {
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
@@ -169,7 +169,7 @@ pocketfft_plan_1d (size_t n, int sign)
   p->promote = (double *)malloc (sizeof (double) * 2 * n);
   if (!p->row || !p->promote)
     {
-      pocketfft_destroy_plan (p);
+      dp_pocketfft_destroy_plan (p);
       return NULL;
     }
   pffft_try_setup (p); /* non-fatal native-float fast path for cf32 */
@@ -177,7 +177,7 @@ pocketfft_plan_1d (size_t n, int sign)
 }
 
 pocketfft_plan *
-pocketfft_plan_2d (size_t ny, size_t nx, int sign)
+dp_pocketfft_plan_2d (size_t ny, size_t nx, int sign)
 {
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
@@ -196,7 +196,7 @@ pocketfft_plan_2d (size_t ny, size_t nx, int sign)
   if (!p->row || !p->col || !p->rowscratch || !p->colscratch
       || (p->use_transpose && !p->tbuf))
     {
-      pocketfft_destroy_plan (p);
+      dp_pocketfft_destroy_plan (p);
       return NULL;
     }
   pffft_try_setup (p); /* non-fatal native-float fast path for cf32 */
@@ -204,7 +204,7 @@ pocketfft_plan_2d (size_t ny, size_t nx, int sign)
 }
 
 void
-pocketfft_destroy_plan (pocketfft_plan *p)
+dp_pocketfft_destroy_plan (pocketfft_plan *p)
 {
   if (!p)
     return;
@@ -296,7 +296,7 @@ xform (cfft_plan plan, int sign, double *c, size_t len)
  * 1-D execute
  * -------------------------------------------------------------------- */
 void
-pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out)
+dp_pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out)
 {
   /* cf64: copy in -> out, transform out in place. */
   if (in != out)
@@ -305,7 +305,7 @@ pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out)
 }
 
 void
-pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
+dp_pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
 {
   size_t n = p->n;
 
@@ -401,13 +401,13 @@ exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
 }
 
 void
-pocketfft_execute_1d_ci16 (pocketfft_plan *p, const void *in, void *out)
+dp_pocketfft_execute_1d_ci16 (pocketfft_plan *p, const void *in, void *out)
 {
   exec_1d_int (p, in, out, 0);
 }
 
 void
-pocketfft_execute_1d_ci8 (pocketfft_plan *p, const void *in, void *out)
+dp_pocketfft_execute_1d_ci8 (pocketfft_plan *p, const void *in, void *out)
 {
   exec_1d_int (p, in, out, 1);
 }
@@ -457,7 +457,7 @@ xform_2d (pocketfft_plan *p, double *d)
 }
 
 void
-pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out)
+dp_pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out)
 {
   size_t total = p->ny * p->nx;
   if (in != out)
@@ -466,7 +466,7 @@ pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out)
 }
 
 void
-pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
+dp_pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
 {
   size_t ny = p->ny, nx = p->nx, total = ny * nx;
 

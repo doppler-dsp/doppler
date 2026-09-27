@@ -33,17 +33,17 @@
  * docs/design/dsss-acquisition.md).  So the two constructors fix a mode each,
  * never a per-call knob:
  *
- * - acq_create_burst() — the smallest coherent depth `coherent_bins` in
+ * - dp_acq_create_burst() — the smallest coherent depth `coherent_bins` in
  *   `[1, reps]` whose BURST Pd meets @p pd: the preamble lands at any
  *   offset against stream-aligned dwells and is detected when any one of
- *   them is (see acq_create_burst()); never a non-coherent look. Minimum
+ *   them is (see dp_acq_create_burst()); never a non-coherent look. Minimum
  *   latency for a strong signal, unmodulated bursts/preambles only.  A tighter
  *   @p doppler_uncertainty shrinks the searched cell count, lowering the
  *   Sidak threshold (more sensitive).  When @p doppler_uncertainty
  *   exceeds the native span, falls back to the wideband window-tiling
  *   mechanism below instead (coherent depth structurally can't cover more
  *   than one span, regardless of mode).
- * - acq_create_continuous() — for a continuous, data-modulated signal:
+ * - dp_acq_create_continuous() — for a continuous, data-modulated signal:
  *   ALWAYS uses the wideband window-tiling mechanism below, unconditionally
  *   (never attempts coherent multi-epoch combining, even when
  *   @p doppler_uncertainty is narrower than one native span) — closes the
@@ -96,7 +96,7 @@
  * row). The Doppler axis is then ONE uniform grid of
  * `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)`
  * over the tiled span, in native FFT-bin order (0 = DC, ascending, then
- * wrapping negative): `doppler_bin` indexes it, and acq_build_handoff()
+ * wrapping negative): `doppler_bin` indexes it, and dp_acq_build_handoff()
  * folds it with dp_fftfreq_index() over that count. A block that straddles
  * data spreads that emitter over its rows, `10*log10(D)` below an aligned
  * block, at its own code phase -- the `conc` probe (§2.4) reads it.
@@ -132,7 +132,7 @@
  * float _Complex pre[124];
  * for (size_t i = 0; i < 124; i++)
  *   pre[i] = nrz[i / 4];                   // each chip held 4 samples
- * dp_acq_state_t *a = acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
+ * dp_acq_state_t *a = dp_acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
  *                                   0.0, 1e-3, 0.9, 0, 0.0);
  * acq_result_t hits[64];
  * size_t nh = dp_acq_push(a, samples, n_samples, hits, 64);
@@ -185,8 +185,8 @@ extern "C"
     float cn0_dbhz_est;        /**< Estimated carrier-to-noise density (dB-Hz),
                                     backed out of test_stat via the same C/N0 <->
                                     per-sample-amplitude-SNR relationship used to
-                                    size the engine (see acq_create_burst()/
-                                    acq_create_continuous()). Tracks the
+                                    size the engine (see dp_acq_create_burst()/
+                                    dp_acq_create_continuous()). Tracks the
                                     true C/N0 while receiver AWGN dominates the
                                     CFAR noise estimate; saturates at the code's
                                     own autocorrelation-sidelobe floor once the
@@ -237,7 +237,7 @@ extern "C"
    *        with the dwell's surface in test-statistic units, row-major
    *        `rows` x `cols` (Doppler rows by code-phase columns), and the
    *        dwell's `samples_consumed`. The pointer is the engine's and is
-   *        valid only for the call. See acq_set_surface_sink().
+   *        valid only for the call. See dp_acq_set_surface_sink().
    */
   typedef void (*acq_surface_sink_fn) (void *ctx, const float *surface,
                                        size_t rows, size_t cols,
@@ -305,14 +305,14 @@ extern "C"
     double psl; /**< Peak sidelobe: the largest |R(m)| / R(0) OUTSIDE the
                      mainlobe, zone <= m <= n - zone -- the lags the peak
                      list's exclusion does not cover. 0 for a perfect
-                     sequence (below 1e-6, rounding). acq_psl_db() is the
+                     sequence (below 1e-6, rounding). dp_acq_psl_db() is the
                      read-back (doppler#1470). */
   } acq_shape_t;
 
   /**
    * @brief Streaming acquisition-engine state.
    *
-   * Allocate with acq_create_burst() or acq_create_continuous(); never
+   * Allocate with dp_acq_create_burst() or dp_acq_create_continuous(); never
    * stack-allocate.
    */
   typedef struct
@@ -377,7 +377,7 @@ extern "C"
     acq_shape_t shape; /**< The preamble's correlation shape (zone, delay
                             straddle); config, filled by the constructor. */
     size_t reps;    /**< Max coherent code repetitions (the ceiling); always
-                         1 for an engine built via acq_create_continuous().*/
+                         1 for an engine built via dp_acq_create_continuous().*/
     size_t
         searched_bins; /**< Doppler bins scanned (<= coherent_bins; du prior).*/
     size_t n_noncoh;   /**< Non-coherent looks per detection (1 = coherent). */
@@ -401,7 +401,7 @@ extern "C"
                                       (Hz); 0 = full native span.         */
     double symbol_rate; /**< Continuous data-symbol rate (Hz); 0 = no known
                               data-modulation clock. Diagnostic only on an
-                              engine built via acq_create_continuous() (which
+                              engine built via dp_acq_create_continuous() (which
                               always forces coherent_bins=1 regardless) —
                               informational, doesn't feed sizing.         */
     double epochs_per_symbol;  /**< (chip_rate/sf)/symbol_rate; 0 when
@@ -493,8 +493,8 @@ extern "C"
                                pd_predicted where pd_burst is NAN. Never
                                without a design C/N0 -- there is no target
                                to be under. */
-    uint8_t burst; /**< 1 for an engine built by acq_create_burst(), 0 for
-                        acq_create_continuous(). Config.               */
+    uint8_t burst; /**< 1 for an engine built by dp_acq_create_burst(), 0 for
+                        dp_acq_create_continuous(). Config.               */
 
     uint64_t
         samples_consumed; /**< Total framed samples (the state's offset).   */
@@ -525,7 +525,7 @@ extern "C"
     acq_tlm_t tlm;       /**< telemetry attachment; ctx NULL = detached      */
     int       keep_surface; /**< 1 = normalise every decided dwell into
                                  `stat_surface` for acq_surface(); set by a
-                                 caller or by acq_set_surface_sink()        */
+                                 caller or by dp_acq_set_surface_sink()        */
     float *stat_surface; /**< n_surf: the last decided dwell in the gate's
                               units; allocated on the first dwell decided
                               with keep_surface set                       */
@@ -644,7 +644,7 @@ extern "C"
    * the preamble's position sees an anchor up to n_noncoh*coherent_bins
    * periods late (doppler#1181).  Intended for an unmodulated burst or
    * preamble window -- a continuous, data-modulated signal should use
-   * acq_create_continuous() instead (coherent combining under continuous
+   * dp_acq_create_continuous() instead (coherent combining under continuous
    * data is a structural aliasing mislock, not a tunable SNR trade-off --
    * see the file doc comment).
    *
@@ -719,12 +719,12 @@ extern "C"
    * float _Complex zc[127];
    * for (int k = 0; k < 127; k++)
    *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
-   * dp_acq_state_t *a = acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
+   * dp_acq_state_t *a = dp_acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
    *                                    0.9, 0, 0.0);
    * dp_acq_destroy (a);
    * @endcode
    */
-  dp_acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
+  dp_acq_state_t *dp_acq_create_burst (const float _Complex *tmpl, size_t n,
                                  size_t reps, double fs, double cn0_dbhz,
                                  double doppler_uncertainty, double pfa,
                                  double pd, int noise_mode,
@@ -799,7 +799,7 @@ extern "C"
    *
    * @endcode
    */
-  dp_acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
+  dp_acq_state_t *dp_acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
@@ -847,7 +847,7 @@ extern "C"
    * Resizes every buffer/plan that depends on the grid (the slow-time FFT,
    * the code correlator, the reference, and every per-frame scratch buffer),
    * re-derives the threshold ladder for the pinned grid from the same
-   * physics acq_create_burst()/acq_create_continuous() used, and clears
+   * physics dp_acq_create_burst()/dp_acq_create_continuous() used, and clears
    * in-flight accumulation (ring contents, the non-coherent power
    * accumulator, dwell bookkeeping) — call between push() calls, never a
    * substitute for one.
@@ -933,7 +933,7 @@ extern "C"
    *   drift across the block): without it the block's peak is 13 dB
    *   down and 3 chips wide and the depth detects nothing at 34 dB-Hz;
    *   with it the block reads as a still one.
-   * - **The hand-off** (acq_build_handoff()) advances the hit's code
+   * - **The hand-off** (dp_acq_build_handoff()) advances the hit's code
    *   phase by the drift over half the dwell -- the non-coherent sum's
    *   peak is the phase at the dwell's middle, the seed is wanted at its
    *   end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
@@ -1063,7 +1063,7 @@ extern "C"
    * rounding (the SIMD build's fast-math may take a reciprocal in this
    * loop and a divide in the gate's), and the gate (`threshold`, or
    * `eta_nc` on the non-coherent path) is a flat plane on a plot. The engine keeps this only while `keep_surface` is set (a
-   * caller sets it, or acq_set_surface_sink() does): set it, push, then
+   * caller sets it, or dp_acq_set_surface_sink() does): set it, push, then
    * read. `surface_at` says which dwell it is; a time-decimated record is
    * the caller reading every k-th dwell, or a sink with `decim`.
    *
@@ -1127,7 +1127,7 @@ extern "C"
    * @brief The surface's code-phase axis: the chip phase of each column.
    *
    * One value per surface column, in chips, the same mapping
-   * acq_build_handoff() applies to a hit's `code_phase` — so a plotted
+   * dp_acq_build_handoff() applies to a hit's `code_phase` — so a plotted
    * peak sits at the chip phase the DetectionEvent would carry.
    *
    * @param state Must be non-NULL.
@@ -1220,16 +1220,16 @@ extern "C"
    *                caller's reference.
    * @return The complex correlation.
    */
-  double _Complex acq_cell_corr (const dp_acq_state_t *state,
+  double _Complex dp_acq_cell_corr (const dp_acq_state_t *state,
                                  const float _Complex *x, size_t col,
                                  double f_hz, double t0);
 
   /**
-   * @brief acq_cell_corr() at many frequencies over consecutive epochs, in
+   * @brief dp_acq_cell_corr() at many frequencies over consecutive epochs, in
    *        one pass: the cells a caller scores once the code phase is
    *        settled and only the Doppler is left to search.
    *
-   * Element `e * n_f + j` of @p out is acq_cell_corr() of epoch `e`
+   * Element `e * n_f + j` of @p out is dp_acq_cell_corr() of epoch `e`
    * (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to
    * within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach
    * (measured 2.9e-6 at a 510-sample epoch): a coherent peak 100 dB above
@@ -1249,7 +1249,7 @@ extern "C"
    * candidate period, is the reason it exists (doppler#1538).
    *
    * Frequencies spread more than one cycle per epoch either side of their
-   * centre fall back to acq_cell_corr() per cell.
+   * centre fall back to dp_acq_cell_corr() per cell.
    *
    * @param state    The engine whose replica, `code_bins` and `fs` are used.
    * @param x        `n_epochs * code_bins` contiguous samples.
@@ -1261,7 +1261,7 @@ extern "C"
    *                 caller's reference.
    * @param out      Written with `n_epochs * n_f` correlations, epoch-major.
    */
-  void acq_cell_corr_grid (const dp_acq_state_t *state, const float _Complex *x,
+  void dp_acq_cell_corr_grid (const dp_acq_state_t *state, const float _Complex *x,
                            size_t n_epochs, size_t col, const double *f_hz,
                            size_t n_f, double t0, double _Complex *out);
 
@@ -1377,7 +1377,7 @@ extern "C"
    * @param ctx   Passed through to @p fn.
    * @param decim Hand over every decim-th dwell; 0 reads as 1.
    */
-  void acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
+  void dp_acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
                              void *ctx, uint32_t decim);
 
   /**
@@ -1435,7 +1435,7 @@ extern "C"
         chip_phase; /**< Chips, Dll's own instantaneous-phase convention
                          (the mirror image of acq_result_t::code_phase's
                          correlation-lag convention -- see
-                         acq_build_handoff()'s doc comment). */
+                         dp_acq_build_handoff()'s doc comment). */
     double doppler_hz_est;  /**< Folded/signed Doppler estimate, Hz. */
     double doppler_res_hz;  /**< Width of the estimate (+/- half this). */
     double cn0_dbhz_est;    /**< Estimated carrier-to-noise density, dB-Hz. */
@@ -1476,7 +1476,7 @@ extern "C"
    *        acq_grid_bins() by numpy's fftfreq convention (dp_fftfreq_index)
    *        and scaled by the grid's resolution.
    *
-   * The one conversion from a bin to Hz; acq_build_handoff() and every
+   * The one conversion from a bin to Hz; dp_acq_build_handoff() and every
    * composing object call it rather than restating the fold.
    */
   static inline double
@@ -1521,7 +1521,7 @@ extern "C"
    *
    * @endcode
    */
-  double acq_psl_db (const dp_acq_state_t *state);
+  double dp_acq_psl_db (const dp_acq_state_t *state);
 
   /**
    * @brief Convert one dp_acq_push() hit into a wire-ready hand-off record.
@@ -1534,7 +1534,7 @@ extern "C"
    *   own instantaneous phase instead — the mirror-image inversion
    *   `phase = fmod(code_len - code_phase/spc, code_len)`, folded
    *   non-negative.
-   * - **Doppler**: @p state is assumed built via acq_create_continuous()
+   * - **Doppler**: @p state is assumed built via dp_acq_create_continuous()
    *   (`window_bins` tiles of `coherent_bins` each, the only mode this
    *   function supports), so `hit`'s `doppler_bin` indexes the uniform grid
    *   of `window_bins * coherent_bins` bins, mapped to a signed bin by
@@ -1557,14 +1557,14 @@ extern "C"
    *   chip, measured directly, past the refine Dll's; without this the
    *   floor's hand-offs never refined. Uncoupled (0.0): no advance.
    * @param state    The engine @p hit came from (non-NULL, built via
-   *                 acq_create_continuous()).
+   *                 dp_acq_create_continuous()).
    * @param hit      One hit from dp_acq_push() (non-NULL).
    * @param code_len Spreading-code length (chips) — the same value passed
    *                 to whichever acq_create_*() built @p state.
    * @param spc      Samples/chip — likewise.
    * @param out      Written on return (non-NULL).
    */
-  void acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
+  void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
@@ -1604,7 +1604,7 @@ extern "C"
    *        NULL out = discard).
    * @return Number of events written (0 … max_results).
    */
-  size_t acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
+  size_t dp_acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);
 

@@ -59,11 +59,11 @@ _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**boxcar\_init**](#function-boxcar_init) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, size\_t len, double gain) <br>_Initialise a boxcar in place (no allocation)._  |
 |  [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* | [**dp\_boxcar\_create**](#function-dp_boxcar_create) (size\_t len, double gain) <br>_Create a boxcar instance._  |
 |  void | [**dp\_boxcar\_destroy**](#function-dp_boxcar_destroy) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Destroy a boxcar instance._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_boxcar\_get\_gain**](#function-dp_boxcar_get_gain) (const [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Current output gain._  |
 |  void | [**dp\_boxcar\_get\_state**](#function-dp_boxcar_get_state) (const [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, void \* blob) <br>_Serialize the full state into_ `blob` _._ |
+|  void | [**dp\_boxcar\_init**](#function-dp_boxcar_init) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, size\_t len, double gain) <br>_Initialise a boxcar in place (no allocation)._  |
 |  void | [**dp\_boxcar\_reset**](#function-dp_boxcar_reset) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Clear the window (zero the ring and the running sum); keep the configured length and gain._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_boxcar\_set\_gain**](#function-dp_boxcar_set_gain) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, double gain) <br>_Set the output gain; refresh the cached scale._  |
 |  int | [**dp\_boxcar\_set\_state**](#function-dp_boxcar_set_state) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
@@ -134,37 +134,6 @@ Until the ring fills (the first `len-1` samples after a reset) the ring holds ze
     
 ## Public Functions Documentation
 
-
-
-
-### function boxcar\_init 
-
-_Initialise a boxcar in place (no allocation)._ 
-```C++
-void boxcar_init (
-    dp_boxcar_state_t * s,
-    size_t len,
-    double gain
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `s` State to initialise. Must be non-NULL. 
-* `len` Window length; clamped to `[1, BOXCAR_MAX_LEN]`. 
-* `gain` Output gain (folded into the averaging scale). 
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -266,6 +235,37 @@ void dp_boxcar_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_boxcar\_init 
+
+_Initialise a boxcar in place (no allocation)._ 
+```C++
+void dp_boxcar_init (
+    dp_boxcar_state_t * s,
+    size_t len,
+    double gain
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `s` State to initialise. Must be non-NULL. 
+* `len` Window length; clamped to `[1, BOXCAR_MAX_LEN]`. 
+* `gain` Output gain (folded into the averaging scale). 
+
+
+
+
+        
 
 <hr>
 

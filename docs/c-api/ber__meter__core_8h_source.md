@@ -53,12 +53,12 @@ extern "C"
     size_t      mk_period; 
   } dp_ber_meter_state_t;
 
-  ber_align_t ber_align_detect (const float _Complex *rx, size_t rx_len,
+  ber_align_t dp_ber_align_detect (const float _Complex *rx, size_t rx_len,
                                 const uint8_t *truth, size_t truth_len, int m,
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
 
-  ber_interval_t ber_confidence (size_t errors, size_t symbols, double conf);
+  ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
   /* ── the meter ────────────────────────────────────────────────────────── */
 
@@ -70,7 +70,7 @@ extern "C"
   int dp_ber_meter_set_truth (dp_ber_meter_state_t *state, const uint8_t *truth,
                            size_t truth_len);
 
-  ber_align_t ber_meter_detect (const dp_ber_meter_state_t *state,
+  ber_align_t dp_ber_meter_detect (const dp_ber_meter_state_t *state,
                                 const float _Complex *rx, size_t rx_len,
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
@@ -82,7 +82,7 @@ extern "C"
   size_t dp_ber_meter_score (dp_ber_meter_state_t *state, const float _Complex *rx,
                           size_t rx_len, size_t lo, size_t hi);
 
-  void ber_meter_set_align (dp_ber_meter_state_t *state, ber_align_t align,
+  void dp_ber_meter_set_align (dp_ber_meter_state_t *state, ber_align_t align,
                             size_t t0, size_t n_marker, size_t period);
 
   int dp_ber_meter_get_enough (const dp_ber_meter_state_t *state);

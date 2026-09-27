@@ -163,7 +163,7 @@ dp_gnu_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_lock
          COMMAND validate_carrier_nda_lock --check)
 
-# Each TED's own S-curve against symsync_ted_slope(), with no cascade in the
+# Each TED's own S-curve against dp_symsync_ted_slope(), with no cascade in the
 # path: the composite pulse is evaluated in closed form, so a discrepancy is
 # the detector's or the model's and cannot be the bank's. -ffp-contract=off
 # for the same host-determinism reason as dll_jitter: the measurement is a

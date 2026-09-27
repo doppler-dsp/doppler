@@ -167,7 +167,7 @@ One dwell's Pd runs from 0.19 to 0.91 at the 0.6 design point, across rows that 
 
 - **F4 · FIXED** — **`configure_search_raw` returned a code its header did not document.** The composed child forwards `acq`'s own `-1`, which is not one of the eight codes `clib_common.h` defines, while this object's header promised `DP_ERR_INVALID` (-4). A C caller branching on the documented code would have mis-read a refusal. Translated at this boundary rather than weakening the doc to match.
 
-- **F5 · C-ONLY** — **The zero-copy consumer face is not reachable from Python.** `burst_capture_ready`/`window`/`event_at` let a composing C object borrow a window out of the scratch instead of copying it again, which is what keeps `DsssBurstReceiver` paying one memcpy per burst rather than two. The binding necessarily copies into a numpy array, so the borrow is certified in C §7 and §3 instead.
+- **F5 · C-ONLY** — **The zero-copy consumer face is not reachable from Python.** `dp_burst_capture_ready`/`window`/`event_at` let a composing C object borrow a window out of the scratch instead of copying it again, which is what keeps `DsssBurstReceiver` paying one memcpy per burst rather than two. The binding necessarily copies into a numpy array, so the borrow is certified in C §7 and §3 instead.
 
 - **F6 · GAP** — **The per-burst window copy is measured only at a short-burst geometry.** `bench_burst_capture_core` puts it at 34 µs for four bursts against a 2.24 ms search floor — 1.5% — but the copy scales with `burst_len` and the search floor does not, so a real link geometry (a 2.5 MB window rather than 20 kB) is a different measurement that has not been taken. Tracked as [gh-1173](https://github.com/doppler-dsp/doppler/issues/1173).
 

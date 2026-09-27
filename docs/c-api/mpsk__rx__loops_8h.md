@@ -75,23 +75,23 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 
 | Type | Name |
 | ---: | :--- |
+|  void | [**dp\_mpsk\_rx\_config\_carrier**](#function-dp_mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_(Re-)size the carrier loop filter for the tap's update rate._  |
+|  double | [**dp\_mpsk\_rx\_freq\_est**](#function-dp_mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
+|  void | [**dp\_mpsk\_rx\_loops\_get\_state**](#function-dp_mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
+|  void | [**dp\_mpsk\_rx\_loops\_init**](#function-dp_mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, double lock\_thresh, int differential) <br>_Initialise the loops in place (no allocation)._  |
+|  void | [**dp\_mpsk\_rx\_loops\_reset**](#function-dp_mpsk_rx_loops_reset) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Re-seed both loops to their post-init state; keep configuration._  |
+|  int | [**dp\_mpsk\_rx\_loops\_set\_state**](#function-dp_mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
+|  size\_t | [**dp\_mpsk\_rx\_loops\_state\_bytes**](#function-dp_mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**dp\_mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_get_state) _writes._ |
+|  void | [**dp\_mpsk\_rx\_set\_freq\_est**](#function-dp_mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
+|  int | [**dp\_mpsk\_rx\_set\_telemetry**](#function-dp_mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._ |
+|  int | [**dp\_mpsk\_rx\_symbol\_to\_bits**](#function-dp_mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
+|  void | [**dp\_mpsk\_rx\_tlm\_flush**](#function-dp_mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
-|  void | [**mpsk\_rx\_config\_carrier**](#function-mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_(Re-)size the carrier loop filter for the tap's update rate._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex z) <br>_Run the NDA discriminator on one tapped sample._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float \_Complex \* ys, size\_t n, float \_Complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
-|  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
-|  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
-|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, double lock\_thresh, int differential) <br>_Initialise the loops in place (no allocation)._  |
-|  void | [**mpsk\_rx\_loops\_reset**](#function-mpsk_rx_loops_reset) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Re-seed both loops to their post-init state; keep configuration._  |
-|  int | [**mpsk\_rx\_loops\_set\_state**](#function-mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
-|  size\_t | [**mpsk\_rx\_loops\_state\_bytes**](#function-mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._ |
-|  void | [**mpsk\_rx\_set\_freq\_est**](#function-mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
-|  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
-|  int | [**mpsk\_rx\_symbol\_to\_bits**](#function-mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, float \_Complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
-|  void | [**mpsk\_rx\_tlm\_flush**](#function-mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_updates\_per\_symbol**](#function-mpsk_rx_updates_per_symbol) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_How many times per symbol the chosen tap updates the carrier loop._  |
 
 
@@ -206,6 +206,261 @@ enum mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5 {
 
 
 
+### function dp\_mpsk\_rx\_config\_carrier 
+
+_(Re-)size the carrier loop filter for the tap's update rate._ 
+```C++
+void dp_mpsk_rx_config_carrier (
+    mpsk_rx_loops_t * l
+) 
+```
+
+
+
+Called by [**dp\_mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_init), and AGAIN by each receiver's create() once the cascade has published its `bank_sps` — which arrives too late for init, so the MF\_IN tap would otherwise keep gains designed for the `lo_sps` placeholder. `integ` survives [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init) by contract, and every other tap re-derives the gains it already had. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_freq\_est 
+
+_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._ 
+```C++
+double dp_mpsk_rx_freq_est (
+    const mpsk_rx_loops_t * l
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_loops\_get\_state 
+
+_Serialize the loops' mutable state into_ `blob` _._
+```C++
+void dp_mpsk_rx_loops_get_state (
+    const mpsk_rx_loops_t * l,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_loops\_init 
+
+_Initialise the loops in place (no allocation)._ 
+```C++
+void dp_mpsk_rx_loops_init (
+    mpsk_rx_loops_t * l,
+    int m,
+    double sps,
+    double lo_sps,
+    size_t m_out,
+    double bn_carrier,
+    double zeta,
+    double bn_timing,
+    double bn_agc_ratio,
+    int ted,
+    double lock_thresh,
+    int differential
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `l` Loops to initialise. Must be non-NULL. 
+* `m` Constellation order M (2, 4, 8). 
+* `sps` Samples per symbol at the receiver's input. 
+* `lo_sps` Samples per symbol at the LO's own rate: `sps` for a complex front end, `sps/2` for a real one, whose halfband decimates before the LO. 
+* `m_out` Terminal outputs per symbol (even, &gt;= 2). 
+* `bn_carrier` Carrier loop noise bandwidth, per symbol. 
+* `zeta` Damping factor for both loops. 
+* `bn_timing` Timing loop noise bandwidth, per symbol. 
+* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL. 
+* `lock_thresh` Declare threshold for the carrier lock indicator, on the lock EMA; the drop threshold sits at MPSK\_RX\_LOCK\_DOWN x it, and both directions are verify-counted. The EMA's H0 sd is CARRIER\_NDA\_LOCK\_NORM\_SD (0.1132) for every M, so this divided by that is the threshold in noise sigmas and its per-look Pfa is Q(that) — 0.5 is 4.42 sigma, Pfa 5e-6. See [**carrier\_nda\_core.h**](carrier__nda__core_8h.md). 
+* `differential` bits(): differential (rotation-invariant) demap. 
+* `bn_agc_ratio` Scales the front end's AGC off the SLOWEST of the two loop bandwidths; must be in (0, 1). See [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_loops\_reset 
+
+_Re-seed both loops to their post-init state; keep configuration._ 
+```C++
+void dp_mpsk_rx_loops_reset (
+    mpsk_rx_loops_t * l
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_loops\_set\_state 
+
+_Restore the loops' mutable state from_ `blob` _._
+```C++
+int dp_mpsk_rx_loops_set_state (
+    mpsk_rx_loops_t * l,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if any envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_loops\_state\_bytes 
+
+_Bytes_ [_**dp\_mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_get_state) _writes._
+```C++
+size_t dp_mpsk_rx_loops_state_bytes (
+    const mpsk_rx_loops_t * l
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_set\_freq\_est 
+
+_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._
+```C++
+void dp_mpsk_rx_set_freq_est (
+    mpsk_rx_loops_t * l,
+    double val
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_set\_telemetry 
+
+_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._
+```C++
+int dp_mpsk_rx_set_telemetry (
+    mpsk_rx_loops_t * l,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_symbol\_to\_bits 
+
+_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._ 
+```C++
+int dp_mpsk_rx_symbol_to_bits (
+    mpsk_rx_loops_t * l,
+    float _Complex y,
+    uint8_t * bits
+) 
+```
+
+
+
+
+
+**Returns:**
+
+The bit count written to `bits`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mpsk\_rx\_tlm\_flush 
+
+_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._
+```C++
+void dp_mpsk_rx_tlm_flush (
+    const mpsk_rx_loops_t * l,
+    float _Complex y
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function mpsk\_rx\_agc\_bn 
 
 ```C++
@@ -218,26 +473,6 @@ JM_FORCEINLINE double mpsk_rx_agc_bn (
 
 
 
-
-<hr>
-
-
-
-### function mpsk\_rx\_config\_carrier 
-
-_(Re-)size the carrier loop filter for the tap's update rate._ 
-```C++
-void mpsk_rx_config_carrier (
-    mpsk_rx_loops_t * l
-) 
-```
-
-
-
-Called by [**mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_init), and AGAIN by each receiver's create() once the cascade has published its `bank_sps` — which arrives too late for init, so the MF\_IN tap would otherwise keep gains designed for the `lo_sps` placeholder. `integ` survives [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) by contract, and every other tap re-derives the gains it already had. 
-
-
-        
 
 <hr>
 
@@ -258,7 +493,7 @@ JM_FORCEINLINE size_t mpsk_rx_derive_m_out (
 Even by construction (the Gardner detector needs an on-time strobe and a transition gate `m_out/2` back), capped at 8 because that is where an I&D matched filter reaches the coherent bound — past it the extra outputs buy nothing. The floor matters more than the cap: at low oversampling the shipped constant 8 is simply not available, and `m_out = 2` with `pulse="iandd"` degenerates the matched filter to a two-tap sum that barely opens the eye (measured lock statistic −0.34, acquisition failing about half the time). Deriving it is what stops a caller pairing a rate and an `m_out` that cannot work together.
 
 
-**It is parameterised by the CONSTRAINT, not by the rate**, because the two twins do not share one. The complex path requires `sps >= m_out`; the real path requires `sps > 2*m_out`, strictly, because Ddcr needs a decimation ratio below 0.5. design/mpsk.md §8 states the real rule as `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds: at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8 (needs `16 > 16`) — both REJECTED by `mpsk_receiver_create_real()`. A derivation whose answer cannot be built is worse than a default, so the bound is passed in and honoured here.
+**It is parameterised by the CONSTRAINT, not by the rate**, because the two twins do not share one. The complex path requires `sps >= m_out`; the real path requires `sps > 2*m_out`, strictly, because Ddcr needs a decimation ratio below 0.5. design/mpsk.md §8 states the real rule as `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds: at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8 (needs `16 > 16`) — both REJECTED by `dp_mpsk_receiver_create_real()`. A derivation whose answer cannot be built is worse than a default, so the bound is passed in and honoured here.
 
 
 
@@ -366,195 +601,6 @@ behave identically regardless of front end" is a property of one function rather
 
 
 
-### function mpsk\_rx\_freq\_est 
-
-_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._ 
-```C++
-double mpsk_rx_freq_est (
-    const mpsk_rx_loops_t * l
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function mpsk\_rx\_loops\_get\_state 
-
-_Serialize the loops' mutable state into_ `blob` _._
-```C++
-void mpsk_rx_loops_get_state (
-    const mpsk_rx_loops_t * l,
-    void * blob
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function mpsk\_rx\_loops\_init 
-
-_Initialise the loops in place (no allocation)._ 
-```C++
-void mpsk_rx_loops_init (
-    mpsk_rx_loops_t * l,
-    int m,
-    double sps,
-    double lo_sps,
-    size_t m_out,
-    double bn_carrier,
-    double zeta,
-    double bn_timing,
-    double bn_agc_ratio,
-    int ted,
-    double lock_thresh,
-    int differential
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `l` Loops to initialise. Must be non-NULL. 
-* `m` Constellation order M (2, 4, 8). 
-* `sps` Samples per symbol at the receiver's input. 
-* `lo_sps` Samples per symbol at the LO's own rate: `sps` for a complex front end, `sps/2` for a real one, whose halfband decimates before the LO. 
-* `m_out` Terminal outputs per symbol (even, &gt;= 2). 
-* `bn_carrier` Carrier loop noise bandwidth, per symbol. 
-* `zeta` Damping factor for both loops. 
-* `bn_timing` Timing loop noise bandwidth, per symbol. 
-* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL. 
-* `lock_thresh` Declare threshold for the carrier lock indicator, on the lock EMA; the drop threshold sits at MPSK\_RX\_LOCK\_DOWN x it, and both directions are verify-counted. The EMA's H0 sd is CARRIER\_NDA\_LOCK\_NORM\_SD (0.1132) for every M, so this divided by that is the threshold in noise sigmas and its per-look Pfa is Q(that) — 0.5 is 4.42 sigma, Pfa 5e-6. See [**carrier\_nda\_core.h**](carrier__nda__core_8h.md). 
-* `differential` bits(): differential (rotation-invariant) demap. 
-* `bn_agc_ratio` Scales the front end's AGC off the SLOWEST of the two loop bandwidths; must be in (0, 1). See [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_rx\_loops\_reset 
-
-_Re-seed both loops to their post-init state; keep configuration._ 
-```C++
-void mpsk_rx_loops_reset (
-    mpsk_rx_loops_t * l
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `l` Must be non-NULL. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_rx\_loops\_set\_state 
-
-_Restore the loops' mutable state from_ `blob` _._
-```C++
-int mpsk_rx_loops_set_state (
-    mpsk_rx_loops_t * l,
-    const void * blob
-) 
-```
-
-
-
-
-
-**Returns:**
-
-DP\_OK, or DP\_ERR\_INVALID if any envelope rejects. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_rx\_loops\_state\_bytes 
-
-_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._
-```C++
-size_t mpsk_rx_loops_state_bytes (
-    const mpsk_rx_loops_t * l
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function mpsk\_rx\_set\_freq\_est 
-
-_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._
-```C++
-void mpsk_rx_set_freq_est (
-    mpsk_rx_loops_t * l,
-    double val
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function mpsk\_rx\_set\_telemetry 
-
-_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._
-```C++
-int mpsk_rx_set_telemetry (
-    mpsk_rx_loops_t * l,
-    dp_tlm_t * tlm,
-    const char * prefix,
-    uint32_t decim
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function mpsk\_rx\_steer 
 
 _Filter a carrier phase error and update_ `freq_ctrl` _._
@@ -568,35 +614,6 @@ JM_FORCEINLINE  JM_HOT void mpsk_rx_steer (
 
 
 **The negation is load-bearing.** A DDC mixes with its LO directly (`x * lo_step_ctrl(...)`), where carrier\_nda's older loop mixed with the conjugate (`x * conjf(lo_step_ctrl(...))`), so the same physical de-rotation is the opposite sign on this port. Without it the loop is positive feedback and the M-th-power S-curve's stable and unstable equilibria swap: the receiver locks _hard_ onto the half-way grid, timing and symbol count look perfect, and the only tell is the carrier lock metric sitting at a steady **negative** value (-0.48 for QPSK, where +0.62 is a real lock) while every symbol lands on a decision boundary. 
-
-
-        
-
-<hr>
-
-
-
-### function mpsk\_rx\_symbol\_to\_bits 
-
-_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._ 
-```C++
-int mpsk_rx_symbol_to_bits (
-    mpsk_rx_loops_t * l,
-    float _Complex y,
-    uint8_t * bits
-) 
-```
-
-
-
-
-
-**Returns:**
-
-The bit count written to `bits`. 
-
-
-
 
 
         
@@ -643,23 +660,6 @@ The receiver's whole per-output body, shared verbatim by the complex- and real-i
 
 
         
-
-<hr>
-
-
-
-### function mpsk\_rx\_tlm\_flush 
-
-_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._
-```C++
-void mpsk_rx_tlm_flush (
-    const mpsk_rx_loops_t * l,
-    float _Complex y
-) 
-```
-
-
-
 
 <hr>
 
@@ -816,7 +816,7 @@ the statistic be before noise alone rarely reaches it". The other half of a dete
 At 0 dB the loops are tracking — the statistic is positive throughout, and a concatenated link over that same record delivers **error-free frames** (`docs/design/fec-receive.md` §8). What refuses is the threshold.
 
 
-**So this default is an UNCODED-link indicator.** A caller running below its own SER = 1e-3 anchor — which is where forward error correction exists to put you — must not gate on `dp_mpsk_receiver_get_locked()`. Pass a threshold sized for the link, or gate on something that works there: frame synchronization, or the node-sync statistic (`node_sync_score`), which in lock reads the channel symbol error rate directly.
+**So this default is an UNCODED-link indicator.** A caller running below its own SER = 1e-3 anchor — which is where forward error correction exists to put you — must not gate on `dp_mpsk_receiver_get_locked()`. Pass a threshold sized for the link, or gate on something that works there: frame synchronization, or the node-sync statistic (`dp_node_sync_score`), which in lock reads the channel symbol error rate directly.
 
 
 doppler#835 carries the measurement and the options; nothing here has changed behaviour, because a threshold that moves silently is worse than one whose scope is written down. 

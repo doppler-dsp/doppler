@@ -113,7 +113,7 @@ extern "C"
    *
    * @endcode
    */
-  dp_interleaver_state_t *interleaver_create_rx (size_t rows, size_t cols,
+  dp_interleaver_state_t *dp_interleaver_create_rx (size_t rows, size_t cols,
                                               size_t unit_bits);
 
   /**

@@ -13,7 +13,7 @@ static void
 HalfbandDecimatorDp_dealloc (HalfbandDecimatorDpObject *self)
 {
   if (self->handle)
-    hbdecim_destroy (self->handle);
+    dp_hbdecim_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -50,15 +50,15 @@ HalfbandDecimatorDp_init (HalfbandDecimatorDpObject *self, PyObject *args,
   size_t num_taps = (size_t)PyArray_DIM (h_arr, 0);
   if (self->handle)
     {
-      hbdecim_destroy (self->handle);
+      dp_hbdecim_destroy (self->handle);
       self->handle = NULL;
     }
   self->handle
-      = hbdecim_create (num_taps, (const float *)PyArray_DATA (h_arr));
+      = dp_hbdecim_create (num_taps, (const float *)PyArray_DATA (h_arr));
   Py_DECREF (h_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "hbdecim_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_hbdecim_create returned NULL");
       return -1;
     }
   return 0;
@@ -73,7 +73,7 @@ HalfbandDecimatorDp_reset (HalfbandDecimatorDpObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  hbdecim_reset (self->handle);
+  dp_hbdecim_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -85,7 +85,7 @@ HbDecimDp_rate (HalfbandDecimatorDpObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (hbdecim_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_hbdecim_get_rate (self->handle));
 }
 
 static PyObject *
@@ -96,7 +96,7 @@ HbDecimDp_num_taps (HalfbandDecimatorDpObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (hbdecim_get_num_taps (self->handle));
+  return PyLong_FromSize_t (dp_hbdecim_get_num_taps (self->handle));
 }
 
 static PyGetSetDef HalfbandDecimatorDp_getset[]
@@ -122,7 +122,7 @@ HalfbandDecimatorDp_execute (HalfbandDecimatorDpObject *self, PyObject *args)
   if (!in_arr)
     return NULL;
   size_t         num_in   = (size_t)PyArray_SIZE (in_arr);
-  size_t         num_taps = hbdecim_get_num_taps (self->handle);
+  size_t         num_taps = dp_hbdecim_get_num_taps (self->handle);
   size_t         max_out  = (num_in + 1) / 2 + num_taps + 2;
   npy_intp       out_dim  = (npy_intp)max_out;
   PyArrayObject *out_arr
@@ -132,7 +132,7 @@ HalfbandDecimatorDp_execute (HalfbandDecimatorDpObject *self, PyObject *args)
       Py_DECREF (in_arr);
       return NULL;
     }
-  size_t n = hbdecim_execute (
+  size_t n = dp_hbdecim_execute (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), num_in,
       (float _Complex *)PyArray_DATA (out_arr), max_out);
   Py_DECREF (in_arr);
@@ -156,7 +156,7 @@ HbDecimDp_exit (HalfbandDecimatorDpObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      hbdecim_destroy (self->handle);
+      dp_hbdecim_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -196,7 +196,7 @@ static void
 HalfbandDecimatorR2C_dealloc (HalfbandDecimatorR2CObject *self)
 {
   if (self->handle)
-    hbdecim_r2c_destroy (self->handle);
+    dp_hbdecim_r2c_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -231,15 +231,16 @@ HalfbandDecimatorR2C_init (HalfbandDecimatorR2CObject *self, PyObject *args,
   size_t num_taps = (size_t)PyArray_DIM (h_arr, 0);
   if (self->handle)
     {
-      hbdecim_r2c_destroy (self->handle);
+      dp_hbdecim_r2c_destroy (self->handle);
       self->handle = NULL;
     }
   self->handle
-      = hbdecim_r2c_create (num_taps, (const float *)PyArray_DATA (h_arr));
+      = dp_hbdecim_r2c_create (num_taps, (const float *)PyArray_DATA (h_arr));
   Py_DECREF (h_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "hbdecim_r2c_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "dp_hbdecim_r2c_create returned NULL");
       return -1;
     }
   return 0;
@@ -254,7 +255,7 @@ HalfbandDecimatorR2C_reset (HalfbandDecimatorR2CObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  hbdecim_r2c_reset (self->handle);
+  dp_hbdecim_r2c_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -266,7 +267,7 @@ HbDecimR2C_rate (HalfbandDecimatorR2CObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (hbdecim_r2c_get_rate (self->handle));
+  return PyFloat_FromDouble (dp_hbdecim_r2c_get_rate (self->handle));
 }
 
 static PyObject *
@@ -278,7 +279,7 @@ HbDecimR2C_num_taps (HalfbandDecimatorR2CObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (hbdecim_r2c_get_num_taps (self->handle));
+  return PyLong_FromSize_t (dp_hbdecim_r2c_get_num_taps (self->handle));
 }
 
 static PyGetSetDef HalfbandDecimatorR2C_getset[]
@@ -306,7 +307,7 @@ HalfbandDecimatorR2C_execute (HalfbandDecimatorR2CObject *self, PyObject *args)
   if (!in_arr)
     return NULL;
   size_t         num_in   = (size_t)PyArray_SIZE (in_arr);
-  size_t         num_taps = hbdecim_r2c_get_num_taps (self->handle);
+  size_t         num_taps = dp_hbdecim_r2c_get_num_taps (self->handle);
   size_t         max_out  = (num_in + 1) / 2 + num_taps + 2;
   npy_intp       out_dim  = (npy_intp)max_out;
   PyArrayObject *out_arr
@@ -316,7 +317,7 @@ HalfbandDecimatorR2C_execute (HalfbandDecimatorR2CObject *self, PyObject *args)
       Py_DECREF (in_arr);
       return NULL;
     }
-  size_t n = hbdecim_r2c_execute (
+  size_t n = dp_hbdecim_r2c_execute (
       self->handle, (const float *)PyArray_DATA (in_arr), num_in,
       (float _Complex *)PyArray_DATA (out_arr), max_out);
   Py_DECREF (in_arr);
@@ -340,7 +341,7 @@ HbDecimR2C_exit (HalfbandDecimatorR2CObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      hbdecim_r2c_destroy (self->handle);
+      dp_hbdecim_r2c_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;

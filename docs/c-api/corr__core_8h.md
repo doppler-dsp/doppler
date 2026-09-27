@@ -59,13 +59,13 @@ _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**corr\_set\_ref**](#function-corr_set_ref) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
 |  [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* | [**dp\_corr\_create**](#function-dp_corr_create) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
 |  void | [**dp\_corr\_destroy**](#function-dp_corr_destroy) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Destroy and free a corr instance._  |
 |  size\_t | [**dp\_corr\_execute**](#function-dp_corr_execute) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the_`dwell-th` _call_`out` _is written, the accumulator is zeroed, and the counter resets; the function returns n\_out. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._ |
 |  size\_t | [**dp\_corr\_execute\_max\_out**](#function-dp_corr_execute_max_out) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Maximum output samples per execute call (== n\_out)._  |
 |  void | [**dp\_corr\_get\_state**](#function-dp_corr_get_state) (const [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, void \* blob) <br> |
-|  void | [**dp\_corr\_reset**](#function-dp_corr_reset) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans. Does NOT recompute ref\_spec; use_ [_**corr\_set\_ref()**_](corr__core_8h.md#function-corr_set_ref) _to replace the reference._ |
+|  void | [**dp\_corr\_reset**](#function-dp_corr_reset) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans. Does NOT recompute ref\_spec; use_ [_**dp\_corr\_set\_ref()**_](corr__core_8h.md#function-dp_corr_set_ref) _to replace the reference._ |
+|  void | [**dp\_corr\_set\_ref**](#function-dp_corr_set_ref) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
 |  int | [**dp\_corr\_set\_state**](#function-dp_corr_set_state) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dp\_corr\_state\_bytes**](#function-dp_corr_state_bytes) (const [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br> |
 
@@ -137,38 +137,6 @@ Thread safety: a single state must not be used concurrently from multiple thread
     
 ## Public Functions Documentation
 
-
-
-
-### function corr\_set\_ref 
-
-_Replace the reference signal and recompute conj(FFT(ref))._ 
-```C++
-void corr_set_ref (
-    dp_corr_state_t * state,
-    const float _Complex * ref
-) 
-```
-
-
-
-Also resets the accumulator and counter (as if [**dp\_corr\_reset()**](corr__core_8h.md#function-dp_corr_reset) were called). Useful when the reference must change between dwells without tearing down the FFT plans.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `ref` New reference signal of length state-&gt;n. 
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -338,7 +306,7 @@ void dp_corr_get_state (
 
 ### function dp\_corr\_reset 
 
-_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans. Does NOT recompute ref\_spec; use_ [_**corr\_set\_ref()**_](corr__core_8h.md#function-corr_set_ref) _to replace the reference._
+_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans. Does NOT recompute ref\_spec; use_ [_**dp\_corr\_set\_ref()**_](corr__core_8h.md#function-dp_corr_set_ref) _to replace the reference._
 ```C++
 void dp_corr_reset (
     dp_corr_state_t * state
@@ -361,6 +329,38 @@ void dp_corr_reset (
 0
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr\_set\_ref 
+
+_Replace the reference signal and recompute conj(FFT(ref))._ 
+```C++
+void dp_corr_set_ref (
+    dp_corr_state_t * state,
+    const float _Complex * ref
+) 
+```
+
+
+
+Also resets the accumulator and counter (as if [**dp\_corr\_reset()**](corr__core_8h.md#function-dp_corr_reset) were called). Useful when the reference must change between dwells without tearing down the FFT plans.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ref` New reference signal of length state-&gt;n. 
+
+
 
 
         

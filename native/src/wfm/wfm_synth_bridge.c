@@ -126,7 +126,7 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
       const size_t unit
           = src->interleave_unit_bits ? src->interleave_unit_bits : 1u;
       /* The data group is payload + CRC + the OUTER CODE'S CHECK SYMBOLS,
-         which is what `ccsds_tm_frame_desc_of` gives the interleave stage
+         which is what `dp_ccsds_tm_frame_desc_of` gives the interleave stage
          to cover ("payload, its CRC, and the outer code's check symbols")
          and is the only span that makes the transform mean anything: an
          interleaver exists to spread a burst across codewords, so leaving
@@ -177,7 +177,7 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
 
 /* The source's frame as a DESCRIPTION — an ADAPTER, not a second layout.
  *
- * Which stage covers what is `ccsds_tm_frame_desc_of`'s, because the covers
+ * Which stage covers what is `dp_ccsds_tm_frame_desc_of`'s, because the covers
  * are that standard's and `wfm/wfm_frame.h` deliberately knows nothing about
  * CCSDS. What is left here is this face's own decision: the DSSS preamble is
  * a field for an unspread source and is NOT one for a spread burst.
@@ -211,7 +211,7 @@ dp_wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
      struct was the one frame description every doppler face reached, which
      made a standard's vocabulary the vocabulary -- a frame doppler had
      never seen had to be spelled in CCSDS's slots or not at all.
-     `ccsds_tm` still owns the KERNELS (ccsds_tm_frame_ops) and the marker's
+     `ccsds_tm` still owns the KERNELS (dp_ccsds_tm_frame_ops) and the marker's
      expansion, which is the direction that was always right. */
 
   wfm_seq_t   seq;
@@ -223,7 +223,7 @@ dp_wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
   static uint8_t marker[CCSDS_TM_ASM_BITS];
   if (src->attach_asm)
     {
-      ccsds_tm_asm_bits (marker);
+      dp_ccsds_tm_asm_bits (marker);
       memset (&seq, 0, sizeof seq);
       seq.kind = WFM_SEQ_LITERAL;
       seq.bits = marker;
@@ -459,7 +459,7 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
      stream of frames sharing one register is a different waveform and would
      need the cycle to be a coding decision rather than a length one. */
   wfm_frame_ops_t ops;
-  ccsds_tm_frame_ops (&ops, NULL);
+  dp_ccsds_tm_frame_ops (&ops, NULL);
   if (dp_wfm_frame_assemble (&d, &ops, bits, n) != n)
     {
       free (bits);
@@ -514,7 +514,7 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   if (!chips)
     return -1;
   wfm_frame_ops_t ops;
-  ccsds_tm_frame_ops (&ops, NULL);
+  dp_ccsds_tm_frame_ops (&ops, NULL);
   /* Both codes are chips, so both are expanded here rather than in the
      description -- see seq_to_chips above for why they cannot come from it. */
   size_t   an = 0, dn = 0;

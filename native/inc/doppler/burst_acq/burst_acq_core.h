@@ -3,8 +3,8 @@
  * @brief BurstAcquisition — thin forwarder onto acq_core.c's shared engine.
  *
  * Composes dp_acq_state_t (native/inc/doppler/acq/acq_core.h) as an embedded pointer,
- * built via acq_create_burst() -- the BURST front door onto the SAME shared
- * engine `Acquisition` (acq_core.h) composes via acq_create_continuous().
+ * built via dp_acq_create_burst() -- the BURST front door onto the SAME shared
+ * engine `Acquisition` (acq_core.h) composes via dp_acq_create_continuous().
  * Every function here is a direct forward to the corresponding acq_* call;
  * the entire algorithm lives in acq_core.c exactly once (see
  * docs/design/async-dsss-receiver.md's Acquisition/BurstAcquisition split
@@ -53,7 +53,7 @@ extern "C"
 
   /**
    * @brief Create a burst-mode acquisition engine for any repeated preamble,
-   *        given as its samples (forwards to acq_create_burst() -- see its
+   *        given as its samples (forwards to dp_acq_create_burst() -- see its
    *        doc comment in acq_core.h for the full physics).
    *
    * One period of @p preamble_len complex samples at @p fs, repeated up to @p reps

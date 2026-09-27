@@ -100,7 +100,7 @@ make_codeword (const rs_t *rs, uint8_t *word, uint32_t *seed)
   const uint8_t mask = (uint8_t)((1u << rs->code.symbol_bits) - 1u);
   for (unsigned i = 0; i < rs->k; i++)
     word[i] = (uint8_t)(dp_xs32 (seed) & mask);
-  rs_encode (rs, word, word + rs->k);
+  dp_rs_encode (rs, word, word + rs->k);
 }
 
 /* Multiply in the field the code built.
@@ -127,8 +127,8 @@ gf_pow_a (const rs_t *rs, long e)
   return rs->exp[m];
 }
 
-/* Evaluate a polynomial held the way rs_generator() holds one: `c[i]` is the
-   coefficient of `x^i`. */
+/* Evaluate a polynomial held the way dp_rs_generator() holds one: `c[i]` is
+   the coefficient of `x^i`. */
 static uint8_t
 poly_eval (const rs_t *rs, const uint8_t *c, unsigned len, uint8_t x)
 {
@@ -187,47 +187,48 @@ main (void)
                     .first_root  = 1,
                     .root_stride = 1 };
 
-    DP_CHECK_MSG (rs_init (&rs, &c), "RS(15,11) must be a usable code");
+    DP_CHECK_MSG (dp_rs_init (&rs, &c), "RS(15,11) must be a usable code");
 
     /* x^4+x^3+x^2+x+1 is irreducible over GF(2) and NOT primitive: a = x has
        order 5, so it generates a subgroup of five elements and arithmetic
        over it is entirely self-consistent. Nothing but a coverage check
        catches this. */
     c.field_poly = 0x0Fu;
-    DP_CHECK_MSG (!rs_init (&rs, &c),
+    DP_CHECK_MSG (!dp_rs_init (&rs, &c),
                   "a non-primitive field polynomial must be refused");
     c.field_poly = 0x03u;
 
     /* gcd(3, 15) = 3, so a^3 has order 5 and the four "roots" are not four
        distinct roots. The code still encodes and still checks. */
     c.root_stride = 3;
-    DP_CHECK_MSG (!rs_code_valid (&c),
+    DP_CHECK_MSG (!dp_rs_code_valid (&c),
                   "a root stride sharing a factor with n must be refused");
-    DP_CHECK_MSG (!rs_init (&rs, &c), "...and rs_init must refuse it too");
+    DP_CHECK_MSG (!dp_rs_init (&rs, &c),
+                  "...and dp_rs_init must refuse it too");
     c.root_stride = 1;
 
     c.nroots = 5;
-    DP_CHECK_MSG (!rs_code_valid (&c), "an odd parity count is not 2E");
+    DP_CHECK_MSG (!dp_rs_code_valid (&c), "an odd parity count is not 2E");
     c.nroots = 16;
-    DP_CHECK_MSG (!rs_code_valid (&c),
+    DP_CHECK_MSG (!dp_rs_code_valid (&c),
                   "parity must leave room for information (nroots < n)");
     c.nroots = 4;
 
     c.symbol_bits = 9;
-    DP_CHECK_MSG (!rs_code_valid (&c), "symbols wider than a byte are out");
+    DP_CHECK_MSG (!dp_rs_code_valid (&c), "symbols wider than a byte are out");
     c.symbol_bits = 4;
 
-    DP_CHECK_MSG (rs_code_valid (&c), "...and the code is valid again");
+    DP_CHECK_MSG (dp_rs_code_valid (&c), "...and the code is valid again");
   }
 
   /* ── 1b. the sizes it derives, the range it declares, and the one thing
-   *        rs_code_valid deliberately does NOT check ────────────────────
+   *        dp_rs_code_valid deliberately does NOT check ────────────────────
    *
    * §1 walks the refusals. This walks the other side of the same door: the
    * three derived sizes every caller allocates against, the floor and the
    * ceiling of the declared range (a bound nothing constructs is a bound
    * nobody has tried), and the primitivity check the doc comment promises
-   * rs_code_valid does not make — asserted as an ACCEPT, because "does not
+   * dp_rs_code_valid does not make — asserted as an ACCEPT, because "does not
    * check" is only visible from the accepting side.
    */
   {
@@ -235,14 +236,14 @@ main (void)
       {
         const rs_code_t *code = &CODES[ci].code;
         rs_t             rs;
-        DP_REQUIRE_MSG (rs_init (&rs, code), CODES[ci].name);
+        DP_REQUIRE_MSG (dp_rs_init (&rs, code), CODES[ci].name);
 
         const unsigned n = (1u << code->symbol_bits) - 1u;
         DP_CHECK_MSG (rs.n == n, "n must be 2^J - 1");
         DP_CHECK_MSG (rs.k == n - code->nroots, "k must be n - nroots");
         DP_CHECK_MSG (rs.e == code->nroots / 2u, "E must be nroots / 2");
-        DP_CHECK_MSG (rs_generator (&rs) == rs.gen,
-                      "rs_generator must point into the code it was given");
+        DP_CHECK_MSG (dp_rs_generator (&rs) == rs.gen,
+                      "dp_rs_generator must point into the code it was given");
       }
 
     /* The declared FLOOR. J = 2 is in range, so RS(3,1) over GF(4) is a
@@ -254,18 +255,18 @@ main (void)
                                .nroots      = 2,
                                .first_root  = 1,
                                .root_stride = 1 };
-      DP_CHECK_MSG (rs_init (&rs, &tiny),
+      DP_CHECK_MSG (dp_rs_init (&rs, &tiny),
                     "the declared floor J = 2 must be a usable code");
       DP_CHECK_MSG (rs.n == 3u && rs.k == 1u && rs.e == 1u,
                     "...which is RS(3,1), correcting one symbol");
 
       uint8_t word[3] = { 2u, 0u, 0u }, before[3];
-      rs_encode (&rs, word, word + 1);
+      dp_rs_encode (&rs, word, word + 1);
       memcpy (before, word, sizeof word);
-      DP_CHECK_MSG (rs_codeword_ok (&rs, word),
+      DP_CHECK_MSG (dp_rs_codeword_ok (&rs, word),
                     "...and must encode a word its own syndromes accept");
       word[2] ^= 1u;
-      DP_CHECK_MSG (rs_decode (&rs, word) == 1
+      DP_CHECK_MSG (dp_rs_decode (&rs, word) == 1
                         && memcmp (word, before, sizeof word) == 0,
                     "...and must correct the one error it claims to");
     }
@@ -280,11 +281,12 @@ main (void)
                       .nroots      = RS_NROOTS_MAX,
                       .first_root  = 1,
                       .root_stride = 1 };
-      DP_CHECK_MSG (rs_init (&rs, &c),
+      DP_CHECK_MSG (dp_rs_init (&rs, &c),
                     "nroots = RS_NROOTS_MAX must be a usable code");
       DP_CHECK_MSG (rs.e == RS_NROOTS_MAX / 2u, "...correcting E = 32");
       c.nroots = RS_NROOTS_MAX + 2u;
-      DP_CHECK_MSG (!rs_code_valid (&c), "...and one step past it must not");
+      DP_CHECK_MSG (!dp_rs_code_valid (&c),
+                    "...and one step past it must not");
     }
 
     /* "Leaves room for at least one information symbol" — the edge is
@@ -297,10 +299,10 @@ main (void)
                       .nroots      = 14,
                       .first_root  = 1,
                       .root_stride = 1 };
-      DP_CHECK_MSG (rs_code_valid (&c),
+      DP_CHECK_MSG (dp_rs_code_valid (&c),
                     "n-1 parity symbols leave exactly one information "
                     "symbol, which is room enough");
-      DP_REQUIRE (rs_init (&rs, &c));
+      DP_REQUIRE (dp_rs_init (&rs, &c));
       DP_CHECK_MSG (rs.k == 1u, "...and that is what k = 1 means");
     }
 
@@ -313,13 +315,13 @@ main (void)
                       .nroots      = 4,
                       .first_root  = 1,
                       .root_stride = 1 };
-      DP_REQUIRE (rs_code_valid (&c));
+      DP_REQUIRE (dp_rs_code_valid (&c));
 
       c.field_poly = 0u;
-      DP_CHECK_MSG (!rs_code_valid (&c),
+      DP_CHECK_MSG (!dp_rs_code_valid (&c),
                     "an empty field polynomial is not a polynomial");
       c.field_poly = 0x02u;
-      DP_CHECK_MSG (!rs_code_valid (&c),
+      DP_CHECK_MSG (!dp_rs_code_valid (&c),
                     "F(x) with no constant term is divisible by x, so it is "
                     "not even irreducible");
       /* 0x11 and not the boundary 1<<J: 2^J is EVEN, so the constant-term
@@ -327,22 +329,23 @@ main (void)
          reject passing for the wrong reason. An odd too-wide value leaves
          exactly one rule that can refuse it. */
       c.field_poly = 0x11u;
-      DP_CHECK_MSG (!rs_code_valid (&c),
+      DP_CHECK_MSG (!dp_rs_code_valid (&c),
                     "F(x) is held without its x^J term, so it must fit in J "
                     "bits");
 
       /* The doc comment's own carve-out, from the side that can see it. */
       c.field_poly = 0x0Fu;
-      DP_CHECK_MSG (rs_code_valid (&c),
-                    "rs_code_valid does NOT check primitivity — it says so, "
-                    "because that costs the table build");
-      DP_CHECK_MSG (!rs_init (&rs, &c),
-                    "...and rs_init, which pays for the table, is where a "
+      DP_CHECK_MSG (
+          dp_rs_code_valid (&c),
+          "dp_rs_code_valid does NOT check primitivity — it says so, "
+          "because that costs the table build");
+      DP_CHECK_MSG (!dp_rs_init (&rs, &c),
+                    "...and dp_rs_init, which pays for the table, is where a "
                     "non-primitive polynomial is caught");
       c.field_poly = 0x03u;
 
       c.symbol_bits = 1;
-      DP_CHECK_MSG (!rs_code_valid (&c),
+      DP_CHECK_MSG (!dp_rs_code_valid (&c),
                     "a one-bit symbol is below the declared floor");
     }
   }
@@ -366,7 +369,7 @@ main (void)
    */
   {
     rs_t rs;
-    DP_REQUIRE (rs_init (&rs, &CODES[2].code)); /* RS(15,11), s = 1 */
+    DP_REQUIRE (dp_rs_init (&rs, &CODES[2].code)); /* RS(15,11), s = 1 */
 
     uint8_t word[RS_N_MAX] = { 0 };
     word[rs.n - 1u - 5u]   = 1u; /* x^5 */
@@ -381,7 +384,7 @@ main (void)
     DP_CHECK_MSG (vanishes,
                   "with gcd(s, n) = 3 a weight-2 word satisfies every root, "
                   "so the distance is 2 and not nroots + 1");
-    DP_CHECK_MSG (!rs_codeword_ok (&rs, word),
+    DP_CHECK_MSG (!dp_rs_codeword_ok (&rs, word),
                   "...and that same word is NOT a codeword of the accepted "
                   "stride, which is the difference the check protects");
   }
@@ -390,11 +393,11 @@ main (void)
     {
       const rs_code_t *code = &CODES[ci].code;
       rs_t             rs;
-      DP_REQUIRE_MSG (rs_init (&rs, code), CODES[ci].name);
+      DP_REQUIRE_MSG (dp_rs_init (&rs, code), CODES[ci].name);
 
       /* ── 2. g(x) vanishes at every root it claims ────────────────────── */
       {
-        const uint8_t *g   = rs_generator (&rs);
+        const uint8_t *g   = dp_rs_generator (&rs);
         int            all = 1;
         for (unsigned m = 0; m < code->nroots; m++)
           {
@@ -414,14 +417,14 @@ main (void)
 
       /* ── 2b. the parity IS the remainder modulo g(x) ─────────────────
        *
-       * The header says exactly what rs_encode computes: "the remainder of
+       * The header says exactly what dp_rs_encode computes: "the remainder of
        * info(x) * x^nroots modulo g(x), highest-order coefficient first,
        * which is the order it is transmitted in". §3 pins only that the
-       * syndromes of the result vanish — and rs_encode and rs_syndromes
+       * syndromes of the result vanish — and dp_rs_encode and dp_rs_syndromes
        * could satisfy that together while both read the wire backwards.
        *
        * So divide, by hand, in the order the header names: coefficient of
-       * x^(n-1-i) in slot i, reduced modulo the generator rs_generator()
+       * x^(n-1-i) in slot i, reduced modulo the generator dp_rs_generator()
        * publishes. Long division is the DEFINITION of the remainder, not a
        * second copy of the LFSR — and it fixes the wire order absolutely
        * rather than against another function in this same file.
@@ -431,11 +434,11 @@ main (void)
         uint8_t        work[RS_N_MAX] = { 0 };
         uint32_t       seed           = 606u + (uint32_t)ci;
         const uint8_t  mask = (uint8_t)((1u << code->symbol_bits) - 1u);
-        const uint8_t *g    = rs_generator (&rs);
+        const uint8_t *g    = dp_rs_generator (&rs);
 
         for (unsigned i = 0; i < rs.k; i++)
           info[i] = (uint8_t)(dp_xs32 (&seed) & mask);
-        rs_encode (&rs, info, parity);
+        dp_rs_encode (&rs, info, parity);
 
         /* info(x) * x^nroots: the information in the high k slots, the
            parity positions zero. */
@@ -465,18 +468,18 @@ main (void)
         make_codeword (&rs, word, &seed);
         memcpy (info, word, rs.k);
 
-        DP_CHECK_MSG (rs_codeword_ok (&rs, word),
+        DP_CHECK_MSG (dp_rs_codeword_ok (&rs, word),
                       "an encoded word must have every syndrome zero");
 
         uint8_t parity[RS_NROOTS_MAX];
-        rs_encode (&rs, info, parity);
+        dp_rs_encode (&rs, info, parity);
         DP_CHECK_MSG (memcmp (info, word, rs.k) == 0,
                       "encoding must not disturb the information symbols");
         DP_CHECK_MSG (memcmp (parity, word + rs.k, code->nroots) == 0,
                       "encoding must be a function of the information alone");
 
         word[3] ^= 0x0Bu;
-        DP_CHECK_MSG (!rs_codeword_ok (&rs, word),
+        DP_CHECK_MSG (!dp_rs_codeword_ok (&rs, word),
                       "a corrupted word must NOT pass the syndrome check");
       }
 
@@ -517,7 +520,7 @@ main (void)
 
             memcpy (rx, sent, rs.n);
             rx[i] ^= v;
-            rs_syndromes (&rs, rx, syn);
+            dp_rs_syndromes (&rs, rx, syn);
 
             for (unsigned m = 0; m < code->nroots; m++)
               {
@@ -539,8 +542,8 @@ main (void)
        * "A Reed-Solomon symbol IS a byte at J = 8, and at J < 8 it is a byte
        * with the top bits clear." The information symbols are the caller's
        * and trivially satisfy this; the claim is about what the CODEC
-       * produces — parity out of rs_encode, and repaired symbols out of
-       * rs_decode. This is vacuous at J = 8 and has teeth at J = 4 and
+       * produces — parity out of dp_rs_encode, and repaired symbols out of
+       * dp_rs_decode. This is vacuous at J = 8 and has teeth at J = 4 and
        * J = 2, which is why it runs at every configuration rather than at
        * the small one alone.
        */
@@ -556,7 +559,7 @@ main (void)
         DP_CHECK_MSG (clean, "every parity symbol must fit in J bits");
 
         inject (&rs, word, rs.e, &seed);
-        DP_CHECK_MSG (rs_decode (&rs, word) == (int)rs.e,
+        DP_CHECK_MSG (dp_rs_decode (&rs, word) == (int)rs.e,
                       "the E injected errors must be repaired, so the scan "
                       "below sees symbols the decoder wrote");
         for (unsigned i = 0; i < rs.n; i++)
@@ -586,7 +589,7 @@ main (void)
                correctable, for every error pattern, at every position. */
             memcpy (rx, sent, rs.n);
             inject (&rs, rx, rs.e, &seed);
-            const int fixed = rs_decode (&rs, rx);
+            const int fixed = dp_rs_decode (&rs, rx);
             if (fixed != (int)rs.e)
               all_counted = 0;
             if (memcmp (rx, sent, rs.n) != 0)
@@ -599,7 +602,7 @@ main (void)
                above proved nothing. */
             memcpy (rx, sent, rs.n);
             inject (&rs, rx, rs.e + 1u, &seed);
-            const int over = rs_decode (&rs, rx);
+            const int over = dp_rs_decode (&rs, rx);
             if (over < 0)
               refusals++;
             else if (memcmp (rx, sent, rs.n) == 0)
@@ -641,7 +644,7 @@ main (void)
                 memcpy (rx, sent, rs.n);
                 inject (&rs, rx, errs, &seed);
 
-                if (rs_decode (&rs, rx) != (int)errs)
+                if (dp_rs_decode (&rs, rx) != (int)errs)
                   all_counted = 0;
                 if (memcmp (rx, sent, rs.n) != 0)
                   all_fixed = 0;
@@ -667,14 +670,14 @@ main (void)
             inject (&rs, rx, errs > rs.n ? rs.n : errs, &seed);
             memcpy (before, rx, rs.n);
 
-            const int r = rs_decode (&rs, rx);
+            const int r = dp_rs_decode (&rs, rx);
             if (r < 0)
               {
                 /* A refusal must not have half-corrected anything. */
                 if (memcmp (rx, before, rs.n) != 0)
                   untouched = 0;
               }
-            else if (!rs_codeword_ok (&rs, rx))
+            else if (!dp_rs_codeword_ok (&rs, rx))
               ok = 0;
           }
         DP_CHECK_MSG (ok, "a successful decode must return a codeword");
@@ -687,7 +690,7 @@ main (void)
         uint32_t seed = 99u + (uint32_t)ci;
         make_codeword (&rs, word, &seed);
         memcpy (before, word, rs.n);
-        DP_CHECK_MSG (rs_decode (&rs, word) == 0,
+        DP_CHECK_MSG (dp_rs_decode (&rs, word) == 0,
                       "a valid codeword must report zero repairs");
         DP_CHECK_MSG (memcmp (word, before, rs.n) == 0,
                       "...and must be returned unchanged");
@@ -697,7 +700,7 @@ main (void)
   /* ── 7. RS(15,11): small enough to sweep every single error there is ─── */
   {
     rs_t rs;
-    DP_REQUIRE (rs_init (&rs, &CODES[2].code));
+    DP_REQUIRE (dp_rs_init (&rs, &CODES[2].code));
 
     uint8_t  sent[RS_N_MAX];
     uint32_t seed = 5u;
@@ -711,7 +714,7 @@ main (void)
             uint8_t rx[RS_N_MAX];
             memcpy (rx, sent, rs.n);
             rx[p] ^= d;
-            if (rs_decode (&rs, rx) != 1 || memcmp (rx, sent, rs.n) != 0)
+            if (dp_rs_decode (&rs, rx) != 1 || memcmp (rx, sent, rs.n) != 0)
               all = 0;
           }
       }
@@ -722,7 +725,7 @@ main (void)
 
   /* ── 8. the description carries no running state ──────────────────────
    *
-   * "Build it with rs_init and then treat it as read-only: it carries no
+   * "Build it with dp_rs_init and then treat it as read-only: it carries no
    * running state, and every function below takes it as const."
    *
    * `const` is a promise about a POINTER, and a cast inside the file — or a
@@ -733,14 +736,14 @@ main (void)
    * So: two independent builds of one code must be byte-identical, which is
    * what makes a caller's stack copy interchangeable with anyone else's; and
    * a full workload — encode, syndromes, a decode that corrects and a decode
-   * that refuses — must leave the description bit-for-bit as rs_init wrote
-   * it. rs_init memsets before filling, so the padding is deterministic and
+   * that refuses — must leave the description bit-for-bit as dp_rs_init wrote
+   * it. dp_rs_init memsets before filling, so the padding is deterministic and
    * a whole-struct memcmp is a fair comparison.
    */
   {
     rs_t a, b;
-    DP_REQUIRE (rs_init (&a, &CODES[1].code)); /* the CCSDS-shaped one */
-    DP_REQUIRE (rs_init (&b, &CODES[1].code));
+    DP_REQUIRE (dp_rs_init (&a, &CODES[1].code)); /* the CCSDS-shaped one */
+    DP_REQUIRE (dp_rs_init (&b, &CODES[1].code));
     DP_CHECK_MSG (memcmp (&a, &b, sizeof a) == 0,
                   "two builds of one code must be byte-identical");
 
@@ -749,14 +752,15 @@ main (void)
     uint8_t  word[RS_N_MAX], syn[RS_NROOTS_MAX];
     uint32_t seed = 31415u;
     make_codeword (&a, word, &seed);
-    rs_syndromes (&a, word, syn);
-    (void)rs_codeword_ok (&a, word);
+    dp_rs_syndromes (&a, word, syn);
+    (void)dp_rs_codeword_ok (&a, word);
 
     inject (&a, word, a.e, &seed);
-    DP_CHECK_MSG (rs_decode (&a, word) == (int)a.e, "the correcting decode");
+    DP_CHECK_MSG (dp_rs_decode (&a, word) == (int)a.e,
+                  "the correcting decode");
 
     inject (&a, word, a.n / 2u, &seed);
-    DP_CHECK_MSG (rs_decode (&a, word) < 0, "and the refusing one");
+    DP_CHECK_MSG (dp_rs_decode (&a, word) < 0, "and the refusing one");
 
     DP_CHECK_MSG (memcmp (&a, &before, sizeof a) == 0,
                   "a full workload must leave the description untouched");

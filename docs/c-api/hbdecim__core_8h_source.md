@@ -43,11 +43,11 @@ extern "C"
     float _Complex pending; /* the held even sample                  */
   } hbdecim_state_t;
 
-  hbdecim_state_t *hbdecim_create (size_t num_taps, const float *h);
+  hbdecim_state_t *dp_hbdecim_create (size_t num_taps, const float *h);
 
-  void hbdecim_destroy (hbdecim_state_t *r);
+  void dp_hbdecim_destroy (hbdecim_state_t *r);
 
-  void hbdecim_reset (hbdecim_state_t *r);
+  void dp_hbdecim_reset (hbdecim_state_t *r);
 
   /* Serializable state (reusable elastic-resume convention): the even/odd
    * dual-write delay rings, their heads, and the pending even sample.  Coeffs
@@ -57,18 +57,18 @@ extern "C"
 #define HBDECIM_STATE_MAGIC DP_FOURCC ('H', 'B', 'D', 'C')
 #define HBDECIM_STATE_VERSION 1u
 
-  size_t hbdecim_state_bytes (const hbdecim_state_t *r);
-  void hbdecim_get_state (const hbdecim_state_t *r, void *blob);
-  int hbdecim_set_state (hbdecim_state_t *r, const void *blob);
+  size_t dp_hbdecim_state_bytes (const hbdecim_state_t *r);
+  void dp_hbdecim_get_state (const hbdecim_state_t *r, void *blob);
+  int dp_hbdecim_set_state (hbdecim_state_t *r, const void *blob);
 
-  size_t hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
+  size_t dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
                           size_t num_in, float _Complex *out, size_t max_out);
 
-  double hbdecim_get_rate (const hbdecim_state_t *r);
+  double dp_hbdecim_get_rate (const hbdecim_state_t *r);
 
-  size_t hbdecim_get_num_taps (const hbdecim_state_t *r);
+  size_t dp_hbdecim_get_num_taps (const hbdecim_state_t *r);
 
-  double hbdecim_dc_gain (const hbdecim_state_t *r);
+  double dp_hbdecim_dc_gain (const hbdecim_state_t *r);
 
 #ifdef __cplusplus
 }

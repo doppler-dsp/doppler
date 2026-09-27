@@ -15,11 +15,11 @@
  *
  *   - **searching** (`get_tracking() == 0 && get_refining() == 0`):
  *     samples feed the embedded `Acquisition`. On a hit,
- *     `acq_build_handoff()` seeds the refine-stage chain (a FROZEN
+ *     `dp_acq_build_handoff()` seeds the refine-stage chain (a FROZEN
  *     carrier derotation -- `costas_wipeoff()` at the coarse estimate,
  *     `costas_update()` never called, the direct C equivalent of the
  *     Python prototype's `freeze_carrier=True` -- feeding a collection
- *     `Dll` whose `dll_lookback_segments(refine_max_error_db)` windows
+ *     `Dll` whose `dp_dll_lookback_segments(refine_max_error_db)` windows
  *     OVERSAMPLE each epoch with coherent integrate-and-dump dumps -- the
  *     asynchronous data's residual carrier rides a ~symbol_rate-wide
  *     spectrum that a single per-epoch dump would undersample and alias
@@ -65,14 +65,14 @@
  *     and not acted on. `lost_confirm_s = 0` (the searching flavor's
  *     default) never enters it. While the confirm interval runs -- both
  *     flags down after a lock -- the loops HOLD what they settled on with
- *     both flags up rather than run on noise (dll_set_coast(); design
+ *     both flags up rather than run on noise (dp_dll_set_coast(); design
  *     section 10, section 12.19, doppler#1271): a departed emitter's
  *     receiver stands where the emitter left it, and neither sweeps onto
  *     a neighbour's code nor restarts its release clock on one it
  *     followed. One flag down is a degrade and the loops run, which is
  *     what rides out two live emitters crossing each other's code phase.
  *
- * **Cell mode** (`async_dsss_receiver_create_cell()`) is the same object
+ * **Cell mode** (`dp_async_dsss_receiver_create_cell()`) is the same object
  * with NO embedded `Acquisition` and no refine chain: the search is
  * somebody else's -- a searcher covering one channel for every emitter on
  * it -- and the receiver takes its detection from outside through
@@ -190,7 +190,7 @@ extern "C"
  *  per sample over its one-code-period update (`m = 2`, the squaring
  *  discriminator), `native/validation/costas_pullin.c`'s measured 100%
  *  line -- reliable to twice it, dead by four. A seed with no refine
- *  behind it (the cell mode, async_dsss_receiver_create_cell()) must land
+ *  behind it (the cell mode, dp_async_dsss_receiver_create_cell()) must land
  *  inside it: the holder that seeds from a searcher's row checks the row
  *  against this (dp_async_dsss_pool_create()). 97.8 Hz at 5 Mcps over
  *  Gold-1023. */
@@ -225,7 +225,7 @@ extern "C"
  *  dwell (77 Hz of estimate noise at 45 dB-Hz); see
  *  dp_async_dsss_receiver_set_refine_min_blocks(). */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
-/* The cell mode's defaults (async_dsss_receiver_create_cell(), design
+/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(), design
  * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
  * chips, on the coasting Dll's interval-mean discriminator, and the
  * intervals at gain 1 that pull the seed's residual in. */
@@ -261,7 +261,7 @@ extern "C"
   typedef struct
   {
     dp_acq_state_t *acq; /**< The embedded search; NULL in cell mode
-                           (async_dsss_receiver_create_cell()), where
+                           (dp_async_dsss_receiver_create_cell()), where
                            the seed comes from outside. */
 
     /* Refine stage: a frozen-carrier collection Dll feeding
@@ -271,7 +271,7 @@ extern "C"
     dp_dll_state_t           *refine_dll;
     dp_RateConverter_state_t *refine_rc;
     dp_carrier_acq_state_t   *ca;
-    size_t refine_segments; /**< dll_lookback_segments() result, cached at
+    size_t refine_segments; /**< dp_dll_lookback_segments() result, cached at
                                   the hit that (re)built the refine chain
                                   -- config for refine_dll's own layout,
                                   needed again by set_state's check. */
@@ -289,7 +289,7 @@ extern "C"
     float _Complex *refine_rc_out_buf;
     size_t         refine_rc_out_cap;
 
-    /* Track stage: DsssReceiver's own composition. costas_init()'s tsamps is
+    /* Track stage: DsssReceiver's own composition. dp_costas_init()'s tsamps is
      * one whole code period, and the pre-despread carrier loop updates once
      * per period from a non-data-aided (squaring) combine of that period's
      * coherent-I&D partials (see adr_track_period() in the .c file). */
@@ -316,7 +316,7 @@ extern "C"
     size_t         car_carry_len;
 
     /* Own copy of the spreading code (same rationale as DsssReceiver's
-     * own copy -- neither acq_create_continuous() nor dp_dll_create()'s
+     * own copy -- neither dp_acq_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
     uint8_t *code;
     size_t   code_len;
@@ -327,7 +327,7 @@ extern "C"
     int    differential;
     size_t segments; /**< Live-tracking Dll's own segments -- distinct
                            from refine_segments above (see the module
-                           docstring / dll_lookback_segments()'s own doc
+                           docstring / dp_dll_lookback_segments()'s own doc
                            on the WINDOWS vs TRACK_WINDOWS split). */
     size_t sps;      /**< MpskReceiver's own samples/symbol.             */
     int    n;        /**< MpskReceiver's own carrier-arm count.          */
@@ -373,7 +373,7 @@ extern "C"
     int      had_lock;             /**< Running: both lock flags have been
                                         up since the hand-over. After that
                                         both down holds both loops
-                                        (dll_set_coast, the carrier's own
+                                        (dp_dll_set_coast, the carrier's own
                                         hold) so a departed emitter's
                                         receiver cannot free-run onto a
                                         neighbour's code (#1271).        */
@@ -382,7 +382,7 @@ extern "C"
                                         symbol-locked period, restored on
                                         entering the hold.                */
 
-    /* The cell mode (async_dsss_receiver_create_cell()): the receiver a
+    /* The cell mode (dp_async_dsss_receiver_create_cell()): the receiver a
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
      * gain times what its discriminator read (design section 12.22-12.24);
@@ -478,7 +478,7 @@ extern "C"
    *                                   correlation-power loss driving the
    *                                   refine-stage collection Dll's
    *                                   coherent-I&D window count via
-   *                                   dll_lookback_segments(). Oversampling
+   *                                   dp_dll_lookback_segments(). Oversampling
    *                                   the epoch is required for the
    *                                   asynchronous data: the residual
    *                                   carrier rides a ~symbol_rate-wide
@@ -674,7 +674,7 @@ extern "C"
    *
    * @endcode
    */
-  dp_async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_cell (
       const uint8_t *code, size_t code_len, double chip_rate,
       double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
       double pd, size_t segments, size_t sps, int differential,

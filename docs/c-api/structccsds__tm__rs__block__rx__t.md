@@ -8,7 +8,7 @@
 
 
 
-_What_ [_**ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-ccsds_tm_rs_decode_block) _found in one codeblock._[More...](#detailed-description)
+_What_ [_**dp\_ccsds\_tm\_rs\_decode\_block**_](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_decode_block) _found in one codeblock._[More...](#detailed-description)
 
 * `#include <ccsds_tm_rs.h>`
 

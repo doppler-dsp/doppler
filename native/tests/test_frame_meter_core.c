@@ -15,8 +15,8 @@
  *     too short at this Es/N0" and "the demodulator makes bit errors" are
  *     different repairs.
  *
- * The interval itself is `ber_confidence`, already pinned where it lives; what
- * is checked here is that this meter hands it the right two numbers.
+ * The interval itself is `dp_ber_confidence`, already pinned where it lives;
+ * what is checked here is that this meter hands it the right two numbers.
  */
 #include "doppler/frame_meter/frame_meter_core.h"
 #include "dp_state_test.h"
@@ -85,9 +85,9 @@ main (void)
     DP_REQUIRE_MSG (dp_frame_meter_get_enough (m), "10 errors is enough");
 
     /* `enough` is about ERRORS, not frames -- that is the whole point of the
-       stopping rule, and it is what makes ber_confidence's interval the right
-       one. A meter that stopped on frames would have precision that depended
-       on the rate it was measuring. */
+       stopping rule, and it is what makes dp_ber_confidence's interval the
+       right one. A meter that stopped on frames would have precision that
+       depended on the rate it was measuring. */
     dp_frame_meter_reset (m);
     for (int i = 0; i < 10000; i++)
       dp_frame_meter_add (m, 1, 1);

@@ -694,9 +694,9 @@ class FrameMeter:
         detected counts as an error -- a frame you did not detect is a frame
         you did not deliver.
 
-        `ber_confidence(errors, frames, conf)` — the same interval `ber_meter`
-        reports, which is generic over trials and therefore applies to frames
-        unchanged. Assert on `lo`, never on `p_hat`.
+        `dp_ber_confidence(errors, frames, conf)` — the same interval
+        `ber_meter` reports, which is generic over trials and therefore applies
+        to frames unchanged. Assert on `lo`, never on `p_hat`.
 
         Returns
         -------
@@ -727,7 +727,7 @@ class FrameMeter:
         Reported as a miss rate rather than a detection rate so it is an ERROR
         rate like every other number here, and so the same interval applies
         without reinterpretation. **This is what turns "is this sync word long
-        enough at this Es/N0" into a measurement** — `ber_align_detect()`
+        enough at this Es/N0" into a measurement** — `dp_ber_align_detect()`
         already returns `margin_db` and `runner_db` per attempt, and
         accumulating the decisions is what answers the question with a number.
 

@@ -65,7 +65,7 @@ extern "C"
 
   /* ── free functions: theory and windows ───────────────────────────────── */
 
-  double ber_qfunc (double x);
+  double dp_ber_qfunc (double x);
 
   double dp_ber_theory_ser (int m, double esn0);
 
@@ -85,7 +85,7 @@ extern "C"
 
   size_t dp_ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
 
-  ber_interval_t ber_confidence (size_t errors, size_t symbols, double conf);
+  ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
 #ifdef __cplusplus
 }

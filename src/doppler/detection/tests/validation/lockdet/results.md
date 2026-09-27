@@ -102,7 +102,7 @@ Verify counts of zero clamp to 1 at construction — a count of 0 is never a mea
 
 - **F5 · BY DESIGN** — **An inverted band is not refused.** `down_thresh > up_thresh` is documented only as advice, and produces the opposite of hysteresis: a look between the thresholds is a hit while unlocked AND a miss while locked, so with unit verify counts the flag chatters every look. Pinned in `test_lockdet_core.c` rather than rejected, because it is the misconfiguration a caller can reach and silent chatter is worth being able to recognise.
 
-- **F6 · C-ONLY** — **The by-value embedding path has no Python face.** Seven objects embed a `dp_lockdet_state_t` directly and drive it with `lockdet_init`/`dp_lockdet_step`; the binding exposes only the heap instance. That is correct — an embedded detector belongs to its owner — but it means this report cannot cover the path most of the library actually takes, and the C test is the only evidence for it.
+- **F6 · C-ONLY** — **The by-value embedding path has no Python face.** Seven objects embed a `dp_lockdet_state_t` directly and drive it with `dp_lockdet_init`/`dp_lockdet_step`; the binding exposes only the heap instance. That is correct — an embedded detector belongs to its owner — but it means this report cannot cover the path most of the library actually takes, and the C test is the only evidence for it.
 
 ## 4. Limits — the certified envelope
 

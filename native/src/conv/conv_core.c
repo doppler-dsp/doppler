@@ -2,7 +2,7 @@
  * conv_core.c — convolutional codes: the description, the encoder, and the
  * Viterbi decoder that reads the same description.
  *
- * Both directions go through conv_outputs(), which is the only place in the
+ * Both directions go through dp_conv_outputs(), which is the only place in the
  * tree that says what this family of codes emits. See conv_core.h.
  */
 #include "doppler/conv/conv_core.h"
@@ -25,7 +25,7 @@ parity32 (uint32_t v)
 }
 
 int
-conv_code_valid (const conv_code_t *c)
+dp_conv_code_valid (const conv_code_t *c)
 {
   if (c == NULL || c->k < 2u || c->k > CONV_K_MAX || c->n < 1u
       || c->n > CONV_N_MAX)
@@ -42,7 +42,7 @@ conv_code_valid (const conv_code_t *c)
 }
 
 unsigned
-conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit)
+dp_conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit)
 {
   const uint32_t reg = ((bit & 1u) << (c->k - 1u)) | state;
   unsigned       w   = 0;
@@ -54,23 +54,23 @@ conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit)
 }
 
 void
-conv_enc_init (conv_enc_t *s)
+dp_conv_enc_init (conv_enc_t *s)
 {
   s->reg = 0u;
 }
 
 size_t
-conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
-             size_t n_in, uint8_t *out, size_t max_out)
+dp_conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
+                size_t n_in, uint8_t *out, size_t max_out)
 {
-  if (!conv_code_valid (c) || max_out < n_in * (size_t)c->n)
+  if (!dp_conv_code_valid (c) || max_out < n_in * (size_t)c->n)
     return 0;
 
   const uint32_t mask = conv_states (c) - 1u;
   for (size_t i = 0; i < n_in; i++)
     {
       const unsigned b = in[i] & 1u;
-      const unsigned w = conv_outputs (c, s->reg & mask, b);
+      const unsigned w = dp_conv_outputs (c, s->reg & mask, b);
       for (unsigned j = 0; j < c->n; j++)
         out[i * c->n + j] = (uint8_t)((w >> j) & 1u);
       s->reg = conv_next_state (c, s->reg & mask, b);

@@ -19,8 +19,8 @@
  *   - the ASM, byte for byte, as figure 9-1 prints it;
  *   - the randomiser's published 40-bit prefix, positioned AFTER the marker,
  *     which fails in both halves if the randomiser reached back over it;
- *   - ccsds_tm_rs_codeword_ok, the syndrome check, which needs no decoder and
- *     fails if the marker was ever presented to the R-S encoder;
+ *   - dp_ccsds_tm_rs_codeword_ok, the syndrome check, which needs no decoder
+ * and fails if the marker was ever presented to the R-S encoder;
  *   - and, for the inner code, a CADU rebuilt here from the published marker
  *     and the published sequence, then convolutionally encoded. That last one
  *     composes kernels this file does not own, but every one of them is
@@ -49,7 +49,7 @@ static const uint8_t asm_published[32] = {
 
 /* 131.0-B-6 10.4.3 note 2, the printed prefix of the DEFAULT pseudo-random
  * sequence -- 10.4.1's 131071-bit generator, not the 255-bit one B-6 keeps
- * for legacy systems. The assembler applies whichever ccsds_tm_randomise
+ * for legacy systems. The assembler applies whichever dp_ccsds_tm_randomise
  * applies, so this is also what pins WHICH randomiser the frame path used. */
 static const uint8_t rand_published40[40] = {
   0, 0, 0, 1, 1, 1, 0, 0, /* 1C */
@@ -83,7 +83,7 @@ main (void)
     };
     ccsds_tm_frame_layout_t lay;
     const size_t            n
-        = ccsds_tm_frame_layout (&cfg, (size_t)CCSDS_TM_RS_K * 5, &lay);
+        = dp_ccsds_tm_frame_layout (&cfg, (size_t)CCSDS_TM_RS_K * 5, &lay);
 
     DP_REQUIRE_MSG (n == (32u + 255u * 5u * 8u) * 2u,
                     "concatenated depth 5: (ASM + codeblock) * 2 symbols");
@@ -124,8 +124,8 @@ main (void)
     };
     uint8_t      frame[64] = { 0 };
     uint8_t      out[32 + 64 * 8];
-    const size_t n = ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
-                                            out, sizeof out);
+    const size_t n = dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
+                                               out, sizeof out);
 
     DP_REQUIRE (n == sizeof out);
     DP_CHECK_MSG (memcmp (out, asm_published, sizeof asm_published) == 0,
@@ -150,8 +150,8 @@ main (void)
       frame[i] = (uint8_t)(i * 7u + 1u);
 
     uint8_t      out[32 + CCSDS_TM_RS_N * 8];
-    const size_t n = ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
-                                            out, sizeof out);
+    const size_t n = dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
+                                               out, sizeof out);
     DP_REQUIRE (n == sizeof out);
 
     /* The information section is systematic and unrandomised here, so it is
@@ -165,14 +165,14 @@ main (void)
        put it. Taken from the right place it is a codeword... */
     uint8_t word[CCSDS_TM_RS_N];
     pack (out + 32, sizeof word, word);
-    DP_CHECK_MSG (ccsds_tm_rs_codeword_ok (word),
+    DP_CHECK_MSG (dp_ccsds_tm_rs_codeword_ok (word),
                   "the 255 symbols behind the ASM must form a codeword");
 
     /* ...and taken from the marker it is not, which is exactly the block an
        assembler that fed the ASM to the outer encoder would have built. */
     uint8_t shifted[CCSDS_TM_RS_N];
     pack (out, sizeof shifted, shifted);
-    DP_CHECK_MSG (!ccsds_tm_rs_codeword_ok (shifted),
+    DP_CHECK_MSG (!dp_ccsds_tm_rs_codeword_ok (shifted),
                   "255 symbols starting AT the ASM must not be a codeword");
   }
 
@@ -183,20 +183,21 @@ main (void)
     };
     uint8_t      frame[32] = { 0 };
     uint8_t      out[(32 + 32 * 8) * 2];
-    const size_t n = ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
-                                            out, sizeof out);
+    const size_t n = dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
+                                               out, sizeof out);
     DP_REQUIRE (n == sizeof out);
 
     /* Rebuild the CADU from published pieces: the marker as figure 9-1
        prints it, then the sequence, which is what randomising zeros gives. */
     uint8_t cadu[32 + 32 * 8];
     memcpy (cadu, asm_published, sizeof asm_published);
-    ccsds_tm_rand_seq (cadu + 32, 32 * 8);
+    dp_ccsds_tm_rand_seq (cadu + 32, 32 * 8);
 
     uint8_t    want[(32 + 32 * 8) * 2];
     conv_enc_t s;
-    conv_enc_init (&s);
-    conv_encode (&s, &CCSDS_TM_CONV, cadu, sizeof cadu, want, sizeof want);
+    dp_conv_enc_init (&s);
+    dp_conv_encode (&s, &dp_CCSDS_TM_CONV, cadu, sizeof cadu, want,
+                    sizeof want);
 
     DP_CHECK_MSG (memcmp (out, want, sizeof want) == 0,
                   "the whole CADU, marker included, must be inner-encoded");
@@ -223,8 +224,8 @@ main (void)
       frame[i] = (uint8_t)(i * 31u + 11u);
     uint8_t out[32 + CCSDS_TM_RS_N * 5 * 8];
 
-    const size_t n = ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
-                                            out, sizeof out);
+    const size_t n = dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
+                                               out, sizeof out);
     DP_REQUIRE (n == sizeof out);
     DP_CHECK_MSG (memcmp (out, asm_published, sizeof asm_published) == 0,
                   "a fully concatenated CADU still opens with the marker");
@@ -232,7 +233,7 @@ main (void)
     /* Derandomise the block — and only the block, which is the receiving
        end of 10.3.4: "after locating the ASM, the data immediately
        following the ASM shall be derandomized". */
-    ccsds_tm_randomise (out + 32, (size_t)CCSDS_TM_RS_N * depth * 8u);
+    dp_ccsds_tm_randomise (out + 32, (size_t)CCSDS_TM_RS_N * depth * 8u);
 
     uint8_t blk[CCSDS_TM_RS_N * 5];
     pack (out + 32, sizeof blk, blk);
@@ -247,7 +248,7 @@ main (void)
           word[i] = blk[i * depth + e];
         for (unsigned p = 0; p < CCSDS_TM_RS_2E; p++)
           word[CCSDS_TM_RS_K + p] = blk[CCSDS_TM_RS_K * depth + p * depth + e];
-        if (!ccsds_tm_rs_codeword_ok (word))
+        if (!dp_ccsds_tm_rs_codeword_ok (word))
           all_ok = 0;
       }
     DP_CHECK_MSG (all_ok, "every de-interleaved codeword must have zero "
@@ -260,7 +261,7 @@ main (void)
     const uint8_t              frame[2] = { 0x1Au, 0xCFu };
     uint8_t                    out[16];
     const size_t               n
-        = ccsds_tm_frame_encode (&cfg, NULL, frame, 2, out, sizeof out);
+        = dp_ccsds_tm_frame_encode (&cfg, NULL, frame, 2, out, sizeof out);
 
     DP_REQUIRE (n == 16);
     DP_CHECK_MSG (memcmp (out, asm_published, 16) == 0,
@@ -279,8 +280,8 @@ main (void)
                                             .attach_asm    = 1,
                                             .convolutional = 1 };
         const size_t               want = (32u + 255u * depths[i] * 8u) * 2u;
-        if (ccsds_tm_frame_layout (&cfg, (size_t)CCSDS_TM_RS_K * depths[i],
-                                   NULL)
+        if (dp_ccsds_tm_frame_layout (&cfg, (size_t)CCSDS_TM_RS_K * depths[i],
+                                      NULL)
             != want)
           sizes_ok = 0;
       }
@@ -294,24 +295,24 @@ main (void)
     memset (out, 0xAAu, sizeof out);
 
     const ccsds_tm_frame_cfg_t d7 = { .rs_depth = 7 };
-    DP_CHECK_MSG (ccsds_tm_frame_layout (&d7, (size_t)CCSDS_TM_RS_K * 7, NULL)
-                      == 0,
-                  "4.3.5.1 allows 1, 2, 3, 4, 5 and 8 — not 7");
+    DP_CHECK_MSG (
+        dp_ccsds_tm_frame_layout (&d7, (size_t)CCSDS_TM_RS_K * 7, NULL) == 0,
+        "4.3.5.1 allows 1, 2, 3, 4, 5 and 8 — not 7");
 
     const ccsds_tm_frame_cfg_t d3 = { .rs_depth = 3 };
-    DP_CHECK_MSG (ccsds_tm_frame_layout (&d3, (size_t)CCSDS_TM_RS_K * 2, NULL)
-                      == 0,
-                  "a frame that is not K*I octets must be refused, not "
-                  "padded — virtual fill is not implemented");
-    DP_CHECK_MSG (ccsds_tm_frame_encode (&d3, NULL, frame,
-                                         (size_t)CCSDS_TM_RS_K * 2, out,
-                                         sizeof out)
+    DP_CHECK_MSG (
+        dp_ccsds_tm_frame_layout (&d3, (size_t)CCSDS_TM_RS_K * 2, NULL) == 0,
+        "a frame that is not K*I octets must be refused, not "
+        "padded — virtual fill is not implemented");
+    DP_CHECK_MSG (dp_ccsds_tm_frame_encode (&d3, NULL, frame,
+                                            (size_t)CCSDS_TM_RS_K * 2, out,
+                                            sizeof out)
                       == 0,
                   "encode must refuse whatever layout refuses");
 
     const ccsds_tm_frame_cfg_t none = { 0 };
-    DP_CHECK (ccsds_tm_frame_layout (&none, 0, NULL) == 0);
-    DP_CHECK (ccsds_tm_frame_encode (&none, NULL, frame, 0, out, sizeof out)
+    DP_CHECK (dp_ccsds_tm_frame_layout (&none, 0, NULL) == 0);
+    DP_CHECK (dp_ccsds_tm_frame_encode (&none, NULL, frame, 0, out, sizeof out)
               == 0);
 
     int untouched = 1;
@@ -327,10 +328,10 @@ main (void)
     const ccsds_tm_frame_cfg_t ok1 = { .rs_depth = 1, .attach_asm = 1 };
     uint8_t                    room[32 + 255 * 8];
     memset (room, 0xAAu, sizeof room);
-    const size_t need = ccsds_tm_frame_layout (&ok1, CCSDS_TM_RS_K, NULL);
+    const size_t need = dp_ccsds_tm_frame_layout (&ok1, CCSDS_TM_RS_K, NULL);
     DP_REQUIRE (need == sizeof room);
-    DP_CHECK_MSG (ccsds_tm_frame_encode (&ok1, NULL, frame, CCSDS_TM_RS_K,
-                                         room, need - 1u)
+    DP_CHECK_MSG (dp_ccsds_tm_frame_encode (&ok1, NULL, frame, CCSDS_TM_RS_K,
+                                            room, need - 1u)
                       == 0,
                   "a buffer one symbol short must be refused, not written");
     for (size_t i = 0; i < sizeof room; i++)
@@ -338,7 +339,7 @@ main (void)
         untouched = 0;
     DP_CHECK_MSG (untouched, "and it must not have written anything");
     DP_CHECK (
-        ccsds_tm_frame_encode (&ok1, NULL, frame, CCSDS_TM_RS_K, room, need)
+        dp_ccsds_tm_frame_encode (&ok1, NULL, frame, CCSDS_TM_RS_K, room, need)
         == need);
   }
 
@@ -372,8 +373,8 @@ main (void)
         b[i] = (uint8_t)(i * 31u + 5u);
       }
 
-    const size_t nsym = ccsds_tm_frame_layout (&coded, flen, NULL);
-    const size_t ncad = ccsds_tm_frame_layout (&bare, flen, NULL);
+    const size_t nsym = dp_ccsds_tm_frame_layout (&coded, flen, NULL);
+    const size_t ncad = dp_ccsds_tm_frame_layout (&bare, flen, NULL);
     DP_REQUIRE (nsym == 2u * ncad);
 
     static uint8_t carried[2 * (32 + 255 * 8) * 2];
@@ -383,18 +384,18 @@ main (void)
 
     /* (1) a transmitter's loop, carrying the register */
     conv_enc_t s;
-    conv_enc_init (&s);
-    ccsds_tm_frame_encode (&coded, &s, a, flen, carried, nsym);
-    ccsds_tm_frame_encode (&coded, &s, b, flen, carried + nsym, nsym);
+    dp_conv_enc_init (&s);
+    dp_ccsds_tm_frame_encode (&coded, &s, a, flen, carried, nsym);
+    dp_ccsds_tm_frame_encode (&coded, &s, b, flen, carried + nsym, nsym);
 
     /* (2) the same two CADUs as ONE continuous encode — the external truth,
            built from the uncoded assembler and the kernel, neither of which
            knows anything about frames */
-    ccsds_tm_frame_encode (&bare, NULL, a, flen, cadu, ncad);
-    ccsds_tm_frame_encode (&bare, NULL, b, flen, cadu + ncad, ncad);
+    dp_ccsds_tm_frame_encode (&bare, NULL, a, flen, cadu, ncad);
+    dp_ccsds_tm_frame_encode (&bare, NULL, b, flen, cadu + ncad, ncad);
     conv_enc_t t;
-    conv_enc_init (&t);
-    conv_encode (&t, &CCSDS_TM_CONV, cadu, 2u * ncad, cont, sizeof cont);
+    dp_conv_enc_init (&t);
+    dp_conv_encode (&t, &dp_CCSDS_TM_CONV, cadu, 2u * ncad, cont, sizeof cont);
 
     DP_CHECK_MSG (memcmp (carried, cont, 2u * nsym) == 0,
                   "3.3.2: a stream of frames must equal one continuous "
@@ -402,8 +403,8 @@ main (void)
 
     /* (3) and NULL is the single-frame form, which restarts — measured, so
            the cost of getting this wrong is a number in the record */
-    ccsds_tm_frame_encode (&coded, NULL, a, flen, restart, nsym);
-    ccsds_tm_frame_encode (&coded, NULL, b, flen, restart + nsym, nsym);
+    dp_ccsds_tm_frame_encode (&coded, NULL, a, flen, restart, nsym);
+    dp_ccsds_tm_frame_encode (&coded, NULL, b, flen, restart + nsym, nsym);
     DP_CHECK_MSG (memcmp (restart, cont, nsym) == 0,
                   "frame 1 is identical either way — only the seam moves");
 
@@ -429,8 +430,9 @@ main (void)
    *
    * A round trip is weak evidence on its own -- it is what this whole slice
    * refuses to rely on -- so it is not the claim here. The claim is that
-   * `ccsds_tm_frame_decode` reads the same span table `ccsds_tm_frame_encode`
-   * wrote, and the checks below are chosen to fail if it does not:
+   * `dp_ccsds_tm_frame_decode` reads the same span table
+   * `dp_ccsds_tm_frame_encode` wrote, and the checks below are chosen to fail
+   * if it does not:
    *
    *   - the payload is ZEROS, so a decoder that skipped the randomiser
    *     returns the sequence instead of the frame, loudly (a PN payload
@@ -445,13 +447,13 @@ main (void)
       .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
     };
     ccsds_tm_frame_layout_t lay;
-    const size_t n = ccsds_tm_frame_layout (&cfg, CCSDS_TM_RS_K * 5, &lay);
+    const size_t n = dp_ccsds_tm_frame_layout (&cfg, CCSDS_TM_RS_K * 5, &lay);
     DP_REQUIRE (n != 0 && n == lay.cadu_bits);
 
     static uint8_t frame[CCSDS_TM_RS_K * 5] = { 0 };
     static uint8_t cadu[(32 + CCSDS_TM_RS_N * 5 * 8)];
-    DP_REQUIRE (ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame, cadu,
-                                       sizeof cadu)
+    DP_REQUIRE (dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
+                                          cadu, sizeof cadu)
                 == lay.cadu_bits);
 
     /* Nothing after this point may depend on the marker's contents. */
@@ -461,8 +463,8 @@ main (void)
     static uint8_t      back[CCSDS_TM_RS_K * 5];
     ccsds_tm_frame_rx_t rx = { 999u, 999u, 999u, 999u, 999u };
     memset (back, 0xAA, sizeof back);
-    DP_REQUIRE (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                       sizeof back, &rx)
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                          sizeof back, &rx)
                 == sizeof back);
     DP_CHECK_MSG (memcmp (back, frame, sizeof frame) == 0,
                   "the decoder must recover the frame from behind a marker "
@@ -492,20 +494,21 @@ main (void)
       .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
     };
     ccsds_tm_frame_layout_t lay;
-    ccsds_tm_frame_layout (&cfg, CCSDS_TM_RS_K * 5, &lay);
+    dp_ccsds_tm_frame_layout (&cfg, CCSDS_TM_RS_K * 5, &lay);
 
     static uint8_t frame[CCSDS_TM_RS_K * 5];
     static uint8_t cadu[(32 + CCSDS_TM_RS_N * 5 * 8)];
     static uint8_t back[CCSDS_TM_RS_K * 5];
     for (size_t i = 0; i < sizeof frame; i++)
       frame[i] = (uint8_t)(i * 37u + 11u);
-    ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame, cadu, sizeof cadu);
+    dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame, cadu,
+                              sizeof cadu);
 
     /* Clean first: with columns that differ, this is what fails the moment
        the de-interleave rotates. */
     ccsds_tm_frame_rx_t rx = { 0, 0, 0, 0, 0 };
-    DP_REQUIRE (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                       sizeof back, &rx)
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                          sizeof back, &rx)
                 == sizeof back);
     DP_CHECK_MSG (memcmp (back, frame, sizeof frame) == 0,
                   "structured data must round-trip byte for byte");
@@ -516,8 +519,8 @@ main (void)
     /* Symbol index 2 of the block is codeword 2 at depth 5 (S1 hands encoder
        e every 5th symbol starting at e). Its first bit is block bit 16. */
     cadu[lay.randomised.first + 16u] ^= 1u;
-    DP_REQUIRE (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                       sizeof back, &rx)
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                          sizeof back, &rx)
                 == sizeof back);
     DP_CHECK_MSG (rx.rs_codewords == 5u && rx.rs_ok == 5u,
                   "one damaged symbol must be REPAIRED, not just reported");
@@ -533,8 +536,8 @@ main (void)
        past it. */
     for (unsigned s = 0; s < 5u * CCSDS_TM_RS_E; s++)
       cadu[lay.randomised.first + (size_t)s * 8u] ^= 1u;
-    DP_REQUIRE (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                       sizeof back, &rx)
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                          sizeof back, &rx)
                 == sizeof back);
     DP_CHECK_MSG (rx.rs_ok == 5u && rx.rs_corrected == 5u
                       && rx.rs_symbols == 5u * CCSDS_TM_RS_E,
@@ -549,8 +552,8 @@ main (void)
        cannot vouch for -- the counts are the caller's protection. */
     for (unsigned c = 0; c <= CCSDS_TM_RS_E; c++)
       cadu[lay.randomised.first + ((size_t)c * 5u + 2u) * 8u] ^= 1u;
-    DP_REQUIRE (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                       sizeof back, &rx)
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                          sizeof back, &rx)
                 == sizeof back);
     DP_CHECK_MSG (rx.rs_codewords == 5u && rx.rs_ok == 4u,
                   "E+1 errors in one column must leave that codeword bad");
@@ -570,14 +573,14 @@ main (void)
     uint8_t                 back[64];
     ccsds_tm_frame_rx_t     rx = { 0, 9u, 9u, 9u, 9u };
 
-    ccsds_tm_frame_layout (&cfg, sizeof frame, &lay);
+    dp_ccsds_tm_frame_layout (&cfg, sizeof frame, &lay);
     for (size_t i = 0; i < sizeof frame; i++)
       frame[i] = (uint8_t)(i * 7u + 3u);
-    DP_REQUIRE (ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame, cadu,
-                                       sizeof cadu)
+    DP_REQUIRE (dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame,
+                                          cadu, sizeof cadu)
                 == lay.cadu_bits);
-    DP_REQUIRE (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                       sizeof back, &rx)
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                          sizeof back, &rx)
                 == sizeof frame);
     DP_CHECK (memcmp (back, frame, sizeof frame) == 0);
     DP_CHECK_MSG (rx.rs_codewords == 0u && rx.rs_ok == 0u,
@@ -590,24 +593,25 @@ main (void)
       .rs_depth = 5, .randomise = 1, .attach_asm = 1, .convolutional = 0
     };
     ccsds_tm_frame_layout_t lay;
-    ccsds_tm_frame_layout (&cfg, CCSDS_TM_RS_K * 5, &lay);
+    dp_ccsds_tm_frame_layout (&cfg, CCSDS_TM_RS_K * 5, &lay);
 
     static uint8_t frame[CCSDS_TM_RS_K * 5] = { 0 };
     static uint8_t cadu[(32 + CCSDS_TM_RS_N * 5 * 8)];
     static uint8_t back[CCSDS_TM_RS_K * 5];
-    ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame, cadu, sizeof cadu);
+    dp_ccsds_tm_frame_encode (&cfg, NULL, frame, sizeof frame, cadu,
+                              sizeof cadu);
 
     memset (back, 0xAA, sizeof back);
-    DP_CHECK_MSG (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits - 8u, back,
-                                         sizeof back, NULL)
+    DP_CHECK_MSG (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits - 8u,
+                                            back, sizeof back, NULL)
                       == 0,
                   "a CADU that is not the layout's length must refuse");
-    DP_CHECK_MSG (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits - 1u, back,
-                                         sizeof back, NULL)
+    DP_CHECK_MSG (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits - 1u,
+                                            back, sizeof back, NULL)
                       == 0,
                   "a block that is not a whole number of octets must refuse");
-    DP_CHECK_MSG (ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
-                                         sizeof back - 1u, NULL)
+    DP_CHECK_MSG (dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, back,
+                                            sizeof back - 1u, NULL)
                       == 0,
                   "a short frame buffer must refuse");
     for (size_t i = 0; i < sizeof back; i++)
@@ -671,7 +675,7 @@ main (void)
         const ccsds_tm_frame_cfg_t *cfg = &CASES[c].cfg;
         ccsds_tm_frame_layout_t     want;
         const size_t                n
-            = ccsds_tm_frame_layout (cfg, CASES[c].frame_octets, &want);
+            = dp_ccsds_tm_frame_layout (cfg, CASES[c].frame_octets, &want);
         DP_REQUIRE_MSG (n != 0, CASES[c].what);
 
         wfm_frame_desc_t d;
@@ -736,11 +740,11 @@ main (void)
    * component's coverage table. A right coverage table says nothing about
    * whether the stages were applied to the right bits, so this is the other
    * half and the one that matters: `dp_wfm_frame_assemble` over
-   * `ccsds_tm_frame_describe`'s description must equal
-   * `ccsds_tm_frame_encode`'s output BYTE FOR BYTE.
+   * `dp_ccsds_tm_frame_describe`'s description must equal
+   * `dp_ccsds_tm_frame_encode`'s output BYTE FOR BYTE.
    *
    * It is the strongest check available here precisely because it is not a
-   * round trip. `ccsds_tm_frame_encode` is already falsified against the
+   * round trip. `dp_ccsds_tm_frame_encode` is already falsified against the
    * values 131.0-B-3 prints -- the marker as figure 9-1 draws it, the
    * randomiser's published prefix, Annex G's generator, the impulse response
    * of the inner code -- so equalling it inherits all of that. A
@@ -789,16 +793,16 @@ main (void)
           for (unsigned b = 0; b < 8u; b++)
             fbits[i * 8u + b] = (uint8_t)((frame[i] >> (7u - b)) & 1u);
 
-        const size_t n = ccsds_tm_frame_encode (&CASES[c].cfg, NULL, frame,
-                                                octets, want, sizeof want);
+        const size_t n = dp_ccsds_tm_frame_encode (&CASES[c].cfg, NULL, frame,
+                                                   octets, want, sizeof want);
         DP_REQUIRE_MSG (n != 0, CASES[c].what);
 
         wfm_frame_desc_t d;
         DP_REQUIRE_MSG (
-            ccsds_tm_frame_describe (&CASES[c].cfg, octets, fbits, &d) == 0,
+            dp_ccsds_tm_frame_describe (&CASES[c].cfg, octets, fbits, &d) == 0,
             CASES[c].what);
         wfm_frame_ops_t ops;
-        ccsds_tm_frame_ops (&ops, NULL);
+        dp_ccsds_tm_frame_ops (&ops, NULL);
 
         memset (got, 0xAAu, sizeof got);
         const size_t m = dp_wfm_frame_assemble (&d, &ops, got, sizeof got);
@@ -823,20 +827,20 @@ main (void)
       for (unsigned b = 0; b < 8u; b++)
         fbits[i * 8u + b] = (uint8_t)((frame[i] >> (7u - b)) & 1u);
 
-    const size_t nsym = ccsds_tm_frame_layout (&cfg, octets, NULL);
+    const size_t nsym = dp_ccsds_tm_frame_layout (&cfg, octets, NULL);
     conv_enc_t   ca, cb;
-    conv_enc_init (&ca);
-    conv_enc_init (&cb);
+    dp_conv_enc_init (&ca);
+    dp_conv_enc_init (&cb);
 
     wfm_frame_desc_t d;
-    DP_REQUIRE (ccsds_tm_frame_describe (&cfg, octets, fbits, &d) == 0);
+    DP_REQUIRE (dp_ccsds_tm_frame_describe (&cfg, octets, fbits, &d) == 0);
     wfm_frame_ops_t ops;
-    ccsds_tm_frame_ops (&ops, &cb);
+    dp_ccsds_tm_frame_ops (&ops, &cb);
 
     int seam_ok = 1;
     for (int f = 0; f < 2; f++)
       {
-        ccsds_tm_frame_encode (&cfg, &ca, frame, octets, want, nsym);
+        dp_ccsds_tm_frame_encode (&cfg, &ca, frame, octets, want, nsym);
         if (dp_wfm_frame_assemble (&d, &ops, got, nsym) != nsym
             || memcmp (got, want, nsym) != 0)
           seam_ok = 0;
@@ -883,9 +887,9 @@ main (void)
         fbits[i * 8u + b] = (uint8_t)((frame[i] >> (7u - b)) & 1u);
 
     wfm_frame_desc_t d;
-    DP_REQUIRE (ccsds_tm_frame_describe (&cfg, octets, fbits, &d) == 0);
+    DP_REQUIRE (dp_ccsds_tm_frame_describe (&cfg, octets, fbits, &d) == 0);
     wfm_frame_ops_t ops;
-    ccsds_tm_frame_ops (&ops, NULL);
+    dp_ccsds_tm_frame_ops (&ops, NULL);
 
     wfm_frame_desc_layout_t lay;
     DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &lay) == 0);
@@ -937,7 +941,7 @@ main (void)
       .rs_depth = DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 1
     };
     wfm_frame_desc_t dc;
-    DP_REQUIRE (ccsds_tm_frame_describe (&coded, octets, fbits, &dc) == 0);
+    DP_REQUIRE (dp_ccsds_tm_frame_describe (&coded, octets, fbits, &dc) == 0);
 
     /* Re-assembled through the UNCODED description, because the coded one
        emits twice as many symbols as this buffer holds -- and because that is
@@ -979,16 +983,16 @@ main (void)
       .rs_depth = 0, .randomise = 1, .attach_asm = 0, .convolutional = 0
     };
     wfm_frame_desc_t d;
-    DP_REQUIRE (ccsds_tm_frame_describe (&cfg, NB, fbits, &d) == 0);
+    DP_REQUIRE (dp_ccsds_tm_frame_describe (&cfg, NB, fbits, &d) == 0);
     wfm_frame_ops_t ops;
-    ccsds_tm_frame_ops (&ops, NULL);
+    dp_ccsds_tm_frame_ops (&ops, NULL);
 
     /* The default: depth unset selects 10.4.1's. */
     static uint8_t dflt[NB * 8];
     DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, dflt, sizeof dflt)
                 == sizeof dflt);
     uint8_t want[40];
-    ccsds_tm_rand_seq_with (&CCSDS_TM_RAND, want, sizeof want);
+    dp_ccsds_tm_rand_seq_with (&dp_CCSDS_TM_RAND, want, sizeof want);
     DP_CHECK_MSG (memcmp (dflt, want, sizeof want) == 0,
                   "an unset choice must apply 10.4.1's sequence");
 
@@ -999,7 +1003,7 @@ main (void)
     static uint8_t legacy[NB * 8];
     DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, legacy, sizeof legacy)
                 == sizeof legacy);
-    ccsds_tm_rand_seq_with (&CCSDS_TM_RAND_LEGACY, want, sizeof want);
+    dp_ccsds_tm_rand_seq_with (&dp_CCSDS_TM_RAND_LEGACY, want, sizeof want);
     DP_CHECK_MSG (memcmp (legacy, want, sizeof want) == 0,
                   "depth = 2 must apply 10.4.2's legacy sequence");
     DP_CHECK_MSG (memcmp (dflt, legacy, sizeof dflt) != 0,
@@ -1058,7 +1062,7 @@ main (void)
           .convolutional        = (int)cases[c].conv,
         };
         wfm_frame_desc_t d;
-        DP_REQUIRE (ccsds_tm_frame_desc_of (&sp, &d) == 0);
+        DP_REQUIRE (dp_ccsds_tm_frame_desc_of (&sp, &d) == 0);
         DP_CHECK_MSG (d.n_stages == cases[c].want_stages, cases[c].what);
         /* and each declared stage actually runs -- an entry covering no
            fields is the shape the defect above produced */

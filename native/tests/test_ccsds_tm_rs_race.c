@@ -8,7 +8,7 @@
  * the code before the worker threads do.
  *
  * `rs.c` used to build its tables behind a plain `ready` flag. Two threads
- * arriving first would both read `ready == 0`, both call `rs_init`, and --
+ * arriving first would both read `ready == 0`, both call `dp_rs_init`, and --
  * the part that makes it undefined behaviour rather than a wasted
  * initialisation -- one could read `ccsds`'s tables while the other was
  * still filling them. `pthread_once` fixed it (gh-817).
@@ -83,8 +83,8 @@ DP_THREAD_FN (worker, arg)
 
   gate_wait ();
 
-  memcpy (w->gen, ccsds_tm_rs_generator (), sizeof w->gen);
-  ccsds_tm_rs_encode (info, w->parity);
+  memcpy (w->gen, dp_ccsds_tm_rs_generator (), sizeof w->gen);
+  dp_ccsds_tm_rs_encode (info, w->parity);
   DP_THREAD_RETURN;
 }
 
@@ -118,8 +118,8 @@ main (void)
      already raced for it. */
   uint8_t settled_gen[CCSDS_TM_RS_2E + 1];
   uint8_t settled_parity[CCSDS_TM_RS_2E];
-  memcpy (settled_gen, ccsds_tm_rs_generator (), sizeof settled_gen);
-  ccsds_tm_rs_encode (info, settled_parity);
+  memcpy (settled_gen, dp_ccsds_tm_rs_generator (), sizeof settled_gen);
+  dp_ccsds_tm_rs_encode (info, settled_parity);
 
   /* g(x) is degree 2E, so it has 2E+1 coefficients and the leading one is
      1 -- a table that was read while being written typically fails this

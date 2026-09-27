@@ -46,19 +46,19 @@ extern "C"
     uint8_t   gen[RS_NROOTS_MAX + 1]; 
   } rs_t;
 
-  int rs_code_valid (const rs_code_t *c);
+  int dp_rs_code_valid (const rs_code_t *c);
 
-  int rs_init (rs_t *rs, const rs_code_t *c);
+  int dp_rs_init (rs_t *rs, const rs_code_t *c);
 
-  const uint8_t *rs_generator (const rs_t *rs);
+  const uint8_t *dp_rs_generator (const rs_t *rs);
 
-  void rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity);
+  void dp_rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity);
 
-  void rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn);
+  void dp_rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn);
 
-  int rs_codeword_ok (const rs_t *rs, const uint8_t *codeword);
+  int dp_rs_codeword_ok (const rs_t *rs, const uint8_t *codeword);
 
-  int rs_decode (const rs_t *rs, uint8_t *codeword);
+  int dp_rs_decode (const rs_t *rs, uint8_t *codeword);
 
 #ifdef __cplusplus
 }

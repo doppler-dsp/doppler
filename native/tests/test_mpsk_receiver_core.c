@@ -246,7 +246,7 @@ static dp_mpsk_receiver_state_t *
 RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
      double lock_thresh, double init_norm_freq)
 {
-  return mpsk_receiver_create_real (
+  return dp_mpsk_receiver_create_real (
       m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, lock_thresh,
       init_norm_freq, 0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
 }
@@ -1281,7 +1281,7 @@ main (void)
   }
 
   /* ================================================================== *
-   * The REAL face — mpsk_receiver_create_real()
+   * The REAL face — dp_mpsk_receiver_create_real()
    *
    * Sections 15-22 exercise the same object through its other constructor.
    * They were `test_mpsk_receiver_r_core.c` until the two receivers became
@@ -1344,7 +1344,8 @@ main (void)
             {
               DP_CHECK (dp_mpsk_receiver_get_lock_time (lt) == -1);
               DP_CHECK (dp_mpsk_receiver_get_locked (lt) == 0);
-              size_t n = mpsk_receiver_steps_real (lt, rtx, RNSAMP, rou, NSYM);
+              size_t n
+                  = dp_mpsk_receiver_steps_real (lt, rtx, RNSAMP, rou, NSYM);
               int64_t at = dp_mpsk_receiver_get_lock_time (lt);
               DP_CHECK (dp_mpsk_receiver_get_locked (lt) == 1);
               DP_CHECK (at >= 0);
@@ -1361,7 +1362,7 @@ main (void)
                  the `lock_time < 0` guard leaves every other assertion here
                  passing.) */
               DP_CHECK ((size_t)at < n / 2);
-              (void)mpsk_receiver_steps_real (lt, rtx, RNSAMP, rou, NSYM);
+              (void)dp_mpsk_receiver_steps_real (lt, rtx, RNSAMP, rou, NSYM);
               DP_CHECK (dp_mpsk_receiver_get_lock_time (lt) == at);
               dp_mpsk_receiver_destroy (lt);
             }
@@ -1376,11 +1377,13 @@ main (void)
               = RXR (4, RSPS, RM_OUT, 0, 0.005, 0.5, RFC);
           if (a)
             {
-              size_t k1 = mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
-              double f1 = dp_mpsk_receiver_get_norm_freq (a);
+              size_t k1
+                  = dp_mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
+              double f1            = dp_mpsk_receiver_get_norm_freq (a);
               float _Complex first = rou[k1 / 2];
               dp_mpsk_receiver_reset (a);
-              size_t k2 = mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
+              size_t k2
+                  = dp_mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
               DP_CHECK (k1 == k2);
               DP_CHECK (rou[k2 / 2] == first);
               DP_CHECK (dp_mpsk_receiver_get_norm_freq (a) == f1);
@@ -1407,7 +1410,8 @@ main (void)
                 continue;
               make_mpsk_real (rtx, rid, m, RSPS, NSYM, RFC, 30.0,
                               7u + (uint32_t)mi, phi0_for (m));
-              size_t k = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
+              size_t k
+                  = dp_mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
               size_t settle = dp_test_settle_syms (0.01, 0.005);
               double ser    = tail_ser (rou, k, rid, m, phi0_for (m), settle);
               DP_CHECK (ser < 0.01);
@@ -1514,7 +1518,8 @@ main (void)
                   rtx, rid, 4, RSPS, NSYM,
                   RFC + dp_test_freq_offset_inside_bw (RBN, 4, 1.0) / RSPS,
                   30.0, 33u, phi0_for (4));
-              size_t k = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
+              size_t k
+                  = dp_mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
               DP_CHECK (dp_mpsk_receiver_get_locked (rx) == 1);
               DP_CHECK (dp_mpsk_receiver_get_lock (rx) > 0.65);
               DP_CHECK (dp_mpsk_receiver_get_lock_time (rx) >= 0);
@@ -1569,8 +1574,8 @@ main (void)
                  uses, so the two pin the same thing. */
               make_mpsk_real (rtx, rid, 4, sps_edge, NSYM, 0.10, 50.0, 51u,
                               0.0);
-              size_t ke = mpsk_receiver_steps_real (edge, rtx, nsamp_edge, rou,
-                                                    NSYM);
+              size_t ke = dp_mpsk_receiver_steps_real (edge, rtx, nsamp_edge,
+                                                       rou, NSYM);
               double evm_edge
                   = (ke > settle)
                         ? dp_test_evm_db_hard_m (rou + settle, ke - settle, 4)
@@ -1578,8 +1583,8 @@ main (void)
 
               make_mpsk_real (rtx, rid, 4, sps_edge, NSYM, RFC, 50.0, 51u,
                               0.0);
-              size_t kc
-                  = mpsk_receiver_steps_real (ctr, rtx, nsamp_edge, rou, NSYM);
+              size_t kc = dp_mpsk_receiver_steps_real (ctr, rtx, nsamp_edge,
+                                                       rou, NSYM);
               double evm_ctr
                   = (kc > settle)
                         ? dp_test_evm_db_hard_m (rou + settle, kc - settle, 4)
@@ -1661,14 +1666,15 @@ main (void)
               if (ref_out)
                 {
                   /* Reference: both halves through one instance. */
-                  (void)mpsk_receiver_steps_real (ref, rtx, half, ref_out,
-                                                  NSYM);
-                  size_t rn = mpsk_receiver_steps_real (
+                  (void)dp_mpsk_receiver_steps_real (ref, rtx, half, ref_out,
+                                                     NSYM);
+                  size_t rn = dp_mpsk_receiver_steps_real (
                       ref, rtx + half, RNSAMP - half, ref_out, NSYM);
 
                   /* Split: first half through `src`, hand its state to `dst`,
                      finish there. The second halves must be identical. */
-                  (void)mpsk_receiver_steps_real (src, rtx, half, rou, NSYM);
+                  (void)dp_mpsk_receiver_steps_real (src, rtx, half, rou,
+                                                     NSYM);
                   size_t nb   = dp_mpsk_receiver_state_bytes (src);
                   void  *blob = malloc (nb);
                   DP_CHECK (nb > 0 && blob != NULL);
@@ -1677,7 +1683,7 @@ main (void)
                       dp_mpsk_receiver_get_state (src, blob);
                       DP_CHECK (dp_mpsk_receiver_set_state (dst, blob)
                                 == DP_OK);
-                      size_t dn = mpsk_receiver_steps_real (
+                      size_t dn = dp_mpsk_receiver_steps_real (
                           dst, rtx + half, RNSAMP - half, rou, NSYM);
                       DP_CHECK (dn == rn);
                       int same = (dn == rn);
@@ -1749,8 +1755,8 @@ main (void)
               DP_CHECK (rx != NULL);
               if (rx)
                 {
-                  size_t k
-                      = mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou, NSYM);
+                  size_t k = dp_mpsk_receiver_steps_real (rx, rtx, RNSAMP, rou,
+                                                          NSYM);
                   DP_CHECK (k > 0);
                   gain[a] = dp_mpsk_receiver_get_agc_gain_db (rx);
                   nsym[a] = k;
@@ -1758,14 +1764,15 @@ main (void)
                 }
 
               /* agc=0 is the bisect handle here too: no gain, ever. */
-              dp_mpsk_receiver_state_t *off = mpsk_receiver_create_real (
+              dp_mpsk_receiver_state_t *off = dp_mpsk_receiver_create_real (
                   4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
                   0.01, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 0,
                   MPSK_RX_AGC_BW_RATIO);
               DP_CHECK (off != NULL);
               if (off)
                 {
-                  (void)mpsk_receiver_steps_real (off, rtx, RNSAMP, rou, NSYM);
+                  (void)dp_mpsk_receiver_steps_real (off, rtx, RNSAMP, rou,
+                                                     NSYM);
                   DP_CHECK (dp_mpsk_receiver_get_agc_gain_db (off) == 0.0);
                   dp_mpsk_receiver_destroy (off);
                 }
@@ -1787,7 +1794,7 @@ main (void)
             for (size_t i = 0; i < sizeof (bns) / sizeof (bns[0]); i++)
               {
                 double                    bn_c = bns[i][0], bn_t = bns[i][1];
-                dp_mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+                dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create_real (
                     4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707,
                     bn_t, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 1,
                     MPSK_RX_AGC_BW_RATIO);
@@ -1805,7 +1812,7 @@ main (void)
 
           /* The ratio is refused at or above 1, where the AGC would be as
              fast as the loop it feeds. */
-          DP_CHECK (mpsk_receiver_create_real (
+          DP_CHECK (dp_mpsk_receiver_create_real (
                         4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
                         0.707, 0.01, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 1, 1.0)
                     == NULL);
@@ -1817,7 +1824,7 @@ main (void)
              than merely that it builds, or this reads as a weaker version of
              the reject it replaced. */
           {
-            dp_mpsk_receiver_state_t *d = mpsk_receiver_create_real (
+            dp_mpsk_receiver_state_t *d = dp_mpsk_receiver_create_real (
                 4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
                 0.01, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 1, 0.0);
             DP_CHECK (d != NULL);
@@ -1828,7 +1835,7 @@ main (void)
           }
           /* Negative is still refused -- a ratio below zero is not a slower
              AGC. */
-          DP_CHECK (mpsk_receiver_create_real (
+          DP_CHECK (dp_mpsk_receiver_create_real (
                         4, RSPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
                         0.707, 0.01, 0.5, RFC, 0, MPSK_RX_NUM_PHASES, 1, -0.05)
                     == NULL);
@@ -1839,11 +1846,11 @@ main (void)
              needs a ratio below 0.5). At sps = 16 that is a bound of 8
              exclusive, which lands on 6 -- not the 8 the complex face
              reaches at sps = 8, and not the 8 that min(8, 2*floor(sps/4))
-             used to claim and mpsk_receiver_create_real() rejects. Literals,
-             so the expectation does not agree with the rule by
+             used to claim and dp_mpsk_receiver_create_real() rejects.
+             Literals, so the expectation does not agree with the rule by
              construction. */
           {
-            dp_mpsk_receiver_state_t *d = mpsk_receiver_create_real (
+            dp_mpsk_receiver_state_t *d = dp_mpsk_receiver_create_real (
                 4, RSPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0, 0.01,
                 0.0, RFC, 0, 0u, 1, 0.0);
             DP_CHECK (d != NULL);
@@ -1868,9 +1875,9 @@ main (void)
              receiver whose detector has nothing to detect with, which is the
              failure mode deriving exists to remove -- so the refusal is the
              behaviour, not an edge case. */
-          DP_CHECK (mpsk_receiver_create_real (4, 4.0, 0u, MPSK_RX_PULSE_IANDD,
-                                               0.35, 8, 0.01, 0.0, 0.01, 0.0,
-                                               RFC, 0, 0u, 1, 0.0)
+          DP_CHECK (dp_mpsk_receiver_create_real (
+                        4, 4.0, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.0,
+                        0.01, 0.0, RFC, 0, 0u, 1, 0.0)
                     == NULL);
         }
       }
@@ -1883,7 +1890,7 @@ main (void)
    *
    * §2 of docs/design/mpsk.md §12: `set_telemetry` was asserted seven
    * times against the complex front end and ZERO times against the real one,
-   * so the forward into `ddcr_set_telemetry()` was carried by nothing. The
+   * so the forward into `dp_ddcr_set_telemetry()` was carried by nothing. The
    * loops' half is shared code and section 8 covers it; what is unique here
    * is the third attachment, and the assertion that separates them is the
    * AGC pair being on the CASCADE's grid rather than the symbol grid --
@@ -1918,8 +1925,8 @@ main (void)
 
             make_mpsk_real (ttx, tid, 4, RSPS, 1024u, RFC, 30.0, 17u,
                             phi0_for (4));
-            size_t n = mpsk_receiver_steps_real (rx, ttx, 1024u * (size_t)RSPS,
-                                                 tou, NSYM);
+            size_t n = dp_mpsk_receiver_steps_real (
+                rx, ttx, 1024u * (size_t)RSPS, tou, NSYM);
             DP_CHECK (n > 0);
 
             dp_tlm_rec_t *recs = malloc (65536 * sizeof (*recs));
@@ -1942,8 +1949,8 @@ main (void)
                 /* The loops are on the symbol grid and agree with each
                    other. */
                 DP_CHECK (n_car == n && n_syn == n);
-                /* The AGC forward reached ddcr_set_telemetry(), and its pair
-                   is on the cascade's own grid -- both probes always
+                /* The AGC forward reached dp_ddcr_set_telemetry(), and its
+                   pair is on the cascade's own grid -- both probes always
                    together, and NOT one per symbol. A forward that silently
                    did nothing reads n_agc == 0; one wired to the symbol
                    strobe reads n_agc / 2 == n. */
@@ -1984,7 +1991,7 @@ main (void)
    *       faces must hold the same lag under the same ramp in cycles per
    *       SYMBOL squared:
    *
-   *           theta_ss = 2*pi*r / wn^2,   wn = loop_filter_wn(bn, zeta)
+   *           theta_ss = 2*pi*r / wn^2,   wn = dp_loop_filter_wn(bn, zeta)
    *
    *       Sabotage target: pass `sps` instead of `0.5 * sps` for `lo_sps` in
    *       mpsk_rx_create_impl(). `freq_scale` then halves, the loop gain
@@ -2005,7 +2012,7 @@ main (void)
     const double LO_BN   = 0.005;
     const double LO_SPS  = 32.0; /* > 2*m_out on the real face      */
     const size_t LO_NSYM = 3000u;
-    const double wn      = loop_filter_wn (LO_BN, 0.707);
+    const double wn      = dp_loop_filter_wn (LO_BN, 0.707);
 
     /* (a) The ramp law, on both faces, against one prediction. */
     static const double ramps[] = { 3e-7, 1e-6 };
@@ -2018,7 +2025,7 @@ main (void)
         for (int real = 0; real < 2; real++)
           {
             dp_mpsk_receiver_state_t *rx
-                = real ? mpsk_receiver_create_real (
+                = real ? dp_mpsk_receiver_create_real (
                              2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
                              LO_BN, 0.707, LO_BN, 0.3, RFC, 0,
                              MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO)
@@ -2062,7 +2069,7 @@ main (void)
                        averages out; mean|e| adds a positive bias that grows
                        as the lag approaches the jitter, and at r = 3e-7 on
                        this face that bias alone read 44% high. */
-                    s1 += mpsk_receiver_get_last_error (rx);
+                    s1 += dp_mpsk_receiver_get_last_error (rx);
                     cnt++;
                   }
               }
@@ -2096,13 +2103,13 @@ main (void)
           size_t n = (size_t)(6000.0 * LO_SPS);
           make_mpsk_real (ltx, lid, 2, LO_SPS, 6000u, RFC + df, 30.0, 23u,
                           0.0);
-          dp_mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+          dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create_real (
               2, LO_SPS, RM_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, LO_BN, 0.707,
               0.01, 0.3, RFC, 0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
           DP_CHECK (rx != NULL);
           if (rx)
             {
-              (void)mpsk_receiver_steps_real (rx, ltx, n, lou, 6000);
+              (void)dp_mpsk_receiver_steps_real (rx, ltx, n, lou, 6000);
               double got = dp_mpsk_receiver_get_norm_freq (rx);
               printf ("  lo_sps readback: norm_freq %.8f, true %.8f "
                       "(err %.2f%% of df)\n",

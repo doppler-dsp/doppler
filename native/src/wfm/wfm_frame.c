@@ -240,8 +240,8 @@ dp_wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out)
      transform covering the payload it protects and the trailer it wrote.
      Both are ALWAYS declared, and `f->crc` unset switches the stage off by
      giving it nothing to cover — which is what an optional stage is in this
-     representation, and what `ccsds_tm_frame_layout()` already reports for a
-     stage that did not run. Declaring the field either way is also what
+     representation, and what `dp_ccsds_tm_frame_layout()` already reports for
+     a stage that did not run. Declaring the field either way is also what
      keeps `crc_off` at the end of the payload when the trailer is absent. */
   out->field[WFM_FRAME_FIELD_CRC].bits       = WFM_FRAME_CRC_BITS;
   out->field[WFM_FRAME_FIELD_CRC].derived_by = 1u; /* stage 0, plus one */

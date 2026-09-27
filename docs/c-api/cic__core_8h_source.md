@@ -60,7 +60,7 @@ int dp_cic_set_state(dp_cic_state_t *state, const void *blob);
 
 size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
 
-double cic_dc_gain(const dp_cic_state_t *state);
+double dp_cic_dc_gain(const dp_cic_state_t *state);
 
 JM_FORCEINLINE JM_HOT size_t
 dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,

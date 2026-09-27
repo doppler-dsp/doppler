@@ -268,7 +268,7 @@ dp_corr2d_set_state (dp_corr2d_state_t *s, const void *blob)
 }
 
 int
-corr2d_set_ref (dp_corr2d_state_t *state, const float _Complex *ref)
+dp_corr2d_set_ref (dp_corr2d_state_t *state, const float _Complex *ref)
 {
   if (state->fast_path)
     {

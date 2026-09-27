@@ -753,7 +753,7 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "Cached from the winning acquisition hit.\n", NULL },
   { "segments", (getter)AsyncDsssReceiver_getprop_segments, NULL,
     "Live-tracking Dll's own segments -- distinct from refine_segments above "
-    "(see the module docstring / dll_lookback_segments()'s own doc on the "
+    "(see the module docstring / dp_dll_lookback_segments()'s own doc on the "
     "WINDOWS vs TRACK_WINDOWS split).\n",
     NULL },
   { "sps", (getter)AsyncDsssReceiver_getprop_sps, NULL,
@@ -763,7 +763,7 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "chip_phase", (getter)AsyncDsssReceiver_getprop_chip_phase, NULL,
     "Live Dll code phase in chips, Dll's own instantaneous-phase convention "
     "(the mirror image of acq_result_t::code_phase's correlation-lag "
-    "convention -- see acq_build_handoff()'s doc comment).\n",
+    "convention -- see dp_acq_build_handoff()'s doc comment).\n",
     NULL },
   { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
     "Live Dll code rate: chips advanced per nominal chip (~1.0).\n", NULL },
@@ -1491,7 +1491,8 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "refine_max_error_db : float, default 0.5\n"
     "    Max tolerable async-lookback correlation-power loss driving the\n"
     "    refine-stage collection Dll's coherent-I&D window count via\n"
-    "    dll_lookback_segments(). Oversampling the epoch is required for the\n"
+    "    dp_dll_lookback_segments(). Oversampling the epoch is required for "
+    "the\n"
     "    asynchronous data: the residual carrier rides a ~symbol_rate-wide\n"
     "    data-modulated spectrum, so segments>1 (default yields 11 at\n"
     "    tsamps=2046) samples it above Nyquist; segments=1 undersamples and\n"

@@ -414,7 +414,7 @@ def test_state_roundtrip_resume():
     """The serializable (elastic / pure-transducer) face: serialize
     mid-stream, restore into a *fresh* engine, and resume — the concatenated
     detections must match an uninterrupted run (the pod-handoff guarantee).
-    Mirrors the C ``acq_run`` round-trip; compares detection cells (Doppler
+    Mirrors the C ``dp_acq_run`` round-trip; compares detection cells (Doppler
     bin, code phase), which are exact across the split.
     """
     rng = np.random.default_rng(2024)

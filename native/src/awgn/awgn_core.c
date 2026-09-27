@@ -309,7 +309,7 @@ dp_awgn_generate (dp_awgn_state_t *state, size_t n, float _Complex *out,
 }
 
 int
-awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
+dp_awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
 {
   dp_awgn_state_t *g = dp_awgn_create (seed, amplitude);
   if (!g)
@@ -320,7 +320,7 @@ awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
 }
 
 float
-awgn_amplitude_for_snr (float snr_db, float signal_power)
+dp_awgn_amplitude_for_snr (float snr_db, float signal_power)
 {
   float snr_lin = powf (10.0f, snr_db / 10.0f);
   return sqrtf (signal_power / (2.0f * snr_lin));

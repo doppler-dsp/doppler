@@ -177,7 +177,7 @@ is prose you write in step 4 — neither is a probe.)
 The last two joined on 2026-08-24, having never been bumped at all:
 `bootstrap.toml` was frozen at `0.3.7` and `just-makeit.toml` at `0.1.0`, the
 value it was given in the **initial commit**. Nothing read either, which is
-why nothing noticed — `doppler_version()` returns `DOPPLER_VERSION`, stamped
+why nothing noticed — `dp_doppler_version()` returns `DOPPLER_VERSION`, stamped
 by CMake from `PROJECT_VERSION`. `make version-check` now probes all five, so
 a missed one is a red gate rather than a number nobody reads.
 

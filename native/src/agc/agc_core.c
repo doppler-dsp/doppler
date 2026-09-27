@@ -44,8 +44,8 @@ dp_agc_reset (dp_agc_state_t *state)
 }
 
 size_t
-agc_settling_samples (double loop_bw, double alpha, double gain_err_db,
-                      double tol_db)
+dp_agc_settling_samples (double loop_bw, double alpha, double gain_err_db,
+                         double tol_db)
 {
   /* Refuse rather than guess: every one of these makes the question
      meaningless, and a plausible number would be worse than none. */

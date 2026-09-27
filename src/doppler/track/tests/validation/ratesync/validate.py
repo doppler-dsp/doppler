@@ -734,7 +734,8 @@ def characterise() -> Data:
     R.md("*(sections 2, 8, 11, 12)*")
     R.md()
     R.md(
-        "RateSync builds no filters: it asks `RateConverter_create_matched` "
+        "RateSync builds no filters: it asks "
+        "`dp_RateConverter_create_matched` "
         "for `rate = m/sps` and closes the loop around whatever the planner "
         "decided. The three rows below span a 16x range of input rates and "
         "get three different front ends out of the planner — one halfband, "
@@ -745,7 +746,7 @@ def characterise() -> Data:
     rows = []
     for sps in (4, 8, 64):
         # The SAME call dp_ratesync_create() makes internally:
-        # RateConverter_create_matched(m/sps, compensate=1, pulse, beta,
+        # dp_RateConverter_create_matched(m/sps, compensate=1, pulse, beta,
         # span, pulse_sps=m, num_phases).
         rc = MatchedRateConverter(
             rate=2.0 / sps,
@@ -930,7 +931,8 @@ def characterise() -> Data:
     R.md(
         "That last number is the check on the construct-time normaliser. The "
         "TED divides by the detector's own slope once, at construction "
-        "(`symsync_ted_slope`), so a correctly normalised detector has unit "
+        "(`dp_symsync_ted_slope`), so a correctly normalised detector has "
+        "unit "
         f"slope at lock. Gardner measures `{d.slope_meas:.4f}` and DTTL "
         f"`{_dslope:.4f}` — both unity, so the loop runs at the gain `bn` "
         f"names on either detector. The two have different RAW slopes "
@@ -1014,7 +1016,7 @@ def characterise() -> Data:
         "the lock point; centring the pair on the eye (`_eye_centre_fine`) "
         "is the whole of the change, and the retired figures are still "
         "reproducible by moving it back. The claim in "
-        "`symsync_ted_slope`'s own doxygen that *\"the shipped "
+        "`dp_symsync_ted_slope`'s own doxygen that *\"the shipped "
         "normalisation's slope varies 10.6x between beta 0.1 and 0.9\"* "
         "came from the same measurement and is **withdrawn**: it was never "
         "the detector, and the variation belonged to the equilibrium being "

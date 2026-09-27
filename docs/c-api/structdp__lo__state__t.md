@@ -86,7 +86,7 @@ _LO state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create), or embed by value and [**lo\_init()**](lo__core_8h.md#function-lo_init) (see the inline composition API below). The shared 65536-entry LUT is initialised lazily on the first [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)/lo\_init() call and never freed. 
+Allocate with [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create), or embed by value and [**dp\_lo\_init()**](lo__core_8h.md#function-dp_lo_init) (see the inline composition API below). The shared 65536-entry LUT is initialised lazily on the first [**dp\_lo\_create()**](lo__core_8h.md#function-dp_lo_create)/dp\_lo\_init() call and never freed. 
 
 
     

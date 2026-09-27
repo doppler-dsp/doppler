@@ -172,7 +172,7 @@ dp_acq_state_t* dp_async_dsss_receiver_state_t::acq;
 
 
 
-The embedded search; NULL in cell mode ([**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)), where the seed comes from outside. 
+The embedded search; NULL in cell mode ([**dp\_async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create_cell)), where the seed comes from outside. 
 
 
         
@@ -543,7 +543,7 @@ int dp_async_dsss_receiver_state_t::had_lock;
 
 
 
-Running: both lock flags have been up since the hand-over. After that both down holds both loops (dll\_set\_coast, the carrier's own hold) so a departed emitter's receiver cannot free-run onto a neighbour's code (#1271). 
+Running: both lock flags have been up since the hand-over. After that both down holds both loops (dp\_dll\_set\_coast, the carrier's own hold) so a departed emitter's receiver cannot free-run onto a neighbour's code (#1271). 
  
 
 
@@ -982,7 +982,7 @@ size_t dp_async_dsss_receiver_state_t::refine_segments;
 
 
 
-[**dll\_lookback\_segments()**](dll__core_8h.md#function-dll_lookback_segments) result, cached at the hit that (re)built the refine chain  config for refine\_dll's own layout, needed again by set\_state's check. 
+[**dp\_dll\_lookback\_segments()**](dll__core_8h.md#function-dp_dll_lookback_segments) result, cached at the hit that (re)built the refine chain  config for refine\_dll's own layout, needed again by set\_state's check. 
 
 
         
@@ -1092,7 +1092,7 @@ size_t dp_async_dsss_receiver_state_t::segments;
 
 
 
-Live-tracking Dll's own segments  distinct from refine\_segments above (see the module docstring / [**dll\_lookback\_segments()**](dll__core_8h.md#function-dll_lookback_segments)'s own doc on the WINDOWS vs TRACK\_WINDOWS split). 
+Live-tracking Dll's own segments  distinct from refine\_segments above (see the module docstring / [**dp\_dll\_lookback\_segments()**](dll__core_8h.md#function-dp_dll_lookback_segments)'s own doc on the WINDOWS vs TRACK\_WINDOWS split). 
 
 
         

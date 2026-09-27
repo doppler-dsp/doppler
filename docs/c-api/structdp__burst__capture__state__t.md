@@ -196,7 +196,7 @@ size_t dp_burst_capture_state_t::burst_len;
 
 
 
-Samples in one emitted window. Acquisition has no notion of this  [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) takes search parameters only  which is exactly why it is a parameter HERE: for a capture, the burst length is what gets captured. 
+Samples in one emitted window. Acquisition has no notion of this  [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst) takes search parameters only  which is exactly why it is a parameter HERE: for a capture, the burst length is what gets captured. 
  
 
 
@@ -214,7 +214,7 @@ double _Complex* dp_burst_capture_state_t::cell_buf;
 
 
 
-Refine's cells: [**acq\_cell\_corr\_grid()**](acq__core_8h.md#function-acq_cell_corr_grid) of every candidate preamble POSITION (one code period each) at every Doppler cell inside the detecting engine's bin, position-major, `corr_len * max_cells`. Computed once; each candidate sums `reps` consecutive rows of one cell coherently. The statistic is ACQUISITION'S, evaluated at the settled code phase: refine resolves which repetition, nothing else (doppler#1502). 
+Refine's cells: [**dp\_acq\_cell\_corr\_grid()**](acq__core_8h.md#function-dp_acq_cell_corr_grid) of every candidate preamble POSITION (one code period each) at every Doppler cell inside the detecting engine's bin, position-major, `corr_len * max_cells`. Computed once; each candidate sums `reps` consecutive rows of one cell coherently. The statistic is ACQUISITION'S, evaluated at the settled code phase: refine resolves which repetition, nothing else (doppler#1502). 
 
 
         

@@ -47,7 +47,7 @@ typedef struct {
     double last_error;       
 } dp_carrier_mpsk_state_t;
 
-void carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
+void dp_carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
                        int m);
 

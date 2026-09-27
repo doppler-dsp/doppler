@@ -119,7 +119,7 @@ burst_point (unsigned depth, unsigned burst, uint32_t seed)
     {
       for (size_t i = 0; i < k_syms; i++)
         info[i] = (uint8_t)(dp_xs32 (&seed) & 0xFFu);
-      if (ccsds_tm_rs_encode_block (info, depth, block) != n_syms)
+      if (dp_ccsds_tm_rs_encode_block (info, depth, block) != n_syms)
         exit (1);
       memcpy (sent, block, n_syms);
 
@@ -136,7 +136,7 @@ burst_point (unsigned depth, unsigned burst, uint32_t seed)
         }
 
       ccsds_tm_rs_block_rx_t rx = { 0 };
-      ccsds_tm_rs_decode_block (block, depth, &rx);
+      dp_ccsds_tm_rs_decode_block (block, depth, &rx);
 
       r.blocks++;
       r.uncorrectable += rx.uncorrectable;
@@ -158,9 +158,9 @@ burst_point (unsigned depth, unsigned burst, uint32_t seed)
 
 /* ── 2. the marker as a detector ─────────────────────────────────────────
  *
- * `ccsds_tm_asm_find` reports the first offset whose Hamming distance to the
- * 32-bit marker is at most `max_errors`, in either polarity. That makes it a
- * detector with a threshold, and a threshold has two tails.
+ * `dp_ccsds_tm_asm_find` reports the first offset whose Hamming distance to
+ * the 32-bit marker is at most `max_errors`, in either polarity. That makes it
+ * a detector with a threshold, and a threshold has two tails.
  *
  * H0 is random data. Per offset and per polarity the distance is Binomial(32,
  * 1/2), so the false-alarm probability at threshold t is
@@ -186,8 +186,9 @@ fa_point (unsigned max_errors, uint32_t seed)
   unsigned           hits = 0;
   size_t             from = 0;
   ccsds_tm_asm_hit_t hit;
-  while (from + CCSDS_TM_ASM_BITS <= FA_BITS
-         && ccsds_tm_asm_find (bits + from, FA_BITS - from, max_errors, &hit))
+  while (
+      from + CCSDS_TM_ASM_BITS <= FA_BITS
+      && dp_ccsds_tm_asm_find (bits + from, FA_BITS - from, max_errors, &hit))
     {
       hits++;
       from += hit.offset + 1u;
@@ -223,7 +224,7 @@ pd_point (double ber, unsigned max_errors, int invert, uint32_t seed)
     {
       for (int i = 0; i < N; i++)
         bits[i] = (uint8_t)(dp_xs32 (&seed) & 1u);
-      ccsds_tm_asm_bits (bits + PAD);
+      dp_ccsds_tm_asm_bits (bits + PAD);
       if (invert)
         for (int i = 0; i < N; i++)
           bits[i] ^= 1u;
@@ -237,7 +238,7 @@ pd_point (double ber, unsigned max_errors, int invert, uint32_t seed)
 
       ccsds_tm_asm_hit_t hit;
       r.trials++;
-      if (ccsds_tm_asm_find (bits, N, max_errors, &hit))
+      if (dp_ccsds_tm_asm_find (bits, N, max_errors, &hit))
         {
           r.found++;
           if (hit.offset == (size_t)PAD)
@@ -289,7 +290,7 @@ rand_spectrum (const ccsds_tm_rand_t *r, size_t nfft, size_t frames)
      a PN payload would be flat whatever the generator did, which is the
      measurement hazard `ccsds_tm.h` warns about for the same reason. */
   memset (bits, 0, n);
-  ccsds_tm_randomise_with (r, bits, n);
+  dp_ccsds_tm_randomise_with (r, bits, n);
   for (size_t i = 0; i < n; i++)
     x[i] = bits[i] ? -1.0f : 1.0f; /* NRZ, as a symbol mapper would */
 
@@ -449,27 +450,28 @@ main (int argc, char **argv)
        across neighbours — which is why the peak, not one nominated bin, is
        the statistic the validator reads). */
     const size_t NFFT = 4096u, FRAMES = 64u;
-    const spec_t def = rand_spectrum (&CCSDS_TM_RAND, NFFT, FRAMES);
-    const spec_t leg = rand_spectrum (&CCSDS_TM_RAND_LEGACY, NFFT, FRAMES);
+    const spec_t def = rand_spectrum (&dp_CCSDS_TM_RAND, NFFT, FRAMES);
+    const spec_t leg = rand_spectrum (&dp_CCSDS_TM_RAND_LEGACY, NFFT, FRAMES);
 
     if (emit)
       {
         printf (
             "\n# spectrum\nwhich,period,nfft,frames,peak_db,at_1_255_db\n");
         printf ("default,%zu,%zu,%zu,%.3f,%.3f\n",
-                (size_t)CCSDS_TM_RAND.period, NFFT, FRAMES, def.peak_db,
+                (size_t)dp_CCSDS_TM_RAND.period, NFFT, FRAMES, def.peak_db,
                 def.at_1_255);
         printf ("legacy,%zu,%zu,%zu,%.3f,%.3f\n",
-                (size_t)CCSDS_TM_RAND_LEGACY.period, NFFT, FRAMES, leg.peak_db,
-                leg.at_1_255);
+                (size_t)dp_CCSDS_TM_RAND_LEGACY.period, NFFT, FRAMES,
+                leg.peak_db, leg.at_1_255);
       }
     else
       printf ("\n  randomiser  period   strongest line   at 1/255\n"
               "  ----------  ------   --------------   --------\n"
               "  default     %6zu   %10.1f dB   %6.1f dB\n"
               "  legacy      %6zu   %10.1f dB   %6.1f dB\n",
-              (size_t)CCSDS_TM_RAND.period, def.peak_db, def.at_1_255,
-              (size_t)CCSDS_TM_RAND_LEGACY.period, leg.peak_db, leg.at_1_255);
+              (size_t)dp_CCSDS_TM_RAND.period, def.peak_db, def.at_1_255,
+              (size_t)dp_CCSDS_TM_RAND_LEGACY.period, leg.peak_db,
+              leg.at_1_255);
   }
 
   if (!emit)

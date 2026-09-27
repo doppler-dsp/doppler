@@ -19,7 +19,7 @@ main (void)
 
   dp_lockdet_state_t z;
   memset (&z, 0, sizeof z);
-  lockdet_init (&z, 1.0, 1.0, 0, 0);
+  dp_lockdet_init (&z, 1.0, 1.0, 0, 0);
   DP_CHECK (z.n_up == 1 && z.n_down == 1);
 
   /* Declare exactly at n_up consecutive hits — not one look sooner. */
@@ -79,7 +79,7 @@ main (void)
   {
     dp_lockdet_state_t e;
     memset (&e, 0, sizeof e);
-    lockdet_init (&e, 0.5, 0.5, 1, 1);
+    dp_lockdet_init (&e, 0.5, 0.5, 1, 1);
     DP_CHECK (dp_lockdet_step (&e, 0.6) == 1);
     DP_CHECK (dp_lockdet_step (&e, 0.4) == 0);
   }
@@ -89,8 +89,8 @@ main (void)
     dp_lockdet_state_t a, b;
     memset (&a, 0, sizeof a);
     memset (&b, 0, sizeof b);
-    lockdet_init (&a, 1.5, 1.2, 2, 2);
-    lockdet_init (&b, 1.5, 1.2, 2, 2);
+    dp_lockdet_init (&a, 1.5, 1.2, 2, 2);
+    dp_lockdet_init (&b, 1.5, 1.2, 2, 2);
     double seq[]  = { 2.0, 2.0, 1.3, 1.0, 1.0, 2.0, 2.0, 1.0 };
     size_t n      = sizeof seq / sizeof seq[0];
     int    got[8] = { 0 };
@@ -130,11 +130,11 @@ main (void)
   {
     dp_lockdet_state_t r;
     memset (&r, 0, sizeof r);
-    lockdet_init (&r, 1.5, 1.2, 3, 3);
+    dp_lockdet_init (&r, 1.5, 1.2, 3, 3);
     DP_CHECK (dp_lockdet_step (&r, 2.0) == 0); /* cnt = 1 of 3, mid-declare */
     DP_CHECK (r.cnt == 1);
     r.locked = 1; /* a live decision to preserve */
-    lockdet_init (&r, 9.0, 8.0, 5, 6);
+    dp_lockdet_init (&r, 9.0, 8.0, 5, 6);
     DP_CHECK (r.locked == 1); /* decision survives  */
     DP_CHECK (r.cnt == 1);    /* run survives too — unlike configure() */
     DP_CHECK (r.up_thresh == 9.0 && r.n_up == 5 && r.n_down == 6);
@@ -156,7 +156,7 @@ main (void)
   {
     dp_lockdet_state_t inv;
     memset (&inv, 0, sizeof inv);
-    lockdet_init (&inv, 1.0, 2.0, 1, 1);         /* up < down: inverted */
+    dp_lockdet_init (&inv, 1.0, 2.0, 1, 1);      /* up < down: inverted */
     DP_CHECK (dp_lockdet_step (&inv, 1.5) == 1); /* mid-band declares   */
     DP_CHECK (dp_lockdet_step (&inv, 1.5) == 0); /* ...and immediately drops */
     DP_CHECK (dp_lockdet_step (&inv, 1.5) == 1); /* chatter, every look */
@@ -171,7 +171,7 @@ main (void)
   {
     dp_lockdet_state_t nand;
     memset (&nand, 0, sizeof nand);
-    lockdet_init (&nand, 1.5, 1.2, 2, 3);
+    dp_lockdet_init (&nand, 1.5, 1.2, 2, 3);
 
     /* Unlocked: never declares, however many looks arrive. */
     for (int i = 0; i < 10; i++)
@@ -210,8 +210,8 @@ main (void)
     dp_lockdet_state_t one, split;
     memset (&one, 0, sizeof one);
     memset (&split, 0, sizeof split);
-    lockdet_init (&one, 1.5, 1.2, 2, 2);
-    lockdet_init (&split, 1.5, 1.2, 2, 2);
+    dp_lockdet_init (&one, 1.5, 1.2, 2, 2);
+    dp_lockdet_init (&split, 1.5, 1.2, 2, 2);
 
     double seq[] = { 2.0, 2.0, 1.3, 1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0 };
     size_t n     = sizeof seq / sizeof seq[0];

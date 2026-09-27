@@ -128,7 +128,7 @@ stream by one period of the reference, correlates each repetition
 circularly, transforms the slow-time axis, and tiles wide uncertainty by
 whole-bin spectral rolls. All of that holds for **any periodic complex
 reference**. A code is the case whose samples come from chips.
-`acq_create_burst()` takes the samples themselves (#1470, #1478), and
+`dp_acq_create_burst()` takes the samples themselves (#1470, #1478), and
 only the samples: a PN code is passed as its chips by `bin_to_nrz()`, held
 `spc` samples each. One chip is one sample (`sf = n`, `spc = 1`,
 `chip_rate = fs`), so every path above runs unchanged, and `code_phase` is
@@ -800,7 +800,7 @@ objects it CAPS the coherent depth at `f_epoch / sqrt(2 * doppler_rate)`, so it
 can only lower the depth, never raise it.
 
 **P0 (stateless kernel) — substantially shipped, via a coarser mechanism
-than specified below.** `acq_run`/`dp_acq_state_bytes`/`dp_acq_get_state`/
+than specified below.** `dp_acq_run`/`dp_acq_state_bytes`/`dp_acq_get_state`/
 `dp_acq_set_state` (`native/src/acq/acq_core.c`,
 [acq-fn.md](acq-fn.md)) give the shared `dp_acq_state_t` engine the
 pure-transducer / serializable-carry properties P0 asks for, but not via the

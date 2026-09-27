@@ -114,7 +114,7 @@ The thing a Python receiver ACQUIRES on: pair it with `doppler.detection.SyncFin
 derandomized"), so it reads the same in every frame and in exactly one polarity — which is what makes it the only thing in a CADU that can report a 180-degree carrier ambiguity.
 
 
-A function rather than a constant a caller expands, because an MSB-first expansion written out twice is a transcription that can disagree with itself. This tree's own doctests were the second copy until doppler#900, and this alias exists so the third copy is not a Python one: it delegates to `ccsds_tm_asm_bits`, which is where the expansion is written and where `test_ccsds_tm_asm` holds it to the published pattern.
+A function rather than a constant a caller expands, because an MSB-first expansion written out twice is a transcription that can disagree with itself. This tree's own doctests were the second copy until doppler#900, and this alias exists so the third copy is not a Python one: it delegates to `dp_ccsds_tm_asm_bits`, which is where the expansion is written and where `test_ccsds_tm_asm` holds it to the published pattern.
 
 
 

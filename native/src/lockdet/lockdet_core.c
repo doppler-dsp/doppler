@@ -2,8 +2,8 @@
 #include <stdlib.h>
 
 void
-lockdet_init (dp_lockdet_state_t *state, double up_thresh, double down_thresh,
-              uint32_t n_up, uint32_t n_down)
+dp_lockdet_init (dp_lockdet_state_t *state, double up_thresh,
+                 double down_thresh, uint32_t n_up, uint32_t n_down)
 {
   /* Clamp the verify counts: 0 would make the >= comparison in
    * dp_lockdet_step unreachable-by-increment on the first look and is never a
@@ -23,7 +23,7 @@ dp_lockdet_create (double up_thresh, double down_thresh, uint32_t n_up,
   if (!obj)
     return NULL;
   /* cnt/locked already zeroed by calloc */
-  lockdet_init (obj, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_init (obj, up_thresh, down_thresh, n_up, n_down);
   return obj;
 }
 
@@ -37,7 +37,7 @@ void
 dp_lockdet_configure (dp_lockdet_state_t *state, double up_thresh,
                       double down_thresh, uint32_t n_up, uint32_t n_down)
 {
-  lockdet_init (state, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_init (state, up_thresh, down_thresh, n_up, n_down);
   /* A live lock survives a re-tune, but the in-flight verify run was
    * counted against the old thresholds — restart it under the new ones. */
   state->cnt = 0;

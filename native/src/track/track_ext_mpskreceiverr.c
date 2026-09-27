@@ -87,7 +87,7 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
       return -1;
     }
   size_t num_phases = (size_t)num_phases_raw;
-  self->handle      = mpsk_receiver_create_real (
+  self->handle      = dp_mpsk_receiver_create_real (
       m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
       lock_thresh, init_norm_freq, differential, num_phases, agc,
       bn_agc_ratio);
@@ -172,7 +172,8 @@ MpskReceiverRObj_steps_max_out (MpskReceiverRObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (mpsk_receiver_steps_real_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_mpsk_receiver_steps_real_max_out (self->handle));
 }
 
 static PyObject *
@@ -219,7 +220,7 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = mpsk_receiver_steps_real_max_out (self->handle);
+      size_t _omax    = dp_mpsk_receiver_steps_real_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -240,8 +241,8 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
       float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = mpsk_receiver_steps_real (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_mpsk_receiver_steps_real (self->handle, _ng0, _ng1, _ng2,
+                                             _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -256,7 +257,7 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = mpsk_receiver_steps_real_max_out (self->handle);
+  size_t _cap  = dp_mpsk_receiver_steps_real_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -275,7 +276,7 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
   size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t       n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = mpsk_receiver_steps_real (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_mpsk_receiver_steps_real (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -303,7 +304,7 @@ MpskReceiverRObj_bits_max_out (MpskReceiverRObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (mpsk_receiver_bits_real_max_out (self->handle));
+  return PyLong_FromSize_t (dp_mpsk_receiver_bits_real_max_out (self->handle));
 }
 
 static PyObject *
@@ -349,7 +350,7 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = mpsk_receiver_bits_real_max_out (self->handle);
+      size_t _omax    = dp_mpsk_receiver_bits_real_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -370,7 +371,8 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
       uint8_t     *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
       size_t       n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = mpsk_receiver_bits_real (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_mpsk_receiver_bits_real (self->handle, _ng0, _ng1, _ng2,
+                                            _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -385,7 +387,7 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = mpsk_receiver_bits_real_max_out (self->handle);
+  size_t _cap  = dp_mpsk_receiver_bits_real_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -404,7 +406,7 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
   size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t       n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = mpsk_receiver_bits_real (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_mpsk_receiver_bits_real (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -919,7 +921,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "carrier records. Compare the two by TIME, never by record index. This\n"
     "is deliberate: the AGC's bandwidth is quoted in the pre-terminal\n"
     "stream's units precisely so it is not coupled to the loop that is\n"
-    "stretching the symbol grid (see RateConverter_enable_agc()).\n"
+    "stretching the symbol grid (see dp_RateConverter_enable_agc()).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -997,7 +999,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes "
     "them\n"
     "complex before anything else touches them, and the per-sample body is\n"
-    "the same one. Requires a state built by mpsk_receiver_create_real().\n"
+    "the same one. Requires a state built by dp_mpsk_receiver_create_real().\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1054,7 +1056,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "symbol-error rate). Same per-sample carrier/timing recovery as steps().\n"
     "\n"
     "dp_mpsk_receiver_bits() taking real samples. Requires a state built by\n"
-    "mpsk_receiver_create_real().\n"
+    "dp_mpsk_receiver_create_real().\n"
     "\n"
     "Parameters\n"
     "----------\n"

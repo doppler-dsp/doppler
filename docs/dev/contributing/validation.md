@@ -41,7 +41,7 @@ to ask yourself at the start of each object.
 
 The reason is not tidiness. An object's most important surface is often the
 one the binding does not expose: resamp's control accumulator,
-`resamp_get_ctrl_acc`, is *the* diagnostic for a closed timing loop and has
+`dp_resamp_get_ctrl_acc`, is *the* diagnostic for a closed timing loop and has
 no Python binding at all. A Python-first audit measures whatever the
 binding happens to reach and reports a clean bill of health for the surface
 that matters least.
@@ -59,7 +59,7 @@ it. Three outcomes, and the middle one is the trap:
 
 resamp's inventory is the worked example: 16 public entry points against a
 593-line test, of which three had **zero** mentions
-(`resamp_get_ctrl_acc`, `resamp_dc_gain`, `resamp_destroy(NULL)`) and two
+(`dp_resamp_get_ctrl_acc`, `dp_resamp_dc_gain`, `dp_resamp_destroy(NULL)`) and two
 more were literals-only — `set_rate`'s comment promised "preserves phase"
 while asserting only that `get_rate()` read back, and `reset`'s promised
 "zeroes phase/delay" while asserting only that the rate survived. A reset

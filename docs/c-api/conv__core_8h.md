@@ -61,12 +61,12 @@ _Convolutional codes: the code description, the encoder, and the maximum-likelih
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**conv\_code\_valid**](#function-conv_code_valid) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Is_ `c` _a code this file can represent?_ |
-|  void | [**conv\_enc\_init**](#function-conv_enc_init) ([**conv\_enc\_t**](structconv__enc__t.md) \* s) <br>_Reset the encoder to the all-zero state._  |
-|  size\_t | [**conv\_encode**](#function-conv_encode) ([**conv\_enc\_t**](structconv__enc__t.md) \* s, const [**conv\_code\_t**](structconv__code__t.md) \* c, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode_ `n_in` _bits, emitting_`n_in * c->n` _symbols._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**conv\_next\_state**](#function-conv_next_state) (const [**conv\_code\_t**](structconv__code__t.md) \* c, uint32\_t state, unsigned bit) <br>_The state reached from_ `state` _on_`bit` _._ |
-|  unsigned | [**conv\_outputs**](#function-conv_outputs) (const [**conv\_code\_t**](structconv__code__t.md) \* c, uint32\_t state, unsigned bit) <br>_The output word for one branch —_ **the** _expression of the code._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**conv\_states**](#function-conv_states) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Number of trellis states,_ `2^(k-1)` _._ |
+|  int | [**dp\_conv\_code\_valid**](#function-dp_conv_code_valid) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Is_ `c` _a code this file can represent?_ |
+|  void | [**dp\_conv\_enc\_init**](#function-dp_conv_enc_init) ([**conv\_enc\_t**](structconv__enc__t.md) \* s) <br>_Reset the encoder to the all-zero state._  |
+|  size\_t | [**dp\_conv\_encode**](#function-dp_conv_encode) ([**conv\_enc\_t**](structconv__enc__t.md) \* s, const [**conv\_code\_t**](structconv__code__t.md) \* c, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode_ `n_in` _bits, emitting_`n_in * c->n` _symbols._ |
+|  unsigned | [**dp\_conv\_outputs**](#function-dp_conv_outputs) (const [**conv\_code\_t**](structconv__code__t.md) \* c, uint32\_t state, unsigned bit) <br>_The output word for one branch —_ **the** _expression of the code._ |
 
 
 
@@ -111,7 +111,7 @@ A rate-1/n convolutional code is four numbers — a constraint length, an output
 
 
 
-[**conv\_outputs**](conv__core_8h.md#function-conv_outputs) is what the family of codes emits, and it is the only place that says so. [**conv\_encode**](conv__core_8h.md#function-conv_encode) calls it to produce symbols; a Viterbi decoder calls it to build the trellis it searches. An encoder that computed the outputs and a decoder that computed them _again_ would be two implementations of one primitive, and the detail that drifts between them is never the arithmetic — it is a convention.
+[**dp\_conv\_outputs**](conv__core_8h.md#function-dp_conv_outputs) is what the family of codes emits, and it is the only place that says so. [**dp\_conv\_encode**](conv__core_8h.md#function-dp_conv_encode) calls it to produce symbols; a Viterbi decoder calls it to build the trellis it searches. An encoder that computed the outputs and a decoder that computed them _again_ would be two implementations of one primitive, and the detail that drifts between them is never the arithmetic — it is a convention.
 
 
 CCSDS is the worked example and the warning: 131.0-B-3 inverts the second output and most codes invert nothing. Omitting that inversion produces a code that decodes its own output perfectly and interoperates with nothing; measured on the CCSDS code, a decoder that omits it gets **39.2 % of bits wrong**. As a field of [**conv\_code\_t**](structconv__code__t.md) the mistake is a wrong argument. As a constant inside an encoder it is a wrong encoder, and the matching decoder hides it.
@@ -122,7 +122,7 @@ CCSDS is the worked example and the warning: 131.0-B-3 inverts the second output
 
 
 
-The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as `CCSDS_TM_CONV`, because a channel-coding standard picking a code is not the same fact as the code existing. Point this at the deep-space rate-1/6 code, at a K = 9 experiment, or at whatever a caller brings — the trellis is identical and only the table changes.
+The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as `dp_CCSDS_TM_CONV`, because a channel-coding standard picking a code is not the same fact as the code existing. Point this at the deep-space rate-1/6 code, at a K = 9 experiment, or at whatever a caller brings — the trellis is identical and only the table changes.
 
 
 
@@ -151,11 +151,45 @@ The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as `CCSDS_TM_CONV`, becau
 
 
 
-### function conv\_code\_valid 
+### function conv\_next\_state 
+
+_The state reached from_ `state` _on_`bit` _._
+```C++
+JM_FORCEINLINE uint32_t conv_next_state (
+    const conv_code_t * c,
+    uint32_t state,
+    unsigned bit
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function conv\_states 
+
+_Number of trellis states,_ `2^(k-1)` _._
+```C++
+JM_FORCEINLINE uint32_t conv_states (
+    const conv_code_t * c
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_conv\_code\_valid 
 
 _Is_ `c` _a code this file can represent?_
 ```C++
-int conv_code_valid (
+int dp_conv_code_valid (
     const conv_code_t * c
 ) 
 ```
@@ -185,11 +219,11 @@ Non-zero if usable: `k` in `[2, CONV_K_MAX]`, `n` in `[1, CONV_N_MAX]`, and ever
 
 
 
-### function conv\_enc\_init 
+### function dp\_conv\_enc\_init 
 
 _Reset the encoder to the all-zero state._ 
 ```C++
-void conv_enc_init (
+void dp_conv_enc_init (
     conv_enc_t * s
 ) 
 ```
@@ -201,11 +235,11 @@ void conv_enc_init (
 
 
 
-### function conv\_encode 
+### function dp\_conv\_encode 
 
 _Encode_ `n_in` _bits, emitting_`n_in * c->n` _symbols._
 ```C++
-size_t conv_encode (
+size_t dp_conv_encode (
     conv_enc_t * s,
     const conv_code_t * c,
     const uint8_t * in,
@@ -245,29 +279,11 @@ Symbols written, or 0 if the code is invalid or `max_out` is too small — in wh
 
 
 
-### function conv\_next\_state 
-
-_The state reached from_ `state` _on_`bit` _._
-```C++
-JM_FORCEINLINE uint32_t conv_next_state (
-    const conv_code_t * c,
-    uint32_t state,
-    unsigned bit
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function conv\_outputs 
+### function dp\_conv\_outputs 
 
 _The output word for one branch —_ **the** _expression of the code._
 ```C++
-unsigned conv_outputs (
+unsigned dp_conv_outputs (
     const conv_code_t * c,
     uint32_t state,
     unsigned bit
@@ -276,7 +292,7 @@ unsigned conv_outputs (
 
 
 
-Output `j` is bit `j` of the result, matching the order the polynomials are given in and the order [**conv\_encode**](conv__core_8h.md#function-conv_encode) emits them — so for CCSDS, bit 0 is C1 and bit 1 is C2.
+Output `j` is bit `j` of the result, matching the order the polynomials are given in and the order [**dp\_conv\_encode**](conv__core_8h.md#function-dp_conv_encode) emits them — so for CCSDS, bit 0 is C1 and bit 1 is C2.
 
 
 
@@ -299,22 +315,6 @@ Output `j` is bit `j` of the result, matching the order the polynomials are give
 
 
         
-
-<hr>
-
-
-
-### function conv\_states 
-
-_Number of trellis states,_ `2^(k-1)` _._
-```C++
-JM_FORCEINLINE uint32_t conv_states (
-    const conv_code_t * c
-) 
-```
-
-
-
 
 <hr>
 ## Macro Definition Documentation

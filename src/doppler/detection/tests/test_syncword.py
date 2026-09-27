@@ -201,7 +201,7 @@ def test_a_python_receiver_can_acquire_a_cadu_and_then_check_it(invert):
     """Acquire, then check — the two halves that had never met in Python.
 
     `Frame.check()` has always been able to score a frame it was HANDED.
-    Nothing could find one: `ccsds_tm_asm_find` had no binding, so a Python
+    Nothing could find one: `dp_ccsds_tm_asm_find` had no binding, so a Python
     receiver holding a bit stream had no way to learn where a CADU starts,
     and the whole threshold story doppler#897 measured described a function
     it could not call.

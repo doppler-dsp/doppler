@@ -25,12 +25,12 @@ int
 main (void)
 {
   /* ── lifecycle ──────────────────────────────────────────────────────── */
-  hbdecim_r2c_state_t *obj = hbdecim_r2c_create (4, H4);
+  hbdecim_r2c_state_t *obj = dp_hbdecim_r2c_create (4, H4);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
-  DP_CHECK (hbdecim_r2c_create (4, NULL) == NULL); /* NULL taps rejected */
-  hbdecim_r2c_destroy (obj);
+  DP_CHECK (dp_hbdecim_r2c_create (4, NULL) == NULL); /* NULL taps rejected */
+  dp_hbdecim_r2c_destroy (obj);
 
   /* ── serializable state round-trip + reject ─────────────────────────── */
   {
@@ -41,24 +41,24 @@ main (void)
     for (size_t i = 0; i < L; i++)
       in[i] = (float)cos (0.05 * (double)i);
 
-    hbdecim_r2c_state_t *ra = hbdecim_r2c_create (4, H4);
-    size_t               nA = hbdecim_r2c_execute (ra, in, L, outA, CAP);
-    hbdecim_r2c_destroy (ra);
+    hbdecim_r2c_state_t *ra = dp_hbdecim_r2c_create (4, H4);
+    size_t               nA = dp_hbdecim_r2c_execute (ra, in, L, outA, CAP);
+    dp_hbdecim_r2c_destroy (ra);
 
-    hbdecim_r2c_state_t *r1   = hbdecim_r2c_create (4, H4);
-    size_t               nB   = hbdecim_r2c_execute (r1, in, cut, outB, CAP);
-    size_t               sb   = hbdecim_r2c_state_bytes (r1);
+    hbdecim_r2c_state_t *r1 = dp_hbdecim_r2c_create (4, H4);
+    size_t               nB = dp_hbdecim_r2c_execute (r1, in, cut, outB, CAP);
+    size_t               sb = dp_hbdecim_r2c_state_bytes (r1);
     void                *blob = malloc (sb);
-    hbdecim_r2c_get_state (r1, blob);
-    hbdecim_r2c_destroy (r1);
+    dp_hbdecim_r2c_get_state (r1, blob);
+    dp_hbdecim_r2c_destroy (r1);
 
-    hbdecim_r2c_state_t *r2 = hbdecim_r2c_create (4, H4);
-    DP_CHECK (hbdecim_r2c_set_state (r2, blob) == DP_OK);
+    hbdecim_r2c_state_t *r2 = dp_hbdecim_r2c_create (4, H4);
+    DP_CHECK (dp_hbdecim_r2c_set_state (r2, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
-    DP_CHECK (hbdecim_r2c_set_state (r2, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_hbdecim_r2c_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += hbdecim_r2c_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
-    hbdecim_r2c_destroy (r2);
+    nB += dp_hbdecim_r2c_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
+    dp_hbdecim_r2c_destroy (r2);
     free (blob);
 
     DP_CHECK (nA == nB);

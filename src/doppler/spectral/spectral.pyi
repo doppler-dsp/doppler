@@ -621,8 +621,8 @@ class Corr:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without tearing down the FFT
-        plans. Does NOT recompute ref_spec; use corr_set_ref() to replace the
-        reference.
+        plans. Does NOT recompute ref_spec; use dp_corr_set_ref() to replace
+        the reference.
 
         Examples
         --------

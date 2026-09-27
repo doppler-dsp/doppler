@@ -8,9 +8,9 @@
  *                    cost should not move with k. Measured because that
  *                    asymmetry is the reason the two are separate objects,
  *                    and because "should not move" is a prediction.
- *   object vs raw    dp_conv_enc_encode is one call to conv_encode over a code
- *                    and register held together. The header claims it adds
- *                    nothing; this is what that costs in nanoseconds.
+ *   object vs raw    dp_conv_enc_encode is one call to dp_conv_encode over a
+ * code and register held together. The header claims it adds nothing; this is
+ * what that costs in nanoseconds.
  *
  * Timing is MIN over rounds, not mean, after ONE settle for the process --
  * and the configurations are INTERLEAVED. A per-configuration warm-up
@@ -139,13 +139,13 @@ main (void)
     dp_conv_enc_state_t *obj = dp_conv_enc_create (CODES[2].poly, 2, 7u, 0x2u);
     if (!obj)
       return 1;
-    conv_enc_init (&raw);
+    dp_conv_enc_init (&raw);
 
     static double t_raw[ITERATIONS], t_obj[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        sink += conv_encode (&raw, &c, in, n_in, out, n_sym);
+        sink += dp_conv_encode (&raw, &c, in, n_in, out, n_sym);
         t1       = jm_bench_now_ns ();
         t_raw[r] = jm_bench_elapsed_sec (t0, t1);
 
@@ -162,7 +162,7 @@ main (void)
     const double obj_s = min_sec (t_obj, ITERATIONS);
     printf ("\n  the object costs %.3fx the raw kernel over %zu bits --\n"
             "  it holds the code and the register together and calls\n"
-            "  conv_encode once, which is the whole of it.\n",
+            "  dp_conv_encode once, which is the whole of it.\n",
             obj_s / raw_s, n_in);
     dp_conv_enc_destroy (obj);
   }

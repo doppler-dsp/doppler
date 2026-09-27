@@ -65,7 +65,7 @@ extern "C"
                         size_t num_phases, int agc, double bn_agc_ratio);
 
   dp_mpsk_receiver_state_t *
-  mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
+  dp_mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                              double rrc_beta, int rrc_span, double bn_carrier,
                              double zeta, double bn_timing,
                              double lock_thresh, double init_norm_freq,
@@ -74,7 +74,7 @@ extern "C"
 
   double dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state);
 
-  dp_mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
+  dp_mpsk_receiver_state_t *dp_mpsk_receiver_create_bpsk (
       double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
       int pulse, double rrc_beta, int rrc_span, double bn_carrier,
       double bn_timing, int differential, int agc);
@@ -88,7 +88,7 @@ extern "C"
                           float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
-    size_t        n     = ddc_execute_ctrl_push_tap2 (
+    size_t        n     = dp_ddc_execute_ctrl_push_tap2 (
         s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
@@ -99,7 +99,7 @@ extern "C"
                                float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
-    size_t        n     = ddcr_execute_ctrl_push_tap2 (
+    size_t        n     = dp_ddcr_execute_ctrl_push_tap2 (
         s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
@@ -115,23 +115,23 @@ extern "C"
                              const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
-  size_t mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state,
                                    const float *x, size_t x_len,
                                    float _Complex *out, size_t max_out);
 
-  size_t mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
+  size_t dp_mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
                                   size_t x_len, uint8_t *out, size_t max_out);
 
   double dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state);
-  double mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
   void dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val);
   double dp_mpsk_receiver_get_lock (const dp_mpsk_receiver_state_t *state);
   int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
 
   int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
-  double mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
 
   int dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);

@@ -97,7 +97,7 @@ _A framed waveform's choices, before they become a description._ [More...](#deta
 ## Detailed Description
 
 
-The wider family `ccsds_tm_frame_describe` is the CADU case of: a frame that may open with a marker, may carry a preamble and a sync word a receiver FINDS, carries a payload, and applies some subset of this standard's four stages to it.
+The wider family `dp_ccsds_tm_frame_describe` is the CADU case of: a frame that may open with a marker, may carry a preamble and a sync word a receiver FINDS, carries a payload, and applies some subset of this standard's four stages to it.
 
 
 **The fields are the caller's; the COVERS are the standard's**, which is the whole reason this lives here rather than in `wfm/wfm_frame.h`. That header knows what a field and a stage are and nothing about which covers which — a general description cannot, because the answer is a specification's:  The middle row is 10.3.4 generalised: the randomiser does not cover the ASM, and the reason the standard gives — a marker a receiver correlates against must not vary between frames — is exactly as true of a preamble and a sync word.

@@ -87,6 +87,44 @@ NULL return is the one answer that cannot teach anything"
 (`wfm_compose.h`). `dp_wfm_field_parse` takes the same shape rather than a
 new convention.
 
+### F.4 What review changed (2026-09-27)
+
+The first draft said every face carries a Field **as one string**. Review
+asked whether that meant payload bits had to be strings; it did, and it was
+wrong. Three corrections followed, each from the owner, in this order:
+
+1. **A literal field is data.** A payload is an array, a binary file or a
+    byte stream; only a generated field is text by nature. The draft had
+    generalised from sync words — short, written by hand — to payloads, which
+    are neither.
+
+1. **Two use cases decide the payload's shape:** a finite burst with all data
+    known a priori, and an infinite stream that must be chunked and framed.
+    Neither is served by one block cycled to fill the run, so the payload
+    became a data source consumed a frame at a time (`data:LEN`, `--data`).
+    The decisions that fell out: the last partial chunk is **padded with a
+    declared fill** (refused without one), a paced stream that runs dry sends
+    **idle frames**, and the feature is **designed now and built after** the
+    Field.
+
+1. **"Delete capability that isn't strictly necessary."** Applied, it removed
+    more than it added:
+
+    | deleted                                                                                                                  | because                                                                             |
+    | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+    | payload cycling                                                                                                          | a burst runs once; more is `--repeat`, which exists                                 |
+    | six payload flags (`--bits`, `--bits-hex`, `--bits-file`, `--payload`, `--payload-gen`, `--payload-len`)                 | one question — where the payload comes from — one flag, `--data`                    |
+    | the Python `Field` object                                                                                                | a frame's layout already reports its fields                                         |
+    | `_` separators in the grammar                                                                                            | convenience syntax, one fewer rule                                                  |
+    | the frame sugar — six CLI coding flags, the flat source framing fields, the by-name compiler, the "both at once" refusal | a frame said two ways needs a compiler and a tie-break; said one way, needs neither |
+    | `prbs` as a name                                                                                                         | it is `pn:0:REG[:SEED]` in the one grammar                                          |
+
+    **Kept**, each because removing it would lose something a caller needs:
+    both LFSR forms (a published sequence can require Fibonacci), `*REPS` (a
+    DSSS preamble is a repeated code), `--data none` (code-only continuous
+    DSSS), and the fixed-layout CLI field flags for the common frame — which
+    build a description, not a second representation.
+
 ______________________________________________________________________
 
 ## C. The CCSDS sites

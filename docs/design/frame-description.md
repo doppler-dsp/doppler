@@ -48,9 +48,9 @@ for everything written as text ([§F](#f-the-field-one-text-form)).
 ## Use cases — who calls this, and what they do with the answer
 
 - **`wfmgen`, generating a test waveform.** Framing is an axis there rather
-    than a waveform type: `--acq-code`/`--sync` describe a frame, layered on
-    `--type bits` and the user's own `--bits`, each taking one Field
-    (`--sync 0x1ACFFC1D`, `--acq-code 'pn:1023:10*4'`). Coding is the next stage on
+    than a waveform type: `--acq-code`/`--sync` describe a frame, each
+    taking one Field (`--sync 0x1ACFFC1D`, `--acq-code 'pn:1023:10*4'`),
+    and `--data` says where the payload comes from. Coding is the next stage on
     that same axis — randomise this, Reed-Solomon it at depth 5, prepend this
     marker, convolutionally code the lot, over bits the caller supplied.
 - **The scoring path, measuring a capture.** The description is read from
@@ -173,31 +173,33 @@ string.
 
 ```text
 field  := seq [ "*" REPS ]                        REPS >= 1, default 1
-seq    := bin | hex | pn | gold | dotted
-bin    := [01_]+                                   "_" separates, nothing else is allowed
-hex    := "0x" [0-9A-Fa-f_]+                       4 bits per digit, MSB first
+seq    := bin | hex | pn | gold | dotted | data
+bin    := [01]+                                    nothing else is allowed
+hex    := "0x" [0-9A-Fa-f]+                        4 bits per digit, MSB first
 pn     := "pn:" LEN ":" REG [":" SEED [":" POLY]] [":" LFSR]
 gold   := "gold:" LEN ":" REG ":" TA ":" SA ":" TB ":" SB
 dotted := "dotted:" LEN
+data   := "data:" LEN                               LEN bits per frame from the data source (§F.5)
 LFSR   := "galois" | "fibonacci"                   default galois
 ```
 
 Numbers take decimal or `0x` hex, and a token must be consumed whole. `LEN`
-is the **output** length and `REG` the register width, `1..64`; they are named
+is the **output** length — `0` only as a data source, where it means *unbounded* (§F.5) — and `REG` the register width, `1..64`; they are named
 apart for the reason [the field kinds](#1-fields-where-a-run-of-bits-comes-from)
 give. A `0`/`1` string with any other character in it is refused, never
 filtered — a typo that quietly shortens a sync word is the failure this
 closes.
 
-| writes as                           | means                                         |
-| ----------------------------------- | --------------------------------------------- |
-| `1110_1011`                         | eight literal bits                            |
-| `0x1ACFFC1D`                        | the 32-bit CCSDS marker                       |
-| `pn:1023:10`                        | a 1023-bit m-sequence, 10-bit Galois register |
-| `pn:64:7:0x5:0:fibonacci`           | 64 bits, seed 5, default poly, Fibonacci      |
-| `gold:64:10:0x3A6:0x15E:0x237:0x49` | a Gold code from two registers                |
-| `dotted:16`                         | `1010…`, 16 bits                              |
-| `pn:31:5*4`                         | a 31-chip code, sent four times (a preamble)  |
+| writes as                           | means                                                      |
+| ----------------------------------- | ---------------------------------------------------------- |
+| `11101011`                          | eight literal bits                                         |
+| `0x1ACFFC1D`                        | the 32-bit CCSDS marker                                    |
+| `pn:1023:10`                        | a 1023-bit m-sequence, 10-bit Galois register              |
+| `pn:64:7:0x5:0:fibonacci`           | 64 bits, seed 5, default poly, Fibonacci                   |
+| `gold:64:10:0x3A6:0x15E:0x237:0x49` | a Gold code from two registers                             |
+| `dotted:16`                         | `1010…`, 16 bits                                           |
+| `pn:31:5*4`                         | a 31-chip code, sent four times (a preamble)               |
+| `data:1024`                         | a payload: 1024 bits per frame, drawn from `--data` (§F.5) |
 
 **`reps` belongs to the Field**, because `wfm_field_t` carries it: a preamble
 is not a fifth kind but any of the four repeated. `*` needs quoting in a
@@ -225,28 +227,30 @@ written. Every face calls them; none restates the grammar.
 
 | face            | a literal field                                                                     | a generated field      |
 | --------------- | ----------------------------------------------------------------------------------- | ---------------------- |
-| CLI             | the text form, or `--bits-file PATH` for a payload too long to type                 | the text form          |
+| CLI             | the text form; a payload's bits come from `--data` (§F.5)                           | the text form          |
 | JSON            | the text form (hex when the length allows, so a long payload is ¼ the characters)   | the text form          |
 | a carried frame | `{"name", "spec"}` as text, or `{"name", "derived_by", "bits"}` for a derived field | `{"name", "spec"}`     |
 | Python          | an array (`uint8`, bytes, any 0/1 sequence) — **or** the text form                  | the text form          |
 | C               | a `wfm_seq_t` over the caller's array                                               | `dp_wfm_field_parse()` |
 
 One flag and one JSON key per field on the text faces — `--sync`,
-`--acq-code`, `--data-code`, `--payload` (`--bits` stays the bits-type alias)
-— and in Python one parameter per field that accepts either form:
+`--acq-code`, `--data-code` — and one for the payload's source, `--data`
+(§F.5). In Python, one parameter per field that accepts either form:
 `Frame(preamble=, sync=, payload=, crc=)`, `FrameDesc.add_field(name, value)`.
 Python already works this way for the composer: jm's `bit_pattern` coercion
 lets `Synth(payload=...)` take bytes, a 0/1 sequence or a binary/hex string.
 What is new is that the string may also be a generator, and that it is parsed
-by the one C function rather than by the binding. `Field(value)` inspects one.
+by the one C function rather than by the binding. There is no separate
+`Field` object: a frame's layout already reports its fields.
 
 **A derived field has no text form**, and that is correct: nobody writes a
 CRC trailer's bits. It is declared by the stage that produces it
 (`add_derived`) and appears in a carried frame only as its name and length.
 
 The spellings this replaces are **refused, not aliased**, each with a message
-naming its replacement: `--X-hex`, `--X-gen`, `--payload-gen`,
-`--payload-len`, `--bits-hex`, `--acq-reps`, and the JSON keys `*_gen`,
+naming its replacement: `--X-hex`, `--X-gen`, `--acq-reps`, the six payload
+flags `--bits`, `--bits-hex`, `--bits-file`, `--payload`, `--payload-gen` and
+`--payload-len` (all now `--data`), and the JSON keys `*_gen`,
 `pattern`, `acq_reps`, `lit` and `gen`. Two spellings of one thing is the
 condition this section exists to end.
 
@@ -255,11 +259,11 @@ condition this section exists to end.
 A literal field's bits arrive in one of two shapes, and the difference is the
 whole of what can go wrong:
 
-| source                        | shape                                          | on which face                            |
-| ----------------------------- | ---------------------------------------------- | ---------------------------------------- |
-| an array                      | **unpacked** — one bit per element, `0` or `1` | Python, C                                |
-| a binary file                 | **packed** octets, MSB first                   | CLI `--bits-file PATH`; Python via `cvt` |
-| a byte stream — stdin, a pipe | **packed** octets, MSB first                   | CLI `--bits-file -`; Python via `cvt`    |
+| source                        | shape                                          | on which face                       |
+| ----------------------------- | ---------------------------------------------- | ----------------------------------- |
+| an array                      | **unpacked** — one bit per element, `0` or `1` | Python, C                           |
+| a binary file                 | **packed** octets, MSB first                   | CLI `--data PATH`; Python via `cvt` |
+| a byte stream — stdin, a pipe | **packed** octets, MSB first                   | CLI `--data -`; Python via `cvt`    |
 
 **One primitive unpacks.** Packed octets become bits in exactly one place, a
 `bytes_to_bin` beside `hex_to_bin` in `cvt` — the same conversion a hex
@@ -273,37 +277,107 @@ bits). Packed data is therefore never passed as `bytes` and hoped about: it
 goes through `cvt.bytes_to_bin` first, by name. A value whose meaning depends
 on which face received it is the defect this section exists to prevent.
 
-**A file or a stream is read once, into the field.** It supplies one field's
-bits, not a new payload per frame; whether a stream should instead feed each
-frame its next payload is an [unknown](#unknowns), not an assumption.
+**A constant field is read once; a payload is drawn from, frame by frame.**
+A preamble, a sync word or a spreading code is the same in every frame, so
+its source is read once into the field. A payload is not — see §F.5.
+
+### F.5 The payload is a data source
+
+Two use cases decide the shape, and neither is served by a payload that is
+one fixed block:
+
+1. **A finite burst, all data known a priori** — a file, an array, a message:
+    split across as many frames as it takes, then the burst ends.
+1. **An infinite stream** — a pipe or a live source: chunked into frames for
+    as long as it runs.
+
+Today a frame's payload is one block **cycled** to fill the run, so every
+frame carries the same bits; continuous DSSS streams data but has no frame.
+Both use cases need the same two things instead: **the frame declares how
+many bits a frame carries, and a data source feeds it.** Cycling is
+**deleted** rather than kept as a mode: a finite burst runs once, and more
+than once is `--repeat`, which already exists.
+
+**The payload is a Field of kind `data`.** `data:LEN` means *LEN bits per
+frame, drawn from the frame's data source*. It is the one field kind whose
+bits are not in the description, which is exactly what a payload is, and it
+keeps the frame a description: its layout, its length and every stage's
+cover are known without the data.
+
+**The data source is declared once, with `--data`** — the flag continuous
+DSSS already uses for the same question:
+
+| `--data`                                           | a              | frames                                                    |
+| -------------------------------------------------- | -------------- | --------------------------------------------------------- |
+| a file path                                        | finite source  | `ceil(bits / LEN)`, then the burst ends                   |
+| a literal Field, or a generated one with `LEN > 0` | finite source  | the same                                                  |
+| `-`                                                | stream — stdin | until the input ends                                      |
+| a generated Field, `pn:0:REG[:SEED]`               | stream, seeded | until `--count`; a receiver regenerates it from the Field |
+| `none`                                             | no data        | code only — continuous DSSS, unchanged                    |
+
+A file and stdin carry **packed** octets, unpacked by the one primitive of
+§F.4.
+
+**The last partial chunk is padded with a declared fill.** A finite source
+that does not divide into `LEN`-bit chunks fills its last frame from
+`--fill`, itself a Field (`0x00`, `pn:…`), so every frame keeps one length
+and a receiver's frame length never changes. Without a declared fill the run
+is **refused**, naming the remainder: a pad nobody chose is data nobody sent.
+How many fill bits the last frame carries is recorded (`--record`, the SigMF
+metadata), because a receiver cannot otherwise know where the data stopped.
+
+**A stream that runs dry sends idle frames.** Paced (`--realtime`), an
+underrun emits frames whose payload is the fill, so the carrier and the frame
+timing never break and a receiver stays locked; each is counted and reported.
+When the input *ends* — a closed pipe, not a pause — the last frame is padded
+by the rule above and the run ends cleanly.
+
+**What a record can replay.** A finite source is replayed byte for byte: its
+bits (or its file and a hash of it) are in the record. A stream is not — the
+record holds its description (`-`, `pn:0:23:0x5`), and a generated source replays because
+it is a function of its seed; stdin replays only if the same bytes are fed
+again.
+
+This is designed here so that Field and the one frame are shaped for it; it
+is **built as its own pass through the lifecycle, after** the Field and the
+surface table land ([#853](https://github.com/doppler-dsp/doppler/issues/853)).
 
 ______________________________________________________________________
 
 ## R. One frame representation
 
-The description is **the** frame. Everything that expressed a frame another
-way either compiles into it through one function or is deleted.
+The description is **the** frame, and there is no other way to say one. A
+frame that could be said two ways needed a compiler between them, a rule
+refusing both at once, and a record that had to choose which to write; with
+one way, all three go.
 
-| representation                                                                                                                                                                                                    | fate                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `wfm_frame_desc_t`                                                                                                                                                                                                | **the frame**: fields + stages                                                            |
-| the flat framing fields on a `wfm_source_t` (`payload`, `acq_code`, `data_code`, `sync` as Fields; `crc`, `rs_depth`, `randomise`, `attach_asm`, `convolutional`, `interleave_*`) and the CLI flags that set them | **sugar**, compiled only by `dp_wfm_source_describe_frame()`                              |
-| a carried `frame` on a source                                                                                                                                                                                     | the description, as given                                                                 |
-| both at once                                                                                                                                                                                                      | **refused** — a source says its frame one way                                             |
-| `wfm_frame_t` / `wfm_frame_layout_t`, `dp_wfm_frame_describe()`, the four-field DSSS helpers (`dp_wfm_frame_dsss_nchips/_chips`), `dp_wfm_synth_set_dsss()`                                                       | **deleted**; their callers read the description                                           |
-| `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                                                                                           | **deleted**: literal-only, and a second derivation of the covers the bridge already makes |
-| `ccsds_tm_frame_cfg_t`                                                                                                                                                                                            | **kept** — it configures the codec's kernels, not a generated frame                       |
-| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                                                                                                  | **replaced** by one Field each                                                            |
+| representation                                                                                                                                 | fate                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `wfm_frame_desc_t`                                                                                                                             | **the frame**: fields + stages                                      |
+| a source's `frame`                                                                                                                             | the description, carried as given                                   |
+| the flat framing fields on a `wfm_source_t` — `sync`, `payload`, `crc`, `rs_depth`, `randomise`, `attach_asm`, `convolutional`, `interleave_*` | **deleted**                                                         |
+| the CLI coding flags `--asm`, `--rs-depth`, `--randomise`, `--conv`, `--interleave`, `--interleave-unit`                                       | **deleted**; a coded frame is a `--frame` file                      |
+| the by-name compiler `dp_wfm_source_describe_frame()`                                                                                          | **deleted** with what it compiled                                   |
+| `wfm_frame_t` / `wfm_frame_layout_t`, `dp_wfm_frame_describe()`, the four-field DSSS helpers, `dp_wfm_synth_set_dsss()`                        | **deleted**; their callers read the description                     |
+| `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                        | **deleted**: literal-only, and a second derivation of covers        |
+| `ccsds_tm_frame_cfg_t`                                                                                                                         | **kept** — it configures the codec's kernels, not a generated frame |
+| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                               | **replaced** by one Field each                                      |
 
-**Why the flat fields stay as sugar rather than resolving at parse time.** A
-caller who wrote `--asm --rs-depth 5` should find `asm` and `rs_depth` in the
-record, not six fields and five stages; the generated Python `Synth` writes
-the struct directly; and a DSSS preamble sits outside the description, which
-the bridge already handles. What makes it safe is that nothing else compiles
-them: one function turns sugar into a frame, and every consumer — render,
-length, check — goes through it.
+**What a source still carries, and why it is not framing.** A DSSS source's
+acquisition code and data code are how its bits become chips — the spreading,
+not the frame — so they stay on the source as Fields, beside the frame they
+spread and the data source that fills it (§F.5). Which fields a spreader
+sends as the unspread preamble is the DSSS path's rule to state when it moves
+onto the description; the [unknowns](#unknowns) carry it.
 
-______________________________________________________________________
+**The CLI takes a frame two ways, and they are not two representations.**
+`--frame FILE` reads a description — the only way to add a coding stage, and
+how a CCSDS CADU is written. For the common frame, `--acq-code`, `--sync`,
+`--crc` and `--data-len` are the fields of **one fixed layout**,
+`[preamble × reps | sync | data | crc]`, which one C function builds into a
+description before anything else sees it. Both at once are refused. Nothing
+downstream of the CLI knows which was used: the record stores the
+description.
 
 ## The four enumerations — three closed, one open
 
@@ -427,15 +501,15 @@ Each is enforced where the description is read, not documented and hoped for.
 All exist because the failure mode of this design is a frame that still
 assembles, still decodes against itself, and syncs to nothing.
 
-| invariant                                                                                                                                                | why                                                                                                                       | enforced in                                       |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **A stage's cover is what it OCCUPIES on the wire** — information and derived check symbols together; what it *reads* is the cover minus what it derives | both from one declaration, so the two cannot disagree                                                                     | `wfm_frame.h` (the struct's contract)             |
-| **A derived field must be the LAST field of its producing stage's cover**                                                                                | lets one `in_unit` signature serve every in-place stage; the alternative is parity in the middle of the data              | `wfm_frame.c:156`                                 |
-| **At most one emitting stage, and it must cover the whole frame**                                                                                        | two streams is not a frame; a partial emit has no defined wire order                                                      | `wfm_frame.c:206-215`                             |
-| **A stage whose kind is in neither table is a refusal, never a skip**                                                                                    | a stage that quietly did not run is the exact failure this design prevents; it is pre-flighted before any byte is written | `wfm_frame.c:451-458`                             |
-| **A stage covering no caller-supplied bits derives nothing**                                                                                             | a CRC over an empty payload protects nothing and is not emitted                                                           | `wfm_frame.c:162`                                 |
-| **A Field is refused, never repaired** — a stray character, a zero length, a register outside `1..64`                                                    | a typo that silently shortens a sync word still assembles and syncs to nothing                                            | `dp_wfm_field_parse` (§F; lands with #853)        |
-| **A source says its frame one way** — a carried `frame` and any flat framing field together are refused                                                  | two descriptions of one frame is a render that can disagree with its own length check                                     | `dp_wfm_source_frame_error` (§R; lands with #853) |
+| invariant                                                                                                                                                | why                                                                                                                       | enforced in                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **A stage's cover is what it OCCUPIES on the wire** — information and derived check symbols together; what it *reads* is the cover minus what it derives | both from one declaration, so the two cannot disagree                                                                     | `wfm_frame.h` (the struct's contract)      |
+| **A derived field must be the LAST field of its producing stage's cover**                                                                                | lets one `in_unit` signature serve every in-place stage; the alternative is parity in the middle of the data              | `wfm_frame.c:156`                          |
+| **At most one emitting stage, and it must cover the whole frame**                                                                                        | two streams is not a frame; a partial emit has no defined wire order                                                      | `wfm_frame.c:206-215`                      |
+| **A stage whose kind is in neither table is a refusal, never a skip**                                                                                    | a stage that quietly did not run is the exact failure this design prevents; it is pre-flighted before any byte is written | `wfm_frame.c:451-458`                      |
+| **A stage covering no caller-supplied bits derives nothing**                                                                                             | a CRC over an empty payload protects nothing and is not emitted                                                           | `wfm_frame.c:162`                          |
+| **A Field is refused, never repaired** — a stray character, a zero length, a register outside `1..64`                                                    | a typo that silently shortens a sync word still assembles and syncs to nothing                                            | `dp_wfm_field_parse` (§F; lands with #853) |
+| **A CLI frame is said one way** — `--frame` and the fixed-layout field flags together are refused                                                        | two descriptions of one frame is a render that can disagree with its own length check                                     | `wfmgen.c` (§R; lands with #853)           |
 
 ## The limits, as numbers
 
@@ -566,12 +640,14 @@ it is measured:
     golden — rare enough that quoting is cheap, common enough that a separate
     key would be a second spelling of one field. Revisit if a user trips on
     it.
-- **Whether a byte stream feeds one field, or each frame's payload.** Read
-    once, a stream is just a file that arrives late. Read per frame, it
-    turns the generator into a transmitter of real data — every instance a
-    new payload from the stream — which is a different contract for
-    `--repeat`, `--record` and a replay, and is decided on a use case rather
-    than because the plumbing allows it.
+- **How a receiver tells an idle frame from a data frame, and where the
+    data stopped.** Both are recorded out of band (§F.5). In band, each needs
+    a field that says so — CCSDS spends a virtual-channel ID and a first-
+    header pointer on exactly this — and which field, if any, is general is
+    not yet known.
+- **What `--repeat` means over a data source.** Replaying a finite burst is
+    the natural reading; re-reading a stream is not possible. Decided when
+    §F.5 is built.
 - **Three things jm must do, checked with a scaffold before they are
     relied on.** An object parameter that accepts **either** an array or a
     string — `bit_pattern` coercion does this for composer fields today, and

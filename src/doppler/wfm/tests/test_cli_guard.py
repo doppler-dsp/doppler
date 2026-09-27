@@ -10,9 +10,9 @@ from __future__ import annotations
 import os
 import subprocess
 
-from doppler.tests._platform import skip_module_without_wfmgen
+from doppler.tests._platform import skip_module_posix_only
 
-skip_module_without_wfmgen()
+skip_module_posix_only("drives a pseudo-terminal (pty)")
 
 import pty  # noqa: E402  (after the skip: Windows has no pty module)
 

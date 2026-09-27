@@ -197,8 +197,8 @@ add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 
 # ── the composer in libdoppler, on EVERY platform ────────────────────────────
 # wfm_compose_core used to be folded in only by the foreach inside the
-# POSIX-only block below, so on Windows libdoppler shipped without
-# wfm_compose_* and every consumer failed to link (`undefined symbol:
+# old POSIX-only block (gone since #1575), so on Windows libdoppler shipped
+# without wfm_compose_* and every consumer failed to link (`undefined symbol:
 # dp_wfm_compose_create` in wfmgen_demo, wfmgen_frame_demo,
 # dsss_burst_receiver_demo and validate_wfmgen_certify). It is defined
 # unguarded above and references nothing POSIX-only -- checked: no wfm_sink_*
@@ -213,12 +213,12 @@ foreach(_dt doppler_lib doppler_lib_static)
     target_sources(${_dt} PRIVATE $<TARGET_OBJECTS:wfm_compose_core>)
 endforeach()
 
-# ── NATS PUB sink — POSIX only (the NATS stream layer is not ported to
-#    Windows, #1364; mirrors native/examples's streaming guard). The sink is
-#    independent of the composer, so it links the stream layer, not synth. ──
+# ── NATS PUB sink — wherever the stream layer builds (DP_WITH_STREAM, #1575).
+#    The sink is independent of the composer, so it links the stream layer,
+#    not synth. ──
 # ── sample-clock pacing + timestamping (timing_core) — EVERY platform.
 #
-# Defined outside the POSIX guard below, and deliberately so. jm emits
+# Defined unconditionally, and deliberately so. jm emits
 # `target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)` into the
 # root CMakeLists unconditionally (two modules declare `depends_on timing,
 # link = true`), and a dangling $<TARGET_OBJECTS:> is a CMake GENERATE error,
@@ -246,8 +246,8 @@ target_include_directories(timing_core PUBLIC
 # link libdoppler instead get it from the archive.
 
 # The wfm stream sink and its test: every platform since #1575 (the stream
-# layer builds on Windows). Defined ahead of the POSIX-only block below, whose
-# wfmgen targets link it.
+# layer builds on Windows). Defined ahead of the wfmgen CLI below, which
+# links it.
 if(DP_WITH_STREAM)
 add_library(wfm_sink_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
@@ -270,58 +270,60 @@ add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
 set_tests_properties(test_wfm_sink PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
-if(NOT WIN32)
-    find_package(Threads REQUIRED)
+find_package(Threads REQUIRED)
 
-    # The test and bench stay POSIX-only: both link dp_interrupt_obj, whose
-    # implementation is sigaction with handler chaining and does not build on
-    # Windows (doppler#1362). Moving them out would add a second known Windows
-    # failure for no signal the runner does not already give.
-    add_executable(test_timing_core
-        ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
-    target_link_libraries(test_timing_core PRIVATE timing_core
-        $<TARGET_OBJECTS:dp_interrupt_obj>)
-    target_include_directories(test_timing_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc)
-    add_test(NAME test_timing_core COMMAND test_timing_core)
+# The test and bench link dp_interrupt_obj, which builds on Windows since the
+# SetConsoleCtrlHandler port (#1360) -- the stream tests have linked it there
+# since #1575 -- so they run on every platform.
+add_executable(test_timing_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
+target_link_libraries(test_timing_core PRIVATE timing_core
+    $<TARGET_OBJECTS:dp_interrupt_obj>)
+target_include_directories(test_timing_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_timing_core COMMAND test_timing_core)
 
-    add_executable(bench_timing_core
-        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
-    target_link_libraries(bench_timing_core PRIVATE timing_core ${DP_MATH_LIBRARY}
-        $<TARGET_OBJECTS:dp_interrupt_obj>)
-    target_include_directories(bench_timing_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
+add_executable(bench_timing_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
+target_link_libraries(bench_timing_core PRIVATE timing_core ${DP_MATH_LIBRARY}
+    $<TARGET_OBJECTS:dp_interrupt_obj>)
+target_include_directories(bench_timing_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
-    # Container codec benchmarks (make bench). POSIX-only too: the writer bench
-    # isolates the codec via open_memstream and the reader bench uses temp
-    # files — neither is on the Windows portability path (no Windows wheels).
+# ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / nats / record).
+#    Hand-written (a composer is not a single-object jm-app generator); thin
+#    glue over wfm_compose + wfm_writer + wfm_sink. The generator itself
+#    (dp_doppler_wfmgen, wfmgen_core) is in libdoppler everywhere; the CLI
+#    binary links the stream client, so it follows DP_WITH_STREAM (#1575).
+#
+#    The CLI body is the callable `dp_doppler_wfmgen()` (wfmgen.c → the
+#    wfmgen_core OBJECT lib); the `wfmgen` binary is a one-line `main` shim
+#    (wfmgen_main.c) over it. Splitting the entry point off the body lets
+#    libdoppler archive the whole generator without a `main`-symbol clash in
+#    a downstream that links libdoppler.a alongside its own `main`. ────────
+add_library(wfmgen_core OBJECT ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
+target_include_directories(wfmgen_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm
+    # configure-time doppler/version.h (DOPPLER_VERSION for --version)
+    ${CMAKE_BINARY_DIR}/native/inc)
 
-    # ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / nats / record).
-    #    Hand-written (a composer is not a single-object jm-app generator); thin
-    #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (the
-    #    vendored stream client).
-    #
-    #    The CLI body is the callable `dp_doppler_wfmgen()` (wfmgen.c → the
-    #    wfmgen_core OBJECT lib); the `wfmgen` binary is a one-line `main` shim
-    #    (wfmgen_main.c) over it. Splitting the entry point off the body lets
-    #    libdoppler archive the whole generator without a `main`-symbol clash in
-    #    a downstream that links libdoppler.a alongside its own `main`. ────────
-    add_library(wfmgen_core OBJECT ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
-    target_include_directories(wfmgen_core PUBLIC
-        ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm
-        # configure-time doppler/version.h (DOPPLER_VERSION for --version)
-        ${CMAKE_BINARY_DIR}/native/inc)
+# Weak no-op fallbacks for the wfm_stream_sink_* symbols wfmgen references, so
+# the pure-C core is self-contained and links everywhere with no special
+# flags (ELF + Mach-O). libdoppler_stream provides the strong overrides.
+add_library(wfm_sink_stub_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink_stub.c)
+target_include_directories(wfm_sink_stub_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
 
-    # Weak no-op fallbacks for the wfm_stream_sink_* symbols wfmgen references, so
-    # the pure-C core is self-contained and links everywhere with no special
-    # flags (ELF + Mach-O). libdoppler_stream provides the strong overrides.
-    add_library(wfm_sink_stub_core OBJECT
-        ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink_stub.c)
-    target_include_directories(wfm_sink_stub_core PUBLIC
-        ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
+foreach(_dt doppler_lib doppler_lib_static)
+    target_sources(${_dt} PRIVATE
+        $<TARGET_OBJECTS:wfmgen_core>
+        $<TARGET_OBJECTS:wfm_sink_stub_core>)
+endforeach()
 
+if(DP_WITH_STREAM) # the CLI links the stream layer (#1575)
     add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen_main.c)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
@@ -353,23 +355,19 @@ if(NOT WIN32)
     # a second copy would be a duplicate-symbol link error.)
     # Only the two objects that exist here alone; the composer and its data
     # layer are folded in above the guard, on every platform.
-    foreach(_dt doppler_lib doppler_lib_static)
-        target_sources(${_dt} PRIVATE
-            $<TARGET_OBJECTS:wfmgen_core>
-            $<TARGET_OBJECTS:wfm_sink_stub_core>)
-    endforeach()
 
     # Bundle the wfmgen binary into the Python package so the wheel ships it as
     # package data (the `wfmgen` console-script is an os.execv shim over it —
     # see src/doppler/wfm/cli.py, docs/dev/wfmgen/api.md D2/D5). just-buildit's
-    # wheel build copies the whole src/doppler tree, so _bin/wfmgen rides along.
+    # wheel build copies the whole src/doppler tree, so _bin/wfmgen[.exe] rides
+    # along (the name cli.py resolves).
     if(BUILD_PYTHON)
         add_custom_command(TARGET wfmgen_cli POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 "${PYTHON_PACKAGE_DIR}/wfm/_bin"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:wfmgen_cli>"
-                "${PYTHON_PACKAGE_DIR}/wfm/_bin/wfmgen"
+                "${PYTHON_PACKAGE_DIR}/wfm/_bin/$<TARGET_FILE_NAME:wfmgen_cli>"
             VERBATIM
             COMMENT "Bundle wfmgen CLI binary into the wheel package")
     endif()

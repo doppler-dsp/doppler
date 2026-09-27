@@ -18,25 +18,25 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo 
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach()
 
-# ── Streaming examples (POSIX only — use pthreads + the vendored nats.c) ─────
-# Streaming examples need the NATS stream layer (pthreads + the vendored
-# nats.c), which is not ported to Windows -- a carve-out tracked on #1364.
+# ── Threaded and streaming examples ────────────────────────────────────────
+# Threads go through dp_thread.h, so the threaded examples build everywhere;
+# the streaming ones need the NATS stream layer, i.e. DP_WITH_STREAM (#1575).
 
-if(NOT WIN32)
-    find_package(Threads REQUIRED)
-    # The pool runs its receivers and the searcher's tiles across threads
-    # (dp_parallel.h); glibc < 2.34 needs -lpthread on the final link.
-    # ring_threaded_demo is a producer thread against a blocking wait()
-    # (pthreads); ring_backed_demo names its file under $TMPDIR or /tmp.
-    foreach(_ex async_dsss_pool_demo ring_threaded_demo ring_backed_demo)
-        add_executable(${_ex} ${_ex}.c)
-        target_include_directories(${_ex} PRIVATE
-            ${CMAKE_SOURCE_DIR}/native/inc
-            ${CMAKE_BINARY_DIR}/native/inc)
-        target_link_libraries(${_ex} PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
-        set_target_properties(${_ex} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    endforeach()
+find_package(Threads REQUIRED)
+# The pool runs its receivers and the searcher's tiles across threads
+# (dp_parallel.h); glibc < 2.34 needs -lpthread on the final link.
+# ring_threaded_demo is a producer thread against a blocking wait()
+# (dp_thread.h); ring_backed_demo names its file in the temp directory.
+foreach(_ex async_dsss_pool_demo ring_threaded_demo ring_backed_demo)
+    add_executable(${_ex} ${_ex}.c)
+    target_include_directories(${_ex} PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc
+        ${CMAKE_BINARY_DIR}/native/inc)
+    target_link_libraries(${_ex} PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
+    set_target_properties(${_ex} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+endforeach()
+if(DP_WITH_STREAM)
     foreach(_ex transmitter receiver pipeline_demo spectrum_analyzer
                 graceful_shutdown_demo spool_follow_demo)
         add_executable(${_ex} ${_ex}.c)

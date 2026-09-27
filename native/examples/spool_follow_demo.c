@@ -35,12 +35,12 @@
  */
 
 #include "doppler/dp_interrupt.h"
+#include "doppler/dp_thread.h"
 #include "doppler/wfm_reader/wfm_reader_core.h"
 #include "doppler/wfm_writer/wfm_writer_core.h"
 
 #include "doppler/dp_complex.h"
 #include <math.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,15 +71,13 @@ static size_t n_read    = 0; /* what the reader got back */
 static void
 nap_ms (long ms)
 {
-  struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
-  nanosleep (&ts, NULL);
+  dp_thread_sleep_us ((unsigned)(ms * 1000));
 }
 
 /* Stand-in for a stream we do not control: it produces on its own schedule
    and has no end. Paced so the reader is FASTER than the source, which is
    the interesting case -- the reader spends its life waiting. */
-static void *
-writer_thread (void *arg)
+DP_THREAD_FN (writer_thread, arg)
 {
   FILE *fp = (FILE *)arg;
   /* total_samples = 0: an unbounded run declares no length, so data_size
@@ -87,7 +85,7 @@ writer_thread (void *arg)
   dp_wfm_writer_state_t *w
       = dp_wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
   if (!w)
-    return NULL;
+    DP_THREAD_RETURN;
   /* Land the 512-byte header immediately. Until it is on disk the file is
      empty, and an empty file auto-detects as RAW -- which has no header and
      therefore no end-of-capture marker, so a reader that opened during that
@@ -113,11 +111,10 @@ writer_thread (void *arg)
      what the reader is waiting for. */
   dp_wfm_writer_close (w);
   printf ("writer : stopped, capture closed after %zu samples\n", n_written);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
-static void *
-reader_thread (void *arg)
+DP_THREAD_FN (reader_thread, arg)
 {
   (void)arg;
   /* Open only once the capture really is BLUE. `create` SUCCEEDS on an
@@ -137,7 +134,7 @@ reader_thread (void *arg)
   if (!r)
     {
       printf ("reader : capture never became readable\n");
-      return NULL;
+      DP_THREAD_RETURN;
     }
 
   /* How this reader learns a stop was requested. Injected rather than
@@ -179,7 +176,7 @@ reader_thread (void *arg)
   printf ("reader : stopped, %zu samples, mean power %.4f, ending = %s\n",
           n_read, n_read ? acc / (double)n_read : 0.0, why);
   dp_wfm_reader_destroy (r);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
@@ -208,9 +205,9 @@ main (int argc, char **argv)
   else
     printf ("spooling to %s -- press Ctrl+C to stop\n", PATH);
 
-  pthread_t wt, rt;
-  pthread_create (&wt, NULL, writer_thread, fp);
-  pthread_create (&rt, NULL, reader_thread, NULL);
+  dp_thread_t wt, rt;
+  dp_thread_create (&wt, writer_thread, fp);
+  dp_thread_create (&rt, reader_thread, NULL);
 
   if (limit_s > 0)
     {
@@ -218,8 +215,8 @@ main (int argc, char **argv)
       dp_interrupt (); /* exactly what the Ctrl+C handler does */
     }
 
-  pthread_join (wt, NULL);
-  pthread_join (rt, NULL);
+  dp_thread_join (wt);
+  dp_thread_join (rt);
   fclose (fp);
   remove (PATH);
 

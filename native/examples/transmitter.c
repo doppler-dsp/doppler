@@ -29,13 +29,7 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#define dp_usleep(us) Sleep ((DWORD)((us) / 1000))
-#else
-#include <unistd.h>
-#define dp_usleep(us) usleep ((useconds_t)(us))
-#endif
+#include "doppler/dp_thread.h" /* dp_thread_sleep_us: every OS */
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -155,7 +149,7 @@ main (int argc, char *argv[])
   printf ("\nWaiting 1 s for subscribers to connect...\n");
   fflush (stdout);
 
-  dp_usleep (1000000);
+  dp_thread_sleep_us (1000000);
 
   void *samples = NULL;
   if (sample_type == CI32)
@@ -220,7 +214,7 @@ main (int argc, char *argv[])
           fflush (stdout);
         }
 
-      dp_usleep (8000); /* ~8 ms throttle for 8192 samples @ 1 MHz */
+      dp_thread_sleep_us (8000); /* ~8 ms throttle for 8192 samples @ 1 MHz */
     }
 
   free (samples);

@@ -21,8 +21,6 @@ import pathlib
 
 import pytest
 
-from doppler.tests._platform import STREAM_MODULES, requires_stream
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 # CPython adds these to every PyStructSequence type; they are not API.
@@ -53,10 +51,7 @@ def _cases():
         mod = f"doppler.{pyi.parent.name}.{pyi.stem}"
         for node in ast.parse(pyi.read_text(encoding="utf-8")).body:
             if isinstance(node, ast.ClassDef) and node.name[0] != "_":
-                marks = requires_stream if mod in STREAM_MODULES else ()
-                yield pytest.param(
-                    mod, node, id=f"{mod}.{node.name}", marks=marks
-                )
+                yield pytest.param(mod, node, id=f"{mod}.{node.name}")
 
 
 CASES = list(_cases())

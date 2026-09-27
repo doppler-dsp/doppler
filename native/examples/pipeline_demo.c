@@ -25,14 +25,12 @@
 #include <doppler/stream/stream.h>
 
 #include "doppler/dp_complex.h"
+#include "doppler/dp_thread.h"
+#include "doppler/timing/timing_core.h"
 #include <math.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-#define dp_usleep(us) usleep ((useconds_t)(us))
 
 static char ENDPOINT[96];
 
@@ -43,8 +41,7 @@ static char ENDPOINT[96];
 #define NUM_BATCHES 100
 #define SAMPLES_PER_BATCH 1024
 
-static void *
-producer_thread (void *arg)
+DP_THREAD_FN (producer_thread, arg)
 {
   (void)arg;
   printf ("Producer: starting...\n");
@@ -53,17 +50,17 @@ producer_thread (void *arg)
   if (!ctx)
     {
       fputs ("Producer: dp_push_create failed\n", stderr);
-      return NULL;
+      DP_THREAD_RETURN;
     }
 
-  dp_usleep (100000); /* allow consumer to connect */
+  dp_thread_sleep_us (100000); /* allow consumer to connect */
 
   double _Complex *samples
       = malloc (SAMPLES_PER_BATCH * sizeof (double _Complex));
   if (!samples)
     {
       dp_push_destroy (ctx);
-      return NULL;
+      DP_THREAD_RETURN;
     }
 
   for (int batch = 0; batch < NUM_BATCHES; batch++)
@@ -87,17 +84,16 @@ producer_thread (void *arg)
       if ((batch + 1) % 10 == 0)
         printf ("Producer: sent batch %d/%d\n", batch + 1, NUM_BATCHES);
 
-      dp_usleep (1000);
+      dp_thread_sleep_us (1000);
     }
 
   printf ("Producer: done.\n");
   free (samples);
   dp_push_destroy (ctx);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
-static void *
-consumer_thread (void *arg)
+DP_THREAD_FN (consumer_thread, arg)
 {
   (void)arg;
   printf ("Consumer: connecting to %s\n", ENDPOINT);
@@ -110,12 +106,12 @@ consumer_thread (void *arg)
     {
       ctx = dp_pull_create (ENDPOINT);
       if (!ctx)
-        dp_usleep (20000); /* 20 ms */
+        dp_thread_sleep_us (20000); /* 20 ms */
     }
   if (!ctx)
     {
       fputs ("Consumer: dp_pull_create failed\n", stderr);
-      return NULL;
+      DP_THREAD_RETURN;
     }
 
   int      batches     = 0;
@@ -164,14 +160,15 @@ consumer_thread (void *arg)
           10.0 * log10 (mean_pwr + 1e-12));
 
   dp_pull_destroy (ctx);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
 main (int argc, char *argv[])
 {
   snprintf (ENDPOINT, sizeof ENDPOINT,
-            "nats://127.0.0.1:4222/dp-pipeline-demo-%ld", (long)getpid ());
+            "nats://127.0.0.1:4222/dp-pipeline-demo-%llu",
+            (unsigned long long)dp_mono_ns ());
 
   if (argc > 1
       && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
@@ -192,11 +189,11 @@ main (int argc, char *argv[])
           (double)(NUM_BATCHES * SAMPLES_PER_BATCH * sizeof (double _Complex))
               / 1024.0);
 
-  pthread_t prod, cons;
-  pthread_create (&prod, NULL, producer_thread, NULL);
-  pthread_create (&cons, NULL, consumer_thread, NULL);
-  pthread_join (prod, NULL);
-  pthread_join (cons, NULL);
+  dp_thread_t prod, cons;
+  dp_thread_create (&prod, producer_thread, NULL);
+  dp_thread_create (&cons, consumer_thread, NULL);
+  dp_thread_join (prod);
+  dp_thread_join (cons);
 
   printf ("\nDemo complete.\n");
   return 0;

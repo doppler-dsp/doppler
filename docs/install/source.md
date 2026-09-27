@@ -84,13 +84,17 @@ using the vendored nats.c's own Windows port. The static stream library is
 with the GNU `clang` driver leaves the stream layer out: nats.c's CMake passes
 MSVC-style flags on every Windows build.
 
+The `wfmgen` generator (`dp_doppler_wfmgen`) is in the Windows library, and
+the `wfmgen` CLI and the streaming C examples build wherever the stream layer
+does.
+
 **Not available on Windows yet.** These are not ported, and CMake leaves them
 out of a Windows build rather than failing:
 
-- the `wfmgen` CLI and `dp_doppler_wfmgen`, and the C examples;
 - the Rust crate, which is built and tested on Linux and macOS only;
-- a few tests of POSIX-only behaviour (signal chaining in `dp_interrupt`, a
-    memory soak that reads `getrusage`).
+- a few tests of POSIX-only behaviour: signal chaining in `dp_interrupt`
+    (Windows has no `sigaction`), and the async DSSS pool's memory soak, which
+    reads `getrusage`.
 
 Each carve-out is tracked on
 [#1364](https://github.com/doppler-dsp/doppler/issues/1364).

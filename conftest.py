@@ -10,26 +10,10 @@ import pathlib
 import shutil
 import socket
 import subprocess
-import sys
 import tempfile
 import time
 
 _IGNORE = pathlib.Path(__file__).parent / "docs" / ".doc-snippet-ignore"
-
-# doppler.stream is not built on Windows, by decision (doppler#1364): its
-# extension exists only where stream_core_obj does, which is if(NOT WIN32)
-# in native/src/stream/CMakeLists.txt. Ignored at COLLECTION, because
-# collecting doppler/stream/tests/* imports the doppler.stream package
-# first, and no marker inside a test module runs before that. specan's
-# NATS-source tests monkeypatch doppler.stream itself, so they go too.
-collect_ignore_glob = (
-    [
-        "src/doppler/stream/*",
-        "src/doppler/specan/tests/test_nats_sources.py",
-    ]
-    if sys.platform == "win32"
-    else []
-)
 
 _NATS_ADDR = ("127.0.0.1", 4222)
 _nats_proc: subprocess.Popen | None = None
@@ -145,46 +129,6 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if pathlib.Path(str(item.fspath)).name == "test_validation_limits.py":
             item.add_marker(mark)
-
-
-def _skip_if_absent_by_decision(exc: BaseException) -> None:
-    """Skip, rather than fail, on a tool this platform does not build.
-
-    One mechanism instead of a marker on every test that shells out to
-    ``wfmgen``: those tests reach it through ``doppler.wfm.cli._runnable``,
-    which raises ``cli.UnavailableError`` only where ``cli.AVAILABLE`` says the
-    platform has no wfmgen (Windows, doppler#1364). Keyed on that type and
-    nothing broader, so a Linux or macOS build that lost the binary raises a
-    plain FileNotFoundError and still FAILS. Registration-free: a new test
-    that needs the CLI is covered the moment it calls the canonical locator.
-    """
-    import sys
-
-    import pytest
-
-    cli = sys.modules.get("doppler.wfm.cli")
-    if cli is not None and isinstance(exc, cli.UnavailableError):
-        pytest.skip(str(exc))
-
-
-def _absent_by_decision_wrapper():
-    """A new-style hook wrapper applying `_skip_if_absent_by_decision`."""
-    import pytest
-
-    @pytest.hookimpl(wrapper=True)
-    def hook(item):
-        try:
-            return (yield)
-        except Exception as exc:
-            _skip_if_absent_by_decision(exc)
-            raise
-
-    return hook
-
-
-# Setup too, not only the call: a fixture may be what locates the binary.
-pytest_runtest_setup = _absent_by_decision_wrapper()
-pytest_runtest_call = _absent_by_decision_wrapper()
 
 
 def _display_name(fullname: str, name: str) -> str:

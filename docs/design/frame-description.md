@@ -205,6 +205,12 @@ closes.
 is not a fifth kind but any of the four repeated. `*` needs quoting in a
 shell (`--acq-code 'pn:31:5*4'`); the docs always quote it.
 
+**A repeat is invariant: it sends the same bits again, whatever the field
+is.** It never draws new data. `data:LEN*3` sends each payload chunk three
+times — simple time diversity, for resilience — and works over a stream
+precisely because nothing is re-read. The same meaning holds one level up:
+`--repeat` sends the rendered burst again, identical data and all.
+
 ### F.2 One parser, one printer
 
 `dp_wfm_field_parse(spec, &field, &owned, &why)` is the only place the grammar
@@ -341,6 +347,11 @@ in the description like any other, and the receiver reads bits `N:M` because
 it was designed to. The generator does not interpret it. A field whose
 *value* depends on the data (a per-frame length) would be a derived field and
 so a stage kind; none is added until a link needs one.
+
+**Repeating over a data source** follows the one rule of §F.1: the same bits
+again. `data:LEN*N` repeats each chunk in its frame; `--repeat` repeats a
+finite burst. An infinite stream has no end to repeat, so `--repeat` with a
+stream source is **refused** rather than given a second meaning.
 
 **What a record can replay.** A finite source is replayed byte for byte: its
 bits (or its file and a hash of it) are in the record. A stream is not — the
@@ -650,9 +661,6 @@ it is measured:
     golden — rare enough that quoting is cheap, common enough that a separate
     key would be a second spelling of one field. Revisit if a user trips on
     it.
-- **What `--repeat` means over a data source.** Replaying a finite burst is
-    the natural reading; re-reading a stream is not possible. Decided when
-    §F.5 is built.
 - **Three things jm must do, checked with a scaffold before they are
     relied on.** An object parameter that accepts **either** an array or a
     string — `bit_pattern` coercion does this for composer fields today, and

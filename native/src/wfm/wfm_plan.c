@@ -260,14 +260,14 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
       for (size_t inst = 0; inst < ps->repeats; inst++)
         {
           size_t dly = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
-                           ? wfm_draw_samples (draw_seed, 0, inst, si,
-                                               WFM_RANGE_DELAY_SAMPLES,
-                                               ps->delay_lo, ps->delay_hi)
+                           ? dp__wfm_draw_samples (draw_seed, 0, inst, si,
+                                                   WFM_RANGE_DELAY_SAMPLES,
+                                                   ps->delay_lo, ps->delay_hi)
                            : ps->delay_lo;
           size_t off = (ps->ranged & WFM_RANGE_OFF_SAMPLES)
-                           ? wfm_draw_samples (draw_seed, 0, inst, si,
-                                               WFM_RANGE_OFF_SAMPLES,
-                                               ps->off_lo, ps->off_hi)
+                           ? dp__wfm_draw_samples (draw_seed, 0, inst, si,
+                                                   WFM_RANGE_OFF_SAMPLES,
+                                                   ps->off_lo, ps->off_hi)
                            : ps->off_lo;
           size_t on  = ps->num_samples;
 

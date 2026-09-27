@@ -37,9 +37,7 @@ Run it::
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -50,7 +48,6 @@ from doppler.acquire import BurstAcquisition, bin_to_signed
 from doppler.cvt import bin_to_nrz
 from doppler.ddc import DDC
 from doppler.dsss import BurstDemod
-from doppler.tests._repo import repo_root
 from doppler.wfm import PN, FrameDesc
 
 # ── waveform geometry ────────────────────────────────────────────────────────
@@ -180,16 +177,19 @@ def write_scene(path, *, snr_db=SNR_DB):
 
 
 def wfmgen_available():
-    """Path to the wfmgen CLI (PATH, else the CMake build tree), or None."""
-    exe = shutil.which("wfmgen")
-    if exe:
-        return exe
-    root = repo_root(__file__)
-    name = "wfmgen.exe" if sys.platform == "win32" else "wfmgen"
-    for cand in root.glob(f"build*/**/{name}"):
-        if cand.is_file():
-            return str(cand)
-    return None
+    """Path to the wfmgen C binary, or None if it is not built.
+
+    Resolved through ``doppler.wfm.cli`` -- the one locator -- and never
+    the ``wfmgen`` console script on PATH: that is a launcher, and on
+    Windows it runs the binary as a child, so terminating it would leave
+    a ``--continuous`` writer running.
+    """
+    from doppler.wfm import cli
+
+    try:
+        return cli._runnable()
+    except FileNotFoundError:
+        return None
 
 
 def start_writer(capture_path, scene_path, *, realtime=True):

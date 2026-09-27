@@ -49,7 +49,7 @@ open_sink (int sample_type)
   char       ep[96];
   snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-cert-%d-%d-%ld",
             sample_type, seq++, (long)time (NULL));
-  return wfm_stream_sink_open (ep, sample_type);
+  return dp_wfm_stream_sink_open (ep, sample_type);
 }
 
 int
@@ -72,25 +72,25 @@ main (void)
       char ep[96];
       snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-test-%d-%ld", t,
                 (long)time (NULL));
-      wfm_stream_sink_t *s = wfm_stream_sink_open (ep, t);
+      wfm_stream_sink_t *s = dp_wfm_stream_sink_open (ep, t);
       DP_REQUIRE_MSG (s, "sink open");
-      DP_REQUIRE_MSG (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,
+      DP_REQUIRE_MSG (dp_wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,
                       "send 1");
-      DP_REQUIRE_MSG (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,
+      DP_REQUIRE_MSG (dp_wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0,
                       "send 2");
-      wfm_stream_sink_close (s);
+      dp_wfm_stream_sink_close (s);
     }
 
   /* invalid wire type → NULL */
   DP_REQUIRE_MSG (
-      !wfm_stream_sink_open ("nats://127.0.0.1:4222/wfm-sink-bad", 9),
+      !dp_wfm_stream_sink_open ("nats://127.0.0.1:4222/wfm-sink-bad", 9),
       "bad type rejected");
 
   /* drain(NULL) is DP_OK, not a crash and not an error: nothing was
      buffered, so the question "has everything reached the server" is
      vacuously yes. A caller draining in a cleanup path should not have to
      guard the call. */
-  DP_REQUIRE_MSG (wfm_stream_sink_drain (NULL, 100) == DP_OK,
+  DP_REQUIRE_MSG (dp_wfm_stream_sink_drain (NULL, 100) == DP_OK,
                   "draining a NULL sink is vacuously fine");
 
   /* ── §A  available() must not lie about the component that is linked ─────
@@ -107,7 +107,7 @@ main (void)
    * at the broker probe long before here.)
    */
   {
-    DP_CHECK_MSG (wfm_stream_sink_available () == 1,
+    DP_CHECK_MSG (dp_wfm_stream_sink_available () == 1,
                   "available() reports the real component, which is linked");
   }
 
@@ -128,17 +128,17 @@ main (void)
       }
     wfm_stream_sink_t *s = open_sink (3); /* ci16 */
     DP_REQUIRE_MSG (s, "peak: open");
-    DP_CHECK_NEAR (wfm_stream_sink_peak (s), 0.0, 1e-12); /* nothing sent */
-    DP_CHECK (wfm_stream_sink_send (s, a, 64, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (wfm_stream_sink_peak (s), 0.25, 1e-6);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), 0.0, 1e-12); /* nothing sent */
+    DP_CHECK (dp_wfm_stream_sink_send (s, a, 64, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), 0.25, 1e-6);
     /* RUNNING max across sends, not per-block: the larger block raises it */
-    DP_CHECK (wfm_stream_sink_send (s, b, 64, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (wfm_stream_sink_peak (s), 0.75, 1e-6);
+    DP_CHECK (dp_wfm_stream_sink_send (s, b, 64, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), 0.75, 1e-6);
     /* ... and the smaller one after it does NOT lower it again */
-    DP_CHECK (wfm_stream_sink_send (s, a, 64, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (wfm_stream_sink_peak (s), 0.75, 1e-6);
-    wfm_stream_sink_close (s);
-    DP_CHECK_NEAR (wfm_stream_sink_peak (NULL), 0.0, 1e-12);
+    DP_CHECK (dp_wfm_stream_sink_send (s, a, 64, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), 0.75, 1e-6);
+    dp_wfm_stream_sink_close (s);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_peak (NULL), 0.0, 1e-12);
   }
 
   /* ── §C  set_gain scales what is measured, and peak crosses 1.0 ─────────
@@ -165,14 +165,14 @@ main (void)
       {
         wfm_stream_sink_t *s = open_sink (3); /* ci16 */
         DP_REQUIRE_MSG (s, "gain: open");
-        wfm_stream_sink_set_gain (s, cases[k][0]);
-        DP_CHECK (wfm_stream_sink_send (s, x, 32, 1e6, 2.4e9) == 0);
-        DP_CHECK_NEAR (wfm_stream_sink_peak (s), cases[k][1], 1e-6);
+        dp_wfm_stream_sink_set_gain (s, cases[k][0]);
+        DP_CHECK (dp_wfm_stream_sink_send (s, x, 32, 1e6, 2.4e9) == 0);
+        DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), cases[k][1], 1e-6);
         /* the caller's own read of "did this clip": > 1.0 exactly when the
            gain pushed it there, and the 1.5 case proves the peak is not
            clamped to 1.0 on the way past */
-        DP_CHECK ((wfm_stream_sink_peak (s) > 1.0) == (cases[k][1] > 1.0));
-        wfm_stream_sink_close (s);
+        DP_CHECK ((dp_wfm_stream_sink_peak (s) > 1.0) == (cases[k][1] > 1.0));
+        dp_wfm_stream_sink_close (s);
       }
   }
 
@@ -198,10 +198,10 @@ main (void)
     /* off by default: everything below saturates and the fraction stays 0 */
     wfm_stream_sink_t *s = open_sink (3);
     DP_REQUIRE_MSG (s, "clip: open");
-    DP_CHECK (wfm_stream_sink_send (s, all, 40, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (wfm_stream_sink_clip_fraction (s), 0.0, 1e-12);
-    DP_CHECK_NEAR (wfm_stream_sink_peak (s), 2.0, 1e-6); /* peak IS on */
-    wfm_stream_sink_close (s);
+    DP_CHECK (dp_wfm_stream_sink_send (s, all, 40, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (s), 0.0, 1e-12);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), 2.0, 1e-6); /* peak IS on */
+    dp_wfm_stream_sink_close (s);
 
     const struct
     {
@@ -217,26 +217,27 @@ main (void)
       {
         wfm_stream_sink_t *t = open_sink (3);
         DP_REQUIRE_MSG (t, "clip: open tracked");
-        wfm_stream_sink_track_clipping (t, 1);
-        DP_CHECK (wfm_stream_sink_send (t, cases[k].blk, 40, 1e6, 2.4e9) == 0);
-        DP_CHECK_NEAR (wfm_stream_sink_clip_fraction (t), cases[k].want,
+        dp_wfm_stream_sink_track_clipping (t, 1);
+        DP_CHECK (dp_wfm_stream_sink_send (t, cases[k].blk, 40, 1e6, 2.4e9)
+                  == 0);
+        DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (t), cases[k].want,
                        1e-12);
-        wfm_stream_sink_close (t);
+        dp_wfm_stream_sink_close (t);
       }
     /* mixed across sends: 40 clean samples then 40 fully-clipped ones is a
        quarter of all components, which no per-block reading would give */
     wfm_stream_sink_t *m = open_sink (3);
     DP_REQUIRE_MSG (m, "clip: open mixed");
-    wfm_stream_sink_track_clipping (m, 1);
-    DP_CHECK (wfm_stream_sink_send (m, none, 40, 1e6, 2.4e9) == 0);
-    DP_CHECK (wfm_stream_sink_send (m, half, 40, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (wfm_stream_sink_clip_fraction (m), 0.25, 1e-12);
+    dp_wfm_stream_sink_track_clipping (m, 1);
+    DP_CHECK (dp_wfm_stream_sink_send (m, none, 40, 1e6, 2.4e9) == 0);
+    DP_CHECK (dp_wfm_stream_sink_send (m, half, 40, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (m), 0.25, 1e-12);
     /* and it can be turned back OFF mid-stream */
-    wfm_stream_sink_track_clipping (m, 0);
-    DP_CHECK (wfm_stream_sink_send (m, all, 40, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (wfm_stream_sink_clip_fraction (m), 40.0 / 240.0, 1e-12);
-    wfm_stream_sink_close (m);
-    DP_CHECK_NEAR (wfm_stream_sink_clip_fraction (NULL), 0.0, 1e-12);
+    dp_wfm_stream_sink_track_clipping (m, 0);
+    DP_CHECK (dp_wfm_stream_sink_send (m, all, 40, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (m), 40.0 / 240.0, 1e-12);
+    dp_wfm_stream_sink_close (m);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (NULL), 0.0, 1e-12);
   }
 
   /* ── §E  the cf32 path is left untouched, deliberately ──────────────────
@@ -255,11 +256,11 @@ main (void)
       {
         wfm_stream_sink_t *s = open_sink (t);
         DP_REQUIRE_MSG (s, "cf32: open");
-        wfm_stream_sink_track_clipping (s, 1);
-        DP_CHECK (wfm_stream_sink_send (s, x, 32, 1e6, 2.4e9) == 0);
-        DP_CHECK_NEAR (wfm_stream_sink_peak (s), 0.0, 1e-12);
-        DP_CHECK_NEAR (wfm_stream_sink_clip_fraction (s), 0.0, 1e-12);
-        wfm_stream_sink_close (s);
+        dp_wfm_stream_sink_track_clipping (s, 1);
+        DP_CHECK (dp_wfm_stream_sink_send (s, x, 32, 1e6, 2.4e9) == 0);
+        DP_CHECK_NEAR (dp_wfm_stream_sink_peak (s), 0.0, 1e-12);
+        DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (s), 0.0, 1e-12);
+        dp_wfm_stream_sink_close (s);
       }
   }
 
@@ -276,15 +277,15 @@ main (void)
     float _Complex x[16];
     for (int i = 0; i < 16; i++)
       x[i] = 0.5f + 0.0f * I;
-    DP_CHECK (wfm_stream_sink_send (s, x, 16, 1e6, 2.4e9) == 0);
-    DP_CHECK_MSG (wfm_stream_sink_send_eos (s) == DP_OK,
+    DP_CHECK (dp_wfm_stream_sink_send (s, x, 16, 1e6, 2.4e9) == 0);
+    DP_CHECK_MSG (dp_wfm_stream_sink_send_eos (s) == DP_OK,
                   "eos in the documented order (before the drain)");
-    DP_CHECK_MSG (wfm_stream_sink_drain (s, 2000) == DP_OK,
+    DP_CHECK_MSG (dp_wfm_stream_sink_drain (s, 2000) == DP_OK,
                   "drain returns once the client has flushed");
-    wfm_stream_sink_close (s);
+    dp_wfm_stream_sink_close (s);
     /* NULL is vacuously fine on both, so a cleanup path need not guard */
-    DP_CHECK (wfm_stream_sink_send_eos (NULL) == DP_OK);
-    DP_CHECK (wfm_stream_sink_drain (NULL, 100) == DP_OK);
+    DP_CHECK (dp_wfm_stream_sink_send_eos (NULL) == DP_OK);
+    DP_CHECK (dp_wfm_stream_sink_drain (NULL, 100) == DP_OK);
   }
 
   /* DP_TEST_END, not `return 0`: DP_CHECK records a failure and continues,

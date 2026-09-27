@@ -38,9 +38,9 @@ enum {
     WFM_SYNTH_SYMBOLS
     = 7,                /* user complex-symbol stream, oversampled + cycled */
     WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
-                           spread frame, built by wfm_synth_set_dsss();
+                           spread frame, built by dp_wfm_synth_set_dsss();
                            OR a continuous asynchronous stream when a
-                           symbol_rate is supplied (wfm_synth_set_dsss_cont).
+                           symbol_rate is supplied (dp_wfm_synth_set_dsss_cont).
                            The two modes share this one type — a symbol_rate
                            discriminates, no tenth waveform type. */
 };
@@ -112,7 +112,7 @@ typedef struct {
     dp_fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
     /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
        RRC bank, replacing the dense fir (impulse-train + full FIR) with ~sps×
-       fewer MACs. Built by wfm_synth_set_rrc when sps is a power of two; the
+       fewer MACs. Built by dp_wfm_synth_set_rrc when sps is a power of two; the
        dense `fir` is used otherwise. Exactly one of fir/shaper is ever set. */
     resamp_state_t * shaper;
     uint8_t primed;          /* running: shaper's sps-sample latency primed     */
@@ -228,39 +228,39 @@ dp_wfm_synth_state_t *dp_wfm_synth_create(int type, double fs, double freq, doub
 
 void dp_wfm_synth_set_chirp_span(dp_wfm_synth_state_t *state, size_t span);
 
-int wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
+int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
-int wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
+int dp_wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
                        size_t acq_len, size_t acq_reps,
                        const uint8_t *data_code, size_t data_len,
                        const uint8_t *sync, size_t sync_len,
                        const uint8_t *payload, size_t payload_len, int crc);
 
-int wfm_synth_set_dsss_chips(dp_wfm_synth_state_t *state, const uint8_t *chips,
+int dp_wfm_synth_set_dsss_chips(dp_wfm_synth_state_t *state, const uint8_t *chips,
                              size_t n_chips);
 
 
-int wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
+int dp_wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
                             size_t code_len, double chips_per_symbol,
                             int data_mode, const uint8_t *data, size_t n_data);
 
-int wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
+int dp_wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
                               size_t code_only_symbols, size_t frame_symbols);
 
-int wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
+int dp_wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
                           const float _Complex *symbols, size_t n);
 
-int wfm_synth_set_rrc(dp_wfm_synth_state_t *state, const float *taps,
+int dp_wfm_synth_set_rrc(dp_wfm_synth_state_t *state, const float *taps,
                       size_t ntaps);
 
 void dp_wfm_synth_destroy(dp_wfm_synth_state_t *state);
 
 void dp_wfm_synth_reset(dp_wfm_synth_state_t *state);
 
-void wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
+void dp_wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
 
-void wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
+void dp_wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
 JM_FORCEINLINE JM_HOT float _Complex

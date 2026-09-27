@@ -104,16 +104,16 @@ result derived through it. It currently has neither.
 
 Users first — the internal rows are real, but they are not why it exists.
 
-| who                          | with what                                              | what they do with the answer                                          |
-| ---------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
-| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32`          | feeds a receiver, a lab instrument, or another tool                   |
-| A C application              | `wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process       |
-| A field/interop test         | `wfmgen … -o capture.sigmf`                            | hands a real file to another tool, with metadata saying what is in it |
-| A live consumer              | `wfmgen --realtime -o nats://…`                        | wall-clock pacing, here to NATS but available to any sink             |
-| A bug report                 | `--record scene.json`                                  | replays someone else's exact waveform byte-for-byte                   |
-| A receiver test              | `Composer([...]).compose()` in-process                 | scores demod/BER against truth it also gets from the scene            |
-| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`                       | re-weights a cached render instead of re-synthesising                 |
-| A validation report          | a scene declared once, swept                           | measures a limit that goes in a certified envelope                    |
+| who                          | with what                                                 | what they do with the answer                                          |
+| ---------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
+| Someone who needs a waveform | `wfmgen --type qpsk --snr 12 -o capture.cf32`             | feeds a receiver, a lab instrument, or another tool                   |
+| A C application              | `dp_wfm_compose_create()` -> `_execute()` -> `_destroy()` | pulls IQ straight into its own buffer, no Python in the process       |
+| A field/interop test         | `wfmgen … -o capture.sigmf`                               | hands a real file to another tool, with metadata saying what is in it |
+| A live consumer              | `wfmgen --realtime -o nats://…`                           | wall-clock pacing, here to NATS but available to any sink             |
+| A bug report                 | `--record scene.json`                                     | replays someone else's exact waveform byte-for-byte                   |
+| A receiver test              | `Composer([...]).compose()` in-process                    | scores demod/BER against truth it also gets from the scene            |
+| A Monte-Carlo sweep          | `Plan.prepare()` then `.at(snr)`                          | re-weights a cached render instead of re-synthesising                 |
+| A validation report          | a scene declared once, swept                              | measures a limit that goes in a certified envelope                    |
 
 The `--record` row shapes the design most: **a scene is a value**, not a
 script. Anything a run can be told must be expressible in the JSON a
@@ -133,7 +133,7 @@ ones the tool exists for, are the least gated of all.
     see.
 
 1. **Easy to use, identically from four APIs.** This is a C-first library,
-    so the **C API is the primary one** — `wfm_compose_create` / `_execute` /
+    so the **C API is the primary one** — `dp_wfm_compose_create` / `_execute` /
     `_destroy` and its siblings — and the CLI, the Python objects and the
     JSON scene are wrappers over it, never reimplementations. The same scene
     expressed through any of the four renders byte-identically. *Gated:*
@@ -166,9 +166,9 @@ ones the tool exists for, are the least gated of all.
     A ranged field is only usable if a consumer can learn what it actually
     drew: score a receiver against a scene whose frequency was re-picked per
     instance and you are scoring against a number you do not have. So the
-    composer and `wfm_compose_draws()` resolve through the *same* helper, and
+    composer and `dp_wfm_compose_draws()` resolve through the *same* helper, and
     the drawn value is reported per source per instance rather than inferred.
-    Reachable from every API that should have it: `wfm_compose_draws()` in
+    Reachable from every API that should have it: `dp_wfm_compose_draws()` in
     C, `draws(scene)` in Python, and the SigMF metadata beside a capture —
     all three reading the same rows, so they cannot disagree. `--record` is
     the deliberate exception: it stores the **span**, because a spec answers

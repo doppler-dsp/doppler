@@ -500,7 +500,7 @@ costume, and no guard fixes it from inside `close()`: skipping when `fs`
 equals the default would drop the rate from a real 1 MHz capture.
 
 The decisive fact was not which sentinel to pick, but that **the fabrication
-was already shipping** — `wfm_sigmf_meta_json` emitted `core:sample_rate`
+was already shipping** — `dp_wfm_sigmf_meta_json` emitted `core:sample_rate`
 unconditionally, so `Writer(file_type="sigmf")` with no `fs` already wrote a
 confident `1000000` into a real `.sigmf-meta`, and BLUE wrote the matching
 `xdelta`. That turns the question from "break a working API for a nicety"
@@ -654,13 +654,13 @@ Run before writing any v2 code, after `dp_sample_clock_t` turned up mid-build
 as a primitive this document had specified from scratch. Everything below was
 searched for and found; the design above is corrected accordingly.
 
-| this design asked for                 | what already exists                                                                                               | what it collapses to              |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| time base `(fs, t0)`, `t = t0 + n/fs` | `dp_sample_clock_t` + `dp_sample_clock_stamp_at`, exposed as `wfm.SampleClock`                                    | pass a clock by reference         |
-| anchoring a replayed capture          | `dp_sample_clock_track()`                                                                                         | one `track()` call                |
-| auto `.sigmf-meta` sidecar            | **`write_sigmf_sidecar()`** (`wfm_writer_core.c`) over the public `wfm_sigmf_meta_json()`; wired for `sigmf` only | call it on the raw/CSV close path |
-| `fs_source` / `t0_source`             | `wfm_fc_source_t` + `dp_wfm_reader_get_fc_source()`, both faces                                                   | follow the sibling                |
-| a capture record that round-trips     | `--record` JSON, "one canonical, sample-exact schema", `--record` → `--from-file`                                 | reuse                             |
+| this design asked for                 | what already exists                                                                                                  | what it collapses to              |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| time base `(fs, t0)`, `t = t0 + n/fs` | `dp_sample_clock_t` + `dp_sample_clock_stamp_at`, exposed as `wfm.SampleClock`                                       | pass a clock by reference         |
+| anchoring a replayed capture          | `dp_sample_clock_track()`                                                                                            | one `track()` call                |
+| auto `.sigmf-meta` sidecar            | **`write_sigmf_sidecar()`** (`wfm_writer_core.c`) over the public `dp_wfm_sigmf_meta_json()`; wired for `sigmf` only | call it on the raw/CSV close path |
+| `fs_source` / `t0_source`             | `wfm_fc_source_t` + `dp_wfm_reader_get_fc_source()`, both faces                                                      | follow the sibling                |
+| a capture record that round-trips     | `--record` JSON, "one canonical, sample-exact schema", `--record` → `--from-file`                                    | reuse                             |
 
 Genuinely missing, verified absent by search: **J1950 → Unix** (no
 `631152000`, no epoch helper anywhere); an **ISO 8601 *basic*** formatter

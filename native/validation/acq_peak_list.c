@@ -124,11 +124,11 @@ source_open (source_t *s, const uint8_t *code, const emitter_t *e, size_t W)
     return 1;
   int rc;
   if (e->data == WFM_DSSS_DATA_BITS) /* a transition mid-epoch, every epoch */
-    rc = wfm_synth_set_dsss_cont (s->syn, code, SF, (double)SF / 2.0,
-                                  WFM_DSSS_DATA_BITS, two_bits, 2);
+    rc = dp_wfm_synth_set_dsss_cont (s->syn, code, SF, (double)SF / 2.0,
+                                     WFM_DSSS_DATA_BITS, two_bits, 2);
   else
-    rc = wfm_synth_set_dsss_cont (s->syn, code, SF, CHIP_RATE / SYM_RATE,
-                                  e->data, NULL, 0);
+    rc = dp_wfm_synth_set_dsss_cont (s->syn, code, SF, CHIP_RATE / SYM_RATE,
+                                     e->data, NULL, 0);
   if (rc != 0)
     return 1;
   if (e->tau)

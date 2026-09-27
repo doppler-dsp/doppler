@@ -26,7 +26,7 @@
  * @code
  * dp_wfm_reader_state_t *r = dp_wfm_reader_create("cap.sigmf-data", 0, 0);
  * wfm_reader_info_t info;
- * wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
+ * dp_wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
  * float _Complex buf[4096];
  * size_t n;
  * while ((n = dp_wfm_reader_read(r, 4096, buf, 4096)) > 0)   // (state, count, out)
@@ -250,7 +250,7 @@ extern "C"
 dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
 
   /** @brief Copy the resolved capture metadata into @p info. */
-  void wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
+  void dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
 
   /**
    * @brief Read up to @p count samples, returning them as `complex64`.
@@ -312,7 +312,7 @@ size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
    * you the samples. For a detached capture the keywords come from the HEADER
    * file, not the `.det`.
    */
-size_t wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
+size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
 
   /**
    * @brief The @p i'th keyword in file order, or NULL if @p i is out of range.
@@ -320,16 +320,16 @@ size_t wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
    * The returned pointer (and its `value` buffer) is owned by the reader and
    * is freed by dp_wfm_reader_destroy().
    */
-  const wfm_keyword_t *wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
+  const wfm_keyword_t *dp_wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
 
   /**
    * @brief The tag of the @p i'th keyword (key_fn for the `.keywords` dict).
    *
    * jm's generated dict loop (gh-543) calls this for every index in
-   * [0, wfm_reader_num_keywords()), so @p i is always in range. The returned
+   * [0, dp_wfm_reader_num_keywords()), so @p i is always in range. The returned
    * pointer is owned by the reader.
    */
-const char *wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);
+const char *dp_wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);
 
   /**
    * @brief The first keyword whose tag equals @p tag, or NULL if absent.
@@ -339,7 +339,7 @@ const char *wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i)
   /**
    * @brief Number of decoded HCB fields (0 for a non-BLUE file type).
    */
-  size_t wfm_reader_num_header_fields(const dp_wfm_reader_state_t *state);
+  size_t dp_wfm_reader_num_header_fields(const dp_wfm_reader_state_t *state);
 
   /**
    * @brief The i-th decoded HCB field, or NULL if @p i is out of range.
@@ -351,22 +351,22 @@ const char *wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i)
    * codec, so a double or an ASCII field can never be turned into a Python
    * object two different ways.
    */
-  const wfm_keyword_t *wfm_reader_header_field(const dp_wfm_reader_state_t *state,
+  const wfm_keyword_t *dp_wfm_reader_header_field(const dp_wfm_reader_state_t *state,
                                                size_t i);
 
   /**
    * @brief The i-th HCB field's name, for the `.header` dict binding.
    */
-  const char *wfm_reader_header_tag(const dp_wfm_reader_state_t *state, size_t i);
+  const char *dp_wfm_reader_header_tag(const dp_wfm_reader_state_t *state, size_t i);
 
   /**
    * @brief Look up one HCB field by name, or NULL if absent.
    */
   const wfm_keyword_t *
-  wfm_reader_find_header_field(const dp_wfm_reader_state_t *state,
+  dp_wfm_reader_find_header_field(const dp_wfm_reader_state_t *state,
                                const char *name);
 
-  const wfm_keyword_t *wfm_reader_find_keyword (const dp_wfm_reader_state_t *r,
+  const wfm_keyword_t *dp_wfm_reader_find_keyword (const dp_wfm_reader_state_t *r,
                                                 const char        *tag);
 
   /**
@@ -527,10 +527,10 @@ int dp_wfm_reader_seek_time(dp_wfm_reader_state_t *state, double seconds);
    * capture's end or a bounded budget finishes it.
    *
    * @code
-   * wfm_reader_set_stop_fn (r, dp_interrupted);
+   * dp_wfm_reader_set_stop_fn (r, dp_interrupted);
    * @endcode
    */
-  void wfm_reader_set_stop_fn (dp_wfm_reader_state_t *state, int (*fn) (void));
+  void dp_wfm_reader_set_stop_fn (dp_wfm_reader_state_t *state, int (*fn) (void));
 
 
   /** @brief Close the file, free the reader and its decoded keywords. */

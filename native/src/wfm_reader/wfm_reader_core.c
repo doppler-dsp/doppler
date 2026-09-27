@@ -272,7 +272,7 @@ static void
 kw_append (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
            const uint8_t *value)
 {
-  size_t esz = wfm_kw_elem_size (type);
+  size_t esz = dp_wfm_kw_elem_size (type);
   if (esz == 0 || count == 0)
     return;
   wfm_keyword_t *p
@@ -299,7 +299,7 @@ static void
 hdr_add (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
          const uint8_t *src, int be)
 {
-  size_t esz = wfm_kw_elem_size (type);
+  size_t esz = dp_wfm_kw_elem_size (type);
   if (esz == 0 || count == 0)
     return;
   wfm_keyword_t *p
@@ -435,7 +435,7 @@ load_keywords (dp_wfm_reader_state_t *r, FILE *hf, long ext_off,
     {
       wfm_keyword_t kw;
       size_t        used = 0;
-      int rc = wfm_kw_decode (blob + off, got - off, r->endian, &kw, &used);
+      int rc = dp_wfm_kw_decode (blob + off, got - off, r->endian, &kw, &used);
       if (rc < 0 || used == 0)
         break; /* malformed: keep what we have, stop walking */
       off += used;
@@ -497,7 +497,7 @@ kw_as_double (const wfm_keyword_t *k, double *out)
       *out = v;
       return 0;
     }
-  if (k->elem_size != wfm_kw_elem_size (k->type))
+  if (k->elem_size != dp_wfm_kw_elem_size (k->type))
     return -1;
   switch (k->type)
     {
@@ -1188,7 +1188,7 @@ fail:
 }
 
 void
-wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info)
+dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info)
 {
   info->file_type   = r->file_type;
   info->sample_type = reported_stype (r);
@@ -1453,7 +1453,7 @@ dp_wfm_reader_set_follow_grace_ms (dp_wfm_reader_state_t *r, uint32_t val)
 }
 
 void
-wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void))
+dp_wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void))
 {
   r->stop_fn = fn;
 }
@@ -1735,42 +1735,42 @@ dp_wfm_reader_get_trailing_bytes (const dp_wfm_reader_state_t *r)
 }
 
 size_t
-wfm_reader_num_keywords (const dp_wfm_reader_state_t *r)
+dp_wfm_reader_num_keywords (const dp_wfm_reader_state_t *r)
 {
   return r->nkw;
 }
 
 const wfm_keyword_t *
-wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i)
+dp_wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i)
 {
   return (i < r->nkw) ? &r->kw[i] : NULL;
 }
 
 /* key_fn for the `.keywords` dict property (gh-543): the tag of the i-th
-   keyword. jm's generated loop calls it for 0 <= i < wfm_reader_num_keywords,
-   so the index is always in range. */
+   keyword. jm's generated loop calls it for 0 <= i <
+   dp_wfm_reader_num_keywords, so the index is always in range. */
 const char *
-wfm_reader_keyword_tag (const dp_wfm_reader_state_t *r, size_t i)
+dp_wfm_reader_keyword_tag (const dp_wfm_reader_state_t *r, size_t i)
 {
   return r->kw[i].tag;
 }
 
 size_t
-wfm_reader_num_header_fields (const dp_wfm_reader_state_t *r)
+dp_wfm_reader_num_header_fields (const dp_wfm_reader_state_t *r)
 {
   return r->nhdr;
 }
 
 /* entry_fn for the `.header` dict property: the i-th decoded HCB field. */
 const wfm_keyword_t *
-wfm_reader_header_field (const dp_wfm_reader_state_t *r, size_t i)
+dp_wfm_reader_header_field (const dp_wfm_reader_state_t *r, size_t i)
 {
   return (i < r->nhdr) ? &r->hdr[i] : NULL;
 }
 
 /* key_fn for `.header`: the field's name as the format spells it. */
 const char *
-wfm_reader_header_tag (const dp_wfm_reader_state_t *r, size_t i)
+dp_wfm_reader_header_tag (const dp_wfm_reader_state_t *r, size_t i)
 {
   return r->hdr[i].tag;
 }
@@ -1778,7 +1778,8 @@ wfm_reader_header_tag (const dp_wfm_reader_state_t *r, size_t i)
 /* Look a header field up by name, for callers that want one value rather
    than the whole dict. */
 const wfm_keyword_t *
-wfm_reader_find_header_field (const dp_wfm_reader_state_t *r, const char *name)
+dp_wfm_reader_find_header_field (const dp_wfm_reader_state_t *r,
+                                 const char                  *name)
 {
   for (size_t i = 0; i < r->nhdr; i++)
     if (strcmp (r->hdr[i].tag, name) == 0)
@@ -1787,7 +1788,7 @@ wfm_reader_find_header_field (const dp_wfm_reader_state_t *r, const char *name)
 }
 
 const wfm_keyword_t *
-wfm_reader_find_keyword (const dp_wfm_reader_state_t *r, const char *tag)
+dp_wfm_reader_find_keyword (const dp_wfm_reader_state_t *r, const char *tag)
 {
   for (size_t i = 0; i < r->nkw; i++)
     if (strcmp (r->kw[i].tag, tag) == 0)

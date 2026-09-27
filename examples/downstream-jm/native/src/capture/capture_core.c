@@ -68,7 +68,7 @@ capture_create (const char *path)
   if (r == NULL)
     return NULL;
 
-  wfm_reader_info (r, &info);
+  dp_wfm_reader_info (r, &info);
 
   /* A self-describing capture states its sample rate; a headerless one leaves
      it at 0, and reporting "file" for that would be the exact lie the
@@ -146,7 +146,7 @@ capture_get_num_samples (const capture_state_t *state)
 {
   wfm_reader_info_t info;
 
-  wfm_reader_info (state->r, &info);
+  dp_wfm_reader_info (state->r, &info);
   return info.num_samples;
 }
 
@@ -164,7 +164,7 @@ capture_summary (const capture_state_t *state)
   wfm_reader_info_t info;
   capture_summary_t s;
 
-  wfm_reader_info (state->r, &info);
+  dp_wfm_reader_info (state->r, &info);
   s.num_samples = info.num_samples;
   s.fs_hz       = state->fs;
   s.fc_hz       = state->fc;

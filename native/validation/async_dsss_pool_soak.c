@@ -21,7 +21,7 @@
  * Stimulus. Per emitter, one `wfm_synth` continuous DSSS -- Gold-1023 at
  * 5 Mcps, two samples per chip, asynchronous BPSK PRBS data at 2700 sym/s,
  * the frame's window of 450 code-only symbols in every 4950
- * (`wfm_synth_set_dsss_window`) -- through the shipped `doppler_channel`
+ * (`dp_wfm_synth_set_dsss_window`) -- through the shipped `doppler_channel`
  * at its own Doppler, drawn uniformly within ±20 ppm of a 2.5 GHz carrier
  * with no rate (offset and rate are two conditions, never together; the
  * rate is §12.9's). Every synth runs for the whole soak from a random
@@ -317,9 +317,9 @@ make_emitter (emitter_t *e, size_t k, const cfg_t *cfg, const uint8_t *code)
   e->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN,
                                 1, e->rng, (int)SPC, 15, 0, 0, 0.0);
   DP_REQUIRE_MSG (e->syn != NULL, "the emitter's synth opens");
-  (void)wfm_synth_set_dsss_cont (e->syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
-                                 NULL, 0);
-  (void)wfm_synth_set_dsss_window (e->syn, W_SYM, F_SYM);
+  (void)dp_wfm_synth_set_dsss_cont (e->syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
+                                    NULL, 0);
+  (void)dp_wfm_synth_set_dsss_window (e->syn, W_SYM, F_SYM);
   e->ch = dp_doppler_channel_create (FS, CARRIER_HZ, e->ppm, 0.0);
   DP_REQUIRE_MSG (e->ch != NULL, "the emitter's channel opens");
   e->delay = dp_doppler_channel_get_delay_samples (e->ch);

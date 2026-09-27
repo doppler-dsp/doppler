@@ -18,7 +18,7 @@ target_include_directories(wfm_draw_core PUBLIC
 # ── wfm_plan DSP fingerprint (auto-hash for save/restore) ────────────────────
 # A build-time SHA-256 over the DSP sources whose output feeds wfm_plan's cache.
 # Any change flips the fingerprint, so a Plan blob saved by a different DSP build
-# fails wfm_plan_restore()'s fast-path check and is rebuilt from its embedded
+# fails dp_wfm_plan_restore()'s fast-path check and is rebuilt from its embedded
 # spec — never reinterpreted. Content-based, so identical source ⇒ identical
 # fingerprint across hosts (a blob saved on one worker fast-loads on another).
 # ADD any file here whose change can alter build_synth's sample output.
@@ -53,7 +53,7 @@ add_library(wfm_compose_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_json.c
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_resolve.c
     # "prepare once, materialize many" stimulus engine — caches each source's
-    # render (via the composer's own wfm_compose_build_synth) and re-weights it
+    # render (via the composer's own dp_wfm_compose_build_synth) and re-weights it
     # per parameter point (SNR/gain/phase/enable/seed sweeps, bit-exact).
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_plan.c
     # straight-C bridge for the generated Synth's standalone generation
@@ -199,7 +199,7 @@ add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 # wfm_compose_core used to be folded in only by the foreach inside the
 # POSIX-only block below, so on Windows libdoppler shipped without
 # wfm_compose_* and every consumer failed to link (`undefined symbol:
-# wfm_compose_create` in wfmgen_demo, wfmgen_frame_demo,
+# dp_wfm_compose_create` in wfmgen_demo, wfmgen_frame_demo,
 # dsss_burst_receiver_demo and validate_wfmgen_certify). It is defined
 # unguarded above and references nothing POSIX-only -- checked: no wfm_sink_*
 # / wfmgen_* / stream / nats call in wfm_compose.c, wfm_json.c or

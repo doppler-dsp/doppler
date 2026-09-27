@@ -63,14 +63,14 @@ StreamSink_init (StreamSinkObject *self, PyObject *args, PyObject *kwds)
     }
   if (!self->closed && self->h)
     {
-      wfm_stream_sink_close (self->h);
+      dp_wfm_stream_sink_close (self->h);
       self->h      = NULL;
       self->closed = 1;
     }
-  self->h = wfm_stream_sink_open (endpoint, _arg_sample_type);
+  self->h = dp_wfm_stream_sink_open (endpoint, _arg_sample_type);
   if (!self->h)
     {
-      PyErr_SetString (PyExc_RuntimeError, "wfm_stream_sink_open failed");
+      PyErr_SetString (PyExc_RuntimeError, "dp_wfm_stream_sink_open failed");
       return -1;
     }
   self->closed      = 0;
@@ -102,7 +102,7 @@ StreamSink_send (StreamSinkObject *self, PyObject *args, PyObject *kwds)
   const float _Complex *in_data = (const float _Complex *)PyArray_DATA (x_arr);
   int                   r;
   Py_BEGIN_ALLOW_THREADS
-    r = wfm_stream_sink_send (self->h, in_data, n_in, fs, fc);
+    r = dp_wfm_stream_sink_send (self->h, in_data, n_in, fs, fc);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   return PyLong_FromLong ((long)r);
@@ -118,11 +118,11 @@ StreamSink_send_eos (StreamSinkObject *self, PyObject *args)
       return NULL;
     }
   int _rc;
-  _rc = wfm_stream_sink_send_eos (self->h);
+  _rc = dp_wfm_stream_sink_send_eos (self->h);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
-                    "wfm_stream_sink_send_eos failed", (long long)_rc);
+                    "dp_wfm_stream_sink_send_eos failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -141,11 +141,11 @@ StreamSink_drain (StreamSinkObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   int _rc;
-  _rc = wfm_stream_sink_drain (self->h, timeout_ms);
+  _rc = dp_wfm_stream_sink_drain (self->h, timeout_ms);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
-                    "wfm_stream_sink_drain failed", (long long)_rc);
+                    "dp_wfm_stream_sink_drain failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -164,7 +164,7 @@ StreamSink_track_clipping (StreamSinkObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
       return NULL;
     }
-  wfm_stream_sink_track_clipping (self->h, on);
+  dp_wfm_stream_sink_track_clipping (self->h, on);
   Py_RETURN_NONE;
 }
 
@@ -178,7 +178,7 @@ StreamSink_get_clip_fraction (StreamSinkObject *self, void *closure)
       PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
       return NULL;
     }
-  tmp = wfm_stream_sink_clip_fraction (self->h);
+  tmp = dp_wfm_stream_sink_clip_fraction (self->h);
   return PyFloat_FromDouble (tmp);
 }
 
@@ -192,7 +192,7 @@ StreamSink_get_peak_dbfs (StreamSinkObject *self, void *closure)
       PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
       return NULL;
     }
-  tmp = wfm_stream_sink_peak (self->h);
+  tmp = dp_wfm_stream_sink_peak (self->h);
   return PyFloat_FromDouble (tmp > 0 ? 20 * log10 (tmp) : -INFINITY);
 }
 
@@ -206,7 +206,7 @@ StreamSink_get_clipped (StreamSinkObject *self, void *closure)
       PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
       return NULL;
     }
-  tmp = wfm_stream_sink_peak (self->h);
+  tmp = dp_wfm_stream_sink_peak (self->h);
   return PyBool_FromLong ((long)(tmp > 1.0 && self->sample_type >= 2));
 }
 
@@ -222,7 +222,7 @@ StreamSink_close (StreamSinkObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->h)
     {
-      wfm_stream_sink_close (self->h);
+      dp_wfm_stream_sink_close (self->h);
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -246,7 +246,7 @@ StreamSink_dealloc (StreamSinkObject *self)
 {
   if (!self->closed && self->h)
     {
-      wfm_stream_sink_close (self->h);
+      dp_wfm_stream_sink_close (self->h);
     }
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -280,8 +280,8 @@ static PyMethodDef StreamSink_methods[] = {
     "------\n"
     "OSError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``wfm_stream_sink_send_eos failed``, with the return code appended\n"
-    "    (gh-869).\n" },
+    "    ``dp_wfm_stream_sink_send_eos failed``, with the return code\n"
+    "    appended (gh-869).\n" },
   { "drain", (PyCFunction)StreamSink_drain, METH_VARARGS | METH_KEYWORDS,
     "Let everything already sent reach the server, then stop.\n"
     "\n"
@@ -305,7 +305,7 @@ static PyMethodDef StreamSink_methods[] = {
     "------\n"
     "OSError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``wfm_stream_sink_drain failed``, with the return code appended\n"
+    "    ``dp_wfm_stream_sink_drain failed``, with the return code appended\n"
     "    (gh-869).\n" },
   { "track_clipping", (PyCFunction)StreamSink_track_clipping,
     METH_VARARGS | METH_KEYWORDS,

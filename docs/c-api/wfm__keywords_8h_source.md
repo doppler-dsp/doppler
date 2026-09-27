@@ -31,18 +31,18 @@ extern "C"
     uint8_t *value;     
   } wfm_keyword_t;
 
-  size_t wfm_kw_elem_size (char type);
+  size_t dp_wfm_kw_elem_size (char type);
 
-  int wfm_kw_check_standard(const char *tag, char type, const void *value,
+  int dp_wfm_kw_check_standard(const char *tag, char type, const void *value,
                             size_t count);
 
 
-  size_t wfm_kw_entry_size (size_t ltag, size_t vbytes);
+  size_t dp_wfm_kw_entry_size (size_t ltag, size_t vbytes);
 
-  size_t wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
+  size_t dp_wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
                         const void *value, size_t count, int be);
 
-  int wfm_kw_decode (const uint8_t *p, size_t avail, int be,
+  int dp_wfm_kw_decode (const uint8_t *p, size_t avail, int be,
                      wfm_keyword_t *out, size_t *consumed);
 
 #ifdef __cplusplus

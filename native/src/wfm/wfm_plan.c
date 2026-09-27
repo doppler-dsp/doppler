@@ -3,7 +3,7 @@
  *
  * prepare() parses + resolves a scene, then renders each signal source's
  * ON-time contribution ONCE per segment (through the composer's own
- * wfm_compose_build_synth, so a cached render is byte-identical to a full
+ * dp_wfm_compose_build_synth, so a cached render is byte-identical to a full
  * compose) and caches it at gain 1, clean (no AWGN). render()/at()
  * re-materialize a variation by walking every segment's repeat instances:
  * cheap re-weighted signal sum for the cached ON-time, plus a noise
@@ -43,7 +43,7 @@
 
 /* Loaded cache buffers for the restore fast-path: cache_segment_signals()
  * reads from these (guarded per-source by length) instead of running the DSP.
- * NULL for wfm_plan_prepare() and for a fingerprint-mismatched restore. */
+ * NULL for dp_wfm_plan_prepare() and for a fingerprint-mismatched restore. */
 typedef struct
 {
   size_t                 n;    /* number of source buffers in the blob */
@@ -88,7 +88,7 @@ struct wfm_plan
   float              *base_gain; /* [n_sig] flat: 10^(level/20)          */
   double              fs;
   size_t              len;       /* worst-case total materialized length */
-  char               *spec_json; /* owned copy, embedded by wfm_plan_save */
+  char               *spec_json; /* owned copy, embedded by dp_wfm_plan_save */
 };
 
 /* Free one source's owned arrays (mirrors wfm_compose.c's
@@ -186,8 +186,9 @@ segment_noise_gain (const wfm_plan_segment_t *ps, double snr, int snr_given)
   double fdb = ps->floor_db;
   if (snr_given && !ps->explicit_floor)
     fdb = ps->anchor_level
-          - wfm_snr_over_fs (ps->anchor_mode, ps->anchor_type, ps->anchor_sps,
-                             ps->anchor_sf, ps->anchor_sym_span, snr);
+          - dp_wfm_snr_over_fs (ps->anchor_mode, ps->anchor_type,
+                                ps->anchor_sps, ps->anchor_sf,
+                                ps->anchor_sym_span, snr);
   return (float)pow (10.0, fdb / 20.0);
 }
 
@@ -208,9 +209,9 @@ build_gap_synth (const wfm_plan_segment_t *ps, double fs, double snr,
   double use_snr  = ns.snr;
   if (ps->bundled && snr_given)
     use_snr = snr;
-  return wfm_compose_build_synth (&ns, fs, ps->num_samples, ns.freq, use_snr,
-                                  ns.f_end, 0, WFM_SEED_ADVANCE_NONE,
-                                  instance);
+  return dp_wfm_compose_build_synth (&ns, fs, ps->num_samples, ns.freq,
+                                     use_snr, ns.f_end, 0,
+                                     WFM_SEED_ADVANCE_NONE, instance);
 }
 
 /* Draw noise_steps(n) from syn and add gain*sample into out (used for both
@@ -224,7 +225,7 @@ add_noise (dp_wfm_synth_state_t *syn, float _Complex *out, size_t n,
   float _Complex *tmp = malloc (n * sizeof *tmp);
   if (!tmp)
     return;
-  wfm_synth_noise_steps (syn, tmp, n);
+  dp_wfm_synth_noise_steps (syn, tmp, n);
   for (size_t i = 0; i < n; i++)
     out[i] += gain * tmp[i];
   free (tmp);
@@ -234,7 +235,7 @@ add_noise (dp_wfm_synth_state_t *syn, float _Complex *out, size_t n,
  * instances, accumulating the cached ON-time signal plus a gap-spanning
  * noise synth (delay -> on -> off, matching the composer's own phase
  * sequencing so gap_noise/level semantics are byte-identical). Returns the
- * actual materialized length for this draw (<= wfm_plan_len(p), the
+ * actual materialized length for this draw (<= dp_wfm_plan_len(p), the
  * worst-case capacity `out` was sized to). */
 static size_t
 materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
@@ -396,12 +397,12 @@ segment_slots (const wfm_segment_t *g, size_t *n_sig, size_t *n_bg)
  * deep-copies every other array precisely so a Plan outlives the segments it
  * was built from, and plan_build() then destroys the composer that parsed
  * them; a retained `frame` is a read of freed memory on every later render.
- * The freed description usually failed wfm_frame_desc_layout() — its stage
+ * The freed description usually failed dp_wfm_frame_desc_layout() — its stage
  * array reading back empty while a derived field still named a stage — so
  * build_gap_synth() returned NULL and materialize()'s `if (gsyn && …)` guards
  * dropped EVERY noise draw without a word, leaving a framed scene clean at any
  * SNR. Nothing is lost by dropping it: this copy exists only to draw AWGN
- * through wfm_synth_noise_steps(), and the framed signal is what cache_sig
+ * through dp_wfm_synth_noise_steps(), and the framed signal is what cache_sig
  * already holds. */
 static int
 resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
@@ -482,13 +483,13 @@ render_source_into (const wfm_segment_t *g, const wfm_plan_segment_t *ps,
     }
 
   double        cache_snr = ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
-  wfm_render_t *r         = wfm_compose_build_render (
+  wfm_render_t *r         = dp_wfm_compose_build_render (
       src, g->fs, n, src->freq, cache_snr, src->f_end, src->doppler,
       src->doppler_rate, 0, WFM_SEED_ADVANCE_NONE, 0, NULL);
   if (!r)
     return -1;
-  wfm_render_steps (r, buf, n);
-  wfm_render_destroy (r);
+  dp_wfm_render_steps (r, buf, n);
+  dp_wfm_render_destroy (r);
   return 0;
 }
 
@@ -498,8 +499,8 @@ render_source_into (const wfm_segment_t *g, const wfm_plan_segment_t *ps,
  * segment can be built concurrently and the result is bit-identical to the
  * serial build (a per-source AWGN seed is deterministic, and the sum is
  * deferred to render()/at() in fixed order). Failures set a shared flag; a
- * partially filled cache_sig[] is freed by wfm_plan_destroy (unset slots stay
- * NULL from calloc). */
+ * partially filled cache_sig[] is freed by dp_wfm_plan_destroy (unset slots
+ * stay NULL from calloc). */
 typedef struct
 {
   wfm_plan_t               *p;
@@ -707,9 +708,9 @@ fold_background (wfm_plan_t *p, const wfm_plan_segment_t *ps,
  * p->cache_sig[ps->sig_off .. +ps->n_sig). A bundled source's own real snr
  * is forced clean for this render (its noise is reconstructed separately,
  * per instance, at materialize time); a SHARED segment's non-noise sources
- * are already clean by the time wfm_resolve_noise ran. The per-source builds
- * fan out across cores (auto-sized to the online count, one worker per source
- * at most) — the win for a segment packed with many signals.
+ * are already clean by the time dp_wfm_resolve_noise ran. The per-source
+ * builds fan out across cores (auto-sized to the online count, one worker per
+ * source at most) — the win for a segment packed with many signals.
  *
  * @p n_bg leading sources (from segment_slots) do NOT get a slot each: they
  * fold into the single composite slot that leads the segment's range, so the
@@ -767,14 +768,14 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
 {
   if (!spec_json)
     return NULL;
-  wfm_compose_state_t *cs = wfm_compose_from_json (spec_json);
+  dp_wfm_compose_state_t *cs = dp_wfm_compose_from_json (spec_json);
   if (!cs)
     return NULL;
 
   size_t               n_segs;
   int                  repeat, cont;
   const wfm_segment_t *segs
-      = wfm_compose_segments (cs, &n_segs, &repeat, &cont);
+      = dp_wfm_compose_segments (cs, &n_segs, &repeat, &cont);
 
   wfm_plan_t *p = NULL;
   if (!segs || n_segs == 0 || repeat || cont)
@@ -851,10 +852,11 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
   p->n_sig     = total_sig;
   p->cache_sig = calloc (total_sig, sizeof *p->cache_sig);
   p->base_gain = calloc (total_sig, sizeof *p->base_gain);
-  p->spec_json = strdup (spec_json); /* embedded verbatim by wfm_plan_save */
+  p->spec_json
+      = strdup (spec_json); /* embedded verbatim by dp_wfm_plan_save */
   if (!p->segs || !p->cache_sig || !p->base_gain || !p->spec_json)
     {
-      wfm_plan_destroy (p);
+      dp_wfm_plan_destroy (p);
       p = NULL;
       goto done;
     }
@@ -871,7 +873,7 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
       size_t seg_sig, seg_bg;
       if (segment_slots (g, &seg_sig, &seg_bg) != 0)
         {
-          wfm_plan_destroy (p);
+          dp_wfm_plan_destroy (p);
           p = NULL;
           goto done;
         }
@@ -892,7 +894,7 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
       if (resolve_segment_noise (ps, g) != 0
           || cache_segment_signals (p, ps, g, loaded, seg_bg) != 0)
         {
-          wfm_plan_destroy (p);
+          dp_wfm_plan_destroy (p);
           p = NULL;
           goto done;
         }
@@ -909,30 +911,30 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
   p->len = worst_len;
 
 done:
-  wfm_compose_destroy (cs);
+  dp_wfm_compose_destroy (cs);
   return p;
 }
 
 wfm_plan_t *
-wfm_plan_prepare (const char *spec_json)
+dp_wfm_plan_prepare (const char *spec_json)
 {
   return plan_build (spec_json, NULL);
 }
 
 size_t
-wfm_plan_len (const wfm_plan_t *p)
+dp_wfm_plan_len (const wfm_plan_t *p)
 {
   return p ? p->len : 0;
 }
 
 size_t
-wfm_plan_n_sources (const wfm_plan_t *p)
+dp_wfm_plan_n_sources (const wfm_plan_t *p)
 {
   return p ? p->n_sig : 0;
 }
 
 uint64_t
-wfm_plan_anchor_seed (const wfm_plan_t *p)
+dp_wfm_plan_anchor_seed (const wfm_plan_t *p)
 {
   if (!p)
     return 0;
@@ -964,8 +966,8 @@ read_dbl_array (const cJSON *root, const char *key, double *dst, size_t n)
 }
 
 size_t
-wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
-                 float _Complex *out)
+dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
+                    float _Complex *out)
 {
   if (!p)
     return 0;
@@ -1030,8 +1032,8 @@ wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
 }
 
 size_t
-wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
-             float _Complex *out)
+dp_wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
+                float _Complex *out)
 {
   if (!p)
     return 0;
@@ -1039,7 +1041,7 @@ wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
 }
 
 void
-wfm_plan_destroy (wfm_plan_t *p)
+dp_wfm_plan_destroy (wfm_plan_t *p)
 {
   if (!p)
     return;
@@ -1089,7 +1091,7 @@ host_is_little (void)
 }
 
 size_t
-wfm_plan_save_bytes (const wfm_plan_t *p)
+dp_wfm_plan_save_bytes (const wfm_plan_t *p)
 {
   if (!p)
     return 0;
@@ -1124,7 +1126,7 @@ sig_len (const wfm_plan_t *p, size_t k)
 }
 
 size_t
-wfm_plan_save (const wfm_plan_t *p, void *blob)
+dp_wfm_plan_save (const wfm_plan_t *p, void *blob)
 {
   if (!p || !blob)
     return 0;
@@ -1162,7 +1164,7 @@ wfm_plan_save (const wfm_plan_t *p, void *blob)
 }
 
 wfm_plan_t *
-wfm_plan_restore (const void *blob, size_t n)
+dp_wfm_plan_restore (const void *blob, size_t n)
 {
   if (!blob || n < 24)
     return NULL;
@@ -1256,15 +1258,15 @@ wfm_plan_restore (const void *blob, size_t n)
 }
 
 int
-wfm_plan_dump (const wfm_plan_t *p, const char *path)
+dp_wfm_plan_dump (const wfm_plan_t *p, const char *path)
 {
   if (!p || !path)
     return -1;
-  size_t   n    = wfm_plan_save_bytes (p);
+  size_t   n    = dp_wfm_plan_save_bytes (p);
   uint8_t *blob = malloc (n);
   if (!blob)
     return -1;
-  wfm_plan_save (p, blob);
+  dp_wfm_plan_save (p, blob);
   FILE *f = fopen (path, "wb");
   if (!f)
     {
@@ -1279,7 +1281,7 @@ wfm_plan_dump (const wfm_plan_t *p, const char *path)
 }
 
 wfm_plan_t *
-wfm_plan_load (const char *path)
+dp_wfm_plan_load (const char *path)
 {
   if (!path)
     return NULL;
@@ -1305,7 +1307,7 @@ wfm_plan_load (const char *path)
     }
   size_t got = fread (blob, 1, (size_t)sz, f);
   fclose (f);
-  wfm_plan_t *p = (got == (size_t)sz) ? wfm_plan_restore (blob, got) : NULL;
+  wfm_plan_t *p = (got == (size_t)sz) ? dp_wfm_plan_restore (blob, got) : NULL;
   free (blob);
   return p;
 }

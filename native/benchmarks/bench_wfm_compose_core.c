@@ -50,14 +50,14 @@ static const size_t seg_len[N_CFG] = { 262144, 16384, 4096, 1024 };
 int
 main (void)
 {
-  jm_bench_t           _bench = { 0 };
-  uint64_t             t0, t1;
-  static double        t[N_CFG][ITERATIONS];
-  wfm_compose_state_t *comp[N_CFG] = { 0 };
-  wfm_source_t         src[N_CFG];
-  wfm_segment_t        seg[N_CFG];
-  float _Complex      *out = NULL;
-  char                 name[72];
+  jm_bench_t              _bench = { 0 };
+  uint64_t                t0, t1;
+  static double           t[N_CFG][ITERATIONS];
+  dp_wfm_compose_state_t *comp[N_CFG] = { 0 };
+  wfm_source_t            src[N_CFG];
+  wfm_segment_t           seg[N_CFG];
+  float _Complex         *out = NULL;
+  char                    name[72];
 
   out = malloc (PULL * sizeof *out);
   if (!out)
@@ -82,7 +82,7 @@ main (void)
                                 .off_samples = 0 };
       /* continuous = 1: the sequence never ends, so no round pays a create
          or runs the composer dry. */
-      comp[c] = wfm_compose_create (&seg[c], 1, 0, 1);
+      comp[c] = dp_wfm_compose_create (&seg[c], 1, 0, 1);
       if (!comp[c])
         {
           fprintf (stderr, "compose create failed (seg_len %zu)\n",
@@ -96,7 +96,7 @@ main (void)
           "rounds\n\n",
           TOTAL, PULL, ITERATIONS);
 
-  DP_BENCH_SETTLE ((void)wfm_compose_execute (comp[REF_IDX], out, PULL));
+  DP_BENCH_SETTLE ((void)dp_wfm_compose_execute (comp[REF_IDX], out, PULL));
 
   /* Rounds outside, segment lengths inside: the entire result is the
      difference between these rows, so a thermal step must not land on one
@@ -106,7 +106,7 @@ main (void)
       {
         t0 = jm_bench_now_ns ();
         for (size_t done = 0; done < TOTAL; done += PULL)
-          (void)wfm_compose_execute (comp[c], out, PULL);
+          (void)dp_wfm_compose_execute (comp[c], out, PULL);
         t1      = jm_bench_now_ns ();
         t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -146,7 +146,7 @@ main (void)
           "  spending more on starting waveforms than on emitting them.\n");
 
   for (int c = 0; c < N_CFG; c++)
-    wfm_compose_destroy (comp[c]);
+    dp_wfm_compose_destroy (comp[c]);
   free (out);
   jm_bench_write_json (&_bench, "wfm_compose");
   return 0;

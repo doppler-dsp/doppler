@@ -18,7 +18,7 @@
  * scale-then-add, so every face (CLI / Python) agrees bit-for-bit.
  */
 #include "doppler/wfm/wfm_compose.h"
-#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
 #include "wfm_draw.h" /* the shared ranged-draw hash (one definition) */
 
 #include <math.h>
@@ -197,12 +197,12 @@ struct wfm_compose_state
  * -- that is the whole point of the borrow: this teardown is exactly the
  * event that used to restart the geometry at every segment boundary. */
 static void
-stop_synths (wfm_compose_state_t *s)
+stop_synths (dp_wfm_compose_state_t *s)
 {
   for (size_t k = 0; k < s->n_syn; k++)
     if (s->rend[k])
       {
-        wfm_render_destroy (s->rend[k]);
+        dp_wfm_render_destroy (s->rend[k]);
         s->rend[k] = NULL;
       }
   s->n_syn = 0;
@@ -211,16 +211,16 @@ stop_synths (wfm_compose_state_t *s)
 /* Construct + configure the synth for one resolved source: create + chirp-span
  * pin + bits/symbols/RRC attach + per-repeat NOISE reseed. THE single
  * synth-construction path — the streaming composer (start_segment) and the
- * Plan stimulus cache (wfm_plan_prepare) both call it, so a cached per-source
- * render is byte-identical to the composed one. freq/snr/f_end are passed
- * already ranged-resolved by the caller; on_len pins a chirp's sweep to the
- * on-time; epoch/seed_advance drive the per-repeat seed policy (epoch 0 → the
- * unmodified seed); a non-zero `repeats` instance always freshens the AWGN
+ * Plan stimulus cache (dp_wfm_plan_prepare) both call it, so a cached
+ * per-source render is byte-identical to the composed one. freq/snr/f_end are
+ * passed already ranged-resolved by the caller; on_len pins a chirp's sweep to
+ * the on-time; epoch/seed_advance drive the per-repeat seed policy (epoch 0 →
+ * the unmodified seed); a non-zero `repeats` instance always freshens the AWGN
  * (signal fixed). Returns NULL only on synth-create failure. */
 dp_wfm_synth_state_t *
-wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
-                         double freq, double snr, double f_end, unsigned epoch,
-                         int seed_advance, size_t instance)
+dp_wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
+                            double freq, double snr, double f_end,
+                            unsigned epoch, int seed_advance, size_t instance)
 {
   /* seed_advance == ALL bumps the whole seed by the repeat epoch (PN LFSR +
    * AWGN both advance); NONE/NOISE create from the fixed seed. */
@@ -229,8 +229,8 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
     seed = (uint32_t)(src->seed + epoch);
   /* A dsss data-symbol Es/N0 is referred to fs before create (the codes
    * attach below, after create resolves the noise); identity otherwise. */
-  int    snr_mode           = 0;
-  double snr_c              = wfm_source_create_snr (src, fs, snr, &snr_mode);
+  int    snr_mode = 0;
+  double snr_c    = dp_wfm_source_create_snr (src, fs, snr, &snr_mode);
   dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
       src->type, fs, freq, snr_c, snr_mode, seed, src->sps, src->pn_length,
       src->pn_poly, src->lfsr, f_end);
@@ -243,32 +243,32 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
      The bits attach goes through the frame path so a framed source emits
      `[preamble x reps | sync | payload | crc]` here exactly as it does on the
      standalone face — they share the bridge for that reason. */
-  if (wfm_source_attach_frame (syn, src) != 0)
+  if (dp_wfm_source_attach_frame (syn, src) != 0)
     {
       dp_wfm_synth_destroy (syn);
       return NULL;
     }
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
-    wfm_synth_set_symbols (syn, src->symbols, src->n_symbols);
+    dp_wfm_synth_set_symbols (syn, src->symbols, src->n_symbols);
   /* dsss burst OR continuous, via the one shared attach path (bridge) so the
    * standalone and composed faces cannot drift. */
-  if (wfm_source_attach_dsss (syn, src, fs) != 0)
+  if (dp_wfm_source_attach_dsss (syn, src, fs) != 0)
     {
       /* Invalid geometry: fail the build (the composer skips the segment to a
        * silent gap; a standalone Synth raises at first use). */
       dp_wfm_synth_destroy (syn);
       return NULL;
     }
-  /* RRC pulse shaping (same wfm_rrc_taps() the standalone face uses; set_rrc
-   * scales for unit TX power and no-ops for non-modulated types). */
+  /* RRC pulse shaping (same dp_wfm_rrc_taps() the standalone face uses;
+   * set_rrc scales for unit TX power and no-ops for non-modulated types). */
   if (src->pulse && src->sps > 0 && src->rrc_span > 0)
     {
       size_t nt   = wfm_rrc_ntaps (src->sps, src->rrc_span);
       float *taps = malloc (nt * sizeof (float));
       if (taps)
         {
-          wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
-          wfm_synth_set_rrc (syn, taps, nt);
+          dp_wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
+          dp_wfm_synth_set_rrc (syn, taps, nt);
           free (taps);
         }
     }
@@ -285,7 +285,7 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
                            ? (uint32_t)(src->seed + epoch)
                            : seed;
       nseed ^= (uint32_t)(instance * 0x9E3779B9u);
-      wfm_synth_reseed_noise (syn, nseed);
+      dp_wfm_synth_reseed_noise (syn, nseed);
     }
   return syn;
 }
@@ -314,7 +314,7 @@ struct wfm_render
 #define RENDER_FEED 4096u
 
 void
-wfm_render_destroy (wfm_render_t *r)
+dp_wfm_render_destroy (wfm_render_t *r)
 {
   if (!r)
     return;
@@ -328,15 +328,15 @@ wfm_render_destroy (wfm_render_t *r)
 }
 
 wfm_render_t *
-wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
-                          double freq, double snr, double f_end,
-                          double doppler, double doppler_rate, unsigned epoch,
-                          int seed_advance, size_t instance,
-                          dp_doppler_channel_state_t *borrow)
+dp_wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
+                             double freq, double snr, double f_end,
+                             double doppler, double doppler_rate,
+                             unsigned epoch, int seed_advance, size_t instance,
+                             dp_doppler_channel_state_t *borrow)
 {
   wfm_render_t *r = dp_xcalloc (1, sizeof *r);
-  r->syn = wfm_compose_build_synth (src, fs, on_len, freq, snr, f_end, epoch,
-                                    seed_advance, instance);
+  r->syn = dp_wfm_compose_build_synth (src, fs, on_len, freq, snr, f_end,
+                                       epoch, seed_advance, instance);
   if (!r->syn)
     {
       /* NOT an OOM path: build_synth also returns NULL for an invalid
@@ -364,7 +364,7 @@ wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
                                        doppler_rate);
   if (!r->ch)
     {
-      wfm_render_destroy (r);
+      dp_wfm_render_destroy (r);
       return NULL;
     }
   r->hold_cap = dp_doppler_channel_execute_max_out (r->ch);
@@ -393,7 +393,7 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
   if (!r->ch)
     {
       if (noise_only)
-        wfm_synth_noise_steps (r->syn, dst, n);
+        dp_wfm_synth_noise_steps (r->syn, dst, n);
       else
         dp_wfm_synth_steps (r->syn, dst, n);
       return;
@@ -442,7 +442,7 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
       if (feed == 0)
         feed = 1;
       if (noise_only)
-        wfm_synth_noise_steps (r->syn, r->in, feed);
+        dp_wfm_synth_noise_steps (r->syn, r->in, feed);
       else
         dp_wfm_synth_steps (r->syn, r->in, feed);
       r->hold_n = dp_doppler_channel_execute (r->ch, r->in, feed, r->hold,
@@ -451,26 +451,26 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
 }
 
 void
-wfm_render_steps (wfm_render_t *r, float _Complex *dst, size_t n)
+dp_wfm_render_steps (wfm_render_t *r, float _Complex *dst, size_t n)
 {
   render_pull (r, dst, n, 0);
 }
 
 void
-wfm_render_noise_steps (wfm_render_t *r, float _Complex *dst, size_t n)
+dp_wfm_render_noise_steps (wfm_render_t *r, float _Complex *dst, size_t n)
 {
   render_pull (r, dst, n, 1);
 }
 
 static void
-start_segment (wfm_compose_state_t *s)
+start_segment (dp_wfm_compose_state_t *s)
 {
   const wfm_segment_t *g = &s->segs[s->cur];
   /* Resolve this epoch's (possibly ranged) durations once, up front: ON uses
    * cur_num, the trailing gap uses cur_off. A fixed segment (ranged == 0) just
    * copies the scalars, so a non-ranged scene is byte-identical to before. */
   wfm_seg_draw_t d;
-  wfm_draw_segment (g, s->epoch, s->instance, s->cur, &d);
+  dp_wfm_draw_segment (g, s->epoch, s->instance, s->cur, &d);
   s->cur_num   = d.on;
   s->cur_off   = d.off;
   s->cur_delay = d.delay;
@@ -480,20 +480,20 @@ start_segment (wfm_compose_state_t *s)
     {
       const wfm_source_t *src = &g->sources[k];
       /* Draw this epoch's ranged source fields (freq/snr/level/f_end) through
-         the SAME helper wfm_compose_draws() reports through, so what is
+         the SAME helper dp_wfm_compose_draws() reports through, so what is
          rendered and what is reported cannot disagree -- see wfm_draw.h on
          the sidecar that assembled one row from two provenances. A fixed
          field passes its scalar through unchanged. */
       wfm_src_draw_t v;
-      wfm_draw_source (src, s->epoch, s->instance, s->cur, k, &v);
+      dp_wfm_draw_source (src, s->epoch, s->instance, s->cur, k, &v);
       const double freq = v.freq, snr = v.snr, f_end = v.f_end;
       s->gain[k] = (float)pow (10.0, v.level / 20.0); /* level → gain */
-      /* Construct the synth through the shared SSOT (wfm_compose_build_synth):
-       * the identical create + chirp-span + bits/symbols/RRC + per-repeat
-       * noise reseed sequence the Plan cache uses, so a cached per-source
-       * render is byte-identical to this composed one. freq/snr/f_end are
-       * already ranged-resolved above; epoch/seed_advance drive the per-repeat
-       * seed. */
+      /* Construct the synth through the shared SSOT
+       * (dp_wfm_compose_build_synth): the identical create + chirp-span +
+       * bits/symbols/RRC + per-repeat noise reseed sequence the Plan cache
+       * uses, so a cached per-source render is byte-identical to this composed
+       * one. freq/snr/f_end are already ranged-resolved above;
+       * epoch/seed_advance drive the per-repeat seed. */
       /* A PERSIST source renders through the scene-owned channel in its
          slot, created on first use so a scene that never reaches a segment
          never pays for it. PER_INSTANCE passes NULL and the renderer makes
@@ -508,7 +508,7 @@ start_segment (wfm_compose_state_t *s)
                 g->fs, src->carrier_hz, v.doppler, v.doppler_rate);
           borrow = s->pch[slot];
         }
-      s->rend[k] = wfm_compose_build_render (
+      s->rend[k] = dp_wfm_compose_build_render (
           src, g->fs, s->cur_num, freq, snr, f_end, v.doppler, v.doppler_rate,
           s->epoch, s->seed_advance, s->instance, borrow);
       if (!s->rend[k])
@@ -541,7 +541,7 @@ start_segment (wfm_compose_state_t *s)
  * outgoing instance's synths die here — they lived through its trailing gap
  * so the gap could carry their noise floor. */
 static void
-advance (wfm_compose_state_t *s)
+advance (dp_wfm_compose_state_t *s)
 {
   stop_synths (s);
   const wfm_segment_t *g    = &s->segs[s->cur];
@@ -570,22 +570,22 @@ advance (wfm_compose_state_t *s)
   start_segment (s);
 }
 
-wfm_compose_state_t *
-wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
-                    int continuous)
+dp_wfm_compose_state_t *
+dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
+                       int continuous)
 {
   if (!segs || n_segs == 0)
     return NULL;
   /* Refuse a frame no source in this scene can carry, BEFORE anything is
-     built. Deferring it to build time would reach wfm_compose_build_synth,
+     built. Deferring it to build time would reach dp_wfm_compose_build_synth,
      whose NULL the streaming path turns into a silent gap — and a silent gap
      is how the frame fields came to be accepted and dropped in the first
      place. */
   for (size_t i = 0; i < n_segs; i++)
     for (size_t k = 0; k < segs[i].n_sources; k++)
-      if (wfm_source_frame_error (&segs[i].sources[k]) != NULL)
+      if (dp_wfm_source_frame_error (&segs[i].sources[k]) != NULL)
         return NULL;
-  wfm_compose_state_t *s = calloc (1, sizeof (*s));
+  dp_wfm_compose_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
   s->segs = calloc (n_segs, sizeof (*s->segs));
@@ -632,7 +632,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
        * A CONTINUOUS dsss source (symbol_rate > 0) has NO intrinsic length —
        * the stream is endless and --count IS the span. It must be excluded
        * here, and not only because the derivation is meaningless:
-       * wfm_frame_dsss_nchips() returns a nonzero (garbage) value for it
+       * dp_wfm_frame_dsss_nchips() returns a nonzero (garbage) value for it
        * (n_bits payload * data_code.len + a spurious CRC), which would pass
        * the `if (nchips)` guard and silently overwrite the user's num_samples.
        */
@@ -644,7 +644,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
           /* Through the source's own description, so a coding stage that
              lengthens the frame lengthens the segment by the SAME arithmetic
              the assembler uses -- a rate-1/2 inner code doubles both. */
-          size_t nchips = wfm_source_dsss_nchips (d);
+          size_t nchips = dp_wfm_source_dsss_nchips (d);
           if (nchips)
             {
               int sps                   = (d->sps < 1) ? 1 : d->sps;
@@ -656,7 +656,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
     }
   /* Resolve the per-segment noise model on the copy (may append a noise
    * source) — runs here so every face resolves identically. No-op at 1 src. */
-  if (wfm_resolve_noise (s->segs, n_segs) != 0)
+  if (dp_wfm_resolve_noise (s->segs, n_segs) != 0)
     {
       for (size_t i = 0; i < n_segs; i++)
         free_segment_sources (&s->segs[i]);
@@ -720,7 +720,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
  * or gap_noise=off the gap is exact zeros, as before. Mirrors the ON path's
  * 1-source / N-source split so face parity holds sample-for-sample. */
 static void
-render_gap (wfm_compose_state_t *s, float _Complex *out, size_t k)
+render_gap (dp_wfm_compose_state_t *s, float _Complex *out, size_t k)
 {
   const wfm_segment_t *g = &s->segs[s->cur];
   if (s->n_syn == 0 || g->gap_noise)
@@ -730,19 +730,19 @@ render_gap (wfm_compose_state_t *s, float _Complex *out, size_t k)
     }
   if (s->n_syn == 1)
     {
-      wfm_render_noise_steps (s->rend[0], out, k);
+      dp_wfm_render_noise_steps (s->rend[0], out, k);
       if (s->gain[0] != 1.0f)
         for (size_t j = 0; j < k; j++)
           out[j] *= s->gain[0];
       return;
     }
-  wfm_render_noise_steps (s->rend[0], s->scratch, k);
+  dp_wfm_render_noise_steps (s->rend[0], s->scratch, k);
   float g0 = s->gain[0];
   for (size_t j = 0; j < k; j++)
     out[j] = g0 * s->scratch[j];
   for (size_t sx = 1; sx < s->n_syn; sx++)
     {
-      wfm_render_noise_steps (s->rend[sx], s->scratch, k);
+      dp_wfm_render_noise_steps (s->rend[sx], s->scratch, k);
       float gs = s->gain[sx];
       for (size_t j = 0; j < k; j++)
         out[j] += gs * s->scratch[j];
@@ -750,8 +750,8 @@ render_gap (wfm_compose_state_t *s, float _Complex *out, size_t k)
 }
 
 size_t
-wfm_compose_execute (wfm_compose_state_t *state, float _Complex *out,
-                     size_t max)
+dp_wfm_compose_execute (dp_wfm_compose_state_t *state, float _Complex *out,
+                        size_t max)
 {
   size_t i = 0;
   while (i < max)
@@ -784,7 +784,7 @@ wfm_compose_execute (wfm_compose_state_t *state, float _Complex *out,
                * dp_wfm_synth_steps() is chunk-invariant, so block size is
                * free.) The Phase-3 level gain is a post-multiply here (no-op
                * at 0 dB). */
-              wfm_render_steps (state->rend[0], out + i, k);
+              dp_wfm_render_steps (state->rend[0], out + i, k);
               if (state->gain[0] != 1.0f)
                 for (size_t j = 0; j < k; j++)
                   out[i + j] *= state->gain[0];
@@ -797,13 +797,13 @@ wfm_compose_execute (wfm_compose_state_t *state, float _Complex *out,
                */
               if (k > (size_t)SCRATCH_CAP)
                 k = SCRATCH_CAP;
-              wfm_render_steps (state->rend[0], state->scratch, k);
+              dp_wfm_render_steps (state->rend[0], state->scratch, k);
               float g0 = state->gain[0];
               for (size_t j = 0; j < k; j++)
                 out[i + j] = g0 * state->scratch[j];
               for (size_t sx = 1; sx < state->n_syn; sx++)
                 {
-                  wfm_render_steps (state->rend[sx], state->scratch, k);
+                  dp_wfm_render_steps (state->rend[sx], state->scratch, k);
                   float gs = state->gain[sx];
                   for (size_t j = 0; j < k; j++)
                     out[i + j] += gs * state->scratch[j];
@@ -840,8 +840,8 @@ wfm_compose_execute (wfm_compose_state_t *state, float _Complex *out,
 }
 
 const wfm_segment_t *
-wfm_compose_segments (const wfm_compose_state_t *state, size_t *n_out,
-                      int *repeat, int *continuous)
+dp_wfm_compose_segments (const dp_wfm_compose_state_t *state, size_t *n_out,
+                         int *repeat, int *continuous)
 {
   if (n_out)
     *n_out = state->n_segs;
@@ -853,20 +853,20 @@ wfm_compose_segments (const wfm_compose_state_t *state, size_t *n_out,
 }
 
 void
-wfm_compose_set_seed_advance (wfm_compose_state_t *state, int mode)
+dp_wfm_compose_set_seed_advance (dp_wfm_compose_state_t *state, int mode)
 {
   if (state && mode >= WFM_SEED_ADVANCE_NONE && mode <= WFM_SEED_ADVANCE_ALL)
     state->seed_advance = mode;
 }
 
 int
-wfm_compose_seed_advance (const wfm_compose_state_t *state)
+dp_wfm_compose_seed_advance (const dp_wfm_compose_state_t *state)
 {
   return state ? state->seed_advance : WFM_SEED_ADVANCE_NONE;
 }
 
 void
-wfm_compose_destroy (wfm_compose_state_t *state)
+dp_wfm_compose_destroy (dp_wfm_compose_state_t *state)
 {
   if (state)
     {

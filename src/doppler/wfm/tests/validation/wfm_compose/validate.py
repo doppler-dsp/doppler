@@ -160,7 +160,7 @@ def measure_faces(d: Data) -> None:
     R.md(
         "Four functions in `wfm_compose.h` exist for no reason except to "
         "stop the two synth-construction faces drifting, and each says so: "
-        '`wfm_source_create_snr` is *"the one create-time entry point '
+        '`dp_wfm_source_create_snr` is *"the one create-time entry point '
         "shared by the composer and the standalone-Synth bridge, so every "
         'face agrees to the bit"*. Nothing compared them. The C suite '
         'deferred it (*"covered from Python, where that face actually '
@@ -563,16 +563,16 @@ def review(d: Data) -> None:
         "F1",
         "FIXED",
         "**The functions whose only job is that the faces agree had "
-        "nothing asserting the agreement.** `wfm_source_create_snr` -- "
+        "nothing asserting the agreement.** `dp_wfm_source_create_snr` -- "
         '*"the one create-time entry point shared by the composer and the '
         'standalone-Synth bridge, so every face agrees to the bit"* -- and '
-        '`wfm_source_attach_frame` -- *"called from the same two places '
+        '`dp_wfm_source_attach_frame` -- *"called from the same two places '
         'for the same reason"* -- both had ZERO mentions in any C test in '
         "the tree. And the comparison itself existed nowhere: the C suite "
         "deferred it to Python, and Python's three-faces test compares "
         "three spellings of the composer path. Closed by pinning "
         "`create_snr` against the arithmetic the header states (not "
-        "against `wfm_snr_over_fs`, which is the same conversion and would "
+        "against `dp_wfm_snr_over_fs`, which is the same conversion and would "
         "move with it) and by one `memcmp` between the two faces. Four "
         "sabotages red on the helper; a fifth on the bridge.",
     )
@@ -582,7 +582,7 @@ def review(d: Data) -> None:
         "**A face-agreement test is blind unless it uses the shape the "
         "shared code actually changes.** The first version of §2.1 covered "
         "five waveform types, and for every one of them "
-        "`wfm_source_create_snr` is a pass-through -- so sabotaging the "
+        "`dp_wfm_source_create_snr` is a pass-through -- so sabotaging the "
         "bridge to skip the shared helper ENTIRELY, which is exactly the "
         "drift the section exists to catch, left it green. Only a dsss "
         "source at a data-symbol Es/N0 reaches the pre-referral. Found by "
@@ -605,7 +605,8 @@ def review(d: Data) -> None:
     R.find(
         "F4",
         "C-ONLY",
-        "**`wfm_compose_build_render` and `wfm_compose_from_file` are not "
+        "**`dp_wfm_compose_build_render` and `dp_wfm_compose_from_file` are "
+        "not "
         "on the Python face**, and neither had a C test. `from_file` is "
         "the CLI's `--from-file` path -- Python reaches the same parser "
         "through `Composer.from_json`, which IS tested and is compared "

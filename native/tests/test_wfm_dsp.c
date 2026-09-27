@@ -18,7 +18,7 @@ check_rrc (double beta, int sps, int span)
   size_t       n = wfm_rrc_ntaps (sps, span);
   static float taps[4096];
   DP_REQUIRE_MSG (n <= 4096, "ntaps fits");
-  wfm_rrc_taps (beta, sps, span, taps);
+  dp_wfm_rrc_taps (beta, sps, span, taps);
   double sumsq = 0.0;
   size_t mid   = (size_t)(span * sps);
   for (size_t i = 0; i < n; i++)
@@ -50,9 +50,9 @@ check_rrc_polyphase (double beta, int sps, int span)
   DP_REQUIRE_MSG (proto_len <= 4096 && (size_t)sps * num_taps <= 4096,
                   "sizes fit");
 
-  wfm_rrc_taps (beta, sps, span, proto);
+  dp_wfm_rrc_taps (beta, sps, span, proto);
   float scale = (float)sqrt ((double)sps);
-  wfm_rrc_polyphase_bank (beta, sps, span, bank);
+  dp_wfm_rrc_polyphase_bank (beta, sps, span, bank);
 
   double bank_sumsq = 0.0;
   for (int p = 0; p < sps; p++)
@@ -99,7 +99,7 @@ main (void)
   float _Complex syms[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
   uint8_t code[4]        = { 0, 1, 1, 0 }; /* signs: +,-,-,+ */
   float _Complex chips[8];
-  wfm_dsss_spread (syms, 2, code, 4, chips);
+  dp_wfm_dsss_spread (syms, 2, code, 4, chips);
   const float sgn[4] = { 1, -1, -1, 1 };
   for (size_t i = 0; i < 2; i++)
     for (size_t j = 0; j < 4; j++)
@@ -137,32 +137,32 @@ main (void)
     uint8_t pay[3]   = { 1, 1, 0 };
 
     /* sizing: 3*2 preamble + (2 sync + 3 payload + 16 crc) * 2 chips */
-    size_t n = wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 1);
+    size_t n = dp_wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 1);
     DP_REQUIRE_MSG (n == 6 + 21 * 2,
                     "nchips counts preamble + spread frame + crc");
     /* crc off / no payload: trailer only with payload bits to protect */
-    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 0) == 6 + 5 * 2,
+    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 0) == 6 + 5 * 2,
                     "nchips without crc");
-    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (3, 2, 2, 2, 0, 1) == 6 + 2 * 2,
+    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (3, 2, 2, 2, 0, 1) == 6 + 2 * 2,
                     "crc over empty payload is dropped");
-    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 2, 0, 3, 0) == 3 * 2,
+    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 2, 0, 3, 0) == 3 * 2,
                     "preamble-less frame");
-    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (3, 2, 0, 0, 0, 0) == 6,
+    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (3, 2, 0, 0, 0, 0) == 6,
                     "preamble only");
-    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 0, 2, 3, 1) == 0,
+    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 0, 2, 3, 1) == 0,
                     "frame bits with no data code is invalid");
-    DP_REQUIRE_MSG (wfm_frame_dsss_nchips (0, 0, 2, 0, 0, 0) == 0,
+    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 2, 0, 0, 0) == 0,
                     "empty burst");
 
     static uint8_t out[64];
     /* the chips builder mirrors the sizing guard: invalid geometry (frame
      * bits with no data code) writes nothing and returns 0 */
     DP_REQUIRE_MSG (
-        wfm_frame_dsss_chips (NULL, 0, 0, NULL, 0, sync, 2, pay, 3, 1, out)
+        dp_wfm_frame_dsss_chips (NULL, 0, 0, NULL, 0, sync, 2, pay, 3, 1, out)
             == 0,
         "chips builder rejects invalid geometry");
     DP_REQUIRE_MSG (
-        wfm_frame_dsss_chips (acq, 3, 2, dcode, 2, sync, 2, pay, 3, 1, out)
+        dp_wfm_frame_dsss_chips (acq, 3, 2, dcode, 2, sync, 2, pay, 3, 1, out)
             == n,
         "chips written == nchips");
     /* preamble: acq tiled twice, unmodulated */

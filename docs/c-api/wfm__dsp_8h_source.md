@@ -65,7 +65,7 @@ wfm_rc_h(double t, double beta)
     return dp_sinc(t) * cos(M_PI * beta * t) / den;
 }
 
-void wfm_rrc_taps(double beta, int sps, int span, float *taps);
+void dp_wfm_rrc_taps(double beta, int sps, int span, float *taps);
 
 static inline size_t
 wfm_rrc_bank_ntaps(int span)
@@ -73,18 +73,18 @@ wfm_rrc_bank_ntaps(int span)
     return (size_t)(2 * span + 1);
 }
 
-void wfm_polyphase_bank(const float *proto, size_t proto_len,
+void dp_wfm_polyphase_bank(const float *proto, size_t proto_len,
                         size_t num_phases, size_t num_taps, float *bank);
 
-void wfm_rrc_polyphase_bank(double beta, int sps, int span, float *bank);
+void dp_wfm_rrc_polyphase_bank(double beta, int sps, int span, float *bank);
 
-void wfm_dsss_spread(const float _Complex *syms, size_t n_sym,
+void dp_wfm_dsss_spread(const float _Complex *syms, size_t n_sym,
                      const uint8_t *code, size_t sf, float _Complex *out);
 
-size_t wfm_frame_dsss_nchips(size_t acq_len, size_t acq_reps, size_t data_len,
+size_t dp_wfm_frame_dsss_nchips(size_t acq_len, size_t acq_reps, size_t data_len,
                              size_t sync_len, size_t payload_len, int crc);
 
-size_t wfm_frame_dsss_chips(const uint8_t *acq_code, size_t acq_len,
+size_t dp_wfm_frame_dsss_chips(const uint8_t *acq_code, size_t acq_len,
                             size_t acq_reps, const uint8_t *data_code,
                             size_t data_len, const uint8_t *sync,
                             size_t sync_len, const uint8_t *payload,
@@ -96,7 +96,7 @@ wfm_cont_dsss_nchips(size_t n_chips)
     return n_chips;
 }
 
-size_t wfm_cont_dsss_chips(const uint8_t *code, size_t code_len,
+size_t dp_wfm_cont_dsss_chips(const uint8_t *code, size_t code_len,
                            const uint8_t *data, size_t n_data,
                            double chips_per_symbol, size_t n_chips,
                            uint8_t *out);

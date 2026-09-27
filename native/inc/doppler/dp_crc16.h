@@ -6,7 +6,7 @@
  * The DSSS burst frame convention is `sync | payload | CRC-16`, with the
  * 16-bit trailer computed over the payload bits only and transmitted
  * MSB-first. `burst_demod` validates it on receive and the wfmgen DSSS
- * frame builder (`wfm_frame_dsss_chips`) appends it on transmit; both call
+ * frame builder (`dp_wfm_frame_dsss_chips`) appends it on transmit; both call
  * this one inline so the two ends can never drift.
  *
  * Header-only (like `wfm_synth_mls_poly`) so no component grows a link-line

@@ -41,14 +41,14 @@ enum {
     WFM_SYNTH_SYMBOLS
     = 7,                /* user complex-symbol stream, oversampled + cycled */
     WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
-                           spread frame, built by wfm_synth_set_dsss();
+                           spread frame, built by dp_wfm_synth_set_dsss();
                            OR a continuous asynchronous stream when a
-                           symbol_rate is supplied (wfm_synth_set_dsss_cont).
+                           symbol_rate is supplied (dp_wfm_synth_set_dsss_cont).
                            The two modes share this one type — a symbol_rate
                            discriminates, no tenth waveform type. */
 };
 
-/** Continuous-DSSS data-symbol source (wfm_synth_set_dsss_cont's data_mode). */
+/** Continuous-DSSS data-symbol source (dp_wfm_synth_set_dsss_cont's data_mode). */
 enum {
     WFM_DSSS_DATA_NONE = 0, /* code-only: constant bit 0 -> the pure code    */
     WFM_DSSS_DATA_BITS = 1, /* a caller payload array, cycled mod n_bits      */
@@ -170,7 +170,7 @@ typedef struct {
     dp_fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
     /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
        RRC bank, replacing the dense fir (impulse-train + full FIR) with ~sps×
-       fewer MACs. Built by wfm_synth_set_rrc when sps is a power of two; the
+       fewer MACs. Built by dp_wfm_synth_set_rrc when sps is a power of two; the
        dense `fir` is used otherwise. Exactly one of fir/shaper is ever set. */
     resamp_state_t * shaper;
     uint8_t primed;          /* running: shaper's sps-sample latency primed     */
@@ -239,7 +239,7 @@ wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
  * the cycled payload, or the next PN bit). Non-integer `chips_per_symbol` is
  * what makes symbol edges land mid-epoch — the asynchronicity.
  *
- * With a frame set (`wfm_synth_set_dsss_window`), the frame lives on the
+ * With a frame set (`dp_wfm_synth_set_dsss_window`), the frame lives on the
  * SYMBOL clock: of every `frame_symbols` symbols, the first
  * `code_only_symbols` carry data 0 — the pure code — and the rest carry the
  * payload, whose index counts data symbols only, so the bits run on across
@@ -290,7 +290,7 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
  * bit pattern (bits, per bit_mod), the continuous asynchronous DSSS chip, or
  * the cycled complex-symbol stream — and advancing that source's read cursor by
  * one symbol. Only the shaped types (pn/bpsk/qpsk/bits/symbols/dsss, the set
- * `wfm_synth_set_rrc` accepts) reach here, so the shaper draws the *same* symbol
+ * `dp_wfm_synth_set_rrc` accepts) reach here, so the shaper draws the *same* symbol
  * sequence the dense-FIR path would; only the pulse-shaping filter differs.
  */
 JM_FORCEINLINE float _Complex
@@ -392,9 +392,9 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
  *              5=chirp, 6=bits, 7=symbols, 8=dsss.  The Python binding accepts
  *              strings
  *              "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss".
- *              For "bits" attach the pattern with wfm_synth_set_bits(); for
- *              "symbols" attach the complex stream with wfm_synth_set_symbols();
- *              for "dsss" attach the burst with wfm_synth_set_dsss() after
+ *              For "bits" attach the pattern with dp_wfm_synth_set_bits(); for
+ *              "symbols" attach the complex stream with dp_wfm_synth_set_symbols();
+ *              for "dsss" attach the burst with dp_wfm_synth_set_dsss() after
  *              create().
  * @param fs  Sample rate in Hz.  Sets the carrier frequency normalisation
  *              and the noise bandwidth.  Default 1 000 000.0.
@@ -474,14 +474,14 @@ void dp_wfm_synth_set_chirp_span(dp_wfm_synth_state_t *state, size_t span);
  * @param modulation  0=none, 1=bpsk, 2=qpsk.
  * @return 0 on success; -1 on bad args or allocation failure.
  */
-int wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
+int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
 /**
  * @brief Build and attach a two-code DSSS burst to a type=dsss synth (no-op
  * otherwise).
  *
- * Assembles the burst chip pattern through `wfm_frame_dsss_chips()` — an
+ * Assembles the burst chip pattern through `dp_wfm_frame_dsss_chips()` — an
  * unmodulated preamble (`acq_code` repeated `acq_reps` times, the coherent
  * acquisition target) followed by the frame `sync | payload | CRC-16`, each
  * frame bit XOR-spread by the distinct `data_code` — and installs it as the
@@ -498,7 +498,7 @@ int wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t 
  * NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to
  * the *chip* (the output symbol). The Segment/Synth faces convert a
  * data-symbol Es/N0 (`snr_mode="esno"`) to the over-fs value with
- * `10*log10(sf*sps)` before create; see `wfm_snr_over_fs()`.
+ * `10*log10(sf*sps)` before create; see `dp_wfm_snr_over_fs()`.
  *
  * @param state        Must be non-NULL.
  * @param acq_code     Preamble code (0/1), length @p acq_len; NULL when
@@ -516,7 +516,7 @@ int wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t 
  * @return 0 on success; -1 on invalid geometry (frame bits with no data
  *         code, or an empty burst) or allocation failure.
  */
-int wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
+int dp_wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
                        size_t acq_len, size_t acq_reps,
                        const uint8_t *data_code, size_t data_len,
                        const uint8_t *sync, size_t sync_len,
@@ -525,7 +525,7 @@ int wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
 /**
  * @brief Install an already-assembled DSSS burst as the chip pattern.
  *
- * The spreading half of `wfm_synth_set_dsss()`, split out so a caller who
+ * The spreading half of `dp_wfm_synth_set_dsss()`, split out so a caller who
  * assembled the frame from a `wfm_frame_desc_t` -- a burst carrying an inner
  * code, an ASM, an outer code or a randomiser -- installs it through the same
  * path as the four-field form rather than through a second one. Chips are
@@ -536,14 +536,14 @@ int wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
  * @param n_chips  Chip count; must be non-zero.
  * @return 0 on success, -1 on a NULL/empty pattern or allocation failure.
  */
-int wfm_synth_set_dsss_chips(dp_wfm_synth_state_t *state, const uint8_t *chips,
+int dp_wfm_synth_set_dsss_chips(dp_wfm_synth_state_t *state, const uint8_t *chips,
                              size_t n_chips);
 
 
 /**
  * @brief Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation.
  *
- * The continuous counterpart to wfm_synth_set_dsss(): the same `type="dsss"`
+ * The continuous counterpart to dp_wfm_synth_set_dsss(): the same `type="dsss"`
  * waveform, switched to the endless mode by supplying `chips_per_symbol` (=
  * `chip_rate / symbol_rate`). One waveform type, one discriminator — no tenth
  * entry in the five hand-maintained name tables `wfm_names.h` records rotting
@@ -573,7 +573,7 @@ int wfm_synth_set_dsss_chips(dp_wfm_synth_state_t *state, const uint8_t *chips,
  * @param n_data      Payload length in bits (> 0 for WFM_DSSS_DATA_BITS).
  * @return 0 on success; -1 on invalid geometry or allocation failure.
  */
-int wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
+int dp_wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
                             size_t code_len, double chips_per_symbol,
                             int data_mode, const uint8_t *data, size_t n_data);
 
@@ -590,7 +590,7 @@ int wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
  * then 4500 of data in the application it was written for — and the
  * searcher's coherent depth is what the window makes possible.
  * Configuration, not running state: it is kept by reset() and is not
- * serialized. The order against wfm_synth_set_dsss_cont() does not matter.
+ * serialized. The order against dp_wfm_synth_set_dsss_cont() does not matter.
  *
  * @param state              Synth (no-op unless `wtype == WFM_SYNTH_DSSS`).
  * @param code_only_symbols  Pure-code symbols opening each frame, at most
@@ -601,7 +601,7 @@ int wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
  * @return 0 on success (and for a non-dsss synth); -1 if
  *         @p code_only_symbols exceeds a non-zero @p frame_symbols.
  */
-int wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
+int dp_wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
                               size_t code_only_symbols, size_t frame_symbols);
 
 /**
@@ -612,7 +612,7 @@ int wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
  * every modulation (pi/4-QPSK, QAM, custom shaping) into "compute the symbols,
  * pass them in". The stream is oversampled by the create-time `sps` and
  * **cycled** to fill whatever length `dp_wfm_synth_steps()` requests (one pass is
- * `n * sps` samples), and is RRC-shaped when `wfm_synth_set_rrc()` is active.
+ * `n * sps` samples), and is RRC-shaped when `dp_wfm_synth_set_rrc()` is active.
  * Replaces any previous stream; resets the read position. Safe to call
  * repeatedly.
  *
@@ -630,7 +630,7 @@ int wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
  * [(1+0j), (1+0j), (1+0j), (1+0j)]
  * @endcode
  */
-int wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
+int dp_wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
                           const float _Complex *symbols, size_t n);
 
 /**
@@ -638,7 +638,7 @@ int wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
  *
  * Replaces the default rectangular sample-and-hold with a root-raised-cosine
  * pulse: the symbol-rate impulse train is filtered by @p taps (a real FIR of
- * @p ntaps coefficients, typically `wfm_rrc_taps(beta, sps, span)`). The taps
+ * @p ntaps coefficients, typically `dp_wfm_rrc_taps(beta, sps, span)`). The taps
  * are scaled by sqrt(sps) internally for unit transmit power, so every caller
  * passes the raw taps and gets byte-identical shaping. No-op for types with no
  * symbol stream (tone/noise/chirp). Replaces any existing shaper and clears its
@@ -649,7 +649,7 @@ int wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
  * @param ntaps  Number of taps (> 0).
  * @return 0 on success; -1 on bad args / allocation failure.
  */
-int wfm_synth_set_rrc(dp_wfm_synth_state_t *state, const float *taps,
+int dp_wfm_synth_set_rrc(dp_wfm_synth_state_t *state, const float *taps,
                       size_t ntaps);
 
 /**
@@ -693,7 +693,7 @@ void dp_wfm_synth_reset(dp_wfm_synth_state_t *state);
  * @param state  Synth state (may be NULL).
  * @param seed   New noise RNG seed.
  */
-void wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
+void dp_wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
 
 /**
  * @brief Generate n noise-only samples — the synth's additive-AWGN term with
@@ -706,7 +706,7 @@ void wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
  * @param output  n complex samples out.
  * @param n       Sample count.
  */
-void wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
+void dp_wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
 /**

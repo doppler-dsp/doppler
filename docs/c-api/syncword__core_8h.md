@@ -110,7 +110,7 @@ _Frame synchronisation: find a known marker in a bit stream, and choose the thre
 So `pfa` and `max_errors_for` sit beside the search, answering FOR the marker being searched — the same pairing `det_threshold` has with `det_pd` in this module.
 
 
-Bit convention: **unpacked** bits, one per byte in the LSB, which is what `wfm_frame_bits`, `dp_crc16_ccitt` and `ccsds_tm_randomise` already pass around.
+Bit convention: **unpacked** bits, one per byte in the LSB, which is what `dp_wfm_frame_bits`, `dp_crc16_ccitt` and `ccsds_tm_randomise` already pass around.
 
 
 Lifecycle: `create -> [find / pfa / max_errors_for]* -> destroy`.

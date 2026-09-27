@@ -35,7 +35,7 @@
  *
  * ## Conventions
  *
- * - **Bits are unpacked**, one per byte in the LSB, matching `wfm_frame_bits`,
+ * - **Bits are unpacked**, one per byte in the LSB, matching `dp_wfm_frame_bits`,
  *   `dp_crc16_ccitt` and the `ccsds_tm` kernels.
  * - **The register holds the newest input in the high stage**:
  *   `reg = (reg >> 1) | (b << (k-1))`. A *state* is the `k-1` bits that

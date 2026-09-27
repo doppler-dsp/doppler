@@ -91,31 +91,31 @@ extern "C"
 
 dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
 
-  void wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
+  void dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
 
 size_t dp_wfm_reader_read(dp_wfm_reader_state_t *state, size_t n,
                        float _Complex *out, size_t max_out);
 
 size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
 
-size_t wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
+size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
 
-  const wfm_keyword_t *wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
+  const wfm_keyword_t *dp_wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
 
-const char *wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);
+const char *dp_wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);
 
-  size_t wfm_reader_num_header_fields(const dp_wfm_reader_state_t *state);
+  size_t dp_wfm_reader_num_header_fields(const dp_wfm_reader_state_t *state);
 
-  const wfm_keyword_t *wfm_reader_header_field(const dp_wfm_reader_state_t *state,
+  const wfm_keyword_t *dp_wfm_reader_header_field(const dp_wfm_reader_state_t *state,
                                                size_t i);
 
-  const char *wfm_reader_header_tag(const dp_wfm_reader_state_t *state, size_t i);
+  const char *dp_wfm_reader_header_tag(const dp_wfm_reader_state_t *state, size_t i);
 
   const wfm_keyword_t *
-  wfm_reader_find_header_field(const dp_wfm_reader_state_t *state,
+  dp_wfm_reader_find_header_field(const dp_wfm_reader_state_t *state,
                                const char *name);
 
-  const wfm_keyword_t *wfm_reader_find_keyword (const dp_wfm_reader_state_t *r,
+  const wfm_keyword_t *dp_wfm_reader_find_keyword (const dp_wfm_reader_state_t *r,
                                                 const char        *tag);
 
 void dp_wfm_reader_reset(dp_wfm_reader_state_t *state);
@@ -124,7 +124,7 @@ int dp_wfm_reader_seek(dp_wfm_reader_state_t *state, int64_t index);
 
 int dp_wfm_reader_seek_time(dp_wfm_reader_state_t *state, double seconds);
 
-  void wfm_reader_set_stop_fn (dp_wfm_reader_state_t *state, int (*fn) (void));
+  void dp_wfm_reader_set_stop_fn (dp_wfm_reader_state_t *state, int (*fn) (void));
 
 
 void dp_wfm_reader_destroy(dp_wfm_reader_state_t *state);

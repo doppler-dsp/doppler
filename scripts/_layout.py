@@ -31,18 +31,28 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INC_DIR = "native/inc"
 
 
-def _pkg() -> str:
+def _project_key(key: str) -> str | None:
+    """A string value from ``[project]`` in ``just-makeit.toml``, or None."""
     with open(os.path.join(ROOT, "just-makeit.toml"), encoding="utf-8") as f:
         text = f.read()
     project = re.search(r"^\[project\]\n(.*?)(?=^\[)", text, re.M | re.S)
-    name = project and re.search(r'^name\s*=\s*"([^"]+)"', project[1], re.M)
+    value = project and re.search(rf'^{key}\s*=\s*"([^"]+)"', project[1], re.M)
+    return value[1] if value else None
+
+
+def _pkg() -> str:
+    name = _project_key("name")
     if not name:
         raise SystemExit("_layout: no [project] name in just-makeit.toml")
-    return name[1]
+    return name
 
 
 #: The package directory the headers live in (jm schema 8).
 PKG = _pkg()
+#: The prefix every C symbol jm derives carries (``[project] c_prefix``,
+#: #1545), so a gate that greps C for an object's calls finds ``dp_fir_*``
+#: as well as a pre-prefix tree's ``fir_*``. Empty when the key is unset.
+C_PREFIX = _project_key("c_prefix") or ""
 HEADER_ROOT = f"{INC_DIR}/{PKG}"
 
 

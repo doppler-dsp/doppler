@@ -817,15 +817,15 @@ def measure_accessors(d: Data) -> None:
     R.md()
     d.unreachable = [
         (
-            "`wfm_synth_set_dsss_chips` -- installs a pre-assembled burst; "
+            "`dp_wfm_synth_set_dsss_chips` -- installs a pre-assembled burst; "
             "the four-field `set_dsss` is bound and routes through it."
         ),
         (
-            "`wfm_synth_reseed_noise` -- fresh noise per segment repeat, "
+            "`dp_wfm_synth_reseed_noise` -- fresh noise per segment repeat, "
             "used by the composer in C."
         ),
         (
-            "`wfm_synth_noise_steps` -- renders a segment's off-time gap, "
+            "`dp_wfm_synth_noise_steps` -- renders a segment's off-time gap, "
             "used by the composer in C."
         ),
         (
@@ -880,7 +880,7 @@ def review(d: Data) -> None:
         "the waveform is still a waveform, at an SNR nobody asked for. "
         "The only thing pinning either was `test_wfm_compose.c`'s "
         "noise-power table, which reaches them one layer up through "
-        "`wfm_snr_over_fs` and only for the seven segment-level cases it "
+        "`dp_wfm_snr_over_fs` and only for the seven segment-level cases it "
         "lists; the span guard and the whole `bps` enum were outside it. "
         "Closed by §A of `test_wfm_synth_core.c`, against literals derived "
         "by hand from the doc comment -- never by calling the function, "
@@ -914,9 +914,10 @@ def review(d: Data) -> None:
         "F3",
         "FIXED",
         "**Four public entry points and all ten accessors had zero C "
-        "coverage.** `wfm_synth_set_dsss_chips`, `wfm_synth_reseed_noise` "
+        "coverage.** `dp_wfm_synth_set_dsss_chips`, "
+        "`dp_wfm_synth_reseed_noise` "
         "and the five get/set pairs were mentioned in no C test anywhere "
-        "in the tree; `wfm_synth_noise_steps` was reachable only through "
+        "in the tree; `dp_wfm_synth_noise_steps` was reachable only through "
         "`test_wfm_compose.c`, so the object's own claims about it -- "
         "seamless continuation, exact zeros for a clean synth -- were "
         "certified only as a side effect of testing the composition. "
@@ -929,7 +930,7 @@ def review(d: Data) -> None:
         "BY DESIGN",
         "**`create()` and the composer resolve `auto` differently for "
         "dsss, and they must.** `dp_wfm_synth_create` resolves an `auto` SNR "
-        "mode to fs for a DSSS source while `wfm_snr_over_fs` resolves the "
+        "mode to fs for a DSSS source while `dp_wfm_snr_over_fs` resolves the "
         "same source to Es/No. That reads as drift and is not: the codes "
         "that set the spreading factor attach AFTER create(), so the "
         "generator cannot refer a data-symbol Es/N0 to fs and the composer "

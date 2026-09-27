@@ -20,10 +20,10 @@
  *   2. The frame reaches the SAMPLES — a framed source and an otherwise
  *      identical unframed one do not compose to the same waveform.
  *   3. The samples carry the DESCRIPTION's bits: demodulated back, they are
- *      wfm_frame_assemble() of the same description, bit for bit.
+ *      dp_wfm_frame_assemble() of the same description, bit for bit.
  *   4. The frame CYCLES, so one description fills whatever length is asked
  *      for and a one-frame description is a multi-frame record.
- *   5. The flags really are sugar: wfm_source_describe_frame() turns a
+ *   5. The flags really are sugar: dp_wfm_source_describe_frame() turns a
  *      flag-spelled source into a description, and a second source carrying
  *      that description composes BYTE-IDENTICALLY to the first.
  *   6. A stage kind that is YOURS: a kind from WFM_STAGE_USER up, its kernel
@@ -136,19 +136,19 @@ compose_one (const wfm_source_t *src, float complex *out, size_t n)
   seg.off_samples = 0u;
   seg.gap_noise   = 0;
 
-  wfm_compose_state_t *c = wfm_compose_create (&seg, 1u, 0, 0);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1u, 0, 0);
   if (!c)
     return 0;
 
   size_t total = 0;
   for (;;)
     {
-      size_t got = wfm_compose_execute (c, out + total, n - total);
+      size_t got = dp_wfm_compose_execute (c, out + total, n - total);
       if (got == 0 || total >= n)
         break;
       total += got;
     }
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
   return total;
 }
 
@@ -240,7 +240,7 @@ static const wfm_stage_op_t my_ops_table[] = {
   { MY_WHITEN, whiten_in_unit, NULL, whiten_undo },
 };
 
-/** @brief The caller's kernels, as `wfm_frame_assemble` and `_check` take
+/** @brief The caller's kernels, as `dp_wfm_frame_assemble` and `_check` take
  * them. */
 static wfm_frame_ops_t
 my_ops (void)
@@ -273,24 +273,25 @@ main (void)
   wfm_seq_t hdr = literal (hdr_bits, HDR_BITS);
   wfm_seq_t pay = literal (payload_bits, PAYLOAD_BITS);
 
-  int ok = wfm_frame_add_field (&d, "hdr", &hdr, 0u) == 0
-           && wfm_frame_add_field (&d, "payload", &pay, 0u) == 1
-           && wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 2
-           /* The cover names its ends, and it REACHES the derived field:
-              a code occupies its information and the check symbols it
-              derives, so "payload".."crc" is one declaration of both. That
-              is also what wires the derived field's producer, so nothing
-              states it a second, disagreeing way. The header is deliberately
-              outside the cover — a receiver finds it before it can check
-              anything. */
-           && wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") == 0;
+  int ok
+      = dp_wfm_frame_add_field (&d, "hdr", &hdr, 0u) == 0
+        && dp_wfm_frame_add_field (&d, "payload", &pay, 0u) == 1
+        && dp_wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 2
+        /* The cover names its ends, and it REACHES the derived field:
+           a code occupies its information and the check symbols it
+           derives, so "payload".."crc" is one declaration of both. That
+           is also what wires the derived field's producer, so nothing
+           states it a second, disagreeing way. The header is deliberately
+           outside the cover — a receiver finds it before it can check
+           anything. */
+        && dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") == 0;
   check (ok, "three named fields and one named cover build a description");
   if (!ok)
     return 1;
 
   wfm_frame_desc_layout_t lay;
-  check (wfm_frame_desc_layout (&d, &lay) == 0,
-         "wfm_frame_desc_layout accepts it");
+  check (dp_wfm_frame_desc_layout (&d, &lay) == 0,
+         "dp_wfm_frame_desc_layout accepts it");
   check (lay.frame_bits == FRAME_BITS,
          "the frame is header + payload + CRC, exactly");
   printf ("  hdr     %2zu bits @ %2zu\n", lay.field_bits[0], lay.field_off[0]);
@@ -318,14 +319,14 @@ main (void)
     }
 
   wfm_source_t plain = bits_source (payload_bits);
-  check (!wfm_source_has_frame (&plain),
+  check (!dp_wfm_source_has_frame (&plain),
          "the source is unframed before a description is attached");
 
   wfm_source_t src = plain;
   src.frame        = &d;
-  check (wfm_source_has_frame (&src),
+  check (dp_wfm_source_has_frame (&src),
          "carrying a description IS what makes a source framed");
-  check (wfm_source_frame_error (&src) == NULL,
+  check (dp_wfm_source_frame_error (&src) == NULL,
          "this type can honour a frame (type=bits, explicit payload)");
 
   size_t n_framed   = compose_one (&src, framed, TOTAL);
@@ -340,14 +341,14 @@ main (void)
   printf ("--- 3. The bits on the wire are the description's ---\n");
 
   uint8_t want[FRAME_BITS];
-  size_t  n_bits = wfm_frame_assemble (&d, NULL, want, FRAME_BITS);
+  size_t  n_bits = dp_wfm_frame_assemble (&d, NULL, want, FRAME_BITS);
   check (n_bits == FRAME_BITS,
-         "wfm_frame_assemble materialises the description independently");
+         "dp_wfm_frame_assemble materialises the description independently");
 
   uint8_t got[FRAME_BITS];
   demod (framed, FRAME_BITS, got);
   check (n_bits == FRAME_BITS && memcmp (got, want, FRAME_BITS) == 0,
-         "demodulated, the first frame IS wfm_frame_assemble's output");
+         "demodulated, the first frame IS dp_wfm_frame_assemble's output");
 
   /* The header is the half no flag could have placed, so name it. */
   check (memcmp (got, hdr_bits, HDR_BITS) == 0,
@@ -380,13 +381,13 @@ main (void)
   wfm_source_t flags = bits_source (payload_bits);
   flags.sync         = literal (hdr_bits, HDR_BITS);
   flags.crc          = 1;
-  check (wfm_source_has_frame (&flags), "the flat fields frame it too");
+  check (dp_wfm_source_has_frame (&flags), "the flat fields frame it too");
 
   /* And read back OUT as a description — the one every consumer funnels
      through, whichever way the source spelled its frame. */
   wfm_frame_desc_t from_flags;
-  check (wfm_source_describe_frame (&flags, &from_flags) == 0,
-         "wfm_source_describe_frame turns the flags into a description");
+  check (dp_wfm_source_describe_frame (&flags, &from_flags) == 0,
+         "dp_wfm_source_describe_frame turns the flags into a description");
 
   wfm_source_t carried = bits_source (payload_bits);
   carried.frame        = &from_flags;
@@ -416,14 +417,15 @@ main (void)
   wfm_frame_desc_t mine;
   memset (&mine, 0, sizeof mine);
   int built
-      = wfm_frame_add_field (&mine, "hdr", &hdr, 0u) == 0
-        && wfm_frame_add_field (&mine, "payload", &pay, 0u) == 1
-        && wfm_frame_add_derived (&mine, "crc", WFM_FRAME_CRC_BITS) == 2
-        && wfm_frame_add_stage (&mine, WFM_STAGE_CRC16, "payload", "crc") == 0
+      = dp_wfm_frame_add_field (&mine, "hdr", &hdr, 0u) == 0
+        && dp_wfm_frame_add_field (&mine, "payload", &pay, 0u) == 1
+        && dp_wfm_frame_add_derived (&mine, "crc", WFM_FRAME_CRC_BITS) == 2
+        && dp_wfm_frame_add_stage (&mine, WFM_STAGE_CRC16, "payload", "crc")
+               == 0
         /* Applied AFTER the CRC and over the WHOLE frame, which is
            where a randomiser belongs: the check symbols are whitened
            too, and the receiver unwhitens before it checks. */
-        && wfm_frame_add_stage (&mine, MY_WHITEN, "hdr", "crc") == 1;
+        && dp_wfm_frame_add_stage (&mine, MY_WHITEN, "hdr", "crc") == 1;
   check (built, "a description accepts a kind from the caller's own range");
   check (MY_WHITEN > WFM_STAGE_INTERLEAVE,
          "the kind is above every kind doppler names");
@@ -432,7 +434,7 @@ main (void)
      quietly did not run produces a frame that still assembles, still
      decodes against itself, and syncs to nothing at the far end. */
   uint8_t no_kernel[FRAME_BITS];
-  check (wfm_frame_assemble (&mine, NULL, no_kernel, FRAME_BITS) == 0,
+  check (dp_wfm_frame_assemble (&mine, NULL, no_kernel, FRAME_BITS) == 0,
          "with no kernel for that kind, assembly REFUSES — never a silent "
          "skip");
 
@@ -440,7 +442,7 @@ main (void)
      still runs, because a caller's table extends the built-ins. */
   wfm_frame_ops_t ops = my_ops ();
   uint8_t         theirs[FRAME_BITS];
-  size_t n_mine = wfm_frame_assemble (&mine, &ops, theirs, FRAME_BITS);
+  size_t n_mine = dp_wfm_frame_assemble (&mine, &ops, theirs, FRAME_BITS);
   check (n_mine == FRAME_BITS,
          "with the kernel supplied, the same description assembles");
   check (memcmp (theirs, want, FRAME_BITS) != 0,
@@ -459,8 +461,8 @@ main (void)
      doppler has heard of. */
   wfm_frame_rx_t rx;
   memset (&rx, 0, sizeof rx);
-  int good = wfm_frame_check (&mine, &ops, theirs, &rx);
-  check (good == 1, "wfm_frame_check reverses it and the CRC passes");
+  int good = dp_wfm_frame_check (&mine, &ops, theirs, &rx);
+  check (good == 1, "dp_wfm_frame_check reverses it and the CRC passes");
   check (rx.checked == 2u, "both stages were reversed here, not one");
   check (memcmp (theirs, want, FRAME_BITS) == 0,
          "unwhitened in place, the frame is the plain one again, bit for "

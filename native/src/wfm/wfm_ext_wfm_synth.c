@@ -190,9 +190,9 @@ _SynthEngine_set_rrc (_SynthEngineObject *self, PyObject *args)
       taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
   if (!taps)
     return NULL;
-  size_t n = (size_t)PyArray_SIZE (taps);
-  int rc = wfm_synth_set_rrc (self->handle, (const float *)PyArray_DATA (taps),
-                              n);
+  size_t n  = (size_t)PyArray_SIZE (taps);
+  int    rc = dp_wfm_synth_set_rrc (self->handle,
+                                    (const float *)PyArray_DATA (taps), n);
   Py_DECREF (taps);
   if (rc != 0)
     {
@@ -223,7 +223,7 @@ _SynthEngine_set_bits (_SynthEngineObject *self, PyObject *args)
   if (!arr)
     return NULL;
   size_t n  = (size_t)PyArray_SIZE (arr);
-  int    rc = wfm_synth_set_bits (
+  int    rc = dp_wfm_synth_set_bits (
       self->handle, (const uint8_t *)PyArray_DATA (arr), n, modulation);
   Py_DECREF (arr);
   if (rc != 0)
@@ -282,9 +282,9 @@ _SynthEngine_set_dsss (_SynthEngineObject *self, PyObject *args,
     }
   int rc = -1;
   if (ok)
-    rc = wfm_synth_set_dsss (self->handle, dat[0], len[0],
-                             (size_t)(reps < 0 ? 0 : reps), dat[1], len[1],
-                             dat[3], len[3], dat[2], len[2], crc);
+    rc = dp_wfm_synth_set_dsss (self->handle, dat[0], len[0],
+                                (size_t)(reps < 0 ? 0 : reps), dat[1], len[1],
+                                dat[3], len[3], dat[2], len[2], crc);
   for (int i = 0; i < 4; i++)
     Py_XDECREF (arrs[i]);
   if (!ok)
@@ -354,7 +354,7 @@ _SynthEngine_set_dsss_cont (_SynthEngineObject *self, PyObject *args,
           return NULL;
         }
     }
-  int rc = wfm_synth_set_dsss_cont (
+  int rc = dp_wfm_synth_set_dsss_cont (
       self->handle, (const uint8_t *)PyArray_DATA (code_arr),
       (size_t)PyArray_SIZE (code_arr), cps, mode,
       pay_arr ? (const uint8_t *)PyArray_DATA (pay_arr) : NULL,
@@ -397,7 +397,7 @@ _SynthEngine_set_dsss_window (_SynthEngineObject *self, PyObject *args,
                        "set_dsss_window: symbol counts must be >= 0");
       return NULL;
     }
-  if (wfm_synth_set_dsss_window (self->handle, (size_t)w, (size_t)f) != 0)
+  if (dp_wfm_synth_set_dsss_window (self->handle, (size_t)w, (size_t)f) != 0)
     {
       PyErr_SetString (PyExc_ValueError,
                        "set_dsss_window: code_only_symbols must not exceed a "
@@ -426,7 +426,7 @@ _SynthEngine_set_symbols (_SynthEngineObject *self, PyObject *args)
   if (!arr)
     return NULL;
   size_t n  = (size_t)PyArray_SIZE (arr);
-  int    rc = wfm_synth_set_symbols (
+  int    rc = dp_wfm_synth_set_symbols (
       self->handle, (const float _Complex *)PyArray_DATA (arr), n);
   Py_DECREF (arr);
   if (rc != 0)
@@ -980,11 +980,11 @@ static PyTypeObject _SynthEngineType = {
     "    "
     "\"tone\"|\"noise\"|\"pn\"|\"bpsk\"|\"qpsk\"|\"chirp\"|\"bits\"|"
     "\"symbols\"|\"dsss\". For\n"
-    "    \"bits\" attach the pattern with wfm_synth_set_bits(); for "
+    "    \"bits\" attach the pattern with dp_wfm_synth_set_bits(); for "
     "\"symbols\"\n"
-    "    attach the complex stream with wfm_synth_set_symbols(); for "
+    "    attach the complex stream with dp_wfm_synth_set_symbols(); for "
     "\"dsss\"\n"
-    "    attach the burst with wfm_synth_set_dsss() after create().\n"
+    "    attach the burst with dp_wfm_synth_set_dsss() after create().\n"
     "fs : float, default 1000000.0\n"
     "    Sample rate in Hz. Sets the carrier frequency normalisation and the\n"
     "    noise bandwidth. Default 1 000 000.0.\n"

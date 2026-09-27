@@ -5,11 +5,11 @@
  * finished array. This is the layer underneath, where the caller is the one
  * holding the buffer. Four things the Python face genuinely hides:
  *
- *   1. YOU own the output. wfm_compose_execute() never allocates; it fills
+ *   1. YOU own the output. dp_wfm_compose_execute() never allocates; it fills
  *      what you give it and tells you how much it used.
  *   2. The stream ends with a SHORT READ, not an error. One execute() is a
  *      chunk, not the answer, so composing means draining in a loop.
- *   3. The segment list is BORROWED. wfm_compose_segments() points into the
+ *   3. The segment list is BORROWED. dp_wfm_compose_segments() points into the
  *      composer, and destroy() takes it with it.
  *   4. A declaration is deterministic. The same scene composed twice is
  *      byte-identical, which is what makes a capture reproducible.
@@ -130,7 +130,7 @@ compose_scene (float complex *out, size_t max, size_t *last_read,
 
   /* create() COPIES the segment list, so the arrays above may go out of
      scope after this call — the composer does not alias them. */
-  wfm_compose_state_t *c = wfm_compose_create (segs, 2u, 0, 0);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (segs, 2u, 0, 0);
   if (!c)
     return 0;
 
@@ -140,7 +140,7 @@ compose_scene (float complex *out, size_t max, size_t *last_read,
   while (total < max)
     {
       size_t want = max - total < CHUNK ? max - total : CHUNK;
-      got         = wfm_compose_execute (c, out + total, want);
+      got         = dp_wfm_compose_execute (c, out + total, want);
       if (got == 0)
         break;
       total += got;
@@ -149,21 +149,21 @@ compose_scene (float complex *out, size_t max, size_t *last_read,
 
   /* Past the end it keeps returning 0 rather than erroring or restarting. */
   float complex spare[8];
-  *after_end = wfm_compose_execute (c, spare, 8u);
+  *after_end = dp_wfm_compose_execute (c, spare, 8u);
 
   /* The borrowed view: valid HERE, dangling after destroy() below. */
   size_t               n_segs = 0;
   int                  repeat = -1, continuous = -1;
   const wfm_segment_t *view
-      = wfm_compose_segments (c, &n_segs, &repeat, &continuous);
+      = dp_wfm_compose_segments (c, &n_segs, &repeat, &continuous);
   check (view != NULL && n_segs == 2u,
-         "wfm_compose_segments borrows the 2-segment list back");
+         "dp_wfm_compose_segments borrows the 2-segment list back");
   check (view != NULL && view[0].fs == FS && view[0].num_samples == SEG0_ON,
          "the borrowed segment reports the geometry it was given");
   check (repeat == 0 && continuous == 0,
          "repeat/continuous read back as declared (a finite scene)");
 
-  wfm_compose_destroy (c); /* `view` is dangling from this point on. */
+  dp_wfm_compose_destroy (c); /* `view` is dangling from this point on. */
   return total;
 }
 
@@ -190,7 +190,7 @@ main (void)
   size_t total = compose_scene (buf, cap, &last_read, &after_end);
   if (total == 0)
     {
-      fprintf (stderr, "wfmgen_demo: wfm_compose_create failed\n");
+      fprintf (stderr, "wfmgen_demo: dp_wfm_compose_create failed\n");
       free (buf);
       return 1;
     }

@@ -128,7 +128,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   const double f_norm = ((double)r + frac) / (double)nx;
 
   /* The emitter, rendered by the shipped synth. `snr` is over fs; a C/N0
-     converts to it in one place (wfm_snr_over_fs is the composer's; the
+     converts to it in one place (dp_wfm_snr_over_fs is the composer's; the
      synth takes the over-fs value directly). Clean means no AWGN child. */
   const double snr_fs
       = cn0_dbhz > 0.0 ? cn0_dbhz - 10.0 * log10 (fs) : WFM_SYNTH_SNR_CLEAN;
@@ -139,10 +139,10 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
      mid-epoch, every epoch: the pattern {0,1} at two symbols per period. */
   static const uint8_t two_bits[2] = { 0, 1 };
   int rc = data_flip
-               ? wfm_synth_set_dsss_cont (syn, code, SF, (double)SF / 2.0,
-                                          WFM_DSSS_DATA_BITS, two_bits, 2)
-               : wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
-                                          WFM_DSSS_DATA_NONE, NULL, 0);
+               ? dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF / 2.0,
+                                             WFM_DSSS_DATA_BITS, two_bits, 2)
+               : dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
+                                             WFM_DSSS_DATA_NONE, NULL, 0);
   if (!syn || rc != 0)
     {
       fprintf (stderr, "wfm_synth continuous DSSS setup failed\n");
@@ -157,7 +157,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   if (present)
     dp_wfm_synth_steps (syn, raw, TAU0 + nx);
   else
-    wfm_synth_noise_steps (syn, raw, TAU0 + nx);
+    dp_wfm_synth_noise_steps (syn, raw, TAU0 + nx);
   float complex *buf = raw + TAU0;
 
   acq_result_t hit[2];

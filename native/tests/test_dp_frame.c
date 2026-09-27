@@ -2,7 +2,7 @@
  * test_dp_frame.c — the named starter frame set.
  *
  * `dp_frame_test.h` is a TABLE, not an algorithm: five `wfm_frame_t` values
- * that `wfm_frame_bits()` materialises. So what is worth testing is not the
+ * that `dp_wfm_frame_bits()` materialises. So what is worth testing is not the
  * materialisation — `test_wfm_frame.c` owns that — but the CLAIMS the set
  * makes about itself, because those are what a reader will rely on without
  * re-deriving:
@@ -46,18 +46,18 @@ main (void)
       wfm_frame_layout_t l;
       size_t             n;
 
-      DP_REQUIRE_MSG (wfm_frame_layout (&f, &l) == 0, "layout");
+      DP_REQUIRE_MSG (dp_wfm_frame_layout (&f, &l) == 0, "layout");
       DP_REQUIRE_MSG (l.total_bits == want_bits[i], dp_frame_label (nm));
-      DP_REQUIRE_MSG (wfm_frame_nbits (&f) == want_bits[i], "nbits agrees");
+      DP_REQUIRE_MSG (dp_wfm_frame_nbits (&f) == want_bits[i], "nbits agrees");
 
-      n = wfm_frame_bits (&f, buf, CAP);
+      n = dp_wfm_frame_bits (&f, buf, CAP);
       DP_REQUIRE_MSG (n == want_bits[i], "the frame materialises in full");
       for (size_t k = 0; k < n; k++)
         DP_REQUIRE_MSG (buf[k] <= 1, "every output bit is 0 or 1");
 
       /* Same descriptor, same bits — the property that lets a receiver
          regenerate a record's truth from the name alone. */
-      DP_REQUIRE_MSG (wfm_frame_bits (&f, alt, CAP) == n, "rebuild");
+      DP_REQUIRE_MSG (dp_wfm_frame_bits (&f, alt, CAP) == n, "rebuild");
       DP_REQUIRE_MSG (memcmp (buf, alt, n) == 0, "a named frame is fixed");
 
       /* Every preamble in the set is the SAME dotted unit, so a comparison
@@ -72,13 +72,14 @@ main (void)
          detector the frame set exists to make available. */
       if (l.crc_bits)
         {
-          DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == 1, "crc checks");
+          DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == 1, "crc checks");
           buf[l.payload_off] ^= 1u;
-          DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == 0, "one bit fails it");
+          DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == 0,
+                          "one bit fails it");
           buf[l.payload_off] ^= 1u;
         }
       else
-        DP_REQUIRE_MSG (wfm_frame_crc_ok (&f, buf) == -1,
+        DP_REQUIRE_MSG (dp_wfm_frame_crc_ok (&f, buf) == -1,
                         "an unprotected frame reports -1, never 0");
 
       /* A payload nobody looks at is the easiest thing in the set to get
@@ -113,8 +114,8 @@ main (void)
     /* And it lands verbatim where the layout says it does. */
     wfm_frame_t        f = dp_frame_named (RX_FRAME_BURST);
     wfm_frame_layout_t l;
-    wfm_frame_layout (&f, &l);
-    DP_REQUIRE_MSG (wfm_frame_bits (&f, buf, CAP) == l.total_bits, "build");
+    dp_wfm_frame_layout (&f, &l);
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&f, buf, CAP) == l.total_bits, "build");
     DP_REQUIRE_MSG (l.sync_bits == 13, "the burst sync is 13 symbols");
     DP_REQUIRE_MSG (memcmp (buf + l.sync_off, dp_frame_barker13, 13) == 0,
                     "the sync word appears verbatim at its stated offset");
@@ -128,12 +129,12 @@ main (void)
     wfm_frame_t        cont = dp_frame_named (RX_FRAME_CONT);
     wfm_frame_layout_t ln, lc;
 
-    wfm_frame_layout (&none, &ln);
-    wfm_frame_layout (&cont, &lc);
+    dp_wfm_frame_layout (&none, &ln);
+    dp_wfm_frame_layout (&cont, &lc);
     DP_REQUIRE_MSG (ln.payload_bits == lc.payload_bits, "same payload length");
 
-    wfm_frame_bits (&none, buf, CAP);
-    wfm_frame_bits (&cont, alt, CAP);
+    dp_wfm_frame_bits (&none, buf, CAP);
+    dp_wfm_frame_bits (&cont, alt, CAP);
     DP_REQUIRE_MSG (
         memcmp (buf + ln.payload_off, alt + lc.payload_off, ln.payload_bits)
             == 0,
@@ -153,8 +154,8 @@ main (void)
     wfm_frame_layout_t lc, lg;
     size_t             diff = 0;
 
-    wfm_frame_layout (&cont, &lc);
-    wfm_frame_layout (&gold, &lg);
+    dp_wfm_frame_layout (&cont, &lc);
+    dp_wfm_frame_layout (&gold, &lg);
     DP_REQUIRE_MSG (memcmp (&lc, &lg, sizeof lc) == 0,
                     "identical geometry: same offsets, same widths, same "
                     "total -- only the sequence family differs");
@@ -162,8 +163,8 @@ main (void)
                         && gold.sync.kind == WFM_SEQ_GOLD,
                     "and the family is what differs");
 
-    wfm_frame_bits (&cont, buf, CAP);
-    wfm_frame_bits (&gold, alt, CAP);
+    dp_wfm_frame_bits (&cont, buf, CAP);
+    dp_wfm_frame_bits (&gold, alt, CAP);
     for (size_t i = 0; i < lc.sync_bits; i++)
       diff += (buf[lc.sync_off + i] != alt[lg.sync_off + i]);
     /* Two independent 127-bit sequences differ in ~half their positions. A
@@ -183,8 +184,8 @@ main (void)
         wfm_frame_layout_t l;
         int                found = 0;
 
-        wfm_frame_layout (&f, &l);
-        wfm_frame_bits (&f, buf, CAP);
+        dp_wfm_frame_layout (&f, &l);
+        dp_wfm_frame_bits (&f, buf, CAP);
         /* The marker a receiver hunts for is the sync word. If the same run
            of bits also occurs inside the payload, every detection has a
            competitor that the WAVEFORM does not have -- an ambiguity the test
@@ -201,8 +202,9 @@ main (void)
   /* ── outside the set builds nothing, rather than something plausible ──── */
   {
     wfm_frame_t f = dp_frame_named ((dp_frame_name_t)DP_FRAME_COUNT);
-    DP_REQUIRE_MSG (wfm_frame_nbits (&f) == 0, "an unknown name is 0 bits");
-    DP_REQUIRE_MSG (wfm_frame_bits (&f, buf, CAP) == 0, "and writes nothing");
+    DP_REQUIRE_MSG (dp_wfm_frame_nbits (&f) == 0, "an unknown name is 0 bits");
+    DP_REQUIRE_MSG (dp_wfm_frame_bits (&f, buf, CAP) == 0,
+                    "and writes nothing");
     DP_REQUIRE_MSG (
         strcmp (dp_frame_label ((dp_frame_name_t)DP_FRAME_COUNT), "?") == 0,
         "and has no label to quote in a report");

@@ -99,10 +99,10 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
       = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              seed, (int)SPC, 15, 0, 0, 0.0);
   DP_REQUIRE (syn != NULL);
-  DP_REQUIRE (
-      wfm_synth_set_dsss_cont (syn, code, SF, CPS, WFM_DSSS_DATA_PRBS, NULL, 0)
-      == 0);
-  DP_REQUIRE (wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) == 0);
+  DP_REQUIRE (dp_wfm_synth_set_dsss_cont (syn, code, SF, CPS,
+                                          WFM_DSSS_DATA_PRBS, NULL, 0)
+              == 0);
+  DP_REQUIRE (dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) == 0);
   dp_doppler_channel_state_t *ch
       = dp_doppler_channel_create (FS, CARRIER_HZ, d->ppm, 0.0);
   DP_REQUIRE (ch != NULL);

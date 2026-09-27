@@ -75,7 +75,7 @@ import re
 import sys
 from pathlib import Path
 
-from _layout import HEADER_ROOT, PKG
+from _layout import C_PREFIX, HEADER_ROOT, PKG
 
 ROOT = Path(__file__).resolve().parent.parent
 # Two shapes, because a component with no Python face is certified by a C
@@ -367,7 +367,7 @@ def check_lifecycle(path: Path) -> list[str]:
     # names; a header NAME is not the fact being checked.
     pat = re.compile(
         rf'#include\s*"(?:{re.escape(PKG)}/)?{re.escape(obj)}/|'
-        rf"\b{re.escape(obj)}_[A-Za-z0-9_]*\s*\("
+        rf"\b(?:{re.escape(C_PREFIX)}_)?{re.escape(obj)}_[A-Za-z0-9_]*\s*\("
     )
     tests = ROOT / "native" / "tests"
     pinned = any(

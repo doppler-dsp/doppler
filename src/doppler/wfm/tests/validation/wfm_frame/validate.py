@@ -306,7 +306,7 @@ def measure_sequences(d: Data) -> None:
     R.md()
     R.md(
         "A field's bits come from a literal or from a generator, and "
-        '`add_field` reaches all four kinds. `wfm_seq_bits` -- "the one '
+        '`add_field` reaches all four kinds. `dp_wfm_seq_bits` -- "the one '
         'place a `wfm_seq_t` becomes bits" -- had no C coverage at all '
         "before this certification (F1); these are the same properties, "
         "asked through the binding."
@@ -445,12 +445,12 @@ def measure_reach(d: Data) -> None:
             "any stage kind doppler does not implement (§2.5, gh-1125)."
         ),
         (
-            "`wfm_seq_bits` directly -- Python reaches all four kinds "
+            "`dp_wfm_seq_bits` directly -- Python reaches all four kinds "
             "through `add_field`, which is the same function one layer up "
             "(§2.4)."
         ),
         (
-            "`wfm_frame_dsss_nchips` -- the burst chip count, used by "
+            "`dp_wfm_frame_dsss_nchips` -- the burst chip count, used by "
             "`wfm_synth` when it builds a DSSS burst rather than by a "
             "caller."
         ),
@@ -486,7 +486,7 @@ def review(d: Data) -> None:
         "F1",
         "FIXED",
         '**"The one place a `wfm_seq_t` becomes bits" was tested by '
-        "nothing.** `wfm_seq_bits` had zero mentions in any C test in the "
+        "nothing.** `dp_wfm_seq_bits` had zero mentions in any C test in the "
         "tree, while a descriptor materialises every generated field "
         "through it and the DSSS chip builder expands a sequence through "
         "it. The hazard it guards is stated in the header and was "
@@ -529,7 +529,7 @@ def review(d: Data) -> None:
     R.find(
         "F4",
         "C-ONLY",
-        "**`wfm_frame_dsss_nchips` belongs to this layer and was tested "
+        "**`dp_wfm_frame_dsss_nchips` belongs to this layer and was tested "
         "only through the synthesiser.** The chip count a DSSS burst "
         "occupies is frame geometry, and until this certification it was "
         "exercised only where `wfm_synth` builds a burst -- so it was "

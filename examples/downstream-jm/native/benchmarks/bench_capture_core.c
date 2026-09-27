@@ -66,7 +66,7 @@ write_fixture (void)
       return -1;
     }
   rc = (dp_wfm_writer_write (w, buf, NUM_SAMPLES) == NUM_SAMPLES) ? 0 : -1;
-  if (wfm_writer_close (w) != 0)
+  if (dp_wfm_writer_close (w) != 0)
     rc = -1;
   free (buf);
   return rc;

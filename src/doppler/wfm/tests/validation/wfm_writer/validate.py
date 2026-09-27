@@ -711,17 +711,17 @@ def measure_reach(d: Data) -> None:
     R.md()
     d.unreachable = [
         (
-            "`wfm_writer_open` -- the `FILE*`-taking constructor. Python "
+            "`dp_wfm_writer_open` -- the `FILE*`-taking constructor. Python "
             "gets `dp_wfm_writer_create`, which owns the file; a caller who "
             "already has a stream is a C caller."
         ),
         (
-            "`wfm_writer_set_gain` -- reachable, but only as the "
+            "`dp_wfm_writer_set_gain` -- reachable, but only as the "
             "`headroom` dB argument at construction (§2.4), never as a "
             "linear gain and never mid-capture."
         ),
         (
-            "`wfm_writer_peak` -- the linear peak. Python exposes "
+            "`dp_wfm_writer_peak` -- the linear peak. Python exposes "
             "`peak_dbfs` and `clipped`, both derived from it; the raw "
             "magnitude is C-only."
         ),
@@ -822,7 +822,7 @@ def review(d: Data) -> None:
         "F4",
         "C-ONLY",
         "**Four header entry points are not on the Python face** (§2.6), "
-        "and one of them is worth naming: `wfm_writer_set_gain` is "
+        "and one of them is worth naming: `dp_wfm_writer_set_gain` is "
         "reachable only as the `headroom` argument at construction, in dB. "
         "A caller cannot change the gain mid-capture from Python, which is "
         "the right default -- a level that moves partway through a file is "

@@ -23,7 +23,7 @@
  *     being written, never the ones before it.
  *   - **At finalize** the lines are collected into the `annotations` array of
  *     a proper `.sigmf-meta` sidecar — through the writer's existing SigMF
- *     emitter (wfm_sigmf_meta_json_ex(), wfm_writer/wfm_writer_core.h), never
+ *     emitter (dp_wfm_sigmf_meta_json_ex(), wfm_writer/wfm_writer_core.h), never
  *     a second one.  `global` and `captures` therefore come out byte-for-byte
  *     the way every other doppler sidecar spells them, including the
  *     omit-when-unknown rules that document says at length.

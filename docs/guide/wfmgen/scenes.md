@@ -408,15 +408,15 @@ a receiver has to find it before it can check anything.
     field was dropped to zero length, and the payload's own bits did not
     survive into the record.
 
-    The C builder never had the trap: `wfm_frame_add_stage()` takes the cover
+    The C builder never had the trap: `dp_wfm_frame_add_stage()` takes the cover
     by name and wires the producer itself, so the fact cannot be stated twice
     and cannot disagree.
 
 ### The same description from C and from Python
 
 The C struct is the primary interface — `wfm_source_t.frame` takes a
-`wfm_frame_desc_t *`, and `wfm_frame_add_field()` / `wfm_frame_add_derived()`
-/ `wfm_frame_add_stage()` build one by name rather than by index. The
+`wfm_frame_desc_t *`, and `dp_wfm_frame_add_field()` / `dp_wfm_frame_add_derived()`
+/ `dp_wfm_frame_add_stage()` build one by name rather than by index. The
 [gallery page](../../gallery/wfmgen-carried-frame.md) is a whole program.
 
 Python reaches the same description through the scene JSON rather than

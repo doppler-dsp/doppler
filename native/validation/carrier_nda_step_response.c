@@ -55,10 +55,10 @@ build_sig (int kind, int m, double f0, size_t nsym, float complex *rx,
     }
   else
     {
-      /* wfm_rrc_taps' span is ONE-sided: RRC_SPAN symbols end to end. */
+      /* dp_wfm_rrc_taps' span is ONE-sided: RRC_SPAN symbols end to end. */
       int    ntap = (int)wfm_rrc_ntaps (SPS, RRC_SPAN / 2);
       float *h    = malloc ((size_t)ntap * sizeof (*h));
-      wfm_rrc_taps (RRC_BETA, SPS, RRC_SPAN / 2, h);
+      dp_wfm_rrc_taps (RRC_BETA, SPS, RRC_SPAN / 2, h);
       float complex *up = calloc (N, sizeof (*up));
       for (size_t s = 0; s < nsym; s++)
         up[s * (size_t)SPS]

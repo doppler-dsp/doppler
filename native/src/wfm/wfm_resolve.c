@@ -40,8 +40,8 @@
  * (declared in wfm_compose.h) so the Plan stimulus engine recomputes
  * floor(snr) at an arbitrary swept SNR through the same call. */
 double
-wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double sym_span,
-                 double snr)
+dp_wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf,
+                    double sym_span, double snr)
 {
   int mode = snr_mode;
   /* auto: *psk/dsss → Es/No, tone/noise/pn/chirp/bits → fs. DSSS differs from
@@ -84,13 +84,13 @@ dsss_sym_span (const wfm_source_t *s, double fs)
 static double
 snr_over_fs (const wfm_source_t *s, double fs)
 {
-  return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->data_code.len,
-                          dsss_sym_span (s, fs), s->snr);
+  return dp_wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->data_code.len,
+                             dsss_sym_span (s, fs), s->snr);
 }
 
 double
-wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
-                       int *snr_mode)
+dp_wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
+                          int *snr_mode)
 {
   *snr_mode = src->snr_mode;
   /* dp_wfm_synth_create() sees only sps, so a dsss data-symbol Es/N0 must be
@@ -98,15 +98,16 @@ wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
    * pass through so the no-AWGN shortcut still applies. */
   if (src->type == WFM_SYNTH_DSSS && snr < WFM_SYNTH_SNR_CLEAN)
     {
-      snr = wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
-                             src->data_code.len, dsss_sym_span (src, fs), snr);
+      snr = dp_wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
+                                src->data_code.len, dsss_sym_span (src, fs),
+                                snr);
       *snr_mode = 1; /* fs */
     }
   return snr;
 }
 
 int
-wfm_resolve_noise (wfm_segment_t *segs, size_t n)
+dp_wfm_resolve_noise (wfm_segment_t *segs, size_t n)
 {
   for (size_t i = 0; i < n; i++)
     {

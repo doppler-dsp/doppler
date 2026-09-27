@@ -29,7 +29,7 @@
  * | piece                  | supplies                                     |
  * | ---------------------- | -------------------------------------------- |
  * | `dp_frame_test.h`      | the named frames — what is transmitted       |
- * | `wfm_frame_bits()`     | the frame materialised as bits               |
+ * | `dp_wfm_frame_bits()`     | the frame materialised as bits               |
  * | `wfm_synth`            | symbols, pulse, oversampling, carrier, AWGN  |
  * | `doppler_channel`      | Doppler offset and rate — one coupled clock  |
  * | the receiver           | via `dp_rx_iface_t`, the only forked part    |
@@ -485,7 +485,7 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
   *clipped = 0;
   if (!taps || !x)
     goto done;
-  wfm_rrc_taps (beta, isps, span, taps);
+  dp_wfm_rrc_taps (beta, isps, span, taps);
 
   /* snr_mode 3 is Es/N0 at the MATCHED-FILTER OUTPUT, verified to 0.04 dB
      against the library's own estimator. Read at the sample stream instead it
@@ -495,8 +495,8 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
                             7, 0, 0, 0.0);
   if (!tx)
     goto done;
-  if (wfm_synth_set_bits (tx, bits, nbits, mpsk_bps (pt->m)) != 0
-      || wfm_synth_set_rrc (tx, taps, ntaps) != 0)
+  if (dp_wfm_synth_set_bits (tx, bits, nbits, mpsk_bps (pt->m)) != 0
+      || dp_wfm_synth_set_rrc (tx, taps, ntaps) != 0)
     goto done;
   dp_wfm_synth_steps (tx, x, nsamp); /* the pattern CYCLES: many frames, one
                                      descriptor */
@@ -739,7 +739,7 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
           for (t = 0; t < bps; t++)
             rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
         }
-      crc = wfm_frame_crc_ok (f, rxbits);
+      crc = dp_wfm_frame_crc_ok (f, rxbits);
       dp_frame_meter_add (fm, s1.ok, crc);
     }
 }
@@ -763,7 +763,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   wfm_frame_t             f = dp_frame_named (pt->frame);
   wfm_frame_layout_t      l;
   dp_ber_t                acc;
-  size_t                  nbits = wfm_frame_nbits (&f), nsym;
+  size_t                  nbits = dp_wfm_frame_nbits (&f), nsym;
   size_t                  bps   = (size_t)mpsk_bps (pt->m);
   uint8_t                *bits = NULL, *truth = NULL, *rxbits = NULL;
   float _Complex         *out = NULL;
@@ -794,7 +794,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
       }
   }
 
-  if (nbits == 0 || wfm_frame_layout (&f, &l) != 0)
+  if (nbits == 0 || dp_wfm_frame_layout (&f, &l) != 0)
     {
       r.refused = "frame geometry is invalid";
       return r;
@@ -832,7 +832,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   err    = (double *)malloc (nsym * sizeof *err);
   dp_ber_init (&acc, pt->m, DP_BER_TARGET_ERRORS);
   if (!bits || !truth || !out || !lc || !tk || !err || !rxbits || !fm
-      || !acc.meter || wfm_frame_bits (&f, bits, nbits) != nbits)
+      || !acc.meter || dp_wfm_frame_bits (&f, bits, nbits) != nbits)
     {
       r.refused = "allocation failed";
       goto done;

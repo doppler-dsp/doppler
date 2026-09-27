@@ -39,9 +39,9 @@ bench_cfg (const char *name, int ft, int stype, const float _Complex *x,
 #endif
       t0 = jm_bench_now_ns ();
       dp_wfm_writer_state_t *w
-          = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
+          = dp_wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
       dp_wfm_writer_write (w, x, BENCH_N);
-      wfm_writer_close (w);
+      dp_wfm_writer_close (w);
       t1 = jm_bench_now_ns ();
       fclose (fp);
       free (buf);

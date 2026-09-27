@@ -39,7 +39,7 @@ test_close_reports_a_failed_flush (void)
   FILE *ro = fopen (path, "rb"); /* writes on this stream cannot succeed */
   DP_REQUIRE_MSG (ro != NULL, "reopen read-only");
   dp_wfm_writer_state_t *w
-      = wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0, 0.0);
+      = dp_wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0, 0.0);
   if (w)
     {
       float _Complex x[16];
@@ -48,7 +48,7 @@ test_close_reports_a_failed_flush (void)
       dp_wfm_writer_write (w, x, 16);
       /* The caller owns `ro`, so close() fflush()es rather than fclose()ing --
          either way a stream that cannot be written must not report success. */
-      DP_REQUIRE_MSG (wfm_writer_close (w) != 0,
+      DP_REQUIRE_MSG (dp_wfm_writer_close (w) != 0,
                       "close reports the failed flush");
     }
   fclose (ro);
@@ -111,7 +111,7 @@ test_raw_csv_sidecar (void)
         path, 2.4e6, WFM_FT_RAW, 0, 0, 1.2e9, 2, 0.0, 1785903330.0, true);
     DP_REQUIRE_MSG (w, "raw create");
     DP_REQUIRE_MSG (dp_wfm_writer_write (w, xs, 2) == 2, "raw write");
-    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "raw close");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "raw close");
 
     /* APPENDED, not swapped -- see wfm_meta_path. */
     char json[4096];
@@ -144,7 +144,7 @@ test_raw_csv_sidecar (void)
     dp_wfm_writer_state_t *w    = dp_wfm_writer_create (
         path, 1e6, WFM_FT_CSV, 3, 0, 0.0, 2, 0.0, 0.0, true);
     DP_REQUIRE_MSG (w, "csv create");
-    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "csv close");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "csv close");
     char json[4096];
     DP_REQUIRE_MSG (slurp_path ("dp_wr_side.csv.sigmf-meta", json, sizeof json)
                         == 0,
@@ -169,14 +169,14 @@ test_raw_csv_sidecar (void)
     clear (mine, 4);
     dp_wfm_writer_state_t *w = dp_wfm_writer_create (
         "dp_wr_off.raw", 1e6, WFM_FT_RAW, 0, 0, 1e9, 2, 0.0, 0.0, false);
-    DP_REQUIRE_MSG (w && wfm_writer_close (w) == 0, "raw, sidecar off");
+    DP_REQUIRE_MSG (w && dp_wfm_writer_close (w) == 0, "raw, sidecar off");
     DP_REQUIRE_MSG (!file_exists ("dp_wr_off.raw.sigmf-meta"),
                     "sidecar=false writes no sidecar");
     remove ("dp_wr_off.raw");
 
     w = dp_wfm_writer_create ("dp_wr_side.blue", 1e6, WFM_FT_BLUE, 0, 0, 1e9,
                               2, 0.0, 0.0, true);
-    DP_REQUIRE_MSG (w && wfm_writer_close (w) == 0, "blue create/close");
+    DP_REQUIRE_MSG (w && dp_wfm_writer_close (w) == 0, "blue create/close");
     DP_REQUIRE_MSG (
         !file_exists ("dp_wr_side.blue.sigmf-meta"),
         "BLUE never gets one -- its header already carries fs/fc/t0");
@@ -195,10 +195,12 @@ test_raw_csv_sidecar (void)
     dp_wfm_writer_state_t *s
         = dp_wfm_writer_create ("dp_wr_clash.sigmf-data", 5e6, WFM_FT_SIGMF, 3,
                                 0, 0.0, 2, 0.0, 0.0, true);
-    DP_REQUIRE_MSG (s && wfm_writer_close (s) == 0, "sigmf half of the clash");
+    DP_REQUIRE_MSG (s && dp_wfm_writer_close (s) == 0,
+                    "sigmf half of the clash");
     dp_wfm_writer_state_t *r = dp_wfm_writer_create (
         "dp_wr_clash.raw", 7e6, WFM_FT_RAW, 0, 0, 0.0, 2, 0.0, 0.0, true);
-    DP_REQUIRE_MSG (r && wfm_writer_close (r) == 0, "raw half of the clash");
+    DP_REQUIRE_MSG (r && dp_wfm_writer_close (r) == 0,
+                    "raw half of the clash");
 
     char sj[4096], rj[4096];
     DP_REQUIRE_MSG (slurp_path ("dp_wr_clash.sigmf-meta", sj, sizeof sj) == 0,
@@ -248,8 +250,8 @@ test_untested_accessors_and_headroom (void)
     remove (path);
     FILE *fp = fopen (path, "wb+");
     DP_REQUIRE_MSG (fp, "accessors: open");
-    dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0); /* ci16 */
+    dp_wfm_writer_state_t *w = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6,
+                                                   0.0, 0, 0.0); /* ci16 */
     DP_REQUIRE_MSG (w, "accessors: writer");
     DP_REQUIRE_MSG (dp_wfm_writer_get_peak_dbfs (w) == -INFINITY,
                     "peak_dbfs is -inf before a sample is written");
@@ -257,7 +259,7 @@ test_untested_accessors_and_headroom (void)
                     "nothing written, no clip");
     DP_REQUIRE_MSG (dp_wfm_writer_write (w, x, 64) == 64, "accessors: write");
     /* peak is max(|I|,|Q|) = 0.25; 20*log10(0.25) = -12.0411998 dB */
-    DP_REQUIRE_MSG (dp_near (wfm_writer_peak (w), 0.25, 1e-6),
+    DP_REQUIRE_MSG (dp_near (dp_wfm_writer_peak (w), 0.25, 1e-6),
                     "peak is the larger axis");
     DP_REQUIRE_MSG (
         dp_near (dp_wfm_writer_get_peak_dbfs (w), -12.0411998265592, 1e-9),
@@ -265,9 +267,9 @@ test_untested_accessors_and_headroom (void)
     DP_REQUIRE_MSG (!dp_wfm_writer_get_clipped (w), "0.25 does not clip");
     /* the two clip_fraction spellings are one number, not two */
     DP_REQUIRE_MSG (dp_wfm_writer_get_clip_fraction (w)
-                        == wfm_writer_clip_fraction (w),
+                        == dp_wfm_writer_clip_fraction (w),
                     "get_clip_fraction is clip_fraction");
-    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "accessors: close");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "accessors: close");
     fclose (fp);
     remove (path);
   }
@@ -296,19 +298,19 @@ test_untested_accessors_and_headroom (void)
         remove (path);
         FILE *fp = fopen (path, "wb+");
         DP_REQUIRE_MSG (fp, "clipped: open");
-        dp_wfm_writer_state_t *w = wfm_writer_open (
+        dp_wfm_writer_state_t *w = dp_wfm_writer_open (
             fp, WFM_FT_RAW, cases[k].stype, 0, 1e6, 0.0, 0, 0.0);
         DP_REQUIRE_MSG (w, "clipped: writer");
         DP_REQUIRE_MSG (dp_wfm_writer_write (w, hot, 16) == 16,
                         "clipped: write");
         /* the peak is the same 1.5 on every type -- floats DO report one,
            which is where this object and wfm_sink deliberately differ */
-        DP_REQUIRE_MSG (dp_near (wfm_writer_peak (w), 1.5, 1e-6),
+        DP_REQUIRE_MSG (dp_near (dp_wfm_writer_peak (w), 1.5, 1e-6),
                         "every wire type reports the peak, floats included");
         DP_REQUIRE_MSG (dp_wfm_writer_get_clipped (w)
                             == (bool)cases[k].want_clipped,
                         cases[k].what);
-        DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "clipped: close");
+        DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "clipped: close");
         fclose (fp);
         remove (path);
       }
@@ -332,16 +334,16 @@ test_untested_accessors_and_headroom (void)
         FILE *fp = fopen (path, "wb+");
         DP_REQUIRE_MSG (fp, "headroom: open");
         dp_wfm_writer_state_t *w
-            = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
+            = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
         DP_REQUIRE_MSG (w, "headroom: writer");
-        wfm_writer_set_gain (w, pow (10.0, -remedy_db / 20.0));
+        dp_wfm_writer_set_gain (w, pow (10.0, -remedy_db / 20.0));
         DP_REQUIRE_MSG (dp_wfm_writer_write (w, hot, 32) == 32,
                         "headroom: wr");
-        DP_REQUIRE_MSG (wfm_writer_peak (w) <= 1.0,
+        DP_REQUIRE_MSG (dp_wfm_writer_peak (w) <= 1.0,
                         "ceil(20log10(peak)) dB of headroom clears the clip");
         DP_REQUIRE_MSG (!dp_wfm_writer_get_clipped (w),
                         "and clipped goes false");
-        DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "headroom: close");
+        DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "headroom: close");
         fclose (fp);
 
         /* one dB less is NOT enough -- the bound is exact, not conservative.
@@ -353,13 +355,13 @@ test_untested_accessors_and_headroom (void)
             remove (path);
             fp = fopen (path, "wb+");
             DP_REQUIRE_MSG (fp, "headroom: open short");
-            w = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
+            w = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
             DP_REQUIRE_MSG (w, "headroom: writer short");
-            wfm_writer_set_gain (w, pow (10.0, -(remedy_db - 1.0) / 20.0));
+            dp_wfm_writer_set_gain (w, pow (10.0, -(remedy_db - 1.0) / 20.0));
             DP_REQUIRE_MSG (dp_wfm_writer_write (w, hot, 32) == 32, "hr: wr2");
-            DP_REQUIRE_MSG (wfm_writer_peak (w) > 1.0,
+            DP_REQUIRE_MSG (dp_wfm_writer_peak (w) > 1.0,
                             "one dB less still clips -- the bound bites");
-            DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "headroom: close2");
+            DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "headroom: close2");
             fclose (fp);
           }
         remove (path);
@@ -388,11 +390,11 @@ test_untested_accessors_and_headroom (void)
         FILE *fb = fopen (b_path, "wb+");
         DP_REQUIRE_MSG (fa && fb, "unity: open");
         dp_wfm_writer_state_t *wa
-            = wfm_writer_open (fa, WFM_FT_RAW, stype, 0, 1e6, 0.0, 0, 0.0);
+            = dp_wfm_writer_open (fa, WFM_FT_RAW, stype, 0, 1e6, 0.0, 0, 0.0);
         dp_wfm_writer_state_t *wb
-            = wfm_writer_open (fb, WFM_FT_RAW, stype, 0, 1e6, 0.0, 0, 0.0);
+            = dp_wfm_writer_open (fb, WFM_FT_RAW, stype, 0, 1e6, 0.0, 0, 0.0);
         DP_REQUIRE_MSG (wa && wb, "unity: writers");
-        wfm_writer_set_gain (wb, 1.0); /* explicitly, vs never set at all */
+        dp_wfm_writer_set_gain (wb, 1.0); /* explicitly, vs never set at all */
         DP_REQUIRE_MSG (dp_wfm_writer_write (wa, sig, 128) == 128,
                         "unity: wa");
         DP_REQUIRE_MSG (dp_wfm_writer_write (wb, sig, 128) == 128,
@@ -402,8 +404,8 @@ test_untested_accessors_and_headroom (void)
         DP_REQUIRE_MSG (na == nb && na > 0, "unity: same length");
         DP_REQUIRE_MSG (memcmp (a, b, na) == 0,
                         "gain 1.0 is byte-identical to the default");
-        DP_REQUIRE_MSG (wfm_writer_close (wa) == 0, "unity: close a");
-        DP_REQUIRE_MSG (wfm_writer_close (wb) == 0, "unity: close b");
+        DP_REQUIRE_MSG (dp_wfm_writer_close (wa) == 0, "unity: close a");
+        DP_REQUIRE_MSG (dp_wfm_writer_close (wb) == 0, "unity: close b");
         fclose (fa);
         fclose (fb);
       }
@@ -424,7 +426,7 @@ test_untested_accessors_and_headroom (void)
     FILE *ro = fopen (ro_path, "rb"); /* every write on this fails */
     DP_REQUIRE_MSG (ro, "destroy: reopen read-only");
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0, 0.0);
+        = dp_wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0, 0.0);
     if (w)
       {
         float _Complex s[8];
@@ -443,7 +445,7 @@ test_untested_accessors_and_headroom (void)
     FILE *ok = fopen (path, "wb+");
     DP_REQUIRE_MSG (ok, "destroy: open ok");
     dp_wfm_writer_state_t *g
-        = wfm_writer_open (ok, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
+        = dp_wfm_writer_open (ok, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0);
     DP_REQUIRE_MSG (g, "destroy: writer ok");
     DP_REQUIRE_MSG (dp_wfm_writer_write (g, x, 64) == 64, "destroy: write ok");
     DP_REQUIRE_MSG (dp_wfm_writer_destroy (g) == 0, "destroy: 0 on success");
@@ -464,10 +466,10 @@ main (void)
     float _Complex s[2]       = { 1.0f + 2.0f * I, -1.0f - 2.0f * I };
     FILE                  *fp = tmpfile ();
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 2, 0.0);
+        = dp_wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 2, 0.0);
     DP_REQUIRE_MSG (w, "raw open");
     DP_REQUIRE_MSG (dp_wfm_writer_write (w, s, 2) == 2, "raw write");
-    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "raw close");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "raw close");
     size_t nb = slurp (fp, bytes, sizeof bytes);
     DP_REQUIRE_MSG (nb == 16, "raw cf32 byte count");
     float f[4];
@@ -484,13 +486,13 @@ main (void)
     uint8_t                le[4], be[4];
     FILE                  *fl = tmpfile (), *fb = tmpfile ();
     dp_wfm_writer_state_t *wl
-        = wfm_writer_open (fl, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
+        = dp_wfm_writer_open (fl, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
     dp_wfm_writer_state_t *wb
-        = wfm_writer_open (fb, WFM_FT_RAW, 3, 1, 1e6, 0, 1, 0.0);
+        = dp_wfm_writer_open (fb, WFM_FT_RAW, 3, 1, 1e6, 0, 1, 0.0);
     dp_wfm_writer_write (wl, s, 1);
     dp_wfm_writer_write (wb, s, 1);
-    wfm_writer_close (wl);
-    wfm_writer_close (wb);
+    dp_wfm_writer_close (wl);
+    dp_wfm_writer_close (wb);
     DP_REQUIRE_MSG (slurp (fl, le, 4) == 4 && slurp (fb, be, 4) == 4,
                     "ci16 sizes");
     /* two 2-byte elements, each reversed */
@@ -505,9 +507,9 @@ main (void)
     float _Complex s[1]       = { 0.25f + (-0.5f) * I };
     FILE                  *fp = tmpfile ();
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_CSV, 0, 0, 1e6, 0, 1, 0.0);
+        = dp_wfm_writer_open (fp, WFM_FT_CSV, 0, 0, 1e6, 0, 1, 0.0);
     DP_REQUIRE_MSG (dp_wfm_writer_write (w, s, 1) == 1, "csv write");
-    wfm_writer_close (w);
+    dp_wfm_writer_close (w);
     size_t nb = slurp (fp, bytes, sizeof bytes - 1);
     bytes[nb] = 0;
     DP_REQUIRE_MSG (strcmp ((char *)bytes, "0.250000000,-0.500000000\n") == 0,
@@ -521,10 +523,10 @@ main (void)
     FILE *fp            = tmpfile ();
     /* total unknown at open (0) → close must patch it */
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0, 0, 0.0);
+        = dp_wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0, 0, 0.0);
     DP_REQUIRE_MSG (w, "blue open");
     dp_wfm_writer_write (w, s, 2);
-    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "blue close");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "blue close");
     size_t nb = slurp (fp, bytes, sizeof bytes);
     DP_REQUIRE_MSG (nb == 512 + 16, "blue header+data size");
     DP_REQUIRE_MSG (memcmp (bytes, "BLUE", 4) == 0, "blue magic");
@@ -552,7 +554,7 @@ main (void)
   {
     FILE *fp = tmpfile ();
     /* ci16, 100 samples, detached */
-    DP_REQUIRE_MSG (wfm_blue_write_hcb (fp, 3, 0, 1e6, 0, 0.0, 100, 1, 0.0)
+    DP_REQUIRE_MSG (dp_wfm_blue_write_hcb (fp, 3, 0, 1e6, 0, 0.0, 100, 1, 0.0)
                         == 0,
                     "detached hcb write");
     size_t nb = slurp (fp, bytes, sizeof bytes);
@@ -599,7 +601,7 @@ main (void)
         .num_samples = 4096,
         .off_samples = 0 },
     };
-    char *j = wfm_sigmf_meta_json (3, 0, 1e6, 2.4e9, 0.0, segs, 2);
+    char *j = dp_wfm_sigmf_meta_json (3, 0, 1e6, 2.4e9, 0.0, segs, 2);
     DP_REQUIRE_MSG (j, "sigmf meta");
     DP_REQUIRE_MSG (strstr (j, "\"core:datatype\":\"ci16_le\""),
                     "sigmf datatype");
@@ -634,7 +636,7 @@ main (void)
     wfm_segment_t sp = {
       .sources = &prbs, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
     };
-    char *jp = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sp, 1);
+    char *jp = dp_wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sp, 1);
     DP_REQUIRE_MSG (jp && strstr (jp, "\"wfmgen:symbol_rate\":2700"),
                     "sigmf continuous prbs symbol_rate");
     DP_REQUIRE_MSG (jp && !strstr (jp, "\"wfmgen:data\""),
@@ -644,7 +646,7 @@ main (void)
     wfm_segment_t sn = {
       .sources = &none, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
     };
-    char *jn = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sn, 1);
+    char *jn = dp_wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sn, 1);
     DP_REQUIRE_MSG (jn && strstr (jn, "\"wfmgen:symbol_rate\":2700")
                         && strstr (jn, "\"wfmgen:data\":\"none\""),
                     "sigmf code-only symbol_rate + data=none");
@@ -653,7 +655,7 @@ main (void)
     wfm_segment_t sb = {
       .sources = &burst, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
     };
-    char *jb = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sb, 1);
+    char *jb = dp_wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sb, 1);
     DP_REQUIRE_MSG (jb && !strstr (jb, "\"wfmgen:symbol_rate\""),
                     "sigmf burst dsss omits symbol_rate");
     free (jb);
@@ -666,14 +668,14 @@ main (void)
     float _Complex s[2]       = { 1.5f + 0.5f * I, -0.5f - 2.0f * I };
     FILE                  *fp = tmpfile ();
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2, 0.0);
+        = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2, 0.0);
     DP_REQUIRE_MSG (w, "clip open");
     dp_wfm_writer_track_clipping (w, 1);
     DP_REQUIRE_MSG (dp_wfm_writer_write (w, s, 2) == 2, "clip write");
-    DP_REQUIRE_MSG (wfm_writer_peak (w) == 2.0, "clip peak == 2.0");
-    double f = wfm_writer_clip_fraction (w);
+    DP_REQUIRE_MSG (dp_wfm_writer_peak (w) == 2.0, "clip peak == 2.0");
+    double f = dp_wfm_writer_clip_fraction (w);
     DP_REQUIRE_MSG (f > 0.49 && f < 0.51, "clip fraction == 0.5");
-    DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "clip close");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "clip close");
     fclose (fp);
   }
 
@@ -682,12 +684,13 @@ main (void)
     float _Complex s[1]       = { 3.0f + 0.0f * I };
     FILE                  *fp = tmpfile ();
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1, 0.0);
+        = dp_wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1, 0.0);
     dp_wfm_writer_track_clipping (w, 1);
     dp_wfm_writer_write (w, s, 1);
-    DP_REQUIRE_MSG (wfm_writer_peak (w) == 3.0, "float peak tracked");
-    DP_REQUIRE_MSG (wfm_writer_clip_fraction (w) == 0.0, "float never clips");
-    wfm_writer_close (w);
+    DP_REQUIRE_MSG (dp_wfm_writer_peak (w) == 3.0, "float peak tracked");
+    DP_REQUIRE_MSG (dp_wfm_writer_clip_fraction (w) == 0.0,
+                    "float never clips");
+    dp_wfm_writer_close (w);
     fclose (fp);
   }
 
@@ -697,12 +700,13 @@ main (void)
     float _Complex s[2]       = { 1.0f + 1.0f * I, -1.0f - 1.0f * I };
     FILE                  *fp = tmpfile ();
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2, 0.0);
+        = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2, 0.0);
     dp_wfm_writer_write (w, s, 2); /* no track_clipping → fraction stays 0 */
-    DP_REQUIRE_MSG (wfm_writer_peak (w) == 1.0, "clean peak == 1.0 (no clip)");
-    DP_REQUIRE_MSG (wfm_writer_clip_fraction (w) == 0.0,
+    DP_REQUIRE_MSG (dp_wfm_writer_peak (w) == 1.0,
+                    "clean peak == 1.0 (no clip)");
+    DP_REQUIRE_MSG (dp_wfm_writer_clip_fraction (w) == 0.0,
                     "no opt-in → fraction 0");
-    wfm_writer_close (w);
+    dp_wfm_writer_close (w);
     fclose (fp);
   }
 
@@ -712,14 +716,14 @@ main (void)
     uint8_t                a[4], b[4];
     FILE                  *fa = tmpfile (), *fb = tmpfile ();
     dp_wfm_writer_state_t *wa
-        = wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
+        = dp_wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
     dp_wfm_writer_state_t *wb
-        = wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
-    wfm_writer_set_gain (wa, 1.0); /* explicit 1.0 == default (no gain) */
+        = dp_wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
+    dp_wfm_writer_set_gain (wa, 1.0); /* explicit 1.0 == default (no gain) */
     dp_wfm_writer_write (wa, s, 1);
     dp_wfm_writer_write (wb, s, 1);
-    wfm_writer_close (wa);
-    wfm_writer_close (wb);
+    dp_wfm_writer_close (wa);
+    dp_wfm_writer_close (wb);
     DP_REQUIRE_MSG (slurp (fa, a, 4) == 4 && slurp (fb, b, 4) == 4,
                     "headroom sizes");
     DP_REQUIRE_MSG (memcmp (a, b, 4) == 0, "gain 1.0 byte-identical");
@@ -732,15 +736,15 @@ main (void)
     float _Complex s[1]       = { 1.5f + 0.0f * I }; /* clips at unity gain */
     FILE                  *fp = tmpfile ();
     dp_wfm_writer_state_t *w
-        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
-    wfm_writer_set_gain (w, 0.5); /* 1.5 * 0.5 = 0.75, fits full-scale */
+        = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
+    dp_wfm_writer_set_gain (w, 0.5); /* 1.5 * 0.5 = 0.75, fits full-scale */
     dp_wfm_writer_track_clipping (w, 1);
     dp_wfm_writer_write (w, s, 1);
-    DP_REQUIRE_MSG (wfm_writer_peak (w) == 0.75,
+    DP_REQUIRE_MSG (dp_wfm_writer_peak (w) == 0.75,
                     "gain 0.5: peak 0.75 (no clip)");
-    DP_REQUIRE_MSG (wfm_writer_clip_fraction (w) == 0.0,
+    DP_REQUIRE_MSG (dp_wfm_writer_clip_fraction (w) == 0.0,
                     "headroom cleared the clip");
-    wfm_writer_close (w);
+    dp_wfm_writer_close (w);
     fclose (fp);
   }
 
@@ -753,7 +757,7 @@ main (void)
      An absent key says "not stated"; a present one is a number a downstream
      tool will act on. ── */
   {
-    char *j = wfm_sigmf_meta_json (3, 0, 0.0, 2.4e9, 0.0, NULL, 0);
+    char *j = dp_wfm_sigmf_meta_json (3, 0, 0.0, 2.4e9, 0.0, NULL, 0);
     DP_REQUIRE_MSG (j, "sigmf meta with no rate");
     DP_REQUIRE_MSG (strstr (j, "\"core:sample_rate\"") == NULL,
                     "an unstated rate is OMITTED, never defaulted");
@@ -766,7 +770,7 @@ main (void)
     free (j);
     /* The control: the SAME call WITH a rate must emit it, or the check
        above would also pass on a builder that had stopped writing it. */
-    j = wfm_sigmf_meta_json (3, 0, 2.5e6, 2.4e9, 0.0, NULL, 0);
+    j = dp_wfm_sigmf_meta_json (3, 0, 2.5e6, 2.4e9, 0.0, NULL, 0);
     DP_REQUIRE_MSG (j, "sigmf meta with a rate");
     DP_REQUIRE_MSG (strstr (j, "\"core:sample_rate\":2500000"),
                     "a stated rate IS emitted");
@@ -777,13 +781,13 @@ main (void)
      the EXTENDED ISO 8601 spelling the spec requires -- not the
      filename-safe basic form doppler names files with. ── */
   {
-    char *j = wfm_sigmf_meta_json (3, 0, 1e6, 0.0, 0.0, NULL, 0);
+    char *j = dp_wfm_sigmf_meta_json (3, 0, 1e6, 0.0, 0.0, NULL, 0);
     DP_REQUIRE_MSG (j, "sigmf meta, unset t0");
     DP_REQUIRE_MSG (strstr (j, "\"core:datetime\"") == NULL,
                     "an unset t0 is OMITTED, never rendered as 1970");
     free (j);
     /* 2026-08-05T04:15:30Z */
-    j = wfm_sigmf_meta_json (3, 0, 1e6, 0.0, 1785903330.0, NULL, 0);
+    j = dp_wfm_sigmf_meta_json (3, 0, 1e6, 0.0, 1785903330.0, NULL, 0);
     DP_REQUIRE_MSG (j, "sigmf meta, set t0");
     DP_REQUIRE_MSG (
         strstr (j, "\"core:datetime\":\"2026-08-05T04:15:30.000000Z\""),
@@ -799,7 +803,7 @@ main (void)
       { .sources = &q, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096 },
       { .sources = &q, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096 },
     };
-    char *j = wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, two, 2);
+    char *j = dp_wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, two, 2);
     DP_REQUIRE_MSG (j, "meta with segments and no stated rate");
     DP_REQUIRE_MSG (strstr (j, "\"core:sample_rate\":6138000"),
                     "the segments' agreed rate is stated, not withheld");
@@ -807,7 +811,7 @@ main (void)
 
     /* An explicit rate always wins — rendering at a resampled rate describes
        the FILE, and the file is what the document annotates. */
-    j = wfm_sigmf_meta_json (0, 0, 1e6, 0.0, 0.0, two, 2);
+    j = dp_wfm_sigmf_meta_json (0, 0, 1e6, 0.0, 0.0, two, 2);
     DP_REQUIRE_MSG (j && strstr (j, "\"core:sample_rate\":1000000"),
                     "a stated rate overrides the segments'");
     free (j);
@@ -815,13 +819,13 @@ main (void)
     /* Segments that disagree: no single core:sample_rate is true of the
        stream, so it stays unstated rather than picking one. */
     two[1].fs = 2e6;
-    j         = wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, two, 2);
+    j         = dp_wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, two, 2);
     DP_REQUIRE_MSG (j && strstr (j, "\"core:sample_rate\"") == NULL,
                     "disagreeing segments leave the rate unstated");
     free (j);
 
     /* No segments, nothing to derive from -- the Writer sidecar's case. */
-    j = wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, NULL, 0);
+    j = dp_wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, NULL, 0);
     DP_REQUIRE_MSG (j && strstr (j, "\"core:sample_rate\"") == NULL,
                     "no segments leaves the rate unstated");
     free (j);

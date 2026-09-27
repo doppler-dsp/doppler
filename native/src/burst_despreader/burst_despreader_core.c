@@ -7,7 +7,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* Chip sign matching the transmit mapping (wfm_dsss_spread): 0 -> +1, 1 -> -1.
+/* Chip sign matching the transmit mapping (dp_wfm_dsss_spread): 0 -> +1, 1 ->
+ * -1.
  */
 static inline float
 chip_sign (uint8_t c)

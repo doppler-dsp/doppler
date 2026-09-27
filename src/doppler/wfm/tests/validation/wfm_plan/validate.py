@@ -722,7 +722,7 @@ def review(d: Data) -> None:
         "F2",
         "GAP",
         "**Nothing can tell you the restore fast path still works.** "
-        "`wfm_plan_restore` loads the cached buffers when the DSP "
+        "`dp_wfm_plan_restore` loads the cached buffers when the DSP "
         "fingerprint matches and otherwise rebuilds from the embedded "
         "spec, and both produce bit-identical output by design -- that is "
         "the feature. The consequence is that the ONLY observable "

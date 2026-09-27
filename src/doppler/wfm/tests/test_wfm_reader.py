@@ -238,7 +238,8 @@ def keyworded_capture(tmp_path):
     """A hand-built little-endian attached BLUE cf32 capture whose extended
     header carries one keyword of each Python-facing shape.
 
-    The Python ``Writer`` cannot yet emit keywords (``wfm_writer_add_keyword``
+    The Python ``Writer`` cannot yet emit keywords
+    (``dp_wfm_writer_add_keyword``
     has no binding), and the C round-trip test never touches the Python value
     builder, so the ``.keywords`` type dispatch — new hand-written code behind
     ``value_type="object"`` — would otherwise ship unexercised from Python.

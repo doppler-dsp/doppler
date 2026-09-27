@@ -363,7 +363,7 @@ Two things specific to a tool, both learned from wfmgen:
     one process — determinism, not agreement.
 - **Compare through the API being certified, never through a shared
     serializer.** wfmgen's C leg builds a `wfm_source_t` struct rather than
-    calling `wfm_compose_from_json`, because routing it through JSON would
+    calling `dp_wfm_compose_from_json`, because routing it through JSON would
     put all three legs behind one parser, and step 2's rule applies: a
     consistency test is blind to any defect its paths share.
 

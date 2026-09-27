@@ -131,7 +131,7 @@ The CCSDS configuration lives in `ccsds_tm/ccsds_tm.h` as `CCSDS_TM_CONV`, becau
 
 
 
-* **Bits are unpacked**, one per byte in the LSB, matching `wfm_frame_bits`, `dp_crc16_ccitt` and the `ccsds_tm` kernels.
+* **Bits are unpacked**, one per byte in the LSB, matching `dp_wfm_frame_bits`, `dp_crc16_ccitt` and the `ccsds_tm` kernels.
 * **The register holds the newest input in the high stage**: `reg = (reg >> 1) | (b << (k-1))`. A _state_ is the `k-1` bits that survive, so `state + bit -> reg = (bit << (k-1)) | state`, and the next state is `reg >> 1`. Deriving this the other way round yields a trellis that is perfectly self-consistent and decodes nothing a conforming encoder produced, which is why `test_conv_core.c` pins the two against each other rather than each against itself.
 * **Polynomials are written as the standard writes them**, left to right with the newest input at the left: CCSDS's `G1 = 1111001` is `0171`.
 

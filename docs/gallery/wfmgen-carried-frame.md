@@ -54,10 +54,10 @@ main (void)
      declaration rather than two that can disagree. */
   wfm_frame_desc_t d;
   memset (&d, 0, sizeof d);
-  if (wfm_frame_add_field (&d, "hdr", &h, 0u) < 0
-      || wfm_frame_add_field (&d, "payload", &p, 0u) < 0
-      || wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) < 0
-      || wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") < 0)
+  if (dp_wfm_frame_add_field (&d, "hdr", &h, 0u) < 0
+      || dp_wfm_frame_add_field (&d, "payload", &p, 0u) < 0
+      || dp_wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) < 0
+      || dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") < 0)
     return 1;
 
   /* One source, carrying it. A frame needs an explicit payload, which is
@@ -70,7 +70,7 @@ main (void)
   src.snr = WFM_SYNTH_SNR_CLEAN; /* no AWGN, so the checks are equalities */
   src.snr_mode = 1;
   src.frame = &d;
-  if (wfm_source_frame_error (&src) != NULL)
+  if (dp_wfm_source_frame_error (&src) != NULL)
     return 1;
 
   wfm_segment_t seg = { 0 };
@@ -79,20 +79,20 @@ main (void)
   seg.fs = 1.0e6;
   seg.num_samples = NS;
 
-  wfm_compose_state_t *c = wfm_compose_create (&seg, 1u, 0, 0);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1u, 0, 0);
   if (!c)
     return 1;
   float complex out[NS];
   size_t n = 0, got_n;
-  while (n < NS && (got_n = wfm_compose_execute (c, out + n, NS - n)) > 0)
+  while (n < NS && (got_n = dp_wfm_compose_execute (c, out + n, NS - n)) > 0)
     n += got_n;
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
 
-  /* The samples carry the DESCRIPTION's bits. `wfm_frame_assemble` builds
+  /* The samples carry the DESCRIPTION's bits. `dp_wfm_frame_assemble` builds
      them independently; dp_bpsk_map's convention is 0 -> +1, 1 -> -1, so with a
      clean rectangular source at zero offset the sign is the bit. */
   uint8_t want[NBITS], got[NBITS];
-  if (wfm_frame_assemble (&d, NULL, want, NBITS) != NBITS)
+  if (dp_wfm_frame_assemble (&d, NULL, want, NBITS) != NBITS)
     return 1;
   for (unsigned i = 0; i < NBITS; i++)
     got[i] = crealf (out[i * SPS]) < 0.0f ? 1u : 0u;
@@ -115,7 +115,7 @@ Three things, none of which a flag offers:
 sync word and a payload, in that order. `hdr` above is neither of the first
 two and sits ahead of the payload because the description says so.
 
-**A cover that is named, not counted.** `wfm_frame_add_stage(&d, WFM_STAGE_CRC16, "payload", "crc")` says what three integers used to. The
+**A cover that is named, not counted.** `dp_wfm_frame_add_stage(&d, WFM_STAGE_CRC16, "payload", "crc")` says what three integers used to. The
 header is deliberately *outside* the CRC's cover — a receiver has to find the
 header before it can check anything — and that choice is one argument, not an
 offset arithmetic exercise.
@@ -131,11 +131,11 @@ kernel supplied through a one-entry table. Without the kernel the assembly is
 **refused** — never a silent skip, because a stage that quietly did not run
 produces a frame that still assembles, still decodes against itself, and syncs
 to nothing. With it, the frame assembles *and reverses* through the same open
-lookup, and `wfm_frame_check` reports both stages reversed.
+lookup, and `dp_wfm_frame_check` reports both stages reversed.
 
 ## The flags are sugar for exactly this
 
-`wfm_source_describe_frame()` is the one place every consumer funnels
+`dp_wfm_source_describe_frame()` is the one place every consumer funnels
 through, whichever way a source spelled its frame. Ask a flag-spelled source
 for its description, hand that description to a second source, and the two
 compose **byte-identically** — which is what makes "the flat fields are

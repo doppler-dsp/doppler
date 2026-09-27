@@ -274,7 +274,7 @@ array of sources (the JSON face of `Segment.sum`):
 ### C
 
 `wfm_segment_t` grows from one synth's parameters to a small **list of source
-descriptors** (each the current synth params plus `level`). `wfm_compose_execute`
+descriptors** (each the current synth params plus `level`). `dp_wfm_compose_execute`
 runs each source's `synth_steps` into a scratch buffer and **accumulates** into
 the segment output; the noise-anchoring source sets the floor. A single
 summation path preserves the **byte-identical CLI ⇄ composer** guarantee. The

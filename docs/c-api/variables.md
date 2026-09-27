@@ -50,6 +50,7 @@
 * **dp\_f64\_buffer\_state\_t** ([**f64\_buffer\_core.h**](f64__buffer__core_8h.md))
 * **dp\_i16\_buffer\_state\_t** ([**i16\_buffer\_core.h**](i16__buffer__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
+* **dp\_wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **DATA\_SRC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **DOPPLER\_LIFETIME\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **dp\_wfm\_reader\_state\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
@@ -134,7 +135,6 @@
 
 * **wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_bitmod\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
-* **wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_doppler\_lifetime\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))

@@ -155,7 +155,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) _A frame as a description: what is on the wire, and what covers it._ 
 * **struct** [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) _Where each field lands, in bits from the start of the frame._ 
 * **struct** [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) _The kernels an assembly runs, and whatever state they carry._ 
-* **struct** [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) _What_ [_**wfm\_frame\_check**_](wfm__frame_8h.md#function-wfm_frame_check) _found, stage by stage._
+* **struct** [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) _What_ [_**dp\_wfm\_frame\_check**_](wfm__frame_8h.md#function-dp_wfm_frame_check) _found, stage by stage._
 * **struct** [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md) _A run of bits inside the assembled frame,_ `[first, first + n)` _._
 * **struct** [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md) _What undoing one stage found._ 
 * **struct** [**wfm\_frame\_t**](structwfm__frame__t.md) _A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._

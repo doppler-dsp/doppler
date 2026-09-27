@@ -85,7 +85,7 @@ writer_thread (void *arg)
   /* total_samples = 0: an unbounded run declares no length, so data_size
      starts as a placeholder and close() is what makes it real. */
   dp_wfm_writer_state_t *w
-      = wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
+      = dp_wfm_writer_open (fp, WFM_FT_BLUE, STYPE, 0, FS, 0.0, 0, 0.0);
   if (!w)
     return NULL;
   /* Land the 512-byte header immediately. Until it is on disk the file is
@@ -111,7 +111,7 @@ writer_thread (void *arg)
 
   /* The stop reached us. Finish the capture properly -- this close() is
      what the reader is waiting for. */
-  wfm_writer_close (w);
+  dp_wfm_writer_close (w);
   printf ("writer : stopped, capture closed after %zu samples\n", n_written);
   return NULL;
 }
@@ -143,7 +143,7 @@ reader_thread (void *arg)
   /* How this reader learns a stop was requested. Injected rather than
      hard-wired: a capture reader has no business depending on the process
      interrupt primitive, so the caller says what "stop" means. */
-  wfm_reader_set_stop_fn (r, dp_interrupted);
+  dp_wfm_reader_set_stop_fn (r, dp_interrupted);
   /* Budgets left at 0 = wait forever, which is the right answer for a
      stream with no end: any finite budget would fire during an ordinary
      quiet patch and report an ending that has not happened. */

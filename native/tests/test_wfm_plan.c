@@ -2,11 +2,11 @@
  * test_wfm_plan.c — component-cache stimulus engine (wfm_plan).
  *
  * The contract is bit-exactness against a full compose. Every scene is built
- * as segments, serialized with wfm_spec_to_json(), and fed to BOTH
- * wfm_compose_from_json() (the reference) and wfm_plan_prepare() (the cache),
- * so they share one parse+resolve path. Gate-0 is render("{}") ≡ compose; the
- * per-axis tests re-materialize a variation and memcmp it against a full
- * compose of the equivalently-modified spec.
+ * as segments, serialized with dp_wfm_spec_to_json(), and fed to BOTH
+ * dp_wfm_compose_from_json() (the reference) and dp_wfm_plan_prepare() (the
+ * cache), so they share one parse+resolve path. Gate-0 is render("{}") ≡
+ * compose; the per-axis tests re-materialize a variation and memcmp it against
+ * a full compose of the equivalently-modified spec.
  */
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_plan.h"
@@ -48,24 +48,24 @@ scene_json (double qpsk_snr, double qpsk_level, double tone_level)
                            .fs          = 1e6,
                            .num_samples = L,
                            .off_samples = 0 };
-  return wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+  return dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
 }
 
 /* Full-compose a spec into out[L]; returns the sample count collected. */
 static size_t
 compose_collect (const char *json, float _Complex *out)
 {
-  wfm_compose_state_t *c = wfm_compose_from_json (json);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (json);
   if (!c)
     return 0;
   size_t total = 0, n;
   float _Complex buf[257];
-  while ((n = wfm_compose_execute (c, buf, 257)) > 0 && total + n <= L)
+  while ((n = dp_wfm_compose_execute (c, buf, 257)) > 0 && total + n <= L)
     {
       memcpy (out + total, buf, n * sizeof *buf);
       total += n;
     }
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
   return total;
 }
 
@@ -110,7 +110,7 @@ test_parallel_build_bit_exact (void)
                          .fs          = 1e6,
                          .num_samples = NPAR_LEN,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+  char         *json = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "par: spec_to_json");
 
   size_t          nbytes = NPAR_LEN * sizeof (float _Complex);
@@ -119,28 +119,29 @@ test_parallel_build_bit_exact (void)
   DP_REQUIRE_MSG (ref && got, "par: alloc");
 
   /* Full serial compose — the ground truth. */
-  wfm_compose_state_t *c = wfm_compose_from_json (json);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (json);
   DP_REQUIRE_MSG (c, "par: compose_from_json");
   size_t total = 0, n;
   float _Complex buf[257];
-  while ((n = wfm_compose_execute (c, buf, 257)) > 0 && total + n <= NPAR_LEN)
+  while ((n = dp_wfm_compose_execute (c, buf, 257)) > 0
+         && total + n <= NPAR_LEN)
     {
       memcpy (ref + total, buf, n * sizeof *buf);
       total += n;
     }
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
   DP_REQUIRE_MSG (total == NPAR_LEN, "par: compose length");
 
   /* Parallel prepare (fans the 12 source builds across cores) + baseline. */
-  wfm_plan_t *p = wfm_plan_prepare (json);
+  wfm_plan_t *p = dp_wfm_plan_prepare (json);
   DP_REQUIRE_MSG (p, "par: prepare (parallel build)");
-  DP_REQUIRE_MSG (wfm_plan_n_sources (p) == NPAR_SRC, "par: n_sources");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{}", got) == NPAR_LEN,
+  DP_REQUIRE_MSG (dp_wfm_plan_n_sources (p) == NPAR_SRC, "par: n_sources");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{}", got) == NPAR_LEN,
                   "par: render baseline");
   DP_REQUIRE_MSG (memcmp (ref, got, nbytes) == 0,
                   "PAR: parallel render({}) == serial compose, bit-for-bit");
 
-  wfm_plan_destroy (p);
+  dp_wfm_plan_destroy (p);
   free (ref);
   free (got);
   free (json);
@@ -184,26 +185,26 @@ test_noise_anchor_position (void)
                              .fs          = 1e6,
                              .num_samples = L,
                              .off_samples = 0 };
-      char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+      char         *json = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
       DP_REQUIRE_MSG (json, "anchor: spec_to_json");
       DP_REQUIRE_MSG (compose_collect (json, ref) == L,
                       "anchor: compose length");
 
-      wfm_plan_t *p = wfm_plan_prepare (json);
+      wfm_plan_t *p = dp_wfm_plan_prepare (json);
       DP_REQUIRE_MSG (p, "anchor: prepare");
-      DP_REQUIRE_MSG (wfm_plan_render (p, "{}", got) == L,
+      DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{}", got) == L,
                       "anchor: render baseline");
       DP_REQUIRE_MSG (
           memcmp (ref, got, bytes) == 0,
           "ANCHOR: render({}) == compose with the SNR source at any index");
 
       /* A seed override still moves the noise (Monte-Carlo), from any pos. */
-      DP_REQUIRE_MSG (wfm_plan_render (p, "{\"seed\":4242}", got) == L,
+      DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"seed\":4242}", got) == L,
                       "anchor: render with a seed override");
       DP_REQUIRE_MSG (memcmp (ref, got, bytes) != 0,
                       "ANCHOR: a seed override still redraws the noise");
 
-      wfm_plan_destroy (p);
+      dp_wfm_plan_destroy (p);
       free (json);
     }
 
@@ -244,17 +245,17 @@ fill_src (wfm_source_t *s, unsigned k, int background)
 static size_t
 compose_n (const char *json, float _Complex *out, size_t n)
 {
-  wfm_compose_state_t *c = wfm_compose_from_json (json);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (json);
   if (!c)
     return 0;
   size_t total = 0, got;
   float _Complex buf[257];
-  while ((got = wfm_compose_execute (c, buf, 257)) > 0 && total + got <= n)
+  while ((got = dp_wfm_compose_execute (c, buf, 257)) > 0 && total + got <= n)
     {
       memcpy (out + total, buf, got * sizeof *buf);
       total += got;
     }
-  wfm_compose_destroy (c);
+  dp_wfm_compose_destroy (c);
   return total;
 }
 
@@ -307,14 +308,15 @@ test_framed_scene_matches_compose (void)
   wfm_plan_t     *p   = NULL;
   DP_REQUIRE_MSG (ref && got, "alloc framed buffers");
 
-  p = wfm_plan_prepare (json);
+  p = dp_wfm_plan_prepare (json);
   DP_REQUIRE_MSG (p, "FRAMED: a framed scene is in scope for a Plan");
-  DP_REQUIRE_MSG (wfm_plan_len (p) == n, "FRAMED: plan length");
-  DP_REQUIRE_MSG (wfm_plan_anchor_seed (p) == 7,
+  DP_REQUIRE_MSG (dp_wfm_plan_len (p) == n, "FRAMED: plan length");
+  DP_REQUIRE_MSG (dp_wfm_plan_anchor_seed (p) == 7,
                   "FRAMED: the anchor seed is the source's own");
 
   DP_REQUIRE_MSG (compose_n (json, ref, n) == n, "FRAMED: compose baseline");
-  DP_REQUIRE_MSG (wfm_plan_at (p, 12.0, wfm_plan_anchor_seed (p), got) == n,
+  DP_REQUIRE_MSG (dp_wfm_plan_at (p, 12.0, dp_wfm_plan_anchor_seed (p), got)
+                      == n,
                   "FRAMED: at(12, anchor) renders the full length");
   DP_REQUIRE_MSG (memcmp (ref, got, n * sizeof *ref) == 0,
                   "FRAMED: at(12,anchor) is byte-identical to compose");
@@ -330,7 +332,7 @@ test_framed_scene_matches_compose (void)
                   "FRAMED: the gap carries noise, it is not silent");
 
   rc = 0;
-  wfm_plan_destroy (p);
+  dp_wfm_plan_destroy (p);
   free (ref);
   free (got);
   return rc;
@@ -348,7 +350,7 @@ test_background_fold (void)
                          .fs          = 1e6,
                          .num_samples = BG_LEN,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+  char         *json = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "bg: spec_to_json");
 
   /* The same scene with the flag cleared: same samples, BG_N + FG_N slots. */
@@ -357,14 +359,14 @@ test_background_fold (void)
     fill_src (&flat[k], k, 0);
   wfm_segment_t fseg = seg;
   fseg.sources       = flat;
-  char *fjson        = wfm_spec_to_json (&fseg, 1, 0, 0, 0, 0.0);
+  char *fjson        = dp_wfm_spec_to_json (&fseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (fjson, "bg: flat spec_to_json");
 
   /* Foreground only — the reference for disabling the whole background. */
   wfm_segment_t gseg = seg;
   gseg.sources       = flat + BG_N;
   gseg.n_sources     = FG_N;
-  char *gjson        = wfm_spec_to_json (&gseg, 1, 0, 0, 0, 0.0);
+  char *gjson        = dp_wfm_spec_to_json (&gseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (gjson, "bg: fg-only spec_to_json");
 
   size_t          nbytes = BG_LEN * sizeof (float _Complex);
@@ -377,33 +379,33 @@ test_background_fold (void)
   DP_REQUIRE_MSG (compose_n (json, ref, BG_LEN) == BG_LEN,
                   "bg: compose length");
 
-  wfm_plan_t *p = wfm_plan_prepare (json);
+  wfm_plan_t *p = dp_wfm_plan_prepare (json);
   DP_REQUIRE_MSG (p, "bg: prepare");
 
   /* The whole point: BG_N sources collapse to one overridable slot. */
-  DP_REQUIRE_MSG (wfm_plan_n_sources (p) == 1u + FG_N,
+  DP_REQUIRE_MSG (dp_wfm_plan_n_sources (p) == 1u + FG_N,
                   "BG: n_sources == 1 + FG_N");
-  wfm_plan_t *pf = wfm_plan_prepare (fjson);
-  DP_REQUIRE_MSG (pf && wfm_plan_n_sources (pf) == BG_N + FG_N,
+  wfm_plan_t *pf = dp_wfm_plan_prepare (fjson);
+  DP_REQUIRE_MSG (pf && dp_wfm_plan_n_sources (pf) == BG_N + FG_N,
                   "bg: unfolded scene keeps a slot per source");
 
   /* Gate-0 for the fold: summing the prefix from zero, in spec order, is
    * exactly the partial sum compose() holds at that point. */
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{}", base) == BG_LEN,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{}", base) == BG_LEN,
                   "bg: render baseline");
   DP_REQUIRE_MSG (memcmp (ref, base, nbytes) == 0,
                   "BG: folded render({}) == compose, bit-for-bit");
-  DP_REQUIRE_MSG (wfm_plan_render (pf, "{}", got) == BG_LEN,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (pf, "{}", got) == BG_LEN,
                   "bg: unfolded baseline");
   DP_REQUIRE_MSG (memcmp (base, got, nbytes) == 0,
                   "BG: folding does not change the baseline at all");
-  wfm_plan_destroy (pf);
+  dp_wfm_plan_destroy (pf);
 
   /* enable[0] = false drops the entire background field — what is left must
    * be exactly a compose of the foreground sources alone. */
   DP_REQUIRE_MSG (compose_n (gjson, fgref, BG_LEN) == BG_LEN,
                   "bg: fg compose length");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"enable\":[false,true,true]}", got)
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"enable\":[false,true,true]}", got)
                       == BG_LEN,
                   "bg: render with background disabled");
   DP_REQUIRE_MSG (memcmp (fgref, got, nbytes) == 0,
@@ -415,7 +417,7 @@ test_background_fold (void)
    * from any reference spec we could compose), 1e-5 relative. */
   const double gdb = -6.0;
   float        gl  = (float)pow (10.0, gdb / 20.0);
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"gains\":[-6.0,-2.0,-4.0]}", got)
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"gains\":[-6.0,-2.0,-4.0]}", got)
                       == BG_LEN,
                   "bg: render with the background trimmed");
   double err = 0.0, mag = 0.0;
@@ -432,7 +434,7 @@ test_background_fold (void)
   DP_REQUIRE_MSG (mag > 0.0 && err / mag < 1e-5,
                   "BG: gains[0] scales the whole background field as a unit");
 
-  wfm_plan_destroy (p);
+  dp_wfm_plan_destroy (p);
   free (base);
   free (fgref);
   free (got);
@@ -460,9 +462,9 @@ test_background_must_be_prefix (void)
                          .fs          = 1e6,
                          .num_samples = L,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+  char         *json = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "prefix: spec_to_json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (json) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (json) == NULL,
                   "BG: an interleaved background is rejected by prepare()");
   free (json);
   return 0;
@@ -485,7 +487,7 @@ test_background_bundled_is_not_folded (void)
                          .fs          = 1e6,
                          .num_samples = L,
                          .off_samples = 0 };
-  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+  char         *json = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (json, "bundled-bg: spec_to_json");
 
   size_t          bytes = L * sizeof (float _Complex);
@@ -494,16 +496,17 @@ test_background_bundled_is_not_folded (void)
   DP_REQUIRE_MSG (ref && got, "bundled-bg: alloc");
   DP_REQUIRE_MSG (compose_n (json, ref, L) == L, "bundled-bg: compose length");
 
-  wfm_plan_t *p = wfm_plan_prepare (json);
+  wfm_plan_t *p = dp_wfm_plan_prepare (json);
   DP_REQUIRE_MSG (p, "bundled-bg: prepare");
-  DP_REQUIRE_MSG (wfm_plan_n_sources (p) == 1, "bundled-bg: still one slot");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_n_sources (p) == 1,
+                  "bundled-bg: still one slot");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{}", got) == L,
                   "bundled-bg: render baseline");
   DP_REQUIRE_MSG (
       memcmp (ref, got, bytes) == 0,
       "BG: background on a bundled source is a no-op (noise gain intact)");
 
-  wfm_plan_destroy (p);
+  dp_wfm_plan_destroy (p);
   free (got);
   free (ref);
   free (json);
@@ -529,31 +532,31 @@ main (void)
 
   char *json = scene_json (12.0, 0.0, 0.0);
   DP_REQUIRE_MSG (json, "scene_json");
-  wfm_plan_t *p = wfm_plan_prepare (json);
+  wfm_plan_t *p = dp_wfm_plan_prepare (json);
   DP_REQUIRE_MSG (p, "prepare");
-  DP_REQUIRE_MSG (wfm_plan_len (p) == L, "len");
-  DP_REQUIRE_MSG (wfm_plan_n_sources (p) == 2, "n_sources (signals only)");
-  DP_REQUIRE_MSG (wfm_plan_anchor_seed (p) == 7, "anchor seed = qpsk seed");
+  DP_REQUIRE_MSG (dp_wfm_plan_len (p) == L, "len");
+  DP_REQUIRE_MSG (dp_wfm_plan_n_sources (p) == 2, "n_sources (signals only)");
+  DP_REQUIRE_MSG (dp_wfm_plan_anchor_seed (p) == 7, "anchor seed = qpsk seed");
 
   /* ── Gate-0: render("{}") ≡ full compose, bit-for-bit ── */
   DP_REQUIRE_MSG (compose_collect (json, ref) == L, "compose baseline");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{}", base) == L, "render baseline");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{}", base) == L, "render baseline");
   DP_REQUIRE_MSG (memcmp (ref, base, bytes) == 0,
                   "GATE-0: render({}) == compose");
   /* NULL overrides is the same as an empty object. */
-  DP_REQUIRE_MSG (wfm_plan_render (p, NULL, got) == L, "render NULL");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, NULL, got) == L, "render NULL");
   DP_REQUIRE_MSG (memcmp (base, got, bytes) == 0,
                   "render(NULL) == render({})");
 
   /* ── SNR axis: at(6, anchor_seed) ≡ compose(scene @ snr=6) ── */
   char *json6 = scene_json (6.0, 0.0, 0.0);
   DP_REQUIRE_MSG (compose_collect (json6, ref) == L, "compose snr=6");
-  DP_REQUIRE_MSG (wfm_plan_at (p, 6.0, wfm_plan_anchor_seed (p), got) == L,
-                  "at(6)");
+  DP_REQUIRE_MSG (
+      dp_wfm_plan_at (p, 6.0, dp_wfm_plan_anchor_seed (p), got) == L, "at(6)");
   DP_REQUIRE_MSG (memcmp (ref, got, bytes) == 0,
                   "SNR: at(6,anchor) == compose@6");
   /* render('{"snr":6}') takes the same path. */
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"snr\":6.0}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"snr\":6.0}", got) == L,
                   "render snr=6");
   DP_REQUIRE_MSG (memcmp (ref, got, bytes) == 0,
                   "SNR: render(snr=6) == compose@6");
@@ -563,40 +566,41 @@ main (void)
    */
   char *jsong = scene_json (12.0, 0.0, -6.0);
   DP_REQUIRE_MSG (compose_collect (jsong, ref) == L, "compose tone=-6");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"gains\":[0.0,-6.0]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"gains\":[0.0,-6.0]}", got) == L,
                   "render gain");
   DP_REQUIRE_MSG (memcmp (ref, got, bytes) == 0,
                   "GAIN: render(tone=-6) == compose");
   free (jsong);
 
   /* ── phase: φ=0 is the identity; a nonzero φ is a defined transform ── */
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"phases\":[0.0,0.0]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"phases\":[0.0,0.0]}", got) == L,
                   "phase 0");
   DP_REQUIRE_MSG (memcmp (base, got, bytes) == 0, "PHASE: φ=0 == baseline");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"phases\":[1.5,0.0]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"phases\":[1.5,0.0]}", got) == L,
                   "phase π/2");
   DP_REQUIRE_MSG (any_diff (base, got), "PHASE: φ≠0 changes the output");
 
   /* ── enable: all-on is baseline; all-off leaves only the noise floor ── */
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"enable\":[true,true]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"enable\":[true,true]}", got) == L,
                   "enable on");
   DP_REQUIRE_MSG (memcmp (base, got, bytes) == 0,
                   "ENABLE: all-on == baseline");
-  DP_REQUIRE_MSG (wfm_plan_render (p, "{\"enable\":[false,false]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{\"enable\":[false,false]}", got)
+                      == L,
                   "en off");
   DP_REQUIRE_MSG (any_diff (base, got), "ENABLE: all-off drops the signal");
 
   /* ── determinism + Monte-Carlo seed independence ── */
-  DP_REQUIRE_MSG (wfm_plan_at (p, 6.0, 42, ref) == L, "at seed 42");
-  DP_REQUIRE_MSG (wfm_plan_at (p, 6.0, 42, got) == L, "at seed 42 again");
+  DP_REQUIRE_MSG (dp_wfm_plan_at (p, 6.0, 42, ref) == L, "at seed 42");
+  DP_REQUIRE_MSG (dp_wfm_plan_at (p, 6.0, 42, got) == L, "at seed 42 again");
   DP_REQUIRE_MSG (memcmp (ref, got, bytes) == 0,
                   "DETERMINISM: at is repeatable");
-  DP_REQUIRE_MSG (wfm_plan_at (p, 6.0, 99, got) == L, "at seed 99");
+  DP_REQUIRE_MSG (dp_wfm_plan_at (p, 6.0, 99, got) == L, "at seed 99");
   DP_REQUIRE_MSG (any_diff (ref, got), "SEED: a new seed draws new noise");
 
   /* ── rejects: out-of-scope specs prepare to NULL ── */
-  DP_REQUIRE_MSG (wfm_plan_prepare (NULL) == NULL, "reject NULL");
-  DP_REQUIRE_MSG (wfm_plan_prepare ("} not json {") == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (NULL) == NULL, "reject NULL");
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare ("} not json {") == NULL,
                   "reject bad json");
 
   /* a ranged per-source field is still rejected (its cached render would be
@@ -611,9 +615,9 @@ main (void)
   wfm_segment_t rseg       = {
     .sources = &ranged_src, .n_sources = 1, .fs = 1e6, .num_samples = L
   };
-  char *jranged = wfm_spec_to_json (&rseg, 1, 0, 0, 0, 0.0);
+  char *jranged = dp_wfm_spec_to_json (&rseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jranged, "ranged-source json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jranged) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jranged) == NULL,
                   "reject ranged per-source field");
   free (jranged);
 
@@ -627,9 +631,9 @@ main (void)
                          .num_samples    = L,
                          .ranged         = WFM_RANGE_NUM_SAMPLES,
                          .num_samples_hi = 2 * L };
-  char         *jnum = wfm_spec_to_json (&nseg, 1, 0, 0, 0, 0.0);
+  char         *jnum = dp_wfm_spec_to_json (&nseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jnum, "ranged-num-samples json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jnum) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jnum) == NULL,
                   "reject ranged num_samples");
   free (jnum);
 
@@ -637,9 +641,10 @@ main (void)
   wfm_segment_t zseg = {
     .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = 0
   };
-  char *jzero = wfm_spec_to_json (&zseg, 1, 0, 0, 0, 0.0);
+  char *jzero = dp_wfm_spec_to_json (&zseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jzero, "zero-num-samples json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jzero) == NULL, "reject num_samples == 0");
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jzero) == NULL,
+                  "reject num_samples == 0");
   free (jzero);
 
   /* two noise sources in one segment, or a non-trailing noise source, are
@@ -649,18 +654,19 @@ main (void)
   wfm_source_t  two_noise[2] = { noise_a, noise_b };
   wfm_segment_t nnseg
       = { .sources = two_noise, .n_sources = 2, .fs = 1e6, .num_samples = L };
-  char *jnn = wfm_spec_to_json (&nnseg, 1, 0, 0, 0, 0.0);
+  char *jnn = dp_wfm_spec_to_json (&nnseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jnn, "two-noise json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jnn) == NULL, "reject two noise sources");
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jnn) == NULL,
+                  "reject two noise sources");
   free (jnn);
 
   wfm_source_t  leading_noise[2] = { noise_a, plain_solo };
   wfm_segment_t lnseg            = {
     .sources = leading_noise, .n_sources = 2, .fs = 1e6, .num_samples = L
   };
-  char *jln = wfm_spec_to_json (&lnseg, 1, 0, 0, 0, 0.0);
+  char *jln = dp_wfm_spec_to_json (&lnseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jln, "leading-noise json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jln) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jln) == NULL,
                   "reject non-trailing noise source");
   free (jln);
 
@@ -670,26 +676,27 @@ main (void)
     { .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = L },
     { .sources = &plain_solo, .n_sources = 1, .fs = 2e6, .num_samples = L },
   };
-  char *jfsdiff = wfm_spec_to_json (fsdiff, 2, 0, 0, 0, 0.0);
+  char *jfsdiff = dp_wfm_spec_to_json (fsdiff, 2, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jfsdiff, "differing-fs json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jfsdiff) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jfsdiff) == NULL,
                   "reject differing per-segment fs");
   free (jfsdiff);
 
   /* an unbounded repeat/continuous scene has no fixed capacity. */
-  char *jrepeat = wfm_spec_to_json (&nseg, 1, /*repeat=*/1, 0, 0, 0.0);
+  char *jrepeat = dp_wfm_spec_to_json (&nseg, 1, /*repeat=*/1, 0, 0, 0.0);
   DP_REQUIRE_MSG (jrepeat, "repeat json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jrepeat) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jrepeat) == NULL,
                   "reject repeat=true scene");
   free (jrepeat);
-  char *jcont = wfm_spec_to_json (&nseg, 1, 0, /*continuous=*/1, 0, 0.0);
+  char *jcont = dp_wfm_spec_to_json (&nseg, 1, 0, /*continuous=*/1, 0, 0.0);
   DP_REQUIRE_MSG (jcont, "continuous json");
-  DP_REQUIRE_MSG (wfm_plan_prepare (jcont) == NULL,
+  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jcont) == NULL,
                   "reject continuous=true scene");
   free (jcont);
 
   /* anchor_seed: NULL plan, and a fully clean (no-noise) scene, both == 0. */
-  DP_REQUIRE_MSG (wfm_plan_anchor_seed (NULL) == 0, "anchor_seed(NULL) == 0");
+  DP_REQUIRE_MSG (dp_wfm_plan_anchor_seed (NULL) == 0,
+                  "anchor_seed(NULL) == 0");
   wfm_source_t  clean_solo = { .type      = 4,
                                .snr       = 100.0, /* clean: no noise at all */
                                .seed      = 41,
@@ -698,13 +705,13 @@ main (void)
   wfm_segment_t cseg       = {
     .sources = &clean_solo, .n_sources = 1, .fs = 1e6, .num_samples = L
   };
-  char *jclean = wfm_spec_to_json (&cseg, 1, 0, 0, 0, 0.0);
+  char *jclean = dp_wfm_spec_to_json (&cseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jclean, "clean json");
-  wfm_plan_t *pclean = wfm_plan_prepare (jclean);
+  wfm_plan_t *pclean = dp_wfm_plan_prepare (jclean);
   DP_REQUIRE_MSG (pclean, "accept clean (no-noise) scene");
-  DP_REQUIRE_MSG (wfm_plan_anchor_seed (pclean) == 0,
+  DP_REQUIRE_MSG (dp_wfm_plan_anchor_seed (pclean) == 0,
                   "anchor_seed == 0 for a no-noise scene");
-  wfm_plan_destroy (pclean);
+  dp_wfm_plan_destroy (pclean);
   free (jclean);
 
   /* ── bundled: a lone source carrying its own real SNR is now accepted;
@@ -714,13 +721,14 @@ main (void)
       = { .type = 4, .snr = 12.0, .seed = 7, .sps = 8, .pn_length = 7 };
   wfm_segment_t sseg
       = { .sources = &solo, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jsolo = wfm_spec_to_json (&sseg, 1, 0, 0, 0, 0.0);
+  char *jsolo = dp_wfm_spec_to_json (&sseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jsolo, "solo json");
   DP_REQUIRE_MSG (compose_collect (jsolo, ref) == L, "compose solo baseline");
-  wfm_plan_t *psolo = wfm_plan_prepare (jsolo);
+  wfm_plan_t *psolo = dp_wfm_plan_prepare (jsolo);
   DP_REQUIRE_MSG (psolo, "accept bundled noisy source");
-  DP_REQUIRE_MSG (wfm_plan_n_sources (psolo) == 1, "bundled n_sources == 1");
-  DP_REQUIRE_MSG (wfm_plan_render (psolo, "{}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_n_sources (psolo) == 1,
+                  "bundled n_sources == 1");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (psolo, "{}", got) == L,
                   "bundled render baseline");
   DP_REQUIRE_MSG (memcmp (ref, got, bytes) == 0,
                   "BUNDLED: render({}) == compose(solo)");
@@ -729,10 +737,10 @@ main (void)
   solo9.snr          = 9.0;
   wfm_segment_t sseg9
       = { .sources = &solo9, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jsolo9 = wfm_spec_to_json (&sseg9, 1, 0, 0, 0, 0.0);
+  char *jsolo9 = dp_wfm_spec_to_json (&sseg9, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jsolo9, "solo9 json");
   DP_REQUIRE_MSG (compose_collect (jsolo9, ref) == L, "compose solo@snr=9");
-  DP_REQUIRE_MSG (wfm_plan_render (psolo, "{\"snr\":9.0}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (psolo, "{\"snr\":9.0}", got) == L,
                   "bundled render snr=9");
   DP_REQUIRE_MSG (memcmp (ref, got, bytes) == 0,
                   "BUNDLED SNR: render(snr=9) == compose(solo@9)");
@@ -741,13 +749,13 @@ main (void)
   /* an enable override on a bundled segment drops both its signal AND its
    * (baked-in) noise -- the whole synth's contribution, exactly like the
    * composer's own external gain[0] would. */
-  DP_REQUIRE_MSG (wfm_plan_render (psolo, "{\"enable\":[false]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (psolo, "{\"enable\":[false]}", got) == L,
                   "bundled render disabled");
   for (size_t i = 0; i < L; i++)
     DP_REQUIRE_MSG (got[i] == 0.0f,
                     "BUNDLED ENABLE: disabling zeroes the output");
 
-  wfm_plan_destroy (psolo);
+  dp_wfm_plan_destroy (psolo);
   free (jsolo);
 
   /* A bundled source with a NON-ZERO level. Every bundled check above leaves
@@ -760,12 +768,12 @@ main (void)
   solo_lvl.level        = -3.0;
   wfm_segment_t sseg_lvl
       = { .sources = &solo_lvl, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jlvl = wfm_spec_to_json (&sseg_lvl, 1, 0, 0, 0, 0.0);
+  char *jlvl = dp_wfm_spec_to_json (&sseg_lvl, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jlvl, "solo level json");
   DP_REQUIRE_MSG (compose_collect (jlvl, ref) == L, "compose solo@level=-3");
-  wfm_plan_t *plvl = wfm_plan_prepare (jlvl);
+  wfm_plan_t *plvl = dp_wfm_plan_prepare (jlvl);
   DP_REQUIRE_MSG (plvl, "prepare bundled @ level=-3");
-  DP_REQUIRE_MSG (wfm_plan_render (plvl, "{}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (plvl, "{}", got) == L,
                   "bundled level render");
   DP_REQUIRE_MSG (
       memcmp (ref, got, bytes) == 0,
@@ -777,10 +785,10 @@ main (void)
   solo_lvl9.snr          = 9.0;
   wfm_segment_t sseg_lvl9
       = { .sources = &solo_lvl9, .n_sources = 1, .fs = 1e6, .num_samples = L };
-  char *jlvl9 = wfm_spec_to_json (&sseg_lvl9, 1, 0, 0, 0, 0.0);
+  char *jlvl9 = dp_wfm_spec_to_json (&sseg_lvl9, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jlvl9, "solo level snr json");
   DP_REQUIRE_MSG (compose_collect (jlvl9, ref) == L, "compose solo@-3,snr=9");
-  DP_REQUIRE_MSG (wfm_plan_render (plvl, "{\"snr\":9.0}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (plvl, "{\"snr\":9.0}", got) == L,
                   "bundled level render snr=9");
   DP_REQUIRE_MSG (
       memcmp (ref, got, bytes) == 0,
@@ -789,13 +797,13 @@ main (void)
 
   /* Disabling still zeroes the whole contribution (ext_gain 0 -> the scale
    * pass wipes signal and noise together). */
-  DP_REQUIRE_MSG (wfm_plan_render (plvl, "{\"enable\":[false]}", got) == L,
+  DP_REQUIRE_MSG (dp_wfm_plan_render (plvl, "{\"enable\":[false]}", got) == L,
                   "bundled level render disabled");
   for (size_t i = 0; i < L; i++)
     DP_REQUIRE_MSG (got[i] == 0.0f,
                     "BUNDLED LEVEL ENABLE: disabling zeroes output");
 
-  wfm_plan_destroy (plvl);
+  dp_wfm_plan_destroy (plvl);
   free (jlvl);
 
   /* ── multi-segment: two segments now accepted, byte-exact vs. a full
@@ -815,26 +823,27 @@ main (void)
       .off_samples = 200 },
     { .sources = &tone2, .n_sources = 1, .fs = 1e6, .num_samples = L / 2 },
   };
-  char *jmulti = wfm_spec_to_json (multiseg, 2, 0, 0, 0, 0.0);
+  char *jmulti = dp_wfm_spec_to_json (multiseg, 2, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jmulti, "multi-seg json");
   size_t          multi_len = L + 200 + L / 2;
   float _Complex *mref      = malloc (multi_len * sizeof *mref);
   float _Complex *mgot      = malloc (multi_len * sizeof *mgot);
   DP_REQUIRE_MSG (mref && mgot, "multi alloc");
-  wfm_compose_state_t *mc = wfm_compose_from_json (jmulti);
+  dp_wfm_compose_state_t *mc = dp_wfm_compose_from_json (jmulti);
   DP_REQUIRE_MSG (mc, "multi compose parse");
-  DP_REQUIRE_MSG (wfm_compose_execute (mc, mref, multi_len) == multi_len,
+  DP_REQUIRE_MSG (dp_wfm_compose_execute (mc, mref, multi_len) == multi_len,
                   "multi compose collect");
-  wfm_compose_destroy (mc);
-  wfm_plan_t *pmulti = wfm_plan_prepare (jmulti);
+  dp_wfm_compose_destroy (mc);
+  wfm_plan_t *pmulti = dp_wfm_plan_prepare (jmulti);
   DP_REQUIRE_MSG (pmulti, "accept multi-segment");
-  DP_REQUIRE_MSG (wfm_plan_len (pmulti) == multi_len, "multi-segment len");
-  DP_REQUIRE_MSG (wfm_plan_n_sources (pmulti) == 2, "multi-segment n_sources");
-  DP_REQUIRE_MSG (wfm_plan_render (pmulti, "{}", mgot) == multi_len,
+  DP_REQUIRE_MSG (dp_wfm_plan_len (pmulti) == multi_len, "multi-segment len");
+  DP_REQUIRE_MSG (dp_wfm_plan_n_sources (pmulti) == 2,
+                  "multi-segment n_sources");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (pmulti, "{}", mgot) == multi_len,
                   "multi-segment render");
   DP_REQUIRE_MSG (memcmp (mref, mgot, multi_len * sizeof *mref) == 0,
                   "MULTI-SEGMENT: render({}) == compose(2 segs)");
-  wfm_plan_destroy (pmulti);
+  dp_wfm_plan_destroy (pmulti);
   free (jmulti);
   free (mref);
   free (mgot);
@@ -852,21 +861,21 @@ main (void)
                             .num_samples = L / 4,
                             .off_samples = rep_gap,
                             .repeats     = n_rep };
-  char         *jrep    = wfm_spec_to_json (&repseg, 1, 0, 0, 0, 0.0);
+  char         *jrep    = dp_wfm_spec_to_json (&repseg, 1, 0, 0, 0, 0.0);
   size_t        rep_len = n_rep * (L / 4 + rep_gap);
   DP_REQUIRE_MSG (jrep, "repeats json");
   float _Complex *rref = malloc (rep_len * sizeof *rref);
   float _Complex *rgot = malloc (rep_len * sizeof *rgot);
   DP_REQUIRE_MSG (rref && rgot, "repeats alloc");
-  wfm_compose_state_t *rc = wfm_compose_from_json (jrep);
+  dp_wfm_compose_state_t *rc = dp_wfm_compose_from_json (jrep);
   DP_REQUIRE_MSG (rc, "repeats compose parse");
-  DP_REQUIRE_MSG (wfm_compose_execute (rc, rref, rep_len) == rep_len,
+  DP_REQUIRE_MSG (dp_wfm_compose_execute (rc, rref, rep_len) == rep_len,
                   "repeats compose collect");
-  wfm_compose_destroy (rc);
-  wfm_plan_t *prep = wfm_plan_prepare (jrep);
+  dp_wfm_compose_destroy (rc);
+  wfm_plan_t *prep = dp_wfm_plan_prepare (jrep);
   DP_REQUIRE_MSG (prep, "accept repeats");
-  DP_REQUIRE_MSG (wfm_plan_len (prep) == rep_len, "repeats len");
-  DP_REQUIRE_MSG (wfm_plan_render (prep, "{}", rgot) == rep_len,
+  DP_REQUIRE_MSG (dp_wfm_plan_len (prep) == rep_len, "repeats len");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (prep, "{}", rgot) == rep_len,
                   "repeats render");
   DP_REQUIRE_MSG (memcmp (rref, rgot, rep_len * sizeof *rref) == 0,
                   "REPEATS: render({}) == compose(repeats=N)");
@@ -875,7 +884,7 @@ main (void)
   DP_REQUIRE_MSG (
       memcmp (rgot, rgot + (L / 4 + rep_gap), (L / 4) * sizeof *rgot) != 0,
       "REPEATS: instance 0 and instance 1 AWGN differ");
-  wfm_plan_destroy (prep);
+  dp_wfm_plan_destroy (prep);
   free (jrep);
   free (rref);
   free (rgot);
@@ -896,29 +905,29 @@ main (void)
           .delay_samples_hi = 128,
           .ranged           = WFM_RANGE_OFF_SAMPLES | WFM_RANGE_DELAY_SAMPLES,
           .repeats          = 3 };
-  char *jrg = wfm_spec_to_json (&rgseg, 1, 0, 0, 0, 0.0);
+  char *jrg = dp_wfm_spec_to_json (&rgseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jrg, "ranged-gap json");
-  wfm_compose_state_t *rgc = wfm_compose_from_json (jrg);
+  dp_wfm_compose_state_t *rgc = dp_wfm_compose_from_json (jrg);
   DP_REQUIRE_MSG (rgc, "ranged-gap compose parse");
   float _Complex rgref[8192];
-  size_t rg_len = wfm_compose_execute (rgc, rgref, 8192);
+  size_t rg_len = dp_wfm_compose_execute (rgc, rgref, 8192);
   DP_REQUIRE_MSG (rg_len > 0 && rg_len < 8192, "ranged-gap compose collect");
-  wfm_compose_destroy (rgc);
-  wfm_plan_t *prg = wfm_plan_prepare (jrg);
+  dp_wfm_compose_destroy (rgc);
+  wfm_plan_t *prg = dp_wfm_plan_prepare (jrg);
   DP_REQUIRE_MSG (prg, "accept ranged gap");
-  DP_REQUIRE_MSG (wfm_plan_len (prg) >= rg_len,
+  DP_REQUIRE_MSG (dp_wfm_plan_len (prg) >= rg_len,
                   "ranged-gap len is a worst-case capacity");
   float _Complex rgbuf[8192];
-  size_t rg_got = wfm_plan_render (prg, "{}", rgbuf);
+  size_t rg_got = dp_wfm_plan_render (prg, "{}", rgbuf);
   DP_REQUIRE_MSG (rg_got == rg_len, "RANGED GAP: baseline length == compose");
   DP_REQUIRE_MSG (memcmp (rgref, rgbuf, rg_len * sizeof *rgref) == 0,
                   "RANGED GAP: render({}) == compose (epoch-0 draw matches)");
-  size_t rg_len1 = wfm_plan_render (prg, "{\"seed\":101}", rgbuf);
-  size_t rg_len2 = wfm_plan_render (prg, "{\"seed\":202}", rgbuf);
+  size_t rg_len1 = dp_wfm_plan_render (prg, "{\"seed\":101}", rgbuf);
+  size_t rg_len2 = dp_wfm_plan_render (prg, "{\"seed\":202}", rgbuf);
   DP_REQUIRE_MSG (rg_len1 > 0 && rg_len2 > 0, "seeded renders produce output");
   DP_REQUIRE_MSG (rg_len1 != rg_len2 || rg_len1 != rg_got,
                   "RANGED GAP: a seed override redraws the gap length");
-  wfm_plan_destroy (prg);
+  dp_wfm_plan_destroy (prg);
   free (jrg);
 
   /* ── save / restore ────────────────────────────────────────────────────
@@ -926,66 +935,69 @@ main (void)
    * mismatch rebuilds from the embedded spec (never NULL, never wrong); a
    * corrupt/truncated blob is rejected. */
   {
-    size_t blen = wfm_plan_save_bytes (p);
+    size_t blen = dp_wfm_plan_save_bytes (p);
     DP_REQUIRE_MSG (blen > 0, "save_bytes > 0");
     uint8_t *blob = malloc (blen);
     DP_REQUIRE_MSG (blob, "alloc blob");
-    DP_REQUIRE_MSG (wfm_plan_save (p, blob) == blen,
+    DP_REQUIRE_MSG (dp_wfm_plan_save (p, blob) == blen,
                     "save returns bytes written");
 
-    wfm_plan_t *pr = wfm_plan_restore (blob, blen);
+    wfm_plan_t *pr = dp_wfm_plan_restore (blob, blen);
     DP_REQUIRE_MSG (pr, "restore");
-    DP_REQUIRE_MSG (wfm_plan_len (pr) == L && wfm_plan_n_sources (pr) == 2,
+    DP_REQUIRE_MSG (dp_wfm_plan_len (pr) == L
+                        && dp_wfm_plan_n_sources (pr) == 2,
                     "restore: structure matches the spec");
-    DP_REQUIRE_MSG (wfm_plan_render (pr, "{}", got) == L,
+    DP_REQUIRE_MSG (dp_wfm_plan_render (pr, "{}", got) == L,
                     "restore render baseline");
     DP_REQUIRE_MSG (memcmp (base, got, bytes) == 0,
                     "SAVE/RESTORE: baseline is bit-exact");
     char *j6 = scene_json (6.0, 0.0, 0.0);
     DP_REQUIRE_MSG (compose_collect (j6, ref) == L, "compose snr=6 (restore)");
-    DP_REQUIRE_MSG (wfm_plan_at (pr, 6.0, wfm_plan_anchor_seed (pr), got) == L,
+    DP_REQUIRE_MSG (dp_wfm_plan_at (pr, 6.0, dp_wfm_plan_anchor_seed (pr), got)
+                        == L,
                     "restore at(6)");
     DP_REQUIRE_MSG (
         memcmp (ref, got, bytes) == 0,
         "SAVE/RESTORE: an override on the restored Plan is bit-exact");
     free (j6);
-    wfm_plan_destroy (pr);
+    dp_wfm_plan_destroy (pr);
 
     /* Fingerprint mismatch (corrupt the dsp_hash at offset 8): the fast path
      * is refused and the Plan is rebuilt from the embedded spec — still exact.
      */
     blob[8] ^= 0xFFu;
-    wfm_plan_t *pm = wfm_plan_restore (blob, blen);
+    wfm_plan_t *pm = dp_wfm_plan_restore (blob, blen);
     DP_REQUIRE_MSG (pm, "restore rebuilds on fingerprint mismatch (not NULL)");
-    DP_REQUIRE_MSG (wfm_plan_render (pm, "{}", got) == L,
+    DP_REQUIRE_MSG (dp_wfm_plan_render (pm, "{}", got) == L,
                     "rebuilt render baseline");
     DP_REQUIRE_MSG (memcmp (base, got, bytes) == 0,
                     "SAVE/RESTORE: fingerprint-mismatch rebuild is bit-exact");
-    wfm_plan_destroy (pm);
+    dp_wfm_plan_destroy (pm);
     blob[8] ^= 0xFFu; /* undo */
 
     /* Malformed / truncated blobs are rejected outright. */
     uint8_t m0 = blob[0];
     blob[0]    = 'X';
-    DP_REQUIRE_MSG (wfm_plan_restore (blob, blen) == NULL, "reject bad magic");
+    DP_REQUIRE_MSG (dp_wfm_plan_restore (blob, blen) == NULL,
+                    "reject bad magic");
     blob[0] = m0;
-    DP_REQUIRE_MSG (wfm_plan_restore (blob, 10) == NULL,
+    DP_REQUIRE_MSG (dp_wfm_plan_restore (blob, 10) == NULL,
                     "reject truncated blob");
 
     free (blob);
 
     /* dump/load: the file round-trip renders bit-identically. */
     const char *path = "test_wfm_plan_dump.bin";
-    DP_REQUIRE_MSG (wfm_plan_dump (p, path) == 0, "dump to file");
-    wfm_plan_t *pl = wfm_plan_load (path);
+    DP_REQUIRE_MSG (dp_wfm_plan_dump (p, path) == 0, "dump to file");
+    wfm_plan_t *pl = dp_wfm_plan_load (path);
     DP_REQUIRE_MSG (pl, "load from file");
-    DP_REQUIRE_MSG (wfm_plan_render (pl, "{}", got) == L,
+    DP_REQUIRE_MSG (dp_wfm_plan_render (pl, "{}", got) == L,
                     "loaded render baseline");
     DP_REQUIRE_MSG (memcmp (base, got, bytes) == 0,
                     "DUMP/LOAD: baseline bit-exact");
-    wfm_plan_destroy (pl);
+    dp_wfm_plan_destroy (pl);
     remove (path);
-    DP_REQUIRE_MSG (wfm_plan_load ("no_such_wfm_plan_file.bin") == NULL,
+    DP_REQUIRE_MSG (dp_wfm_plan_load ("no_such_wfm_plan_file.bin") == NULL,
                     "load of a missing file is NULL");
   }
 
@@ -1013,29 +1025,29 @@ main (void)
         = { .sources = &dsrc, .n_sources = 1, .fs = 1e6, .num_samples = L };
 
     /* The baseline this whole block is differential against. */
-    char *jb = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    char *jb = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (jb, "doppler baseline json");
-    wfm_plan_t *pb = wfm_plan_prepare (jb);
+    wfm_plan_t *pb = dp_wfm_plan_prepare (jb);
     DP_REQUIRE_MSG (pb, "DOPPLER: the same scene with NO doppler is ACCEPTED");
-    wfm_plan_destroy (pb);
+    dp_wfm_plan_destroy (pb);
     free (jb);
 
     /* 1. a constant Doppler offset. */
     dsrc.doppler = 5.0; /* ppm */
-    char *jd     = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    char *jd     = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (jd && strstr (jd, "\"doppler\""),
                     "doppler json carries the field (else vacuous)");
-    DP_REQUIRE_MSG (wfm_plan_prepare (jd) == NULL,
+    DP_REQUIRE_MSG (dp_wfm_plan_prepare (jd) == NULL,
                     "DOPPLER: doppler != 0 is refused (gh-1109)");
     free (jd);
     dsrc.doppler = 0.0;
 
     /* 2. a Doppler RATE alone is equally a channel. */
     dsrc.doppler_rate = 0.5; /* ppm/s */
-    char *jr          = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    char *jr          = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (jr && strstr (jr, "\"doppler_rate\""),
                     "doppler_rate json carries the field (else vacuous)");
-    DP_REQUIRE_MSG (wfm_plan_prepare (jr) == NULL,
+    DP_REQUIRE_MSG (dp_wfm_plan_prepare (jr) == NULL,
                     "DOPPLER: doppler_rate != 0 is refused (gh-1109)");
     free (jr);
     dsrc.doppler_rate = 0.0;
@@ -1044,20 +1056,20 @@ main (void)
      *    doppler_rate builds no channel, so it is NOT refused for a field it
      *    does not use. PERSIST is the only lifetime the writer serializes. */
     dsrc.doppler_lifetime = WFM_DOPPLER_PERSIST;
-    char *jl              = wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+    char *jl              = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (jl && strstr (jl, "\"doppler_lifetime\""),
                     "lifetime json carries the field (else vacuous)");
-    wfm_plan_t *pl2 = wfm_plan_prepare (jl);
+    wfm_plan_t *pl2 = dp_wfm_plan_prepare (jl);
     DP_REQUIRE_MSG (pl2, "DOPPLER: a lifetime with zero doppler builds no "
                          "channel and is ACCEPTED");
-    wfm_plan_destroy (pl2);
+    dp_wfm_plan_destroy (pl2);
     free (jl);
     dsrc.doppler_lifetime = 0;
   }
 
   /* ── len() is a CAPACITY and the tail is zero padding ───────────────────
    * The header's allocation contract: render()/at() write up to
-   * wfm_plan_len() samples, return the ACTUAL length of that draw, and
+   * dp_wfm_plan_len() samples, return the ACTUAL length of that draw, and
    * everything past the return value is ZERO — not stale. A caller sizes one
    * buffer at len() and reuses it across draws, so a tail still holding the
    * previous (longer) draw would read as signal. Pre-filling with a sentinel
@@ -1076,11 +1088,11 @@ main (void)
             .delay_samples_hi = 256,
             .ranged  = WFM_RANGE_OFF_SAMPLES | WFM_RANGE_DELAY_SAMPLES,
             .repeats = 3 };
-    char *jp = wfm_spec_to_json (&pseg, 1, 0, 0, 0, 0.0);
+    char *jp = dp_wfm_spec_to_json (&pseg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (jp, "pad json");
-    wfm_plan_t *pp = wfm_plan_prepare (jp);
+    wfm_plan_t *pp = dp_wfm_plan_prepare (jp);
     DP_REQUIRE_MSG (pp, "pad prepare");
-    size_t cap = wfm_plan_len (pp);
+    size_t cap = dp_wfm_plan_len (pp);
     DP_REQUIRE_MSG (cap > 0 && cap <= 8192, "pad capacity fits the buffer");
 
     float _Complex *pbuf = malloc (cap * sizeof *pbuf);
@@ -1095,7 +1107,7 @@ main (void)
         snprintf (ov, sizeof ov, "{\"seed\":%zu}", s);
         for (size_t i = 0; i < cap; i++)
           pbuf[i] = 1.0f + 2.0f * I; /* sentinel: never a valid pad */
-        size_t got_s = wfm_plan_render (pp, ov, pbuf);
+        size_t got_s = dp_wfm_plan_render (pp, ov, pbuf);
         if (got_s > 0 && got_s < cap)
           drawn = got_s;
       }
@@ -1112,7 +1124,7 @@ main (void)
     /* And the same for at(), the scalar fast path. */
     for (size_t i = 0; i < cap; i++)
       pbuf[i] = 1.0f + 2.0f * I;
-    size_t at_got = wfm_plan_at (pp, 6.0, 12345u, pbuf);
+    size_t at_got = dp_wfm_plan_at (pp, 6.0, 12345u, pbuf);
     DP_REQUIRE_MSG (at_got > 0 && at_got <= cap, "PAD: at() draw within cap");
     size_t at_nonzero = 0;
     for (size_t i = at_got; i < cap; i++)
@@ -1121,7 +1133,7 @@ main (void)
     DP_REQUIRE_MSG (at_nonzero == 0, "PAD: at() zero-pads its tail too");
 
     free (pbuf);
-    wfm_plan_destroy (pp);
+    dp_wfm_plan_destroy (pp);
     free (jp);
   }
 
@@ -1131,26 +1143,27 @@ main (void)
    * (the buffers are native-endian POD, so reinterpreting them would be
    * silently wrong — the one thing save/restore promises never to be). */
   {
-    wfm_plan_destroy (NULL); /* documented no-op; a crash here is the test */
+    dp_wfm_plan_destroy (
+        NULL); /* documented no-op; a crash here is the test */
 
-    DP_REQUIRE_MSG (wfm_plan_dump (p, "no_such_dir_wfm_plan/x.bin") != 0,
+    DP_REQUIRE_MSG (dp_wfm_plan_dump (p, "no_such_dir_wfm_plan/x.bin") != 0,
                     "DUMP: an unopenable path reports failure, not success");
 
-    size_t   eblen = wfm_plan_save_bytes (p);
+    size_t   eblen = dp_wfm_plan_save_bytes (p);
     uint8_t *eblob = malloc (eblen);
     DP_REQUIRE_MSG (eblob, "alloc endian blob");
-    DP_REQUIRE_MSG (wfm_plan_save (p, eblob) == eblen, "save endian blob");
-    wfm_plan_t *eok = wfm_plan_restore (eblob, eblen);
+    DP_REQUIRE_MSG (dp_wfm_plan_save (p, eblob) == eblen, "save endian blob");
+    wfm_plan_t *eok = dp_wfm_plan_restore (eblob, eblen);
     DP_REQUIRE_MSG (eok, "endian baseline: the untouched blob restores");
-    wfm_plan_destroy (eok);
+    dp_wfm_plan_destroy (eok);
     eblob[6] ^= 1u; /* the host-endian byte */
     DP_REQUIRE_MSG (
-        wfm_plan_restore (eblob, eblen) == NULL,
+        dp_wfm_plan_restore (eblob, eblen) == NULL,
         "ENDIAN: a foreign-endian blob is refused, not reinterpreted");
     free (eblob);
   }
 
-  wfm_plan_destroy (p);
+  dp_wfm_plan_destroy (p);
   free (json);
   free (ref);
   free (got);

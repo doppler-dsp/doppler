@@ -54,24 +54,24 @@ _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detail
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**wfm\_cont\_dsss\_chips**](#function-wfm_cont_dsss_chips) (const uint8\_t \* code, size\_t code\_len, const uint8\_t \* data, size\_t n\_data, double chips\_per\_symbol, size\_t n\_chips, uint8\_t \* out) <br>_Build a CONTINUOUS, ASYNCHRONOUS DSSS chip pattern._  |
-|  void | [**wfm\_dsss\_spread**](#function-wfm_dsss_spread) (const float \_Complex \* syms, size\_t n\_sym, const uint8\_t \* code, size\_t sf, float \_Complex \* out) <br>_Spread_ `n_sym` _complex data symbols by a binary PN code._ |
-|  size\_t | [**wfm\_frame\_dsss\_chips**](#function-wfm_frame_dsss_chips) (const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc, uint8\_t \* out) <br>_Build a two-code DSSS burst as one flat 0/1 chip pattern._  |
-|  size\_t | [**wfm\_frame\_dsss\_nchips**](#function-wfm_frame_dsss_nchips) (size\_t acq\_len, size\_t acq\_reps, size\_t data\_len, size\_t sync\_len, size\_t payload\_len, int crc) <br>_Chip count of a DSSS burst frame (sizes_ `wfm_frame_dsss_chips` _)._ |
-|  void | [**wfm\_polyphase\_bank**](#function-wfm_polyphase_bank) (const float \* proto, size\_t proto\_len, size\_t num\_phases, size\_t num\_taps, float \* bank) <br>_Deal an arbitrary FIR prototype into a polyphase interpolation bank._  |
-|  void | [**wfm\_rrc\_polyphase\_bank**](#function-wfm_rrc_polyphase_bank) (double beta, int sps, int span, float \* bank) <br>_Decompose the RRC pulse shape into a polyphase interpolation bank._  |
-|  void | [**wfm\_rrc\_taps**](#function-wfm_rrc_taps) (double beta, int sps, int span, float \* taps) <br>_Fill_ `taps` _with a unit-energy root-raised-cosine impulse response._ |
+|  size\_t | [**dp\_wfm\_cont\_dsss\_chips**](#function-dp_wfm_cont_dsss_chips) (const uint8\_t \* code, size\_t code\_len, const uint8\_t \* data, size\_t n\_data, double chips\_per\_symbol, size\_t n\_chips, uint8\_t \* out) <br>_Build a CONTINUOUS, ASYNCHRONOUS DSSS chip pattern._  |
+|  void | [**dp\_wfm\_dsss\_spread**](#function-dp_wfm_dsss_spread) (const float \_Complex \* syms, size\_t n\_sym, const uint8\_t \* code, size\_t sf, float \_Complex \* out) <br>_Spread_ `n_sym` _complex data symbols by a binary PN code._ |
+|  size\_t | [**dp\_wfm\_frame\_dsss\_chips**](#function-dp_wfm_frame_dsss_chips) (const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc, uint8\_t \* out) <br>_Build a two-code DSSS burst as one flat 0/1 chip pattern._  |
+|  size\_t | [**dp\_wfm\_frame\_dsss\_nchips**](#function-dp_wfm_frame_dsss_nchips) (size\_t acq\_len, size\_t acq\_reps, size\_t data\_len, size\_t sync\_len, size\_t payload\_len, int crc) <br>_Chip count of a DSSS burst frame (sizes_ `dp_wfm_frame_dsss_chips` _)._ |
+|  void | [**dp\_wfm\_polyphase\_bank**](#function-dp_wfm_polyphase_bank) (const float \* proto, size\_t proto\_len, size\_t num\_phases, size\_t num\_taps, float \* bank) <br>_Deal an arbitrary FIR prototype into a polyphase interpolation bank._  |
+|  void | [**dp\_wfm\_rrc\_polyphase\_bank**](#function-dp_wfm_rrc_polyphase_bank) (double beta, int sps, int span, float \* bank) <br>_Decompose the RRC pulse shape into a polyphase interpolation bank._  |
+|  void | [**dp\_wfm\_rrc\_taps**](#function-dp_wfm_rrc_taps) (double beta, int sps, int span, float \* taps) <br>_Fill_ `taps` _with a unit-energy root-raised-cosine impulse response._ |
 
 
 ## Public Static Functions
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**wfm\_cont\_dsss\_nchips**](#function-wfm_cont_dsss_nchips) (size\_t n\_chips) <br>_Chip count for_ `wfm_cont_dsss_chips` _: exactly_`n_chips` _._ |
+|  size\_t | [**wfm\_cont\_dsss\_nchips**](#function-wfm_cont_dsss_nchips) (size\_t n\_chips) <br>_Chip count for_ `dp_wfm_cont_dsss_chips` _: exactly_`n_chips` _._ |
 |  double | [**wfm\_rc\_h**](#function-wfm_rc_h) (double t, double beta) <br>_The MATCHED pair's composite pulse:_ `rrc * rrc` _, in closed form._ |
-|  size\_t | [**wfm\_rrc\_bank\_ntaps**](#function-wfm_rrc_bank_ntaps) (int span) <br>_Number of taps per phase in a_ `wfm_rrc_polyphase_bank` _:_`2*span + 1` _._ |
+|  size\_t | [**wfm\_rrc\_bank\_ntaps**](#function-wfm_rrc_bank_ntaps) (int span) <br>_Number of taps per phase in a_ `dp_wfm_rrc_polyphase_bank` _:_`2*span + 1` _._ |
 |  double | [**wfm\_rrc\_h**](#function-wfm_rrc_h) (double t, double beta) <br>_Analytic root-raised-cosine impulse response at one instant._  |
-|  size\_t | [**wfm\_rrc\_ntaps**](#function-wfm_rrc_ntaps) (int sps, int span) <br>_Number of taps a_ `wfm_rrc_taps` _call produces:_`2*span*sps + 1` _._ |
+|  size\_t | [**wfm\_rrc\_ntaps**](#function-wfm_rrc_ntaps) (int sps, int span) <br>_Number of taps a_ `dp_wfm_rrc_taps` _call produces:_`2*span*sps + 1` _._ |
 
 
 
@@ -107,8 +107,8 @@ _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detail
 
 
 Two pure DSP primitives the engine/composer use to build spread-spectrum and band-limited waveforms:
-* wfm\_dsss\_spread: multiply each data symbol by a PN chip code.
-* wfm\_rrc\_taps: a unit-energy root-raised-cosine FIR (matched-filter pulse shape), applied by upsample + FIR. 
+* dp\_wfm\_dsss\_spread: multiply each data symbol by a PN chip code.
+* dp\_wfm\_rrc\_taps: a unit-energy root-raised-cosine FIR (matched-filter pulse shape), applied by upsample + FIR. 
 
 
 
@@ -119,11 +119,11 @@ Two pure DSP primitives the engine/composer use to build spread-spectrum and ban
 
 
 
-### function wfm\_cont\_dsss\_chips 
+### function dp\_wfm\_cont\_dsss\_chips 
 
 _Build a CONTINUOUS, ASYNCHRONOUS DSSS chip pattern._ 
 ```C++
-size_t wfm_cont_dsss_chips (
+size_t dp_wfm_cont_dsss_chips (
     const uint8_t * code,
     size_t code_len,
     const uint8_t * data,
@@ -136,7 +136,7 @@ size_t wfm_cont_dsss_chips (
 
 
 
-The continuous counterpart to `wfm_frame_dsss_chips`. Two differences, both required by a continuously-transmitting spread carrier (CCSDS command-link style) rather than a bounded burst:
+The continuous counterpart to `dp_wfm_frame_dsss_chips`. Two differences, both required by a continuously-transmitting spread carrier (CCSDS command-link style) rather than a bounded burst:
 
 
 
@@ -181,11 +181,11 @@ Chips written (== `n_chips`), or 0 on invalid geometry.
 
 
 
-### function wfm\_dsss\_spread 
+### function dp\_wfm\_dsss\_spread 
 
 _Spread_ `n_sym` _complex data symbols by a binary PN code._
 ```C++
-void wfm_dsss_spread (
+void dp_wfm_dsss_spread (
     const float _Complex * syms,
     size_t n_sym,
     const uint8_t * code,
@@ -219,11 +219,11 @@ void wfm_dsss_spread (
 
 
 
-### function wfm\_frame\_dsss\_chips 
+### function dp\_wfm\_frame\_dsss\_chips 
 
 _Build a two-code DSSS burst as one flat 0/1 chip pattern._ 
 ```C++
-size_t wfm_frame_dsss_chips (
+size_t dp_wfm_frame_dsss_chips (
     const uint8_t * acq_code,
     size_t acq_len,
     size_t acq_reps,
@@ -264,13 +264,13 @@ The preamble is the _unmodulated_ repeated acquisition code (no data on it — a
 * `payload` payload bits (0/1), length `payload_len`; NULL ok. 
 * `payload_len` payload length in bits. 
 * `crc` non-zero: append the CRC-16 trailer after the payload. 
-* `out` output chip array (0/1) of `wfm_frame_dsss_nchips(...)` elements. 
+* `out` output chip array (0/1) of `dp_wfm_frame_dsss_nchips(...)` elements. 
 
 
 
 **Returns:**
 
-Chips written, or 0 on invalid geometry (see `wfm_frame_dsss_nchips`). 
+Chips written, or 0 on invalid geometry (see `dp_wfm_frame_dsss_nchips`). 
 
 
 
@@ -282,11 +282,11 @@ Chips written, or 0 on invalid geometry (see `wfm_frame_dsss_nchips`).
 
 
 
-### function wfm\_frame\_dsss\_nchips 
+### function dp\_wfm\_frame\_dsss\_nchips 
 
-_Chip count of a DSSS burst frame (sizes_ `wfm_frame_dsss_chips` _)._
+_Chip count of a DSSS burst frame (sizes_ `dp_wfm_frame_dsss_chips` _)._
 ```C++
-size_t wfm_frame_dsss_nchips (
+size_t dp_wfm_frame_dsss_nchips (
     size_t acq_len,
     size_t acq_reps,
     size_t data_len,
@@ -329,11 +329,11 @@ Total burst chips, or 0 if the geometry is invalid/empty.
 
 
 
-### function wfm\_polyphase\_bank 
+### function dp\_wfm\_polyphase\_bank 
 
 _Deal an arbitrary FIR prototype into a polyphase interpolation bank._ 
 ```C++
-void wfm_polyphase_bank (
+void dp_wfm_polyphase_bank (
     const float * proto,
     size_t proto_len,
     size_t num_phases,
@@ -367,11 +367,11 @@ The pure decomposition shared by every polyphase-bank builder: phase `p` gets th
 
 
 
-### function wfm\_rrc\_polyphase\_bank 
+### function dp\_wfm\_rrc\_polyphase\_bank 
 
 _Decompose the RRC pulse shape into a polyphase interpolation bank._ 
 ```C++
-void wfm_rrc_polyphase_bank (
+void dp_wfm_rrc_polyphase_bank (
     double beta,
     int sps,
     int span,
@@ -381,10 +381,10 @@ void wfm_rrc_polyphase_bank (
 
 
 
-The dense pulse shaper upsamples a symbol stream by `sps` (one impulse per `sps` samples, the rest hard zeros) then runs the full `wfm_rrc_taps` FIR over it — `(sps-1)/sps` of every tap-multiply hits a structural zero. The _polyphase_ form computes the identical convolution from only the nonzero contributions: it splits the length-`wfm_rrc_ntaps(sps, span)` prototype into `sps` phases of `wfm_rrc_bank_ntaps(span)` taps each, so phase `p` selects the subset of prototype taps that land on output samples of residue `p`.
+The dense pulse shaper upsamples a symbol stream by `sps` (one impulse per `sps` samples, the rest hard zeros) then runs the full `dp_wfm_rrc_taps` FIR over it — `(sps-1)/sps` of every tap-multiply hits a structural zero. The _polyphase_ form computes the identical convolution from only the nonzero contributions: it splits the length-`wfm_rrc_ntaps(sps, span)` prototype into `sps` phases of `wfm_rrc_bank_ntaps(span)` taps each, so phase `p` selects the subset of prototype taps that land on output samples of residue `p`.
 
 
-The prototype is `wfm_rrc_taps(beta, sps, span)` scaled by `sqrt(sps)` — the same unit-average-power scaling `wfm_synth_set_rrc` applies to the dense taps, folded in here so the two paths shape at byte-comparable amplitude. The row-major layout `bank[p*num_taps + t] = proto[t*sps + p]` (zero-padded past the final partial tap) is exactly the decomposition `resamp`'s own Kaiser bank uses, so the bank drops straight into `resamp_create_custom(sps,
+The prototype is `dp_wfm_rrc_taps(beta, sps, span)` scaled by `sqrt(sps)` — the same unit-average-power scaling `dp_wfm_synth_set_rrc` applies to the dense taps, folded in here so the two paths shape at byte-comparable amplitude. The row-major layout `bank[p*num_taps + t] = proto[t*sps + p]` (zero-padded past the final partial tap) is exactly the decomposition `resamp`'s own Kaiser bank uses, so the bank drops straight into `resamp_create_custom(sps,
 wfm_rrc_bank_ntaps(span), bank, sps)` as an interpolate-by-`sps` shaper.
 
 
@@ -410,11 +410,11 @@ Unlike `resamp`'s Kaiser prototype (which carries a `×num_phases` gain to compe
 
 
 
-### function wfm\_rrc\_taps 
+### function dp\_wfm\_rrc\_taps 
 
 _Fill_ `taps` _with a unit-energy root-raised-cosine impulse response._
 ```C++
-void wfm_rrc_taps (
+void dp_wfm_rrc_taps (
     double beta,
     int sps,
     int span,
@@ -450,7 +450,7 @@ Length is `wfm_rrc_ntaps(sps, span)`; the response is symmetric about the centre
 
 ### function wfm\_cont\_dsss\_nchips 
 
-_Chip count for_ `wfm_cont_dsss_chips` _: exactly_`n_chips` _._
+_Chip count for_ `dp_wfm_cont_dsss_chips` _: exactly_`n_chips` _._
 ```C++
 static inline size_t wfm_cont_dsss_nchips (
     size_t n_chips
@@ -459,7 +459,7 @@ static inline size_t wfm_cont_dsss_nchips (
 
 
 
-Trivial, but present so the two continuous entry points mirror the burst pair (`wfm_frame_dsss_nchips` / `wfm_frame_dsss_chips`) and callers size their buffer through a named function rather than an open-coded expression. 
+Trivial, but present so the two continuous entry points mirror the burst pair (`dp_wfm_frame_dsss_nchips` / `dp_wfm_frame_dsss_chips`) and callers size their buffer through a named function rather than an open-coded expression. 
 
 
         
@@ -520,7 +520,7 @@ printf ("%.4f %.6f\n", wfm_rc_h (0.0, 0.35), wfm_rc_h (1.0, 0.35));
 
 ### function wfm\_rrc\_bank\_ntaps 
 
-_Number of taps per phase in a_ `wfm_rrc_polyphase_bank` _:_`2*span + 1` _._
+_Number of taps per phase in a_ `dp_wfm_rrc_polyphase_bank` _:_`2*span + 1` _._
 ```C++
 static inline size_t wfm_rrc_bank_ntaps (
     int span
@@ -557,7 +557,7 @@ static inline double wfm_rrc_h (
 
 
 
-The RRC formula itself, evaluated at an arbitrary continuous time — the single source of truth every RRC consumer samples. `wfm_rrc_taps()` walks this on the uniform `1/sps` grid and normalises; a receiver's polyphase matched-filter bank (RateConverter's pulse-shaped terminal stage) samples it at `num_phases * num_taps` instants that are NOT a uniform sub-multiple of the input grid, which is why the point evaluator is public: an arbitrary (non-integer) samples-per-symbol bank cannot be built by decomposing an integer-oversampled prototype, and a second copy of this formula is exactly the kind of peer implementation that drifts.
+The RRC formula itself, evaluated at an arbitrary continuous time — the single source of truth every RRC consumer samples. `dp_wfm_rrc_taps()` walks this on the uniform `1/sps` grid and normalises; a receiver's polyphase matched-filter bank (RateConverter's pulse-shaped terminal stage) samples it at `num_phases * num_taps` instants that are NOT a uniform sub-multiple of the input grid, which is why the point evaluator is public: an arbitrary (non-integer) samples-per-symbol bank cannot be built by decomposing an integer-oversampled prototype, and a second copy of this formula is exactly the kind of peer implementation that drifts.
 
 
 Both removable singularities are handled by their closed-form limits: the `0/0` at `t = 0`, and the `0/0` at `t = ±1/(4β)` where the denominator's `1 - (4βt)^2` vanishes.
@@ -589,7 +589,7 @@ Both removable singularities are handled by their closed-form limits: the `0/0` 
 
 ### function wfm\_rrc\_ntaps 
 
-_Number of taps a_ `wfm_rrc_taps` _call produces:_`2*span*sps + 1` _._
+_Number of taps a_ `dp_wfm_rrc_taps` _call produces:_`2*span*sps + 1` _._
 ```C++
 static inline size_t wfm_rrc_ntaps (
     int sps,

@@ -331,9 +331,9 @@ class _SynthEngine:
         Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits,
         7=symbols, 8=dsss. The Python binding accepts strings
         "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss". For
-        "bits" attach the pattern with wfm_synth_set_bits(); for "symbols"
-        attach the complex stream with wfm_synth_set_symbols(); for "dsss"
-        attach the burst with wfm_synth_set_dsss() after create().
+        "bits" attach the pattern with dp_wfm_synth_set_bits(); for "symbols"
+        attach the complex stream with dp_wfm_synth_set_symbols(); for "dsss"
+        attach the burst with dp_wfm_synth_set_dsss() after create().
     fs : float, default 1000000.0
         Sample rate in Hz. Sets the carrier frequency normalisation and the
         noise bandwidth. Default 1 000 000.0.

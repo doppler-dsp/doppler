@@ -2,7 +2,7 @@
  * write_blue_header.c — wfm_writer module-level function.
  *
  * Path-taking public alias for the BLUE type-1000 HCB header writer. The
- * kernel lives once in wfm_writer_core.c (wfm_blue_write_hcb, FILE-based,
+ * kernel lives once in wfm_writer_core.c (dp_wfm_blue_write_hcb, FILE-based,
  * shared with the wfmgen CLI and the streaming Writer — C-first, not
  * duplicated here); this thin shim opens the path so the whole surface — path
  * coercion, string-enum sample_type / endian, and raise-on-failure — is a
@@ -11,7 +11,7 @@
  * It lives on the wfm_writer module because that is where wfm_writer_core is
  * already linked (with its keyword/cJSON/draw deps).
  */
-#include "doppler/wfm_writer/wfm_writer_core.h" /* wfm_blue_write_hcb */
+#include "doppler/wfm_writer/wfm_writer_core.h" /* dp_wfm_blue_write_hcb */
 
 #include <stddef.h>
 #include <stdio.h>
@@ -28,8 +28,8 @@ dp_write_blue_header (const char *path, double fs, int sample_type, int endian,
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return -1;
-  int rc = wfm_blue_write_hcb (fp, sample_type, endian, fs, fc, data_start,
-                               total_samples, detached, t0);
+  int rc = dp_wfm_blue_write_hcb (fp, sample_type, endian, fs, fc, data_start,
+                                  total_samples, detached, t0);
   /* Success needs both a full write and a clean close (fclose is where a
      full-disk error finally surfaces); either failing is the nonzero status
      the binding's check_return raises on. */

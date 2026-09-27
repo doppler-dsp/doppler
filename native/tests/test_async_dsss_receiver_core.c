@@ -41,7 +41,7 @@
 #include "dp_test.h"
 
 #include "doppler/dp_complex.h"
-#include "doppler/wfm/wfm_dsp.h" /* wfm_cont_dsss_chips: the wfmgen C API       */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_cont_dsss_chips: the wfmgen C API       */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -610,7 +610,7 @@ _test_spec_combined_scenario_at_spec_floor (void)
 /* AWGN-only Es/N0 decode floor at SPEC's own geometry (Gold-1023, 3.069
  * Mcps, 2700 bps asynchronous BPSK, spc=2), ZERO Doppler -- characterizes
  * the decode floor, independent of Doppler and of the aiding path.
- * Generated with the wfmgen C API (wfm_cont_dsss_chips) so this test
+ * Generated with the wfmgen C API (dp_wfm_cont_dsss_chips) so this test
  * exercises the same continuous-DSSS builder the wfmgen tool ships. Sweeps
  * Es/N0 and prints three metrics (visible under `ctest -V`) so the floor is
  * a tracked, inspectable quantity: the truth-referenced BER PLUS two
@@ -664,7 +664,7 @@ _test_awgn_esn0_floor (void)
 
       size_t   n_chips = (size_t)((double)n_sym * cps) + 2 * sf;
       uint8_t *chips   = malloc (n_chips);
-      wfm_cont_dsss_chips (code, sf, dbits, n_data, cps, n_chips, chips);
+      dp_wfm_cont_dsss_chips (code, sf, dbits, n_data, cps, n_chips, chips);
 
       size_t          pre   = sf * spc * 5 + 3;
       size_t          n     = n_chips * spc;

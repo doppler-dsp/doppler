@@ -33,10 +33,10 @@
  * // Encode "F_C = 1.2345e9" into a buffer, then read it back.
  * double   fc = 1.2345e9;
  * uint8_t  buf[64];
- * size_t   n = wfm_kw_encode(buf, sizeof buf, "F_C", 'D', &fc, 1, 0);
+ * size_t   n = dp_wfm_kw_encode(buf, sizeof buf, "F_C", 'D', &fc, 1, 0);
  * wfm_keyword_t kw;
  * size_t   used;
- * wfm_kw_decode(buf, n, 0, &kw, &used);   // kw.tag = "F_C", kw.count = 1
+ * dp_wfm_kw_decode(buf, n, 0, &kw, &used);   // kw.tag = "F_C", kw.count = 1
  * double   got;
  * memcpy(&got, kw.value, sizeof got);     // 1.2345e9, host order
  * @endcode
@@ -76,7 +76,7 @@ extern "C"
    * 32-bit integer and decodes as 4. `O` (offset byte), `P` (packed bits) and
    * `N` (4-bit) are explicitly not permitted in keywords; `S` is reserved.
    */
-  size_t wfm_kw_elem_size (char type);
+  size_t dp_wfm_kw_elem_size (char type);
 
   /**
    * @brief Advisory conformance check for the standard BLUE keywords.
@@ -94,12 +94,12 @@ extern "C"
    * @return 1 conforms, -1 does not, 0 the tag is not a standard keyword.
    *
    * @code
-   * wfm_kw_check_standard("ACQTIME", 'A', "12:34:56", 8);  // 1
-   * wfm_kw_check_standard("ACQTIME", 'A', "12:34", 5);     // -1
-   * wfm_kw_check_standard("MY_TAG",  'A', "anything", 8);  // 0
+   * dp_wfm_kw_check_standard("ACQTIME", 'A', "12:34:56", 8);  // 1
+   * dp_wfm_kw_check_standard("ACQTIME", 'A', "12:34", 5);     // -1
+   * dp_wfm_kw_check_standard("MY_TAG",  'A', "anything", 8);  // 0
    * @endcode
    */
-  int wfm_kw_check_standard(const char *tag, char type, const void *value,
+  int dp_wfm_kw_check_standard(const char *tag, char type, const void *value,
                             size_t count);
 
 
@@ -110,7 +110,7 @@ extern "C"
    * @param vbytes value length in bytes.
    * @return the padded entry length, always a multiple of 8.
    */
-  size_t wfm_kw_entry_size (size_t ltag, size_t vbytes);
+  size_t dp_wfm_kw_entry_size (size_t ltag, size_t vbytes);
 
   /**
    * @brief Encode one keyword into @p out.
@@ -118,7 +118,7 @@ extern "C"
    * @param out   destination buffer.
    * @param cap   bytes available at @p out.
    * @param tag   NUL-terminated tag, 1..WFM_KW_MAX_TAG characters.
-   * @param type  element type code (must be KW-legal, see wfm_kw_elem_size).
+   * @param type  element type code (must be KW-legal, see dp_wfm_kw_elem_size).
    * @param value the elements to write, in HOST order (characters for an
    *              ASCII keyword).
    * @param count element count; must be non-zero.
@@ -126,7 +126,7 @@ extern "C"
    * @return bytes written, or 0 if the arguments are invalid or @p cap is too
    *         small (nothing is written in that case).
    */
-  size_t wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
+  size_t dp_wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
                         const void *value, size_t count, int be);
 
   /**
@@ -146,7 +146,7 @@ extern "C"
    * @retval -1 malformed: the entry does not fit in @p avail, or its internal
    *            lengths are inconsistent. @p consumed is not meaningful; stop.
    */
-  int wfm_kw_decode (const uint8_t *p, size_t avail, int be,
+  int dp_wfm_kw_decode (const uint8_t *p, size_t avail, int be,
                      wfm_keyword_t *out, size_t *consumed);
 
 #ifdef __cplusplus

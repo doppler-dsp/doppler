@@ -12,7 +12,7 @@ you reading the output.
 ## What it demonstrates
 
 1. **A frame the caller builds.** A `wfm_frame_desc_t` assembled from
-    `wfm_frame_add_field` / `add_derived` / `add_stage` — fields in wire order,
+    `dp_wfm_frame_add_field` / `add_derived` / `add_stage` — fields in wire order,
     a CRC-16 stage covering a span it names — attached to a source. No
     `wfmgen` flag spells this layout.
 
@@ -45,11 +45,11 @@ you reading the output.
     it demaps the whole record, gaps included, and searches for the frame's
     sync marker. Two things keep that honest rather than circular —
     the marker is **rebuilt from the frame's own declaration**
-    (`wfm_seq_bits` over the same generated field the transmitter used, not a
+    (`dp_wfm_seq_bits` over the same generated field the transmitter used, not a
     second copy that can drift), and the tolerance is **derived** by
     `dp_syncword_max_errors_for` from how much stream is searched rather than
     guessed. Each frame the search lands on is checked with
-    `wfm_frame_desc_crc_ok`, which needs no payload truth, so the result is a
+    `dp_wfm_frame_desc_crc_ok`, which needs no payload truth, so the result is a
     frame error rate a receiver could compute on a capture it did not
     generate.
 
@@ -78,7 +78,7 @@ convention to drift from the one doppler ships.
 | to tell a silent gap from a noisy one      | `snr_m2m4_db` — NaN on a block with zero power                           |
 | to find a marker in a bit stream           | `dp_syncword_find` — offset, polarity and Hamming distance in one answer |
 | to choose how many bit errors to tolerate  | `dp_syncword_max_errors_for`, `dp_syncword_pfa`                          |
-| to know whether a received frame is intact | `wfm_frame_desc_crc_ok` — no payload truth needed                        |
+| to know whether a received frame is intact | `dp_wfm_frame_desc_crc_ok` — no payload truth needed                     |
 
 ### Pick the marker length for the window you search, not by eye
 
@@ -123,7 +123,7 @@ read:
     calls `log10()` and `fabs()`; without `m` on the link line the static target
     fails at link time. doppler's own libm use comes with the imported target —
     yours does not.
-- **`dp_wfm_writer_destroy` *is* `wfm_writer_close`.** The header says C callers
+- **`dp_wfm_writer_destroy` *is* `dp_wfm_writer_close`.** The header says C callers
     may use either name. Calling both, as a create/destroy pair invites, closes
     the `FILE` twice and segfaults inside `ferror()`. Call one, and check its
     status.

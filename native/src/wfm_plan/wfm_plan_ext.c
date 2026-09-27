@@ -47,14 +47,14 @@ Plan_init (PlanObject *self, PyObject *args, PyObject *kwds)
 
   if (!self->closed && self->h)
     {
-      wfm_plan_destroy (self->h);
+      dp_wfm_plan_destroy (self->h);
       self->h      = NULL;
       self->closed = 1;
     }
-  self->h = wfm_plan_prepare (spec_json);
+  self->h = dp_wfm_plan_prepare (spec_json);
   if (!self->h)
     {
-      PyErr_SetString (PyExc_RuntimeError, "wfm_plan_prepare failed");
+      PyErr_SetString (PyExc_RuntimeError, "dp_wfm_plan_prepare failed");
       return -1;
     }
   self->closed = 0;
@@ -73,14 +73,14 @@ Plan_render (PlanObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
       return NULL;
     }
-  npy_intp  _n  = (npy_intp)wfm_plan_len (self->h);
+  npy_intp  _n  = (npy_intp)dp_wfm_plan_len (self->h);
   PyObject *arr = PyArray_SimpleNew (1, &_n, NPY_COMPLEX64);
   if (!arr)
     return NULL;
   float _Complex *_out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   size_t          _got;
   Py_BEGIN_ALLOW_THREADS
-    _got = wfm_plan_render (self->h, overrides_json, _out);
+    _got = dp_wfm_plan_render (self->h, overrides_json, _out);
   Py_END_ALLOW_THREADS
   PyArray_DIMS ((PyArrayObject *)arr)[0] = (npy_intp)_got; /* trim */
   return arr;
@@ -98,14 +98,14 @@ Plan_at (PlanObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
       return NULL;
     }
-  npy_intp  _n  = (npy_intp)wfm_plan_len (self->h);
+  npy_intp  _n  = (npy_intp)dp_wfm_plan_len (self->h);
   PyObject *arr = PyArray_SimpleNew (1, &_n, NPY_COMPLEX64);
   if (!arr)
     return NULL;
   float _Complex *_out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   size_t          _got;
   Py_BEGIN_ALLOW_THREADS
-    _got = wfm_plan_at (self->h, snr_raw, (uint64_t)seed_raw, _out);
+    _got = dp_wfm_plan_at (self->h, snr_raw, (uint64_t)seed_raw, _out);
   Py_END_ALLOW_THREADS
   PyArray_DIMS ((PyArrayObject *)arr)[0] = (npy_intp)_got; /* trim */
   return arr;
@@ -121,7 +121,7 @@ Plan_length (PlanObject *self, PyObject *args)
       return NULL;
     }
   size_t r;
-  r = wfm_plan_len (self->h);
+  r = dp_wfm_plan_len (self->h);
   return PyLong_FromUnsignedLongLong ((unsigned long long)r);
 }
 
@@ -135,7 +135,7 @@ Plan_n_sources (PlanObject *self, PyObject *args)
       return NULL;
     }
   size_t r;
-  r = wfm_plan_n_sources (self->h);
+  r = dp_wfm_plan_n_sources (self->h);
   return PyLong_FromUnsignedLongLong ((unsigned long long)r);
 }
 
@@ -149,7 +149,7 @@ Plan_anchor_seed (PlanObject *self, PyObject *args)
       return NULL;
     }
   uint64_t r;
-  r = wfm_plan_anchor_seed (self->h);
+  r = dp_wfm_plan_anchor_seed (self->h);
   return PyLong_FromUnsignedLongLong ((unsigned long long)r);
 }
 
@@ -162,12 +162,12 @@ Plan_save (PlanObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
       return NULL;
     }
-  size_t _n   = (size_t)wfm_plan_save_bytes (self->h);
+  size_t _n   = (size_t)dp_wfm_plan_save_bytes (self->h);
   char  *_buf = (char *)PyMem_Malloc (_n ? _n : 1);
   if (!_buf)
     return PyErr_NoMemory ();
   size_t _got;
-  _got         = wfm_plan_save (self->h, _buf);
+  _got         = dp_wfm_plan_save (self->h, _buf);
   PyObject *_r = PyBytes_FromStringAndSize (_buf, (Py_ssize_t)_got);
   PyMem_Free (_buf);
   return _r;
@@ -190,11 +190,11 @@ Plan_dump (PlanObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   int _rc;
-  _rc = wfm_plan_dump (self->h, PyBytes_AS_STRING (path));
+  _rc = dp_wfm_plan_dump (self->h, PyBytes_AS_STRING (path));
   Py_XDECREF (path);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "wfm_plan_dump failed",
+      PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "dp_wfm_plan_dump failed",
                     (long long)_rc);
       return NULL;
     }
@@ -208,7 +208,7 @@ Plan_close (PlanObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->h)
     {
-      wfm_plan_destroy (self->h);
+      dp_wfm_plan_destroy (self->h);
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -232,7 +232,7 @@ Plan_dealloc (PlanObject *self)
 {
   if (!self->closed && self->h)
     {
-      wfm_plan_destroy (self->h);
+      dp_wfm_plan_destroy (self->h);
     }
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -244,10 +244,10 @@ static PyMethodDef Plan_methods[] = {
     "`overrides_json` is a small JSON object, all keys optional:\n"
     "`{\"gains\":[dB…], \"phases\":[rad…], \"enable\":[bool…], \"snr\":dB,\n"
     "\"seed\":u}` (`gains`/`phases`/`enable` are per-source, flat and\n"
-    "segment-major, length = wfm_plan_n_sources()). An empty object (or\n"
+    "segment-major, length = dp_wfm_plan_n_sources()). An empty object (or\n"
     "NULL) renders the baseline — bit-identical to\n"
-    "`Composer(scene).compose()`. Writes up to `wfm_plan_len(p)` samples to\n"
-    "`out`.\n"
+    "`Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples\n"
+    "to `out`.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -257,12 +257,12 @@ static PyMethodDef Plan_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[Any]\n"
-    "    Samples actually written for this draw (<= wfm_plan_len(p)).\n" },
+    "    Samples actually written for this draw (<= dp_wfm_plan_len(p)).\n" },
   { "at", (PyCFunction)Plan_at, METH_VARARGS,
     "Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).\n"
     "\n"
     "`out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;\n"
-    "writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with\n"
+    "writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with\n"
     "only `{\"snr\":snr,\"seed\":seed}` — `seed` is always an explicit "
     "override\n"
     "here.\n"
@@ -277,7 +277,7 @@ static PyMethodDef Plan_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[Any]\n"
-    "    Samples actually written for this draw (<= wfm_plan_len(p)).\n" },
+    "    Samples actually written for this draw (<= dp_wfm_plan_len(p)).\n" },
   { "length", (PyCFunction)Plan_length, METH_VARARGS,
     "Worst-case materialized length in samples (every ranged gap at its\n"
     "`hi` bound) — the jm binding's out_len_fn / allocation capacity.\n"
@@ -298,7 +298,7 @@ static PyMethodDef Plan_methods[] = {
     "The noise seed that reproduces a full compose.\n"
     "\n"
     "The first noisy segment's default seed (its first source's `seed`\n"
-    "field). Passing this as `wfm_plan_at`'s seed (with the scene's base\n"
+    "field). Passing this as `dp_wfm_plan_at`'s seed (with the scene's base\n"
     "SNR) yields the byte-identical output of `wfm_compose` for a\n"
     "single-segment scene; for a multi-segment scene each segment still\n"
     "draws from its own default seed unless overridden. Varying the seed\n"
@@ -310,20 +310,20 @@ static PyMethodDef Plan_methods[] = {
     "int\n"
     "    Output.\n" },
   { "save", (PyCFunction)Plan_save, METH_VARARGS,
-    "Serialize a Plan into blob (wfm_plan_save_bytes(p) bytes).\n"
+    "Serialize a Plan into blob (dp_wfm_plan_save_bytes(p) bytes).\n"
     "\n"
     "Native-endian. The blob embeds the spec JSON, so a restore is\n"
     "self-contained. Returns the number of bytes written (==\n"
-    "wfm_plan_save_bytes(p)) — the actual-length contract a variable-output\n"
-    "binding needs, so `save() -> bytes` generates with no hand-written\n"
-    "glue.\n"
+    "dp_wfm_plan_save_bytes(p)) — the actual-length contract a\n"
+    "variable-output binding needs, so `save() -> bytes` generates with no\n"
+    "hand-written glue.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "bytes\n"
     "    Output.\n" },
   { "dump", (PyCFunction)Plan_dump, METH_VARARGS | METH_KEYWORDS,
-    "Save a Plan to a file (wfm_plan_save() bytes at path).\n"
+    "Save a Plan to a file (dp_wfm_plan_save() bytes at path).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -334,8 +334,8 @@ static PyMethodDef Plan_methods[] = {
     "------\n"
     "OSError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``wfm_plan_dump failed``, with the return code appended "
-    "(gh-869).\n" },
+    "    ``dp_wfm_plan_dump failed``, with the return code appended\n"
+    "    (gh-869).\n" },
   { "close", (PyCFunction)Plan_close, METH_NOARGS,
     "Release the handle and free resources." },
   { "__enter__", (PyCFunction)Plan_enter, METH_NOARGS, NULL },
@@ -394,7 +394,7 @@ wfm_plan_PlanFromBlob (PyObject *_mod, PyObject *args)
   Py_ssize_t  blob_len = 0;
   if (!PyArg_ParseTuple (args, "y#", &blob, &blob_len))
     return NULL;
-  wfm_plan_t *_h = wfm_plan_restore ((const void *)blob, (size_t)blob_len);
+  wfm_plan_t *_h = dp_wfm_plan_restore ((const void *)blob, (size_t)blob_len);
   if (!_h)
     {
       PyErr_SetString (PyExc_ValueError, "PlanFromBlob failed");
@@ -403,7 +403,7 @@ wfm_plan_PlanFromBlob (PyObject *_mod, PyObject *args)
   PlanObject *self = (PlanObject *)PlanType.tp_alloc (&PlanType, 0);
   if (!self)
     {
-      wfm_plan_destroy (_h);
+      dp_wfm_plan_destroy (_h);
       return NULL;
     }
   self->h      = _h;
@@ -418,7 +418,7 @@ wfm_plan_PlanFromFile (PyObject *_mod, PyObject *args)
   PyObject *path = NULL; /* fspath -> bytes */
   if (!PyArg_ParseTuple (args, "O&", PyUnicode_FSConverter, &path))
     return NULL;
-  wfm_plan_t *_h = wfm_plan_load (PyBytes_AS_STRING (path));
+  wfm_plan_t *_h = dp_wfm_plan_load (PyBytes_AS_STRING (path));
   Py_XDECREF (path);
   if (!_h)
     {
@@ -428,7 +428,7 @@ wfm_plan_PlanFromFile (PyObject *_mod, PyObject *args)
   PlanObject *self = (PlanObject *)PlanType.tp_alloc (&PlanType, 0);
   if (!self)
     {
-      wfm_plan_destroy (_h);
+      dp_wfm_plan_destroy (_h);
       return NULL;
     }
   self->h      = _h;
@@ -438,9 +438,9 @@ wfm_plan_PlanFromFile (PyObject *_mod, PyObject *args)
 
 static PyMethodDef wfm_plan_functions[]
     = { { "PlanFromBlob", (PyCFunction)wfm_plan_PlanFromBlob, METH_VARARGS,
-          "Construct a Plan via wfm_plan_restore.\n" },
+          "Construct a Plan via dp_wfm_plan_restore.\n" },
         { "PlanFromFile", (PyCFunction)wfm_plan_PlanFromFile, METH_VARARGS,
-          "Construct a Plan via wfm_plan_load.\n" },
+          "Construct a Plan via dp_wfm_plan_load.\n" },
         { NULL, NULL, 0, NULL } };
 
 static struct PyModuleDef _moduledef = { PyModuleDef_HEAD_INIT,

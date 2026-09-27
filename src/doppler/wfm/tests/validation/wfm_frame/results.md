@@ -65,7 +65,7 @@ The clean frame returns 1. A frame carrying NO check returns **-1**, and the thr
 
 ### 2.4 The generated field kinds (C §seq_bits)
 
-A field's bits come from a literal or from a generator, and `add_field` reaches all four kinds. `wfm_seq_bits` -- "the one place a `wfm_seq_t` becomes bits" -- had no C coverage at all before this certification (F1); these are the same properties, asked through the binding.
+A field's bits come from a literal or from a generator, and `add_field` reaches all four kinds. `dp_wfm_seq_bits` -- "the one place a `wfm_seq_t` becomes bits" -- had no C coverage at all before this certification (F1); these are the same properties, asked through the binding.
 
 | kind | period | ones | 2^(n-1) |  |
 |---|---|---|---|---|
@@ -91,18 +91,18 @@ The refusal is the designed behaviour -- no kernel, no frame, never a silent ski
 ### 2.6 What the Python face does not reach
 
 - `wfm_frame_ops_t` -- the caller's kernel table, and with it any stage kind doppler does not implement (§2.5, gh-1125).
-- `wfm_seq_bits` directly -- Python reaches all four kinds through `add_field`, which is the same function one layer up (§2.4).
-- `wfm_frame_dsss_nchips` -- the burst chip count, used by `wfm_synth` when it builds a DSSS burst rather than by a caller.
+- `dp_wfm_seq_bits` directly -- Python reaches all four kinds through `add_field`, which is the same function one layer up (§2.4).
+- `dp_wfm_frame_dsss_nchips` -- the burst chip count, used by `wfm_synth` when it builds a DSSS burst rather than by a caller.
 
 ## 3. Review -- findings, with verdicts
 
-- **F1 · FIXED** — **"The one place a `wfm_seq_t` becomes bits" was tested by nothing.** `wfm_seq_bits` had zero mentions in any C test in the tree, while a descriptor materialises every generated field through it and the DSSS chip builder expands a sequence through it. The hazard it guards is stated in the header and was unasserted: `poly = 0` must mean "the maximal-length polynomial for this register", because a literal 0 reaching `dp_pn_create()` is a register with NO FEEDBACK -- it emits the seed and then zeros, a constant field that still looks like a field. Closed by a section that counts ones over a full period (an m-sequence of period 2^n-1 has exactly 2^(n-1)), plus the mask-to-0/1 on LITERAL, DOTTED starting high, GOLD using its second register, and every refusal. Five sabotages, five red -- including passing `poly` and `seed` straight through.
+- **F1 · FIXED** — **"The one place a `wfm_seq_t` becomes bits" was tested by nothing.** `dp_wfm_seq_bits` had zero mentions in any C test in the tree, while a descriptor materialises every generated field through it and the DSSS chip builder expands a sequence through it. The hazard it guards is stated in the header and was unasserted: `poly = 0` must mean "the maximal-length polynomial for this register", because a literal 0 reaching `dp_pn_create()` is a register with NO FEEDBACK -- it emits the seed and then zeros, a constant field that still looks like a field. Closed by a section that counts ones over a full period (an m-sequence of period 2^n-1 has exactly 2^(n-1)), plus the mask-to-0/1 on LITERAL, DOTTED starting high, GOLD using its second register, and every refusal. Five sabotages, five red -- including passing `poly` and `seed` straight through.
 
 - **F2 · GAP** — **The openness the design is staked on is C-only** (gh-1125). The header's argument is that an open `uint32_t` kind makes "a mission that is not CCSDS" a configuration rather than a pull request. In C it holds and is proven -- a `WFM_STAGE_USER + 1` kind with a caller's ops table assembles and reverses. From Python `add_stage` accepts the kind and `build()` then refuses it, because the kernel must arrive through a `wfm_frame_ops_t` table that has no Python parameter (§2.5). The refusal is correct; the missing half is any way to supply the kernel, which leaves the five built-in kinds as the whole reachable menu from Python -- the fixed menu the header argues against.
 
 - **F3 · BY DESIGN** — **A frame that carries no check answers -1, not 0.** Three distinct values -- 1 pass, 0 fail, -1 no check -- and the distinction is the difference between a frame error rate that means something and one that counts every unprotected frame as an error. Measured in §2.3 rather than assumed, because a two-valued reading of this is the kind of thing that looks right in every test where a CRC happens to be present.
 
-- **F4 · C-ONLY** — **`wfm_frame_dsss_nchips` belongs to this layer and was tested only through the synthesiser.** The chip count a DSSS burst occupies is frame geometry, and until this certification it was exercised only where `wfm_synth` builds a burst -- so it was certified as a side effect of testing something else. Now checked in `test_wfm_frame.c` against the arithmetic the header states, including that a CRC costs exactly `WFM_FRAME_CRC_BITS` spread symbols and that frame bits with no data code are unbuildable. Not on the Python face, so it stays C-certified.
+- **F4 · C-ONLY** — **`dp_wfm_frame_dsss_nchips` belongs to this layer and was tested only through the synthesiser.** The chip count a DSSS burst occupies is frame geometry, and until this certification it was exercised only where `wfm_synth` builds a burst -- so it was certified as a side effect of testing something else. Now checked in `test_wfm_frame.c` against the arithmetic the header states, including that a CRC costs exactly `WFM_FRAME_CRC_BITS` spread symbols and that frame bits with no data code are unbuildable. Not on the Python face, so it stays C-certified.
 
 ## 4. Limits -- the certified envelope
 

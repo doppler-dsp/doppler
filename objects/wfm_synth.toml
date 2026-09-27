@@ -154,7 +154,7 @@ if (type != WFM_SYNTH_NOISE && type != WFM_SYNTH_CHIRP && freq != 0.0) {
 }
 
 /* Bit-pattern state — the array itself is attached after create() via
- * wfm_synth_set_bits() (the pattern is variable-length, not a ctor scalar). */
+ * dp_wfm_synth_set_bits() (the pattern is variable-length, not a ctor scalar). */
 obj->bits = NULL;
 obj->n_bits = 0;
 obj->bit_idx = 0;

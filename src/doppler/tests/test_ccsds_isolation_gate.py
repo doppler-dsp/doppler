@@ -105,7 +105,7 @@ def test_naming_ccsds_in_a_comment_is_not_a_finding(tmp_path: Path) -> None:
         "/* `ccsds_tm` must depend on this file, so this file must not call\n"
         "   ccsds_tm_frame_ops() or the two form a cycle. */\n"
         "// see ccsds_tm/ccsds_tm_frame.h\n"
-        "int wfm_frame_bits (void);\n",
+        "int dp_wfm_frame_bits (void);\n",
     )
     r = _run(f)
     assert r.returncode == 0, r.stdout + r.stderr

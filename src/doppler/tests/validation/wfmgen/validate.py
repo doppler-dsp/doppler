@@ -237,12 +237,14 @@ def build(write: bool = True) -> Report:
         "One scene geometry — `--fs 1e6 --freq 1e5 --count 1024 --snr 100`, "
         "written as raw little-endian `cf32` — expressed three ways and "
         "hashed. The C leg builds a `wfm_source_t` STRUCT and calls "
-        "`wfm_compose_create`; the CLI leg parses flags; the Python leg goes "
+        "`dp_wfm_compose_create`; the CLI leg parses flags; the Python leg "
+        "goes "
         "through `Composer` and `Writer`."
     )
     R.md()
     R.md(
-        "The C leg goes through structs and **not** `wfm_compose_from_json` "
+        "The C leg goes through structs and **not** "
+        "`dp_wfm_compose_from_json` "
         "on purpose. Routing it through JSON would put all three legs behind "
         "one parser, and a consistency test is structurally blind to any "
         "defect its paths share — the failure mode `validation.md` step 2 "
@@ -308,7 +310,8 @@ def build(write: bool = True) -> Report:
         "**The defaults goal 2 depends on are declared once and restated "
         "twice, two of them as enum indices** (#1142). `just-makeit.toml` "
         "declares all eleven with `default =`; `wfmgen.c` repeats them as a "
-        "struct literal inside `main()`; a C caller of `wfm_compose_create` "
+        "struct literal inside `main()`; a C caller of "
+        "`dp_wfm_compose_create` "
         "gets a zero-initialised struct and neither. Measured: every value "
         "agrees today, and NO gate holds them there — both scripts that "
         "parse `wfmgen.c` read its flag table, not this literal. Worse, "

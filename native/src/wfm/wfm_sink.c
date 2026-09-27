@@ -120,13 +120,13 @@ grow (wfm_stream_sink_t *s, size_t need)
  * present.
  */
 int
-wfm_stream_sink_available (void)
+dp_wfm_stream_sink_available (void)
 {
   return 1;
 }
 
 wfm_stream_sink_t *
-wfm_stream_sink_open (const char *endpoint, int sample_type)
+dp_wfm_stream_sink_open (const char *endpoint, int sample_type)
 {
   /* map wavegen index → dp_sample_type_t */
   dp_sample_type_t dt;
@@ -171,8 +171,8 @@ wfm_stream_sink_open (const char *endpoint, int sample_type)
 }
 
 int
-wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
-                      size_t n, double fs, double fc)
+dp_wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
+                         size_t n, double fs, double fc)
 {
   if (!sink || (n && !iq))
     return -1;
@@ -251,7 +251,7 @@ wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
 }
 
 int
-wfm_stream_sink_send_eos (wfm_stream_sink_t *sink)
+dp_wfm_stream_sink_send_eos (wfm_stream_sink_t *sink)
 {
   if (!sink || !sink->pub)
     return DP_OK;
@@ -259,7 +259,7 @@ wfm_stream_sink_send_eos (wfm_stream_sink_t *sink)
 }
 
 int
-wfm_stream_sink_drain (wfm_stream_sink_t *sink, int timeout_ms)
+dp_wfm_stream_sink_drain (wfm_stream_sink_t *sink, int timeout_ms)
 {
   if (!sink || !sink->pub)
     return DP_OK;
@@ -267,7 +267,7 @@ wfm_stream_sink_drain (wfm_stream_sink_t *sink, int timeout_ms)
 }
 
 void
-wfm_stream_sink_close (wfm_stream_sink_t *sink)
+dp_wfm_stream_sink_close (wfm_stream_sink_t *sink)
 {
   if (sink)
     {
@@ -279,27 +279,27 @@ wfm_stream_sink_close (wfm_stream_sink_t *sink)
 }
 
 void
-wfm_stream_sink_track_clipping (wfm_stream_sink_t *sink, int on)
+dp_wfm_stream_sink_track_clipping (wfm_stream_sink_t *sink, int on)
 {
   if (sink)
     sink->track = on ? 1 : 0;
 }
 
 void
-wfm_stream_sink_set_gain (wfm_stream_sink_t *sink, double gain)
+dp_wfm_stream_sink_set_gain (wfm_stream_sink_t *sink, double gain)
 {
   if (sink)
     sink->gain = (float)gain;
 }
 
 double
-wfm_stream_sink_peak (const wfm_stream_sink_t *sink)
+dp_wfm_stream_sink_peak (const wfm_stream_sink_t *sink)
 {
   return sink ? (double)sink->peak : 0.0;
 }
 
 double
-wfm_stream_sink_clip_fraction (const wfm_stream_sink_t *sink)
+dp_wfm_stream_sink_clip_fraction (const wfm_stream_sink_t *sink)
 {
   if (!sink || sink->ntot == 0)
     return 0.0;

@@ -248,7 +248,7 @@ reports success afterwards.
 size_t dp_wfm_reader_read_follow (dp_wfm_reader_state_t *r, size_t n,
                                float complex *out, size_t max_out);
 int    dp_wfm_reader_get_ending  (const dp_wfm_reader_state_t *r);
-void   wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void));
+void   dp_wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void));
 ```
 
 **Zero means the capture ended.** With an unbounded wait the call does not
@@ -483,7 +483,7 @@ two clocks, drain-wins. The Python face is thin glue over it and is gated
 as glue (phase 5), not as a second copy of this.
 
 The §3 shutdown rules are testable here with no interrupt primitive
-anywhere, which is what `wfm_reader_set_stop_fn` is for: the test supplies
+anywhere, which is what `dp_wfm_reader_set_stop_fn` is for: the test supplies
 its own predicate. Nothing in phase 4 waits on
 [#976](https://github.com/doppler-dsp/doppler/issues/976).
 

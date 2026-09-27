@@ -383,7 +383,7 @@ def draws(scene: Composer) -> list[dict]:
     ``level``, ``doppler``, ``doppler_rate``) are the drawn values.
 
     These are the same rows the SigMF metadata is built from — both read
-    through ``wfm_compose_draws()`` in C — so a capture and an in-process
+    through ``dp_wfm_compose_draws()`` in C — so a capture and an in-process
     render cannot disagree about what was generated.
 
     Parameters

@@ -107,7 +107,7 @@ frame whose sync was never **detected** is an error — score only the frames yo
 managed to find and the FER *improves* as the receiver gets worse at finding
 them. A frame carrying **no** CRC is not an error when its sync was found, or
 the number measures the frame format rather than the receiver; pass
-`wfm_frame_crc_ok()`'s `-1` straight through and that is handled. The two
+`dp_wfm_frame_crc_ok()`'s `-1` straight through and that is handled. The two
 failure modes stay separately countable through `fer()` and `sync_miss()`,
 because "the sync word is too short at this Es/N0" and "the demodulator is
 making bit errors" are different repairs.

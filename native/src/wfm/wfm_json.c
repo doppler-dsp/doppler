@@ -245,7 +245,7 @@ add_seq_gen (cJSON *o, const char *key, const wfm_seq_t *q)
  * word and the CRC choice. Deliberately NOT type-gated: an unspread `bits`
  * source can be framed too, and gating this on dsss is how a framed bits
  * --record came to omit the frame entirely, so --from-file silently rebuilt an
- * unframed waveform. `wfm_source_has_frame()` is the same predicate the
+ * unframed waveform. `dp_wfm_source_has_frame()` is the same predicate the
  * generator uses, so what is recorded is exactly what was applied.
  *
  * The payload is NOT here: a bits source already emits it as "pattern" via
@@ -253,7 +253,7 @@ add_seq_gen (cJSON *o, const char *key, const wfm_seq_t *q)
 static void
 add_frame_fields (cJSON *o, const wfm_source_t *src)
 {
-  if (!wfm_source_has_frame (src))
+  if (!dp_wfm_source_has_frame (src))
     return;
   add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
   add_seq_gen (o, "acq_code_gen", &src->acq_code);
@@ -386,9 +386,9 @@ add_num_or_range (cJSON *o, const char *key, double lo, double hi, int ranged)
  * `doppler`/`doppler_rate` go through add_num_or_range, so a ranged one
  * records the SPAN it was given rather than the value one instance drew --
  * "what does this spec permit" is the question a spec answers, and
- * wfm_compose_draws() answers "what did this run do" separately. That is what
- * makes --record -> --from-file replay the same scene rather than one frozen
- * instance of it. */
+ * dp_wfm_compose_draws() answers "what did this run do" separately. That is
+ * what makes --record -> --from-file replay the same scene rather than one
+ * frozen instance of it. */
 static void
 add_doppler_fields (cJSON *o, const wfm_source_t *src)
 {
@@ -976,7 +976,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     return -1;
   /* A CARRIED description, if the record has one. Read after the flat fields
    * rather than before, so it is the LAST word on what frame this is —
-   * matching wfm_source_describe_frame(), where a carried description beats
+   * matching dp_wfm_source_describe_frame(), where a carried description beats
    * the flat fields it sits beside instead of being merged with them. */
   if (read_frame_desc (so, out) != 0)
     {
@@ -1089,8 +1089,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
 }
 
 char *
-wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
-                  int continuous, int seed_advance, double headroom)
+dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
+                     int continuous, int seed_advance, double headroom)
 {
   cJSON *root = cJSON_CreateObject ();
   if (!root)
@@ -1203,7 +1203,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
 }
 
 char *
-wfm_spec_template_json (void)
+dp_wfm_spec_template_json (void)
 {
   /* A representative, ready-to-edit spec exercising the schema surface, built
    * from in-memory structs and run through the same serialiser as --record so
@@ -1211,7 +1211,7 @@ wfm_spec_template_json (void)
    * unchanged: the two 1-source segments are no-ops for noise resolution, and
    * the `sum` segment's first snr-bearing source (bpsk) anchors the floor
    * while the tone is placed above it — neither over-specifies (no snr+level
-   * on a non-anchor), so wfm_resolve_noise() accepts it. */
+   * on a non-anchor), so dp_wfm_resolve_noise() accepts it. */
   static const uint8_t pattern[] = { 1, 0, 1, 1, 0, 0, 0, 1, 1, 0 };
   wfm_source_t         tone      = {
     .type      = WFM_SYNTH_TONE,
@@ -1259,11 +1259,11 @@ wfm_spec_template_json (void)
       .off_samples = 2000 }, /* a trailing gap of zeros */
     { .sources = mix, .n_sources = 2, .fs = 1e6, .num_samples = 10000 },
   };
-  return wfm_spec_to_json (segs, 3, 0, 0, 0, 0.0);
+  return dp_wfm_spec_to_json (segs, 3, 0, 0, 0, 0.0);
 }
 
 double
-wfm_spec_headroom (const char *json)
+dp_wfm_spec_headroom (const char *json)
 {
   cJSON *root = cJSON_Parse (json);
   if (!root)
@@ -1273,8 +1273,8 @@ wfm_spec_headroom (const char *json)
   return h;
 }
 
-wfm_compose_state_t *
-wfm_compose_from_json_why (const char *json, const char **why)
+dp_wfm_compose_state_t *
+dp_wfm_compose_from_json_why (const char *json, const char **why)
 {
   if (why)
     *why = NULL;
@@ -1397,7 +1397,7 @@ wfm_compose_from_json_why (const char *json, const char **why)
   cJSON_Delete (root);
 
   /* Ask the ONE frame rule before handing over, purely so the reason can be
-     REPORTED. wfm_compose_create() asks it too and would refuse either way;
+     REPORTED. dp_wfm_compose_create() asks it too and would refuse either way;
      what it cannot do is say why, because it answers with a NULL pointer.
      A spec is the interface most likely to be hand-written, so it is the one
      that most needs the sentence -- doppler#1155, where a derived field
@@ -1405,9 +1405,9 @@ wfm_compose_from_json_why (const char *json, const char **why)
   const char *bad = NULL;
   for (size_t j = 0; j < n && !bad; j++)
     for (size_t k = 0; k < segs[j].n_sources && !bad; k++)
-      bad = wfm_source_frame_error (&segs[j].sources[k]);
+      bad = dp_wfm_source_frame_error (&segs[j].sources[k]);
 
-  wfm_compose_state_t *c = NULL;
+  dp_wfm_compose_state_t *c = NULL;
   if (bad)
     {
       if (why)
@@ -1415,8 +1415,8 @@ wfm_compose_from_json_why (const char *json, const char **why)
     }
   else
     {
-      c = wfm_compose_create (segs, n, repeat, cont);
-      wfm_compose_set_seed_advance (c, seed_advance);
+      c = dp_wfm_compose_create (segs, n, repeat, cont);
+      dp_wfm_compose_set_seed_advance (c, seed_advance);
     }
   for (size_t j = 0; j < n; j++)
     {
@@ -1427,14 +1427,14 @@ wfm_compose_from_json_why (const char *json, const char **why)
   return c;
 }
 
-wfm_compose_state_t *
-wfm_compose_from_json (const char *json)
+dp_wfm_compose_state_t *
+dp_wfm_compose_from_json (const char *json)
 {
-  return wfm_compose_from_json_why (json, NULL);
+  return dp_wfm_compose_from_json_why (json, NULL);
 }
 
-wfm_compose_state_t *
-wfm_compose_from_file (const char *path)
+dp_wfm_compose_state_t *
+dp_wfm_compose_from_file (const char *path)
 {
   FILE *f = fopen (path, "rb");
   if (!f)
@@ -1455,24 +1455,24 @@ wfm_compose_from_file (const char *path)
     }
   size_t rd = fread (buf, 1, (size_t)len, f);
   fclose (f);
-  buf[rd]                = '\0';
-  wfm_compose_state_t *c = wfm_compose_from_json (buf);
+  buf[rd]                   = '\0';
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (buf);
   free (buf);
   return c;
 }
 
 /* The drawn per-instance values as JSON — see wfm/wfm_compose.h.
  *
- * Every number here comes from wfm_compose_draws(), never from the source
+ * Every number here comes from dp_wfm_compose_draws(), never from the source
  * struct: for a ranged field the struct still holds `lo`, and reporting that
  * is exactly the defect doppler#1086 measured at 1224 Hz and 6.0 dB out. */
 char *
-wfm_draws_json (const wfm_segment_t *segs, size_t n_segs)
+dp_wfm_draws_json (const wfm_segment_t *segs, size_t n_segs)
 {
-  const size_t n_rows = wfm_compose_draws (segs, n_segs, NULL, 0);
+  const size_t n_rows = dp_wfm_compose_draws (segs, n_segs, NULL, 0);
   wfm_draw_t  *rows   = n_rows ? dp_xmalloc (n_rows * sizeof *rows) : NULL;
   if (rows)
-    (void)wfm_compose_draws (segs, n_segs, rows, n_rows);
+    (void)dp_wfm_compose_draws (segs, n_segs, rows, n_rows);
 
   cJSON *arr = dp_xnn (cJSON_CreateArray ());
   for (size_t i = 0; rows && i < n_rows; i++)

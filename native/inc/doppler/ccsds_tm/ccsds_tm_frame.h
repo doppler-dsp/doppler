@@ -48,7 +48,7 @@
  *
  * This is that place: @ref ccsds_tm_frame_encode takes a Transfer Frame as
  * packed octets and returns unpacked channel symbols, the representation
- * `wfm_frame_bits` and the spreader already pass around. Octets go on the
+ * `dp_wfm_frame_bits` and the spreader already pass around. Octets go on the
  * wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the
  * ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol
  * the same way.
@@ -430,7 +430,7 @@ extern "C"
    * @brief The kernels a described CADU is assembled with.
    *
    * The outer code, the randomiser and the inner code, as the transforms
-   * @ref wfm_frame_assemble calls. Each one is the same function
+   * @ref dp_wfm_frame_assemble calls. Each one is the same function
    * @ref ccsds_tm_frame_encode calls, so the two paths cannot come to
    * disagree about what a stage does — only about which bits it is handed,
    * and that is what the description states.

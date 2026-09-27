@@ -871,7 +871,7 @@ byte-identical to no `--conv` at all.
 The first fix ([#1017](https://github.com/doppler-dsp/doppler/issues/1017))
 gave both ends one `wfm_frame_desc_t`. It fixed the assumption and put the
 frame in the wrong object: a receiver then held `crc`/`rs_depth`/
-`randomise`/`attach_asm`, ran `wfm_frame_check()` and published
+`randomise`/`attach_asm`, ran `dp_wfm_frame_check()` and published
 `frame_valid` — none of which is a physical-layer fact — and a CCSDS
 coverage policy had moved into `wfm/wfm_frame.h`, whose own header says it
 "knows nothing about CCSDS".

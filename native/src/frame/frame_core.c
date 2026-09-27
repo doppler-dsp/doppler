@@ -52,8 +52,8 @@ seq_fill (wfm_seq_t *s, uint8_t **own, int kind, const uint8_t *lit,
           s->bits = *own;
         }
       /* A literal with a length but no array stays unbuildable on purpose:
-         wfm_frame_bits() refuses it, and dp_frame_create() turns that into a
-         NULL rather than emitting a frame with a hole in it. */
+         dp_wfm_frame_bits() refuses it, and dp_frame_create() turns that into
+         a NULL rather than emitting a frame with a hole in it. */
       return 0;
     }
   s->len  = gen_len;
@@ -109,12 +109,12 @@ dp_frame_create (
      here and every method below reads only `d`. The seq structs carry the
      `bits` pointers seq_fill already aimed at the owned copies, so nothing
      needs repointing. */
-  wfm_frame_describe (&obj->f, &obj->d);
+  dp_wfm_frame_describe (&obj->f, &obj->d);
   obj->named = 1;
 
   /* Geometry once, from the one implementation. */
-  wfm_frame_layout (&obj->f, &obj->l);
-  wfm_frame_desc_layout (&obj->d, &obj->dl);
+  dp_wfm_frame_layout (&obj->f, &obj->l);
+  dp_wfm_frame_desc_layout (&obj->d, &obj->dl);
   obj->nbits = obj->l.total_bits;
   if (obj->nbits == 0)
     {
@@ -131,7 +131,7 @@ dp_frame_create (
      where the refusal happens and what the repeat costs, not correctness.) */
   obj->one = (uint8_t *)malloc (obj->nbits);
   if (!obj->one
-      || wfm_frame_assemble (&obj->d, NULL, obj->one, obj->nbits)
+      || dp_wfm_frame_assemble (&obj->d, NULL, obj->one, obj->nbits)
              != obj->nbits)
     {
       dp_frame_destroy (obj);
@@ -184,7 +184,7 @@ dp_frame_crc_ok (dp_frame_state_t *state, const uint8_t *rx_bits,
 {
   if (!state || !rx_bits || rx_bits_len < state->nbits)
     return -1;
-  return wfm_frame_desc_crc_ok (&state->d, rx_bits);
+  return dp_wfm_frame_desc_crc_ok (&state->d, rx_bits);
 }
 
 /* ── the builder ──────────────────────────────────────────────────────
@@ -250,13 +250,13 @@ frame_create_desc (
   obj->f.crc           = crc;
 
   /* An empty geometry starts an EMPTY description rather than four
-     zero-length fields. wfm_frame_describe always emits its four, which is
+     zero-length fields. dp_wfm_frame_describe always emits its four, which is
      right there -- it is what keeps `crc_off` at the end of the payload when
      the trailer is absent -- and wrong here, where a placeholder field would
      take an index, push the caller's first real field to 4, and leave a
      description whose field count does not match what anyone wrote. */
-  if (wfm_frame_nbits (&obj->f) != 0)
-    wfm_frame_describe (&obj->f, &obj->d);
+  if (dp_wfm_frame_nbits (&obj->f) != 0)
+    dp_wfm_frame_describe (&obj->f, &obj->d);
 
   /* `named` stays 0 on purpose: layout()'s NAMED view would go stale the
      moment a fifth field is appended, and a stale offset is worse than an
@@ -325,7 +325,7 @@ dp_frame_build (dp_frame_state_t *state)
 {
   if (!state || state->one != NULL)
     return -1;
-  if (wfm_frame_desc_layout (&state->d, &state->dl) != 0)
+  if (dp_wfm_frame_desc_layout (&state->d, &state->dl) != 0)
     return -1;
 
   state->nbits = state->dl.out_bits;
@@ -336,7 +336,7 @@ dp_frame_build (dp_frame_state_t *state)
      body: a description that cannot produce its own bits is not a frame, and
      the refusal belongs at the point the caller can still do something about
      it. This is also where a stage naming a kernel nothing here carries is
-     refused -- wfm_frame_assemble returns 0 rather than skipping it.
+     refused -- dp_wfm_frame_assemble returns 0 rather than skipping it.
 
      The CCSDS kernels are what make the coded stages reachable from Python at
      all: ccsds_tm has no binding of its own and is not getting one, so this
@@ -354,7 +354,7 @@ dp_frame_build (dp_frame_state_t *state)
 
   state->one = (uint8_t *)malloc (state->nbits);
   if (!state->one
-      || wfm_frame_assemble (&state->d, &ops, state->one, state->nbits)
+      || dp_wfm_frame_assemble (&state->d, &ops, state->one, state->nbits)
              != state->nbits)
     {
       free (state->one);
@@ -432,7 +432,7 @@ dp_frame_deframe (dp_frame_state_t *state, const uint8_t *rx_bits,
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
   wfm_frame_rx_t rx;
-  const int      verdict = wfm_frame_check (&state->d, &ops, out, &rx);
+  const int      verdict = dp_wfm_frame_check (&state->d, &ops, out, &rx);
 
   state->rx_checked = 0;
   state->rx_units   = 0;
@@ -471,7 +471,7 @@ dp_frame_check (dp_frame_state_t *state, const uint8_t *rx_bits,
   wfm_frame_ops_t ops;
   ccsds_tm_frame_ops (&ops, NULL);
   wfm_frame_rx_t rx;
-  const int      verdict = wfm_frame_check (&state->d, &ops, work, &rx);
+  const int      verdict = dp_wfm_frame_check (&state->d, &ops, work, &rx);
   free (work);
   if (verdict < 0)
     return out; /* no reversible stage: pass = 0, checked = 0 */
@@ -503,7 +503,7 @@ dp_frame_check (dp_frame_state_t *state, const uint8_t *rx_bits,
 int
 dp_frame_field_index (dp_frame_state_t *state, const char *name)
 {
-  return state ? wfm_frame_field_index (&state->d, name) : -1;
+  return state ? dp_wfm_frame_field_index (&state->d, name) : -1;
 }
 
 int
@@ -513,7 +513,7 @@ dp_frame_name_field (dp_frame_state_t *state, uint32_t index, const char *name)
     return -1;
   /* Refuse a duplicate here too: a rename that collided would make
      field_index answer with whichever field it reached first. */
-  const int taken = wfm_frame_field_index (&state->d, name);
+  const int taken = dp_wfm_frame_field_index (&state->d, name);
   if (taken >= 0 && (uint32_t)taken != index)
     return -1;
   wfm_seq_t keep = state->d.field[index].seq;
@@ -534,7 +534,7 @@ dp_frame_add_derived (dp_frame_state_t *state, const char *name, size_t bits)
 {
   if (!state || state->one != NULL)
     return -1;
-  return wfm_frame_add_derived (&state->d, name, bits);
+  return dp_wfm_frame_add_derived (&state->d, name, bits);
 }
 
 /* Expand `bits` bits into a literal field, through dp_frame_add_field so the
@@ -592,7 +592,8 @@ dp_frame_add_stage_over (dp_frame_state_t *state, int kind, const char *first,
 {
   if (!state || state->one != NULL)
     return -1;
-  const int s = wfm_frame_add_stage (&state->d, (uint32_t)kind, first, last);
+  const int s
+      = dp_wfm_frame_add_stage (&state->d, (uint32_t)kind, first, last);
   if (s < 0)
     return -1;
   state->d.stage[s].depth     = depth;

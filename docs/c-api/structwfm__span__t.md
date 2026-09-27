@@ -89,7 +89,7 @@ _One rendered segment instance's exact timing: where it lands in the composed st
 ## Detailed Description
 
 
-Produced by [**wfm\_compose\_spans()**](wfm__compose_8h.md#function-wfm_compose_spans) — the deterministic replay of the ranged draws (same hash, epoch 0), so the reported positions match the rendered capture sample-for-sample without rendering anything. This is the ground truth a detector-scoring pipeline or a SigMF annotation needs: the burst (on-time) of instance k starts at `start + delay` and runs `on` samples. 
+Produced by [**dp\_wfm\_compose\_spans()**](wfm__compose_8h.md#function-dp_wfm_compose_spans) — the deterministic replay of the ranged draws (same hash, epoch 0), so the reported positions match the rendered capture sample-for-sample without rendering anything. This is the ground truth a detector-scoring pipeline or a SigMF annotation needs: the burst (on-time) of instance k starts at `start + delay` and runs `on` samples. 
 
 
     

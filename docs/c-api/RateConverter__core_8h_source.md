@@ -89,13 +89,13 @@ bool dp_RateConverter_get_clipped (const dp_RateConverter_state_t *s);
 
 bool dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s);
 
-size_t RateConverter_num_stages (const dp_RateConverter_state_t *s);
+size_t dp_RateConverter_num_stages (const dp_RateConverter_state_t *s);
 
 double dp_RateConverter_gain (const dp_RateConverter_state_t *s);
 const char *dp_RateConverter_stages_value (const dp_RateConverter_state_t *s,
                                         size_t i);
 
-size_t RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
+size_t dp_RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
 size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
                                        size_t i);
 

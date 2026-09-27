@@ -141,6 +141,8 @@
 * **dp\_RateConverter\_get\_narrow\_pulse** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_state** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **dp\_RateConverter\_num\_bank\_shape** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **dp\_RateConverter\_num\_stages** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_reset** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_set\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_set\_state** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
@@ -1614,6 +1616,7 @@
 * **dp\_wfm\_stream\_sink\_set\_gain** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **dp\_wfm\_stream\_sink\_track\_clipping** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **dp\_doppler\_wfmgen** ([**wfmgen.h**](wfmgen_8h.md))
+* **dp\_wfm\_source\_to\_synth** ([**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_reader\_create** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_reader\_destroy** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_reader\_find\_header\_field** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
@@ -1773,8 +1776,6 @@
 
 ## r
 
-* **RateConverter\_num\_bank\_shape** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
-* **RateConverter\_num\_stages** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **ratesync\_loop\_take\_output** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_step** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_step\_ted** ([**ratesync\_core.h**](ratesync__core_8h.md))
@@ -1807,7 +1808,6 @@
 * **wfm\_j1950\_to\_unix\_sec** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_timecode\_is\_set** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_unix\_to\_j1950\_sec** ([**wfm\_time.h**](wfm__time_8h.md))
-* **wfm\_source\_to\_synth** ([**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **wfm\_synth\_bit\_symbol** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_bps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_cont\_dsss\_chip** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

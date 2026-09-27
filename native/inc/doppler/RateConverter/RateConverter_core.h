@@ -254,7 +254,7 @@ bool dp_RateConverter_get_clipped (const dp_RateConverter_state_t *s);
 bool dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s);
 
 /** @brief Number of planned cascade stages (backs the `stages` property). */
-size_t RateConverter_num_stages (const dp_RateConverter_state_t *s);
+size_t dp_RateConverter_num_stages (const dp_RateConverter_state_t *s);
 
 /**
  * @brief The cascade's response to a constant input, from its stages' own
@@ -299,7 +299,7 @@ const char *dp_RateConverter_stages_value (const dp_RateConverter_state_t *s,
  * @brief Terminal polyphase bank shape (backs the `bank_shape` property).
  * @return 2 when the cascade ends in a Resampler stage, else 0.
  */
-size_t RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
+size_t dp_RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
 /** @brief Element @p i of the bank shape: 0 -> num_phases, 1 -> num_taps. */
 size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
                                        size_t i);

@@ -527,7 +527,7 @@ def test_step_matches_steps_bit_exact():
 def test_bits_needs_pattern():
     # A pattern-less bits Synth has nothing to transmit. Standalone generation
     # is lazy, so the guard (in the C bridge) surfaces at first steps(): the
-    # generated ensure_gen raises when wfm_source_to_synth returns NULL.
+    # generated ensure_gen raises when dp_wfm_source_to_synth returns NULL.
     with pytest.raises(RuntimeError):
         Synth(type="bits").steps(4)
 

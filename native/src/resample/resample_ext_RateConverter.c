@@ -459,7 +459,7 @@ RateConverter_getprop_stages (RateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = RateConverter_num_stages (self->handle);
+  size_t    _n = dp_RateConverter_num_stages (self->handle);
   PyObject *_c = PyList_New ((Py_ssize_t)_n);
   if (!_c)
     return NULL;
@@ -494,7 +494,7 @@ RateConverter_getprop_bank_shape (RateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = RateConverter_num_bank_shape (self->handle);
+  size_t    _n = dp_RateConverter_num_bank_shape (self->handle);
   PyObject *_c = PyList_New ((Py_ssize_t)_n);
   if (!_c)
     return NULL;

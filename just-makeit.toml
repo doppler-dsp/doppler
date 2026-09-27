@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.92.1"
+jm_version = "0.92.2"
 name = "doppler"
 version = "0.57.0"
 build = "cmake"
@@ -1383,7 +1383,7 @@ doc = "Continuous dsss data source: 1 = code-only (the pure spreading code, no d
 
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
-bridge_fn = "wfm_source_to_synth"
+bridge_fn = "dp_wfm_source_to_synth"
 
 [module.wfm_compose.segment]
 type_name = "Segment"

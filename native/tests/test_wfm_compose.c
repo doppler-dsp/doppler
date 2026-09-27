@@ -25,8 +25,8 @@
    — the Python binding declares it the same way (wfm_compose_ext.c) — and the
    unspread-frame section below asserts it refuses exactly what the composer's
    path refuses, which is the only way "they share the attach" is checkable. */
-extern dp_wfm_synth_state_t *wfm_source_to_synth (const wfm_source_t *,
-                                                  double);
+extern dp_wfm_synth_state_t *dp_wfm_source_to_synth (const wfm_source_t *,
+                                                     double);
 
 /* ── the SEAM functions, whose whole job is that two faces agree ─────────
  *
@@ -165,7 +165,7 @@ test_the_two_faces_agree (void)
 
         dp_wfm_synth_state_t *comp = dp_wfm_compose_build_synth (
             &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
-        dp_wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+        dp_wfm_synth_state_t *bridge = dp_wfm_source_to_synth (&s, 1e6);
         DP_REQUIRE_MSG (comp && bridge, "both faces build");
         dp_wfm_synth_steps (comp, a, n);
         dp_wfm_synth_steps (bridge, b, n);
@@ -195,7 +195,7 @@ test_the_two_faces_agree (void)
     s.span                     = n / 4; /* deliberately not the on-time */
     dp_wfm_synth_state_t *comp = dp_wfm_compose_build_synth (
         &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
-    dp_wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+    dp_wfm_synth_state_t *bridge = dp_wfm_source_to_synth (&s, 1e6);
     DP_REQUIRE_MSG (comp && bridge, "both faces build a declared chirp");
     DP_REQUIRE_MSG (comp->chirp_span == n / 4 && bridge->chirp_span == n / 4,
                     "the declared span beats the on-time on both faces");
@@ -215,10 +215,10 @@ test_the_two_faces_agree (void)
     DP_REQUIRE_MSG (comp && comp->chirp_span == n,
                     "an undeclared span falls back to the on-time");
     dp_wfm_synth_destroy (comp);
-    DP_REQUIRE_MSG (!wfm_source_to_synth (&s, 1e6),
+    DP_REQUIRE_MSG (!dp_wfm_source_to_synth (&s, 1e6),
                     "a standalone sweep with no span is refused, not guessed");
     s.f_end = s.freq; /* flat: no slope to lose */
-    bridge  = wfm_source_to_synth (&s, 1e6);
+    bridge  = dp_wfm_source_to_synth (&s, 1e6);
     DP_REQUIRE_MSG (bridge != NULL, "a flat chirp needs no span");
     dp_wfm_synth_destroy (bridge);
   }
@@ -257,7 +257,7 @@ test_the_two_faces_agree (void)
     DP_REQUIRE_MSG (da && db, "dsss faces: alloc");
     dp_wfm_synth_state_t *comp = dp_wfm_compose_build_synth (
         &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
-    dp_wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+    dp_wfm_synth_state_t *bridge = dp_wfm_source_to_synth (&s, 1e6);
     DP_REQUIRE_MSG (comp && bridge, "both faces build a dsss burst");
     dp_wfm_synth_steps (comp, da, n);
     dp_wfm_synth_steps (bridge, db, n);
@@ -2121,7 +2121,7 @@ main (void)
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&framed_pn) == NULL,
                     "a bounded payload is what a framed PN-sourced waveform "
                     "was ever missing");
-    dp_wfm_synth_state_t *psy = wfm_source_to_synth (&framed_pn, 1e6);
+    dp_wfm_synth_state_t *psy = dp_wfm_source_to_synth (&framed_pn, 1e6);
     DP_REQUIRE_MSG (psy, "and it BUILDS on the standalone face");
     dp_wfm_synth_destroy (psy);
 
@@ -2133,7 +2133,7 @@ main (void)
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&framed_gen) == NULL,
                     "a generated payload is a payload -- tested on LENGTH, "
                     "never on the array a generated kind does not have");
-    dp_wfm_synth_state_t *gsy = wfm_source_to_synth (&framed_gen, 1e6);
+    dp_wfm_synth_state_t *gsy = dp_wfm_source_to_synth (&framed_gen, 1e6);
     DP_REQUIRE_MSG (gsy, "a framed waveform whose payload is GENERATED "
                          "builds -- the last place gh-762's flattening "
                          "survived was this descriptor's payload field");
@@ -2154,7 +2154,7 @@ main (void)
     framed_chirp.type         = WFM_SYNTH_CHIRP;
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&framed_chirp) != NULL,
                     "a chirp has no bit stream to frame, payload or not");
-    DP_REQUIRE_MSG (!wfm_source_to_synth (&framed_chirp, 1.0),
+    DP_REQUIRE_MSG (!dp_wfm_source_to_synth (&framed_chirp, 1.0),
                     "the standalone face refuses a frame the waveform type "
                     "cannot carry");
     wfm_segment_t bad_seg = { .sources     = &framed_chirp,
@@ -2247,7 +2247,7 @@ main (void)
                                      0),
         "the composer's build fails rather than emitting an unframed "
         "waveform");
-    DP_REQUIRE_MSG (!wfm_source_to_synth (&broken, 1.0),
+    DP_REQUIRE_MSG (!dp_wfm_source_to_synth (&broken, 1.0),
                     "and the standalone bridge agrees — they share the attach "
                     "for exactly this reason");
 
@@ -2762,7 +2762,7 @@ main (void)
             .pn_length   = 7,
             .symbol_rate = 1e4,
             .data_code   = { .kind = WFM_SEQ_PN, .len = 31, .reg_bits = 5 } };
-    dp_wfm_synth_state_t *cs = wfm_source_to_synth (&cgen, 1e6);
+    dp_wfm_synth_state_t *cs = dp_wfm_source_to_synth (&cgen, 1e6);
     DP_REQUIRE_MSG (cs,
                     "a continuous stream spread by a GENERATED code builds -- "
                     "a generated code carries no array, so a pointer test "
@@ -2782,7 +2782,7 @@ main (void)
                                     .payload.bits = pay5,
                                     .payload.len  = 5,
                                     .crc          = 1 };
-    dp_wfm_synth_state_t *ns    = wfm_source_to_synth (&nopre, 1e6);
+    dp_wfm_synth_state_t *ns    = dp_wfm_source_to_synth (&nopre, 1e6);
     DP_REQUIRE_MSG (ns, "a burst with a sync word and no preamble is a burst");
     dp_wfm_synth_destroy (ns);
 
@@ -2791,14 +2791,14 @@ main (void)
        would produce a capture no receiver can be scored against. */
     wfm_source_t cbad = cgen;
     cbad.data_code    = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 8 };
-    DP_REQUIRE_MSG (!wfm_source_to_synth (&cbad, 1e6),
+    DP_REQUIRE_MSG (!dp_wfm_source_to_synth (&cbad, 1e6),
                     "a continuous spreading code with a length and no bits is "
                     "refused");
 
     wfm_source_t bbad = nopre;
     bbad.acq_code     = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 8 };
     bbad.acq_reps     = 3;
-    DP_REQUIRE_MSG (!wfm_source_to_synth (&bbad, 1e6),
+    DP_REQUIRE_MSG (!dp_wfm_source_to_synth (&bbad, 1e6),
                     "a burst preamble with a length and no bits is refused");
   }
 

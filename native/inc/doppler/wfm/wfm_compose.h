@@ -509,7 +509,7 @@ double dp_wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
  * `dp_wfm_synth_create()` runs before a dsss source's codes are attached, so it
  * cannot know the spreading factor its own esno would need. This helper — the
  * one create-time entry point shared by the composer (`dp_wfm_compose_build_synth`)
- * and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees
+ * and the standalone-Synth bridge (`dp_wfm_source_to_synth`), so every face agrees
  * to the bit — converts a dsss source's SNR to the over-fs reference (via
  * `dp_wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream
  * uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes
@@ -530,7 +530,7 @@ double dp_wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
  * @brief Attach a dsss source's data to a freshly-created synth.
  *
  * The single dsss-attach path, called by BOTH synth-construction faces
- * (`dp_wfm_compose_build_synth` and the standalone `wfm_source_to_synth`), so the
+ * (`dp_wfm_compose_build_synth` and the standalone `dp_wfm_source_to_synth`), so the
  * two cannot drift on how a dsss stream is configured. Selects on
  * `symbol_rate`: 0 → the burst form (`dp_wfm_synth_set_dsss`); > 0 → the
  * continuous form (`dp_wfm_synth_set_dsss_cont`) with `chips_per_symbol =
@@ -591,7 +591,7 @@ size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
  * @brief NULL when this source's frame fields can be honoured; else why not.
  *
  * ONE rule, asked by all three faces — the wfmgen CLI before it generates, the
- * standalone `Synth` through `wfm_source_to_synth`, and the composer through
+ * standalone `Synth` through `dp_wfm_source_to_synth`, and the composer through
  * `dp_wfm_compose_create` — because the alternative is what shipped: the flags
  * were accepted, stored and readable back on every face, and applied on none
  * of them, so a caller who asked for a framed waveform silently got an

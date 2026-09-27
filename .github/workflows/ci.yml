@@ -361,6 +361,45 @@ jobs:
     - name: Python suite
       run: make test-python
 
+  # The Windows WHEEL, built and smoked the way release.yml's `smoke-wheel`
+  # does it: `make wheel` for cp312 under clang-cl, then `make wheel-smoke`
+  # (deploy/validation/wfm_e2e.py against the installed artifact, from a
+  # clean cwd). Until doppler#1586 that smoke ran only at a tag, so when the
+  # Windows surface grew (#1579 StreamSink, #1581 wfmgen) its expectations
+  # went stale unseen and stopped the v0.58.0 release before PyPI. A parallel
+  # job rather than steps on build-and-test-windows: a wheel build is a full
+  # rebuild, and serialising it would roughly double that job's wall time.
+  wheel-smoke-windows:
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    name: Wheel smoke (win_amd64, cp312)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The same flags release.yml's build-windows passes to pyext.
+      CMAKE_ARGS: -G Ninja -DCMAKE_C_COMPILER=clang-cl
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: MSVC developer environment (x64)
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Install uv + Python 3.12
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: '3.12'
+
+    - name: Build the wheel
+      run: make wheel
+
+    - name: Install the built wheel + run the e2e from a clean dir
+      run: make wheel-smoke
+
   # macOS still provisions with brew, because there is no macOS container to
   # bake: `make install-deps` is the one dep command a developer also runs and
   # it auto-detects apt vs brew, so this stays exactly as it was.
@@ -1144,6 +1183,7 @@ jobs:
       - build-and-test-linux-arm64
       - build-and-test-macos
       - build-and-test-windows
+      - wheel-smoke-windows
       - python
       - glibc-228
       - doxygen
@@ -1170,6 +1210,7 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           SKIPPABLE: >-
             build-and-test-linux build-and-test-linux-arm64 build-and-test-windows
+            wheel-smoke-windows
             build-and-test-macos
             python glibc-228 doxygen sweep-validators docs docker sanitizers
             coverage linux-packages

@@ -41,8 +41,9 @@ never a framing problem. Each cluster of twelve — `preamble_kind`,
 out parameter by parameter, because a field had no value of its own to pass.
 The same cluster was spelled again as a CLI triple (`--sync`, `--sync-hex`,
 `--sync-gen`), a JSON literal key plus a `*_gen` object, and a fifteen-argument
-`add_field`. The missing piece is the **Field** as a value: one text form that
-every face passes and one C function parses ([§F](#f-the-field-one-text-form)).
+`add_field`. The missing piece is the **Field** as a value every face
+passes: literal bits as data, and one text form — parsed by one C function —
+for everything written as text ([§F](#f-the-field-one-text-form)).
 
 ## Use cases — who calls this, and what they do with the answer
 
@@ -154,10 +155,19 @@ ______________________________________________________________________
 
 ## F. The Field — one text form
 
-A **Field** is `wfm_field_t` given a value a person can write: where its bits
+A **Field** is `wfm_field_t` given a value a caller can pass: where its bits
 come from, how long it is, and how many times it repeats. It is the unit a
-caller hands to every face — the CLI, a JSON scene, Python and C — and it has
-exactly one spelling.
+caller hands to every face — the CLI, a JSON scene, Python and C.
+
+**A Field is data or a description, and only a description must be text.**
+A *literal* field is data — a payload is often thousands of bits, and in
+Python and C its natural form is an array, which is passed as one and never
+parsed. A *generated* field (`pn`, `gold`, `dotted`) is a description of
+bits nobody has written down, so text is its only form. The grammar below is
+therefore the one spelling for everything that **is** text: every generated
+field, and a literal on the faces that are text themselves (the CLI, JSON) or
+written short and inline. It is not a requirement that payload bits become a
+string.
 
 ### F.1 The grammar
 
@@ -211,15 +221,24 @@ written. Every face calls them; none restates the grammar.
     multiple of four, binary otherwise; a generator prints only what differs
     from its defaults. `parse(format(f)) == f` for every Field.
 
-### F.3 Every face carries the same string
+### F.3 Every face takes a Field, in the form natural to it
 
-| face            | a Field is                                                                                                                  |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| CLI             | one flag per field — `--sync`, `--acq-code`, `--data-code`, `--payload` (`--bits` stays the bits-type alias)                |
-| JSON            | one key per field, whose value is the Field string                                                                          |
-| a carried frame | `{"name", "spec"}`, or `{"name", "derived_by", "bits"}` for a derived field                                                 |
-| Python          | `Frame(preamble=, sync=, payload=, crc=)` and `FrameDesc.add_field(name, spec)` take the string; `Field(spec)` inspects one |
-| C               | `dp_wfm_field_parse()` into a `wfm_field_t`                                                                                 |
+| face            | a literal field                                                                     | a generated field      |
+| --------------- | ----------------------------------------------------------------------------------- | ---------------------- |
+| CLI             | the text form, or `--bits-file PATH` for a payload too long to type                 | the text form          |
+| JSON            | the text form (hex when the length allows, so a long payload is ¼ the characters)   | the text form          |
+| a carried frame | `{"name", "spec"}` as text, or `{"name", "derived_by", "bits"}` for a derived field | `{"name", "spec"}`     |
+| Python          | an array (`uint8`, bytes, any 0/1 sequence) — **or** the text form                  | the text form          |
+| C               | a `wfm_seq_t` over the caller's array                                               | `dp_wfm_field_parse()` |
+
+One flag and one JSON key per field on the text faces — `--sync`,
+`--acq-code`, `--data-code`, `--payload` (`--bits` stays the bits-type alias)
+— and in Python one parameter per field that accepts either form:
+`Frame(preamble=, sync=, payload=, crc=)`, `FrameDesc.add_field(name, value)`.
+Python already works this way for the composer: jm's `bit_pattern` coercion
+lets `Synth(payload=...)` take bytes, a 0/1 sequence or a binary/hex string.
+What is new is that the string may also be a generator, and that it is parsed
+by the one C function rather than by the binding. `Field(value)` inspects one.
 
 **A derived field has no text form**, and that is correct: nobody writes a
 CRC trailer's bits. It is declared by the stage that produces it
@@ -230,6 +249,33 @@ naming its replacement: `--X-hex`, `--X-gen`, `--payload-gen`,
 `--payload-len`, `--bits-hex`, `--acq-reps`, and the JSON keys `*_gen`,
 `pattern`, `acq_reps`, `lit` and `gen`. Two spellings of one thing is the
 condition this section exists to end.
+
+### F.4 Where literal bits come from
+
+A literal field's bits arrive in one of two shapes, and the difference is the
+whole of what can go wrong:
+
+| source                        | shape                                          | on which face                            |
+| ----------------------------- | ---------------------------------------------- | ---------------------------------------- |
+| an array                      | **unpacked** — one bit per element, `0` or `1` | Python, C                                |
+| a binary file                 | **packed** octets, MSB first                   | CLI `--bits-file PATH`; Python via `cvt` |
+| a byte stream — stdin, a pipe | **packed** octets, MSB first                   | CLI `--bits-file -`; Python via `cvt`    |
+
+**One primitive unpacks.** Packed octets become bits in exactly one place, a
+`bytes_to_bin` beside `hex_to_bin` in `cvt` — the same conversion a hex
+string already is, four bits at a time instead of eight. Today that
+conversion is private to `wfmgen.c`, so the file path works from the CLI and
+from nowhere else.
+
+**A Python `bytes` object is unpacked**, because that is what the composer's
+`bit_pattern` coercion already takes it to mean (`b"\x01\x00\x01"` is three
+bits). Packed data is therefore never passed as `bytes` and hoped about: it
+goes through `cvt.bytes_to_bin` first, by name. A value whose meaning depends
+on which face received it is the defect this section exists to prevent.
+
+**A file or a stream is read once, into the field.** It supplies one field's
+bits, not a new payload per frame; whether a stream should instead feed each
+frame its next payload is an [unknown](#unknowns), not an assumption.
 
 ______________________________________________________________________
 
@@ -247,7 +293,7 @@ way either compiles into it through one function or is deleted.
 | `wfm_frame_t` / `wfm_frame_layout_t`, `dp_wfm_frame_describe()`, the four-field DSSS helpers (`dp_wfm_frame_dsss_nchips/_chips`), `dp_wfm_synth_set_dsss()`                                                       | **deleted**; their callers read the description                                           |
 | `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                                                                                           | **deleted**: literal-only, and a second derivation of the covers the bridge already makes |
 | `ccsds_tm_frame_cfg_t`                                                                                                                                                                                            | **kept** — it configures the codec's kernels, not a generated frame                       |
-| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                                                                                                  | **replaced** by Field strings                                                             |
+| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                                                                                                  | **replaced** by one Field each                                                            |
 
 **Why the flat fields stay as sugar rather than resolving at parse time.** A
 caller who wrote `--asm --rs-depth 5` should find `asm` and `rs_depth` in the
@@ -520,10 +566,20 @@ it is measured:
     golden — rare enough that quoting is cheap, common enough that a separate
     key would be a second spelling of one field. Revisit if a user trips on
     it.
-- **Two things jm must do, checked with a scaffold before they are relied
-    on.** A `const char *` constructor parameter with an empty default (else:
-    required strings, `""` meaning absent); and whether the extra manifest
-    keys the surface table needs survive a `jm` re-save
+- **Whether a byte stream feeds one field, or each frame's payload.** Read
+    once, a stream is just a file that arrives late. Read per frame, it
+    turns the generator into a transmitter of real data — every instance a
+    new payload from the stream — which is a different contract for
+    `--repeat`, `--record` and a replay, and is decided on a use case rather
+    than because the plumbing allows it.
+- **Three things jm must do, checked with a scaffold before they are
+    relied on.** An object parameter that accepts **either** an array or a
+    string — `bit_pattern` coercion does this for composer fields today, and
+    an object's parameters are unproven (else: the parameter takes the text
+    form and an array goes through `Field.from_bits`, one documented door
+    rather than a second spelling); a parameter that may be omitted (else:
+    empty meaning absent); and whether the extra manifest keys the surface
+    table needs survive a `jm` re-save
     ([`wfmgen.md` — one surface table](wfmgen.md#one-surface-table)).
 
 ## Deliberately not in scope

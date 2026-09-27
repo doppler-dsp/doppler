@@ -54,11 +54,12 @@ main (void)
 
     dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
     DP_REQUIRE_MSG (e != NULL, "the CCSDS inner code is constructible");
-    DP_CHECK_MSG (conv_enc_code (e)->k == 7u, "k survives the constructor");
-    DP_CHECK_MSG (conv_enc_code (e)->n == 2u, "n comes from the array length");
-    DP_CHECK (conv_enc_code (e)->poly[0] == POLY[0]);
-    DP_CHECK (conv_enc_code (e)->poly[1] == POLY[1]);
-    DP_CHECK_MSG (conv_enc_code (e)->invert == 0x2u,
+    DP_CHECK_MSG (dp_conv_enc_code (e)->k == 7u, "k survives the constructor");
+    DP_CHECK_MSG (dp_conv_enc_code (e)->n == 2u,
+                  "n comes from the array length");
+    DP_CHECK (dp_conv_enc_code (e)->poly[0] == POLY[0]);
+    DP_CHECK (dp_conv_enc_code (e)->poly[1] == POLY[1]);
+    DP_CHECK_MSG (dp_conv_enc_code (e)->invert == 0x2u,
                   "the inversion mask is the caller's, not a default");
     dp_conv_enc_destroy (e);
     dp_conv_enc_destroy (NULL); /* a no-op, not a crash */
@@ -66,7 +67,7 @@ main (void)
 
   /* ── 2. the object encodes what the kernel encodes ─────────────────────
    *
-   * Against `conv_encode` driven by hand, not against a stored vector: the
+   * Against `dp_conv_encode` driven by hand, not against a stored vector: the
    * claim is that this object is a BINDING of a code to a register, so the
    * thing to prove is that it adds nothing. A golden array here would pin
    * the kernel a second time and say nothing about the binding.
@@ -83,8 +84,8 @@ main (void)
 
     const conv_code_t c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
     conv_enc_t        raw;
-    conv_enc_init (&raw);
-    DP_REQUIRE (conv_encode (&raw, &c, in, N, want, sizeof want)
+    dp_conv_enc_init (&raw);
+    DP_REQUIRE (dp_conv_encode (&raw, &c, in, N, want, sizeof want)
                 == (size_t)N * 2u);
 
     dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u);

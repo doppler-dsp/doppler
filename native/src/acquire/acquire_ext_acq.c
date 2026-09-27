@@ -85,7 +85,7 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = acq_create_continuous (
+  self->handle    = dp_acq_create_continuous (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, spc, chip_rate,
       symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
       code_only_epochs, doppler_rate);
@@ -93,7 +93,7 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "acq_create_continuous returned NULL");
+                       "dp_acq_create_continuous returned NULL");
       return -1;
     }
   if (self->handle->underpowered)
@@ -1225,7 +1225,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Resizes every buffer/plan that depends on the grid (the slow-time FFT,\n"
     "the code correlator, the reference, and every per-frame scratch\n"
     "buffer), re-derives the threshold ladder for the pinned grid from the\n"
-    "same physics acq_create_burst()/acq_create_continuous() used, and\n"
+    "same physics dp_acq_create_burst()/dp_acq_create_continuous() used, and\n"
     "clears in-flight accumulation (ring contents, the non-coherent power\n"
     "accumulator, dwell bookkeeping) — call between push() calls, never a\n"
     "substitute for one.\n"
@@ -1399,7 +1399,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on\n"
     "the non-coherent path) is a flat plane on a plot. The engine keeps this\n"
     "only while `keep_surface` is set (a caller sets it, or\n"
-    "acq_set_surface_sink() does): set it, push, then read. `surface_at`\n"
+    "dp_acq_set_surface_sink() does): set it, push, then read. `surface_at`\n"
     "says which dwell it is; a time-decimated record is the caller reading\n"
     "every k-th dwell, or a sink with `decim`.\n"
     "\n"
@@ -1475,7 +1475,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "The surface's code-phase axis: the chip phase of each column.\n"
     "\n"
     "One value per surface column, in chips, the same mapping\n"
-    "acq_build_handoff() applies to a hit's `code_phase` — so a plotted peak\n"
+    "dp_acq_build_handoff() applies to a hit's `code_phase` — so a plotted "
+    "peak\n"
     "sits at the chip phase the DetectionEvent would carry.\n"
     "\n"
     "Parameters\n"
@@ -1655,7 +1656,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "  without it the block's peak is 13 dB down and 3 chips wide and the\n"
     "  depth detects nothing at 34 dB-Hz; with it the block reads as a still\n"
     "  one.\n"
-    "- **The hand-off** (acq_build_handoff()) advances the hit's code phase\n"
+    "- **The hand-off** (dp_acq_build_handoff()) advances the hit's code "
+    "phase\n"
     "  by the drift over half the dwell -- the non-coherent sum's peak is\n"
     "  the phase at the dwell's middle, the seed is wanted at its end: 0.9\n"
     "  chip at the 40 dB-Hz floor, past a refine loop's pull-in.\n"

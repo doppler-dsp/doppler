@@ -119,7 +119,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < SCALAR_N; i++)
-        sink += ber_qfunc (0.5 + (double)(i & 31) * 0.1);
+        sink += dp_ber_qfunc (0.5 + (double)(i & 31) * 0.1);
       t1     = jm_bench_now_ns ();
       t_q[r] = jm_bench_elapsed_sec (t0, t1);
     }

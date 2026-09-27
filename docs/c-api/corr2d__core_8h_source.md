@@ -40,7 +40,7 @@ typedef struct {
   /* Single-row-reference fast path (see the file doc comment for the
    * identity this relies on).  fast_path is decided once at create() and
    * fixed for the object's lifetime; set_ref() may only refresh within the
-   * same mode (see corr2d_set_ref doc comment). */
+   * same mode (see dp_corr2d_set_ref doc comment). */
   int             fast_path;    
   dp_fft_state_t    *fwd1d;         
   dp_fft_state_t    *inv1d;         
@@ -73,7 +73,7 @@ void dp_corr2d_destroy(dp_corr2d_state_t *state);
 
 void dp_corr2d_reset(dp_corr2d_state_t *state);
 
-int corr2d_set_ref(dp_corr2d_state_t *state, const float _Complex *ref);
+int dp_corr2d_set_ref(dp_corr2d_state_t *state, const float _Complex *ref);
 
 size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
 

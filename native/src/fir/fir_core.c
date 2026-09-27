@@ -62,7 +62,7 @@ dp_fir_create (const float _Complex *taps, size_t num_taps)
 }
 
 dp_fir_state_t *
-fir_create_real (const float *taps, size_t num_taps)
+dp_fir_create_real (const float *taps, size_t num_taps)
 {
   if (!taps || num_taps == 0)
     return NULL;
@@ -157,7 +157,7 @@ dp_fir_get_num_taps (const dp_fir_state_t *state)
 }
 
 double
-fir_dc_gain (const dp_fir_state_t *state)
+dp_fir_dc_gain (const dp_fir_state_t *state)
 {
   double sum = 0.0;
   for (size_t i = 0; i < state->num_taps; i++)

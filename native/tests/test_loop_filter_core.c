@@ -34,14 +34,14 @@
 /* The canonical discrete PI gains, written from Rice, "Digital
  * Communications: A Discrete-Time Approach", App. C, with Kd*K0 = 1.
  *
- * This is deliberately NOT loop_filter_init()'s expression. That one derives
- * wn by inverting the analog noise-bandwidth relation and carries
- * th = wn*t; this one carries theta = th/2 and a denominator scaled by 4.
- * The two are algebraically identical, so a correct implementation matches
- * to machine precision — but a sign or factor error in one does not
- * reproduce in the other, which is the whole reason for writing it twice.
- * Re-typing the implementation's own formula beside it would prove only
- * that the file had been copied correctly. */
+ * This is deliberately NOT dp_loop_filter_init()'s expression. That one
+ * derives wn by inverting the analog noise-bandwidth relation and carries th =
+ * wn*t; this one carries theta = th/2 and a denominator scaled by 4. The two
+ * are algebraically identical, so a correct implementation matches to machine
+ * precision — but a sign or factor error in one does not reproduce in the
+ * other, which is the whole reason for writing it twice. Re-typing the
+ * implementation's own formula beside it would prove only that the file had
+ * been copied correctly. */
 static void
 rice_gains (double bn, double zeta, double t, double *kp, double *ki)
 {
@@ -52,15 +52,15 @@ rice_gains (double bn, double zeta, double t, double *kp, double *ki)
 }
 
 /**
- * @brief loop_filter_wn() against this file's INDEPENDENT derivation.
+ * @brief dp_loop_filter_wn() against this file's INDEPENDENT derivation.
  *
  * `rice_gains` above derives `theta = 4*zeta*bn*t / (4*zeta^2 + 1)` from the
  * published form, deliberately without re-typing the implementation's
  * expression — and `theta` is exactly `wn*t/2`. So tying the new public
- * `loop_filter_wn()` to it checks the primitive against a derivation that was
- * already independent, rather than against a copy of itself.
+ * `dp_loop_filter_wn()` to it checks the primitive against a derivation that
+ * was already independent, rather than against a copy of itself.
  *
- * The alternative — asserting `loop_filter_wn(bn, zeta) == 8*zeta*bn /
+ * The alternative — asserting `dp_loop_filter_wn(bn, zeta) == 8*zeta*bn /
  * (4*zeta^2 + 1)` — would be re-typing the implementation beside itself and
  * would prove only that the file had been copied correctly, which is the trap
  * this test file's own header calls out.
@@ -71,7 +71,7 @@ check_wn (double bn, double zeta, double t)
   double kp, ki, theta;
   rice_gains (bn, zeta, t, &kp, &ki);
   theta = 4.0 * zeta * bn * t / (4.0 * zeta * zeta + 1.0);
-  DP_CHECK_NEAR (loop_filter_wn (bn, zeta) * t / 2.0, theta, 1e-12);
+  DP_CHECK_NEAR (dp_loop_filter_wn (bn, zeta) * t / 2.0, theta, 1e-12);
 }
 
 int
@@ -94,7 +94,7 @@ main (void)
 
     dp_loop_filter_state_t emb;
     memset (&emb, 0, sizeof emb);
-    loop_filter_init (&emb, bn, zeta, t);
+    dp_loop_filter_init (&emb, bn, zeta, t);
     DP_CHECK (emb.kp == lf->kp);
     DP_CHECK (emb.ki == lf->ki);
     DP_CHECK (emb.bn == lf->bn);
@@ -149,7 +149,7 @@ main (void)
 
             dp_loop_filter_state_t s;
             memset (&s, 0, sizeof s);
-            loop_filter_init (&s, bns[i], zetas[j], ts[k]);
+            dp_loop_filter_init (&s, bns[i], zetas[j], ts[k]);
 
             /* Relative tolerance: the two forms differ by a factor of 4 top
                and bottom, so they are not bit-identical even when exact. */
@@ -168,7 +168,7 @@ main (void)
   {
     dp_loop_filter_state_t s;
     memset (&s, 0, sizeof s);
-    loop_filter_init (&s, 0.031, 0.61, 2.5);
+    dp_loop_filter_init (&s, 0.031, 0.61, 2.5);
     DP_CHECK (s.bn == 0.031);
     DP_CHECK (s.zeta == 0.61);
     DP_CHECK (s.t == 2.5);
@@ -206,18 +206,18 @@ main (void)
    * Every one of the seven embedders relies on this, and two of them
    * (costas, carrier_mpsk) rely on it POSITIVELY: they seed the integrator
    * to a known carrier offset and would lose it if init zeroed. It is also
-   * what makes loop_filter_init() usable as a retune (section 7).
+   * what makes dp_loop_filter_init() usable as a retune (section 7).
    * ------------------------------------------------------------------ */
   {
     dp_loop_filter_state_t s;
     memset (&s, 0, sizeof s);
-    loop_filter_init (&s, bn, zeta, t);
+    dp_loop_filter_init (&s, bn, zeta, t);
 
     const double sentinel = -3.25;
     s.integ               = sentinel;
     double kp_before      = s.kp;
 
-    loop_filter_init (&s, 0.05, zeta, t); /* a real retune */
+    dp_loop_filter_init (&s, 0.05, zeta, t); /* a real retune */
 
     DP_CHECK (s.integ == sentinel); /* untouched, bit-exact */
     DP_CHECK (s.kp != kp_before);   /* and the gains really did move */
@@ -261,7 +261,7 @@ main (void)
        state uses init and must get the identical result. */
     dp_loop_filter_state_t viaInit;
     memset (&viaInit, 0, sizeof viaInit);
-    loop_filter_init (&viaInit, 0.05, zeta, t);
+    dp_loop_filter_init (&viaInit, 0.05, zeta, t);
     DP_CHECK (viaInit.kp == lf->kp && viaInit.ki == lf->ki);
 
     dp_loop_filter_destroy (lf);
@@ -362,7 +362,7 @@ main (void)
        this — it is how a loop is held open. */
     dp_loop_filter_state_t z;
     memset (&z, 0, sizeof z);
-    loop_filter_init (&z, 0.0, zeta, t);
+    dp_loop_filter_init (&z, 0.0, zeta, t);
     DP_CHECK (z.kp == 0.0 && z.ki == 0.0);
 
     z.integ = 0.75;
@@ -378,11 +378,11 @@ main (void)
     dp_loop_filter_state_t bad;
 
     memset (&bad, 0, sizeof bad);
-    loop_filter_init (&bad, bn, zeta, 0.0); /* t = 0, declared t > 0 */
+    dp_loop_filter_init (&bad, bn, zeta, 0.0); /* t = 0, declared t > 0 */
     DP_CHECK (isfinite (bad.kp) && isfinite (bad.ki));
 
     memset (&bad, 0, sizeof bad);
-    loop_filter_init (&bad, -0.01, zeta, t); /* bn < 0, declared bn >= 0 */
+    dp_loop_filter_init (&bad, -0.01, zeta, t); /* bn < 0, declared bn >= 0 */
     DP_CHECK (isfinite (bad.kp) && isfinite (bad.ki));
   }
 
@@ -449,19 +449,19 @@ main (void)
   /* The number the header quotes: wn = 1.8857*bn at zeta = 0.707. Callers
      size ramp tolerances against it, so it is pinned as a value and not only
      as a relationship. */
-  DP_CHECK_NEAR (loop_filter_wn (0.005, 0.707), 1.8857 * 0.005, 1e-6);
+  DP_CHECK_NEAR (dp_loop_filter_wn (0.005, 0.707), 1.8857 * 0.005, 1e-6);
 
   /* Linear in bn, which is what makes a symbol-rate-normalised bn give a
      per-symbol wn — the property every ramp law here depends on. */
-  DP_CHECK_NEAR (loop_filter_wn (0.02, 0.707),
-                 4.0 * loop_filter_wn (0.005, 0.707), 1e-12);
+  DP_CHECK_NEAR (dp_loop_filter_wn (0.02, 0.707),
+                 4.0 * dp_loop_filter_wn (0.005, 0.707), 1e-12);
 
-  /* And it is the SAME number loop_filter_init() used: theta = wn*t/2 drives
-     the gains, so a wn that drifted from the gains would break this. */
+  /* And it is the SAME number dp_loop_filter_init() used: theta = wn*t/2
+     drives the gains, so a wn that drifted from the gains would break this. */
   {
     dp_loop_filter_state_t s;
     double                 kp, ki;
-    loop_filter_init (&s, bn, zeta, t);
+    dp_loop_filter_init (&s, bn, zeta, t);
     rice_gains (bn, zeta, t, &kp, &ki);
     DP_CHECK_NEAR (s.kp, kp, 1e-12);
     DP_CHECK_NEAR (s.ki, ki, 1e-12);

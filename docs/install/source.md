@@ -82,7 +82,7 @@ out of a Windows build rather than failing:
 
 - the NATS stream layer (`libdoppler_stream`, `dp_pub_*` / `dp_sub_*`), and
     everything built on it: the wfm `StreamSink`, the `wfmgen` CLI and
-    `doppler_wfmgen`, and the streaming examples;
+    `dp_doppler_wfmgen`, and the streaming examples;
 - the Rust crate, which is built and tested on Linux and macOS only. (The
     Python extensions do build on Windows, without `doppler.stream` and
     `StreamSink`; CI builds and tests them with clang-cl on every PR.)

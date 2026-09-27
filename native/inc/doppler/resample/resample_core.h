@@ -39,7 +39,7 @@ double dp_kaiser_beta(double atten);
  * Applies the Kaiser length formula to the per-phase normalised prototype
  * (pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical
  * length, then divides by num_phases to give taps per branch. The result
- * is the minimum num_taps argument to pass to Resampler_create_custom().
+ * is the minimum num_taps argument to pass to dp_Resampler_create_custom().
  *
  * @param num_phases  Number of polyphase branches (power of two). A value
  *                    below 1 is not a bank; the function returns 0.

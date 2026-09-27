@@ -139,12 +139,8 @@
 
 /* --- 1. Theory - the coherent M-PSK bound, in one place ------------------ */
 
-/** @brief Gaussian tail `Q(x) = P(N(0,1) > x)`. */
-static inline double
-dp_ber_qfunc (double x)
-{
-  return ber_qfunc (x);
-}
+/* Q(x) is the library's dp_ber_qfunc (ber/ber_core.h); the harness used to
+   carry a forwarding shim under this same name. */
 
 /* --- 2. Alignment - detected from a marker, never searched --------------- */
 
@@ -245,11 +241,11 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
   ber_align_t     a;
   if (!mk)
     mk = &def;
-  a       = ber_align_detect (rx, n_rx, mk->sym ? mk->sym : truth, n_truth, m,
-                              mk->t0, mk->n, mk->period, (int)lag_span, pfa);
-  o.lag   = a.lag;
-  o.phase = a.phase;
-  o.stat  = a.stat;
+  a     = dp_ber_align_detect (rx, n_rx, mk->sym ? mk->sym : truth, n_truth, m,
+                               mk->t0, mk->n, mk->period, (int)lag_span, pfa);
+  o.lag = a.lag;
+  o.phase       = a.phase;
+  o.stat        = a.stat;
   o.threshold   = a.threshold;
   o.margin_db   = a.margin_db;
   o.runner_db   = a.runner_db;
@@ -422,7 +418,7 @@ dp_ber_score (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi,
               const dp_ber_sync_t *sy)
 {
   ber_align_t a;
-  /* No marker means no exclusion. ber_meter_set_align() reads n_marker == 0
+  /* No marker means no exclusion. dp_ber_meter_set_align() reads n_marker == 0
      as "use the default 256", so say it with a t0 past the end of the truth
      instead — every index then falls before the marker and is scored. */
   size_t t0     = mk ? mk->t0 : n_truth;
@@ -435,7 +431,7 @@ dp_ber_score (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi,
   a.slips                                          = 0;
   a.saturated = a.ok = 0;
   dp_ber_meter_set_truth (b->meter, truth, n_truth);
-  ber_meter_set_align (b->meter, a, t0, mn, pd);
+  dp_ber_meter_set_align (b->meter, a, t0, mn, pd);
   dp_ber_meter_score (b->meter, rx, hi, lo, hi);
   dp_ber_refresh (b);
   if (dp_ber_evm_m2m4 (b, rx, lo, hi))
@@ -487,7 +483,7 @@ typedef struct
 static inline dp_ber_ci_t
 dp_ber_ci (unsigned long errors, unsigned long symbols, double conf)
 {
-  ber_interval_t i = ber_confidence (errors, symbols, conf);
+  ber_interval_t i = dp_ber_confidence (errors, symbols, conf);
   dp_ber_ci_t    c;
   c.p_hat   = i.p_hat;
   c.lo      = i.lo;

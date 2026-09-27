@@ -18,7 +18,7 @@
  * per chip, asynchronous BPSK data at 2700 sym/s from the shipped synth
  * (`wfm_synth` continuous DSSS with its own PRBS data -- the generator
  * wfmgen renders the waveform with), rendered clean and block by block;
- * noise from the shipped awgn generator, sized by awgn_amplitude_for_snr()
+ * noise from the shipped awgn generator, sized by dp_awgn_amplitude_for_snr()
  * from the C/N0. Nothing here builds a chip, a bit or a sigma by hand. The
  * events are edits to the rendered SIGNAL block before the noise is added:
  * a switch-off drops it, a fade scales it, a phase step rotates it -- the
@@ -198,7 +198,7 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
      library's answer to "per rail or total", not a sigma derived here. */
   dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
-      awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
+      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   dp_async_dsss_receiver_state_t *rx  = make_rx (code, cn0_dbhz);
   float complex                  *sig = malloc (TE * sizeof *sig);
   float complex                  *blk = malloc (TE * sizeof *blk);

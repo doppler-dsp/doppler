@@ -33,7 +33,7 @@
  * loop under test, so it is permitted rather than rejected, but it is not what
  * a real channel does.
  *
- * The dilation is `resamp_execute_ctrl` (see `resamp_core.h`), whose per-sample
+ * The dilation is `dp_resamp_execute_ctrl` (see `resamp_core.h`), whose per-sample
  * rate deviation tracks the ramp exactly instead of approximating it with a
  * piecewise-constant ratio re-set once per block. No resampling math is
  * implemented here.
@@ -286,7 +286,7 @@ double dp_doppler_channel_get_offset_hz(const dp_doppler_channel_state_t *state)
  * Constant, and in addition to the dilation: output `k` at receive time
  * `t = k/fs` carries the input at `t + excess(t) - delay/fs`
  * (doppler_channel_excess()). Input and receive samples differ by the ppm of
- * Doppler, so the unit is either to that precision. resamp_get_delay() for
+ * Doppler, so the unit is either to that precision. dp_resamp_get_delay() for
  * the derivation.
  *
  * @code

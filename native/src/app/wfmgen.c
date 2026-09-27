@@ -1098,7 +1098,7 @@ parse_bits_into (const opt_t *opt, const char *a, const char *v, uint8_t **dst,
  * carried past its 28 early returns.
  *
  * --help / -h / --version / -V never reach here; they are handled by the
- * pre-scan in doppler_wfmgen so they work regardless of the other flags.
+ * pre-scan in dp_doppler_wfmgen so they work regardless of the other flags.
  */
 static int
 parse_args (int argc, char *argv[], wfmgen_opts_t *o)
@@ -1811,7 +1811,7 @@ run_json_template (int argc, char *argv[])
  * than at first use: a `goto` that jumps past a declaration leaves it
  * uninitialised, and the label reads both. */
 int
-doppler_wfmgen (int argc, char *argv[])
+dp_doppler_wfmgen (int argc, char *argv[])
 {
   dp_wfm_compose_state_t *comp
       = NULL; /* dp_wfm_compose_destroy tolerates NULL */

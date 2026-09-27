@@ -456,7 +456,8 @@ def review(d: Data) -> None:
         "C-ONLY",
         "**The by-value embedding path has no Python face.** Seven objects "
         "embed a `dp_lockdet_state_t` directly and drive it with "
-        "`lockdet_init`/`dp_lockdet_step`; the binding exposes only the heap "
+        "`dp_lockdet_init`/`dp_lockdet_step`; the binding exposes only the "
+        "heap "
         "instance. That is correct — an embedded detector belongs to its "
         "owner — but it means this report cannot cover the path most of "
         "the library actually takes, and the C test is the only evidence "

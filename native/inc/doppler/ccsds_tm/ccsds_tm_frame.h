@@ -46,7 +46,7 @@
  * the conversion between them belongs to exactly one place rather than being
  * hidden inside a kernel that then only works for one caller.
  *
- * This is that place: @ref ccsds_tm_frame_encode takes a Transfer Frame as
+ * This is that place: @ref dp_ccsds_tm_frame_encode takes a Transfer Frame as
  * packed octets and returns unpacked channel symbols, the representation
  * `dp_wfm_frame_bits` and the spreader already pass around. Octets go on the
  * wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the
@@ -154,11 +154,11 @@ extern "C"
    * const ccsds_tm_frame_cfg_t cfg
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
-   * const size_t n = ccsds_tm_frame_layout (&cfg, 223 * 5, NULL);
+   * const size_t n = dp_ccsds_tm_frame_layout (&cfg, 223 * 5, NULL);
    * uint8_t *sym = malloc (n);          // n == (32 + 255 * 5 * 8) * 2
    * @endcode
    */
-  size_t ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg,
+  size_t dp_ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg,
                                size_t              frame_len,
                            ccsds_tm_frame_layout_t *out);
 
@@ -196,7 +196,7 @@ extern "C"
    *                   the TAIL of this buffer, so a short one is not a
    *                   truncated result but a write past the end — hence a
    *                   capacity rather than a comment telling you to call
-   *                   @ref ccsds_tm_frame_layout first.
+   *                   @ref dp_ccsds_tm_frame_layout first.
    * @return The number of symbols written, or 0 if the configuration is
    *         refused or @p max_out is too small — in which case @p out is
    *         untouched.
@@ -208,19 +208,19 @@ extern "C"
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
    * conv_enc_t conv;
-   * conv_enc_init (&conv);
+   * dp_conv_enc_init (&conv);
    * const size_t n
-   *     = ccsds_tm_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
+   *     = dp_ccsds_tm_frame_encode (&cfg, &conv, frame, sizeof frame, sym,
    *                         sizeof sym);
    * @endcode
    */
-  size_t ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg,
+  size_t dp_ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg,
                                conv_enc_t               *conv,
                            const uint8_t *frame, size_t frame_len,
                            uint8_t *out, size_t max_out);
 
   /**
-   * @brief What @ref ccsds_tm_frame_decode found on the way through.
+   * @brief What @ref dp_ccsds_tm_frame_decode found on the way through.
    *
    * The outer code **corrects** (`rs/rs_core.h`), so @ref rs_ok counts the
    * codewords that are good *afterwards* — clean or repaired — and
@@ -247,7 +247,7 @@ extern "C"
   /**
    * @brief Recover a Transfer Frame from the bits of one CADU.
    *
-   * The mirror of @ref ccsds_tm_frame_encode, over the same spans and reading
+   * The mirror of @ref dp_ccsds_tm_frame_encode, over the same spans and reading
    * the same @ref ccsds_tm_frame_cfg_t — so the two cannot disagree about
    * which stage covered what, which is the failure `ccsds_tm_frame.h` opens
    * by describing.
@@ -256,7 +256,7 @@ extern "C"
    *
    * This begins **after** the inner decode and after frame synchronisation:
    * @p cadu is one marker-plus-codeblock, already Viterbi-decoded and already
-   * aligned by @ref ccsds_tm_asm_find. That is not an omission, it is the
+   * aligned by @ref dp_ccsds_tm_asm_find. That is not an omission, it is the
    * only place the boundary can go. A Viterbi is streaming and emits its
    * decisions `depth` bits late, so the bits of one CADU are not a function
    * of that CADU's symbols alone; and the marker that says where a CADU
@@ -295,18 +295,18 @@ extern "C"
    *     = { .rs_depth = 5, .randomise = 1, .attach_asm = 1,
    *         .convolutional = 1 };
    * ccsds_tm_frame_layout_t lay;
-   * ccsds_tm_frame_layout (&cfg, 223 * 5, &lay);
+   * dp_ccsds_tm_frame_layout (&cfg, 223 * 5, &lay);
    *
    * uint8_t        frame[223 * 5];
    * ccsds_tm_frame_rx_t rx;
    * // `cadu` is lay.cadu_bits of Viterbi output, ASM-aligned.
-   * const size_t n = ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
+   * const size_t n = dp_ccsds_tm_frame_decode (&cfg, cadu, lay.cadu_bits, frame,
    *                                    sizeof frame, &rx);
    * printf ("%zu octets, R-S %u/%u ok, %u symbols repaired\n", n, rx.rs_ok,
    *         rx.rs_codewords, rx.rs_symbols);
    * @endcode
    */
-  size_t ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg,
+  size_t dp_ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg,
                                const uint8_t            *cadu,
                            size_t n_cadu, uint8_t *frame, size_t max_frame,
                            ccsds_tm_frame_rx_t *rx);
@@ -314,8 +314,8 @@ extern "C"
   /**
    * @brief This CADU as a @ref wfm_frame_desc_t — the standard as DATA.
    *
-   * The same fact `CCSDS_TM_CONV` states about the inner code and
-   * `CCSDS_TM_RS` about the outer one, at the level of the frame: 131.0-B-3
+   * The same fact `dp_CCSDS_TM_CONV` states about the inner code and
+   * `dp_CCSDS_TM_RS` about the outer one, at the level of the frame: 131.0-B-3
    * section 9 is a CONFIGURATION of a general description, not a framer of
    * its own. Three fields — the marker, the Transfer Frame, and the check
    * symbols the outer code derives — and three stages whose covers are the
@@ -323,7 +323,7 @@ extern "C"
    *
    * The dependency runs THIS way on purpose. `wfm/wfm_frame.h` knows nothing
    * about CCSDS; if it called this component's kernels the two would form a
-   * cycle, so the kernels travel as @ref ccsds_tm_frame_ops instead.
+   * cycle, so the kernels travel as @ref dp_ccsds_tm_frame_ops instead.
    *
    * @param cfg         the coding to apply.
    * @param frame_len   Transfer Frame length in **octets**.
@@ -334,16 +334,16 @@ extern "C"
    *                    May be `NULL` to describe the geometry alone.
    * @param out         receives the description.
    * @return 0, or -1 if the configuration is refused — the same refusals
-   *         @ref ccsds_tm_frame_layout applies, for the same reasons.
+   *         @ref dp_ccsds_tm_frame_layout applies, for the same reasons.
    */
-  int ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
+  int dp_ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg,
                                size_t frame_len, const uint8_t *frame_bits,
                                wfm_frame_desc_t *out);
 
   /**
    * @brief A framed waveform's choices, before they become a description.
    *
-   * The wider family `ccsds_tm_frame_describe` is the CADU case of: a frame
+   * The wider family `dp_ccsds_tm_frame_describe` is the CADU case of: a frame
    * that may open with a marker, may carry a preamble and a sync word a
    * receiver FINDS, carries a payload, and applies some subset of this
    * standard's four stages to it.
@@ -423,7 +423,7 @@ extern "C"
    * @return 0, or -1 on NULL, or if the geometry needs more fields or
    *         stages than a description holds.
    */
-  int ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,
+  int dp_ccsds_tm_frame_desc_of (const ccsds_tm_frame_spec_t *s,
                               wfm_frame_desc_t *d);
 
   /**
@@ -431,18 +431,18 @@ extern "C"
    *
    * The outer code, the randomiser and the inner code, as the transforms
    * @ref dp_wfm_frame_assemble calls. Each one is the same function
-   * @ref ccsds_tm_frame_encode calls, so the two paths cannot come to
+   * @ref dp_ccsds_tm_frame_encode calls, so the two paths cannot come to
    * disagree about what a stage does — only about which bits it is handed,
    * and that is what the description states.
    *
    * @param out   receives the table.
    * @param conv  inner-encoder state carried across frames, or `NULL` to
    *              start each frame from the all-zero register. Exactly
-   *              @ref ccsds_tm_frame_encode's @p conv, and it matters for
+   *              @ref dp_ccsds_tm_frame_encode's @p conv, and it matters for
    *              the same reason: 3.3.2 fixes one uninterrupted symbol
    *              sequence.
    */
-  void ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
+  void dp_ccsds_tm_frame_ops (wfm_frame_ops_t *out, conv_enc_t *conv);
 
 #ifdef __cplusplus
 }

@@ -56,7 +56,7 @@ static PyMethodDef ccsds_module_methods[] = {
     "MSB-first expansion written out twice is a transcription that can\n"
     "disagree with itself. This tree's own doctests were the second copy\n"
     "until doppler#900, and this alias exists so the third copy is not a\n"
-    "Python one: it delegates to `ccsds_tm_asm_bits`, which is where the\n"
+    "Python one: it delegates to `dp_ccsds_tm_asm_bits`, which is where the\n"
     "expansion is written and where `test_ccsds_tm_asm` holds it to the\n"
     "published pattern.\n"
     "\n"

@@ -35,7 +35,7 @@
  * and the one no ideal-channel run can produce.
  * - **The 180-degree ambiguity is REAL here.** A BPSK carrier loop locks to
  *   one of two phases and nothing in the waveform says which, so the decoded
- *   stream arrives complemented about half the time. `ccsds_tm_asm_find`
+ *   stream arrives complemented about half the time. `dp_ccsds_tm_asm_find`
  *   correlates the marker AND its complement for exactly this reason; the
  *   demo prints the polarity it found and has only ever found one, because an
  *   ideal channel has no ambiguity to resolve. Here both occur.
@@ -58,7 +58,7 @@
  * Above threshold the concatenated code delivers zero payload errors in every
  * bit this harness can afford to run, and "zero" is not a rate. So the number
  * quoted is one-sided and honest: the 95 % upper limit on the BER from zero
- * errors in `N` bits (`ber_confidence`, exact), turned into the Eb/N0 an
+ * errors in `N` bits (`dp_ber_confidence`, exact), turned into the Eb/N0 an
  * UNCODED link would have needed to reach it (`ber_esn0_db_for_ser`, the
  * library's own closed form, inverted), minus the Eb/N0 this link actually
  * ran at. Both halves come from the library rather than from a curve read off
@@ -274,7 +274,7 @@ identify (const uint8_t *got, const uint8_t *frames, size_t *dist_out)
 /* Decode one SEGMENT of the settled symbol stream: ask the library which
    branch alignment the stream is on, then decode that one.
 
-   Node synchronization is `conv`'s (doppler#834, closed): `node_sync_scan`
+   Node synchronization is `conv`'s (doppler#834, closed): `dp_node_sync_scan`
    scores every hypothesis by the RE-ENCODING metric -- decode, re-encode,
    count disagreements against what arrived -- which needs no marker and no
    truth, so it works on a live capture. This harness used to pick the parity
@@ -315,7 +315,7 @@ decode_segment (dp_viterbi_state_t *v, const float complex *sym, size_t nsym,
      sits ~20 % of symbols away (conv_core.h), so a few hundred scored
      symbols decide it. */
   const size_t win = nsym < NODE_SYNC_WIN ? nsym : NODE_SYNC_WIN;
-  if (!node_sync_scan (v, llr, win, &ns))
+  if (!dp_node_sync_scan (v, llr, win, &ns))
     return 0;
   if (ns_out)
     *ns_out = ns;
@@ -356,9 +356,10 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
   uint8_t            *bits   = malloc (TOTAL_SYM);
   uint8_t            *cadu   = malloc (CADU_BITS);
   uint8_t            *frame  = malloc (FRAME_OCTETS);
-  dp_viterbi_state_t *v      = viterbi_create_code (&CCSDS_TM_CONV, TRACEBACK);
-  int                 clipped = 0;
-  size_t              nout    = 0;
+  dp_viterbi_state_t *v
+      = dp_viterbi_create_code (&dp_CCSDS_TM_CONV, TRACEBACK);
+  int    clipped = 0;
+  size_t nout    = 0;
 
   if (!out || !lock_c || !track || !err || !llr || !bits || !cadu || !frame
       || !v)
@@ -437,7 +438,7 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
       ccsds_tm_asm_hit_t hit;
       size_t             win
           = nbits < (size_t)2 * CADU_BITS ? nbits : (size_t)2 * CADU_BITS;
-      if (!ccsds_tm_asm_find (bits, win, ASM_TOL, &hit))
+      if (!dp_ccsds_tm_asm_find (bits, win, ASM_TOL, &hit))
         break;
       if (seg == 0)
         {
@@ -467,8 +468,8 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
             cadu[i] = (uint8_t)((bits[pos + i] ^ (unsigned)inv) & 1u);
 
           ccsds_tm_frame_rx_t rx;
-          if (ccsds_tm_frame_decode (&CODED, cadu, CADU_BITS, frame,
-                                     FRAME_OCTETS, &rx)
+          if (dp_ccsds_tm_frame_decode (&CODED, cadu, CADU_BITS, frame,
+                                        FRAME_OCTETS, &rx)
               != 0)
             {
               size_t dist = 0;
@@ -538,7 +539,7 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
             wid = (size_t)2 * SYNC_SPAN + CCSDS_TM_ASM_BITS;
 
           ccsds_tm_asm_hit_t nxt;
-          if (ccsds_tm_asm_find (bits + lo, wid, ASM_TOL, &nxt)
+          if (dp_ccsds_tm_asm_find (bits + lo, wid, ASM_TOL, &nxt)
               && nxt.inverted == inv)
             {
               const size_t got = lo + nxt.offset;
@@ -566,14 +567,14 @@ run_point (double esn0_db, const uint8_t *frames, const uint8_t *tx_cadu,
       goto done;
     }
 
-  /* The gain, one-sided. `ber_confidence` is exact at zero errors, and
+  /* The gain, one-sided. `dp_ber_confidence` is exact at zero errors, and
      `ber_esn0_db_for_ser` is the library's own uncoded closed form inverted
      — so both ends of the subtraction come from the same place a receiver
      test would read them. */
   if (res.payload_bits > 0)
     {
       ber_interval_t ci
-          = ber_confidence (res.payload_errs, res.payload_bits, CONF);
+          = dp_ber_confidence (res.payload_errs, res.payload_bits, CONF);
       double p    = ci.hi > 0.0 ? ci.hi : 1.0;
       res.gain_db = dp_ber_esn0_db_for_ser (2, p) - res.ebn0_db;
     }
@@ -658,15 +659,15 @@ main (int argc, char **argv)
      a single uninterrupted sequence, and restarting it per frame would put a
      K-1 bit discontinuity on every ASM — invisible to a matched decoder and
      exactly the kind of self-consistent error this slice keeps finding. */
-  conv_enc_init (&conv);
+  dp_conv_enc_init (&conv);
   for (int f = 0; f < NCADU; f++)
     {
-      ccsds_tm_frame_encode (&CADU_ONLY, NULL,
-                             frames + (size_t)f * FRAME_OCTETS, FRAME_OCTETS,
-                             tx_cadu + (size_t)f * CADU_BITS, CADU_BITS);
-      ccsds_tm_frame_encode (&CODED, &conv, frames + (size_t)f * FRAME_OCTETS,
-                             FRAME_OCTETS, tx_sym + (size_t)f * SYM_PER_CADU,
-                             SYM_PER_CADU);
+      dp_ccsds_tm_frame_encode (
+          &CADU_ONLY, NULL, frames + (size_t)f * FRAME_OCTETS, FRAME_OCTETS,
+          tx_cadu + (size_t)f * CADU_BITS, CADU_BITS);
+      dp_ccsds_tm_frame_encode (
+          &CODED, &conv, frames + (size_t)f * FRAME_OCTETS, FRAME_OCTETS,
+          tx_sym + (size_t)f * SYM_PER_CADU, SYM_PER_CADU);
     }
 
   if (!check)

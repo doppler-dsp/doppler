@@ -59,7 +59,8 @@ from doppler.track import Dll
 from doppler.wfm import Gold
 
 # CCSDS Gold-1023 at the SPEC geometry. K = 11 coherent segments per epoch is
-# dll_lookback_segments(1023, 0.5 dB) -- the transition-free coherent windows
+# dp_dll_lookback_segments(1023, 0.5 dB) -- the transition-free coherent
+# windows
 # the 1023 code splits into at the SPEC's tolerable correlation-power loss, and
 # what AsyncDsssReceiver's refine/track stages use.
 SF, SPS, K = 1023, 8, 11  # Gold-1023 chips, samples/chip, coherent segments

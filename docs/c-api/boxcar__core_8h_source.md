@@ -59,7 +59,7 @@ extern "C"
     return s->gain;
   }
 
-  void boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
+  void dp_boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
 
   dp_boxcar_state_t *dp_boxcar_create (size_t len, double gain);
 

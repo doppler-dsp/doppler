@@ -20,7 +20,7 @@ a genie de-rotate stands in for the [`Costas`](costas.md) loop that
 [`AsyncDsssReceiver`](async-dsss-receiver-spec.md) runs before its DLL). This is
 the SPEC geometry: **CCSDS Gold-1023**, 8 samples/chip, code Doppler 2e‑4, data
 clock offset 4e‑3 from the code epoch. `K = 11` is
-`dll_lookback_segments(1023, 0.5 dB)` — the number of transition-free coherent
+`dp_dll_lookback_segments(1023, 0.5 dB)` — the number of transition-free coherent
 segments the 1023 code splits into at the SPEC's tolerable correlation loss, the
 same value the receiver's refine/track stages use.
 

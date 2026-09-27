@@ -609,7 +609,7 @@ What it settles:
     harness first seeded the hand-off receiver with the stimulus's own
     chip phase; through the channel the received code is five chips late
     (the resampler's delay), the code loop sat outside its pull-in and
-    nothing downstream locked. `acq_build_handoff()` of the searcher's
+    nothing downstream locked. `dp_acq_build_handoff()` of the searcher's
     hit — measured on the received stream — is the seed, and with it the
     same trials lock in 70–280 ms.
 - **What the ramp found was a hand-over defect, not a window one
@@ -668,7 +668,7 @@ deviation the noise. Three axes — the seed's error (0, ±500, ±1100,
 ±2000 Hz) at the floor's dwell, the dwell through the design margin at a
 fixed +1100 Hz, and the **despread stream** the refine estimates on:
 `refine_max_error_db` sets the collection Dll's dumps per epoch through
-`dll_lookback_segments()`, and the shipped default (0.5 dB, eleven dumps,
+`dp_dll_lookback_segments()`, and the shipped default (0.5 dB, eleven dumps,
 53.8 kHz) was compared with 100 dB (one dump, the 4.9 kHz epoch rate),
 which `objects/async_dsss_receiver.toml` records as retired because a
 stream below the 2700-baud data lobe's own width aliases any residual.
@@ -765,7 +765,7 @@ the truth, and its aliasing folds the whole lobe into the band, so its
 detector fired on a seed a chip off and handed over a biased estimate
 instead of none.
 
-**The fix.** `acq_build_handoff()` takes the RF carrier (0.0 = no
+**The fix.** `dp_acq_build_handoff()` takes the RF carrier (0.0 = no
 coupling) and advances the hit's phase by `doppler_hz_est / carrier_freq_hz × n_noncoh × coherent_bins × code_len / 2` chips — the
 drift over half the dwell — folded with `dp_fmod_pos()`. The searching
 receiver passes its own `carrier_freq_hz`; the hand-off flavor's holder
@@ -796,7 +796,7 @@ now lives on the engine (`set_carrier_freq_hz`), one declaration for the
 hand-off's advance and the block's alignment. And
 `doppler.dsss.handoff.dll_init_chip_from_acq`, the Python lag → phase
 helper for a hand-built Acquisition → Dll chain, restates
-`acq_build_handoff()`'s fold and does not carry the advance —
+`dp_acq_build_handoff()`'s fold and does not carry the advance —
 [#1257](https://github.com/doppler-dsp/doppler/issues/1257).
 
 ______________________________________________________________________
@@ -864,7 +864,7 @@ C/N0, noise from the shipped awgn after the channel.
     Told nothing, the smeared peak's argmax wandered (385.50) and the
     advanced seed was 0.4 chip off, inside the refine's pull-in only by
     luck.
-- **One declaration.** The carrier moved from `acq_build_handoff()`'s
+- **One declaration.** The carrier moved from `dp_acq_build_handoff()`'s
     argument (#1258, the previous PR) to the engine:
     `dp_acq_set_carrier_freq_hz()`, a jm method with a read-back property,
     drives both the block's alignment and the hand-off's advance. Config,
@@ -1833,7 +1833,7 @@ epoch, the partial loop applies the filter's whole output as chips over
 proportional term. Each is pinned by its own tests and the `Dll` report,
 so the two gain tables stay as data the one steer reads, and reconciling
 them is [#1284](https://github.com/doppler-dsp/doppler/issues/1284), a
-certified-behaviour change on its own. Second, `dll_take_error()`: every
+certified-behaviour change on its own. Second, `dp_dll_take_error()`: every
 steer adds its clamped discriminator to a running sum, coasting or not;
 take returns the count and the sum and zeroes them. Third, a held loop
 takes a new rate aid at once — `dp_dll_set_rate_aid()` only stored the aid
@@ -1877,7 +1877,7 @@ decision of §11.1): no refine, the `Dll` held from the first sample and
 never closing its own loop, a held code phase kept in double,
 dead-reckoned on the carrier loop's Doppler and corrected once every
 `correct_periods` code periods by a gain in chips times the coasting
-`Dll`'s interval-mean discriminator (`dll_take_error()`, §12.25's read).
+`Dll`'s interval-mean discriminator (`dp_dll_take_error()`, §12.25's read).
 Gain 1 through `pullin_intervals` (the seed's residual), the design gain
 1/8 after; with the code flag down the phase only dead-reckons. Past the
 `Dll` — the symbol path, the symbol lock, the release rule, the status

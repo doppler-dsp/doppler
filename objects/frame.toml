@@ -265,7 +265,7 @@ nogil = true
 # covers -- rather than by a CCSDS entry point being added to this object.
 [[frame.views]]
 class_name = "FrameDesc"
-create_fn = "frame_create_desc"
+create_fn = "dp_frame_create_desc"
 
 [[frame.methods]]
 name = "layout"

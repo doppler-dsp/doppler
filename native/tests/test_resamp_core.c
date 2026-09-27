@@ -5,18 +5,18 @@
  *   §1  Lifecycle and properties (create, rate, num_phases, num_taps)
  *   §2  set_rate and reset read back (literals only — see §15, §16)
  *   §3  R == 1 is a one-arm all-pass: flat |H|, constant group delay --
- *       and the delay is resamp_get_delay(), on both entry points
+ *       and the delay is dp_resamp_get_delay(), on both entry points
  *   §4  A resampled pure tone is still a pure tone, 10 rates × both paths
  *   §5  Output counts for 2× decimation, 2× interpolation, unity ctrl
  *   §6  Serializable state round-trip, decimating / interpolating / fractional
- *   §7  resamp_interp_fill == resamp_execute, and block-boundary invariance
- *   §8  execute_ctrl_push == execute_ctrl, incl. unity's neighbours
+ *   §7  dp_resamp_interp_fill == dp_resamp_execute, and block-boundary
+ * invariance §8  execute_ctrl_push == execute_ctrl, incl. unity's neighbours
  *   §9  A single-phase bank selects arm 0; phase_inc survives rate 1.0
  *   §10 The ctrl accumulator names the arm the NEXT output reads
  *   §11 One wrap of `mu` buys one INPUT interval, not one output period
  *   §12 `mu` is steady at an exact rate, slewing at a rate error
- *   §13 resamp_dc_gain is the bank's own gain, computed, on both paths
- *   §14 resamp_destroy(NULL) is a no-op; create_custom rejects
+ *   §13 dp_resamp_dc_gain is the bank's own gain, computed, on both paths
+ *   §14 dp_resamp_destroy(NULL) is a no-op; create_custom rejects
  *   §15 set_rate preserves the accumulator and the delay line
  *   §16 reset zeroes every accumulator and every delay buffer
  *   §17 The bank's advertised 60 dB stopband and 0.4/0.6 cutoffs
@@ -27,8 +27,8 @@
  * Sections numbered §10 onward were added by the validation campaign, which
  * enumerated resamp_core.h's prose claims and asked of each whether anything
  * ran it. Three public entry points had ZERO mentions in this file
- * (resamp_get_ctrl_acc, resamp_dc_gain, resamp_destroy(NULL)) and two more
- * were pinned only at their literals — the comment claimed more than the
+ * (dp_resamp_get_ctrl_acc, dp_resamp_dc_gain, dp_resamp_destroy(NULL)) and two
+ * more were pinned only at their literals — the comment claimed more than the
  * assertion did, which is prose wearing a test's clothes. Each new section was
  * proven by sabotage before being trusted.
  *
@@ -78,7 +78,7 @@ enum
 static size_t
 gate_run (double rate, double f0, int use_ctrl, float _Complex *y, size_t cap)
 {
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 0;
   size_t t = 0;
@@ -89,13 +89,13 @@ gate_run (double rate, double f0, int use_ctrl, float _Complex *y, size_t cap)
       float _Complex b[32];
       size_t g;
       if (use_ctrl)
-        g = resamp_execute_ctrl_push (r, x, 0.0, b, 32);
+        g = dp_resamp_execute_ctrl_push (r, x, 0.0, b, 32);
       else
-        g = resamp_execute (r, &x, 1, b, 32);
+        g = dp_resamp_execute (r, &x, 1, b, 32);
       for (size_t j = 0; j < g && t < cap; j++)
         y[t++] = b[j];
     }
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   return t;
 }
 
@@ -160,25 +160,25 @@ rt_resamp (double rate)
       in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
     }
 
-  resamp_state_t *ra = resamp_create (rate);
-  size_t          nA = resamp_execute (ra, in, L, outA, CAP);
-  resamp_destroy (ra);
+  resamp_state_t *ra = dp_resamp_create (rate);
+  size_t          nA = dp_resamp_execute (ra, in, L, outA, CAP);
+  dp_resamp_destroy (ra);
 
-  resamp_state_t *r1   = resamp_create (rate);
-  size_t          nB   = resamp_execute (r1, in, cut, outB, CAP);
-  size_t          sb   = resamp_state_bytes (r1);
+  resamp_state_t *r1   = dp_resamp_create (rate);
+  size_t          nB   = dp_resamp_execute (r1, in, cut, outB, CAP);
+  size_t          sb   = dp_resamp_state_bytes (r1);
   void           *blob = malloc (sb);
-  resamp_get_state (r1, blob);
-  resamp_destroy (r1);
+  dp_resamp_get_state (r1, blob);
+  dp_resamp_destroy (r1);
 
-  resamp_state_t *r2 = resamp_create (rate);
-  int             ok = (resamp_set_state (r2, blob) == DP_OK);
+  resamp_state_t *r2 = dp_resamp_create (rate);
+  int             ok = (dp_resamp_set_state (r2, blob) == DP_OK);
   /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
   ((char *)blob)[0] ^= (char)0xFF;
-  ok = ok && (resamp_set_state (r2, blob) == DP_ERR_INVALID);
+  ok = ok && (dp_resamp_set_state (r2, blob) == DP_ERR_INVALID);
   ((char *)blob)[0] ^= (char)0xFF;
-  nB += resamp_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
-  resamp_destroy (r2);
+  nB += dp_resamp_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
+  dp_resamp_destroy (r2);
   free (blob);
 
   ok = ok && (nA == nB);
@@ -189,9 +189,9 @@ rt_resamp (double rate)
   return ok;
 }
 
-/* resamp_interp_fill must reproduce the interpolation branch of
- * resamp_execute() bit-for-bit (both call the same per-output kernel), and a
- * single fill of M outputs must equal M single-output fills fed on demand
+/* dp_resamp_interp_fill must reproduce the interpolation branch of
+ * dp_resamp_execute() bit-for-bit (both call the same per-output kernel), and
+ * a single fill of M outputs must equal M single-output fills fed on demand
  * (block-boundary invariance) — the two properties the polyphase pulse shaper
  * relies on for step()==steps(). Uses an integer-rate custom bank so the
  * overflow count (inputs_needed) is exact. Returns 1 on success. */
@@ -215,19 +215,19 @@ eq_interp_fill (size_t nphases, size_t ntaps)
       in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
     }
 
-  /* Reference: interpolation branch of resamp_execute with ample input. */
+  /* Reference: interpolation branch of dp_resamp_execute with ample input. */
   resamp_state_t *rr
-      = resamp_create_custom (nphases, ntaps, bank, (double)nphases);
-  size_t nref = resamp_execute (rr, in, BIG, out_ref, M);
-  resamp_destroy (rr);
+      = dp_resamp_create_custom (nphases, ntaps, bank, (double)nphases);
+  size_t nref = dp_resamp_execute (rr, in, BIG, out_ref, M);
+  dp_resamp_destroy (rr);
   int ok = (nref == (size_t)M);
 
   /* A: one fill of M outputs. Consumes exactly inputs_needed. */
   resamp_state_t *ra
-      = resamp_create_custom (nphases, ntaps, bank, (double)nphases);
-  size_t need = resamp_interp_inputs_needed (ra, M);
-  size_t ca   = resamp_interp_fill (ra, in, out_a, M);
-  resamp_destroy (ra);
+      = dp_resamp_create_custom (nphases, ntaps, bank, (double)nphases);
+  size_t need = dp_resamp_interp_inputs_needed (ra, M);
+  size_t ca   = dp_resamp_interp_fill (ra, in, out_a, M);
+  dp_resamp_destroy (ra);
   ok = ok && (ca == need);
   for (size_t i = 0; i < (size_t)M; i++)
     ok = ok && crealf (out_a[i]) == crealf (out_ref[i])
@@ -235,11 +235,11 @@ eq_interp_fill (size_t nphases, size_t ntaps)
 
   /* B: M single-output fills, fed on demand (the synth's step() model). */
   resamp_state_t *rb
-      = resamp_create_custom (nphases, ntaps, bank, (double)nphases);
+      = dp_resamp_create_custom (nphases, ntaps, bank, (double)nphases);
   size_t xi = 0;
   for (size_t i = 0; i < (size_t)M; i++)
-    xi += resamp_interp_fill (rb, in + xi, out_b + i, 1);
-  resamp_destroy (rb);
+    xi += dp_resamp_interp_fill (rb, in + xi, out_b + i, 1);
+  dp_resamp_destroy (rb);
   ok = ok && (xi == need);
   for (size_t i = 0; i < (size_t)M; i++)
     ok = ok && crealf (out_b[i]) == crealf (out_ref[i])
@@ -296,11 +296,11 @@ ctrl_near_unity_consumes_input (void)
       for (size_t i = 0; i < (size_t)L; i++)
         ctrl[i] = dev[k];
 
-      resamp_state_t *r = resamp_create (1.0);
+      resamp_state_t *r = dp_resamp_create (1.0);
       if (!r)
         return 0;
-      size_t n = resamp_execute_ctrl (r, in, ctrl, L, out, CAP);
-      resamp_destroy (r);
+      size_t n = dp_resamp_execute_ctrl (r, in, ctrl, L, out, CAP);
+      dp_resamp_destroy (r);
 
       /* One output per input, give or take the boundary sample. A stall
          runs to CAP. */
@@ -329,8 +329,8 @@ ctrl_near_unity_consumes_input (void)
   return ok;
 }
 
-/* resamp_execute_ctrl_push (one input at a time) must reproduce the block
- * resamp_execute_ctrl on the same (in, ctrl[]) bit-for-bit — the property a
+/* dp_resamp_execute_ctrl_push (one input at a time) must reproduce the block
+ * dp_resamp_execute_ctrl on the same (in, ctrl[]) bit-for-bit — the property a
  * closed timing loop relies on to steer the strobe per output. Returns 1 ok.
  */
 static int
@@ -351,16 +351,16 @@ eq_ctrl_push (double rate)
       ctrl[i] = 0.01 * sin (0.05 * (double)i);
     }
 
-  resamp_state_t *rb   = resamp_create (rate);
-  size_t          nref = resamp_execute_ctrl (rb, in, ctrl, L, out_ref, CAP);
-  resamp_destroy (rb);
+  resamp_state_t *rb = dp_resamp_create (rate);
+  size_t nref        = dp_resamp_execute_ctrl (rb, in, ctrl, L, out_ref, CAP);
+  dp_resamp_destroy (rb);
 
-  resamp_state_t *rp = resamp_create (rate);
+  resamp_state_t *rp = dp_resamp_create (rate);
   size_t          np = 0;
   for (size_t i = 0; i < (size_t)L && np < CAP; i++)
-    np += resamp_execute_ctrl_push (rp, in[i], ctrl[i], out_push + np,
-                                    CAP - np);
-  resamp_destroy (rp);
+    np += dp_resamp_execute_ctrl_push (rp, in[i], ctrl[i], out_push + np,
+                                       CAP - np);
+  dp_resamp_destroy (rp);
 
   int ok = (np == nref);
   for (size_t i = 0; i < nref && i < np; i++)
@@ -372,10 +372,10 @@ eq_ctrl_push (double rate)
 
 /* ── §10 — `mu` is in [0, 1), and it names the arm the NEXT output reads ──
  *
- * resamp_get_ctrl_acc() is the control port's only observable, and before the
- * validation campaign nothing ran it: zero mentions in this file. The header
- * claims the value is in [0, 1) and that it identifies a polyphase arm as
- * floor(mu * num_phases).
+ * dp_resamp_get_ctrl_acc() is the control port's only observable, and before
+ * the validation campaign nothing ran it: zero mentions in this file. The
+ * header claims the value is in [0, 1) and that it identifies a polyphase arm
+ * as floor(mu * num_phases).
  *
  * The arm is made OBSERVABLE rather than inferred. A one-tap bank whose arm p
  * holds the single tap (p + 1) turns the dot product into
@@ -402,7 +402,7 @@ ctrl_acc_names_next_arm (double rate)
   for (int p = 0; p < P; p++)
     bank[p] = (float)(p + 1);
 
-  resamp_state_t *r = resamp_create_custom (P, 1, bank, rate);
+  resamp_state_t *r = dp_resamp_create_custom (P, 1, bank, rate);
   if (!r)
     return 0;
 
@@ -411,7 +411,8 @@ ctrl_acc_names_next_arm (double rate)
   for (int k = 0; k < CALLS; k++)
     {
       float _Complex o[8];
-      size_t g = resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      size_t g
+          = dp_resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
       if (g && predicted >= 0)
         {
           int arm = (int)lrintf (crealf (o[0])) - 1;
@@ -423,7 +424,7 @@ ctrl_acc_names_next_arm (double rate)
               ok = 0;
             }
         }
-      double mu = resamp_get_ctrl_acc (r);
+      double mu = dp_resamp_get_ctrl_acc (r);
       if (!(mu >= 0.0 && mu < 1.0))
         {
           fprintf (stderr, "  §10 rate=%.3f: mu %.17g outside [0,1)\n", rate,
@@ -432,7 +433,7 @@ ctrl_acc_names_next_arm (double rate)
         }
       predicted = (int)floor (mu * (double)P);
     }
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   return ok;
 }
 
@@ -462,22 +463,22 @@ ctrl_wrap_is_one_input (double rate)
   };
   if (rate >= 1.0)
     return 0;
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 0;
 
   size_t outs = 0, wraps = 0;
-  double prev = resamp_get_ctrl_acc (r);
+  double prev = dp_resamp_get_ctrl_acc (r);
   for (int k = 0; k < CALLS; k++)
     {
       float _Complex o[8];
-      outs += resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
-      double mu = resamp_get_ctrl_acc (r);
+      outs += dp_resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      double mu = dp_resamp_get_ctrl_acc (r);
       if (mu < prev)
         wraps++;
       prev = mu;
     }
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
 
   size_t skip    = (size_t)floor (1.0 / rate);
   long   created = (long)(outs * skip + wraps);
@@ -501,7 +502,7 @@ ctrl_wrap_is_one_input (double rate)
  * An assertion that a number STAYS zero is satisfied by an accessor that can
  * only ever return zero, so this one carries its vacuity precondition with it:
  * the second half steers the same rate off-exact and requires mu to move. A
- * `resamp_get_ctrl_acc` hard-wired to 0.0 takes §10, §11 and the slew case
+ * `dp_resamp_get_ctrl_acc` hard-wired to 0.0 takes §10, §11 and the slew case
  * below red, and without these four lines would have left this one GREEN —
  * measured, by doing exactly that.
  *
@@ -511,18 +512,18 @@ ctrl_wrap_is_one_input (double rate)
 static int
 ctrl_acc_steady_at_exact_rate (double rate)
 {
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 0;
   int ok = 1;
   for (int k = 0; k < 2000; k++)
     {
       float _Complex o[8];
-      resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
-      if (resamp_get_ctrl_acc (r) != 0.0)
+      dp_resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      if (dp_resamp_get_ctrl_acc (r) != 0.0)
         {
           fprintf (stderr, "  §12 rate=%.3f: mu drifted to %.17g at %d\n",
-                   rate, resamp_get_ctrl_acc (r), k);
+                   rate, dp_resamp_get_ctrl_acc (r), k);
           ok = 0;
           break;
         }
@@ -534,8 +535,8 @@ ctrl_acc_steady_at_exact_rate (double rate)
   for (int k = 0; k < 2000 && !moved; k++)
     {
       float _Complex o[8];
-      resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.01, o, 8);
-      moved = resamp_get_ctrl_acc (r) != 0.0;
+      dp_resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.01, o, 8);
+      moved = dp_resamp_get_ctrl_acc (r) != 0.0;
     }
   if (!moved)
     {
@@ -546,7 +547,7 @@ ctrl_acc_steady_at_exact_rate (double rate)
       ok = 0;
     }
 
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   return ok;
 }
 
@@ -557,22 +558,22 @@ ctrl_acc_slews_at_rate_error (double rate)
   {
     CALLS = 8000
   };
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 0;
 
   size_t outs = 0, wraps = 0;
-  double prev = resamp_get_ctrl_acc (r);
+  double prev = dp_resamp_get_ctrl_acc (r);
   for (int k = 0; k < CALLS; k++)
     {
       float _Complex o[8];
-      outs += resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
-      double mu = resamp_get_ctrl_acc (r);
+      outs += dp_resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      double mu = dp_resamp_get_ctrl_acc (r);
       if (mu < prev)
         wraps++;
       prev = mu;
     }
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
 
   double t_in     = 1.0 / rate;
   double expected = (double)outs * (t_in - floor (t_in));
@@ -581,7 +582,7 @@ ctrl_acc_slews_at_rate_error (double rate)
   return fabs ((double)wraps - expected) <= 1.0;
 }
 
-/* ── §13 — `resamp_dc_gain` is the bank's own gain, on BOTH paths ────────
+/* ── §13 — `dp_resamp_dc_gain` is the bank's own gain, on BOTH paths ────────
  *
  * Three claims in one docblock, none of them run before now:
  *   (a) the default Kaiser bank's DC gain is 1.0 — the header's own @code
@@ -597,10 +598,10 @@ ctrl_acc_slews_at_rate_error (double rate)
 static double
 dc_gain_worst_arm_deviation (void)
 {
-  resamp_state_t *r = resamp_create (0.5);
+  resamp_state_t *r = dp_resamp_create (0.5);
   if (!r)
     return -1.0;
-  double g0    = resamp_dc_gain (r);
+  double g0    = dp_resamp_dc_gain (r);
   double worst = 0.0;
   for (size_t p = 0; p < r->num_phases; p++)
     {
@@ -610,11 +611,12 @@ dc_gain_worst_arm_deviation (void)
       if (fabs (s - g0) > worst)
         worst = fabs (s - g0);
     }
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   return worst;
 }
 
-/* Measured DC response: a constant input through resamp_execute, settled. */
+/* Measured DC response: a constant input through dp_resamp_execute, settled.
+ */
 static double
 dc_gain_measured (double rate)
 {
@@ -624,13 +626,13 @@ dc_gain_measured (double rate)
     CAP = 16384
   };
   static float _Complex in[NIN], out[CAP];
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 0.0;
   for (size_t i = 0; i < NIN; i++)
     in[i] = CMPLXF (1.0f, 0.0f);
-  size_t n = resamp_execute (r, in, NIN, out, CAP);
-  resamp_destroy (r);
+  size_t n = dp_resamp_execute (r, in, NIN, out, CAP);
+  dp_resamp_destroy (r);
   if (n < 128)
     return 0.0;
   double acc = 0.0;
@@ -640,7 +642,7 @@ dc_gain_measured (double rate)
   return acc / (double)cnt;
 }
 
-/* ── §14 — resamp_destroy(NULL) is a no-op, and create_custom rejects ────
+/* ── §14 — dp_resamp_destroy(NULL) is a no-op, and create_custom rejects ────
  *
  * "NULL is a no-op" is a header sentence nothing executed. The custom
  * constructor's guards are in the same position: each is a documented
@@ -651,17 +653,17 @@ lifecycle_rejects (void)
   const float ok_bank[4] = { 1.0f, 0.0f, 1.0f, 0.0f };
   int         ok         = 1;
 
-  resamp_destroy (NULL); /* must simply return */
+  dp_resamp_destroy (NULL); /* must simply return */
 
-  if (resamp_create_custom (0, 2, ok_bank, 1.0) != NULL)
+  if (dp_resamp_create_custom (0, 2, ok_bank, 1.0) != NULL)
     ok = 0; /* num_phases == 0 */
-  if (resamp_create_custom (2, 0, ok_bank, 1.0) != NULL)
+  if (dp_resamp_create_custom (2, 0, ok_bank, 1.0) != NULL)
     ok = 0; /* num_taps == 0   */
-  if (resamp_create_custom (2, 2, NULL, 1.0) != NULL)
+  if (dp_resamp_create_custom (2, 2, NULL, 1.0) != NULL)
     ok = 0; /* no bank         */
-  if (resamp_create_custom (2, 2, ok_bank, 0.0) != NULL)
+  if (dp_resamp_create_custom (2, 2, ok_bank, 0.0) != NULL)
     ok = 0; /* rate == 0       */
-  if (resamp_create_custom (2, 2, ok_bank, -1.0) != NULL)
+  if (dp_resamp_create_custom (2, 2, ok_bank, -1.0) != NULL)
     ok = 0; /* rate < 0        */
   return ok;
 }
@@ -698,7 +700,7 @@ band_response_db (double rate, double f0)
     CAP = 16384
   };
   static float _Complex in[NIN], out[CAP];
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 1.0; /* impossible value: caller's check will fail */
   for (size_t i = 0; i < NIN; i++)
@@ -706,8 +708,8 @@ band_response_db (double rate, double f0)
       double ph = 2.0 * M_PI * f0 * (double)i;
       in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
     }
-  size_t n = resamp_execute (r, in, NIN, out, CAP);
-  resamp_destroy (r);
+  size_t n = dp_resamp_execute (r, in, NIN, out, CAP);
+  dp_resamp_destroy (r);
   if (n < 128)
     return 1.0;
   /* Settled half only, so the filter's startup is not read as response. */
@@ -788,7 +790,7 @@ image_floor_db (double rate, double f0)
   if (rate < 1.5)
     return 1.0; /* impossible value: caller's check will fail */
 
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 1.0;
   for (size_t i = 0; i < NIN; i++)
@@ -796,8 +798,8 @@ image_floor_db (double rate, double f0)
       double ph = 2.0 * M_PI * f0 * (double)i;
       in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
     }
-  size_t n = resamp_execute (r, in, NIN, out, CAP);
-  resamp_destroy (r);
+  size_t n = dp_resamp_execute (r, in, NIN, out, CAP);
+  dp_resamp_destroy (r);
   if (n < (size_t)GATE_SKIP + 1024)
     return 1.0;
 
@@ -837,7 +839,7 @@ image_floor_db (double rate, double f0)
 /* ── §18 — execute_ctrl rides the INTERPOLATOR at every rate ─────────────
  *
  * The header's most load-bearing structural sentence, and the one whose
- * violation cost 55-60 dB at every non-unity rate: "resamp_execute_ctrl —
+ * violation cost 55-60 dB at every non-unity rate: "dp_resamp_execute_ctrl —
  * unified, and it rides the INTERPOLATOR at every rate."
  *
  * `execute` dispatches on rate and uses the TRANSPOSED decimator below
@@ -870,14 +872,14 @@ ctrl_rides_interpolator (double rate)
       zero[i]   = 0.0;
     }
 
-  resamp_state_t *r1 = resamp_create (rate);
-  resamp_state_t *r2 = resamp_create (rate);
+  resamp_state_t *r1 = dp_resamp_create (rate);
+  resamp_state_t *r2 = dp_resamp_create (rate);
   if (!r1 || !r2)
     return 0;
-  size_t na = resamp_execute (r1, in, NIN, a, CAP);
-  size_t nb = resamp_execute_ctrl (r2, in, zero, NIN, b, CAP);
-  resamp_destroy (r1);
-  resamp_destroy (r2);
+  size_t na = dp_resamp_execute (r1, in, NIN, a, CAP);
+  size_t nb = dp_resamp_execute_ctrl (r2, in, zero, NIN, b, CAP);
+  dp_resamp_destroy (r1);
+  dp_resamp_destroy (r2);
 
   int same = (na == nb);
   for (size_t i = 0; i < na && i < nb && same; i++)
@@ -906,7 +908,7 @@ ctrl_rides_interpolator (double rate)
  *
  * The streaming contract: a caller asks how many inputs a fill of `max_out`
  * outputs will consume, generates exactly that many, and calls
- * resamp_interp_fill. Over- or under-production is a desync, so "exact" is
+ * dp_resamp_interp_fill. Over- or under-production is a desync, so "exact" is
  * the whole value of the function.
  *
  * §7 already pins it at ONE point — a custom power-of-two bank at
@@ -942,7 +944,7 @@ inputs_needed_is_exact (double rate)
   for (size_t i = 0; i < NIN; i++)
     in[i] = CMPLXF (1.0f, 0.0f);
 
-  resamp_state_t *r = resamp_create (rate);
+  resamp_state_t *r = dp_resamp_create (rate);
   if (!r)
     return 0;
 
@@ -954,10 +956,10 @@ inputs_needed_is_exact (double rate)
       /* Varied, and never the same twice: a fixed max_out would only ever
          exercise one phase alignment. */
       size_t m    = 1 + (size_t)(dp_xs32 (&seed) % (CAP - 1));
-      size_t need = resamp_interp_inputs_needed (r, m);
+      size_t need = dp_resamp_interp_inputs_needed (r, m);
       if (need > NIN)
         break;
-      size_t got = resamp_interp_fill (r, in, out, m);
+      size_t got = dp_resamp_interp_fill (r, in, out, m);
       if (got != need)
         {
           fprintf (stderr,
@@ -969,7 +971,7 @@ inputs_needed_is_exact (double rate)
       tot_in += got;
       tot_out += m;
     }
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   if (!ok)
     return 0;
 
@@ -995,7 +997,7 @@ inputs_needed_is_exact (double rate)
 static int
 set_rate_preserves_state (void)
 {
-  resamp_state_t *r = resamp_create (2.0);
+  resamp_state_t *r = dp_resamp_create (2.0);
   if (!r)
     return 0;
 
@@ -1003,7 +1005,8 @@ set_rate_preserves_state (void)
   for (int k = 0; k < 37; k++)
     {
       float _Complex o[8];
-      resamp_execute_ctrl_push (r, CMPLXF ((float)(k + 1), -1.0f), 0.03, o, 8);
+      dp_resamp_execute_ctrl_push (r, CMPLXF ((float)(k + 1), -1.0f), 0.03, o,
+                                   8);
     }
 
   uint32_t phase = r->phase, cph = r->ctrl_phase, cdebt = r->ctrl_debt;
@@ -1016,16 +1019,16 @@ set_rate_preserves_state (void)
   for (size_t i = 0; i < ncopy; i++)
     snap[i] = r->delay_buf[i];
 
-  resamp_set_rate (r, 3.0);
+  dp_resamp_set_rate (r, 3.0);
 
-  int ok = resamp_get_rate (r) == 3.0 && r->phase_inc != inc0
+  int ok = dp_resamp_get_rate (r) == 3.0 && r->phase_inc != inc0
            && r->phase == phase && r->ctrl_phase == cph
            && r->ctrl_debt == cdebt && r->ctrl_ahead == cahead
            && r->delay_head == head && r->bank == bank;
   for (size_t i = 0; i < ncopy; i++)
     if (r->delay_buf[i] != snap[i])
       ok = 0;
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   return ok;
 }
 
@@ -1040,16 +1043,17 @@ set_rate_preserves_state (void)
 static int
 reset_zeroes_state (void)
 {
-  resamp_state_t *r = resamp_create (0.7);
+  resamp_state_t *r = dp_resamp_create (0.7);
   if (!r)
     return 0;
 
   for (int k = 0; k < 53; k++)
     {
       float _Complex o[8];
-      resamp_execute_ctrl_push (r, CMPLXF ((float)(k + 1), 0.5f), -0.02, o, 8);
+      dp_resamp_execute_ctrl_push (r, CMPLXF ((float)(k + 1), 0.5f), -0.02, o,
+                                   8);
       float _Complex x = CMPLXF (1.0f, (float)k);
-      resamp_execute (r, &x, 1, o, 8);
+      dp_resamp_execute (r, &x, 1, o, 8);
     }
 
   /* The vacuity precondition: there is something here to zero. */
@@ -1057,13 +1061,13 @@ reset_zeroes_state (void)
   for (size_t i = 0; i < 2 * r->delay_cap; i++)
     if (r->delay_buf[i] != 0.0f)
       dirty = 1;
-  double gain0 = resamp_dc_gain (r);
+  double gain0 = dp_resamp_dc_gain (r);
 
-  resamp_reset (r);
+  dp_resamp_reset (r);
 
   int ok = dirty && r->phase == 0 && r->ctrl_phase == 0 && r->ctrl_debt == 0
            && r->ctrl_ahead == 0 && r->delay_head == 0
-           && resamp_get_rate (r) == 0.7 && resamp_dc_gain (r) == gain0;
+           && dp_resamp_get_rate (r) == 0.7 && dp_resamp_dc_gain (r) == gain0;
   for (size_t i = 0; i < 2 * r->delay_cap; i++)
     if (r->delay_buf[i] != 0.0f)
       ok = 0;
@@ -1073,7 +1077,7 @@ reset_zeroes_state (void)
   for (size_t i = 0; i + 1 < r->num_taps; i++)
     if (r->decim_tfd[i] != 0.0f)
       ok = 0;
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
   return ok;
 }
 
@@ -1081,25 +1085,25 @@ int
 main (void)
 {
   /* ---- create / destroy ---- */
-  resamp_state_t *r = resamp_create (1.0);
+  resamp_state_t *r = dp_resamp_create (1.0);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
 
   /* ---- properties ---- */
-  DP_CHECK (resamp_get_rate (r) == 1.0);
-  DP_CHECK (resamp_get_num_phases (r) == 4096);
-  DP_CHECK (resamp_get_num_taps (r) == 19);
+  DP_CHECK (dp_resamp_get_rate (r) == 1.0);
+  DP_CHECK (dp_resamp_get_num_phases (r) == 4096);
+  DP_CHECK (dp_resamp_get_num_taps (r) == 19);
 
   /* ---- set_rate preserves phase ---- */
-  resamp_set_rate (r, 2.0);
-  DP_CHECK (resamp_get_rate (r) == 2.0);
+  dp_resamp_set_rate (r, 2.0);
+  DP_CHECK (dp_resamp_get_rate (r) == 2.0);
 
   /* ---- reset: zeroes phase/delay, preserves rate ---- */
-  resamp_reset (r);
-  DP_CHECK (resamp_get_rate (r) == 2.0); /* rate must survive reset */
+  dp_resamp_reset (r);
+  DP_CHECK (dp_resamp_get_rate (r) == 2.0); /* rate must survive reset */
 
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
 
   /* Buffers shared by the count checks and the execute_ctrl check below. */
   static const size_t N = 64;
@@ -1115,7 +1119,7 @@ main (void)
      The invariant is flat |H| and CONSTANT group delay -- not out == in,
      which is what the deleted memcpy used to provide and what this test
      used to assert.  Constancy is asserted against the MEAN, and the mean
-     against resamp_get_delay(): the prototype's centre plus the one input
+     against dp_resamp_get_delay(): the prototype's centre plus the one input
      the pipeline holds back, 10.5 for the built-in bank. Both entry points
      read the same value (the push form once loaded on entry and sat one
      sample apart; that was the gh-fix the header's push-form note records,
@@ -1161,10 +1165,10 @@ main (void)
       DP_CHECK (spread < 2e-2);  /* PURE delay: no frequency dependence */
       /* and it is the one the accessor states, to a twentieth of a sample
          (the differencing itself is good to ~6e-3 here) */
-      resamp_state_t *ref = resamp_create (1.0);
+      resamp_state_t *ref = dp_resamp_create (1.0);
       DP_CHECK (ref != NULL);
-      DP_CHECK (fabs (mean - resamp_get_delay (ref)) < 0.05);
-      resamp_destroy (ref);
+      DP_CHECK (fabs (mean - dp_resamp_get_delay (ref)) < 0.05);
+      dp_resamp_destroy (ref);
     }
 
   /* ---- a resampled pure tone must still be a pure tone ----
@@ -1188,7 +1192,7 @@ main (void)
   }
 
   /* ---- 2x decimation: output count ---- */
-  r = resamp_create (0.5);
+  r = dp_resamp_create (0.5);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
@@ -1197,13 +1201,13 @@ main (void)
   for (size_t i = 0; i < 128; i++)
     in2[i] = CMPLXF (1.0f, 0.0f);
 
-  n = resamp_execute (r, in2, 128, out2, 64);
+  n = dp_resamp_execute (r, in2, 128, out2, 64);
   /* expect ~64 output samples (allow filter startup delay) */
   DP_CHECK (n >= 56 && n <= 64);
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
 
   /* ---- 2x interpolation: output count ---- */
-  r = resamp_create (2.0);
+  r = dp_resamp_create (2.0);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
@@ -1212,12 +1216,12 @@ main (void)
   for (size_t i = 0; i < 64; i++)
     in3[i] = CMPLXF (1.0f, 0.0f);
 
-  n = resamp_execute (r, in3, 64, out3, 132);
+  n = dp_resamp_execute (r, in3, 64, out3, 132);
   DP_CHECK (n >= 120 && n <= 132);
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
 
   /* ---- execute_ctrl unity rate, zero ctrl ---- */
-  r = resamp_create (1.0);
+  r = dp_resamp_create (1.0);
   DP_CHECK (r != NULL);
   if (!r)
     return 1;
@@ -1228,9 +1232,9 @@ main (void)
       in[i]   = CMPLXF (1.0f, 0.0f);
       ctrl[i] = 0.0;
     }
-  n = resamp_execute_ctrl (r, in, ctrl, N, out, N);
+  n = dp_resamp_execute_ctrl (r, in, ctrl, N, out, N);
   DP_CHECK (n == N);
-  resamp_destroy (r);
+  dp_resamp_destroy (r);
 
   /* Serializable-state round-trip across rates (decimate, interpolate,
    * non-integer) — bit-exact resume from the handed-off state blob. */
@@ -1238,7 +1242,7 @@ main (void)
   DP_CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
   DP_CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
 
-  /* Streaming interpolation fill == resamp_execute, and block-invariant
+  /* Streaming interpolation fill == dp_resamp_execute, and block-invariant
    * (single M-fill == M on-demand 1-fills). pow-2 nphases → exact overflow
    * count. Both the pulse-shaper's steps() and step() paths depend on this. */
   DP_CHECK (eq_interp_fill (8, 4));
@@ -1286,7 +1290,7 @@ main (void)
    * With one arm and taps {1, 0} the output is just the newest sample. */
   {
     const float     bank1[2] = { 1.0f, 0.0f };
-    resamp_state_t *r1       = resamp_create_custom (1, 2, bank1, 2.0);
+    resamp_state_t *r1       = dp_resamp_create_custom (1, 2, bank1, 2.0);
     DP_CHECK (r1 != NULL);
     if (r1)
       {
@@ -1294,7 +1298,7 @@ main (void)
         float _Complex in[4] = { 1.0f + 0.0f * I, 2.0f + 0.0f * I,
                                  3.0f + 0.0f * I, 4.0f + 0.0f * I };
         float _Complex out[8];
-        size_t used = resamp_interp_fill (r1, in, out, 8);
+        size_t used = dp_resamp_interp_fill (r1, in, out, 8);
         DP_CHECK (used <= 4);
         for (size_t i = 0; i < 8; i++)
           {
@@ -1304,7 +1308,7 @@ main (void)
             DP_CHECK (isfinite (cimagf (out[i])));
             DP_CHECK (fabsf (crealf (out[i])) <= 4.0f);
           }
-        resamp_destroy (r1);
+        dp_resamp_destroy (r1);
       }
   }
 
@@ -1313,31 +1317,31 @@ main (void)
    * `upsample` is `rate >= 1.0`, so rate == 1.0 takes the DIVIDE branch and
    * computes (uint32_t)(2^32 / 1.0) -- the out-of-range float->unsigned
    * conversion (C99 6.3.1.4). x86 yields 0, which is a phase_inc that never
-   * advances. resamp_interp_inputs_needed() reads phase_inc directly and is
+   * advances. dp_resamp_interp_inputs_needed() reads phase_inc directly and is
    * the observable: at unity rate, N outputs must consume ~N inputs, and a
    * zero increment reports 0 inputs for any N.
    *
    * rate == 1.0 is not a corner: it is the rate ratesync's terminal stage
    * runs at. */
   {
-    resamp_state_t *r1 = resamp_create (1.0);
+    resamp_state_t *r1 = dp_resamp_create (1.0);
     DP_CHECK (r1 != NULL);
     if (r1)
       {
-        size_t need = resamp_interp_inputs_needed (r1, 1000);
+        size_t need = dp_resamp_interp_inputs_needed (r1, 1000);
         DP_CHECK (need >= 999 && need <= 1000);
         /* Neighbours either side must agree to within a sample -- the
            conversion should be continuous across the branch boundary. */
-        resamp_state_t *rlo = resamp_create (0.9999999);
-        resamp_state_t *rhi = resamp_create (1.0000001);
-        size_t          nlo = resamp_interp_inputs_needed (rlo, 1000);
-        size_t          nhi = resamp_interp_inputs_needed (rhi, 1000);
+        resamp_state_t *rlo = dp_resamp_create (0.9999999);
+        resamp_state_t *rhi = dp_resamp_create (1.0000001);
+        size_t          nlo = dp_resamp_interp_inputs_needed (rlo, 1000);
+        size_t          nhi = dp_resamp_interp_inputs_needed (rhi, 1000);
         DP_CHECK (nhi >= 999 && nhi <= 1000);
         DP_CHECK (need >= nhi); /* unity consumes no fewer than faster */
         (void)nlo;
-        resamp_destroy (rlo);
-        resamp_destroy (rhi);
-        resamp_destroy (r1);
+        dp_resamp_destroy (rlo);
+        dp_resamp_destroy (rhi);
+        dp_resamp_destroy (r1);
       }
   }
 
@@ -1362,14 +1366,14 @@ main (void)
 
   /* ── §13 — dc_gain is computed, and a measurement must agree ────────── */
   {
-    resamp_state_t *rg = resamp_create (0.5);
+    resamp_state_t *rg = dp_resamp_create (0.5);
     DP_CHECK (rg != NULL);
     if (rg)
       {
-        double g = resamp_dc_gain (rg);
+        double g = dp_resamp_dc_gain (rg);
         fprintf (stderr, "  §13 default Kaiser dc_gain %.6f\n", g);
         DP_CHECK (fabs (g - 1.0) < 1e-3); /* the header's @code says 1.000 */
-        resamp_destroy (rg);
+        dp_resamp_destroy (rg);
       }
 
     double worst = dc_gain_worst_arm_deviation ();
@@ -1382,12 +1386,12 @@ main (void)
     for (int i = 0; i < 2; i++)
       {
         double          rate = i ? 0.5 : 2.0;
-        resamp_state_t *rr   = resamp_create (rate);
+        resamp_state_t *rr   = dp_resamp_create (rate);
         DP_CHECK (rr != NULL);
         if (!rr)
           continue;
-        double want = resamp_dc_gain (rr);
-        resamp_destroy (rr);
+        double want = dp_resamp_dc_gain (rr);
+        dp_resamp_destroy (rr);
         double got = dc_gain_measured (rate);
         fprintf (stderr, "  §13 rate %.2f: computed %.6f, measured %.6f\n",
                  rate, want, got);
@@ -1396,12 +1400,12 @@ main (void)
 
     /* A custom bank answers with its own tap sum, not with 1.0. */
     const float b2[8] = { 0.75f, 1.25f, 0.5f, 1.5f, 0.25f, 1.75f, 1.0f, 1.0f };
-    resamp_state_t *rc = resamp_create_custom (4, 2, b2, 1.0);
+    resamp_state_t *rc = dp_resamp_create_custom (4, 2, b2, 1.0);
     DP_CHECK (rc != NULL);
     if (rc)
       {
-        DP_CHECK (resamp_dc_gain (rc) == 2.0);
-        resamp_destroy (rc);
+        DP_CHECK (dp_resamp_dc_gain (rc) == 2.0);
+        dp_resamp_destroy (rc);
       }
   }
 

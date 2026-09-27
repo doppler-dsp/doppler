@@ -133,7 +133,7 @@
  * @endcode
  *
  * The real-IF face is the same call with `_real` on both ends. It lives here
- * rather than on mpsk_receiver_create_real() because a constructor's own
+ * rather than on dp_mpsk_receiver_create_real() because a constructor's own
  * example block is what jm renders as that class's Python `Examples`, so a C
  * block THERE replaces the Python doctest instead of adding to it. Here it
  * reaches a C reader and costs the Python face nothing.
@@ -158,12 +158,12 @@
  * const int    agc            = 1;
  * const double bn_agc_ratio   = 0.0;   // 0 derives
  *
- * dp_mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
+ * dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create_real (
  *     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
  *     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
  *     agc, bn_agc_ratio);
  * float _Complex sym[256];
- * size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
+ * size_t k = dp_mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
  * dp_mpsk_receiver_destroy (rx);
  * @endcode
  */
@@ -203,7 +203,7 @@ extern "C"
    * @brief M-PSK receiver state.
    *
    * Allocate with dp_mpsk_receiver_create() (complex input) or
-   * mpsk_receiver_create_real() (real IF). Owns one matched front end (`fe`)
+   * dp_mpsk_receiver_create_real() (real IF). Owns one matched front end (`fe`)
    * and embeds the loops by value. Treat all fields as internal (use the
    * getters); they are exposed for the inline sample loop.
    */
@@ -329,7 +329,7 @@ extern "C"
    *                        alone. What differs is only why the level
    *                        matters to each: the timing detector normalises
    *                        by a slope computed at construction for a
-   *                        unit-amplitude stream (@ref symsync_ted_slope),
+   *                        unit-amplitude stream (@ref dp_symsync_ted_slope),
    *                        so a level error is a loop-gain error there
    *                        directly; the carrier detector normalises by its
    *                        own `|z|^M` (@ref carrier_nda_disc), so it is
@@ -440,7 +440,7 @@ extern "C"
    * that never closes and swallow every declaration below.)
    */
   dp_mpsk_receiver_state_t *
-  mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
+  dp_mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
                              double rrc_beta, int rrc_span, double bn_carrier,
                              double zeta, double bn_timing,
                              double lock_thresh, double init_norm_freq,
@@ -459,7 +459,7 @@ extern "C"
    * input is far from the level the cascade was built for -- which is fine,
    * and is exactly what the AGC is for, but is worth knowing.
    *
-   * Separate from the cascade's filter response (RateConverter_gain()), which
+   * Separate from the cascade's filter response (dp_RateConverter_gain()), which
    * is computed from coefficients and stays 1.0; the two multiply.
    */
   double dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state);
@@ -527,7 +527,7 @@ extern "C"
    * 8.0
    * @endcode
    */
-  dp_mpsk_receiver_state_t *mpsk_receiver_create_bpsk (
+  dp_mpsk_receiver_state_t *dp_mpsk_receiver_create_bpsk (
       double sample_rate_hz, double symbol_rate_hz, double carrier_freq_hz,
       int pulse, double rrc_beta, int rrc_span, double bn_carrier,
       double bn_timing, int differential, int agc);
@@ -586,7 +586,7 @@ extern "C"
                           float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
-    size_t        n     = ddc_execute_ctrl_push_tap2 (
+    size_t        n     = dp_ddc_execute_ctrl_push_tap2 (
         s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
@@ -601,7 +601,7 @@ extern "C"
    * "the loops behave identically regardless of front end" a claim about one
    * body of code rather than about two.
    *
-   * @param s      State, built by mpsk_receiver_create_real(). Non-NULL.
+   * @param s      State, built by dp_mpsk_receiver_create_real(). Non-NULL.
    * @param x      One real input sample.
    * @param y_out  Receives the symbol when the return is 1.
    * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
@@ -613,7 +613,7 @@ extern "C"
                                float _Complex *y_out, int ted)
   {
     float _Complex ys[4];
-    size_t        n     = ddcr_execute_ctrl_push_tap2 (
+    size_t        n     = dp_ddcr_execute_ctrl_push_tap2 (
         s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
@@ -693,13 +693,13 @@ extern "C"
                              const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
-  size_t mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a real f32 block and emit the recovered symbols.
    *
    * dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes them
    * complex before anything else touches them, and the per-sample body is the
-   * same one. Requires a state built by mpsk_receiver_create_real().
+   * same one. Requires a state built by dp_mpsk_receiver_create_real().
    *
    * @param state    Must be non-NULL.
    * @param x        Real f32 input samples.
@@ -725,16 +725,16 @@ extern "C"
    *
    * @endcode
    */
-  size_t mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state,
+  size_t dp_mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state,
                                    const float *x, size_t x_len,
                                    float _Complex *out, size_t max_out);
 
-  size_t mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a real f32 block and emit hard Gray-coded bits.
    *
    * dp_mpsk_receiver_bits() taking real samples. Requires a state built by
-   * mpsk_receiver_create_real().
+   * dp_mpsk_receiver_create_real().
    *
    * @param state    Must be non-NULL.
    * @param x        Real f32 input samples.
@@ -764,7 +764,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
+  size_t dp_mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
                                   size_t x_len, uint8_t *out, size_t max_out);
 
   /** @brief Carrier frequency the receiver is tracking, cycles/sample at the
@@ -772,7 +772,7 @@ extern "C"
   double dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state);
   /** @brief Instantaneous NCO frequency command (carrier loop filter output,
    * cycles/sample): mean tracks a ramp with no lag, variance is loop stress. */
-  double mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
   /** @brief Retune to @p val cycles/sample: moves the LO centre there and
    *  zeroes the loop's residual estimate, so norm_freq reads back exactly. */
   void dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val);
@@ -802,7 +802,7 @@ extern "C"
   int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
   /** @brief Carrier loop phase discriminator (rad) — the residual phase the
    * loop is trying to null; loop stress. */
-  double mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
+  double dp_mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
 
   /**
    * @brief Attach (or detach) a telemetry context across the receiver.
@@ -823,7 +823,7 @@ extern "C"
    * AGC records than carrier records.  Compare the two by TIME, never by
    * record index.  This is deliberate: the AGC's bandwidth is quoted in the
    * pre-terminal stream's units precisely so it is not coupled to the loop
-   * that is stretching the symbol grid (see RateConverter_enable_agc()).
+   * that is stretching the symbol grid (see dp_RateConverter_enable_agc()).
    *
    * Instrumenting it matters because it is FIRST in the chain, and a level
    * error is the one kind no downstream loop can correct for itself: a TED

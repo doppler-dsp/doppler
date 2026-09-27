@@ -99,7 +99,7 @@ _M-PSK carrier loop state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_carrier\_mpsk\_create()**](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_create), or embed by value and [**carrier\_mpsk\_init()**](carrier__mpsk__core_8h.md#function-carrier_mpsk_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the inline composition helpers can drive them; treat the integrate-and-dump and diagnostic fields as internal. 
+Allocate with [**dp\_carrier\_mpsk\_create()**](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_create), or embed by value and [**dp\_carrier\_mpsk\_init()**](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the inline composition helpers can drive them; treat the integrate-and-dump and diagnostic fields as internal. 
 
 
     

@@ -272,7 +272,7 @@ def characterise() -> Data:
         ],
     )
     R.md(
-        "`resamp_dc_gain()` **computes** arm 0's tap sum (1.000586, C §13) "
+        "`dp_resamp_dc_gain()` **computes** arm 0's tap sum (1.000586, C §13) "
         "and has no Python binding, so this is the realised response "
         "measured through `execute`. They agree at unity, where only arm 0 "
         "is ever selected, and differ below it: a non-unity rate visits "
@@ -582,22 +582,22 @@ def characterise() -> Data:
         ["C entry point", "claim", "C evidence"],
         [
             [
-                "`resamp_dc_gain`",
+                "`dp_resamp_dc_gain`",
                 "arm 0's tap sum answers for every arm",
                 "§13",
             ],
             [
-                "`resamp_set_rate`",
+                "`dp_resamp_set_rate`",
                 "retune preserves the accumulator and the delay line",
                 "§15",
             ],
             [
-                "`resamp_execute_ctrl_push`",
+                "`dp_resamp_execute_ctrl_push`",
                 "single-input streaming form, `double` control",
                 "§8, §10-§12",
             ],
             [
-                "`resamp_interp_inputs_needed`",
+                "`dp_resamp_interp_inputs_needed`",
                 "the streaming contract: exactly this many inputs, no over- "
                 "or under-production",
                 "§7, §20",
@@ -617,7 +617,7 @@ def review(d: Data) -> None:
         "F1",
         "FIXED",
         "The control port's only observable had no Python binding. "
-        "`resamp_get_ctrl_acc` is, in the header's words, 'the only way "
+        "`dp_resamp_get_ctrl_acc` is, in the header's words, 'the only way "
         "to see what a closed timing loop is actually doing to the "
         "sampling instant', and `Resampler` did not expose it — so a "
         "Python caller steering through `execute_ctrl` could not tell a "
@@ -646,7 +646,7 @@ def review(d: Data) -> None:
     R.find(
         "F3",
         "FIXED",
-        "`resamp_get_ctrl_acc`'s docblock described the wrong structure. "
+        "`dp_resamp_get_ctrl_acc`'s docblock described the wrong structure. "
         "It said `mu` named 'the arm the last output read' and closed by "
         "conceding the opposite reading as a peculiarity of a decimating "
         "terminal stage. That phrasing belongs to the transposed "
@@ -691,7 +691,7 @@ def review(d: Data) -> None:
         "F7",
         "FIXED",
         "The unity window. A private `(uint32_t)(frac * 2^32 + 0.5)` in "
-        "`resamp_execute_ctrl_push` rounded past 2^32 into the undefined "
+        "`dp_resamp_execute_ctrl_push` rounded past 2^32 into the undefined "
         "cast, stalling the interpolator for a deviation in "
         "(0, 1.16e-10]. Zero Doppler is rate 1.0, so a ramp through "
         "closest approach crosses it. §2.7 is the regression evidence; "
@@ -701,7 +701,7 @@ def review(d: Data) -> None:
     R.find(
         "F8",
         "FIXED",
-        "`resamp_dc_gain` named arm 0's tap sum without saying so, but the "
+        "`dp_resamp_dc_gain` named arm 0's tap sum without saying so, but the "
         "realised DC gain "
         "at a non-unity rate is the arm average (§2.3): 1.000586 computed "
         "against 1.000249-1.000293 measured. The spread is 3.4e-4 and of "
@@ -712,7 +712,7 @@ def review(d: Data) -> None:
     R.find(
         "F9",
         "FIXED",
-        "`resamp_interp_inputs_needed`'s docblock UNDERSTATED its own "
+        "`dp_resamp_interp_inputs_needed`'s docblock UNDERSTATED its own "
         "guarantee. It scopes exactness to an integer interpolation factor "
         "-- 'for an integer interpolation factor ... this is exact, so a "
         "caller can generate precisely this many inputs' -- but the "

@@ -55,7 +55,7 @@ slack, and a lot of it:
 | 2048 | 2⁴⁴                 | 2⁶⁰              | 2⁴      |
 
 The gain is removed on output by a right shift of `N·log2(R)` bits, so the
-filter's **DC gain is exactly one** — `cic_dc_gain()` computes `R^N / 2^shift`
+filter's **DC gain is exactly one** — `dp_cic_dc_gain()` computes `R^N / 2^shift`
 from the stored `R` and `shift` rather than asserting it, which is what lets a
 gate catch the two drifting apart.
 
@@ -90,7 +90,7 @@ So with full scale at 1.0, the largest symbol amplitude that survives is
 know it backs off by 4 dB. Either way the amplitude arriving at whatever
 consumes the CIC's output is 0.632 of what was sent, and **nothing puts it
 back** — the cascade around it is unity gain by design
-([`RateConverter_gain()`](../c-api/index.md)), so it faithfully preserves the
+([`dp_RateConverter_gain()`](../c-api/index.md)), so it faithfully preserves the
 shortfall. Downstream of a timing loop that costs the square of it: a Gardner
 detector's slope goes as $A^2$, so 0.632 amplitude is a loop running at
 **2.5×** below the bandwidth its `bn` names.
@@ -107,7 +107,7 @@ The encoder scales by `32768 / CIC_PAPR_HEADROOM` and the decoder by
 `CIC_PAPR_HEADROOM / 32768`. Two consequences worth stating explicitly:
 
 - **The shift is untouched**, so the DC gain is still exactly one and
-    `cic_dc_gain()` still reads 1.0. The headroom is an encode/decode scale
+    `dp_cic_dc_gain()` still reads 1.0. The headroom is an encode/decode scale
     *pair*, not a change to the normalisation.
 - **The offset is not scaled by it.** `+32768` is the offset-binary midpoint —
     it is not signal, and scaling it would move the zero.
@@ -148,7 +148,7 @@ The implementation currently buys the headroom the attenuating way at every
 perfect 1.582 backoff — which no caller did, because nothing told them the
 number. Taking it from the spare bits instead would recover that 2 dB (and beat
 the perfect-backoff caller by 4 dB) for every `R <= 2048`; the mechanics are
-that the offset and clip bounds widen, the shift is unchanged, `cic_dc_gain()`
+that the offset and clip bounds widen, the shift is unchanged, `dp_cic_dc_gain()`
 still reads 1, and the `uint16_t` decode cast widens.
 
 ______________________________________________________________________

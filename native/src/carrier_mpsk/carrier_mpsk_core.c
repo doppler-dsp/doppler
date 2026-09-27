@@ -9,7 +9,7 @@
 static void
 seed (dp_carrier_mpsk_state_t *s, double init_norm_freq)
 {
-  lo_init (&s->nco, init_norm_freq);
+  dp_lo_init (&s->nco, init_norm_freq);
   s->lf.integ    = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
   s->acc         = 0.0f;
   s->acc_n       = 0;
@@ -21,8 +21,9 @@ seed (dp_carrier_mpsk_state_t *s, double init_norm_freq)
 }
 
 void
-carrier_mpsk_init (dp_carrier_mpsk_state_t *s, double bn, double zeta,
-                   double init_norm_freq, size_t tsamps, double bn_fll, int m)
+dp_carrier_mpsk_init (dp_carrier_mpsk_state_t *s, double bn, double zeta,
+                      double init_norm_freq, size_t tsamps, double bn_fll,
+                      int m)
 {
   s->tsamps         = tsamps ? tsamps : 1;
   s->bn             = bn;
@@ -31,7 +32,7 @@ carrier_mpsk_init (dp_carrier_mpsk_state_t *s, double bn, double zeta,
   s->k_fll          = 4.0 * bn_fll; /* 1st-order FLL aiding gain */
   s->m              = m;
   s->seed_norm_freq = init_norm_freq;
-  loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
+  dp_loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
   seed (s, init_norm_freq);
 }
 
@@ -44,7 +45,7 @@ dp_carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
   dp_carrier_mpsk_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  carrier_mpsk_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll, m);
+  dp_carrier_mpsk_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll, m);
   return obj;
 }
 

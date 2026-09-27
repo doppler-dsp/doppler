@@ -890,7 +890,7 @@ static PyTypeObject DsssReceiverObjType = {
     "symbol_rate : float, default 1000.0\n"
     "    Data-symbol rate, Hz. Required — passed straight to the embedded\n"
     "    Acquisition's own `symbol_rate` (diagnostic there; see\n"
-    "    `acq_create_continuous()`).\n"
+    "    `dp_acq_create_continuous()`).\n"
     "spc : int, default 2\n"
     "    Samples/chip (front-end oversample); default 2 (fs = 2x chip_rate).\n"
     "m : int, default 2\n"

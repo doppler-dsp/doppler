@@ -58,7 +58,7 @@ extern "C"
     float _Complex *car_carry_buf;
     size_t         car_carry_len;
 
-    /* Own copy of the spreading code -- acq_create_continuous()/
+    /* Own copy of the spreading code -- dp_acq_create_continuous()/
      * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
      * public contract,
      * so this object keeps a persistent copy rather than depend on being

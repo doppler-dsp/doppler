@@ -2,7 +2,7 @@
  * test_ddcr_core.c — C-level unit tests for the real-input DDC.
  *
  * The real twin of test_ddc_core.c: same two flavors (dp_ddcr_create /
- * ddcr_create_matched), same two control ports, plus the halfband R2C front
+ * dp_ddcr_create_matched), same two control ports, plus the halfband R2C front
  * end this type adds. Also the integration gate for the whole chain's
  * serializers (hbdecim_r2c -> LO -> RateConverter), none of which have a
  * standalone C target.
@@ -134,17 +134,18 @@ test_flavors_and_invalid_params (void)
   /* rate >= 0.5 — the halfband already took a factor of two */
   DP_CHECK (dp_ddcr_create (0.0, 0.5) == NULL);
   DP_CHECK (dp_ddcr_create (0.0, 0.0) == NULL);
-  DP_CHECK (ddcr_create_matched (0.0, 0.25, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
-            == NULL);
-  DP_CHECK (ddcr_create_matched (0.0, 0.6, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
+  DP_CHECK (
+      dp_ddcr_create_matched (0.0, 0.25, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
+      == NULL);
+  DP_CHECK (dp_ddcr_create_matched (0.0, 0.6, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
             == NULL);
 
   dp_ddcr_state_t *m
-      = ddcr_create_matched (0.0, 0.125, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+      = dp_ddcr_create_matched (0.0, 0.125, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
   DP_CHECK (m != NULL);
   dp_ddcr_destroy (m);
   dp_ddcr_state_t *r
-      = ddcr_create_matched (0.0, 0.125, RC_PULSE_IANDD, 0.35, 4, 4.0, 256);
+      = dp_ddcr_create_matched (0.0, 0.125, RC_PULSE_IANDD, 0.35, 4, 4.0, 256);
   DP_CHECK (r != NULL);
   dp_ddcr_destroy (r);
 }
@@ -163,9 +164,9 @@ test_freq_port_is_the_lo_axis (void)
     in[i] = (float)(0.25 * cos (0.11 * (double)i));
 
   dp_ddcr_state_t *a
-      = ddcr_create_matched (0.0, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+      = dp_ddcr_create_matched (0.0, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
   dp_ddcr_state_t *b
-      = ddcr_create_matched (f, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+      = dp_ddcr_create_matched (f, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
   size_t nA = dp_ddcr_execute_ctrl (a, in, L, 0.0, f, outA, CAP);
   size_t nB = dp_ddcr_execute_ctrl (b, in, L, 0.0, 0.0, outB, CAP);
 
@@ -216,9 +217,9 @@ test_push_equals_block (void)
     in[i] = (float)(0.25 * cos (0.11 * (double)i));
 
   dp_ddcr_state_t *a
-      = ddcr_create_matched (-0.7, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+      = dp_ddcr_create_matched (-0.7, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
   dp_ddcr_state_t *b
-      = ddcr_create_matched (-0.7, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+      = dp_ddcr_create_matched (-0.7, rate, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
   size_t nA = dp_ddcr_execute_ctrl (a, in, L, rctrl, fctrl, outA, CAP);
   size_t nB = 0;
   for (size_t i = 0; i < L; i++)
@@ -265,7 +266,7 @@ test_matched_recovers_symbols (void)
         xr[i] = crealf (x[i]); /* the same signal, real-sampled */
 
       /* Tuning is at the intermediate rate: -(2*fc + 0.5). */
-      dp_ddcr_state_t *r = ddcr_create_matched (
+      dp_ddcr_state_t *r = dp_ddcr_create_matched (
           -(2.0 * fc + 0.5), rate, RC_PULSE_RRC, MF_BETA, MF_SPAN, 2.0, 1024);
       size_t ny = dp_ddcr_execute (r, xr, n, y, n);
       double e  = mf_evm_db (y, ny);
@@ -294,8 +295,8 @@ test_clipped_forwards (void)
        CIC_PAPR_HEADROOM. */
     in[i] = (float)(2.0 * CIC_PAPR_HEADROOM * cos (0.11 * (double)i));
 
-  dp_ddcr_state_t *r = ddcr_create_matched (0.0, 2.0 / 64.0, RC_PULSE_RRC,
-                                            0.35, 8, 2.0, 1024);
+  dp_ddcr_state_t *r = dp_ddcr_create_matched (0.0, 2.0 / 64.0, RC_PULSE_RRC,
+                                               0.35, 8, 2.0, 1024);
   DP_CHECK (dp_ddcr_get_clipped (r) == false);
   dp_ddcr_execute (r, in, L, out, L);
   DP_CHECK (dp_ddcr_get_clipped (r) == true);

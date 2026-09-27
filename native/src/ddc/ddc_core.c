@@ -50,8 +50,8 @@ ddc_ddc_new (double norm_freq, double rate, int pulse, double beta,
      already evaluates, so no matched-filter operating point wants it off. */
   s->rc = (pulse == RC_PULSE_NONE)
               ? dp_RateConverter_create (rate, 0)
-              : RateConverter_create_matched (rate, 1, pulse, beta, span,
-                                              pulse_sps, num_phases);
+              : dp_RateConverter_create_matched (rate, 1, pulse, beta, span,
+                                                 pulse_sps, num_phases);
   if (!s->rc)
     {
       dp_lo_destroy (s->lo);
@@ -74,8 +74,8 @@ dp_ddc_create (double norm_freq, double rate)
 }
 
 dp_ddc_state_t *
-ddc_create_matched (double norm_freq, double rate, int pulse, double beta,
-                    size_t span, double pulse_sps, size_t num_phases)
+dp_ddc_create_matched (double norm_freq, double rate, int pulse, double beta,
+                       size_t span, double pulse_sps, size_t num_phases)
 {
   if (pulse == RC_PULSE_NONE) /* use dp_ddc_create() for a plain conversion */
     return NULL;
@@ -194,35 +194,35 @@ dp_ddc_execute_ctrl (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
 }
 
 size_t
-ddc_execute_ctrl_push_tap (dp_ddc_state_t *s, float _Complex x,
-                           double rate_ctrl, double freq_ctrl,
-                           float _Complex *out, size_t max_out,
-                           float _Complex *lo_out, int *n_lo)
+dp_ddc_execute_ctrl_push_tap (dp_ddc_state_t *s, float _Complex x,
+                              double rate_ctrl, double freq_ctrl,
+                              float _Complex *out, size_t max_out,
+                              float _Complex *lo_out, int *n_lo)
 {
-  return ddc_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out, max_out,
-                                     lo_out, n_lo, NULL, NULL);
+  return dp_ddc_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out,
+                                        max_out, lo_out, n_lo, NULL, NULL);
 }
 
 size_t
-ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *s, float _Complex x,
-                            double rate_ctrl, double freq_ctrl,
-                            float _Complex *out, size_t max_out,
-                            float _Complex *lo_out, int *n_lo,
-                            float _Complex *pre_out, int *n_pre)
+dp_ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *s, float _Complex x,
+                               double rate_ctrl, double freq_ctrl,
+                               float _Complex *out, size_t max_out,
+                               float _Complex *lo_out, int *n_lo,
+                               float _Complex *pre_out, int *n_pre)
 {
   float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
   if (lo_out)
     *lo_out = z;
   if (n_lo)
     *n_lo = 1; /* a complex front end mixes every input it is given */
-  return RateConverter_execute_ctrl_push_tap (s->rc, z, rate_ctrl, out,
-                                              max_out, pre_out, n_pre);
+  return dp_RateConverter_execute_ctrl_push_tap (s->rc, z, rate_ctrl, out,
+                                                 max_out, pre_out, n_pre);
 }
 
 double
-ddc_get_bank_sps (const dp_ddc_state_t *s)
+dp_ddc_get_bank_sps (const dp_ddc_state_t *s)
 {
-  return RateConverter_get_bank_sps (s->rc);
+  return dp_RateConverter_get_bank_sps (s->rc);
 }
 
 size_t
@@ -230,8 +230,8 @@ dp_ddc_execute_ctrl_push (dp_ddc_state_t *s, float _Complex x,
                           double rate_ctrl, double freq_ctrl,
                           float _Complex *out, size_t max_out)
 {
-  return ddc_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out, max_out,
-                                    NULL, NULL);
+  return dp_ddc_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out,
+                                       max_out, NULL, NULL);
 }
 
 bool
@@ -247,10 +247,10 @@ dp_ddc_get_clipped (const dp_ddc_state_t *s)
 }
 
 int
-ddc_set_telemetry (dp_ddc_state_t *s, dp_tlm_t *tlm, const char *prefix,
-                   uint32_t decim)
+dp_ddc_set_telemetry (dp_ddc_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                      uint32_t decim)
 {
-  return RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
+  return dp_RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
 }
 
 /* ── Serializable state — standard envelope + LO + RateConverter ─────────────

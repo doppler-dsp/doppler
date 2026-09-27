@@ -203,10 +203,10 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
     while (left) {
         float _Complex syms[64], scratch[64];
         size_t pm = left < 64 ? left : 64;
-        size_t need = resamp_interp_inputs_needed(s->shaper, pm);
+        size_t need = dp_resamp_interp_inputs_needed(s->shaper, pm);
         for (size_t k = 0; k < need; k++)
             syms[k] = wfm_synth_next_symbol(s);
-        resamp_interp_fill(s->shaper, syms, scratch, pm);
+        dp_resamp_interp_fill(s->shaper, syms, scratch, pm);
         left -= pm;
     }
     s->primed = 1;
@@ -218,10 +218,10 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
 {
     if (!s->primed)
         wfm_synth_shaper_prime(s);
-    size_t need = resamp_interp_inputs_needed(s->shaper, m);
+    size_t need = dp_resamp_interp_inputs_needed(s->shaper, m);
     for (size_t k = 0; k < need; k++)
         syms[k] = wfm_synth_next_symbol(s);
-    resamp_interp_fill(s->shaper, syms, out, m);
+    dp_resamp_interp_fill(s->shaper, syms, out, m);
 }
 
 dp_wfm_synth_state_t *dp_wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr, double f_end);

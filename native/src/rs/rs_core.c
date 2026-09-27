@@ -56,7 +56,7 @@ gcd (unsigned a, unsigned b)
 /* ── the description ──────────────────────────────────────────────────── */
 
 int
-rs_code_valid (const rs_code_t *c)
+dp_rs_code_valid (const rs_code_t *c)
 {
   if (c->symbol_bits < 2 || c->symbol_bits > RS_SYMBOL_BITS_MAX)
     return 0;
@@ -86,9 +86,9 @@ rs_code_valid (const rs_code_t *c)
 }
 
 int
-rs_init (rs_t *rs, const rs_code_t *c)
+dp_rs_init (rs_t *rs, const rs_code_t *c)
 {
-  if (!rs_code_valid (c))
+  if (!dp_rs_code_valid (c))
     return 0;
 
   memset (rs, 0, sizeof *rs);
@@ -145,7 +145,7 @@ rs_init (rs_t *rs, const rs_code_t *c)
 }
 
 const uint8_t *
-rs_generator (const rs_t *rs)
+dp_rs_generator (const rs_t *rs)
 {
   return rs->gen;
 }
@@ -153,7 +153,7 @@ rs_generator (const rs_t *rs)
 /* ── encode ───────────────────────────────────────────────────────────── */
 
 void
-rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity)
+dp_rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity)
 {
   const unsigned nroots = rs->code.nroots;
 
@@ -177,7 +177,7 @@ rs_encode (const rs_t *rs, const uint8_t *info, uint8_t *parity)
 /* ── syndromes ────────────────────────────────────────────────────────── */
 
 void
-rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn)
+dp_rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn)
 {
   const unsigned n = rs->n;
 
@@ -198,10 +198,10 @@ rs_syndromes (const rs_t *rs, const uint8_t *codeword, uint8_t *syn)
 }
 
 int
-rs_codeword_ok (const rs_t *rs, const uint8_t *codeword)
+dp_rs_codeword_ok (const rs_t *rs, const uint8_t *codeword)
 {
   uint8_t syn[RS_NROOTS_MAX];
-  rs_syndromes (rs, codeword, syn);
+  dp_rs_syndromes (rs, codeword, syn);
 
   uint8_t any = 0;
   for (unsigned m = 0; m < rs->code.nroots; m++)
@@ -309,13 +309,13 @@ forney_value (const rs_t *rs, const uint8_t *omega, unsigned omega_len,
 }
 
 int
-rs_decode (const rs_t *rs, uint8_t *codeword)
+dp_rs_decode (const rs_t *rs, uint8_t *codeword)
 {
   const unsigned n      = rs->n;
   const unsigned nroots = rs->code.nroots;
 
   uint8_t syn[RS_NROOTS_MAX];
-  rs_syndromes (rs, codeword, syn);
+  dp_rs_syndromes (rs, codeword, syn);
 
   uint8_t any = 0;
   for (unsigned m = 0; m < nroots; m++)

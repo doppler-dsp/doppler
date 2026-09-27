@@ -92,9 +92,9 @@ void dp_detector2d_destroy (dp_detector2d_state_t *state);
 
 void dp_detector2d_reset (dp_detector2d_state_t *state);
 
-int detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref);
+int dp_detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref);
 
-void detector2d_set_threshold (dp_detector2d_state_t *state, float threshold);
+void dp_detector2d_set_threshold (dp_detector2d_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 

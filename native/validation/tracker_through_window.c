@@ -23,11 +23,11 @@
  * shipped synth (`wfm_synth` continuous DSSS, its own PRBS data) with the
  * shipped window (`dp_wfm_synth_set_dsss_window`: 450 code-only symbols of
  * every 4950 -- a 1.83 s frame, a 0.17 s window); noise from the shipped
- * awgn generator sized by awgn_amplitude_for_snr() from the C/N0. The
+ * awgn generator sized by dp_awgn_amplitude_for_snr() from the C/N0. The
  * receiver is the SEARCHING flavor (`dp_async_dsss_receiver_create`),
  * seeded once with what the searcher hands it: the shipped `acq`
  * continuous engine runs on the same received blocks until its first hit,
- * and acq_build_handoff() of that hit is the seed -- the pool's own path
+ * and dp_acq_build_handoff() of that hit is the seed -- the pool's own path
  * (§8.2). Not the stimulus's nominal phase: a seed that ignores the
  * channel's own delay (0.6 chip through the resampler) leaves the code
  * loop outside its pull-in, and that was measured here first. The release
@@ -53,7 +53,7 @@
  * shipped 0.5 dB look-back the estimate is unbiased -- and what failed at
  * the floor was the searcher's seed (#1254, fixed): its hit's code phase
  * is the middle of its dwell, 0.9 chip behind the code at 40 dB-Hz, and
- * acq_build_handoff() now advances it by the drift over half the dwell,
+ * dp_acq_build_handoff() now advances it by the drift over half the dwell,
  * given the carrier. `--check` pins the static condition; the channel's
  * rows are in the full table.
  *
@@ -217,7 +217,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   dp_wfm_synth_state_t *syn = make_emitter (code, seed);
   dp_awgn_state_t      *g   = dp_awgn_create (
       seed * 7919u + 1u,
-      awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
+      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   dp_async_dsss_receiver_state_t *rx = make_rx (code, cn0_dbhz, cond);
   /* The channel: the emitter's clean signal through it, the noise added at
      the receiver (it does not ride the emitter's clock). The table's
@@ -244,7 +244,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   /* The searcher that seeds it: the shipped continuous engine over SPEC's
      Doppler span (one native span without a channel), fed the same blocks
      until its first hit. */
-  dp_acq_state_t *acq = acq_create_continuous (
+  dp_acq_state_t *acq = dp_acq_create_continuous (
       code, SF, SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
       cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,
       0.9, 0, 1, 0.0);
@@ -295,7 +295,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
               continue;
             }
           acq_handoff_t ho;
-          acq_build_handoff (acq, &hit, SF, SPC, &ho);
+          dp_acq_build_handoff (acq, &hit, SF, SPC, &ho);
           DP_REQUIRE_MSG (dp_async_dsss_receiver_seed (rx, ho.chip_phase,
                                                        ho.doppler_hz_est,
                                                        ho.cn0_dbhz_est)

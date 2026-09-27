@@ -132,7 +132,7 @@ A frame carrying no CRC (`crc = -1`, which is exactly what `dp_wfm_frame_crc_ok(
 
 
 
-`ber_confidence()` is the exact Gamma/chi-square interval for INVERSE BINOMIAL sampling — fix the errors, let the trial count fall out. Its relative standard error is `1/sqrt(r)`, a function of the error count ALONE, which is why a run stopped on errors gives a consistent measurement and one stopped on a fixed count does not. This meter therefore uses the same rule as `ber_meter`, exposes the same `enough` read-back, and hands the same interval back. **Reusing that interval under a fixed-frame-count stopping rule would be the wrong sampling model** (that is binomial, and its exact interval is Clopper-Pearson), so the convention is stated here rather than left for a caller to assume.
+`dp_ber_confidence()` is the exact Gamma/chi-square interval for INVERSE BINOMIAL sampling — fix the errors, let the trial count fall out. Its relative standard error is `1/sqrt(r)`, a function of the error count ALONE, which is why a run stopped on errors gives a consistent measurement and one stopped on a fixed count does not. This meter therefore uses the same rule as `ber_meter`, exposes the same `enough` read-back, and hands the same interval back. **Reusing that interval under a fixed-frame-count stopping rule would be the wrong sampling model** (that is binomial, and its exact interval is Clopper-Pearson), so the convention is stated here rather than left for a caller to assume.
 
 
 
@@ -256,7 +256,7 @@ ber_interval_t dp_frame_meter_fer (
 
 
 
-`ber_confidence(errors, frames, conf)` — the same interval `ber_meter` reports, which is generic over trials and therefore applies to frames unchanged. Assert on `lo`, never on `p_hat`.
+`dp_ber_confidence(errors, frames, conf)` — the same interval `ber_meter` reports, which is generic over trials and therefore applies to frames unchanged. Assert on `lo`, never on `p_hat`.
 
 
 
@@ -481,7 +481,7 @@ ber_interval_t dp_frame_meter_sync_miss (
 
 
 Reported as a miss rate rather than a detection rate so it is an ERROR rate like every other number here, and so the same interval applies without reinterpretation. **This is what turns "is this sync word long
-enough at this Es/N0" into a measurement** — `ber_align_detect()` already returns `margin_db` and `runner_db` per attempt, and accumulating the decisions is what answers the question with a number.
+enough at this Es/N0" into a measurement** — `dp_ber_align_detect()` already returns `margin_db` and `runner_db` per attempt, and accumulating the decisions is what answers the question with a number.
 
 
 

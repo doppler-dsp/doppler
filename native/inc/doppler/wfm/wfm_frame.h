@@ -260,7 +260,7 @@ extern "C"
    * say.
    *
    * A standard's framing is a CONFIGURATION of this, in the same way
-   * `CCSDS_TM_CONV` configures `conv_code_t` and `CCSDS_TM_RS` configures
+   * `dp_CCSDS_TM_CONV` configures `conv_code_t` and `dp_CCSDS_TM_RS` configures
    * `rs_code_t`. @ref wfm_frame_t is the first such configuration and is
    * built by @ref dp_wfm_frame_describe.
    *
@@ -527,7 +527,7 @@ extern "C"
    * @brief Derive every field offset, every stage span and both lengths.
    *
    * The one operation both shipped framers already have, widened: this is
-   * `dp_wfm_frame_layout()`'s arithmetic and `ccsds_tm_frame_layout()`'s, with
+   * `dp_wfm_frame_layout()`'s arithmetic and `dp_ccsds_tm_frame_layout()`'s, with
    * the field and stage lists supplied rather than fixed.
    *
    * A derived field whose producing stage covers no caller-supplied bits is

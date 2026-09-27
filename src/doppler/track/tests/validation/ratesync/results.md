@@ -94,7 +94,7 @@ Measured behaviour, no verdicts. Section numbers in *(italics)* track `test_rate
 ### 2.1 What the planner builds, and what the loop reads off it
 *(sections 2, 8, 11, 12)*
 
-RateSync builds no filters: it asks `RateConverter_create_matched` for `rate = m/sps` and closes the loop around whatever the planner decided. The three rows below span a 16x range of input rates and get three different front ends out of the planner — one halfband, two halfbands, and a CIC(32) — while the terminal stage stays a `Resampler(1.0, rrc)` in every case.
+RateSync builds no filters: it asks `dp_RateConverter_create_matched` for `rate = m/sps` and closes the loop around whatever the planner decided. The three rows below span a 16x range of input rates and get three different front ends out of the planner — one halfband, two halfbands, and a CIC(32) — while the terminal stage stays a `Resampler(1.0, rrc)` in every case.
 
 | input samples/symbol | planned cascade | cascade rate | bank arms | terminal taps |
 |---|---|---|---|---|
@@ -121,7 +121,7 @@ Measured open-loop (`bn = 0`, so the PI filter's gains are zero, `ctrl` stays 0 
 
 **Both** detectors carry exactly two zeros across one symbol, alternating in slope — one stable at the eye centre, one unstable at the T/2 point — so the structural argument that retires the eye-sign detector holds for the whole `ted` axis and not just for the default. The slope column is the LOCAL derivative at the stable zero, per symbol of timing error, not `2*pi*peak`: that identity assumes a sinusoidal S-curve, which is Gardner's shape and not DTTL's (**F14**).
 
-That last number is the check on the construct-time normaliser. The TED divides by the detector's own slope once, at construction (`symsync_ted_slope`), so a correctly normalised detector has unit slope at lock. Gardner measures `1.0044` and DTTL `0.9817` — both unity, so the loop runs at the gain `bn` names on either detector. The two have different RAW slopes against the same pulse, which is why `ted_scale` is per-detector rather than per-pulse, and both land on 1.0 once each is divided by its own.
+That last number is the check on the construct-time normaliser. The TED divides by the detector's own slope once, at construction (`dp_symsync_ted_slope`), so a correctly normalised detector has unit slope at lock. Gardner measures `1.0044` and DTTL `0.9817` — both unity, so the loop runs at the gain `bn` names on either detector. The two have different RAW slopes against the same pulse, which is why `ted_scale` is per-detector rather than per-pulse, and both land on 1.0 once each is divided by its own.
 
 **Read the unstable column, because this report used to quote it as the stable one.** Which zero is which was decided here by a hard-coded `slope <= 0` test, and that test is meaningful only relative to a tau axis: this validator's tau is a DECIMATION PHASE and the C harness's is a TRANSMITTER offset, so the two run in opposite senses and every slope sign is negated between them. The rule therefore selected the T/2 equilibrium and reported its slope as the check on the normaliser. Gardner's two zeros carry the same |slope| — 1.0036 against 1.0044 — so the default detector read correct either way and nothing flagged it; DTTL's do not, and the 2.5995 that stood here became **F15**. Both harnesses now select by EYE OPENING instead, which has no sign convention: the eye measures 1.000 at the stable zero against 0.53-0.79 at T/2 depending on roll-off (`eye_at`).
 
@@ -139,7 +139,7 @@ Averaged over 5 independent symbol sequences, with the seed-to-seed scatter besi
 
 **Both** detectors hold unity across the whole range — Gardner 0.93 to 0.99, DTTL 0.99 to 0.99 — so `bn` names one loop bandwidth at every roll-off on either, which is the header's claim in full.
 
-This table used to read 1.23 to 10.66 for DTTL, a factor of 8.7, and was the evidence for **F15** and for gh-669. It was measured about offset `0`, which on this axis is the T/2 crossing and not the lock point; centring the pair on the eye (`_eye_centre_fine`) is the whole of the change, and the retired figures are still reproducible by moving it back. The claim in `symsync_ted_slope`'s own doxygen that *"the shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9"* came from the same measurement and is **withdrawn**: it was never the detector, and the variation belonged to the equilibrium being differentiated rather than to the roll-off.
+This table used to read 1.23 to 10.66 for DTTL, a factor of 8.7, and was the evidence for **F15** and for gh-669. It was measured about offset `0`, which on this axis is the T/2 crossing and not the lock point; centring the pair on the eye (`_eye_centre_fine`) is the whole of the change, and the retired figures are still reproducible by moving it back. The claim in `dp_symsync_ted_slope`'s own doxygen that *"the shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9"* came from the same measurement and is **withdrawn**: it was never the detector, and the variation belonged to the equilibrium being differentiated rather than to the roll-off.
 
 ![normalised slope vs roll-off](beta_slope.png)
 

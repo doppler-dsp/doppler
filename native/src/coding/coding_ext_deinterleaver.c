@@ -48,7 +48,7 @@ DeinterleaverObj_init (DeinterleaverObject *self, PyObject *args,
   size_t rows      = (size_t)rows_raw;
   size_t cols      = (size_t)cols_raw;
   size_t unit_bits = (size_t)unit_bits_raw;
-  self->handle     = interleaver_create_rx (rows, cols, unit_bits);
+  self->handle     = dp_interleaver_create_rx (rows, cols, unit_bits);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -671,7 +671,7 @@ static PyTypeObject DeinterleaverObjType = {
      create_fn's. gh-1160 closed and 0.70.1 fixed the STUB half only:
      removing this block and re-applying leaves __doc__ empty, filed as
      just-makeit#1183. Kept in step with
-     interleaver_create_rx's doxygen.
+     dp_interleaver_create_rx's doxygen.
 
      NOT in step with the .pyi, and that is the part of gh-1160 worth
      knowing: the stub is derived, but for a view jm derives it from the

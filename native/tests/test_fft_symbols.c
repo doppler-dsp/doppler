@@ -34,6 +34,6 @@ const jm_any_fn jm_bound_symbols_fft[] = {
     (jm_any_fn)dp_fft_execute_inplace_cf64,
     (jm_any_fn)dp_fft_execute_inplace_cf32_max_out,
     (jm_any_fn)dp_fft_execute_inplace_cf32,
-    (jm_any_fn)fft_execute_ci16,
-    (jm_any_fn)fft_execute_ci8,
+    (jm_any_fn)dp_fft_execute_ci16,
+    (jm_any_fn)dp_fft_execute_ci8,
 };

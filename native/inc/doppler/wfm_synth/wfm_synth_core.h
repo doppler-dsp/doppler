@@ -89,7 +89,7 @@ wfm_synth_bps (int type)
  * @param bps   Bits per symbol, from wfm_synth_bps().
  * @param span  Samples one symbol's energy is spread over.
  * @param snr   The requested figure, in dB, in @p mode's reference.
- * @return      SNR in dB over fs, ready for awgn_amplitude_for_snr().
+ * @return      SNR in dB over fs, ready for dp_awgn_amplitude_for_snr().
  *
  * **`auto` and `span` are deliberately the CALLER's**, and that is not an
  * oversight: they are the two things that legitimately differ. `wfm_synth`
@@ -341,10 +341,10 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
     while (left) {
         float _Complex syms[64], scratch[64];
         size_t pm = left < 64 ? left : 64;
-        size_t need = resamp_interp_inputs_needed(s->shaper, pm);
+        size_t need = dp_resamp_interp_inputs_needed(s->shaper, pm);
         for (size_t k = 0; k < need; k++)
             syms[k] = wfm_synth_next_symbol(s);
-        resamp_interp_fill(s->shaper, syms, scratch, pm);
+        dp_resamp_interp_fill(s->shaper, syms, scratch, pm);
         left -= pm;
     }
     s->primed = 1;
@@ -355,7 +355,7 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
  *
  * The one shaping kernel shared by `dp_wfm_synth_step` (m == 1) and
  * `dp_wfm_synth_steps` (m == block): prime once, generate exactly the
- * `resamp_interp_inputs_needed(shaper, m)` symbols this call consumes into the
+ * `dp_resamp_interp_inputs_needed(shaper, m)` symbols this call consumes into the
  * caller's `syms` scratch, and fill `m` outputs. Because the resampler is
  * block-boundary invariant and both faces call this identical routine, a single
  * m-sample call and m one-sample calls produce bit-identical output — the
@@ -364,7 +364,7 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
  * @param s     Shaper-attached synth state (`s->shaper != NULL`).
  * @param out   Output buffer, capacity >= @p m.
  * @param m     Number of baseband samples to produce.
- * @param syms  Caller scratch, capacity >= resamp_interp_inputs_needed(s, m).
+ * @param syms  Caller scratch, capacity >= dp_resamp_interp_inputs_needed(s, m).
  */
 JM_FORCEINLINE void
 wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
@@ -372,10 +372,10 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
 {
     if (!s->primed)
         wfm_synth_shaper_prime(s);
-    size_t need = resamp_interp_inputs_needed(s->shaper, m);
+    size_t need = dp_resamp_interp_inputs_needed(s->shaper, m);
     for (size_t k = 0; k < need; k++)
         syms[k] = wfm_synth_next_symbol(s);
-    resamp_interp_fill(s->shaper, syms, out, m);
+    dp_resamp_interp_fill(s->shaper, syms, out, m);
 }
 
 /**

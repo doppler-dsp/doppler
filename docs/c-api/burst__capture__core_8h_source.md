@@ -118,7 +118,7 @@ typedef struct
    * derived capacity does not promise. The cost is one memcpy per BURST,
    * not per sample, which is a different order of magnitude from the copy
    * §6.1 weighs (that one is the whole stream). It is also what lets a C
-   * consumer borrow a window through burst_capture_window() and hand it
+   * consumer borrow a window through dp_burst_capture_window() and hand it
    * onward with no further copy. */
   burst_capture_detection_t *det;     
   size_t                     det_cap; 
@@ -154,7 +154,7 @@ dp_burst_capture_state_t *dp_burst_capture_create (
     double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
     double pd, int noise_mode, double doppler_rate);
 
-dp_burst_capture_state_t *burst_capture_create_backed (
+dp_burst_capture_state_t *dp_burst_capture_create_backed (
     const char *path, const float _Complex *preamble, size_t preamble_len,
     size_t burst_len, size_t reps, double fs, double cn0_dbhz,
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
@@ -183,13 +183,13 @@ size_t dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t 
 size_t dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
                              burst_capture_event_t *out, size_t max_out);
 
-size_t burst_capture_ready (const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_ready (const dp_burst_capture_state_t *state);
 
-const float _Complex *burst_capture_window (const dp_burst_capture_state_t *state,
+const float _Complex *dp_burst_capture_window (const dp_burst_capture_state_t *state,
                                            size_t i);
 
 const burst_capture_event_t *
-burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
+dp_burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
 
 int dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i);
 

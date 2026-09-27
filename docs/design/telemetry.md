@@ -196,7 +196,7 @@ though no telemetry code ever executed:
 
 The pattern that benchmarks at parity with the untouched baseline
 (symsync/mpsk_receiver): an **out-of-line flush function** per object
-(`symsync_tlm_flush` — reads the state fields, emits every probe) and an
+(`dp_symsync_tlm_flush` — reads the state fields, emits every probe) and an
 **attachment check hoisted to block-loop entry**, so the detached loops
 contain no call site at all:
 
@@ -206,7 +206,7 @@ contain no call site at all:
 if (!state->tlm.ctx)
   { /* pristine specialised loops — the pre-telemetry code, verbatim */ }
 else
-  { /* instrumented loops: ... if (step (...)) symsync_tlm_flush (state); */ }
+  { /* instrumented loops: ... if (step (...)) dp_symsync_tlm_flush (state); */ }
 ```
 
 Hoisting the check is legal because attach/detach is setup-path-only on

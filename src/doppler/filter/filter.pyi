@@ -8,7 +8,7 @@ class FIR:
     """Create a FIR filter from complex CF32 tap coefficients. Implements a
     direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap array
     is copied at creation; the caller may free it afterward. Use
-    fir_create_real() instead when all imaginary parts are zero — that path
+    dp_fir_create_real() instead when all imaginary parts are zero — that path
     costs 1 FMA/tap versus 2 FMA + permute + mul here.
 
     Parameters
@@ -173,9 +173,10 @@ class FIR:
     @property
     def is_real(self) -> bool:
         """True when the filter was created with real-valued tap coefficients.
-        Real-tap filters (fir_create_real) use a cheaper inner loop: 1 FMA/tap
-        versus the 2 FMA + lane permute required for complex multiplication.
-        Use this flag to confirm which constructor path was used at runtime.
+        Real-tap filters (dp_fir_create_real) use a cheaper inner loop: 1
+        FMA/tap versus the 2 FMA + lane permute required for complex
+        multiplication. Use this flag to confirm which constructor path was
+        used at runtime.
         """
 
     def destroy(self) -> None:

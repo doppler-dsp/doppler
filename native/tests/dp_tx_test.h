@@ -38,9 +38,9 @@
  *    bug worth failing on rather than a stimulus worth backing off.
  *
  *    The default `amp = 1.0` is **derived, not chosen**: a matched cascade's
- *    reference is `RateConverter_agc_ref_db()` = `10*log10(bank_e0/bank_sps)`,
- *    which is ~0 dB because the bank normalises by its own pulse energy. Unit
- *    symbol amplitude IS that reference.
+ *    reference is `dp_RateConverter_agc_ref_db()` =
+ * `10*log10(bank_e0/bank_sps)`, which is ~0 dB because the bank normalises by
+ * its own pulse energy. Unit symbol amplitude IS that reference.
  *
  *    **Which way to use `amp` depends on whether an AGC is in the chain**, and
  *    that is a property of the object, not a preference:
@@ -48,7 +48,7 @@
  *      - **Level-critical** — an object presented raw symbols. RateSync is the
  *        example and says so (`ratesync_core.h`: it "carries no AGC, and that
  *        is deliberate", because a composing receiver already levels in its
- *        own front-end cascade via `RateConverter_enable_agc()`, one per
+ *        own front-end cascade via `dp_RateConverter_enable_agc()`, one per
  *        receiver, and a second would integrate against the first). A TED's
  *        slope goes as `A^2`, so such a test must STATE `amp` and hold it.
  *      - **Level-agnostic** — an object behind that AGC (`MpskReceiver`, where

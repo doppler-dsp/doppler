@@ -35,7 +35,7 @@
  * at 5 Mcps, two samples per chip, asynchronous BPSK data at 2700 sym/s
  * (7.24 partials per symbol at four partials per epoch) from the shipped
  * continuous-DSSS synth with its own PRBS data; noise from the shipped
- * awgn generator sized by awgn_amplitude_for_snr() from the C/N0. The DLL
+ * awgn generator sized by dp_awgn_amplitude_for_snr() from the C/N0. The DLL
  * is the receiver's own (`bn 0.002`, half-chip spacing, four partials per
  * epoch) and is fed one epoch at a time; after every block its tracked
  * code phase is compared with the truth the generator implies -- samples
@@ -157,7 +157,7 @@ run (const uint8_t *code, const cfg_t *c, run_t *out)
       = c->cn0_dbhz < WFM_SYNTH_SNR_CLEAN
             ? dp_awgn_create (
                   c->seed * 7919u + 1u,
-                  awgn_amplitude_for_snr (
+                  dp_awgn_amplitude_for_snr (
                       (float)(c->cn0_dbhz - 10.0 * log10 (FS)), 1.0f))
             : NULL;
   dp_dll_state_t *d

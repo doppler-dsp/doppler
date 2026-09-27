@@ -108,7 +108,7 @@ void dp_corr_destroy(dp_corr_state_t *state);
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
  * Equivalent to starting a fresh dwell cycle without tearing down the FFT
- * plans.  Does NOT recompute ref_spec; use corr_set_ref() to replace the
+ * plans.  Does NOT recompute ref_spec; use dp_corr_set_ref() to replace the
  * reference.
  *
  * @code
@@ -136,7 +136,7 @@ void dp_corr_reset(dp_corr_state_t *state);
  * @param state Must be non-NULL.
  * @param ref   New reference signal of length state->n.
  */
-void corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
+void dp_corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
 
 /** @brief Maximum output samples per execute call (== n_out). */
 size_t dp_corr_execute_max_out(dp_corr_state_t *state);

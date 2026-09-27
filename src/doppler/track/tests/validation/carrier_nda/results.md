@@ -327,7 +327,7 @@ Settling moves by 1.01x across a factor of eight in arm length, so `bn` names on
 
 `norm_freq = x` is the one surface whose name understates it: it re-seeds the NCO, resets the loop filter and drops the lock, so it is a re-acquisition rather than a nudge. The header says so; a caller reading only the property name would not expect it.
 
-The instantaneous NCO command — `carrier_nda_get_nco_freq`, which the header calls *"the right readout for observing the loop track dynamics"* — has no Python face and no telemetry probe of its own: `car.freq` emits the integrator estimate, the same quantity `norm_freq` reads. So the one readout that rides a frequency ramp with no lag is C-only (**F9**).
+The instantaneous NCO command — `dp_carrier_nda_get_nco_freq`, which the header calls *"the right readout for observing the loop track dynamics"* — has no Python face and no telemetry probe of its own: `car.freq` emits the integrator estimate, the same quantity `norm_freq` reads. So the one readout that rides a frequency ramp with no lag is C-only (**F9**).
 
 ## 3. Review — findings, with verdicts
 
@@ -349,7 +349,7 @@ The instantaneous NCO command — `carrier_nda_get_nco_freq`, which the header c
 
 - **F8 · GAP** — "Its H0 variance is 1/2 for EVERY M" is exact per look and does not survive the arm. At a 1-sample arm the post-EMA spread is 0.1136 / 0.1132 / 0.1129 against the analytic 0.1132 — the derivation, confirmed. At an 8-sample arm it is 0.2124 / 0.1499 / 0.1201, a factor of 1.77 across M, because consecutive boxcar outputs overlap and the M-th power decorrelates that overlap faster at high order. So `eta` is 2.35 sigma rather than 4.42 at M = 2 with a wide arm, and one `lock_thresh` does not mean one Pfa across the `n` axis the constructor accepts. §2.8 shows what it costs and why the shipped `n_up = 64` is the thing holding the false-alarm budget. Filed as gh-734.
 
-- **F9 · GAP** — `carrier_nda_get_nco_freq` — the instantaneous NCO command, which the header calls the right readout for observing loop dynamics because its mean rides a ramp with no lag — is reachable from neither the Python face nor telemetry. `car.freq` emits the integrator-only estimate, which is what `norm_freq` already returns, so the two published views of the loop's frequency are the same view. Same shape as resamp's `get_ctrl_acc` before it was bound: the diagnostic that matters is the one the binding skipped. Filed as gh-735.
+- **F9 · GAP** — `dp_carrier_nda_get_nco_freq` — the instantaneous NCO command, which the header calls the right readout for observing loop dynamics because its mean rides a ramp with no lag — is reachable from neither the Python face nor telemetry. `car.freq` emits the integrator-only estimate, which is what `norm_freq` already returns, so the two published views of the loop's frequency are the same view. Same shape as resamp's `get_ctrl_acc` before it was bound: the diagnostic that matters is the one the binding skipped. Filed as gh-735.
 
 - **F10 · C-ONLY** — `carrier_nda_disc` is `JM_FORCEINLINE` and has no binding, so every claim about the discriminator itself — the `{1, 1/2, 1/4}` scaling that equalises the S-curve slope, the slope of 2, the `+-1` bound, exact zero on a degenerate sample, and the twenty decades of scale invariance — is unreachable from Python by construction. It is carried by `test_carrier_nda_core.c` sections 3, 9 and 14 and by `native/validation/carrier_nda_scurve.c`; this report measures the LOOP those properties produce and says so wherever it does.
 

@@ -699,7 +699,7 @@ int dp_wfm_frame_desc_layout (
 
 
 
-The one operation both shipped framers already have, widened: this is `dp_wfm_frame_layout()`'s arithmetic and `ccsds_tm_frame_layout()`'s, with the field and stage lists supplied rather than fixed.
+The one operation both shipped framers already have, widened: this is `dp_wfm_frame_layout()`'s arithmetic and `dp_ccsds_tm_frame_layout()`'s, with the field and stage lists supplied rather than fixed.
 
 
 A derived field whose producing stage covers no caller-supplied bits is dropped to zero length — which is the general form of the rule [**dp\_wfm\_frame\_layout**](wfm__frame_8h.md#function-dp_wfm_frame_layout) has always applied, that a CRC over an empty payload protects nothing and is not emitted.

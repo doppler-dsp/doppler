@@ -173,7 +173,7 @@ mu = phase / 2^32        in [0, 1)
 ```
 
 — the fractional instant, between the two input samples that straddle the
-boundary, at which the period actually completed. `resamp_get_ctrl_acc()`
+boundary, at which the period actually completed. `dp_resamp_get_ctrl_acc()`
 returns exactly this and documents it as "the phase word as a fraction of one
 input interval".
 
@@ -585,7 +585,7 @@ reciprocal, which branch — then hands the narrowing to it.
 resamp should keep the modular cast in its own `_step_inc` precisely so it
 could not be consolidated back, and it was right about the behaviour and
 wrong about the home. A file that already owned "the conversion" locally grew
-a **second** one beside it — `resamp_execute_ctrl_push`'s
+a **second** one beside it — `dp_resamp_execute_ctrl_push`'s
 `(uint32_t)(frac * 2^32 + 0.5)`, whose rounding carries past 2^32 into the
 undefined cast. That stalled the interpolator for a rate deviation in
 `(0, 1.16e-10]`, and since zero Doppler *is* rate 1.0, a geometry ramping

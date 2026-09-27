@@ -26,7 +26,7 @@
  *   §22 The block gain is a linear ramp within a chunk, not a staircase
  *   §23 decim is neutral at the steady state (and NOT mid-transient)
  *   §24 A failed attach leaves the object detached
- *   §25 agc_settling_samples obeys the physics it reports
+ *   §25 dp_agc_settling_samples obeys the physics it reports
  *
  * Sections §13 onward were added by the validation campaign. They exist
  * because agc_core.h claimed the power floor was "never reached in normal
@@ -1039,7 +1039,7 @@ failed_attach_leaves_it_detached (void)
   return ok;
 }
 
-/* ── §25 — agc_settling_samples answers the design query ──────────────────
+/* ── §25 — dp_agc_settling_samples answers the design query ──────────────────
  *
  * It simulates the real loop rather than evaluating a fitted curve, so the
  * thing to pin is not a set of literals -- those would just restate the
@@ -1069,8 +1069,8 @@ settling_samples_is_the_loop_it_describes (void)
   };
   for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
     {
-      size_t got = agc_settling_samples (bad[i].bw, bad[i].alpha, bad[i].err,
-                                         bad[i].tol);
+      size_t got = dp_agc_settling_samples (bad[i].bw, bad[i].alpha,
+                                            bad[i].err, bad[i].tol);
       if (got != 0)
         {
           fprintf (stderr, "  §25 %s: returned %zu, expected a refusal\n",
@@ -1080,16 +1080,16 @@ settling_samples_is_the_loop_it_describes (void)
     }
 
   /* Already inside the tolerance is settled, and the contract says >= 1. */
-  if (agc_settling_samples (0.0025, 0.05, 0.1, 0.5) != 1)
+  if (dp_agc_settling_samples (0.0025, 0.05, 0.1, 0.5) != 1)
     {
       fprintf (stderr, "  §25 an already-settled loop did not report 1\n");
       ok = 0;
     }
 
-  size_t quiet = agc_settling_samples (0.0025, 0.05, 40.0, 0.5);
-  size_t loud  = agc_settling_samples (0.0025, 0.05, -40.0, 0.5);
-  size_t loose = agc_settling_samples (0.0025, 0.05, 40.0, 3.0);
-  size_t fast  = agc_settling_samples (0.01, 0.05, 40.0, 0.5);
+  size_t quiet = dp_agc_settling_samples (0.0025, 0.05, 40.0, 0.5);
+  size_t loud  = dp_agc_settling_samples (0.0025, 0.05, -40.0, 0.5);
+  size_t loose = dp_agc_settling_samples (0.0025, 0.05, 40.0, 3.0);
+  size_t fast  = dp_agc_settling_samples (0.01, 0.05, 40.0, 0.5);
 
   /* Vacuity precondition: every one must be a real answer, or the
      comparisons below are between refusals. */

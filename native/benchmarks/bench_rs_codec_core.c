@@ -8,18 +8,18 @@
  * costs, and there are exactly two such numbers:
  *
  *   create[J=8]      the TABLE BUILD -- exp/log over the field plus g(x),
- *   create[J=4]      which `rs_init` does once per constructor. Nothing had
+ *   create[J=4]      which `dp_rs_init` does once per constructor. Nothing had
  *                    measured it, and it is the number that decides whether
  *                    a caller may construct per frame or must hoist. Two
  *                    field widths, because the tables are O(2^J) and a
  *                    single row cannot show that.
  *
  *   encode           the object's whole-codeword encode...
- *   encode_kernel    ...against `rs_encode` alone, on the same code. The
+ *   encode_kernel    ...against `dp_rs_encode` alone, on the same code. The
  *                    difference IS the memcpy of k information symbols that
  *                    turns parity into a codeword -- the object's one
  *                    addition to the encode path, and the reason
- *                    `rs_encode` stays exposed for a frame assembler that
+ *                    `dp_rs_encode` stays exposed for a frame assembler that
  *                    has already placed the information.
  *
  * `decode` is here for one reason the family benchmark cannot cover: it is
@@ -137,7 +137,7 @@ main (void)
         t0 = jm_bench_now_ns ();
         for (int i = 0; i < CODEWORDS; i++)
           {
-            rs_encode (&rs->rs, info, par);
+            dp_rs_encode (&rs->rs, info, par);
             sink += par[0];
           }
         t1       = jm_bench_now_ns ();

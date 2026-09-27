@@ -36,7 +36,7 @@ dp_doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
       return NULL;
     }
 
-  obj->rs       = dp_xnn (resamp_create (doppler_channel_ratio (obj, 0.0)));
+  obj->rs       = dp_xnn (dp_resamp_create (doppler_channel_ratio (obj, 0.0)));
   obj->ctrl     = dp_xmalloc (DOPPLER_CHANNEL_MAX_BLOCK * sizeof (*obj->ctrl));
   obj->ctrl_cap = DOPPLER_CHANNEL_MAX_BLOCK;
   return obj;
@@ -47,7 +47,7 @@ dp_doppler_channel_destroy (dp_doppler_channel_state_t *state)
 {
   if (!state)
     return;
-  resamp_destroy (state->rs);
+  dp_resamp_destroy (state->rs);
   free (state->ctrl);
   free (state);
 }
@@ -55,7 +55,7 @@ dp_doppler_channel_destroy (dp_doppler_channel_state_t *state)
 void
 dp_doppler_channel_reset (dp_doppler_channel_state_t *state)
 {
-  resamp_reset (state->rs);
+  dp_resamp_reset (state->rs);
   state->n_in  = 0;
   state->n_out = 0;
 }
@@ -87,9 +87,9 @@ dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
                             float _Complex *out, size_t max_out)
 {
   size_t n_out = 0;
-  /* Chip away at the input in ctrl-buffer-sized pieces. resamp_execute_ctrl is
-     input-driven and its accumulator carries across calls, so chunking here is
-     invisible in the output. */
+  /* Chip away at the input in ctrl-buffer-sized pieces. dp_resamp_execute_ctrl
+     is input-driven and its accumulator carries across calls, so chunking here
+     is invisible in the output. */
   for (size_t off = 0; off < x_len && n_out < max_out;)
     {
       size_t m = x_len - off;
@@ -113,8 +113,8 @@ dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
           state->ctrl[i] = doppler_channel_ratio (state, t) - base;
         }
 
-      size_t got = resamp_execute_ctrl (state->rs, x + off, state->ctrl, m,
-                                        out + n_out, max_out - n_out);
+      size_t got = dp_resamp_execute_ctrl (state->rs, x + off, state->ctrl, m,
+                                           out + n_out, max_out - n_out);
       state->n_in += m;
       n_out += got;
       off += m;
@@ -158,7 +158,7 @@ dp_doppler_channel_get_offset_hz (const dp_doppler_channel_state_t *state)
 double
 dp_doppler_channel_get_delay_samples (const dp_doppler_channel_state_t *state)
 {
-  return resamp_get_delay (state->rs);
+  return dp_resamp_get_delay (state->rs);
 }
 
 /* ---- state serialization ------------------------------------------------ */
@@ -171,7 +171,7 @@ size_t
 dp_doppler_channel_state_bytes (const dp_doppler_channel_state_t *state)
 {
   return sizeof (dp_state_hdr_t) + 2u * sizeof (uint64_t)
-         + resamp_state_bytes (state->rs);
+         + dp_resamp_state_bytes (state->rs);
 }
 
 void
@@ -184,9 +184,9 @@ dp_doppler_channel_get_state (const dp_doppler_channel_state_t *state,
             total);
   dp_w_u64 (&w, state->n_in);
   dp_w_u64 (&w, state->n_out);
-  void *child = dp_w_reserve (&w, resamp_state_bytes (state->rs));
+  void *child = dp_w_reserve (&w, dp_resamp_state_bytes (state->rs));
   if (child)
-    resamp_get_state (state->rs, child);
+    dp_resamp_get_state (state->rs, child);
 }
 
 int
@@ -202,10 +202,11 @@ dp_doppler_channel_set_state (dp_doppler_channel_state_t *state,
   (void)dp_r_reserve (&r, sizeof (dp_state_hdr_t)); /* skip the envelope */
   state->n_in       = dp_r_u64 (&r);
   state->n_out      = dp_r_u64 (&r);
-  const void *child = dp_r_reserve (&r, resamp_state_bytes (state->rs));
+  const void *child = dp_r_reserve (&r, dp_resamp_state_bytes (state->rs));
   if (!child)
     return DP_ERR_INVALID;
   /* The child blob is self-validating — a wrong resampler payload is rejected
-     by resamp_set_state's own envelope check, not silently reinterpreted. */
-  return resamp_set_state (state->rs, child);
+     by dp_resamp_set_state's own envelope check, not silently reinterpreted.
+   */
+  return dp_resamp_set_state (state->rs, child);
 }

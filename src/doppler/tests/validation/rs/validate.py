@@ -853,7 +853,7 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C3",
-                "`field_poly` must be primitive, and `rs_init` refuses",
+                "`field_poly` must be primitive, and `dp_rs_init` refuses",
                 "§1, §1b",
                 "—",
             ],
@@ -897,7 +897,8 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C11",
-                "`rs_code_valid` checks the ranges, evenness and the stride",
+                "`dp_rs_code_valid` checks the ranges, evenness and the "
+                "stride",
                 "§1, §1b",
                 "—",
             ],

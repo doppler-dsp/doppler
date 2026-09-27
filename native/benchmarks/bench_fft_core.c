@@ -128,10 +128,10 @@ main (void)
               dp_fft_execute_inplace_cf32 (plan[s], in32, n, out32, n);
               break;
             case CFG_CI16:
-              fft_execute_ci16 (plan[s], in16, n, out32);
+              dp_fft_execute_ci16 (plan[s], in16, n, out32);
               break;
             case CFG_CI8:
-              fft_execute_ci8 (plan[s], in8, n, out32);
+              dp_fft_execute_ci8 (plan[s], in8, n, out32);
               break;
             default:
               break;

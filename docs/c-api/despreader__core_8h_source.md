@@ -46,7 +46,7 @@ extern "C"
     dp_tlm_t *tlm_ctx;       
   } dp_despreader_state_t;
 
-  void despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
+  void dp_despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
                         size_t code_len, size_t sps, double init_norm_freq,
                         double init_chip, double bn_carrier, double bn_code,
                         double bn_fll, double zeta, double spacing,

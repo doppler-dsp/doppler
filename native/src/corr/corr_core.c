@@ -132,7 +132,7 @@ dp_corr_set_state (dp_corr_state_t *s, const void *blob)
 }
 
 void
-corr_set_ref (dp_corr_state_t *state, const float _Complex *ref)
+dp_corr_set_ref (dp_corr_state_t *state, const float _Complex *ref)
 {
   dp_fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec, state->n);
   for (size_t k = 0; k < state->n; k++)

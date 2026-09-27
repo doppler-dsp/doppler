@@ -41,7 +41,7 @@ extern "C"
 #define MPSK_RX_EPS 1e-12
 
 /* THE RECEIVER HAS EXACTLY ONE AGC, and it is the front-end cascade's
- * (RateConverter_enable_agc). One, not none and not one per detector: it
+ * (dp_RateConverter_enable_agc). One, not none and not one per detector: it
  * levels the SIGNAL PATH, and both loops run on that path, so it sits inside
  * BOTH of them. There is no SECOND AGC in front of either detector, because
  * each divides out its own contribution -- carrier_nda_disc() by its own
@@ -166,7 +166,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
 #define MPSK_RX_LOCK_THRESH_DEFAULT 0.4999
 
-/* Carrier lock rule (see mpsk_rx_loops_init's lock_thresh doc). Declare fast,
+/* Carrier lock rule (see dp_mpsk_rx_loops_init's lock_thresh doc). Declare fast,
  * drop reluctantly: 8 straight above-threshold symbols declare lock, and 32
  * straight below the 0.8x drop threshold withdraw it. The asymmetry reflects
  * what the indicator is FOR — a caller sizing a measurement window wants the
@@ -232,7 +232,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * Lifecycle
    * ------------------------------------------------------------------ */
 
-  void mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
+  void dp_mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
                            double lo_sps, size_t m_out, double bn_carrier,
                            double zeta, double bn_timing, double bn_agc_ratio,
                            int ted, double lock_thresh, int differential);
@@ -244,18 +244,18 @@ mpsk_rx_derive_m_out (double cap, int strict)
     /* The discriminator reads the on-time strobe, which is one output per
        symbol, so the carrier loop updates once per symbol. Kept as a function
        rather than folded into the caller because it is the quantity
-       mpsk_rx_config_carrier() sizes the loop filter against, and naming it
+       dp_mpsk_rx_config_carrier() sizes the loop filter against, and naming it
        is what makes that sizing legible. */
     return 1.0;
   }
 
-  void mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
+  void dp_mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
 
-  void mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
+  void dp_mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
 
-  double mpsk_rx_freq_est (const mpsk_rx_loops_t *l);
+  double dp_mpsk_rx_freq_est (const mpsk_rx_loops_t *l);
 
-  void mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val);
+  void dp_mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -359,16 +359,16 @@ mpsk_rx_derive_m_out (double cap, int strict)
     return emitted;
   }
 
-  int mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y,
+  int dp_mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y,
                               uint8_t *bits);
 
   /* ------------------------------------------------------------------
    * Telemetry
    * ------------------------------------------------------------------ */
 
-  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y);
+  void dp_mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y);
 
-  int mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
+  int dp_mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);
 
 /* ── Serializable state — the loops alone (nested by every owner) ──────────
@@ -402,9 +402,9 @@ mpsk_rx_derive_m_out (double cap, int strict)
  * `car_lock` detector is an indicator, not a discriminator switch. */
 #define MPSK_RX_LOOPS_STATE_VERSION 7u
 
-  size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);
-  void mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob);
-  int mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob);
+  size_t dp_mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);
+  void dp_mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob);
+  int dp_mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob);
 
 #ifdef __cplusplus
 }

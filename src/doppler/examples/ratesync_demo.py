@@ -76,7 +76,7 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     caller owns the input level, and the level to hit is not a tuned number:
     the TED normalises by its own construct-time slope, computed for the
     reference the matched bank already defines
-    (``RateConverter_agc_ref_db()`` = ``10*log10(bank_e0/bank_sps)``, ~0 dB
+    (``dp_RateConverter_agc_ref_db()`` = ``10*log10(bank_e0/bank_sps)``, ~0 dB
     because the bank normalises by its own pulse energy).
 
     This demo used to scale the shaped stream to ``0.25`` of its PEAK for

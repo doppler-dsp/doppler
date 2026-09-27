@@ -176,7 +176,7 @@ void dp_detector_reset (dp_detector_state_t *state);
  * @param state Must be non-NULL.
  * @param ref   New reference, CF32, length state->n.
  */
-void detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
+void dp_detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
 
 /**
  * @brief Change the threshold without rebuilding the object.
@@ -184,7 +184,7 @@ void detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
  * @param state     Must be non-NULL.
  * @param threshold New threshold; 0.0 = always fire.
  */
-void detector_set_threshold (dp_detector_state_t *state, float threshold);
+void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 

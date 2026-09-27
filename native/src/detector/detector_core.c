@@ -203,14 +203,14 @@ dp_detector_set_state (dp_detector_state_t *s, const void *blob)
 }
 
 void
-detector_set_ref (dp_detector_state_t *state, const float _Complex *ref)
+dp_detector_set_ref (dp_detector_state_t *state, const float _Complex *ref)
 {
   dp_detector_reset (state);
-  corr_set_ref (state->corr, ref);
+  dp_corr_set_ref (state->corr, ref);
 }
 
 void
-detector_set_threshold (dp_detector_state_t *state, float threshold)
+dp_detector_set_threshold (dp_detector_state_t *state, float threshold)
 {
   state->threshold = threshold;
 }

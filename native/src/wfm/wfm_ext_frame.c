@@ -1825,7 +1825,7 @@ static PyMethodDef FrameObj_methods[] = {
     "\n"
     "The inner encoder starts from the all-zero register on every build: a\n"
     "description describes ONE frame. A stream of CADUs sharing one register\n"
-    "is a transmitter's job and lives in `ccsds_tm_frame_encode`.\n"
+    "is a transmitter's job and lives in `dp_ccsds_tm_frame_encode`.\n"
     "\n"
     "Raises\n"
     "------\n"

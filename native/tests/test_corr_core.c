@@ -131,7 +131,7 @@ main (void)
     dp_corr_destroy (obj);
   }
 
-  /* ── corr_set_ref recomputes and resets ───────────────────────────── */
+  /* ── dp_corr_set_ref recomputes and resets ───────────────────────────── */
   {
     float _Complex ref_a[16] = { 0 };
     float _Complex ref_b[16] = { 0 };
@@ -148,7 +148,7 @@ main (void)
     DP_CHECK (dp_cnearf (out[1], 1.0f + 0.0f * I, TOL));
 
     /* Switch to ref_b; correlate ref_b against itself → peak at lag 0. */
-    corr_set_ref (obj, ref_b);
+    dp_corr_set_ref (obj, ref_b);
     DP_CHECK (obj->count == 0);
     dp_corr_execute (obj, ref_b, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));

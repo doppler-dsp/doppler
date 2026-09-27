@@ -60,9 +60,9 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-|  const [**conv\_code\_t**](structconv__code__t.md) \* | [**conv\_enc\_code**](#function-conv_enc_code) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_The code this encoder was built for._  |
-|  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**conv\_enc\_create\_code**](#function-conv_enc_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Build an encoder from a code already assembled._  |
+|  const [**conv\_code\_t**](structconv__code__t.md) \* | [**dp\_conv\_enc\_code**](#function-dp_conv_enc_code) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_The code this encoder was built for._  |
 |  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**dp\_conv\_enc\_create**](#function-dp_conv_enc_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert) <br>_Build an encoder for the code the polynomials describe._  |
+|  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**dp\_conv\_enc\_create\_code**](#function-dp_conv_enc_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Build an encoder from a code already assembled._  |
 |  void | [**dp\_conv\_enc\_destroy**](#function-dp_conv_enc_destroy) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state) <br>_Free an encoder. NULL is a no-op._  |
 |  size\_t | [**dp\_conv\_enc\_encode**](#function-dp_conv_enc_encode) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode information bits into channel symbols._  |
 |  size\_t | [**dp\_conv\_enc\_encode\_max\_out**](#function-dp_conv_enc_encode_max_out) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state, size\_t n\_in) <br>_Symbols_ [_**dp\_conv\_enc\_encode**_](conv__enc__core_8h.md#function-dp_conv_enc_encode) _writes for_`n_in` _input bits._ |
@@ -107,17 +107,17 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 ## Detailed Description
 
 
-`conv` owns the CODE — the description, the trellis arithmetic, and the `conv_encode` kernel that turns bits into symbols. This owns the ENCODER built over one: a code and the shift register that must survive between calls, bound together so a caller cannot pair the wrong two.
+`conv` owns the CODE — the description, the trellis arithmetic, and the `dp_conv_encode` kernel that turns bits into symbols. This owns the ENCODER built over one: a code and the shift register that must survive between calls, bound together so a caller cannot pair the wrong two.
 
 
-**It is not a second implementation.** [**dp\_conv\_enc\_encode**](conv__enc__core_8h.md#function-dp_conv_enc_encode) calls `conv_encode`, exactly as [**dp\_viterbi\_decode**](viterbi__core_8h.md#function-dp_viterbi_decode)'s object calls its own kernel. Two encoders for one code family is how a rounding rule or an inversion comes to differ between them.
+**It is not a second implementation.** [**dp\_conv\_enc\_encode**](conv__enc__core_8h.md#function-dp_conv_enc_encode) calls `dp_conv_encode`, exactly as [**dp\_viterbi\_decode**](viterbi__core_8h.md#function-dp_viterbi_decode)'s object calls its own kernel. Two encoders for one code family is how a rounding rule or an inversion comes to differ between them.
 
 
 ### Why this exists at all
 
 
 
-`Viterbi` accepts any rate-1/n code, and until this the library could produce symbols for exactly one of them — CCSDS's, and only inside a `wfm_frame_desc_t`, whose stage kinds bind to `ccsds_tm_frame_ops` and carry a depth rather than a polynomial. Nothing in doppler exposed an `encode()` at all (doppler#900). A decoder whose matching encoder cannot be reached is a decoder that can only be tested against itself, which is the failure `conv`'s own tests are built to refuse.
+`Viterbi` accepts any rate-1/n code, and until this the library could produce symbols for exactly one of them — CCSDS's, and only inside a `wfm_frame_desc_t`, whose stage kinds bind to `dp_ccsds_tm_frame_ops` and carry a depth rather than a polynomial. Nothing in doppler exposed an `encode()` at all (doppler#900). A decoder whose matching encoder cannot be reached is a decoder that can only be tested against itself, which is the failure `conv`'s own tests are built to refuse.
 
 
 
@@ -155,54 +155,17 @@ dp_conv_enc_destroy (e);
 
 
 
-### function conv\_enc\_code 
+### function dp\_conv\_enc\_code 
 
 _The code this encoder was built for._ 
 ```C++
-const conv_code_t * conv_enc_code (
+const conv_code_t * dp_conv_enc_code (
     const dp_conv_enc_state_t * s
 ) 
 ```
 
 
 
-
-<hr>
-
-
-
-### function conv\_enc\_create\_code 
-
-_Build an encoder from a code already assembled._ 
-```C++
-dp_conv_enc_state_t * conv_enc_create_code (
-    const conv_code_t * c
-) 
-```
-
-
-
-The declared `dp_conv_enc_create` takes the polynomials directly, because a struct pointer is not expressible in a manifest. Callers that already hold a [**conv\_code\_t**](structconv__code__t.md) — the CCSDS configuration, the validators — use this.
-
-
-
-
-**Parameters:**
-
-
-* `c` The code. Copied, so the caller's may be temporary. 
-
-
-
-**Returns:**
-
-The encoder, or NULL if `c` is invalid. 
-
-
-
-
-
-        
 
 <hr>
 
@@ -261,6 +224,43 @@ Heap-allocated state, or NULL if the code is unusable.
 **Note:**
 
 Caller must call [**dp\_conv\_enc\_destroy()**](conv__enc__core_8h.md#function-dp_conv_enc_destroy) when done. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_conv\_enc\_create\_code 
+
+_Build an encoder from a code already assembled._ 
+```C++
+dp_conv_enc_state_t * dp_conv_enc_create_code (
+    const conv_code_t * c
+) 
+```
+
+
+
+The declared `dp_conv_enc_create` takes the polynomials directly, because a struct pointer is not expressible in a manifest. Callers that already hold a [**conv\_code\_t**](structconv__code__t.md) — the CCSDS configuration, the validators — use this.
+
+
+
+
+**Parameters:**
+
+
+* `c` The code. Copied, so the caller's may be temporary. 
+
+
+
+**Returns:**
+
+The encoder, or NULL if `c` is invalid. 
 
 
 

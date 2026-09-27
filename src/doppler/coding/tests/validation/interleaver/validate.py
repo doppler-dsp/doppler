@@ -997,7 +997,7 @@ def review(d: Data) -> None:
         "F2",
         "FIXED",
         "**The receive face had zero C coverage.** "
-        "`interleaver_create_rx` — the whole reason `Deinterleaver` is a "
+        "`dp_interleaver_create_rx` — the whole reason `Deinterleaver` is a "
         "view over one core — had no mentions in `test_interleaver_core.c` "
         "at all; the header's claim of identical construction and "
         "identical refusals was evidenced by the fact that one line of C "

@@ -86,7 +86,7 @@ _A generator part-way through a run._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Exposed because a consumer that is already walking the data — the frame decoder packs bits to octets and derandomises in the same pass — cannot hand a mutable run to [**ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-ccsds_tm_randomise), and must not hold a sequence the size of the data either. Stepping the generator alongside costs one word and works for any period; the alternative was a table indexed modulo the period, which is 128 KB at 10.4.1's and is longer than any CADU. 
+Exposed because a consumer that is already walking the data — the frame decoder packs bits to octets and derandomises in the same pass — cannot hand a mutable run to [**dp\_ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise), and must not hold a sequence the size of the data either. Stepping the generator alongside costs one word and works for any period; the alternative was a table indexed modulo the period, which is 128 KB at 10.4.1's and is longer than any CADU. 
 
 
     

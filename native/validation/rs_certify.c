@@ -128,7 +128,7 @@ make_codeword (const rs_t *rs, uint8_t *word, uint32_t *seed)
   const uint8_t mask = (uint8_t)((1u << rs->code.symbol_bits) - 1u);
   for (unsigned i = 0; i < rs->k; i++)
     word[i] = (uint8_t)(dp_xs32 (seed) & mask);
-  rs_encode (rs, word, word + rs->k);
+  dp_rs_encode (rs, word, word + rs->k);
 }
 
 /* Corrupt `count` distinct positions with nonzero deltas. */
@@ -176,13 +176,13 @@ sphere_point (const rs_t *rs, unsigned errs, uint32_t seed)
       memcpy (rx, sent, rs->n);
       inject (rs, rx, errs, &seed);
 
-      const int got = rs_decode (rs, rx);
+      const int got = dp_rs_decode (rs, rx);
       if (got < 0)
         {
           r.refused++;
           continue;
         }
-      if (!rs_codeword_ok (rs, rx))
+      if (!dp_rs_codeword_ok (rs, rx))
         r.noncodeword++;
       if (memcmp (rx, sent, rs->n) == 0)
         r.corrected++;
@@ -244,7 +244,7 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
     {
       uint8_t *w = sent + (size_t)c * rs->n;
       memcpy (w, info + (size_t)c * rs->k, rs->k);
-      rs_encode (rs, w, w + rs->k);
+      dp_rs_encode (rs, w, w + rs->k);
     }
 
   for (size_t s = 0; s < nsym; s++)
@@ -254,7 +254,7 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
 
   dp_mpsk_map (bits, nbits, mod, 2);
 
-  const float      sigma = awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
+  const float      sigma = dp_awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
   const float      n0    = 2.0f * sigma * sigma;
   dp_awgn_state_t *ch    = dp_awgn_create (seed, sigma);
   if (!ch)
@@ -286,7 +286,7 @@ chan_point (const rs_t *rs, double esn0_db, uint64_t seed)
       uint8_t       *w = rx + (size_t)c * rs->n;
       const uint8_t *o = sent + (size_t)c * rs->n;
 
-      const int got  = rs_decode (rs, w);
+      const int got  = dp_rs_decode (rs, w);
       const int same = memcmp (w, o, rs->n) == 0;
 
       if (got < 0)
@@ -343,7 +343,7 @@ main (int argc, char **argv)
   for (size_t ci = 0; ci < sizeof CODES / sizeof CODES[0]; ci++)
     {
       rs_t rs;
-      if (!rs_init (&rs, &CODES[ci].code))
+      if (!dp_rs_init (&rs, &CODES[ci].code))
         {
           fprintf (stderr, "rs_certify: %s is not a code\n", CODES[ci].name);
           return 1;
@@ -384,7 +384,7 @@ main (int argc, char **argv)
 
   {
     rs_t rs;
-    if (!rs_init (&rs, &CODES[4].code)) /* textbook RS(255,223) */
+    if (!dp_rs_init (&rs, &CODES[4].code)) /* textbook RS(255,223) */
       return 1;
 
     for (size_t i = 0; i < sizeof ESN0 / sizeof ESN0[0]; i++)

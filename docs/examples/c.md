@@ -4,7 +4,7 @@
 
 A minimal working project lives at
 [`example-projects/standalone/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/standalone).
-It generates 4096 AWGN samples with `awgn()` and prints empirical statistics.
+It generates 4096 AWGN samples with `dp_awgn()` and prints empirical statistics.
 The same example is also available as a one-liner Python script.
 
 ______________________________________________________________________
@@ -131,7 +131,7 @@ pkg-config commands.
 ### Generating waveforms in-process
 
 The `wfmgen` CLI is archived in the library as the callable
-**`doppler_wfmgen(argc, argv)`** (header `wfm/wfmgen.h`), so a C program can
+**`dp_doppler_wfmgen(argc, argv)`** (header `wfm/wfmgen.h`), so a C program can
 produce the same captures without spawning a subprocess — see
 [Embedding the `wfmgen` generator](../install/c.md#embedding-the-wfmgen-generator).
 
@@ -203,7 +203,7 @@ ______________________________________________________________________
 
 int main(void) {
     float complex out[1024];
-    awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — 0 on success, -1 on failure */
+    dp_awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — 0 on success, -1 on failure */
     return 0;
 }
 ```
@@ -309,7 +309,7 @@ int main(void) {
         taps[k] = (float)(sinc * win);
     }
 
-    dp_fir_state_t *fir = fir_create_real(taps, N_TAPS);
+    dp_fir_state_t *fir = dp_fir_create_real(taps, N_TAPS);
 
     float complex in[1024], out[1024];
     dp_fir_execute(fir, in, 1024, out);

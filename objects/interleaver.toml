@@ -53,7 +53,7 @@ default = "1"
 # mean what it says.
 [[interleaver.views]]
 class_name = "Deinterleaver"
-create_fn = "interleaver_create_rx"
+create_fn = "dp_interleaver_create_rx"
 init_params = [
   { name = "rows", type = "size_t" },
   { name = "cols", type = "size_t" },

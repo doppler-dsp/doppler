@@ -40,7 +40,7 @@ static double
 scurve_e (int m, double phi)
 {
   dp_carrier_mpsk_state_t s;
-  carrier_mpsk_init (&s, 0.01, 0.707, 0.0, 1, 0.0, m);
+  dp_carrier_mpsk_init (&s, 0.01, 0.707, 0.0, 1, 0.0, m);
   float complex rot = (float complex)cexp (I * phi);
   double        acc = 0.0;
   for (int g = 0; g < m; g++)

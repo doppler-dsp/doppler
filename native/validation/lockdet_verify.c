@@ -77,7 +77,7 @@ measure (double p, uint32_t n_up, size_t looks, uint64_t seed,
   memset (&d, 0, sizeof d);
   /* n_down = 1 is irrelevant here: the detector is reset on every declare,
      so it never spends a look in the locked state. */
-  lockdet_init (&d, thr, thr, n_up, 1);
+  dp_lockdet_init (&d, thr, thr, n_up, 1);
 
   size_t declares = 0, run = 0, run_total = 0;
   for (size_t done = 0; done < looks;)

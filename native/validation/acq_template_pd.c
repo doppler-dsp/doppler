@@ -3,7 +3,7 @@
  * @brief The Pd a TEMPLATE burst engine delivers, against the Pd it
  *        predicts (doppler#1470 phase 4 of the object lifecycle's Explore).
  *
- * acq_create_burst() searches any repeated complex preamble by its
+ * dp_acq_create_burst() searches any repeated complex preamble by its
  * samples, and sizes itself from `pd_predicted` -- a model whose inputs for a
  * template (the zone, the band-limited delay straddle) are pinned against
  * closed forms in test_acq_core.c, but whose OUTPUT had never been measured
@@ -198,8 +198,8 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
      the way every burst engine is built now (doppler#1470). */
   float _Complex *cpre = code ? dp_code_preamble (code, 31, spc) : NULL;
   dp_acq_state_t *a
-      = dp_xnn (acq_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
-                                  0.0, PFA, 0.9, 0, gm->rate_arg));
+      = dp_xnn (dp_acq_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
+                                     0.0, PFA, 0.9, 0, gm->rate_arg));
   free (cpre);
   if (gm->pinned)
     pin (a);
@@ -214,7 +214,8 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   float _Complex  *nz   = dp_xmalloc (len * sizeof *nz);
   const double     span = fs / (2.0 * (double)n); /* Hz, as the engine */
   dp_awgn_state_t *g    = dp_xnn (dp_awgn_create (
-      seed, awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs)), 1.0f)));
+      seed,
+      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs)), 1.0f)));
   uint32_t         st   = seed;
   int              hits = 0;
   double           derr = 0.0;
@@ -290,7 +291,7 @@ cn0_for (const float _Complex *pre, size_t n, double fs, double target)
      the scan alone put the spot check over its CI budget (doppler#1498). */
   int lo = 0, hi = 280;
   {
-    dp_acq_state_t *a = dp_xnn (acq_create_burst (
+    dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (
         pre, n, D, fs, 30.0 + 0.25 * (double)hi, 0.0, PFA, 0.9, 0, 0.0));
     pin (a);
     const double p = a->pd_predicted;
@@ -301,7 +302,7 @@ cn0_for (const float _Complex *pre, size_t n, double fs, double target)
   while (lo < hi)
     {
       const int       mid = (lo + hi) / 2;
-      dp_acq_state_t *a   = dp_xnn (acq_create_burst (
+      dp_acq_state_t *a   = dp_xnn (dp_acq_create_burst (
           pre, n, D, fs, 30.0 + 0.25 * (double)mid, 0.0, PFA, 0.9, 0, 0.0));
       pin (a);
       const double p = a->pd_predicted;
@@ -351,7 +352,7 @@ drift_rows (const tmpl_t *zc, int check)
      the step a linear scan finds, in ~8 constructions rather than ~95. */
   int lo = 0, hi = 160; /* steps down from 70 dB-Hz */
   {
-    dp_acq_state_t *a    = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
+    dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (zc->t, zc->n, reps, FS_T,
                                                      70.0 - 0.25 * (double)hi,
                                                      0.0, PFA, 0.9, 0, 0.0));
     const int       deep = a->coherent_bins >= 10;
@@ -360,10 +361,10 @@ drift_rows (const tmpl_t *zc, int check)
   }
   while (lo < hi)
     {
-      const int       mid = (lo + hi) / 2;
-      dp_acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
-                                                    70.0 - 0.25 * (double)mid,
-                                                    0.0, PFA, 0.9, 0, 0.0));
+      const int       mid  = (lo + hi) / 2;
+      dp_acq_state_t *a    = dp_xnn (dp_acq_create_burst (
+          zc->t, zc->n, reps, FS_T, 70.0 - 0.25 * (double)mid, 0.0, PFA, 0.9,
+          0, 0.0));
       const int       deep = a->coherent_bins >= 10;
       dp_acq_destroy (a);
       if (deep)

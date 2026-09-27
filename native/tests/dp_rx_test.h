@@ -124,7 +124,7 @@ struct dp_rx_point;
  * `zeta` is here rather than on the point for the same reason `m_out` is left
  * 0 there: the adapter asks the receiver to DERIVE its damping, so the only
  * honest source for it is the constructed object. The ramp law is written in
- * `wn = loop_filter_wn(bn, zeta)`, and reading it against a damping the
+ * `wn = dp_loop_filter_wn(bn, zeta)`, and reading it against a damping the
  * receiver was not built at is a silent ~30% error — restating the default as
  * a harness constant would have been a second copy of exactly the number the
  * receiver is free to change.
@@ -349,8 +349,9 @@ dp_rx_amp (const dp_rx_point_t *pt)
  * window where the frame is due. That is also what makes the question fair —
  * a Sidak correction over 25 lags is a very different bar from one over
  * 401, and quoting a sync miss rate from a full re-acquisition would measure
- * the SEARCH rather than the sync word. Bounded below by `ber_align_detect`'s
- * CFAR, which needs 8 reference cells outside its 3-lag guard band. */
+ * the SEARCH rather than the sync word. Bounded below by
+ * `dp_ber_align_detect`'s CFAR, which needs 8 reference cells outside its
+ * 3-lag guard band. */
 #define DP_RX_SYNC_SPAN 12L
 
 /** @brief How far the measured FER's LOWER limit may sit above the predicted
@@ -396,7 +397,7 @@ dp_rx_ramp_rate (const dp_rx_point_t *pt)
 /**
  * @brief The steady-state phase lag that ramp implies, radians.
  *
- * `2*pi*r / wn^2`, with `wn` from `loop_filter_wn()` — the library's own
+ * `2*pi*r / wn^2`, with `wn` from `dp_loop_filter_wn()` — the library's own
  * formula, so the harness is not carrying a sixth copy of it. Zero when the
  * point sets no rate: there is then no lag to predict, and a point that
  * measured one would be measuring its own noise.
@@ -408,7 +409,7 @@ static inline double
 dp_rx_ramp_law (const dp_rx_point_t *pt, double zeta)
 {
   double r  = dp_rx_ramp_rate (pt);
-  double wn = (zeta > 0.0) ? loop_filter_wn (pt->bn_carrier, zeta) : 0.0;
+  double wn = (zeta > 0.0) ? dp_loop_filter_wn (pt->bn_carrier, zeta) : 0.0;
   return (r != 0.0 && wn > 0.0) ? 2.0 * M_PI * r / (wn * wn) : 0.0;
 }
 
@@ -658,8 +659,8 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
                     dp_frame_meter_state_t *fm, uint8_t *rxbits)
 {
   /* Shift whichever array needs it so the residual lag is zero, because
-     ber_align_detect searches around lag 0 and has no centre argument. After
-     this, `rxa[i]` carries `tra[i]`. */
+     dp_ber_align_detect searches around lag 0 and has no centre argument.
+     After this, `rxa[i]` carries `tra[i]`. */
   size_t                rx_skip = (lag < 0) ? (size_t)(-lag) : 0;
   size_t                tr_skip = (lag > 0) ? (size_t)(lag) : 0;
   const float _Complex *rxa     = out + rx_skip;
@@ -855,7 +856,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   {
     unsigned burst;
     /* Both accumulators have to be satisfied, not just the symbol one: the
-       frame meter shares `ber_confidence` and therefore shares its STOPPING
+       frame meter shares `dp_ber_confidence` and therefore shares its STOPPING
        RULE, so an FER interval quoted from a handful of frame errors is a
        number whose width is set by luck. An unframed point has no second
        target and stops on the first. */

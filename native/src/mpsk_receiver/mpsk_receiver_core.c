@@ -37,7 +37,7 @@
    cycles per LO sample the front end's control port wants (rad -> cycles, then
    spread over the lo_sps samples a symbol spans). */
 void
-mpsk_rx_config_carrier (mpsk_rx_loops_t *l)
+dp_mpsk_rx_config_carrier (mpsk_rx_loops_t *l)
 {
   /* bn_carrier keeps its meaning — normalised to the SYMBOL rate — whatever
      tap the caller picked, so one setting means the same loop at every tap.
@@ -48,15 +48,15 @@ mpsk_rx_config_carrier (mpsk_rx_loops_t *l)
      can still SEE, and improves the stability margin at any given bn, which
      is what lets a caller then raise bn_carrier on purpose. */
   double upd = mpsk_rx_updates_per_symbol (l);
-  loop_filter_init (&l->car_lf, l->bn_carrier, l->zeta, 1.0 / upd);
+  dp_loop_filter_init (&l->car_lf, l->bn_carrier, l->zeta, 1.0 / upd);
   l->freq_scale = CARRIER_NDA_INV_2PI * upd / l->lo_sps;
 }
 
 void
-mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
-                    size_t m_out, double bn_carrier, double zeta,
-                    double bn_timing, double bn_agc_ratio, int ted,
-                    double lock_thresh, int differential)
+dp_mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
+                       size_t m_out, double bn_carrier, double zeta,
+                       double bn_timing, double bn_agc_ratio, int ted,
+                       double lock_thresh, int differential)
 {
   l->m      = m;
   l->sps    = sps;
@@ -80,22 +80,22 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
 
   memset (&l->tlm, 0, sizeof l->tlm);
 
-  ratesync_loop_init (&l->timing, sps, m_out, bn_timing, zeta, ted);
+  dp_ratesync_loop_init (&l->timing, sps, m_out, bn_timing, zeta, ted);
 
   /* Carrier lock indicator on the lock EMA: declare fast, drop reluctantly
      — level + time hysteresis so metric wobble at the threshold cannot
      chatter the reading a caller sizes its measurement window from. */
-  lockdet_init (&l->car_lock, lock_thresh, MPSK_RX_LOCK_DOWN * lock_thresh,
-                MPSK_RX_LOCK_N_UP, MPSK_RX_LOCK_N_DOWN);
+  dp_lockdet_init (&l->car_lock, lock_thresh, MPSK_RX_LOCK_DOWN * lock_thresh,
+                   MPSK_RX_LOCK_N_UP, MPSK_RX_LOCK_N_DOWN);
 
-  mpsk_rx_config_carrier (l);
-  mpsk_rx_loops_reset (l);
+  dp_mpsk_rx_config_carrier (l);
+  dp_mpsk_rx_loops_reset (l);
 }
 
 void
-mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
+dp_mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
 {
-  ratesync_loop_reset (&l->timing);
+  dp_ratesync_loop_reset (&l->timing);
   dp_loop_filter_reset (&l->car_lf);
   l->freq_ctrl     = 0.0;
   l->car_error     = 0.0;
@@ -108,7 +108,7 @@ mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
 }
 
 double
-mpsk_rx_freq_est (const mpsk_rx_loops_t *l)
+dp_mpsk_rx_freq_est (const mpsk_rx_loops_t *l)
 {
   /* The INTEGRATOR is the frequency memory (loop_filter_core.h: "kp*e is the
      instantaneous phase nudge"), so the estimate excludes the proportional
@@ -118,14 +118,14 @@ mpsk_rx_freq_est (const mpsk_rx_loops_t *l)
 }
 
 void
-mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val)
+dp_mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val)
 {
   l->car_lf.integ = l->freq_scale > 0.0 ? val / l->freq_scale : 0.0;
   l->freq_ctrl    = -val;
 }
 
 int
-mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y, uint8_t *bits)
+dp_mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y, uint8_t *bits)
 {
   float _Complex ahat;
   unsigned label = mpsk_slice (y, l->m, &ahat);
@@ -148,11 +148,11 @@ mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y, uint8_t *bits)
 }
 
 void
-mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y)
+dp_mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y)
 {
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_lock, l->lock);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_e, l->car_error);
-  dp_tlm_emit (l->tlm.ctx, l->tlm.id_freq, mpsk_rx_freq_est (l));
+  dp_tlm_emit (l->tlm.ctx, l->tlm.id_freq, dp_mpsk_rx_freq_est (l));
   /* Receiver convention: the front end holds the conjugate. */
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_nco, -l->freq_ctrl);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_locked, (double)l->car_lock.locked);
@@ -162,17 +162,17 @@ mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y)
      them -- no separate stream, and no way for the two to disagree. */
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_sym_i, (double)crealf (y));
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_sym_q, (double)cimagf (y));
-  ratesync_loop_tlm_flush (&l->timing);
+  dp_ratesync_loop_tlm_flush (&l->timing);
 }
 
 int
-mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
-                       uint32_t decim)
+dp_mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
+                          const char *prefix, uint32_t decim)
 {
   if (!tlm) /* detach the receiver AND the timing loop */
     {
       l->tlm.ctx = NULL;
-      (void)ratesync_loop_set_telemetry (&l->timing, NULL, prefix, decim);
+      (void)dp_ratesync_loop_set_telemetry (&l->timing, NULL, prefix, decim);
       return DP_OK;
     }
   const char *p = prefix ? prefix : "rx";
@@ -203,7 +203,7 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
   /* Forward to the timing loop under "<prefix>.sync"; if it fails the whole
      attach fails, so nothing is left half-armed. */
   (void)snprintf (name, sizeof (name), "%s.sync", p);
-  int rc = ratesync_loop_set_telemetry (&l->timing, tlm, name, decim);
+  int rc = dp_ratesync_loop_set_telemetry (&l->timing, tlm, name, decim);
   if (rc != DP_OK)
     return rc;
   l->tlm.id_sym_i  = id_sym_i;
@@ -234,19 +234,19 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
 #define DP_MRX_U64S 4
 
 size_t
-mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
+dp_mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
 {
   return sizeof (dp_state_hdr_t) + DP_MRX_DOUBLES * sizeof (double)
          + DP_MRX_U64S * sizeof (uint64_t)
          + 2 * sizeof (uint32_t) /* car_lock cnt/locked */
-         + ratesync_loop_state_bytes (&l->timing)
+         + dp_ratesync_loop_state_bytes (&l->timing)
          + dp_loop_filter_state_bytes (&l->car_lf);
 }
 
 void
-mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
+dp_mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
 {
-  const size_t total = mpsk_rx_loops_state_bytes (l);
+  const size_t total = dp_mpsk_rx_loops_state_bytes (l);
   dp_writer_t  w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, MPSK_RX_LOOPS_STATE_MAGIC, MPSK_RX_LOOPS_STATE_VERSION, total);
   dp_w_f64 (&w, l->freq_ctrl);
@@ -261,15 +261,15 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   dp_w_u32 (&w, (uint32_t)l->car_lock.locked);
 
   char *p = (char *)blob + w.off;
-  ratesync_loop_get_state (&l->timing, p);
-  p += ratesync_loop_state_bytes (&l->timing);
+  dp_ratesync_loop_get_state (&l->timing, p);
+  p += dp_ratesync_loop_state_bytes (&l->timing);
   dp_loop_filter_get_state (&l->car_lf, p);
 }
 
 int
-mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
+dp_mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
 {
-  const size_t total = mpsk_rx_loops_state_bytes (l);
+  const size_t total = dp_mpsk_rx_loops_state_bytes (l);
   int          rc = dp_state_validate (blob, total, MPSK_RX_LOOPS_STATE_MAGIC,
                                        MPSK_RX_LOOPS_STATE_VERSION);
   if (rc != DP_OK)
@@ -290,10 +290,10 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   l->car_lock.locked = (int)dp_r_u32 (&r);
 
   const char *p = (const char *)blob + r.off;
-  rc            = ratesync_loop_set_state (&l->timing, p);
+  rc            = dp_ratesync_loop_set_state (&l->timing, p);
   if (rc != DP_OK)
     return rc;
-  p += ratesync_loop_state_bytes (&l->timing);
+  p += dp_ratesync_loop_state_bytes (&l->timing);
   rc = dp_loop_filter_set_state (&l->car_lf, p);
   if (rc != DP_OK)
     return rc;
@@ -386,13 +386,13 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
      that gives the 0.5 the readbacks below carry — a deviation of d at the
      intermediate rate is d/2 in input-normalised terms. */
   if (real)
-    rx->fe.r = ddcr_create_matched (
+    rx->fe.r = dp_ddcr_create_matched (
         -(2.0 * init_norm_freq + 0.5), (double)m_out / sps, pulse, rrc_beta,
         (size_t)rrc_span, (double)m_out, num_phases);
   else
-    rx->fe.c = ddc_create_matched (-init_norm_freq, (double)m_out / sps, pulse,
-                                   rrc_beta, (size_t)rrc_span, (double)m_out,
-                                   num_phases);
+    rx->fe.c = dp_ddc_create_matched (-init_norm_freq, (double)m_out / sps,
+                                      pulse, rrc_beta, (size_t)rrc_span,
+                                      (double)m_out, num_phases);
   if (!(real ? (void *)rx->fe.r : (void *)rx->fe.c))
     {
       free (rx);
@@ -402,12 +402,12 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
 
   /* A complex front end mixes at the input rate, so the LO sees `sps` samples
      per symbol; the real one's halfband decimates 2:1 first, so its LO sees
-     `sps/2`. That is the whole reason mpsk_rx_loops_init() takes lo_sps
+     `sps/2`. That is the whole reason dp_mpsk_rx_loops_init() takes lo_sps
      separately from sps rather than assuming they are equal. */
-  mpsk_rx_loops_init (&rx->l, m, sps, real ? 0.5 * sps : sps, m_out,
-                      bn_carrier, zeta, bn_timing, bn_agc_ratio,
-                      RATESYNC_TED_GARDNER, lock_thresh, differential);
-  ratesync_loop_bind_cascade (&rx->l.timing, mpsk_rx_fe_rc (rx));
+  dp_mpsk_rx_loops_init (&rx->l, m, sps, real ? 0.5 * sps : sps, m_out,
+                         bn_carrier, zeta, bn_timing, bn_agc_ratio,
+                         RATESYNC_TED_GARDNER, lock_thresh, differential);
+  dp_ratesync_loop_bind_cascade (&rx->l.timing, mpsk_rx_fe_rc (rx));
 
   /* The front end levels itself so the TED's construct-time slope means what
      it says. A zero loop bandwidth leaves nothing to be slower than, so the
@@ -420,7 +420,7 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
      which is also where the noise has already been filtered -- so the level
      it sets does not depend on how far the front end oversamples. */
   if (agc)
-    (void)RateConverter_enable_agc (
+    (void)dp_RateConverter_enable_agc (
         mpsk_rx_fe_rc (rx),
         mpsk_rx_agc_bn (bn_carrier, bn_timing, bn_agc_ratio),
         MPSK_RX_AGC_ALPHA);
@@ -441,11 +441,12 @@ dp_mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
 }
 
 dp_mpsk_receiver_state_t *
-mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
-                           double rrc_beta, int rrc_span, double bn_carrier,
-                           double zeta, double bn_timing, double lock_thresh,
-                           double init_norm_freq, int differential,
-                           size_t num_phases, int agc, double bn_agc_ratio)
+dp_mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
+                              double rrc_beta, int rrc_span, double bn_carrier,
+                              double zeta, double bn_timing,
+                              double lock_thresh, double init_norm_freq,
+                              int differential, size_t num_phases, int agc,
+                              double bn_agc_ratio)
 {
   return mpsk_rx_create_impl (1, m, sps, m_out, pulse, rrc_beta, rrc_span,
                               bn_carrier, zeta, bn_timing, lock_thresh,
@@ -456,7 +457,7 @@ mpsk_receiver_create_real (int m, double sps, size_t m_out, int pulse,
 double
 dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state)
 {
-  return RateConverter_agc_gain_db (mpsk_rx_fe_rc (state));
+  return dp_RateConverter_agc_gain_db (mpsk_rx_fe_rc (state));
 }
 
 /* The Hz face. A pure delegate -- but the conversion it performs is the
@@ -471,10 +472,10 @@ dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state)
    capture rather than a tuning request -- returning NULL for either says so
    at construction instead of at the first strobe that lands nowhere. */
 dp_mpsk_receiver_state_t *
-mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
-                           double carrier_freq_hz, int pulse, double rrc_beta,
-                           int rrc_span, double bn_carrier, double bn_timing,
-                           int differential, int agc)
+dp_mpsk_receiver_create_bpsk (double sample_rate_hz, double symbol_rate_hz,
+                              double carrier_freq_hz, int pulse,
+                              double rrc_beta, int rrc_span, double bn_carrier,
+                              double bn_timing, int differential, int agc)
 {
   if (!(sample_rate_hz > 0.0) || !(symbol_rate_hz > 0.0))
     return NULL;
@@ -508,7 +509,7 @@ dp_mpsk_receiver_reset (dp_mpsk_receiver_state_t *state)
     dp_ddcr_reset (state->fe.r);
   else
     dp_ddc_reset (state->fe.c);
-  mpsk_rx_loops_reset (&state->l);
+  dp_mpsk_rx_loops_reset (&state->l);
 }
 
 /* ── the block API: one body per verb, two input types ─────────────────────
@@ -557,7 +558,7 @@ mpsk_rx_steps_impl (dp_mpsk_receiver_state_t *state, const void *x,
             {
               if (emitted < max_out)
                 out[emitted++] = y;
-              mpsk_rx_tlm_flush (&state->l, y);
+              dp_mpsk_rx_tlm_flush (&state->l, y);
             }
         }
     }
@@ -577,9 +578,9 @@ mpsk_rx_bits_impl (dp_mpsk_receiver_state_t *state, const void *x,
       if (!mpsk_rx_step_at (state, x, i, &y, real))
         continue;
       if (state->l.tlm.ctx)
-        mpsk_rx_tlm_flush (&state->l, y);
+        dp_mpsk_rx_tlm_flush (&state->l, y);
       uint8_t bits[3];
-      int     nb = mpsk_rx_symbol_to_bits (&state->l, y, bits);
+      int     nb = dp_mpsk_rx_symbol_to_bits (&state->l, y, bits);
       for (int b = 0; b < nb && emitted < max_out; b++)
         out[emitted++] = bits[b];
     }
@@ -602,15 +603,15 @@ dp_mpsk_receiver_steps (dp_mpsk_receiver_state_t *state,
 }
 
 size_t
-mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state)
+dp_mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state)
 {
   (void)state;
   return 0; /* sps > 2*m_out, so symbols <= inputs */
 }
 
 size_t
-mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state, const float *x,
-                          size_t x_len, float _Complex *out, size_t max_out)
+dp_mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state, const float *x,
+                             size_t x_len, float _Complex *out, size_t max_out)
 {
   return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 1);
 }
@@ -631,15 +632,15 @@ dp_mpsk_receiver_bits (dp_mpsk_receiver_state_t *state,
 }
 
 size_t
-mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state)
+dp_mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state)
 {
   (void)state;
   return 0; /* one bit per symbol, and symbols <= inputs */
 }
 
 size_t
-mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
-                         size_t x_len, uint8_t *out, size_t max_out)
+dp_mpsk_receiver_bits_real (dp_mpsk_receiver_state_t *state, const float *x,
+                            size_t x_len, uint8_t *out, size_t max_out)
 {
   return mpsk_rx_bits_impl (state, x, x_len, out, max_out, 1);
 }
@@ -660,11 +661,11 @@ double
 dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state)
 {
   return state->centre_freq
-         + mpsk_rx_lo_to_input (state) * mpsk_rx_freq_est (&state->l);
+         + mpsk_rx_lo_to_input (state) * dp_mpsk_rx_freq_est (&state->l);
 }
 
 double
-mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state)
 {
   /* The instantaneous command includes the proportional nudge, and is held in
      the front end's (conjugate) convention — report the receiver's. */
@@ -679,7 +680,7 @@ dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val)
     dp_ddcr_set_norm_freq (state->fe.r, -(2.0 * val + 0.5));
   else
     dp_ddc_set_norm_freq (state->fe.c, -val);
-  mpsk_rx_set_freq_est (&state->l, 0.0);
+  dp_mpsk_rx_set_freq_est (&state->l, 0.0);
 }
 
 double
@@ -701,7 +702,7 @@ dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state)
 }
 
 double
-mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state)
+dp_mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state)
 {
   return state->l.car_error;
 }
@@ -710,7 +711,7 @@ int
 dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                 const char *prefix, uint32_t decim)
 {
-  int rc = mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
+  int rc = dp_mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
   if (rc != DP_OK)
     return rc;
   /* The front end's AGC under "<prefix>.agc". It is the third loop in this
@@ -720,11 +721,12 @@ dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
      the one that sets how long the receiver takes to become usable. */
   char name[DP_TLM_NAME_MAX];
   (void)snprintf (name, sizeof (name), "%s.agc", prefix ? prefix : "rx");
-  int rc_agc = state->real ? ddcr_set_telemetry (state->fe.r, tlm, name, decim)
-                           : ddc_set_telemetry (state->fe.c, tlm, name, decim);
+  int rc_agc = state->real
+                   ? dp_ddcr_set_telemetry (state->fe.r, tlm, name, decim)
+                   : dp_ddc_set_telemetry (state->fe.c, tlm, name, decim);
   if (rc_agc != DP_OK) /* fails whole: undo the loops we just attached */
     {
-      (void)mpsk_rx_set_telemetry (&state->l, NULL, prefix, decim);
+      (void)dp_mpsk_rx_set_telemetry (&state->l, NULL, prefix, decim);
       return rc_agc;
     }
   return DP_OK;
@@ -842,7 +844,7 @@ size_t
 dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + mpsk_rx_fe_state_bytes (s)
-         + mpsk_rx_loops_state_bytes (&s->l);
+         + dp_mpsk_rx_loops_state_bytes (&s->l);
 }
 
 void
@@ -857,7 +859,7 @@ dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *s, void *blob)
   else
     dp_ddc_get_state (s->fe.c, p);
   p += mpsk_rx_fe_state_bytes (s);
-  mpsk_rx_loops_get_state (&s->l, p);
+  dp_mpsk_rx_loops_get_state (&s->l, p);
 }
 
 int
@@ -874,5 +876,5 @@ dp_mpsk_receiver_set_state (dp_mpsk_receiver_state_t *s, const void *blob)
   if (rc != DP_OK)
     return rc;
   p += mpsk_rx_fe_state_bytes (s);
-  return mpsk_rx_loops_set_state (&s->l, p);
+  return dp_mpsk_rx_loops_set_state (&s->l, p);
 }

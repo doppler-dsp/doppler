@@ -13,7 +13,7 @@ extern "C" {
         taps: *const DpCf32,
         num_taps: usize,
     ) -> *mut FirStateRaw;
-    pub fn fir_create_real(
+    pub fn dp_fir_create_real(
         taps: *const f32,
         num_taps: usize,
     ) -> *mut FirStateRaw;
@@ -70,11 +70,11 @@ impl Fir {
     /// count for filters designed in the real domain (e.g. `firwin`).
     ///
     /// # Panics
-    /// Panics if `fir_create_real` returns null.
+    /// Panics if `dp_fir_create_real` returns null.
     pub fn new_real(taps: &[f32]) -> Self {
         let ptr =
-            unsafe { fir_create_real(taps.as_ptr(), taps.len()) };
-        assert!(!ptr.is_null(), "fir_create_real returned null");
+            unsafe { dp_fir_create_real(taps.as_ptr(), taps.len()) };
+        assert!(!ptr.is_null(), "dp_fir_create_real returned null");
         Fir { ptr, real_taps: true }
     }
 

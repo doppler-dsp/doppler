@@ -12,7 +12,7 @@
  *   bank[0] = g[0,2,4,6] with g=2h → [-0.2122, 0.6366, 0.6366, -0.2122]
  *   bank[1] = [0, 1.0, 0, 0]  (delay branch)
  *
- * FIR branch = bank[0]; pass this to hbdecim_create.
+ * FIR branch = bank[0]; pass this to dp_hbdecim_create.
  */
 
 #define DP_TEST_VERBOSE 1
@@ -73,22 +73,22 @@ test_create_destroy (void)
 {
   printf ("\n-- Lifecycle --\n");
 
-  hbdecim_state_t *r = hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r = dp_hbdecim_create (N_TAPS, H4_FIR);
   DP_CHECK_MSG (r != NULL, "create returns non-NULL");
-  DP_CHECK_MSG (hbdecim_get_num_taps (r) == N_TAPS, "num_taps reported");
-  DP_CHECK_MSG (hbdecim_get_rate (r) == 0.5, "rate is 0.5");
-  hbdecim_destroy (r);
+  DP_CHECK_MSG (dp_hbdecim_get_num_taps (r) == N_TAPS, "num_taps reported");
+  DP_CHECK_MSG (dp_hbdecim_get_rate (r) == 0.5, "rate is 0.5");
+  dp_hbdecim_destroy (r);
   DP_CHECK_MSG (1, "destroy does not crash");
 
-  hbdecim_destroy (NULL);
+  dp_hbdecim_destroy (NULL);
   DP_CHECK_MSG (1, "destroy(NULL) is safe");
 
   /* NULL h must be rejected */
-  hbdecim_state_t *bad = hbdecim_create (N_TAPS, NULL);
+  hbdecim_state_t *bad = dp_hbdecim_create (N_TAPS, NULL);
   DP_CHECK_MSG (bad == NULL, "create rejects NULL h");
 
   /* zero num_taps must be rejected */
-  bad = hbdecim_create (0, H4_FIR);
+  bad = dp_hbdecim_create (0, H4_FIR);
   DP_CHECK_MSG (bad == NULL, "create rejects zero num_taps");
 }
 
@@ -97,26 +97,26 @@ test_output_length (void)
 {
   printf ("\n-- Output length --\n");
 
-  hbdecim_state_t *r = hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r = dp_hbdecim_create (N_TAPS, H4_FIR);
 
   float _Complex in[512] = { 0 };
   float _Complex out[300];
 
-  size_t n = hbdecim_execute (r, in, 512, out, 300);
+  size_t n = dp_hbdecim_execute (r, in, 512, out, 300);
   DP_CHECK_MSG (n == 256, "512 in -> 256 out");
 
-  hbdecim_reset (r);
+  dp_hbdecim_reset (r);
 
   /* Odd-length: 511 in → 255 out, 1 pending */
-  n = hbdecim_execute (r, in, 511, out, 300);
+  n = dp_hbdecim_execute (r, in, 511, out, 300);
   DP_CHECK_MSG (n == 255, "511 in -> 255 out (1 pending)");
 
   /* Next: 1 in → 1 out (consumes pending) */
   float _Complex one = CMPLXF (0.0f, 0.0f);
-  n                  = hbdecim_execute (r, &one, 1, out, 300);
+  n                  = dp_hbdecim_execute (r, &one, 1, out, 300);
   DP_CHECK_MSG (n == 1, "1 in -> 1 out after pending");
 
-  hbdecim_destroy (r);
+  dp_hbdecim_destroy (r);
 }
 
 static void
@@ -124,16 +124,16 @@ test_stateful (void)
 {
   printf ("\n-- Statefulness --\n");
 
-  hbdecim_state_t *r1 = hbdecim_create (N_TAPS, H4_FIR);
-  hbdecim_state_t *r2 = hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r1 = dp_hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r2 = dp_hbdecim_create (N_TAPS, H4_FIR);
 
   float _Complex in[512];
   tone (in, 512, 0.1);
 
   float _Complex full[260], half_a[140], half_b[140];
-  size_t nf = hbdecim_execute (r1, in, 512, full, 260);
-  size_t na = hbdecim_execute (r2, in, 256, half_a, 140);
-  size_t nb = hbdecim_execute (r2, in + 256, 256, half_b, 140);
+  size_t nf = dp_hbdecim_execute (r1, in, 512, full, 260);
+  size_t na = dp_hbdecim_execute (r2, in, 256, half_a, 140);
+  size_t nb = dp_hbdecim_execute (r2, in + 256, 256, half_b, 140);
 
   DP_CHECK_MSG (nf == na + nb, "two half-blocks == one full block (count)");
 
@@ -152,8 +152,8 @@ test_stateful (void)
     }
   DP_CHECK_MSG (match, "half-block outputs match full-block outputs");
 
-  hbdecim_destroy (r1);
-  hbdecim_destroy (r2);
+  dp_hbdecim_destroy (r1);
+  dp_hbdecim_destroy (r2);
 }
 
 static void
@@ -161,14 +161,14 @@ test_reset (void)
 {
   printf ("\n-- Reset --\n");
 
-  hbdecim_state_t *r = hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r = dp_hbdecim_create (N_TAPS, H4_FIR);
 
   float _Complex in[64], out1[40], out2[40];
   tone (in, 64, 0.05);
 
-  size_t n1 = hbdecim_execute (r, in, 64, out1, 40);
-  hbdecim_reset (r);
-  size_t n2 = hbdecim_execute (r, in, 64, out2, 40);
+  size_t n1 = dp_hbdecim_execute (r, in, 64, out1, 40);
+  dp_hbdecim_reset (r);
+  size_t n2 = dp_hbdecim_execute (r, in, 64, out2, 40);
 
   DP_CHECK_MSG (n1 == n2, "reset: same output count");
 
@@ -185,7 +185,7 @@ test_reset (void)
     }
   DP_CHECK_MSG (match, "reset: outputs reproduce");
 
-  hbdecim_destroy (r);
+  dp_hbdecim_destroy (r);
 }
 
 static void
@@ -193,13 +193,13 @@ test_dc_passthrough (void)
 {
   printf ("\n-- Spectral: DC pass-through --\n");
 
-  hbdecim_state_t *r = hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r = dp_hbdecim_create (N_TAPS, H4_FIR);
 
   float _Complex in[2048], out[1040];
   for (size_t k = 0; k < 2048; k++)
     in[k] = CMPLXF (1.0f, 0.0f);
 
-  size_t n = hbdecim_execute (r, in, 2048, out, 1040);
+  size_t n = dp_hbdecim_execute (r, in, 2048, out, 1040);
 
   /* Skip initial transient; the 4-tap prototype has modest gain
    * (~-0.7 dB); allow ±2 dB.                                     */
@@ -209,7 +209,7 @@ test_dc_passthrough (void)
   double pwr = rms_db (out + skip, n - skip);
   DP_CHECK_MSG (pwr > -2.0 && pwr < 2.0, "DC power near 0 dBFS");
 
-  hbdecim_destroy (r);
+  dp_hbdecim_destroy (r);
 }
 
 static void
@@ -217,7 +217,7 @@ test_alias_rejection (void)
 {
   printf ("\n-- Spectral: alias rejection --\n");
 
-  hbdecim_state_t *r = hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *r = dp_hbdecim_create (N_TAPS, H4_FIR);
 
   float _Complex pass_in[2048], stop_in[2048];
   float _Complex out_p[1040], out_s[1040];
@@ -225,9 +225,9 @@ test_alias_rejection (void)
   tone (pass_in, 2048, 0.05); /* well inside passband          */
   tone (stop_in, 2048, 0.45); /* near Nyquist, deep stopband   */
 
-  size_t np = hbdecim_execute (r, pass_in, 2048, out_p, 1040);
-  hbdecim_reset (r);
-  size_t ns = hbdecim_execute (r, stop_in, 2048, out_s, 1040);
+  size_t np = dp_hbdecim_execute (r, pass_in, 2048, out_p, 1040);
+  dp_hbdecim_reset (r);
+  size_t ns = dp_hbdecim_execute (r, stop_in, 2048, out_s, 1040);
 
   size_t skip  = N_TAPS;
   size_t use_p = (np > skip) ? np - skip : 1;
@@ -240,7 +240,7 @@ test_alias_rejection (void)
    * which use kaiser_prototype(phases=2) coefficients.           */
   DP_CHECK_MSG (pwr_p - pwr_s > 6.0, "stopband tone attenuated > 6 dB");
 
-  hbdecim_destroy (r);
+  dp_hbdecim_destroy (r);
 }
 
 /* ================================================================== */
@@ -257,30 +257,30 @@ test_state_roundtrip (void)
   tone (in, L, 0.07);
 
   /* Run A — uninterrupted. */
-  hbdecim_state_t *ra = hbdecim_create (N_TAPS, H4_FIR);
-  size_t           nA = hbdecim_execute (ra, in, L, outA, 200);
-  hbdecim_destroy (ra);
+  hbdecim_state_t *ra = dp_hbdecim_create (N_TAPS, H4_FIR);
+  size_t           nA = dp_hbdecim_execute (ra, in, L, outA, 200);
+  dp_hbdecim_destroy (ra);
 
   /* Run B — split at an odd cut (exercises has_pending), hand the state to
    * a fresh decimator built from the same num_taps/coeffs. */
   const size_t     cut  = 157;
-  hbdecim_state_t *r1   = hbdecim_create (N_TAPS, H4_FIR);
-  size_t           nB   = hbdecim_execute (r1, in, cut, outB, 200);
-  size_t           sb   = hbdecim_state_bytes (r1);
+  hbdecim_state_t *r1   = dp_hbdecim_create (N_TAPS, H4_FIR);
+  size_t           nB   = dp_hbdecim_execute (r1, in, cut, outB, 200);
+  size_t           sb   = dp_hbdecim_state_bytes (r1);
   void            *blob = malloc (sb);
-  hbdecim_get_state (r1, blob);
-  hbdecim_destroy (r1);
+  dp_hbdecim_get_state (r1, blob);
+  dp_hbdecim_destroy (r1);
 
-  hbdecim_state_t *r2 = hbdecim_create (N_TAPS, H4_FIR);
-  DP_CHECK_MSG (hbdecim_set_state (r2, blob) == DP_OK,
+  hbdecim_state_t *r2 = dp_hbdecim_create (N_TAPS, H4_FIR);
+  DP_CHECK_MSG (dp_hbdecim_set_state (r2, blob) == DP_OK,
                 "set_state accepts the blob");
   /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
   ((char *)blob)[0] ^= (char)0xFF;
-  DP_CHECK_MSG (hbdecim_set_state (r2, blob) == DP_ERR_INVALID,
+  DP_CHECK_MSG (dp_hbdecim_set_state (r2, blob) == DP_ERR_INVALID,
                 "set_state rejects a clobbered envelope");
   ((char *)blob)[0] ^= (char)0xFF;
-  nB += hbdecim_execute (r2, in + cut, L - cut, outB + nB, 200 - nB);
-  hbdecim_destroy (r2);
+  nB += dp_hbdecim_execute (r2, in + cut, L - cut, outB + nB, 200 - nB);
+  dp_hbdecim_destroy (r2);
   free (blob);
 
   int ok = (nA == nB);

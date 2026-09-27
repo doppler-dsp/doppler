@@ -3,7 +3,7 @@
  * @brief Validation: each TED's own S-curve, measured against the
  *        construct-time constant that is supposed to flatten it.
  *
- * `ratesync_loop_t::ted_scale` is `1 / symsync_ted_slope(ted, pulse, beta,
+ * `ratesync_loop_t::ted_scale` is `1 / dp_symsync_ted_slope(ted, pulse, beta,
  * span)`, and the whole argument for a construct-time normaliser rests on
  * that reciprocal being right: divide the raw detector output by the
  * detector's OWN slope and `bn` names one loop bandwidth, at every roll-off
@@ -21,10 +21,10 @@
  *     detector's or the model's, and cannot be the polyphase bank's, the
  *     CIC's or the loop's.
  *   - **The raw numerator.** `gardner_ted` / `dttl_ted` are called directly,
- *     so the number compared against `symsync_ted_slope()` is the same
+ *     so the number compared against `dp_symsync_ted_slope()` is the same
  *     quantity that function claims to return, not a normalised error read
  *     back through a binding.
- *   - **Across beta.** `symsync_ted_slope`'s own doxygen records that the
+ *   - **Across beta.** `dp_symsync_ted_slope`'s own doxygen records that the
  *     shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9.
  *     A single roll-off cannot see that; this sweeps the supported range.
  *     That doxygen claim is now known to be WRONG, and this harness is what
@@ -58,7 +58,7 @@
  * source is the library's own PRBS (`pn_core` via `wfm_synth_mls_poly`).
  *
  * @par What it found: F15 was the harness, not the detector
- * BOTH detectors' measured slopes match `symsync_ted_slope()` across the
+ * BOTH detectors' measured slopes match `dp_symsync_ted_slope()` across the
  * whole roll-off range, to better than 2% -- cascade-free AND through the
  * cascade. The second half of that is new, and it retires gh-669.
  *
@@ -99,7 +99,7 @@
 #include <string.h>
 
 /* One-sided pulse span in symbols; matches RateSync's default and is what
-   symsync_ted_slope() is handed, so the two see the same truncation. */
+   dp_symsync_ted_slope() is handed, so the two see the same truncation. */
 #define SPAN 8
 /* Symbols per realization. The pairing below removes most of the data
    variance and the seed average removes the rest, so this trades length
@@ -113,7 +113,7 @@
 /* Central-difference half-step, in symbols. Small enough to sit inside every
    pulse's linear region and large enough that the composite's own rounding
    does not show -- the same reasoning, and nearly the same value, as
-   symsync_ted_slope's own `d`. */
+   dp_symsync_ted_slope's own `d`. */
 #define DTAU 1e-3
 /* Phase 3, through the cascade. A larger step than DTAU: the cascade's
    output carries the detector's self-noise, so the difference has to clear
@@ -135,7 +135,7 @@
 #define CASC_M 2
 /* Set from measurement, not chosen: see the printed table. Worst observed
    at the stable zero is gardner 0.9447 at beta 0.1 (the roll-off whose tails
-   both this harness and symsync_ted_slope truncate hardest); DTTL's whole
+   both this harness and dp_symsync_ted_slope truncate hardest); DTTL's whole
    range is 0.9998..1.0013. */
 #define CASC_TOL 0.12
 /* Phase 4, the pulse comparison. sps is fine enough that the step below is a
@@ -610,7 +610,7 @@ main (int argc, char **argv)
   /* Both detectors are expected to match, so this is a real gate on both
      rather than a ratchet on known breakage. The measured spread is under
      2% (worst at beta = 0.1, where the pulse's tails carry most of the
-     slope and both this harness and symsync_ted_slope truncate them), so 5%
+     slope and both this harness and dp_symsync_ted_slope truncate them), so 5%
      leaves room for the truncation without admitting a real error: a
      normaliser that stopped matching its detector moves by a FACTOR, which
      is what the through-cascade DTTL number does. */
@@ -618,7 +618,7 @@ main (int argc, char **argv)
 
   int fail = 0;
 
-  printf ("TED S-curve slope vs symsync_ted_slope() -- RRC, span %d, "
+  printf ("TED S-curve slope vs dp_symsync_ted_slope() -- RRC, span %d, "
           "%d symbols/point, no cascade\n\n",
           SPAN, NSYM);
   printf ("  %-8s %6s %12s %9s %12s %9s\n", "ted", "beta", "measured",
@@ -627,10 +627,10 @@ main (int argc, char **argv)
     {
       for (size_t b = b_lo; b < b_hi; b++)
         {
-          double sd   = 0.0;
-          double meas = slope_measured (teds[t], betas[b], &sd);
-          double decl
-              = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, betas[b], SPAN);
+          double sd    = 0.0;
+          double meas  = slope_measured (teds[t], betas[b], &sd);
+          double decl  = dp_symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC,
+                                               betas[b], SPAN);
           double ratio = (decl > 0.0) ? meas / decl : 0.0;
           double rsd   = (meas != 0.0) ? sd / fabs (meas) : 0.0;
           printf ("  %-8s %6.2f %12.6f %8.2f%% %12.6f %9.4f\n", names[t],
@@ -695,8 +695,9 @@ main (int argc, char **argv)
           continue;
         }
       double installed = 1.0 / rs->loop.ted_scale;
-      double want = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, 0.35, SPAN);
-      printf ("    %-8s 1/ted_scale = %.6f   symsync_ted_slope = %.6f\n",
+      double want
+          = dp_symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, 0.35, SPAN);
+      printf ("    %-8s 1/ted_scale = %.6f   dp_symsync_ted_slope = %.6f\n",
               names[t], installed, want);
       if (fabs (installed / want - 1.0) > 1e-9)
         {
@@ -739,11 +740,11 @@ main (int argc, char **argv)
         {
           double csd = 0.0, cs0 = 0.0;
           int    cfound = 0;
-          double meas = cascade_slope (teds[t], RATESYNC_PULSE_RRC, DP_TX_RRC,
-                                       betas[b], 4.0, CASC_M, CASC_DTAU, &csd,
-                                       &cs0, &cfound);
-          double decl
-              = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC, betas[b], SPAN);
+          double meas  = cascade_slope (teds[t], RATESYNC_PULSE_RRC, DP_TX_RRC,
+                                        betas[b], 4.0, CASC_M, CASC_DTAU, &csd,
+                                        &cs0, &cfound);
+          double decl  = dp_symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC,
+                                               betas[b], SPAN);
           double ratio = (decl > 0.0) ? meas / decl : 0.0;
           /* The OTHER zero, measured the same way. It is not decoration: the
              pre-fix harness differentiated at tau = 0 whatever sat there, and
@@ -904,7 +905,7 @@ main (int argc, char **argv)
                                            NRZ_BETA, NRZ_SPS, CASC_M, NRZ_DTAU,
                                            &psd, NULL, NULL);
               double decl
-                  = symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
+                  = dp_symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
               double ratio = (decl > 0.0) ? meas / decl : 0.0;
               printf ("  %-8s %-7s %6s %12.6f %8.2f%% %12.6f %9.4f\n",
                       names[t], pname, p ? "n/a" : "0.35", meas,
@@ -978,8 +979,8 @@ main (int argc, char **argv)
               double meas = cascade_slope (teds[t], RATESYNC_PULSE_RRC,
                                            DP_TX_RRC, NRZ_BETA, spss[s],
                                            CASC_M, CASC_DTAU, &ssd, &s0, NULL);
-              double decl = symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC,
-                                               NRZ_BETA, SPAN);
+              double decl = dp_symsync_ted_slope (teds[t], SYMSYNC_PULSE_RRC,
+                                                  NRZ_BETA, SPAN);
               printf ("  %-8s %6.0f %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
                       names[t], spss[s], meas,
                       100.0 * (meas ? ssd / meas : 0.0), decl,
@@ -1020,8 +1021,8 @@ main (int argc, char **argv)
               double meas = cascade_slope (teds[t], RATESYNC_PULSE_IANDD,
                                            DP_TX_NRZ, NRZ_BETA, spss[s],
                                            CASC_M, step, &ssd, &s0, NULL);
-              double decl = symsync_ted_slope (teds[t], SYMSYNC_PULSE_IANDD,
-                                               NRZ_BETA, SPAN);
+              double decl = dp_symsync_ted_slope (teds[t], SYMSYNC_PULSE_IANDD,
+                                                  NRZ_BETA, SPAN);
               printf ("  %-8s %6.0f %8g %12.6f %8.2f%% %12.6f %9.4f %10.5f\n",
                       names[t], spss[s], step, meas,
                       100.0 * (meas ? ssd / meas : 0.0), decl,
@@ -1083,7 +1084,8 @@ main (int argc, char **argv)
           const int   ss_pulse = p ? SYMSYNC_PULSE_IANDD : SYMSYNC_PULSE_RRC;
           const int   tx_pulse = p ? DP_TX_NRZ : DP_TX_RRC;
           const char *pname    = p ? "nrz" : "rrc";
-          double decl = symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
+          double      decl
+              = dp_symsync_ted_slope (teds[t], ss_pulse, NRZ_BETA, SPAN);
           for (size_t k = 0; k < n_ms; k++)
             {
               double msd = 0.0, mt0 = 0.0;

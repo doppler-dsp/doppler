@@ -18,7 +18,7 @@ def h51():
     """Compact 19-tap FIR branch for a 60 dB halfband decimator.
 
     Uses _halfband_bank to get the non-zero-only FIR polyphase branch
-    (same format that HalfbandDecimator and hbdecim_create expect).
+    (same format that HalfbandDecimator and dp_hbdecim_create expect).
     sum(h[:K]) ≈ 0.5 so that FIR + delay-branch together give unity DC gain.
     """
     from doppler.resample import _halfband_bank

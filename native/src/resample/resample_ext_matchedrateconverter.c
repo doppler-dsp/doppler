@@ -68,8 +68,8 @@ MatchedRateConverterObj_init (MatchedRateConverterObject *self, PyObject *args,
     }
   size_t span       = (size_t)span_raw;
   size_t num_phases = (size_t)num_phases_raw;
-  self->handle = RateConverter_create_matched (rate, compensate, pulse, beta,
-                                               span, pulse_sps, num_phases);
+  self->handle      = dp_RateConverter_create_matched (
+      rate, compensate, pulse, beta, span, pulse_sps, num_phases);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -680,7 +680,8 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
     "The control-port form of dp_RateConverter_execute(): the fixed integer\n"
     "stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate\n"
     "deviation ctrl is forwarded to the **terminal polyphase Resampler\n"
-    "stage's** accumulator (via resamp_execute_ctrl_push) — so its effective\n"
+    "stage's** accumulator (via dp_resamp_execute_ctrl_push) — so its "
+    "effective\n"
     "rate becomes `stage_rate + ctrl` for this call. This exposes the\n"
     "fractional tail's control port that dp_RateConverter_execute() hides: a\n"
     "timing/rate-tracking loop can decimate a high input rate cheaply\n"

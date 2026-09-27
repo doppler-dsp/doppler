@@ -138,7 +138,7 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
      identical between the two calls, which is the collapse's thesis stated as
      code (docs/design/mpsk.md §8). */
   dp_mpsk_receiver_state_t *rx
-      = c->real ? mpsk_receiver_create_real (
+      = c->real ? dp_mpsk_receiver_create_real (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                       c->bn_carrier, 0.707, c->bn_timing, 0.3, c->fc - c->foff,
                       0, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO)

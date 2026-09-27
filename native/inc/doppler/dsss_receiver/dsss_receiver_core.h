@@ -36,7 +36,7 @@
  *     emitted. This is a NEW
  *     composition living entirely in this object -- deliberately NOT a
  *     swap to the existing `Despreader` object (which fuses Costas+Dll
- *     per-sample), because `Despreader` embeds `Dll` via `dll_init()`,
+ *     per-sample), because `Despreader` embeds `Dll` via `dp_dll_init()`,
  *     hardcoded to `segments==1`; it cannot carry this object's own
  *     `segments>1` async-lookback tracking. `dp_dll_steps()` itself is
  *     called completely unmodified.
@@ -125,7 +125,7 @@ extern "C"
     float _Complex *car_carry_buf;
     size_t         car_carry_len;
 
-    /* Own copy of the spreading code -- acq_create_continuous()/
+    /* Own copy of the spreading code -- dp_acq_create_continuous()/
      * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
      * public contract,
      * so this object keeps a persistent copy rather than depend on being
@@ -170,7 +170,7 @@ extern "C"
    * Only `code`/`chip_rate`/`symbol_rate` describe the signal itself —
    * everything else is a physically-motivated default a caller can
    * override, not a requirement. Internally: the embedded `Acquisition`
-   * is built via `acq_create_continuous()` (this receiver is inherently
+   * is built via `dp_acq_create_continuous()` (this receiver is inherently
    * continuous/streaming) -- always window-tiles, never coherently
    * combines across epochs, sensitivity purely from an internally
    * auto-sized non-coherent look count (see `acq_core.h`'s file doc
@@ -200,7 +200,7 @@ extern "C"
    * @param symbol_rate          Data-symbol rate, Hz. Required — passed
    *                             straight to the embedded Acquisition's
    *                             own `symbol_rate` (diagnostic there; see
-   *                             `acq_create_continuous()`).
+   *                             `dp_acq_create_continuous()`).
    * @param spc                  Samples/chip (front-end oversample);
    *                             default 2 (fs = 2x chip_rate).
    * @param m                    PSK order, 2/4/8; default 2 (BPSK).

@@ -153,7 +153,7 @@ main (void)
   dp_wfm_synth_state_t *b = emitter (code, DOPPLER_B, 2u);
   dp_awgn_state_t      *g = dp_awgn_create (
       7u,
-      awgn_amplitude_for_snr ((float)(CN0_DBHZ - 10.0 * log10 (FS)), 1.0f));
+      dp_awgn_amplitude_for_snr ((float)(CN0_DBHZ - 10.0 * log10 (FS)), 1.0f));
   CHECK (a && b && g, "the emitters and the noise open");
   /* B starts 900 chips into its code: two emitters at one code phase are
      one peak to the searcher and one row to the pool's zone (§7.1 -- a

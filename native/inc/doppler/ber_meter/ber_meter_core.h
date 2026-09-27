@@ -123,12 +123,12 @@ extern "C"
    * @param pfa         Whole-search false-alarm probability; 0 selects 1e-6.
    * @return            The alignment, with `ok` saying whether to believe it.
    */
-  ber_align_t ber_align_detect (const float _Complex *rx, size_t rx_len,
+  ber_align_t dp_ber_align_detect (const float _Complex *rx, size_t rx_len,
                                 const uint8_t *truth, size_t truth_len, int m,
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
 
-  ber_interval_t ber_confidence (size_t errors, size_t symbols, double conf);
+  ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
   /* ── the meter ────────────────────────────────────────────────────────── */
 
@@ -222,7 +222,7 @@ extern "C"
    * @param pfa       Whole-search false-alarm probability; 0 selects 1e-6.
    * @return          The alignment, with `ok` saying whether to believe it.
    */
-  ber_align_t ber_meter_detect (const dp_ber_meter_state_t *state,
+  ber_align_t dp_ber_meter_detect (const dp_ber_meter_state_t *state,
                                 const float _Complex *rx, size_t rx_len,
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
@@ -308,7 +308,7 @@ extern "C"
 
   /**
    * @brief Install an alignment detected elsewhere (e.g. by
-   * ber_align_detect() on a different buffer), with the marker geometry that
+   * dp_ber_align_detect() on a different buffer), with the marker geometry that
    * produced it, so dp_ber_meter_score() can use it.
    *
    * The stateful dp_ber_meter_align() is the usual path; this exists for the case
@@ -317,7 +317,7 @@ extern "C"
    * takes a lag from its caller, because a lag that was passed in is a lag that
    * could have been searched for.
    */
-  void ber_meter_set_align (dp_ber_meter_state_t *state, ber_align_t align,
+  void dp_ber_meter_set_align (dp_ber_meter_state_t *state, ber_align_t align,
                             size_t t0, size_t n_marker, size_t period);
 
   /** @brief Has the error target been reached? The inverse-binomial stop. */

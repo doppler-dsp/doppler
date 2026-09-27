@@ -8,7 +8,7 @@
 
 
 
-_What_ [_**ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-ccsds_tm_frame_decode) _found on the way through._[More...](#detailed-description)
+_What_ [_**dp\_ccsds\_tm\_frame\_decode**_](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_decode) _found on the way through._[More...](#detailed-description)
 
 * `#include <ccsds_tm_frame.h>`
 

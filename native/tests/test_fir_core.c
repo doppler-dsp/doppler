@@ -10,7 +10,7 @@ main (void)
 
   /* ── create / destroy ─────────────────────────────────────────────── */
   float           rtaps[3] = { 0.5f, 0.25f, 0.125f };
-  dp_fir_state_t *f        = fir_create_real (rtaps, 3);
+  dp_fir_state_t *f        = dp_fir_create_real (rtaps, 3);
   DP_CHECK (f != NULL);
   if (!f)
     return 1;
@@ -57,11 +57,11 @@ main (void)
     for (size_t i = 0; i < L; i++)
       in[i] = (float)(i % 9) - 4.0f + I * ((float)(i % 5) - 2.0f);
 
-    dp_fir_state_t *ra = fir_create_real (taps, 7);
+    dp_fir_state_t *ra = dp_fir_create_real (taps, 7);
     dp_fir_execute (ra, in, L, outA);
     dp_fir_destroy (ra);
 
-    dp_fir_state_t *r1 = fir_create_real (taps, 7);
+    dp_fir_state_t *r1 = dp_fir_create_real (taps, 7);
     dp_fir_execute (r1, in, cut, outB);
     size_t        sb = dp_fir_state_bytes (r1);
     unsigned char blob[64];
@@ -69,7 +69,7 @@ main (void)
     dp_fir_get_state (r1, blob);
     dp_fir_destroy (r1);
 
-    dp_fir_state_t *r2 = fir_create_real (taps, 7);
+    dp_fir_state_t *r2 = dp_fir_create_real (taps, 7);
     DP_CHECK (dp_fir_set_state (r2, blob) == DP_OK);
     /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
     blob[0] ^= (unsigned char)0xFF;

@@ -56,10 +56,10 @@ main (void)
     printf ("%7.4f", (double)taps[i]);
   printf ("\n\n");
 
-  dp_fir_state_t *fir = fir_create_real (taps, (size_t)N);
+  dp_fir_state_t *fir = dp_fir_create_real (taps, (size_t)N);
   if (!fir)
     {
-      fprintf (stderr, "fir_create_real failed\n");
+      fprintf (stderr, "dp_fir_create_real failed\n");
       return 1;
     }
 

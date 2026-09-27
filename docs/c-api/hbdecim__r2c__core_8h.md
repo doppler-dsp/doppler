@@ -58,15 +58,15 @@ _Real-to-complex halfband 2:1 decimator (Architecture D2)._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
-|  [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* | [**hbdecim\_r2c\_create**](#function-hbdecim_r2c_create) (size\_t num\_taps, const float \* h) <br>_Allocate a real-to-complex halfband decimator._  |
-|  void | [**hbdecim\_r2c\_destroy**](#function-hbdecim_r2c_destroy) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
-|  size\_t | [**hbdecim\_r2c\_execute**](#function-hbdecim_r2c_execute) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, const float \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate real float32 input by 2, producing CF32._  |
-|  size\_t | [**hbdecim\_r2c\_get\_num\_taps**](#function-hbdecim_r2c_get_num_taps) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
-|  double | [**hbdecim\_r2c\_get\_rate**](#function-hbdecim_r2c_get_rate) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
-|  void | [**hbdecim\_r2c\_get\_state**](#function-hbdecim_r2c_get_state) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, void \* blob) <br>_Serialize_ `r's` _mutable state into_`blob` _._ |
-|  void | [**hbdecim\_r2c\_reset**](#function-hbdecim_r2c_reset) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
-|  int | [**hbdecim\_r2c\_set\_state**](#function-hbdecim_r2c_set_state) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, const void \* blob) <br>_Restore mutable state from_ `blob` _(same num\_taps)._ |
-|  size\_t | [**hbdecim\_r2c\_state\_bytes**](#function-hbdecim_r2c_state_bytes) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br>_Bytes_ [_**hbdecim\_r2c\_get\_state()**_](hbdecim__r2c__core_8h.md#function-hbdecim_r2c_get_state) _writes for_`r` _(envelope+payload)._ |
+|  [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* | [**dp\_hbdecim\_r2c\_create**](#function-dp_hbdecim_r2c_create) (size\_t num\_taps, const float \* h) <br>_Allocate a real-to-complex halfband decimator._  |
+|  void | [**dp\_hbdecim\_r2c\_destroy**](#function-dp_hbdecim_r2c_destroy) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
+|  size\_t | [**dp\_hbdecim\_r2c\_execute**](#function-dp_hbdecim_r2c_execute) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, const float \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate real float32 input by 2, producing CF32._  |
+|  size\_t | [**dp\_hbdecim\_r2c\_get\_num\_taps**](#function-dp_hbdecim_r2c_get_num_taps) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
+|  double | [**dp\_hbdecim\_r2c\_get\_rate**](#function-dp_hbdecim_r2c_get_rate) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
+|  void | [**dp\_hbdecim\_r2c\_get\_state**](#function-dp_hbdecim_r2c_get_state) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, void \* blob) <br>_Serialize_ `r's` _mutable state into_`blob` _._ |
+|  void | [**dp\_hbdecim\_r2c\_reset**](#function-dp_hbdecim_r2c_reset) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br> |
+|  int | [**dp\_hbdecim\_r2c\_set\_state**](#function-dp_hbdecim_r2c_set_state) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, const void \* blob) <br>_Restore mutable state from_ `blob` _(same num\_taps)._ |
+|  size\_t | [**dp\_hbdecim\_r2c\_state\_bytes**](#function-dp_hbdecim_r2c_state_bytes) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br>_Bytes_ [_**dp\_hbdecim\_r2c\_get\_state()**_](hbdecim__r2c__core_8h.md#function-dp_hbdecim_r2c_get_state) _writes for_`r` _(envelope+payload)._ |
 
 
 
@@ -115,9 +115,9 @@ where the sign pattern (-1)^m provides the fs/4 shift correction.
 
 Lifecycle: 
 ```C++
-hbdecim_r2c_state_t *r = hbdecim_r2c_create(num_taps, h);
-size_t n = hbdecim_r2c_execute(r, in, num_in, out, max_out);
-hbdecim_r2c_destroy(r);
+hbdecim_r2c_state_t *r = dp_hbdecim_r2c_create(num_taps, h);
+size_t n = dp_hbdecim_r2c_execute(r, in, num_in, out, max_out);
+dp_hbdecim_r2c_destroy(r);
 ```
  
 
@@ -143,11 +143,11 @@ typedef struct hbdecim_r2c_state hbdecim_r2c_state_t;
 
 
 
-### function hbdecim\_r2c\_create 
+### function dp\_hbdecim\_r2c\_create 
 
 _Allocate a real-to-complex halfband decimator._ 
 ```C++
-hbdecim_r2c_state_t * hbdecim_r2c_create (
+hbdecim_r2c_state_t * dp_hbdecim_r2c_create (
     size_t num_taps,
     const float * h
 ) 
@@ -179,10 +179,10 @@ Non-NULL on success, NULL on invalid args or OOM.
 
 
 
-### function hbdecim\_r2c\_destroy 
+### function dp\_hbdecim\_r2c\_destroy 
 
 ```C++
-void hbdecim_r2c_destroy (
+void dp_hbdecim_r2c_destroy (
     hbdecim_r2c_state_t * r
 ) 
 ```
@@ -198,11 +198,11 @@ Free all resources. NULL is a no-op.
 
 
 
-### function hbdecim\_r2c\_execute 
+### function dp\_hbdecim\_r2c\_execute 
 
 _Decimate real float32 input by 2, producing CF32._ 
 ```C++
-size_t hbdecim_r2c_execute (
+size_t dp_hbdecim_r2c_execute (
     hbdecim_r2c_state_t * r,
     const float * in,
     size_t num_in,
@@ -240,17 +240,17 @@ Number of output samples written.
 
 
 
-### function hbdecim\_r2c\_get\_num\_taps 
+### function dp\_hbdecim\_r2c\_get\_num\_taps 
 
 ```C++
-size_t hbdecim_r2c_get_num_taps (
+size_t dp_hbdecim_r2c_get_num_taps (
     const hbdecim_r2c_state_t * r
 ) 
 ```
 
 
 
-Returns the FIR branch length passed to hbdecim\_r2c\_create. 
+Returns the FIR branch length passed to dp\_hbdecim\_r2c\_create. 
 
 
         
@@ -259,10 +259,10 @@ Returns the FIR branch length passed to hbdecim\_r2c\_create.
 
 
 
-### function hbdecim\_r2c\_get\_rate 
+### function dp\_hbdecim\_r2c\_get\_rate 
 
 ```C++
-double hbdecim_r2c_get_rate (
+double dp_hbdecim_r2c_get_rate (
     const hbdecim_r2c_state_t * r
 ) 
 ```
@@ -278,11 +278,11 @@ Always returns 0.5.
 
 
 
-### function hbdecim\_r2c\_get\_state 
+### function dp\_hbdecim\_r2c\_get\_state 
 
 _Serialize_ `r's` _mutable state into_`blob` _._
 ```C++
-void hbdecim_r2c_get_state (
+void dp_hbdecim_r2c_get_state (
     const hbdecim_r2c_state_t * r,
     void * blob
 ) 
@@ -295,10 +295,10 @@ void hbdecim_r2c_get_state (
 
 
 
-### function hbdecim\_r2c\_reset 
+### function dp\_hbdecim\_r2c\_reset 
 
 ```C++
-void hbdecim_r2c_reset (
+void dp_hbdecim_r2c_reset (
     hbdecim_r2c_state_t * r
 ) 
 ```
@@ -314,11 +314,11 @@ Zero history and output parity without freeing.
 
 
 
-### function hbdecim\_r2c\_set\_state 
+### function dp\_hbdecim\_r2c\_set\_state 
 
 _Restore mutable state from_ `blob` _(same num\_taps)._
 ```C++
-int hbdecim_r2c_set_state (
+int dp_hbdecim_r2c_set_state (
     hbdecim_r2c_state_t * r,
     const void * blob
 ) 
@@ -342,11 +342,11 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects.
 
 
 
-### function hbdecim\_r2c\_state\_bytes 
+### function dp\_hbdecim\_r2c\_state\_bytes 
 
-_Bytes_ [_**hbdecim\_r2c\_get\_state()**_](hbdecim__r2c__core_8h.md#function-hbdecim_r2c_get_state) _writes for_`r` _(envelope+payload)._
+_Bytes_ [_**dp\_hbdecim\_r2c\_get\_state()**_](hbdecim__r2c__core_8h.md#function-dp_hbdecim_r2c_get_state) _writes for_`r` _(envelope+payload)._
 ```C++
-size_t hbdecim_r2c_state_bytes (
+size_t dp_hbdecim_r2c_state_bytes (
     const hbdecim_r2c_state_t * r
 ) 
 ```

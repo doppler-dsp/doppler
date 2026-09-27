@@ -25,12 +25,12 @@ dp_fft_create (size_t n, int sign, int nthreads)
   dp_fft_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
-  state->plan_f64 = pocketfft_plan_1d (n, sign);
-  state->plan_f32 = pocketfft_plan_1d (n, sign);
+  state->plan_f64 = dp_pocketfft_plan_1d (n, sign);
+  state->plan_f32 = dp_pocketfft_plan_1d (n, sign);
   if (!state->plan_f64 || !state->plan_f32)
     {
-      pocketfft_destroy_plan (state->plan_f64);
-      pocketfft_destroy_plan (state->plan_f32);
+      dp_pocketfft_destroy_plan (state->plan_f64);
+      dp_pocketfft_destroy_plan (state->plan_f32);
       free (state);
       return NULL;
     }
@@ -45,8 +45,8 @@ dp_fft_destroy (dp_fft_state_t *state)
 {
   if (!state)
     return;
-  pocketfft_destroy_plan (state->plan_f64);
-  pocketfft_destroy_plan (state->plan_f32);
+  dp_pocketfft_destroy_plan (state->plan_f64);
+  dp_pocketfft_destroy_plan (state->plan_f32);
   free (state->work_trunc);
   free (state);
 }
@@ -70,11 +70,11 @@ dp_fft_execute_cf64 (dp_fft_state_t *state, const double _Complex *in,
   (void)n_in;
   if (max_out >= state->n)
     {
-      pocketfft_execute_1d (state->plan_f64, in, out);
+      dp_pocketfft_execute_1d (state->plan_f64, in, out);
       return state->n;
     }
   double _Complex *scratch = trunc_buf (state);
-  pocketfft_execute_1d (state->plan_f64, in, scratch);
+  dp_pocketfft_execute_1d (state->plan_f64, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
@@ -92,11 +92,11 @@ dp_fft_execute_cf32 (dp_fft_state_t *state, const float _Complex *in,
   (void)n_in;
   if (max_out >= state->n)
     {
-      pocketfft_execute_1d_cf32 (state->plan_f32, in, out);
+      dp_pocketfft_execute_1d_cf32 (state->plan_f32, in, out);
       return state->n;
     }
   float _Complex *scratch = (float _Complex *)trunc_buf (state);
-  pocketfft_execute_1d_cf32 (state->plan_f32, in, scratch);
+  dp_pocketfft_execute_1d_cf32 (state->plan_f32, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
@@ -119,12 +119,12 @@ dp_fft_execute_inplace_cf64 (dp_fft_state_t *state, const double _Complex *in,
   if (max_out >= state->n)
     {
       memcpy (out, in, n * sizeof (*out));
-      pocketfft_execute_1d (state->plan_f64, out, out);
+      dp_pocketfft_execute_1d (state->plan_f64, out, out);
       return state->n;
     }
   double _Complex *scratch = trunc_buf (state);
   memcpy (scratch, in, n * sizeof (*scratch));
-  pocketfft_execute_1d (state->plan_f64, scratch, scratch);
+  dp_pocketfft_execute_1d (state->plan_f64, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
@@ -143,42 +143,42 @@ dp_fft_execute_inplace_cf32 (dp_fft_state_t *state, const float _Complex *in,
   if (max_out >= state->n)
     {
       memcpy (out, in, n * sizeof (*out));
-      pocketfft_execute_1d_cf32 (state->plan_f32, out, out);
+      dp_pocketfft_execute_1d_cf32 (state->plan_f32, out, out);
       return state->n;
     }
   float _Complex *scratch = (float _Complex *)trunc_buf (state);
   memcpy (scratch, in, n * sizeof (*scratch));
-  pocketfft_execute_1d_cf32 (state->plan_f32, scratch, scratch);
+  dp_pocketfft_execute_1d_cf32 (state->plan_f32, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
 
 size_t
-fft_execute_ci16_max_out (dp_fft_state_t *state)
+dp_fft_execute_ci16_max_out (dp_fft_state_t *state)
 {
   return state->n;
 }
 
 size_t
-fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
-                  float _Complex *out)
+dp_fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
+                     float _Complex *out)
 {
   (void)n_in;
-  pocketfft_execute_1d_ci16 (state->plan_f32, in, out);
+  dp_pocketfft_execute_1d_ci16 (state->plan_f32, in, out);
   return state->n;
 }
 
 size_t
-fft_execute_ci8_max_out (dp_fft_state_t *state)
+dp_fft_execute_ci8_max_out (dp_fft_state_t *state)
 {
   return state->n;
 }
 
 size_t
-fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
-                 float _Complex *out)
+dp_fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
+                    float _Complex *out)
 {
   (void)n_in;
-  pocketfft_execute_1d_ci8 (state->plan_f32, in, out);
+  dp_pocketfft_execute_1d_ci8 (state->plan_f32, in, out);
   return state->n;
 }

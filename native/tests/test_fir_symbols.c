@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_fir[] = {
     (jm_any_fn)dp_fir_create,
-    (jm_any_fn)fir_create_real,
+    (jm_any_fn)dp_fir_create_real,
     (jm_any_fn)dp_fir_reset,
     (jm_any_fn)dp_fir_state_bytes,
     (jm_any_fn)dp_fir_get_state,

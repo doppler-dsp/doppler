@@ -30,7 +30,7 @@ extern "C"
 
   dp_Resampler_state_t *dp_Resampler_create (double rate);
 
-  dp_Resampler_state_t *Resampler_create_custom (size_t num_phases,
+  dp_Resampler_state_t *dp_Resampler_create_custom (size_t num_phases,
                                               size_t num_taps,
                                               const float *bank,
                                               double rate);

@@ -24,11 +24,11 @@
 /* 4.3.3: F(x) = x^8 + x^7 + x^2 + x + 1, held as the low eight bits, the x^8
  * term being implicit in the reduction. 4.3.4: the roots are a^(11j) with j
  * running 128-E .. 127+E. 11 rather than 1 is the whole point. */
-const rs_code_t CCSDS_TM_RS = { .symbol_bits = 8,
-                                .field_poly  = 0x87u,
-                                .nroots      = CCSDS_TM_RS_2E,
-                                .first_root  = 128u - CCSDS_TM_RS_E,
-                                .root_stride = 11u };
+const rs_code_t dp_CCSDS_TM_RS = { .symbol_bits = 8,
+                                   .field_poly  = 0x87u,
+                                   .nroots      = CCSDS_TM_RS_2E,
+                                   .first_root  = 128u - CCSDS_TM_RS_E,
+                                   .root_stride = 11u };
 
 /* 4.3.9.3, first equation, one row per u bit from u7 down to u0. Each row is
  * packed with z0 in bit 7, matching 4.3.9.2's transmission order. */
@@ -45,8 +45,8 @@ static const uint8_t T_DUAL_TO_CONV[8]
  *
  * `pthread_once` rather than a `ready` flag, because the flag version was a
  * DATA RACE and not a benign double-initialisation: two threads reaching any
- * entry point first would both see `ready == 0`, both call `rs_init`, and --
- * the part that makes it undefined rather than merely wasteful -- one could
+ * entry point first would both see `ready == 0`, both call `dp_rs_init`, and
+ * -- the part that makes it undefined rather than merely wasteful -- one could
  * read the half-written tables the other was still filling (gh-817).
  *
  * It was unreachable when written, which is why it survived: nothing called
@@ -70,7 +70,7 @@ static rs_t ccsds;
 static void
 ccsds_build (void)
 {
-  rs_init (&ccsds, &CCSDS_TM_RS);
+  dp_rs_init (&ccsds, &dp_CCSDS_TM_RS);
 }
 
 #ifdef _WIN32
@@ -101,7 +101,7 @@ ensure (void)
 }
 
 uint8_t
-ccsds_tm_rs_conv_to_dual (uint8_t u)
+dp_ccsds_tm_rs_conv_to_dual (uint8_t u)
 {
   uint8_t z = 0;
   for (int i = 0; i < 8; i++)
@@ -113,7 +113,7 @@ ccsds_tm_rs_conv_to_dual (uint8_t u)
 }
 
 uint8_t
-ccsds_tm_rs_dual_to_conv (uint8_t z)
+dp_ccsds_tm_rs_dual_to_conv (uint8_t z)
 {
   uint8_t u = 0;
   for (int i = 0; i < 8; i++)
@@ -125,42 +125,42 @@ ccsds_tm_rs_dual_to_conv (uint8_t z)
 }
 
 const uint8_t *
-ccsds_tm_rs_generator (void)
+dp_ccsds_tm_rs_generator (void)
 {
-  return rs_generator (ensure ());
+  return dp_rs_generator (ensure ());
 }
 
 void
-ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity)
+dp_ccsds_tm_rs_encode (const uint8_t *info, uint8_t *parity)
 {
   const rs_t *rs = ensure ();
 
   /* Figure F-1: transform in, encode conventionally, transform out. */
   uint8_t conv[CCSDS_TM_RS_K];
   for (int i = 0; i < CCSDS_TM_RS_K; i++)
-    conv[i] = ccsds_tm_rs_dual_to_conv (info[i]);
+    conv[i] = dp_ccsds_tm_rs_dual_to_conv (info[i]);
 
   uint8_t check[CCSDS_TM_RS_2E];
-  rs_encode (rs, conv, check);
+  dp_rs_encode (rs, conv, check);
 
   for (int i = 0; i < CCSDS_TM_RS_2E; i++)
-    parity[i] = ccsds_tm_rs_conv_to_dual (check[i]);
+    parity[i] = dp_ccsds_tm_rs_conv_to_dual (check[i]);
 }
 
 int
-ccsds_tm_rs_codeword_ok (const uint8_t *codeword)
+dp_ccsds_tm_rs_codeword_ok (const uint8_t *codeword)
 {
   const rs_t *rs = ensure ();
 
   uint8_t conv[CCSDS_TM_RS_N];
   for (int i = 0; i < CCSDS_TM_RS_N; i++)
-    conv[i] = ccsds_tm_rs_dual_to_conv (codeword[i]);
+    conv[i] = dp_ccsds_tm_rs_dual_to_conv (codeword[i]);
 
-  return rs_codeword_ok (rs, conv);
+  return dp_rs_codeword_ok (rs, conv);
 }
 
 int
-ccsds_tm_rs_decode (uint8_t *codeword)
+dp_ccsds_tm_rs_decode (uint8_t *codeword)
 {
   const rs_t *rs = ensure ();
 
@@ -170,14 +170,14 @@ ccsds_tm_rs_decode (uint8_t *codeword)
      else, which is the failure this whole file exists to prevent. */
   uint8_t conv[CCSDS_TM_RS_N];
   for (int i = 0; i < CCSDS_TM_RS_N; i++)
-    conv[i] = ccsds_tm_rs_dual_to_conv (codeword[i]);
+    conv[i] = dp_ccsds_tm_rs_dual_to_conv (codeword[i]);
 
-  const int fixed = rs_decode (rs, conv);
+  const int fixed = dp_rs_decode (rs, conv);
   if (fixed <= 0)
     return fixed;
 
   for (int i = 0; i < CCSDS_TM_RS_N; i++)
-    codeword[i] = ccsds_tm_rs_conv_to_dual (conv[i]);
+    codeword[i] = dp_ccsds_tm_rs_conv_to_dual (conv[i]);
   return fixed;
 }
 
@@ -191,7 +191,7 @@ depth_ok (unsigned depth)
 }
 
 size_t
-ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
+dp_ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
 {
   if (!depth_ok (depth))
     return 0;
@@ -212,7 +212,7 @@ ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
         word[i] = info[(size_t)i * depth + e];
 
       uint8_t parity[CCSDS_TM_RS_2E];
-      ccsds_tm_rs_encode (word, parity);
+      dp_ccsds_tm_rs_encode (word, parity);
 
       /* ...and S2 samples the encoders in the same rotation on the way out. */
       for (int p = 0; p < CCSDS_TM_RS_2E; p++)
@@ -223,8 +223,8 @@ ccsds_tm_rs_encode_block (const uint8_t *info, unsigned depth, uint8_t *out)
 }
 
 size_t
-ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
-                          ccsds_tm_rs_block_rx_t *rx)
+dp_ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
+                             ccsds_tm_rs_block_rx_t *rx)
 {
   if (!depth_ok (depth))
     return 0;
@@ -235,7 +235,7 @@ ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
   for (unsigned e = 0; e < depth; e++)
     {
       /* Undo S1/S2: encoder e saw every depth-th symbol starting at e, in
-         both sections. This is the same rotation ccsds_tm_rs_encode_block
+         both sections. This is the same rotation dp_ccsds_tm_rs_encode_block
          wrote, read from the one description rather than a second one. */
       uint8_t word[CCSDS_TM_RS_N];
       for (int i = 0; i < CCSDS_TM_RS_K; i++)
@@ -243,7 +243,7 @@ ccsds_tm_rs_decode_block (uint8_t *block, unsigned depth,
       for (int p = 0; p < CCSDS_TM_RS_2E; p++)
         word[CCSDS_TM_RS_K + p] = block[k_syms + (size_t)p * depth + e];
 
-      const int fixed = ccsds_tm_rs_decode (word);
+      const int fixed = dp_ccsds_tm_rs_decode (word);
       if (fixed < 0)
         {
           out.uncorrectable++;

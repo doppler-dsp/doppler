@@ -61,12 +61,12 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 
 | Type | Name |
 | ---: | :--- |
-|  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_confidence**](#function-ber_confidence) (size\_t errors, size\_t symbols, double conf) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
-|  double | [**ber\_qfunc**](#function-ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
+|  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_ber\_confidence**](#function-dp_ber_confidence) (size\_t errors, size\_t symbols, double conf) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
 |  double | [**dp\_ber\_esn0\_db\_for\_ser**](#function-dp_ber_esn0_db_for_ser) (int m, double ser) <br>_Es/N0 (dB) at which the coherent bound equals_ `ser` _._ |
 |  double | [**dp\_ber\_evm\_db**](#function-dp_ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
 |  double | [**dp\_ber\_evm\_scatter\_floor\_db**](#function-dp_ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
 |  int | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
+|  double | [**dp\_ber\_qfunc**](#function-dp_ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
 |  size\_t | [**dp\_ber\_settle\_from**](#function-dp_ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
 |  size\_t | [**dp\_ber\_settle\_syms**](#function-dp_ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
 |  double | [**dp\_ber\_theory\_ber**](#function-dp_ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._ |
@@ -149,11 +149,11 @@ Nothing numeric is invented here. The confidence interval is the exact Gamma/chi
 
 
 
-### function ber\_confidence 
+### function dp\_ber\_confidence 
 
 _Exact confidence interval for a run stopped on an ERROR count._ 
 ```C++
-ber_interval_t ber_confidence (
+ber_interval_t dp_ber_confidence (
     size_t errors,
     size_t symbols,
     double conf
@@ -169,22 +169,6 @@ With `r = 0` there is no point estimate, but the exact one-sided upper limit `-l
 
 
         
-
-<hr>
-
-
-
-### function ber\_qfunc 
-
-_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._
-```C++
-double ber_qfunc (
-    double x
-) 
-```
-
-
-
 
 <hr>
 
@@ -305,6 +289,22 @@ The symbol index, or -1 for "never locked" — the honest answer, which forces t
 
 
         
+
+<hr>
+
+
+
+### function dp\_ber\_qfunc 
+
+_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._
+```C++
+double dp_ber_qfunc (
+    double x
+) 
+```
+
+
+
 
 <hr>
 

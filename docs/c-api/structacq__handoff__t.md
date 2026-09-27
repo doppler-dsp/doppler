@@ -108,7 +108,7 @@ double acq_handoff_t::chip_phase;
 
 
 
-Chips, Dll's own instantaneous-phase convention (the mirror image of [**acq\_result\_t::code\_phase**](structacq__result__t.md#variable-code_phase)'s correlation-lag convention  see [**acq\_build\_handoff()**](acq__core_8h.md#function-acq_build_handoff)'s doc comment). 
+Chips, Dll's own instantaneous-phase convention (the mirror image of [**acq\_result\_t::code\_phase**](structacq__result__t.md#variable-code_phase)'s correlation-lag convention  see [**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff)'s doc comment). 
 
 
         

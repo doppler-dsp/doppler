@@ -85,7 +85,7 @@ extern "C"
     SYMSYNC_PULSE_RRC   = 1  
   };
 
-  double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
+  double dp_symsync_ted_slope (int ted, int pulse, double beta, size_t span);
 
   JM_FORCEINLINE double
   dttl_ted (float _Complex mid, float _Complex y, float _Complex prev)
@@ -180,18 +180,18 @@ extern "C"
     return emit;
   }
 
-  void symsync_tlm_flush (const dp_symsync_state_t *s);
+  void dp_symsync_tlm_flush (const dp_symsync_state_t *s);
 
   JM_FORCEINLINE JM_HOT int
   symsync_step (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = symsync_step_ted (s, x, y_out, s->ted);
     if (r && s->tlm.ctx)
-      symsync_tlm_flush (s);
+      dp_symsync_tlm_flush (s);
     return r;
   }
 
-  void symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
+  void dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);
 
   dp_symsync_state_t *dp_symsync_create (size_t sps, double bn, double zeta,

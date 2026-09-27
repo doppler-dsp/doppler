@@ -79,8 +79,8 @@ adr_build_refine_chain (
    * is ever touched. bn_fll = 0: no FLL anywhere in this object (see the
    * ASYNC_DSSS_RX_BN_CARRIER comment). */
   double front_end_rate = s->chip_rate * (double)s->spc;
-  costas_init (car_frozen_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
-               doppler_hz_est / front_end_rate, s->tsamps, 0.0);
+  dp_costas_init (car_frozen_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
+                  doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   dp_dll_state_t *refine_dll = dp_xnn (
       dp_dll_create (s->code, s->code_len, s->spc, chip_phase,
@@ -176,11 +176,11 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
 
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
  * the pre-despread carrier loop), mirroring dsss_receiver_core.c's own
- * dsss_rx_build_chain: costas_init()'s tsamps is one whole code period, and
+ * dsss_rx_build_chain: dp_costas_init()'s tsamps is one whole code period, and
  * costas_update() is called once per period from a non-data-aided
  * (squaring) combine of that period's emitted coherent-I&D partials (see
  * adr_track_period()) -- not once per partial (see this function's own
- * comment on costas_init() below for why). */
+ * comment on dp_costas_init() below for why). */
 static void
 adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                        double doppler_hz_est, size_t segments, size_t sps,
@@ -267,8 +267,8 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
      the FLL cross-product is too noisy on the despread-symbol input and
      drives the carrier wander that causes the residual slips). */
-  costas_init (car_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
-               doppler_hz_est / front_end_rate, s->tsamps, 0.0);
+  dp_costas_init (car_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
+                  doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   *dll_out = dll;
   *rc_out  = rc;
@@ -405,7 +405,7 @@ adr_cell_refine (dp_async_dsss_receiver_state_t *s, size_t n_rc)
  * `refine_dll` MUST oversample the epoch: with asynchronous data the
  * residual carrier rides a ~symbol_rate-wide data-modulated spectrum, and
  * CarrierAcquisition's PSDMF can only locate its centre if that spectrum is
- * sampled above its Nyquist. `dll_lookback_segments(refine_max_error_db)`
+ * sampled above its Nyquist. `dp_dll_lookback_segments(refine_max_error_db)`
  * splits each epoch into `refine_segments` coherent integrate-and-dump
  * windows -- each window is phase-coherent internally (what the per-block
  * FFT consumes), and the several windows per epoch raise the despread rate
@@ -495,7 +495,7 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
  * phase is dead-reckoned across the interval on the carrier loop's Doppler
  * (the chips dilate with the carrier), moved by a gain -- in chips, through
  * the discriminator's design slope -- times what the coasting Dll's
- * discriminator read over the interval (dll_take_error: every steer, the
+ * discriminator read over the interval (dp_dll_take_error: every steer, the
  * block mean), and the Dll put back at it. A coasting loop drifts on its
  * NCO's quantisation of the aid (1.9 chips/s at 18 ppm, 12.22), so the
  * phase is kept in double here and the loop re-put each interval. Gain 1
@@ -529,7 +529,7 @@ adr_cell_correct (dp_async_dsss_receiver_state_t *s, int code_up)
   const double interval = (double)s->period_count * (double)s->tsamps;
   s->period_count       = 0;
   double       sum;
-  const size_t n = dll_take_error (s->dll, &sum);
+  const size_t n = dp_dll_take_error (s->dll, &sum);
   const double aid
       = s->carrier_freq_hz > 0.0
             ? dp_costas_get_norm_freq (&s->car) * fs / s->carrier_freq_hz
@@ -584,7 +584,7 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
      on the held replica, lights a flag, and both loops run again on it;
      a neighbour that lights the code flag as it passes steers the loops
      for the blip and no more -- the hold point is marked with both flags
-     up (dll_hold_here, car_held), so what a blip steers is dropped on
+     up (dp_dll_hold_here, car_held), so what a blip steers is dropped on
      re-entry (measured: a neighbour 2 kHz off crossing at 4 chips per
      second, 8-10 blips, no follow). Holding on ONE flag down was tried
      and measured wrong: two live emitters 475 Hz apart crossing at a chip
@@ -604,7 +604,7 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
       s->had_lock = 1;
       s->car_held = s->car;
       if (!s->cell)
-        dll_hold_here (s->dll);
+        dp_dll_hold_here (s->dll);
     }
   const int car_coast = s->had_lock && !code_up && !sym_up;
   if (car_coast && !s->car_coasting)
@@ -612,7 +612,7 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
   s->car_coasting = car_coast;
   /* The cell mode's Dll coasts from the seed: its own loop never closes,
      the interval correction below is its steer. */
-  dll_set_coast (s->dll, s->cell || (s->had_lock && !code_up && !sym_up));
+  dp_dll_set_coast (s->dll, s->cell || (s->had_lock && !code_up && !sym_up));
   for (size_t i = 0; i < s->tsamps; i++)
     s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
   size_t n_out
@@ -627,15 +627,15 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
        * (~0.9 symbols/code period) straddles a data transition almost every
        * period, giving a garbage +/-57deg discriminator that averages to
        * zero so the loop never tracks. The dp_dll_steps() windows are short
-       * (dll_lookback_segments oversampling, the same transition-free I&D the
-       * refine PSDMF consumes): a window entirely within one symbol squares
-       * cleanly; one straddling a transition merely loses amplitude, not
-       * phase -- exactly why NDA is transition-robust where the sign-wipe is
-       * not. Sum the squares and halve the angle for the carrier phase
-       * (mod pi, the harmless BPSK sign ambiguity). Feed it to the existing
-       * Costas loop via a unit phasor (Re = cos(phi) >= 0, so its own data-
-       * wipe never flips it, and its discriminator reads sin(phi)). This is
-       * the same NDA principle the downstream MpskReceiver carrier loop uses,
+       * (dp_dll_lookback_segments oversampling, the same transition-free I&D
+       * the refine PSDMF consumes): a window entirely within one symbol
+       * squares cleanly; one straddling a transition merely loses amplitude,
+       * not phase -- exactly why NDA is transition-robust where the sign-wipe
+       * is not. Sum the squares and halve the angle for the carrier phase (mod
+       * pi, the harmless BPSK sign ambiguity). Feed it to the existing Costas
+       * loop via a unit phasor (Re = cos(phi) >= 0, so its own data- wipe
+       * never flips it, and its discriminator reads sin(phi)). This is the
+       * same NDA principle the downstream MpskReceiver carrier loop uses,
        * applied PRE-despread so despreading stays coherent (no residual
        * carrier rotating within the correlation) instead of leaving the whole
        * carrier burden to the post-despread loop. */
@@ -790,7 +790,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = !cell ? dp_xnn (acq_create_continuous (
+  obj->acq = !cell ? dp_xnn (dp_acq_create_continuous (
                          obj->code, code_len, spc, chip_rate, symbol_rate,
                          cn0_dbhz, doppler_uncertainty, pfa, pd,
                          0 /* noise_mode=mean */, 1, 0.0))
@@ -839,7 +839,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
    * here, never per-rebuild. */
   obj->tsamps = code_len * spc;
   obj->refine_segments
-      = dll_lookback_segments (obj->tsamps, refine_max_error_db);
+      = dp_dll_lookback_segments (obj->tsamps, refine_max_error_db);
   obj->car_wiped_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
   obj->car_carry_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
@@ -875,9 +875,9 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   /* Symbol-lock detector config (running state reset per track-chain build,
    * adr_reset_lock()). */
   obj->lock_alpha = 1.0 / (double)ASYNC_DSSS_RX_LOCK_DWELL;
-  lockdet_init (&obj->sym_lockdet, ASYNC_DSSS_RX_LOCK_UP,
-                ASYNC_DSSS_RX_LOCK_DOWN, ASYNC_DSSS_RX_LOCK_N_UP,
-                ASYNC_DSSS_RX_LOCK_N_DOWN);
+  dp_lockdet_init (&obj->sym_lockdet, ASYNC_DSSS_RX_LOCK_UP,
+                   ASYNC_DSSS_RX_LOCK_DOWN, ASYNC_DSSS_RX_LOCK_N_UP,
+                   ASYNC_DSSS_RX_LOCK_N_DOWN);
   adr_reset_lock (obj);
   /* The cell mode's carrier pull-in estimator, on the live chain's
      despread stream at its own rate (adr_cell_refine); the retired
@@ -923,14 +923,12 @@ dp_async_dsss_receiver_create (
 }
 
 dp_async_dsss_receiver_state_t *
-async_dsss_receiver_create_cell (const uint8_t *code, size_t code_len,
-                                 double chip_rate, double symbol_rate,
-                                 size_t spc, int m, double cn0_dbhz,
-                                 double pfa, double pd, size_t segments,
-                                 size_t sps, int differential,
-                                 double carrier_freq_hz, double lost_confirm_s,
-                                 size_t correct_periods, double gain,
-                                 size_t pullin_intervals)
+dp_async_dsss_receiver_create_cell (
+    const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
+    size_t spc, int m, double cn0_dbhz, double pfa, double pd, size_t segments,
+    size_t sps, int differential, double carrier_freq_hz,
+    double lost_confirm_s, size_t correct_periods, double gain,
+    size_t pullin_intervals)
 {
   /* The refine parameters are the searching flavor's defaults: the cell
      mode builds no refine chain, so they size nothing. */
@@ -1015,8 +1013,8 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
          for pullin_intervals, then tracking. */
       adr_rebuild_track_chain (state, chip_phase, doppler_hz_est,
                                state->segments, state->sps, state->n);
-      dll_hold_here (state->dll);
-      dll_set_coast (state->dll, 1);
+      dp_dll_hold_here (state->dll);
+      dp_dll_set_coast (state->dll, 1);
       state->held_phase     = chip_phase;
       state->cell_rate_bias = 0.0;
       state->period_count   = 0;
@@ -1089,10 +1087,11 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       const float _Complex *tail = x + (x_len - tail_len);
 
       /* A hit is a seed the object made for itself -- the same path an
-       * outside detection takes. acq_build_handoff() folds the phase into
+       * outside detection takes. dp_acq_build_handoff() folds the phase into
        * [0, code_len), so the seed is never refused from here. */
       acq_handoff_t ho;
-      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
+      dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
+                            &ho);
       (void)dp_async_dsss_receiver_seed (state, ho.chip_phase,
                                          ho.doppler_hz_est, ho.cn0_dbhz_est);
 
@@ -1396,7 +1395,7 @@ double
 dp_async_dsss_receiver_get_nco_freq (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return mpsk_receiver_get_nco_freq (state->rx);
+  return dp_mpsk_receiver_get_nco_freq (state->rx);
 }
 
 int
@@ -1437,14 +1436,14 @@ double
 dp_async_dsss_receiver_get_car_nco_freq (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return costas_get_nco_freq (&state->car);
+  return dp_costas_get_nco_freq (&state->car);
 }
 
 double
 dp_async_dsss_receiver_get_mpsk_last_error (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return mpsk_receiver_get_last_error (state->rx);
+  return dp_mpsk_receiver_get_last_error (state->rx);
 }
 
 size_t

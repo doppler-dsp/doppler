@@ -904,7 +904,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "carrier records. Compare the two by TIME, never by record index. This\n"
     "is deliberate: the AGC's bandwidth is quoted in the pre-terminal\n"
     "stream's units precisely so it is not coupled to the loop that is\n"
-    "stretching the symbol grid (see RateConverter_enable_agc()).\n"
+    "stretching the symbol grid (see dp_RateConverter_enable_agc()).\n"
     "\n"
     "Examples\n"
     "--------\n"

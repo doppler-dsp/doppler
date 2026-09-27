@@ -30,7 +30,7 @@ default = "0.25"
 # unconditional here (six taps per arm, worth 28 dB).
 [[ddc.views]]
 class_name = "MatchedDDC"
-create_fn = "ddc_create_matched"
+create_fn = "dp_ddc_create_matched"
 init_params = [
   { name = "norm_freq", type = "double", default = "0.0" },
   { name = "rate", type = "double", default = "0.25" },

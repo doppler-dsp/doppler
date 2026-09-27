@@ -90,7 +90,7 @@ _Boxcar moving-average state (cf32)._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Pointer-free POD. Allocate with [**dp\_boxcar\_create()**](boxcar__core_8h.md#function-dp_boxcar_create), or embed by value and [**boxcar\_init()**](boxcar__core_8h.md#function-boxcar_init). The accumulator and ring are internal; read `len`/`gain` for the configured window and output gain. 
+Pointer-free POD. Allocate with [**dp\_boxcar\_create()**](boxcar__core_8h.md#function-dp_boxcar_create), or embed by value and [**dp\_boxcar\_init()**](boxcar__core_8h.md#function-dp_boxcar_init). The accumulator and ring are internal; read `len`/`gain` for the configured window and output gain. 
 
 
     

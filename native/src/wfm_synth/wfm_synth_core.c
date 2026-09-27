@@ -175,13 +175,13 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
         }
       dp_wfm_polyphase_bank (scaled, ntaps, nphases, nptaps, bank);
       resamp_state_t *sh
-          = resamp_create_custom (nphases, nptaps, bank, (double)sps);
+          = dp_resamp_create_custom (nphases, nptaps, bank, (double)sps);
       free (bank);
       free (scaled);
       if (!sh)
         return -1;
       if (state->shaper)
-        resamp_destroy (state->shaper);
+        dp_resamp_destroy (state->shaper);
       if (state->fir)
         {
           dp_fir_destroy (state->fir);
@@ -193,7 +193,7 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
     }
 
   /* Non-power-of-two sps: dense FIR fallback. */
-  dp_fir_state_t *fir = fir_create_real (scaled, ntaps);
+  dp_fir_state_t *fir = dp_fir_create_real (scaled, ntaps);
   free (scaled);
   if (!fir)
     return -1;
@@ -201,7 +201,7 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
     dp_fir_destroy (state->fir);
   if (state->shaper)
     {
-      resamp_destroy (state->shaper);
+      dp_resamp_destroy (state->shaper);
       state->shaper = NULL;
     }
   state->fir = fir;
@@ -362,7 +362,7 @@ dp_wfm_synth_destroy (dp_wfm_synth_state_t *state)
   if (state->fir)
     dp_fir_destroy (state->fir);
   if (state->shaper)
-    resamp_destroy (state->shaper);
+    dp_resamp_destroy (state->shaper);
   free (state->bits);
   free (state->symbols);
   free (state->code);
@@ -408,8 +408,9 @@ dp_wfm_synth_reset (dp_wfm_synth_state_t *state)
     dp_fir_reset (state->fir); /* clear the RRC delay line */
   if (state->shaper)
     {
-      resamp_reset (state->shaper); /* clear the polyphase delay line/phase */
-      state->primed = 0;            /* re-arm the sps-sample latency priming */
+      dp_resamp_reset (
+          state->shaper); /* clear the polyphase delay line/phase */
+      state->primed = 0;  /* re-arm the sps-sample latency priming */
     }
   if (state->lo)
     dp_lo_reset (state->lo);
@@ -450,7 +451,7 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
   if (s->fir)
     b += dp_fir_state_bytes (s->fir);
   if (s->shaper)
-    b += resamp_state_bytes (s->shaper);
+    b += dp_resamp_state_bytes (s->shaper);
   if (s->lo)
     b += dp_lo_state_bytes (s->lo);
   if (s->awgn)
@@ -482,7 +483,7 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
   if (s->fir)
     DP_W_CHILD (&_w, dp_fir, s->fir);
   if (s->shaper)
-    DP_W_CHILD (&_w, resamp, s->shaper);
+    DP_W_CHILD (&_w, dp_resamp, s->shaper);
   if (s->lo)
     DP_W_CHILD (&_w, dp_lo, s->lo);
   if (s->awgn)
@@ -519,7 +520,7 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   if (s->fir)
     DP_R_CHILD (&_r, dp_fir, s->fir);
   if (s->shaper)
-    DP_R_CHILD (&_r, resamp, s->shaper);
+    DP_R_CHILD (&_r, dp_resamp, s->shaper);
   if (s->lo)
     DP_R_CHILD (&_r, dp_lo, s->lo);
   if (s->awgn)

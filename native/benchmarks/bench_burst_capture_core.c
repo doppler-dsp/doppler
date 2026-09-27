@@ -116,9 +116,9 @@ time_push (jm_bench_t *b, const char *name, const char *path,
         pre[i] = nrz[i / SPC];
       const double              fs = 1.0e6 * SPC;
       dp_burst_capture_state_t *c
-          = path ? burst_capture_create_backed (path, pre, ACQ_SF * SPC,
-                                                BURST_LEN, REPS, fs, 55.0, 0.0,
-                                                1e-3, 0.9, 0, 0.0)
+          = path ? dp_burst_capture_create_backed (path, pre, ACQ_SF * SPC,
+                                                   BURST_LEN, REPS, fs, 55.0,
+                                                   0.0, 1e-3, 0.9, 0, 0.0)
                  : dp_burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
                                             fs, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
       if (!c)

@@ -63,13 +63,13 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
 |  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
 |  void | [**dp\_loop\_filter\_get\_state**](#function-dp_loop_filter_get_state) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
+|  void | [**dp\_loop\_filter\_init**](#function-dp_loop_filter_init) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
 |  void | [**dp\_loop\_filter\_reset**](#function-dp_loop_filter_reset) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
 |  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**dp\_loop\_filter\_state\_bytes**](#function-dp_loop_filter_state_bytes) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dp\_loop\_filter\_step**](#function-dp_loop_filter_step) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
 |  void | [**dp\_loop\_filter\_steps**](#function-dp_loop_filter_steps) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const double \* x, double \* out, size\_t n) <br>_Filter a whole block of loop errors, returning the control value for each update._  |
-|  void | [**loop\_filter\_init**](#function-loop_filter_init) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
-|  double | [**loop\_filter\_wn**](#function-loop_filter_wn) (double bn, double zeta) <br>_Natural frequency implied by a loop bandwidth and damping._  |
+|  double | [**dp\_loop\_filter\_wn**](#function-dp_loop_filter_wn) (double bn, double zeta) <br>_Natural frequency implied by a loop bandwidth and damping._  |
 
 
 
@@ -107,7 +107,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 ## Detailed Description
 
 
-An error `e` in, a control value out: `control = integ + kp*e`, with the integrator advancing `integ += ki*e`. The integrator therefore holds the running frequency/rate estimate; `kp*e` is the instantaneous (phase) nudge. Gains `kp` / `ki` come from a loop noise bandwidth, damping, and update period via the standard 2nd-order form ([**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)).
+An error `e` in, a control value out: `control = integ + kp*e`, with the integrator advancing `integ += ki*e`. The integrator therefore holds the running frequency/rate estimate; `kp*e` is the instantaneous (phase) nudge. Gains `kp` / `ki` come from a loop noise bandwidth, damping, and update period via the standard 2nd-order form ([**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init)).
 
 
 #### Keep &lt;tt&gt;bn \* t &lt;= 0.0112&lt;/tt&gt; and the bandwidth is the one you asked for
@@ -123,7 +123,7 @@ The promise assumes the REST of the loop has unit gain (`Kd*K0 = 1`): a discrimi
 Settling follows from the same number: a step settles to +-5% within about 2.3 loop constants (`2.3/bn` updates) at zeta = 0.707, so the `5/bn` rule used throughout this library is comfortable rather than tight.
 
 
-The state struct is **public** so a tracker can embed it by value (no heap) and drive it with [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)/dp\_loop\_filter\_step() — e.g. a despreader keeps one for the carrier loop and one for the code loop. [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the heap path used by the Python wrapper.
+The state struct is **public** so a tracker can embed it by value (no heap) and drive it with [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init)/dp\_loop\_filter\_step() — e.g. a despreader keeps one for the carrier loop and one for the code loop. [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the heap path used by the Python wrapper.
 
 
 Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
@@ -206,7 +206,7 @@ dp_loop_filter_state_t * dp_loop_filter_create (
 
 
 
-This is the untrusted boundary — the Python constructor passes a caller's arbitrary doubles here — so unlike [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) it **rejects** anything outside the declared domain rather than computing gains from it. `bn = 0` is inside the domain and is accepted: it means a deliberately frozen loop.
+This is the untrusted boundary — the Python constructor passes a caller's arbitrary doubles here — so unlike [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init) it **rejects** anything outside the declared domain rather than computing gains from it. `bn = 0` is inside the domain and is accepted: it means a deliberately frozen loop.
 
 
 
@@ -280,6 +280,45 @@ void dp_loop_filter_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_loop\_filter\_init 
+
+_Initialise a loop filter in place (no allocation)._ 
+```C++
+void dp_loop_filter_init (
+    dp_loop_filter_state_t * state,
+    double bn,
+    double zeta,
+    double t
+) 
+```
+
+
+
+Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/sample), damping `zeta`, and update period `t` (samples), and stores `bn` / `zeta` / `t`. Does **not** touch `integ`, so it doubles as a reconfigure that preserves lock. Use this for a `dp_loop_filter_state_t` embedded by value; [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is calloc + [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init).
+
+
+**Arguments are NOT validated here, on purpose.** This is the by-value path taken by the objects that embed a filter, all of which validate upstream; [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the boundary that faces an untrusted caller and it rejects the same domain this documents. Passing `t = 0` here yields `kp = ki = 0` — a loop that never moves — and a non-finite argument yields NaN gains that never recover.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
+* `zeta` Damping factor (typically 0.707), &gt; 0. 
+* `t` Update period in samples (&gt; 0). 
+
+
+
+
+        
 
 <hr>
 
@@ -458,50 +497,11 @@ Equivalent to calling [**dp\_loop\_filter\_step()**](loop__filter__core_8h.md#fu
 
 
 
-### function loop\_filter\_init 
-
-_Initialise a loop filter in place (no allocation)._ 
-```C++
-void loop_filter_init (
-    dp_loop_filter_state_t * state,
-    double bn,
-    double zeta,
-    double t
-) 
-```
-
-
-
-Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/sample), damping `zeta`, and update period `t` (samples), and stores `bn` / `zeta` / `t`. Does **not** touch `integ`, so it doubles as a reconfigure that preserves lock. Use this for a `dp_loop_filter_state_t` embedded by value; [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is calloc + [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init).
-
-
-**Arguments are NOT validated here, on purpose.** This is the by-value path taken by the objects that embed a filter, all of which validate upstream; [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the boundary that faces an untrusted caller and it rejects the same domain this documents. Passing `t = 0` here yields `kp = ki = 0` — a loop that never moves — and a non-finite argument yields NaN gains that never recover.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
-* `zeta` Damping factor (typically 0.707), &gt; 0. 
-* `t` Update period in samples (&gt; 0). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function loop\_filter\_wn 
+### function dp\_loop\_filter\_wn 
 
 _Natural frequency implied by a loop bandwidth and damping._ 
 ```C++
-double loop_filter_wn (
+double dp_loop_filter_wn (
     double bn,
     double zeta
 ) 
@@ -518,7 +518,7 @@ Public because it is the number every closed form about this loop is written in,
 The formula had five copies (this file, the loop's own C test, a validation harness, an example and a validation script) and no home; a gain error that moved `wn` would have had to be found five times.
 
 
-Unguarded, like [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init) and for the same reason: this is the trusting path, and [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the boundary that rejects the domain. `zeta = 0` divides by zero here exactly as it always has.
+Unguarded, like [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init) and for the same reason: this is the trusting path, and [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) is the boundary that rejects the domain. `zeta = 0` divides by zero here exactly as it always has.
 
 
 

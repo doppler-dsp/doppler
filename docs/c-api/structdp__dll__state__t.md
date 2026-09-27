@@ -154,7 +154,7 @@ _DLL state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create) (copies the code), or embed by value and [**dll\_init()**](dll__core_8h.md#function-dll_init) (borrows the caller's code). The loop filter `lf` is a public sub-component so the inline composition helpers can drive it; treat the correlator accumulators and code-phase fields as internal. 
+Allocate with [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create) (copies the code), or embed by value and [**dp\_dll\_init()**](dll__core_8h.md#function-dp_dll_init) (borrows the caller's code). The loop filter `lf` is a public sub-component so the inline composition helpers can drive it; treat the correlator accumulators and code-phase fields as internal. 
 
 
     
@@ -547,7 +547,7 @@ int dp_dll_state_t::coast;
 
 
 
-1: the loop holds  the discriminator is not filtered and phase\_inc is not steered, the NCO advances at the rate of the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here) (its filter restored on entry), the lock detector still looks. See [**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast). 
+1: the loop holds  the discriminator is not filtered and phase\_inc is not steered, the NCO advances at the rate of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here) (its filter restored on entry), the lock detector still looks. See [**dp\_dll\_set\_coast()**](dll__core_8h.md#function-dp_dll_set_coast). 
  
 
 
@@ -672,7 +672,7 @@ double dp_dll_state_t::err_sum;
 
 
 
-the discriminator summed since the last [**dll\_take\_error()**](dll__core_8h.md#function-dll_take_error): every steer, coasting or not  the block-mean read a holder corrects a coasting loop on (§12.22). 
+the discriminator summed since the last [**dp\_dll\_take\_error()**](dll__core_8h.md#function-dp_dll_take_error): every steer, coasting or not  the block-mean read a holder corrects a coasting loop on (§12.22). 
  
 
 
@@ -708,7 +708,7 @@ uint32_t dp_dll_state_t::held_inc;
 
 
 
-phase\_inc as of the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here). 
+phase\_inc as of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here). 
 
 
         
@@ -725,7 +725,7 @@ dp_loop_filter_state_t dp_dll_state_t::held_lf;
 
 
 
-the filter as of the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here). 
+the filter as of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here). 
 
 
         

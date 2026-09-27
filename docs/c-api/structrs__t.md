@@ -90,7 +90,7 @@ _A code plus the tables derived from it._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Transparent and allocation-free so a caller can put one on the stack or in its own state, and so the derived sizes are readable without an accessor. Build it with [**rs\_init**](rs__core_8h.md#function-rs_init) and then treat it as read-only: it carries no running state, and every function below takes it as `const`. 
+Transparent and allocation-free so a caller can put one on the stack or in its own state, and so the derived sizes are readable without an accessor. Build it with [**dp\_rs\_init**](rs__core_8h.md#function-dp_rs_init) and then treat it as read-only: it carries no running state, and every function below takes it as `const`. 
 
 
     
@@ -107,7 +107,7 @@ rs_code_t rs_t::code;
 
 
 
-as given to [**rs\_init**](rs__core_8h.md#function-rs_init) 
+as given to [**dp\_rs\_init**](rs__core_8h.md#function-dp_rs_init) 
  
 
 

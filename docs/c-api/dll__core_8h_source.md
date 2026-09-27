@@ -98,7 +98,7 @@ typedef struct {
     int wrap_pending;        
     int wrap_await;          
     /* ── segments>1 chunked output + one-epoch-deep lookback (heap-owned,
-     *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
+     *    length `segments`; NULL when segments==1 -- dp_dll_init()'s embedded/
      *    borrowed path is always segments==1, so this never needs a
      *    deinit contract there, same lifecycle class as `code`/owns_code).
      *    This is the direct C port of the coupled-despreader
@@ -185,7 +185,7 @@ dll_replica(const dp_dll_state_t *s, double c)
  * see nco_norm_freq_to_inc()'s own doc comment for why duplicates of this
  * conversion keep drifting). */
 
-void dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
+void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
               double init_chip, double bn, double zeta, double spacing);
 
 JM_FORCEINLINE double
@@ -227,9 +227,9 @@ dll_lock_accumulate(dp_dll_state_t *s, float _Complex d)
     s->acc_o += d * dll_replica(s, co);
 }
 
-void dll_lock_look(dp_dll_state_t *s, double norm);
+void dp_dll_lock_look(dp_dll_state_t *s, double norm);
 
-void dll_lock_epoch(dp_dll_state_t *s);
+void dp_dll_lock_epoch(dp_dll_state_t *s);
 
 JM_FORCEINLINE JM_HOT void
 dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
@@ -245,7 +245,7 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     if (s->coast)
         return; /* held: the discriminator read (last_error, the probe, the
                    sum) but not filtered, phase_inc as it stands
-                   (dll_set_coast) -- a holder coasting on another clock
+                   (dp_dll_set_coast) -- a holder coasting on another clock
                    reads where the signal sits against the held phase, which
                    is what it corrects on */
     (void)dp_loop_filter_step(&s->lf, e);
@@ -267,7 +267,7 @@ dll_update(dp_dll_state_t *s)
 
 dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
-size_t dll_lookback_segments(size_t tsamps, double max_error_db);
+size_t dp_dll_lookback_segments(size_t tsamps, double max_error_db);
 
 void dp_dll_destroy(dp_dll_state_t *state);
 
@@ -283,9 +283,9 @@ void dp_dll_set_bn(dp_dll_state_t *state, double val);
 
 void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
 
-void dll_set_coast(dp_dll_state_t *state, int coast);
+void dp_dll_set_coast(dp_dll_state_t *state, int coast);
 
-void dll_hold_here(dp_dll_state_t *state);
+void dp_dll_hold_here(dp_dll_state_t *state);
 
 int dp_dll_set_symbol_period(dp_dll_state_t *state, double partials_per_symbol);
 
@@ -297,7 +297,7 @@ double dp_dll_get_code_phase(const dp_dll_state_t *state);
 void dp_dll_set_code_phase(dp_dll_state_t *state, double chips);
 double dp_dll_get_code_rate(const dp_dll_state_t *state);
 
-size_t dll_take_error(dp_dll_state_t *state, double *sum);
+size_t dp_dll_take_error(dp_dll_state_t *state, double *sum);
 
 double dp_dll_take_error_mean(dp_dll_state_t *state);
 double dp_dll_get_last_error(const dp_dll_state_t *state);
@@ -315,7 +315,7 @@ double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 
 double dp_dll_get_noise_est(const dp_dll_state_t *state);
 
-void dll_tlm_flush(const dp_dll_state_t *s);
+void dp_dll_tlm_flush(const dp_dll_state_t *s);
 
 int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 

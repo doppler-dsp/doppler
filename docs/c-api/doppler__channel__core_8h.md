@@ -135,7 +135,7 @@ Doppler is specified in **ppm of the nominal time base**, which makes it carrier
 \*\*`carrier_hz` is load-bearing, not metadata.\*\* It is the only thing that converts a dimensionless ppm into a carrier offset in Hz. Leave it 0 and the clocks still dilate correctly but the carrier never moves — a physically inconsistent capture whose code rate runs fast while its carrier sits exactly on frequency. That combination is occasionally useful for isolating a code loop under test, so it is permitted rather than rejected, but it is not what a real channel does.
 
 
-The dilation is `resamp_execute_ctrl` (see `resamp_core.h`), whose per-sample rate deviation tracks the ramp exactly instead of approximating it with a piecewise-constant ratio re-set once per block. No resampling math is implemented here.
+The dilation is `dp_resamp_execute_ctrl` (see `resamp_core.h`), whose per-sample rate deviation tracks the ramp exactly instead of approximating it with a piecewise-constant ratio re-set once per block. No resampling math is implemented here.
 
 
 **The output is delayed by the resampler's group delay**  [**dp\_doppler\_channel\_get\_delay\_samples()**](doppler__channel__core_8h.md#function-dp_doppler_channel_get_delay_samples), 10.5 samples for the built-in bank  on top of the dilation. Output sample `k`, at receive time `t = k/fs`, carries the input at time `t + excess(t) - delay/fs`. A receiver started at the INPUT's phase is that far from the peak: at two samples per chip, five chips, outside a DLL's pull-in and onto a Gold code's sidelobe (doppler-dsp/doppler#1189). Subtract it, or start the loop there.
@@ -328,7 +328,7 @@ double dp_doppler_channel_get_delay_samples (
 
 
 
-Constant, and in addition to the dilation: output `k` at receive time `t = k/fs` carries the input at `t + excess(t) - delay/fs` (doppler\_channel\_excess()). Input and receive samples differ by the ppm of Doppler, so the unit is either to that precision. [**resamp\_get\_delay()**](resamp__core_8h.md#function-resamp_get_delay) for the derivation.
+Constant, and in addition to the dilation: output `k` at receive time `t = k/fs` carries the input at `t + excess(t) - delay/fs` (doppler\_channel\_excess()). Input and receive samples differ by the ppm of Doppler, so the unit is either to that precision. [**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay) for the derivation.
 
 
 

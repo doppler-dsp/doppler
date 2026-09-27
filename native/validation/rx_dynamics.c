@@ -78,7 +78,7 @@
  * the probes, so reading it back needs nothing doppler-specific.
  *
  * The flush is the CALLER's, which is the composition API's contract
- * (`mpsk_rx_tlm_flush`: "Out-of-line on purpose; callers gate on
+ * (`dp_mpsk_rx_tlm_flush`: "Out-of-line on purpose; callers gate on
  * `l->tlm.ctx`"). `dp_mpsk_receiver_steps()` does it for you and pins
  * `RATESYNC_TED_GARDNER`; this harness needs DTTL, so it steps and flushes
  * itself. Omitting that flush is why an earlier version of this measurement
@@ -307,7 +307,7 @@ rx_dyn_measure (int ted, const char *path)
             /* The composition API's contract: the flush is the caller's, and
                it is gated on the attachment rather than assumed. */
             if (rx->l.tlm.ctx)
-              mpsk_rx_tlm_flush (&rx->l, sym);
+              dp_mpsk_rx_tlm_flush (&rx->l, sym);
 
             {
               double lk = dp_mpsk_receiver_get_lock (rx);

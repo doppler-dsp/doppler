@@ -19,7 +19,7 @@
 /* ── the exact interval ─────────────────────────────────────────────────── */
 
 ber_interval_t
-ber_confidence (size_t errors, size_t symbols, double conf)
+dp_ber_confidence (size_t errors, size_t symbols, double conf)
 {
   ber_interval_t c;
   double         alpha, eta;
@@ -130,9 +130,9 @@ in_marker (size_t t, size_t t0, size_t n_marker, size_t period, size_t occ)
 }
 
 ber_align_t
-ber_align_detect (const float _Complex *rx, size_t rx_len,
-                  const uint8_t *truth, size_t truth_len, int m, size_t t0,
-                  size_t n_marker, size_t period, int lag_span, double pfa)
+dp_ber_align_detect (const float _Complex *rx, size_t rx_len,
+                     const uint8_t *truth, size_t truth_len, int m, size_t t0,
+                     size_t n_marker, size_t period, int lag_span, double pfa)
 {
   ber_align_t a;
   double      stat[BER_MAX_LAGS], phre[BER_MAX_LAGS], phim[BER_MAX_LAGS];
@@ -292,12 +292,12 @@ ber_align_detect (const float _Complex *rx, size_t rx_len,
 }
 
 ber_align_t
-ber_meter_detect (const dp_ber_meter_state_t *s, const float _Complex *rx,
-                  size_t rx_len, size_t t0, size_t n_marker, size_t period,
-                  int lag_span, double pfa)
+dp_ber_meter_detect (const dp_ber_meter_state_t *s, const float _Complex *rx,
+                     size_t rx_len, size_t t0, size_t n_marker, size_t period,
+                     int lag_span, double pfa)
 {
-  return ber_align_detect (rx, rx_len, s->truth, s->truth_len, s->m, t0,
-                           n_marker, period, lag_span, pfa);
+  return dp_ber_align_detect (rx, rx_len, s->truth, s->truth_len, s->m, t0,
+                              n_marker, period, lag_span, pfa);
 }
 
 int
@@ -305,8 +305,8 @@ dp_ber_meter_align (dp_ber_meter_state_t *s, const float _Complex *rx,
                     size_t rx_len, size_t t0, size_t n_marker, size_t period,
                     int lag_span, double pfa)
 {
-  s->last
-      = ber_meter_detect (s, rx, rx_len, t0, n_marker, period, lag_span, pfa);
+  s->last = dp_ber_meter_detect (s, rx, rx_len, t0, n_marker, period, lag_span,
+                                 pfa);
   s->mk_t0     = t0;
   s->mk_n      = n_marker ? n_marker : BER_SYNC_SYMS;
   s->mk_period = period;
@@ -367,8 +367,8 @@ dp_ber_meter_score (dp_ber_meter_state_t *s, const float _Complex *rx,
 }
 
 void
-ber_meter_set_align (dp_ber_meter_state_t *s, ber_align_t align, size_t t0,
-                     size_t n_marker, size_t period)
+dp_ber_meter_set_align (dp_ber_meter_state_t *s, ber_align_t align, size_t t0,
+                        size_t n_marker, size_t period)
 {
   s->last      = align;
   s->mk_t0     = t0;
@@ -386,19 +386,19 @@ ber_interval_t
 dp_ber_meter_interval (const dp_ber_meter_state_t *s, size_t errors,
                        size_t symbols)
 {
-  return ber_confidence (errors, symbols, s->conf);
+  return dp_ber_confidence (errors, symbols, s->conf);
 }
 
 ber_interval_t
 dp_ber_meter_ser (const dp_ber_meter_state_t *s)
 {
-  return ber_confidence (s->errors, s->symbols, s->conf);
+  return dp_ber_confidence (s->errors, s->symbols, s->conf);
 }
 
 ber_interval_t
 dp_ber_meter_ber (const dp_ber_meter_state_t *s)
 {
-  return ber_confidence (s->bit_errors, s->bits, s->conf);
+  return dp_ber_confidence (s->bit_errors, s->bits, s->conf);
 }
 
 size_t

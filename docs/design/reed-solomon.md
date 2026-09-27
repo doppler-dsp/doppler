@@ -48,7 +48,7 @@ silent:
 
 - **`field_poly` must be primitive.** The table build walks `a^i` for `i` in
     `[0, n)`; if it returns to 1 early the polynomial generates a subgroup, not
-    the field, and `rs_init` refuses. A non-primitive polynomial produces
+    the field, and `dp_rs_init` refuses. A non-primitive polynomial produces
     perfectly self-consistent arithmetic over a smaller set.
 - **`gcd(root_stride, n)` must be 1.** Otherwise `a^s` is not primitive, the
     `nroots` "roots" are not distinct, and the code corrects fewer errors than
@@ -72,7 +72,7 @@ table rather than leaving it to be inferred:
 | encode / syndromes / correct | the code's     | `rs_core.c`              |
 | the **dual basis** (4.3.9)   | the standard's | `ccsds_tm/ccsds_tm_rs.h` |
 | the **interleaver** (4.4.1)  | the standard's | `ccsds_tm/ccsds_tm_rs.h` |
-| `E = 16`, `J = 8`, `s = 11`  | the standard's | `CCSDS_TM_RS`            |
+| `E = 16`, `J = 8`, `s = 11`  | the standard's | `dp_CCSDS_TM_RS`         |
 
 The dual basis is the one most likely to be argued into the wrong file,
 because it looks like arithmetic. It is not: it is a **representation of a
@@ -94,10 +94,10 @@ codeword with position `i` carrying `x^(n-1-i)`. All zero **is** what "is a
 codeword" means — it needs no decoder, no encoder and no round trip, which is
 what makes it usable as a test oracle.
 
-`rs_codeword_ok` is that test, and `rs_decode` starts with the same function
+`dp_rs_codeword_ok` is that test, and `dp_rs_decode` starts with the same function
 rather than a second copy of the loop. The issue this closes
 ([#826](https://github.com/doppler-dsp/doppler/issues/826)) asked for exactly
-that, and it is the general rule from `conv_outputs`: the arithmetic is never
+that, and it is the general rule from `dp_conv_outputs`: the arithmetic is never
 what drifts between two implementations of a primitive — the convention is.
 
 ______________________________________________________________________
@@ -150,7 +150,7 @@ in the textbook and on no spacecraft.
 
 ### When it refuses, and what a refusal is not
 
-`rs_decode` returns `-1` when `deg Lambda > E`, or when Chien finds fewer than
+`dp_rs_decode` returns `-1` when `deg Lambda > E`, or when Chien finds fewer than
 `deg Lambda` distinct roots. Both mean the received word is not within `E`
 symbols of any codeword the decoder can name.
 
@@ -180,8 +180,8 @@ approximating `C(n,E) ~ n^E/E!` and `n ~ q`, which puts it 37 % high at
 
 One thing it cannot do, and this **is** assertable: when it corrects, the
 result is a codeword. The key equation zeroes every one of the `nroots`
-syndromes by construction, so `rs_decode` either returns `-1` or returns a
-word that passes `rs_codeword_ok`. There is no third outcome, and the test
+syndromes by construction, so `dp_rs_decode` either returns `-1` or returns a
+word that passes `dp_rs_codeword_ok`. There is no third outcome, and the test
 asserts it over error patterns from 0 to `n` symbols.
 
 ______________________________________________________________________
@@ -252,7 +252,7 @@ ______________________________________________________________________
     `223*I` grid is refused rather than padded.
 - **The lazy table build's data race**
     ([#817](https://github.com/doppler-dsp/doppler/issues/817)) — `ccsds_tm`'s
-    CCSDS singleton builds its tables on first use. `rs_init` is explicit and
+    CCSDS singleton builds its tables on first use. `dp_rs_init` is explicit and
     has no such state; the race lives in the configuration layer and becomes
     reachable the moment a `nogil` binding or `dp_parallel` calls it.
 

@@ -97,7 +97,7 @@ main (void)
     DP_CHECK (fabs (dp_costas_get_norm_freq (c) - 0.01) < 1e-12);
 
     dp_costas_state_t v;
-    costas_init (&v, 0.05, 0.707, 0.01, 16, 0.0);
+    dp_costas_init (&v, 0.05, 0.707, 0.01, 16, 0.0);
     DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     DP_CHECK (v.nco.phase_inc == c->nco.phase_inc);
     dp_costas_destroy (c);

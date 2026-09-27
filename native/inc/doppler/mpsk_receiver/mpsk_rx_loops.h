@@ -93,7 +93,7 @@ extern "C"
 #define MPSK_RX_EPS 1e-12
 
 /* THE RECEIVER HAS EXACTLY ONE AGC, and it is the front-end cascade's
- * (RateConverter_enable_agc). One, not none and not one per detector: it
+ * (dp_RateConverter_enable_agc). One, not none and not one per detector: it
  * levels the SIGNAL PATH, and both loops run on that path, so it sits inside
  * BOTH of them. There is no SECOND AGC in front of either detector, because
  * each divides out its own contribution -- carrier_nda_disc() by its own
@@ -220,7 +220,7 @@ extern "C"
  * ratio below 0.5. design/mpsk.md §8 states the real rule as
  * `min(8, 2*floor(sps/4))` and that rule contradicts the constructor it feeds:
  * at `sps = 8` it yields 4 (needs `8 > 8`) and at `sps = 16` it yields 8
- * (needs `16 > 16`) — both REJECTED by `mpsk_receiver_create_real()`. A
+ * (needs `16 > 16`) — both REJECTED by `dp_mpsk_receiver_create_real()`. A
  * derivation whose answer cannot be built is worse than a default, so the
  * bound is passed in and honoured here.
  *
@@ -297,7 +297,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
  * its own SER = 1e-3 anchor — which is where forward error correction exists
  * to put you — must not gate on `dp_mpsk_receiver_get_locked()`. Pass a
  * threshold sized for the link, or gate on something that works there: frame
- * synchronization, or the node-sync statistic (`node_sync_score`), which in
+ * synchronization, or the node-sync statistic (`dp_node_sync_score`), which in
  * lock reads the channel symbol error rate directly.
  *
  * doppler#835 carries the measurement and the options; nothing here has
@@ -305,7 +305,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
  * one whose scope is written down. */
 #define MPSK_RX_LOCK_THRESH_DEFAULT 0.4999
 
-/* Carrier lock rule (see mpsk_rx_loops_init's lock_thresh doc). Declare fast,
+/* Carrier lock rule (see dp_mpsk_rx_loops_init's lock_thresh doc). Declare fast,
  * drop reluctantly: 8 straight above-threshold symbols declare lock, and 32
  * straight below the 0.8x drop threshold withdraw it. The asymmetry reflects
  * what the indicator is FOR — a caller sizing a measurement window wants the
@@ -415,7 +415,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
    *                      two loop bandwidths; must be in (0, 1). See
    *                      mpsk_rx_agc_bn().
    */
-  void mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
+  void dp_mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
                            double lo_sps, size_t m_out, double bn_carrier,
                            double zeta, double bn_timing, double bn_agc_ratio,
                            int ted, double lock_thresh, int differential);
@@ -434,7 +434,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
     /* The discriminator reads the on-time strobe, which is one output per
        symbol, so the carrier loop updates once per symbol. Kept as a function
        rather than folded into the caller because it is the quantity
-       mpsk_rx_config_carrier() sizes the loop filter against, and naming it
+       dp_mpsk_rx_config_carrier() sizes the loop filter against, and naming it
        is what makes that sizing legible. */
     return 1.0;
   }
@@ -442,25 +442,25 @@ mpsk_rx_derive_m_out (double cap, int strict)
   /**
    * @brief (Re-)size the carrier loop filter for the tap's update rate.
    *
-   * Called by mpsk_rx_loops_init(), and AGAIN by each receiver's create()
+   * Called by dp_mpsk_rx_loops_init(), and AGAIN by each receiver's create()
    * once the cascade has published its `bank_sps` — which arrives too late
    * for init, so the MF_IN tap would otherwise keep gains designed for the
-   * `lo_sps` placeholder. `integ` survives loop_filter_init() by contract,
+   * `lo_sps` placeholder. `integ` survives dp_loop_filter_init() by contract,
    * and every other tap re-derives the gains it already had.
    */
-  void mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
+  void dp_mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
 
   /** @brief Re-seed both loops to their post-init state; keep configuration.
    *  @param l  Must be non-NULL. */
-  void mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
+  void dp_mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
 
   /** @brief Tracked carrier offset in cycles/sample at the LO's rate — the
    *  loop's own estimate, excluding the front end's configured centre. */
-  double mpsk_rx_freq_est (const mpsk_rx_loops_t *l);
+  double dp_mpsk_rx_freq_est (const mpsk_rx_loops_t *l);
 
   /** @brief Overwrite the tracked carrier offset (cycles/sample at the LO's
    *  rate) so the next output de-rotates by exactly @p val. */
-  void mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val);
+  void dp_mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -624,7 +624,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
   /** @brief Slice one recovered symbol to its log2(M) hard bits (LSB-first).
    *  @return The bit count written to @p bits. */
-  int mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y,
+  int dp_mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y,
                               uint8_t *bits);
 
   /* ------------------------------------------------------------------
@@ -633,11 +633,11 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
   /** @brief Emit the receiver's own probes plus the timing loop's.
    *  Out-of-line on purpose; callers gate on `l->tlm.ctx`. */
-  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y);
+  void dp_mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y);
 
   /** @brief Attach (or detach) telemetry across both loops; see
    *  dp_mpsk_receiver_set_telemetry(), which forwards here. */
-  int mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
+  int dp_mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);
 
 /* ── Serializable state — the loops alone (nested by every owner) ──────────
@@ -671,13 +671,13 @@ mpsk_rx_derive_m_out (double cap, int strict)
  * `car_lock` detector is an indicator, not a discriminator switch. */
 #define MPSK_RX_LOOPS_STATE_VERSION 7u
 
-  /** @brief Bytes mpsk_rx_loops_get_state() writes. */
-  size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);
+  /** @brief Bytes dp_mpsk_rx_loops_get_state() writes. */
+  size_t dp_mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);
   /** @brief Serialize the loops' mutable state into @p blob. */
-  void mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob);
+  void dp_mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob);
   /** @brief Restore the loops' mutable state from @p blob.
    *  @return DP_OK, or DP_ERR_INVALID if any envelope rejects. */
-  int mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob);
+  int dp_mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob);
 
 #ifdef __cplusplus
 }

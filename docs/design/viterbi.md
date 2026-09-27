@@ -34,7 +34,7 @@ polynomials, and a mask saying which outputs are inverted:
 | `invert`  | which outputs are inverted | bit 1 — G2 only      |
 | `depth`   | traceback depth            | 60 (§4)              |
 
-`conv_encode` ships that encoder and is pinned against the impulse
+`dp_conv_encode` ships that encoder and is pinned against the impulse
 response; this decodes it, and the same object decodes anything else with a
 trellis of the same family.
 
@@ -52,7 +52,7 @@ ______________________________________________________________________
 ## 2. The trellis, in the encoder's own terms
 
 The convention must match the encoder being decoded, and doppler's is
-`conv_encode`: `reg = ((reg >> 1) | (b << (k-1))) & mask`, so the k-bit
+`dp_conv_encode`: `reg = ((reg >> 1) | (b << (k-1))) & mask`, so the k-bit
 register holds *(the newest bit, the k-1 before it)*. A **state** is those
 k-1 previous inputs:
 
@@ -66,7 +66,7 @@ state st (k-1 bits) + new bit b -> reg  = (b << (k-1)) | st
 round — a plausible reading, and the one written first — builds a trellis that
 is perfectly self-consistent and decodes nothing the shipped encoder produced.
 **The check that catches it is encoding through the trellis and comparing
-against `conv_encode` symbol for symbol**, which is a phase-4 assertion
+against `dp_conv_encode` symbol for symbol**, which is a phase-4 assertion
 and was a prototype question before that.
 
 ______________________________________________________________________
@@ -186,7 +186,7 @@ ______________________________________________________________________
     subtracting the running maximum each step keeps them bounded and changes
     no decision, since a common offset cannot reorder survivors.
 - **No exceptions to the error convention**: a decoder fed a short buffer or
-    an unsupported depth writes nothing, as `ccsds_tm_frame_encode` does.
+    an unsupported depth writes nothing, as `dp_ccsds_tm_frame_encode` does.
 
 ______________________________________________________________________
 
@@ -198,7 +198,7 @@ ______________________________________________________________________
     page does not claim a coding gain in dB.
 1. ~~**Whether `d_free = 10` is exhibited.**~~ **MEASURED**, and it is —
     `test_viterbi_core.c` §6d walks the trellis the DESCRIPTION defines
-    (`conv_outputs` and `conv_next_state`) for the lightest path that leaves
+    (`dp_conv_outputs` and `conv_next_state`) for the lightest path that leaves
     the all-zero state and returns to it, and reproduces the published free
     distance of three codes: **10** for CCSDS's (171,133) K = 7, 5 for the
     K = 3 (7,5), 6 for the K = 4 (15,17). The inversion is taken back out
@@ -231,7 +231,7 @@ answer.
 
 ### The statistic is the decoder's own disagreement with itself
 
-`node_sync_score` decodes the window, **re-encodes the decisions**, and counts
+`dp_node_sync_score` decodes the window, **re-encodes the decisions**, and counts
 where the result differs from the received hard decisions. It references no
 truth, no marker and no training sequence, so it works on a live capture:
 
@@ -259,7 +259,7 @@ one. The decision rests on that separation, not on an absolute level.
     prior, which is simply wrong when the window opens mid-capture. Measured,
     the second dominates: skipping only `k-1` left three disagreements in
     1598 symbols on a CLEAN stream and broke the polarity equality. The skip
-    is `viterbi_depth`, the decoder's own answer to how long its survivors
+    is `dp_viterbi_depth`, the decoder's own answer to how long its survivors
     take to be data-determined.
 - **Re-runnable, and scored on the window you are about to decode.** An
     alignment is valid until the next slip. Scoring the whole remaining record

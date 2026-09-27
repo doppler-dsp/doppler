@@ -307,7 +307,7 @@ def test_a_ccsds_cadu_can_be_described_from_python():
     over the marker and neither of the other two does, which is the one thing
     no kernel can be wrong about alone.
 
-    The bits are checked byte-for-byte against `ccsds_tm_frame_encode` in
+    The bits are checked byte-for-byte against `dp_ccsds_tm_frame_encode` in
     `native/tests/test_frame_core.c`, where both sides are reachable. What is
     checked here is that the description survives the binding.
     """

@@ -85,12 +85,12 @@ def test_a_call_without_an_include_fails(tmp_path: Path) -> None:
     f = _c(
         tmp_path,
         "wfm_frame.c",
-        "void ccsds_tm_frame_ops (void *, void *);\n"
-        "static void f (void) { ccsds_tm_frame_ops (0, 0); }\n",
+        "void dp_ccsds_tm_frame_ops (void *, void *);\n"
+        "static void f (void) { dp_ccsds_tm_frame_ops (0, 0); }\n",
     )
     r = _run(f)
     assert r.returncode == 1, r.stdout
-    assert "calls ccsds_tm_frame_ops()" in r.stdout
+    assert "calls dp_ccsds_tm_frame_ops()" in r.stdout
 
 
 def test_naming_ccsds_in_a_comment_is_not_a_finding(tmp_path: Path) -> None:
@@ -103,7 +103,7 @@ def test_naming_ccsds_in_a_comment_is_not_a_finding(tmp_path: Path) -> None:
         tmp_path,
         "wfm_frame.h",
         "/* `ccsds_tm` must depend on this file, so this file must not call\n"
-        "   ccsds_tm_frame_ops() or the two form a cycle. */\n"
+        "   dp_ccsds_tm_frame_ops() or the two form a cycle. */\n"
         "// see ccsds_tm/ccsds_tm_frame.h\n"
         "int dp_wfm_frame_bits (void);\n",
     )

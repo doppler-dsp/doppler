@@ -102,8 +102,8 @@ main (void)
               < 1e-9); /* seeded */
     DP_CHECK (dp_despreader_get_code_rate (c) == 1.0);
     dp_despreader_state_t v;
-    despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707,
-                     0.5, 1);
+    dp_despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707,
+                        0.5, 1);
     DP_CHECK (v.car.lf.kp == c->car.lf.kp);
     DP_CHECK (v.code.sf == sf && v.code.owns_code == 0);
     free (v.flip_hist);

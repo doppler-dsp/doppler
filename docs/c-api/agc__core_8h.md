@@ -66,7 +66,6 @@ _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_exp10\_**](#function-agc_exp10_) (double v) <br>_Fast 10^v approximation (~1e-3 relative)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_log10\_**](#function-agc_log10_) (double p) <br>_Fast log10(p) approximation for p &gt; 0 (~1e-3 absolute)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_power\_**](#function-agc_power_) (float \_Complex y) <br>_Power \|y\|^2 in the detector's working precision (double)._  |
-|  size\_t | [**agc\_settling\_samples**](#function-agc_settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br>_How many samples this loop needs to settle — the design query._  |
 |  [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* | [**dp\_agc\_create**](#function-dp_agc_create) (double ref\_db, double loop\_bw, double alpha) <br>_Construct a log-domain feedback AGC and return its heap state. The loop integrator starts at 0 dB (unity gain) and the power detector_ `p_avg` _is pre-seeded to_`10^` _(ref\_db/10) linear, so the first block of on-target samples produces no transient. Three parameters tune the closed-loop behaviour:_`ref_db` _sets the target,_`loop_bw` _sets the convergence speed, and_`alpha` _sets the detector smoothing._ |
 |  void | [**dp\_agc\_destroy**](#function-dp_agc_destroy) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Destroy an AGC instance and release all memory. Frees the heap-allocated_ `dp_agc_state_t` _. Safe to call with_`NULL` _. After this call the pointer is invalid; set it to_`NULL` _. The Python binding calls this automatically when the object is garbage- collected or when used as a context manager (_`with` _AGC() as agc:)._ |
 |  double | [**dp\_agc\_get\_applied\_gain\_db**](#function-dp_agc_get_applied_gain_db) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Return the gain (in dB) actually applied to the most recent sample. Computes_ `20*log10` _(g\_last), where_`g_last` _is the linear multiplier that was used on the most recently processed sample. This differs from_`gain_db` _(the loop integrator's current command) because the loop filter advances the command one step ahead after each sample: immediately after_[_**dp\_agc\_step()**_](agc__core_8h.md#function-dp_agc_step) __`gain_db` _already reflects the updated command while_`applied_gain_db` _still reflects what the signal actually saw. At loop convergence the two values are numerically equal. At create/reset both are 0.0 dB (unity)._ |
@@ -74,6 +73,7 @@ _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 |  void | [**dp\_agc\_reset**](#function-dp_agc_reset) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB (unity), clears_`g_last` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._ |
 |  int | [**dp\_agc\_set\_state**](#function-dp_agc_set_state) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_agc\_set\_telemetry**](#function-dp_agc_set_telemetry) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the AGC's probes on it. Registers two probes, both recorded once per gain-update event and further thinned by decim:_  |
+|  size\_t | [**dp\_agc\_settling\_samples**](#function-dp_agc_settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br>_How many samples this loop needs to settle — the design query._  |
 |  size\_t | [**dp\_agc\_state\_bytes**](#function-dp_agc_state_bytes) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_agc\_step**](#function-dp_agc_step) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, float \_Complex x) <br>_Process one complex sample through the per-sample AGC loop. Applies the current gain, measures the output power via the EMA detector, advances the loop-filter integrator, then square-clips the returned sample to_ `clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. With the default_`gain_update_period` _== 1 this is the exact per-sample reference path; with_`gain_update_period` _P &gt; 1 the detector and gain-apply still run every sample but the loop-filter command (and the exp10/log10 it needs) refreshes once per P samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop, the streaming analogue of_[_**dp\_agc\_steps()**_](agc__core_8h.md#function-dp_agc_steps) _' decimation._[_**dp\_agc\_steps()**_](agc__core_8h.md#function-dp_agc_steps) _is the faster block equivalent; neither is bit-identical to the P == 1 loop once decimated, but both converge to the same steady state._ |
 |  void | [**dp\_agc\_steps**](#function-dp_agc_steps) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, const float \_Complex \* input, float \_Complex \* output, size\_t n) <br>_Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of_ `decim` _samples. Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase. The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for_[_**dp\_agc\_step()**_](agc__core_8h.md#function-dp_agc_step) _. The output array may alias the input (in-place)._ |
@@ -311,81 +311,6 @@ JM_FORCEINLINE double agc_power_ (
 
 
 The power detector EMA, the dB loop filter and `agc_log10_` all work in double across the AGC's full (dB) dynamic range, so the squaring promotes the float components once. Defined here so [**dp\_agc\_step()**](agc__core_8h.md#function-dp_agc_step) — and any composing sample loop that accumulates AGC input power — measures power identically. 
-
-
-        
-
-<hr>
-
-
-
-### function agc\_settling\_samples 
-
-_How many samples this loop needs to settle — the design query._ 
-```C++
-size_t agc_settling_samples (
-    double loop_bw,
-    double alpha,
-    double gain_err_db,
-    double tol_db
-) 
-```
-
-
-
-Answers "how long must I wait before the output level can be trusted", which a caller sizing a warm-up budget, a burst preamble or an acquisition guard has to answer and could not.
-
-
-
-
-**
-**
-
-`1/`(4\*loop\_bw) is the loop FILTER's time constant, and the object is not the filter — the detector sits inside the loop and measures in power, so a quiet input settles more slowly (see the Linear-in-dB note above). The real settling is `M/`(4\*loop\_bw) where `M` depends on the starting error and on how fast the detector is relative to the filter, `alpha/`(4\*loop\_bw). Measured, `M` runs from about 0.8 on a loud start to nearly 5 on a quiet one with a slow detector.
-
-
-
-
-**
-**
-
-This runs the real [**dp\_agc\_step**](agc__core_8h.md#function-dp_agc_step) loop against a constant input and counts, so there is no fitted curve to go stale: the answer is whatever the shipped loop does, and it cannot disagree with the object it describes. Design-time only — it allocates and iterates, so call it while planning a pipeline, never inside one.
-
-
-
-
-**Parameters:**
-
-
-* `loop_bw` Loop noise bandwidth, as passed to [**dp\_agc\_create()**](agc__core_8h.md#function-dp_agc_create). 
-* `alpha` Detector EMA coefficient, as passed to [**dp\_agc\_create()**](agc__core_8h.md#function-dp_agc_create). 
-* `gain_err_db` How far from settled the loop starts, in dB of gain it must apply. POSITIVE for a quiet input (the loop must add gain) — the slow direction, and the one to budget for. For a cold receiver this is the whole input dynamic range it must cover, not the steady-state variation. 
-* `tol_db` Settled means within this many dB of the target. 
-
-
-
-**Returns:**
-
-Samples to settle (&gt;= 1), or 0 if the arguments are invalid or the loop does not settle within a bounded search. 
-```C++
->>> from doppler.agc import settling_samples
->>> settling_samples(0.0025, 0.05, 40.0, 0.5)   # cold, 40 dB quiet
-430
->>> settling_samples(0.0025, 0.05, 40.0, 3.0)   # a looser bar is cheaper
-294
->>> settling_samples(0.0025, 0.05, -40.0, 0.5)  # loud: the fast direction
-175
->>> settling_samples(0.01, 0.05, 40.0, 0.5)     # 4x the bandwidth, ~1/4
-112
->>> settling_samples(0.0025, 0.05, 0.1, 0.5)    # already inside tol_db
-1
->>> settling_samples(0.0, 0.05, 40.0, 0.5)      # refused, not guessed
-0
-```
- 
-
-
-
 
 
         
@@ -646,6 +571,81 @@ True
 6.0
 >>> round(float(lvl[-1]), 1)    # settled: measured level == ref
 0.0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_agc\_settling\_samples 
+
+_How many samples this loop needs to settle — the design query._ 
+```C++
+size_t dp_agc_settling_samples (
+    double loop_bw,
+    double alpha,
+    double gain_err_db,
+    double tol_db
+) 
+```
+
+
+
+Answers "how long must I wait before the output level can be trusted", which a caller sizing a warm-up budget, a burst preamble or an acquisition guard has to answer and could not.
+
+
+
+
+**
+**
+
+`1/`(4\*loop\_bw) is the loop FILTER's time constant, and the object is not the filter — the detector sits inside the loop and measures in power, so a quiet input settles more slowly (see the Linear-in-dB note above). The real settling is `M/`(4\*loop\_bw) where `M` depends on the starting error and on how fast the detector is relative to the filter, `alpha/`(4\*loop\_bw). Measured, `M` runs from about 0.8 on a loud start to nearly 5 on a quiet one with a slow detector.
+
+
+
+
+**
+**
+
+This runs the real [**dp\_agc\_step**](agc__core_8h.md#function-dp_agc_step) loop against a constant input and counts, so there is no fitted curve to go stale: the answer is whatever the shipped loop does, and it cannot disagree with the object it describes. Design-time only — it allocates and iterates, so call it while planning a pipeline, never inside one.
+
+
+
+
+**Parameters:**
+
+
+* `loop_bw` Loop noise bandwidth, as passed to [**dp\_agc\_create()**](agc__core_8h.md#function-dp_agc_create). 
+* `alpha` Detector EMA coefficient, as passed to [**dp\_agc\_create()**](agc__core_8h.md#function-dp_agc_create). 
+* `gain_err_db` How far from settled the loop starts, in dB of gain it must apply. POSITIVE for a quiet input (the loop must add gain) — the slow direction, and the one to budget for. For a cold receiver this is the whole input dynamic range it must cover, not the steady-state variation. 
+* `tol_db` Settled means within this many dB of the target. 
+
+
+
+**Returns:**
+
+Samples to settle (&gt;= 1), or 0 if the arguments are invalid or the loop does not settle within a bounded search. 
+```C++
+>>> from doppler.agc import settling_samples
+>>> settling_samples(0.0025, 0.05, 40.0, 0.5)   # cold, 40 dB quiet
+430
+>>> settling_samples(0.0025, 0.05, 40.0, 3.0)   # a looser bar is cheaper
+294
+>>> settling_samples(0.0025, 0.05, -40.0, 0.5)  # loud: the fast direction
+175
+>>> settling_samples(0.01, 0.05, 40.0, 0.5)     # 4x the bandwidth, ~1/4
+112
+>>> settling_samples(0.0025, 0.05, 0.1, 0.5)    # already inside tol_db
+1
+>>> settling_samples(0.0, 0.05, 40.0, 0.5)      # refused, not guessed
+0
 ```
  
 

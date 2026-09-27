@@ -1,7 +1,7 @@
 /* bench_fir_core.c -- what a tap costs, and what a COMPLEX tap costs.
  *
  * `dp_fir_execute` is the library's most-used inner loop, and it has two of
- * them: `inner_real_cf32` for a filter built by `fir_create_real`, and
+ * them: `inner_real_cf32` for a filter built by `dp_fir_create_real`, and
  * `inner_cf32` for one built by `dp_fir_create`. Both consume complex
  * samples; they differ only in whether each tap is a real scale or a
  * complex rotate-and-scale. The choice is made once, at construction,
@@ -93,7 +93,7 @@ main (void)
 
   for (int l = 0; l < N_LEN; l++)
     {
-      fir[l * N_KIND + CFG_REAL]    = fir_create_real (rtaps, taps_n[l]);
+      fir[l * N_KIND + CFG_REAL]    = dp_fir_create_real (rtaps, taps_n[l]);
       fir[l * N_KIND + CFG_COMPLEX] = dp_fir_create (ctaps, taps_n[l]);
     }
   for (int c = 0; c < N_CFG; c++)

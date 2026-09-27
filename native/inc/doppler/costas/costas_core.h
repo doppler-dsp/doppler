@@ -16,7 +16,7 @@
  * tracking channel inlines into its own sample loop.
  *
  * Lifecycle: `dp_costas_create -> (steps / configure / reset)* -> dp_costas_destroy`,
- * or embed by value with costas_init().
+ * or embed by value with dp_costas_init().
  *
  * Set `bn_fll > 0` to enable FLL assist (a wide-pull-in frequency-lock loop
  * aiding the PLL) for large or fast-moving residuals; `bn_fll = 0` is a pure
@@ -69,7 +69,7 @@ typedef struct {
 /**
  * @brief Costas loop state.
  *
- * Allocate with dp_costas_create(), or embed by value and costas_init().
+ * Allocate with dp_costas_create(), or embed by value and dp_costas_init().
  * The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the
  * inline composition helpers can drive them; treat the integrate-and-dump and
  * diagnostic fields as internal.
@@ -109,7 +109,7 @@ typedef struct {
  * @param tsamps          Samples per symbol (the integrate-and-dump period).
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  */
-void costas_init(dp_costas_state_t *s, double bn, double zeta,
+void dp_costas_init(dp_costas_state_t *s, double bn, double zeta,
                  double init_norm_freq, size_t tsamps, double bn_fll);
 
 /**
@@ -250,7 +250,7 @@ void dp_costas_reset(dp_costas_state_t *state);
  *
  * @param s  State with a non-NULL tlm.ctx (caller-checked).
  */
-void costas_tlm_flush(const dp_costas_state_t *s);
+void dp_costas_tlm_flush(const dp_costas_state_t *s);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
@@ -338,7 +338,7 @@ double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +
  * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the
  * integrator-only get_norm_freq. */
-double costas_get_nco_freq(const dp_costas_state_t *state);
+double dp_costas_get_nco_freq(const dp_costas_state_t *state);
 void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
 double dp_costas_get_lock_metric(const dp_costas_state_t *state);
 double dp_costas_get_last_error(const dp_costas_state_t *state);

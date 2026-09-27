@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_RateConverter[] = {
     (jm_any_fn)dp_RateConverter_create,
-    (jm_any_fn)RateConverter_create_matched,
+    (jm_any_fn)dp_RateConverter_create_matched,
     (jm_any_fn)dp_RateConverter_get_clipped,
     (jm_any_fn)dp_RateConverter_get_narrow_pulse,
     (jm_any_fn)RateConverter_num_stages,

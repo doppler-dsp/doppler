@@ -86,7 +86,7 @@ _Ddc state — an LO and the cascade it feeds._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Do not initialise directly; use [**dp\_ddc\_create()**](ddc__core_8h.md#function-dp_ddc_create) or [**ddc\_create\_matched()**](ddc__core_8h.md#function-ddc_create_matched). 
+Do not initialise directly; use [**dp\_ddc\_create()**](ddc__core_8h.md#function-dp_ddc_create) or [**dp\_ddc\_create\_matched()**](ddc__core_8h.md#function-dp_ddc_create_matched). 
 
 
     
@@ -120,7 +120,7 @@ bool ddc_state::narrow_pulse;
 
 
 
-Set when the matched flavor was built with a rectangular pulse too narrow to be worth much — see [**ddc\_create\_matched()**](ddc__core_8h.md#function-ddc_create_matched). Read by the binding, which turns it into a UserWarning at construction. 
+Set when the matched flavor was built with a rectangular pulse too narrow to be worth much — see [**dp\_ddc\_create\_matched()**](ddc__core_8h.md#function-dp_ddc_create_matched). Read by the binding, which turns it into a UserWarning at construction. 
 
 
         

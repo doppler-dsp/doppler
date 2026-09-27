@@ -28,11 +28,11 @@
  * ### Pulse and the two control ports
  *
  * Both this type and its real-input twin have a matched *flavor*
- * (`ddc_create_matched` / `ddcr_create_matched`),
+ * (`dp_ddc_create_matched` / `dp_ddcr_create_matched`),
  * which is passed straight through to the cascade: the terminal stage carries
  * a matched-filter bank instead of the default Kaiser one, so the chain mixes,
  * decimates and matched-filters in the same dot products it was already doing
- * (see RateConverter_create_matched()).
+ * (see dp_RateConverter_create_matched()).
  *
  * That makes a DDC steerable on **two** ports, which are duals of each other:
  *
@@ -94,7 +94,7 @@ extern "C"
   /**
    * @brief Ddc state — an LO and the cascade it feeds.
    *
-   * Do not initialise directly; use dp_ddc_create() or ddc_create_matched().
+   * Do not initialise directly; use dp_ddc_create() or dp_ddc_create_matched().
    */
   typedef struct ddc_state
   {
@@ -102,7 +102,7 @@ extern "C"
     dp_RateConverter_state_t *rc; /**< the cascade; matched when a pulse was
                                     selected at construction              */
     /** Set when the matched flavor was built with a rectangular pulse too
-     *  narrow to be worth much — see ddc_create_matched(). Read by the
+     *  narrow to be worth much — see dp_ddc_create_matched(). Read by the
      *  binding, which turns it into a UserWarning at construction. */
     bool narrow_pulse;
   } dp_ddc_state_t;
@@ -137,7 +137,7 @@ dp_ddc_state_t *dp_ddc_create(double norm_freq, double rate);
    *
    * The matched *flavor* of the same object — same state, same methods, one
    * different constructor (Python: `MatchedDDC`).  The pulse is a straight
-   * passthrough to the cascade, so everything RateConverter_create_matched()
+   * passthrough to the cascade, so everything dp_RateConverter_create_matched()
    * documents holds here unchanged: the terminal fractional stage always
    * exists, the bank is sized by the POST-decimation rate, and the CIC droop
    * folds into the bank rather than costing a stage.  What this layer adds is
@@ -174,7 +174,7 @@ dp_ddc_state_t *dp_ddc_create(double norm_freq, double rate);
    * 0.125
    * @endcode
    */
-  dp_ddc_state_t *ddc_create_matched (double norm_freq, double rate, int pulse,
+  dp_ddc_state_t *dp_ddc_create_matched (double norm_freq, double rate, int pulse,
                                    double beta, size_t span, double pulse_sps,
                                    size_t num_phases);
 
@@ -405,13 +405,13 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
    *                  return 0). May be NULL.
    * @return Number of terminal outputs written (0, 1, or more).
    */
-  size_t ddc_execute_ctrl_push_tap (dp_ddc_state_t *state, float _Complex x,
+  size_t dp_ddc_execute_ctrl_push_tap (dp_ddc_state_t *state, float _Complex x,
                                     double rate_ctrl, double freq_ctrl,
                                     float _Complex *out, size_t max_out,
                                     float _Complex *lo_out, int *n_lo);
 
   /**
-   * @brief ddc_execute_ctrl_push_tap(), plus the PRE-TERMINAL tap.
+   * @brief dp_ddc_execute_ctrl_push_tap(), plus the PRE-TERMINAL tap.
    *
    * Two taps, at the two points a carrier discriminator can read without
    * symbol timing, and they are not equivalent:
@@ -425,7 +425,7 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
    * docs/design/mpsk.md §3.3 gives: the cascade's own filters have already
    * band-limited it and the AGC has already levelled it, so a half-symbol arm
    * filter bolted onto @p lo_out is a hand-rolled approximation of what this
-   * node gives for free. Its rate is ddc_get_bank_sps() samples per symbol.
+   * node gives for free. Its rate is dp_ddc_get_bank_sps() samples per symbol.
    *
    * @note "Better conditioned" is not "more accurate", and the distinction is
    * measured rather than assumed. The retired tap sweep found no
@@ -452,14 +452,14 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
    *                  decimation strobes, so this is 0 on those calls.
    * @return Number of terminal outputs written (0, 1, or more).
    */
-  size_t ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *state, float _Complex x,
+  size_t dp_ddc_execute_ctrl_push_tap2 (dp_ddc_state_t *state, float _Complex x,
                                      double rate_ctrl, double freq_ctrl,
                                      float _Complex *out, size_t max_out,
                                      float _Complex *lo_out, int *n_lo,
                                      float _Complex *pre_out, int *n_pre);
 
   /** @brief Samples per symbol of the pre-terminal tap; a planner outcome. */
-  double ddc_get_bank_sps (const dp_ddc_state_t *state);
+  double dp_ddc_get_bank_sps (const dp_ddc_state_t *state);
 
   /**
    * @brief Is this object's rectangular matched filter degenerately narrow?
@@ -490,7 +490,7 @@ bool dp_ddc_get_clipped(const dp_ddc_state_t *state);
   /**
    * @brief Attach (or detach) a telemetry context on the cascade's AGC.
    *
-   * Forwarded verbatim to RateConverter_set_telemetry(): the mixer and the
+   * Forwarded verbatim to dp_RateConverter_set_telemetry(): the mixer and the
    * fixed stages have no loop to report, so the one instrumented child is the
    * cascade's pre-terminal AGC ("<prefix>.gain_db" and "<prefix>.level_db").
    * DP_OK with no probes when the cascade has no AGC enabled. Setup path,
@@ -503,7 +503,7 @@ bool dp_ddc_get_clipped(const dp_ddc_state_t *state);
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
    *         AGC's probes (the attach fails whole).
    */
-  int ddc_set_telemetry (dp_ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+  int dp_ddc_set_telemetry (dp_ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
                          uint32_t decim);
 
   /**

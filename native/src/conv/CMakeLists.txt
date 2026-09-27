@@ -2,7 +2,7 @@
 #
 # Its own c_dep rather than a library inside `ccsds_tm`, because the code
 # family is not CCSDS's: `ccsds_tm` holds a CONFIGURATION of it
-# (CCSDS_TM_CONV) the way any other caller would. A decoder that lived under
+# (dp_CCSDS_TM_CONV) the way any other caller would. A decoder that lived under
 # `ccsds_tm` would put the whole channel-coding chain on the link line of
 # anyone who wanted a trellis.
 #

@@ -245,7 +245,7 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   static double t_cell[ITERATIONS];
   {
     const size_t                    periods = w->sf == 7 ? 100 : 154;
-    dp_async_dsss_receiver_state_t *rx      = async_dsss_receiver_create_cell (
+    dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
         w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
         4, 8, 0, 0.0, 0.0, periods, ASYNC_DSSS_RX_CELL_GAIN,
         ASYNC_DSSS_RX_CELL_PULLIN);

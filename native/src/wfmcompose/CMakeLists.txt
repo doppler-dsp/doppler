@@ -295,7 +295,7 @@ if(NOT WIN32)
     #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (the
     #    vendored stream client).
     #
-    #    The CLI body is the callable `doppler_wfmgen()` (wfmgen.c → the
+    #    The CLI body is the callable `dp_doppler_wfmgen()` (wfmgen.c → the
     #    wfmgen_core OBJECT lib); the `wfmgen` binary is a one-line `main` shim
     #    (wfmgen_main.c) over it. Splitting the entry point off the body lets
     #    libdoppler archive the whole generator without a `main`-symbol clash in
@@ -332,7 +332,7 @@ if(NOT WIN32)
 
     # Archive the whole generator into libdoppler (.so + .a) so a downstream
     # linking the library can drive wfmgen in-process via
-    # `doppler_wfmgen(argc, argv)` (wfm/wfmgen.h ships with the native/inc
+    # `dp_doppler_wfmgen(argc, argv)` (wfm/wfmgen.h ships with the native/inc
     # install). The synth/lo/awgn/pn/fir/timing cores are already in libdoppler,
     # so only the wfmcompose objects are folded in here (+ ~132 KiB to the .a).
     # wfmgen stays in the pure-C core; its stream-sink path uses the weak-stub

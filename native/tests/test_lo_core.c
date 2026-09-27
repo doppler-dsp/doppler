@@ -196,7 +196,7 @@ main (void)
     const size_t   N   = 257; /* not a multiple of any SIMD width */
     dp_lo_state_t *blk = dp_lo_create (0.123456);
     dp_lo_state_t  stp;
-    lo_init (&stp, 0.123456);
+    dp_lo_init (&stp, 0.123456);
 
     float _Complex ref[257], got[257];
     dp_lo_steps (blk, N, ref, N);
@@ -215,12 +215,12 @@ main (void)
   }
 
   /* ----------------------------------------------------------------
-   * 9. lo_init (in place) == dp_lo_create (heap), field- and output-exact
+   * 9. dp_lo_init (in place) == dp_lo_create (heap), field- and output-exact
    * ---------------------------------------------------------------- */
   {
     dp_lo_state_t *heap = dp_lo_create (0.3);
     dp_lo_state_t  byval;
-    lo_init (&byval, 0.3);
+    dp_lo_init (&byval, 0.3);
     DP_CHECK (byval.phase == heap->phase);
     DP_CHECK (byval.phase_inc == heap->phase_inc);
     DP_CHECK (byval.norm_freq == heap->norm_freq);
@@ -248,7 +248,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     dp_lo_state_t s;
-    lo_init (&s, 0.10000000017); /* odd inc → coprime with 2^32       */
+    dp_lo_init (&s, 0.10000000017); /* odd inc → coprime with 2^32       */
     const long     RUN     = 30000000L;
     const uint32_t inc     = dp_lo_get_phase_inc (&s);
     int            bad_mag = 0, bad_nan = 0;
@@ -287,7 +287,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     dp_lo_state_t s;
-    lo_init (&s, 0.1);
+    dp_lo_init (&s, 0.1);
     for (int i = 0; i < 5; i++)
       (void)lo_step (&s);
     uint32_t ph_before = dp_lo_get_phase (&s);
@@ -313,11 +313,11 @@ main (void)
   {
     /* -0.25 folds to 0.75 → inc = 3 * 2^30 = 0xC0000000 */
     dp_lo_state_t neg;
-    lo_init (&neg, -0.25);
+    dp_lo_init (&neg, -0.25);
     DP_CHECK (dp_lo_get_phase_inc (&neg) == 0xC0000000u);
     /* 1.25 folds to 0.25 → inc = 0x40000000, same as 0.25 */
     dp_lo_state_t big;
-    lo_init (&big, 1.25);
+    dp_lo_init (&big, 1.25);
     DP_CHECK (dp_lo_get_phase_inc (&big) == 0x40000000u);
 
     dp_lo_state_t *ref = dp_lo_create (-0.25);
@@ -491,8 +491,8 @@ main (void)
 
     /* (a) ctrl == 0 is bit-identical to lo_step(). */
     dp_lo_state_t plain, zeroed;
-    lo_init (&plain, 0.0713);
-    lo_init (&zeroed, 0.0713);
+    dp_lo_init (&plain, 0.0713);
+    dp_lo_init (&zeroed, 0.0713);
     int exact = 1;
     for (size_t i = 0; i < N; i++)
       {
@@ -509,7 +509,7 @@ main (void)
     dp_lo_state_t  driven;
     dp_lo_state_t *ref = dp_lo_create (0.25);
     float _Complex a[64], b[64];
-    lo_init (&driven, 0.0);
+    dp_lo_init (&driven, 0.0);
     dp_lo_steps (ref, 64, a, 64);
     for (int i = 0; i < 64; i++)
       b[i] = lo_step_ctrl (&driven, 0.25);
@@ -527,7 +527,7 @@ main (void)
      * observable, so the fold is exactly right.) */
     dp_lo_state_t  down;
     dp_lo_state_t *quarter = dp_lo_create (0.25);
-    lo_init (&down, 0.5);
+    dp_lo_init (&down, 0.5);
     dp_lo_steps (quarter, 64, a, 64);
     for (int i = 0; i < 64; i++)
       b[i] = lo_step_ctrl (&down, -0.25);
@@ -543,9 +543,9 @@ main (void)
      * 0.25.  The header says "the fractional cycle is taken, so it wraps
      * correctly" for any sign and any magnitude. */
     dp_lo_state_t f0, f1, f2;
-    lo_init (&f0, 0.0);
-    lo_init (&f1, 0.0);
-    lo_init (&f2, 0.0);
+    dp_lo_init (&f0, 0.0);
+    dp_lo_init (&f1, 0.0);
+    dp_lo_init (&f2, 0.0);
     /* 13 steps, not a multiple of 4: at 16 steps a quarter-rate phase is
      * back at exactly 0, so a STOPPED oscillator would compare equal and
      * the fold claim would pass vacuously.  The guard below pins that
@@ -564,7 +564,7 @@ main (void)
      * norm_freq, so the step AFTER a steered one advances by the centre
      * increment alone. */
     dp_lo_state_t keep;
-    lo_init (&keep, 0.1);
+    dp_lo_init (&keep, 0.1);
     uint32_t inc0 = dp_lo_get_phase_inc (&keep);
     (void)lo_step_ctrl (&keep, 0.37);
     DP_CHECK (dp_lo_get_phase_inc (&keep) == inc0);
@@ -576,13 +576,13 @@ main (void)
     /* (f) Emit BEFORE increment, on the steered path too: seeded at an
      * arbitrary phase word, the first sample is the LUT at THAT word. */
     dp_lo_state_t seeded;
-    lo_init (&seeded, 0.1);
+    dp_lo_init (&seeded, 0.1);
     dp_lo_set_phase (&seeded, 0x9ABC0000u);
     uint16_t widx     = (uint16_t)(0x9ABC0000u >> 16);
     float _Complex s0 = lo_step_ctrl (&seeded, 0.42);
     DP_CHECK (crealf (s0)
-              == lo_sin_lut[(uint16_t)(widx + (uint16_t)LO_LUT_QTR)]);
-    DP_CHECK (cimagf (s0) == lo_sin_lut[widx]);
+              == dp_lo_sin_lut[(uint16_t)(widx + (uint16_t)LO_LUT_QTR)]);
+    DP_CHECK (cimagf (s0) == dp_lo_sin_lut[widx]);
   }
 
   /* ----------------------------------------------------------------
@@ -605,7 +605,7 @@ main (void)
 
     dp_lo_state_t *bs = dp_lo_create (0.077);
     dp_lo_state_t  ss;
-    lo_init (&ss, 0.077);
+    dp_lo_init (&ss, 0.077);
     DP_CHECK (dp_lo_steps_ctrl (bs, ctrl, N, blk, N) == N);
     for (size_t i = 0; i < N; i++)
       one[i] = lo_step_ctrl (&ss, (double)ctrl[i]);
@@ -682,14 +682,14 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     dp_lo_state_t warm; /* forces lut_init() before reading the table */
-    lo_init (&warm, 0.0);
+    dp_lo_init (&warm, 0.0);
 
     float worst_sin = 0.0f, worst_cos = 0.0f;
     for (unsigned i = 0; i < LO_LUT_SIZE; i++)
       {
         double th = 2.0 * M_PI * (double)i / (double)LO_LUT_SIZE;
-        float  es = fabsf (lo_sin_lut[i] - (float)sin (th));
-        float  ec = fabsf (lo_sin_lut[(uint16_t)(i + (uint16_t)LO_LUT_QTR)]
+        float  es = fabsf (dp_lo_sin_lut[i] - (float)sin (th));
+        float  ec = fabsf (dp_lo_sin_lut[(uint16_t)(i + (uint16_t)LO_LUT_QTR)]
                            - (float)cos (th));
         if (es > worst_sin)
           worst_sin = es;
@@ -744,7 +744,7 @@ main (void)
     DP_CHECK (dp_lo_get_phase_inc (cfg) == 10430u); /* configure path */
 
     dp_lo_state_t steer;
-    lo_init (&steer, 0.0);
+    dp_lo_init (&steer, 0.0);
     (void)lo_step_ctrl (&steer, f51);
     DP_CHECK (dp_lo_get_phase (&steer)
               == 10430u); /* control path, same word */

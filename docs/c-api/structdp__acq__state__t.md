@@ -174,7 +174,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) or [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous); never stack-allocate. 
+Allocate with [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst) or [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous); never stack-allocate. 
 
 
     
@@ -263,7 +263,7 @@ uint8_t dp_acq_state_t::burst;
 
 
 
-1 for an engine built by [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst), 0 for [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). Config. 
+1 for an engine built by [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst), 0 for [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous). Config. 
  
 
 
@@ -637,7 +637,7 @@ int dp_acq_state_t::keep_surface;
 
 
 
-1 = normalise every decided dwell into `stat_surface` for acq\_surface(); set by a caller or by [**acq\_set\_surface\_sink()**](acq__core_8h.md#function-acq_set_surface_sink) 
+1 = normalise every decided dwell into `stat_surface` for acq\_surface(); set by a caller or by [**dp\_acq\_set\_surface\_sink()**](acq__core_8h.md#function-dp_acq_set_surface_sink) 
  
 
 
@@ -1169,7 +1169,7 @@ size_t dp_acq_state_t::reps;
 
 
 
-Max coherent code repetitions (the ceiling); always 1 for an engine built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). 
+Max coherent code repetitions (the ceiling); always 1 for an engine built via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous). 
 
 
         
@@ -1429,7 +1429,7 @@ double dp_acq_state_t::symbol_rate;
 
 
 
-Continuous data-symbol rate (Hz); 0 = no known data-modulation clock. Diagnostic only on an engine built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (which always forces coherent\_bins=1 regardless) — informational, doesn't feed sizing. 
+Continuous data-symbol rate (Hz); 0 = no known data-modulation clock. Diagnostic only on an engine built via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous) (which always forces coherent\_bins=1 regardless) — informational, doesn't feed sizing. 
  
 
 

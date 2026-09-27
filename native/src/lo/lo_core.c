@@ -22,8 +22,8 @@
  *
  * LUT index is the top 16 bits of the 32-bit phase accumulator:
  *   idx    = (uint16_t)(phase >> 16)
- *   sin(θ) = lo_sin_lut[idx]
- *   cos(θ) = lo_sin_lut[(uint16_t)(idx + LO_LUT_QTR)]
+ *   sin(θ) = dp_lo_sin_lut[idx]
+ *   cos(θ) = dp_lo_sin_lut[(uint16_t)(idx + LO_LUT_QTR)]
  *
  * LO_LUT_QTR = N/4 = 16384 shifts by π/2, mapping sin → cos without
  * extra storage.  The uint16_t cast wraps at 65536 branchlessly.
@@ -35,8 +35,9 @@
  * inline lo_step() in the header can share them. */
 
 /* Definition of the LUT declared `extern` in lo_core.h.  Filled lazily by
- * lut_init() on the first dp_lo_create()/lo_init(); read-only afterwards. */
-float      lo_sin_lut[LO_LUT_SIZE];
+ * lut_init() on the first dp_lo_create()/dp_lo_init(); read-only afterwards.
+ */
+float      dp_lo_sin_lut[LO_LUT_SIZE];
 static int lut_ready = 0;
 
 static void
@@ -45,7 +46,8 @@ lut_init (void)
   if (lut_ready)
     return;
   for (unsigned i = 0; i < LO_LUT_SIZE; i++)
-    lo_sin_lut[i] = sinf (2.0f * (float)M_PI * (float)i / (float)LO_LUT_SIZE);
+    dp_lo_sin_lut[i]
+        = sinf (2.0f * (float)M_PI * (float)i / (float)LO_LUT_SIZE);
   lut_ready = 1;
 }
 
@@ -54,7 +56,7 @@ lut_init (void)
 /* ================================================================== */
 
 void
-lo_init (dp_lo_state_t *state, double norm_freq)
+dp_lo_init (dp_lo_state_t *state, double norm_freq)
 {
   lut_init ();
   state->phase     = 0;
@@ -68,7 +70,7 @@ dp_lo_create (double norm_freq)
   dp_lo_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
-  lo_init (state, norm_freq);
+  dp_lo_init (state, norm_freq);
   return state;
 }
 
@@ -194,8 +196,8 @@ dp_lo_steps (dp_lo_state_t *state, size_t n, float _Complex *out,
   for (size_t i = 0; i < n; i++)
     {
       uint16_t idx = (uint16_t)(ph >> (32u - LO_LUT_BITS));
-      out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                       lo_sin_lut[idx]);
+      out[i] = CMPLXF (dp_lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                       dp_lo_sin_lut[idx]);
       ph += inc;
     }
   state->phase = ph;
@@ -219,8 +221,8 @@ dp_lo_steps_ctrl (dp_lo_state_t *state, const double *ctrl, size_t ctrl_len,
     {
       uint32_t ctrl_inc = nco_norm_freq_to_inc (ctrl[i]);
       uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
-      out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                       lo_sin_lut[idx]);
+      out[i] = CMPLXF (dp_lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                       dp_lo_sin_lut[idx]);
       ph += inc + ctrl_inc;
     }
   state->phase = ph;

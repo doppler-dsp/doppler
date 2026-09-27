@@ -120,7 +120,7 @@ main (void)
     DP_CHECK (dp_carrier_mpsk_get_m (c) == 4);
 
     dp_carrier_mpsk_state_t v;
-    carrier_mpsk_init (&v, 0.05, 0.707, 0.01, 16, 0.0, 4);
+    dp_carrier_mpsk_init (&v, 0.05, 0.707, 0.01, 16, 0.0, 4);
     DP_CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     DP_CHECK (v.nco.phase_inc == c->nco.phase_inc);
     dp_carrier_mpsk_destroy (c);

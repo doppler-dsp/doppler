@@ -57,7 +57,7 @@ extern "C" {
  * @brief M-PSK carrier loop state.
  *
  * Allocate with dp_carrier_mpsk_create(), or embed by value and
- * carrier_mpsk_init(). The carrier NCO (`nco`) and PI loop (`lf`) are public
+ * dp_carrier_mpsk_init(). The carrier NCO (`nco`) and PI loop (`lf`) are public
  * sub-components so the inline composition helpers can drive them; treat the
  * integrate-and-dump and diagnostic fields as internal.
  */
@@ -94,7 +94,7 @@ typedef struct {
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  * @param m               Constellation order M (2, 4, 8).
  */
-void carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
+void dp_carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
                        int m);
 

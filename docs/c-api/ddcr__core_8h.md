@@ -75,19 +75,18 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* | [**ddcr\_create\_matched**](#function-ddcr_create_matched) (double norm\_freq, double rate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a real-input DDC whose terminal stage IS a matched filter._  |
-|  size\_t | [**ddcr\_execute\_ctrl\_push\_tap**](#function-ddcr_execute_ctrl_push_tap) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo) <br>[_**dp\_ddcr\_execute\_ctrl\_push()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push) _that also hands back the post-LO sample._ |
-|  size\_t | [**ddcr\_execute\_ctrl\_push\_tap2**](#function-ddcr_execute_ctrl_push_tap2) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._ |
-|  double | [**ddcr\_get\_bank\_sps**](#function-ddcr_get_bank_sps) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Samples per symbol of the MFR-input tap; a planner outcome. Identical to the complex twin's at every rate ratio —_ `bank_sps` _is symbol-relative, so the halfband's 2:1 is absorbed by the plan._ |
-|  int | [**ddcr\_set\_telemetry**](#function-ddcr_set_telemetry) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the cascade's AGC._  |
 |  [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* | [**dp\_ddcr\_create**](#function-dp_ddcr_create) (double norm\_freq, double rate) <br>_Create a real-input Digital Down-Converter (Architecture D2). The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) -&gt; fine LO mix at the intermediate rate (fs\_in/2) -&gt; RateConverter -&gt; CF32 output. The halfband stage uses +-1/0 coefficients (no multiplications) and puts the fine LO and the cascade at fs\_in/2. That is worth ~1.1-1.7x in a whole receiver (it halves the rate ahead of the polyphase matched filter, so the gain grows with samples/symbol) and close to nothing for the front end alone_  _see the file header for the measurements. Use it because the input IS real._ |
+|  [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* | [**dp\_ddcr\_create\_matched**](#function-dp_ddcr_create_matched) (double norm\_freq, double rate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a real-input DDC whose terminal stage IS a matched filter._  |
 |  void | [**dp\_ddcr\_destroy**](#function-dp_ddcr_destroy) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Free all resources held by a DDCR instance. Releases the halfband, RateConverter, and LO substructures, then the struct itself. Passing NULL is a no-op._  |
 |  size\_t | [**dp\_ddcr\_execute**](#function-dp_ddcr_execute) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const float \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Process a block of real float32 samples through the full DDCR signal chain: halfband R2C → LO mix → RateConverter → CF32. The halfband decimates by 2 and applies a built-in +fs/4 frequency shift; the fine NCO then completes the tuning. State is maintained across calls for contiguous streaming. Output length ≈ n\_in \* rate (±1 from polyphase indexing). A real tone at input normalised frequency f\_c has amplitude 0.5 in the baseband output (one-sided spectrum), consistent with analytic signal theory._  |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl**](#function-dp_ddcr_execute_ctrl) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const float \* x, size\_t n\_in, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Process a real block, steering both control ports._  |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_max\_out**](#function-dp_ddcr_execute_ctrl_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_As_ [_**dp\_ddcr\_execute\_max\_out()**_](ddcr__core_8h.md#function-dp_ddcr_execute_max_out) _, for the block control-port form._ |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_push**](#function-dp_ddcr_execute_ctrl_push) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE real input sample; emit whatever outputs it completes._  |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_max\_out**](#function-dp_ddcr_execute_ctrl_push_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
+|  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_tap**](#function-dp_ddcr_execute_ctrl_push_tap) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo) <br>[_**dp\_ddcr\_execute\_ctrl\_push()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push) _that also hands back the post-LO sample._ |
+|  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_tap2**](#function-dp_ddcr_execute_ctrl_push_tap2) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**dp\_ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._ |
 |  size\_t | [**dp\_ddcr\_execute\_max\_out**](#function-dp_ddcr_execute_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input)._  |
+|  double | [**dp\_ddcr\_get\_bank\_sps**](#function-dp_ddcr_get_bank_sps) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Samples per symbol of the MFR-input tap; a planner outcome. Identical to the complex twin's at every rate ratio —_ `bank_sps` _is symbol-relative, so the halfband's 2:1 is absorbed by the plan._ |
 |  bool | [**dp\_ddcr\_get\_clipped**](#function-dp_ddcr_get_clipped) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Has the cascade's CIC clipped its input since the last reset?_  |
 |  bool | [**dp\_ddcr\_get\_narrow\_pulse**](#function-dp_ddcr_get_narrow_pulse) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Is this object's rectangular matched filter degenerately narrow?_  |
 |  double | [**dp\_ddcr\_get\_norm\_freq**](#function-dp_ddcr_get_norm_freq) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Return the current fine NCO normalised frequency at the intermediate rate (fs\_in/2, cycles/sample)._  |
@@ -97,6 +96,7 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 |  size\_t | [**dp\_ddcr\_run**](#function-dp_ddcr_run) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const void \* state\_in, void \* state\_out, const float \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Pure run: inject_ `state_in` _, process_`in` _, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config. Either state may be NULL (NULL in = use current; NULL out = discard)._`state_in` _/_`state_out` _may alias._ |
 |  void | [**dp\_ddcr\_set\_norm\_freq**](#function-dp_ddcr_set_norm_freq) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, double norm\_freq) <br>_Retune the fine NCO without resetting halfband or resampler history. Updates the LO phase increment only; state is preserved for seamless tuning across block boundaries._  |
 |  int | [**dp\_ddcr\_set\_state**](#function-dp_ddcr_set_state) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const void \* blob) <br>_Restore full-chain state from_ `blob` _into_`s` _._ |
+|  int | [**dp\_ddcr\_set\_telemetry**](#function-dp_ddcr_set_telemetry) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the cascade's AGC._  |
 |  size\_t | [**dp\_ddcr\_state\_bytes**](#function-dp_ddcr_state_bytes) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Byte size of_ `s's` _state blob (envelope + extra + chain)._ |
 
 
@@ -159,7 +159,7 @@ What that is worth, measured rather than assumed: for the FRONT END alone, again
 Where the half rate DOES pay is a whole receiver, because it halves the sample rate ahead of the polyphase matched filter: MpskReceiverR against MpskReceiver on the same stream measures 1.13x at sps=20/m\_out=8, 1.50x at sps=32/m\_out=8 and 1.69x at sps=64/m\_out=8. It rises toward 2x with sps (more of the total cost is then pre-MF) but cannot reach it, since both paths fire the same m\_out terminal dot products per symbol and those dominate at low sps. Choose DdcR because your input IS real, not for a factor of two.
 
 
-Like Ddc it has a matched _flavor_ (ddcr\_create\_matched, Python `MatchedDdcr`) that puts the pulse on the cascade's terminal stage, and the same two control ports — see [**ddc/ddc\_core.h**](ddc__core_8h.md)'s file header for what the ports are and why they are duals.
+Like Ddc it has a matched _flavor_ (dp\_ddcr\_create\_matched, Python `MatchedDdcr`) that puts the pulse on the cascade's terminal stage, and the same two control ports — see [**ddc/ddc\_core.h**](ddc__core_8h.md)'s file header for what the ports are and why they are duals.
 
 
 
@@ -189,7 +189,7 @@ typedef struct ddcr_state dp_ddcr_state_t;
 
 
 
-Do not initialise directly; use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) or [**ddcr\_create\_matched()**](ddcr__core_8h.md#function-ddcr_create_matched). 
+Do not initialise directly; use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) or [**dp\_ddcr\_create\_matched()**](ddcr__core_8h.md#function-dp_ddcr_create_matched). 
 
 
         
@@ -197,236 +197,6 @@ Do not initialise directly; use [**dp\_ddcr\_create()**](ddcr__core_8h.md#functi
 <hr>
 ## Public Functions Documentation
 
-
-
-
-### function ddcr\_create\_matched 
-
-_Create a real-input DDC whose terminal stage IS a matched filter._ 
-```C++
-dp_ddcr_state_t * ddcr_create_matched (
-    double norm_freq,
-    double rate,
-    int pulse,
-    double beta,
-    size_t span,
-    double pulse_sps,
-    size_t num_phases
-) 
-```
-
-
-
-The matched flavor of DdcR (Python: `MatchedDdcr`), and identical to [**ddc\_create\_matched()**](ddc__core_8h.md#function-ddc_create_matched) from the LO onwards — the halfband R2C front end is a fixed 2:1 integer stage, so the pulse still lands on the cascade's terminal stage and both control ports mean exactly what they mean there.
-
-
-Note the rate arithmetic the halfband imposes: the cascade behind it runs at `2*rate`, and this function does that on the caller's behalf, so a caller wanting `m` outputs per symbol still passes the TOTAL `rate = m/sps`. `pulse_sps` is in **output** samples, so the front end does not affect it.
-
-
-
-
-**Parameters:**
-
-
-* `norm_freq` Fine NCO frequency at the INTERMEDIATE rate (fs\_in/2) — the same reference [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) uses. 
-* `rate` Total output/input rate; must be in (0, 0.5). 
-* `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD (RC\_PULSE\_NONE is invalid here — use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create)). 
-* `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
-* `span` One-sided RRC span in symbols (ignored for the rectangle). 
-* `pulse_sps` The pulse's period in **output** samples. 
-* `num_phases` Terminal-stage arms; a power of two. 
-
-
-
-**Returns:**
-
-Non-NULL on success, NULL on a bad parameter or OOM.
-
-
-
-```C++
->>> from doppler.ddc import MatchedDdcr
->>> rx = MatchedDdcr(norm_freq=-0.6875, rate=2 / 16, pulse="rrc")
->>> rx.rate
-0.125
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function ddcr\_execute\_ctrl\_push\_tap 
-
-[_**dp\_ddcr\_execute\_ctrl\_push()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push) _that also hands back the post-LO sample._
-```C++
-size_t ddcr_execute_ctrl_push_tap (
-    dp_ddcr_state_t * s,
-    float x,
-    double rate_ctrl,
-    double freq_ctrl,
-    float _Complex * out,
-    size_t max_out,
-    float _Complex * lo_out,
-    int * n_lo
-) 
-```
-
-
-
-The real-input twin of [**ddc\_execute\_ctrl\_push\_tap()**](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap); see that function for why the tap exists (a carrier discriminator's unambiguous range is set by the rate it updates at, so a caller may want the widest, least-filtered stream rather than the cleanest one).
-
-
-The one difference is that this front end does NOT mix every input: the 2:1 halfband consumes two real inputs per intermediate sample, so `n_lo` comes back 0 on every other push and `lo_out` is untouched. The tapped stream therefore runs at `fs_in/2`, the LO's own rate — half as fast as the complex twin's for the same nominal `sps`, which halves this tap's frequency range in input-referred terms exactly as it halves everything else the LO sees.
-
-
-
-
-**Parameters:**
-
-
-* `s` Must be non-NULL. 
-* `x` One real float32 input sample. 
-* `rate_ctrl` Rate deviation for this input (terminal-stage rate). 
-* `freq_ctrl` Frequency deviation, cycles/sample at fs\_in/2. 
-* `out` Output buffer for any emitted outputs. 
-* `max_out` Capacity of `out`. 
-* `lo_out` Receives the post-LO, pre-cascade sample when `n_lo` comes back 1. May be NULL. 
-* `n_lo` Receives 1 when the halfband fired for this input and the LO stepped, 0 otherwise. May be NULL. 
-
-
-
-**Returns:**
-
-Number of terminal outputs written (0, 1, or more). 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ddcr\_execute\_ctrl\_push\_tap2 
-
-[_**ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._
-```C++
-size_t ddcr_execute_ctrl_push_tap2 (
-    dp_ddcr_state_t * s,
-    float x,
-    double rate_ctrl,
-    double freq_ctrl,
-    float _Complex * out,
-    size_t max_out,
-    float _Complex * lo_out,
-    int * n_lo,
-    float _Complex * pre_out,
-    int * n_pre
-) 
-```
-
-
-
-The real-input twin of [**ddc\_execute\_ctrl\_push\_tap2()**](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap2). `pre_out` receives the cascade's output after every integer stage and after the AGC but ahead of the terminal matched filter — the node an NDA carrier discriminator can read with no symbol timing. Its rate is [**ddcr\_get\_bank\_sps()**](ddcr__core_8h.md#function-ddcr_get_bank_sps) samples per symbol.
-
-
-The halfband gates the whole call: on the inputs it swallows there is no LO step and no cascade push, so `n_lo` and `n_pre` both come back 0.
-
-
-
-
-**Parameters:**
-
-
-* `s` Must be non-NULL. 
-* `x` One real input sample. 
-* `rate_ctrl` Rate deviation for this input (terminal-stage rate). 
-* `freq_ctrl` Frequency deviation, cycles/sample at the LO's own (halved) intermediate rate. 
-* `out` Output buffer for any emitted outputs. 
-* `max_out` Capacity of `out`. 
-* `lo_out` Receives the post-LO, pre-cascade sample when `n_lo` comes back 1. May be NULL. 
-* `n_lo` Receives 1 when the halfband emitted and the LO stepped, else 0. May be NULL. 
-* `pre_out` Receives the MFR-input sample; may be NULL. 
-* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
-
-
-
-**Returns:**
-
-Number of terminal outputs written. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ddcr\_get\_bank\_sps 
-
-_Samples per symbol of the MFR-input tap; a planner outcome. Identical to the complex twin's at every rate ratio —_ `bank_sps` _is symbol-relative, so the halfband's 2:1 is absorbed by the plan._
-```C++
-double ddcr_get_bank_sps (
-    const dp_ddcr_state_t * s
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function ddcr\_set\_telemetry 
-
-_Attach (or detach) a telemetry context on the cascade's AGC._ 
-```C++
-int ddcr_set_telemetry (
-    dp_ddcr_state_t * s,
-    dp_tlm_t * tlm,
-    const char * prefix,
-    uint32_t decim
-) 
-```
-
-
-
-The twin of [**ddc\_set\_telemetry()**](ddc__core_8h.md#function-ddc_set_telemetry), forwarded to the same [**RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-rateconverter_set_telemetry) over the same cascade: the R2C front end and the fixed stages have no loop to report, so the one instrumented child is the pre-terminal AGC ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"). DP\_OK with no probes when the cascade has no AGC enabled.
-
-
-
-
-**Parameters:**
-
-
-* `s` Must be non-NULL. 
-* `tlm` Telemetry context to attach, or NULL to detach. 
-* `prefix` Probe-name prefix, e.g. "rx.agc". 
-* `decim` Emit every decim-th gain update; &gt;= 1. 
-
-
-
-**Returns:**
-
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole). 
-
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -465,6 +235,65 @@ Non-NULL on success, NULL on OOM or invalid args.
 -0.7
 >>> ddcr.rate
 0.25
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ddcr\_create\_matched 
+
+_Create a real-input DDC whose terminal stage IS a matched filter._ 
+```C++
+dp_ddcr_state_t * dp_ddcr_create_matched (
+    double norm_freq,
+    double rate,
+    int pulse,
+    double beta,
+    size_t span,
+    double pulse_sps,
+    size_t num_phases
+) 
+```
+
+
+
+The matched flavor of DdcR (Python: `MatchedDdcr`), and identical to [**dp\_ddc\_create\_matched()**](ddc__core_8h.md#function-dp_ddc_create_matched) from the LO onwards — the halfband R2C front end is a fixed 2:1 integer stage, so the pulse still lands on the cascade's terminal stage and both control ports mean exactly what they mean there.
+
+
+Note the rate arithmetic the halfband imposes: the cascade behind it runs at `2*rate`, and this function does that on the caller's behalf, so a caller wanting `m` outputs per symbol still passes the TOTAL `rate = m/sps`. `pulse_sps` is in **output** samples, so the front end does not affect it.
+
+
+
+
+**Parameters:**
+
+
+* `norm_freq` Fine NCO frequency at the INTERMEDIATE rate (fs\_in/2) — the same reference [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create) uses. 
+* `rate` Total output/input rate; must be in (0, 0.5). 
+* `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD (RC\_PULSE\_NONE is invalid here — use [**dp\_ddcr\_create()**](ddcr__core_8h.md#function-dp_ddcr_create)). 
+* `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
+* `span` One-sided RRC span in symbols (ignored for the rectangle). 
+* `pulse_sps` The pulse's period in **output** samples. 
+* `num_phases` Terminal-stage arms; a power of two. 
+
+
+
+**Returns:**
+
+Non-NULL on success, NULL on a bad parameter or OOM.
+
+
+
+```C++
+>>> from doppler.ddc import MatchedDdcr
+>>> rx = MatchedDdcr(norm_freq=-0.6875, rate=2 / 16, pulse="rrc")
+>>> rx.rate
+0.125
 ```
  
 
@@ -712,12 +541,140 @@ size_t dp_ddcr_execute_ctrl_push_max_out (
 
 
 
+### function dp\_ddcr\_execute\_ctrl\_push\_tap 
+
+[_**dp\_ddcr\_execute\_ctrl\_push()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push) _that also hands back the post-LO sample._
+```C++
+size_t dp_ddcr_execute_ctrl_push_tap (
+    dp_ddcr_state_t * s,
+    float x,
+    double rate_ctrl,
+    double freq_ctrl,
+    float _Complex * out,
+    size_t max_out,
+    float _Complex * lo_out,
+    int * n_lo
+) 
+```
+
+
+
+The real-input twin of [**dp\_ddc\_execute\_ctrl\_push\_tap()**](ddc__core_8h.md#function-dp_ddc_execute_ctrl_push_tap); see that function for why the tap exists (a carrier discriminator's unambiguous range is set by the rate it updates at, so a caller may want the widest, least-filtered stream rather than the cleanest one).
+
+
+The one difference is that this front end does NOT mix every input: the 2:1 halfband consumes two real inputs per intermediate sample, so `n_lo` comes back 0 on every other push and `lo_out` is untouched. The tapped stream therefore runs at `fs_in/2`, the LO's own rate — half as fast as the complex twin's for the same nominal `sps`, which halves this tap's frequency range in input-referred terms exactly as it halves everything else the LO sees.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `x` One real float32 input sample. 
+* `rate_ctrl` Rate deviation for this input (terminal-stage rate). 
+* `freq_ctrl` Frequency deviation, cycles/sample at fs\_in/2. 
+* `out` Output buffer for any emitted outputs. 
+* `max_out` Capacity of `out`. 
+* `lo_out` Receives the post-LO, pre-cascade sample when `n_lo` comes back 1. May be NULL. 
+* `n_lo` Receives 1 when the halfband fired for this input and the LO stepped, 0 otherwise. May be NULL. 
+
+
+
+**Returns:**
+
+Number of terminal outputs written (0, 1, or more). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ddcr\_execute\_ctrl\_push\_tap2 
+
+[_**dp\_ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._
+```C++
+size_t dp_ddcr_execute_ctrl_push_tap2 (
+    dp_ddcr_state_t * s,
+    float x,
+    double rate_ctrl,
+    double freq_ctrl,
+    float _Complex * out,
+    size_t max_out,
+    float _Complex * lo_out,
+    int * n_lo,
+    float _Complex * pre_out,
+    int * n_pre
+) 
+```
+
+
+
+The real-input twin of [**dp\_ddc\_execute\_ctrl\_push\_tap2()**](ddc__core_8h.md#function-dp_ddc_execute_ctrl_push_tap2). `pre_out` receives the cascade's output after every integer stage and after the AGC but ahead of the terminal matched filter — the node an NDA carrier discriminator can read with no symbol timing. Its rate is [**dp\_ddcr\_get\_bank\_sps()**](ddcr__core_8h.md#function-dp_ddcr_get_bank_sps) samples per symbol.
+
+
+The halfband gates the whole call: on the inputs it swallows there is no LO step and no cascade push, so `n_lo` and `n_pre` both come back 0.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `x` One real input sample. 
+* `rate_ctrl` Rate deviation for this input (terminal-stage rate). 
+* `freq_ctrl` Frequency deviation, cycles/sample at the LO's own (halved) intermediate rate. 
+* `out` Output buffer for any emitted outputs. 
+* `max_out` Capacity of `out`. 
+* `lo_out` Receives the post-LO, pre-cascade sample when `n_lo` comes back 1. May be NULL. 
+* `n_lo` Receives 1 when the halfband emitted and the LO stepped, else 0. May be NULL. 
+* `pre_out` Receives the MFR-input sample; may be NULL. 
+* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
+
+
+
+**Returns:**
+
+Number of terminal outputs written. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_ddcr\_execute\_max\_out 
 
 _Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input)._ 
 ```C++
 size_t dp_ddcr_execute_max_out (
     dp_ddcr_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ddcr\_get\_bank\_sps 
+
+_Samples per symbol of the MFR-input tap; a planner outcome. Identical to the complex twin's at every rate ratio —_ `bank_sps` _is symbol-relative, so the halfband's 2:1 is absorbed by the plan._
+```C++
+double dp_ddcr_get_bank_sps (
+    const dp_ddcr_state_t * s
 ) 
 ```
 
@@ -959,6 +916,49 @@ int dp_ddcr_set_state (
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID if the envelope/rate disagree with `s` (rebuild the engine from the matching descriptor first). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ddcr\_set\_telemetry 
+
+_Attach (or detach) a telemetry context on the cascade's AGC._ 
+```C++
+int dp_ddcr_set_telemetry (
+    dp_ddcr_state_t * s,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+The twin of [**dp\_ddc\_set\_telemetry()**](ddc__core_8h.md#function-dp_ddc_set_telemetry), forwarded to the same [**dp\_RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-dp_rateconverter_set_telemetry) over the same cascade: the R2C front end and the fixed stages have no loop to report, so the one instrumented child is the pre-terminal AGC ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"). DP\_OK with no probes when the cascade has no AGC enabled.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix, e.g. "rx.agc". 
+* `decim` Emit every decim-th gain update; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole). 
 
 
 

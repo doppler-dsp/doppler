@@ -2,7 +2,7 @@
  * @file ddcr_core.c
  * @brief Real-input Digital Down-Converter implementation.
  *
- * hbdecim_r2c_execute → dp_lo_steps → element-wise multiply →
+ * dp_hbdecim_r2c_execute → dp_lo_steps → element-wise multiply →
  * dp_RateConverter_execute; the control-port variants replace dp_lo_steps with
  * a per-sample lo_step_ctrl and dp_RateConverter_execute with
  * dp_RateConverter_execute_ctrl, and the push forms do the same one sample at
@@ -57,7 +57,7 @@ ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
   if (!s)
     return NULL;
 
-  s->r2c = hbdecim_r2c_create (DDC_HB_TAPS, s_hb_fir);
+  s->r2c = dp_hbdecim_r2c_create (DDC_HB_TAPS, s_hb_fir);
   if (!s->r2c)
     {
       free (s);
@@ -66,23 +66,23 @@ ddcr_ddcr_new (double norm_freq, double rate, int pulse, double beta,
   s->lo = dp_lo_create (norm_freq);
   if (!s->lo)
     {
-      hbdecim_r2c_destroy (s->r2c);
+      dp_hbdecim_r2c_destroy (s->r2c);
       free (s);
       return NULL;
     }
   /*
    * The halfband decimates by 2, so the cascade sees fs_in/2.  To achieve
    * total rate = fs_out/fs_in it must run at 2*rate.  The pulse / compensate
-   * contract is identical to ddc_create_matched()'s.
+   * contract is identical to dp_ddc_create_matched()'s.
    */
   s->rc = (pulse == RC_PULSE_NONE)
               ? dp_RateConverter_create (2.0 * rate, 0)
-              : RateConverter_create_matched (2.0 * rate, 1, pulse, beta, span,
-                                              pulse_sps, num_phases);
+              : dp_RateConverter_create_matched (2.0 * rate, 1, pulse, beta,
+                                                 span, pulse_sps, num_phases);
   if (!s->rc)
     {
       dp_lo_destroy (s->lo);
-      hbdecim_r2c_destroy (s->r2c);
+      dp_hbdecim_r2c_destroy (s->r2c);
       free (s);
       return NULL;
     }
@@ -100,8 +100,8 @@ dp_ddcr_create (double norm_freq, double rate)
 }
 
 dp_ddcr_state_t *
-ddcr_create_matched (double norm_freq, double rate, int pulse, double beta,
-                     size_t span, double pulse_sps, size_t num_phases)
+dp_ddcr_create_matched (double norm_freq, double rate, int pulse, double beta,
+                        size_t span, double pulse_sps, size_t num_phases)
 {
   if (pulse == RC_PULSE_NONE)
     return NULL;
@@ -114,7 +114,7 @@ dp_ddcr_destroy (dp_ddcr_state_t *s)
 {
   if (!s)
     return;
-  hbdecim_r2c_destroy (s->r2c);
+  dp_hbdecim_r2c_destroy (s->r2c);
   dp_lo_destroy (s->lo);
   dp_RateConverter_destroy (s->rc);
   free (s);
@@ -123,7 +123,7 @@ dp_ddcr_destroy (dp_ddcr_state_t *s)
 void
 dp_ddcr_reset (dp_ddcr_state_t *s)
 {
-  hbdecim_r2c_reset (s->r2c);
+  dp_hbdecim_r2c_reset (s->r2c);
   dp_lo_reset (s->lo);
   dp_RateConverter_reset (s->rc);
 }
@@ -136,7 +136,7 @@ size_t
 dp_ddcr_state_bytes (const dp_ddcr_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (ddcr_extra_t)
-         + hbdecim_r2c_state_bytes (s->r2c) + dp_lo_state_bytes (s->lo)
+         + dp_hbdecim_r2c_state_bytes (s->r2c) + dp_lo_state_bytes (s->lo)
          + dp_RateConverter_state_bytes (s->rc);
 }
 
@@ -145,7 +145,7 @@ dp_ddcr_get_state (const dp_ddcr_state_t *s, void *blob)
 {
   DP_GET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, dp_ddcr_state_bytes (s));
   dp_w_f64 (&_w, s->rate); /* ddcr_extra_t */
-  DP_W_CHILD (&_w, hbdecim_r2c, s->r2c);
+  DP_W_CHILD (&_w, dp_hbdecim_r2c, s->r2c);
   DP_W_CHILD (&_w, dp_lo, s->lo);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
 }
@@ -156,7 +156,7 @@ dp_ddcr_set_state (dp_ddcr_state_t *s, const void *blob)
   DP_SET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, dp_ddcr_state_bytes (s));
   if (dp_r_f64 (&_r) != s->rate) /* ddcr_extra_t.rate is the layout key */
     return DP_ERR_INVALID;
-  DP_R_CHILD (&_r, hbdecim_r2c, s->r2c);
+  DP_R_CHILD (&_r, dp_hbdecim_r2c, s->r2c);
   DP_R_CHILD (&_r, dp_lo, s->lo);
   DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   return DP_OK;
@@ -218,7 +218,7 @@ dp_ddcr_execute (dp_ddcr_state_t *s, const float *in, size_t n_in,
   if (!hb_buf)
     return 0;
 
-  size_t n_hb = hbdecim_r2c_execute (s->r2c, in, n_in, hb_buf, hb_max);
+  size_t n_hb = dp_hbdecim_r2c_execute (s->r2c, in, n_in, hb_buf, hb_max);
 
   if (n_hb == 0)
     {
@@ -257,7 +257,7 @@ dp_ddcr_execute_ctrl (dp_ddcr_state_t *s, const float *x, size_t n_in,
   if (!hb_buf)
     return 0;
 
-  size_t n_hb = hbdecim_r2c_execute (s->r2c, x, n_in, hb_buf, hb_max);
+  size_t n_hb = dp_hbdecim_r2c_execute (s->r2c, x, n_in, hb_buf, hb_max);
   if (n_hb == 0)
     {
       free (hb_buf);
@@ -276,25 +276,26 @@ dp_ddcr_execute_ctrl (dp_ddcr_state_t *s, const float *x, size_t n_in,
 }
 
 size_t
-ddcr_execute_ctrl_push_tap (dp_ddcr_state_t *s, float x, double rate_ctrl,
-                            double freq_ctrl, float _Complex *out,
-                            size_t max_out, float _Complex *lo_out, int *n_lo)
+dp_ddcr_execute_ctrl_push_tap (dp_ddcr_state_t *s, float x, double rate_ctrl,
+                               double freq_ctrl, float _Complex *out,
+                               size_t max_out, float _Complex *lo_out,
+                               int *n_lo)
 {
-  return ddcr_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out, max_out,
-                                      lo_out, n_lo, NULL, NULL);
+  return dp_ddcr_execute_ctrl_push_tap2 (s, x, rate_ctrl, freq_ctrl, out,
+                                         max_out, lo_out, n_lo, NULL, NULL);
 }
 
 size_t
-ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x, double rate_ctrl,
-                             double freq_ctrl, float _Complex *out,
-                             size_t max_out, float _Complex *lo_out, int *n_lo,
-                             float _Complex *pre_out, int *n_pre)
+dp_ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x, double rate_ctrl,
+                                double freq_ctrl, float _Complex *out,
+                                size_t max_out, float _Complex *lo_out,
+                                int *n_lo, float _Complex *pre_out, int *n_pre)
 {
   /* The 2:1 halfband is the block API's own state machine — one sample in,
      0 or 1 intermediate samples out.  Half the pushes end here, and on those
      the LO does not step at all, so there is no post-LO sample to tap. */
   float _Complex z;
-  if (hbdecim_r2c_execute (s->r2c, &x, 1, &z, 1) == 0)
+  if (dp_hbdecim_r2c_execute (s->r2c, &x, 1, &z, 1) == 0)
     {
       if (n_lo)
         *n_lo = 0;
@@ -308,14 +309,14 @@ ddcr_execute_ctrl_push_tap2 (dp_ddcr_state_t *s, float x, double rate_ctrl,
     *lo_out = z;
   if (n_lo)
     *n_lo = 1;
-  return RateConverter_execute_ctrl_push_tap (s->rc, z, rate_ctrl, out,
-                                              max_out, pre_out, n_pre);
+  return dp_RateConverter_execute_ctrl_push_tap (s->rc, z, rate_ctrl, out,
+                                                 max_out, pre_out, n_pre);
 }
 
 double
-ddcr_get_bank_sps (const dp_ddcr_state_t *s)
+dp_ddcr_get_bank_sps (const dp_ddcr_state_t *s)
 {
-  return RateConverter_get_bank_sps (s->rc);
+  return dp_RateConverter_get_bank_sps (s->rc);
 }
 
 size_t
@@ -323,8 +324,8 @@ dp_ddcr_execute_ctrl_push (dp_ddcr_state_t *s, float x, double rate_ctrl,
                            double freq_ctrl, float _Complex *out,
                            size_t max_out)
 {
-  return ddcr_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out, max_out,
-                                     NULL, NULL);
+  return dp_ddcr_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out,
+                                        max_out, NULL, NULL);
 }
 
 bool
@@ -340,8 +341,8 @@ dp_ddcr_get_clipped (const dp_ddcr_state_t *s)
 }
 
 int
-ddcr_set_telemetry (dp_ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
-                    uint32_t decim)
+dp_ddcr_set_telemetry (dp_ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                       uint32_t decim)
 {
-  return RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
+  return dp_RateConverter_set_telemetry (s->rc, tlm, prefix, decim);
 }

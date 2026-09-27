@@ -75,7 +75,7 @@ main (void)
         printf ("  %-10.6f  %-8d  ", rates[r], rc->n_stages);
         for (int s = 0; s < rc->n_stages; s++)
           {
-            RateConverter_stage_label (rc, s, label, sizeof (label));
+            dp_RateConverter_stage_label (rc, s, label, sizeof (label));
             if (s > 0)
               printf (" → ");
             printf ("%s", label);

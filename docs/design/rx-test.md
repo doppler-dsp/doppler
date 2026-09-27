@@ -24,7 +24,7 @@ been met.
     detect, a window that has not settled, too few trials for the interval
     claimed — each is a refusal to report, not a number with a caveat.
 1. **Every measurement primitive is itself tested, and proven by sabotage.**
-    `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` and the harness headers
+    `dp_ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` and the harness headers
     that wrap them. A test nobody has watched fail is not evidence.
 1. **Anchored to theory, not to itself.** Every rate is checked against
     closed form (`ber_theory_ser`, `ber_esn0_db_for_ser`), so "all
@@ -190,10 +190,10 @@ ______________________________________________________________________
 ### 2.1 `ber_core.h` — the theory and the window
 
 ```
-ber_qfunc              ber_theory_ser          ber_theory_ber
+dp_ber_qfunc              ber_theory_ser          ber_theory_ber
 ber_esn0_db_for_ser    ber_evm_scatter_floor_db
 ber_settle_syms        ber_settle_from         ber_lock_symbol
-ber_evm_db             ber_confidence
+ber_evm_db             dp_ber_confidence
 ```
 
 `ber_esn0_db_for_ser` is what anchors a measurement to theory rather than to
@@ -203,13 +203,13 @@ itself. `ber_settle_syms` / `ber_settle_from` define the settled window;
 ### 2.2 `ber_meter_core.h` — alignment and accumulation
 
 ```
-ber_align_detect   ber_align_t        dp_ber_meter_create   dp_ber_meter_set_truth
-ber_meter_detect   dp_ber_meter_align    dp_ber_meter_score    ber_meter_set_align
+dp_ber_align_detect   ber_align_t        dp_ber_meter_create   dp_ber_meter_set_truth
+dp_ber_meter_detect   dp_ber_meter_align    dp_ber_meter_score    dp_ber_meter_set_align
 dp_ber_meter_get_enough                  dp_ber_meter_interval
 dp_ber_meter_ser      dp_ber_meter_ber      dp_ber_meter_get_errors
 ```
 
-`ber_align_detect` is the primitive that decides where the received stream
+`dp_ber_align_detect` is the primitive that decides where the received stream
 sits against truth. `dp_ber_meter_get_enough` answers "have I run enough trials",
 and `dp_ber_meter_interval` gives the confidence interval.
 
@@ -260,7 +260,7 @@ is that **they fail differently**. Each already exists in the library:
 
 | metric        | needs                                            | primitive                                                                     | test-layer wrapper                |
 | ------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------- |
-| **BER / SER** | external truth **and** alignment                 | `dp_ber_meter_score`, `ber_align_detect`                                      | `dp_ber_measure`                  |
+| **BER / SER** | external truth **and** alignment                 | `dp_ber_meter_score`, `dp_ber_align_detect`                                   | `dp_ber_measure`                  |
 | **EVM**       | nothing — self-referenced against hard decisions | `ber_evm_db`                                                                  | `dp_test_evm_db_hard{,_m,_range}` |
 | **M2M4**      | nothing — blind, from 2nd/4th moments            | `snr_m2m4_db` (`native/inc/doppler/snr/snr_core.h`, Pauluzzi & Beaulieu 2000) | `dp_test_m2m4_snr_db{,_range}`    |
 
@@ -320,17 +320,17 @@ What exists today:
 ~~What does not exist: **any accumulation across frames.**~~ **`frame_meter`
 now does** (`native/inc/doppler/frame_meter/frame_meter_core.h`,
 `doppler.ber.FrameMeter`): frames attempted / sync detected / CRC passed, an
-FER and a sync-MISS rate each with `ber_confidence`'s exact interval, the same
+FER and a sync-MISS rate each with `dp_ber_confidence`'s exact interval, the same
 stop-on-errors rule as `ber_meter`, and the state triplet so a record can be
 split across processes and still add up to one measurement. It was shaped
 after its sibling exactly as this section argued it should be, and it reuses
 that interval rather than growing a second one.
 
 Two things this section did not say, both worth recording. **Sharing the
-interval means sharing the STOPPING RULE**: `ber_confidence` is exact for
+interval means sharing the STOPPING RULE**: `dp_ber_confidence` is exact for
 inverse-binomial sampling, so a fixed-frame-count meter would be handing a
 binomial measurement to a Gamma/chi-square interval — the header states the
-convention rather than leaving it to be assumed. And **`ber_confidence` is
+convention rather than leaving it to be assumed. And **`dp_ber_confidence` is
 declared in `ber/ber_core.h` but DEFINED in `ber_meter_core.c`**, because jm
 can only return a record from an object method; reusing it therefore means
 depending on the sibling that houses it, which `frame_meter.toml` says out
@@ -342,7 +342,7 @@ localising a degradation to a frame rather than smearing it across a record
 needs that series.
 
 The shape it should take is already set by its sibling: `ber_meter_*`
-accumulates symbol outcomes and reports an interval via `ber_confidence (errors, symbols, conf)` — which is a binomial confidence interval and is
+accumulates symbol outcomes and reports an interval via `dp_ber_confidence (errors, symbols, conf)` — which is a binomial confidence interval and is
 therefore **already generic over frames**. A frame-statistics accumulator
 reuses it rather than inventing a second one, and the natural read-backs are
 frames attempted / sync detected / CRC passed, plus the trio evaluated
@@ -454,11 +454,11 @@ Five findings, each measured above rather than asserted.
 
 ### 5.1 The two primitives every receiver number rests on have no direct test
 
-| primitive          | defined                | referenced in the tree                                              | own test      |
-| ------------------ | ---------------------- | ------------------------------------------------------------------- | ------------- |
-| `ber_align_detect` | `ber_meter_core.c:133` | **only** `dp_ber_test.h:300`                                        | **none**      |
-| `ber_evm_db`       | `ber_core.h:247`       | `dp_ber_test.h`, `dp_sym_test.h`, `test_ratesync_core.c`            | **none**      |
-| `snr_m2m4_db`      | `snr_core.h:100`       | `dp_sym_test.h`, `dp_ber_test.h`, `test_async_dsss_receiver_core.c` | **no C test** |
+| primitive             | defined                | referenced in the tree                                              | own test      |
+| --------------------- | ---------------------- | ------------------------------------------------------------------- | ------------- |
+| `dp_ber_align_detect` | `ber_meter_core.c:133` | **only** `dp_ber_test.h:300`                                        | **none**      |
+| `ber_evm_db`          | `ber_core.h:247`       | `dp_ber_test.h`, `dp_sym_test.h`, `test_ratesync_core.c`            | **none**      |
+| `snr_m2m4_db`         | `snr_core.h:100`       | `dp_sym_test.h`, `dp_ber_test.h`, `test_async_dsss_receiver_core.c` | **no C test** |
 
 `test_dp_ber.c` is 637 lines and covers `dp_ber_ci` (18 references) and
 `ber_settle` (5). It contains **zero** references to either of the first two.
@@ -955,7 +955,7 @@ not: 20 000 symbols at SER 1e-3 yields ~20 errors and ~22% relative error,
 which reads as seed-to-seed variation in the receiver rather than as sampling
 noise.
 
-doppler already gets this right on both sides. `ber_confidence()` is
+doppler already gets this right on both sides. `dp_ber_confidence()` is
 documented as the "exact confidence interval for a run stopped on an ERROR
 count", built from the chi-square/gamma relation via doppler's own inverse
 regularized incomplete gamma — **no normal approximation anywhere**, so it
@@ -1001,7 +1001,7 @@ the convention exactly is not the failure mode this is about.
 
 Ordered so that nothing depends on an unpinned measurement:
 
-1. **Pin the trio** (§5.1). `ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
+1. **Pin the trio** (§5.1). `dp_ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
     known-answer tests plus sabotage, and a `native/tests/test_snr_core.c`
     where none exists. Nothing below is trustworthy until this is done.
 1. ~~**Test the five untested harness headers**~~ **DONE** (§5.2) — all five,
@@ -1027,12 +1027,12 @@ Ordered so that nothing depends on an unpinned measurement:
     supports them and no face can spell one, so a long capture is still
     reproducible only from a stored array.
 1. ~~**Frame statistics** (§2.5) beside `ber_meter`~~ **DONE** — `frame_meter`
-    / `doppler.ber.FrameMeter`, reusing `ber_confidence` for the interval and
+    / `doppler.ber.FrameMeter`, reusing `dp_ber_confidence` for the interval and
     therefore its stopping rule. This is what makes FER, and therefore the
     false-lock detector, available.
 1. **Converge the harness onto the library** — ~~stage 2 to `wfm_synth`~~
     (**done, §8.4**, and the generator verified with it), stage 8 to
-    `ber_confidence` (already there — §8.1), ~~stage 7 gaining M2M4 and FER~~
+    `dp_ber_confidence` (already there — §8.1), ~~stage 7 gaining M2M4 and FER~~
     (**done**: M2M4 in §8.6, FER in **§8.7**, which is the whole sequence run
     on `MpskReceiver`). The convergence is held from reversing by the
     stimulus's own measurements (§8.2), not by a provenance marker.

@@ -327,12 +327,12 @@ FFTObj_execute_int (FFTObject *self, PyObject *args, int is8)
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t          n_out
-      = is8 ? fft_execute_ci8 (self->handle,
-                               (const int8_t *)PyArray_DATA (in_arr),
-                               (size_t)n, _d0)
-            : fft_execute_ci16 (self->handle,
-                                (const int16_t *)PyArray_DATA (in_arr),
-                                (size_t)n, _d0);
+      = is8 ? dp_fft_execute_ci8 (self->handle,
+                                  (const int8_t *)PyArray_DATA (in_arr),
+                                  (size_t)n, _d0)
+            : dp_fft_execute_ci16 (self->handle,
+                                   (const int16_t *)PyArray_DATA (in_arr),
+                                   (size_t)n, _d0);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     return arr0;

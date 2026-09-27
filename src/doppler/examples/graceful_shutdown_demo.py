@@ -24,7 +24,7 @@ library's and not any one binding's:
 - **Python API** — ``Composer`` into a ``StreamSink``, with the loop
   checking the ``Interrupt`` guard and ending with
   ``send_eos()`` then ``drain()``. This is what a script does.
-- **C API** — ``doppler_wfmgen(argc, argv)``, the same CLI as a callable,
+- **C API** — ``dp_doppler_wfmgen(argc, argv)``, the same CLI as a callable,
   demonstrated by ``native/examples/graceful_shutdown_demo.c``.
 
 Run it::

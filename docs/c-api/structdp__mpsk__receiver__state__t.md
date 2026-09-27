@@ -89,7 +89,7 @@ _M-PSK receiver state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create) (complex input) or [**mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-mpsk_receiver_create_real) (real IF). Owns one matched front end (`fe`) and embeds the loops by value. Treat all fields as internal (use the getters); they are exposed for the inline sample loop. 
+Allocate with [**dp\_mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create) (complex input) or [**dp\_mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create_real) (real IF). Owns one matched front end (`fe`) and embeds the loops by value. Treat all fields as internal (use the getters); they are exposed for the inline sample loop. 
 
 
     

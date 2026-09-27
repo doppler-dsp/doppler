@@ -264,7 +264,7 @@ test_the_object_applies_the_kernels_permutation (void)
   return 0;
 }
 
-/* The RECEIVE face. `interleaver_create_rx` had zero mentions in this file:
+/* The RECEIVE face. `dp_interleaver_create_rx` had zero mentions in this file:
  * the header claims identical construction and the same refusals, and the
  * only evidence for either was that one line of C reads like it. What makes
  * the claim matter is the link -- a transmitter's Interleaver and a
@@ -275,7 +275,7 @@ test_the_receive_face_is_the_same_geometry (void)
 {
   const size_t            rows = 3, cols = 4, unit = 2;
   dp_interleaver_state_t *tx = dp_interleaver_create (rows, cols, unit);
-  dp_interleaver_state_t *rx = interleaver_create_rx (rows, cols, unit);
+  dp_interleaver_state_t *rx = dp_interleaver_create_rx (rows, cols, unit);
   DP_REQUIRE (tx && rx);
 
   /* the same three numbers, read back through the same accessors */
@@ -288,10 +288,10 @@ test_the_receive_face_is_the_same_geometry (void)
 
   /* the same refusals -- a second constructor is a second place to forget
      them, which is exactly what a delegating one-liner exists to prevent */
-  DP_CHECK (interleaver_create_rx (0, 4, 1) == NULL);
-  DP_CHECK (interleaver_create_rx (4, 0, 1) == NULL);
-  DP_CHECK (interleaver_create_rx (4, 4, 0) == NULL);
-  DP_CHECK (interleaver_create_rx ((size_t)1 << 40, (size_t)1 << 40, 8)
+  DP_CHECK (dp_interleaver_create_rx (0, 4, 1) == NULL);
+  DP_CHECK (dp_interleaver_create_rx (4, 0, 1) == NULL);
+  DP_CHECK (dp_interleaver_create_rx (4, 4, 0) == NULL);
+  DP_CHECK (dp_interleaver_create_rx ((size_t)1 << 40, (size_t)1 << 40, 8)
             == NULL);
 
   /* and the link: what the transmit face interleaved, the receive face

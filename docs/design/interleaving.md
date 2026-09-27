@@ -50,7 +50,7 @@ first draft of `validate_interleave_burst_gain` did exactly that.
 
 ### 2. It is not the outer code's own depth
 
-`ccsds_tm_rs_encode_block(depth)` interleaves `depth` codewords and gets this
+`dp_ccsds_tm_rs_encode_block(depth)` interleaves `depth` codewords and gets this
 property for free — its header says so. Depth-I interleaving is *intrinsic to
 the Reed-Solomon codeblock layout* (131.0-B-6 §4.4.1), fused into encode and
 decode, and it is **not** a permutation applied afterwards.

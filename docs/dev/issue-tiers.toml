@@ -67,7 +67,7 @@ status = "open"
 
 [issue.648]
 tier = 5
-title = "resamp_execute_ctrl_push is ULP-sensitive: gcc 13 and gcc 15 disagree on the converged lock metric by 0.031"
+title = "dp_resamp_execute_ctrl_push is ULP-sensitive: gcc 13 and gcc 15 disagree on the converged lock metric by 0.031"
 status = "open"
 
 [issue.651]
@@ -207,7 +207,7 @@ status = "open"
 
 [issue.735]
 tier = 4
-title = "carrier_nda_get_nco_freq is unreachable from Python and telemetry \u2014 both published frequency views are the same view"
+title = "dp_carrier_nda_get_nco_freq is unreachable from Python and telemetry \u2014 both published frequency views are the same view"
 status = "open"
 
 [issue.736]
@@ -657,7 +657,7 @@ status = "open"
 
 [issue.1257]
 tier = 5
-title = "dsss.handoff.dll_init_chip_from_acq restates acq_build_handoff()'s fold and will not carry the dwell advance"
+title = "dsss.handoff.dll_init_chip_from_acq restates dp_acq_build_handoff()'s fold and will not carry the dwell advance"
 status = "open"
 
 [issue.1269]

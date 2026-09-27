@@ -421,7 +421,7 @@ def characterise(d) -> None:
         s = _spectrum(d, which)
         rows.append(
             [
-                f"`CCSDS_TM_RAND{'' if which == 'default' else '_LEGACY'}`",
+                f"`dp_CCSDS_TM_RAND{'' if which == 'default' else '_LEGACY'}`",
                 f"{int(s['period'])}",
                 f"{float(s['peak_db']):.1f}",
                 f"{float(s['at_1_255_db']):.1f}",
@@ -454,7 +454,7 @@ def characterise(d) -> None:
     R.md()
     R.md(
         "**This is the one measurement here that says a caller should change "
-        "something.** `CCSDS_TM_RAND_LEGACY` is reachable and does what it "
+        "something.** `dp_CCSDS_TM_RAND_LEGACY` is reachable and does what it "
         "says; on constant or highly correlated data it also emits a "
         f"{float(leg['peak_db']):.0f} dB carrier-like line at 1/255 of the "
         "symbol rate. Reach for it to talk to something old, as the header "
@@ -470,12 +470,13 @@ def review(d) -> None:
     R.find(
         "F1",
         "FIXED",
-        "**`ccsds_tm_randomise`'s docblock described the wrong generator.** "
+        "**`dp_ccsds_tm_randomise`'s docblock described the wrong "
+        "generator.** "
         'It said "131.0-B-3 section 10.4.1: an 8-stage generator over '
         '`h(x) = x^8 + x^7 + x^5 + x^3 + 1`", that the register was '
         '"initialised to all ones", and that the sequence "repeats after '
         "255 bits\". All three are the LEGACY randomiser's. The function "
-        "applies `CCSDS_TM_RAND` — degree 17, preset `11000111000111000`, "
+        "applies `dp_CCSDS_TM_RAND` — degree 17, preset `11000111000111000`, "
         "period 131071 — which the same header states correctly two "
         "declarations above. Three facts, each wrong, each about the "
         "function's own behaviour, and invisible to every gate: no test "
@@ -787,7 +788,7 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C12",
-                "`ccsds_tm_randomise` applies an 8-stage generator, period "
+                "`dp_ccsds_tm_randomise` applies an 8-stage generator, period "
                 "255",
                 "—",
                 "**F1 — false**",
@@ -899,7 +900,7 @@ def build(write: bool = True) -> Report:
             f"{float(leg['peak_db']):.0f} dB line at 1/255.** B-6's stated "
             f"reason for demoting it is measurable with this tree's own PSD, "
             f"and it is the largest number in this report. On constant data "
-            f"`CCSDS_TM_RAND_LEGACY` emits a carrier-like line where the "
+            f"`dp_CCSDS_TM_RAND_LEGACY` emits a carrier-like line where the "
             f"default emits nothing (§2.4).",
             f"**A looser ASM threshold is a worse detector, not a more "
             f"sensitive one.** At `max_errors = 8` the marker is found at "

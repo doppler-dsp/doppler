@@ -33,7 +33,7 @@ two things in one TU.
 int main(void)
 {
   float complex out[1024];
-  if (awgn(42, 1.0f, 1024, out) != DP_OK) {
+  if (dp_awgn(42, 1.0f, 1024, out) != DP_OK) {
       /* handle OOM */
       return 1;
   }
@@ -70,7 +70,7 @@ int main(void)
 }
 ```
 
-One-shot count-returning functions (e.g. `RateConverter_convert`) return
+One-shot count-returning functions (e.g. `dp_RateConverter_convert`) return
 0 only if allocation failed or `n_in == 0`. A positive return always
 means success.
 
@@ -104,7 +104,7 @@ It never reads or modifies `_core.c` after the initial stub.
     `MemoryError` — correct for the pointer convention above.
 - **`execute()` calls** in `_ext.c`: jm generates no error check — correct
     because execute cannot fail post-create.
-- **One-shot pure functions** (`awgn()`, `RateConverter_convert()`): always
+- **One-shot pure functions** (`dp_awgn()`, `dp_RateConverter_convert()`): always
     hand-written in `_core.c`; never appear in jm-generated code.
 
 No changes to jm are needed or expected.

@@ -51,7 +51,7 @@ extern "C"
 
   float dp_awgn_get_amplitude (const dp_awgn_state_t *state);
 
-  float awgn_amplitude_for_snr (float snr_db, float signal_power);
+  float dp_awgn_amplitude_for_snr (float snr_db, float signal_power);
 
   void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
 
@@ -62,7 +62,7 @@ extern "C"
   size_t dp_awgn_generate (dp_awgn_state_t *state, size_t n, float _Complex *out,
                         size_t max_out);
 
-  int awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out);
+  int dp_awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out);
 
 #ifdef __cplusplus
 }

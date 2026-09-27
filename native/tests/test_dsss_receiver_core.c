@@ -263,7 +263,7 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
   dp_dll_state_t *dll
       = dp_dll_create (code, sf, spc, 0.0, 0.002, 0.707, 0.5, 4);
   dp_costas_state_t car;
-  costas_init (&car, 0.01, 0.707, 0.0, tsamps, bn_fll);
+  dp_costas_init (&car, 0.01, 0.707, 0.0, tsamps, bn_fll);
 
   float _Complex *wiped = malloc (tsamps * sizeof *wiped);
   for (size_t p = 0; p < n_periods; p++)

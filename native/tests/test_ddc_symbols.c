@@ -24,7 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_ddc[] = {
     (jm_any_fn)dp_ddc_create,
-    (jm_any_fn)ddc_create_matched,
+    (jm_any_fn)dp_ddc_create_matched,
     (jm_any_fn)dp_ddc_destroy,
     (jm_any_fn)dp_ddc_reset,
     (jm_any_fn)dp_ddc_get_norm_freq,

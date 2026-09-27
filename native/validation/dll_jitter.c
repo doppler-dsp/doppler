@@ -94,7 +94,7 @@ disc_gain (const uint8_t *code, const float complex *sig)
     {
       double         off = s ? +tau : -tau;
       dp_dll_state_t d;
-      dll_init (&d, code, SF, SPS, off, 1e-9, 0.707, SPACING);
+      dp_dll_init (&d, code, SF, SPS, off, 1e-9, 0.707, SPACING);
       for (int p = 0; p < 6; p++)
         {
           for (size_t i = 0; i < (size_t)SF * SPS; i++)
@@ -117,7 +117,7 @@ disc_var (double gamma, const uint8_t *code, const float complex *sig,
   dp_awgn_state_t *g  = dp_awgn_create (7, noise_std (gamma));
   float complex   *nb = malloc ((size_t)NBLK * sizeof (*nb));
   dp_dll_state_t   d;
-  dll_init (&d, code, SF, SPS, 0.0, 1e-9, 0.707, SPACING);
+  dp_dll_init (&d, code, SF, SPS, 0.0, 1e-9, 0.707, SPACING);
   long   pos = NBLK;
   double m = 0, m2 = 0;
   long   n = 0;
@@ -158,7 +158,7 @@ phase_var (double gamma, double bn, const uint8_t *code,
   dp_awgn_state_t *g  = dp_awgn_create (7, noise_std (gamma));
   float complex   *nb = malloc ((size_t)NBLK * sizeof (*nb));
   dp_dll_state_t   d;
-  dll_init (&d, code, SF, SPS, 0.0, bn, 0.707, SPACING);
+  dp_dll_init (&d, code, SF, SPS, 0.0, bn, 0.707, SPACING);
   const double inv_sps = 1.0 / (double)SPS;
   long         pos = NBLK, warm = ndump / 4, dumps = 0;
   long long    samp = 0;

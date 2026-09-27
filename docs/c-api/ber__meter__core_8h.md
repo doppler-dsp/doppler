@@ -63,14 +63,13 @@ _BerMeter — the error-rate accumulator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**ber\_align\_t**](structber__align__t.md) | [**ber\_align\_detect**](#function-ber_align_detect) (const float \_Complex \* rx, size\_t rx\_len, const uint8\_t \* truth, size\_t truth\_len, int m, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
-|  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_confidence**](#function-ber_confidence) (size\_t errors, size\_t symbols, double conf) <br> |
-|  [**ber\_align\_t**](structber__align__t.md) | [**ber\_meter\_detect**](#function-ber_meter_detect) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Pure detection: returns the alignment without touching state._  |
-|  void | [**ber\_meter\_set\_align**](#function-ber_meter_set_align) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, [**ber\_align\_t**](structber__align__t.md) align, size\_t t0, size\_t n\_marker, size\_t period) <br>_Install an alignment detected elsewhere (e.g. by_ [_**ber\_align\_detect()**_](ber__meter__core_8h.md#function-ber_align_detect) _on a different buffer), with the marker geometry that produced it, so_[_**dp\_ber\_meter\_score()**_](ber__meter__core_8h.md#function-dp_ber_meter_score) _can use it._ |
+|  [**ber\_align\_t**](structber__align__t.md) | [**dp\_ber\_align\_detect**](#function-dp_ber_align_detect) (const float \_Complex \* rx, size\_t rx\_len, const uint8\_t \* truth, size\_t truth\_len, int m, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
+|  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_ber\_confidence**](#function-dp_ber_confidence) (size\_t errors, size\_t symbols, double conf) <br> |
 |  int | [**dp\_ber\_meter\_align**](#function-dp_ber_meter_align) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Detect where_ `rx` _sits against truth and REMEMBER that alignment._ |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_ber\_meter\_ber**](#function-dp_ber_meter_ber) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br>_Gray-coded bit error rate over the scored bits, with its interval._  |
 |  [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* | [**dp\_ber\_meter\_create**](#function-dp_ber_meter_create) (int m, size\_t target\_errors, double conf) <br>_Error counters accumulated across as many bursts as it takes._  |
 |  void | [**dp\_ber\_meter\_destroy**](#function-dp_ber_meter_destroy) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br> |
+|  [**ber\_align\_t**](structber__align__t.md) | [**dp\_ber\_meter\_detect**](#function-dp_ber_meter_detect) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Pure detection: returns the alignment without touching state._  |
 |  double | [**dp\_ber\_meter\_get\_align\_margin\_db**](#function-dp_ber_meter_get_align_margin_db) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_ber\_meter\_get\_align\_occurrences**](#function-dp_ber_meter_get_align_occurrences) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br> |
 |  int | [**dp\_ber\_meter\_get\_align\_ok**](#function-dp_ber_meter_get_align_ok) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br> |
@@ -94,6 +93,7 @@ _BerMeter — the error-rate accumulator._ [More...](#detailed-description)
 |  void | [**dp\_ber\_meter\_reset**](#function-dp_ber_meter_reset) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br>_Zero the running counters; keep the configuration and the truth._  |
 |  size\_t | [**dp\_ber\_meter\_score**](#function-dp_ber_meter_score) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi) <br>_Score_ `rx[lo .. hi)` _against the truth and accumulate the counters._ |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_ber\_meter\_ser**](#function-dp_ber_meter_ser) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br>_Symbol error rate over the scored symbols, with its exact interval._  |
+|  void | [**dp\_ber\_meter\_set\_align**](#function-dp_ber_meter_set_align) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, [**ber\_align\_t**](structber__align__t.md) align, size\_t t0, size\_t n\_marker, size\_t period) <br>_Install an alignment detected elsewhere (e.g. by_ [_**dp\_ber\_align\_detect()**_](ber__meter__core_8h.md#function-dp_ber_align_detect) _on a different buffer), with the marker geometry that produced it, so_[_**dp\_ber\_meter\_score()**_](ber__meter__core_8h.md#function-dp_ber_meter_score) _can use it._ |
 |  int | [**dp\_ber\_meter\_set\_state**](#function-dp_ber_meter_set_state) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_ber\_meter\_set\_truth**](#function-dp_ber_meter_set_truth) ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state, const uint8\_t \* truth, size\_t truth\_len) <br>_Install the transmitted symbol sequence this meter scores against._  |
 |  size\_t | [**dp\_ber\_meter\_state\_bytes**](#function-dp_ber_meter_state_bytes) (const [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) \* state) <br> |
@@ -164,11 +164,11 @@ The three gates a result has to pass, and why each exists, are on [**ber/ber\_co
 
 
 
-### function ber\_align\_detect 
+### function dp\_ber\_align\_detect 
 
 _Exact confidence interval for a run stopped on an ERROR count._ 
 ```C++
-ber_align_t ber_align_detect (
+ber_align_t dp_ber_align_detect (
     const float _Complex * rx,
     size_t rx_len,
     const uint8_t * truth,
@@ -231,10 +231,10 @@ The alignment, with `ok` saying whether to believe it.
 
 
 
-### function ber\_confidence 
+### function dp\_ber\_confidence 
 
 ```C++
-ber_interval_t ber_confidence (
+ber_interval_t dp_ber_confidence (
     size_t errors,
     size_t symbols,
     double conf
@@ -243,81 +243,6 @@ ber_interval_t ber_confidence (
 
 
 
-
-<hr>
-
-
-
-### function ber\_meter\_detect 
-
-_Pure detection: returns the alignment without touching state._ 
-```C++
-ber_align_t ber_meter_detect (
-    const dp_ber_meter_state_t * state,
-    const float _Complex * rx,
-    size_t rx_len,
-    size_t t0,
-    size_t n_marker,
-    size_t period,
-    int lag_span,
-    double pfa
-) 
-```
-
-
-
-[**dp\_ber\_meter\_align()**](ber__meter__core_8h.md#function-dp_ber_meter_align) is the stateful spelling the Python binding uses. The marker comes from the truth installed by [**dp\_ber\_meter\_set\_truth()**](ber__meter__core_8h.md#function-dp_ber_meter_set_truth).
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL, with truth installed. 
-* `rx` Recovered symbols. 
-* `rx_len` How many. 
-* `t0` Truth index of the marker's first occurrence. 
-* `n_marker` Marker length in symbols; 0 selects BER\_SYNC\_SYMS. 
-* `period` Repeat period in symbols; 0 for a single occurrence. 
-* `lag_span` Search half-width; 0 selects BER\_LAG\_SPAN. 
-* `pfa` Whole-search false-alarm probability; 0 selects 1e-6. 
-
-
-
-**Returns:**
-
-The alignment, with `ok` saying whether to believe it. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ber\_meter\_set\_align 
-
-_Install an alignment detected elsewhere (e.g. by_ [_**ber\_align\_detect()**_](ber__meter__core_8h.md#function-ber_align_detect) _on a different buffer), with the marker geometry that produced it, so_[_**dp\_ber\_meter\_score()**_](ber__meter__core_8h.md#function-dp_ber_meter_score) _can use it._
-```C++
-void ber_meter_set_align (
-    dp_ber_meter_state_t * state,
-    ber_align_t align,
-    size_t t0,
-    size_t n_marker,
-    size_t period
-) 
-```
-
-
-
-The stateful [**dp\_ber\_meter\_align()**](ber__meter__core_8h.md#function-dp_ber_meter_align) is the usual path; this exists for the case where detection and scoring run over different buffers. It is deliberately the ONLY way to set an alignment other than detecting one — score() never takes a lag from its caller, because a lag that was passed in is a lag that could have been searched for. 
-
-
-        
 
 <hr>
 
@@ -490,6 +415,57 @@ void dp_ber_meter_destroy (
 
 
 
+
+<hr>
+
+
+
+### function dp\_ber\_meter\_detect 
+
+_Pure detection: returns the alignment without touching state._ 
+```C++
+ber_align_t dp_ber_meter_detect (
+    const dp_ber_meter_state_t * state,
+    const float _Complex * rx,
+    size_t rx_len,
+    size_t t0,
+    size_t n_marker,
+    size_t period,
+    int lag_span,
+    double pfa
+) 
+```
+
+
+
+[**dp\_ber\_meter\_align()**](ber__meter__core_8h.md#function-dp_ber_meter_align) is the stateful spelling the Python binding uses. The marker comes from the truth installed by [**dp\_ber\_meter\_set\_truth()**](ber__meter__core_8h.md#function-dp_ber_meter_set_truth).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL, with truth installed. 
+* `rx` Recovered symbols. 
+* `rx_len` How many. 
+* `t0` Truth index of the marker's first occurrence. 
+* `n_marker` Marker length in symbols; 0 selects BER\_SYNC\_SYMS. 
+* `period` Repeat period in symbols; 0 for a single occurrence. 
+* `lag_span` Search half-width; 0 selects BER\_LAG\_SPAN. 
+* `pfa` Whole-search false-alarm probability; 0 selects 1e-6. 
+
+
+
+**Returns:**
+
+The alignment, with `ok` saying whether to believe it. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -992,6 +968,30 @@ A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)` — the s
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ber\_meter\_set\_align 
+
+_Install an alignment detected elsewhere (e.g. by_ [_**dp\_ber\_align\_detect()**_](ber__meter__core_8h.md#function-dp_ber_align_detect) _on a different buffer), with the marker geometry that produced it, so_[_**dp\_ber\_meter\_score()**_](ber__meter__core_8h.md#function-dp_ber_meter_score) _can use it._
+```C++
+void dp_ber_meter_set_align (
+    dp_ber_meter_state_t * state,
+    ber_align_t align,
+    size_t t0,
+    size_t n_marker,
+    size_t period
+) 
+```
+
+
+
+The stateful [**dp\_ber\_meter\_align()**](ber__meter__core_8h.md#function-dp_ber_meter_align) is the usual path; this exists for the case where detection and scoring run over different buffers. It is deliberately the ONLY way to set an alignment other than detecting one — score() never takes a lag from its caller, because a lag that was passed in is a lag that could have been searched for. 
 
 
         

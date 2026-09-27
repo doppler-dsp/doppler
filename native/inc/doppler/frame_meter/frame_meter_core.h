@@ -28,7 +28,7 @@
  *
  * ## The stopping rule is the ERROR count, and that is not decoration
  *
- * `ber_confidence()` is the exact Gamma/chi-square interval for INVERSE
+ * `dp_ber_confidence()` is the exact Gamma/chi-square interval for INVERSE
  * BINOMIAL sampling — fix the errors, let the trial count fall out. Its
  * relative standard error is `1/sqrt(r)`, a function of the error count ALONE,
  * which is why a run stopped on errors gives a consistent measurement and one
@@ -157,7 +157,7 @@ extern "C"
   /**
    * @brief Frame error rate with its exact interval.
    *
-   * `ber_confidence(errors, frames, conf)` — the same interval `ber_meter`
+   * `dp_ber_confidence(errors, frames, conf)` — the same interval `ber_meter`
    * reports, which is generic over trials and therefore applies to frames
    * unchanged. Assert on `lo`, never on `p_hat`.
    *
@@ -184,7 +184,7 @@ extern "C"
    * Reported as a miss rate rather than a detection rate so it is an ERROR
    * rate like every other number here, and so the same interval applies
    * without reinterpretation. **This is what turns "is this sync word long
-   * enough at this Es/N0" into a measurement** — `ber_align_detect()` already
+   * enough at this Es/N0" into a measurement** — `dp_ber_align_detect()` already
    * returns `margin_db` and `runner_db` per attempt, and accumulating the
    * decisions is what answers the question with a number.
    *

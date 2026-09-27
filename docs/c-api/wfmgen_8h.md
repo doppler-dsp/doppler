@@ -51,7 +51,7 @@
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**doppler\_wfmgen**](#function-doppler_wfmgen) (int argc, char \* argv) <br>_Run the wfmgen composer CLI in-process (argv in, exit code out)._  |
+|  int | [**dp\_doppler\_wfmgen**](#function-dp_doppler_wfmgen) (int argc, char \* argv) <br>_Run the wfmgen composer CLI in-process (argv in, exit code out)._  |
 
 
 
@@ -85,11 +85,11 @@
 
 
 
-### function doppler\_wfmgen 
+### function dp\_doppler\_wfmgen 
 
 _Run the wfmgen composer CLI in-process (argv in, exit code out)._ 
 ```C++
-int doppler_wfmgen (
+int dp_doppler_wfmgen (
     int argc,
     char * argv
 ) 
@@ -123,7 +123,7 @@ Process-global only in the ways the CLI is: it may write to `stdout` / `stderr` 
 // Generate a 4096-sample QPSK capture to a file, in-process.
 char *av[] = { "wfmgen", "--type", "qpsk", "--count", "4096",
                "--output", "out.cf32", NULL };
-int rc = doppler_wfmgen(7, av);   // rc == 0; out.cf32 written
+int rc = dp_doppler_wfmgen(7, av);   // rc == 0; out.cf32 written
 ```
  
 

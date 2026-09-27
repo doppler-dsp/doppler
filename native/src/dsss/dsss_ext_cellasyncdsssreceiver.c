@@ -92,7 +92,7 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = async_dsss_receiver_create_cell (
+  self->handle    = dp_async_dsss_receiver_create_cell (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
       symbol_rate, spc, m, cn0_dbhz, pfa, pd, segments, sps, differential,
       carrier_freq_hz, lost_confirm_s, correct_periods, gain,
@@ -101,7 +101,7 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "async_dsss_receiver_create_cell returned NULL");
+                       "dp_async_dsss_receiver_create_cell returned NULL");
       return -1;
     }
   return 0;
@@ -769,7 +769,7 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
     "Cached from the winning acquisition hit.\n", NULL },
   { "segments", (getter)CellAsyncDsssReceiver_getprop_segments, NULL,
     "Live-tracking Dll's own segments -- distinct from refine_segments above "
-    "(see the module docstring / dll_lookback_segments()'s own doc on the "
+    "(see the module docstring / dp_dll_lookback_segments()'s own doc on the "
     "WINDOWS vs TRACK_WINDOWS split).\n",
     NULL },
   { "sps", (getter)CellAsyncDsssReceiver_getprop_sps, NULL,
@@ -779,7 +779,7 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
   { "chip_phase", (getter)CellAsyncDsssReceiver_getprop_chip_phase, NULL,
     "Live Dll code phase in chips, Dll's own instantaneous-phase convention "
     "(the mirror image of acq_result_t::code_phase's correlation-lag "
-    "convention -- see acq_build_handoff()'s doc comment).\n",
+    "convention -- see dp_acq_build_handoff()'s doc comment).\n",
     NULL },
   { "code_rate", (getter)CellAsyncDsssReceiver_getprop_code_rate, NULL,
     "Live Dll code rate: chips advanced per nominal chip (~1.0).\n", NULL },

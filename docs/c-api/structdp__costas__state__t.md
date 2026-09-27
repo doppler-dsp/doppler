@@ -99,7 +99,7 @@ _Costas loop state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_create), or embed by value and [**costas\_init()**](costas__core_8h.md#function-costas_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the inline composition helpers can drive them; treat the integrate-and-dump and diagnostic fields as internal. 
+Allocate with [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_create), or embed by value and [**dp\_costas\_init()**](costas__core_8h.md#function-dp_costas_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the inline composition helpers can drive them; treat the integrate-and-dump and diagnostic fields as internal. 
 
 
     

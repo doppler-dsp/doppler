@@ -109,7 +109,7 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
   d->delay           = dp_doppler_channel_get_delay_samples (ch);
   dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
-      awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
+      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   DP_REQUIRE (g != NULL);
   d->n                = (size_t)(seconds * FS);
   d->x                = dp_xmalloc ((d->n + 4 * TE) * sizeof *d->x);
@@ -171,7 +171,7 @@ static int
 pullin (const draw_t *d, const uint8_t *code, double cn0_dbhz, double off_hz,
         size_t at, double *t_lock)
 {
-  dp_async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, PFA, PD, SEGMENTS,
       RX_SPS, 0, CARRIER_HZ, 0.0, D_OP, ASYNC_DSSS_RX_CELL_GAIN,
       ASYNC_DSSS_RX_CELL_PULLIN);

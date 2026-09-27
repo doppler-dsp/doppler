@@ -79,9 +79,9 @@ void dp_detector_destroy (dp_detector_state_t *state);
 
 void dp_detector_reset (dp_detector_state_t *state);
 
-void detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
+void dp_detector_set_ref (dp_detector_state_t *state, const float _Complex *ref);
 
-void detector_set_threshold (dp_detector_state_t *state, float threshold);
+void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 

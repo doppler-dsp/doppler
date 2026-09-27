@@ -188,7 +188,7 @@ symsync_s_curve (int ted, int pulse, double beta, size_t span, double tau)
 }
 
 double
-symsync_ted_slope (int ted, int pulse, double beta, size_t span)
+dp_symsync_ted_slope (int ted, int pulse, double beta, size_t span)
 {
   /* Symmetric difference about the lock point. The step is small enough to
      be the linear region of every pulse here and large enough that the
@@ -201,8 +201,8 @@ symsync_ted_slope (int ted, int pulse, double beta, size_t span)
 }
 
 void
-symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
-              int order, int ted)
+dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
+                 int order, int ted)
 {
   /* Zero first so an in-place (stack-embedded) init byte-matches the
    * calloc + init done by dp_symsync_create: seed() sets only the timing NCO's
@@ -214,7 +214,7 @@ symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
   s->base_inc = nominal_inc (s->sps);
   s->ted      = ted;
   farrow_init (&s->farrow, order);
-  loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
+  dp_loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
   (void)dp_symsync_configure_lock (
       s, SYMSYNC_LOCK_DEFAULT_ROLLOFF, SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB,
       SYMSYNC_LOCK_DEFAULT_PFA, SYMSYNC_LOCK_DEFAULT_PD);
@@ -227,7 +227,7 @@ dp_symsync_create (size_t sps, double bn, double zeta, int order, int ted)
   dp_symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  symsync_init (obj, sps, bn, zeta, order, ted);
+  dp_symsync_init (obj, sps, bn, zeta, order, ted);
   return obj;
 }
 
@@ -277,7 +277,7 @@ dp_symsync_set_telemetry (dp_symsync_state_t *state, dp_tlm_t *tlm,
 }
 
 void
-symsync_tlm_flush (const dp_symsync_state_t *s)
+dp_symsync_tlm_flush (const dp_symsync_state_t *s)
 {
   /* The loop control isn't retained per symbol; reconstruct it from the
    * NCO increment it steered (float32 records — the uint32 rounding is
@@ -353,7 +353,7 @@ dp_symsync_steps (dp_symsync_state_t *state, const float _Complex *x,
           {
             if (emitted < max_out)
               out[emitted++] = y;
-            symsync_tlm_flush (state);
+            dp_symsync_tlm_flush (state);
           }
     }
   else
@@ -363,7 +363,7 @@ dp_symsync_steps (dp_symsync_state_t *state, const float _Complex *x,
           {
             if (emitted < max_out)
               out[emitted++] = y;
-            symsync_tlm_flush (state);
+            dp_symsync_tlm_flush (state);
           }
     }
   return emitted;

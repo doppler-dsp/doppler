@@ -41,8 +41,8 @@
  * ------------------------------------------------------------------ */
 
 void
-ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
-                    double zeta, int ted)
+dp_ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
+                       double zeta, int ted)
 {
   l->sps        = sps;
   l->m          = m;
@@ -61,18 +61,18 @@ ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
   l->ted_scale = 1.0;
   /* Loop update period is one symbol: the TED fires once per on-time strobe,
      and bn is normalised to the symbol rate. */
-  loop_filter_init (&l->lf, bn, zeta, 1.0);
+  dp_loop_filter_init (&l->lf, bn, zeta, 1.0);
   l->avgs = RATESYNC_LOCK_DEFAULT_AVGS;
-  lockdet_init (&l->lock, RATESYNC_LOCK_DEFAULT_THRESH,
-                RATESYNC_LOCK_DEFAULT_THRESH, RATESYNC_LOCK_DEFAULT_N_UP,
-                RATESYNC_LOCK_DEFAULT_N_DOWN);
+  dp_lockdet_init (&l->lock, RATESYNC_LOCK_DEFAULT_THRESH,
+                   RATESYNC_LOCK_DEFAULT_THRESH, RATESYNC_LOCK_DEFAULT_N_UP,
+                   RATESYNC_LOCK_DEFAULT_N_DOWN);
   l->tlm.ctx = NULL;
-  ratesync_loop_reset (l);
+  dp_ratesync_loop_reset (l);
 }
 
 void
-ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
-                           size_t prime_taps)
+dp_ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
+                              size_t prime_taps)
 {
   l->term_rate  = term_rate;
   l->prime_taps = prime_taps;
@@ -87,8 +87,8 @@ ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
    referenced to, and the tap count that sets the prime length. Read once at
    create so the hot path never walks the cascade. */
 void
-ratesync_loop_bind_cascade (ratesync_loop_t                *l,
-                            const dp_RateConverter_state_t *rc)
+dp_ratesync_loop_bind_cascade (ratesync_loop_t                *l,
+                               const dp_RateConverter_state_t *rc)
 {
   size_t                ntaps     = 0;
   double                term_rate = 0.0;
@@ -97,10 +97,10 @@ ratesync_loop_bind_cascade (ratesync_loop_t                *l,
   if (last >= 0 && rc->stage_types[last] == RC_STAGE_RESAMP)
     {
       term      = (const resamp_state_t *)rc->stage_ptrs[last];
-      ntaps     = resamp_get_num_taps (term);
-      term_rate = resamp_get_rate (term);
+      ntaps     = dp_resamp_get_num_taps (term);
+      term_rate = dp_resamp_get_rate (term);
     }
-  ratesync_loop_set_cascade (l, term_rate, ntaps);
+  dp_ratesync_loop_set_cascade (l, term_rate, ntaps);
 
   /* The detector's own contribution, from the pulse the cascade already
      holds — the same walk, so no caller learns a new call and MpskReceiver
@@ -109,7 +109,7 @@ ratesync_loop_bind_cascade (ratesync_loop_t                *l,
      always did there. */
   if (rc->pulse != RC_PULSE_NONE)
     {
-      double k = symsync_ted_slope (l->ted, rc->pulse, rc->beta, rc->span);
+      double k = dp_symsync_ted_slope (l->ted, rc->pulse, rc->beta, rc->span);
       if (k > 0.0)
         l->ted_scale = 1.0 / k;
     }
@@ -121,7 +121,7 @@ ratesync_loop_bind_cascade (ratesync_loop_t                *l,
 }
 
 void
-ratesync_loop_reset (ratesync_loop_t *l)
+dp_ratesync_loop_reset (ratesync_loop_t *l)
 {
   dp_loop_filter_reset (&l->lf);
   l->ctrl       = 0.0;
@@ -148,23 +148,24 @@ ratesync_loop_reset (ratesync_loop_t *l)
 }
 
 void
-ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta)
+dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta)
 {
   if (!(bn >= 0.0) || !(zeta > 0.0))
     return;
   l->bn   = bn;
   l->zeta = zeta;
-  /* loop_filter_init does not touch integ, so a retune preserves the lock. */
-  loop_filter_init (&l->lf, bn, zeta, 1.0);
+  /* dp_loop_filter_init does not touch integ, so a retune preserves the lock.
+   */
+  dp_loop_filter_init (&l->lf, bn, zeta, 1.0);
 }
 
 void
-ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
-                                  double up_thresh, double down_thresh,
-                                  uint32_t n_up, uint32_t n_down)
+dp_ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
+                                     double up_thresh, double down_thresh,
+                                     uint32_t n_up, uint32_t n_down)
 {
   l->avgs = avgs < 1u ? 1u : avgs;
-  lockdet_init (&l->lock, up_thresh, down_thresh, n_up, n_down);
+  dp_lockdet_init (&l->lock, up_thresh, down_thresh, n_up, n_down);
   /* Drop the in-flight block and the decision: the next call must be made
      from looks gathered entirely under the new geometry. */
   l->lock_sum   = 0.0;
@@ -174,7 +175,7 @@ ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
 }
 
 void
-ratesync_loop_tlm_flush (const ratesync_loop_t *l)
+dp_ratesync_loop_tlm_flush (const ratesync_loop_t *l)
 {
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_e, l->last_error);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_ctrl, l->ctrl);
@@ -184,12 +185,12 @@ ratesync_loop_tlm_flush (const ratesync_loop_t *l)
   /* The sampling phase this steering produced. 0 when the geometry was bound
      by hand and there is no stage to read (see ratesync_loop_t::term). */
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_mu,
-               l->term ? resamp_get_ctrl_acc (l->term) : 0.0);
+               l->term ? dp_resamp_get_ctrl_acc (l->term) : 0.0);
 }
 
 int
-ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
-                             const char *prefix, uint32_t decim)
+dp_ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
+                                const char *prefix, uint32_t decim)
 {
   if (!tlm) /* detach: probe sites revert to the single-branch cost */
     {
@@ -236,7 +237,7 @@ ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
 #define DP_RS_U64S 4 /* have_prev, prime_left, out_count, ring_n           */
 
 size_t
-ratesync_loop_state_bytes (const ratesync_loop_t *l)
+dp_ratesync_loop_state_bytes (const ratesync_loop_t *l)
 {
   return sizeof (dp_state_hdr_t) + DP_RS_DOUBLES * sizeof (double)
          + DP_RS_U64S * sizeof (uint64_t) + sizeof (uint64_t) /* lock_count */
@@ -247,9 +248,9 @@ ratesync_loop_state_bytes (const ratesync_loop_t *l)
 }
 
 void
-ratesync_loop_get_state (const ratesync_loop_t *l, void *blob)
+dp_ratesync_loop_get_state (const ratesync_loop_t *l, void *blob)
 {
-  const size_t total = ratesync_loop_state_bytes (l);
+  const size_t total = dp_ratesync_loop_state_bytes (l);
   dp_writer_t  w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, RATESYNC_LOOP_STATE_MAGIC, RATESYNC_LOOP_STATE_VERSION, total);
   dp_w_f64 (&w, l->ctrl);
@@ -270,9 +271,9 @@ ratesync_loop_get_state (const ratesync_loop_t *l, void *blob)
 }
 
 int
-ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
+dp_ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
 {
-  const size_t total = ratesync_loop_state_bytes (l);
+  const size_t total = dp_ratesync_loop_state_bytes (l);
   int          rc = dp_state_validate (blob, total, RATESYNC_LOOP_STATE_MAGIC,
                                        RATESYNC_LOOP_STATE_VERSION);
   if (rc != DP_OK)
@@ -332,16 +333,16 @@ dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
      folds into the terminal bank (six taps per arm, no extra stage, no extra
      pass) and is worth ~28 dB of EVM whenever the plan contains a CIC. There
      is no configuration under which paying for it is wrong. */
-  s->mf = RateConverter_create_matched ((double)m / sps, 1, pulse, beta, span,
-                                        (double)m, num_phases);
+  s->mf = dp_RateConverter_create_matched ((double)m / sps, 1, pulse, beta,
+                                           span, (double)m, num_phases);
   if (!s->mf)
     {
       free (s);
       return NULL;
     }
 
-  ratesync_loop_init (&s->loop, sps, m, bn, zeta, ted);
-  ratesync_loop_bind_cascade (&s->loop, s->mf);
+  dp_ratesync_loop_init (&s->loop, sps, m, bn, zeta, ted);
+  dp_ratesync_loop_bind_cascade (&s->loop, s->mf);
   return s;
 }
 
@@ -358,7 +359,7 @@ void
 dp_ratesync_reset (dp_ratesync_state_t *state)
 {
   dp_RateConverter_reset (state->mf);
-  ratesync_loop_reset (&state->loop);
+  dp_ratesync_loop_reset (&state->loop);
 }
 
 size_t
@@ -382,7 +383,7 @@ dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
           {
             n++;
             if (state->loop.tlm.ctx)
-              ratesync_loop_tlm_flush (&state->loop);
+              dp_ratesync_loop_tlm_flush (&state->loop);
           }
     }
   else
@@ -392,7 +393,7 @@ dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
           {
             n++;
             if (state->loop.tlm.ctx)
-              ratesync_loop_tlm_flush (&state->loop);
+              dp_ratesync_loop_tlm_flush (&state->loop);
           }
     }
   return n;
@@ -401,7 +402,7 @@ dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
 void
 dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta)
 {
-  ratesync_loop_configure (&state->loop, bn, zeta);
+  dp_ratesync_loop_configure (&state->loop, bn, zeta);
 }
 
 double
@@ -457,15 +458,15 @@ dp_ratesync_configure_lock_raw (dp_ratesync_state_t *state, size_t avgs,
                                 double up_thresh, double down_thresh,
                                 uint32_t n_up, uint32_t n_down)
 {
-  ratesync_loop_configure_lock_raw (&state->loop, avgs, up_thresh, down_thresh,
-                                    n_up, n_down);
+  dp_ratesync_loop_configure_lock_raw (&state->loop, avgs, up_thresh,
+                                       down_thresh, n_up, n_down);
 }
 
 int
 dp_ratesync_set_telemetry (dp_ratesync_state_t *state, dp_tlm_t *tlm,
                            const char *prefix, uint32_t decim)
 {
-  return ratesync_loop_set_telemetry (&state->loop, tlm, prefix, decim);
+  return dp_ratesync_loop_set_telemetry (&state->loop, tlm, prefix, decim);
 }
 
 /* ── Serializable state — two children, no scalars of our own ───────────────
@@ -479,7 +480,7 @@ size_t
 dp_ratesync_state_bytes (const dp_ratesync_state_t *state)
 {
   return sizeof (dp_state_hdr_t) + dp_RateConverter_state_bytes (state->mf)
-         + ratesync_loop_state_bytes (&state->loop);
+         + dp_ratesync_loop_state_bytes (&state->loop);
 }
 
 void
@@ -491,7 +492,7 @@ dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob)
   char *p = (char *)blob + w.off;
   dp_RateConverter_get_state (state->mf, p);
   p += dp_RateConverter_state_bytes (state->mf);
-  ratesync_loop_get_state (&state->loop, p);
+  dp_ratesync_loop_get_state (&state->loop, p);
 }
 
 int
@@ -508,5 +509,5 @@ dp_ratesync_set_state (dp_ratesync_state_t *state, const void *blob)
   if (rc != DP_OK)
     return rc;
   p += dp_RateConverter_state_bytes (state->mf);
-  return ratesync_loop_set_state (&state->loop, p);
+  return dp_ratesync_loop_set_state (&state->loop, p);
 }

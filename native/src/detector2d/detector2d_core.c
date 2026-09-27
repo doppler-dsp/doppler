@@ -187,14 +187,14 @@ dp_detector2d_set_state (dp_detector2d_state_t *s, const void *blob)
 }
 
 int
-detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref)
+dp_detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref)
 {
   dp_detector2d_reset (state);
-  return corr2d_set_ref (state->corr, ref);
+  return dp_corr2d_set_ref (state->corr, ref);
 }
 
 void
-detector2d_set_threshold (dp_detector2d_state_t *state, float threshold)
+dp_detector2d_set_threshold (dp_detector2d_state_t *state, float threshold)
 {
   state->threshold = threshold;
 }

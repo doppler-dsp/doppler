@@ -337,7 +337,8 @@ static PyMethodDef CorrObj_methods[] = {
   { "reset", (PyCFunction)CorrObj_reset, METH_NOARGS,
     "Zero the accumulator and reset the integration counter to 0.\n"
     "Equivalent to starting a fresh dwell cycle without tearing down the FFT\n"
-    "plans. Does NOT recompute ref_spec; use corr_set_ref() to replace the\n"
+    "plans. Does NOT recompute ref_spec; use dp_corr_set_ref() to replace "
+    "the\n"
     "reference.\n"
     "\n"
     "Examples\n"

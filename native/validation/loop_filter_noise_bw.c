@@ -2,7 +2,7 @@
  * @file loop_filter_noise_bw.c
  * @brief Does `bn` deliver a loop whose noise bandwidth is `bn`?
  *
- * `loop_filter_init()` derives its gains by inverting the standard relation
+ * `dp_loop_filter_init()` derives its gains by inverting the standard relation
  * between a second-order loop's natural frequency and its noise bandwidth,
  * and every consumer in the library sizes its settling and its jitter off
  * the answer. Nothing measured it. This does.
@@ -91,7 +91,7 @@ bn_parseval (double bn, double zeta, double t, double *tail)
 {
   dp_loop_filter_state_t lf;
   memset (&lf, 0, sizeof lf);
-  loop_filter_init (&lf, bn, zeta, t);
+  dp_loop_filter_init (&lf, bn, zeta, t);
 
   /* The loop's time constant is ~1/(bn*t) updates; 400 of them puts the
    * tail far below double precision's reach for every cell swept here. */
@@ -123,7 +123,7 @@ bn_spectral (double bn, double zeta, double t)
 {
   dp_loop_filter_state_t lf;
   memset (&lf, 0, sizeof lf);
-  loop_filter_init (&lf, bn, zeta, t);
+  dp_loop_filter_init (&lf, bn, zeta, t);
 
   const size_t M   = 1u << 20;
   const double df  = 0.5 / (double)M;

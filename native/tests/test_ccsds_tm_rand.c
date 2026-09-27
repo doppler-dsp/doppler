@@ -72,7 +72,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
   /* ── 1. the sequence itself, against the printed prefix ───────────────── */
   {
     uint8_t seq[40];
-    ccsds_tm_rand_seq_with (r, seq, sizeof seq);
+    dp_ccsds_tm_rand_seq_with (r, seq, sizeof seq);
     DP_CHECK_MSG (memcmp (seq, published, 40) == 0,
                   "the first 40 bits must match what 10.4.3 prints");
   }
@@ -80,7 +80,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
   /* ── 2. randomising zeros yields the sequence ─────────────────────────── */
   {
     uint8_t bits[40] = { 0 };
-    ccsds_tm_randomise_with (r, bits, 40);
+    dp_ccsds_tm_randomise_with (r, bits, 40);
     DP_CHECK_MSG (memcmp (bits, published, 40) == 0,
                   "randomising zeros must emit the sequence verbatim");
   }
@@ -99,7 +99,7 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
    */
   {
     DP_REQUIRE (scratch_len >= period + 64u);
-    ccsds_tm_rand_seq_with (r, scratch, period + 64u);
+    dp_ccsds_tm_rand_seq_with (r, scratch, period + 64u);
     DP_CHECK_MSG (memcmp (scratch, scratch + period, 64) == 0,
                   "the sequence must repeat with its stated period");
 
@@ -131,10 +131,10 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
       data[i] = (uint8_t)((i * 7u + 3u) & 1u);
     memcpy (copy, data, n);
 
-    ccsds_tm_randomise_with (r, data, n);
+    dp_ccsds_tm_randomise_with (r, data, n);
     DP_CHECK_MSG (memcmp (data, copy, n) != 0,
                   "randomising must actually change the data");
-    ccsds_tm_randomise_with (r, data, n);
+    dp_ccsds_tm_randomise_with (r, data, n);
     DP_CHECK_MSG (memcmp (data, copy, n) == 0,
                   "randomise twice must be the identity");
   }
@@ -142,17 +142,17 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
   /* ── 5. each call restarts at the preset (10.4.3) ─────────────────────── */
   {
     uint8_t a[16] = { 0 }, b[16] = { 0 };
-    ccsds_tm_randomise_with (r, a, 16);
-    ccsds_tm_randomise_with (r, b, 16);
+    dp_ccsds_tm_randomise_with (r, a, 16);
+    dp_ccsds_tm_randomise_with (r, b, 16);
     DP_CHECK_MSG (memcmp (a, b, sizeof a) == 0,
                   "the generator must preset per call, not carry state");
   }
 
   /* ── 6. stepping it one bit at a time IS the sequence ──────────────────────
    *
-   * ccsds_tm_frame_decode packs bits to octets and derandomises in the same
-   * pass, so it cannot hand a mutable run to ccsds_tm_randomise and must not
-   * hold a sequence the size of the data either -- it steps the generator
+   * dp_ccsds_tm_frame_decode packs bits to octets and derandomises in the same
+   * pass, so it cannot hand a mutable run to dp_ccsds_tm_randomise and must
+   * not hold a sequence the size of the data either -- it steps the generator
    * alongside instead. That is only the same sequence if the state machine
    * and the bulk call agree, so the equivalence is pinned here rather than
    * left as an assumption two files away.
@@ -164,10 +164,10 @@ check_generator (const ccsds_tm_rand_t *r, const char *name,
     };
     uint8_t               bulk[N], stepped[N];
     ccsds_tm_rand_state_t st;
-    ccsds_tm_rand_seq_with (r, bulk, N);
-    ccsds_tm_rand_init (&st, r);
+    dp_ccsds_tm_rand_seq_with (r, bulk, N);
+    dp_ccsds_tm_rand_init (&st, r);
     for (size_t i = 0; i < N; i++)
-      stepped[i] = ccsds_tm_rand_step (&st);
+      stepped[i] = dp_ccsds_tm_rand_step (&st);
     DP_CHECK_MSG (memcmp (bulk, stepped, N) == 0,
                   "stepping must reproduce the bulk sequence exactly");
   }
@@ -181,13 +181,14 @@ static uint8_t scratch[2u * (131071u + 91u)];
 int
 main (void)
 {
-  if (check_generator (&CCSDS_TM_RAND, "10.4.1 is the 131071-bit sequence",
+  if (check_generator (&dp_CCSDS_TM_RAND, "10.4.1 is the 131071-bit sequence",
                        published40_17, 131071u, 65536u, scratch,
                        sizeof scratch)
       != 0)
     return 1;
-  if (check_generator (&CCSDS_TM_RAND_LEGACY, "10.4.2 is the 255-bit sequence",
-                       published40_8, 255u, 128u, scratch, sizeof scratch)
+  if (check_generator (&dp_CCSDS_TM_RAND_LEGACY,
+                       "10.4.2 is the 255-bit sequence", published40_8, 255u,
+                       128u, scratch, sizeof scratch)
       != 0)
     return 1;
 
@@ -202,8 +203,9 @@ main (void)
    */
   {
     uint8_t dflt[40] = { 0 }, legacy[40] = { 0 };
-    ccsds_tm_randomise (dflt, sizeof dflt);
-    ccsds_tm_randomise_with (&CCSDS_TM_RAND_LEGACY, legacy, sizeof legacy);
+    dp_ccsds_tm_randomise (dflt, sizeof dflt);
+    dp_ccsds_tm_randomise_with (&dp_CCSDS_TM_RAND_LEGACY, legacy,
+                                sizeof legacy);
 
     DP_CHECK_MSG (memcmp (dflt, published40_17, sizeof dflt) == 0,
                   "10.4.1: the bare call must apply the 131071-bit sequence");
@@ -214,7 +216,7 @@ main (void)
                   "and the advertised period is the default's");
 
     uint8_t seq[40];
-    ccsds_tm_rand_seq (seq, sizeof seq);
+    dp_ccsds_tm_rand_seq (seq, sizeof seq);
     DP_CHECK_MSG (memcmp (seq, published40_17, sizeof seq) == 0,
                   "the bare sequence accessor must agree with the bare "
                   "randomiser about which generator it is");

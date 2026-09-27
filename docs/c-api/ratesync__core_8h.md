@@ -92,6 +92,17 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  double | [**dp\_ratesync\_get\_rate**](#function-dp_ratesync_get_rate) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Smoothed tracked samples per symbol. Departs from the nominal_ `sps` _by exactly the sample-clock offset being tracked, so it is the estimator a rate-disciplining caller reads._ |
 |  void | [**dp\_ratesync\_get\_state**](#function-dp_ratesync_get_state) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, void \* blob) <br>_Serialize the mutable state into_ `blob` _._ |
 |  double | [**dp\_ratesync\_get\_timing\_error**](#function-dp_ratesync_get_timing_error) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Last normalised TED error — the loop stress._  |
+|  void | [**dp\_ratesync\_loop\_bind\_cascade**](#function-dp_ratesync_loop_bind_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* rc) <br>_Read that geometry straight off a cascade._  |
+|  void | [**dp\_ratesync\_loop\_configure**](#function-dp_ratesync_loop_configure) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double bn, double zeta) <br>_Retune the loop; preserves the integrator (and so the lock)._  |
+|  void | [**dp\_ratesync\_loop\_configure\_lock\_raw**](#function-dp_ratesync_loop_configure_lock_raw) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's geometry; see_ [_**dp\_ratesync\_configure\_lock\_raw()**_](ratesync__core_8h.md#function-dp_ratesync_configure_lock_raw) _, which forwards here._ |
+|  void | [**dp\_ratesync\_loop\_get\_state**](#function-dp_ratesync_loop_get_state) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, void \* blob) <br>_Serialize the loop's mutable state into_ `blob` _._ |
+|  void | [**dp\_ratesync\_loop\_init**](#function-dp_ratesync_loop_init) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double sps, size\_t m, double bn, double zeta, int ted) <br>_Initialise a standalone timing loop._  |
+|  void | [**dp\_ratesync\_loop\_reset**](#function-dp_ratesync_loop_reset) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Re-seed the loop: integrator, strobe ring, lock detector and the prime countdown. Configuration and cascade geometry are kept._  |
+|  void | [**dp\_ratesync\_loop\_set\_cascade**](#function-dp_ratesync_loop_set_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double term\_rate, size\_t prime\_taps) <br>_Tell the loop the geometry of the accumulator it steers._  |
+|  int | [**dp\_ratesync\_loop\_set\_state**](#function-dp_ratesync_loop_set_state) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const void \* blob) <br>_Restore the loop's mutable state from_ `blob` _._ |
+|  int | [**dp\_ratesync\_loop\_set\_telemetry**](#function-dp_ratesync_loop_set_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._ |
+|  size\_t | [**dp\_ratesync\_loop\_state\_bytes**](#function-dp_ratesync_loop_state_bytes) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Bytes_ [_**dp\_ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._ |
+|  void | [**dp\_ratesync\_loop\_tlm\_flush**](#function-dp_ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
 |  void | [**dp\_ratesync\_reset**](#function-dp_ratesync_reset) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Reset to the post-create state: the cascade, the loop integrator, the lock detector, the strobe ring and the prime countdown._  |
 |  void | [**dp\_ratesync\_set\_bn**](#function-dp_ratesync_set_bn) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_ratesync\_set\_state**](#function-dp_ratesync_set_state) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _into an identically built instance._ |
@@ -100,18 +111,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  size\_t | [**dp\_ratesync\_steps**](#function-dp_ratesync_steps) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Recover symbols from a block of oversampled cf32 baseband._  |
 |  size\_t | [**dp\_ratesync\_steps\_max\_out**](#function-dp_ratesync_steps_max_out) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Output-buffer hint for the generated binding; 0 means "the input
 length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yield more symbols than it has samples (mirrors symsync)._ |
-|  void | [**ratesync\_loop\_bind\_cascade**](#function-ratesync_loop_bind_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* rc) <br>_Read that geometry straight off a cascade._  |
-|  void | [**ratesync\_loop\_configure**](#function-ratesync_loop_configure) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double bn, double zeta) <br>_Retune the loop; preserves the integrator (and so the lock)._  |
-|  void | [**ratesync\_loop\_configure\_lock\_raw**](#function-ratesync_loop_configure_lock_raw) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's geometry; see_ [_**dp\_ratesync\_configure\_lock\_raw()**_](ratesync__core_8h.md#function-dp_ratesync_configure_lock_raw) _, which forwards here._ |
-|  void | [**ratesync\_loop\_get\_state**](#function-ratesync_loop_get_state) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, void \* blob) <br>_Serialize the loop's mutable state into_ `blob` _._ |
-|  void | [**ratesync\_loop\_init**](#function-ratesync_loop_init) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double sps, size\_t m, double bn, double zeta, int ted) <br>_Initialise a standalone timing loop._  |
-|  void | [**ratesync\_loop\_reset**](#function-ratesync_loop_reset) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Re-seed the loop: integrator, strobe ring, lock detector and the prime countdown. Configuration and cascade geometry are kept._  |
-|  void | [**ratesync\_loop\_set\_cascade**](#function-ratesync_loop_set_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double term\_rate, size\_t prime\_taps) <br>_Tell the loop the geometry of the accumulator it steers._  |
-|  int | [**ratesync\_loop\_set\_state**](#function-ratesync_loop_set_state) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const void \* blob) <br>_Restore the loop's mutable state from_ `blob` _._ |
-|  int | [**ratesync\_loop\_set\_telemetry**](#function-ratesync_loop_set_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._ |
-|  size\_t | [**ratesync\_loop\_state\_bytes**](#function-ratesync_loop_state_bytes) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Bytes_ [_**ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_loop\_take\_output**](#function-ratesync_loop_take_output) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* s, float \_Complex y, float \_Complex \* y\_out, int ted) <br>_Fold one terminal-stage output into the timing loop._  |
-|  void | [**ratesync\_loop\_tlm\_flush**](#function-ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_step**](#function-ratesync_step) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* s, float \_Complex x, float \_Complex \* y\_out) <br>_Per-input timing step (the inline composition API)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_step\_ted**](#function-ratesync_step_ted) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* s, float \_Complex x, float \_Complex \* y\_out, int ted) <br>_Per-input timing step with the TED selection as a parameter._  |
 
@@ -155,7 +155,7 @@ length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yie
 ## Detailed Description
 
 
-RateSync owns a `RateConverter` whose **terminal stage carries the pulse** (`RateConverter_create_matched`) and closes a timing loop around that stage's control port. It builds no filters of its own: the matched filter IS the cascade's last dot product, and the polyphase arm that dot product selects IS the fractional timing delay. One filter, no Farrow, no separate matched-filter pass.
+RateSync owns a `RateConverter` whose **terminal stage carries the pulse** (`dp_RateConverter_create_matched`) and closes a timing loop around that stage's control port. It builds no filters of its own: the matched filter IS the cascade's last dot product, and the polyphase arm that dot product selects IS the fractional timing delay. One filter, no Farrow, no separate matched-filter pass.
 
 
 Where SymbolSync separates the jobs (a matched FIR, then a Farrow interpolator steered by a timing NCO), this fuses them — and because the cascade in front is a full `RateConverter`, the fusion inherits its planning: HB/CIC stages do the bulk decimation for free, so the matched filter is sized by the POST-decimation rate. A matched filter at 256 input samples per symbol costs the same bank as one at 4.
@@ -168,7 +168,7 @@ Where SymbolSync separates the jobs (a matched FIR, then a Farrow interpolator s
 
 
 
-**1. Nothing in the error path can vanish.** The TED error is the raw detector output times `ted_scale` — a CONSTRUCT-TIME reciprocal of the detector's own slope against this pulse ([**symsync\_ted\_slope()**](symsync__core_8h.md#function-symsync_ted_slope)), not a running power estimate. A running normaliser is what the error path used to carry, and getting it wrong killed the loop outright: normalising by the on-time energy `|on|^2` alone divides by zero exactly when the strobe sits on the symbol transitions, which is precisely the state the loop must recover FROM. Measured, the error reached -91, the control drove the terminal stage's effective rate NEGATIVE, its accumulator stopped advancing, and the cascade emitted nothing ever again (2 symbols where 4000 were expected — a permanent death, not a transient). The fix at the time was to normalise by `|on|^2 + |mid|^2`: the same signal half a symbol apart, so the sum is bounded away from zero at every timing phase. That sum survives as the LOCK STATISTIC's normaliser, which is the only place it is still computed; the error path moved to the construct-time constant (RATESYNC\_LOOP\_STATE\_VERSION 2 records the change), which settles the question rather than answering it — a constant cannot vanish.
+**1. Nothing in the error path can vanish.** The TED error is the raw detector output times `ted_scale` — a CONSTRUCT-TIME reciprocal of the detector's own slope against this pulse ([**dp\_symsync\_ted\_slope()**](symsync__core_8h.md#function-dp_symsync_ted_slope)), not a running power estimate. A running normaliser is what the error path used to carry, and getting it wrong killed the loop outright: normalising by the on-time energy `|on|^2` alone divides by zero exactly when the strobe sits on the symbol transitions, which is precisely the state the loop must recover FROM. Measured, the error reached -91, the control drove the terminal stage's effective rate NEGATIVE, its accumulator stopped advancing, and the cascade emitted nothing ever again (2 symbols where 4000 were expected — a permanent death, not a transient). The fix at the time was to normalise by `|on|^2 + |mid|^2`: the same signal half a symbol apart, so the sum is bounded away from zero at every timing phase. That sum survives as the LOCK STATISTIC's normaliser, which is the only place it is still computed; the error path moved to the construct-time constant (RATESYNC\_LOOP\_STATE\_VERSION 2 records the change), which settles the question rather than answering it — a constant cannot vanish.
 
 
 Either way the conclusion holds and is what a caller cares about: RateSync needs no clamp on the control anywhere, and there is none in the source. Measured, `ctrl` stays inside a few hundredths driven from the worst initial offset at the widest recommended `bn`, bounded by the detector's own S-curve, which is bounded by construction (report §2.7).
@@ -389,7 +389,7 @@ dp_ratesync_state_t * dp_ratesync_create (
 
 
 
-Builds a `RateConverter(rate = m/sps, pulse, ..., pulse_sps = m)` with CIC droop compensation on — folded into the bank, so it costs six taps per arm and no extra stage, and is worth ~28 dB of EVM on any cascade that plans a CIC. See [**RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-rateconverter_create_matched).
+Builds a `RateConverter(rate = m/sps, pulse, ..., pulse_sps = m)` with CIC droop compensation on — folded into the bank, so it costs six taps per arm and no extra stage, and is worth ~28 dB of EVM on any cascade that plans a CIC. See [**dp\_RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-dp_rateconverter_create_matched).
 
 
 
@@ -397,7 +397,7 @@ Builds a `RateConverter(rate = m/sps, pulse, ..., pulse_sps = m)` with CIC droop
 **
 **
 
-Present **unit-amplitude symbols**. This object carries no AGC, and that is deliberate: a receiver composing it already levels in its own front-end cascade ([**RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-rateconverter_enable_agc), one per receiver), so an AGC here would be a second one integrating against the first. The level to hit is not a tuned number — the TED normalises by its own construct-time slope, and that slope is computed for the reference the bank already defines, `10*log10(bank_e0 / bank_sps)`, which is ~0 dB because the bank normalises by its own pulse energy. See [**RateConverter\_agc\_ref\_db()**](RateConverter__core_8h.md#function-rateconverter_agc_ref_db), which is defined for any matched cascade whether or not an AGC is enabled.
+Present **unit-amplitude symbols**. This object carries no AGC, and that is deliberate: a receiver composing it already levels in its own front-end cascade ([**dp\_RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-dp_rateconverter_enable_agc), one per receiver), so an AGC here would be a second one integrating against the first. The level to hit is not a tuned number — the TED normalises by its own construct-time slope, and that slope is computed for the reference the bank already defines, `10*log10(bank_e0 / bank_sps)`, which is ~0 dB because the bank normalises by its own pulse energy. See [**dp\_RateConverter\_agc\_ref\_db()**](RateConverter__core_8h.md#function-dp_rateconverter_agc_ref_db), which is defined for any matched cascade whether or not an AGC is enabled.
 
 
 **The level axis is two-sided and it is not monotone**, so "as long as
@@ -606,6 +606,285 @@ double dp_ratesync_get_timing_error (
 
 
 
+### function dp\_ratesync\_loop\_bind\_cascade 
+
+_Read that geometry straight off a cascade._ 
+```C++
+void dp_ratesync_loop_bind_cascade (
+    ratesync_loop_t * l,
+    const dp_RateConverter_state_t * rc
+) 
+```
+
+
+
+Walks `rc` to its terminal stage and forwards its rate and tap count to [**dp\_ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_cascade). Every owner of this loop owns a `RateConverter` somewhere — RateSync directly, the receivers inside their DDC — so the walk lives here once rather than in each of them.
+
+
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `rc` The cascade whose terminal stage the loop steers. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_configure 
+
+_Retune the loop; preserves the integrator (and so the lock)._ 
+```C++
+void dp_ratesync_loop_configure (
+    ratesync_loop_t * l,
+    double bn,
+    double zeta
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_configure\_lock\_raw 
+
+_Set the lock detector's geometry; see_ [_**dp\_ratesync\_configure\_lock\_raw()**_](ratesync__core_8h.md#function-dp_ratesync_configure_lock_raw) _, which forwards here._
+```C++
+void dp_ratesync_loop_configure_lock_raw (
+    ratesync_loop_t * l,
+    size_t avgs,
+    double up_thresh,
+    double down_thresh,
+    uint32_t n_up,
+    uint32_t n_down
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_get\_state 
+
+_Serialize the loop's mutable state into_ `blob` _._
+```C++
+void dp_ratesync_loop_get_state (
+    const ratesync_loop_t * l,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_init 
+
+_Initialise a standalone timing loop._ 
+```C++
+void dp_ratesync_loop_init (
+    ratesync_loop_t * l,
+    double sps,
+    size_t m,
+    double bn,
+    double zeta,
+    int ted
+) 
+```
+
+
+
+Sets the loop filter (update period = one symbol, so `bn` is normalised to the symbol rate) and the default lock-detector geometry, then seeds every running field. The caller must still describe the accumulator being steered with [**dp\_ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-dp_ratesync_loop_set_cascade) before pushing outputs through.
+
+
+
+
+**Parameters:**
+
+
+* `l` Loop to initialise. Must be non-NULL. 
+* `sps` Nominal samples per symbol (any double). 
+* `m` Terminal outputs per symbol; even, 2..RATESYNC\_MAX\_M. 
+* `bn` Loop noise bandwidth, normalised to the symbol rate. 
+* `zeta` Damping factor. 
+* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_reset 
+
+_Re-seed the loop: integrator, strobe ring, lock detector and the prime countdown. Configuration and cascade geometry are kept._ 
+```C++
+void dp_ratesync_loop_reset (
+    ratesync_loop_t * l
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_set\_cascade 
+
+_Tell the loop the geometry of the accumulator it steers._ 
+```C++
+void dp_ratesync_loop_set_cascade (
+    ratesync_loop_t * l,
+    double term_rate,
+    size_t prime_taps
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `l` Loop. Must be non-NULL. 
+* `term_rate` The terminal stage's own rate. `ctrl` is referenced to this, not to the overall cascade rate — they differ by the whole integer decimation in front, which would under-drive the loop by exactly that factor. 
+* `prime_taps` The terminal bank's tap count; the loop discards `prime_taps + 1` outputs before closing, because those are the delay lines filling rather than signal. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_set\_state 
+
+_Restore the loop's mutable state from_ `blob` _._
+```C++
+int dp_ratesync_loop_set_state (
+    ratesync_loop_t * l,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if any envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_set\_telemetry 
+
+_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._
+```C++
+int dp_ratesync_loop_set_telemetry (
+    ratesync_loop_t * l,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_state\_bytes 
+
+_Bytes_ [_**dp\_ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._
+```C++
+size_t dp_ratesync_loop_state_bytes (
+    const ratesync_loop_t * l
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_ratesync\_loop\_tlm\_flush 
+
+_Emit the timing loop's telemetry for the symbol just recovered._ 
+```C++
+void dp_ratesync_loop_tlm_flush (
+    const ratesync_loop_t * l
+) 
+```
+
+
+
+Out-of-line on purpose: the emit machinery must not inline into the per-sample hot loop (the same body-growth cost symsync measured). Callers gate on `l->tlm.ctx`, so the detached cost is one predicted-not-taken branch per symbol.
+
+
+
+
+**Parameters:**
+
+
+* `l` Loop with a non-NULL tlm.ctx (caller-checked). 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_ratesync\_reset 
 
 _Reset to the post-create state: the cascade, the loop integrator, the lock detector, the strobe ring and the prime countdown._ 
@@ -709,7 +988,7 @@ int dp_ratesync_set_telemetry (
 
 
 
-Registers six probes, emitted once per recovered symbol and further thinned by `decim:` "&lt;prefix&gt;.e" (normalised TED error), "&lt;prefix&gt;.ctrl" (the per-input control steering the strobe), "&lt;prefix&gt;.rate" (tracked samples/symbol), "&lt;prefix&gt;.lock" (last block-averaged lock\_signal), "&lt;prefix&gt;.locked" (0/1) and "&lt;prefix&gt;.mu" (the timing NCO's fractional phase — see [**resamp\_get\_ctrl\_acc()**](resamp__core_8h.md#function-resamp_get_ctrl_acc)). Passing NULL detaches. Setup path, never hot: the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)).
+Registers six probes, emitted once per recovered symbol and further thinned by `decim:` "&lt;prefix&gt;.e" (normalised TED error), "&lt;prefix&gt;.ctrl" (the per-input control steering the strobe), "&lt;prefix&gt;.rate" (tracked samples/symbol), "&lt;prefix&gt;.lock" (last block-averaged lock\_signal), "&lt;prefix&gt;.locked" (0/1) and "&lt;prefix&gt;.mu" (the timing NCO's fractional phase — see [**dp\_resamp\_get\_ctrl\_acc()**](resamp__core_8h.md#function-dp_resamp_get_ctrl_acc)). Passing NULL detaches. Setup path, never hot: the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)).
 
 
 The three form one readable picture of the loop: `e` is what the detector saw, `ctrl` is what the filter did about it, and `mu` is where the sampling instant ended up as a result — the only one of the three that is a physical position rather than a correction.
@@ -845,255 +1124,6 @@ size_t dp_ratesync_steps_max_out (
 
 
 
-### function ratesync\_loop\_bind\_cascade 
-
-_Read that geometry straight off a cascade._ 
-```C++
-void ratesync_loop_bind_cascade (
-    ratesync_loop_t * l,
-    const dp_RateConverter_state_t * rc
-) 
-```
-
-
-
-Walks `rc` to its terminal stage and forwards its rate and tap count to [**ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-ratesync_loop_set_cascade). Every owner of this loop owns a `RateConverter` somewhere — RateSync directly, the receivers inside their DDC — so the walk lives here once rather than in each of them.
-
-
-
-
-**Parameters:**
-
-
-* `l` Must be non-NULL. 
-* `rc` The cascade whose terminal stage the loop steers. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ratesync\_loop\_configure 
-
-_Retune the loop; preserves the integrator (and so the lock)._ 
-```C++
-void ratesync_loop_configure (
-    ratesync_loop_t * l,
-    double bn,
-    double zeta
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function ratesync\_loop\_configure\_lock\_raw 
-
-_Set the lock detector's geometry; see_ [_**dp\_ratesync\_configure\_lock\_raw()**_](ratesync__core_8h.md#function-dp_ratesync_configure_lock_raw) _, which forwards here._
-```C++
-void ratesync_loop_configure_lock_raw (
-    ratesync_loop_t * l,
-    size_t avgs,
-    double up_thresh,
-    double down_thresh,
-    uint32_t n_up,
-    uint32_t n_down
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function ratesync\_loop\_get\_state 
-
-_Serialize the loop's mutable state into_ `blob` _._
-```C++
-void ratesync_loop_get_state (
-    const ratesync_loop_t * l,
-    void * blob
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function ratesync\_loop\_init 
-
-_Initialise a standalone timing loop._ 
-```C++
-void ratesync_loop_init (
-    ratesync_loop_t * l,
-    double sps,
-    size_t m,
-    double bn,
-    double zeta,
-    int ted
-) 
-```
-
-
-
-Sets the loop filter (update period = one symbol, so `bn` is normalised to the symbol rate) and the default lock-detector geometry, then seeds every running field. The caller must still describe the accumulator being steered with [**ratesync\_loop\_set\_cascade()**](ratesync__core_8h.md#function-ratesync_loop_set_cascade) before pushing outputs through.
-
-
-
-
-**Parameters:**
-
-
-* `l` Loop to initialise. Must be non-NULL. 
-* `sps` Nominal samples per symbol (any double). 
-* `m` Terminal outputs per symbol; even, 2..RATESYNC\_MAX\_M. 
-* `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor. 
-* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ratesync\_loop\_reset 
-
-_Re-seed the loop: integrator, strobe ring, lock detector and the prime countdown. Configuration and cascade geometry are kept._ 
-```C++
-void ratesync_loop_reset (
-    ratesync_loop_t * l
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `l` Must be non-NULL. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ratesync\_loop\_set\_cascade 
-
-_Tell the loop the geometry of the accumulator it steers._ 
-```C++
-void ratesync_loop_set_cascade (
-    ratesync_loop_t * l,
-    double term_rate,
-    size_t prime_taps
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `l` Loop. Must be non-NULL. 
-* `term_rate` The terminal stage's own rate. `ctrl` is referenced to this, not to the overall cascade rate — they differ by the whole integer decimation in front, which would under-drive the loop by exactly that factor. 
-* `prime_taps` The terminal bank's tap count; the loop discards `prime_taps + 1` outputs before closing, because those are the delay lines filling rather than signal. 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ratesync\_loop\_set\_state 
-
-_Restore the loop's mutable state from_ `blob` _._
-```C++
-int ratesync_loop_set_state (
-    ratesync_loop_t * l,
-    const void * blob
-) 
-```
-
-
-
-
-
-**Returns:**
-
-DP\_OK, or DP\_ERR\_INVALID if any envelope rejects. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ratesync\_loop\_set\_telemetry 
-
-_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._
-```C++
-int ratesync_loop_set_telemetry (
-    ratesync_loop_t * l,
-    dp_tlm_t * tlm,
-    const char * prefix,
-    uint32_t decim
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function ratesync\_loop\_state\_bytes 
-
-_Bytes_ [_**ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._
-```C++
-size_t ratesync_loop_state_bytes (
-    const ratesync_loop_t * l
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function ratesync\_loop\_take\_output 
 
 _Fold one terminal-stage output into the timing loop._ 
@@ -1127,36 +1157,6 @@ The whole of the loop's per-output work, and the reason the loop is a struct of 
 
 1 if this output was an on-time strobe that produced a symbol. 
 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function ratesync\_loop\_tlm\_flush 
-
-_Emit the timing loop's telemetry for the symbol just recovered._ 
-```C++
-void ratesync_loop_tlm_flush (
-    const ratesync_loop_t * l
-) 
-```
-
-
-
-Out-of-line on purpose: the emit machinery must not inline into the per-sample hot loop (the same body-growth cost symsync measured). Callers gate on `l->tlm.ctx`, so the detached cost is one predicted-not-taken branch per symbol.
-
-
-
-
-**Parameters:**
-
-
-* `l` Loop with a non-NULL tlm.ctx (caller-checked). 
 
 
 

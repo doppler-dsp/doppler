@@ -142,7 +142,7 @@ extern "C"
    *                      unit-energy BPSK/QPSK symbols).
    * @return Per-component sigma for one I or Q rail.
    */
-  float awgn_amplitude_for_snr (float snr_db, float signal_power);
+  float dp_awgn_amplitude_for_snr (float snr_db, float signal_power);
 
   /** Set amplitude without disturbing RNG state. */
   void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
@@ -224,7 +224,7 @@ extern "C"
    * @param out        Output buffer, capacity ≥ n.
    * @return DP_OK on success, DP_ERR_MEMORY on allocation failure.
    */
-  int awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out);
+  int dp_awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out);
 
 #ifdef __cplusplus
 }

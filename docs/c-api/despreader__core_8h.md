@@ -68,7 +68,6 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**despreader\_init**](#function-despreader_init) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
 |  size\_t | [**dp\_despreader\_bits**](#function-dp_despreader_bits) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block and bit-sync the prompts into hard data bits._  |
 |  size\_t | [**dp\_despreader\_bits\_max\_out**](#function-dp_despreader_bits_max_out) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
 |  void | [**dp\_despreader\_configure\_carrier\_lock**](#function-dp_despreader_configure_carrier_lock) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the embedded carrier loop's lock detector directly._  |
@@ -85,6 +84,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  double | [**dp\_despreader\_get\_lock\_metric**](#function-dp_despreader_get_lock_metric) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The embedded Costas loop's lock statistic: the EMA of \|Re P\|/\|P\| over the prompt correlations, 1 when locked._ `carrier_locked` _is the de-chattered decision made on it._ |
 |  double | [**dp\_despreader\_get\_norm\_freq**](#function-dp_despreader_get_norm_freq) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
 |  void | [**dp\_despreader\_get\_state**](#function-dp_despreader_get_state) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_despreader\_init**](#function-dp_despreader_init) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
 |  void | [**dp\_despreader\_reset**](#function-dp_despreader_reset) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Re-seed both loops to the create-time frequency/phase; keep config._  |
 |  void | [**dp\_despreader\_set\_bn\_carrier**](#function-dp_despreader_set_bn_carrier) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
 |  void | [**dp\_despreader\_set\_bn\_code**](#function-dp_despreader_set_bn_code) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
@@ -155,58 +155,6 @@ dp_despreader_destroy(ch);
     
 ## Public Functions Documentation
 
-
-
-
-### function despreader\_init 
-
-_Initialise a despreader in place; BORROWS_ `code` _._
-```C++
-void despreader_init (
-    dp_despreader_state_t * ch,
-    const uint8_t * code,
-    size_t code_len,
-    size_t sps,
-    double init_norm_freq,
-    double init_chip,
-    double bn_carrier,
-    double bn_code,
-    double bn_fll,
-    double zeta,
-    double spacing,
-    size_t periods_per_bit
-) 
-```
-
-
-
-The by-value counterpart to [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create): the caller retains ownership of `code` (it is not copied or freed). Seeds the carrier NCO at `init_norm_freq` and the code phase at `init_chip` (the acquisition estimate). The carrier loop's update period is one code period (`code_len * sps` samples).
-
-
-
-
-**Parameters:**
-
-
-* `ch` State to initialise. Must be non-NULL. 
-* `code` Spreading code (0/1 chips), one period; borrowed. 
-* `code_len` Code length (chips per period); &gt;= 1. 
-* `sps` Samples per chip. 
-* `init_norm_freq` Seed carrier frequency, cycles/sample. 
-* `init_chip` Seed code phase, chips. 
-* `bn_carrier` Carrier loop noise bandwidth. 
-* `bn_code` Code loop noise bandwidth. 
-* `bn_fll` Carrier FLL-assist bandwidth (0 = pure PLL). 
-* `zeta` Damping factor for both loops. 
-* `spacing` DLL early/late tap offset, chips. 
-* `periods_per_bit` Code periods per data bit (1 = one bit per period). 
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -640,6 +588,58 @@ void dp_despreader_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_despreader\_init 
+
+_Initialise a despreader in place; BORROWS_ `code` _._
+```C++
+void dp_despreader_init (
+    dp_despreader_state_t * ch,
+    const uint8_t * code,
+    size_t code_len,
+    size_t sps,
+    double init_norm_freq,
+    double init_chip,
+    double bn_carrier,
+    double bn_code,
+    double bn_fll,
+    double zeta,
+    double spacing,
+    size_t periods_per_bit
+) 
+```
+
+
+
+The by-value counterpart to [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create): the caller retains ownership of `code` (it is not copied or freed). Seeds the carrier NCO at `init_norm_freq` and the code phase at `init_chip` (the acquisition estimate). The carrier loop's update period is one code period (`code_len * sps` samples).
+
+
+
+
+**Parameters:**
+
+
+* `ch` State to initialise. Must be non-NULL. 
+* `code` Spreading code (0/1 chips), one period; borrowed. 
+* `code_len` Code length (chips per period); &gt;= 1. 
+* `sps` Samples per chip. 
+* `init_norm_freq` Seed carrier frequency, cycles/sample. 
+* `init_chip` Seed code phase, chips. 
+* `bn_carrier` Carrier loop noise bandwidth. 
+* `bn_code` Code loop noise bandwidth. 
+* `bn_fll` Carrier FLL-assist bandwidth (0 = pure PLL). 
+* `zeta` Damping factor for both loops. 
+* `spacing` DLL early/late tap offset, chips. 
+* `periods_per_bit` Code periods per data bit (1 = one bit per period). 
+
+
+
+
+        
 
 <hr>
 

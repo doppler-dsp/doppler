@@ -924,11 +924,11 @@ class Dll:
         `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`
         so the aid takes effect before the first period update. `code_rate`
         stays the loop's own observable and is unaffected. A HELD loop
-        (dll_set_coast()) takes the new aid at once: nothing steers a coasting
-        loop's `phase_inc`, so it is recomputed here from the held filter and
-        the new aid -- a holder that refreshes the Doppler it holds (a
-        searcher-timed receiver's fold) sees the code rate follow. Before this,
-        a coasting loop kept the aid it was held with.
+        (dp_dll_set_coast()) takes the new aid at once: nothing steers a
+        coasting loop's `phase_inc`, so it is recomputed here from the held
+        filter and the new aid -- a holder that refreshes the Doppler it holds
+        (a searcher-timed receiver's fold) sees the code rate follow. Before
+        this, a coasting loop kept the aid it was held with.
 
         Parameters
         ----------
@@ -958,8 +958,8 @@ class Dll:
         """
 
     def take_error_mean(self) -> float:
-        """dll_take_error() as one number: the mean of the steers taken, or NaN
-        when none were -- the Python face of the primitive.
+        """dp_dll_take_error() as one number: the mean of the steers taken, or
+        NaN when none were -- the Python face of the primitive.
 
         The block-mean discriminator a holder corrects a coasting loop on
         (dp_dll_set_code_phase()), read once per interval; each read starts the
@@ -1005,9 +1005,9 @@ class Dll:
         samples are the tail of an epoch already closed) and starts the epoch
         there. Either way a put never emits a burst of short partials and never
         folds a second period into one epoch. This is the other half of
-        dll_set_coast(): a coasting loop advances at its held rate, which its
-        32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31
-        ms block at 5 Mcps (design §12.22) -- so whoever holds it on another
+        dp_dll_set_coast(): a coasting loop advances at its held rate, which
+        its 32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per
+        31 ms block at 5 Mcps (design §12.22) -- so whoever holds it on another
         clock (a searcher's cell, a carrier aid) puts it back where that clock
         says, once per block, and reads the discriminator between. Nominally at
         a period boundary; called mid-period it costs that one period's read.
@@ -2123,9 +2123,9 @@ class RateSync:
         (the per-input control steering the strobe), "<prefix>.rate" (tracked
         samples/symbol), "<prefix>.lock" (last block-averaged lock_signal),
         "<prefix>.locked" (0/1) and "<prefix>.mu" (the timing NCO's fractional
-        phase — see resamp_get_ctrl_acc()). Passing NULL detaches. Setup path,
-        never hot: the context is borrowed and must outlive the attachment
-        (SPSC rules in dp_tlm/dp_tlm_core.h).
+        phase — see dp_resamp_get_ctrl_acc()). Passing NULL detaches. Setup
+        path, never hot: the context is borrowed and must outlive the
+        attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         The three form one readable picture of the loop: `e` is what the
         detector saw, `ctrl` is what the filter did about it, and `mu` is where
@@ -3356,7 +3356,7 @@ class MpskReceiver:
         carrier records. Compare the two by TIME, never by record index. This
         is deliberate: the AGC's bandwidth is quoted in the pre-terminal
         stream's units precisely so it is not coupled to the loop that is
-        stretching the symbol grid (see RateConverter_enable_agc()).
+        stretching the symbol grid (see dp_RateConverter_enable_agc()).
 
         Examples
         --------
@@ -3930,7 +3930,7 @@ class BpskReceiver:
         carrier records. Compare the two by TIME, never by record index. This
         is deliberate: the AGC's bandwidth is quoted in the pre-terminal
         stream's units precisely so it is not coupled to the loop that is
-        stretching the symbol grid (see RateConverter_enable_agc()).
+        stretching the symbol grid (see dp_RateConverter_enable_agc()).
 
         Examples
         --------
@@ -4593,7 +4593,7 @@ class MpskReceiverR:
         carrier records. Compare the two by TIME, never by record index. This
         is deliberate: the AGC's bandwidth is quoted in the pre-terminal
         stream's units precisely so it is not coupled to the loop that is
-        stretching the symbol grid (see RateConverter_enable_agc()).
+        stretching the symbol grid (see dp_RateConverter_enable_agc()).
 
         Examples
         --------
@@ -4674,7 +4674,8 @@ class MpskReceiverR:
 
         dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes
         them complex before anything else touches them, and the per-sample body
-        is the same one. Requires a state built by mpsk_receiver_create_real().
+        is the same one. Requires a state built by
+        dp_mpsk_receiver_create_real().
 
         Parameters
         ----------
@@ -4734,7 +4735,7 @@ class MpskReceiverR:
         symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
         dp_mpsk_receiver_bits() taking real samples. Requires a state built by
-        mpsk_receiver_create_real().
+        dp_mpsk_receiver_create_real().
 
         Parameters
         ----------

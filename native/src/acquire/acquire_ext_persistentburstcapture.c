@@ -92,7 +92,7 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
       return -1;
     }
   size_t preamble_len = (size_t)PyArray_SIZE (preamble_arr);
-  self->handle        = burst_capture_create_backed (
+  self->handle        = dp_burst_capture_create_backed (
       PyBytes_AS_STRING (path),
       (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len,
       burst_len, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,

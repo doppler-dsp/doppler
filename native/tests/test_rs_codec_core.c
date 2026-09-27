@@ -13,7 +13,7 @@
  *    integers and must assemble the same `rs_code_t` the caller named — and
  *    must REFUSE the two that produce self-consistent nonsense, since a
  *    round trip cannot.
- * 2. **The placement of a systematic codeword.** `rs_encode` returns parity
+ * 2. **The placement of a systematic codeword.** `dp_rs_encode` returns parity
  *    alone; this object answers in whole codewords, and getting that
  *    placement wrong produces a word that decodes against itself and matches
  *    no other implementation.
@@ -89,10 +89,10 @@ main (void)
 
   /* ── 3. encode places a SYSTEMATIC codeword ────────────────────────────────
    *
-   * The object's own claim, and the one `rs_encode` cannot make: information
-   * first, untouched, then the parity the kernel computed. A codeword built
-   * the other way round decodes perfectly against an equally-reversed
-   * decoder and matches no other implementation of this code.
+   * The object's own claim, and the one `dp_rs_encode` cannot make:
+   * information first, untouched, then the parity the kernel computed. A
+   * codeword built the other way round decodes perfectly against an
+   * equally-reversed decoder and matches no other implementation of this code.
    */
   {
     dp_rs_codec_state_t *rs
@@ -111,12 +111,13 @@ main (void)
                   "systematic: the information is carried through untouched");
 
     /* The parity is the kernel's, at the kernel's own offset -- checked
-       against rs_encode directly rather than against a second computation
+       against dp_rs_encode directly rather than against a second computation
        here, which would only prove this file agrees with itself. */
     uint8_t parity[32];
-    rs_encode (&rs->rs, info, parity);
-    DP_CHECK_MSG (memcmp (word + k, parity, 32u) == 0,
-                  "the parity is rs_encode's, placed after the information");
+    dp_rs_encode (&rs->rs, info, parity);
+    DP_CHECK_MSG (
+        memcmp (word + k, parity, 32u) == 0,
+        "the parity is dp_rs_encode's, placed after the information");
 
     DP_CHECK_MSG (dp_rs_codec_codeword_ok (rs, word, n),
                   "...and the whole thing is therefore a codeword");
@@ -250,7 +251,7 @@ main (void)
     DP_CHECK_MSG (nz > 0u, "...and an error shows in them");
 
     DP_REQUIRE (dp_rs_codec_generator (rs, gen, sizeof gen) == 33u);
-    DP_CHECK_MSG (memcmp (gen, rs_generator (&rs->rs), 33u) == 0,
+    DP_CHECK_MSG (memcmp (gen, dp_rs_generator (&rs->rs), 33u) == 0,
                   "the generator is the kernel's, whole");
     DP_CHECK_MSG (gen[32] == 1u, "g(x) is monic in its highest coefficient");
 

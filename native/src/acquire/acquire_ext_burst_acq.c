@@ -547,7 +547,7 @@ BurstAcquisition_getprop_psl_db (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((acq_psl_db (self->handle->engine)));
+  return PyFloat_FromDouble ((dp_acq_psl_db (self->handle->engine)));
 }
 
 static PyGetSetDef BurstAcquisition_getset[] = {
@@ -932,7 +932,7 @@ static PyTypeObject BurstAcquisitionObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Create a burst-mode acquisition engine for any repeated preamble, given\n"
-    "as its samples (forwards to acq_create_burst() -- see its doc comment "
+    "as its samples (forwards to dp_acq_create_burst() -- see its doc comment "
     "in\n"
     "acq_core.h for the full physics).\n"
     "\n"

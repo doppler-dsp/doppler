@@ -186,7 +186,7 @@ double acq_shape_t::psl;
 
 
 
-Peak sidelobe: the largest \|R(m)\| / R(0) OUTSIDE the mainlobe, zone &lt;= m &lt;= n - zone  the lags the peak list's exclusion does not cover. 0 for a perfect sequence (below 1e-6, rounding). [**acq\_psl\_db()**](acq__core_8h.md#function-acq_psl_db) is the read-back (doppler#1470). 
+Peak sidelobe: the largest \|R(m)\| / R(0) OUTSIDE the mainlobe, zone &lt;= m &lt;= n - zone  the lags the peak list's exclusion does not cover. 0 for a perfect sequence (below 1e-6, rounding). [**dp\_acq\_psl\_db()**](acq__core_8h.md#function-dp_acq_psl_db) is the read-back (doppler#1470). 
 
 
         

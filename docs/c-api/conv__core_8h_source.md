@@ -35,7 +35,7 @@ extern "C"
     uint32_t invert;             
   } conv_code_t;
 
-  int conv_code_valid (const conv_code_t *c);
+  int dp_conv_code_valid (const conv_code_t *c);
 
   JM_FORCEINLINE uint32_t
   conv_states (const conv_code_t *c)
@@ -43,7 +43,7 @@ extern "C"
     return 1u << (c->k - 1u);
   }
 
-  unsigned conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit);
+  unsigned dp_conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit);
 
   JM_FORCEINLINE uint32_t
   conv_next_state (const conv_code_t *c, uint32_t state, unsigned bit)
@@ -58,9 +58,9 @@ extern "C"
     uint32_t reg; 
   } conv_enc_t;
 
-  void conv_enc_init (conv_enc_t *s);
+  void dp_conv_enc_init (conv_enc_t *s);
 
-  size_t conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
+  size_t dp_conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
                       size_t n_in, uint8_t *out, size_t max_out);
 
 #ifdef __cplusplus

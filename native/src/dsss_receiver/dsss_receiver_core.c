@@ -17,7 +17,7 @@
  * requires sps >= m_out. */
 
 /* Allocate a fresh Dll/RateConverter/MpskReceiver triple (+ seed the
- * pre-despread carrier loop, by value into *car_out -- costas_init never
+ * pre-despread carrier loop, by value into *car_out -- dp_costas_init never
  * allocates, so it can't fail) from the given hand-off phase/frequency and
  * grid, without touching `state`'s existing children -- the fail-safe half
  * of the "allocate everything first" regrid discipline (acq_regrid() in
@@ -101,16 +101,16 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
    * rate (chip_rate*spc) -- the stage that actually owns removing the
    * full Doppler (see the comment above MpskReceiver's own seed). One
    * costas_update() per code PERIOD (code_len*spc samples) -- `bn`/
-   * `bn_fll` are normalized to this update rate (loop_filter_init's own
+   * `bn_fll` are normalized to this update rate (dp_loop_filter_init's own
    * per-update convention, costas_core.c), so `tsamps` here must match
    * the actual call cadence in dsss_rx_carrier_update_from_partials, not a
    * finer per-segment interval: calling costas_update() once per
    * partial instead would quadruple the loop's real-time bandwidth at
    * a fixed `bn`, weakening tracking rather than speeding it up. */
   double front_end_rate = chip_rate * (double)spc;
-  costas_init (car_out, DSSS_RX_BN_CARRIER, 0.707,
-               doppler_hz_est / front_end_rate, code_len * spc,
-               DSSS_RX_BN_FLL);
+  dp_costas_init (car_out, DSSS_RX_BN_CARRIER, 0.707,
+                  doppler_hz_est / front_end_rate, code_len * spc,
+                  DSSS_RX_BN_FLL);
 
   *dll_out = dll;
   *rc_out  = rc;
@@ -158,7 +158,7 @@ dsss_rx_rebuild_chain (dp_dsss_receiver_state_t *s, double chip_phase,
 
 /* Sum whatever dp_dll_steps() just emitted for one wiped period into a single
  * DATA-WIPED pseudo-coherent prompt and steer the carrier loop from it,
- * once per period (matching costas_init's own tsamps=one-period
+ * once per period (matching dp_costas_init's own tsamps=one-period
  * calibration, see dsss_rx_build_chain). dp_dll_steps() emits `segments`-many
  * PARTIAL prompts per period, and a data-bit transition can land inside
  * the period -- at SPEC's own async ratio (periods/symbol ~= 1.111) this
@@ -313,7 +313,7 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = dp_xnn (acq_create_continuous (
+  obj->acq = dp_xnn (dp_acq_create_continuous (
       obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
       doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0));
 
@@ -415,11 +415,12 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
       const float _Complex *tail = x + (x_len - tail_len);
 
       /* This receiver's embedded engine is always built via
-       * acq_create_continuous() -- coherent_bins is pinned at 1, window_bins
-       * is the active mechanism, always -- acq_build_handoff()'s only
-       * supported mode. */
+       * dp_acq_create_continuous() -- coherent_bins is pinned at 1,
+       * window_bins is the active mechanism, always --
+       * dp_acq_build_handoff()'s only supported mode. */
       acq_handoff_t ho;
-      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
+      dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
+                            &ho);
 
       dsss_rx_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
                              state->segments, state->sps, state->n);

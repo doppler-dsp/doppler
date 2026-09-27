@@ -32,7 +32,7 @@ extern "C"
     int locked;         
   } dp_lockdet_state_t;
 
-  void lockdet_init(dp_lockdet_state_t *state, double up_thresh,
+  void dp_lockdet_init(dp_lockdet_state_t *state, double up_thresh,
                     double down_thresh, uint32_t n_up, uint32_t n_down);
 
   dp_lockdet_state_t *dp_lockdet_create(double up_thresh, double down_thresh,

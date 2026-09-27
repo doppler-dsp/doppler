@@ -22,4 +22,4 @@
 
     The built-in bank is fixed (≈60 dB rejection, 0.4/0.6 pass/stop) and has
     no per-instance spec knob in the Python API; design a custom bank in C
-    via `Resampler_create_custom()` for tighter rejection.
+    via `dp_Resampler_create_custom()` for tighter rejection.

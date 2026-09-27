@@ -117,7 +117,7 @@ extern "C"
    * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
    * it after LOCK_N_DOWN below LOCK_DOWN. */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
-/* The cell mode's defaults (async_dsss_receiver_create_cell(), design
+/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(), design
  * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
  * chips, on the coasting Dll's interval-mean discriminator, and the
  * intervals at gain 1 that pull the seed's residual in. */
@@ -161,7 +161,7 @@ extern "C"
     float _Complex *refine_rc_out_buf;
     size_t         refine_rc_out_cap;
 
-    /* Track stage: DsssReceiver's own composition. costas_init()'s tsamps is
+    /* Track stage: DsssReceiver's own composition. dp_costas_init()'s tsamps is
      * one whole code period, and the pre-despread carrier loop updates once
      * per period from a non-data-aided (squaring) combine of that period's
      * coherent-I&D partials (see adr_track_period() in the .c file). */
@@ -188,7 +188,7 @@ extern "C"
     size_t         car_carry_len;
 
     /* Own copy of the spreading code (same rationale as DsssReceiver's
-     * own copy -- neither acq_create_continuous() nor dp_dll_create()'s
+     * own copy -- neither dp_acq_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
     uint8_t *code;
     size_t   code_len;
@@ -226,7 +226,7 @@ extern "C"
     int      had_lock;             
     int      car_coasting;         
     dp_costas_state_t car_held;       
-    /* The cell mode (async_dsss_receiver_create_cell()): the receiver a
+    /* The cell mode (dp_async_dsss_receiver_create_cell()): the receiver a
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
      * gain times what its discriminator read (design section 12.22-12.24);
@@ -267,7 +267,7 @@ extern "C"
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s);
 
-  dp_async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_cell (
       const uint8_t *code, size_t code_len, double chip_rate,
       double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
       double pd, size_t segments, size_t sps, int differential,

@@ -46,7 +46,8 @@ dp_wfm_polyphase_bank (const float *proto, size_t proto_len, size_t num_phases,
      land on outputs of residue p, i.e. bank[p][t] = proto[t*num_phases + p].
      Zero-pad the final partial tap when num_phases*num_taps > proto_len. This
      is exactly the decomposition resamp's own Kaiser bank uses, so the bank
-     drops straight into resamp_create_custom(num_phases, num_taps, bank, ...).
+     drops straight into dp_resamp_create_custom(num_phases, num_taps, bank,
+     ...).
    */
   for (size_t p = 0; p < num_phases; p++)
     for (size_t t = 0; t < num_taps; t++)

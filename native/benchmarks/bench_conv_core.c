@@ -8,7 +8,7 @@
  * that is 64 states x 2 branches x n_bits add-compare-selects, and it is
  * the most expensive kernel in a receiver chain that uses it.
  *
- * So this measures `conv_encode` over a block of information bits: a shift
+ * So this measures `dp_conv_encode` over a block of information bits: a shift
  * register and a parity lookup per bit. The DECODER moved to
  * bench_viterbi_core.c when `viterbi` became a declared object -- read the
  * two together for the asymmetry, which is more than an order of magnitude.
@@ -84,8 +84,8 @@ main (void)
     }
 
   conv_enc_t enc;
-  conv_enc_init (&enc);
-  conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
+  dp_conv_enc_init (&enc);
+  dp_conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
 
   printf ("=== conv benchmark ===\n");
   printf ("k=%u rate 1/%u (0%o, 0%o), %zu info bits/round, %d rounds\n\n",
@@ -97,8 +97,8 @@ main (void)
     w0 = jm_bench_now_ns ();
     do
       {
-        conv_enc_init (&enc);
-        conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
+        dp_conv_enc_init (&enc);
+        dp_conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
         w1 = jm_bench_now_ns ();
       }
     while (jm_bench_elapsed_sec (w0, w1) < 0.25);
@@ -107,9 +107,9 @@ main (void)
   static double t_enc[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      conv_enc_init (&enc);
+      dp_conv_enc_init (&enc);
       t0 = jm_bench_now_ns ();
-      conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
+      dp_conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
       t1       = jm_bench_now_ns ();
       t_enc[r] = jm_bench_elapsed_sec (t0, t1);
     }

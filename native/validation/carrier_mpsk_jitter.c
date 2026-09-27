@@ -71,7 +71,7 @@ disc_var (int m, double snr, dp_awgn_state_t *g, float *nb, long n)
   dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
   dp_awgn_reset (g);
   dp_carrier_mpsk_state_t s;
-  carrier_mpsk_init (&s, 1e-9, 0.707, 0.0, 1, 0.0, m);
+  dp_carrier_mpsk_init (&s, 1e-9, 0.707, 0.0, 1, 0.0, m);
   uint32_t sym  = 0x1234567u;
   long     have = 0, pos = 0;
   double   mu = 0, m2 = 0;
@@ -102,7 +102,7 @@ phase_var (int m, double snr, double bn, dp_awgn_state_t *g, float *nb, long n)
   dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
   dp_awgn_reset (g);
   dp_carrier_mpsk_state_t s;
-  carrier_mpsk_init (&s, bn, 0.707, 0.0, 1, 0.0, m);
+  dp_carrier_mpsk_init (&s, bn, 0.707, 0.0, 1, 0.0, m);
   uint32_t sym  = 0x9abcdefu;
   long     have = 0, pos = 0, warm = n / 4;
   double   mu = 0, m2 = 0;
@@ -137,7 +137,7 @@ static int
 acquires (int m, double f0, double bn_fll, long nsym, size_t tsamps)
 {
   dp_carrier_mpsk_state_t s;
-  carrier_mpsk_init (&s, 0.01, 0.707, 0.0, tsamps, bn_fll, m);
+  dp_carrier_mpsk_init (&s, 0.01, 0.707, 0.0, tsamps, bn_fll, m);
   double   phase = 0.0, w = f0 * TWOPI;
   uint32_t sym = 0x55aa55aau;
   for (long k = 0; k < nsym; k++)
@@ -180,7 +180,7 @@ main (int argc, char **argv)
   int              fail  = 0;
 
   dp_carrier_mpsk_state_t s;
-  carrier_mpsk_init (&s, 0.02, 0.707, 0.0, 1, 0.0, 4);
+  dp_carrier_mpsk_init (&s, 0.02, 0.707, 0.0, 1, 0.0, 4);
   double gain = noise_gain (s.lf.kp, s.lf.ki);
   printf ("M-PSK carrier phase jitter  (tsamps=1, bn=0.02, noise gain "
           "G=%.4f)\n",

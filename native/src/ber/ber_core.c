@@ -10,7 +10,7 @@
 #include <math.h>
 
 double
-ber_qfunc (double x)
+dp_ber_qfunc (double x)
 {
   return 0.5 * erfc (x / sqrt (2.0));
 }

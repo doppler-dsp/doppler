@@ -16,9 +16,9 @@ ______________________________________________________________________
 ## Why — a general primitive plus a configuration
 
 Every other standard-specific thing in doppler decomposed the same way.
-`conv_core.h` owns convolutional codes as a description and `CCSDS_TM_CONV` is
+`conv_core.h` owns convolutional codes as a description and `dp_CCSDS_TM_CONV` is
 four numbers that configure it. `rs_core.h` owns any Reed-Solomon code over
-any field and `CCSDS_TM_RS` is five, and it states the principle outright —
+any field and `dp_CCSDS_TM_RS` is five, and it states the principle outright —
 *"a standard picking a code is not the same fact as the code existing"*.
 
 Framing was the layer where that had not happened. What existed instead was a
@@ -320,7 +320,7 @@ The coverage asymmetry the whole `ccsds_tm` slice exists to get right — outer
 code no, randomiser no, inner code **yes** — stops being three hand-written
 struct members and becomes a field range a user can write. The falsification
 is the strongest available: the general assembler's output equals
-`ccsds_tm_frame_encode()`'s **byte for byte**.
+`dp_ccsds_tm_frame_encode()`'s **byte for byte**.
 
 Both targets are met.
 
@@ -337,7 +337,7 @@ the layers above it is now clean as well.
 
 Of the five the earlier plan listed, **site 1 is done** —
 `dp_wfm_source_describe_frame()` builds through the by-name builder rather than
-`ccsds_tm_frame_desc_of()`. Three others turned out not to be leaks at all:
+`dp_ccsds_tm_frame_desc_of()`. Three others turned out not to be leaks at all:
 `frame_core.c`, `wfm_synth_bridge.c` and `burst_demod_core.c` include
 `ccsds_tm` to *compose* it, in the acyclic direction the design intends, and
 each is the place a caller is meant to meet the standard's kernels.
@@ -345,9 +345,9 @@ each is the place a caller is meant to meet the standard's kernels.
 The fifth was a different kind of thing, and it is **closed**
 ([#1220](https://github.com/doppler-dsp/doppler/issues/1220)):
 
-| site                              | what it was                                                                                | how it was settled                                                                                                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| the marker's own translation unit | a CCSDS translation unit compiled into the **general** `wfm_core`, under `native/src/wfm/` | deleted. The marker is `doppler.ccsds.asm_bits()` now, over a `ccsds` component that delegates to `ccsds_tm_asm_bits` — the standard beside the general layer, not under it |
+| site                              | what it was                                                                                | how it was settled                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| the marker's own translation unit | a CCSDS translation unit compiled into the **general** `wfm_core`, under `native/src/wfm/` | deleted. The marker is `doppler.ccsds.asm_bits()` now, over a `ccsds` component that delegates to `dp_ccsds_tm_asm_bits` — the standard beside the general layer, not under it |
 
 A marker one standard picked is a **literal field of a preset**, not a symbol
 in the general namespace. The move needed somewhere to put it, and every

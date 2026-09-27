@@ -37,17 +37,18 @@
 static void
 seed (dp_carrier_nda_state_t *s, double init_norm_freq)
 {
-  lo_init (&s->nco, init_norm_freq); /* centre freq lives in nco.phase_inc */
-  s->lf.integ = 0.0;                 /* loop filter integrates the correction
-                                        from zero; the NCO control port adds it
-                                        on top of the centre each sample.      */
+  dp_lo_init (&s->nco,
+              init_norm_freq); /* centre freq lives in nco.phase_inc */
+  s->lf.integ = 0.0;           /* loop filter integrates the correction
+                                  from zero; the NCO control port adds it
+                                  on top of the centre each sample.      */
   s->ctl_cyc = 0.0;
-  /* The boxcar arm starts at unit gain; boxcar_init clears its whole fixed
+  /* The boxcar arm starts at unit gain; dp_boxcar_init clears its whole fixed
    * ring, so the pointer-free POD snapshot is deterministic regardless of
-   * allocation — which is what carrier_nda_init exists for: an embedder can
+   * allocation — which is what dp_carrier_nda_init exists for: an embedder can
    * hold this by value, with no calloc, and still get identical state bytes.
    */
-  boxcar_init (&s->arm, s->arm_len, 1.0);
+  dp_boxcar_init (&s->arm, s->arm_len, 1.0);
   s->lock       = 0.0;
   s->last_error = 0.0;
   dp_lockdet_reset (&s->lockdet); /* drop the lock; keep the configured rule */
@@ -74,8 +75,8 @@ config_loop (dp_carrier_nda_state_t *s)
 }
 
 void
-carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
-                  double init_norm_freq, size_t sps, int n, int m)
+dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
+                     double init_norm_freq, size_t sps, int n, int m)
 {
   s->sps     = sps ? sps : 1;
   s->m       = m;
@@ -92,9 +93,9 @@ carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
    * dp_carrier_nda_create's calloc gets this for free. */
   memset (&s->tlm, 0, sizeof s->tlm);
   config_loop (s);
-  lockdet_init (&s->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP,
-                CARRIER_NDA_LOCK_DEFAULT_DOWN, CARRIER_NDA_LOCK_DEFAULT_N_UP,
-                CARRIER_NDA_LOCK_DEFAULT_N_DOWN);
+  dp_lockdet_init (
+      &s->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP, CARRIER_NDA_LOCK_DEFAULT_DOWN,
+      CARRIER_NDA_LOCK_DEFAULT_N_UP, CARRIER_NDA_LOCK_DEFAULT_N_DOWN);
   seed (s, init_norm_freq);
 }
 
@@ -111,7 +112,7 @@ dp_carrier_nda_create (double bn, double zeta, double init_norm_freq,
   dp_carrier_nda_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  carrier_nda_init (obj, bn, zeta, init_norm_freq, sps, n, m);
+  dp_carrier_nda_init (obj, bn, zeta, init_norm_freq, sps, n, m);
   return obj;
 }
 
@@ -158,7 +159,7 @@ dp_carrier_nda_set_telemetry (dp_carrier_nda_state_t *state, dp_tlm_t *tlm,
 }
 
 void
-carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
+dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
 {
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
@@ -256,7 +257,7 @@ dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
             }
           if (emitted < max_out)
             out[emitted++] = d;
-          carrier_nda_tlm_flush (state);
+          dp_carrier_nda_tlm_flush (state);
         }
     }
   return emitted;
@@ -270,12 +271,13 @@ dp_carrier_nda_get_norm_freq (const dp_carrier_nda_state_t *state)
    * carry the rad->cycle scale, see config_loop). This is the SMOOTHED
    * (integrator-only) frequency estimate: under a frequency ramp it lags the
    * true carrier by the constant Type-II ramp error (the standing phase error
-   * lives in the omitted proportional path — see carrier_nda_get_nco_freq). */
+   * lives in the omitted proportional path — see dp_carrier_nda_get_nco_freq).
+   */
   return state->nco.norm_freq + state->lf.integ;
 }
 
 double
-carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state)
+dp_carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state)
 {
   /* The instantaneous NCO frequency command = centre + the FULL loop-filter
    * output (ctl_cyc = integ + kp*e, cycles/sample), i.e. the exact frequency

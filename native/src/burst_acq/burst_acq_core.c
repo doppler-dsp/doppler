@@ -26,9 +26,9 @@ dp_burst_acq_create (const float _Complex *preamble, size_t preamble_len,
                      double doppler_uncertainty, double pfa, double pd,
                      int noise_mode, double doppler_rate)
 {
-  return burst_acq_wrap (acq_create_burst (preamble, preamble_len, reps, fs,
-                                           cn0_dbhz, doppler_uncertainty, pfa,
-                                           pd, noise_mode, doppler_rate));
+  return burst_acq_wrap (dp_acq_create_burst (
+      preamble, preamble_len, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd,
+      noise_mode, doppler_rate));
 }
 
 void

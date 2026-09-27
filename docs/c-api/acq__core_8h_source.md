@@ -231,13 +231,13 @@ extern "C"
 
 #define ACQ_CN0_NONE NAN
 
-  dp_acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
+  dp_acq_state_t *dp_acq_create_burst (const float _Complex *tmpl, size_t n,
                                  size_t reps, double fs, double cn0_dbhz,
                                  double doppler_uncertainty, double pfa,
                                  double pd, int noise_mode,
                                  double doppler_rate);
 
-  dp_acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
+  dp_acq_state_t *dp_acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
@@ -271,11 +271,11 @@ extern "C"
   size_t dp_acq_surface_complex (dp_acq_state_t *state, float _Complex *out,
                               size_t n_out);
 
-  double _Complex acq_cell_corr (const dp_acq_state_t *state,
+  double _Complex dp_acq_cell_corr (const dp_acq_state_t *state,
                                  const float _Complex *x, size_t col,
                                  double f_hz, double t0);
 
-  void acq_cell_corr_grid (const dp_acq_state_t *state, const float _Complex *x,
+  void dp_acq_cell_corr_grid (const dp_acq_state_t *state, const float _Complex *x,
                            size_t n_epochs, size_t col, const double *f_hz,
                            size_t n_f, double t0, double _Complex *out);
 
@@ -285,7 +285,7 @@ extern "C"
   size_t dp_acq_block_raw (dp_acq_state_t *state, float _Complex *out,
                         size_t n_out);
 
-  void acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
+  void dp_acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
                              void *ctx, uint32_t decim);
 
   size_t dp_acq_push (dp_acq_state_t *state, const float _Complex *x, size_t n_in,
@@ -327,9 +327,9 @@ extern "C"
            * state->doppler_res_hz;
   }
 
-  double acq_psl_db (const dp_acq_state_t *state);
+  double dp_acq_psl_db (const dp_acq_state_t *state);
 
-  void acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
+  void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
@@ -349,7 +349,7 @@ extern "C"
 
   int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
 
-  size_t acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
+  size_t dp_acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);
 

@@ -108,14 +108,14 @@ extern "C"
    * carries the signal amplitude — `A^2` here, since both factors are signal
    * — which it deliberately does not divide out. What makes `bn` mean one
    * bandwidth is dividing by the detector's OWN slope,
-   * @ref symsync_ted_slope, and that is a construct-time constant computed
+   * @ref dp_symsync_ted_slope, and that is a construct-time constant computed
    * at `A = 1`; feed this anything else and the loop gain is off by `A^2`.
    * Levelling the symbols is the one upstream AGC's job — there is
    * deliberately no level loop in here, and there used to be.
    *
    * @param mid   Mid-symbol (transition-gate) interpolant.
    * @param diff  `on_time[k] - on_time[k-1]`.
-   * @return Raw, un-normalized timing error. @see symsync_ted_slope
+   * @return Raw, un-normalized timing error. @see dp_symsync_ted_slope
    */
   JM_FORCEINLINE double
   gardner_ted (float _Complex mid, float _Complex diff)
@@ -124,7 +124,7 @@ extern "C"
                     + cimagf (mid) * cimagf (diff));
   }
 
-  /** @brief Pulse code for symsync_ted_slope(); values match rc_pulse_t. */
+  /** @brief Pulse code for dp_symsync_ted_slope(); values match rc_pulse_t. */
   enum
   {
     SYMSYNC_PULSE_IANDD = 0, /**< rectangular / NRZ.                      */
@@ -148,7 +148,7 @@ extern "C"
    * and the answer is a construct-time number. Amplitude does NOT appear:
    * it enters as `A^2` (Gardner) or `A^1` (DTTL) and is the AGC's business,
    * not the detector's — a unity-gain matched cascade delivers the symbol
-   * amplitude it was sent (RateConverter_gain()). Transition density is left
+   * amplitude it was sent (dp_RateConverter_gain()). Transition density is left
    * alone, because it is data.
    *
    * Divide a raw TED output by this and the result has unit slope per symbol
@@ -179,12 +179,12 @@ extern "C"
    * @return      `|dS/dtau|` at the lock point, unit amplitude. Positive.
    *
    * @code
-   * double k = symsync_ted_slope (SYMSYNC_TED_GARDNER, SYMSYNC_PULSE_RRC,
+   * double k = dp_symsync_ted_slope (SYMSYNC_TED_GARDNER, SYMSYNC_PULSE_RRC,
    *                               0.35, 8);
    * printf ("%.3f\n", k);   // 1.077
    * @endcode
    */
-  double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
+  double dp_symsync_ted_slope (int ted, int pulse, double beta, size_t span);
 
   /**
    * @brief Sign-sign DTTL: gate the transition sample by the hard-decision
@@ -204,7 +204,7 @@ extern "C"
    * @ref gardner_ted, because the transition term is a hard decision of
    * fixed size and only `mid` is signal. That difference in degree is why no
    * single normaliser applied outside can serve both detectors, and why each
-   * divides by its own slope instead: @ref symsync_ted_slope, a
+   * divides by its own slope instead: @ref dp_symsync_ted_slope, a
    * construct-time constant computed at `A = 1`. Feed this anything else and
    * the loop gain is off by `A`. Levelling the symbols is the one upstream
    * AGC's job — there is deliberately no level loop in here, and there used
@@ -213,7 +213,7 @@ extern "C"
    * @param mid   Mid-symbol (transition-gate) interpolant.
    * @param y     `on_time[k]`.
    * @param prev  `on_time[k-1]`.
-   * @return Raw, un-normalized timing error. @see symsync_ted_slope
+   * @return Raw, un-normalized timing error. @see dp_symsync_ted_slope
    */
   JM_FORCEINLINE double
   dttl_ted (float _Complex mid, float _Complex y, float _Complex prev)
@@ -353,7 +353,7 @@ extern "C"
    *
    * @param s  State with a non-NULL tlm.ctx (caller-checked).
    */
-  void symsync_tlm_flush (const dp_symsync_state_t *s);
+  void dp_symsync_tlm_flush (const dp_symsync_state_t *s);
 
   /**
    * @brief Per-sample symbol-timing step (the inline composition API).
@@ -374,7 +374,7 @@ extern "C"
   {
     int r = symsync_step_ted (s, x, y_out, s->ted);
     if (r && s->tlm.ctx)
-      symsync_tlm_flush (s);
+      dp_symsync_tlm_flush (s);
     return r;
   }
 
@@ -384,7 +384,7 @@ extern "C"
    * The by-value counterpart to dp_symsync_create(): lets a composing object
    * embed a dp_symsync_state_t by value and initialise it without a heap
    * allocation (dp_symsync_state_t holds no heap members — the NCO, Farrow and
-   * loop filter are all by value). Mirrors loop_filter_init()/costas_init().
+   * loop filter are all by value). Mirrors dp_loop_filter_init()/dp_costas_init().
    *
    * @param s      State to initialise.  Must be non-NULL.
    * @param sps    Nominal samples per symbol.
@@ -394,7 +394,7 @@ extern "C"
    * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
    *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
    */
-  void symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
+  void dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);
 
   /**

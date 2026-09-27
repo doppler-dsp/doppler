@@ -73,7 +73,7 @@ CheckOptions:
   # 80 did not.
   #
   # "Worst" means worst of what the check REPORTS. The genuinely worst function
-  # in the library is `doppler_wfmgen` at 817 lines and 173 branches — over
+  # in the library is `dp_doppler_wfmgen` at 817 lines and 173 branches — over
   # twice dp_wfm_synth_steps' branch count — and it does not appear because it
   # carries a NOLINT, added by a commit titled "clang-tidy clean" at a time
   # when clang-tidy could not run at all. Auditing that file by deleting its

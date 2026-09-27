@@ -344,7 +344,7 @@ void dp_wfm_polyphase_bank (
 
 
 
-The pure decomposition shared by every polyphase-bank builder: phase `p` gets the prototype taps that land on output samples of residue `p`, so `bank[p*num_taps + t] = proto[t*num_phases + p]` (zero-padded past `proto_len`). Row-major, `num_phases * num_taps` floats — exactly the layout `resamp_create_custom(num_phases, num_taps, bank, rate)` consumes. Interpolate an input stream by `num_phases` (rate = num\_phases) with the resulting bank and you recompute the dense `proto` convolution from only the nonzero upsampled contributions.
+The pure decomposition shared by every polyphase-bank builder: phase `p` gets the prototype taps that land on output samples of residue `p`, so `bank[p*num_taps + t] = proto[t*num_phases + p]` (zero-padded past `proto_len`). Row-major, `num_phases * num_taps` floats — exactly the layout `dp_resamp_create_custom(num_phases, num_taps, bank, rate)` consumes. Interpolate an input stream by `num_phases` (rate = num\_phases) with the resulting bank and you recompute the dense `proto` convolution from only the nonzero upsampled contributions.
 
 
 
@@ -384,7 +384,7 @@ void dp_wfm_rrc_polyphase_bank (
 The dense pulse shaper upsamples a symbol stream by `sps` (one impulse per `sps` samples, the rest hard zeros) then runs the full `dp_wfm_rrc_taps` FIR over it — `(sps-1)/sps` of every tap-multiply hits a structural zero. The _polyphase_ form computes the identical convolution from only the nonzero contributions: it splits the length-`wfm_rrc_ntaps(sps, span)` prototype into `sps` phases of `wfm_rrc_bank_ntaps(span)` taps each, so phase `p` selects the subset of prototype taps that land on output samples of residue `p`.
 
 
-The prototype is `dp_wfm_rrc_taps(beta, sps, span)` scaled by `sqrt(sps)` — the same unit-average-power scaling `dp_wfm_synth_set_rrc` applies to the dense taps, folded in here so the two paths shape at byte-comparable amplitude. The row-major layout `bank[p*num_taps + t] = proto[t*sps + p]` (zero-padded past the final partial tap) is exactly the decomposition `resamp`'s own Kaiser bank uses, so the bank drops straight into `resamp_create_custom(sps,
+The prototype is `dp_wfm_rrc_taps(beta, sps, span)` scaled by `sqrt(sps)` — the same unit-average-power scaling `dp_wfm_synth_set_rrc` applies to the dense taps, folded in here so the two paths shape at byte-comparable amplitude. The row-major layout `bank[p*num_taps + t] = proto[t*sps + p]` (zero-padded past the final partial tap) is exactly the decomposition `resamp`'s own Kaiser bank uses, so the bank drops straight into `dp_resamp_create_custom(sps,
 wfm_rrc_bank_ntaps(span), bank, sps)` as an interpolate-by-`sps` shaper.
 
 
@@ -480,7 +480,7 @@ static inline double wfm_rc_h (
 
 
 
-A root-raised cosine convolved with itself is a raised cosine, so the pulse a matched receiver actually sees needs no convolution and no table — which is what lets a constructor evaluate it. Normalised to `g(0) = 1`, the level a unity-gain matched cascade delivers (see [**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain)), so `g(t)` IS the recovered symbol amplitude at timing offset `t`.
+A root-raised cosine convolved with itself is a raised cosine, so the pulse a matched receiver actually sees needs no convolution and no table — which is what lets a constructor evaluate it. Normalised to `g(0) = 1`, the level a unity-gain matched cascade delivers (see [**dp\_RateConverter\_gain()**](RateConverter__core_8h.md#function-dp_rateconverter_gain)), so `g(t)` IS the recovered symbol amplitude at timing offset `t`.
 
 
 Nyquist by construction: `g(k) = 0` at every non-zero integer `k`, which is why a timing error and not an amplitude error is what inter-symbol interference looks like here.

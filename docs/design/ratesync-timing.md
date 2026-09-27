@@ -99,7 +99,7 @@ are exactly two numbers:
 - **the terminal bank's tap count**, because that is how many outputs are
     delay-line fill rather than signal (§5 below).
 
-`ratesync_loop_bind_cascade()` reads both off a cascade so no owner has to
+`dp_ratesync_loop_bind_cascade()` reads both off a cascade so no owner has to
 know how.
 
 ______________________________________________________________________
@@ -170,7 +170,7 @@ own slope against the pulse. Only the last of those is the detector's to
 remove.
 
 `RateSync` divides it out with a **construct-time reciprocal**
-(`symsync_ted_slope()`, computed once by `ratesync_loop_bind_cascade()`); the
+(`dp_symsync_ted_slope()`, computed once by `dp_ratesync_loop_bind_cascade()`); the
 hot path multiplies by it. Amplitude does not appear — it enters the raw
 error as `A²` for Gardner and `A¹` for DTTL, and a unity-gain matched cascade
 delivers the amplitude it was sent, so levelling is an AGC's job upstream.
@@ -266,7 +266,7 @@ ______________________________________________________________________
 ## 7. The caller owns the input level
 
 There is no AGC in `RateSync`, deliberately: a receiver composing it already
-levels in its own front-end cascade (`RateConverter_enable_agc()`, one per
+levels in its own front-end cascade (`dp_RateConverter_enable_agc()`, one per
 receiver), so an AGC here would be a second one integrating against the
 first. The level to hit is not a tuned number — it is unit-amplitude symbols,
 the reference the bank already defines.

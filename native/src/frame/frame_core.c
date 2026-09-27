@@ -196,7 +196,7 @@ dp_frame_crc_ok (dp_frame_state_t *state, const uint8_t *rx_bits,
  */
 
 dp_frame_state_t *
-frame_create_desc (
+dp_frame_create_desc (
     int preamble_kind, const uint8_t *preamble, size_t preamble_len,
     size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly,
     uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr,
@@ -347,10 +347,10 @@ dp_frame_build (dp_frame_state_t *state)
 
      NULL for the inner encoder's state: a description describes ONE frame, so
      each build starts from the all-zero register. A stream of CADUs sharing
-     one register is a transmitter's job, and ccsds_tm_frame_encode is where
+     one register is a transmitter's job, and dp_ccsds_tm_frame_encode is where
      that lives. */
   wfm_frame_ops_t ops;
-  ccsds_tm_frame_ops (&ops, NULL);
+  dp_ccsds_tm_frame_ops (&ops, NULL);
 
   state->one = (uint8_t *)malloc (state->nbits);
   if (!state->one
@@ -430,7 +430,7 @@ dp_frame_deframe (dp_frame_state_t *state, const uint8_t *rx_bits,
   memcpy (out, rx_bits, state->dl.frame_bits);
 
   wfm_frame_ops_t ops;
-  ccsds_tm_frame_ops (&ops, NULL);
+  dp_ccsds_tm_frame_ops (&ops, NULL);
   wfm_frame_rx_t rx;
   const int      verdict = dp_wfm_frame_check (&state->d, &ops, out, &rx);
 
@@ -469,7 +469,7 @@ dp_frame_check (dp_frame_state_t *state, const uint8_t *rx_bits,
   memcpy (work, rx_bits, state->dl.frame_bits);
 
   wfm_frame_ops_t ops;
-  ccsds_tm_frame_ops (&ops, NULL);
+  dp_ccsds_tm_frame_ops (&ops, NULL);
   wfm_frame_rx_t rx;
   const int      verdict = dp_wfm_frame_check (&state->d, &ops, work, &rx);
   free (work);

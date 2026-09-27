@@ -106,7 +106,7 @@ main (void)
     DP_CHECK (ndet == 0);
 
     /* Lower threshold — now fires. */
-    detector_set_threshold (det, 0.0f);
+    dp_detector_set_threshold (det, 0.0f);
     ndet = dp_detector_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
 

@@ -7,7 +7,7 @@
 #
 # Shaped after ber_meter deliberately (docs/design/rx-test.md 2.5): it
 # accumulates outcomes, stops on an ERROR target, and reports the same exact
-# Gamma/chi-square interval through ber_confidence -- which is generic over
+# Gamma/chi-square interval through dp_ber_confidence -- which is generic over
 # trials and so applies to frames unchanged. Sharing the stopping rule is not
 # cosmetic: that interval is exact for inverse-binomial sampling, and a fixed
 # frame count would be the wrong model for it.
@@ -22,7 +22,7 @@ class_name = "FrameMeter"
 serializable = "true"
 create_error = "ValueError"
 create_error_message = "conf must lie in (0, 1)"
-# ber_meter, not just ber: ber_confidence() is DECLARED in ber/ber_core.h but
+# ber_meter, not just ber: dp_ber_confidence() is DECLARED in ber/ber_core.h but
 # DEFINED in ber_meter_core.c, because jm can only return a record from an
 # object method and the interval is a record. So reusing the exact interval --
 # rather than growing a second one here -- means depending on the sibling that

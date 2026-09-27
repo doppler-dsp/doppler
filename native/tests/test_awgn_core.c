@@ -170,12 +170,12 @@ test_split_block (void)
 }
 
 /* ------------------------------------------------------------------
- * test_oneshot: awgn() matches dp_awgn_create+generate+destroy.
+ * test_oneshot: dp_awgn() matches dp_awgn_create+generate+destroy.
  * ------------------------------------------------------------------ */
 static void
 test_oneshot (void)
 {
-  printf ("\n-- One-shot awgn() --\n");
+  printf ("\n-- One-shot dp_awgn() --\n");
 
   float _Complex ref[N_SMALL];
   dp_awgn_state_t *g = dp_awgn_create (42, 0.7f);
@@ -184,7 +184,7 @@ test_oneshot (void)
   dp_awgn_destroy (g);
 
   float _Complex out[N_SMALL];
-  DP_CHECK (awgn (42, 0.7f, N_SMALL, out) == 0);
+  DP_CHECK (dp_awgn (42, 0.7f, N_SMALL, out) == 0);
   DP_CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
 }
 

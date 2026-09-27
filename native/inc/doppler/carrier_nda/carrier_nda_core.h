@@ -234,7 +234,7 @@ extern "C"
    * @brief NDA M-th-power carrier loop state.
    *
    * Allocate with dp_carrier_nda_create(), or embed by value and
-   * carrier_nda_init(). The carrier NCO (`nco`) and PI loop (`lf`) are public
+   * dp_carrier_nda_init(). The carrier NCO (`nco`) and PI loop (`lf`) are public
    * sub-components so a composing receiver can drive the same NCO; treat the
    * arm accumulator and the diagnostics as internal.
    */
@@ -292,7 +292,7 @@ extern "C"
      * the detector can divide that out, and it can do it exactly -- |z|^M is a
      * power of p for every M supported here, so it costs one divide and no
      * sqrt. This is the same rule the timing detector follows (a TED
-     * normalises by its own slope, symsync_ted_slope()), applied to its
+     * normalises by its own slope, dp_symsync_ted_slope()), applied to its
      * sibling.
      *
      * At |z| = 1 this is identical to the un-normalised form, so the S-curve
@@ -381,7 +381,7 @@ extern "C"
    * == 0, sps/n <= BOXCAR_MAX_LEN).
    * @param m               Constellation order M (2, 4, 8).
    */
-  void carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
+  void dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
                          double init_norm_freq, size_t sps, int n, int m);
 
   /**
@@ -531,7 +531,7 @@ extern "C"
    *
    * @param s  State with a non-NULL tlm.ctx (caller-checked).
    */
-  void carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s);
+  void dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s);
 
   /**
    * @brief Attach (or detach) a telemetry context and register the carrier
@@ -682,7 +682,7 @@ extern "C"
    * output (integ + kp*e), cycles/sample. Mean rides a ramp with no lag;
    * variance is the loop stress. See the impl for the estimator-vs-command
    * distinction. */
-  double carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state);
+  double dp_carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state);
   void   dp_carrier_nda_set_norm_freq (dp_carrier_nda_state_t *state, double val);
   double dp_carrier_nda_get_lock (const dp_carrier_nda_state_t *state);
   double dp_carrier_nda_get_last_error (const dp_carrier_nda_state_t *state);

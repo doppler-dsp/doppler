@@ -31,7 +31,7 @@
  *
  * - **the randomiser default is now the 131071-bit sequence** (10.4.1), and
  *   the 255-bit one is kept only "for backward compatibility with legacy
- *   systems" (10.4.2). Both ship; see @ref CCSDS_TM_RAND.
+ *   systems" (10.4.2). Both ship; see @ref dp_CCSDS_TM_RAND.
  * - **the ASM is called the CSM** (Code Sync Marker) throughout. The pattern
  *   is unchanged; the naming here is not, and renaming reaches a CLI flag
  *   and a Python surface. gh-865.
@@ -133,7 +133,7 @@ extern "C"
    * @brief The randomiser 131.0-B-6 10.4.1 requires: 131071 bits, degree 17.
    *
    * `h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, and it is the
-   * `shall`. **This is the default and what @ref ccsds_tm_randomise applies.**
+   * `shall`. **This is the default and what @ref dp_ccsds_tm_randomise applies.**
    *
    * The preset is loaded so the LAST bit of that printed string is emitted
    * FIRST — the string reads along the register in figure 10-2, and the stage
@@ -142,7 +142,7 @@ extern "C"
    * published 40-bit prefix is what settles it, and is what
    * `test_ccsds_tm_rand.c` holds it to.
    */
-  extern const ccsds_tm_rand_t CCSDS_TM_RAND;
+  extern const ccsds_tm_rand_t dp_CCSDS_TM_RAND;
 
   /**
    * @brief The randomiser 10.4.2 keeps: 255 bits, degree 8.
@@ -157,7 +157,7 @@ extern "C"
    * full compliance with ITU power flux density limits"*. Reach for it to
    * talk to something old, not to build something new.
    */
-  extern const ccsds_tm_rand_t CCSDS_TM_RAND_LEGACY;
+  extern const ccsds_tm_rand_t dp_CCSDS_TM_RAND_LEGACY;
 
   /** @brief Period of the DEFAULT sequence, in bits (10.4.1). */
 #define CCSDS_TM_RAND_PERIOD 131071
@@ -167,7 +167,7 @@ extern "C"
    *
    * Exposed because a consumer that is already walking the data — the frame
    * decoder packs bits to octets and derandomises in the same pass — cannot
-   * hand a mutable run to @ref ccsds_tm_randomise, and must not hold a
+   * hand a mutable run to @ref dp_ccsds_tm_randomise, and must not hold a
    * sequence the size of the data either. Stepping the generator alongside
    * costs one word and works for any period; the alternative was a table
    * indexed modulo the period, which is 128 KB at 10.4.1's and is longer than
@@ -184,18 +184,18 @@ extern "C"
    * @brief Load @p r's preset, ready to emit its first bit.
    *
    * @param s  Receives the state.
-   * @param r  The randomiser; `NULL` selects @ref CCSDS_TM_RAND.
+   * @param r  The randomiser; `NULL` selects @ref dp_CCSDS_TM_RAND.
    */
-  void ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
+  void dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
                            const ccsds_tm_rand_t *r);
 
   /**
    * @brief Emit one bit and advance.
    *
-   * @param s  A state from @ref ccsds_tm_rand_init.
+   * @param s  A state from @ref dp_ccsds_tm_rand_init.
    * @return   The next sequence bit, 0 or 1.
    */
-  uint8_t ccsds_tm_rand_step (ccsds_tm_rand_state_t *s);
+  uint8_t dp_ccsds_tm_rand_step (ccsds_tm_rand_state_t *s);
 
   /**
    * @brief Constraint length of the inner code (3.3.1): 7.
@@ -221,7 +221,7 @@ extern "C"
    *
    * @param out  Receives @ref CCSDS_TM_ASM_BITS bits, one per byte.
    */
-  void ccsds_tm_asm_bits (uint8_t *out);
+  void dp_ccsds_tm_asm_bits (uint8_t *out);
 
   /**
    * @brief Where an ASM was found, and in which polarity.
@@ -264,22 +264,22 @@ extern "C"
    * @code
    * uint8_t       cadu[32 + 64] = { 0 };
    * ccsds_tm_asm_hit_t hit;
-   * ccsds_tm_asm_bits (cadu);
-   * if (ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
+   * dp_ccsds_tm_asm_bits (cadu);
+   * if (dp_ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
    *   printf ("marker at bit %zu\n", hit.offset);   // marker at bit 0
    * @endcode
    */
-  int ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits,
+  int dp_ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits,
                           unsigned max_errors, ccsds_tm_asm_hit_t *hit);
 
   /**
    * @brief Apply the CCSDS pseudo-randomiser to a bit run, in place.
    *
-   * Applies @ref CCSDS_TM_RAND — 131.0-B-6 section 10.4.1's degree-17
+   * Applies @ref dp_CCSDS_TM_RAND — 131.0-B-6 section 10.4.1's degree-17
    * generator, `h(x) = x^17 + x^14 + 1`, preset `11000111000111000`, period
    * 131071 — XORed bit-for-bit onto the data. It is its own inverse, so the
    * receive side calls the same function. Use
-   * @ref ccsds_tm_randomise_with to reach 10.4.2's legacy degree-8 sequence
+   * @ref dp_ccsds_tm_randomise_with to reach 10.4.2's legacy degree-8 sequence
    * instead; the two are not interchangeable on the wire.
    *
    * (This docblock described the LEGACY generator — 8 stages, all-ones
@@ -308,20 +308,20 @@ extern "C"
    *
    * @code
    * uint8_t frame[1784] = { 0 };
-   * ccsds_tm_randomise (frame, sizeof frame);   // now the published sequence
-   * ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
+   * dp_ccsds_tm_randomise (frame, sizeof frame);   // now the published sequence
+   * dp_ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
    * @endcode
    */
-  void ccsds_tm_randomise (uint8_t *bits, size_t n);
+  void dp_ccsds_tm_randomise (uint8_t *bits, size_t n);
 
   /**
-   * @brief @ref ccsds_tm_randomise with a chosen randomiser.
+   * @brief @ref dp_ccsds_tm_randomise with a chosen randomiser.
    *
-   * @param r     The randomiser; `NULL` selects @ref CCSDS_TM_RAND.
+   * @param r     The randomiser; `NULL` selects @ref dp_CCSDS_TM_RAND.
    * @param bits  Unpacked bits (one per byte, LSB); modified in place.
    * @param n     Number of bits.
    */
-  void ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
+  void dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
                                 size_t n);
 
   /**
@@ -332,7 +332,7 @@ extern "C"
    * that is easy to miss — **symbol inversion on the output path of G2**,
    * which is why `invert` is `0x2` and not `0`.
    *
-   * This is a **configuration, not an implementation**: `conv_encode` and
+   * This is a **configuration, not an implementation**: `dp_conv_encode` and
    * `dp_viterbi_decode` do the work and neither knows anything about CCSDS. A
    * standard choosing a code is a different fact from the code existing, and
    * keeping them apart is what stops the polynomials from being written down
@@ -344,11 +344,11 @@ extern "C"
    *
    * @code
    * conv_enc_t s;
-   * conv_enc_init (&s);
-   * conv_encode (&s, &CCSDS_TM_CONV, bits, n, sym, sizeof sym);
+   * dp_conv_enc_init (&s);
+   * dp_conv_encode (&s, &dp_CCSDS_TM_CONV, bits, n, sym, sizeof sym);
    * @endcode
    */
-  extern const conv_code_t CCSDS_TM_CONV;
+  extern const conv_code_t dp_CCSDS_TM_CONV;
 
   /** @brief Symbols the CCSDS inner code writes for @p n input bits. */
   static inline size_t
@@ -367,16 +367,16 @@ extern "C"
    * @param out  Receives @p n unpacked bits.
    * @param n    Number of bits to generate.
    */
-  void ccsds_tm_rand_seq (uint8_t *out, size_t n);
+  void dp_ccsds_tm_rand_seq (uint8_t *out, size_t n);
 
   /**
-   * @brief @ref ccsds_tm_rand_seq with a chosen randomiser.
+   * @brief @ref dp_ccsds_tm_rand_seq with a chosen randomiser.
    *
-   * @param r    The randomiser; `NULL` selects @ref CCSDS_TM_RAND.
+   * @param r    The randomiser; `NULL` selects @ref dp_CCSDS_TM_RAND.
    * @param out  Receives @p n unpacked bits.
    * @param n    Number of bits to generate.
    */
-  void ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
+  void dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
                                size_t n);
 
 #ifdef __cplusplus

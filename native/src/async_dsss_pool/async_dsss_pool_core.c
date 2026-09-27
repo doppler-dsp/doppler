@@ -117,9 +117,9 @@ dp_async_dsss_pool_create (
 
   /* The searcher: continuous, with the depth the window buys, the list,
      the threads, and the carrier its hand-off and its blocks need. */
-  s->acq = acq_create_continuous (s->code, code_len, spc, chip_rate,
-                                  symbol_rate, cn0_dbhz, doppler_uncertainty,
-                                  pfa, pd, 0, code_only_epochs, doppler_rate);
+  s->acq = dp_acq_create_continuous (
+      s->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, 0, code_only_epochs, doppler_rate);
   if (!s->acq || dp_acq_set_max_peaks (s->acq, max_peaks) != DP_OK
       || dp_acq_set_threads (s->acq, threads) != DP_OK
       || (carrier_freq_hz > 0.0
@@ -145,7 +145,7 @@ dp_async_dsss_pool_create (
   s->hits  = dp_xcalloc (max_peaks, sizeof *s->hits);
   for (size_t i = 0; i < n_slots; i++)
     {
-      s->rx[i] = async_dsss_receiver_create_cell (
+      s->rx[i] = dp_async_dsss_receiver_create_cell (
           s->code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd,
           segments, sps, differential, carrier_freq_hz, lost_confirm_s,
           s->acq->coherent_bins, gain, pullin_intervals);
@@ -274,7 +274,7 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
   for (size_t h = 0; h < nh; h++)
     {
       acq_handoff_t ho;
-      acq_build_handoff (s->acq, &s->hits[h], s->code_len, s->spc, &ho);
+      dp_acq_build_handoff (s->acq, &s->hits[h], s->code_len, s->spc, &ho);
       double offset = (double)(s->hits[h].samples_consumed - start);
       double phase
           = advanced_phase (s, ho.chip_phase, ho.doppler_hz_est, -offset);

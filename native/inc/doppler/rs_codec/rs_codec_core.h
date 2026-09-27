@@ -16,9 +16,9 @@
  *
  * ## Why this exists at all
  *
- * `rs_encode`, `rs_syndromes` and `rs_codeword_ok` were reachable from
+ * `dp_rs_encode`, `dp_rs_syndromes` and `dp_rs_codeword_ok` were reachable from
  * Python only through `wfm_frame_desc_t`'s Reed-Solomon stage, which binds
- * to `ccsds_tm_frame_ops` and carries an interleaving depth rather than a
+ * to `dp_ccsds_tm_frame_ops` and carries an interleaving depth rather than a
  * code. So Python could run exactly ONE Reed-Solomon code — CCSDS's — and
  * only inside a frame (doppler#900).
  *
@@ -125,18 +125,18 @@ size_t dp_rs_codec_encode_max_out (dp_rs_codec_state_t *state, size_t n_in);
  *
  * Systematic: the information symbols are copied through untouched and the
  * `nroots` parity symbols follow them, which is the order they are
- * transmitted in. `rs_encode` computes the parity; this places it.
+ * transmitted in. `dp_rs_encode` computes the parity; this places it.
  *
  * The WHOLE codeword rather than the parity alone, because that is the unit
  * every other method here takes — @ref dp_rs_codec_decode,
  * @ref dp_rs_codec_syndromes and @ref dp_rs_codec_codeword_ok all read `n`
  * symbols, and a caller who wants the parity by itself can take the last
- * `nroots` of the answer. (`rs_encode` is the other split, and is still
+ * `nroots` of the answer. (`dp_rs_encode` is the other split, and is still
  * there for a frame assembler that has already placed the information.)
  *
  * @p out may alias @p in — `dp_rs_codec_encode (rs, buf, k, buf, n)` appends
  * the parity to a buffer that already holds the information, which is the
- * call a frame assembler makes and the one `rs_encode` exists for.
+ * call a frame assembler makes and the one `dp_rs_encode` exists for.
  *
  * @param state   The codec.
  * @param in      Exactly `k` information symbols.
@@ -165,7 +165,7 @@ size_t dp_rs_codec_encode (dp_rs_codec_state_t *state, const uint8_t *in,
 /**
  * @brief Correct up to `E` symbol errors, IN PLACE.
  *
- * `rs_decode`, over the caller's own buffer: the corrected symbols land in
+ * `dp_rs_decode`, over the caller's own buffer: the corrected symbols land in
  * @p codeword itself, which is why the binding demands a writable array
  * rather than quietly working on a copy the caller would then discard.
  *

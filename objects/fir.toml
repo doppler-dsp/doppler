@@ -11,7 +11,7 @@ serializable = "true"
 name = "taps"
 type = "float _Complex[]"
 real_type = "float[]"
-real_create_fn = "fir_create_real"
+real_create_fn = "dp_fir_create_real"
 
 [[fir.methods]]
 name = "execute"

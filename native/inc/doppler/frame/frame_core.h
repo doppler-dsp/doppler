@@ -356,7 +356,7 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
  *
  * @endcode
  */
-dp_frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
+dp_frame_state_t *dp_frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
 
 /**
  * @brief Append one field to a description.
@@ -365,7 +365,7 @@ dp_frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, 
  * stage derives them (@p derived_by non-zero). Both are fields, because both
  * are on the wire.
  *
- * @param state        A frame from @ref frame_create_desc.
+ * @param state        A frame from @ref dp_frame_create_desc.
  * @param lit          Literal bits, copied here so the description outlives
  *                     the call; may be NULL.
  * @param lit_len      Length of @p lit in bits.
@@ -425,7 +425,7 @@ int dp_frame_add_field(dp_frame_state_t *state, const uint8_t *lit, size_t lit_l
  * cover is the representation that cannot express a CCSDS CADU — see
  * `wfm/wfm_frame.h`.
  *
- * @param state        A frame from @ref frame_create_desc.
+ * @param state        A frame from @ref dp_frame_create_desc.
  * @param kind         stage kind: a @ref wfm_stage_kind_t value
  *                     (0=crc16…4=interleave), or a caller's own from
  *                     `WFM_STAGE_USER` (0x1000) up, whose kernel then
@@ -492,9 +492,9 @@ int dp_frame_add_stage(dp_frame_state_t *state, int kind, uint32_t first_field,
  *
  * The inner encoder starts from the all-zero register on every build: a
  * description describes ONE frame. A stream of CADUs sharing one register is
- * a transmitter's job and lives in `ccsds_tm_frame_encode`.
+ * a transmitter's job and lives in `dp_ccsds_tm_frame_encode`.
  *
- * @param state  A frame from @ref frame_create_desc.
+ * @param state  A frame from @ref dp_frame_create_desc.
  * @return 0 on success, -1 if the description is empty, unbuildable, names a
  *         stage with no kernel here, or was already built. The Python
  *         binding raises `ValueError` and returns nothing.

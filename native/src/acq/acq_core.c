@@ -47,7 +47,7 @@ acq_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
   return (float)dp_det_snr_to_cn0 ((double)amp_snr, fs);
 }
 
-/* The chip phase a surface column reports, in chips: acq_build_handoff()'s
+/* The chip phase a surface column reports, in chips: dp_acq_build_handoff()'s
  * mapping, kept in one place so the surface axis and the hand-off cannot
  * drift apart. */
 static inline double
@@ -438,9 +438,9 @@ acq_compute_stat_nc (dp_acq_state_t *st)
   st->n_held    = 0;
 }
 
-double _Complex acq_cell_corr (const dp_acq_state_t *st,
-                               const float _Complex *x, size_t col,
-                               double f_hz, double t0)
+double _Complex dp_acq_cell_corr (const dp_acq_state_t *st,
+                                  const float _Complex *x, size_t col,
+                                  double f_hz, double t0)
 {
   const size_t nx            = st->code_bins;
   const double _Complex step = cexp (-2.0 * M_PI * I * f_hz / st->fs);
@@ -460,16 +460,16 @@ double _Complex acq_cell_corr (const dp_acq_state_t *st,
   return acc;
 }
 
-/* acq_cell_corr_grid(): blocks per epoch for each cycle per epoch the
+/* dp_acq_cell_corr_grid(): blocks per epoch for each cycle per epoch the
    frequencies spread either side of their centre, and the widest spread it
    expands before falling back to one cell at a time. */
 #define ACQ_GRID_BLOCKS_PER_CYCLE 48.0
 #define ACQ_GRID_MAX_CYCLES 1.0
 
 void
-acq_cell_corr_grid (const dp_acq_state_t *st, const float _Complex *x,
-                    size_t n_epochs, size_t col, const double *f_hz,
-                    size_t n_f, double t0, double _Complex *out)
+dp_acq_cell_corr_grid (const dp_acq_state_t *st, const float _Complex *x,
+                       size_t n_epochs, size_t col, const double *f_hz,
+                       size_t n_f, double t0, double _Complex *out)
 {
   if (n_f == 0 || n_epochs == 0)
     return;
@@ -490,8 +490,8 @@ acq_cell_corr_grid (const dp_acq_state_t *st, const float _Complex *x,
     {
       for (size_t e = 0; e < n_epochs; e++)
         for (size_t j = 0; j < n_f; j++)
-          out[e * n_f + j] = acq_cell_corr (st, x + e * nx, col, f_hz[j],
-                                            t0 + (double)(e * nx));
+          out[e * n_f + j] = dp_acq_cell_corr (st, x + e * nx, col, f_hz[j],
+                                               t0 + (double)(e * nx));
       return;
     }
 
@@ -633,7 +633,7 @@ acq_resolve_tile_alias (const dp_acq_state_t *st, size_t row, size_t col)
         {
           const long sh = lround (((double)e - 0.5 * (double)(D - 1)) * d);
           const long c0 = (((long)col - sh) % (long)nx + (long)nx) % (long)nx;
-          const double _Complex acc = acq_cell_corr (
+          const double _Complex acc = dp_acq_cell_corr (
               st, st->blk_raw + e * nx, (size_t)c0, f, (double)(e * nx));
           pw += creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
         }
@@ -862,7 +862,7 @@ acq_block_depth (double f_epoch, size_t code_only_epochs, double doppler_rate)
  * inside tile `r` (of `tiles`, in FFT order): the tiles and the rows inside
  * them make ONE uniform grid of tiles * dI fine bins over the tiled span,
  * kept in native FFT-bin order so every fold downstream -- the zone, the
- * native-row report, acq_build_handoff(), the surface axis -- is the same
+ * native-row report, dp_acq_build_handoff(), the surface axis -- is the same
  * dp_fftfreq_index() over the combined count. */
 static inline size_t
 acq_block_row (size_t r, size_t tiles, size_t i, size_t dI)
@@ -1029,10 +1029,10 @@ acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
  * detection model's non-centrality is a = sqrt(2M)*snr (amplitude).
  *
  * ACQ_CN0_NONE (NaN) means "no design point" (burst mode only; see
- * acq_create_burst). Every finite C/N0 is a design point, negative included:
- * at fs = 1 it IS the per-sample SNR, negative wherever acquisition is hard
- * (doppler#1484). "None" is returned as 0.0 -- no finite C/N0 maps there --
- * so every consumer can still test `snr > 0.0` for "was a design C/N0
+ * dp_acq_create_burst). Every finite C/N0 is a design point, negative
+ * included: at fs = 1 it IS the per-sample SNR, negative wherever acquisition
+ * is hard (doppler#1484). "None" is returned as 0.0 -- no finite C/N0 maps
+ * there -- so every consumer can still test `snr > 0.0` for "was a design C/N0
  * given" and nothing sizes against a signal nobody specified. */
 static double
 acq_design_snr (double cn0_dbhz, double fs)
@@ -1344,8 +1344,8 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
  * leaves `st` fully untouched at its prior grid (the contract
  * dp_acq_configure_search_raw() promises its caller).
  *
- * `code`/`code_len` are non-NULL only from acq_create_burst()'s/
- * acq_create_continuous()'s initial build (fresh reference from the
+ * `code`/`code_len` are non-NULL only from dp_acq_create_burst()'s/
+ * dp_acq_create_continuous()'s initial build (fresh reference from the
  * caller's chips); a later regrid (dp_acq_configure_search_raw) passes NULL
  * and copies row 0 of the EXISTING reference forward instead of rebuilding
  * it from scratch -- row 0 is the only nonzero row regardless of
@@ -1835,9 +1835,9 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
 
 /* Shared builder: allocates and configures the engine, dropping straight
  * into whichever auto-sizer `continuous` selects.  Not declared in the
- * header -- acq_create_burst()/acq_create_continuous() are the only public
- * entry points, each fixing @p reps/@p symbol_rate/`continuous` to its own
- * mode, never a per-call knob (see the file doc comment).
+ * header -- dp_acq_create_burst()/dp_acq_create_continuous() are the only
+ * public entry points, each fixing @p reps/@p symbol_rate/`continuous` to its
+ * own mode, never a per-call knob (see the file doc comment).
  *
  * It knows the waveform only as one period of @p replica (`sf * spc`
  * samples) and its correlation @p shape: the unit the rates are counted in
@@ -1934,7 +1934,7 @@ fail:
 /* A PN code as the builder's waveform: one period of oversampled BPSK
  * (chip 0 -> +1, chip 1 -> -1, each held for `spc` samples) and the
  * triangle's shape. sf is the code length. The CONTINUOUS engine's only:
- * a burst engine takes its preamble as samples (acq_create_burst()). */
+ * a burst engine takes its preamble as samples (dp_acq_create_burst()). */
 static dp_acq_state_t *
 acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
                        size_t spc, double chip_rate, double symbol_rate,
@@ -1962,11 +1962,11 @@ acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
 }
 
 dp_acq_state_t *
-acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
-                       double chip_rate, double symbol_rate, double cn0_dbhz,
-                       double doppler_uncertainty, double pfa, double pd,
-                       int noise_mode, size_t code_only_epochs,
-                       double doppler_rate)
+dp_acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
+                          double chip_rate, double symbol_rate,
+                          double cn0_dbhz, double doppler_uncertainty,
+                          double pfa, double pd, int noise_mode,
+                          size_t code_only_epochs, double doppler_rate)
 {
   return acq_create_from_chips (
       code, code_len, /* reps= */ 1, spc, chip_rate, symbol_rate, cn0_dbhz,
@@ -1975,9 +1975,10 @@ acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
 }
 
 dp_acq_state_t *
-acq_create_burst (const float _Complex *tmpl, size_t n, size_t reps, double fs,
-                  double cn0_dbhz, double doppler_uncertainty, double pfa,
-                  double pd, int noise_mode, double doppler_rate)
+dp_acq_create_burst (const float _Complex *tmpl, size_t n, size_t reps,
+                     double fs, double cn0_dbhz, double doppler_uncertainty,
+                     double pfa, double pd, int noise_mode,
+                     double doppler_rate)
 {
   if (!tmpl || n < 1)
     return NULL;
@@ -2161,7 +2162,7 @@ acq_tile_epoch (size_t r, void *ctx)
          the SIGNED frequency index before the inverse transform, exact
          for a fractional shift -- so the slow-time transform sums a
          standing peak. The hand-off's half-dwell advance
-         (acq_build_handoff) then reads the block's peak as its middle,
+         (dp_acq_build_handoff) then reads the block's peak as its middle,
          which it is. */
       const double d    = (double)signed_r * st->fs / st->carrier_freq_hz;
       const double s    = ((double)st->blk_epoch - 0.5 * (double)(D - 1)) * d;
@@ -2392,7 +2393,7 @@ dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz)
 }
 
 double
-acq_psl_db (const dp_acq_state_t *state)
+dp_acq_psl_db (const dp_acq_state_t *state)
 {
   /* log10(0) is -HUGE_VAL, but say it: a perfect sequence has no sidelobe
      to be below, and -inf is that fact rather than a number to compare. */
@@ -2400,8 +2401,8 @@ acq_psl_db (const dp_acq_state_t *state)
 }
 
 void
-acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
-                   size_t code_len, size_t spc, acq_handoff_t *out)
+dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
+                      size_t code_len, size_t spc, acq_handoff_t *out)
 {
   const double carrier_freq_hz = state->carrier_freq_hz;
   double       phase = acq_chip_phase_of_col (hit->code_phase, code_len, spc);
@@ -2543,8 +2544,8 @@ dp_acq_block_raw (dp_acq_state_t *state, float _Complex *out, size_t n_out)
   return n;
 }
 void
-acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn, void *ctx,
-                      uint32_t decim)
+dp_acq_set_surface_sink (dp_acq_state_t *state, acq_surface_sink_fn fn,
+                         void *ctx, uint32_t decim)
 {
   state->sink       = fn;
   state->sink_ctx   = ctx;
@@ -2740,9 +2741,9 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
 }
 
 size_t
-acq_run (dp_acq_state_t *st, const void *state_in, void *state_out,
-         const float _Complex *in, size_t n_in, acq_result_t *result,
-         size_t max_results)
+dp_acq_run (dp_acq_state_t *st, const void *state_in, void *state_out,
+            const float _Complex *in, size_t n_in, acq_result_t *result,
+            size_t max_results)
 {
   if (state_in)
     {

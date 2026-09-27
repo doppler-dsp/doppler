@@ -189,19 +189,19 @@ test_owns_a_matched_cascade (void)
         continue;
       int last = s->mf->n_stages - 1;
       DP_CHECK (s->mf->stage_types[last] == RC_STAGE_RESAMP);
-      DP_CHECK (RateConverter_stage_label (s->mf, last, buf, sizeof buf));
+      DP_CHECK (dp_RateConverter_stage_label (s->mf, last, buf, sizeof buf));
       DP_CHECK (strstr (buf, "rrc") != NULL);
       /* The control is referenced to the TERMINAL stage's rate, not the
          cascade's; getting that wrong under-drives the loop by the whole
          integer decimation in front. */
       DP_CHECK (
           s->loop.term_rate
-          == resamp_get_rate ((resamp_state_t *)s->mf->stage_ptrs[last]));
+          == dp_resamp_get_rate ((resamp_state_t *)s->mf->stage_ptrs[last]));
       /* The bank is sized by the post-decimation rate, so a 16x span of input
          rates leaves it the same size. */
-      DP_CHECK (
-          resamp_get_num_taps ((const resamp_state_t *)s->mf->stage_ptrs[last])
-          < 4u * _SPAN * 2u + 16u);
+      DP_CHECK (dp_resamp_get_num_taps (
+                    (const resamp_state_t *)s->mf->stage_ptrs[last])
+                < 4u * _SPAN * 2u + 16u);
       dp_ratesync_destroy (s);
     }
 }
@@ -492,7 +492,7 @@ test_prime_geometry (void)
       if (!s)
         continue;
       int    last = s->mf->n_stages - 1;
-      size_t taps = resamp_get_num_taps (
+      size_t taps = dp_resamp_get_num_taps (
           (const resamp_state_t *)s->mf->stage_ptrs[last]);
       /* The prime length IS the terminal bank's geometry, not a constant. */
       DP_CHECK (s->loop.prime_taps == taps);
@@ -515,10 +515,10 @@ test_prime_geometry (void)
      telemetry pointer is dropped so the probe cannot report another object's
      phase. */
   ratesync_loop_t l;
-  ratesync_loop_init (&l, 8.0, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_loop_init (&l, 8.0, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (l.term == NULL); /* nothing bound yet */
   DP_CHECK (l.ted_scale == 1.0);
-  ratesync_loop_set_cascade (&l, 0.5, 99);
+  dp_ratesync_loop_set_cascade (&l, 0.5, 99);
   DP_CHECK (l.term_rate == 0.5);
   DP_CHECK (l.prime_taps == 99);
   DP_CHECK (l.prime_left == 100);
@@ -648,12 +648,12 @@ test_dttl_detector (void)
              including ted_scale, fed identical outputs, differing only in
              the `ted` literal passed to take_output. */
           ratesync_loop_t p, q;
-          ratesync_loop_init (&p, sps[i], 2, 0.01, 0.707,
-                              RATESYNC_TED_GARDNER);
-          ratesync_loop_init (&q, sps[i], 2, 0.01, 0.707,
-                              RATESYNC_TED_GARDNER);
-          ratesync_loop_bind_cascade (&p, d->mf);
-          ratesync_loop_bind_cascade (&q, d->mf);
+          dp_ratesync_loop_init (&p, sps[i], 2, 0.01, 0.707,
+                                 RATESYNC_TED_GARDNER);
+          dp_ratesync_loop_init (&q, sps[i], 2, 0.01, 0.707,
+                                 RATESYNC_TED_GARDNER);
+          dp_ratesync_loop_bind_cascade (&p, d->mf);
+          dp_ratesync_loop_bind_cascade (&q, d->mf);
           DP_CHECK (p.ted_scale == q.ted_scale);
           int differed = 0;
           for (size_t k = 0; k < 64; k++)
@@ -694,7 +694,7 @@ test_dttl_detector (void)
  * two are not peers that can drift apart."
  *
  * The strongest form of that claim is bit-exactness: drive a hand-owned
- * RateConverter through ratesync_loop_init/bind_cascade/take_output and the
+ * RateConverter through dp_ratesync_loop_init/bind_cascade/take_output and the
  * symbols must equal RateSync's own, sample for sample. If the object ever
  * grows a second copy of the loop, this is what turns red. */
 static void
@@ -721,16 +721,16 @@ test_loop_without_the_object (void)
   size_t na = s ? dp_ratesync_steps (s, x, n, a, n) : 0;
 
   /* The same cascade RateSync builds, owned here instead. */
-  dp_RateConverter_state_t *rc = RateConverter_create_matched (
+  dp_RateConverter_state_t *rc = dp_RateConverter_create_matched (
       2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
   DP_CHECK (rc != NULL);
   ratesync_loop_t l;
-  ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
-  ratesync_loop_bind_cascade (&l, rc);
+  dp_ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_loop_bind_cascade (&l, rc);
   /* bind_cascade reads the geometry off the stage rather than being told. */
-  DP_CHECK (
-      l.term_rate
-      == resamp_get_rate ((resamp_state_t *)rc->stage_ptrs[rc->n_stages - 1]));
+  DP_CHECK (l.term_rate
+            == dp_resamp_get_rate (
+                (resamp_state_t *)rc->stage_ptrs[rc->n_stages - 1]));
   DP_CHECK (l.prime_taps > 0 && l.prime_left == l.prime_taps + 1u);
   DP_CHECK (l.term != NULL);
 
@@ -787,16 +787,16 @@ test_ctrl_scale_is_the_terminal_rate (void)
   double lock[2] = { 0.0, 0.0 }, evm[2] = { 0.0, 0.0 };
   for (int wrong = 0; wrong < 2; wrong++)
     {
-      dp_RateConverter_state_t *rc = RateConverter_create_matched (
+      dp_RateConverter_state_t *rc = dp_RateConverter_create_matched (
           2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
       DP_CHECK (rc != NULL);
       if (!rc)
         continue;
       ratesync_loop_t l;
-      ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
-      ratesync_loop_bind_cascade (&l, rc);
+      dp_ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+      dp_ratesync_loop_bind_cascade (&l, rc);
       if (wrong) /* the cascade rate, m/sps — 32x too small */
-        ratesync_loop_set_cascade (&l, 2.0 / sps, l.prime_taps);
+        dp_ratesync_loop_set_cascade (&l, 2.0 / sps, l.prime_taps);
       size_t ns = 0;
       for (size_t k = 0; k < n; k++)
         {
@@ -967,18 +967,18 @@ _loop_state_roundtrip_at_parity (int parity)
       return;
     }
 
-  dp_RateConverter_state_t *rc1 = RateConverter_create_matched (
+  dp_RateConverter_state_t *rc1 = dp_RateConverter_create_matched (
       2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
-  dp_RateConverter_state_t *rc2 = RateConverter_create_matched (
+  dp_RateConverter_state_t *rc2 = dp_RateConverter_create_matched (
       2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
   ratesync_loop_t l1, l2;
-  ratesync_loop_init (&l1, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
-  ratesync_loop_init (&l2, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_loop_init (&l1, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  dp_ratesync_loop_init (&l2, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
   DP_CHECK (rc1 && rc2);
   if (rc1 && rc2)
     {
-      ratesync_loop_bind_cascade (&l1, rc1);
-      ratesync_loop_bind_cascade (&l2, rc2);
+      dp_ratesync_loop_bind_cascade (&l1, rc1);
+      dp_ratesync_loop_bind_cascade (&l2, rc2);
 
       /* Advance to the half-way mark, then on to the next input at which the
          strobe phase has the requested parity. */
@@ -1001,18 +1001,18 @@ _loop_state_roundtrip_at_parity (int parity)
       DP_CHECK (cut > 0);
       DP_CHECK ((int)(l1.out_count & 1u) == parity);
 
-      size_t sb   = ratesync_loop_state_bytes (&l1);
+      size_t sb   = dp_ratesync_loop_state_bytes (&l1);
       void  *blob = malloc (sb);
       DP_CHECK (blob != NULL);
       if (blob)
         {
-          ratesync_loop_get_state (&l1, blob);
-          DP_CHECK (ratesync_loop_set_state (&l2, blob) == DP_OK);
+          dp_ratesync_loop_get_state (&l1, blob);
+          DP_CHECK (dp_ratesync_loop_set_state (&l2, blob) == DP_OK);
           void *blob2 = malloc (sb);
           DP_CHECK (blob2 != NULL);
           if (blob2)
             {
-              ratesync_loop_get_state (&l2, blob2);
+              dp_ratesync_loop_get_state (&l2, blob2);
               DP_CHECK (memcmp (blob, blob2, sb) == 0);
               free (blob2);
             }
@@ -1057,7 +1057,7 @@ _loop_state_roundtrip_at_parity (int parity)
 
           /* Its own envelope rejects, independently of the parent's. */
           ((char *)blob)[0] ^= (char)0xFF;
-          DP_CHECK (ratesync_loop_set_state (&l2, blob) == DP_ERR_INVALID);
+          DP_CHECK (dp_ratesync_loop_set_state (&l2, blob) == DP_ERR_INVALID);
           free (blob);
         }
     }
@@ -1264,7 +1264,7 @@ test_sps_equals_m_boundary (void)
  *   - gardner_ted's raw output carries `A^2` -- both factors are signal.
  *   - dttl_ted's carries `A^1` -- only `mid` is signal, the transition term
  *     being a difference of hard-decision SIGNS and so amplitude-free.
- *   - ted_scale is `1 / symsync_ted_slope(ted, pulse, beta, span)`, a
+ *   - ted_scale is `1 / dp_symsync_ted_slope(ted, pulse, beta, span)`, a
  *     construct-time constant computed at `A = 1`, which therefore divides
  *     out NEITHER amplitude.
  *
@@ -1327,7 +1327,8 @@ test_amplitude_law (void)
       DP_CHECK (s != NULL);
       if (!s)
         continue;
-      double want = symsync_ted_slope (sym[i], SYMSYNC_PULSE_RRC, beta, _SPAN);
+      double want
+          = dp_symsync_ted_slope (sym[i], SYMSYNC_PULSE_RRC, beta, _SPAN);
       DP_CHECK (want > 0.0);
       DP_CHECK (fabs (1.0 / s->loop.ted_scale - want) <= 1e-9 * want);
       dp_ratesync_destroy (s);

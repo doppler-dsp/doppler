@@ -1,7 +1,7 @@
 /**
  * standalone/main.c — minimal doppler example.
  *
- * Generates 4096 complex AWGN samples with the one-shot awgn() function,
+ * Generates 4096 complex AWGN samples with the one-shot dp_awgn() function,
  * then prints the empirical mean and per-component standard deviation.
  *
  * Build from source tree (doppler built but not installed):
@@ -36,7 +36,7 @@ main (void)
   float complex out[N];
 
   /* One-shot: no persistent state needed. */
-  if (awgn (/*seed=*/42, /*amplitude=*/1.0f, N, out) != DP_OK)
+  if (dp_awgn (/*seed=*/42, /*amplitude=*/1.0f, N, out) != DP_OK)
     {
       fprintf (stderr, "awgn: allocation failed\n");
       return 1;

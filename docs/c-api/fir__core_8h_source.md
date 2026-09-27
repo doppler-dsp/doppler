@@ -39,7 +39,7 @@ extern "C"
   {
     size_t               M = s->num_taps;
     const float _Complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
-    const float         *h = s->rtaps;  /* real taps (fir_create_real)   */
+    const float         *h = s->rtaps;  /* real taps (dp_fir_create_real)   */
     float                re = 0.0f, im = 0.0f;
     for (size_t k = 0; k < M; k++)
       {
@@ -59,7 +59,7 @@ extern "C"
 
   dp_fir_state_t *dp_fir_create (const float _Complex *taps, size_t taps_len);
 
-  dp_fir_state_t *fir_create_real (const float *taps, size_t num_taps);
+  dp_fir_state_t *dp_fir_create_real (const float *taps, size_t num_taps);
 
   void dp_fir_reset (dp_fir_state_t *state);
 
@@ -78,7 +78,7 @@ extern "C"
 
   int dp_fir_get_is_real (const dp_fir_state_t *state);
 
-  double fir_dc_gain (const dp_fir_state_t *state);
+  double dp_fir_dc_gain (const dp_fir_state_t *state);
 
   size_t dp_fir_execute_max_out (dp_fir_state_t *state);
 

@@ -187,7 +187,7 @@ void dp_agc_reset(dp_agc_state_t *state);
 
 double dp_agc_get_applied_gain_db(const dp_agc_state_t *state);
 
-  size_t agc_settling_samples (double loop_bw, double alpha,
+  size_t dp_agc_settling_samples (double loop_bw, double alpha,
                                double gain_err_db, double tol_db);
 
 int dp_agc_set_telemetry(dp_agc_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);

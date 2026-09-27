@@ -198,7 +198,7 @@ measure (size_t depth, double target, int trials, uint32_t seed)
   const size_t     cap = dp_burst_capture_push_max_out (s, len);
   float _Complex  *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
   dp_awgn_state_t *g   = dp_xnn (
-      dp_awgn_create (seed, awgn_amplitude_for_snr ((float)r.cn0, 1.0f)));
+      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)r.cn0, 1.0f)));
   const double span = 1.0 / (2.0 * (double)N); /* cycles/sample */
   uint32_t     st   = seed;
   int          hits = 0, eng = 0, wrong = 0;
@@ -233,9 +233,9 @@ measure (size_t depth, double target, int trials, uint32_t seed)
       dp_burst_capture_reset (s);
       (void)dp_burst_capture_push (s, x, len, out, cap);
       int hit = 0, off = 0;
-      for (size_t k = 0; k < burst_capture_ready (s); k++)
+      for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
         {
-          const burst_capture_event_t *ev = burst_capture_event_at (s, k);
+          const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
           if (!ev)
             continue;
           const double err = (double)ev->preamble_start - ((double)at + frac);

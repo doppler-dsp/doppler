@@ -44,7 +44,7 @@
  *    unchanged.
  *
  * The state struct is **public** so a tracker embeds it by value (no heap)
- * and drives it with lockdet_init()/dp_lockdet_step() — e.g. the DLL steps one
+ * and drives it with dp_lockdet_init()/dp_lockdet_step() — e.g. the DLL steps one
  * on its CFAR statistic each N-look decision, the MPSK receiver steps one on
  * the carrier lock metric each recovered symbol. dp_lockdet_create() is the
  * heap path used by the Python wrapper. Pointer-free POD: it rides an
@@ -54,7 +54,7 @@
  *
  * @code
  * dp_lockdet_state_t d;
- * lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
+ * dp_lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
  * dp_lockdet_reset (&d);                      // cnt = 0, locked = 0
  * int locked = dp_lockdet_step (&d, metric);  // one look -> current flag
  * @endcode
@@ -92,7 +92,7 @@ extern "C"
    * count of 1 means no time hysteresis on that side). Does **not** touch
    * @c cnt / @c locked, so it doubles as a reconfigure that preserves the
    * current decision. Use this for a `dp_lockdet_state_t` embedded by value;
-   * dp_lockdet_create() is calloc + lockdet_init().
+   * dp_lockdet_create() is calloc + dp_lockdet_init().
    *
    * @param state        Must be non-NULL.
    * @param up_thresh    Declare threshold (hit when metric > up_thresh).
@@ -101,7 +101,7 @@ extern "C"
    * @param n_up         Consecutive hits to declare; clamped to >= 1.
    * @param n_down       Consecutive misses to drop; clamped to >= 1.
    */
-  void lockdet_init(dp_lockdet_state_t *state, double up_thresh,
+  void dp_lockdet_init(dp_lockdet_state_t *state, double up_thresh,
                     double down_thresh, uint32_t n_up, uint32_t n_down);
 
   /**

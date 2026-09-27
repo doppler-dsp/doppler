@@ -130,7 +130,7 @@ def create_validates_domain() -> bool:
 def rice_gains(bn: float, zeta: float, t: float) -> tuple[float, float]:
     """Canonical discrete PI gains (Rice, App. C) with Kd*K0 = 1.
 
-    Deliberately NOT `loop_filter_init`'s expression: that one carries
+    Deliberately NOT `dp_loop_filter_init`'s expression: that one carries
     `th = wn*t` from inverting the analog noise-bandwidth relation, this
     one carries `theta = th/2` and a denominator scaled by 4. The two are
     algebraically identical, so a correct implementation matches to
@@ -289,7 +289,7 @@ def section_object() -> None:
         ],
     )
     R.md(
-        "The filter is embedded by value at nine `loop_filter_init()` call "
+        "The filter is embedded by value at nine `dp_loop_filter_init()` call "
         "sites across seven objects (costas, carrier_mpsk, carrier_nda, dll, "
         "symsync, ratesync, burst_despreader), so every measurement below is "
         "a measurement of all of them."
@@ -696,7 +696,7 @@ def review(d: Data) -> None:
         "`MemoryError` (§2.8). Validating there also makes the arithmetic "
         "**total**: with `bn >= 0` and `zeta > 0` the gain denominator is "
         "at least 4, so the `zeta >= 1` case that drove it through zero is "
-        "now unreachable. `loop_filter_init` is **left unguarded on "
+        "now unreachable. `dp_loop_filter_init` is **left unguarded on "
         "purpose** — the by-value path's seven embedders validate upstream, "
         "and guarding an internal guarantee is error handling this project "
         "does not write; §10 pins that half.",
@@ -705,7 +705,7 @@ def review(d: Data) -> None:
     R.find(
         "F7",
         "BY DESIGN",
-        "**`loop_filter_init` does not touch the integrator, and two "
+        "**`dp_loop_filter_init` does not touch the integrator, and two "
         "consumers depend on that positively.** `costas` and `carrier_mpsk` "
         "seed it to a known carrier offset so the loop does not rediscover "
         "a frequency the caller already knows; zeroing on init would throw "
@@ -729,7 +729,7 @@ def review(d: Data) -> None:
     R.find(
         "F9",
         "C-ONLY",
-        "**`loop_filter_init` itself is unreachable from Python.** The "
+        "**`dp_loop_filter_init` itself is unreachable from Python.** The "
         "binding exposes `configure`, which is the same operation on a "
         "heap instance; the by-value embedding path that seven objects use "
         "has no Python face at all. That is correct — an embedded filter "
@@ -908,7 +908,8 @@ def build(write: bool = True) -> Report:
             "**The domain is enforced at the constructor and deliberately "
             "nowhere else.** `LoopFilter(t=0)` used to build a silently dead "
             "loop and `LoopFilter(t=inf)` one whose every output was NaN "
-            "forever; both now raise `ValueError`. `loop_filter_init` stays "
+            "forever; both now raise `ValueError`. `dp_loop_filter_init` "
+            "stays "
             "unguarded on purpose — it is the by-value path and its seven "
             "embedders validate upstream (§2.8, F6, gh-740).",
             "**A state restore carries configuration, not just memory**, so "

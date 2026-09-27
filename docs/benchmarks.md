@@ -541,7 +541,7 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 | `tonemeas::analyze[n=65536]` | 471.10 µs | 413.62 µs | +14% |
 | `fft2d::execute_cf64[16x4096]` | 477.27 µs | 376.76 µs | +27% |
 | `ccsds::asm_bits` | 481.92 µs | 52.07 µs | +825% |
-| `ccsds::ccsds_tm_asm_bits` | 482.75 µs | 52.17 µs | +825% |
+| `ccsds::dp_ccsds_tm_asm_bits` | 482.75 µs | 52.17 µs | +825% |
 | `agc::steps` | 483.57 µs | 470.69 µs | +3% |
 | `syncword::find[n=128]` | 488.83 µs | 263.52 µs | +85% |
 | `fft2d::execute_cf64[64x1024]` | 489.54 µs | 386.00 µs | +27% |

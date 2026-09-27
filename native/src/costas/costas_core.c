@@ -22,7 +22,7 @@
 static void
 seed (dp_costas_state_t *s, double init_norm_freq)
 {
-  lo_init (&s->nco, init_norm_freq);
+  dp_lo_init (&s->nco, init_norm_freq);
   s->lf.integ    = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
   s->acc         = 0.0f;
   s->acc_n       = 0;
@@ -34,8 +34,8 @@ seed (dp_costas_state_t *s, double init_norm_freq)
 }
 
 void
-costas_init (dp_costas_state_t *s, double bn, double zeta,
-             double init_norm_freq, size_t tsamps, double bn_fll)
+dp_costas_init (dp_costas_state_t *s, double bn, double zeta,
+                double init_norm_freq, size_t tsamps, double bn_fll)
 {
   s->tsamps         = tsamps ? tsamps : 1;
   s->bn             = bn;
@@ -47,9 +47,9 @@ costas_init (dp_costas_state_t *s, double bn, double zeta,
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
-  loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
-  lockdet_init (&s->lock, COSTAS_LOCK_DEFAULT_UP, COSTAS_LOCK_DEFAULT_DOWN,
-                COSTAS_LOCK_DEFAULT_N_UP, COSTAS_LOCK_DEFAULT_N_DOWN);
+  dp_loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
+  dp_lockdet_init (&s->lock, COSTAS_LOCK_DEFAULT_UP, COSTAS_LOCK_DEFAULT_DOWN,
+                   COSTAS_LOCK_DEFAULT_N_UP, COSTAS_LOCK_DEFAULT_N_DOWN);
   seed (s, init_norm_freq);
 }
 
@@ -60,7 +60,7 @@ dp_costas_create (double bn, double zeta, double init_norm_freq, size_t tsamps,
   dp_costas_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  costas_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll);
+  dp_costas_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll);
   return obj;
 }
 
@@ -107,7 +107,7 @@ dp_costas_set_telemetry (dp_costas_state_t *state, dp_tlm_t *tlm,
 }
 
 void
-costas_tlm_flush (const dp_costas_state_t *s)
+dp_costas_tlm_flush (const dp_costas_state_t *s)
 {
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_metric);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
@@ -178,7 +178,7 @@ dp_costas_steps (dp_costas_state_t *state, const float _Complex *x,
             out[emitted++] = prompt / (float)state->tsamps;
           state->acc   = 0.0f;
           state->acc_n = 0;
-          costas_tlm_flush (state);
+          dp_costas_tlm_flush (state);
         }
     }
   return emitted;
@@ -203,7 +203,7 @@ dp_costas_get_norm_freq (const dp_costas_state_t *state)
 }
 
 double
-costas_get_nco_freq (const dp_costas_state_t *state)
+dp_costas_get_nco_freq (const dp_costas_state_t *state)
 {
   /* Effective NCO frequency command = the loop-filter OUTPUT: the NCO
    * frequency register (which holds the integrator, set each symbol) PLUS

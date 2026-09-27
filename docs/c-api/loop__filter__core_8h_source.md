@@ -30,10 +30,10 @@ extern "C"
     double t;     
   } dp_loop_filter_state_t;
 
-  void loop_filter_init(dp_loop_filter_state_t *state, double bn, double zeta,
+  void dp_loop_filter_init(dp_loop_filter_state_t *state, double bn, double zeta,
                         double t);
 
-  double loop_filter_wn(double bn, double zeta);
+  double dp_loop_filter_wn(double bn, double zeta);
 
   dp_loop_filter_state_t *dp_loop_filter_create(double bn, double zeta, double t);
 

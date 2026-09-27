@@ -139,9 +139,9 @@ _test_arg_validation (void)
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
                 4, 14.0, 64, 8, false, 100000, 0.0, -1.0)
             == NULL); /* lost_confirm_s < 0 */
-  DP_CHECK (async_dsss_receiver_create_cell (CODE7, 7, 1e6, 1e3, 2, 2, 55.0,
-                                             1e-3, 0.9, 4, 8, 0, 0.0, NAN, 100,
-                                             0.125, 4)
+  DP_CHECK (dp_async_dsss_receiver_create_cell (CODE7, 7, 1e6, 1e3, 2, 2, 55.0,
+                                                1e-3, 0.9, 4, 8, 0, 0.0, NAN,
+                                                100, 0.125, 4)
             == NULL); /* lost_confirm_s NaN, cell flavor */
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
@@ -437,7 +437,7 @@ _test_spec_ramp_decode (void)
  * the 40 dB-Hz floor it is 88 epochs, 0.9 chip, past it: the refine Dll
  * sat where it was seeded, its detector saw no lobe, and the hand-over
  * was the unrefined seed, 1.1 kHz off, which the carrier loop can never
- * acquire. acq_build_handoff() now advances the phase by the drift over
+ * acquire. dp_acq_build_handoff() now advances the phase by the drift over
  * half the dwell. Sabotage: pass 0.0 for the carrier at the receiver's
  * call site -> the floor's seeds red (the 45 dB-Hz ones survive it, which
  * is why the floor is in the test).
@@ -759,7 +759,7 @@ _noise_tail (size_t n, double fs, double cn0_dbhz, uint32_t seed)
 static dp_async_dsss_receiver_state_t *
 _seeded_rx (double cn0, double lost_confirm_s)
 {
-  return async_dsss_receiver_create_cell (
+  return dp_async_dsss_receiver_create_cell (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.0,
       lost_confirm_s, 100, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
 }
@@ -1470,7 +1470,7 @@ static dp_async_dsss_receiver_state_t *
 _cell_rx (double cn0, double lost_confirm_s, double carrier_hz,
           size_t correct_periods, double gain, size_t pullin)
 {
-  return async_dsss_receiver_create_cell (
+  return dp_async_dsss_receiver_create_cell (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, carrier_hz,
       lost_confirm_s, correct_periods, gain, pullin);
 }
@@ -1929,7 +1929,7 @@ _test_cell_ramp_at_spec (void)
   double         *data;
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_s, cn0, n_sym, pre,
                         23, &x, &n, &data);
-  dp_async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.0, 0.0,
       periods, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
   DP_CHECK (rx != NULL);

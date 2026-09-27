@@ -59,13 +59,13 @@ _Reed-Solomon codes: the code description, the encoder, the syndromes and the de
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**rs\_code\_valid**](#function-rs_code_valid) (const [**rs\_code\_t**](structrs__code__t.md) \* c) <br>_Is_ `c` _a code this file can represent and decode?_ |
-|  int | [**rs\_codeword\_ok**](#function-rs_codeword_ok) (const [**rs\_t**](structrs__t.md) \* rs, const uint8\_t \* codeword) <br>_Is this a valid codeword? — every syndrome zero._  |
-|  int | [**rs\_decode**](#function-rs_decode) (const [**rs\_t**](structrs__t.md) \* rs, uint8\_t \* codeword) <br>_Correct up to_ `E` _symbol errors, in place._ |
-|  void | [**rs\_encode**](#function-rs_encode) (const [**rs\_t**](structrs__t.md) \* rs, const uint8\_t \* info, uint8\_t \* parity) <br>_Encode:_ `k` _information symbols in,_`nroots` _parity symbols out._ |
-|  const uint8\_t \* | [**rs\_generator**](#function-rs_generator) (const [**rs\_t**](structrs__t.md) \* rs) <br>_The_ `nroots + 1` _coefficients of_`g(x)` _,_`gen[i]` _for_`x^i` _._ |
-|  int | [**rs\_init**](#function-rs_init) ([**rs\_t**](structrs__t.md) \* rs, const [**rs\_code\_t**](structrs__code__t.md) \* c) <br>_Build the tables for_ `c` _into_`rs` _._ |
-|  void | [**rs\_syndromes**](#function-rs_syndromes) (const [**rs\_t**](structrs__t.md) \* rs, const uint8\_t \* codeword, uint8\_t \* syn) <br>_The_ `nroots` _syndromes of_`codeword` _._ |
+|  int | [**dp\_rs\_code\_valid**](#function-dp_rs_code_valid) (const [**rs\_code\_t**](structrs__code__t.md) \* c) <br>_Is_ `c` _a code this file can represent and decode?_ |
+|  int | [**dp\_rs\_codeword\_ok**](#function-dp_rs_codeword_ok) (const [**rs\_t**](structrs__t.md) \* rs, const uint8\_t \* codeword) <br>_Is this a valid codeword? — every syndrome zero._  |
+|  int | [**dp\_rs\_decode**](#function-dp_rs_decode) (const [**rs\_t**](structrs__t.md) \* rs, uint8\_t \* codeword) <br>_Correct up to_ `E` _symbol errors, in place._ |
+|  void | [**dp\_rs\_encode**](#function-dp_rs_encode) (const [**rs\_t**](structrs__t.md) \* rs, const uint8\_t \* info, uint8\_t \* parity) <br>_Encode:_ `k` _information symbols in,_`nroots` _parity symbols out._ |
+|  const uint8\_t \* | [**dp\_rs\_generator**](#function-dp_rs_generator) (const [**rs\_t**](structrs__t.md) \* rs) <br>_The_ `nroots + 1` _coefficients of_`g(x)` _,_`gen[i]` _for_`x^i` _._ |
+|  int | [**dp\_rs\_init**](#function-dp_rs_init) ([**rs\_t**](structrs__t.md) \* rs, const [**rs\_code\_t**](structrs__code__t.md) \* c) <br>_Build the tables for_ `c` _into_`rs` _._ |
+|  void | [**dp\_rs\_syndromes**](#function-dp_rs_syndromes) (const [**rs\_t**](structrs__t.md) \* rs, const uint8\_t \* codeword, uint8\_t \* syn) <br>_The_ `nroots` _syndromes of_`codeword` _._ |
 
 
 
@@ -111,7 +111,7 @@ A Reed-Solomon code over `GF(2^J)` is five numbers — a symbol width, a field p
 
 
 
-The CCSDS configuration lives in `ccsds_tm/ccsds_tm_rs.h` as `CCSDS_TM_RS`, beside the two things 131.0-B-3 adds that are _not_ properties of the code: the dual-basis symbol representation (4.3.9) and the interleaver (4.4.1). A standard picking a code is not the same fact as the code existing. Point this at RS(255,239) — the mother code DVB shortens — at RS(15,11) to check something by hand, or at whatever a caller brings: the arithmetic is identical and only the table changes.
+The CCSDS configuration lives in `ccsds_tm/ccsds_tm_rs.h` as `dp_CCSDS_TM_RS`, beside the two things 131.0-B-3 adds that are _not_ properties of the code: the dual-basis symbol representation (4.3.9) and the interleaver (4.4.1). A standard picking a code is not the same fact as the code existing. Point this at RS(255,239) — the mother code DVB shortens — at RS(15,11) to check something by hand, or at whatever a caller brings: the arithmetic is identical and only the table changes.
 
 
 One thing the table does **not** change is `n`, which is `2^J - 1` by construction. So a SHORTENED code is not expressible here: DVB's own RS(204,188) and CCSDS 4.4.2's shortened codeblock are RS(255,239) and RS(255,223) with leading zeros the sender never transmits, and that virtual fill is [gh-813](https://github.com/doppler-dsp/doppler/issues/813).
@@ -126,7 +126,7 @@ Both of these produce arithmetic that is entirely self-consistent, so a round tr
 
 
 
-* \*\*`field_poly` must be primitive.\*\* If `a = x` returns to 1 before `n` steps the polynomial generates a subgroup rather than the field, and [**rs\_init**](rs__core_8h.md#function-rs_init) refuses.
+* \*\*`field_poly` must be primitive.\*\* If `a = x` returns to 1 before `n` steps the polynomial generates a subgroup rather than the field, and [**dp\_rs\_init**](rs__core_8h.md#function-dp_rs_init) refuses.
 * \*\*`gcd(root_stride, n)` must be 1\*\*, or the `nroots` roots are not distinct and the code corrects fewer errors than its parity count claims. CCSDS 4.3.4 states this as a note about `a^11`; for a general implementation it is a condition to check.
 
 
@@ -161,18 +161,18 @@ Both of these produce arithmetic that is entirely self-consistent, so a round tr
 
 
 
-### function rs\_code\_valid 
+### function dp\_rs\_code\_valid 
 
 _Is_ `c` _a code this file can represent and decode?_
 ```C++
-int rs_code_valid (
+int dp_rs_code_valid (
     const rs_code_t * c
 ) 
 ```
 
 
 
-Checks the ranges, that `nroots` is even and leaves room for at least one information symbol, and that `gcd(root_stride, n) == 1`. It does **not** check that `field_poly` is primitive — that costs the table build, so [**rs\_init**](rs__core_8h.md#function-rs_init) reports it instead.
+Checks the ranges, that `nroots` is even and leaves room for at least one information symbol, and that `gcd(root_stride, n) == 1`. It does **not** check that `field_poly` is primitive — that costs the table build, so [**dp\_rs\_init**](rs__core_8h.md#function-dp_rs_init) reports it instead.
 
 
 
@@ -198,11 +198,11 @@ Non-zero if usable.
 
 
 
-### function rs\_codeword\_ok 
+### function dp\_rs\_codeword\_ok 
 
 _Is this a valid codeword? — every syndrome zero._ 
 ```C++
-int rs_codeword_ok (
+int dp_rs_codeword_ok (
     const rs_t * rs,
     const uint8_t * codeword
 ) 
@@ -234,11 +234,11 @@ Non-zero when every syndrome is zero.
 
 
 
-### function rs\_decode 
+### function dp\_rs\_decode 
 
 _Correct up to_ `E` _symbol errors, in place._
 ```C++
-int rs_decode (
+int dp_rs_decode (
     const rs_t * rs,
     uint8_t * codeword
 ) 
@@ -249,7 +249,7 @@ int rs_decode (
 Berlekamp-Massey for the error locator, Chien for the positions and Forney for the magnitudes — see `docs/design/reed-solomon.md` for the derivation, and in particular for the two factors a textbook omits when `first_root != 1` or `root_stride != 1`, both of which produce a decoder that decodes its own encoder perfectly and interoperates with nothing.
 
 
-**It either refuses or returns a codeword.** When it corrects, the key equation has zeroed every syndrome by construction, so the result passes [**rs\_codeword\_ok**](rs__core_8h.md#function-rs_codeword_ok). There is no third outcome.
+**It either refuses or returns a codeword.** When it corrects, the key equation has zeroed every syndrome by construction, so the result passes [**dp\_rs\_codeword\_ok**](rs__core_8h.md#function-dp_rs_codeword_ok). There is no third outcome.
 
 
 A refusal is not the same claim as "more than `E` errors": beyond `E` a bounded-distance decoder can land inside another codeword's sphere and miscorrect — a property of the code, not of this implementation. The protection is accounting at the frame level, which is why this reports a count rather than a verdict.
@@ -272,7 +272,7 @@ Symbols corrected, 0 for an already-valid codeword, or -1 if the word could not 
 
 
 ```C++
-const int fixed = rs_decode (&rs, word);
+const int fixed = dp_rs_decode (&rs, word);
 if (fixed < 0)
   ;  // too far from every codeword to name one
 ```
@@ -285,11 +285,11 @@ if (fixed < 0)
 
 
 
-### function rs\_encode 
+### function dp\_rs\_encode 
 
 _Encode:_ `k` _information symbols in,_`nroots` _parity symbols out._
 ```C++
-void rs_encode (
+void dp_rs_encode (
     const rs_t * rs,
     const uint8_t * info,
     uint8_t * parity
@@ -319,11 +319,11 @@ Systematic — the information symbols are not touched. The parity is the remain
 
 
 
-### function rs\_generator 
+### function dp\_rs\_generator 
 
 _The_ `nroots + 1` _coefficients of_`g(x)` _,_`gen[i]` _for_`x^i` _._
 ```C++
-const uint8_t * rs_generator (
+const uint8_t * dp_rs_generator (
     const rs_t * rs
 ) 
 ```
@@ -356,11 +356,11 @@ Pointer into `rs`, valid as long as it is.
 
 
 
-### function rs\_init 
+### function dp\_rs\_init 
 
 _Build the tables for_ `c` _into_`rs` _._
 ```C++
-int rs_init (
+int dp_rs_init (
     rs_t * rs,
     const rs_code_t * c
 ) 
@@ -374,7 +374,7 @@ int rs_init (
 
 
 * `rs` Receives the code and its derived tables. 
-* `c` The code; see [**rs\_code\_valid**](rs__core_8h.md#function-rs_code_valid). 
+* `c` The code; see [**dp\_rs\_code\_valid**](rs__core_8h.md#function-dp_rs_code_valid). 
 
 
 
@@ -389,7 +389,7 @@ rs_t rs;
 const rs_code_t code = { .symbol_bits = 8, .field_poly = 0x1D,
                          .nroots = 16, .first_root = 1,
                          .root_stride = 1 };
-if (!rs_init (&rs, &code))
+if (!dp_rs_init (&rs, &code))
   return 1;  // not a field, or not a code
 ```
  
@@ -401,11 +401,11 @@ if (!rs_init (&rs, &code))
 
 
 
-### function rs\_syndromes 
+### function dp\_rs\_syndromes 
 
 _The_ `nroots` _syndromes of_`codeword` _._
 ```C++
-void rs_syndromes (
+void dp_rs_syndromes (
     const rs_t * rs,
     const uint8_t * codeword,
     uint8_t * syn

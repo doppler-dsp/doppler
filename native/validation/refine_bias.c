@@ -43,7 +43,7 @@
  * a fixed +1100 Hz error, through the design margin: each row prints
  * the `dwell_target` the margin sized. (3) The despread stream: the
  * refine collects it with a look-back Dll whose dumps per epoch come from
- * `refine_max_error_db` via `dll_lookback_segments()`. The shipped
+ * `refine_max_error_db` via `dp_dll_lookback_segments()`. The shipped
  * default, 0.5 dB, gives 11 dumps per epoch (53.8 kHz here); 100 dB
  * gives one, the epoch rate of 4.9 kHz -- below the 2700-baud data
  * lobe's own width, so any residual aliases -- and `objects/

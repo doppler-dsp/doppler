@@ -23,12 +23,12 @@ dp_fft2d_create (size_t ny, size_t nx, int sign, int nthreads)
   dp_fft2d_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
-  state->plan_f64 = pocketfft_plan_2d (ny, nx, sign);
-  state->plan_f32 = pocketfft_plan_2d (ny, nx, sign);
+  state->plan_f64 = dp_pocketfft_plan_2d (ny, nx, sign);
+  state->plan_f32 = dp_pocketfft_plan_2d (ny, nx, sign);
   if (!state->plan_f64 || !state->plan_f32)
     {
-      pocketfft_destroy_plan (state->plan_f64);
-      pocketfft_destroy_plan (state->plan_f32);
+      dp_pocketfft_destroy_plan (state->plan_f64);
+      dp_pocketfft_destroy_plan (state->plan_f32);
       free (state);
       return NULL;
     }
@@ -44,8 +44,8 @@ dp_fft2d_destroy (dp_fft2d_state_t *state)
 {
   if (!state)
     return;
-  pocketfft_destroy_plan (state->plan_f64);
-  pocketfft_destroy_plan (state->plan_f32);
+  dp_pocketfft_destroy_plan (state->plan_f64);
+  dp_pocketfft_destroy_plan (state->plan_f32);
   free (state->work_trunc);
   free (state);
 }
@@ -70,11 +70,11 @@ dp_fft2d_execute_cf64 (dp_fft2d_state_t *state, const double _Complex *in,
   const size_t n = state->ny * state->nx;
   if (max_out >= n)
     {
-      pocketfft_execute_2d (state->plan_f64, in, out);
+      dp_pocketfft_execute_2d (state->plan_f64, in, out);
       return n;
     }
   double _Complex *scratch = trunc_buf (state);
-  pocketfft_execute_2d (state->plan_f64, in, scratch);
+  dp_pocketfft_execute_2d (state->plan_f64, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
@@ -93,11 +93,11 @@ dp_fft2d_execute_cf32 (dp_fft2d_state_t *state, const float _Complex *in,
   const size_t n = state->ny * state->nx;
   if (max_out >= n)
     {
-      pocketfft_execute_2d_cf32 (state->plan_f32, in, out);
+      dp_pocketfft_execute_2d_cf32 (state->plan_f32, in, out);
       return n;
     }
   float _Complex *scratch = (float _Complex *)trunc_buf (state);
-  pocketfft_execute_2d_cf32 (state->plan_f32, in, scratch);
+  dp_pocketfft_execute_2d_cf32 (state->plan_f32, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
@@ -120,12 +120,12 @@ dp_fft2d_execute_inplace_cf64 (dp_fft2d_state_t      *state,
   if (max_out >= n)
     {
       memcpy (out, in, n_cp * sizeof (*out));
-      pocketfft_execute_2d (state->plan_f64, out, out);
+      dp_pocketfft_execute_2d (state->plan_f64, out, out);
       return n;
     }
   double _Complex *scratch = trunc_buf (state);
   memcpy (scratch, in, n_cp * sizeof (*scratch));
-  pocketfft_execute_2d (state->plan_f64, scratch, scratch);
+  dp_pocketfft_execute_2d (state->plan_f64, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }
@@ -146,12 +146,12 @@ dp_fft2d_execute_inplace_cf32 (dp_fft2d_state_t     *state,
   if (max_out >= n)
     {
       memcpy (out, in, n_cp * sizeof (*out));
-      pocketfft_execute_2d_cf32 (state->plan_f32, out, out);
+      dp_pocketfft_execute_2d_cf32 (state->plan_f32, out, out);
       return n;
     }
   float _Complex *scratch = (float _Complex *)trunc_buf (state);
   memcpy (scratch, in, n_cp * sizeof (*scratch));
-  pocketfft_execute_2d_cf32 (state->plan_f32, scratch, scratch);
+  dp_pocketfft_execute_2d_cf32 (state->plan_f32, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
 }

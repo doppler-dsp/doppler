@@ -71,27 +71,25 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**RateConverter\_agc\_gain\_db**](#function-rateconverter_agc_gain_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._  |
-|  double | [**RateConverter\_agc\_ref\_db**](#function-rateconverter_agc_ref_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The pre-terminal AGC's reference level, in dB._  |
-|  size\_t | [**RateConverter\_convert**](#function-rateconverter_convert) (double rate, int compensate, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_One-shot rate conversion — no persistent state required._  |
-|  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**RateConverter\_create\_matched**](#function-rateconverter_create_matched) (double rate, int compensate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a rate converter whose terminal stage IS a matched filter._  |
-|  int | [**RateConverter\_enable\_agc**](#function-rateconverter_enable_agc) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double bn\_sym, double alpha) <br>_Level the stream feeding the terminal (matched) stage._  |
-|  size\_t | [**RateConverter\_execute\_ctrl\_push\_tap**](#function-rateconverter_execute_ctrl_push_tap) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**dp\_RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._ |
-|  double | [**RateConverter\_gain**](#function-rateconverter_gain) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
-|  double | [**RateConverter\_get\_bank\_sps**](#function-rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
 |  size\_t | [**RateConverter\_num\_bank\_shape**](#function-rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
 |  size\_t | [**RateConverter\_num\_stages**](#function-rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
-|  int | [**RateConverter\_set\_telemetry**](#function-rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
-|  int | [**RateConverter\_stage\_label**](#function-rateconverter_stage_label) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
+|  double | [**dp\_RateConverter\_agc\_gain\_db**](#function-dp_rateconverter_agc_gain_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._  |
+|  double | [**dp\_RateConverter\_agc\_ref\_db**](#function-dp_rateconverter_agc_ref_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The pre-terminal AGC's reference level, in dB._  |
 |  size\_t | [**dp\_RateConverter\_bank\_shape\_value**](#function-dp_rateconverter_bank_shape_value) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, size\_t i) <br>_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._ |
+|  size\_t | [**dp\_RateConverter\_convert**](#function-dp_rateconverter_convert) (double rate, int compensate, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_One-shot rate conversion — no persistent state required._  |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**dp\_RateConverter\_create**](#function-dp_rateconverter_create) (double rate, int compensate) <br>_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._  |
+|  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**dp\_RateConverter\_create\_matched**](#function-dp_rateconverter_create_matched) (double rate, int compensate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a rate converter whose terminal stage IS a matched filter._  |
 |  void | [**dp\_RateConverter\_destroy**](#function-dp_rateconverter_destroy) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Free all resources. NULL is a no-op._  |
+|  int | [**dp\_RateConverter\_enable\_agc**](#function-dp_rateconverter_enable_agc) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double bn\_sym, double alpha) <br>_Level the stream feeding the terminal (matched) stage._  |
 |  size\_t | [**dp\_RateConverter\_execute**](#function-dp_rateconverter_execute) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n\_in \* rate._  |
 |  size\_t | [**dp\_RateConverter\_execute\_ctrl**](#function-dp_rateconverter_execute_ctrl) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const float \_Complex \* x, size\_t n\_in, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Convert a block, steering the cascade's fractional stage by_ `ctrl` _._ |
 |  size\_t | [**dp\_RateConverter\_execute\_ctrl\_max\_out**](#function-dp_rateconverter_execute_ctrl_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_As_ [_**dp\_RateConverter\_execute\_max\_out()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_max_out) _, for the block control form._ |
 |  size\_t | [**dp\_RateConverter\_execute\_ctrl\_push**](#function-dp_rateconverter_execute_ctrl_push) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
 |  size\_t | [**dp\_RateConverter\_execute\_ctrl\_push\_max\_out**](#function-dp_rateconverter_execute_ctrl_push_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
+|  size\_t | [**dp\_RateConverter\_execute\_ctrl\_push\_tap**](#function-dp_rateconverter_execute_ctrl_push_tap) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**dp\_RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._ |
 |  size\_t | [**dp\_RateConverter\_execute\_max\_out**](#function-dp_rateconverter_execute_max_out) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Upper bound on execute output for a standard 65536-sample block._  |
+|  double | [**dp\_RateConverter\_gain**](#function-dp_rateconverter_gain) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
+|  double | [**dp\_RateConverter\_get\_bank\_sps**](#function-dp_rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
 |  bool | [**dp\_RateConverter\_get\_clipped**](#function-dp_rateconverter_get_clipped) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
 |  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
 |  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
@@ -99,6 +97,8 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._  |
 |  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._  |
 |  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
+|  int | [**dp\_RateConverter\_set\_telemetry**](#function-dp_rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
+|  int | [**dp\_RateConverter\_stage\_label**](#function-dp_rateconverter_stage_label) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
 |  const char \* | [**dp\_RateConverter\_stages\_value**](#function-dp_rateconverter_stages_value) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, size\_t i) <br>_Label of stage_ `i` _, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)"._ |
 |  size\_t | [**dp\_RateConverter\_state\_bytes**](#function-dp_rateconverter_state_bytes) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + stages)._ |
 
@@ -216,18 +216,61 @@ Stage type tags.
 
 
 
-### function RateConverter\_agc\_gain\_db 
+### function RateConverter\_num\_bank\_shape 
 
-_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._ 
+_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._
 ```C++
-double RateConverter_agc_gain_db (
+size_t RateConverter_num_bank_shape (
     const dp_RateConverter_state_t * s
 ) 
 ```
 
 
 
-The cascade's time-varying gain, kept deliberately separate from [**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain): that function reports the response computed from the stages' own COEFFICIENTS, and an AGC has none. A caller asking "what did
+
+
+**Returns:**
+
+2 when the cascade ends in a Resampler stage, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function RateConverter\_num\_stages 
+
+_Number of planned cascade stages (backs the_ `stages` _property)._
+```C++
+size_t RateConverter_num_stages (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_agc\_gain\_db 
+
+_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._ 
+```C++
+double dp_RateConverter_agc_gain_db (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+The cascade's time-varying gain, kept deliberately separate from [**dp\_RateConverter\_gain()**](RateConverter__core_8h.md#function-dp_rateconverter_gain): that function reports the response computed from the stages' own COEFFICIENTS, and an AGC has none. A caller asking "what did
 this cascade do to my amplitude" with the AGC on wants both, and they multiply. 
 
 
@@ -237,11 +280,11 @@ this cascade do to my amplitude" with the AGC on wants both, and they multiply.
 
 
 
-### function RateConverter\_agc\_ref\_db 
+### function dp\_RateConverter\_agc\_ref\_db 
 
 _The pre-terminal AGC's reference level, in dB._ 
 ```C++
-double RateConverter_agc_ref_db (
+double dp_RateConverter_agc_ref_db (
     const dp_RateConverter_state_t * s
 ) 
 ```
@@ -257,11 +300,28 @@ double RateConverter_agc_ref_db (
 
 
 
-### function RateConverter\_convert 
+### function dp\_RateConverter\_bank\_shape\_value 
+
+_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._
+```C++
+size_t dp_RateConverter_bank_shape_value (
+    const dp_RateConverter_state_t * s,
+    size_t i
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_convert 
 
 _One-shot rate conversion — no persistent state required._ 
 ```C++
-size_t RateConverter_convert (
+size_t dp_RateConverter_convert (
     double rate,
     int compensate,
     const float _Complex * in,
@@ -313,11 +373,54 @@ Number of output samples written; 0 only if OOM or n\_in == 0.
 
 
 
-### function RateConverter\_create\_matched 
+### function dp\_RateConverter\_create 
+
+_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._ 
+```C++
+dp_RateConverter_state_t * dp_RateConverter_create (
+    double rate,
+    int compensate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `rate` Output-to-input sample rate ratio. Any positive float. 
+* `compensate` Non-zero to append a CIC passband-droop compensating FIR after any CIC stage. 
+
+
+
+**Returns:**
+
+Non-NULL on success; NULL if rate &lt;= 0 or OOM.
+
+
+
+```C++
+>>> from doppler.resample import RateConverter
+>>> rc = RateConverter(rate=0.5, compensate=0)
+>>> rc.rate
+0.5
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_create\_matched 
 
 _Create a rate converter whose terminal stage IS a matched filter._ 
 ```C++
-dp_RateConverter_state_t * RateConverter_create_matched (
+dp_RateConverter_state_t * dp_RateConverter_create_matched (
     double rate,
     int compensate,
     int pulse,
@@ -383,11 +486,27 @@ Non-NULL on success; NULL on a bad parameter or OOM.
 
 
 
-### function RateConverter\_enable\_agc 
+### function dp\_RateConverter\_destroy 
+
+_Free all resources. NULL is a no-op._ 
+```C++
+void dp_RateConverter_destroy (
+    dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_enable\_agc 
 
 _Level the stream feeding the terminal (matched) stage._ 
 ```C++
-int RateConverter_enable_agc (
+int dp_RateConverter_enable_agc (
     dp_RateConverter_state_t * s,
     double bn_sym,
     double alpha
@@ -396,7 +515,7 @@ int RateConverter_enable_agc (
 
 
 
-Wedges an AGC into the cascade immediately BEFORE the terminal polyphase stage — after every integer decimation, ahead of the matched filter and the timing element. Off until this is called, and off is what both constructors build, so a plain cascade is untouched and [**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain) still reads exactly 1.0.
+Wedges an AGC into the cascade immediately BEFORE the terminal polyphase stage — after every integer decimation, ahead of the matched filter and the timing element. Off until this is called, and off is what both constructors build, so a plain cascade is untouched and [**dp\_RateConverter\_gain()**](RateConverter__core_8h.md#function-dp_rateconverter_gain) still reads exactly 1.0.
 
 
 
@@ -404,7 +523,7 @@ Wedges an AGC into the cascade immediately BEFORE the terminal polyphase stage �
 **
 **
 
-The consumer is a timing-error detector. A TED's raw output is the timing error multiplied by three things it did not choose — the signal amplitude, the transition density, and the detector's own slope — and only the last is the detector's to divide out ([**symsync\_ted\_slope()**](symsync__core_8h.md#function-symsync_ted_slope), which is computed at construct FOR A UNIT-AMPLITUDE SYMBOL STREAM). Amplitude enters as `A^2` for Gardner and `A^1` for DTTL, so a 4x level error is a 16x loop-gain error. Levelling it is this object's job because this object owns the bank that sets what "unit amplitude" means.
+The consumer is a timing-error detector. A TED's raw output is the timing error multiplied by three things it did not choose — the signal amplitude, the transition density, and the detector's own slope — and only the last is the detector's to divide out ([**dp\_symsync\_ted\_slope()**](symsync__core_8h.md#function-dp_symsync_ted_slope), which is computed at construct FOR A UNIT-AMPLITUDE SYMBOL STREAM). Amplitude enters as `A^2` for Gardner and `A^1` for DTTL, so a 4x level error is a 16x loop-gain error. Levelling it is this object's job because this object owns the bank that sets what "unit amplitude" means.
 
 
 The tap is pre-terminal rather than post because the terminal stage's OUTPUT rate is the one a timing loop is actively steering, and an AGC whose bandwidth is quoted in cycles per sample of a stream another loop is stretching is coupled to that loop. The pre-terminal rate is fixed.
@@ -415,7 +534,7 @@ The tap is pre-terminal rather than post because the terminal stage's OUTPUT rat
 **
 **
 
-The AGC sets average POWER; the TED wants unit symbol AMPLITUDE. The bridge is the pulse's own energy on its own tap grid — `bank_e0 = sum h(t)^2`, the quantity the bank is already normalised by — so for i.i.d. unit-power symbols at `bank_sps` samples per symbol the pre-terminal average power is `bank_e0 / bank_sps` and that is the reference. No caller supplies a level; read it back with [**RateConverter\_agc\_ref\_db()**](RateConverter__core_8h.md#function-rateconverter_agc_ref_db).
+The AGC sets average POWER; the TED wants unit symbol AMPLITUDE. The bridge is the pulse's own energy on its own tap grid — `bank_e0 = sum h(t)^2`, the quantity the bank is already normalised by — so for i.i.d. unit-power symbols at `bank_sps` samples per symbol the pre-terminal average power is `bank_e0 / bank_sps` and that is the reference. No caller supplies a level; read it back with [**dp\_RateConverter\_agc\_ref\_db()**](RateConverter__core_8h.md#function-dp_rateconverter_agc_ref_db).
 
 
 
@@ -441,7 +560,7 @@ The loop starts at unity gain and walks to the level; there is no seed and no sa
 **Parameters:**
 
 
-* `s` Must be non-NULL, and must be a MATCHED cascade ([**RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-rateconverter_create_matched)) — a plain one has no pulse and therefore no reference to derive. 
+* `s` Must be non-NULL, and must be a MATCHED cascade ([**dp\_RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-dp_rateconverter_create_matched)) — a plain one has no pulse and therefore no reference to derive. 
 * `bn_sym` AGC loop noise bandwidth in cycles/symbol; &gt; 0. 
 * `alpha` Power-detector EMA coefficient, in (0, 1]. 
 
@@ -455,368 +574,16 @@ DP\_OK, or DP\_ERR\_INVALID for a plain cascade or a bad parameter (the converte
 
 ```C++
 dp_RateConverter_state_t *rc =
-    RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+    dp_RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
                                   2.0, 1024);
-RateConverter_enable_agc (rc, 1e-4, 0.01);
-printf ("%.2f dB\n", RateConverter_agc_ref_db (rc));
+dp_RateConverter_enable_agc (rc, 1e-4, 0.01);
+printf ("%.2f dB\n", dp_RateConverter_agc_ref_db (rc));
 dp_RateConverter_destroy (rc);
 ```
  
 
 
         
-
-<hr>
-
-
-
-### function RateConverter\_execute\_ctrl\_push\_tap 
-
-[_**dp\_RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._
-```C++
-size_t RateConverter_execute_ctrl_push_tap (
-    dp_RateConverter_state_t * s,
-    float _Complex x,
-    double ctrl,
-    float _Complex * out,
-    size_t max_out,
-    float _Complex * pre_out,
-    int * n_pre
-) 
-```
-
-
-
-This is the tap a non-data-aided carrier discriminator wants, and it is the reason this variant exists (see docs/design/mpsk.md §3.3). It is already band-limited by the cascade's own decimation filters and already levelled by the AGC that sits on this exact node, yet it is ahead of the matched filter — so reading it needs no symbol timing, and it carries none of the matched filter's group delay or its between-symbol ISI.
-
-
-The rate is `bank_sps` samples per symbol, a planner outcome: read it with [**RateConverter\_get\_bank\_sps()**](RateConverter__core_8h.md#function-rateconverter_get_bank_sps) rather than assuming it. A consumer wanting a fixed clock decimates this stream itself.
-
-
-A non-terminal stage swallows inputs between its decimation strobes, so `n_pre` is 0 on those calls — exactly as the return value is.
-
-
-
-
-**Parameters:**
-
-
-* `s` Must be non-NULL. 
-* `x` One input sample. 
-* `ctrl` Fractional-rate control for the terminal stage. 
-* `out` Terminal outputs. 
-* `max_out` Capacity of `out`. 
-* `pre_out` Receives the pre-terminal sample; may be NULL. 
-* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
-
-
-
-**Returns:**
-
-Number of terminal outputs written, as the non-tap form. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_gain 
-
-_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._ 
-```C++
-double RateConverter_gain (
-    const dp_RateConverter_state_t * s
-) 
-```
-
-
-
-Each stage answers for itself ([**hbdecim\_dc\_gain()**](hbdecim__core_8h.md#function-hbdecim_dc_gain), [**cic\_dc\_gain()**](cic__core_8h.md#function-cic_dc_gain) times [**fir\_dc\_gain()**](fir__core_8h.md#function-fir_dc_gain) for a compensated CIC, [**resamp\_dc\_gain()**](resamp__core_8h.md#function-resamp_dc_gain)) and this is their product. So the number tracks whatever the stages actually hold: if a filter's normalisation drifts, this moves with it, and a gate comparing it against a measured DC probe catches the drift from either side.
-
-
-**A plain cascade is unity** — a rate conversion that adds gain of its own is a defect, and `dp_RateConverter_create()` returns 1.0 here at every rate.
-
-
-**A matched cascade is not, and should not be.** Its terminal stage is a matched filter, which is deliberately not flat; the invariant that holds there is at the SYMBOL level (a symbol of amplitude A in, amplitude A out), not at DC. This function still reports that cascade's true DC gain, which is the pulse's `sum(h)/sum(h^2)`.
-
-
-
-
-**Parameters:**
-
-
-* `s` State. Must be non-NULL. 
-
-
-
-**Returns:**
-
-The DC gain of the whole cascade.
-
-
-
-```C++
-dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 12.0, 1);
-printf ("%.4f\n", RateConverter_gain (rc));   // 1.0000
-dp_RateConverter_destroy (rc);
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_get\_bank\_sps 
-
-_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._ 
-```C++
-double RateConverter_get_bank_sps (
-    const dp_RateConverter_state_t * s
-) 
-```
-
-
-
-A planner outcome, not a constant: `bank_sps = pulse_sps / resamp_rate` for whatever integer decimation the plan chose, so it depends on the caller's rate ratio. Reported for the same reason RateConverter::stages is — a caller who can read back what was planned can check it. 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_num\_bank\_shape 
-
-_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._
-```C++
-size_t RateConverter_num_bank_shape (
-    const dp_RateConverter_state_t * s
-) 
-```
-
-
-
-
-
-**Returns:**
-
-2 when the cascade ends in a Resampler stage, else 0. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_num\_stages 
-
-_Number of planned cascade stages (backs the_ `stages` _property)._
-```C++
-size_t RateConverter_num_stages (
-    const dp_RateConverter_state_t * s
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function RateConverter\_set\_telemetry 
-
-_Attach (or detach) a telemetry context on the pre-terminal AGC._ 
-```C++
-int RateConverter_set_telemetry (
-    dp_RateConverter_state_t * s,
-    dp_tlm_t * tlm,
-    const char * prefix,
-    uint32_t decim
-) 
-```
-
-
-
-The cascade has no loop of its own to report — the stages are fixed filters — so this forwards to the one child that does: the pre-terminal AGC, under `prefix` verbatim. It registers that child's probes ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"; see [**dp\_agc\_set\_telemetry()**](agc__core_8h.md#function-dp_agc_set_telemetry)) and nothing else, which is why the prefix is not extended with a component name — there is no second thing here to disambiguate it from.
-
-
-A composing object forwards its own prefix down: an `mpsk_receiver` attached as "rx" passes "rx.agc", and the receiver's gain trajectory joins its carrier and timing probes on one context.
-
-
-With the AGC off (a plain cascade, or a matched one where [**RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-rateconverter_enable_agc) was never called) there is nothing to instrument and this is a successful no-op — DP\_OK with no probes registered. That is deliberate: whether the AGC exists is the composing receiver's construction-time choice (`agc = 0`), and a caller attaching telemetry should not have to know which way that went to avoid an error.
-
-
-The attachment is remembered as a REQUEST, so it survives the AGC being rebuilt by a rate change and is applied to an AGC enabled after the fact. One consequence of that: an attach made before the AGC exists reports DP\_OK here, and if the probe table has filled by the time the AGC is built the probes are dropped without failing the build — signal processing does not fail because observation could not be set up. Attach after construction (which is what every composing object here does) and the return value covers it; otherwise check the context's probe names.
-
-
-Setup path, never hot: call before the producer thread starts; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)). Passing NULL detaches.
-
-
-
-
-**Parameters:**
-
-
-* `s` Must be non-NULL. 
-* `tlm` Telemetry context to attach, or NULL to detach. 
-* `prefix` Probe-name prefix, e.g. "agc" or "rx.agc". 
-* `decim` Emit every decim-th gain update; &gt;= 1. 
-
-
-
-**Returns:**
-
-DP\_OK — including when no AGC is enabled — or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole; the AGC stays detached).
-
-
-
-```C++
-dp_RateConverter_state_t *rc =
-    RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
-                                  2.0, 1024);
-RateConverter_enable_agc (rc, 1e-4, 0.01);
-dp_tlm_t *tlm = dp_tlm_create (1 << 12);
-RateConverter_set_telemetry (rc, tlm, "agc", 1);
-dp_RateConverter_destroy (rc);
-dp_tlm_destroy (tlm);
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_stage\_label 
-
-_Write a human-readable label for stage i into buf._ 
-```C++
-int RateConverter_stage_label (
-    dp_RateConverter_state_t * s,
-    int i,
-    char * buf,
-    size_t len
-) 
-```
-
-
-
-Examples: "HalfbandDecimator", "CIC(8)", "CIC(8)+FIR", "Resampler(0.8)".
-
-
-
-
-**Parameters:**
-
-
-* `s` Must be non-NULL. 
-* `i` Stage index in `[0, s->n_stages)`. 
-* `buf` Output buffer. 
-* `len` Capacity of buf in bytes. 
-
-
-
-**Returns:**
-
-1 on success, 0 if i is out of range. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_RateConverter\_bank\_shape\_value 
-
-_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._
-```C++
-size_t dp_RateConverter_bank_shape_value (
-    const dp_RateConverter_state_t * s,
-    size_t i
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dp\_RateConverter\_create 
-
-_Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage._ 
-```C++
-dp_RateConverter_state_t * dp_RateConverter_create (
-    double rate,
-    int compensate
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `rate` Output-to-input sample rate ratio. Any positive float. 
-* `compensate` Non-zero to append a CIC passband-droop compensating FIR after any CIC stage. 
-
-
-
-**Returns:**
-
-Non-NULL on success; NULL if rate &lt;= 0 or OOM.
-
-
-
-```C++
->>> from doppler.resample import RateConverter
->>> rc = RateConverter(rate=0.5, compensate=0)
->>> rc.rate
-0.5
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function dp\_RateConverter\_destroy 
-
-_Free all resources. NULL is a no-op._ 
-```C++
-void dp_RateConverter_destroy (
-    dp_RateConverter_state_t * s
-) 
-```
-
-
-
 
 <hr>
 
@@ -889,7 +656,7 @@ size_t dp_RateConverter_execute_ctrl (
 
 
 
-The control-port form of [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute): the fixed integer stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate deviation `ctrl` is forwarded to the **terminal polyphase Resampler stage's** accumulator (via resamp\_execute\_ctrl\_push) — so its effective rate becomes `stage_rate + ctrl` for this call. This exposes the fractional tail's control port that [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute) hides: a timing/rate-tracking loop can decimate a high input rate cheaply through the HB/CIC stages and then arbitrary-rate + strobe-align in the last stage, updating `ctrl` per block.
+The control-port form of [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute): the fixed integer stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate deviation `ctrl` is forwarded to the **terminal polyphase Resampler stage's** accumulator (via dp\_resamp\_execute\_ctrl\_push) — so its effective rate becomes `stage_rate + ctrl` for this call. This exposes the fractional tail's control port that [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute) hides: a timing/rate-tracking loop can decimate a high input rate cheaply through the HB/CIC stages and then arbitrary-rate + strobe-align in the last stage, updating `ctrl` per block.
 
 
 `ctrl` is referenced to the terminal stage's (post-decimation) rate, not the overall rate. It is meaningful only when the cascade actually ends in a Resampler stage; a pure integer HB/CIC cascade has no fractional stage to steer, so this **falls through to [**dp\_RateConverter\_execute()**](RateConverter__core_8h.md#function-dp_rateconverter_execute)** (ctrl ignored).
@@ -1025,6 +792,61 @@ size_t dp_RateConverter_execute_ctrl_push_max_out (
 
 
 
+### function dp\_RateConverter\_execute\_ctrl\_push\_tap 
+
+[_**dp\_RateConverter\_execute\_ctrl\_push()**_](RateConverter__core_8h.md#function-dp_rateconverter_execute_ctrl_push) _, also emitting the PRE-TERMINAL sample — the cascade's output after every integer stage and after the AGC, but before the terminal matched filter._
+```C++
+size_t dp_RateConverter_execute_ctrl_push_tap (
+    dp_RateConverter_state_t * s,
+    float _Complex x,
+    double ctrl,
+    float _Complex * out,
+    size_t max_out,
+    float _Complex * pre_out,
+    int * n_pre
+) 
+```
+
+
+
+This is the tap a non-data-aided carrier discriminator wants, and it is the reason this variant exists (see docs/design/mpsk.md §3.3). It is already band-limited by the cascade's own decimation filters and already levelled by the AGC that sits on this exact node, yet it is ahead of the matched filter — so reading it needs no symbol timing, and it carries none of the matched filter's group delay or its between-symbol ISI.
+
+
+The rate is `bank_sps` samples per symbol, a planner outcome: read it with [**dp\_RateConverter\_get\_bank\_sps()**](RateConverter__core_8h.md#function-dp_rateconverter_get_bank_sps) rather than assuming it. A consumer wanting a fixed clock decimates this stream itself.
+
+
+A non-terminal stage swallows inputs between its decimation strobes, so `n_pre` is 0 on those calls — exactly as the return value is.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `x` One input sample. 
+* `ctrl` Fractional-rate control for the terminal stage. 
+* `out` Terminal outputs. 
+* `max_out` Capacity of `out`. 
+* `pre_out` Receives the pre-terminal sample; may be NULL. 
+* `n_pre` Receives 1 if `pre_out` was written, else 0; may be NULL. 
+
+
+
+**Returns:**
+
+Number of terminal outputs written, as the non-tap form. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_RateConverter\_execute\_max\_out 
 
 _Upper bound on execute output for a standard 65536-sample block._ 
@@ -1037,6 +859,75 @@ size_t dp_RateConverter_execute_max_out (
 
 
 Returns (size\_t)(65536 \* max(rate, 1.0)) + 2. The Python extension uses this to pre-allocate the output buffer on the first execute call. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_gain 
+
+_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._ 
+```C++
+double dp_RateConverter_gain (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+Each stage answers for itself ([**dp\_hbdecim\_dc\_gain()**](hbdecim__core_8h.md#function-dp_hbdecim_dc_gain), [**dp\_cic\_dc\_gain()**](cic__core_8h.md#function-dp_cic_dc_gain) times [**dp\_fir\_dc\_gain()**](fir__core_8h.md#function-dp_fir_dc_gain) for a compensated CIC, [**dp\_resamp\_dc\_gain()**](resamp__core_8h.md#function-dp_resamp_dc_gain)) and this is their product. So the number tracks whatever the stages actually hold: if a filter's normalisation drifts, this moves with it, and a gate comparing it against a measured DC probe catches the drift from either side.
+
+
+**A plain cascade is unity** — a rate conversion that adds gain of its own is a defect, and `dp_RateConverter_create()` returns 1.0 here at every rate.
+
+
+**A matched cascade is not, and should not be.** Its terminal stage is a matched filter, which is deliberately not flat; the invariant that holds there is at the SYMBOL level (a symbol of amplitude A in, amplitude A out), not at DC. This function still reports that cascade's true DC gain, which is the pulse's `sum(h)/sum(h^2)`.
+
+
+
+
+**Parameters:**
+
+
+* `s` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The DC gain of the whole cascade.
+
+
+
+```C++
+dp_RateConverter_state_t *rc = dp_RateConverter_create (1.0 / 12.0, 1);
+printf ("%.4f\n", dp_RateConverter_gain (rc));   // 1.0000
+dp_RateConverter_destroy (rc);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_bank\_sps 
+
+_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._ 
+```C++
+double dp_RateConverter_get_bank_sps (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+A planner outcome, not a constant: `bank_sps = pulse_sps / resamp_rate` for whatever integer decimation the plan chose, so it depends on the caller's rate ratio. Reported for the same reason RateConverter::stages is — a caller who can read back what was planned can check it. 
 
 
         
@@ -1226,6 +1117,115 @@ int dp_RateConverter_set_state (
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_set\_telemetry 
+
+_Attach (or detach) a telemetry context on the pre-terminal AGC._ 
+```C++
+int dp_RateConverter_set_telemetry (
+    dp_RateConverter_state_t * s,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+The cascade has no loop of its own to report — the stages are fixed filters — so this forwards to the one child that does: the pre-terminal AGC, under `prefix` verbatim. It registers that child's probes ("&lt;prefix&gt;.gain\_db" and "&lt;prefix&gt;.level\_db"; see [**dp\_agc\_set\_telemetry()**](agc__core_8h.md#function-dp_agc_set_telemetry)) and nothing else, which is why the prefix is not extended with a component name — there is no second thing here to disambiguate it from.
+
+
+A composing object forwards its own prefix down: an `mpsk_receiver` attached as "rx" passes "rx.agc", and the receiver's gain trajectory joins its carrier and timing probes on one context.
+
+
+With the AGC off (a plain cascade, or a matched one where [**dp\_RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-dp_rateconverter_enable_agc) was never called) there is nothing to instrument and this is a successful no-op — DP\_OK with no probes registered. That is deliberate: whether the AGC exists is the composing receiver's construction-time choice (`agc = 0`), and a caller attaching telemetry should not have to know which way that went to avoid an error.
+
+
+The attachment is remembered as a REQUEST, so it survives the AGC being rebuilt by a rate change and is applied to an AGC enabled after the fact. One consequence of that: an attach made before the AGC exists reports DP\_OK here, and if the probe table has filled by the time the AGC is built the probes are dropped without failing the build — signal processing does not fail because observation could not be set up. Attach after construction (which is what every composing object here does) and the return value covers it; otherwise check the context's probe names.
+
+
+Setup path, never hot: call before the producer thread starts; the context is borrowed and must outlive the attachment (SPSC rules in [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)). Passing NULL detaches.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix, e.g. "agc" or "rx.agc". 
+* `decim` Emit every decim-th gain update; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK — including when no AGC is enabled — or DP\_ERR\_INVALID when the probe table cannot take the AGC's probes (the attach fails whole; the AGC stays detached).
+
+
+
+```C++
+dp_RateConverter_state_t *rc =
+    dp_RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+                                  2.0, 1024);
+dp_RateConverter_enable_agc (rc, 1e-4, 0.01);
+dp_tlm_t *tlm = dp_tlm_create (1 << 12);
+dp_RateConverter_set_telemetry (rc, tlm, "agc", 1);
+dp_RateConverter_destroy (rc);
+dp_tlm_destroy (tlm);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_stage\_label 
+
+_Write a human-readable label for stage i into buf._ 
+```C++
+int dp_RateConverter_stage_label (
+    dp_RateConverter_state_t * s,
+    int i,
+    char * buf,
+    size_t len
+) 
+```
+
+
+
+Examples: "HalfbandDecimator", "CIC(8)", "CIC(8)+FIR", "Resampler(0.8)".
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `i` Stage index in `[0, s->n_stages)`. 
+* `buf` Output buffer. 
+* `len` Capacity of buf in bytes. 
+
+
+
+**Returns:**
+
+1 on success, 0 if i is out of range. 
 
 
 

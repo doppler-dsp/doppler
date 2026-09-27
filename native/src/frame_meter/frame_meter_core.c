@@ -93,14 +93,14 @@ dp_frame_meter_get_enough (const dp_frame_meter_state_t *state)
 ber_interval_t
 dp_frame_meter_fer (const dp_frame_meter_state_t *state)
 {
-  return ber_confidence (state->errors, state->frames, state->conf);
+  return dp_ber_confidence (state->errors, state->frames, state->conf);
 }
 
 ber_interval_t
 dp_frame_meter_sync_miss (const dp_frame_meter_state_t *state)
 {
-  return ber_confidence (state->frames - state->sync_detected, state->frames,
-                         state->conf);
+  return dp_ber_confidence (state->frames - state->sync_detected,
+                            state->frames, state->conf);
 }
 
 /* ── Serializable state — the envelope plus the four running counters. The

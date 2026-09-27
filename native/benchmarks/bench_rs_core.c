@@ -6,9 +6,9 @@
  * to a fully-loaded one, because syndrome computation dominates and the
  * Berlekamp-Massey / Chien / Forney chain it gates is the smaller half:
  *
- *   encode          rs_encode -- k systematic symbols through g(x)
- *   verify          rs_codeword_ok -- syndromes only, the CLEAN path
- *   decode[e=0]     rs_decode on a clean codeword: syndromes, all zero,
+ *   encode          dp_rs_encode -- k systematic symbols through g(x)
+ *   verify          dp_rs_codeword_ok -- syndromes only, the CLEAN path
+ *   decode[e=0]     dp_rs_decode on a clean codeword: syndromes, all zero,
  *                   return. What a good link runs almost every frame.
  *   decode[e=8]     half the correction capability used
  *   decode[e=16]    E errors, the most the code can correct: full
@@ -25,7 +25,7 @@
  * ccsds_tm, because rs's CMakeLists deliberately does not link it: the code
  * family is not CCSDS's, and this file measures the arithmetic, not the
  * standard's pick of it. (`native/src/ccsds_tm/rs.c` holds the same numbers
- * as CCSDS_TM_RS; they are its configuration of this component.)
+ * as dp_CCSDS_TM_RS; they are its configuration of this component.)
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
@@ -72,7 +72,7 @@ main (void)
   jm_bench_t _bench = { 0 };
   rs_t       rs;
 
-  if (!rs_init (&rs, &CODE))
+  if (!dp_rs_init (&rs, &CODE))
     return 1;
 
   const unsigned n = rs.n, k = rs.k, e = rs.e;
@@ -90,7 +90,7 @@ main (void)
       info[i] = (uint8_t)(lfsr & 0xFFu);
     }
   memcpy (clean, info, k);
-  rs_encode (&rs, info, clean + k);
+  dp_rs_encode (&rs, info, clean + k);
 
   printf ("=== rs benchmark ===\n");
   printf ("RS(%u,%u) over GF(2^%u), E=%u, %d codewords/round, %d rounds\n\n",
@@ -101,7 +101,7 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        rs_encode (&rs, info, work + k);
+        dp_rs_encode (&rs, info, work + k);
       t1       = jm_bench_now_ns ();
       t_enc[r] = jm_bench_elapsed_sec (t0, t1);
     }
@@ -114,14 +114,14 @@ main (void)
     {
       t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
-        sink += rs_codeword_ok (&rs, clean);
+        sink += dp_rs_codeword_ok (&rs, clean);
       t1      = jm_bench_now_ns ();
       t_ok[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "verify", t_ok, ITERATIONS, BENCH_N);
   report ("verify", t_ok, k);
 
-  /* Error counts: none, half the capability, all of it. `rs_decode` mutates
+  /* Error counts: none, half the capability, all of it. `dp_rs_decode` mutates
      its codeword, so each timed call gets a fresh copy -- the memcpy is
      inside the loop and therefore inside the measurement, which is honest:
      a real caller also has to get the codeword from somewhere. It is 255
@@ -151,7 +151,7 @@ main (void)
          bail-out path, which is FASTER than a real correction and reads
          as a suspiciously cheap decoder rather than as a broken bench. */
       memcpy (work, corrupt, n);
-      int rc = rs_decode (&rs, work);
+      int rc = dp_rs_decode (&rs, work);
       if (rc != (int)counts[c] || memcmp (work, clean, n) != 0)
         {
           (void)fprintf (stderr,
@@ -167,7 +167,7 @@ main (void)
           for (int i = 0; i < BENCH_N; i++)
             {
               memcpy (work, corrupt, n);
-              sink += rs_decode (&rs, work);
+              sink += dp_rs_decode (&rs, work);
             }
           t1          = jm_bench_now_ns ();
           t_dec[c][r] = jm_bench_elapsed_sec (t0, t1);

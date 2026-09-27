@@ -53,9 +53,9 @@ lit_frame (const uint8_t *pre, size_t n_pre, size_t reps, const uint8_t *sync,
 static dp_frame_state_t *
 empty_desc (void)
 {
-  return frame_create_desc (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0);
+  return dp_frame_create_desc (0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                               NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 int
@@ -310,7 +310,7 @@ main (void)
    * outer code, the randomiser and the inner code -- and it reaches them by
    * DESCRIBING a frame, not by a CCSDS entry point being added here.
    *
-   * Checked against ccsds_tm_frame_encode byte for byte rather than against
+   * Checked against dp_ccsds_tm_frame_encode byte for byte rather than against
    * itself, which is this slice's rule: the shipped encoder is already
    * falsified against the values 131.0-B-3 prints, so equalling it inherits
    * all of that, and agreeing only with itself would prove nothing.
@@ -333,12 +333,12 @@ main (void)
     const ccsds_tm_frame_cfg_t cfg = {
       .rs_depth = DEPTH, .randomise = 1, .attach_asm = 1, .convolutional = 1
     };
-    const size_t n
-        = ccsds_tm_frame_encode (&cfg, NULL, frame, octets, want, sizeof want);
+    const size_t n = dp_ccsds_tm_frame_encode (&cfg, NULL, frame, octets, want,
+                                               sizeof want);
     DP_REQUIRE (n != 0);
 
     uint8_t asm_bits[CCSDS_TM_ASM_BITS];
-    ccsds_tm_asm_bits (asm_bits);
+    dp_ccsds_tm_asm_bits (asm_bits);
 
     dp_frame_state_t *b = empty_desc ();
     DP_REQUIRE (b != NULL);
@@ -365,7 +365,7 @@ main (void)
     uint8_t *got = malloc (b->nbits);
     DP_REQUIRE (got && dp_frame_bits (b, 1, got, b->nbits) == b->nbits);
     DP_CHECK_MSG (memcmp (got, want, n) == 0,
-                  "...and the SAME bits as ccsds_tm_frame_encode, byte for "
+                  "...and the SAME bits as dp_ccsds_tm_frame_encode, byte for "
                   "byte");
     free (got);
     dp_frame_destroy (b);
@@ -490,10 +490,10 @@ main (void)
             1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1 };
     const uint8_t empty[1] = { 0 };
 
-    dp_frame_state_t *a = frame_create_desc (
+    dp_frame_state_t *a = dp_frame_create_desc (
         0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-    dp_frame_state_t *b = frame_create_desc (
+    dp_frame_state_t *b = dp_frame_create_desc (
         0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     DP_REQUIRE (a != NULL && b != NULL);
@@ -520,7 +520,7 @@ main (void)
 
   {
     const uint8_t     empty[1] = { 0 };
-    dp_frame_state_t *d        = frame_create_desc (
+    dp_frame_state_t *d        = dp_frame_create_desc (
         0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, empty, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     DP_REQUIRE (d != NULL);

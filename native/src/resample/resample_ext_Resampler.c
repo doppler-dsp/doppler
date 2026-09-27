@@ -66,7 +66,7 @@ ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
         }
       size_t num_phases = (size_t)PyArray_DIM (bank_arr, 0);
       size_t num_taps   = (size_t)PyArray_DIM (bank_arr, 1);
-      self->handle      = Resampler_create_custom (
+      self->handle      = dp_Resampler_create_custom (
           num_phases, num_taps, (const float *)PyArray_DATA (bank_arr), rate);
       Py_DECREF (bank_arr);
     }
@@ -684,7 +684,8 @@ static PyTypeObject ResamplerObjType = {
     "provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised "
     "cutoffs.\n"
     "Pass rate >= 1.0 to interpolate (upsample); pass rate < 1.0 to decimate\n"
-    "(downsample). For a custom bank use Resampler_create_custom() instead.\n"
+    "(downsample). For a custom bank use dp_Resampler_create_custom() "
+    "instead.\n"
     "\n"
     "Parameters\n"
     "----------\n"

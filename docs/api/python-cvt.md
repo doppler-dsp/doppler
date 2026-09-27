@@ -209,6 +209,14 @@ order of bits inside one.
 
 ::: doppler.cvt.bin_to_hex
 
+`bytes_to_bin` is for **packed** data: a binary file, a byte stream, a
+network buffer. Every frame field takes unpacked bits, so packed octets go
+through this, by name, rather than being passed as bytes and hoped about.
+The same octets unpack exactly as their hex spelling does through
+`hex_to_bin`.
+
+::: doppler.cvt.bytes_to_bin
+
 `bin_to_nrz` maps bits to bipolar symbols as `1 - 2*b` — bit 0 to `+1`, bit 1
 to `-1`. That convention's home is BPSK in
 [`mpsk`](python-mpsk.md): M-PSK at `m = 2` puts label 0 at `+1`. The two are

@@ -115,6 +115,36 @@ size_t dp_int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, 
  */
 size_t dp_hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
 /**
+ * @brief Unpack octets to bits, one per byte.
+ *
+ * The door for PACKED data: a binary file, a byte stream, a network buffer.
+ * Every frame field takes UNPACKED bits (one per byte, each 0 or 1), so
+ * packed data is converted here, by name, and never passed as bytes and
+ * hoped about (docs/design/frame-description.md §F.4). Each octet gives 8
+ * bits; under @ref DP_BITORDER_BIG its most significant bit comes first,
+ * which is how a file's bits are read on the wire.
+ *
+ * @param octets      the packed bytes.
+ * @param octets_len  how many; 0 is refused.
+ * @param out         receives `8 * octets_len` bytes, each 0 or 1.
+ * @param out_len     capacity of @p out in bits.
+ * @param bitorder    @ref DP_BITORDER_BIG or @ref DP_BITORDER_LITTLE.
+ * @return bits written, or 0 on refusal -- @p out untouched.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.cvt import bytes_to_bin
+ * >>> octets = np.frombuffer(b"\x1a\xcf", np.uint8)
+ * >>> b = np.zeros(16, np.uint8)
+ * >>> bytes_to_bin(octets, b, 0)          # 0 = big, MSB of each byte first
+ * 16
+ * >>> b.tolist()
+ * [0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1]
+ *
+ * @endcode
+ */
+size_t dp_bytes_to_bin(const uint8_t *octets, size_t octets_len, uint8_t *out, size_t out_len, int bitorder);
+/**
  * @brief Read unpacked bits back into an integer -- inverse of int_to_bin.
  *
  * Returns the value rather than a status, because that is the shape a

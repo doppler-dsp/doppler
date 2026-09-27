@@ -177,5 +177,37 @@ main (void)
     DP_CHECK (dp_nrz_to_bin (sym, 8u, back, 7u) == 0);
   }
 
+  /* ── bytes_to_bin: packed octets to bits ───────────────────────────
+   * Truth written out by hand. 0x1A 0xCF is the head of the CCSDS marker,
+   * so under BIG this must agree with hex_to_bin("1ACF") -- the same octets
+   * reached as text and as data cannot unpack two ways. */
+  {
+    static const uint8_t oct[2] = { 0x1Au, 0xCFu };
+    static const uint8_t big[16]
+        = { 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1 };
+    static const uint8_t little[16]
+        = { 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1 };
+    uint8_t ob[16], viahex[16];
+    DP_CHECK (dp_bytes_to_bin (oct, 2u, ob, sizeof ob, DP_BITORDER_BIG)
+              == 16u);
+    DP_CHECK (memcmp (ob, big, 16) == 0);
+    DP_CHECK (dp_hex_to_bin ("1ACF", viahex, sizeof viahex, DP_BITORDER_BIG)
+              == 16u);
+    DP_CHECK_MSG (memcmp (ob, viahex, 16) == 0,
+                  "octets and their hex spelling unpack identically");
+    DP_CHECK (dp_bytes_to_bin (oct, 2u, ob, sizeof ob, DP_BITORDER_LITTLE)
+              == 16u);
+    DP_CHECK (memcmp (ob, little, 16) == 0);
+
+    /* Refusals leave the output untouched. */
+    memset (ob, 7, sizeof ob);
+    DP_CHECK (dp_bytes_to_bin (oct, 0u, ob, sizeof ob, DP_BITORDER_BIG) == 0);
+    DP_CHECK (dp_bytes_to_bin (NULL, 2u, ob, sizeof ob, DP_BITORDER_BIG) == 0);
+    DP_CHECK (dp_bytes_to_bin (oct, 2u, NULL, 16u, DP_BITORDER_BIG) == 0);
+    DP_CHECK (dp_bytes_to_bin (oct, 2u, ob, 15u, DP_BITORDER_BIG) == 0);
+    DP_CHECK (dp_bytes_to_bin (oct, 2u, ob, sizeof ob, 7) == 0);
+    DP_CHECK_MSG (ob[0] == 7u && ob[15] == 7u, "a refusal writes nothing");
+  }
+
   DP_TEST_END ("test_cvt_core");
 }

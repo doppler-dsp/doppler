@@ -631,6 +631,7 @@
 * **dp\_bin\_to\_hex** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_bin\_to\_int** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_bin\_to\_nrz** ([**cvt\_core.h**](cvt__core_8h.md))
+* **dp\_bytes\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_hex\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_int\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_nrz\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))

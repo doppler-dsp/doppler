@@ -41,6 +41,7 @@ extern "C" {
 
 size_t dp_int_to_bin(uint64_t v, uint32_t n_bits, uint8_t *out, size_t out_len, int bitorder);
 size_t dp_hex_to_bin(const char * hex, uint8_t *out, size_t out_len, int bitorder);
+size_t dp_bytes_to_bin(const uint8_t *octets, size_t octets_len, uint8_t *out, size_t out_len, int bitorder);
 uint64_t dp_bin_to_int(const uint8_t *bits, size_t bits_len, int bitorder);
 size_t dp_bin_to_hex(const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out_len, int bitorder);
 size_t dp_bin_to_nrz(const uint8_t *bits, size_t bits_len, float *out, size_t out_len);

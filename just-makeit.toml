@@ -741,6 +741,24 @@ name = "bitorder"
 type = "int"
 
 [[module.cvt.functions]]
+name = "bytes_to_bin"
+doc = "Unpack octets to bits, one per byte: 8 bits an octet, MSB first under bitorder 0 (DP_BITORDER_BIG). The door for PACKED data -- a binary file, a byte stream, a network buffer -- into the unpacked bits every frame field takes. Returns the bits written (8 * the octet count), or 0 on refusal."
+return_type = "size_t"
+
+[[module.cvt.functions.params]]
+name = "octets"
+type = "uint8_t[]"
+
+[[module.cvt.functions.params]]
+name = "out"
+type = "uint8_t[]"
+out = true
+
+[[module.cvt.functions.params]]
+name = "bitorder"
+type = "int"
+
+[[module.cvt.functions]]
 name = "bin_to_int"
 doc = "Read unpacked bits back into an integer -- the inverse of int_to_bin."
 return_type = "uint64_t"

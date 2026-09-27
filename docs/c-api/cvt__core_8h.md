@@ -60,6 +60,7 @@ _Cvt module — public C API._
 |  size\_t | [**dp\_bin\_to\_hex**](#function-dp_bin_to_hex) (const uint8\_t \* bits, size\_t bits\_len, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Render unpacked bits to hex digits_  _inverse of hex\_to\_bin._ |
 |  uint64\_t | [**dp\_bin\_to\_int**](#function-dp_bin_to_int) (const uint8\_t \* bits, size\_t bits\_len, int bitorder) <br>_Read unpacked bits back into an integer_  _inverse of int\_to\_bin._ |
 |  size\_t | [**dp\_bin\_to\_nrz**](#function-dp_bin_to_nrz) (const uint8\_t \* bits, size\_t bits\_len, float \* out, size\_t out\_len) <br>_Map unpacked bits to bipolar NRZ symbols: 0 -&gt; +1, 1 -&gt; -1._  |
+|  size\_t | [**dp\_bytes\_to\_bin**](#function-dp_bytes_to_bin) (const uint8\_t \* octets, size\_t octets\_len, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Unpack octets to bits, one per byte._  |
 |  size\_t | [**dp\_hex\_to\_bin**](#function-dp_hex_to_bin) (const char \* hex, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand a hex string to unpacked bits, one per byte._  |
 |  size\_t | [**dp\_int\_to\_bin**](#function-dp_int_to_bin) (uint64\_t v, uint32\_t n\_bits, uint8\_t \* out, size\_t out\_len, int bitorder) <br>_Expand the low_ `n_bits` _of an integer to unpacked bits._ |
 |  size\_t | [**dp\_nrz\_to\_bin**](#function-dp_nrz_to_bin) (const float \* nrz, size\_t nrz\_len, uint8\_t \* out, size\_t out\_len) <br>_Hard-decide NRZ symbols back to bits_  _inverse of bin\_to\_nrz._ |
@@ -275,6 +276,62 @@ symbols written, or 0 on refusal.
 4
 >>> sym.tolist()
 [1.0, -1.0, -1.0, 1.0]
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_bytes\_to\_bin 
+
+_Unpack octets to bits, one per byte._ 
+```C++
+size_t dp_bytes_to_bin (
+    const uint8_t * octets,
+    size_t octets_len,
+    uint8_t * out,
+    size_t out_len,
+    int bitorder
+) 
+```
+
+
+
+The door for PACKED data: a binary file, a byte stream, a network buffer. Every frame field takes UNPACKED bits (one per byte, each 0 or 1), so packed data is converted here, by name, and never passed as bytes and hoped about (docs/design/frame-description.md §F.4). Each octet gives 8 bits; under DP\_BITORDER\_BIG its most significant bit comes first, which is how a file's bits are read on the wire.
+
+
+
+
+**Parameters:**
+
+
+* `octets` the packed bytes. 
+* `octets_len` how many; 0 is refused. 
+* `out` receives `8 * octets_len` bytes, each 0 or 1. 
+* `out_len` capacity of `out` in bits. 
+* `bitorder` DP\_BITORDER\_BIG or DP\_BITORDER\_LITTLE. 
+
+
+
+**Returns:**
+
+bits written, or 0 on refusal  `out` untouched.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.cvt import bytes_to_bin
+>>> octets = np.frombuffer(b"\x1a\xcf", np.uint8)
+>>> b = np.zeros(16, np.uint8)
+>>> bytes_to_bin(octets, b, 0)          # 0 = big, MSB of each byte first
+16
+>>> b.tolist()
+[0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1]
 ```
  
 

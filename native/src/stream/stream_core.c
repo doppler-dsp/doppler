@@ -22,7 +22,7 @@ dp_msg_data (dp_msg_t *msg)
   switch (msg->owner)
     {
     case DP_MSG_NATS:
-      return nats_msg_data (msg);
+      return dp__nats_msg_data (msg);
     case DP_MSG_OWNED:
       return (char *)msg->u.owned.ptr + msg->data_offset;
     default:
@@ -38,7 +38,7 @@ dp_msg_size (dp_msg_t *msg)
   switch (msg->owner)
     {
     case DP_MSG_NATS:
-      return nats_msg_size (msg);
+      return dp__nats_msg_size (msg);
     case DP_MSG_OWNED:
       return msg->u.owned.len - msg->data_offset;
     default:
@@ -70,7 +70,7 @@ dp_msg_ack (dp_msg_t *msg)
   if (!msg)
     return DP_ERR_INVALID;
   if (msg->owner == DP_MSG_NATS)
-    return nats_msg_ack (msg);
+    return dp__nats_msg_ack (msg);
   return DP_OK; /* core-NATS / reassembled: nothing to ack */
 }
 
@@ -82,7 +82,7 @@ dp_msg_free (dp_msg_t *msg)
   switch (msg->owner)
     {
     case DP_MSG_NATS:
-      nats_msg_free (msg);
+      dp__nats_msg_free (msg);
       break;
     case DP_MSG_OWNED:
       free (msg->u.owned.ptr);
@@ -391,7 +391,7 @@ dp_ctx_last_error (const dp_pub_t *ctx)
 int
 dp_ctx_delete_stream (dp_pub_t *ctx)
 {
-  return ctx ? nats_delete_stream (ctx) : DP_ERR_INVALID;
+  return ctx ? dp__nats_delete_stream (ctx) : DP_ERR_INVALID;
 }
 
 const char *
@@ -442,7 +442,7 @@ ctx_create (dp_role_t role, const char *endpoint, dp_frame_kind_t kind,
      where a retired or unknown code is caught. */
   if (kind == DP_KIND_IQ && !dp_sample_type_is_valid (format))
     return NULL;
-  return nats_ctx_create (role, endpoint, kind, format);
+  return dp__nats_ctx_create (role, endpoint, kind, format);
 }
 
 static void
@@ -450,7 +450,7 @@ ctx_destroy (struct dp_ctx *ctx)
 {
   if (!ctx)
     return;
-  nats_ctx_destroy (ctx);
+  dp__nats_ctx_destroy (ctx);
   free (ctx);
 }
 
@@ -487,7 +487,7 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
   header.center_freq          = center_freq;
   header.num_samples          = num_samples;
 
-  return nats_send_signal (ctx, &header, samples, data_size);
+  return dp__nats_send_signal (ctx, &header, samples, data_size);
 }
 
 void
@@ -504,7 +504,7 @@ recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 {
   if (!ctx || !out_msg)
     return DP_ERR_INVALID;
-  return nats_recv_signal (ctx, out_msg, out_hdr);
+  return dp__nats_recv_signal (ctx, out_msg, out_hdr);
 }
 
 static int
@@ -512,7 +512,7 @@ recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 {
   if (!ctx || !out_msg || !out_size)
     return DP_ERR_INVALID;
-  return nats_recv_raw (ctx, out_msg, out_size);
+  return dp__nats_recv_raw (ctx, out_msg, out_size);
 }
 
 static int
@@ -520,7 +520,7 @@ send_raw (struct dp_ctx *ctx, const void *data, size_t size)
 {
   if (!ctx || !data || size == 0)
     return DP_ERR_INVALID;
-  return nats_send_raw (ctx, data, size);
+  return dp__nats_send_raw (ctx, data, size);
 }
 
 static void
@@ -528,7 +528,7 @@ set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
 {
   if (!ctx)
     return;
-  nats_set_recv_timeout (ctx, timeout_ms);
+  dp__nats_set_recv_timeout (ctx, timeout_ms);
 }
 
 /* =========================================================================
@@ -615,7 +615,7 @@ dp_pub_send_eos (dp_pub_t *ctx)
   header.center_freq          = 0.0;
   header.num_samples          = 0;
 
-  return nats_send_signal (ctx, &header, NULL, 0);
+  return dp__nats_send_signal (ctx, &header, NULL, 0);
 }
 
 dp_pub_t *
@@ -629,7 +629,7 @@ dp_stream_drain (dp_pub_t *ctx, int timeout_ms)
 {
   if (!ctx)
     return DP_ERR_INVALID;
-  return nats_drain (ctx, timeout_ms);
+  return dp__nats_drain (ctx, timeout_ms);
 }
 
 int
@@ -637,7 +637,7 @@ dp_pub_flush (dp_pub_t *ctx, int timeout_ms)
 {
   if (!ctx)
     return DP_ERR_INVALID;
-  return nats_flush (ctx, timeout_ms);
+  return dp__nats_flush (ctx, timeout_ms);
 }
 
 void

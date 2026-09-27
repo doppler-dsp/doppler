@@ -21,7 +21,7 @@ run and every previous one. So a new run opens onto the PREVIOUS era's
 queue: `DP_WORK_dp-chain-5601` held 174,133 unreadable frames, and
 `test_three_block_chain_spawns_and_moves_data` failed instantly and
 permanently on this machine while passing in CI. The library is not at
-fault -- `nats_recv_signal` rejects the frame and Terms it, exactly as
+fault -- `dp__nats_recv_signal` rejects the frame and Terms it, exactly as
 designed -- but one recv per run against a 174k backlog never gets to a
 good frame.
 

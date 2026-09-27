@@ -3,8 +3,8 @@
  * @brief NATS transport for the streaming API (the nats_* hooks).
  *
  * Every endpoint uses the "nats://" scheme; stream_core.c's ctx_create()
- * calls straight into nats_ctx_create() below. This translation unit is the
- * only place nats.h is included — stream_core.c never sees a nats type.
+ * calls straight into dp__nats_ctx_create() below. This translation unit is
+ * the only place nats.h is included — stream_core.c never sees a nats type.
  *
  * Wire format: a 96-byte dp_header_t binary prefix followed by the
  * interleaved I/Q payload, all in one NATS message. Receive stays
@@ -164,7 +164,7 @@ nats_ensure_stream (jsCtx *js, const char *base)
  * infrastructure and outliving one producer is the feature, so ending it
  * has to be something a caller asks for. */
 int
-nats_delete_stream (struct dp_ctx *ctx)
+dp__nats_delete_stream (struct dp_ctx *ctx)
 {
   if (!ctx || !ctx->nats.js)
     return DP_ERR_INVALID;
@@ -270,8 +270,8 @@ nats_wire_role (struct dp_ctx *ctx, natsConnection *conn)
 }
 
 struct dp_ctx *
-nats_ctx_create (dp_role_t role, const char *endpoint, dp_frame_kind_t kind,
-                 dp_sample_type_t format)
+dp__nats_ctx_create (dp_role_t role, const char *endpoint,
+                     dp_frame_kind_t kind, dp_sample_type_t format)
 {
   struct dp_ctx *ctx = (struct dp_ctx *)calloc (1, sizeof (struct dp_ctx));
   if (!ctx)
@@ -291,7 +291,8 @@ nats_ctx_create (dp_role_t role, const char *endpoint, dp_frame_kind_t kind,
   ctx->nats.conn = nats_connect (url);
   if (!ctx->nats.conn || nats_wire_role (ctx, ctx->nats.conn) != 0)
     {
-      nats_ctx_destroy (ctx); /* frees internals (NULL-safe), not ctx itself */
+      dp__nats_ctx_destroy (
+          ctx); /* frees internals (NULL-safe), not ctx itself */
       free (ctx);
       return NULL;
     }
@@ -302,7 +303,7 @@ nats_ctx_create (dp_role_t role, const char *endpoint, dp_frame_kind_t kind,
 }
 
 void
-nats_ctx_destroy (struct dp_ctx *ctx)
+dp__nats_ctx_destroy (struct dp_ctx *ctx)
 {
   if (ctx->nats.sub)
     natsSubscription_Destroy ((natsSubscription *)ctx->nats.sub);
@@ -435,8 +436,8 @@ nats_publish_chunk (struct dp_ctx *ctx, const dp_header_t *h,
 }
 
 int
-nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
-                  const void *samples, size_t data_size)
+dp__nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
+                      const void *samples, size_t data_size)
 {
   size_t  hdr_sz = sizeof (*header);
   int64_t maxp   = ctx->nats.max_payload;
@@ -507,7 +508,7 @@ nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
 }
 
 int
-nats_drain (struct dp_ctx *ctx, int timeout_ms)
+dp__nats_drain (struct dp_ctx *ctx, int timeout_ms)
 {
   natsConnection *conn = (natsConnection *)ctx->nats.conn;
   if (!conn)
@@ -534,7 +535,7 @@ nats_drain (struct dp_ctx *ctx, int timeout_ms)
 }
 
 int
-nats_flush (struct dp_ctx *ctx, int timeout_ms)
+dp__nats_flush (struct dp_ctx *ctx, int timeout_ms)
 {
   natsConnection *conn = (natsConnection *)ctx->nats.conn;
   if (!conn)
@@ -547,7 +548,7 @@ nats_flush (struct dp_ctx *ctx, int timeout_ms)
 }
 
 int
-nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
+dp__nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
 {
   return nats_publish (ctx, NULL, data, (int)size);
 }
@@ -806,7 +807,8 @@ nats_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
 }
 
 int
-nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
+dp__nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
+                      dp_header_t *out_hdr)
 {
   natsMsg *m  = NULL;
   int      rc = nats_next (ctx, &m);
@@ -903,7 +905,7 @@ nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 }
 
 int
-nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
+dp__nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 {
   natsMsg *m  = NULL;
   int      rc = nats_next (ctx, &m);
@@ -932,7 +934,7 @@ nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 }
 
 void
-nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
+dp__nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
 {
   ctx->nats.recv_timeout_ms = timeout_ms;
 }
@@ -942,27 +944,27 @@ nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
  * ========================================================================= */
 
 void *
-nats_msg_data (dp_msg_t *msg)
+dp__nats_msg_data (dp_msg_t *msg)
 {
   natsMsg *m = (natsMsg *)msg->u.nats;
   return (void *)((char *)natsMsg_GetData (m) + msg->data_offset);
 }
 
 size_t
-nats_msg_size (dp_msg_t *msg)
+dp__nats_msg_size (dp_msg_t *msg)
 {
   natsMsg *m = (natsMsg *)msg->u.nats;
   return (size_t)natsMsg_GetDataLength (m) - msg->data_offset;
 }
 
 void
-nats_msg_free (dp_msg_t *msg)
+dp__nats_msg_free (dp_msg_t *msg)
 {
   natsMsg_Destroy ((natsMsg *)msg->u.nats);
 }
 
 int
-nats_msg_ack (dp_msg_t *msg)
+dp__nats_msg_ack (dp_msg_t *msg)
 {
   natsStatus s = natsMsg_Ack ((natsMsg *)msg->u.nats, NULL);
   return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;

@@ -33,8 +33,8 @@ wfm_draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
 }
 
 size_t
-wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
-                  unsigned field, size_t lo, size_t hi)
+dp__wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
+                      unsigned field, size_t lo, size_t hi)
 {
   double v = wfm_draw_range (seed, epoch, inst, seg, 0, field, (double)lo,
                              (double)hi);
@@ -48,20 +48,20 @@ wfm_draw_segment (const wfm_segment_t *g, unsigned epoch, size_t inst,
   /* The timing draws key off the FIRST source's seed, so every source of an
      instance shares one timeline -- they are one emission, not several. */
   const uint32_t dseed = g->n_sources ? g->sources[0].seed : 1u;
-  out->on
-      = (g->ranged & WFM_RANGE_NUM_SAMPLES)
-            ? wfm_draw_samples (dseed, epoch, inst, seg, WFM_RANGE_NUM_SAMPLES,
-                                g->num_samples, g->num_samples_hi)
-            : g->num_samples;
-  out->off
-      = (g->ranged & WFM_RANGE_OFF_SAMPLES)
-            ? wfm_draw_samples (dseed, epoch, inst, seg, WFM_RANGE_OFF_SAMPLES,
-                                g->off_samples, g->off_samples_hi)
-            : g->off_samples;
+  out->on  = (g->ranged & WFM_RANGE_NUM_SAMPLES)
+                 ? dp__wfm_draw_samples (dseed, epoch, inst, seg,
+                                         WFM_RANGE_NUM_SAMPLES, g->num_samples,
+                                         g->num_samples_hi)
+                 : g->num_samples;
+  out->off = (g->ranged & WFM_RANGE_OFF_SAMPLES)
+                 ? dp__wfm_draw_samples (dseed, epoch, inst, seg,
+                                         WFM_RANGE_OFF_SAMPLES, g->off_samples,
+                                         g->off_samples_hi)
+                 : g->off_samples;
   out->delay = (g->ranged & WFM_RANGE_DELAY_SAMPLES)
-                   ? wfm_draw_samples (dseed, epoch, inst, seg,
-                                       WFM_RANGE_DELAY_SAMPLES,
-                                       g->delay_samples, g->delay_samples_hi)
+                   ? dp__wfm_draw_samples (
+                         dseed, epoch, inst, seg, WFM_RANGE_DELAY_SAMPLES,
+                         g->delay_samples, g->delay_samples_hi)
                    : g->delay_samples;
 }
 

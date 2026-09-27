@@ -25,8 +25,8 @@ double wfm_draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
                        size_t src, unsigned field, double lo, double hi);
 
 /* Round a non-negative ranged draw to a sample count. */
-size_t wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst,
-                         size_t seg, unsigned field, size_t lo, size_t hi);
+size_t dp__wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst,
+                             size_t seg, unsigned field, size_t lo, size_t hi);
 
 /* ── One resolution, every consumer ──────────────────────────────────────
  *

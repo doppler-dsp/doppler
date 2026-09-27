@@ -97,24 +97,27 @@ int dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
                     dp_chunk_t *chunk, int *chunked, const void **body,
                     size_t *body_len);
 
-struct dp_ctx *nats_ctx_create (dp_role_t role, const char *endpoint,
-                                dp_frame_kind_t kind, dp_sample_type_t format);
-void           nats_ctx_destroy (struct dp_ctx *ctx);
-int            nats_delete_stream (struct dp_ctx *ctx);
-int            nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
-                                 const void *samples, size_t data_size);
-int            nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
-                                 dp_header_t *out_hdr);
-int  nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size);
-int  nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size);
-int  nats_flush (struct dp_ctx *ctx, int timeout_ms);
-int  nats_drain (struct dp_ctx *ctx, int timeout_ms);
-void nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms);
+struct dp_ctx *dp__nats_ctx_create (dp_role_t role, const char *endpoint,
+                                    dp_frame_kind_t  kind,
+                                    dp_sample_type_t format);
+void           dp__nats_ctx_destroy (struct dp_ctx *ctx);
+int            dp__nats_delete_stream (struct dp_ctx *ctx);
+int  dp__nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
+                           const void *samples, size_t data_size);
+int  dp__nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
+                           dp_header_t *out_hdr);
+int  dp__nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg,
+                        size_t *out_size);
+int  dp__nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size);
+int  dp__nats_flush (struct dp_ctx *ctx, int timeout_ms);
+int  dp__nats_drain (struct dp_ctx *ctx, int timeout_ms);
+void dp__nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms);
 
 /* dp_msg accessors for DP_MSG_NATS (called from the core's switch). */
-void  *nats_msg_data (dp_msg_t *msg);
-size_t nats_msg_size (dp_msg_t *msg);
-void   nats_msg_free (dp_msg_t *msg); /* destroys the natsMsg only, not msg */
-int    nats_msg_ack (dp_msg_t *msg);  /* JetStream explicit ack (PULL)      */
+void  *dp__nats_msg_data (dp_msg_t *msg);
+size_t dp__nats_msg_size (dp_msg_t *msg);
+void
+dp__nats_msg_free (dp_msg_t *msg);    /* destroys the natsMsg only, not msg */
+int dp__nats_msg_ack (dp_msg_t *msg); /* JetStream explicit ack (PULL)      */
 
 #endif /* DP_STREAM_INTERNAL_H */

@@ -231,23 +231,44 @@ written. Every face calls them; none restates the grammar.
 
 ### F.3 Every face takes a Field, in the form natural to it
 
-| face            | a literal field                                                                     | a generated field      |
-| --------------- | ----------------------------------------------------------------------------------- | ---------------------- |
-| CLI             | the text form; a payload's bits come from `--data` (§F.5)                           | the text form          |
-| JSON            | the text form (hex when the length allows, so a long payload is ¼ the characters)   | the text form          |
-| a carried frame | `{"name", "spec"}` as text, or `{"name", "derived_by", "bits"}` for a derived field | `{"name", "spec"}`     |
-| Python          | an array (`uint8`, bytes, any 0/1 sequence) — **or** the text form                  | the text form          |
-| C               | a `wfm_seq_t` over the caller's array                                               | `dp_wfm_field_parse()` |
+| face            | a literal field                                                                     | a generated field                     |
+| --------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
+| CLI             | the text form; a payload's bits come from `--data` (§F.5)                           | the text form                         |
+| JSON            | the text form (hex when the length allows, so a long payload is ¼ the characters)   | the text form                         |
+| a carried frame | `{"name", "spec"}` as text, or `{"name", "derived_by", "bits"}` for a derived field | `{"name", "spec"}`                    |
+| Python          | an array, as `<field>=`                                                             | `field_bits(text)`, then as a literal |
+| C               | a `(bits, len)` pair                                                                | `dp_wfm_field_parse()`                |
 
 One flag and one JSON key per field on the text faces — `--sync`,
 `--acq-code`, `--data-code` — and one for the payload's source, `--data`
-(§F.5). In Python, one parameter per field that accepts either form:
-`Frame(preamble=, sync=, payload=, crc=)`, `FrameDesc.add_field(name, value)`.
-Python already works this way for the composer: jm's `bit_pattern` coercion
-lets `Synth(payload=...)` take bytes, a 0/1 sequence or a binary/hex string.
-What is new is that the string may also be a generator, and that it is parsed
-by the one C function rather than by the binding. There is no separate
-`Field` object: a frame's layout already reports its fields.
+(§F.5).
+
+**An object takes bits; module helpers make them.** `Frame` and `FrameDesc`
+take each field as an unpacked `uint8` array and nothing else:
+`Frame(preamble=, sync=, payload=, crc=)`, each field an empty-by-default
+keyword (omitted, it reaches C as `NULL, 0`), and
+`FrameDesc.add_field(name, bits)`. Every other form reaches them through a
+module-level helper that returns bits:
+
+| helper                 | from                            | over                                   |
+| ---------------------- | ------------------------------- | -------------------------------------- |
+| `field_bits(text)`     | the Field text form (§F.1)      | `dp_wfm_field_parse()`, the one parser |
+| `cvt.hex_to_bin(text)` | hex                             | `dp_hex_to_bin()` (exists)             |
+| `cvt.bytes_to_bin(b)`  | packed octets, MSB first (§F.4) | the one unpacking primitive            |
+
+`Frame(sync=field_bits("0xFAF320"), payload=field_bits("pn:1024:10"))`. So
+the constructor has one shape, jm needs no parameter that takes "an array or
+a string" (it has none: [record §F.5](frame-description-measurements.md#f5-the-three-jm-scaffold-checks-2026-09-27)),
+and there is no dispatch and no "both set" case to refuse. The text faces
+keep their grammar because they call the same parser before they build.
+
+**What this gives up:** an object built from bits does not know a field was
+generated. Its layout reports each field's length and bits, not
+`pn:1024:10`. The faces that record the text form (the CLI, JSON, a carried
+frame, `--record`) parse it in C before building, so nothing reproducible is
+lost. A Python caller who needs to read a frame's specs back is the one case
+this shape does not serve, and that is added when someone needs it. There is
+no separate `Field` object: a frame's layout already reports its fields.
 
 **A derived field has no text form**, and that is correct: nobody writes a
 CRC trailer's bits. It is declared by the stage that produces it
@@ -382,7 +403,7 @@ one way, all three go.
 | `wfm_frame_t` / `wfm_frame_layout_t`, `dp_wfm_frame_describe()`, the four-field DSSS helpers, `dp_wfm_synth_set_dsss()`                        | **deleted**; their callers read the description                     |
 | `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                        | **deleted**: literal-only, and a second derivation of covers        |
 | `ccsds_tm_frame_cfg_t`                                                                                                                         | **kept** — it configures the codec's kernels, not a generated frame |
-| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                               | **replaced** by one Field each                                      |
+| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                               | **replaced** by one bit array each; text through `field_bits`       |
 
 **What a source still carries, and why it is not framing.** A DSSS source's
 acquisition code and data code are how its bits become chips — the spreading,
@@ -661,15 +682,11 @@ it is measured:
     golden — rare enough that quoting is cheap, common enough that a separate
     key would be a second spelling of one field. Revisit if a user trips on
     it.
-- **Three things jm must do, checked with a scaffold before they are
-    relied on.** An object parameter that accepts **either** an array or a
-    string — `bit_pattern` coercion does this for composer fields today, and
-    an object's parameters are unproven (else: the parameter takes the text
-    form and an array goes through `Field.from_bits`, one documented door
-    rather than a second spelling); a parameter that may be omitted (else:
-    empty meaning absent); and whether the extra manifest keys the surface
-    table needs survive a `jm` re-save
-    ([`wfmgen.md` — one surface table](wfmgen.md#one-surface-table)).
+- **The three jm scaffold checks are measured**
+    ([record §F.5](frame-description-measurements.md#f5-the-three-jm-scaffold-checks-2026-09-27)).
+    An array-or-string parameter does not exist, so an object takes bits and
+    module helpers convert to them (§F.3). An omittable parameter does exist, for arrays and
+    strings. The surface table's extra keys survive a re-save.
 
 ## Deliberately not in scope
 

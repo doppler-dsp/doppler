@@ -139,6 +139,63 @@ rather than answering it:
     `data:LEN*N` is simple time diversity for resilience — and `--repeat`
     over an unending stream is refused.
 
+### F.5 The three jm scaffold checks (2026-09-27)
+
+The design names three things jm must do before they are relied on (§
+[Unknowns](frame-description.md#unknowns)). Each was measured at the pinned
+**jm 0.92.2**. Checks 1 and 2 used a **fresh** `jm new` project (one
+no-state object with `bits: uint8_t[]` and `spec: const char *`, whose
+`create()` prints what reached C), not doppler, so the result is jm's
+behaviour and not doppler's history. Check 3 used doppler's own manifest in
+a throwaway worktree.
+
+| check                                              | result                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. an object param taking an array **or** a string | **No.** There is no such param type, and `coerce = "bit_pattern"` on an init-param is warned as "a composer field key" and ignored                                                                                                                                                             |
+| 2. an omittable param                              | **Yes, both kinds.** An array with `default = "[]"` reaches `create()` as `NULL`, length 0 (jm#1003). A `const char *` with `default = "NULL"` is `str \| None` and reaches C as `NULL`. (`optional = true` is something else: it dispatches to a second constructor and needs a `create_fn`.) |
+| 3. extra keys survive a re-save                    | **Yes.** Seven keys (`cli`, `cli_aliases`, `json`, `help`, `metavar`, `faces`, `kind`) on a `source.fields` row, plus a sibling `[module.wfm_compose.surface]` table, round-trip through a mutating `load`/`save` and read back intact. `jm apply` and `jm status --check` exit 0              |
+
+What the probes turned up besides the answers:
+
+- **A string into a `uint8_t[]` param is silently a number.** `Fld("0101")`
+    reaches C as one element, `101`. `Fld(b"\x01\x00")` is *refused*
+    (`ValueError: invalid literal for int()`), so the one Python type that
+    already is a byte buffer cannot be passed. Both come from one conversion
+    through `int()`: [jm#1700](https://github.com/just-buildit/just-makeit/issues/1700).
+- **Unknown keys are advisory, never gating.** `apply` prints one
+    deduplicated `warning ~:` line per unknown key (8 for the probe), with
+    `gates=False`. But `jm upgrade` calls the same manifest "Not up to date:
+    apply will refuse". It does not refuse:
+    [jm#1702](https://github.com/just-buildit/just-makeit/issues/1702).
+- **A save that dirties a composer table deletes its comments, but no
+    command does that.** Calling jm's own `load`/`save` with one field's
+    `doc` changed removed **15 comment lines** from that table. That was a
+    probe for "some command rewrites this table", and the premise was
+    wrong: a real mutating command (`jm method fir …`) writes only
+    `objects/fir.toml` and leaves the root manifest alone. The defect is
+    reachable only through the API (or, unmeasured, a schema migration):
+    [jm#1701](https://github.com/just-buildit/just-makeit/issues/1701).
+- **A composer field is documented twice.** All 40 `wfm_compose` fields
+    carry a manifest `doc` key, which jm reads (`_composer.py`), and
+    `wfm_compose.h` comments the same struct members. Nothing ties the two
+    together, and they already disagree (`freq`). The header is the
+    primary SSOT, and the manifest `doc` is a fallback, not a peer. A surface-table `help` key would be a
+    third copy:
+    [jm#1703](https://github.com/just-buildit/just-makeit/issues/1703).
+- **The design's stated fallback for check 1 no longer exists.** It was "an
+    array goes through `Field.from_bits`", and §F.4 above deleted the
+    `Field` object. So a failed check 1 needs a new decision, not a
+    fallback.
+
+**Decided** (owner, the same day). The first answer was two parameters
+per field, `<field>=` for data and `<field>_spec=` for text. It was replaced
+before landing by something simpler: **the C interface takes bits only**, one
+empty-by-default `uint8_t[]` per field, and module helpers (`field_bits`,
+`cvt.hex_to_bin`, `cvt.bytes_to_bin`) turn every other form into bits. That
+needs no dispatch and no jm feature, and removes the "both set" refusal
+(design §F.3). The surface keys stay **on the jm rows**, and the advisory
+warnings are accepted.
+
 ______________________________________________________________________
 
 ## C. The CCSDS sites

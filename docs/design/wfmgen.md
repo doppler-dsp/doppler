@@ -213,11 +213,17 @@ path, because it is doppler's own and needs no new jm mechanism.
 
 **What the manifest declares, per field,** beyond what jm reads: the CLI
 spelling (`cli`, `cli_aliases`), the JSON key where it differs from the field
-name, the help text and metavar, which faces expose it, and
-`kind = "field"` for the four that take a
-[Field](frame-description.md#f-the-field-one-text-form). Options that exist
-only on the command line (`--output`, `--realtime`, `--record`, …) are
-declared in a sibling table.
+name, the metavar, which faces expose it, and `kind = "field"` for the four
+that take a [Field](frame-description.md#f-the-field-one-text-form). Options
+that exist only on the command line (`--output`, `--realtime`, `--record`, …)
+are declared in a sibling table.
+
+**A field's meaning is written once, in the header.** Its help text is the
+struct member's comment in `wfm_compose.h`: the header is the primary SSOT.
+A manifest `doc` key is valid only where the header says nothing. Today
+both exist, independently, and doppler's 40 pairs have drifted (`freq`)
+([jm#1703](https://github.com/just-buildit/just-makeit/issues/1703)). The
+surface table reads the header and never adds a third copy.
 
 **What is generated from it,** by `gen_wfm_defaults.py`, each file refused
 if edited by hand:
@@ -316,12 +322,15 @@ decision already made. Each is first a measurement (the *explore* phase of
 [Adding an algorithm](../dev/contributing/adding-algorithms.md)) and then a
 stated limit (its *certify* phase).
 
-1. **Whether jm keeps the surface table's keys.** [One surface
-    table](#one-surface-table) adds keys jm does not read to the manifest's
-    field rows. jm accepts an unknown key, but a `jm` edit that re-saves the
-    manifest has dropped unknown keys before (gh-1184). Checked with a
-    scaffold before it is relied on; if they do not survive, the keys move
-    to a sibling table keyed by field name, which the generator cross-checks.
+1. **Whether jm keeps the surface table's keys — measured: it does.** At jm
+    0.92.2 the extra keys on a field row, and a sibling table, survive a
+    mutating re-save and read back intact
+    ([record §F.5](frame-description-measurements.md#f5-the-three-jm-scaffold-checks-2026-09-27)).
+    So the keys stay on the rows, where [one surface
+    table](#one-surface-table) puts them. The cost is advisory: jm prints one
+    `warning ~:` line per unknown key name on every command, and never fails
+    one. `jm upgrade` wrongly calls such a manifest "not up to date"
+    ([jm#1702](https://github.com/just-buildit/just-makeit/issues/1702)).
 1. **The envelope beyond each object.** The objects are certified — Gold,
     PN, `Synth`, the composer, `Frame`, `Plan`, `Reader`, `Writer` and
     `wfmgen` itself each have a report

@@ -222,6 +222,13 @@ def stray_literals() -> list[str]:
     It fails closed (the slow path is the safe one), which is why nothing
     caught it before a release did. This is the per-PR check.
 
+    A literal labelled as another tool's version is NOT exempt, even though
+    it is not a claim about doppler: `ci-changes` substitutes old -> new as
+    text and cannot know whose number it is. v0.58.0 hit this with
+    `# jm 0.58.0 ships it` in just-makeit.toml, fixed by writing `jm 0.58`.
+    (scripts/check_version_strings.py does exempt a jm label, because the
+    markdown it reads is not part of a bump's substitution.)
+
     Returns
     -------
     list[str]
@@ -278,7 +285,11 @@ def main() -> int:
                     + "\n  ".join(stray)
                     + "\n  Nothing bumps these, and one stale literal makes "
                     "`ci-changes` classify every release PR as src=true\n"
-                    "  (the full matrix). Write X.Y.Z, or derive it.",
+                    "  (the full matrix). Write X.Y.Z, or derive it.\n"
+                    "  That includes ANOTHER tool's version that happens to "
+                    "equal ours\n  (`jm 0.58.0` at doppler 0.58.0): the "
+                    "substitution is textual, so drop the\n  patch digit "
+                    "(`jm 0.58`) rather than exempting it.",
                     file=sys.stderr,
                 )
                 return 1

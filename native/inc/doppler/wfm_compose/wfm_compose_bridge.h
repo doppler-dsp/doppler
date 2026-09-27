@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 /* Build the composed generator from a source config (source -> generator). */
-dp_wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
+dp_wfm_synth_state_t *dp_wfm_source_to_synth(const wfm_source_t *, double);
 
 #ifdef __cplusplus
 }

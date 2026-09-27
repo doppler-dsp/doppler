@@ -557,7 +557,7 @@ dp_wfm_source_dsss_nchips (const wfm_source_t *src)
 }
 
 dp_wfm_synth_state_t *
-wfm_source_to_synth (const wfm_source_t *src, double fs)
+dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
 {
   /* A "bits" waveform with no pattern has nothing to transmit. Reject it here
      so the generated Synth_ensure_gen turns this NULL into an error at first

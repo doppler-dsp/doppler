@@ -1281,7 +1281,7 @@ dp_RateConverter_gain (const dp_RateConverter_state_t *s)
 }
 
 size_t
-RateConverter_num_stages (const dp_RateConverter_state_t *s)
+dp_RateConverter_num_stages (const dp_RateConverter_state_t *s)
 {
   return (size_t)s->n_stages;
 }
@@ -1305,7 +1305,7 @@ dp_RateConverter_stages_value (const dp_RateConverter_state_t *s, size_t i)
 /* The bank shape is a 2-element sequence, empty when the cascade ends in an
    integer decimator and therefore has no polyphase bank to describe. */
 size_t
-RateConverter_num_bank_shape (const dp_RateConverter_state_t *s)
+dp_RateConverter_num_bank_shape (const dp_RateConverter_state_t *s)
 {
   if (s->n_stages == 0 || s->stage_types[s->n_stages - 1] != RC_STAGE_RESAMP)
     return 0;

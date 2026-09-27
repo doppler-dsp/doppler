@@ -1660,11 +1660,11 @@ Synth_ensure_gen (SynthObject *self)
 {
   if (!self->_gen)
     {
-      self->_gen = wfm_source_to_synth (&self->src, self->fs);
+      self->_gen = dp_wfm_source_to_synth (&self->src, self->fs);
       if (!self->_gen)
         {
           PyErr_SetString (PyExc_RuntimeError,
-                           "wfm_source_to_synth returned NULL");
+                           "dp_wfm_source_to_synth returned NULL");
           return -1;
         }
     }
@@ -1719,7 +1719,7 @@ static PyMethodDef Synth_methods[] = {
     "Generate the next *n* samples of this source on its own.\n"
     "\n"
     "The first call builds the generator from this configuration, through\n"
-    "`wfm_source_to_synth`; later calls continue it.\n"
+    "`dp_wfm_source_to_synth`; later calls continue it.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1736,7 +1736,7 @@ static PyMethodDef Synth_methods[] = {
     "ValueError\n"
     "    If `n` is negative.\n"
     "RuntimeError\n"
-    "    If `wfm_source_to_synth` cannot build the generator from this\n"
+    "    If `dp_wfm_source_to_synth` cannot build the generator from this\n"
     "    configuration.\n" },
   { "step", (PyCFunction)Synth_step, METH_NOARGS,
     "step() -> complex\n"
@@ -1744,7 +1744,7 @@ static PyMethodDef Synth_methods[] = {
     "Generate the next sample of this source on its own.\n"
     "\n"
     "The first call builds the generator from this configuration, through\n"
-    "`wfm_source_to_synth`; later calls continue it.\n"
+    "`dp_wfm_source_to_synth`; later calls continue it.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1754,7 +1754,7 @@ static PyMethodDef Synth_methods[] = {
     "Raises\n"
     "------\n"
     "RuntimeError\n"
-    "    If `wfm_source_to_synth` cannot build the generator from this\n"
+    "    If `dp_wfm_source_to_synth` cannot build the generator from this\n"
     "    configuration.\n" },
   { "reset", (PyCFunction)Synth_reset, METH_NOARGS,
     "reset() -> None\n"

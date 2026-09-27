@@ -256,7 +256,7 @@ class Synth:
         """Generate the next *n* samples of this source on its own.
 
         The first call builds the generator from this configuration, through
-        `wfm_source_to_synth`; later calls continue it.
+        `dp_wfm_source_to_synth`; later calls continue it.
 
         Parameters
         ----------
@@ -273,14 +273,14 @@ class Synth:
         ValueError
             If `n` is negative.
         RuntimeError
-            If `wfm_source_to_synth` cannot build the generator from this
+            If `dp_wfm_source_to_synth` cannot build the generator from this
             configuration.
         """
     def step(self) -> complex:
         """Generate the next sample of this source on its own.
 
         The first call builds the generator from this configuration, through
-        `wfm_source_to_synth`; later calls continue it.
+        `dp_wfm_source_to_synth`; later calls continue it.
 
         Returns
         -------
@@ -290,7 +290,7 @@ class Synth:
         Raises
         ------
         RuntimeError
-            If `wfm_source_to_synth` cannot build the generator from this
+            If `dp_wfm_source_to_synth` cannot build the generator from this
             configuration.
         """
     def reset(self) -> None:

@@ -53,7 +53,7 @@
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* | [**wfm\_source\_to\_synth**](#function-wfm_source_to_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
+|  [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* | [**dp\_wfm\_source\_to\_synth**](#function-dp_wfm_source_to_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 
 
 
@@ -87,10 +87,10 @@
 
 
 
-### function wfm\_source\_to\_synth 
+### function dp\_wfm\_source\_to\_synth 
 
 ```C++
-dp_wfm_synth_state_t * wfm_source_to_synth (
+dp_wfm_synth_state_t * dp_wfm_source_to_synth (
     const wfm_source_t *,
     double
 ) 

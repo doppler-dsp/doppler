@@ -1,10 +1,9 @@
 """The symbol-prefix gate, exercised over seeded archives.
 
 `scripts/check_symbol_prefix.py` reads `nm` over the two installed archives
-and holds every export outside `dp_` to a ratchet that may only shrink
-(#1545, burn-down #1565). The cases compile a one-function archive into a
-scratch build directory and pair it with a scratch ratchet, because a gate
-that can only be tested against the real tree cannot be sabotaged.
+and fails on ANY export outside `dp_` -- absolute since #1565 reached zero.
+The cases compile a small archive into a scratch build directory, because a
+gate that can only be tested against the real tree cannot be sabotaged.
 """
 
 from __future__ import annotations
@@ -45,10 +44,10 @@ def _archive(build: Path, source: str) -> None:
     )
 
 
-def _gate(build: Path, ratchet: Path) -> subprocess.CompletedProcess[str]:
-    """Run the gate over ``build`` with ``ratchet`` as its list."""
+def _gate(build: Path) -> subprocess.CompletedProcess[str]:
+    """Run the gate over the archives in ``build``."""
     return subprocess.run(
-        [sys.executable, str(SCRIPT), f"--ratchet={ratchet}"],
+        [sys.executable, str(SCRIPT)],
         capture_output=True,
         text=True,
         check=False,
@@ -56,43 +55,29 @@ def _gate(build: Path, ratchet: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-_SRC = (
+_CLEAN = (
     "int dp_ok_create (void) { return 0; }\n"
-    "int legacy_name (void) { return 1; }\n"
+    "int dp__internal (void) { return 1; }\n"
     "static int hidden (void) { return 2; }\n"
     "int dp_uses_hidden (void) { return hidden (); }\n"
 )
 
 
-def test_passes_when_every_bare_export_is_listed(tmp_path: Path) -> None:
-    """``dp_*`` and ``static`` need no entry; the listed bare name passes."""
-    _archive(tmp_path / "build", _SRC)
-    ratchet = tmp_path / "ratchet"
-    ratchet.write_text("# header\nlegacy_name\n", encoding="utf-8")
-    r = _gate(tmp_path / "build", ratchet)
+def test_passes_when_every_export_is_prefixed(tmp_path: Path) -> None:
+    """``dp_*``, the internal ``dp__*`` and ``static`` are all allowed."""
+    _archive(tmp_path / "build", _CLEAN)
+    r = _gate(tmp_path / "build")
     assert r.returncode == 0, r.stdout
 
 
-def test_refuses_a_new_bare_export(tmp_path: Path) -> None:
+def test_refuses_a_bare_export(tmp_path: Path) -> None:
     """The regression the gate exists for: an unprefixed public symbol."""
     _archive(
-        tmp_path / "build", _SRC + "int fir_create (void) { return 3; }\n"
+        tmp_path / "build", _CLEAN + "int fir_create (void) { return 3; }\n"
     )
-    ratchet = tmp_path / "ratchet"
-    ratchet.write_text("legacy_name\n", encoding="utf-8")
-    r = _gate(tmp_path / "build", ratchet)
+    r = _gate(tmp_path / "build")
     assert r.returncode == 1
-    assert "NEW bare export: fir_create" in r.stdout
-
-
-def test_refuses_a_stale_entry(tmp_path: Path) -> None:
-    """A renamed export must leave the list, or the ratchet cannot shrink."""
-    _archive(tmp_path / "build", _SRC)
-    ratchet = tmp_path / "ratchet"
-    ratchet.write_text("legacy_name\nrenamed_since\n", encoding="utf-8")
-    r = _gate(tmp_path / "build", ratchet)
-    assert r.returncode == 1
-    assert "STALE ratchet entry: renamed_since" in r.stdout
+    assert "bare export: fir_create" in r.stdout
 
 
 def test_an_unreadable_archive_is_not_a_pass(tmp_path: Path) -> None:
@@ -100,7 +85,5 @@ def test_an_unreadable_archive_is_not_a_pass(tmp_path: Path) -> None:
     build = tmp_path / "build"
     build.mkdir()
     (build / "libdoppler.a").write_bytes(b"not an archive")
-    ratchet = tmp_path / "ratchet"
-    ratchet.write_text("", encoding="utf-8")
-    r = _gate(build, ratchet)
+    r = _gate(build)
     assert r.returncode != 0

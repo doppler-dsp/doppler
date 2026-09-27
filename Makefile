@@ -1539,12 +1539,12 @@ installed-headers-check: build ## Verify installed headers declare only what the
 exported-link-check: build ## Verify the exported CMake link interface names no absolute path
 	@python3 scripts/check_exported_link_paths.py $(BUILD_DIR)
 
-# c_prefix = "dp" (#1545) put every jm-derived symbol under dp_, so two jm
-# libraries sharing a component name link together. Names we spelled ourselves
-# and vendored code linked whole are out of jm's reach: 1090 bare exports on the
-# day it landed, ratcheted in scripts/.symbol-prefix-ratchet (may only shrink,
-# burn-down #1565). Reads `nm`, so it needs the build; plain python3 as above.
-symbol-prefix-check: build ## Verify no new exported symbol lacks the dp_ prefix (ratchet)
+# Every symbol the installed archives export carries dp_ (#1545 for what jm
+# derives, #1565 for the rest, vendored code as dp__v_*). Absolute: no
+# allowlist -- a bare export is a collision with any other library that
+# exports the same name, and only the consumer's link would notice. Reads
+# `nm`, so it needs the build; plain python3, standard library only.
+symbol-prefix-check: build ## Verify every exported symbol carries the dp_ prefix
 	@DOPPLER_BUILD_DIR=$(BUILD_DIR) python3 scripts/check_symbol_prefix.py
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`

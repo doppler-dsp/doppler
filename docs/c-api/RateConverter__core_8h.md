@@ -71,8 +71,6 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**RateConverter\_num\_bank\_shape**](#function-rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
-|  size\_t | [**RateConverter\_num\_stages**](#function-rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
 |  double | [**dp\_RateConverter\_agc\_gain\_db**](#function-dp_rateconverter_agc_gain_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Gain the pre-terminal AGC last applied, in dB; 0.0 when off._  |
 |  double | [**dp\_RateConverter\_agc\_ref\_db**](#function-dp_rateconverter_agc_ref_db) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The pre-terminal AGC's reference level, in dB._  |
 |  size\_t | [**dp\_RateConverter\_bank\_shape\_value**](#function-dp_rateconverter_bank_shape_value) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, size\_t i) <br>_Element_ `i` _of the bank shape: 0 -&gt; num\_phases, 1 -&gt; num\_taps._ |
@@ -94,6 +92,8 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
 |  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
 |  void | [**dp\_RateConverter\_get\_state**](#function-dp_rateconverter_get_state) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
+|  size\_t | [**dp\_RateConverter\_num\_bank\_shape**](#function-dp_rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
+|  size\_t | [**dp\_RateConverter\_num\_stages**](#function-dp_rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
 |  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._  |
 |  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._  |
 |  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
@@ -213,49 +213,6 @@ Stage type tags.
 <hr>
 ## Public Functions Documentation
 
-
-
-
-### function RateConverter\_num\_bank\_shape 
-
-_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._
-```C++
-size_t RateConverter_num_bank_shape (
-    const dp_RateConverter_state_t * s
-) 
-```
-
-
-
-
-
-**Returns:**
-
-2 when the cascade ends in a Resampler stage, else 0. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function RateConverter\_num\_stages 
-
-_Number of planned cascade stages (backs the_ `stages` _property)._
-```C++
-size_t RateConverter_num_stages (
-    const dp_RateConverter_state_t * s
-) 
-```
-
-
-
-
-<hr>
 
 
 
@@ -1033,6 +990,49 @@ _Serialize_ `s's` _active-stage state into_`blob` _._
 void dp_RateConverter_get_state (
     const dp_RateConverter_state_t * s,
     void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_RateConverter\_num\_bank\_shape 
+
+_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._
+```C++
+size_t dp_RateConverter_num_bank_shape (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+
+
+**Returns:**
+
+2 when the cascade ends in a Resampler stage, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_num\_stages 
+
+_Number of planned cascade stages (backs the_ `stages` _property)._
+```C++
+size_t dp_RateConverter_num_stages (
+    const dp_RateConverter_state_t * s
 ) 
 ```
 

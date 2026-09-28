@@ -223,8 +223,9 @@ pip install doppler-dsp        # → the `wfmgen` command + the doppler.wfm API
 ```
 
 The wheel ships the self-contained `wfmgen` binary as package data and a
-`wfmgen` console script — a thin `os.execv` shim over that same binary, so
-argv, stdio and exit status all pass straight through. There is **no second CLI
+`wfmgen` console script — a thin shim over that same binary (`os.execv` on
+POSIX, a child process on Windows, which has no exec), so argv, stdio and exit
+status all pass straight through. There is **no second CLI
 implementation in Python**. To build from source instead:
 
 <!-- docs-snippet: no-exec=clones the repository -->

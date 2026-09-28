@@ -3,8 +3,8 @@
  *
  * Thin glue over doppler's dp_pub_* layer: maps the wavegen wire-type index to
  * dp_sample_type_t, converts each cf32 block to that type into a
- * grow-on-demand scratch buffer, and publishes it. POSIX-only (links the
- * vendored nats.c).
+ * grow-on-demand scratch buffer, and publishes it. Links the vendored nats.c,
+ * and builds on every platform the stream layer does (Windows since #1575).
  */
 #include "doppler/wfm/wfm_sink.h"
 

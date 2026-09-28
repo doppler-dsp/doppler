@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import textwrap
 from pathlib import Path
 
 import tomllib
@@ -49,6 +50,7 @@ HEADER = ROOT / header("wfm/wfm_defaults.h")
 COMPOSE_H = ROOT / header("wfm/wfm_compose.h")
 NAMES_H = ROOT / header("wfm/wfm_names.h")
 SURFACE = ROOT / header("wfm/wfm_surface.h")
+WFMGEN_C = ROOT / "native" / "src" / "app" / "wfmgen.c"
 
 # The C struct each manifest table describes.
 STRUCTS = {"source": "wfm_source_t", "segment": "wfm_segment_t"}
@@ -273,11 +275,11 @@ def surface_rows(man: dict) -> list[dict]:
     `unit_interval` are new keys, because nothing else states them.
     """
     mc = man["module"]["wfm_compose"]
-    tables = {
-        t.enum: t.name
-        for t in _tables(NAMES_H.read_text(encoding="utf-8"))
-        if t.enum
-    }
+    parsed = [
+        t for t in _tables(NAMES_H.read_text(encoding="utf-8")) if t.enum
+    ]
+    tables = {t.enum: t.name for t in parsed}
+    values_of = {t.enum: t.values for t in parsed}
     rows = []
     for kind in STRUCTS:
         ranged = {r["name"]: r["flag"] for r in mc[kind].get("ranged", [])}
@@ -321,9 +323,135 @@ def surface_rows(man: dict) -> list[dict]:
                     "choices": choices,
                     "range_bit": ranged.get(name),
                     "unit_interval": bool(f.get("unit_interval")),
+                    "metavar": f.get("metavar"),
+                    "section": f.get("help_section"),
+                    "default": f.get("default"),
+                    "values": values_of.get(en) if en else None,
                 }
             )
     return rows
+
+
+# The column a flag's description starts at, and the line width. A flag
+# and metavar that reach the column put the description on the next line.
+HELP_COL = 18
+HELP_WIDTH = 79
+
+_SENTENCE = re.compile(r"^(.*?[.])(?:\s|$)", re.S)
+
+
+def first_sentence(doc: str) -> str:
+    """A field's help line: the first sentence of its header comment."""
+    m = _SENTENCE.match(doc)
+    return m.group(1) if m else doc
+
+
+def help_lines(row: dict, doc: str) -> list[str]:
+    """One option's --help lines: flag, metavar, description, wrapped.
+
+    The description is the header comment's first sentence, then the
+    choices and the default from the table -- never restated by hand, so
+    they cannot disagree with what the parser accepts.
+    """
+    mv = row["metavar"]
+    if row["range_bit"]:
+        mv = f"{mv}[:{mv}]"
+    head = f"  {row['cli']} {mv}"
+    text = first_sentence(doc)
+    if row["values"]:
+        text += " One of: " + " | ".join(row["values"]) + "."
+    if row["default"] is not None:
+        # A no-break space: the wrap may not split "(default" from its
+        # value, and textwrap does not count U+00A0 as a place to break.
+        text += f" (default\u00a0{row['default']})"
+    words = textwrap.wrap(
+        text,
+        width=HELP_WIDTH - HELP_COL,
+        break_on_hyphens=False,
+        break_long_words=False,
+    )
+    pad = " " * HELP_COL
+    if len(head) < HELP_COL:
+        out = [head.ljust(HELP_COL) + words[0]]
+    else:
+        out = [head, pad + words[0]]
+    out += [pad + w for w in words[1:]]
+    return [x.replace("\u00a0", " ") for x in out]
+
+
+def _c_string(line: str) -> str:
+    esc = line.replace("\\", "\\\\").replace('"', '\\"')
+    return f'  "{esc}\\n"'
+
+
+def render_help(rows: list[dict]) -> list[str]:
+    """`#define WFM_SURFACE_HELP_<SECTION>`, one string per help section.
+
+    wfmgen's USAGE[] keeps its section headings and prose and splices these
+    in where the option lines go, so an option's help is generated from
+    the same row the parser reads.
+    """
+    docs = {
+        kind: member_docs(COMPOSE_H.read_text(encoding="utf-8"), struct)
+        for kind, struct in STRUCTS.items()
+    }
+    sections: dict[str, list[str]] = {}
+    # Segment rows first: --fs and --count lead the signal section.
+    for r in sorted(rows, key=lambda r: r["owner"] != "segment"):
+        if not r["section"] or not r["metavar"]:
+            raise SystemExit(
+                f"{r['owner']}.{r['name']}: a `cli` row needs `metavar` and "
+                "`help_section`"
+            )
+        doc = docs[r["owner"]].get(r["name"], {}).get("doc")
+        if not doc:
+            raise SystemExit(
+                f"{r['owner']}.{r['name']}: no header comment to take its "
+                f"help from, in {COMPOSE_H.relative_to(ROOT)}"
+            )
+        sections.setdefault(r["section"], []).extend(help_lines(r, doc))
+    out = ["/* --help option lines, one string per USAGE section. */"]
+    for sec, lines in sections.items():
+        out.append(f"#define WFM_SURFACE_HELP_{sec} \\")
+        out += [_c_string(x) + " \\" for x in lines[:-1]]
+        out.append(_c_string(lines[-1]))
+        out.append("")
+    return out
+
+
+def help_splice_errors(man: dict) -> list[str]:
+    """Where wfmgen's USAGE[] and the generated help lines disagree.
+
+    Two failures, and the compiler sees neither: a section macro USAGE never
+    splices in (its options vanish from --help), and a HAND-WRITTEN line for
+    a flag the table owns (a second, drifting copy of its help -- the thing
+    generating the lines exists to end).
+    """
+    src = WFMGEN_C.read_text(encoding="utf-8")
+    a = src.index("static const char USAGE[]")
+    usage = src[a : src.index(";\n", a)]
+    rows = surface_rows(man)
+    bad = []
+    for sec in sorted({r["section"] for r in rows if r["section"]}):
+        if f"WFM_SURFACE_HELP_{sec}" not in usage:
+            bad.append(
+                f"USAGE[] never splices WFM_SURFACE_HELP_{sec}, so its "
+                "options are missing from --help"
+            )
+    hand = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', usage))
+    for line in hand.split("\\n"):
+        # An OPTION line, not prose that opens with a flag ("--count is
+        # honoured verbatim"): two spaces, the flag, an optional UPPERCASE
+        # metavar, then a two-space gap or the end of the line.
+        m = re.match(
+            r"  (--[A-Za-z0-9-]+)(?: [A-Z][A-Z0-9_:\[\]-]*)?(?: {2,}|$)", line
+        )
+        if m and m.group(1) in {r["cli"] for r in rows}:
+            bad.append(
+                f"USAGE[] has a hand-written line for {m.group(1)}, which "
+                "the surface table generates: delete it"
+            )
+    return bad
 
 
 def render_surface() -> str:
@@ -419,7 +547,9 @@ def render_surface() -> str:
         out.append(f"  [WFM_SURFACE_{r['owner']}_{n}] = {{")
         out += [f"    {x}," for x in fields]
         out.append("  },")
-    out += ["};", "", "#endif /* WFM_SURFACE_H */"]
+    out += ["};", ""]
+    out += render_help(rows)
+    out.append("#endif /* WFM_SURFACE_H */")
     return "\n".join(out) + "\n"
 
 
@@ -445,6 +575,14 @@ def main() -> int:
         )
         for d in drift:
             print("  " + d, file=sys.stderr)
+        return 1
+
+    splice = help_splice_errors(
+        tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    )
+    if splice:
+        for d in splice:
+            print(f"gen_wfm_defaults: {d}", file=sys.stderr)
         return 1
 
     outputs = ((HEADER, render()), (SURFACE, render_surface()))

@@ -319,4 +319,89 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   },
 };
 
+/* --help option lines, one string per USAGE section. */
+#define WFM_SURFACE_HELP_SIGNAL \
+  "  --fs HZ         Sample rate in Hz, one per segment and shared by all its\n" \
+  "                  sources. (default 1.0)\n" \
+  "  --count N[:N]   Segment on-time in samples: the active span. (default 1024)\n" \
+  "  --off N[:N]     Trailing gap after the on-time, in samples. (default 0)\n" \
+  "  --repeats N     Play the segment this many times back-to-back (each instance\n" \
+  "                  = delay + on-time + trailing gap) before advancing.\n" \
+  "                  (default 1)\n" \
+  "  --delay N[:N]   Leading gap before the on-time, in samples: the burst arrives\n" \
+  "                  after this delay. (default 0)\n" \
+  "  --gap-noise M   Gap policy for this segment's delay and trailing gap. One of:\n" \
+  "                  auto | off. (default auto)\n" \
+  "  --freq HZ[:HZ]  Carrier or offset frequency in Hz; for chirp, the sweep\n" \
+  "                  start. (default 0.0)\n" \
+  "  --seed N        PRNG and LFSR seed for the noise and PN streams. (default 0)\n" \
+  "  --sps N         Samples per symbol (PSK) or per chip (PN): the oversampling\n" \
+  "                  factor. (default 1)\n" \
+  "  --f-end HZ[:HZ] Chirp end frequency in Hz; ignored by other types.\n" \
+  "                  (default 0.0)\n"
+
+#define WFM_SURFACE_HELP_TYPE \
+  "  --type TYPE     Waveform type. One of: tone | noise | pn | bpsk | qpsk |\n" \
+  "                  chirp | bits | symbols | dsss. (default tone)\n"
+
+#define WFM_SURFACE_HELP_NOISE \
+  "  --snr DB[:DB]   Signal-to-noise ratio in dB, interpreted per snr_mode.\n" \
+  "                  (default 100.0)\n" \
+  "  --snr-mode MODE How snr is interpreted. One of: auto | fs | ebno | esno.\n" \
+  "                  (default auto)\n"
+
+#define WFM_SURFACE_HELP_PN \
+  "  --pn-length N   PN LFSR register length; the sequence period is 2^pn_length -\n" \
+  "                  1. (default 15)\n" \
+  "  --pn-poly N     PN generator polynomial; 0 selects a maximal-length (MLS)\n" \
+  "                  polynomial for pn_length. (default 0)\n" \
+  "  --lfsr TYPE     PN LFSR realisation: the same period, a different chip order.\n" \
+  "                  One of: galois | fibonacci. (default galois)\n"
+
+#define WFM_SURFACE_HELP_AMPLITUDE \
+  "  --level DB[:DB] Source power in dBFS (<= 0; 0 is unit power). (default 0.0)\n"
+
+#define WFM_SURFACE_HELP_DOPPLER \
+  "  --doppler PPM[:PPM]\n" \
+  "                  Clock Doppler in ppm: the received time base is rescaled by 1\n" \
+  "                  + doppler*1e-6, so the symbol and chip rates move with the\n" \
+  "                  carrier and a timing loop sees the error a carrier-only\n" \
+  "                  `freq` offset hides. (default 0.0)\n" \
+  "  --doppler-rate PPM_S[:PPM_S]\n" \
+  "                  Linear ramp on `doppler`, in ppm per second of elapsed stream\n" \
+  "                  time. (default 0.0)\n" \
+  "  --carrier-hz HZ RF carrier in Hz that the ppm figures are referred to.\n" \
+  "                  (default 0.0)\n" \
+  "  --doppler-lifetime L\n" \
+  "                  How long this source's Doppler channel lives. One of:\n" \
+  "                  per_instance | persist. (default per_instance)\n"
+
+#define WFM_SURFACE_HELP_BITS \
+  "  --modulation M  Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk\n" \
+  "                  or qpsk. One of: none | bpsk | qpsk. (default bpsk)\n"
+
+#define WFM_SURFACE_HELP_PULSE \
+  "  --pulse SHAPE   Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect\n" \
+  "                  sample-and-hold or rrc matched filter. One of: rect | rrc.\n" \
+  "                  (default rect)\n" \
+  "  --rrc-beta R    RRC roll-off factor, in (0, 1], when pulse=rrc.\n" \
+  "                  (default 0.35)\n" \
+  "  --rrc-span N    RRC filter span in symbols when pulse=rrc; taps = 2*span*sps\n" \
+  "                  + 1. (default 8)\n"
+
+#define WFM_SURFACE_HELP_SYMBOLS \
+  "  --symbols-file F\n" \
+  "                  For type=symbols: a complex constellation stream.\n"
+
+#define WFM_SURFACE_HELP_DSSS_BURST \
+  "  --crc C         The frame trailer: crc16 appends a CRC-16-CCITT over the\n" \
+  "                  payload bits (what BurstDemod validates as frame_valid, and\n" \
+  "                  what makes a truth-free frame error rate possible); none\n" \
+  "                  omits it. One of: none | crc16. (default crc16)\n"
+
+#define WFM_SURFACE_HELP_DSSS_CONT \
+  "  --symbol-rate HZ\n" \
+  "                  For type=dsss: > 0 selects CONTINUOUS asynchronous mode.\n" \
+  "                  (default 0.0)\n"
+
 #endif /* WFM_SURFACE_H */

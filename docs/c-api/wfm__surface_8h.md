@@ -94,6 +94,21 @@
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**WFM\_SURFACE\_HELP\_AMPLITUDE**](wfm__surface_8h.md#define-wfm_surface_help_amplitude)  `"  --level DB[:DB] Source power in dBFS (&lt;= 0; 0 is unit power). (default 0.0)\n"`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_BITS**](wfm__surface_8h.md#define-wfm_surface_help_bits)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_DOPPLER**](wfm__surface_8h.md#define-wfm_surface_help_doppler)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_DSSS\_BURST**](wfm__surface_8h.md#define-wfm_surface_help_dsss_burst)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_DSSS\_CONT**](wfm__surface_8h.md#define-wfm_surface_help_dsss_cont)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_NOISE**](wfm__surface_8h.md#define-wfm_surface_help_noise)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_PN**](wfm__surface_8h.md#define-wfm_surface_help_pn)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_PULSE**](wfm__surface_8h.md#define-wfm_surface_help_pulse)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_SIGNAL**](wfm__surface_8h.md#define-wfm_surface_help_signal)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_SYMBOLS**](wfm__surface_8h.md#define-wfm_surface_help_symbols)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_TYPE**](wfm__surface_8h.md#define-wfm_surface_help_type)  `/* multi line expression */`<br> |
 
 ## Public Types Documentation
 
@@ -186,6 +201,152 @@ enum wfm_sv_kind_t {
 
 ```C++
 const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N];
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define WFM\_SURFACE\_HELP\_AMPLITUDE 
+
+```C++
+#define WFM_SURFACE_HELP_AMPLITUDE `"  --level DB[:DB] Source power in dBFS (<= 0; 0 is unit power). (default 0.0)\n"`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_BITS 
+
+```C++
+#define WFM_SURFACE_HELP_BITS `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_DOPPLER 
+
+```C++
+#define WFM_SURFACE_HELP_DOPPLER `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_DSSS\_BURST 
+
+```C++
+#define WFM_SURFACE_HELP_DSSS_BURST `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_DSSS\_CONT 
+
+```C++
+#define WFM_SURFACE_HELP_DSSS_CONT `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_NOISE 
+
+```C++
+#define WFM_SURFACE_HELP_NOISE `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_PN 
+
+```C++
+#define WFM_SURFACE_HELP_PN `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_PULSE 
+
+```C++
+#define WFM_SURFACE_HELP_PULSE `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_SIGNAL 
+
+```C++
+#define WFM_SURFACE_HELP_SIGNAL `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_SYMBOLS 
+
+```C++
+#define WFM_SURFACE_HELP_SYMBOLS `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_TYPE 
+
+```C++
+#define WFM_SURFACE_HELP_TYPE `/* multi line expression */`
 ```
 
 

@@ -59,24 +59,53 @@ typedef enum
 } wfm_bitmod_t;
 
 typedef struct {
-    int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
-    double freq;       /* freq offset (Hz); chirp: start frequency f_start */
-    double snr;        /* dB, per snr_mode */
-    int snr_mode;      /* a wfm_snr_mode_t */
-    uint32_t seed;     /* PRNG / LFSR seed */
-    int sps;           /* samples per symbol / chip */
-    int pn_length;     /* LFSR register length */
-    uint64_t pn_poly;  /* 0 → MLS poly for the length */
-    int lfsr;          /* 0 galois, 1 fibonacci */
-    double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
-    int background;    /* 1 = static background: prepare() folds a contiguous
-                          prefix of background sources into ONE pre-summed Plan
-                          cache slot (scaled/rotated/dropped as a unit), instead
-                          of caching each individually. Ignored by compose().  */
-    double f_end;      /* chirp end frequency (Hz); ignored by other types */
-    size_t span;       /* chirp sweep length (samples); 0 = the segment's
-                          on-time. A standalone chirp must declare it: the
-                          sweep slope cannot depend on how reads are chunked */
+    int type;          /* Waveform type. */
+    double freq;       /* Carrier or offset frequency in Hz; for chirp, the
+                          sweep start. With fs = 1 it is in normalised
+                          cycles per sample. */
+    double snr;        /* Signal-to-noise ratio in dB, interpreted per
+                          snr_mode. 100 or more is clean: no AWGN is added. */
+    int snr_mode;      /* How snr is interpreted. auto picks fs (the full
+                          sample-rate band) for tone/pn/chirp/bits and Es/No
+                          for bpsk/qpsk. */
+    uint32_t seed;     /* PRNG and LFSR seed for the noise and PN streams.
+                          Deterministic: vary it for run-to-run change. */
+    int sps;           /* Samples per symbol (PSK) or per chip (PN): the
+                          oversampling factor. */
+    int pn_length;     /* PN LFSR register length; the sequence period is
+                          2^pn_length - 1. */
+    uint64_t pn_poly;  /* PN generator polynomial; 0 selects a
+                          maximal-length (MLS) polynomial for pn_length. */
+    int lfsr;          /* PN LFSR realisation: the same period, a different
+                          chip order. */
+    double level;      /* Source power in dBFS (<= 0; 0 is unit power).
+                          Applies when summed in a Segment or Composer, as a
+                          gain of 10^(level/20); a standalone Synth.steps()
+                          ignores it. */
+    int background;    /* Mark this source as part of the static background
+                          field (0/1). Plan.prepare() folds a contiguous
+                          leading run of background sources into ONE
+                          pre-summed cache entry instead of caching each
+                          separately, so a scene of many fixed emitters
+                          costs one buffer rather than hundreds. The
+                          composite is overridable as a unit: it takes a
+                          single slot in gains/phases/enable and counts as
+                          one in n_sources(), so scaling it trims the whole
+                          field while its members keep their relative
+                          levels. Background sources must come first in the
+                          segment (a non-prefix ordering is rejected by
+                          prepare, since the fold would no longer reproduce
+                          compose bit-for-bit). Ignored by compose() and by
+                          standalone Synth.steps(). */
+    double f_end;      /* Chirp end frequency in Hz; ignored by other types. */
+    size_t span;       /* Chirp sweep length in samples: the frequency ramps
+                          from freq to f_end over this many samples, then
+                          holds at f_end. 0 means the enclosing Segment's
+                          num_samples. A standalone chirp (f_end != freq)
+                          must declare it, so step(), steps(N) and any
+                          chunking of reads produce the same waveform;
+                          generating one without it raises. Ignored by
+                          non-chirp types. */
     /* The payload, as a SEQUENCE like its three siblings below rather than
        a bare array. A literal keeps its bits at `payload.bits`/`payload.len`
        exactly as `bits`/`n_bits` did; a GENERATED payload (PN/Gold/Dotted)
@@ -85,12 +114,20 @@ typedef struct {
        WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
        made the preamble's generated kinds unreachable (gh-762). */
     wfm_seq_t payload; /* type=bits: pattern; type=dsss: frame payload */
-    int modulation;    /* type=bits: a wfm_bitmod_t */
-    float _Complex *symbols; /* type=symbols: stream, owned; NULL otherwise */
+    int modulation;    /* Symbol mapping of a bits pattern: none (0/1
+                          amplitude), bpsk or qpsk. */
+    float _Complex *symbols; /* For type=symbols: a complex constellation
+                                stream. Each element is the output point
+                                itself, oversampled by sps, cycled, and
+                                RRC-shaped with pulse=rrc, which generalises
+                                any modulation (pi/4-QPSK, QAM, ...). */
     size_t n_symbols;        /* type=symbols: stream length */
-    int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
-    double rrc_beta;   /* RRC roll-off (pulse=rrc) */
-    int rrc_span;      /* RRC support in symbols (pulse=rrc) */
+    int pulse;         /* Pulse shape for the pn/bpsk/qpsk/bits symbol
+                          stream: rect sample-and-hold or rrc matched
+                          filter. */
+    double rrc_beta;   /* RRC roll-off factor, in (0, 1], when pulse=rrc. */
+    int rrc_span;      /* RRC filter span in symbols when pulse=rrc; taps =
+                          2*span*sps + 1. */
     unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND,DOPPLER*} bitmask */
     double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
     double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
@@ -106,13 +143,44 @@ typedef struct {
        Zero `doppler` AND zero `doppler_rate` means no channel is built at
        all, so a scene that does not ask for Doppler renders through exactly
        the code it always did. */
-    double doppler;      /* ppm; time-base scale is 1 + doppler*1e-6 */
-    double doppler_rate; /* ppm/s; linear ramp on `doppler` */
-    double carrier_hz;   /* RF carrier the ppm is referred to, for the
-                            coherent carrier term (0 = no carrier rotation) */
+    double doppler;      /* Clock Doppler in ppm: the received time base is
+                            rescaled by 1 + doppler*1e-6, so the symbol and
+                            chip rates move with the carrier and a timing
+                            loop sees the error a carrier-only `freq` offset
+                            hides. Accepts a (lo, hi) tuple drawn uniformly
+                            per repeat, like freq/snr. Zero doppler AND zero
+                            doppler_rate means no channel is built at all,
+                            so a source that does not ask for Doppler
+                            renders exactly as it always did. */
+    double doppler_rate; /* Linear ramp on `doppler`, in ppm per second of
+                            elapsed stream time. The channel runs through a
+                            segment's gaps as well as its on-time -- an
+                            emitter does not stop moving because its burst
+                            ended -- so this is per second, not per second
+                            of on-time. Accepts a (lo, hi) tuple drawn
+                            uniformly per repeat. */
+    double carrier_hz;   /* RF carrier in Hz that the ppm figures are
+                            referred to. It gives the coherent carrier
+                            rotation that accompanies the time-base warp; 0
+                            warps the clock alone, with no carrier rotation
+                            -- a legitimate scene, not an unset field.
+                            Independent of doppler/doppler_rate. */
     double doppler_hi;      /* upper bound when WFM_RANGE_DOPPLER is set */
     double doppler_rate_hi; /* upper bound when WFM_RANGE_DOPPLER_RATE */
-    int doppler_lifetime;   /* a wfm_doppler_lifetime_t */
+    int doppler_lifetime;   /* How long this source's Doppler channel lives.
+                               per_instance: the channel dies with each
+                               `repeats` instance, so the geometry restarts
+                               -- the repeated-trial shape, which composes
+                               with a ranged doppler re-drawn per instance.
+                               persist: one continuous pass carries across
+                               the segment's gaps and repeat instances,
+                               keyed by (segment, source) position -- the
+                               only lifetime under which doppler_rate
+                               accumulates across a multi-burst scene.
+                               Plan.prepare() REFUSES a persist source,
+                               because its cache renders each source
+                               independently and concurrently; compose() and
+                               stream() honour both. */
     /* A frame the CALLER built, and the answer to "what frame is this?"
        when it is set. The flat framing and coding fields below stay, as
        SUGAR that builds one of these -- so every existing scene, flag and
@@ -147,17 +215,33 @@ typedef struct {
     size_t acq_reps;     /* preamble repetitions */
     wfm_seq_t data_code; /* payload spreading code; len = spreading factor */
     wfm_seq_t sync;      /* frame-sync word bits; len 0 = none */
-    int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
+    int crc;             /* The frame trailer: crc16 appends a CRC-16-CCITT
+                            over the payload bits (what BurstDemod validates
+                            as frame_valid, and what makes a truth-free
+                            frame error rate possible); none omits it.
+                            Applies only to a FRAMED source: it defaults to
+                            crc16, so it alone never frames an otherwise
+                            plain pattern. */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
        epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather
        than a tenth entry in five hand-maintained name tables. 0 = burst.
        The frame fields (acq_code/sync/crc/bits) are meaningless when this is
        set and are rejected by the caller rather than silently ignored. */
-    double symbol_rate;  /* Hz; > 0 selects continuous async DSSS */
-    int dsss_code_only;  /* continuous dsss: 1 = code-only (--data none), no
-                            data modulation; 0 = data-modulated (payload if
-                            supplied, else the seeded PN). Ignored for burst. */
+    double symbol_rate;  /* For type=dsss: > 0 selects CONTINUOUS
+                            asynchronous mode. The spreading code repeats
+                            endlessly and data rides on it at this symbol
+                            rate (Hz), independent of the code-epoch rate
+                            (chips/symbol = fs/sps/symbol_rate,
+                            non-integer). No preamble/sync/CRC frame; data
+                            comes from the payload when supplied, else a
+                            seeded PN a receiver regenerates. Absent/0 =
+                            burst. */
+    int dsss_code_only;  /* Continuous dsss data source: 1 = code-only (the
+                            pure spreading code, no data modulation); 0 =
+                            data-modulated (the payload when supplied, else
+                            the seeded PN). Ignored for burst dsss and
+                            non-dsss types. */
     /* Channel coding over the frame, as STAGES with the spans they cover
        (wfm/wfm_frame.h). Each is optional and they do not all cover the same
        bits, which is the whole reason the frame is a description rather than
@@ -200,32 +284,32 @@ typedef struct {
 typedef struct {
     wfm_source_t *sources; /* n_sources sources summed at the same time */
     size_t n_sources;
-    double fs;             /* sample rate (Hz) — one per segment */
-    size_t num_samples;    /* on-time (samples) */
-    size_t off_samples;    /* off-time gap after the segment (samples) */
+    double fs;             /* Sample rate in Hz, one per segment and shared
+                              by all its sources. With fs = 1, frequencies
+                              are normalised. */
+    size_t num_samples;    /* Segment on-time in samples: the active span. */
+    size_t off_samples;    /* Trailing gap after the on-time, in samples. It
+                              carries the noise floor or hard zeros, per
+                              gap_noise. */
     unsigned ranged;       /* WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
     size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
     size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
-    /* Bounded instancing: play this segment `repeats` times back-to-back
-       (each instance = delay + on-time + trailing gap) before advancing.
-       Every ranged field re-draws per instance and the AWGN is always fresh
-       per instance, while the signal (codes/payload/PN phase) stays fixed —
-       so `repeats=5` with a ranged off_samples is a 5-burst train with
-       jittered gaps from one declaration. 0 and 1 both mean one instance;
-       instance 0 renders byte-identically to a repeats-less segment. */
+    /* Play the segment this many times back-to-back (each instance = delay
+       + on-time + trailing gap) before advancing. Ranged fields re-draw and
+       the AWGN is fresh per instance; the signal (codes, payload, PN phase)
+       stays fixed. 0 and 1 both mean one instance. */
     size_t repeats;
-    /* Leading gap before the on-time (samples) — "the burst arrives after a
-       delay". Ranged like off_samples (WFM_RANGE_DELAY_SAMPLES), re-drawn
-       per repeats instance, so a ranged delay is per-burst arrival jitter.
-       Inter-burst spacing composes as off(k) + delay(k+1). */
+    /* Leading gap before the on-time, in samples: the burst arrives after
+       this delay. Ranged like off_samples and re-drawn per repeats
+       instance, so a (lo, hi) delay is per-burst arrival jitter. Use
+       off_samples for inter-burst spacing, delay_samples for arrival
+       jitter. */
     size_t delay_samples;
     size_t delay_samples_hi; /* upper bound when WFM_RANGE_DELAY_SAMPLES */
-    /* Gap-noise policy for this segment's delay + trailing gap. 0 (auto,
-       the default): the gaps carry the segment's noise floor — every
-       source's additive-AWGN term keeps running (same stream, same power)
-       while the signal stops, so a noisy scene's inter-burst region is the
-       channel, not digital silence. Clean sources have no AWGN, so a clean
-       scene's gaps remain exact zeros. 1 (off): gaps are hard zeros. */
+    /* Gap policy for this segment's delay and trailing gap. auto: gaps
+       carry the segment's noise floor -- the sources' AWGN keeps running
+       while the signal stops (clean scenes still get exact-zero gaps). off:
+       gaps are hard zeros. */
     int gap_noise;
 } wfm_segment_t;
 

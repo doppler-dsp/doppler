@@ -23,6 +23,7 @@
    wfm_source_t.dsss_code_only, and read_dsss_source now assigns it. */
 #include "doppler/wfm/wfm_defaults.h" /* DEF_SRC / DEF_SEG */
 #include "doppler/wfm/wfm_names.h"
+#include "doppler/wfm/wfm_surface.h" /* the field rows, generated */
 
 /* A key a scene omits takes the MANIFEST's default -- the value the flags and
  * Python give for the same parameter -- read from the generated initialisers
@@ -31,18 +32,6 @@
  * (doppler#1596), the same way `fs` once rendered a tone at DC. */
 static const wfm_source_t  DEF_SRC = WFM_SOURCE_DEFAULTS;
 static const wfm_segment_t DEF_SEG = WFM_SEGMENT_DEFAULTS;
-
-/* Emit a source's RRC pulse-shaping fields when shaping is on (so a default
- * rect spec stays byte-identical). */
-static void
-add_pulse_fields (cJSON *o, const wfm_source_t *src)
-{
-  if (!src->pulse)
-    return;
-  cJSON_AddStringToObject (o, "pulse", "rrc");
-  cJSON_AddNumberToObject (o, "rrc_beta", src->rrc_beta);
-  cJSON_AddNumberToObject (o, "rrc_span", src->rrc_span);
-}
 
 static int
 name_index (const char *s, const char *const *names, int n)
@@ -161,8 +150,6 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
 {
   if (src->type != WFM_SYNTH_BITS)
     return;
-  int bm = (src->modulation >= 0 && src->modulation < 3) ? src->modulation : 1;
-  cJSON_AddStringToObject (o, "modulation", BITMOD_NAMES[bm]);
   if (src->payload.bits && src->payload.len)
     {
       char *bs = bits_to_string (src->payload.bits, src->payload.len);
@@ -300,7 +287,6 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
       add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
       add_seq_gen (o, "data_code_gen", &src->data_code);
       add_bit_string (o, "payload", src->payload.bits, src->payload.len);
-      cJSON_AddNumberToObject (o, "symbol_rate", src->symbol_rate);
       if (src->dsss_code_only) /* omit for the data-modulated default */
         cJSON_AddStringToObject (o, "data", "none");
       return;
@@ -382,40 +368,6 @@ add_num_or_range (cJSON *o, const char *key, double lo, double hi, int ranged)
     }
   else
     cJSON_AddNumberToObject (o, key, lo);
-}
-
-/* Emit a source's CLOCK DOPPLER, when it has any.
- *
- * Every key here is OMITTED at its default, for the same reason `level` and
- * `background` are: the emitted spec is what --record writes and --from-file
- * replays, so a key that is always present churns every recorded scene for a
- * field it does not use. A scene with no Doppler is byte-identical to one
- * written before this existed.
- *
- * `doppler`/`doppler_rate` go through add_num_or_range, so a ranged one
- * records the SPAN it was given rather than the value one instance drew --
- * "what does this spec permit" is the question a spec answers, and
- * dp_wfm_compose_draws() answers "what did this run do" separately. That is
- * what makes --record -> --from-file replay the same scene rather than one
- * frozen instance of it. */
-static void
-add_doppler_fields (cJSON *o, const wfm_source_t *src)
-{
-  if (src->doppler != 0.0 || (src->ranged & WFM_RANGE_DOPPLER))
-    add_num_or_range (o, "doppler", src->doppler, src->doppler_hi,
-                      src->ranged & WFM_RANGE_DOPPLER);
-  if (src->doppler_rate != 0.0 || (src->ranged & WFM_RANGE_DOPPLER_RATE))
-    add_num_or_range (o, "doppler_rate", src->doppler_rate,
-                      src->doppler_rate_hi,
-                      src->ranged & WFM_RANGE_DOPPLER_RATE);
-  /* The carrier the ppm is referred to. Independent of the two above --
-     0 means the time base is warped with no coherent carrier rotation, which
-     is a legitimate scene, not an unset field. */
-  if (src->carrier_hz != 0.0)
-    cJSON_AddNumberToObject (o, "carrier_hz", src->carrier_hz);
-  if (src->doppler_lifetime == WFM_DOPPLER_PERSIST)
-    cJSON_AddStringToObject (o, "doppler_lifetime",
-                             DOPPLER_LIFETIME_NAMES[WFM_DOPPLER_PERSIST]);
 }
 
 /* wfm_names.h's STAGE_KIND_NAMES deliberately carries no `cenum=`: the enum
@@ -600,43 +552,189 @@ add_frame_desc (cJSON *o, const wfm_source_t *src)
   cJSON_AddItemToObject (o, "frame", fr);
 }
 
-/* Add a source's fields to object `so` (no fs/num/off — those are the
- * segment's; level omitted at 0). Used for the "sum" array entries; the inline
- * 1-source form keeps its own field order for byte-identity. */
+/* ── the surface rows: every table field, both directions ──────────────
+ *
+ * A source's and a segment's plain fields are rows of the generated surface
+ * table (wfm/wfm_surface.h), and these two functions are the whole of their
+ * JSON face: one writes every row, the other reads every row, from the same
+ * table. A field cannot be spelled one way here and another on the command
+ * line, or written by one direction and forgotten by the other -- the
+ * failure the frame key tables below were already built to prevent.
+ *
+ * Each row carries its JSON policy from the manifest: omitted at its
+ * default (so a record does not churn for a field it does not use), written
+ * only while another row's choice has a given value (`f_end` for a chirp),
+ * written as a bool, or required. A default is never restated: it is read
+ * from WFM_SOURCE/SEGMENT_DEFAULTS at the row's own offset. */
+
+static const void *
+row_defaults (wfm_surf_owner_t owner)
+{
+  return owner == WFM_SURF_SOURCE ? (const void *)&DEF_SRC
+                                  : (const void *)&DEF_SEG;
+}
+
+static size_t
+row_ranged_off (wfm_surf_owner_t owner)
+{
+  return owner == WFM_SURF_SOURCE ? offsetof (wfm_source_t, ranged)
+                                  : offsetof (wfm_segment_t, ranged);
+}
+
+/* The value at `off` in `base`, as a double -- the one type cJSON speaks. */
+static double
+row_get (const wfm_surface_row_t *r, const void *base, size_t off)
+{
+  const char *p = (const char *)base + off;
+  switch (r->kind)
+    {
+    case WFM_SV_DOUBLE:
+      return *(const double *)p;
+    case WFM_SV_INT:
+    case WFM_SV_CHOICE:
+      return (double)*(const int *)p;
+    case WFM_SV_SIZE:
+      return (double)*(const size_t *)p;
+    case WFM_SV_U32:
+      return (double)*(const uint32_t *)p;
+    case WFM_SV_U64:
+      return (double)*(const uint64_t *)p;
+    case WFM_SV_SYMBOLS:
+      break; /* not a JSON row: a symbols stream has its own encoding */
+    }
+  return 0.0;
+}
+
+static void
+row_set (const wfm_surface_row_t *r, void *base, size_t off, double v)
+{
+  char *p = (char *)base + off;
+  switch (r->kind)
+    {
+    case WFM_SV_DOUBLE:
+      *(double *)p = v;
+      break;
+    case WFM_SV_INT:
+    case WFM_SV_CHOICE:
+      *(int *)p = (int)v;
+      break;
+    case WFM_SV_SIZE:
+      *(size_t *)p = (size_t)v;
+      break;
+    case WFM_SV_U32:
+      *(uint32_t *)p = (uint32_t)v;
+      break;
+    case WFM_SV_U64:
+      *(uint64_t *)p = (uint64_t)v;
+      break;
+    case WFM_SV_SYMBOLS:
+      break;
+    }
+}
+
+/* A choice row's index, with an out-of-range value read as the default. */
+static int
+row_choice (const wfm_surface_row_t *r, const void *base)
+{
+  const int i = (int)row_get (r, base, r->off);
+  return (i >= 0 && i < r->n_choices)
+             ? i
+             : (int)row_get (r, row_defaults (r->owner), r->off);
+}
+
+/* Write every JSON row of `owner` held in `base`, in table order. */
+static void
+add_rows (cJSON *o, wfm_surf_owner_t owner, const void *base)
+{
+  const void    *def = row_defaults (owner);
+  const unsigned ranged
+      = *(const unsigned *)((const char *)base + row_ranged_off (owner));
+  for (size_t k = 0; k < WFM_SURFACE_N; k++)
+    {
+      const wfm_surface_row_t *r = &WFM_SURFACE[k];
+      if (r->owner != owner || !r->json)
+        continue;
+      if (r->has_when
+          && row_choice (&WFM_SURFACE[r->when_row], base) != r->when_value)
+        continue;
+      const int    is_ranged = r->range_bit && (ranged & r->range_bit);
+      const double v = r->kind == WFM_SV_CHOICE ? row_choice (r, base)
+                                                : row_get (r, base, r->off);
+      /* Omitted at its default, AND at zero: a C caller that zero-fills a
+         struct means "unset" by it, and for every omitted row but `repeats`
+         the two are the same value -- for `repeats`, 0 and 1 both mean one
+         instance (wfm_compose.h). A ranged field is never omitted: it
+         records its SPAN. */
+      if (r->json_omit && !is_ranged
+          && (v == 0.0 || v == row_get (r, def, r->off)))
+        continue;
+      if (r->kind == WFM_SV_CHOICE)
+        cJSON_AddStringToObject (o, r->json, r->choices[(int)v]);
+      else if (r->json_bool)
+        cJSON_AddBoolToObject (o, r->json, v != 0.0);
+      else if (r->range_bit)
+        add_num_or_range (o, r->json, v, row_get (r, base, r->hi_off),
+                          is_ranged);
+      else
+        cJSON_AddNumberToObject (o, r->json, v);
+    }
+}
+
+/* Read every JSON row of `owner` into `base`; an absent key, or an unknown
+   choice name, is the row's default. Returns -1 only for a REQUIRED row that
+   is absent or unrecognised (a source's `type`). */
+static int
+read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base)
+{
+  const void *def    = row_defaults (owner);
+  unsigned   *ranged = (unsigned *)((char *)base + row_ranged_off (owner));
+  for (size_t k = 0; k < WFM_SURFACE_N; k++)
+    {
+      const wfm_surface_row_t *r = &WFM_SURFACE[k];
+      if (r->owner != owner || !r->json)
+        continue;
+      const double dv = row_get (r, def, r->off);
+      const cJSON *it = cJSON_GetObjectItemCaseSensitive (o, r->json);
+      if (r->kind == WFM_SV_CHOICE)
+        {
+          int i = name_index (cJSON_GetStringValue (it), r->choices,
+                              r->n_choices);
+          if (i < 0)
+            {
+              if (r->json_required)
+                return -1;
+              i = (int)dv;
+            }
+          row_set (r, base, r->off, i);
+        }
+      else if (r->json_bool)
+        row_set (r, base, r->off, cJSON_IsTrue (it) ? 1.0 : 0.0);
+      else if (r->range_bit)
+        {
+          double       hi = 0.0;
+          int          rg = 0;
+          const double v  = num_or_range (o, r->json, dv, &hi, &rg);
+          row_set (r, base, r->off, v);
+          row_set (r, base, r->hi_off, hi);
+          *ranged = rg ? (*ranged | r->range_bit) : (*ranged & ~r->range_bit);
+        }
+      else
+        row_set (r, base, r->off, num (o, r->json, dv));
+    }
+  return 0;
+}
+
+/* Add a source's fields to object `so`: its surface rows, then the frame and
+ * payload keys the table does not own. Both segment forms use it -- the
+ * inline 1-source form after the segment's rows, and each "sum" entry. */
 static void
 add_source_obj (cJSON *so, const wfm_source_t *src)
 {
-  int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
-  int m = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
-  cJSON_AddStringToObject (so, "type", TYPE_NAMES[t]);
-  add_num_or_range (so, "freq", src->freq, src->freq_hi,
-                    src->ranged & WFM_RANGE_FREQ);
-  if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency + sweep span */
-    {
-      add_num_or_range (so, "f_end", src->f_end, src->f_end_hi,
-                        src->ranged & WFM_RANGE_FEND);
-      if (src->span)
-        cJSON_AddNumberToObject (so, "span", (double)src->span);
-    }
-  add_num_or_range (so, "snr", src->snr, src->snr_hi,
-                    src->ranged & WFM_RANGE_SNR);
-  cJSON_AddStringToObject (so, "snr_mode", MODE_NAMES[m]);
-  cJSON_AddNumberToObject (so, "seed", (double)src->seed);
-  cJSON_AddNumberToObject (so, "sps", src->sps);
-  cJSON_AddNumberToObject (so, "pn_length", src->pn_length);
-  cJSON_AddNumberToObject (so, "pn_poly", (double)src->pn_poly);
-  cJSON_AddStringToObject (so, "lfsr", LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
-  if (src->level != 0.0 || (src->ranged & WFM_RANGE_LEVEL))
-    add_num_or_range (so, "level", src->level, src->level_hi,
-                      src->ranged & WFM_RANGE_LEVEL);
-  if (src->background) /* omit when false so old specs are unchanged */
-    cJSON_AddBoolToObject (so, "background", 1);
-  add_doppler_fields (so, src);
+  add_rows (so, WFM_SURF_SOURCE, src);
   add_bits_fields (so, src);
   add_stage_fields (so, src);
   add_symbols_fields (so, src);
   add_dsss_fields (so, src);
-  add_pulse_fields (so, src);
   /* Last, and only when one is carried: a source without a description
      writes exactly the bytes it wrote before this key existed. */
   add_frame_desc (so, src);
@@ -879,101 +977,20 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
   return 0;
 }
 
-/* Read a source's CLOCK DOPPLER, the mirror of add_doppler_fields().
- *
- * Absent means zero, which is what every scene written before this existed
- * says and what a scene with no Doppler still says -- and zero on both fields
- * is what makes the composer build no channel at all, so an old spec renders
- * through exactly the code it always did.
- *
- * ORs into `out->ranged` rather than assigning it: the caller's struct literal
- * has already set the freq/snr/level/f_end bits. */
-static void
-read_doppler_fields (const cJSON *so, wfm_source_t *out)
-{
-  double dop_hi = 0, rate_hi = 0;
-  int    rd = 0, rr = 0;
-  out->doppler         = num_or_range (so, "doppler", 0.0, &dop_hi, &rd);
-  out->doppler_rate    = num_or_range (so, "doppler_rate", 0.0, &rate_hi, &rr);
-  out->doppler_hi      = dop_hi;
-  out->doppler_rate_hi = rate_hi;
-  out->ranged |= (unsigned)((rd ? WFM_RANGE_DOPPLER : 0)
-                            | (rr ? WFM_RANGE_DOPPLER_RATE : 0));
-  out->carrier_hz = num (so, "carrier_hz", 0.0);
-  /* An unrecognised name falls to PER_INSTANCE, index 0 -- the same way an
-     unknown `lfsr` or `snr_mode` falls to its index 0. A name a newer writer
-     invented is a lifetime this build cannot honour, and the repeated-trial
-     shape is the one that does not silently carry state across a scene. */
-  const int lt
-      = name_index (cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (
-                        so, "doppler_lifetime")),
-                    DOPPLER_LIFETIME_NAMES, 2);
-  out->doppler_lifetime = (lt == WFM_DOPPLER_PERSIST)
-                              ? WFM_DOPPLER_PERSIST
-                              : WFM_DOPPLER_PER_INSTANCE;
-}
-
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
 parse_source_obj (const cJSON *so, wfm_source_t *out)
 {
-  const cJSON *ty = cJSON_GetObjectItemCaseSensitive (so, "type");
-  int          t = name_index (cJSON_GetStringValue (ty), TYPE_NAMES, N_TYPES);
-  if (t < 0)
+  /* Every field outside the table starts at zero, except acq_reps, whose
+     default is not "absent"; every table row is read -- or defaulted -- by
+     read_rows, which refuses a missing or unknown `type`. */
+  *out = (wfm_source_t){ .acq_reps = DEF_SRC.acq_reps };
+  if (read_rows (so, WFM_SURF_SOURCE, out) != 0)
     return -1;
-  const cJSON *md = cJSON_GetObjectItemCaseSensitive (so, "snr_mode");
-  int          m  = name_index (cJSON_GetStringValue (md), MODE_NAMES, 4);
-  /* freq/snr/level/f_end each accept a scalar or a [lo, hi] uniform range. */
-  double freq_hi = 0, snr_hi = 0, level_hi = 0, f_end_hi = 0;
-  int    rf = 0, rs = 0, rl = 0, re = 0;
-  double freq  = num_or_range (so, "freq", 0.0, &freq_hi, &rf);
-  double snr   = num_or_range (so, "snr", DEF_SRC.snr, &snr_hi, &rs);
-  double level = num_or_range (so, "level", 0.0, &level_hi, &rl);
-  double f_end = num_or_range (so, "f_end", 0.0, &f_end_hi, &re);
-  *out         = (wfm_source_t){
-    .type      = t,
-    .freq      = freq,
-    .snr       = snr,
-    .snr_mode  = (m < 0) ? 0 : m,
-    .seed      = (uint32_t)num (so, "seed", DEF_SRC.seed),
-    .sps       = (int)num (so, "sps", DEF_SRC.sps),
-    .pn_length = (int)num (so, "pn_length", DEF_SRC.pn_length),
-    .pn_poly   = (uint64_t)num (so, "pn_poly", 0),
-    .lfsr  = (name_index (cJSON_GetStringValue (
-                              cJSON_GetObjectItemCaseSensitive (so, "lfsr")),
-                          LFSR_NAMES, 2)
-              == 1)
-                 ? 1
-                 : 0,
-    .level = level,
-    .background
-    = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "background")) ? 1
-                                                                         : 0,
-    .f_end = f_end,
-    .span  = (size_t)num (so, "span", 0),
-    .ranged
-    = (unsigned)((rf ? WFM_RANGE_FREQ : 0) | (rs ? WFM_RANGE_SNR : 0)
-                 | (rl ? WFM_RANGE_LEVEL : 0) | (re ? WFM_RANGE_FEND : 0)),
-    .freq_hi  = freq_hi,
-    .snr_hi   = snr_hi,
-    .level_hi = level_hi,
-    .f_end_hi = f_end_hi,
-    /* read below only on the branch that uses them; the default still
-       stands for every other source, as it does on the other faces */
-    .modulation = DEF_SRC.modulation,
-    .rrc_beta   = DEF_SRC.rrc_beta,
-    .rrc_span   = DEF_SRC.rrc_span,
-    .acq_reps   = DEF_SRC.acq_reps,
-  };
-  read_doppler_fields (so, out);
+  const int t = out->type;
   if (t == WFM_SYNTH_BITS)
     {
-      int bm = name_index (
-          cJSON_GetStringValue (
-              cJSON_GetObjectItemCaseSensitive (so, "modulation")),
-          BITMOD_NAMES, 3);
-      out->modulation       = (bm < 0) ? DEF_SRC.modulation : bm;
       const cJSON *pat      = cJSON_GetObjectItemCaseSensitive (so, "pattern");
       const char  *patt_str = cJSON_GetStringValue (pat);
       if (patt_str)
@@ -1040,9 +1057,6 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
               return -1;
             }
         }
-      /* symbol_rate > 0 selects the continuous async mode (data clock
-         independent of the code); absent/0 = burst. */
-      out->symbol_rate = num (so, "symbol_rate", 0.0);
       /* "data": "prbs" (default) / absent = the seeded PN; "none" = code-only
          (pure code, no modulation); a payload overrides to itself. The
          table's index IS dsss_code_only, so the lookup assigns rather than
@@ -1091,15 +1105,6 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           out->n_symbols = ns;
         }
     }
-  if (name_index (cJSON_GetStringValue (
-                      cJSON_GetObjectItemCaseSensitive (so, "pulse")),
-                  PULSE_NAMES, 2)
-      == 1)
-    {
-      out->pulse    = 1;
-      out->rrc_beta = num (so, "rrc_beta", DEF_SRC.rrc_beta);
-      out->rrc_span = (int)num (so, "rrc_span", DEF_SRC.rrc_span);
-    }
   return 0;
 }
 
@@ -1127,81 +1132,15 @@ dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
     {
       const wfm_segment_t *g = &segs[i];
       cJSON               *s = cJSON_CreateObject ();
+      /* The segment's own rows, then its source: inline for one (the
+         compact form a hand-written scene uses), as a "sum" array for more.
+         Both forms are the same rows in the same order, so a key cannot be
+         written by one and missed by the other. */
+      add_rows (s, WFM_SURF_SEGMENT, g);
       if (g->n_sources == 1)
-        {
-          /* 1-source inline form — field order frozen for byte-identity. */
-          const wfm_source_t *src = &g->sources[0];
-          int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
-          int m
-              = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
-          cJSON_AddStringToObject (s, "type", TYPE_NAMES[t]);
-          cJSON_AddNumberToObject (s, "fs", g->fs);
-          add_num_or_range (s, "freq", src->freq, src->freq_hi,
-                            src->ranged & WFM_RANGE_FREQ);
-          if (src->type == WFM_SYNTH_CHIRP) /* end frequency + sweep span */
-            {
-              add_num_or_range (s, "f_end", src->f_end, src->f_end_hi,
-                                src->ranged & WFM_RANGE_FEND);
-              if (src->span)
-                cJSON_AddNumberToObject (s, "span", (double)src->span);
-            }
-          add_num_or_range (s, "snr", src->snr, src->snr_hi,
-                            src->ranged & WFM_RANGE_SNR);
-          cJSON_AddStringToObject (s, "snr_mode", MODE_NAMES[m]);
-          cJSON_AddNumberToObject (s, "seed", (double)src->seed);
-          cJSON_AddNumberToObject (s, "sps", src->sps);
-          cJSON_AddNumberToObject (s, "pn_length", src->pn_length);
-          cJSON_AddNumberToObject (s, "pn_poly", (double)src->pn_poly);
-          cJSON_AddStringToObject (s, "lfsr",
-                                   LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
-          add_num_or_range (s, "num_samples", (double)g->num_samples,
-                            (double)g->num_samples_hi,
-                            g->ranged & WFM_RANGE_NUM_SAMPLES);
-          add_num_or_range (s, "off_samples", (double)g->off_samples,
-                            (double)g->off_samples_hi,
-                            g->ranged & WFM_RANGE_OFF_SAMPLES);
-          if (g->repeats > 1) /* omit at 1 so old specs are unchanged */
-            cJSON_AddNumberToObject (s, "repeats", (double)g->repeats);
-          if (g->delay_samples || (g->ranged & WFM_RANGE_DELAY_SAMPLES))
-            add_num_or_range (s, "delay_samples", (double)g->delay_samples,
-                              (double)g->delay_samples_hi,
-                              g->ranged & WFM_RANGE_DELAY_SAMPLES);
-          if (g->gap_noise) /* omit at auto so old specs are unchanged */
-            cJSON_AddStringToObject (s, "gap_noise", "off");
-          if (src->level != 0.0 /* omit at 0 dBFS so old specs are unchanged */
-              || (src->ranged & WFM_RANGE_LEVEL))
-            add_num_or_range (s, "level", src->level, src->level_hi,
-                              src->ranged & WFM_RANGE_LEVEL);
-          if (src->background) /* omit when false so old specs are unchanged */
-            cJSON_AddBoolToObject (s, "background", 1);
-          add_doppler_fields (s, src);
-          add_bits_fields (s, src);
-          add_stage_fields (s, src);
-          add_symbols_fields (s, src);
-          add_dsss_fields (s, src);
-          add_pulse_fields (s, src);
-          /* Appended last, so this form's frozen field order is unchanged
-             for every source that carries no description. */
-          add_frame_desc (s, src);
-        }
+        add_source_obj (s, &g->sources[0]);
       else
         {
-          /* multi-source: segment-level fs/num/off + a "sum" of sources. */
-          cJSON_AddNumberToObject (s, "fs", g->fs);
-          add_num_or_range (s, "num_samples", (double)g->num_samples,
-                            (double)g->num_samples_hi,
-                            g->ranged & WFM_RANGE_NUM_SAMPLES);
-          add_num_or_range (s, "off_samples", (double)g->off_samples,
-                            (double)g->off_samples_hi,
-                            g->ranged & WFM_RANGE_OFF_SAMPLES);
-          if (g->repeats > 1) /* omit at 1 so old specs are unchanged */
-            cJSON_AddNumberToObject (s, "repeats", (double)g->repeats);
-          if (g->delay_samples || (g->ranged & WFM_RANGE_DELAY_SAMPLES))
-            add_num_or_range (s, "delay_samples", (double)g->delay_samples,
-                              (double)g->delay_samples_hi,
-                              g->ranged & WFM_RANGE_DELAY_SAMPLES);
-          if (g->gap_noise) /* omit at auto so old specs are unchanged */
-            cJSON_AddStringToObject (s, "gap_noise", "off");
           cJSON *sum = cJSON_AddArrayToObject (s, "sum");
           for (size_t k = 0; k < g->n_sources; k++)
             {
@@ -1366,38 +1305,9 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
             goto reject;
           }
       }
-    double num_hi = 0, off_hi = 0, dly_hi = 0;
-    int    rn = 0, ro = 0, rd = 0;
-    double n_samp  = num_or_range (s, "num_samples",
-                                   (double)DEF_SEG.num_samples, &num_hi, &rn);
-    double o_samp  = num_or_range (s, "off_samples", 0, &off_hi, &ro);
-    double d_samp  = num_or_range (s, "delay_samples", 0, &dly_hi, &rd);
-    const char *gn = cJSON_GetStringValue (
-        cJSON_GetObjectItemCaseSensitive (s, "gap_noise"));
-    segs[i] = (wfm_segment_t){
-      .sources   = srcs,
-      .n_sources = ns,
-      /* 1.0, NOT 1e6, and the difference is a silently wrong waveform.
-         `--fs` is documented as "default 1.0; freq treated as normalised",
-         so a scene written to that contract -- `{"type":"tone","freq":0.08}`
-         -- rendered at 0.08 Hz against an unstated 1 MHz rate, i.e. at DC,
-         with no error anywhere. The flag parser and this reader are two
-         faces of one generator and may not disagree about a default. Found
-         by rate_converter_demo failing its own frequency check with the tone
-         1245 bins off. */
-      .fs               = num (s, "fs", DEF_SEG.fs),
-      .num_samples      = (size_t)n_samp,
-      .off_samples      = (size_t)o_samp,
-      .ranged           = (unsigned)((rn ? WFM_RANGE_NUM_SAMPLES : 0)
-                                     | (ro ? WFM_RANGE_OFF_SAMPLES : 0)
-                                     | (rd ? WFM_RANGE_DELAY_SAMPLES : 0)),
-      .num_samples_hi   = (size_t)num_hi,
-      .off_samples_hi   = (size_t)off_hi,
-      .repeats          = (size_t)num (s, "repeats", (double)DEF_SEG.repeats),
-      .delay_samples    = (size_t)d_samp,
-      .delay_samples_hi = (size_t)dly_hi,
-      .gap_noise        = (gn && strcmp (gn, "off") == 0) ? 1 : 0,
-    };
+    segs[i] = (wfm_segment_t){ .sources = srcs, .n_sources = ns };
+    /* A segment has no required row, so this cannot refuse. */
+    (void)read_rows (s, WFM_SURF_SEGMENT, &segs[i]);
     i++;
     continue;
   reject:

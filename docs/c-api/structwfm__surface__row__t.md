@@ -38,7 +38,12 @@
 | ---: | :--- |
 |  const char \*const  \* | [**choices**](#variable-choices)  <br> |
 |  const char \* | [**cli**](#variable-cli)  <br> |
+|  int | [**has\_when**](#variable-has_when)  <br> |
 |  size\_t | [**hi\_off**](#variable-hi_off)  <br> |
+|  const char \* | [**json**](#variable-json)  <br> |
+|  int | [**json\_bool**](#variable-json_bool)  <br> |
+|  int | [**json\_omit**](#variable-json_omit)  <br> |
+|  int | [**json\_required**](#variable-json_required)  <br> |
 |  [**wfm\_sv\_kind\_t**](wfm__surface_8h.md#enum-wfm_sv_kind_t) | [**kind**](#variable-kind)  <br> |
 |  size\_t | [**len\_off**](#variable-len_off)  <br> |
 |  int | [**n\_choices**](#variable-n_choices)  <br> |
@@ -47,6 +52,8 @@
 |  [**wfm\_surf\_owner\_t**](wfm__surface_8h.md#enum-wfm_surf_owner_t) | [**owner**](#variable-owner)  <br> |
 |  unsigned | [**range\_bit**](#variable-range_bit)  <br> |
 |  int | [**unit\_interval**](#variable-unit_interval)  <br> |
+|  int | [**when\_row**](#variable-when_row)  <br> |
+|  int | [**when\_value**](#variable-when_value)  <br> |
 
 
 
@@ -122,10 +129,75 @@ const char* wfm_surface_row_t::cli;
 
 
 
+### variable has\_when 
+
+```C++
+int wfm_surface_row_t::has_when;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable hi\_off 
 
 ```C++
 size_t wfm_surface_row_t::hi_off;
+```
+
+
+
+
+<hr>
+
+
+
+### variable json 
+
+```C++
+const char* wfm_surface_row_t::json;
+```
+
+
+
+
+<hr>
+
+
+
+### variable json\_bool 
+
+```C++
+int wfm_surface_row_t::json_bool;
+```
+
+
+
+
+<hr>
+
+
+
+### variable json\_omit 
+
+```C++
+int wfm_surface_row_t::json_omit;
+```
+
+
+
+
+<hr>
+
+
+
+### variable json\_required 
+
+```C++
+int wfm_surface_row_t::json_required;
 ```
 
 
@@ -230,6 +302,32 @@ unsigned wfm_surface_row_t::range_bit;
 
 ```C++
 int wfm_surface_row_t::unit_interval;
+```
+
+
+
+
+<hr>
+
+
+
+### variable when\_row 
+
+```C++
+int wfm_surface_row_t::when_row;
+```
+
+
+
+
+<hr>
+
+
+
+### variable when\_value 
+
+```C++
+int wfm_surface_row_t::when_value;
 ```
 
 

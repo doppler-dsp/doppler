@@ -403,6 +403,7 @@
 * **have\_ontime** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **h** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **have\_prev\_idx** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
+* **has\_when** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **hi\_off** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
@@ -460,6 +461,14 @@
 * **interleave\_depth** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **interleave\_unit\_bits** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **in\_unit** ([**wfm\_stage\_op\_t**](structwfm__stage__op__t.md))
+
+
+## j
+
+* **json** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **json\_bool** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **json\_omit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **json\_required** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## k
@@ -1024,6 +1033,8 @@
 * **worst\_spur\_dbc** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **worst\_spur\_freq** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **worst\_spur\_is\_harm** ([**tone\_meas\_t**](structtone__meas__t.md))
+* **when\_row** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **when\_value** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## y

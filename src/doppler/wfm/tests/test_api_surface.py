@@ -46,6 +46,8 @@ COVERAGE: dict[str, str] = {
     "Composer": "TestComposerGraph",
     # a scene's drawn ground truth — dedicated tests in test_compose.py
     "draws": "test_compose.py",
+    # the Field text form's door -- dedicated tests in test_field_bits.py
+    "field_bits": "test_field_bits.py",
     # factories
     "tone": "TestFactories",
     "noise": "TestFactories",

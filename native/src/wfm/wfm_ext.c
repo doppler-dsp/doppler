@@ -199,6 +199,33 @@ _bind_rc_h (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_field_bits (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "spec", NULL };
+  const char  *spec      = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &spec))
+    return NULL;
+  npy_intp  _dim = (npy_intp)(dp_wfm_field_bits (spec, NULL, 0, NULL));
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
+  if (!_out)
+    {
+      return NULL;
+    }
+  size_t _n = (size_t)dp_field_bits (
+      spec, (uint8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  if (_n == 0)
+    {
+      Py_DECREF (_out);
+      PyErr_SetString (PyExc_RuntimeError,
+                       "dp_field_bits failed (returned 0)");
+      return NULL;
+    }
+  PyArray_DIMS ((PyArrayObject *)_out)[0] = (npy_intp)_n;
+  return _out;
+}
+
+static PyObject *
 _bind_rrc_taps (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -416,6 +443,49 @@ static PyMethodDef wfm_module_methods[] = {
     "produces, so this is what models the matched-filter OUTPUT directly — a "
     "timing-detector S-curve reference, or a receiver test with its front end "
     "collapsed away.\n" },
+  { "field_bits", (PyCFunction)(void *)_bind_field_bits,
+    METH_VARARGS | METH_KEYWORDS,
+    "A Field's bits from its text form: `0101`, `0x1ACFFC1D`, "
+    "`pn:LEN:REG[:SEED[:POLY]][:galois|fibonacci]`, "
+    "`gold:LEN:REG:TA:SA:TB:SB`, `dotted:LEN`, each optionally `*REPS`. The "
+    "one door from text to the bits every frame object takes, over the one C "
+    "parser (docs/design/frame-description.md §F.1). Text outside the grammar "
+    "raises.\n"
+    "\n"
+    "The grammar is docs/design/frame-description.md §F.1, read once by\n"
+    "dp_wfm_field_parse and rendered once by dp_wfm_field_render, both\n"
+    "inside dp_wfm_field_bits; this is that call with the output sized to\n"
+    "fit. `0101` and `0x1ACFFC1D` are literals, `pn:LEN:REG[:SEED\n"
+    "[:POLY]][:galois|fibonacci]`, `gold:LEN:REG:TA:SA:TB:SB` and\n"
+    "`dotted:LEN` are generated, and any of them takes `*REPS`. Text outside\n"
+    "the grammar is refused, never repaired: `pn::10`, `12abc` and `0102`\n"
+    "all raise.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "spec : str\n"
+    "    NUL-terminated Field text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    the bits written, or 0 on refusal (the binding raises).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import field_bits\n"
+    ">>> field_bits(\"0x1A\").tolist()          # hex, MSB first\n"
+    "[0, 0, 0, 1, 1, 0, 1, 0]\n"
+    ">>> field_bits(\"dotted:4*2\").tolist()    # a repeat is the same bits "
+    "again\n"
+    "[1, 0, 1, 0, 1, 0, 1, 0]\n"
+    ">>> len(field_bits(\"pn:1023:10\"))        # an m-sequence, 10-bit "
+    "register\n"
+    "1023\n"
+    ">>> field_bits(\"pn::10\")\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "RuntimeError: dp_field_bits failed (returned 0)\n" },
   { "rrc_taps", (PyCFunction)(void *)_bind_rrc_taps,
     METH_VARARGS | METH_KEYWORDS,
     "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 "

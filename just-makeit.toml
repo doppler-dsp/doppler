@@ -1022,6 +1022,19 @@ name = "beta"
 type = "double"
 
 [[module.wfm.functions]]
+name = "field_bits"
+doc = "A Field's bits from its text form: `0101`, `0x1ACFFC1D`, `pn:LEN:REG[:SEED[:POLY]][:galois|fibonacci]`, `gold:LEN:REG:TA:SA:TB:SB`, `dotted:LEN`, each optionally `*REPS`. The one door from text to the bits every frame object takes, over the one C parser (docs/design/frame-description.md §F.1). Text outside the grammar raises."
+return_type = "size_t"
+out_type = "uint8_t"
+variable_output = true
+out_size = "dp_wfm_field_bits(spec, NULL, 0, NULL)"
+check_return = true
+
+[[module.wfm.functions.params]]
+name = "spec"
+type = "const char *"
+
+[[module.wfm.functions]]
 name = "rrc_taps"
 doc = "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."
 out_type = "float"

@@ -899,9 +899,9 @@ is left is what a demodulator is for.
 covers which, because the answer is a specification's. That table —
 marker/preamble/sync are found-not-decoded, payload/CRC/parity is the data
 group, the inner code covers everything — is CCSDS 131.0-B-6 10.3.4
-generalised, so it lives in `dp_ccsds_tm_frame_desc_of()`, next to the ASM
-bits and the RS parity size it needs. The generator's bridge is an adapter
-over it; a receiver calls neither.
+generalised. It lives where descriptions are built from a source,
+`dp_wfm_source_describe_frame()`, and is checked there against the stage
+kernels applied by hand. A receiver calls neither.
 
 ### 10.3 What the split cost, and what it bought
 

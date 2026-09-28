@@ -84,3 +84,9 @@ test_acq_core.c  -2: the burst engine takes a preamble as its samples only
   `code_bins`/`fs` equal). Both are now the one samples constructor, so the
   comparison could not fail. What it guarded is still asserted: a 31-chip
   code held 4 samples a chip gets `zone == spc`.
+test_ccsds_tm_frame.c -> test_wfm_compose.c removes=1  #853 item 8: the
+  #1031 stage-list section went with `dp_ccsds_tm_frame_desc_of`. Its
+  `desc_of(...) == 0` pinned the deleted function (the 1 removed). The stage
+  count and "every stage covers something" moved to test_wfm_compose's
+  bridge oracle, over nine source shapes instead of four. The interleave
+  stage's depth/unit check is covered there by the interleaved bits.

@@ -33,7 +33,6 @@
 * [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md)
 * [**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md)
 * [**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md)
-* [**ccsds\_tm\_frame\_spec\_t**](structccsds__tm__frame__spec__t.md)
 * [**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md)
 * [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md)
 * [**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md)

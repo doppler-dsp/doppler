@@ -550,7 +550,6 @@
 * **dp\_ccsds\_tm\_randomise** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_randomise\_with** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_frame\_decode** ([**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md))
-* **dp\_ccsds\_tm\_frame\_desc\_of** ([**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md))
 * **dp\_ccsds\_tm\_frame\_describe** ([**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md))
 * **dp\_ccsds\_tm\_frame\_encode** ([**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md))
 * **dp\_ccsds\_tm\_frame\_layout** ([**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md))

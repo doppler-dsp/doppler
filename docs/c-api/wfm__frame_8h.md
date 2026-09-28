@@ -85,6 +85,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**dp\_wfm\_frame\_add\_derived**](#function-dp_wfm_frame_add_derived) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name, size\_t bits) <br>_Append a named DERIVED field — one a stage will fill. Returns its index, or -1._  |
 |  int | [**dp\_wfm\_frame\_add\_field**](#function-dp_wfm_frame_add_field) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* seq, size\_t reps) <br>_Append a named field. Returns its index, or -1._  |
 |  int | [**dp\_wfm\_frame\_add\_stage**](#function-dp_wfm_frame_add_stage) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, const char \* first, const char \* last) <br>_Append a stage covering_ `[first .. last]` _BY NAME. Returns its index, or -1._ |
+|  int | [**dp\_wfm\_frame\_add\_stage\_at**](#function-dp_wfm_frame_add_stage_at) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, unsigned first, unsigned n\_fields) <br>_Append a stage covering_ `n_fields` _fields from index_`first` _. Returns its index, or -1._ |
 |  size\_t | [**dp\_wfm\_frame\_assemble**](#function-dp_wfm_frame_assemble) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* out, size\_t max\_out) <br>_Materialise a description: run every field, then every stage._  |
 |  size\_t | [**dp\_wfm\_frame\_bits**](#function-dp_wfm_frame_bits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, uint8\_t \* out, size\_t max\_out) <br>_Materialise the frame as one flat 0/1 bit array._  |
 |  int | [**dp\_wfm\_frame\_check**](#function-dp_wfm_frame_check) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* bits, [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) \* rx) <br>_Undo a description's stages over a received frame, and report._  |
@@ -686,6 +687,49 @@ The cover is the whole point of the representation and this is the form that rea
 **Returns:**
 
 the new stage's index, or -1 on NULL, a full description, a name neither field carries, or `last` before `first`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_frame\_add\_stage\_at 
+
+_Append a stage covering_ `n_fields` _fields from index_`first` _. Returns its index, or -1._
+```C++
+int dp_wfm_frame_add_stage_at (
+    wfm_frame_desc_t * d,
+    uint32_t kind,
+    unsigned first,
+    unsigned n_fields
+) 
+```
+
+
+
+The index form of [**dp\_wfm\_frame\_add\_stage**](wfm__frame_8h.md#function-dp_wfm_frame_add_stage), which resolves its two names and calls this. Both wire a derived field's producer the same way, by the one rule stated there, so a caller counting fields and a caller naming them build the same description.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description. 
+* `kind` a [**wfm\_stage\_kind\_t**](wfm__frame_8h.md#enum-wfm_stage_kind_t) value, or a caller's own. 
+* `first` index of the first field covered. 
+* `n_fields` fields covered; 0 means the stage does not run. 
+
+
+
+**Returns:**
+
+the new stage's index, or -1 on NULL or a full description. A cover past the fields is not refused here: the layout judges it. 
 
 
 

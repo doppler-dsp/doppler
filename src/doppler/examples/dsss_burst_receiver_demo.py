@@ -383,11 +383,10 @@ print(
 # opinion about them (doppler#1022). Turning those into a payload — and into
 # a verdict — needs the frame's description, which is what `FrameDesc` is.
 # One object, built once, describing exactly what the generator built.
-empty = np.empty(0, np.uint8)
-deframer = FrameDesc(empty, empty, empty)
-deframer.add_field(SYNC)  # found, not decoded
-deframer.add_field(np.zeros(PAYLOAD, np.uint8))  # the geometry
-deframer.add_field(empty, derived_by=1, derived_bits=16)  # the CRC, by stage 0
+deframer = FrameDesc()
+deframer.add_field("sync", SYNC)  # found, not decoded
+deframer.add_field("payload", np.zeros(PAYLOAD, np.uint8))  # the geometry
+deframer.add_derived("crc", 16)  # the CRC; the stage below fills it
 deframer.add_stage(0, first_field=1, n_fields=2)  # CRC-16 over both
 deframer.build()
 

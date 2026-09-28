@@ -1250,22 +1250,17 @@ dp_wfm_frame_add_derived (wfm_frame_desc_t *d, const char *name, size_t bits)
 }
 
 int
-dp_wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
-                        const char *last)
+dp_wfm_frame_add_stage_at (wfm_frame_desc_t *d, uint32_t kind, unsigned first,
+                           unsigned n_fields)
 {
   if (!d || d->n_stages >= WFM_FRAME_MAX_STAGES)
-    return -1;
-
-  const int a = dp_wfm_frame_field_index (d, first);
-  const int b = dp_wfm_frame_field_index (d, last);
-  if (a < 0 || b < 0 || b < a)
     return -1;
 
   const unsigned s = d->n_stages;
   memset (&d->stage[s], 0, sizeof d->stage[s]);
   d->stage[s].kind        = kind;
-  d->stage[s].first_field = (unsigned)a;
-  d->stage[s].n_fields    = (unsigned)(b - a) + 1u;
+  d->stage[s].first_field = first;
+  d->stage[s].n_fields    = n_fields;
   d->n_stages             = s + 1u;
 
   /* Wire the derived field's producer, if the last covered field is one.
@@ -1274,10 +1269,27 @@ dp_wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
      refuses any description where such a field is not the last of its
      producing stage's cover. So there is exactly one stage it could name,
      and wiring it here is what stops a caller stating it a second, different
-     way. */
-  wfm_field_t *lastf = &d->field[b];
-  if (lastf->bits > 0u && lastf->seq.len == 0u && lastf->derived_by == 0u)
-    lastf->derived_by = s + 1u; /* stage index, PLUS ONE */
-
+     way. A cover past the fields, or a stage that does not run
+     (`n_fields == 0`), wires nothing and is left for the layout to judge. */
+  if (n_fields > 0u && first + n_fields <= d->n_fields)
+    {
+      wfm_field_t *lastf = &d->field[first + n_fields - 1u];
+      if (lastf->bits > 0u && lastf->seq.len == 0u && lastf->derived_by == 0u)
+        lastf->derived_by = s + 1u; /* stage index, PLUS ONE */
+    }
   return (int)s;
+}
+
+int
+dp_wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind, const char *first,
+                        const char *last)
+{
+  if (!d)
+    return -1;
+  const int a = dp_wfm_frame_field_index (d, first);
+  const int b = dp_wfm_frame_field_index (d, last);
+  if (a < 0 || b < 0 || b < a)
+    return -1;
+  return dp_wfm_frame_add_stage_at (d, kind, (unsigned)a,
+                                    (unsigned)(b - a) + 1u);
 }

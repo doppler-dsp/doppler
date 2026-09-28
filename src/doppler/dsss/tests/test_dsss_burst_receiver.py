@@ -375,28 +375,24 @@ def _deframer(payload_bits=96, *, crc=True, randomise=False, rs_depth=0):
     """
     from doppler.wfm import FrameDesc
 
-    empty = np.empty(0, np.uint8)
-    d = FrameDesc(empty, empty, empty)
-    d.add_field(_TX_SYNC)
+    d = FrameDesc()
+    d.add_field("sync", _TX_SYNC)
     d.add_field(
-        np.zeros(payload_bits, np.uint8)
+        "payload", np.zeros(payload_bits, np.uint8)
     )  # geometry; bits arrive later
     n_data = 1
-    stage = 0
+    # A derived field is wired to the first stage whose cover ends on it, so
+    # the CRC trailer goes to the CRC stage and the parity to the outer code.
     if crc:
-        d.add_field(empty, derived_by=stage + 1, derived_bits=_CRC_BITS)
+        d.add_derived("crc", _CRC_BITS)
         n_data += 1
     if rs_depth:
-        d.add_field(
-            empty, derived_by=2 if crc else 1, derived_bits=32 * rs_depth * 8
-        )
+        d.add_derived("parity", 32 * rs_depth * 8)
         n_data += 1
     if crc:
         d.add_stage(0, first_field=1, n_fields=2)
-        stage += 1
     if rs_depth:
         d.add_stage(1, first_field=1, n_fields=n_data, depth=rs_depth)
-        stage += 1
     if randomise:
         d.add_stage(2, first_field=1, n_fields=n_data)
     d.build()

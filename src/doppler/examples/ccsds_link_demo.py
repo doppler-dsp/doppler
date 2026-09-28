@@ -57,9 +57,6 @@ K, N, E = 223, 255, 16  # RS(255,223), 16 correctable symbols
 DEPTH = 5  # interleaving depth (4.3.5.1 allows 1,2,3,4,5,8)
 
 
-EMPTY = np.zeros(0, np.uint8)
-
-
 def transfer_frame(depth: int = DEPTH) -> np.ndarray:
     """`223 * depth` octets of Transfer Frame, as unpacked bits."""
     octets = np.array(
@@ -78,11 +75,11 @@ def describe_cadu(payload: np.ndarray, depth: int, *, inner: bool):
     """
     marker = asm_bits()  # 0x1ACFFC1D, figure 9-1
 
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)  # start from nothing
-    d.add_field(marker)  # 0: the ASM
-    d.add_field(payload)  # 1: the Transfer Frame
-    d.add_field(  # 2: the check symbols the outer code derives
-        EMPTY, derived_by=1, derived_bits=32 * depth * 8
+    d = FrameDesc()  # start from nothing
+    d.add_field("asm", marker)  # 0: the ASM
+    d.add_field("data", payload)  # 1: the Transfer Frame
+    d.add_derived(  # 2: the check symbols the outer code derives
+        "parity", 32 * depth * 8
     )
 
     # THE COVERS. Fields 1..2 are the data group; field 0 is the marker, and

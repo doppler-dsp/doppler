@@ -481,6 +481,25 @@ extern "C"
                            const char *first, const char *last);
 
   /**
+   * @brief Append a stage covering `n_fields` fields from index `first`.
+   * Returns its index, or -1.
+   *
+   * The index form of @ref dp_wfm_frame_add_stage, which resolves its two
+   * names and calls this. Both wire a derived field's producer the same way,
+   * by the one rule stated there, so a caller counting fields and a caller
+   * naming them build the same description.
+   *
+   * @param d         the description.
+   * @param kind      a @ref wfm_stage_kind_t value, or a caller's own.
+   * @param first     index of the first field covered.
+   * @param n_fields  fields covered; 0 means the stage does not run.
+   * @return the new stage's index, or -1 on NULL or a full description. A
+   *         cover past the fields is not refused here: the layout judges it.
+   */
+  int dp_wfm_frame_add_stage_at (wfm_frame_desc_t *d, uint32_t kind,
+                                 unsigned first, unsigned n_fields);
+
+  /**
    * @brief Write @p s's bits, whatever produces them. Returns the count.
    *
    * The one place a `wfm_seq_t` becomes bits. A descriptor materialises its

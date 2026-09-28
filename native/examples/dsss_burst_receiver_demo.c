@@ -426,11 +426,10 @@ main (void)
          opinion about them (doppler#1022). Turning those into a payload —
          and into a verdict — needs the frame's description, which is what
          `dp_frame_create()` builds and `dp_frame_deframe()` reads. */
-      dp_frame_state_t *f = dp_frame_create (
-          0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,       /* no preamble    */
-          0, sy, SYNC_LEN, 0, 0, 0, 0, 0, 0, 0, 0, 0,     /* literal sync   */
-          0, payload, PAYLOAD, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* the payload   */
-          1);                                             /* crc16 trailer */
+      dp_frame_state_t *f = dp_frame_create (NULL, 0,      /* no preamble */
+                                             sy, SYNC_LEN, /* sync        */
+                                             payload, PAYLOAD, /* payload */
+                                             1); /* crc16 trailer */
       if (!f)
         {
           fprintf (stderr, "dp_frame_create failed\n");

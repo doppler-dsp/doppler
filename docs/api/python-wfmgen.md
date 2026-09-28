@@ -471,13 +471,13 @@ same description**. The generator already took these fields as flags
 layout on the analysis side, so a capture is scored against the frame that was
 actually sent rather than one reconstructed from parts.
 
-Each of the three fields is either a **literal** array or a handful of numbers
-a receiver can **regenerate** — a PN or Gold descriptor — which is what makes a
-long record's truth practical: a million-symbol reference without a
-million-symbol array, and a capture reproducible from its metadata alone. The
-three cannot nest as structs across the C ABI, so they are flattened with a name
-prefix (`preamble_*`, `sync_*`, `payload_*`); a field with **an empty array and
-zero length is absent**, which is the convention `wfm_seq_t` itself uses.
+Each of the three fields is **bits** — one per element, each 0 or 1 — and is
+**omitted when absent**, the convention `wfm_seq_t` itself uses (a zero
+length). A field a receiver can **regenerate** — a PN or Gold sequence — is
+written as text and turned into bits by [`field_bits`](#field_bits-a-field-from-its-text),
+so its truth is a handful of numbers (`field_bits("pn:1023:10")`) rather than a
+stored array, and a capture stays reproducible from its metadata alone. An
+element that is not a bit is refused, not masked.
 
 `crc_ok` is the one that earns its place. It needs **no payload truth at all**,
 so it works on a real capture, and unlike a self-referenced EVM or a blind M2M4
@@ -491,11 +491,10 @@ import numpy as np
 from doppler.ber import FrameMeter
 from doppler.wfm import Frame
 
-empty = np.empty(0, np.uint8)                                 # an absent field
 sync = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)  # Barker-13
 payload = np.array([0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1], np.uint8)
 
-f = Frame(empty, sync, payload, crc="crc16")
+f = Frame(sync=sync, payload=payload, crc="crc16")   # no preamble: omitted
 
 # Stand-in for a capture: the frame as sent, and the same frame with one
 # payload bit knocked over. On a real record these come from a demodulator.
@@ -527,17 +526,19 @@ data.
 
 ## `FrameDesc` — the same frame, deferred
 
-`Frame` names four fields and materialises them in the constructor. `FrameDesc`
-takes **the same arguments** and stops before laying anything out, so those four
-are a *starting point* a caller extends with `add_field()` and `add_stage()`
-before calling `build()`. Pass empty arrays for all three to begin from nothing.
+`Frame` names three fields and a CRC and materialises them in the constructor.
+`FrameDesc` takes **the same arguments** and stops before laying anything out,
+so they are a *starting point* a caller extends with `add_field()`,
+`add_derived()` and `add_stage()` before calling `build()`. Omit them all to
+begin from nothing. Every field is bits; text reaches it through
+[`field_bits`](#field_bits-a-field-from-its-text).
 
 That is what makes a frame doppler has never heard of describable from Python.
 The two axes it adds over the named layout are:
 
 - **A field is anything on the wire**, whether the caller supplies it or a stage
-    produces it. A parity block nobody passes in is still a field — declare it with
-    `derived_by`, which names the producing stage *plus one*.
+    produces it. A parity block nobody passes in is still a field — declare it
+    with `add_derived(name, bits)`; the stage whose cover ends on it fills it.
 - **A stage declares the span it covers**, as `first_field` / `n_fields`, rather
     than inheriting "everything before me". A stage covering no fields does not
     run. This is the part a pipeline representation cannot express, and it is
@@ -553,17 +554,16 @@ import numpy as np
 from doppler.ccsds import asm_bits
 from doppler.wfm import STAGE_RANDOMISE, STAGE_RS, STAGE_USER, FrameDesc
 
-empty = np.empty(0, np.uint8)
 K, E2 = 223, 32                      # RS(255,223): 223 data, 32 parity octets
 
 asm = asm_bits()                     # 0x1ACFFC1D, never transcribed by hand
 octets = np.array([(i * 29 + 5) & 0xFF for i in range(K)], np.uint8)
 data = np.unpackbits(octets).astype(np.uint8)
 
-d = FrameDesc(empty, empty, empty)               # begin from nothing
-assert d.add_field(asm) == 0                     # attached sync marker
-assert d.add_field(data) == 1                    # the transfer frame
-assert d.add_field(empty, derived_by=1, derived_bits=E2 * 8) == 2  # parity
+d = FrameDesc()                                  # begin from nothing
+assert d.add_field("asm", asm) == 0              # attached sync marker
+assert d.add_field("data", data) == 1            # the transfer frame
+assert d.add_derived("parity", E2 * 8) == 2      # the outer code fills it
 
 # Both stages start at field 1, so both skip the marker -- declared, not
 # inherited.
@@ -628,8 +628,8 @@ carries it:
 ```python
 # A fresh description under its own name: this page is one namespace, and
 # `d` above is the CADU the rest of it goes on to check.
-mine = FrameDesc(empty, empty, empty)
-mine.add_field(np.ones(8, np.uint8))
+mine = FrameDesc()
+mine.add_field("bits", np.ones(8, np.uint8))
 assert mine.add_stage(STAGE_USER + 1, first_field=0, n_fields=1) == 0
 ```
 

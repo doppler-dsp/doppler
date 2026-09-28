@@ -54,9 +54,11 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  static uint8_t pre[N_PRE], sync[N_SYNC], pay[N_PAY];
+  /* The preamble is repeated IN ITS BITS -- a Frame takes bits, and a
+     repetition is part of them (field_bits("…*4") builds the same). */
+  static uint8_t pre[N_PRE * PRE_REPS], sync[N_SYNC], pay[N_PAY];
   uint32_t       lfsr = 0x51F0u;
-  for (size_t i = 0; i < N_PRE; i++)
+  for (size_t i = 0; i < N_PRE * PRE_REPS; i++)
     pre[i] = (uint8_t)(i & 1u);
   for (size_t i = 0; i < N_SYNC; i++)
     sync[i] = (uint8_t)((0x1ACFFC1Du >> (i % 32)) & 1u);
@@ -66,13 +68,8 @@ main (void)
       pay[i] = (uint8_t)(lfsr & 1u);
     }
 
-  /* Every generator argument zeroed: the literal case, which is what a
-     caller with real data has. Same shape as test_frame_core.c's
-     `lit_frame`, deliberately -- the benchmark should measure the frame the
-     tests pin. */
-  dp_frame_state_t *f = dp_frame_create (
-      0, pre, N_PRE, 0, PRE_REPS, 0, 0, 0, 0, 0, 0, 0, 0, 0, sync, N_SYNC, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, pay, N_PAY, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+  dp_frame_state_t *f
+      = dp_frame_create (pre, N_PRE * PRE_REPS, sync, N_SYNC, pay, N_PAY, 1);
   if (!f)
     return 1;
 

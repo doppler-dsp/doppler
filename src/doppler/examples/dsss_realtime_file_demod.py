@@ -86,11 +86,10 @@ def _deframer():
     """
     global _DEFRAMER
     if _DEFRAMER is None:
-        empty = np.empty(0, np.uint8)
-        d = FrameDesc(empty, empty, empty)
-        d.add_field(SYNC)
-        d.add_field(np.zeros(PAYLOAD, np.uint8))
-        d.add_field(empty, derived_by=1, derived_bits=16)
+        d = FrameDesc()
+        d.add_field("sync", SYNC)
+        d.add_field("payload", np.zeros(PAYLOAD, np.uint8))
+        d.add_derived("crc", 16)
         d.add_stage(0, first_field=1, n_fields=2)
         d.build()
         _DEFRAMER = d

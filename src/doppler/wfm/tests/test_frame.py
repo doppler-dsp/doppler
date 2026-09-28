@@ -18,8 +18,10 @@ where the one implementation lives:
   feeding it to ``FrameMeter`` is the whole truth-free frame-error-rate story,
   end to end, from Python.
 
-The empty-array convention is deliberate and is ``wfm_seq_t``'s own: a field
-with zero length is absent. See ``docs/design/rx-test.md`` section 7.
+A Frame takes BITS: each field is an unpacked array, omitted when absent, and
+every other form reaches it through ``field_bits`` (the Field text form) --
+see ``docs/design/frame-description.md`` §F.3 and ``docs/design/rx-test.md``
+section 7.
 """
 
 import numpy as np
@@ -36,9 +38,9 @@ from doppler.wfm import (
     FrameDesc,
     Segment,
     crc16,
+    field_bits,
 )
 
-EMPTY = np.empty(0, np.uint8)
 # Barker-13 — the sync word the named RX_FRAME_BURST carries.
 SYNC = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)
 PAYLOAD = np.array([0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1], np.uint8)
@@ -47,8 +49,11 @@ REPS = 4
 
 
 def _frame(crc="crc16"):
-    """The reference descriptor, as a ``Frame``."""
-    return Frame(ACQ, SYNC, PAYLOAD, preamble_reps=REPS, crc=crc)
+    """The reference descriptor, as a ``Frame``. The preamble is repeated in
+    its bits: a Frame has no repetition count of its own."""
+    return Frame(
+        preamble=np.tile(ACQ, REPS), sync=SYNC, payload=PAYLOAD, crc=crc
+    )
 
 
 # ── geometry, delegated ─────────────────────────────────────────────────────
@@ -83,7 +88,7 @@ def test_a_crc_over_no_payload_is_dropped():
     """It would protect nothing, so it is not carried — and the length
     says so.
     """
-    f = Frame(EMPTY, SYNC, EMPTY, crc="crc16")
+    f = Frame(sync=SYNC, crc="crc16")
     assert f.nbits == len(SYNC)
     assert f.layout().crc_bits == 0
 
@@ -127,17 +132,9 @@ def test_bits_repeats_whole_frames_identically():
 # ── generated fields, which is what makes a long record practical ───────────
 
 
-def test_a_generated_payload_needs_no_array():
-    """A handful of numbers a receiver can regenerate, instead of an array."""
-    f = Frame(
-        EMPTY,
-        SYNC,
-        EMPTY,
-        payload_kind="pn",
-        payload_nbits=1024,
-        payload_reg_bits=10,
-        crc="crc16",
-    )
+def test_a_generated_payload_is_a_handful_of_numbers():
+    """A receiver regenerates it from text instead of carrying an array."""
+    f = Frame(sync=SYNC, payload=field_bits("pn:1024:10"), crc="crc16")
     assert f.nbits == len(SYNC) + 1024 + 16
     assert f.crc_ok(f.bits()) == 1
 
@@ -147,13 +144,7 @@ def test_a_dotted_preamble_starts_high():
     zeros.
     """
     f = Frame(
-        EMPTY,
-        SYNC,
-        PAYLOAD,
-        preamble_kind="dotted",
-        preamble_nbits=4,
-        preamble_reps=1,
-        crc="none",
+        preamble=field_bits("dotted:4"), sync=SYNC, payload=PAYLOAD, crc="none"
     )
     assert f.bits()[:4].tolist() == [1, 0, 1, 0]
 
@@ -161,24 +152,32 @@ def test_a_dotted_preamble_starts_high():
 # ── refusals, at construction ───────────────────────────────────────────────
 
 
+def test_an_empty_geometry_raises():
+    with pytest.raises(ValueError):
+        Frame()
+
+
 @pytest.mark.parametrize(
-    "kwargs",
+    "bad",
     [
-        pytest.param({}, id="an empty geometry is not a frame"),
-        pytest.param(
-            {"payload_kind": "pn", "payload_nbits": 64},
-            id="a PN field with no register width cannot be built",
-        ),
+        pytest.param(np.array([1, 2, 0], np.uint8), id="a 2 is not a bit"),
+        # What "0101" became when a binding read it as a number
+        # (just-makeit#1700): masking it to 1 would hide the mistake.
+        pytest.param(np.array([101], np.uint8), id="a digit string's value"),
     ],
 )
-def test_an_unbuildable_descriptor_raises(kwargs):
-    with pytest.raises(ValueError):
-        Frame(EMPTY, EMPTY, EMPTY, **kwargs)
+def test_an_element_that_is_not_a_bit_raises(bad):
+    with pytest.raises(ValueError, match="not a bit"):
+        Frame(sync=SYNC, payload=bad)
 
 
-def test_an_unknown_kind_names_the_choices():
-    with pytest.raises(ValueError, match="literal"):
-        Frame(EMPTY, SYNC, PAYLOAD, sync_kind="barker")
+def test_the_old_spellings_are_gone():
+    """Refused, not aliased: a kind and its generator parameters are
+    `field_bits` text now."""
+    with pytest.raises(TypeError):
+        Frame(sync=SYNC, payload_kind="pn")
+    assert not hasattr(FrameDesc(), "add_hex")
+    assert not hasattr(FrameDesc(), "add_value")
 
 
 # ── what the descriptor is FOR: it agrees with the generator ────────────────
@@ -244,8 +243,9 @@ def test_frames_scored_into_a_frame_meter():
 
 # ── the description a Frame is one configuration of ─────────────────────────
 #
-# `Frame` names four fields. `FrameDesc` takes the SAME arguments and stops
-# before materialising, so the four are a starting point a caller extends.
+# `Frame` names three fields and a CRC. `FrameDesc` takes the SAME arguments
+# and stops before materialising, so they are a starting point a caller
+# extends.
 # That is what lets Python describe a frame doppler has never heard of --
 # including a CCSDS CADU, whose coding has no binding of its own and would
 # otherwise be unreachable from here.
@@ -254,7 +254,9 @@ def test_frames_scored_into_a_frame_meter():
 def test_framedesc_is_the_same_frame_deferred():
     """The two constructors differ in WHEN, not in what they produce."""
     f = _frame()
-    d = FrameDesc(ACQ, SYNC, PAYLOAD, preamble_reps=REPS, crc="crc16")
+    d = FrameDesc(
+        preamble=np.tile(ACQ, REPS), sync=SYNC, payload=PAYLOAD, crc="crc16"
+    )
     d.build()
 
     assert d.nbits == f.nbits
@@ -290,8 +292,8 @@ def test_the_indexed_view_reads_a_configured_frame_too():
 
 
 def test_an_empty_description_starts_empty_and_refuses_to_build():
-    """Empty arrays begin from nothing, and nothing is not a frame."""
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
+    """No fields begin from nothing, and nothing is not a frame."""
+    d = FrameDesc()
     assert d.n_fields() == 0
     assert d.n_stages() == 0
     with pytest.raises(ValueError):
@@ -321,10 +323,13 @@ def test_a_ccsds_cadu_can_be_described_from_python():
     # itself agrees with a receiver that spells it out the same wrong way.
     asm = asm_bits()
 
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    assert d.add_field(asm) == 0
-    assert d.add_field(fbits) == 1
-    assert d.add_field(EMPTY, derived_by=1, derived_bits=E2 * DEPTH * 8) == 2
+    d = FrameDesc()
+    assert d.add_field("asm", asm) == 0
+    assert d.add_field("data", fbits) == 1
+    # A field the caller has no bits for: the outer code fills it. The index
+    # form of add_stage wires its producer by the same rule add_stage_over
+    # uses.
+    assert d.add_derived("parity", E2 * DEPTH * 8) == 2
     assert d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=DEPTH) == 0
     assert d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2) == 1
     assert (
@@ -354,18 +359,16 @@ def test_a_ccsds_cadu_can_be_described_from_python():
 
 def test_a_description_is_closed_once_built():
     """A built frame is finished: extending it would strand its own bits."""
-    d = FrameDesc(EMPTY, SYNC, PAYLOAD, crc="crc16")
+    d = FrameDesc(sync=SYNC, payload=PAYLOAD, crc="crc16")
     d.build()
     # Every refusal RAISES (doppler#1222). It used to return -1, which is a
     # valid index everywhere the return is used -- `derived_by` and a stage's
     # `first_field` are counted in it -- so a caller who did not check got a
     # wrong frame rather than an error.
     for refused in (
-        lambda: d.add_field(PAYLOAD),
+        lambda: d.add_field("late", PAYLOAD),
         lambda: d.add_stage(0, first_field=0, n_fields=1),
         lambda: d.add_derived("late", 8),
-        lambda: d.add_hex("late", "ff"),
-        lambda: d.add_value("late", 3, 4),
         lambda: d.add_stage_over(0, "sync", "payload"),
         lambda: d.name_field(0, "late"),
         lambda: d.build(),
@@ -390,10 +393,10 @@ def _cadu(depth=5):
     fbits = np.unpackbits(octets).astype(np.uint8)
     asm = asm_bits()
 
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(asm)
-    d.add_field(fbits)
-    d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
+    d = FrameDesc()
+    d.add_field("asm", asm)
+    d.add_field("data", fbits)
+    d.add_derived("parity", E2 * depth * 8)
     d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=depth)
     d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     d.build()
@@ -460,7 +463,7 @@ def test_a_frame_with_no_reversible_stage_reports_nothing_checked():
     perfect, which is the same defect ``crc_ok`` returning -1 exists to
     avoid, one layer up.
     """
-    d = FrameDesc(EMPTY, SYNC, PAYLOAD, crc="none")
+    d = FrameDesc(sync=SYNC, payload=PAYLOAD, crc="none")
     d.build()
     r = d.check(d.bits(1))
     assert r.checked == 0
@@ -470,34 +473,27 @@ def test_a_frame_with_no_reversible_stage_reports_nothing_checked():
 def test_builder_by_name_matches_the_same_frame_by_index() -> None:
     """A frame described by NAME is the same frame described by index.
 
-    The by-name builder adds no arithmetic — it only spells the indices — so
+    The by-name builder adds no arithmetic -- it only spells the indices -- so
     the falsification available is the strong one: both descriptions must
-    produce the same bits. Comparing the assembled frame rather than the
-    fields is what makes that a claim about behaviour.
+    produce the same bits. The marker also arrives two ways, as Field text
+    and spelled out, so the text door is checked against the same bits.
     """
-    import numpy as np
-
-    from doppler.wfm import FrameDesc
-
-    empty = np.empty(0, np.uint8)
     payload = np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8)
 
-    by_name = FrameDesc(empty, empty, empty)
-    by_name.add_hex("asm", "1ACFFC1D")
-    by_name.add_field(payload)
+    by_name = FrameDesc()
+    by_name.add_field("asm", field_bits("0x1ACFFC1D"))
+    by_name.add_field("", payload)
     by_name.name_field(1, "payload")
     by_name.add_derived("crc", 16)
     by_name.add_stage_over(0, "payload", "crc")
     by_name.build()
 
-    by_index = FrameDesc(empty, empty, empty)
+    by_index = FrameDesc()
     by_index.add_field(
-        np.array(
-            [int(b) for b in f"{0x1ACFFC1D:032b}"], np.uint8
-        )  # the same 32 bits, spelled out
-    )
-    by_index.add_field(payload)
-    by_index.add_field(empty, derived_by=1, derived_bits=16)
+        "asm", np.array([int(b) for b in f"{0x1ACFFC1D:032b}"], np.uint8)
+    )  # the same 32 bits, spelled out
+    by_index.add_field("payload", payload)
+    by_index.add_derived("crc", 16)
     by_index.add_stage(kind=0, first_field=1, n_fields=2)
     by_index.build()
 
@@ -507,14 +503,9 @@ def test_builder_by_name_matches_the_same_frame_by_index() -> None:
 
 def test_names_resolve_and_a_duplicate_is_refused() -> None:
     """The lookup is what makes a name worth carrying, and it is exact."""
-    import numpy as np
-
-    from doppler.wfm import FrameDesc
-
-    empty = np.empty(0, np.uint8)
-    d = FrameDesc(empty, empty, empty)
-    d.add_value("sync", 0xABC, 12)
-    d.add_field(np.array([1, 0, 1, 0], np.uint8))
+    d = FrameDesc()
+    d.add_field("sync", field_bits("0xABC"))
+    d.add_field("", np.array([1, 0, 1, 0], np.uint8))
     d.name_field(1, "payload")
 
     assert d.field_index("sync") == 0
@@ -522,22 +513,22 @@ def test_names_resolve_and_a_duplicate_is_refused() -> None:
     assert d.field_index("absent") == -1
     # An unnamed field is anonymous, not named "".
     assert d.field_index("") == -1
-    # A rename onto a taken name would make field_index ambiguous.
+    # A rename onto a taken name would make field_index ambiguous...
     with pytest.raises(ValueError):
         d.name_field(0, "payload")
-    # ...but a name that matches nothing is an ANSWER, not a refusal, so
+    # ...and so would appending one.
+    with pytest.raises(ValueError):
+        d.add_field("sync", np.array([1], np.uint8))
+    # A name that matches nothing is an ANSWER, not a refusal, so
     # field_index is the one verb whose -1 survives into Python.
     assert d.field_index("still-absent") == -1
 
 
-def test_a_value_field_is_msb_first() -> None:
-    """`add_value` states the same convention `add_hex` does."""
-    import numpy as np
-
-    from doppler.wfm import FrameDesc
-
-    empty = np.empty(0, np.uint8)
-    d = FrameDesc(empty, empty, empty)
-    d.add_value("marker", 0x1A, 8)
-    d.build()
-    assert d.bits().tolist() == [0, 0, 0, 1, 1, 0, 1, 0]
+def test_add_field_takes_bits_only() -> None:
+    """Refusals at the one verb that appends supplied bits."""
+    d = FrameDesc()
+    with pytest.raises(ValueError):
+        d.add_field("empty", np.empty(0, np.uint8))
+    with pytest.raises(ValueError):
+        d.add_field("digit", np.array([1, 101], np.uint8))
+    assert d.n_fields() == 0, "a refusal appends nothing"

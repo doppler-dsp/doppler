@@ -1462,37 +1462,37 @@ static PyGetSetDef Synth_getset[] = {
   { "type", (getter)Synth_get_type, (setter)Synth_set_type, "Waveform type.\n",
     NULL },
   { "freq", (getter)Synth_get_freq, (setter)Synth_set_freq,
-    "Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for "
-    "chirp it is the start frequency.\n",
+    "Carrier or offset frequency in Hz; for chirp, the sweep start. With fs = "
+    "1 it is in normalised cycles per sample.\n",
     NULL },
   { "snr", (getter)Synth_get_snr, (setter)Synth_set_snr,
-    "Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated "
-    "as clean (no AWGN).\n",
+    "Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is "
+    "clean: no AWGN is added.\n",
     NULL },
   { "snr_mode", (getter)Synth_get_snr_mode, (setter)Synth_set_snr_mode,
-    "How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No "
-    "for bpsk/qpsk.\n",
+    "How snr is interpreted. auto picks fs (the full sample-rate band) for "
+    "tone/pn/chirp/bits and Es/No for bpsk/qpsk.\n",
     NULL },
   { "seed", (getter)Synth_get_seed, (setter)Synth_set_seed,
-    "PRNG/LFSR seed for the noise and PN streams.\n", NULL },
+    "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it "
+    "for run-to-run change.\n",
+    NULL },
   { "sps", (getter)Synth_get_sps, (setter)Synth_set_sps,
-    "Samples per symbol (PSK) or per chip (PN); the oversampling factor.\n",
+    "Samples per symbol (PSK) or per chip (PN): the oversampling factor.\n",
     NULL },
   { "pn_length", (getter)Synth_get_pn_length, (setter)Synth_set_pn_length,
     "PN LFSR register length; the sequence period is 2^pn_length - 1.\n",
     NULL },
   { "pn_poly", (getter)Synth_get_pn_poly, (setter)Synth_set_pn_poly,
-    "PN generator polynomial; 0 auto-selects a maximal-length (MLS) "
-    "polynomial for pn_length.\n",
+    "PN generator polynomial; 0 selects a maximal-length (MLS) polynomial for "
+    "pn_length.\n",
     NULL },
   { "lfsr", (getter)Synth_get_lfsr, (setter)Synth_set_lfsr,
-    "PN LFSR realization (galois or fibonacci); same period, different chip "
-    "order.\n",
-    NULL },
+    "PN LFSR realisation: the same period, a different chip order.\n", NULL },
   { "level", (getter)Synth_get_level, (setter)Synth_set_level,
-    "Source power in dBFS (<=0; 0 = unit power). Applies only when summed in "
-    "a Segment/Composer (gain 10^(level/20)); ignored by standalone "
-    "Synth.steps().\n",
+    "Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a "
+    "Segment or Composer, as a gain of 10^(level/20); a standalone "
+    "Synth.steps() ignores it.\n",
     NULL },
   { "background", (getter)Synth_get_background, (setter)Synth_set_background,
     "Mark this source as part of the static background field (0/1). "
@@ -1507,7 +1507,7 @@ static PyGetSetDef Synth_getset[] = {
     "bit-for-bit). Ignored by compose() and by standalone Synth.steps().\n",
     NULL },
   { "f_end", (getter)Synth_get_f_end, (setter)Synth_set_f_end,
-    "Chirp end frequency in Hz; ignored by non-chirp types.\n", NULL },
+    "Chirp end frequency in Hz; ignored by other types.\n", NULL },
   { "span", (getter)Synth_get_span, (setter)Synth_set_span,
     "Chirp sweep length in samples: the frequency ramps from freq to f_end "
     "over this many samples, then holds at f_end. 0 means the enclosing "
@@ -1527,27 +1527,27 @@ static PyGetSetDef Synth_getset[] = {
   { "doppler_rate", (getter)Synth_get_doppler_rate,
     (setter)Synth_set_doppler_rate,
     "Linear ramp on `doppler`, in ppm per second of elapsed stream time. The "
-    "channel runs through a segment's gaps as well as its on-time — an "
-    "emitter does not stop moving because its burst ended — so this is per "
+    "channel runs through a segment's gaps as well as its on-time -- an "
+    "emitter does not stop moving because its burst ended -- so this is per "
     "second, not per second of on-time. Accepts a (lo, hi) tuple drawn "
     "uniformly per repeat.\n",
     NULL },
   { "carrier_hz", (getter)Synth_get_carrier_hz, (setter)Synth_set_carrier_hz,
-    "RF carrier in Hz that the ppm figures are referred to, giving the "
-    "coherent carrier rotation that accompanies the time-base warp. 0 (the "
-    "default) warps the clock alone, with no carrier rotation — a legitimate "
-    "scene, not an unset field. Independent of doppler/doppler_rate.\n",
+    "RF carrier in Hz that the ppm figures are referred to. It gives the "
+    "coherent carrier rotation that accompanies the time-base warp; 0 warps "
+    "the clock alone, with no carrier rotation -- a legitimate scene, not an "
+    "unset field. Independent of doppler/doppler_rate.\n",
     NULL },
   { "doppler_lifetime", (getter)Synth_get_doppler_lifetime,
     (setter)Synth_set_doppler_lifetime,
-    "How long this source's Doppler channel lives. per_instance (default): "
-    "the channel dies with each `repeats` instance, so the geometry restarts "
-    "— the repeated-trial shape, which composes with a ranged doppler "
-    "re-drawn per instance. persist: one continuous pass carries across the "
-    "segment's gaps and repeat instances, keyed by (segment, source) position "
-    "— the only lifetime under which doppler_rate accumulates across a "
-    "multi-burst scene. Plan.prepare() REFUSES a persist source, because its "
-    "cache renders each source independently and concurrently; compose() and "
+    "How long this source's Doppler channel lives. per_instance: the channel "
+    "dies with each `repeats` instance, so the geometry restarts -- the "
+    "repeated-trial shape, which composes with a ranged doppler re-drawn per "
+    "instance. persist: one continuous pass carries across the segment's gaps "
+    "and repeat instances, keyed by (segment, source) position -- the only "
+    "lifetime under which doppler_rate accumulates across a multi-burst "
+    "scene. Plan.prepare() REFUSES a persist source, because its cache "
+    "renders each source independently and concurrently; compose() and "
     "stream() honour both.\n",
     NULL },
   { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
@@ -1556,22 +1556,21 @@ static PyGetSetDef Synth_getset[] = {
     "frame.\n",
     NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
-    "For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, "
-    "qpsk).\n",
+    "Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.\n",
     NULL },
   { "pulse", (getter)Synth_get_pulse, (setter)Synth_set_pulse,
-    "Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect "
+    "Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect "
     "sample-and-hold or rrc matched filter.\n",
     NULL },
   { "rrc_beta", (getter)Synth_get_rrc_beta, (setter)Synth_set_rrc_beta,
-    "RRC roll-off factor in (0, 1] when pulse=rrc.\n", NULL },
+    "RRC roll-off factor, in (0, 1], when pulse=rrc.\n", NULL },
   { "rrc_span", (getter)Synth_get_rrc_span, (setter)Synth_set_rrc_span,
-    "RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).\n",
+    "RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.\n",
     NULL },
   { "symbols", (getter)Synth_get_symbols, (setter)Synth_set_symbols,
-    "For type=symbols: a complex64 constellation stream — each element is the "
+    "For type=symbols: a complex constellation stream. Each element is the "
     "output point itself, oversampled by sps, cycled, and RRC-shaped with "
-    "pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).\n",
+    "pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).\n",
     NULL },
   { "acq_code", (getter)Synth_get_acq_code, (setter)Synth_set_acq_code,
     "The acquisition/preamble code (0/1), repeated acq_reps times at the head "
@@ -1597,7 +1596,7 @@ static PyGetSetDef Synth_getset[] = {
     "setting it (or acq_code) is what makes a source FRAMED.\n",
     NULL },
   { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc,
-    "The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits "
+    "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
     "(what BurstDemod validates as frame_valid, and what makes a truth-free "
     "frame error rate possible); none omits it. Applies only to a FRAMED "
     "source: it defaults to crc16, so it alone never frames an otherwise "
@@ -1637,7 +1636,7 @@ static PyGetSetDef Synth_getset[] = {
     NULL },
   { "symbol_rate", (getter)Synth_get_symbol_rate,
     (setter)Synth_set_symbol_rate,
-    "For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading "
+    "For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading "
     "code repeats endlessly and data rides on it at this symbol rate (Hz), "
     "independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, "
     "non-integer). No preamble/sync/CRC frame; data comes from the payload "
@@ -2775,66 +2774,69 @@ Segment_add (SegmentObject *self, PyObject *args)
 static PyGetSetDef Segment_getset[] = {
   { "sources", (getter)Segment_get_sources, NULL, NULL, NULL },
   { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs,
-    "Sample rate in Hz — one per segment (all sources share it).\n", NULL },
+    "Sample rate in Hz, one per segment and shared by all its sources. With "
+    "fs = 1, frequencies are normalised.\n",
+    NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
-    "Segment on-time in samples (the active span).\n", NULL },
+    "Segment on-time in samples: the active span.\n", NULL },
   { "off_samples", (getter)Segment_get_off_samples,
     (setter)Segment_set_off_samples,
-    "Trailing off-time gap in samples (zeros) appended after the segment.\n",
+    "Trailing gap after the on-time, in samples. It carries the noise floor "
+    "or hard zeros, per gap_noise.\n",
     NULL },
   { "repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats,
     "Play the segment this many times back-to-back (each instance = delay + "
     "on-time + trailing gap) before advancing. Ranged fields re-draw and the "
     "AWGN is fresh per instance; the signal (codes, payload, PN phase) stays "
-    "fixed.\n",
+    "fixed. 0 and 1 both mean one instance.\n",
     NULL },
   { "delay_samples", (getter)Segment_get_delay_samples,
     (setter)Segment_set_delay_samples,
-    "Leading gap before the on-time (samples) — the burst arrives after this "
+    "Leading gap before the on-time, in samples: the burst arrives after this "
     "delay. Ranged like off_samples and re-drawn per repeats instance, so a "
     "(lo, hi) delay is per-burst arrival jitter. Use off_samples for "
     "inter-burst spacing, delay_samples for arrival jitter.\n",
     NULL },
   { "gap_noise", (getter)Segment_get_gap_noise, (setter)Segment_set_gap_noise,
-    "Gap policy for this segment's delay and trailing gap. auto (default): "
-    "gaps carry the segment's noise floor — the sources' AWGN keeps running "
-    "while the signal stops (clean scenes still get exact-zero gaps). off: "
-    "gaps are hard zeros.\n",
+    "Gap policy for this segment's delay and trailing gap. auto: gaps carry "
+    "the segment's noise floor -- the sources' AWGN keeps running while the "
+    "signal stops (clean scenes still get exact-zero gaps). off: gaps are "
+    "hard zeros.\n",
     NULL },
   { "type", (getter)Segment_flat_type, NULL, "Waveform type.\n", NULL },
   { "freq", (getter)Segment_flat_freq, NULL,
-    "Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for "
-    "chirp it is the start frequency.\n",
+    "Carrier or offset frequency in Hz; for chirp, the sweep start. With fs = "
+    "1 it is in normalised cycles per sample.\n",
     NULL },
   { "snr", (getter)Segment_flat_snr, NULL,
-    "Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated "
-    "as clean (no AWGN).\n",
+    "Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is "
+    "clean: no AWGN is added.\n",
     NULL },
   { "snr_mode", (getter)Segment_flat_snr_mode, NULL,
-    "How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No "
-    "for bpsk/qpsk.\n",
+    "How snr is interpreted. auto picks fs (the full sample-rate band) for "
+    "tone/pn/chirp/bits and Es/No for bpsk/qpsk.\n",
     NULL },
   { "seed", (getter)Segment_flat_seed, NULL,
-    "PRNG/LFSR seed for the noise and PN streams.\n", NULL },
+    "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it "
+    "for run-to-run change.\n",
+    NULL },
   { "sps", (getter)Segment_flat_sps, NULL,
-    "Samples per symbol (PSK) or per chip (PN); the oversampling factor.\n",
+    "Samples per symbol (PSK) or per chip (PN): the oversampling factor.\n",
     NULL },
   { "pn_length", (getter)Segment_flat_pn_length, NULL,
     "PN LFSR register length; the sequence period is 2^pn_length - 1.\n",
     NULL },
   { "pn_poly", (getter)Segment_flat_pn_poly, NULL,
-    "PN generator polynomial; 0 auto-selects a maximal-length (MLS) "
-    "polynomial for pn_length.\n",
+    "PN generator polynomial; 0 selects a maximal-length (MLS) polynomial for "
+    "pn_length.\n",
     NULL },
   { "lfsr", (getter)Segment_flat_lfsr, NULL,
-    "PN LFSR realization (galois or fibonacci); same period, different chip "
-    "order.\n",
-    NULL },
+    "PN LFSR realisation: the same period, a different chip order.\n", NULL },
   { "level", (getter)Segment_flat_level, NULL,
-    "Source power in dBFS (<=0; 0 = unit power). Applies only when summed in "
-    "a Segment/Composer (gain 10^(level/20)); ignored by standalone "
-    "Synth.steps().\n",
+    "Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a "
+    "Segment or Composer, as a gain of 10^(level/20); a standalone "
+    "Synth.steps() ignores it.\n",
     NULL },
   { "background", (getter)Segment_flat_background, NULL,
     "Mark this source as part of the static background field (0/1). "
@@ -2849,7 +2851,7 @@ static PyGetSetDef Segment_getset[] = {
     "bit-for-bit). Ignored by compose() and by standalone Synth.steps().\n",
     NULL },
   { "f_end", (getter)Segment_flat_f_end, NULL,
-    "Chirp end frequency in Hz; ignored by non-chirp types.\n", NULL },
+    "Chirp end frequency in Hz; ignored by other types.\n", NULL },
   { "span", (getter)Segment_flat_span, NULL,
     "Chirp sweep length in samples: the frequency ramps from freq to f_end "
     "over this many samples, then holds at f_end. 0 means the enclosing "
@@ -2868,26 +2870,26 @@ static PyGetSetDef Segment_getset[] = {
     NULL },
   { "doppler_rate", (getter)Segment_flat_doppler_rate, NULL,
     "Linear ramp on `doppler`, in ppm per second of elapsed stream time. The "
-    "channel runs through a segment's gaps as well as its on-time — an "
-    "emitter does not stop moving because its burst ended — so this is per "
+    "channel runs through a segment's gaps as well as its on-time -- an "
+    "emitter does not stop moving because its burst ended -- so this is per "
     "second, not per second of on-time. Accepts a (lo, hi) tuple drawn "
     "uniformly per repeat.\n",
     NULL },
   { "carrier_hz", (getter)Segment_flat_carrier_hz, NULL,
-    "RF carrier in Hz that the ppm figures are referred to, giving the "
-    "coherent carrier rotation that accompanies the time-base warp. 0 (the "
-    "default) warps the clock alone, with no carrier rotation — a legitimate "
-    "scene, not an unset field. Independent of doppler/doppler_rate.\n",
+    "RF carrier in Hz that the ppm figures are referred to. It gives the "
+    "coherent carrier rotation that accompanies the time-base warp; 0 warps "
+    "the clock alone, with no carrier rotation -- a legitimate scene, not an "
+    "unset field. Independent of doppler/doppler_rate.\n",
     NULL },
   { "doppler_lifetime", (getter)Segment_flat_doppler_lifetime, NULL,
-    "How long this source's Doppler channel lives. per_instance (default): "
-    "the channel dies with each `repeats` instance, so the geometry restarts "
-    "— the repeated-trial shape, which composes with a ranged doppler "
-    "re-drawn per instance. persist: one continuous pass carries across the "
-    "segment's gaps and repeat instances, keyed by (segment, source) position "
-    "— the only lifetime under which doppler_rate accumulates across a "
-    "multi-burst scene. Plan.prepare() REFUSES a persist source, because its "
-    "cache renders each source independently and concurrently; compose() and "
+    "How long this source's Doppler channel lives. per_instance: the channel "
+    "dies with each `repeats` instance, so the geometry restarts -- the "
+    "repeated-trial shape, which composes with a ranged doppler re-drawn per "
+    "instance. persist: one continuous pass carries across the segment's gaps "
+    "and repeat instances, keyed by (segment, source) position -- the only "
+    "lifetime under which doppler_rate accumulates across a multi-burst "
+    "scene. Plan.prepare() REFUSES a persist source, because its cache "
+    "renders each source independently and concurrently; compose() and "
     "stream() honour both.\n",
     NULL },
   { "bits", (getter)Segment_flat_bits, NULL,
@@ -2896,22 +2898,21 @@ static PyGetSetDef Segment_getset[] = {
     "frame.\n",
     NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL,
-    "For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, "
-    "qpsk).\n",
+    "Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.\n",
     NULL },
   { "pulse", (getter)Segment_flat_pulse, NULL,
-    "Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect "
+    "Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect "
     "sample-and-hold or rrc matched filter.\n",
     NULL },
   { "rrc_beta", (getter)Segment_flat_rrc_beta, NULL,
-    "RRC roll-off factor in (0, 1] when pulse=rrc.\n", NULL },
+    "RRC roll-off factor, in (0, 1], when pulse=rrc.\n", NULL },
   { "rrc_span", (getter)Segment_flat_rrc_span, NULL,
-    "RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).\n",
+    "RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.\n",
     NULL },
   { "symbols", (getter)Segment_flat_symbols, NULL,
-    "For type=symbols: a complex64 constellation stream — each element is the "
+    "For type=symbols: a complex constellation stream. Each element is the "
     "output point itself, oversampled by sps, cycled, and RRC-shaped with "
-    "pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).\n",
+    "pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).\n",
     NULL },
   { "acq_code", (getter)Segment_flat_acq_code, NULL,
     "The acquisition/preamble code (0/1), repeated acq_reps times at the head "
@@ -2937,7 +2938,7 @@ static PyGetSetDef Segment_getset[] = {
     "setting it (or acq_code) is what makes a source FRAMED.\n",
     NULL },
   { "crc", (getter)Segment_flat_crc, NULL,
-    "The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits "
+    "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
     "(what BurstDemod validates as frame_valid, and what makes a truth-free "
     "frame error rate possible); none omits it. Applies only to a FRAMED "
     "source: it defaults to crc16, so it alone never frames an otherwise "
@@ -2975,7 +2976,7 @@ static PyGetSetDef Segment_getset[] = {
     "target. The wfmgen scene and CLI spell it `conv` / `--conv`.\n",
     NULL },
   { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL,
-    "For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading "
+    "For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading "
     "code repeats endlessly and data rides on it at this symbol rate (Hz), "
     "independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, "
     "non-integer). No preamble/sync/CRC frame; data comes from the payload "

@@ -16,32 +16,32 @@ class Synth:
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     freq : float | tuple[float, float], default 0.0
-        Carrier/offset frequency in Hz (normalised cycles/sample when fs=1);
-        for chirp it is the start frequency.
+        Carrier or offset frequency in Hz; for chirp, the sweep start. With fs
+        = 1 it is in normalised cycles per sample.
     snr : float | tuple[float, float], default 100.0
-        Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated
-        as clean (no AWGN).
+        Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is
+        clean: no AWGN is added.
     snr_mode : str, default ``"auto"``
-        How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No
-        for bpsk/qpsk.
+        How snr is interpreted. auto picks fs (the full sample-rate band) for
+        tone/pn/chirp/bits and Es/No for bpsk/qpsk.
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
-        PRNG/LFSR seed for the noise and PN streams.
+        PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it
+        for run-to-run change.
     sps : int, default 1
-        Samples per symbol (PSK) or per chip (PN); the oversampling factor.
+        Samples per symbol (PSK) or per chip (PN): the oversampling factor.
     pn_length : int, default 15
         PN LFSR register length; the sequence period is 2^pn_length - 1.
     pn_poly : int, default 0
-        PN generator polynomial; 0 auto-selects a maximal-length (MLS)
-        polynomial for pn_length.
+        PN generator polynomial; 0 selects a maximal-length (MLS) polynomial
+        for pn_length.
     lfsr : str, default ``"galois"``
-        PN LFSR realization (galois or fibonacci); same period, different chip
-        order.
+        PN LFSR realisation: the same period, a different chip order.
         One of ``"galois"``, ``"fibonacci"``.
     level : float | tuple[float, float], default 0.0
-        Source power in dBFS (<=0; 0 = unit power). Applies only when summed in
-        a Segment/Composer (gain 10^(level/20)); ignored by standalone
-        Synth.steps().
+        Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a
+        Segment or Composer, as a gain of 10^(level/20); a standalone
+        Synth.steps() ignores it.
     background : int, default 0
         Mark this source as part of the static background field (0/1).
         Plan.prepare() folds a contiguous leading run of background sources
@@ -55,7 +55,7 @@ class Synth:
         reproduce compose bit-for-bit). Ignored by compose() and by standalone
         Synth.steps().
     f_end : float | tuple[float, float], default 0.0
-        Chirp end frequency in Hz; ignored by non-chirp types.
+        Chirp end frequency in Hz; ignored by other types.
     span : int, default 0
         Chirp sweep length in samples: the frequency ramps from freq to f_end
         over this many samples, then holds at f_end. 0 means the enclosing
@@ -71,46 +71,45 @@ class Synth:
         source that does not ask for Doppler renders exactly as it always did.
     doppler_rate : float | tuple[float, float], default 0.0
         Linear ramp on `doppler`, in ppm per second of elapsed stream time. The
-        channel runs through a segment's gaps as well as its on-time — an
-        emitter does not stop moving because its burst ended — so this is per
+        channel runs through a segment's gaps as well as its on-time -- an
+        emitter does not stop moving because its burst ended -- so this is per
         second, not per second of on-time. Accepts a (lo, hi) tuple drawn
         uniformly per repeat.
     carrier_hz : float, default 0.0
-        RF carrier in Hz that the ppm figures are referred to, giving the
-        coherent carrier rotation that accompanies the time-base warp. 0 (the
-        default) warps the clock alone, with no carrier rotation — a legitimate
-        scene, not an unset field. Independent of doppler/doppler_rate.
+        RF carrier in Hz that the ppm figures are referred to. It gives the
+        coherent carrier rotation that accompanies the time-base warp; 0 warps
+        the clock alone, with no carrier rotation -- a legitimate scene, not an
+        unset field. Independent of doppler/doppler_rate.
     doppler_lifetime : str, default ``"per_instance"``
-        How long this source's Doppler channel lives. per_instance (default):
-        the channel dies with each `repeats` instance, so the geometry restarts
-        — the repeated-trial shape, which composes with a ranged doppler
-        re-drawn per instance. persist: one continuous pass carries across the
-        segment's gaps and repeat instances, keyed by (segment, source)
-        position — the only lifetime under which doppler_rate accumulates
-        across a multi-burst scene. Plan.prepare() REFUSES a persist source,
-        because its cache renders each source independently and concurrently;
-        compose() and stream() honour both.
+        How long this source's Doppler channel lives. per_instance: the channel
+        dies with each `repeats` instance, so the geometry restarts -- the
+        repeated-trial shape, which composes with a ranged doppler re-drawn per
+        instance. persist: one continuous pass carries across the segment's
+        gaps and repeat instances, keyed by (segment, source) position -- the
+        only lifetime under which doppler_rate accumulates across a multi-burst
+        scene. Plan.prepare() REFUSES a persist source, because its cache
+        renders each source independently and concurrently; compose() and
+        stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
         For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill
         the request. For type=dsss (as `payload`): the payload bits of the
         burst frame.
     modulation : str, default ``"bpsk"``
-        For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk,
-        qpsk).
+        Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
     pulse : str, default ``"rect"``
-        Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect
+        Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect
         sample-and-hold or rrc matched filter.
         One of ``"rect"``, ``"rrc"``.
     rrc_beta : float, default 0.35
-        RRC roll-off factor in (0, 1] when pulse=rrc.
+        RRC roll-off factor, in (0, 1], when pulse=rrc.
     rrc_span : int, default 8
-        RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).
+        RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.
     symbols : NDArray[np.complex64] | None, default None
-        For type=symbols: a complex64 constellation stream — each element is
-        the output point itself, oversampled by sps, cycled, and RRC-shaped
-        with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
+        For type=symbols: a complex constellation stream. Each element is the
+        output point itself, oversampled by sps, cycled, and RRC-shaped with
+        pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).
     acq_code : bytes | None, default None
         The acquisition/preamble code (0/1), repeated acq_reps times at the
         head of the frame — the coherent pull-in target
@@ -131,7 +130,7 @@ class Synth:
         position and BPSK polarity, and what a BER alignment detects against.
         Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
-        The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
+        The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
         frame error rate possible); none omits it. Applies only to a FRAMED
         source: it defaults to crc16, so it alone never frames an otherwise
@@ -165,7 +164,7 @@ class Synth:
         preamble is transmitted unmodulated because it is the coherent pull-in
         target. The wfmgen scene and CLI spell it `conv` / `--conv`.
     symbol_rate : float, default 0.0
-        For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading
+        For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading
         code repeats endlessly and data rides on it at this symbol rate (Hz),
         independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate,
         non-integer). No preamble/sync/CRC frame; data comes from the payload
@@ -176,7 +175,8 @@ class Synth:
         data modulation); 0 = data-modulated (the payload when supplied, else
         the seeded PN). Ignored for burst dsss and non-dsss types.
     fs : float, default 1.0
-        Sample rate in Hz — one per segment (all sources share it).
+        Sample rate in Hz, one per segment and shared by all its sources. With
+        fs = 1, frequencies are normalised.
     """
 
     def __init__(
@@ -311,32 +311,32 @@ class Segment:
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     freq : float | tuple[float, float], default 0.0
-        Carrier/offset frequency in Hz (normalised cycles/sample when fs=1);
-        for chirp it is the start frequency.
+        Carrier or offset frequency in Hz; for chirp, the sweep start. With fs
+        = 1 it is in normalised cycles per sample.
     snr : float | tuple[float, float], default 100.0
-        Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated
-        as clean (no AWGN).
+        Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is
+        clean: no AWGN is added.
     snr_mode : str, default ``"auto"``
-        How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No
-        for bpsk/qpsk.
+        How snr is interpreted. auto picks fs (the full sample-rate band) for
+        tone/pn/chirp/bits and Es/No for bpsk/qpsk.
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
-        PRNG/LFSR seed for the noise and PN streams.
+        PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it
+        for run-to-run change.
     sps : int, default 1
-        Samples per symbol (PSK) or per chip (PN); the oversampling factor.
+        Samples per symbol (PSK) or per chip (PN): the oversampling factor.
     pn_length : int, default 15
         PN LFSR register length; the sequence period is 2^pn_length - 1.
     pn_poly : int, default 0
-        PN generator polynomial; 0 auto-selects a maximal-length (MLS)
-        polynomial for pn_length.
+        PN generator polynomial; 0 selects a maximal-length (MLS) polynomial
+        for pn_length.
     lfsr : str, default ``"galois"``
-        PN LFSR realization (galois or fibonacci); same period, different chip
-        order.
+        PN LFSR realisation: the same period, a different chip order.
         One of ``"galois"``, ``"fibonacci"``.
     level : float | tuple[float, float], default 0.0
-        Source power in dBFS (<=0; 0 = unit power). Applies only when summed in
-        a Segment/Composer (gain 10^(level/20)); ignored by standalone
-        Synth.steps().
+        Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a
+        Segment or Composer, as a gain of 10^(level/20); a standalone
+        Synth.steps() ignores it.
     background : int, default 0
         Mark this source as part of the static background field (0/1).
         Plan.prepare() folds a contiguous leading run of background sources
@@ -350,7 +350,7 @@ class Segment:
         reproduce compose bit-for-bit). Ignored by compose() and by standalone
         Synth.steps().
     f_end : float | tuple[float, float], default 0.0
-        Chirp end frequency in Hz; ignored by non-chirp types.
+        Chirp end frequency in Hz; ignored by other types.
     span : int, default 0
         Chirp sweep length in samples: the frequency ramps from freq to f_end
         over this many samples, then holds at f_end. 0 means the enclosing
@@ -366,46 +366,45 @@ class Segment:
         source that does not ask for Doppler renders exactly as it always did.
     doppler_rate : float | tuple[float, float], default 0.0
         Linear ramp on `doppler`, in ppm per second of elapsed stream time. The
-        channel runs through a segment's gaps as well as its on-time — an
-        emitter does not stop moving because its burst ended — so this is per
+        channel runs through a segment's gaps as well as its on-time -- an
+        emitter does not stop moving because its burst ended -- so this is per
         second, not per second of on-time. Accepts a (lo, hi) tuple drawn
         uniformly per repeat.
     carrier_hz : float, default 0.0
-        RF carrier in Hz that the ppm figures are referred to, giving the
-        coherent carrier rotation that accompanies the time-base warp. 0 (the
-        default) warps the clock alone, with no carrier rotation — a legitimate
-        scene, not an unset field. Independent of doppler/doppler_rate.
+        RF carrier in Hz that the ppm figures are referred to. It gives the
+        coherent carrier rotation that accompanies the time-base warp; 0 warps
+        the clock alone, with no carrier rotation -- a legitimate scene, not an
+        unset field. Independent of doppler/doppler_rate.
     doppler_lifetime : str, default ``"per_instance"``
-        How long this source's Doppler channel lives. per_instance (default):
-        the channel dies with each `repeats` instance, so the geometry restarts
-        — the repeated-trial shape, which composes with a ranged doppler
-        re-drawn per instance. persist: one continuous pass carries across the
-        segment's gaps and repeat instances, keyed by (segment, source)
-        position — the only lifetime under which doppler_rate accumulates
-        across a multi-burst scene. Plan.prepare() REFUSES a persist source,
-        because its cache renders each source independently and concurrently;
-        compose() and stream() honour both.
+        How long this source's Doppler channel lives. per_instance: the channel
+        dies with each `repeats` instance, so the geometry restarts -- the
+        repeated-trial shape, which composes with a ranged doppler re-drawn per
+        instance. persist: one continuous pass carries across the segment's
+        gaps and repeat instances, keyed by (segment, source) position -- the
+        only lifetime under which doppler_rate accumulates across a multi-burst
+        scene. Plan.prepare() REFUSES a persist source, because its cache
+        renders each source independently and concurrently; compose() and
+        stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
         For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill
         the request. For type=dsss (as `payload`): the payload bits of the
         burst frame.
     modulation : str, default ``"bpsk"``
-        For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk,
-        qpsk).
+        Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
     pulse : str, default ``"rect"``
-        Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect
+        Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect
         sample-and-hold or rrc matched filter.
         One of ``"rect"``, ``"rrc"``.
     rrc_beta : float, default 0.35
-        RRC roll-off factor in (0, 1] when pulse=rrc.
+        RRC roll-off factor, in (0, 1], when pulse=rrc.
     rrc_span : int, default 8
-        RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).
+        RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.
     symbols : NDArray[np.complex64] | None, default None
-        For type=symbols: a complex64 constellation stream — each element is
-        the output point itself, oversampled by sps, cycled, and RRC-shaped
-        with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
+        For type=symbols: a complex constellation stream. Each element is the
+        output point itself, oversampled by sps, cycled, and RRC-shaped with
+        pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).
     acq_code : bytes | None, default None
         The acquisition/preamble code (0/1), repeated acq_reps times at the
         head of the frame — the coherent pull-in target
@@ -426,7 +425,7 @@ class Segment:
         position and BPSK polarity, and what a BER alignment detects against.
         Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
-        The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits
+        The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
         frame error rate possible); none omits it. Applies only to a FRAMED
         source: it defaults to crc16, so it alone never frames an otherwise
@@ -460,7 +459,7 @@ class Segment:
         preamble is transmitted unmodulated because it is the coherent pull-in
         target. The wfmgen scene and CLI spell it `conv` / `--conv`.
     symbol_rate : float, default 0.0
-        For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading
+        For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading
         code repeats endlessly and data rides on it at this symbol rate (Hz),
         independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate,
         non-integer). No preamble/sync/CRC frame; data comes from the payload
@@ -471,26 +470,28 @@ class Segment:
         data modulation); 0 = data-modulated (the payload when supplied, else
         the seeded PN). Ignored for burst dsss and non-dsss types.
     fs : float, default 1.0
-        Sample rate in Hz — one per segment (all sources share it).
+        Sample rate in Hz, one per segment and shared by all its sources. With
+        fs = 1, frequencies are normalised.
     num_samples : int | tuple[int, int], default 1024
-        Segment on-time in samples (the active span).
+        Segment on-time in samples: the active span.
     off_samples : int | tuple[int, int], default 0
-        Trailing off-time gap in samples (zeros) appended after the segment.
+        Trailing gap after the on-time, in samples. It carries the noise floor
+        or hard zeros, per gap_noise.
     repeats : int, default 1
         Play the segment this many times back-to-back (each instance = delay +
         on-time + trailing gap) before advancing. Ranged fields re-draw and the
         AWGN is fresh per instance; the signal (codes, payload, PN phase) stays
-        fixed.
+        fixed. 0 and 1 both mean one instance.
     delay_samples : int | tuple[int, int], default 0
-        Leading gap before the on-time (samples) — the burst arrives after this
-        delay. Ranged like off_samples and re-drawn per repeats instance, so a
-        (lo, hi) delay is per-burst arrival jitter. Use off_samples for
+        Leading gap before the on-time, in samples: the burst arrives after
+        this delay. Ranged like off_samples and re-drawn per repeats instance,
+        so a (lo, hi) delay is per-burst arrival jitter. Use off_samples for
         inter-burst spacing, delay_samples for arrival jitter.
     gap_noise : str, default ``"auto"``
-        Gap policy for this segment's delay and trailing gap. auto (default):
-        gaps carry the segment's noise floor — the sources' AWGN keeps running
-        while the signal stops (clean scenes still get exact-zero gaps). off:
-        gaps are hard zeros.
+        Gap policy for this segment's delay and trailing gap. auto: gaps carry
+        the segment's noise floor -- the sources' AWGN keeps running while the
+        signal stops (clean scenes still get exact-zero gaps). off: gaps are
+        hard zeros.
         One of ``"auto"``, ``"off"``.
     """
 

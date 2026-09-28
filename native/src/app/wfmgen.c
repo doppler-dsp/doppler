@@ -1,8 +1,7 @@
 /*
  * wfmgen.c — the waveform-generator composer CLI (Phase C, hand-written).
  *
- * The rich sibling of the generated `wavegen` single-shot tool: it sequences
- * multi-segment specs (`--from-file`), emits any output file type
+ * It sequences multi-segment specs (`--from-file`), emits any output file type
  * (raw/csv/BLUE/SigMF, `--file-type`) in any wire type / byte order, streams
  * to a file, stdout, or a NATS PUB subject (`--output nats://…`), and writes a
  * JSON record of exactly what it produced (`--record`). All of it is thin glue
@@ -10,9 +9,8 @@
  * wfm_sink — which is why this lives by hand rather than via `jm app` (a
  * composer is not a single-object generator).
  *
- * Single-segment mode (the default) builds a one-segment spec from the same
- * flags as `wavegen`, so `wfmgen --type qpsk --count 4096 …` and
- * `wavegen --type qpsk --count 4096 …` agree sample-for-sample.
+ * Single-segment mode (the default) builds a one-segment spec from the
+ * flags, so `wfmgen --type qpsk --count 4096 …` needs no spec file.
  */
 #include "doppler/cvt/cvt_core.h"
 #include "doppler/dp_complex.h"
@@ -375,9 +373,10 @@ static const char USAGE[]
       "  does not -- it defaults to crc16). For --type bits the payload is\n"
       "  --bits/--bits-hex/--bits-file and --modulation maps it to BPSK or\n"
       "  QPSK; the frame then CYCLES to fill --count, so one description\n"
-      "  gives a multi-frame record. A frame needs an explicit payload, so\n"
-      "  --type bpsk/qpsk/pn (whose symbols come from the PN LFSR) refuse\n"
-      "  these flags rather than ignoring them.\n"
+      "  gives a multi-frame record. A frame needs a payload: --type\n"
+      "  bpsk/qpsk/pn take one from their own PN LFSR once --payload-len\n"
+      "  bounds it, and are refused without it. Types with no bit stream\n"
+      "  (tone, noise, chirp, symbols) cannot be framed.\n"
       "\n"
       "CHANNEL CODING  (--type bits | --type dsss)\n"
       "  Stages over the frame's fields, each optional, and they do NOT all\n"
@@ -407,9 +406,10 @@ static const char USAGE[]
       "                  including the marker; doubles the bit count.\n"
       "  --interleave R  Block-interleave the data group R deep: write it by\n"
       "                  rows into an R x C matrix and read it by columns,\n"
-      "                  where C follows from the span. LAST of these "
-      "stages,\n"
-      "                  so it is what the channel sees. A burst of up to R\n"
+      "                  where C follows from the span. After the outer\n"
+      "                  code and the randomiser, BEFORE --conv, so a burst\n"
+      "                  the inner decoder leaves behind is spread across\n"
+      "                  codewords. A burst of up to R\n"
       "                  consecutive units then touches each codeword once,\n"
       "                  so an outer code correcting t per codeword survives\n"
       "                  a burst of t*R. Length-preserving; a span that is\n"
@@ -536,7 +536,8 @@ static const char USAGE[]
       "\n"
       "REAL-TIME\n"
       "  --realtime      Pace output to wall-clock sample rate\n"
-      "  --realtime-resync  Resync clock at each segment boundary\n"
+      "  --realtime-resync  Re-anchor the clock when output falls behind\n"
+      "                  (absorb an underrun rather than catch up)\n"
       "\n"
       "SUBCOMMANDS\n"
       "  wfmgen json-template [FILE]\n"
@@ -703,7 +704,7 @@ typedef struct
 /* Parse a GENERATED sequence: `KIND:LEN[:...]`, colon-separated like the
  * `LO[:HI]` ranges above.
  *
- *     pn:LEN[:REG_BITS[:SEED[:POLY]]]
+ *     pn:LEN:REG_BITS[:SEED[:POLY]]
  *     gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B
  *     dotted:LEN
  *
@@ -800,7 +801,8 @@ parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
   char *tok    = next_colon_field (&cursor);
   int   kind   = tok ? lookup (tok, SEQ_KIND_NAMES, 4) : -1;
   /* `literal` is rejected, not merely unmatched: a literal sequence is what
-     --sync and --sync-hex are for, and a second way to spell it is how two
+     --sync, --acq-code and --data-code are for, and a second way to spell
+     it is how two
      spellings of one thing start disagreeing. */
   if (kind <= 0)
     {
@@ -1436,7 +1438,7 @@ emit_to_stream (const emit_ctx_t *e)
     {
       fprintf (stderr,
                "error: --sample-type %s is a real (scalar) format, and the\n"
-               "  nats:// / zmq:// stream carries complex samples only.\n"
+               "  nats:// stream carries complex samples only.\n"
                "  Write a file, or use a complex sample type.\n",
                STYPE_NAMES[o->sample_type]);
       return 1;

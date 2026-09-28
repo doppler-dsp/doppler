@@ -2,7 +2,7 @@
  * wfm_sink_stub.c — weak no-op fallbacks for the stream sink, compiled into
  * the pure-C core (libdoppler).
  *
- * wfmgen lives in the core and references the wfm_stream_sink_* symbols on
+ * wfmgen lives in the core and references the dp_wfm_stream_sink_* symbols on
  * its `--output nats://` path, but the real sink (which pulls in the
  * vendored nats.c client) lives in the optional libdoppler_stream component.
  * Shipping WEAK DEFINITIONS here keeps libdoppler self-contained — it links

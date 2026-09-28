@@ -200,11 +200,12 @@ so one description yields a multi-frame record and the repeat count stays out
 of the frame. (A `dsss` burst is the exception: its length is intrinsic and
 `--count` is derived.)
 
-A frame needs a payload, so the types whose symbols come from the PN LFSR —
-`bpsk`, `qpsk`, `pn` — **refuse** these flags and name the replacement rather
-than ignoring them. Until [gh-755](https://github.com/doppler-dsp/doppler/issues/755)
-the whole unspread path ignored them silently, producing an unframed waveform
-at exit 0; that is why the refusal is loud.
+A frame needs a payload. The types whose symbols come from the PN LFSR —
+`bpsk`, `qpsk`, `pn` — take one from that LFSR once `--payload-len` bounds it
+(above), and **refuse** the framing flags without it, naming the replacement.
+Until [gh-755](https://github.com/doppler-dsp/doppler/issues/755) the whole
+unspread path ignored them silently, producing an unframed waveform at exit 0;
+that is why the refusal is loud.
 
 The same keywords work on the Python `Synth` and `Segment`
 (`sync=`, `acq_code=`, `acq_reps=`, `crc=`), and `--record` carries them, so
@@ -919,13 +920,13 @@ because the standards make it so.
 The frame is a list of fields and a list of stages, and every stage names the
 fields it covers. In application order:
 
-| #   | Stage         | Flag           | Covers                                                    |
-| --- | ------------- | -------------- | --------------------------------------------------------- |
-| 1   | CRC-16        | `--crc`        | the payload                                               |
-| 2   | Reed-Solomon  | `--rs-depth`   | payload + CRC → appends check symbols                     |
-| 3   | randomiser    | `--randomise`  | the **data group**: payload, CRC, check symbols           |
-| 4   | interleaver   | `--interleave` | the data group — **last**, so it is what the channel sees |
-| 5   | convolutional | `--conv`       | **every** field, marker and sync word included            |
+| #   | Stage         | Flag           | Covers                                                                              |
+| --- | ------------- | -------------- | ----------------------------------------------------------------------------------- |
+| 1   | CRC-16        | `--crc`        | the payload                                                                         |
+| 2   | Reed-Solomon  | `--rs-depth`   | payload + CRC → appends check symbols                                               |
+| 3   | randomiser    | `--randomise`  | the **data group**: payload, CRC, check symbols                                     |
+| 4   | interleaver   | `--interleave` | the data group — before the inner code, so a decoder burst spreads across codewords |
+| 5   | convolutional | `--conv`       | **every** field, marker and sync word included                                      |
 
 The disagreement in the last column is the whole reason a frame is a
 description rather than a pipeline: a chain gets three of these boundaries

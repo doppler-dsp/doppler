@@ -3,9 +3,10 @@
 The waveform tool is implemented exactly once, in C: ``wfmgen`` (the composer
 superset; ``native/src/app/wfmgen.c``). There is **no** second CLI in Python.
 This entry point locates the ``wfmgen`` binary the wheel ships as package data
-(``doppler/wfm/_bin/wfmgen``) and hands off to it with :func:`os.execv`, so the
-process *becomes* the C tool — argv, stdio, exit status all pass straight
-through. See ``docs/dev/wfmgen/api.md`` (D2/D5).
+(``doppler/wfm/_bin/wfmgen``) and hands off to it: on POSIX with
+:func:`os.execv`, so the process *becomes* the C tool; on Windows, which has
+no exec, as a child process whose exit status it returns. Either way argv,
+stdio and the exit status pass straight through.
 
 Run::
 

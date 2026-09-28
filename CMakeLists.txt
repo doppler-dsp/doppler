@@ -428,7 +428,7 @@ endif()
 target_link_libraries(doppler_lib        PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)
 target_link_libraries(doppler_lib_static PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)
 
-# The core ships weak no-op stubs for the wfm_stream_sink_* symbols wfmgen
+# The core ships weak no-op stubs for the dp_wfm_stream_sink_* symbols wfmgen
 # uses (native/src/wfm/wfm_sink_stub.c, folded in via the wfmcompose subdir),
 # so the core is self-contained and needs no per-platform linker flags;
 # linking libdoppler_stream supplies the strong overrides.
@@ -1313,7 +1313,7 @@ endif()
 # need streaming isn't forced to pull in nats.c/pthreads.  libdoppler_stream
 # bundles the stream wire layer (stream_core) and the wfm stream sink
 # (wfm_sink_core) and links the vendored nats.c.  It provides the strong
-# wfm_stream_sink_* definitions that satisfy the core's weak seam
+# dp_wfm_stream_sink_* definitions that satisfy the core's weak seam
 # (native/inc/doppler/wfm/wfm_sink.h), so a C consumer that wants `--output nats://`
 # (or the dp_pub_*/dp_sub_* wire layer) links `doppler::stream` alongside
 # `doppler::doppler[-static]`.

@@ -3769,11 +3769,13 @@ ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerge
 # proposed exactly this gate and it went unwritten, so four components reached
 # into `ccsds_tm` while the page said none did.
 #
-# A ratchet: it fails on a NEW violator and equally on an allowlist entry that
-# no longer violates, so the list can only shrink and cannot rot into an
-# exemption nobody rereads. Logic in a script so the gate's own test can drive
-# it over a seeded tree, as `issue-link-check` does.
-ccsds-isolation-check: ## Fail when a component outside ccsds_tm includes its headers
+# It reads the two files the general primitive is made of -- wfm_frame.h and
+# wfm_frame.c -- and fails on a ccsds_tm include or a call into its kernels.
+# A consumer composing the two is the design working, so nothing else is
+# scanned (an earlier version ratcheted every component; see the script).
+# Logic in a script so the gate's own test can drive it over a seeded tree,
+# as `issue-link-check` does.
+ccsds-isolation-check: ## Fail when wfm_frame.{h,c} include or call ccsds_tm
 	@$(UV) run python scripts/check_ccsds_isolation.py
 
 # A read-write mount of the checkout is only safe through CONTAINER_CHECKOUT,

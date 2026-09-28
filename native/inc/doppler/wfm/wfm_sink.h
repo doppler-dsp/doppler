@@ -32,7 +32,7 @@ extern "C" {
  * linker flags (ELF allows undefined symbols in a .so; Mach-O's ld64 does
  * not, neither in a dylib nor in a downstream's executable that statically
  * links libdoppler.a), the core ships **weak no-op definitions** of every
- * wfm_stream_sink_* symbol (see wfm_sink_stub.c).  Linking `libdoppler_stream`
+ * dp_wfm_stream_sink_* symbol (see wfm_sink_stub.c).  Linking `libdoppler_stream`
  * supplies the STRONG real definitions, which override the weak stubs.
  * wfmgen gates the path with `dp_wfm_stream_sink_available()` (0 from the stub,
  * 1 from the real component).

@@ -52,7 +52,6 @@ from doppler.wfm import STAGE_CRC16, STAGE_USER, Composer, FrameDesc, Segment
 FS = 1.0e6  #: sample rate, Hz
 SPS = 4  #: samples per symbol; rectangular, so a symbol is 4 copies
 
-EMPTY = np.empty(0, np.uint8)
 
 #: The kind this example allocates. Above STAGE_USER, so no version of
 #: doppler will ever collide with it -- that guarantee is one-directional
@@ -95,12 +94,10 @@ def describe() -> FrameDesc:
     hdr = np.unpackbits(np.array([0x5C, 0x5C], np.uint8))
     payload = np.array([(i * 7 + 1) & 1 for i in range(24)], np.uint8)
 
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    assert d.add_field(hdr) == 0
-    assert d.add_field(payload) == 1
+    d = FrameDesc()
+    assert d.add_field("hdr", hdr) == 0
+    assert d.add_field("payload", payload) == 1
     assert d.add_derived("crc", 16) == 2
-    d.name_field(0, "hdr")
-    d.name_field(1, "payload")
     # The cover REACHES the derived field, which is what wires that field's
     # producer -- so a CRC's position and the fact that a CRC produces it
     # are one declaration rather than two that can disagree.
@@ -156,8 +153,8 @@ def main() -> int:
 
     # ── 2. The kind is the caller's, and the description carries it ───────
     print("--- 2. A kind above everything doppler names ---")
-    carrier = FrameDesc(EMPTY, EMPTY, EMPTY)
-    carrier.add_field(frame)
+    carrier = FrameDesc()
+    carrier.add_field("frame", frame)
     idx = carrier.add_stage(MY_WHITEN, first_field=0, n_fields=1)
     print(f"  add_stage(STAGE_USER + 1, ...) -> stage {idx}")
     assert idx == 0, "a description accepts a kind doppler never allocates"

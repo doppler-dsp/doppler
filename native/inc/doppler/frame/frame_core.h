@@ -20,35 +20,37 @@
  * any of it here would rebuild exactly the TX/RX drift the descriptor was
  * introduced to stop.
  *
- * ## Two lengths per field, and they are not the same length
+ * ## It takes BITS
  *
- * A field is either a literal array or a handful of numbers a receiver can
- * REGENERATE. So each of the three carries both: @p preamble is the literal
- * and @p preamble_len is its extent, while @p preamble_nbits is how many bits
- * a *generated* kind should emit. `wfm_seq_t` already names this apart —
- * @p reg_bits is a register width, @p len is an output length — and conflating
- * them is the mistake that documentation exists to prevent.
+ * Each field is an unpacked bit array, one bit per byte, and nothing else:
+ * no kind, no generator parameters, no repetition count. Every other form
+ * reaches it through a helper that returns bits -- `field_bits()` for the
+ * Field text form (`pn:1023:10`, `0x1ACFFC1D`, `*4`), `cvt`'s `hex_to_bin`
+ * and `bytes_to_bin` for hex and packed octets -- so this object has one
+ * constructor shape and no dispatch (docs/design/frame-description.md §F.3).
+ * An element that is not 0 or 1 is REFUSED rather than masked: a byte of 101
+ * is what a digit string becomes when it is passed where bits belong, and
+ * masking would make that mistake a valid-looking field.
  *
  * ## The frame is materialised at CREATE
  *
- * `dp_frame_create()` builds the bits immediately and returns NULL if the
- * descriptor cannot produce them (a literal kind with no array, a PN with no
- * register width, an empty geometry). A descriptor that cannot be materialised
- * is not a frame, and finding that out at construction is what lets the
- * binding raise something better than a failure three calls later.
+ * `dp_frame_create()` builds the bits immediately and returns NULL if they
+ * cannot be built (an element that is not a bit, an empty geometry). A frame
+ * that cannot be materialised is not a frame, and finding that out at
+ * construction is what lets the binding raise something better than a
+ * failure three calls later.
  *
  * @code
  * // Barker-13 sync over a 16-bit literal payload, with a CRC-16 trailer.
  * static const uint8_t sync[13]  = {1,1,1,1,1,0,0,1,1,0,1,0,1};
  * static const uint8_t pay[16]   = {0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1};
- * dp_frame_state_t *f = dp_frame_create(
- *     0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // no preamble
- *     0, sync, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,     // literal sync
- *     0, pay, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0,      // literal payload
- *     1);                                          // crc16
+ * dp_frame_state_t *f = dp_frame_create(NULL, 0,     // no preamble
+ *                                       sync, 13,
+ *                                       pay, 16,
+ *                                       1);           // crc16
  * uint8_t *b = malloc(dp_frame_bits_max_out(f, 1));
- * size_t   n = frame_bits(f, 1, b, f->nbits);      // 13 + 16 + 16 == 45
- * dp_frame_crc_ok(f, b, n);                           // 1 — it is its own truth
+ * size_t   n = dp_frame_bits(f, 1, b, f->nbits);     // 13 + 16 + 16 == 45
+ * dp_frame_crc_ok(f, b, n);                           // 1 -- its own truth
  * free(b);
  * dp_frame_destroy(f);
  * @endcode
@@ -120,60 +122,28 @@ typedef struct {
 /**
  * @brief Create a frame instance.
  *
- * Each of the three fields takes the same twelve arguments: a kind, a literal
- * array with its length, a generated output length, and the PN/Gold generator
- * parameters. Only the ones the kind uses are read.
+ * Three fields as bits, each optional, and the CRC. An omitted field is
+ * absent, which is `wfm_seq_t`'s own spelling of absence (a zero length).
  *
- * @param preamble_kind  Enum index; 0=literal…3=dotted.
- * @param preamble  Input uint8_t array (length passed as preamble_len).
- * @param preamble_len  Literal preamble length in bits.
- * @param preamble_nbits  Output bits for a GENERATED preamble kind (default: 0).
- * @param preamble_reps  Repetitions of the preamble; 0 = no preamble (default: 0).
- * @param preamble_poly  PN feedback polynomial; 0 selects the maximal-length one (default: 0).
- * @param preamble_seed  PN seed; 0 selects 1, since an all-zero register is a fixed point (default: 0).
- * @param preamble_reg_bits  PN/Gold register width, 1..64 (default: 0).
- * @param preamble_lfsr  Enum index; 0=galois…1=fibonacci.
- * @param preamble_taps_a  Gold: first register's taps (default: 0).
- * @param preamble_seed_a  Gold: first register's seed (default: 0).
- * @param preamble_taps_b  Gold: second register's taps (default: 0).
- * @param preamble_seed_b  Gold: second register's seed (default: 0).
- * @param sync_kind  Enum index; 0=literal…3=dotted.
- * @param sync  Input uint8_t array (length passed as sync_len).
- * @param sync_len  Literal sync-word length in bits.
- * @param sync_nbits  Output bits for a GENERATED sync kind (default: 0).
- * @param sync_poly  PN feedback polynomial; 0 selects the maximal-length one (default: 0).
- * @param sync_seed  PN seed; 0 selects 1 (default: 0).
- * @param sync_reg_bits  PN/Gold register width, 1..64 (default: 0).
- * @param sync_lfsr  Enum index; 0=galois…1=fibonacci.
- * @param sync_taps_a  Gold: first register's taps (default: 0).
- * @param sync_seed_a  Gold: first register's seed (default: 0).
- * @param sync_taps_b  Gold: second register's taps (default: 0).
- * @param sync_seed_b  Gold: second register's seed (default: 0).
- * @param payload_kind  Enum index; 0=literal…3=dotted.
- * @param payload  Input uint8_t array (length passed as payload_len).
- * @param payload_len  Literal payload length in bits.
- * @param payload_nbits  Output bits for a GENERATED payload kind (default: 0).
- * @param payload_poly  PN feedback polynomial; 0 selects the maximal-length one (default: 0).
- * @param payload_seed  PN seed; 0 selects 1 (default: 0).
- * @param payload_reg_bits  PN/Gold register width, 1..64 (default: 0).
- * @param payload_lfsr  Enum index; 0=galois…1=fibonacci.
- * @param payload_taps_a  Gold: first register's taps (default: 0).
- * @param payload_seed_a  Gold: first register's seed (default: 0).
- * @param payload_taps_b  Gold: second register's taps (default: 0).
- * @param payload_seed_b  Gold: second register's seed (default: 0).
- * @param crc  Enum index; 0=none…1=crc16.
- * @return Heap-allocated state, or NULL if the geometry is empty or a field
- *         cannot be built (a literal with no array, a PN with no register
- *         width) — the descriptor is refused rather than half-honoured.
+ * @param preamble      Preamble bits, one per element, each 0 or 1; may be
+ *                      empty. A repeated preamble is repeated in its bits.
+ * @param preamble_len  Its length in bits.
+ * @param sync          Sync-word bits; may be empty.
+ * @param sync_len      Its length in bits.
+ * @param payload       Payload bits; may be empty.
+ * @param payload_len   Its length in bits.
+ * @param crc           Enum index; 0=none, 1=crc16 over the payload.
+ * @return Heap-allocated state, or NULL if the geometry is empty or an
+ *         element is not a bit -- the frame is refused rather than
+ *         half-honoured.
  * @note Caller must call dp_frame_destroy() when done.
  *
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import Frame
- * >>> empty = np.empty(0, np.uint8)                    # an absent field
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # Barker-13
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> f = Frame(empty, sync, payload, crc="crc16")
+ * >>> f = Frame(sync=sync, payload=payload, crc="crc16")
  * >>> f.nbits                                          # 13 + 16 + 16
  * 45
  * >>> f.layout().payload_off
@@ -181,15 +151,9 @@ typedef struct {
  * >>> f.crc_ok(f.bits())        # its own bits are its own truth
  * 1
  *
- * A payload a receiver can REGENERATE, rather than one it must be handed:
- *
- * >>> g = Frame(empty, sync, empty, payload_kind="pn",
- * ...           payload_nbits=1024, payload_reg_bits=10, crc="crc16")
- * >>> g.nbits
- * 1053
  * @endcode
  */
-dp_frame_state_t *dp_frame_create(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
+dp_frame_state_t *dp_frame_create(const uint8_t *preamble, size_t preamble_len, const uint8_t *sync, size_t sync_len, const uint8_t *payload, size_t payload_len, int crc);
 
 /**
  * @brief Destroy a frame instance and release all memory.
@@ -224,10 +188,9 @@ size_t dp_frame_bits_max_out(dp_frame_state_t *state, size_t n);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> len(d.bits())        # one frame: 13 + 16 + 16
  * 45
@@ -250,10 +213,9 @@ size_t dp_frame_bits(dp_frame_state_t *state, size_t n, uint8_t *out, size_t max
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import Frame
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> lay = Frame(empty, sync, payload, crc="crc16").layout()
+ * >>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
  * >>> lay.sync_off, lay.payload_off, lay.crc_off
  * (0, 13, 29)
  * >>> lay.total_bits
@@ -284,10 +246,9 @@ wfm_frame_layout_t dp_frame_layout(dp_frame_state_t *state);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.crc_ok(d.bits())           # its own bits are its own truth
  * 1
@@ -303,17 +264,17 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
 /**
  * @brief The same frame, DEFERRED — a description a caller can extend.
  *
- * Every argument @ref dp_frame_create takes, and the flavor is what it does with
- * them: this one stops before materialising, so the four fields are a
+ * Every argument @ref dp_frame_create takes, and the flavor is what it does
+ * with them: this one stops before materialising, so the fields are a
  * STARTING POINT rather than a finished frame. Append with
- * @ref dp_frame_add_field and @ref dp_frame_add_stage, then @ref dp_frame_build.
- * Pass empty arrays for all three to begin from nothing.
+ * @ref dp_frame_add_field, @ref dp_frame_add_derived and
+ * @ref dp_frame_add_stage_over, then @ref dp_frame_build. Omit all three
+ * fields to begin from nothing.
  *
  * That is what makes a frame doppler has never heard of describable — a
- * CCSDS CADU among them — without a constructor argument per field of a fixed
- * list. The thirty-odd arguments both constructors take exist because a field
- * count baked into a prototype forces every field's every parameter into it;
- * appending is how a fifth field is added without a signature change.
+ * CCSDS CADU among them — without a constructor argument per field of a
+ * fixed list: appending is how a fifth field is added without a signature
+ * change.
  *
  * It is also what makes the CCSDS coding reachable from Python at all.
  * `ccsds_tm` has no binding and is not getting one, so a caller meets the
@@ -330,23 +291,21 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
  * stale offset is worse than an absent one. Read a description through
  * @ref dp_frame_field_off and its siblings.
  *
- * @return An unbuilt description, or NULL on allocation failure or a field
- *         that cannot be copied.
+ * @return An unbuilt description, or NULL if an element is not a bit.
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
- * >>> d = FrameDesc(empty, empty, empty)          # begin from nothing
+ * >>> from doppler.wfm import FrameDesc, STAGE_CRC16
+ * >>> d = FrameDesc()                             # begin from nothing
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d.add_field(sync)                           # returns its index
+ * >>> d.add_field("sync", sync)                   # returns its index
  * 0
- * >>> d.add_field(payload)
+ * >>> d.add_field("payload", payload)
  * 1
- * >>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
+ * >>> d.add_derived("crc", 16)                    # a stage will fill it
  * 2
- * >>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
+ * >>> d.add_stage_over(STAGE_CRC16, "payload", "crc")
  * 0
  * >>> d.build()
  * >>> d.nbits                                     # 13 + 16 + 16
@@ -356,66 +315,41 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
  *
  * @endcode
  */
-dp_frame_state_t *dp_frame_create_desc(int preamble_kind, const uint8_t *preamble, size_t preamble_len, size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly, uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr, uint64_t preamble_taps_a, uint64_t preamble_seed_a, uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind, const uint8_t *sync, size_t sync_len, size_t sync_nbits, uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits, int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a, uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind, const uint8_t *payload, size_t payload_len, size_t payload_nbits, uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits, int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a, uint64_t payload_taps_b, uint64_t payload_seed_b, int crc);
+dp_frame_state_t *dp_frame_create_desc(const uint8_t *preamble, size_t preamble_len, const uint8_t *sync, size_t sync_len, const uint8_t *payload, size_t payload_len, int crc);
 
 /**
- * @brief Append one field to a description.
+ * @brief Append one named field to a description. Returns its index; -1 in
+ * C, `ValueError` from Python.
  *
- * Either the caller supplies the bits (@p lit, or a generated kind) or a
- * stage derives them (@p derived_by non-zero). Both are fields, because both
- * are on the wire.
+ * The field is bits and nothing else, copied here so the description
+ * outlives the call. A field a STAGE fills is appended with
+ * @ref dp_frame_add_derived instead, because the caller has no bits for it.
  *
- * @param state        A frame from @ref dp_frame_create_desc.
- * @param lit          Literal bits, copied here so the description outlives
- *                     the call; may be NULL.
- * @param lit_len      Length of @p lit in bits.
- * @param kind         @ref wfm_seq_kind_t index; 0=literal…3=dotted.
- * @param gen_len      Output bits for a GENERATED kind.
- * @param reps         Repetitions of the field, verbatim; 0 means one.
- * @param poly         PN feedback polynomial; 0 selects the maximal-length.
- * @param seed         PN seed; 0 selects 1.
- * @param reg_bits     PN/Gold register width.
- * @param lfsr         0=galois, 1=fibonacci.
- * @param taps_a       Gold: first register's taps.
- * @param seed_a       Gold: first register's seed.
- * @param taps_b       Gold: second register's taps.
- * @param seed_b       Gold: second register's seed.
- * @param derived_by   0 when the caller supplies this field; otherwise the
- *                     index of the producing stage, PLUS ONE.
- * @param derived_bits Length of a derived field, in bits.
- * @return The new field's index, or -1 if the description is full, already
- *         built, or the literal could not be copied. The Python binding
- *         raises `ValueError` rather than handing back the -1.
+ * @param state     A frame from @ref dp_frame_create_desc.
+ * @param name      The field's name, or NULL/"" for anonymous; a name
+ *                  another field carries is refused.
+ * @param bits      The bits, one per element, each 0 or 1.
+ * @param bits_len  How many; 0 is refused (an empty field is no field).
+ * @return The new field's index, or -1 if the description is full or
+ *         already built, the name is taken, or an element is not a bit.
  *
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
  * >>> from doppler.ccsds import asm_bits
- * >>> empty = np.empty(0, np.uint8)
- * >>> asm = asm_bits()
  * >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
  * ...                   np.uint8)
- * >>> data = np.unpackbits(octets).astype(np.uint8)
- * >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
- * >>> d.add_field(asm)                     # the attached sync marker
+ * >>> d = FrameDesc()                      # begin from nothing
+ * >>> d.add_field("asm", asm_bits())       # the attached sync marker
  * 0
- * >>> d.add_field(data)                    # the transfer frame
+ * >>> d.add_field("data", np.unpackbits(octets))   # the transfer frame
  * 1
- *
- * A field the CALLER does not supply is still a field, because it is still
- * on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
- *
- * >>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)
- * 2
+ * >>> d.field_index("data")
+ * 1
  *
  * @endcode
  */
-int dp_frame_add_field(dp_frame_state_t *state, const uint8_t *lit, size_t lit_len,
-                    int kind, size_t gen_len, size_t reps, uint64_t poly,
-                    uint64_t seed, uint32_t reg_bits, int lfsr,
-                    uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
-                    uint64_t seed_b, uint32_t derived_by,
-                    size_t derived_bits);
+int dp_frame_add_field(dp_frame_state_t *state, const char *name, const uint8_t *bits, size_t bits_len);
 
 /**
  * @brief Append one stage, and the span of fields it covers.
@@ -449,14 +383,12 @@ int dp_frame_add_field(dp_frame_state_t *state, const uint8_t *lit, size_t lit_l
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
  * >>> from doppler.ccsds import asm_bits
- * >>> empty = np.empty(0, np.uint8)
- * >>> asm = asm_bits()
  * >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
  * ...                   np.uint8)
- * >>> data = np.unpackbits(octets).astype(np.uint8)
- * >>> d = FrameDesc(empty, empty, empty)
- * >>> _ = d.add_field(asm), d.add_field(data)
- * >>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+ * >>> d = FrameDesc()
+ * >>> _ = d.add_field("asm", asm_bits())
+ * >>> _ = d.add_field("data", np.unpackbits(octets))
+ * >>> _ = d.add_derived("parity", 32 * 8)   # the outer code fills it
  * >>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)
  * 0
  * >>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser
@@ -502,10 +434,9 @@ int dp_frame_add_stage(dp_frame_state_t *state, int kind, uint32_t first_field,
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.nbits                     # 13 + 16 + 16, laid out by build()
  * 45
@@ -513,7 +444,7 @@ int dp_frame_add_stage(dp_frame_state_t *state, int kind, uint32_t first_field,
  * A description that cannot produce bits is not a frame, and is refused
  * rather than half-built:
  *
- * >>> FrameDesc(empty, empty, empty).build()
+ * >>> FrameDesc().build()
  * Traceback (most recent call last):
  *     ...
  * ValueError: cannot build: the description is empty, unbuildable, ...
@@ -540,9 +471,8 @@ int dp_frame_build(dp_frame_state_t *state);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> e = np.empty(0, np.uint8)
- * >>> d = FrameDesc(e, e, e)
- * >>> d.add_value("sync", 0xABC, 12)
+ * >>> d = FrameDesc()
+ * >>> d.add_field("sync", np.array([1,0,1,0,1,0,1,1,1,1,0,0], np.uint8))
  * 0
  * >>> d.field_index("sync")
  * 0
@@ -567,9 +497,8 @@ int dp_frame_field_index(dp_frame_state_t *state, const char *name);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> e = np.empty(0, np.uint8)
- * >>> d = FrameDesc(e, e, e)
- * >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+ * >>> d = FrameDesc()
+ * >>> d.add_field("", np.array([1, 0, 1, 0], np.uint8))   # anonymous
  * 0
  * >>> d.name_field(0, "payload")
  * >>> d.field_index("payload")
@@ -595,76 +524,15 @@ int dp_frame_name_field(dp_frame_state_t *state, uint32_t index, const char *nam
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> e = np.empty(0, np.uint8)
- * >>> d = FrameDesc(e, e, e)
- * >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+ * >>> d = FrameDesc()
+ * >>> d.add_field("payload", np.array([1, 0, 1, 0], np.uint8))
  * 0
- * >>> d.name_field(0, "payload")
  * >>> d.add_derived("crc", 16)          # a stage will fill it
  * 1
  *
  * @endcode
  */
 int dp_frame_add_derived(dp_frame_state_t *state, const char *name, size_t bits);
-
-/**
- * @brief Append a named field from a hex literal. Returns its index; -1 in C,
- * `ValueError` from Python.
- *
- * Four bits per digit, MSB-first, so an odd number of digits gives a 4-bit
- * tail. The expansion is `cvt`'s `hex_to_bin` rather than a second parser
- * here, so a bad digit is a refusal there and the two cannot disagree about
- * what a marker expands to.
- *
- * @param state  the frame.
- * @param name   the field's name, or NULL for anonymous.
- * @param hex    NUL-terminated hex digits; no `0x`, no separators.
- * @param reps   repetitions; 0 means one.
- *
- * @code
- * >>> import numpy as np
- * >>> from doppler.wfm import FrameDesc
- * >>> e = np.empty(0, np.uint8)
- * >>> d = FrameDesc(e, e, e)
- * >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
- * 0
- * >>> d.build()
- * >>> d.nbits
- * 32
- *
- * @endcode
- */
-int dp_frame_add_hex(dp_frame_state_t *state, const char *name, const char *hex,
-                  size_t reps);
-
-/**
- * @brief Append a named field from an integer. Returns its index; -1 in C,
- * `ValueError` from Python.
- *
- * The form to reach for when a literal fits in 64 bits: exact, and with no
- * failure mode a typo can reach. Wider ones want @ref dp_frame_add_hex.
- *
- * @param state  the frame.
- * @param name   the field's name, or NULL for anonymous.
- * @param value  the value; only the low @p bits are read.
- * @param bits   1..64, MSB first.
- * @param reps   repetitions; 0 means one.
- *
- * @code
- * >>> import numpy as np
- * >>> from doppler.wfm import FrameDesc
- * >>> e = np.empty(0, np.uint8)
- * >>> d = FrameDesc(e, e, e)
- * >>> d.add_value("marker", 0x1A, 8)
- * 0
- * >>> d.build()
- * >>> d.bits().tolist()                 # MSB first
- * [0, 0, 0, 1, 1, 0, 1, 0]
- *
- * @endcode
- */
-int dp_frame_add_value(dp_frame_state_t *state, const char *name, uint64_t value,
-                    uint32_t bits, size_t reps);
 
 /**
  * @brief Append a stage covering `[first .. last]` by name.
@@ -688,11 +556,9 @@ int dp_frame_add_value(dp_frame_state_t *state, const char *name, uint64_t value
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> e = np.empty(0, np.uint8)
- * >>> d = FrameDesc(e, e, e)
- * >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+ * >>> d = FrameDesc()
+ * >>> d.add_field("payload", np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
  * 0
- * >>> d.name_field(0, "payload")
  * >>> d.add_derived("crc", 16)
  * 1
  * >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
@@ -761,10 +627,9 @@ typedef struct {
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> r = d.check(d.bits(1))
  * >>> r.passed, r.ok, r.units
@@ -779,7 +644,7 @@ typedef struct {
  *
  * Carrying no check is NOT passing one -- both are reported, separately:
  *
- * >>> n = FrameDesc(empty, sync, payload, crc="none")
+ * >>> n = FrameDesc(sync=sync, payload=payload, crc="none")
  * >>> n.build()
  * >>> c = n.check(n.bits(1))
  * >>> c.passed, c.checked
@@ -824,10 +689,9 @@ frame_check_t dp_frame_check(dp_frame_state_t *state, const uint8_t *rx_bits, si
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import Frame
- * >>> empty = np.zeros(0, dtype=np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
- * >>> f = Frame(empty, sync, payload, crc="crc16")
+ * >>> f = Frame(sync=sync, payload=payload, crc="crc16")
  * >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
  * >>> got = np.asarray(f.deframe(rx))
  * >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
@@ -869,10 +733,9 @@ size_t dp_frame_deframe_max_out(dp_frame_state_t *state, size_t rx_bits_len);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.n_fields()          # the four named fields, absent ones included
  * 4
  *
@@ -889,10 +752,9 @@ size_t dp_frame_n_fields(dp_frame_state_t *state);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.n_stages()         # the CRC is a stage like any other
  * 1
@@ -910,10 +772,9 @@ size_t dp_frame_n_stages(dp_frame_state_t *state);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.field_off(1), d.field_off(2), d.field_off(3)
  * (0, 13, 29)
@@ -937,10 +798,9 @@ size_t dp_frame_field_off(dp_frame_state_t *state, size_t i);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
  * (13, 16, 16)
@@ -958,10 +818,9 @@ size_t dp_frame_field_bits(dp_frame_state_t *state, size_t i);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
  * 13
@@ -979,10 +838,9 @@ size_t dp_frame_stage_first(dp_frame_state_t *state, size_t i);
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import FrameDesc
- * >>> empty = np.empty(0, np.uint8)
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+ * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
  * >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
  * 32

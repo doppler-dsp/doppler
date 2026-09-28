@@ -16,99 +16,77 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Fill one `wfm_seq_t` from the flattened arguments, copying a literal array
-   so the descriptor outlives the call. `own` receives the copy (NULL for a
-   generated kind) and is freed by dp_frame_destroy().
-
-   The two lengths are NOT interchangeable and the choice is the kind's: a
-   literal is exactly as long as the array it was given, while a generated
-   field emits however many bits it was asked for. Returns 0, or -1 if the
-   copy failed. */
+/* One field's bits, copied so the description outlives the call. Every
+   element must be 0 or 1: a byte of 101 is not a bit, and masking it (what
+   dp_wfm_seq_bits would do) turns a caller's mistake -- a digit string passed
+   where bits belong -- into a valid-looking field. An empty array is an absent
+   field: `s` stays zero-length and nothing is allocated. A length with no
+   array is a contradiction, not an absence, and is refused. Returns 0, or -1
+   on a non-bit element or a length with no array. */
 static int
-seq_fill (wfm_seq_t *s, uint8_t **own, int kind, const uint8_t *lit,
-          size_t lit_len, size_t gen_len, uint64_t poly, uint64_t seed,
-          uint32_t reg_bits, int lfsr, uint64_t taps_a, uint64_t seed_a,
-          uint64_t taps_b, uint64_t seed_b)
+literal_fill (wfm_seq_t *s, uint8_t **own, const uint8_t *bits, size_t len)
 {
-  s->kind     = (wfm_seq_kind_t)kind;
-  s->poly     = poly;
-  s->seed     = seed;
-  s->reg_bits = reg_bits;
-  s->lfsr     = lfsr;
-  s->taps_a   = taps_a;
-  s->seed_a   = seed_a;
-  s->taps_b   = taps_b;
-  s->seed_b   = seed_b;
+  memset (s, 0, sizeof *s);
+  s->kind = WFM_SEQ_LITERAL;
+  if (len == 0)
+    return 0;
+  if (!bits)
+    return -1;
+  for (size_t i = 0; i < len; i++)
+    if (bits[i] > 1u)
+      return -1;
+  /* Caller-sized, but the caller's array of the same size is already in
+     memory, so only a genuine OOM fails this -- the abort-on-OOM helper. */
+  *own = dp_xmalloc (len);
+  memcpy (*own, bits, len);
+  s->bits = *own;
+  s->len  = len;
+  return 0;
+}
 
-  if (kind == WFM_SEQ_LITERAL)
-    {
-      s->len = lit_len;
-      if (lit && lit_len)
-        {
-          *own = (uint8_t *)malloc (lit_len);
-          if (!*own)
-            return -1;
-          memcpy (*own, lit, lit_len);
-          s->bits = *own;
-        }
-      /* A literal with a length but no array stays unbuildable on purpose:
-         dp_wfm_frame_bits() refuses it, and dp_frame_create() turns that into
-         a NULL rather than emitting a frame with a hole in it. */
-      return 0;
-    }
-  s->len  = gen_len;
-  s->bits = NULL;
+/* The three fields and the CRC, shared by both constructors so they cannot
+   disagree about what an argument means. A preamble has no repetition count
+   of its own: a repeated one is repeated in its bits
+   (`field_bits("pn:31:5*4")`), and `wfm_frame_t` reads `preamble_reps == 0` as
+   NO preamble, so a supplied one is one repetition of itself. */
+static int
+frame_init (dp_frame_state_t *obj, const uint8_t *preamble,
+            size_t preamble_len, const uint8_t *sync, size_t sync_len,
+            const uint8_t *payload, size_t payload_len, int crc)
+{
+  if (literal_fill (&obj->f.preamble, &obj->own[WFM_FRAME_FIELD_PREAMBLE],
+                    preamble, preamble_len)
+          != 0
+      || literal_fill (&obj->f.sync, &obj->own[WFM_FRAME_FIELD_SYNC], sync,
+                       sync_len)
+             != 0
+      || literal_fill (&obj->f.payload, &obj->own[WFM_FRAME_FIELD_PAYLOAD],
+                       payload, payload_len)
+             != 0)
+    return -1;
+  obj->f.preamble_reps = obj->f.preamble.len ? 1u : 0u;
+  obj->f.crc           = crc;
   return 0;
 }
 
 dp_frame_state_t *
-dp_frame_create (
-    int preamble_kind, const uint8_t *preamble, size_t preamble_len,
-    size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly,
-    uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr,
-    uint64_t preamble_taps_a, uint64_t preamble_seed_a,
-    uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind,
-    const uint8_t *sync, size_t sync_len, size_t sync_nbits,
-    uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits,
-    int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a,
-    uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind,
-    const uint8_t *payload, size_t payload_len, size_t payload_nbits,
-    uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits,
-    int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a,
-    uint64_t payload_taps_b, uint64_t payload_seed_b, int crc)
+dp_frame_create (const uint8_t *preamble, size_t preamble_len,
+                 const uint8_t *sync, size_t sync_len, const uint8_t *payload,
+                 size_t payload_len, int crc)
 {
-  dp_frame_state_t *obj = calloc (1, sizeof (*obj));
-  if (!obj)
-    return NULL;
-
-  if (seq_fill (&obj->f.preamble, &obj->own[WFM_FRAME_FIELD_PREAMBLE],
-                preamble_kind, preamble, preamble_len, preamble_nbits,
-                preamble_poly, preamble_seed, preamble_reg_bits, preamble_lfsr,
-                preamble_taps_a, preamble_seed_a, preamble_taps_b,
-                preamble_seed_b)
-          != 0
-      || seq_fill (&obj->f.sync, &obj->own[WFM_FRAME_FIELD_SYNC], sync_kind,
-                   sync, sync_len, sync_nbits, sync_poly, sync_seed,
-                   sync_reg_bits, sync_lfsr, sync_taps_a, sync_seed_a,
-                   sync_taps_b, sync_seed_b)
-             != 0
-      || seq_fill (&obj->f.payload, &obj->own[WFM_FRAME_FIELD_PAYLOAD],
-                   payload_kind, payload, payload_len, payload_nbits,
-                   payload_poly, payload_seed, payload_reg_bits, payload_lfsr,
-                   payload_taps_a, payload_seed_a, payload_taps_b,
-                   payload_seed_b)
-             != 0)
+  dp_frame_state_t *obj = dp_xcalloc (1, sizeof (*obj));
+  if (frame_init (obj, preamble, preamble_len, sync, sync_len, payload,
+                  payload_len, crc)
+      != 0)
     {
       dp_frame_destroy (obj);
       return NULL;
     }
-  obj->f.preamble_reps = preamble_reps;
-  obj->f.crc           = crc;
 
   /* The four fields ARE a description, so this path and the builder converge
      here and every method below reads only `d`. The seq structs carry the
-     `bits` pointers seq_fill already aimed at the owned copies, so nothing
-     needs repointing. */
+     `bits` pointers literal_fill already aimed at the owned copies, so
+     nothing needs repointing. */
   dp_wfm_frame_describe (&obj->f, &obj->d);
   obj->named = 1;
 
@@ -125,14 +103,10 @@ dp_frame_create (
   /* Materialise now: a descriptor that cannot produce its own bits is not a
      frame, and finding out here is what lets the caller be told at the point
      the mistake was made rather than three calls later. The buffer is then
-     what `bits()` repeats, so a generator runs once per frame DESCRIPTION
-     instead of once per frame. (Repeats would be identical either way —
-     wfm_frame.c builds and destroys its LFSR per call — so this is about
-     where the refusal happens and what the repeat costs, not correctness.) */
-  obj->one = (uint8_t *)malloc (obj->nbits);
-  if (!obj->one
-      || dp_wfm_frame_assemble (&obj->d, NULL, obj->one, obj->nbits)
-             != obj->nbits)
+     what `bits()` repeats. */
+  obj->one = dp_xmalloc (obj->nbits);
+  if (dp_wfm_frame_assemble (&obj->d, NULL, obj->one, obj->nbits)
+      != obj->nbits)
     {
       dp_frame_destroy (obj);
       return NULL;
@@ -196,58 +170,28 @@ dp_frame_crc_ok (dp_frame_state_t *state, const uint8_t *rx_bits,
  */
 
 dp_frame_state_t *
-dp_frame_create_desc (
-    int preamble_kind, const uint8_t *preamble, size_t preamble_len,
-    size_t preamble_nbits, size_t preamble_reps, uint64_t preamble_poly,
-    uint64_t preamble_seed, uint32_t preamble_reg_bits, int preamble_lfsr,
-    uint64_t preamble_taps_a, uint64_t preamble_seed_a,
-    uint64_t preamble_taps_b, uint64_t preamble_seed_b, int sync_kind,
-    const uint8_t *sync, size_t sync_len, size_t sync_nbits,
-    uint64_t sync_poly, uint64_t sync_seed, uint32_t sync_reg_bits,
-    int sync_lfsr, uint64_t sync_taps_a, uint64_t sync_seed_a,
-    uint64_t sync_taps_b, uint64_t sync_seed_b, int payload_kind,
-    const uint8_t *payload, size_t payload_len, size_t payload_nbits,
-    uint64_t payload_poly, uint64_t payload_seed, uint32_t payload_reg_bits,
-    int payload_lfsr, uint64_t payload_taps_a, uint64_t payload_seed_a,
-    uint64_t payload_taps_b, uint64_t payload_seed_b, int crc)
+dp_frame_create_desc (const uint8_t *preamble, size_t preamble_len,
+                      const uint8_t *sync, size_t sync_len,
+                      const uint8_t *payload, size_t payload_len, int crc)
 {
-  dp_frame_state_t *obj
-      = (dp_frame_state_t *)calloc (1, sizeof (dp_frame_state_t));
-  if (!obj)
-    return NULL;
+  dp_frame_state_t *obj = dp_xcalloc (1, sizeof (*obj));
 
   /* The SAME arguments as dp_frame_create, and that is the flavor: this one
-     stops before materialising, so the four fields are a STARTING POINT a
-     caller extends rather than a finished frame. Pass empty arrays for all
-     three to begin from nothing.
+     stops before materialising, so the fields are a STARTING POINT a caller
+     extends rather than a finished frame. Omit all three to begin from
+     nothing.
 
      An empty description is therefore legal here and refused there. The
      difference is where completeness can be judged: dp_frame_create()'s
      description is complete when it returns, and this one is not complete
      until dp_frame_build() is called. */
-  if (seq_fill (&obj->f.preamble, &obj->own[WFM_FRAME_FIELD_PREAMBLE],
-                preamble_kind, preamble, preamble_len, preamble_nbits,
-                preamble_poly, preamble_seed, preamble_reg_bits, preamble_lfsr,
-                preamble_taps_a, preamble_seed_a, preamble_taps_b,
-                preamble_seed_b)
-          != 0
-      || seq_fill (&obj->f.sync, &obj->own[WFM_FRAME_FIELD_SYNC], sync_kind,
-                   sync, sync_len, sync_nbits, sync_poly, sync_seed,
-                   sync_reg_bits, sync_lfsr, sync_taps_a, sync_seed_a,
-                   sync_taps_b, sync_seed_b)
-             != 0
-      || seq_fill (&obj->f.payload, &obj->own[WFM_FRAME_FIELD_PAYLOAD],
-                   payload_kind, payload, payload_len, payload_nbits,
-                   payload_poly, payload_seed, payload_reg_bits, payload_lfsr,
-                   payload_taps_a, payload_seed_a, payload_taps_b,
-                   payload_seed_b)
-             != 0)
+  if (frame_init (obj, preamble, preamble_len, sync, sync_len, payload,
+                  payload_len, crc)
+      != 0)
     {
       dp_frame_destroy (obj);
       return NULL;
     }
-  obj->f.preamble_reps = preamble_reps;
-  obj->f.crc           = crc;
 
   /* An empty geometry starts an EMPTY description rather than four
      zero-length fields. dp_wfm_frame_describe always emits its four, which is
@@ -265,36 +209,27 @@ dp_frame_create_desc (
 }
 
 int
-dp_frame_add_field (dp_frame_state_t *state, const uint8_t *lit,
-                    size_t lit_len, int kind, size_t gen_len, size_t reps,
-                    uint64_t poly, uint64_t seed, uint32_t reg_bits, int lfsr,
-                    uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
-                    uint64_t seed_b, uint32_t derived_by, size_t derived_bits)
+dp_frame_add_field (dp_frame_state_t *state, const char *name,
+                    const uint8_t *bits, size_t bits_len)
 {
-  if (!state || state->one != NULL
+  if (!state || state->one != NULL || !bits || bits_len == 0
       || state->d.n_fields >= WFM_FRAME_MAX_FIELDS)
     return -1;
 
-  const unsigned i = state->d.n_fields;
-  wfm_field_t   *f = &state->d.field[i];
-  memset (f, 0, sizeof *f);
-
-  if (derived_by)
-    {
-      /* A derived field carries no sequence: its bits are the stage's
-         output, and its length is what that stage will write. */
-      f->derived_by = derived_by;
-      f->bits       = derived_bits;
-    }
-  else if (seq_fill (&f->seq, &state->own[i], kind, lit, lit_len, gen_len,
-                     poly, seed, reg_bits, lfsr, taps_a, seed_a, taps_b,
-                     seed_b)
-           != 0)
+  wfm_seq_t seq;
+  uint8_t  *own = NULL;
+  if (literal_fill (&seq, &own, bits, bits_len) != 0)
     return -1;
-
-  f->reps = reps;
-  state->d.n_fields++;
-  return (int)i;
+  /* The general layer appends, names and refuses a duplicate name; this
+     object only owns the copy it points at. */
+  const int i = dp_wfm_frame_add_field (&state->d, name, &seq, 0u);
+  if (i < 0)
+    {
+      free (own);
+      return -1;
+    }
+  state->own[i] = own;
+  return i;
 }
 
 int
@@ -302,22 +237,21 @@ dp_frame_add_stage (dp_frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
                     uint32_t emit_den, uint32_t unit_bits)
 {
-  if (!state || state->one != NULL
-      || state->d.n_stages >= WFM_FRAME_MAX_STAGES)
+  if (!state || state->one != NULL)
     return -1;
-
-  const unsigned i = state->d.n_stages;
-  wfm_stage_t   *s = &state->d.stage[i];
-  memset (s, 0, sizeof *s);
-  s->kind        = (uint32_t)kind;
-  s->first_field = first_field;
-  s->n_fields    = n_fields;
+  /* The general layer appends, and wires a derived last field's producer by
+     the same rule the by-name form uses; this object only adds the
+     parameters that form does not take. */
+  const int i = dp_wfm_frame_add_stage_at (&state->d, (uint32_t)kind,
+                                           first_field, n_fields);
+  if (i < 0)
+    return -1;
+  wfm_stage_t *s = &state->d.stage[i];
   s->depth       = depth;
   s->emit_num    = emit_num;
   s->emit_den    = emit_den;
   s->unit_bits   = unit_bits;
-  state->d.n_stages++;
-  return (int)i;
+  return i;
 }
 
 int
@@ -535,55 +469,6 @@ dp_frame_add_derived (dp_frame_state_t *state, const char *name, size_t bits)
   if (!state || state->one != NULL)
     return -1;
   return dp_wfm_frame_add_derived (&state->d, name, bits);
-}
-
-/* Expand `bits` bits into a literal field, through dp_frame_add_field so the
-   copy, the ownership and the refusals stay in one place. `src` is borrowed
-   and freed by the caller. */
-static int
-add_literal_named (dp_frame_state_t *state, const char *name,
-                   const uint8_t *src, size_t n_bits, size_t reps)
-{
-  const int i
-      = dp_frame_add_field (state, src, n_bits, 0 /* WFM_SEQ_LITERAL */, 0,
-                            reps, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-  if (i >= 0 && dp_frame_name_field (state, (uint32_t)i, name) != 0)
-    return -1;
-  return i;
-}
-
-int
-dp_frame_add_hex (dp_frame_state_t *state, const char *name, const char *hex,
-                  size_t reps)
-{
-  if (!state || !hex)
-    return -1;
-  const size_t n_bits = 4u * strlen (hex);
-  if (n_bits == 0u)
-    return -1;
-
-  uint8_t *tmp = (uint8_t *)malloc (n_bits);
-  if (!tmp)
-    return -1;
-  int i = -1;
-  /* cvt owns the expansion; a bad digit refuses there rather than here. */
-  if (dp_hex_to_bin (hex, tmp, n_bits, DP_BITORDER_BIG) == n_bits)
-    i = add_literal_named (state, name, tmp, n_bits, reps);
-  free (tmp);
-  return i;
-}
-
-int
-dp_frame_add_value (dp_frame_state_t *state, const char *name, uint64_t value,
-                    uint32_t bits, size_t reps)
-{
-  if (!state || bits == 0u || bits > 64u)
-    return -1;
-
-  uint8_t tmp[64];
-  if (dp_int_to_bin (value, bits, tmp, sizeof tmp, DP_BITORDER_BIG) != bits)
-    return -1;
-  return add_literal_named (state, name, tmp, bits, reps);
 }
 
 int

@@ -186,10 +186,10 @@ def _cadu(depth: int = 2) -> tuple[FrameDesc, np.ndarray]:
     octets = np.array(
         [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
     )
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(asm_bits())
-    d.add_field(np.unpackbits(octets).astype(np.uint8))
-    d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
+    d = FrameDesc()
+    d.add_field("asm", asm_bits())
+    d.add_field("data", np.unpackbits(octets).astype(np.uint8))
+    d.add_derived("parity", E2 * depth * 8)
     d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=depth)
     d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     d.build()

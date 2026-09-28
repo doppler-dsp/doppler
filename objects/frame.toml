@@ -14,13 +14,16 @@
 # share. Re-deriving any of it here would recreate exactly the TX/RX drift the
 # descriptor was introduced to stop.
 #
-# ## Why 30-odd constructor kwargs
+# ## It takes BITS
 #
-# jm has no struct type in either direction, and `wfm_seq_t` carries a
-# `const uint8_t *bits` besides, so the three sequences cannot nest. They are
-# flattened with a name prefix instead -- `preamble_*`, `sync_*`, `payload_*` --
-# over the same field set each. An object with array `init_params` and
-# no_state/no_step is the jm shape that permits it (precedent: burst_demod).
+# Each field is an unpacked bit array and nothing else -- no kind, no
+# generator parameters, no repetition count. Every other form reaches it
+# through a helper that returns bits: `field_bits()` for the Field text form,
+# `cvt.hex_to_bin` / `cvt.bytes_to_bin` for hex and packed octets. One
+# constructor shape, no dispatch (docs/design/frame-description.md §F.3). The
+# 38 flattened arguments this replaces existed because a field had no value of
+# its own to pass; bits are that value. Each field is omittable (`default =
+# "[]"`, which reaches C as NULL, 0).
 
 [frame]
 arg_type = "void"
@@ -31,9 +34,10 @@ no_step = "true"
 no_reset = "true"
 class_name = "Frame"
 create_error = "ValueError"
-create_error_message = "frame geometry is empty or a field is unbuildable (a literal with no array, or a generated field with no register width)"
-# wfm_frame_core holds dp_wfm_frame_bits/_layout/_crc_ok; pn/gold back the
-# generated sequence kinds it calls into.
+create_error_message = "frame geometry is empty, or a field holds an element that is not a bit (0 or 1)"
+# wfm_frame_core holds dp_wfm_frame_bits/_layout/_crc_ok; pn/gold/cvt are its
+# own dependencies (the generated kinds, and the Field text form's hex), named
+# here because an OBJECT library does not carry its dependencies' objects.
 # ccsds_tm: `build()` runs the coded stages a description may name, and
 # ccsds_tm has no binding of its own -- so this object is where a Python
 # caller meets the outer code, the randomiser and the inner code. The
@@ -49,187 +53,27 @@ depends_on = [
     { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
-    # hex and value field literals expand through cvt's int_to_bin /
-    # hex_to_bin rather than a second parser here. This object is where the
-    # link belongs because it is where the STORAGE is: dp_frame_state_t already
-    # owns a copy of every literal field, and the descriptor itself keeps
-    # borrowed pointers on purpose.
     { name = "cvt", link = true },
 ]
 
-# ── preamble ────────────────────────────────────────────────────────────────
-[[frame.init_params]]
-name = "preamble_kind"
-type = "enum:wfm_seq_kind"
-default = "literal"
-
+# ── the fields: bits, each omittable ────────────────────────────────────────
 [[frame.init_params]]
 name = "preamble"
 type = "uint8_t[]"
-doc = "Literal preamble bits, one per element. Pass an EMPTY array when the field is absent or generated -- `wfm_seq_t` already spells absence as a zero length, so this is that convention reaching Python rather than a placeholder. (An omittable array init-param is a jm gap; see the module docs.)"
-
-[[frame.init_params]]
-name = "preamble_nbits"
-type = "size_t"
-default = "0"
-doc = "Output bits for a GENERATED preamble kind. A literal takes its length from the `preamble` array instead; `wfm_seq_t` names these apart (len vs reg_bits) for the same reason."
-
-[[frame.init_params]]
-name = "preamble_reps"
-type = "size_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_poly"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_seed"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_reg_bits"
-type = "uint32_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_lfsr"
-type = "enum:wfm_lfsr"
-default = "galois"
-
-[[frame.init_params]]
-name = "preamble_taps_a"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_seed_a"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_taps_b"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "preamble_seed_b"
-type = "uint64_t"
-default = "0"
-
-# ── sync ────────────────────────────────────────────────────────────────────
-[[frame.init_params]]
-name = "sync_kind"
-type = "enum:wfm_seq_kind"
-default = "literal"
+default = "[]"
+doc = "Preamble bits, one per element, each 0 or 1. Omitted, there is no preamble. A repeated preamble is repeated in its bits: `field_bits(\"pn:31:5*4\")`."
 
 [[frame.init_params]]
 name = "sync"
 type = "uint8_t[]"
-doc = "Literal sync word bits, one per element. Pass an EMPTY array when the field is absent or generated -- `wfm_seq_t` already spells absence as a zero length, so this is that convention reaching Python rather than a placeholder. (An omittable array init-param is a jm gap; see the module docs.)"
-
-[[frame.init_params]]
-name = "sync_nbits"
-type = "size_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_poly"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_seed"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_reg_bits"
-type = "uint32_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_lfsr"
-type = "enum:wfm_lfsr"
-default = "galois"
-
-[[frame.init_params]]
-name = "sync_taps_a"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_seed_a"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_taps_b"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "sync_seed_b"
-type = "uint64_t"
-default = "0"
-
-# ── payload ─────────────────────────────────────────────────────────────────
-[[frame.init_params]]
-name = "payload_kind"
-type = "enum:wfm_seq_kind"
-default = "literal"
+default = "[]"
+doc = "Sync-word bits, one per element, each 0 or 1. Omitted, the frame is unsynced."
 
 [[frame.init_params]]
 name = "payload"
 type = "uint8_t[]"
-doc = "Literal payload bits, one per element. Pass an EMPTY array when the field is absent or generated -- `wfm_seq_t` already spells absence as a zero length, so this is that convention reaching Python rather than a placeholder. (An omittable array init-param is a jm gap; see the module docs.)"
-
-[[frame.init_params]]
-name = "payload_nbits"
-type = "size_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_poly"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_seed"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_reg_bits"
-type = "uint32_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_lfsr"
-type = "enum:wfm_lfsr"
-default = "galois"
-
-[[frame.init_params]]
-name = "payload_taps_a"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_seed_a"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_taps_b"
-type = "uint64_t"
-default = "0"
-
-[[frame.init_params]]
-name = "payload_seed_b"
-type = "uint64_t"
-default = "0"
+default = "[]"
+doc = "Payload bits, one per element, each 0 or 1. Omitted, the frame carries none."
 
 # ── the frame itself ────────────────────────────────────────────────────────
 [[frame.init_params]]
@@ -296,27 +140,15 @@ nogil = true
 
 [[frame.methods]]
 name = "add_field"
-doc = "Append one field to a description (see `FrameDesc`). `kind` names where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and `lfsr` is `galois` or `fibonacci`, the same spellings the constructor takes, from the one `[[enum]]` the C enum backs. Either the caller supplies the bits (`lit`, or a generated `kind`) or a stage derives them (`derived_by` non-zero) -- both are fields, because both are on the wire. Returns the new field's index, which is what `derived_by` and a stage's `first_field` are counted in. Refuses once the frame is built."
+doc = "Append one named field to a description (see `FrameDesc`): bits and nothing else, one per element, each 0 or 1. Text reaches it through `field_bits()`, hex and packed octets through `cvt`. A field a STAGE fills is `add_derived` instead, because the caller has no bits for it. `name` may be empty for an anonymous field; a name another field carries is refused. Returns the new field's index. Refuses once the frame is built."
 arg_type = "void"
 return_type = "int"
 error_negative = true
 error = "ValueError"
-error_message = "cannot append a field: the description is full, already built, or the literal could not be copied"
+error_message = "cannot append a field: the description is full or already built, the name is taken, the bits are empty, or an element is not a bit"
 params = [
-    { name = "lit", type = "uint8_t[]" },
-    { name = "kind", type = "int", enum = "wfm_seq_kind", default = "literal" },
-    { name = "gen_len", type = "size_t", default = "0" },
-    { name = "reps", type = "size_t", default = "0" },
-    { name = "poly", type = "uint64_t", default = "0" },
-    { name = "seed", type = "uint64_t", default = "0" },
-    { name = "reg_bits", type = "uint32_t", default = "0" },
-    { name = "lfsr", type = "int", enum = "wfm_lfsr", default = "galois" },
-    { name = "taps_a", type = "uint64_t", default = "0" },
-    { name = "seed_a", type = "uint64_t", default = "0" },
-    { name = "taps_b", type = "uint64_t", default = "0" },
-    { name = "seed_b", type = "uint64_t", default = "0" },
-    { name = "derived_by", type = "uint32_t", default = "0" },
-    { name = "derived_bits", type = "size_t", default = "0" },
+    { name = "name", type = "const char *" },
+    { name = "bits", type = "uint8_t[]" },
 ]
 
 [[frame.methods]]
@@ -357,35 +189,6 @@ error_message = "cannot name a field: the index is out of range, another field a
 params = [
     { name = "index", type = "uint32_t" },
     { name = "name", type = "const char *" },
-]
-
-[[frame.methods]]
-name = "add_hex"
-doc = "Append a named field from a hex literal, MSB-first -- `add_hex(\"asm\", \"1ACFFC1D\")` is 32 bits. Four bits per digit, so an odd number of digits gives a 4-bit tail. The expansion is cvt's `hex_to_bin`, not a second parser, so a bad digit is refused there. Returns the new field's index; a refusal raises `ValueError`."
-arg_type = "void"
-return_type = "int"
-error_negative = true
-error = "ValueError"
-error_message = "cannot append a hex field: the description is full, already built, or the digits could not be expanded"
-params = [
-    { name = "name", type = "const char *" },
-    { name = "hex", type = "const char *" },
-    { name = "reps", type = "size_t", default = "0" },
-]
-
-[[frame.methods]]
-name = "add_value"
-doc = "Append a named field from an integer, `bits` wide, MSB-first. The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider literals want `add_hex` or `add_field`. Returns the new field's index; a refusal raises `ValueError`."
-arg_type = "void"
-return_type = "int"
-error_negative = true
-error = "ValueError"
-error_message = "cannot append a value field: the description is full, already built, or the value does not fit the declared width"
-params = [
-    { name = "name", type = "const char *" },
-    { name = "value", type = "uint64_t" },
-    { name = "bits", type = "uint32_t" },
-    { name = "reps", type = "size_t", default = "0" },
 ]
 
 [[frame.methods]]

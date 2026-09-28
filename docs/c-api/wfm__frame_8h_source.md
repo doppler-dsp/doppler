@@ -155,6 +155,9 @@ extern "C"
   int dp_wfm_frame_add_stage (wfm_frame_desc_t *d, uint32_t kind,
                            const char *first, const char *last);
 
+  int dp_wfm_frame_add_stage_at (wfm_frame_desc_t *d, uint32_t kind,
+                                 unsigned first, unsigned n_fields);
+
   size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
 
   size_t dp_wfm_field_render (const wfm_field_t *f, uint8_t *out,

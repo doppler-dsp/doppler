@@ -36,208 +36,16 @@ FrameDescObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
-  static char       *kwlist[]              = { "preamble",
-                                               "sync",
-                                               "payload",
-                                               "preamble_kind",
-                                               "preamble_nbits",
-                                               "preamble_reps",
-                                               "preamble_poly",
-                                               "preamble_seed",
-                                               "preamble_reg_bits",
-                                               "preamble_lfsr",
-                                               "preamble_taps_a",
-                                               "preamble_seed_a",
-                                               "preamble_taps_b",
-                                               "preamble_seed_b",
-                                               "sync_kind",
-                                               "sync_nbits",
-                                               "sync_poly",
-                                               "sync_seed",
-                                               "sync_reg_bits",
-                                               "sync_lfsr",
-                                               "sync_taps_a",
-                                               "sync_seed_a",
-                                               "sync_taps_b",
-                                               "sync_seed_b",
-                                               "payload_kind",
-                                               "payload_nbits",
-                                               "payload_poly",
-                                               "payload_seed",
-                                               "payload_reg_bits",
-                                               "payload_lfsr",
-                                               "payload_taps_a",
-                                               "payload_seed_a",
-                                               "payload_taps_b",
-                                               "payload_seed_b",
-                                               "crc",
-                                               NULL };
-  PyObject          *preamble_obj          = NULL;
-  PyObject          *sync_obj              = NULL;
-  PyObject          *payload_obj           = NULL;
-  const char        *preamble_kind_str     = "literal";
-  unsigned long long preamble_nbits_raw    = 0;
-  unsigned long long preamble_reps_raw     = 0;
-  unsigned long long preamble_poly_raw     = 0;
-  unsigned long long preamble_seed_raw     = 0;
-  unsigned long      preamble_reg_bits_raw = 0;
-  const char        *preamble_lfsr_str     = "galois";
-  unsigned long long preamble_taps_a_raw   = 0;
-  unsigned long long preamble_seed_a_raw   = 0;
-  unsigned long long preamble_taps_b_raw   = 0;
-  unsigned long long preamble_seed_b_raw   = 0;
-  const char        *sync_kind_str         = "literal";
-  unsigned long long sync_nbits_raw        = 0;
-  unsigned long long sync_poly_raw         = 0;
-  unsigned long long sync_seed_raw         = 0;
-  unsigned long      sync_reg_bits_raw     = 0;
-  const char        *sync_lfsr_str         = "galois";
-  unsigned long long sync_taps_a_raw       = 0;
-  unsigned long long sync_seed_a_raw       = 0;
-  unsigned long long sync_taps_b_raw       = 0;
-  unsigned long long sync_seed_b_raw       = 0;
-  const char        *payload_kind_str      = "literal";
-  unsigned long long payload_nbits_raw     = 0;
-  unsigned long long payload_poly_raw      = 0;
-  unsigned long long payload_seed_raw      = 0;
-  unsigned long      payload_reg_bits_raw  = 0;
-  const char        *payload_lfsr_str      = "galois";
-  unsigned long long payload_taps_a_raw    = 0;
-  unsigned long long payload_seed_a_raw    = 0;
-  unsigned long long payload_taps_b_raw    = 0;
-  unsigned long long payload_seed_b_raw    = 0;
-  const char        *crc_str               = "none";
+  static char *kwlist[]     = { "preamble", "sync", "payload", "crc", NULL };
+  PyObject    *preamble_obj = NULL;
+  PyObject    *sync_obj     = NULL;
+  PyObject    *payload_obj  = NULL;
+  const char  *crc_str      = "none";
 
-  if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "OOO|sKKKKksKKKKsKKKksKKKKsKKKksKKKKs", kwlist,
-          &preamble_obj, &sync_obj, &payload_obj, &preamble_kind_str,
-          &preamble_nbits_raw, &preamble_reps_raw, &preamble_poly_raw,
-          &preamble_seed_raw, &preamble_reg_bits_raw, &preamble_lfsr_str,
-          &preamble_taps_a_raw, &preamble_seed_a_raw, &preamble_taps_b_raw,
-          &preamble_seed_b_raw, &sync_kind_str, &sync_nbits_raw,
-          &sync_poly_raw, &sync_seed_raw, &sync_reg_bits_raw, &sync_lfsr_str,
-          &sync_taps_a_raw, &sync_seed_a_raw, &sync_taps_b_raw,
-          &sync_seed_b_raw, &payload_kind_str, &payload_nbits_raw,
-          &payload_poly_raw, &payload_seed_raw, &payload_reg_bits_raw,
-          &payload_lfsr_str, &payload_taps_a_raw, &payload_seed_a_raw,
-          &payload_taps_b_raw, &payload_seed_b_raw, &crc_str))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OOOs", kwlist, &preamble_obj,
+                                    &sync_obj, &payload_obj, &crc_str))
     return -1;
-  int preamble_kind = 0;
-  if (strcmp (preamble_kind_str, "literal") == 0)
-    preamble_kind = 0;
-  else if (strcmp (preamble_kind_str, "pn") == 0)
-    preamble_kind = 1;
-  else if (strcmp (preamble_kind_str, "gold") == 0)
-    preamble_kind = 2;
-  else if (strcmp (preamble_kind_str, "dotted") == 0)
-    preamble_kind = 3;
-  else
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "preamble_kind must be one of \"literal\", \"pn\", "
-                    "\"gold\", \"dotted\", got '%s'",
-                    preamble_kind_str);
-      return -1;
-    }
-  size_t   preamble_nbits    = (size_t)preamble_nbits_raw;
-  size_t   preamble_reps     = (size_t)preamble_reps_raw;
-  uint64_t preamble_poly     = (uint64_t)preamble_poly_raw;
-  uint64_t preamble_seed     = (uint64_t)preamble_seed_raw;
-  uint32_t preamble_reg_bits = (uint32_t)preamble_reg_bits_raw;
-  int      preamble_lfsr     = 0;
-  if (strcmp (preamble_lfsr_str, "galois") == 0)
-    preamble_lfsr = 0;
-  else if (strcmp (preamble_lfsr_str, "fibonacci") == 0)
-    preamble_lfsr = 1;
-  else
-    {
-      PyErr_Format (
-          PyExc_ValueError,
-          "preamble_lfsr must be one of \"galois\", \"fibonacci\", got '%s'",
-          preamble_lfsr_str);
-      return -1;
-    }
-  uint64_t preamble_taps_a = (uint64_t)preamble_taps_a_raw;
-  uint64_t preamble_seed_a = (uint64_t)preamble_seed_a_raw;
-  uint64_t preamble_taps_b = (uint64_t)preamble_taps_b_raw;
-  uint64_t preamble_seed_b = (uint64_t)preamble_seed_b_raw;
-  int      sync_kind       = 0;
-  if (strcmp (sync_kind_str, "literal") == 0)
-    sync_kind = 0;
-  else if (strcmp (sync_kind_str, "pn") == 0)
-    sync_kind = 1;
-  else if (strcmp (sync_kind_str, "gold") == 0)
-    sync_kind = 2;
-  else if (strcmp (sync_kind_str, "dotted") == 0)
-    sync_kind = 3;
-  else
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "sync_kind must be one of \"literal\", \"pn\", \"gold\", "
-                    "\"dotted\", got '%s'",
-                    sync_kind_str);
-      return -1;
-    }
-  size_t   sync_nbits    = (size_t)sync_nbits_raw;
-  uint64_t sync_poly     = (uint64_t)sync_poly_raw;
-  uint64_t sync_seed     = (uint64_t)sync_seed_raw;
-  uint32_t sync_reg_bits = (uint32_t)sync_reg_bits_raw;
-  int      sync_lfsr     = 0;
-  if (strcmp (sync_lfsr_str, "galois") == 0)
-    sync_lfsr = 0;
-  else if (strcmp (sync_lfsr_str, "fibonacci") == 0)
-    sync_lfsr = 1;
-  else
-    {
-      PyErr_Format (
-          PyExc_ValueError,
-          "sync_lfsr must be one of \"galois\", \"fibonacci\", got '%s'",
-          sync_lfsr_str);
-      return -1;
-    }
-  uint64_t sync_taps_a  = (uint64_t)sync_taps_a_raw;
-  uint64_t sync_seed_a  = (uint64_t)sync_seed_a_raw;
-  uint64_t sync_taps_b  = (uint64_t)sync_taps_b_raw;
-  uint64_t sync_seed_b  = (uint64_t)sync_seed_b_raw;
-  int      payload_kind = 0;
-  if (strcmp (payload_kind_str, "literal") == 0)
-    payload_kind = 0;
-  else if (strcmp (payload_kind_str, "pn") == 0)
-    payload_kind = 1;
-  else if (strcmp (payload_kind_str, "gold") == 0)
-    payload_kind = 2;
-  else if (strcmp (payload_kind_str, "dotted") == 0)
-    payload_kind = 3;
-  else
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "payload_kind must be one of \"literal\", \"pn\", "
-                    "\"gold\", \"dotted\", got '%s'",
-                    payload_kind_str);
-      return -1;
-    }
-  size_t   payload_nbits    = (size_t)payload_nbits_raw;
-  uint64_t payload_poly     = (uint64_t)payload_poly_raw;
-  uint64_t payload_seed     = (uint64_t)payload_seed_raw;
-  uint32_t payload_reg_bits = (uint32_t)payload_reg_bits_raw;
-  int      payload_lfsr     = 0;
-  if (strcmp (payload_lfsr_str, "galois") == 0)
-    payload_lfsr = 0;
-  else if (strcmp (payload_lfsr_str, "fibonacci") == 0)
-    payload_lfsr = 1;
-  else
-    {
-      PyErr_Format (
-          PyExc_ValueError,
-          "payload_lfsr must be one of \"galois\", \"fibonacci\", got '%s'",
-          payload_lfsr_str);
-      return -1;
-    }
-  uint64_t payload_taps_a = (uint64_t)payload_taps_a_raw;
-  uint64_t payload_seed_a = (uint64_t)payload_seed_a_raw;
-  uint64_t payload_taps_b = (uint64_t)payload_taps_b_raw;
-  uint64_t payload_seed_b = (uint64_t)payload_seed_b_raw;
-  int      crc            = 0;
+  int crc = 0;
   if (strcmp (crc_str, "none") == 0)
     crc = 0;
   else if (strcmp (crc_str, "crc16") == 0)
@@ -249,79 +57,63 @@ FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
                     crc_str);
       return -1;
     }
-  PyArrayObject *preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      preamble_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!preamble_arr)
+  PyArrayObject *preamble_arr = NULL;
+  size_t         preamble_len = 0;
+  if (preamble_obj && preamble_obj != Py_None)
     {
-      return -1;
+      preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          preamble_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+      if (!preamble_arr)
+        {
+          return -1;
+        }
+      preamble_len = (size_t)PyArray_SIZE (preamble_arr);
     }
-  size_t         preamble_len = (size_t)PyArray_SIZE (preamble_arr);
-  PyArrayObject *sync_arr     = (PyArrayObject *)PyArray_FROM_OTF (
-      sync_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!sync_arr)
+  PyArrayObject *sync_arr = NULL;
+  size_t         sync_len = 0;
+  if (sync_obj && sync_obj != Py_None)
     {
-      Py_DECREF (preamble_arr);
-      return -1;
+      sync_arr = (PyArrayObject *)PyArray_FROM_OTF (sync_obj, NPY_UINT8,
+                                                    NPY_ARRAY_C_CONTIGUOUS);
+      if (!sync_arr)
+        {
+          Py_XDECREF (preamble_arr);
+          return -1;
+        }
+      sync_len = (size_t)PyArray_SIZE (sync_arr);
     }
-  size_t         sync_len    = (size_t)PyArray_SIZE (sync_arr);
-  PyArrayObject *payload_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      payload_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!payload_arr)
+  PyArrayObject *payload_arr = NULL;
+  size_t         payload_len = 0;
+  if (payload_obj && payload_obj != Py_None)
     {
-      Py_DECREF (preamble_arr);
-      Py_DECREF (sync_arr);
-      return -1;
+      payload_arr = (PyArrayObject *)PyArray_FROM_OTF (payload_obj, NPY_UINT8,
+                                                       NPY_ARRAY_C_CONTIGUOUS);
+      if (!payload_arr)
+        {
+          Py_XDECREF (preamble_arr);
+          Py_XDECREF (sync_arr);
+          return -1;
+        }
+      payload_len = (size_t)PyArray_SIZE (payload_arr);
     }
-  size_t payload_len = (size_t)PyArray_SIZE (payload_arr);
-  self->handle       = dp_frame_create_desc (
-      preamble_kind, (const uint8_t *)PyArray_DATA (preamble_arr),
-      preamble_len, preamble_nbits, preamble_reps, preamble_poly,
-      preamble_seed, preamble_reg_bits, preamble_lfsr, preamble_taps_a,
-      preamble_seed_a, preamble_taps_b, preamble_seed_b, sync_kind,
-      (const uint8_t *)PyArray_DATA (sync_arr), sync_len, sync_nbits,
-      sync_poly, sync_seed, sync_reg_bits, sync_lfsr, sync_taps_a, sync_seed_a,
-      sync_taps_b, sync_seed_b, payload_kind,
-      (const uint8_t *)PyArray_DATA (payload_arr), payload_len, payload_nbits,
-      payload_poly, payload_seed, payload_reg_bits, payload_lfsr,
-      payload_taps_a, payload_seed_a, payload_taps_b, payload_seed_b, crc);
-  Py_DECREF (preamble_arr);
-  Py_DECREF (sync_arr);
-  Py_DECREF (payload_arr);
+  self->handle = dp_frame_create_desc (
+      preamble_arr ? (const uint8_t *)PyArray_DATA (preamble_arr) : NULL,
+      preamble_len, sync_arr ? (const uint8_t *)PyArray_DATA (sync_arr) : NULL,
+      sync_len,
+      payload_arr ? (const uint8_t *)PyArray_DATA (payload_arr) : NULL,
+      payload_len, crc);
+  Py_XDECREF (preamble_arr);
+  Py_XDECREF (sync_arr);
+  Py_XDECREF (payload_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "frame geometry is empty or a field is unbuildable (a "
-                       "literal with no array, or a generated field with no "
-                       "register width)");
+                       "frame geometry is empty, or a field holds an element "
+                       "that is not a bit (0 or 1)");
       return -1;
     }
   return 0;
 }
-
-/* gh-519: strcmp for the enum lookup below. Python.h already
- * pulls in <string.h>, but the include is explicit so the block
- * stands on its own wherever it is spliced. */
-#include <string.h>
-
-/* String-enum tables — order is the C int (the [[enum]] SSOT). */
-static int
-_enum_index_FrameDesc (const char *const *tab, const char *s)
-{
-  for (int i = 0; tab[i]; i++)
-    if (strcmp (tab[i], s) == 0)
-      return i;
-  return -1;
-}
-
-static const char *const _enum_FrameDesc_wfm_seq_kind[] = {
-  "literal", "pn", "gold", "dotted", NULL,
-};
-
-static const char *const _enum_FrameDesc_wfm_lfsr[] = {
-  "galois",
-  "fibonacci",
-  NULL,
-};
 
 static PyObject *
 FrameDescObj_bits_max_out (FrameDescObject *self, PyObject *args)
@@ -397,7 +189,13 @@ FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -531,74 +329,28 @@ FrameDescObj_add_field (FrameDescObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[]
-      = { "lit",    "kind",     "gen_len",    "reps",         "poly",
-          "seed",   "reg_bits", "lfsr",       "taps_a",       "seed_a",
-          "taps_b", "seed_b",   "derived_by", "derived_bits", NULL };
-  PyObject          *lit_obj          = NULL;
-  const char        *kind             = "literal";
-  unsigned long long gen_len_raw      = 0;
-  unsigned long long reps_raw         = 0;
-  unsigned long long poly_raw         = 0;
-  unsigned long long seed_raw         = 0;
-  unsigned long      reg_bits_raw     = 0;
-  const char        *lfsr             = "galois";
-  unsigned long long taps_a_raw       = 0;
-  unsigned long long seed_a_raw       = 0;
-  unsigned long long taps_b_raw       = 0;
-  unsigned long long seed_b_raw       = 0;
-  unsigned long      derived_by_raw   = 0;
-  unsigned long long derived_bits_raw = 0;
-  if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|sKKKKksKKKKkK", _kwlist, &lit_obj, &kind,
-          &gen_len_raw, &reps_raw, &poly_raw, &seed_raw, &reg_bits_raw, &lfsr,
-          &taps_a_raw, &seed_a_raw, &taps_b_raw, &seed_b_raw, &derived_by_raw,
-          &derived_bits_raw))
+  static char *_kwlist[] = { "name", "bits", NULL };
+  const char  *name      = NULL;
+  PyObject    *bits_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sO", _kwlist, &name,
+                                    &bits_obj))
     return NULL;
-  int _arg_kind = _enum_index_FrameDesc (_enum_FrameDesc_wfm_seq_kind, kind);
-  if (_arg_kind < 0)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "invalid kind '%s' (choices: literal, pn, gold, dotted)",
-                    kind);
-      return NULL;
-    }
-  size_t   gen_len   = (size_t)gen_len_raw;
-  size_t   reps      = (size_t)reps_raw;
-  uint64_t poly      = (uint64_t)poly_raw;
-  uint64_t seed      = (uint64_t)seed_raw;
-  uint32_t reg_bits  = (uint32_t)reg_bits_raw;
-  int      _arg_lfsr = _enum_index_FrameDesc (_enum_FrameDesc_wfm_lfsr, lfsr);
-  if (_arg_lfsr < 0)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "invalid lfsr '%s' (choices: galois, fibonacci)", lfsr);
-      return NULL;
-    }
-  uint64_t       taps_a       = (uint64_t)taps_a_raw;
-  uint64_t       seed_a       = (uint64_t)seed_a_raw;
-  uint64_t       taps_b       = (uint64_t)taps_b_raw;
-  uint64_t       seed_b       = (uint64_t)seed_b_raw;
-  uint32_t       derived_by   = (uint32_t)derived_by_raw;
-  size_t         derived_bits = (size_t)derived_bits_raw;
-  PyArrayObject *lit_arr      = (PyArrayObject *)PyArray_FROM_OTF (
-      lit_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!lit_arr)
+  PyArrayObject *bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!bits_arr)
     {
       return NULL;
     }
-  const uint8_t *lit     = (const uint8_t *)PyArray_DATA (lit_arr);
-  size_t         lit_len = (size_t)PyArray_SIZE (lit_arr);
-  int            _rc
-      = dp_frame_add_field (self->handle, lit, lit_len, _arg_kind, gen_len,
-                            reps, poly, seed, reg_bits, _arg_lfsr, taps_a,
-                            seed_a, taps_b, seed_b, derived_by, derived_bits);
-  Py_DECREF (lit_arr);
+  const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
+  size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
+  int            _rc = dp_frame_add_field (self->handle, name, bits, bits_len);
+  Py_DECREF (bits_arr);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "cannot append a field: the description is full, already "
-                    "built, or the literal could not be copied",
+                    "cannot append a field: the description is full or "
+                    "already built, the name is taken, the bits are empty, "
+                    "or an element is not a bit",
                     (long long)_rc);
       return NULL;
     }
@@ -689,66 +441,6 @@ FrameDescObj_name_field (FrameDescObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   Py_RETURN_NONE;
-}
-
-static PyObject *
-FrameDescObj_add_hex (FrameDescObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "name", "hex", "reps", NULL };
-  const char        *name      = NULL;
-  const char        *hex       = NULL;
-  unsigned long long reps_raw  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ss|K", _kwlist, &name, &hex,
-                                    &reps_raw))
-    return NULL;
-  size_t reps = (size_t)reps_raw;
-  int    _rc  = dp_frame_add_hex (self->handle, name, hex, reps);
-  if (_rc < 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "cannot append a hex field: the description is full, "
-                    "already built, or the digits could not be expanded",
-                    (long long)_rc);
-      return NULL;
-    }
-  return PyLong_FromLong ((long)_rc);
-}
-
-static PyObject *
-FrameDescObj_add_value (FrameDescObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "name", "value", "bits", "reps", NULL };
-  const char        *name      = NULL;
-  unsigned long long value_raw = 0ULL;
-  unsigned long      bits_raw  = 0UL;
-  unsigned long long reps_raw  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sKk|K", _kwlist, &name,
-                                    &value_raw, &bits_raw, &reps_raw))
-    return NULL;
-  uint64_t value = (uint64_t)value_raw;
-  uint32_t bits  = (uint32_t)bits_raw;
-  size_t   reps  = (size_t)reps_raw;
-  int      _rc   = dp_frame_add_value (self->handle, name, value, bits, reps);
-  if (_rc < 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "cannot append a value field: the description is full, "
-                    "already built, or the value does not fit the declared "
-                    "width",
-                    (long long)_rc);
-      return NULL;
-    }
-  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -916,7 +608,13 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (rx_bits_arr);
@@ -1007,7 +705,8 @@ FrameDescObj_check (FrameDescObject *self, PyObject *args, PyObject *kwds)
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   frame_check_t _r;
   Py_BEGIN_ALLOW_THREADS
     _r = dp_frame_check (self->handle, rx_bits, rx_bits_len);
@@ -1259,10 +958,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> len(d.bits())        # one frame: 13 + 16 + 16\n"
     "45\n"
@@ -1300,10 +998,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import Frame\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> lay = Frame(empty, sync, payload, crc=\"crc16\").layout()\n"
+    ">>> lay = Frame(sync=sync, payload=payload, crc=\"crc16\").layout()\n"
     ">>> lay.sync_off, lay.payload_off, lay.crc_off\n"
     "(0, 13, 29)\n"
     ">>> lay.total_bits\n"
@@ -1340,10 +1037,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.crc_ok(d.bits())           # its own bits are its own truth\n"
     "1\n"
@@ -1353,111 +1049,74 @@ static PyMethodDef FrameDescObj_methods[] = {
     "0\n" },
   { "add_field", (PyCFunction)(void *)FrameDescObj_add_field,
     METH_VARARGS | METH_KEYWORDS,
-    "add_field(lit, kind, gen_len, reps, poly, seed, reg_bits, lfsr, taps_a, "
-    "seed_a, taps_b, seed_b, derived_by, derived_bits) -> int\n"
+    "add_field(name, bits) -> int\n"
     "\n"
-    "Append one field to a description (see `FrameDesc`). `kind` names\n"
-    "where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and\n"
-    "`lfsr` is `galois` or `fibonacci`, the same spellings the constructor\n"
-    "takes, from the one `[[enum]]` the C enum backs. Either the caller\n"
-    "supplies the bits (`lit`, or a generated `kind`) or a stage derives\n"
-    "them (`derived_by` non-zero) -- both are fields, because both are on\n"
-    "the wire. Returns the new field's index, which is what `derived_by` and\n"
-    "a stage's `first_field` are counted in. Refuses once the frame is\n"
+    "Append one named field to a description (see `FrameDesc`): bits and "
+    "nothing else, one per element, each 0 or 1. Text reaches it through "
+    "`field_bits()`, hex and packed octets through `cvt`. A field a STAGE "
+    "fills is `add_derived` instead, because the caller has no bits for it. "
+    "`name` may be empty for an anonymous field; a name another field carries "
+    "is refused. Returns the new field's index. Refuses once the frame is "
     "built.\n"
     "\n"
-    "Either the caller supplies the bits (lit, or a generated kind) or a\n"
-    "stage derives them (derived_by non-zero). Both are fields, because both\n"
-    "are on the wire.\n"
+    "The field is bits and nothing else, copied here so the description\n"
+    "outlives the call. A field a STAGE fills is appended with\n"
+    "dp_frame_add_derived instead, because the caller has no bits for it.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "lit : NDArray[np.uint8]\n"
-    "    Literal bits, copied here so the description outlives the call; may\n"
-    "    be NULL.\n"
-    "kind : str\n"
-    "    wfm_seq_kind_t index; 0=literal…3=dotted.\n"
-    "gen_len : int\n"
-    "    Output bits for a GENERATED kind.\n"
-    "reps : int\n"
-    "    Repetitions of the field, verbatim; 0 means one.\n"
-    "poly : int\n"
-    "    PN feedback polynomial; 0 selects the maximal-length.\n"
-    "seed : int\n"
-    "    PN seed; 0 selects 1.\n"
-    "reg_bits : int\n"
-    "    PN/Gold register width.\n"
-    "lfsr : str\n"
-    "    0=galois, 1=fibonacci.\n"
-    "taps_a : int\n"
-    "    Gold: first register's taps.\n"
-    "seed_a : int\n"
-    "    Gold: first register's seed.\n"
-    "taps_b : int\n"
-    "    Gold: second register's taps.\n"
-    "seed_b : int\n"
-    "    Gold: second register's seed.\n"
-    "derived_by : int\n"
-    "    0 when the caller supplies this field; otherwise the index of the\n"
-    "    producing stage, PLUS ONE.\n"
-    "derived_bits : int\n"
-    "    Length of a derived field, in bits.\n"
+    "name : str\n"
+    "    The field's name, or NULL/\"\" for anonymous; a name another field\n"
+    "    carries is refused.\n"
+    "bits : NDArray[np.uint8]\n"
+    "    The bits, one per element, each 0 or 1.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    The new field's index, or -1 if the description is full, already\n"
-    "    built, or the literal could not be copied. The Python binding\n"
-    "    raises `ValueError` rather than handing back the -1.\n"
+    "    The new field's index, or -1 if the description is full or already\n"
+    "    built, the name is taken, or an element is not a bit.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If the C call returns a negative value. The exception message is\n"
-    "    ``cannot append a field: the description is full, already built, or\n"
-    "    the literal could not be copied``, with the return code appended\n"
-    "    (gh-869).\n"
+    "    ``cannot append a field: the description is full or already built,\n"
+    "    the name is taken, the bits are empty, or an element is not a\n"
+    "    bit``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
     ">>> from doppler.ccsds import asm_bits\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
-    ">>> asm = asm_bits()\n"
     ">>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],\n"
     "...                   np.uint8)\n"
-    ">>> data = np.unpackbits(octets).astype(np.uint8)\n"
-    ">>> d = FrameDesc(empty, empty, empty)   # begin from nothing\n"
-    ">>> d.add_field(asm)                     # the attached sync marker\n"
+    ">>> d = FrameDesc()                      # begin from nothing\n"
+    ">>> d.add_field(\"asm\", asm_bits())       # the attached sync marker\n"
     "0\n"
-    ">>> d.add_field(data)                    # the transfer frame\n"
+    ">>> d.add_field(\"data\", np.unpackbits(octets))   # the transfer frame\n"
     "1\n"
-    "\n"
-    "A field the CALLER does not supply is still a field, because it is "
-    "still\n"
-    "on the wire -- `derived_by` names the stage that fills it, PLUS ONE:\n"
-    "\n"
-    ">>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)\n"
-    "2\n" },
+    ">>> d.field_index(\"data\")\n"
+    "1\n" },
   { "add_stage", (PyCFunction)(void *)FrameDescObj_add_stage,
     METH_VARARGS | METH_KEYWORDS,
     "add_stage(kind, first_field, n_fields, depth, emit_num, emit_den, "
     "unit_bits) -> int\n"
     "\n"
-    "Append one transform and -- the load-bearing part -- the span of\n"
-    "fields it covers. `kind` is a stage kind: `STAGE_CRC16`, `STAGE_RS`,\n"
-    "`STAGE_RANDOMISE`, `STAGE_CONV`, `STAGE_INTERLEAVE` from `doppler.wfm`,\n"
-    "or a caller's own from `STAGE_USER` up. It stays an INT rather than a\n"
-    "name because the kind is an open `uint32_t` a caller extends -- the\n"
-    "constants are generated from the C enum, so there is nothing to\n"
-    "transcribe. `n_fields = 0` means the stage does not run. A stage that\n"
-    "inherited whatever ran before it is the representation that cannot\n"
-    "express a CCSDS CADU, where the marker is covered by the inner code and\n"
-    "by neither the outer code nor the randomiser. `unit_bits` applies to\n"
-    "`interleave` alone and is the bits per permuted unit (0 reads as 1);\n"
-    "its ROW count is `depth` and its column count is derived from the span\n"
-    "the stage covers.\n"
+    "Append one transform and -- the load-bearing part -- the span of fields "
+    "it covers. `kind` is a stage kind: `STAGE_CRC16`, `STAGE_RS`, "
+    "`STAGE_RANDOMISE`, `STAGE_CONV`, `STAGE_INTERLEAVE` from `doppler.wfm`, "
+    "or a caller's own from `STAGE_USER` up. It stays an INT rather than a "
+    "name because the kind is an open `uint32_t` a caller extends -- the "
+    "constants are generated from the C enum, so there is nothing to "
+    "transcribe. `n_fields = 0` means the stage does not run. A stage that "
+    "inherited whatever ran before it is the representation that cannot "
+    "express a CCSDS CADU, where the marker is covered by the inner code and "
+    "by neither the outer code nor the randomiser. `unit_bits` applies to "
+    "`interleave` alone and is the bits per permuted unit (0 reads as 1); its "
+    "ROW count is `depth` and its column count is derived from the span the "
+    "stage covers.\n"
     "\n"
     "n_fields is the load-bearing part and 0 means the stage does not run. A\n"
     "stage that inherited \"everything before me\" instead of declaring its\n"
@@ -1507,14 +1166,12 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
     ">>> from doppler.ccsds import asm_bits\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
-    ">>> asm = asm_bits()\n"
     ">>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],\n"
     "...                   np.uint8)\n"
-    ">>> data = np.unpackbits(octets).astype(np.uint8)\n"
-    ">>> d = FrameDesc(empty, empty, empty)\n"
-    ">>> _ = d.add_field(asm), d.add_field(data)\n"
-    ">>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)\n"
+    ">>> d = FrameDesc()\n"
+    ">>> _ = d.add_field(\"asm\", asm_bits())\n"
+    ">>> _ = d.add_field(\"data\", np.unpackbits(octets))\n"
+    ">>> _ = d.add_derived(\"parity\", 32 * 8)   # the outer code fills it\n"
     ">>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)\n"
     "0\n"
     ">>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser\n"
@@ -1531,13 +1188,12 @@ static PyMethodDef FrameDescObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "field_index(name) -> int\n"
     "\n"
-    "Index of the field called `name`, or -1 -- the one verb whose\n"
-    "sentinel survives into Python, because a name that matches nothing is\n"
-    "an ANSWER rather than a refusal. The one lookup that resolves a name,\n"
-    "so every index-taking method keeps working and a rename can only be\n"
-    "wrong once. An unnamed field is ANONYMOUS rather than named \"\", so "
-    "the\n"
-    "empty name matches nothing.\n"
+    "Index of the field called `name`, or -1 -- the one verb whose sentinel "
+    "survives into Python, because a name that matches nothing is an ANSWER "
+    "rather than a refusal. The one lookup that resolves a name, so every "
+    "index-taking method keeps working and a rename can only be wrong once. "
+    "An unnamed field is ANONYMOUS rather than named \"\", so the empty name "
+    "matches nothing.\n"
     "\n"
     "The one lookup that resolves a name, so every index-taking entry point\n"
     "keeps working unchanged and a rename can only be wrong once. An unnamed\n"
@@ -1560,9 +1216,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> e = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(e, e, e)\n"
-    ">>> d.add_value(\"sync\", 0xABC, 12)\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"sync\", np.array([1,0,1,0,1,0,1,1,1,1,0,0], "
+    "np.uint8))\n"
     "0\n"
     ">>> d.field_index(\"sync\")\n"
     "0\n"
@@ -1572,9 +1228,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "name_field(index, name) -> None\n"
     "\n"
-    "Give an already-appended field a name, or clear it with \"\". Refuses\n"
-    "a name another field already carries, because `field_index` would then\n"
-    "answer with whichever it reached first. Refuses once the frame is\n"
+    "Give an already-appended field a name, or clear it with \"\". Refuses a "
+    "name another field already carries, because `field_index` would then "
+    "answer with whichever it reached first. Refuses once the frame is "
     "built.\n"
     "\n"
     "Parameters\n"
@@ -1596,118 +1252,19 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> e = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(e, e, e)\n"
-    ">>> d.add_field(np.array([1, 0, 1, 0], np.uint8))\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"\", np.array([1, 0, 1, 0], np.uint8))   # anonymous\n"
     "0\n"
     ">>> d.name_field(0, \"payload\")\n"
     ">>> d.field_index(\"payload\")\n"
     "0\n" },
-  { "add_hex", (PyCFunction)(void *)FrameDescObj_add_hex,
-    METH_VARARGS | METH_KEYWORDS,
-    "add_hex(name, hex, reps) -> int\n"
-    "\n"
-    "Append a named field from a hex literal, MSB-first --\n"
-    "`add_hex(\"asm\", \"1ACFFC1D\")` is 32 bits. Four bits per digit, so an "
-    "odd\n"
-    "number of digits gives a 4-bit tail. The expansion is cvt's\n"
-    "`hex_to_bin`, not a second parser, so a bad digit is refused there.\n"
-    "Returns the new field's index; a refusal raises `ValueError`.\n"
-    "\n"
-    "Four bits per digit, MSB-first, so an odd number of digits gives a\n"
-    "4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second\n"
-    "parser here, so a bad digit is a refusal there and the two cannot\n"
-    "disagree about what a marker expands to.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "name : str\n"
-    "    the field's name, or NULL for anonymous.\n"
-    "hex : str\n"
-    "    NUL-terminated hex digits; no `0x`, no separators.\n"
-    "reps : int\n"
-    "    repetitions; 0 means one.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a negative value. The exception message is\n"
-    "    ``cannot append a hex field: the description is full, already\n"
-    "    built, or the digits could not be expanded``, with the return code\n"
-    "    appended (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.wfm import FrameDesc\n"
-    ">>> e = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(e, e, e)\n"
-    ">>> d.add_hex(\"asm\", \"1ACFFC1D\")     # the CCSDS marker, 4 bits a "
-    "digit\n"
-    "0\n"
-    ">>> d.build()\n"
-    ">>> d.nbits\n"
-    "32\n" },
-  { "add_value", (PyCFunction)(void *)FrameDescObj_add_value,
-    METH_VARARGS | METH_KEYWORDS,
-    "add_value(name, value, bits, reps) -> int\n"
-    "\n"
-    "Append a named field from an integer, `bits` wide, MSB-first. The\n"
-    "form to reach for when a literal fits in 64 bits: exact, and with no\n"
-    "failure mode a typo can reach. Wider literals want `add_hex` or\n"
-    "`add_field`. Returns the new field's index; a refusal raises\n"
-    "`ValueError`.\n"
-    "\n"
-    "The form to reach for when a literal fits in 64 bits: exact, and with\n"
-    "no failure mode a typo can reach. Wider ones want dp_frame_add_hex.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "name : str\n"
-    "    the field's name, or NULL for anonymous.\n"
-    "value : int\n"
-    "    the value; only the low bits are read.\n"
-    "bits : int\n"
-    "    1..64, MSB first.\n"
-    "reps : int\n"
-    "    repetitions; 0 means one.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a negative value. The exception message is\n"
-    "    ``cannot append a value field: the description is full, already\n"
-    "    built, or the value does not fit the declared width``, with the\n"
-    "    return code appended (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.wfm import FrameDesc\n"
-    ">>> e = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(e, e, e)\n"
-    ">>> d.add_value(\"marker\", 0x1A, 8)\n"
-    "0\n"
-    ">>> d.build()\n"
-    ">>> d.bits().tolist()                 # MSB first\n"
-    "[0, 0, 0, 1, 1, 0, 1, 0]\n" },
   { "add_derived", (PyCFunction)(void *)FrameDescObj_add_derived,
     METH_VARARGS | METH_KEYWORDS,
     "add_derived(name, bits) -> int\n"
     "\n"
-    "Append a named field a STAGE will fill -- a CRC trailer, a block of\n"
-    "check symbols. Its producer is not named here because no stage exists\n"
-    "yet when the field it derives is appended; `add_stage_over` wires it.\n"
+    "Append a named field a STAGE will fill -- a CRC trailer, a block of "
+    "check symbols. Its producer is not named here because no stage exists "
+    "yet when the field it derives is appended; `add_stage_over` wires it. "
     "Returns the new field's index; a refusal raises `ValueError`.\n"
     "\n"
     "A field with a declared length and no source: a CRC trailer, a block of\n"
@@ -1738,23 +1295,21 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> e = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(e, e, e)\n"
-    ">>> d.add_field(np.array([1, 0, 1, 0], np.uint8))\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"payload\", np.array([1, 0, 1, 0], np.uint8))\n"
     "0\n"
-    ">>> d.name_field(0, \"payload\")\n"
     ">>> d.add_derived(\"crc\", 16)          # a stage will fill it\n"
     "1\n" },
   { "add_stage_over", (PyCFunction)(void *)FrameDescObj_add_stage_over,
     METH_VARARGS | METH_KEYWORDS,
     "add_stage_over(kind, first, last, depth, unit_bits) -> int\n"
     "\n"
-    "Append a stage covering `[first .. last]` BY NAME --\n"
-    "`add_stage_over(STAGE_CRC16, \"payload\", \"crc\")` says what three\n"
-    "integers used to. It wires a derived field's producer for you, which\n"
-    "applies the invariant the layout already enforces: a field with a\n"
-    "declared length and no source sitting at the end of a cover has exactly\n"
-    "one possible producer. `kind` is a stage kind, as for `add_stage`.\n"
+    "Append a stage covering `[first .. last]` BY NAME -- "
+    "`add_stage_over(STAGE_CRC16, \"payload\", \"crc\")` says what three "
+    "integers used to. It wires a derived field's producer for you, which "
+    "applies the invariant the layout already enforces: a field with a "
+    "declared length and no source sitting at the end of a cover has exactly "
+    "one possible producer. `kind` is a stage kind, as for `add_stage`. "
     "Returns the new stage's index; a refusal raises `ValueError`.\n"
     "\n"
     "The cover is the load-bearing part of the representation and this is\n"
@@ -1795,11 +1350,10 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> e = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(e, e, e)\n"
-    ">>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"payload\", np.array([0, 1, 1, 0, 1, 0, 0, 1], "
+    "np.uint8))\n"
     "0\n"
-    ">>> d.name_field(0, \"payload\")\n"
     ">>> d.add_derived(\"crc\", 16)\n"
     "1\n"
     ">>> d.add_stage_over(0, \"payload\", \"crc\")   # 0 = crc16\n"
@@ -1810,12 +1364,12 @@ static PyMethodDef FrameDescObj_methods[] = {
   { "build", (PyCFunction)FrameDescObj_build, METH_NOARGS,
     "build() -> None\n"
     "\n"
-    "Lay out and materialise a description. Where a description is\n"
-    "checked: one that cannot produce its own bits is not a frame. Separate\n"
-    "from the constructor only because the description arrives over several\n"
-    "calls and there is no earlier moment at which it is complete. Raises if\n"
-    "it is empty, unbuildable, names a stage no kernel here covers, or was\n"
-    "already built.\n"
+    "Lay out and materialise a description. Where a description is checked: "
+    "one that cannot produce its own bits is not a frame. Separate from the "
+    "constructor only because the description arrives over several calls and "
+    "there is no earlier moment at which it is complete. Raises if it is "
+    "empty, unbuildable, names a stage no kernel here covers, or was already "
+    "built.\n"
     "\n"
     "The point at which a description is checked, which for dp_frame_create\n"
     "happens inside the constructor: a description that cannot produce its\n"
@@ -1846,10 +1400,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.nbits                     # 13 + 16 + 16, laid out by build()\n"
     "45\n"
@@ -1857,7 +1410,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     "A description that cannot produce bits is not a frame, and is refused\n"
     "rather than half-built:\n"
     "\n"
-    ">>> FrameDesc(empty, empty, empty).build()\n"
+    ">>> FrameDesc().build()\n"
     "Traceback (most recent call last):\n"
     "    ...\n"
     "ValueError: cannot build: the description is empty, unbuildable, ...\n" },
@@ -1865,9 +1418,8 @@ static PyMethodDef FrameDescObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "deframe(rx_bits, out) -> ndarray\n"
     "\n"
-    "Undo the description's stages over a received frame and hand back\n"
-    "the CORRECTED bits — the layer a receiver stops short of\n"
-    "(doppler#1022).\n"
+    "Undo the description's stages over a received frame and hand back the "
+    "CORRECTED bits — the layer a receiver stops short of (doppler#1022).\n"
     "\n"
     "The receive counterpart of building one, and the layer a receiver stops\n"
     "short of: `DsssBurstReceiver` and friends hand back hard and soft\n"
@@ -1876,9 +1428,8 @@ static PyMethodDef FrameDescObj_methods[] = {
     "\n"
     "Returns the frame with every reversible stage undone, in place order: a\n"
     "randomiser XORed back, an outer code's repairs APPLIED, a CRC checked.\n"
-    "The payload is then a slice, at dp_frame_field_off of the payload field "
-    "—\n"
-    "which is the caller's arithmetic because a description does not\n"
+    "The payload is then a slice, at dp_frame_field_off of the payload field\n"
+    "— which is the caller's arithmetic because a description does not\n"
     "privilege one field over another.\n"
     "\n"
     "The verdict comes back as read-backs (`ok`, `units`, `checked`,\n"
@@ -1909,11 +1460,10 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import Frame\n"
-    ">>> empty = np.zeros(0, dtype=np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], "
     "dtype=np.uint8)\n"
-    ">>> f = Frame(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> f = Frame(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> rx = np.asarray(f.bits())          # a clean capture of its own "
     "frame\n"
     ">>> got = np.asarray(f.deframe(rx))\n"
@@ -1996,10 +1546,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> r = d.check(d.bits(1))\n"
     ">>> r.passed, r.ok, r.units\n"
@@ -2014,7 +1563,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     "\n"
     "Carrying no check is NOT passing one -- both are reported, separately:\n"
     "\n"
-    ">>> n = FrameDesc(empty, sync, payload, crc=\"none\")\n"
+    ">>> n = FrameDesc(sync=sync, payload=payload, crc=\"none\")\n"
     ">>> n.build()\n"
     ">>> c = n.check(n.bits(1))\n"
     ">>> c.passed, c.checked\n"
@@ -2022,9 +1571,9 @@ static PyMethodDef FrameDescObj_methods[] = {
   { "n_fields", (PyCFunction)FrameDescObj_n_fields, METH_NOARGS,
     "n_fields() -> int\n"
     "\n"
-    "Fields in the description. A `Frame` built the four-field way\n"
-    "reports 4 -- `wfm_frame_t` IS a configuration of the general\n"
-    "description, so the indexed view below reads it too.\n"
+    "Fields in the description. A `Frame` built the four-field way reports 4 "
+    "-- `wfm_frame_t` IS a configuration of the general description, so the "
+    "indexed view below reads it too.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -2035,10 +1584,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.n_fields()          # the four named fields, absent ones included\n"
     "4\n" },
   { "n_stages", (PyCFunction)FrameDescObj_n_stages, METH_NOARGS,
@@ -2055,10 +1603,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.n_stages()         # the CRC is a stage like any other\n"
     "1\n" },
@@ -2082,10 +1629,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.field_off(1), d.field_off(2), d.field_off(3)\n"
     "(0, 13, 29)\n"
@@ -2116,10 +1662,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.field_bits(1), d.field_bits(2), d.field_bits(3)\n"
     "(13, 16, 16)\n" },
@@ -2143,10 +1688,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0\n"
     "13\n" },
@@ -2154,8 +1698,8 @@ static PyMethodDef FrameDescObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "stage_bits(i) -> int\n"
     "\n"
-    "Bits stage `i` covers; 0 for a stage that did not run -- which is\n"
-    "how an optional stage is spelled, and why `first` is 0 there too.\n"
+    "Bits stage `i` covers; 0 for a stage that did not run -- which is how an "
+    "optional stage is spelled, and why `first` is 0 there too.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2171,10 +1715,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d = FrameDesc(empty, sync, payload, crc=\"crc16\")\n"
+    ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
     ">>> d.stage_bits(0)      # payload+CRC: what crc16 covered\n"
     "32\n" },
@@ -2217,7 +1760,7 @@ static PyMethodDef FrameDescObj_methods[] = {
 };
 
 static PyTypeObject FrameDescObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm.FrameDesc",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.FrameDesc",
   .tp_basicsize                           = sizeof (FrameDescObject),
   .tp_dealloc                             = (destructor)FrameDescObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -2226,127 +1769,35 @@ static PyTypeObject FrameDescObjType = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "preamble_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], "
-    "default \"literal\"\n"
-    "    Enum index; 0=literal…3=dotted.\n"
-    "preamble : NDArray[np.uint8]\n"
-    "    Literal preamble bits, one per element. Pass an EMPTY array when "
-    "the\n"
-    "    field is absent or generated -- `wfm_seq_t` already spells absence "
-    "as a\n"
-    "    zero length, so this is that convention reaching Python rather than "
-    "a\n"
-    "    placeholder. (An omittable array init-param is a jm gap; see the "
-    "module\n"
-    "    docs.)\n"
-    "preamble_nbits : int, default 0\n"
-    "    Output bits for a GENERATED preamble kind. A literal takes its "
-    "length\n"
-    "    from the `preamble` array instead; `wfm_seq_t` names these apart "
-    "(len\n"
-    "    vs reg_bits) for the same reason.\n"
-    "preamble_reps : int, default 0\n"
-    "    Repetitions of the preamble; 0 = no preamble (default: 0).\n"
-    "preamble_poly : int, default 0\n"
-    "    PN feedback polynomial; 0 selects the maximal-length one (default: "
-    "0).\n"
-    "preamble_seed : int, default 0\n"
-    "    PN seed; 0 selects 1, since an all-zero register is a fixed point\n"
-    "    (default: 0).\n"
-    "preamble_reg_bits : int, default 0\n"
-    "    PN/Gold register width, 1..64 (default: 0).\n"
-    "preamble_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    Enum index; 0=galois…1=fibonacci.\n"
-    "preamble_taps_a : int, default 0\n"
-    "    Gold: first register's taps (default: 0).\n"
-    "preamble_seed_a : int, default 0\n"
-    "    Gold: first register's seed (default: 0).\n"
-    "preamble_taps_b : int, default 0\n"
-    "    Gold: second register's taps (default: 0).\n"
-    "preamble_seed_b : int, default 0\n"
-    "    Gold: second register's seed (default: 0).\n"
-    "sync_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], default "
-    "\"literal\"\n"
-    "    Enum index; 0=literal…3=dotted.\n"
-    "sync : NDArray[np.uint8]\n"
-    "    Literal sync word bits, one per element. Pass an EMPTY array when "
-    "the\n"
-    "    field is absent or generated -- `wfm_seq_t` already spells absence "
-    "as a\n"
-    "    zero length, so this is that convention reaching Python rather than "
-    "a\n"
-    "    placeholder. (An omittable array init-param is a jm gap; see the "
-    "module\n"
-    "    docs.)\n"
-    "sync_nbits : int, default 0\n"
-    "    Output bits for a GENERATED sync kind (default: 0).\n"
-    "sync_poly : int, default 0\n"
-    "    PN feedback polynomial; 0 selects the maximal-length one (default: "
-    "0).\n"
-    "sync_seed : int, default 0\n"
-    "    PN seed; 0 selects 1 (default: 0).\n"
-    "sync_reg_bits : int, default 0\n"
-    "    PN/Gold register width, 1..64 (default: 0).\n"
-    "sync_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    Enum index; 0=galois…1=fibonacci.\n"
-    "sync_taps_a : int, default 0\n"
-    "    Gold: first register's taps (default: 0).\n"
-    "sync_seed_a : int, default 0\n"
-    "    Gold: first register's seed (default: 0).\n"
-    "sync_taps_b : int, default 0\n"
-    "    Gold: second register's taps (default: 0).\n"
-    "sync_seed_b : int, default 0\n"
-    "    Gold: second register's seed (default: 0).\n"
-    "payload_kind : Literal[\"literal\", \"pn\", \"gold\", \"dotted\"], "
-    "default \"literal\"\n"
-    "    Enum index; 0=literal…3=dotted.\n"
-    "payload : NDArray[np.uint8]\n"
-    "    Literal payload bits, one per element. Pass an EMPTY array when the\n"
-    "    field is absent or generated -- `wfm_seq_t` already spells absence "
-    "as a\n"
-    "    zero length, so this is that convention reaching Python rather than "
-    "a\n"
-    "    placeholder. (An omittable array init-param is a jm gap; see the "
-    "module\n"
-    "    docs.)\n"
-    "payload_nbits : int, default 0\n"
-    "    Output bits for a GENERATED payload kind (default: 0).\n"
-    "payload_poly : int, default 0\n"
-    "    PN feedback polynomial; 0 selects the maximal-length one (default: "
-    "0).\n"
-    "payload_seed : int, default 0\n"
-    "    PN seed; 0 selects 1 (default: 0).\n"
-    "payload_reg_bits : int, default 0\n"
-    "    PN/Gold register width, 1..64 (default: 0).\n"
-    "payload_lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    Enum index; 0=galois…1=fibonacci.\n"
-    "payload_taps_a : int, default 0\n"
-    "    Gold: first register's taps (default: 0).\n"
-    "payload_seed_a : int, default 0\n"
-    "    Gold: first register's seed (default: 0).\n"
-    "payload_taps_b : int, default 0\n"
-    "    Gold: second register's taps (default: 0).\n"
-    "payload_seed_b : int, default 0\n"
-    "    Gold: second register's seed (default: 0).\n"
+    "preamble : NDArray[np.uint8], default ...\n"
+    "    Preamble bits, one per element, each 0 or 1. Omitted, there is no\n"
+    "    preamble. A repeated preamble is repeated in its bits:\n"
+    "    `field_bits(\"pn:31:5*4\")`.\n"
+    "sync : NDArray[np.uint8], default ...\n"
+    "    Sync-word bits, one per element, each 0 or 1. Omitted, the frame is\n"
+    "    unsynced.\n"
+    "payload : NDArray[np.uint8], default ...\n"
+    "    Payload bits, one per element, each 0 or 1. Omitted, the frame "
+    "carries\n"
+    "    none.\n"
     "crc : Literal[\"none\", \"crc16\"], default \"none\"\n"
-    "    Enum index; 0=none…1=crc16.\n"
+    "    Enum index; 0=none, 1=crc16 over the payload.\n"
     "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.wfm import FrameDesc\n"
-    ">>> empty = np.empty(0, np.uint8)\n"
-    ">>> d = FrameDesc(empty, empty, empty)          # begin from nothing\n"
+    ">>> from doppler.wfm import FrameDesc, STAGE_CRC16\n"
+    ">>> d = FrameDesc()                             # begin from nothing\n"
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> d.add_field(sync)                           # returns its index\n"
+    ">>> d.add_field(\"sync\", sync)                   # returns its index\n"
     "0\n"
-    ">>> d.add_field(payload)\n"
+    ">>> d.add_field(\"payload\", payload)\n"
     "1\n"
-    ">>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS "
-    "ONE\n"
+    ">>> d.add_derived(\"crc\", 16)                    # a stage will fill "
+    "it\n"
     "2\n"
-    ">>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2\n"
+    ">>> d.add_stage_over(STAGE_CRC16, \"payload\", \"crc\")\n"
     "0\n"
     ">>> d.build()\n"
     ">>> d.nbits                                     # 13 + 16 + 16\n"

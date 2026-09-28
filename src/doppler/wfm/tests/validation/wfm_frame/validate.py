@@ -50,6 +50,7 @@ from doppler.wfm import (
     STAGE_RS,
     STAGE_USER,
     FrameDesc,
+    field_bits,
 )
 
 HERE = Path(__file__).resolve().parent
@@ -58,10 +59,7 @@ ROOT = repo_root(__file__)
 
 R = Report()
 
-EMPTY = np.empty(0, np.uint8)
 CRC_BITS = 16
-
-# Sequence kinds, as add_field() indexes them.
 
 
 def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
@@ -83,11 +81,11 @@ def octets(n: int) -> np.ndarray:
 
 def plain_frame(sync: list[int], payload_octets: int, crc: bool = True):
     """sync | payload | CRC — a frame with nothing CCSDS in it."""
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(np.array(sync, np.uint8))
-    d.add_field(octets(payload_octets))
+    d = FrameDesc()
+    d.add_field("sync", np.array(sync, np.uint8))
+    d.add_field("payload", octets(payload_octets))
     if crc:
-        d.add_field(EMPTY, derived_by=1, derived_bits=CRC_BITS)
+        d.add_derived("crc", CRC_BITS)
         d.add_stage(STAGE_CRC16, first_field=1, n_fields=2)
     d.build()
     return d
@@ -219,10 +217,10 @@ def measure_cadu(d: Data) -> None:
     )
     R.md()
     asm = asm_bits()
-    f = FrameDesc(EMPTY, EMPTY, EMPTY)
-    f.add_field(asm)
-    f.add_field(octets(223))
-    f.add_field(EMPTY, derived_by=1, derived_bits=32 * 8)
+    f = FrameDesc()
+    f.add_field("asm", asm)
+    f.add_field("data", octets(223))
+    f.add_derived("parity", 32 * 8)
     f.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=1)
     f.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     f.build()
@@ -306,32 +304,22 @@ def measure_sequences(d: Data) -> None:
     R.md()
     R.md(
         "A field's bits come from a literal or from a generator, and "
-        '`add_field` reaches all four kinds. `dp_wfm_seq_bits` -- "the one '
-        'place a `wfm_seq_t` becomes bits" -- had no C coverage at all '
-        "before this certification (F1); these are the same properties, "
-        "asked through the binding."
+        "`field_bits` -- the Field text form's door -- reaches all four "
+        'kinds. `dp_wfm_seq_bits` -- "the one place a `wfm_seq_t` becomes '
+        'bits" -- had no C coverage at all before this certification (F1); '
+        "these are the same properties, asked through the binding."
     )
     R.md()
     # DOTTED starts high, so a one-bit field is not silently zeros
-    one = FrameDesc(EMPTY, EMPTY, EMPTY)
-    one.add_field(EMPTY, kind="dotted", gen_len=1)
-    one.build()
-    d.dotted_starts_high = int(np.asarray(one.bits(1))[0]) == 1
-    dot = FrameDesc(EMPTY, EMPTY, EMPTY)
-    dot.add_field(EMPTY, kind="dotted", gen_len=9)
-    dot.build()
-    dbits = np.asarray(dot.bits(1))
+    d.dotted_starts_high = int(field_bits("dotted:1")[0]) == 1
+    dbits = field_bits("dotted:9")
     alternates = bool(np.array_equal(dbits, (np.arange(9) & 1) ^ 1))
     # PN with poly 0 must be maximal-length, not a feedback-free register
     pn_ok = True
     for n in (5, 7, 9):
         period = (1 << n) - 1
-        p = FrameDesc(EMPTY, EMPTY, EMPTY)
-        p.add_field(
-            EMPTY, kind="pn", gen_len=period, reg_bits=n, poly=0, seed=0
-        )
-        p.build()
-        ones = int(np.asarray(p.bits(1)).sum())
+        # No POLY and no SEED: the defaults, so poly resolves to 0 -> MLS.
+        ones = int(field_bits(f"pn:{period}:{n}").sum())
         good = ones == (1 << (n - 1))
         pn_ok = pn_ok and good
         d.seq_rows.append(
@@ -347,17 +335,8 @@ def measure_sequences(d: Data) -> None:
 
     # GOLD must use BOTH registers
     def gold(seed_b: int) -> np.ndarray:
-        g = FrameDesc(EMPTY, EMPTY, EMPTY)
-        g.add_field(
-            EMPTY,
-            kind="gold",
-            gen_len=255,
-            reg_bits=8,
-            seed_a=1,
-            seed_b=seed_b,
-        )
-        g.build()
-        return np.asarray(g.bits(1))
+        # gold:LEN:REG:TAPS_A:SEED_A:TAPS_B:SEED_B
+        return field_bits(f"gold:255:8:0:1:0:{seed_b}")
 
     d.gold_uses_both = not np.array_equal(gold(1), gold(2))
     R.table(["kind", "period", "ones", "2^(n-1)", ""], d.seq_rows)
@@ -404,9 +383,9 @@ def measure_extension(d: Data) -> None:
         "can be declared and never built."
     )
     R.md()
-    f = FrameDesc(EMPTY, EMPTY, EMPTY)
-    f.add_field(np.array([1, 0, 1, 0], np.uint8))
-    f.add_field(octets(4))
+    f = FrameDesc()
+    f.add_field("hdr", np.array([1, 0, 1, 0], np.uint8))
+    f.add_field("payload", octets(4))
     idx = f.add_stage(STAGE_USER + 1, first_field=0, n_fields=2)
     d.user_kind_accepted = idx >= 0
     try:
@@ -446,7 +425,7 @@ def measure_reach(d: Data) -> None:
         ),
         (
             "`dp_wfm_seq_bits` directly -- Python reaches all four kinds "
-            "through `add_field`, which is the same function one layer up "
+            "through `field_bits`, which is the same function one layer up "
             "(§2.4)."
         ),
         (

@@ -65,7 +65,7 @@ The clean frame returns 1. A frame carrying NO check returns **-1**, and the thr
 
 ### 2.4 The generated field kinds (C §seq_bits)
 
-A field's bits come from a literal or from a generator, and `add_field` reaches all four kinds. `dp_wfm_seq_bits` -- "the one place a `wfm_seq_t` becomes bits" -- had no C coverage at all before this certification (F1); these are the same properties, asked through the binding.
+A field's bits come from a literal or from a generator, and `field_bits` -- the Field text form's door -- reaches all four kinds. `dp_wfm_seq_bits` -- "the one place a `wfm_seq_t` becomes bits" -- had no C coverage at all before this certification (F1); these are the same properties, asked through the binding.
 
 | kind | period | ones | 2^(n-1) |  |
 |---|---|---|---|---|
@@ -91,7 +91,7 @@ The refusal is the designed behaviour -- no kernel, no frame, never a silent ski
 ### 2.6 What the Python face does not reach
 
 - `wfm_frame_ops_t` -- the caller's kernel table, and with it any stage kind doppler does not implement (§2.5, gh-1125).
-- `dp_wfm_seq_bits` directly -- Python reaches all four kinds through `add_field`, which is the same function one layer up (§2.4).
+- `dp_wfm_seq_bits` directly -- Python reaches all four kinds through `field_bits`, which is the same function one layer up (§2.4).
 - `dp_wfm_frame_dsss_nchips` -- the burst chip count, used by `wfm_synth` when it builds a DSSS burst rather than by a caller.
 
 ## 3. Review -- findings, with verdicts

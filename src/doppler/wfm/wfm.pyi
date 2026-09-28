@@ -931,107 +931,32 @@ class Frame:
 
     Parameters
     ----------
-    preamble_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
-    preamble : NDArray[np.uint8]
-        Literal preamble bits, one per element. Pass an EMPTY array when the
-        field is absent or generated -- `wfm_seq_t` already spells absence as a
-        zero length, so this is that convention reaching Python rather than a
-        placeholder. (An omittable array init-param is a jm gap; see the module
-        docs.)
-    preamble_nbits : int, default 0
-        Output bits for a GENERATED preamble kind. A literal takes its length
-        from the `preamble` array instead; `wfm_seq_t` names these apart (len
-        vs reg_bits) for the same reason.
-    preamble_reps : int, default 0
-        Repetitions of the preamble; 0 = no preamble (default: 0).
-    preamble_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
-    preamble_seed : int, default 0
-        PN seed; 0 selects 1, since an all-zero register is a fixed point
-        (default: 0).
-    preamble_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
-    preamble_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
-    preamble_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
-    preamble_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
-    preamble_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
-    preamble_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
-    sync_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
-    sync : NDArray[np.uint8]
-        Literal sync word bits, one per element. Pass an EMPTY array when the
-        field is absent or generated -- `wfm_seq_t` already spells absence as a
-        zero length, so this is that convention reaching Python rather than a
-        placeholder. (An omittable array init-param is a jm gap; see the module
-        docs.)
-    sync_nbits : int, default 0
-        Output bits for a GENERATED sync kind (default: 0).
-    sync_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
-    sync_seed : int, default 0
-        PN seed; 0 selects 1 (default: 0).
-    sync_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
-    sync_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
-    sync_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
-    sync_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
-    sync_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
-    sync_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
-    payload_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
-    payload : NDArray[np.uint8]
-        Literal payload bits, one per element. Pass an EMPTY array when the
-        field is absent or generated -- `wfm_seq_t` already spells absence as a
-        zero length, so this is that convention reaching Python rather than a
-        placeholder. (An omittable array init-param is a jm gap; see the module
-        docs.)
-    payload_nbits : int, default 0
-        Output bits for a GENERATED payload kind (default: 0).
-    payload_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
-    payload_seed : int, default 0
-        PN seed; 0 selects 1 (default: 0).
-    payload_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
-    payload_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
-    payload_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
-    payload_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
-    payload_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
-    payload_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
+    preamble : NDArray[np.uint8], default ...
+        Preamble bits, one per element, each 0 or 1. Omitted, there is no
+        preamble. A repeated preamble is repeated in its bits:
+        `field_bits("pn:31:5*4")`.
+    sync : NDArray[np.uint8], default ...
+        Sync-word bits, one per element, each 0 or 1. Omitted, the frame is
+        unsynced.
+    payload : NDArray[np.uint8], default ...
+        Payload bits, one per element, each 0 or 1. Omitted, the frame carries
+        none.
     crc : Literal["none", "crc16"], default "none"
-        Enum index; 0=none…1=crc16.
+        Enum index; 0=none, 1=crc16 over the payload.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``frame geometry is
-        empty or a field is unbuildable (a literal with no array, or a
-        generated field with no register width)``.
+        empty, or a field holds an element that is not a bit (0 or 1)``.
 
     Examples
     --------
     >>> import numpy as np
     >>> from doppler.wfm import Frame
-    >>> empty = np.empty(0, np.uint8)                    # an absent field
     >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)   # Barker-13
     >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-    >>> f = Frame(empty, sync, payload, crc="crc16")
+    >>> f = Frame(sync=sync, payload=payload, crc="crc16")
     >>> f.nbits                                          # 13 + 16 + 16
     45
     >>> f.layout().payload_off
@@ -1039,51 +964,13 @@ class Frame:
     >>> f.crc_ok(f.bits())        # its own bits are its own truth
     1
 
-    A payload a receiver can REGENERATE, rather than one it must be handed:
-
-    >>> g = Frame(empty, sync, empty, payload_kind="pn",
-    ...           payload_nbits=1024, payload_reg_bits=10, crc="crc16")
-    >>> g.nbits
-    1053
-
     """
 
     def __init__(
         self,
-        preamble: NDArray[np.uint8],
-        sync: NDArray[np.uint8],
-        payload: NDArray[np.uint8],
-        preamble_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
-        preamble_nbits: int = 0,
-        preamble_reps: int = 0,
-        preamble_poly: int = 0,
-        preamble_seed: int = 0,
-        preamble_reg_bits: int = 0,
-        preamble_lfsr: Literal["galois", "fibonacci"] = "galois",
-        preamble_taps_a: int = 0,
-        preamble_seed_a: int = 0,
-        preamble_taps_b: int = 0,
-        preamble_seed_b: int = 0,
-        sync_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
-        sync_nbits: int = 0,
-        sync_poly: int = 0,
-        sync_seed: int = 0,
-        sync_reg_bits: int = 0,
-        sync_lfsr: Literal["galois", "fibonacci"] = "galois",
-        sync_taps_a: int = 0,
-        sync_seed_a: int = 0,
-        sync_taps_b: int = 0,
-        sync_seed_b: int = 0,
-        payload_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
-        payload_nbits: int = 0,
-        payload_poly: int = 0,
-        payload_seed: int = 0,
-        payload_reg_bits: int = 0,
-        payload_lfsr: Literal["galois", "fibonacci"] = "galois",
-        payload_taps_a: int = 0,
-        payload_seed_a: int = 0,
-        payload_taps_b: int = 0,
-        payload_seed_b: int = 0,
+        preamble: NDArray[np.uint8] = ...,
+        sync: NDArray[np.uint8] = ...,
+        payload: NDArray[np.uint8] = ...,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
     def bits(
@@ -1117,10 +1004,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> len(d.bits())        # one frame: 13 + 16 + 16
         45
@@ -1158,10 +1044,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import Frame
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> lay = Frame(empty, sync, payload, crc="crc16").layout()
+        >>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
         >>> lay.sync_off, lay.payload_off, lay.crc_off
         (0, 13, 29)
         >>> lay.total_bits
@@ -1196,10 +1081,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.crc_ok(d.bits())           # its own bits are its own truth
         1
@@ -1210,106 +1094,55 @@ class Frame:
 
         """
 
-    def add_field(
-        self,
-        lit: NDArray[np.uint8],
-        kind: str = 'literal',
-        gen_len: int = 0,
-        reps: int = 0,
-        poly: int = 0,
-        seed: int = 0,
-        reg_bits: int = 0,
-        lfsr: str = 'galois',
-        taps_a: int = 0,
-        seed_a: int = 0,
-        taps_b: int = 0,
-        seed_b: int = 0,
-        derived_by: int = 0,
-        derived_bits: int = 0,
-    ) -> int:
-        """Append one field to a description (see `FrameDesc`). `kind` names
-        where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and
-        `lfsr` is `galois` or `fibonacci`, the same spellings the constructor
-        takes, from the one `[[enum]]` the C enum backs. Either the caller
-        supplies the bits (`lit`, or a generated `kind`) or a stage derives
-        them (`derived_by` non-zero) -- both are fields, because both are on
-        the wire. Returns the new field's index, which is what `derived_by` and
-        a stage's `first_field` are counted in. Refuses once the frame is
-        built.
+    def add_field(self, name: str, bits: NDArray[np.uint8]) -> int:
+        """Append one named field to a description (see `FrameDesc`): bits and
+        nothing else, one per element, each 0 or 1. Text reaches it through
+        `field_bits()`, hex and packed octets through `cvt`. A field a STAGE
+        fills is `add_derived` instead, because the caller has no bits for it.
+        `name` may be empty for an anonymous field; a name another field
+        carries is refused. Returns the new field's index. Refuses once the
+        frame is built.
 
-        Either the caller supplies the bits (lit, or a generated kind) or a
-        stage derives them (derived_by non-zero). Both are fields, because both
-        are on the wire.
+        The field is bits and nothing else, copied here so the description
+        outlives the call. A field a STAGE fills is appended with
+        dp_frame_add_derived instead, because the caller has no bits for it.
 
         Parameters
         ----------
-        lit : NDArray[np.uint8]
-            Literal bits, copied here so the description outlives the call; may
-            be NULL.
-        kind : str
-            wfm_seq_kind_t index; 0=literal…3=dotted.
-        gen_len : int
-            Output bits for a GENERATED kind.
-        reps : int
-            Repetitions of the field, verbatim; 0 means one.
-        poly : int
-            PN feedback polynomial; 0 selects the maximal-length.
-        seed : int
-            PN seed; 0 selects 1.
-        reg_bits : int
-            PN/Gold register width.
-        lfsr : str
-            0=galois, 1=fibonacci.
-        taps_a : int
-            Gold: first register's taps.
-        seed_a : int
-            Gold: first register's seed.
-        taps_b : int
-            Gold: second register's taps.
-        seed_b : int
-            Gold: second register's seed.
-        derived_by : int
-            0 when the caller supplies this field; otherwise the index of the
-            producing stage, PLUS ONE.
-        derived_bits : int
-            Length of a derived field, in bits.
+        name : str
+            The field's name, or NULL/"" for anonymous; a name another field
+            carries is refused.
+        bits : NDArray[np.uint8]
+            The bits, one per element, each 0 or 1.
 
         Returns
         -------
         int
-            The new field's index, or -1 if the description is full, already
-            built, or the literal could not be copied. The Python binding
-            raises `ValueError` rather than handing back the -1.
+            The new field's index, or -1 if the description is full or already
+            built, the name is taken, or an element is not a bit.
 
         Raises
         ------
         ValueError
             If the C call returns a negative value. The exception message is
-            ``cannot append a field: the description is full, already built, or
-            the literal could not be copied``, with the return code appended
-            (gh-869).
+            ``cannot append a field: the description is full or already built,
+            the name is taken, the bits are empty, or an element is not a
+            bit``, with the return code appended (gh-869).
 
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
         >>> from doppler.ccsds import asm_bits
-        >>> empty = np.empty(0, np.uint8)
-        >>> asm = asm_bits()
         >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
         ...                   np.uint8)
-        >>> data = np.unpackbits(octets).astype(np.uint8)
-        >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
-        >>> d.add_field(asm)                     # the attached sync marker
+        >>> d = FrameDesc()                      # begin from nothing
+        >>> d.add_field("asm", asm_bits())       # the attached sync marker
         0
-        >>> d.add_field(data)                    # the transfer frame
+        >>> d.add_field("data", np.unpackbits(octets))   # the transfer frame
         1
-
-        A field the CALLER does not supply is still a field, because it is still
-        on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
-
-        >>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)
-        2
+        >>> d.field_index("data")
+        1
 
         """
 
@@ -1385,14 +1218,12 @@ class Frame:
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
         >>> from doppler.ccsds import asm_bits
-        >>> empty = np.empty(0, np.uint8)
-        >>> asm = asm_bits()
         >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
         ...                   np.uint8)
-        >>> data = np.unpackbits(octets).astype(np.uint8)
-        >>> d = FrameDesc(empty, empty, empty)
-        >>> _ = d.add_field(asm), d.add_field(data)
-        >>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+        >>> d = FrameDesc()
+        >>> _ = d.add_field("asm", asm_bits())
+        >>> _ = d.add_field("data", np.unpackbits(octets))
+        >>> _ = d.add_derived("parity", 32 * 8)   # the outer code fills it
         >>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)
         0
         >>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser
@@ -1436,9 +1267,8 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_value("sync", 0xABC, 12)
+        >>> d = FrameDesc()
+        >>> d.add_field("sync", np.array([1,0,1,0,1,0,1,1,1,1,0,0], np.uint8))
         0
         >>> d.field_index("sync")
         0
@@ -1472,115 +1302,12 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        >>> d = FrameDesc()
+        >>> d.add_field("", np.array([1, 0, 1, 0], np.uint8))   # anonymous
         0
         >>> d.name_field(0, "payload")
         >>> d.field_index("payload")
         0
-
-        """
-
-    def add_hex(self, name: str, hex: str, reps: int = 0) -> int:
-        """Append a named field from a hex literal, MSB-first --
-        `add_hex("asm", "1ACFFC1D")` is 32 bits. Four bits per digit, so an odd
-        number of digits gives a 4-bit tail. The expansion is cvt's
-        `hex_to_bin`, not a second parser, so a bad digit is refused there.
-        Returns the new field's index; a refusal raises `ValueError`.
-
-        Four bits per digit, MSB-first, so an odd number of digits gives a
-        4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
-        parser here, so a bad digit is a refusal there and the two cannot
-        disagree about what a marker expands to.
-
-        Parameters
-        ----------
-        name : str
-            the field's name, or NULL for anonymous.
-        hex : str
-            NUL-terminated hex digits; no `0x`, no separators.
-        reps : int
-            repetitions; 0 means one.
-
-        Returns
-        -------
-        int
-            Output.
-
-        Raises
-        ------
-        ValueError
-            If the C call returns a negative value. The exception message is
-            ``cannot append a hex field: the description is full, already
-            built, or the digits could not be expanded``, with the return code
-            appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
-        0
-        >>> d.build()
-        >>> d.nbits
-        32
-
-        """
-
-    def add_value(
-        self,
-        name: str,
-        value: int,
-        bits: int,
-        reps: int = 0,
-    ) -> int:
-        """Append a named field from an integer, `bits` wide, MSB-first. The
-        form to reach for when a literal fits in 64 bits: exact, and with no
-        failure mode a typo can reach. Wider literals want `add_hex` or
-        `add_field`. Returns the new field's index; a refusal raises
-        `ValueError`.
-
-        The form to reach for when a literal fits in 64 bits: exact, and with
-        no failure mode a typo can reach. Wider ones want dp_frame_add_hex.
-
-        Parameters
-        ----------
-        name : str
-            the field's name, or NULL for anonymous.
-        value : int
-            the value; only the low bits are read.
-        bits : int
-            1..64, MSB first.
-        reps : int
-            repetitions; 0 means one.
-
-        Returns
-        -------
-        int
-            Output.
-
-        Raises
-        ------
-        ValueError
-            If the C call returns a negative value. The exception message is
-            ``cannot append a value field: the description is full, already
-            built, or the value does not fit the declared width``, with the
-            return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_value("marker", 0x1A, 8)
-        0
-        >>> d.build()
-        >>> d.bits().tolist()                 # MSB first
-        [0, 0, 0, 1, 1, 0, 1, 0]
 
         """
 
@@ -1618,11 +1345,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        >>> d = FrameDesc()
+        >>> d.add_field("payload", np.array([1, 0, 1, 0], np.uint8))
         0
-        >>> d.name_field(0, "payload")
         >>> d.add_derived("crc", 16)          # a stage will fill it
         1
 
@@ -1682,11 +1407,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+        >>> d = FrameDesc()
+        >>> d.add_field("payload", np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
         0
-        >>> d.name_field(0, "payload")
         >>> d.add_derived("crc", 16)
         1
         >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
@@ -1734,10 +1457,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.nbits                     # 13 + 16 + 16, laid out by build()
         45
@@ -1745,7 +1467,7 @@ class Frame:
         A description that cannot produce bits is not a frame, and is refused
         rather than half-built:
 
-        >>> FrameDesc(empty, empty, empty).build()
+        >>> FrameDesc().build()
         Traceback (most recent call last):
             ...
         ValueError: cannot build: the description is empty, unbuildable, ...
@@ -1800,10 +1522,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import Frame
-        >>> empty = np.zeros(0, dtype=np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
-        >>> f = Frame(empty, sync, payload, crc="crc16")
+        >>> f = Frame(sync=sync, payload=payload, crc="crc16")
         >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
         >>> got = np.asarray(f.deframe(rx))
         >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
@@ -1887,10 +1608,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> r = d.check(d.bits(1))
         >>> r.passed, r.ok, r.units
@@ -1905,7 +1625,7 @@ class Frame:
 
         Carrying no check is NOT passing one -- both are reported, separately:
 
-        >>> n = FrameDesc(empty, sync, payload, crc="none")
+        >>> n = FrameDesc(sync=sync, payload=payload, crc="none")
         >>> n.build()
         >>> c = n.check(n.bits(1))
         >>> c.passed, c.checked
@@ -1927,10 +1647,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.n_fields()          # the four named fields, absent ones included
         4
 
@@ -1948,10 +1667,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.n_stages()         # the CRC is a stage like any other
         1
@@ -1975,10 +1693,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.field_off(1), d.field_off(2), d.field_off(3)
         (0, 13, 29)
@@ -2008,10 +1725,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
         (13, 16, 16)
@@ -2035,10 +1751,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
         13
@@ -2063,10 +1778,9 @@ class Frame:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
         32
@@ -2156,114 +1870,39 @@ class FrameDesc:
 
     Parameters
     ----------
-    preamble_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
-    preamble : NDArray[np.uint8]
-        Literal preamble bits, one per element. Pass an EMPTY array when the
-        field is absent or generated -- `wfm_seq_t` already spells absence as a
-        zero length, so this is that convention reaching Python rather than a
-        placeholder. (An omittable array init-param is a jm gap; see the module
-        docs.)
-    preamble_nbits : int, default 0
-        Output bits for a GENERATED preamble kind. A literal takes its length
-        from the `preamble` array instead; `wfm_seq_t` names these apart (len
-        vs reg_bits) for the same reason.
-    preamble_reps : int, default 0
-        Repetitions of the preamble; 0 = no preamble (default: 0).
-    preamble_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
-    preamble_seed : int, default 0
-        PN seed; 0 selects 1, since an all-zero register is a fixed point
-        (default: 0).
-    preamble_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
-    preamble_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
-    preamble_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
-    preamble_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
-    preamble_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
-    preamble_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
-    sync_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
-    sync : NDArray[np.uint8]
-        Literal sync word bits, one per element. Pass an EMPTY array when the
-        field is absent or generated -- `wfm_seq_t` already spells absence as a
-        zero length, so this is that convention reaching Python rather than a
-        placeholder. (An omittable array init-param is a jm gap; see the module
-        docs.)
-    sync_nbits : int, default 0
-        Output bits for a GENERATED sync kind (default: 0).
-    sync_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
-    sync_seed : int, default 0
-        PN seed; 0 selects 1 (default: 0).
-    sync_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
-    sync_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
-    sync_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
-    sync_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
-    sync_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
-    sync_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
-    payload_kind : Literal["literal", "pn", "gold", "dotted"], default "literal"
-        Enum index; 0=literal…3=dotted.
-    payload : NDArray[np.uint8]
-        Literal payload bits, one per element. Pass an EMPTY array when the
-        field is absent or generated -- `wfm_seq_t` already spells absence as a
-        zero length, so this is that convention reaching Python rather than a
-        placeholder. (An omittable array init-param is a jm gap; see the module
-        docs.)
-    payload_nbits : int, default 0
-        Output bits for a GENERATED payload kind (default: 0).
-    payload_poly : int, default 0
-        PN feedback polynomial; 0 selects the maximal-length one (default: 0).
-    payload_seed : int, default 0
-        PN seed; 0 selects 1 (default: 0).
-    payload_reg_bits : int, default 0
-        PN/Gold register width, 1..64 (default: 0).
-    payload_lfsr : Literal["galois", "fibonacci"], default "galois"
-        Enum index; 0=galois…1=fibonacci.
-    payload_taps_a : int, default 0
-        Gold: first register's taps (default: 0).
-    payload_seed_a : int, default 0
-        Gold: first register's seed (default: 0).
-    payload_taps_b : int, default 0
-        Gold: second register's taps (default: 0).
-    payload_seed_b : int, default 0
-        Gold: second register's seed (default: 0).
+    preamble : NDArray[np.uint8], default ...
+        Preamble bits, one per element, each 0 or 1. Omitted, there is no
+        preamble. A repeated preamble is repeated in its bits:
+        `field_bits("pn:31:5*4")`.
+    sync : NDArray[np.uint8], default ...
+        Sync-word bits, one per element, each 0 or 1. Omitted, the frame is
+        unsynced.
+    payload : NDArray[np.uint8], default ...
+        Payload bits, one per element, each 0 or 1. Omitted, the frame carries
+        none.
     crc : Literal["none", "crc16"], default "none"
-        Enum index; 0=none…1=crc16.
+        Enum index; 0=none, 1=crc16 over the payload.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``frame geometry is
-        empty or a field is unbuildable (a literal with no array, or a
-        generated field with no register width)``.
+        empty, or a field holds an element that is not a bit (0 or 1)``.
 
     Examples
     --------
     >>> import numpy as np
-    >>> from doppler.wfm import FrameDesc
-    >>> empty = np.empty(0, np.uint8)
-    >>> d = FrameDesc(empty, empty, empty)          # begin from nothing
+    >>> from doppler.wfm import FrameDesc, STAGE_CRC16
+    >>> d = FrameDesc()                             # begin from nothing
     >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)  # Barker-13
     >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-    >>> d.add_field(sync)                           # returns its index
+    >>> d.add_field("sync", sync)                   # returns its index
     0
-    >>> d.add_field(payload)
+    >>> d.add_field("payload", payload)
     1
-    >>> d.add_field(empty, derived_by=1, derived_bits=16)  # stage 0, PLUS ONE
+    >>> d.add_derived("crc", 16)                    # a stage will fill it
     2
-    >>> d.add_stage(kind=0, first_field=1, n_fields=2)   # crc16 over 1..2
+    >>> d.add_stage_over(STAGE_CRC16, "payload", "crc")
     0
     >>> d.build()
     >>> d.nbits                                     # 13 + 16 + 16
@@ -2275,40 +1914,9 @@ class FrameDesc:
 
     def __init__(
         self,
-        preamble: NDArray[np.uint8],
-        sync: NDArray[np.uint8],
-        payload: NDArray[np.uint8],
-        preamble_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
-        preamble_nbits: int = 0,
-        preamble_reps: int = 0,
-        preamble_poly: int = 0,
-        preamble_seed: int = 0,
-        preamble_reg_bits: int = 0,
-        preamble_lfsr: Literal["galois", "fibonacci"] = "galois",
-        preamble_taps_a: int = 0,
-        preamble_seed_a: int = 0,
-        preamble_taps_b: int = 0,
-        preamble_seed_b: int = 0,
-        sync_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
-        sync_nbits: int = 0,
-        sync_poly: int = 0,
-        sync_seed: int = 0,
-        sync_reg_bits: int = 0,
-        sync_lfsr: Literal["galois", "fibonacci"] = "galois",
-        sync_taps_a: int = 0,
-        sync_seed_a: int = 0,
-        sync_taps_b: int = 0,
-        sync_seed_b: int = 0,
-        payload_kind: Literal["literal", "pn", "gold", "dotted"] = "literal",
-        payload_nbits: int = 0,
-        payload_poly: int = 0,
-        payload_seed: int = 0,
-        payload_reg_bits: int = 0,
-        payload_lfsr: Literal["galois", "fibonacci"] = "galois",
-        payload_taps_a: int = 0,
-        payload_seed_a: int = 0,
-        payload_taps_b: int = 0,
-        payload_seed_b: int = 0,
+        preamble: NDArray[np.uint8] = ...,
+        sync: NDArray[np.uint8] = ...,
+        payload: NDArray[np.uint8] = ...,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
     def bits(
@@ -2342,10 +1950,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> len(d.bits())        # one frame: 13 + 16 + 16
         45
@@ -2383,10 +1990,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import Frame
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> lay = Frame(empty, sync, payload, crc="crc16").layout()
+        >>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
         >>> lay.sync_off, lay.payload_off, lay.crc_off
         (0, 13, 29)
         >>> lay.total_bits
@@ -2421,10 +2027,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.crc_ok(d.bits())           # its own bits are its own truth
         1
@@ -2435,106 +2040,55 @@ class FrameDesc:
 
         """
 
-    def add_field(
-        self,
-        lit: NDArray[np.uint8],
-        kind: str = 'literal',
-        gen_len: int = 0,
-        reps: int = 0,
-        poly: int = 0,
-        seed: int = 0,
-        reg_bits: int = 0,
-        lfsr: str = 'galois',
-        taps_a: int = 0,
-        seed_a: int = 0,
-        taps_b: int = 0,
-        seed_b: int = 0,
-        derived_by: int = 0,
-        derived_bits: int = 0,
-    ) -> int:
-        """Append one field to a description (see `FrameDesc`). `kind` names
-        where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and
-        `lfsr` is `galois` or `fibonacci`, the same spellings the constructor
-        takes, from the one `[[enum]]` the C enum backs. Either the caller
-        supplies the bits (`lit`, or a generated `kind`) or a stage derives
-        them (`derived_by` non-zero) -- both are fields, because both are on
-        the wire. Returns the new field's index, which is what `derived_by` and
-        a stage's `first_field` are counted in. Refuses once the frame is
-        built.
+    def add_field(self, name: str, bits: NDArray[np.uint8]) -> int:
+        """Append one named field to a description (see `FrameDesc`): bits and
+        nothing else, one per element, each 0 or 1. Text reaches it through
+        `field_bits()`, hex and packed octets through `cvt`. A field a STAGE
+        fills is `add_derived` instead, because the caller has no bits for it.
+        `name` may be empty for an anonymous field; a name another field
+        carries is refused. Returns the new field's index. Refuses once the
+        frame is built.
 
-        Either the caller supplies the bits (lit, or a generated kind) or a
-        stage derives them (derived_by non-zero). Both are fields, because both
-        are on the wire.
+        The field is bits and nothing else, copied here so the description
+        outlives the call. A field a STAGE fills is appended with
+        dp_frame_add_derived instead, because the caller has no bits for it.
 
         Parameters
         ----------
-        lit : NDArray[np.uint8]
-            Literal bits, copied here so the description outlives the call; may
-            be NULL.
-        kind : str
-            wfm_seq_kind_t index; 0=literal…3=dotted.
-        gen_len : int
-            Output bits for a GENERATED kind.
-        reps : int
-            Repetitions of the field, verbatim; 0 means one.
-        poly : int
-            PN feedback polynomial; 0 selects the maximal-length.
-        seed : int
-            PN seed; 0 selects 1.
-        reg_bits : int
-            PN/Gold register width.
-        lfsr : str
-            0=galois, 1=fibonacci.
-        taps_a : int
-            Gold: first register's taps.
-        seed_a : int
-            Gold: first register's seed.
-        taps_b : int
-            Gold: second register's taps.
-        seed_b : int
-            Gold: second register's seed.
-        derived_by : int
-            0 when the caller supplies this field; otherwise the index of the
-            producing stage, PLUS ONE.
-        derived_bits : int
-            Length of a derived field, in bits.
+        name : str
+            The field's name, or NULL/"" for anonymous; a name another field
+            carries is refused.
+        bits : NDArray[np.uint8]
+            The bits, one per element, each 0 or 1.
 
         Returns
         -------
         int
-            The new field's index, or -1 if the description is full, already
-            built, or the literal could not be copied. The Python binding
-            raises `ValueError` rather than handing back the -1.
+            The new field's index, or -1 if the description is full or already
+            built, the name is taken, or an element is not a bit.
 
         Raises
         ------
         ValueError
             If the C call returns a negative value. The exception message is
-            ``cannot append a field: the description is full, already built, or
-            the literal could not be copied``, with the return code appended
-            (gh-869).
+            ``cannot append a field: the description is full or already built,
+            the name is taken, the bits are empty, or an element is not a
+            bit``, with the return code appended (gh-869).
 
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
         >>> from doppler.ccsds import asm_bits
-        >>> empty = np.empty(0, np.uint8)
-        >>> asm = asm_bits()
         >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
         ...                   np.uint8)
-        >>> data = np.unpackbits(octets).astype(np.uint8)
-        >>> d = FrameDesc(empty, empty, empty)   # begin from nothing
-        >>> d.add_field(asm)                     # the attached sync marker
+        >>> d = FrameDesc()                      # begin from nothing
+        >>> d.add_field("asm", asm_bits())       # the attached sync marker
         0
-        >>> d.add_field(data)                    # the transfer frame
+        >>> d.add_field("data", np.unpackbits(octets))   # the transfer frame
         1
-
-        A field the CALLER does not supply is still a field, because it is still
-        on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
-
-        >>> d.add_field(empty, derived_by=1, derived_bits=32 * 8)
-        2
+        >>> d.field_index("data")
+        1
 
         """
 
@@ -2610,14 +2164,12 @@ class FrameDesc:
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
         >>> from doppler.ccsds import asm_bits
-        >>> empty = np.empty(0, np.uint8)
-        >>> asm = asm_bits()
         >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
         ...                   np.uint8)
-        >>> data = np.unpackbits(octets).astype(np.uint8)
-        >>> d = FrameDesc(empty, empty, empty)
-        >>> _ = d.add_field(asm), d.add_field(data)
-        >>> _ = d.add_field(empty, derived_by=1, derived_bits=32 * 8)
+        >>> d = FrameDesc()
+        >>> _ = d.add_field("asm", asm_bits())
+        >>> _ = d.add_field("data", np.unpackbits(octets))
+        >>> _ = d.add_derived("parity", 32 * 8)   # the outer code fills it
         >>> d.add_stage(1, first_field=1, n_fields=2, depth=1)   # RS(255,223)
         0
         >>> d.add_stage(2, first_field=1, n_fields=2)            # randomiser
@@ -2661,9 +2213,8 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_value("sync", 0xABC, 12)
+        >>> d = FrameDesc()
+        >>> d.add_field("sync", np.array([1,0,1,0,1,0,1,1,1,1,0,0], np.uint8))
         0
         >>> d.field_index("sync")
         0
@@ -2697,115 +2248,12 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        >>> d = FrameDesc()
+        >>> d.add_field("", np.array([1, 0, 1, 0], np.uint8))   # anonymous
         0
         >>> d.name_field(0, "payload")
         >>> d.field_index("payload")
         0
-
-        """
-
-    def add_hex(self, name: str, hex: str, reps: int = 0) -> int:
-        """Append a named field from a hex literal, MSB-first --
-        `add_hex("asm", "1ACFFC1D")` is 32 bits. Four bits per digit, so an odd
-        number of digits gives a 4-bit tail. The expansion is cvt's
-        `hex_to_bin`, not a second parser, so a bad digit is refused there.
-        Returns the new field's index; a refusal raises `ValueError`.
-
-        Four bits per digit, MSB-first, so an odd number of digits gives a
-        4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
-        parser here, so a bad digit is a refusal there and the two cannot
-        disagree about what a marker expands to.
-
-        Parameters
-        ----------
-        name : str
-            the field's name, or NULL for anonymous.
-        hex : str
-            NUL-terminated hex digits; no `0x`, no separators.
-        reps : int
-            repetitions; 0 means one.
-
-        Returns
-        -------
-        int
-            Output.
-
-        Raises
-        ------
-        ValueError
-            If the C call returns a negative value. The exception message is
-            ``cannot append a hex field: the description is full, already
-            built, or the digits could not be expanded``, with the return code
-            appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_hex("asm", "1ACFFC1D")     # the CCSDS marker, 4 bits a digit
-        0
-        >>> d.build()
-        >>> d.nbits
-        32
-
-        """
-
-    def add_value(
-        self,
-        name: str,
-        value: int,
-        bits: int,
-        reps: int = 0,
-    ) -> int:
-        """Append a named field from an integer, `bits` wide, MSB-first. The
-        form to reach for when a literal fits in 64 bits: exact, and with no
-        failure mode a typo can reach. Wider literals want `add_hex` or
-        `add_field`. Returns the new field's index; a refusal raises
-        `ValueError`.
-
-        The form to reach for when a literal fits in 64 bits: exact, and with
-        no failure mode a typo can reach. Wider ones want dp_frame_add_hex.
-
-        Parameters
-        ----------
-        name : str
-            the field's name, or NULL for anonymous.
-        value : int
-            the value; only the low bits are read.
-        bits : int
-            1..64, MSB first.
-        reps : int
-            repetitions; 0 means one.
-
-        Returns
-        -------
-        int
-            Output.
-
-        Raises
-        ------
-        ValueError
-            If the C call returns a negative value. The exception message is
-            ``cannot append a value field: the description is full, already
-            built, or the value does not fit the declared width``, with the
-            return code appended (gh-869).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_value("marker", 0x1A, 8)
-        0
-        >>> d.build()
-        >>> d.bits().tolist()                 # MSB first
-        [0, 0, 0, 1, 1, 0, 1, 0]
 
         """
 
@@ -2843,11 +2291,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
+        >>> d = FrameDesc()
+        >>> d.add_field("payload", np.array([1, 0, 1, 0], np.uint8))
         0
-        >>> d.name_field(0, "payload")
         >>> d.add_derived("crc", 16)          # a stage will fill it
         1
 
@@ -2907,11 +2353,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> e = np.empty(0, np.uint8)
-        >>> d = FrameDesc(e, e, e)
-        >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
+        >>> d = FrameDesc()
+        >>> d.add_field("payload", np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
         0
-        >>> d.name_field(0, "payload")
         >>> d.add_derived("crc", 16)
         1
         >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
@@ -2959,10 +2403,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.nbits                     # 13 + 16 + 16, laid out by build()
         45
@@ -2970,7 +2413,7 @@ class FrameDesc:
         A description that cannot produce bits is not a frame, and is refused
         rather than half-built:
 
-        >>> FrameDesc(empty, empty, empty).build()
+        >>> FrameDesc().build()
         Traceback (most recent call last):
             ...
         ValueError: cannot build: the description is empty, unbuildable, ...
@@ -3025,10 +2468,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import Frame
-        >>> empty = np.zeros(0, dtype=np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], dtype=np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], dtype=np.uint8)
-        >>> f = Frame(empty, sync, payload, crc="crc16")
+        >>> f = Frame(sync=sync, payload=payload, crc="crc16")
         >>> rx = np.asarray(f.bits())          # a clean capture of its own frame
         >>> got = np.asarray(f.deframe(rx))
         >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
@@ -3112,10 +2554,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> r = d.check(d.bits(1))
         >>> r.passed, r.ok, r.units
@@ -3130,7 +2571,7 @@ class FrameDesc:
 
         Carrying no check is NOT passing one -- both are reported, separately:
 
-        >>> n = FrameDesc(empty, sync, payload, crc="none")
+        >>> n = FrameDesc(sync=sync, payload=payload, crc="none")
         >>> n.build()
         >>> c = n.check(n.bits(1))
         >>> c.passed, c.checked
@@ -3152,10 +2593,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.n_fields()          # the four named fields, absent ones included
         4
 
@@ -3173,10 +2613,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.n_stages()         # the CRC is a stage like any other
         1
@@ -3200,10 +2639,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.field_off(1), d.field_off(2), d.field_off(3)
         (0, 13, 29)
@@ -3233,10 +2671,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
         (13, 16, 16)
@@ -3260,10 +2697,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.stage_first(0)     # the CRC starts at the payload, not at bit 0
         13
@@ -3288,10 +2724,9 @@ class FrameDesc:
         --------
         >>> import numpy as np
         >>> from doppler.wfm import FrameDesc
-        >>> empty = np.empty(0, np.uint8)
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> d = FrameDesc(empty, sync, payload, crc="crc16")
+        >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
         >>> d.stage_bits(0)      # payload+CRC: what crc16 covered
         32

@@ -29,8 +29,6 @@ from doppler.wfm import (
     FrameDesc,
 )
 
-EMPTY = np.empty(0, np.uint8)
-
 #: The kinds doppler allocates, in the order the C enum fixes.
 NAMED = (
     STAGE_CRC16,
@@ -117,8 +115,8 @@ def test_add_stage_accepts_a_callers_own_kind() -> None:
     description must ACCEPT such a kind — assembly is what later refuses it,
     for want of a kernel, which is the honest place to refuse.
     """
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(np.ones(8, np.uint8))
+    d = FrameDesc()
+    d.add_field("f", np.ones(8, np.uint8))
     assert d.add_stage(STAGE_USER + 1, first_field=0, n_fields=1) == 0
 
 
@@ -130,7 +128,7 @@ def test_kind_is_deliberately_not_a_string_enum() -> None:
     `TypeError` — deleting the extension point the test above exercises. If
     someone converts it for the nicer error message, this fails and says why.
     """
-    d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(np.ones(8, np.uint8))
+    d = FrameDesc()
+    d.add_field("f", np.ones(8, np.uint8))
     with pytest.raises(TypeError):
         d.add_stage("crc16", first_field=0, n_fields=1)

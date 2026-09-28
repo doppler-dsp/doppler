@@ -126,11 +126,11 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
       const size_t unit
           = src->interleave_unit_bits ? src->interleave_unit_bits : 1u;
       /* The data group is payload + CRC + the OUTER CODE'S CHECK SYMBOLS,
-         which is what `dp_ccsds_tm_frame_desc_of` gives the interleave stage
-         to cover ("payload, its CRC, and the outer code's check symbols")
-         and is the only span that makes the transform mean anything: an
-         interleaver exists to spread a burst across codewords, so leaving
-         the parity contiguous would defeat the point.
+         which is what `dp_wfm_source_describe_frame` below gives the
+         interleave stage to cover, and is the only span that makes the
+         transform mean anything: an interleaver exists to spread a burst
+         across codewords, so leaving the parity contiguous would defeat the
+         point.
 
          This guard omitted the parity, so it validated a DIFFERENT span
          from the one the stage permutes. With --rs-depth 1 the check ran
@@ -177,10 +177,24 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
 
 /* The source's frame as a DESCRIPTION — an ADAPTER, not a second layout.
  *
- * Which stage covers what is `dp_ccsds_tm_frame_desc_of`'s, because the covers
- * are that standard's and `wfm/wfm_frame.h` deliberately knows nothing about
- * CCSDS. What is left here is this face's own decision: the DSSS preamble is
- * a field for an unspread source and is NOT one for a spread burst.
+ * Which stage covers what is 131.0-B-6's rule, generalised past the CADU:
+ *
+ *     marker / preamble / sync   found, not decoded -- covered by the inner
+ *                                code alone, because all three must look
+ *                                the same in every frame to be findable
+ *     payload / crc / parity     the data group -- what the outer code, the
+ *                                randomiser and the interleaver reach over
+ *     everything                 the inner code
+ *
+ * The middle row is 10.3.4 generalised: the randomiser does not cover the
+ * ASM, and the standard's reason -- a marker a receiver correlates against
+ * must not vary between frames -- is exactly as true of a preamble and a
+ * sync word. `wfm/wfm_frame.h` deliberately knows nothing about any of
+ * this; test_wfm_compose checks the result against the kernels applied by
+ * hand.
+ *
+ * One decision here is this face's own: the DSSS preamble is a field for an
+ * unspread source and is NOT one for a spread burst.
  *
  * That is a physical fact rather than an inconsistency: a DSSS preamble is
  * transmitted unmodulated and UNSPREAD, because it is the coherent pull-in
@@ -277,7 +291,7 @@ dp_wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 
   /* The derived fields, in wire order. Their producers are wired by the
      stage that covers them -- which is why they can be appended before any
-     stage exists, and why the index arithmetic desc_of needed is gone. */
+     stage exists. */
   if (src->crc && dp_wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0)
     return -1;
   if (src->rs_depth

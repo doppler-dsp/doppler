@@ -7,6 +7,8 @@
  */
 #include "doppler/ccsds_tm/ccsds_tm.h"
 #include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/dp_crc16.h"
+#include "doppler/dp_interleave.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/pn/pn_core.h"
 #include "doppler/wfm/wfm_compose.h"
@@ -2372,9 +2374,8 @@ main (void)
 
   /* ── the interleaver's span INCLUDES the outer code's check symbols ──
    *
-   * `dp_ccsds_tm_frame_desc_of` gives the interleave stage the whole data
-   * group
-   * -- "payload, its CRC, and the outer code's check symbols" -- and the
+   * The interleave stage covers the whole data group -- payload, its CRC,
+   * and the outer code's check symbols -- and the
    * flag guard validated payload + CRC only. So the check ran against a
    * DIFFERENT span from the one the stage permutes, and refused the
    * canonical CCSDS arrangement: 223 octets under RS(255,223) interleaved 5
@@ -2435,23 +2436,29 @@ main (void)
                     "with no outer code the group is payload + CRC");
   }
 
-  /* ── the bridge builds by NAME, and it must build the SAME frame ──────
+  /* ── the bridge builds by NAME, and it must build the RIGHT frame ─────
    *
-   * `dp_wfm_source_describe_frame` used to fill a CCSDS-shaped spec struct and
-   * hand it to `dp_ccsds_tm_frame_desc_of`, which made a standard's vocabulary
-   * the only vocabulary -- a frame doppler had never seen had to be spelled
-   * in CCSDS's slots or not at all. It now builds through the general
-   * by-name builder instead.
+   * `dp_wfm_source_describe_frame` builds through the general by-name
+   * builder. The oracle is the frame built by hand from the stage KERNELS,
+   * in the order and over the spans frame-description.md states: the CRC
+   * over the payload; the outer code over payload + CRC
+   * (dp_ccsds_tm_frame_encode with only `rs_depth` set); the randomiser
+   * and then the interleaver over that data group; then marker, preamble, sync
+   * and the data group on the wire; then the inner code over all of it.
    *
-   * The falsification is equivalence with the path it replaces, over the
-   * shapes a source can take, asserted on the ASSEMBLED BITS rather than on
-   * the two structs: a description that merely looked alike would prove
-   * nothing about which bits each stage touched. Both paths run the same
-   * CCSDS kernels, so any difference is the description.
+   * No description is involved on the oracle's side, so a builder that
+   * wired a stage over the wrong fields, or in the wrong order, disagrees
+   * on the ASSEMBLED BITS. (The oracle used to be a second description
+   * builder, `dp_ccsds_tm_frame_desc_of`; two derivations of the covers
+   * agreeing was never evidence that either was right, which is why it was
+   * deleted.)
    *
-   * A refusal counts as agreement -- both paths must refuse the same shapes
-   * -- but refusals alone would be a vacuous pass, so the number of cases
-   * that actually assembled is asserted at the end.
+   * The stage LIST is asserted too, not only the bits (doppler#1031): a
+   * spare zero-initialised stage reads as CRC16 over no fields -- "does not
+   * run" -- so it assembles byte-identically and is still wrong.
+   *
+   * Every case must assemble (the REQUIRE below): a refusal on both sides
+   * would be agreement about nothing.
    */
   {
     static uint8_t payload[223 * 8];
@@ -2478,7 +2485,6 @@ main (void)
       { 0, 1, 0, 0, 0, 0, 0, 13, 8, 4, "a preamble, repeated" },
     };
 
-    size_t assembled = 0;
     for (size_t c = 0; c < sizeof CASES / sizeof CASES[0]; c++)
       {
         /* The outer code needs payload PLUS its CRC to be exactly
@@ -2517,63 +2523,114 @@ main (void)
             src.acq_reps      = CASES[c].reps;
           }
 
-        /* The new path. */
-        wfm_frame_desc_t by_name;
-        DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &by_name) == 0,
+        wfm_frame_desc_t d;
+        DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &d) == 0,
                         CASES[c].what);
 
-        /* The path it replaces, spelled the only way that struct allows. */
-        const ccsds_tm_frame_spec_t sp = {
-          .attach_asm           = src.attach_asm,
-          .preamble             = src.acq_code.bits,
-          .preamble_len         = src.acq_code.len,
-          .preamble_reps        = src.acq_reps,
-          .sync                 = src.sync.bits,
-          .sync_len             = src.sync.len,
-          .payload              = src.payload.bits,
-          .payload_len          = src.payload.len,
-          .crc                  = src.crc,
-          .rs_depth             = src.rs_depth,
-          .randomise            = src.randomise,
-          .convolutional        = src.convolutional,
-          .interleave_depth     = src.interleave_depth,
-          .interleave_unit_bits = src.interleave_unit_bits,
-        };
-        wfm_frame_desc_t by_spec;
-        DP_REQUIRE (dp_ccsds_tm_frame_desc_of (&sp, &by_spec) == 0);
+        const unsigned want_stages
+            = (unsigned)(!!CASES[c].crc + !!CASES[c].rs + !!CASES[c].rand
+                         + !!CASES[c].ilv + !!CASES[c].conv);
+        DP_CHECK_MSG (d.n_stages == want_stages, CASES[c].what);
+        for (unsigned i = 0; i < d.n_stages; i++)
+          DP_CHECK_MSG (d.stage[i].n_fields > 0,
+                        "every stage in the list covers something");
 
-        wfm_frame_desc_layout_t la, lb;
-        DP_REQUIRE (dp_wfm_frame_desc_layout (&by_name, &la) == 0);
-        DP_REQUIRE (dp_wfm_frame_desc_layout (&by_spec, &lb) == 0);
-        DP_REQUIRE_MSG (la.out_bits == lb.out_bits, CASES[c].what);
-
-        uint8_t *a = (uint8_t *)malloc (la.out_bits);
-        uint8_t *b = (uint8_t *)malloc (lb.out_bits);
-        DP_REQUIRE (a != NULL && b != NULL);
-
+        wfm_frame_desc_layout_t la;
+        DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &la) == 0);
+        uint8_t *got = (uint8_t *)malloc (la.out_bits);
+        DP_REQUIRE (got != NULL);
         wfm_frame_ops_t ops;
         dp_ccsds_tm_frame_ops (&ops, NULL);
-        const size_t na
-            = dp_wfm_frame_assemble (&by_name, &ops, a, la.out_bits);
-        dp_ccsds_tm_frame_ops (&ops, NULL); /* a fresh inner-code register */
-        const size_t nb
-            = dp_wfm_frame_assemble (&by_spec, &ops, b, lb.out_bits);
+        const size_t ng = dp_wfm_frame_assemble (&d, &ops, got, la.out_bits);
 
-        DP_REQUIRE_MSG (na == nb, CASES[c].what);
-        if (na)
+        /* The oracle. Sized for the largest case: marker, preamble reps,
+           sync and a 255-octet codeblock, doubled by the inner code. */
+        enum
+        {
+          CAP = 2 * (32 + 8 * 4 + 13 + 255 * 8 * 2)
+        };
+        static uint8_t data[CAP], wire[CAP], want[CAP], oct[CAP / 8];
+        size_t         nd = n_bits;
+        memcpy (data, payload, nd);
+        if (CASES[c].crc)
           {
-            DP_REQUIRE_MSG (memcmp (a, b, na) == 0, CASES[c].what);
-            assembled++;
+            const uint16_t crc = dp_crc16_ccitt (data, nd);
+            for (size_t i = 0; i < WFM_FRAME_CRC_BITS; i++)
+              data[nd++] = (uint8_t)((crc >> (15 - i)) & 1u); /* MSB-first */
           }
-        free (a);
-        free (b);
-      }
+        if (CASES[c].rs)
+          {
+            DP_REQUIRE (nd % 8u == 0);
+            for (size_t i = 0; i < nd / 8u; i++)
+              {
+                uint8_t v = 0;
+                for (unsigned b = 0; b < 8u; b++)
+                  v = (uint8_t)((unsigned)(v << 1u) | data[i * 8u + b]);
+                oct[i] = v;
+              }
+            const ccsds_tm_frame_cfg_t outer
+                = { .rs_depth = (unsigned)CASES[c].rs };
+            nd = dp_ccsds_tm_frame_encode (&outer, NULL, oct, nd / 8u, data,
+                                           CAP);
+            DP_REQUIRE_MSG (nd > 0, CASES[c].what);
+          }
+        /* The randomiser by its own kernel, not through the encoder: the
+           encoder's `randomise` is on/off and always 10.4.1's generator,
+           while a stage's value 2 selects 10.4.2's. */
+        if (CASES[c].rand)
+          dp_ccsds_tm_randomise_with (CASES[c].rand == 2
+                                          ? &dp_CCSDS_TM_RAND_LEGACY
+                                          : &dp_CCSDS_TM_RAND,
+                                      data, nd);
+        if (CASES[c].ilv)
+          {
+            const size_t per = (size_t)CASES[c].ilv * CASES[c].unit;
+            DP_REQUIRE (nd % per == 0);
+            dp_interleave_u8 (data, wire, CASES[c].ilv, nd / per,
+                              CASES[c].unit);
+            memcpy (data, wire, nd);
+          }
 
-    /* Refusals agreeing is agreement, but it is not evidence about frames.
-       Most of these have to have actually produced bits. */
-    DP_REQUIRE_MSG (assembled >= 8,
-                    "the equivalence cases must mostly ASSEMBLE, or the "
-                    "comparison is between two refusals");
+        size_t nw = 0;
+        if (CASES[c].asm_)
+          {
+            dp_ccsds_tm_asm_bits (wire);
+            nw = CCSDS_TM_ASM_BITS;
+          }
+        for (size_t r = 0; r < CASES[c].reps; r++)
+          for (size_t i = 0; i < CASES[c].n_pre; i++)
+            wire[nw++] = pre[i];
+        for (size_t i = 0; i < CASES[c].n_sync; i++)
+          wire[nw++] = syncw[i];
+        memcpy (wire + nw, data, nd);
+        nw += nd;
+
+        const uint8_t *expect = wire;
+        size_t         ne     = nw;
+        if (CASES[c].conv)
+          {
+            /* The inner code alone: no outer code makes the frame the
+               block, so the encoder's input is exactly the wire above. */
+            DP_REQUIRE (nw % 8u == 0);
+            for (size_t i = 0; i < nw / 8u; i++)
+              {
+                uint8_t v = 0;
+                for (unsigned b = 0; b < 8u; b++)
+                  v = (uint8_t)((unsigned)(v << 1u) | wire[i * 8u + b]);
+                oct[i] = v;
+              }
+            const ccsds_tm_frame_cfg_t inner = { .convolutional = 1 };
+            ne = dp_ccsds_tm_frame_encode (&inner, NULL, oct, nw / 8u, want,
+                                           CAP);
+            expect = want;
+          }
+
+        DP_REQUIRE_MSG (ng == ne && ng > 0, CASES[c].what);
+        DP_CHECK_MSG (la.out_bits == ne,
+                      "the layout predicts the length the frame assembles to");
+        DP_CHECK_MSG (memcmp (got, expect, ng) == 0, CASES[c].what);
+        free (got);
+      }
   }
 
   /* ── a GENERATED sync reaches the wire THROUGH THE SOURCE ─────────────

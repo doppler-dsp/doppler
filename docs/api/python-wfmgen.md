@@ -451,6 +451,17 @@ JSON is the thing to ship. The reasoning, with the sizes:
 
 ::: doppler.wfm.compose.PlanFromFile
 
+## `field_bits` — a Field, from its text
+
+The one door from text to the bits every frame object takes. A literal is
+written as its bits (`1101`) or in hex (`0x1ACFFC1D`); a generated field names
+its generator (`pn:1023:10`, `gold:…`, `dotted:16`); any of them may repeat
+(`pn:31:5*4`). The grammar is the design's
+[§F.1](../design/frame-description.md#f1-the-grammar), read by one C function,
+and text outside it raises rather than coming back empty.
+
+::: doppler.wfm.field_bits
+
 ## `Frame` — the bit layout, held by both ends
 
 A frame is `[preamble × reps | sync | payload | CRC]`, and the point of

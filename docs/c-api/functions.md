@@ -1559,6 +1559,7 @@
 * **dp\_bpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 * **dp\_crc16** ([**wfm\_core.h**](wfm__core_8h.md))
 * **dp\_dsss\_spread** ([**wfm\_core.h**](wfm__core_8h.md))
+* **dp\_field\_bits** ([**wfm\_core.h**](wfm__core_8h.md))
 * **dp\_mls\_poly** ([**wfm\_core.h**](wfm__core_8h.md))
 * **dp\_qpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 * **dp\_rc\_h** ([**wfm\_core.h**](wfm__core_8h.md))

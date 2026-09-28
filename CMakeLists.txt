@@ -1034,7 +1034,8 @@ target_include_directories(
 #            whether the benchmark calls it or not, and four of them
 #            delegate: rrc_taps/dsss_spread to wfm_dsp_core,
 #            wfm_awgn_amplitude to awgn_core, ccsds_asm_bits to
-#            ccsds_tm_core. Not one of those is reimplemented here, which
+#            ccsds_tm_core, field_bits to wfm_frame_core (and the pn/gold/cvt
+#            that one needs). Not one of those is reimplemented here, which
 #            is the whole reason the link line is longer than the header
 add_executable(bench_measure_core native/benchmarks/bench_measure_core.c)
 target_link_libraries(bench_measure_core PRIVATE measure_core spectral_core ${DP_MATH_LIBRARY})
@@ -1045,7 +1046,8 @@ target_include_directories(
 add_executable(bench_wfm_core native/benchmarks/bench_wfm_core.c)
 target_link_libraries(
   bench_wfm_core PRIVATE wfm_core wfm_dsp_core awgn_core ccsds_tm_core
-                         conv_core rs_core ${DP_MATH_LIBRARY})
+                         conv_core rs_core wfm_frame_core pn_core gold_core
+                         cvt_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_wfm_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                          ${CMAKE_SOURCE_DIR}/native/benchmarks)

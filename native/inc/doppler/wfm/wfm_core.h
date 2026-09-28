@@ -6,6 +6,7 @@
 #define DP_WFM_CORE_H
 
 #include "doppler/clib_common.h"
+#include "doppler/wfm/wfm_frame.h" /* dp_wfm_field_bits, field_bits()'s size */
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,6 +146,39 @@ void dp_rrc_taps(double beta, int sps, int span, float *out);
 void dp_dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
 void dp_rrc_h(const double *t, size_t t_len, double *out, double beta);
 void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
+/**
+ * @brief A Field's bits from its text form -- the one door from text to the
+ *        bits every frame object takes.
+ *
+ * The grammar is docs/design/frame-description.md §F.1, read once by
+ * @ref dp_wfm_field_parse and rendered once by @ref dp_wfm_field_render,
+ * both inside @ref dp_wfm_field_bits; this is that call with the output
+ * sized to fit. `0101` and `0x1ACFFC1D` are literals, `pn:LEN:REG[:SEED
+ * [:POLY]][:galois|fibonacci]`, `gold:LEN:REG:TA:SA:TB:SB` and `dotted:LEN`
+ * are generated, and any of them takes `*REPS`. Text outside the grammar is
+ * refused, never repaired: `pn::10`, `12abc` and `0102` all raise.
+ *
+ * @param spec  NUL-terminated Field text.
+ * @param out   receives the bits, one per byte, 0 or 1; sized by
+ *              `dp_wfm_field_bits (spec, NULL, 0, NULL)`.
+ * @return the bits written, or 0 on refusal (the binding raises).
+ *
+ * @code
+ * >>> from doppler.wfm import field_bits
+ * >>> field_bits("0x1A").tolist()          # hex, MSB first
+ * [0, 0, 0, 1, 1, 0, 1, 0]
+ * >>> field_bits("dotted:4*2").tolist()    # a repeat is the same bits again
+ * [1, 0, 1, 0, 1, 0, 1, 0]
+ * >>> len(field_bits("pn:1023:10"))        # an m-sequence, 10-bit register
+ * 1023
+ * >>> field_bits("pn::10")
+ * Traceback (most recent call last):
+ *     ...
+ * RuntimeError: dp_field_bits failed (returned 0)
+ *
+ * @endcode
+ */
+size_t dp_field_bits(const char * spec, uint8_t *out);
 #ifdef __cplusplus
 }
 #endif

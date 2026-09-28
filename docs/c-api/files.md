@@ -276,6 +276,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**wfm\_path.h**](wfm__path_8h.md) _Sibling-path construction shared by the wfm reader and writer._     
                 * **file** [**wfm\_plan.h**](wfm__plan_8h.md)     
                 * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _NATS PUB sink for generated IQ (Phase B)._     
+                * **file** [**wfm\_surface.h**](wfm__surface_8h.md)     
                 * **file** [**wfm\_time.h**](wfm__time_8h.md)     
                 * **file** [**wfmgen.h**](wfmgen_8h.md)     
             * **dir** [**wfm\_compose**](dir_6d794a7fa9423fe9f7b14be42b83e035.md)     

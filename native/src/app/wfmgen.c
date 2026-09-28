@@ -34,6 +34,7 @@
 #include "doppler/wfm/wfm_defaults.h" /* WFM_SOURCE/SEGMENT_DEFAULTS */
 #include "doppler/wfm/wfm_names.h" /* every choice table -- the one C home (#760) */
 #include "doppler/wfm/wfm_sink.h"
+#include "doppler/wfm/wfm_surface.h" /* the field flags, generated */
 #include "doppler/wfm/wfmgen.h"
 #include "doppler/wfm_writer/wfm_writer_core.h"
 
@@ -637,9 +638,12 @@ typedef struct
   int           clip_report, clip_error;
   int           headroom_set; /* explicit --headroom overrides a record */
   int           sample_type, file_type, endian;
-  int           data_flag_set;   /* --data given (continuous dsss only) */
-  int           symbol_rate_set; /* --symbol-rate given (reject <= 0) */
-  int crc_set; /* --crc given: its value defaults, so presence is separate */
+  int           data_flag_set; /* --data given (continuous dsss only) */
+  /* Which surface rows were given, indexed WFM_SURFACE_<owner>_<name>.
+     Presence matters where a value's default is not "absent": --crc
+     defaults to crc16, so giving it is what frames a waveform, and a given
+     --symbol-rate is refused at <= 0 where the default 0 means burst. */
+  int surf_seen[WFM_SURFACE_N];
   /* --payload-len: a payload BOUNDED rather than spelled. Resolved after the
      whole line is read, because it is expressed in the source's own PN
      parameters and those may be typed after it. */
@@ -872,14 +876,6 @@ parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
 
 static const opt_t OPTS[] = {
   { .name = "--from-file", .kind = OPT_STR, .off = OFF (from_file) },
-  { .name = "--type",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.type),
-    CHOICES (TYPE_NAMES) },
-  { .name = "--snr-mode",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.snr_mode),
-    CHOICES (MODE_NAMES) },
   { .name = "--sample-type",
     .kind = OPT_CHOICE,
     .off  = OFF (sample_type),
@@ -892,23 +888,6 @@ static const opt_t OPTS[] = {
     .kind = OPT_CHOICE,
     .off  = OFF (endian),
     CHOICES (ENDIAN_NAMES) },
-  { .name = "--lfsr",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.lfsr),
-    CHOICES (LFSR_NAMES) },
-  { .name = "--pulse",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.pulse),
-    CHOICES (PULSE_NAMES) },
-  { .name          = "--rrc-beta",
-    .kind          = OPT_DOUBLE,
-    .off           = OFF (src.rrc_beta),
-    .unit_interval = 1 },
-  { .name = "--rrc-span", .kind = OPT_INT, .off = OFF (src.rrc_span) },
-  { .name = "--modulation",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.modulation),
-    CHOICES (BITMOD_NAMES) },
   { .name = "--bits",
     .kind = OPT_BITS,
     .off  = OFF (src.payload.bits),
@@ -949,11 +928,6 @@ static const opt_t OPTS[] = {
     .off  = OFF (src.sync.bits),
     .aux  = AUX (src.sync.len) },
   { .name = "--sync-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.sync) },
-  { .name = "--crc",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.crc),
-    .seen = SEEN (crc_set),
-    CHOICES (CRC_NAMES) },
   /* Channel coding, as STAGES over the frame's fields. Each is separately
      optional because the standard makes it so, and they do not all cover the
      same bits -- which is the whole reason the frame is a description rather
@@ -972,78 +946,12 @@ static const opt_t OPTS[] = {
     CHOICES (RANDOMISE_NAMES) },
   { .name = "--asm", .kind = OPT_SET, .off = OFF (src.attach_asm) },
   { .name = "--conv", .kind = OPT_SET, .off = OFF (src.convolutional) },
-  { .name = "--symbol-rate",
-    .kind = OPT_DOUBLE,
-    .off  = OFF (src.symbol_rate),
-    .seen = SEEN (symbol_rate_set) },
   { .name = "--data",
     .kind = OPT_CHOICE,
     .off  = OFF (src.dsss_code_only),
     .seen = SEEN (data_flag_set),
     CHOICES (DATA_SRC_NAMES) },
-  { .name = "--symbols-file",
-    .kind = OPT_SYMBOLS,
-    .off  = OFF (src.symbols),
-    .aux  = AUX (src.n_symbols) },
-  { .name = "--fs", .kind = OPT_DOUBLE, .off = OFF (seg.fs) },
-  { .name      = "--freq",
-    .kind      = OPT_RANGE_D,
-    .off       = OFF (src.freq),
-    .aux       = AUX (src.freq_hi),
-    .range_bit = WFM_RANGE_FREQ },
-  { .name      = "--f-end",
-    .kind      = OPT_RANGE_D,
-    .off       = OFF (src.f_end),
-    .aux       = AUX (src.f_end_hi),
-    .range_bit = WFM_RANGE_FEND },
   { .name = "--fc", .kind = OPT_DOUBLE, .off = OFF (fc) },
-  /* CLOCK DOPPLER. Ranged like --freq and --snr because a pass is a
-     distribution, not a number: `--doppler 2:8` is eight trials on eight
-     geometries. See wfm/wfm_compose.h on why this is not --freq. */
-  { .name      = "--doppler",
-    .kind      = OPT_RANGE_D,
-    .off       = OFF (src.doppler),
-    .aux       = AUX (src.doppler_hi),
-    .range_bit = WFM_RANGE_DOPPLER },
-  { .name      = "--doppler-rate",
-    .kind      = OPT_RANGE_D,
-    .off       = OFF (src.doppler_rate),
-    .aux       = AUX (src.doppler_rate_hi),
-    .range_bit = WFM_RANGE_DOPPLER_RATE },
-  { .name = "--carrier-hz", .kind = OPT_DOUBLE, .off = OFF (src.carrier_hz) },
-  { .name = "--doppler-lifetime",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.doppler_lifetime),
-    CHOICES (DOPPLER_LIFETIME_NAMES) },
-  { .name      = "--snr",
-    .kind      = OPT_RANGE_D,
-    .off       = OFF (src.snr),
-    .aux       = AUX (src.snr_hi),
-    .range_bit = WFM_RANGE_SNR },
-  { .name = "--seed", .kind = OPT_U32, .off = OFF (src.seed) },
-  { .name = "--sps", .kind = OPT_INT, .off = OFF (src.sps) },
-  { .name = "--pn-length", .kind = OPT_INT, .off = OFF (src.pn_length) },
-  { .name = "--pn-poly", .kind = OPT_U64, .off = OFF (src.pn_poly) },
-  { .name      = "--count",
-    .kind      = OPT_RANGE_N,
-    .off       = OFF (seg.num_samples),
-    .aux       = AUX (seg.num_samples_hi),
-    .range_bit = WFM_RANGE_NUM_SAMPLES },
-  { .name      = "--off",
-    .kind      = OPT_RANGE_N,
-    .off       = OFF (seg.off_samples),
-    .aux       = AUX (seg.off_samples_hi),
-    .range_bit = WFM_RANGE_OFF_SAMPLES },
-  { .name = "--repeats", .kind = OPT_SIZE, .off = OFF (seg.repeats) },
-  { .name      = "--delay",
-    .kind      = OPT_RANGE_N,
-    .off       = OFF (seg.delay_samples),
-    .aux       = AUX (seg.delay_samples_hi),
-    .range_bit = WFM_RANGE_DELAY_SAMPLES },
-  { .name = "--gap-noise",
-    .kind = OPT_CHOICE,
-    .off  = OFF (seg.gap_noise),
-    CHOICES (GAP_NOISE_NAMES) },
   { .name = "--repeat", .kind = OPT_SET, .off = OFF (repeat) },
   { .name = "--continuous", .kind = OPT_SET, .off = OFF (continuous) },
   { .name = "--seed-advance",
@@ -1052,11 +960,6 @@ static const opt_t OPTS[] = {
     CHOICES (SEED_ADVANCE_NAMES) },
   { .name = "--detached", .kind = OPT_SET, .off = OFF (detached) },
   { .name = "--realtime", .kind = OPT_SET, .off = OFF (realtime) },
-  { .name      = "--level",
-    .kind      = OPT_RANGE_D,
-    .off       = OFF (src.level),
-    .aux       = AUX (src.level_hi),
-    .range_bit = WFM_RANGE_LEVEL },
   { .name = "--headroom",
     .kind = OPT_DOUBLE,
     .off  = OFF (headroom),
@@ -1074,16 +977,70 @@ static const opt_t OPTS[] = {
   { .name = "--record", .kind = OPT_STR, .off = OFF (record_path) },
 };
 
-/* Find the row matching one argv token, by long name or alias; NULL if the
-   token is not a flag this CLI accepts. */
-static const opt_t *
-find_opt (const char *a)
+/* Find the row matching one argv token, by long name or alias, and copy it
+   into `out`; 0 if the token is not a flag this CLI accepts.
+
+   Two tables. OPTS above holds the flags that are wfmgen's own; every flag
+   that sets a source or segment FIELD is a row of the generated surface
+   table (wfm/wfm_surface.h), and is turned into the same opt_t here, so one
+   parse switch reads both. The row's offsets are into its own struct, so
+   this adds where that struct sits in wfmgen_opts_t. */
+static int
+find_opt (const char *a, opt_t *out)
 {
   for (size_t k = 0; k < sizeof OPTS / sizeof *OPTS; k++)
     if (!strcmp (a, OPTS[k].name)
         || (OPTS[k].alias && !strcmp (a, OPTS[k].alias)))
-      return &OPTS[k];
-  return NULL;
+      {
+        *out = OPTS[k];
+        return 1;
+      }
+  for (size_t k = 0; k < WFM_SURFACE_N; k++)
+    {
+      const wfm_surface_row_t *r = &WFM_SURFACE[k];
+      if (strcmp (a, r->cli))
+        continue;
+      const size_t base = r->owner == WFM_SURF_SOURCE ? OFF (src) : OFF (seg);
+      memset (out, 0, sizeof *out);
+      out->name          = r->cli;
+      out->off           = base + r->off;
+      out->seen          = OFF (surf_seen) + k * sizeof (int);
+      out->unit_interval = r->unit_interval;
+      out->range_bit     = r->range_bit;
+      out->tbl           = r->choices;
+      out->ntbl          = r->n_choices;
+      if (r->range_bit)
+        out->aux = base + r->hi_off;
+      switch (r->kind)
+        {
+        case WFM_SV_DOUBLE:
+          /* OPT_RANGE_D ranges a SOURCE field and OPT_RANGE_N a SEGMENT
+             one; the generator refuses any other pairing. */
+          out->kind = r->range_bit ? OPT_RANGE_D : OPT_DOUBLE;
+          break;
+        case WFM_SV_SIZE:
+          out->kind = r->range_bit ? OPT_RANGE_N : OPT_SIZE;
+          break;
+        case WFM_SV_INT:
+          out->kind = OPT_INT;
+          break;
+        case WFM_SV_U32:
+          out->kind = OPT_U32;
+          break;
+        case WFM_SV_U64:
+          out->kind = OPT_U64;
+          break;
+        case WFM_SV_CHOICE:
+          out->kind = OPT_CHOICE;
+          break;
+        case WFM_SV_SYMBOLS:
+          out->kind = OPT_SYMBOLS;
+          out->aux  = base + r->len_off;
+          break;
+        }
+      return 1;
+    }
+  return 0;
 }
 
 /* The three bit-array flags, which differ only in where the characters come
@@ -1140,8 +1097,9 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
 
   for (int i = 1; i < argc; i++)
     {
-      const char  *a   = argv[i];
-      const opt_t *opt = find_opt (a);
+      const char  *a = argv[i];
+      opt_t        row;
+      const opt_t *opt = find_opt (a, &row) ? &row : NULL;
       if (!opt)
         {
           (void)fprintf (stderr, "error: unknown option '%s' (try --help)\n",
@@ -1742,7 +1700,8 @@ check_detached (const wfmgen_opts_t *o)
 static int
 check_continuous_dsss (const wfmgen_opts_t *o)
 {
-  if (o->symbol_rate_set && o->src.symbol_rate <= 0.0)
+  if (o->surf_seen[WFM_SURFACE_source_symbol_rate]
+      && o->src.symbol_rate <= 0.0)
     {
       (void)fprintf (stderr, "error: --symbol-rate must be positive (it is "
                              "the continuous-dsss data symbol rate in Hz)\n");
@@ -1773,7 +1732,8 @@ check_continuous_dsss (const wfmgen_opts_t *o)
                              "--data-code\n");
       return 2;
     }
-  if (o->src.acq_code.len || o->src.sync.len || o->crc_set)
+  if (o->src.acq_code.len || o->src.sync.len
+      || o->surf_seen[WFM_SURFACE_source_crc])
     {
       (void)fprintf (stderr, "error: --acq-code/--sync/--crc are burst-frame "
                              "flags, meaningless with --symbol-rate\n");

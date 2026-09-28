@@ -62,7 +62,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "native" / "src" / "app" / "wfmgen.c"
+SRC_REL = "native/src/app/wfmgen.c"
+# The flags that set a source or segment field are rows of this generated
+# table rather than of wfmgen.c's own OPTS (doppler#853).
+SURFACE_REL = "native/inc/doppler/wfm/wfm_surface.h"
+SRC = ROOT / SRC_REL
 GOLDEN = ROOT / "native" / "tests" / "wfmgen_flag_matrix.json"
 
 # Flags the dispatcher accepts but that this matrix deliberately does not
@@ -1032,6 +1036,7 @@ def cases() -> list[tuple[str, list[str]]]:
 # The option table's rows, e.g. `{ .name = "--freq", .alias = "-o", ... }`.
 # Whitespace-tolerant because clang-format decides where a row wraps.
 _ROW_RE = re.compile(r'\.(?:name|alias)\s*=\s*"(--?[A-Za-z0-9-]+)"')
+_SURFACE_RE = re.compile(r'\.cli\s*=\s*"(--?[A-Za-z0-9-]+)"')
 
 # Flags that must always be discovered. They are not a coverage requirement
 # -- cases() already drives them -- they are a check on the DISCOVERY, which
@@ -1042,23 +1047,34 @@ _ROW_RE = re.compile(r'\.(?:name|alias)\s*=\s*"(--?[A-Za-z0-9-]+)"')
 _ANCHORS = {"--type", "--count", "--output", "--freq", "-o"}
 
 
-def dispatcher_flags(src: Path = SRC) -> set[str]:
-    """Every flag the parser accepts, read from its option table.
+def dispatcher_flags(root: Path = ROOT) -> set[str]:
+    """Every flag the parser accepts, read from its two option tables.
 
-    `src` exists so a second caller can ask the same question of a tree
+    wfmgen's own flags are rows of `OPTS` in wfmgen.c; every flag that sets
+    a source or segment field is a row of the generated surface table. A
+    tree without the surface table contributes only OPTS -- and the anchors
+    below include field flags, so a real tree that lost it fails here
+    rather than reporting fewer flags.
+
+    `root` exists so a second caller can ask the same question of a tree
     that is not this checkout -- `check_wfmgen_flag_docs.py` imports this
     function and its own tests seed a synthetic `wfmgen.c`. It is a
     parameter rather than a second regex on purpose: two implementations of
     "what flags does the parser accept" would drift, and the one that
     drifted would report a gap that is not there, or miss one that is.
     """
+    src = root / SRC_REL
     flags = set(_ROW_RE.findall(src.read_text()))
+    surface = root / SURFACE_REL
+    if surface.is_file():
+        flags |= set(_SURFACE_RE.findall(surface.read_text()))
     missing = _ANCHORS - flags
     if missing:
         raise SystemExit(
             f"wfmgen_flag_matrix: flag discovery is broken -- "
-            f"{', '.join(sorted(missing))} not found in {src.name}. "
-            f"The option-table format changed; fix _ROW_RE."
+            f"{', '.join(sorted(missing))} not found in {src.name} or "
+            f"{Path(SURFACE_REL).name}. The option-table format changed; "
+            "fix _ROW_RE / _SURFACE_RE."
         )
     return flags
 

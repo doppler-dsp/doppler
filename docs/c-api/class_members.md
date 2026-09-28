@@ -198,6 +198,8 @@
 * **crc\_bits** ([**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md))
 * **crc\_off** ([**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md))
 * **crc** ([**wfm\_frame\_t**](structwfm__frame__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
+* **choices** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **cli** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## d
@@ -401,6 +403,7 @@
 * **have\_ontime** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **h** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **have\_prev\_idx** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
+* **hi\_off** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## i
@@ -468,7 +471,7 @@
 * **k\_fll** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md))
 * **K** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **K\_pad** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
-* **kind** ([**dp\_header\_t**](structdp__header__t.md), [**dp\_pn\_state\_t**](structdp__pn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md), [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md), [**wfm\_stage\_t**](structwfm__stage__t.md))
+* **kind** ([**dp\_header\_t**](structdp__header__t.md), [**dp\_pn\_state\_t**](structdp__pn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md), [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md), [**wfm\_stage\_t**](structwfm__stage__t.md), [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **ki** ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md))
 * **kp** ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md))
 
@@ -515,6 +518,7 @@
 * **level** ([**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **lfsr** ([**wfm\_seq\_t**](structwfm__seq__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **level\_hi** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **len\_off** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## m
@@ -600,7 +604,7 @@
 * **navg** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **n\_probes** ([**dp\_tlm**](structdp__tlm.md))
 * **now** ([**dp\_tlm**](structdp__tlm.md))
-* **name** ([**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md), [**wfm\_field\_t**](structwfm__field__t.md))
+* **name** ([**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md), [**wfm\_field\_t**](structwfm__field__t.md), [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **n\_harm** ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **nstate** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
 * **n\_bits** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
@@ -617,6 +621,7 @@
 * **n\_op** ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md))
 * **n\_sources** ([**wfm\_segment\_t**](structwfm__segment__t.md))
 * **num\_samples\_hi** ([**wfm\_segment\_t**](structwfm__segment__t.md))
+* **n\_choices** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## o
@@ -637,7 +642,7 @@
 * **odd\_I** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **odd\_Q** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **odd\_head** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md), [**hbdecim\_state\_t**](structhbdecim__state__t.md))
-* **off** ([**dp\_reader\_t**](structdp__reader__t.md), [**dp\_writer\_t**](structdp__writer__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md))
+* **off** ([**dp\_reader\_t**](structdp__reader__t.md), [**dp\_writer\_t**](structdp__writer__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md), [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **offset\_db** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **out0** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
 * **out1** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
@@ -647,6 +652,7 @@
 * **op** ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md))
 * **off\_samples** ([**wfm\_segment\_t**](structwfm__segment__t.md))
 * **off\_samples\_hi** ([**wfm\_segment\_t**](structwfm__segment__t.md))
+* **owner** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## p
@@ -818,6 +824,7 @@
 * **reg\_bits** ([**wfm\_seq\_t**](structwfm__seq__t.md))
 * **rrc\_beta** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **rrc\_span** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **range\_bit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## s
@@ -985,6 +992,7 @@
 * **upsample** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **user** ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md))
 * **undo** ([**wfm\_stage\_op\_t**](structwfm__stage__op__t.md))
+* **unit\_interval** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## v

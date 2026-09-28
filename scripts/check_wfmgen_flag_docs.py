@@ -280,7 +280,7 @@ def main() -> int:
         )
         return 1
 
-    flags = dispatcher_flags(root / SRC)
+    flags = dispatcher_flags(root)
     blob = "\n".join(p.read_text(encoding="utf-8") for p in pages)
     missing = sorted(f for f in flags if not _mentioned(f, blob))
 

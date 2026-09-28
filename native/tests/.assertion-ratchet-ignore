@@ -21,6 +21,10 @@
 #       stays armed on both, so a later real deletion here is still caught
 #       unless `dest` grew to match it.
 #
+#   `<basename> -> <dest> removes=N  <reason>`
+#       A MOVE in which N of the lost assertions pinned something the same
+#       change deleted. Excuses exactly N; `dest` must gain the rest.
+#
 # Deleting a whole file is not listed here — a deletion is a visible act in
 # the diff, and the ratchet only looks at files that still exist.
 #

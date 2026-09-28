@@ -48,7 +48,7 @@ typedef enum
 typedef struct
 {
   const char        *name;  /* the struct member */
-  const char        *cli;   /* the command-line flag */
+  const char        *cli;   /* the flag; NULL = not on the CLI */
   wfm_surf_owner_t   owner;
   wfm_sv_kind_t      kind;
   size_t             off;       /* offsetof the member */
@@ -58,6 +58,13 @@ typedef struct
   const char *const *choices;   /* WFM_SV_CHOICE: the names */
   int                n_choices;
   int                unit_interval; /* require 0 < v <= 1 */
+  const char        *json;          /* the scene/record key */
+  int                json_required; /* absent/unknown: refuse */
+  int                json_omit;     /* not written at its default */
+  int                json_bool;     /* written as true/false */
+  int                has_when;      /* written only when ... */
+  int                when_row;      /* ... this row's choice ... */
+  int                when_value;    /* ... is this index */
 } wfm_surface_row_t;
 
 /* A row's index: WFM_SURFACE_<owner>_<name>. */
@@ -73,7 +80,9 @@ enum
   WFM_SURFACE_source_pn_poly,
   WFM_SURFACE_source_lfsr,
   WFM_SURFACE_source_level,
+  WFM_SURFACE_source_background,
   WFM_SURFACE_source_f_end,
+  WFM_SURFACE_source_span,
   WFM_SURFACE_source_doppler,
   WFM_SURFACE_source_doppler_rate,
   WFM_SURFACE_source_carrier_hz,
@@ -103,6 +112,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, type),
     .choices = TYPE_NAMES,
     .n_choices = (int)(sizeof TYPE_NAMES / sizeof *TYPE_NAMES),
+    .json = "type",
+    .json_required = 1,
   },
   [WFM_SURFACE_source_freq] = {
     .name = "freq",
@@ -112,6 +123,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, freq),
     .range_bit = WFM_RANGE_FREQ,
     .hi_off = offsetof (wfm_source_t, freq_hi),
+    .json = "freq",
   },
   [WFM_SURFACE_source_snr] = {
     .name = "snr",
@@ -121,6 +133,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, snr),
     .range_bit = WFM_RANGE_SNR,
     .hi_off = offsetof (wfm_source_t, snr_hi),
+    .json = "snr",
   },
   [WFM_SURFACE_source_snr_mode] = {
     .name = "snr_mode",
@@ -130,6 +143,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, snr_mode),
     .choices = MODE_NAMES,
     .n_choices = (int)(sizeof MODE_NAMES / sizeof *MODE_NAMES),
+    .json = "snr_mode",
   },
   [WFM_SURFACE_source_seed] = {
     .name = "seed",
@@ -137,6 +151,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_U32,
     .off = offsetof (wfm_source_t, seed),
+    .json = "seed",
   },
   [WFM_SURFACE_source_sps] = {
     .name = "sps",
@@ -144,6 +159,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_INT,
     .off = offsetof (wfm_source_t, sps),
+    .json = "sps",
   },
   [WFM_SURFACE_source_pn_length] = {
     .name = "pn_length",
@@ -151,6 +167,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_INT,
     .off = offsetof (wfm_source_t, pn_length),
+    .json = "pn_length",
   },
   [WFM_SURFACE_source_pn_poly] = {
     .name = "pn_poly",
@@ -158,6 +175,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_U64,
     .off = offsetof (wfm_source_t, pn_poly),
+    .json = "pn_poly",
   },
   [WFM_SURFACE_source_lfsr] = {
     .name = "lfsr",
@@ -167,6 +185,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, lfsr),
     .choices = LFSR_NAMES,
     .n_choices = (int)(sizeof LFSR_NAMES / sizeof *LFSR_NAMES),
+    .json = "lfsr",
   },
   [WFM_SURFACE_source_level] = {
     .name = "level",
@@ -176,6 +195,17 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, level),
     .range_bit = WFM_RANGE_LEVEL,
     .hi_off = offsetof (wfm_source_t, level_hi),
+    .json = "level",
+    .json_omit = 1,
+  },
+  [WFM_SURFACE_source_background] = {
+    .name = "background",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_INT,
+    .off = offsetof (wfm_source_t, background),
+    .json = "background",
+    .json_omit = 1,
+    .json_bool = 1,
   },
   [WFM_SURFACE_source_f_end] = {
     .name = "f_end",
@@ -185,6 +215,21 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, f_end),
     .range_bit = WFM_RANGE_FEND,
     .hi_off = offsetof (wfm_source_t, f_end_hi),
+    .json = "f_end",
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 5,
+  },
+  [WFM_SURFACE_source_span] = {
+    .name = "span",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_SIZE,
+    .off = offsetof (wfm_source_t, span),
+    .json = "span",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 5,
   },
   [WFM_SURFACE_source_doppler] = {
     .name = "doppler",
@@ -194,6 +239,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, doppler),
     .range_bit = WFM_RANGE_DOPPLER,
     .hi_off = offsetof (wfm_source_t, doppler_hi),
+    .json = "doppler",
+    .json_omit = 1,
   },
   [WFM_SURFACE_source_doppler_rate] = {
     .name = "doppler_rate",
@@ -203,6 +250,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, doppler_rate),
     .range_bit = WFM_RANGE_DOPPLER_RATE,
     .hi_off = offsetof (wfm_source_t, doppler_rate_hi),
+    .json = "doppler_rate",
+    .json_omit = 1,
   },
   [WFM_SURFACE_source_carrier_hz] = {
     .name = "carrier_hz",
@@ -210,6 +259,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_DOUBLE,
     .off = offsetof (wfm_source_t, carrier_hz),
+    .json = "carrier_hz",
+    .json_omit = 1,
   },
   [WFM_SURFACE_source_doppler_lifetime] = {
     .name = "doppler_lifetime",
@@ -219,6 +270,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, doppler_lifetime),
     .choices = DOPPLER_LIFETIME_NAMES,
     .n_choices = (int)(sizeof DOPPLER_LIFETIME_NAMES / sizeof *DOPPLER_LIFETIME_NAMES),
+    .json = "doppler_lifetime",
+    .json_omit = 1,
   },
   [WFM_SURFACE_source_modulation] = {
     .name = "modulation",
@@ -228,6 +281,10 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, modulation),
     .choices = BITMOD_NAMES,
     .n_choices = (int)(sizeof BITMOD_NAMES / sizeof *BITMOD_NAMES),
+    .json = "modulation",
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 6,
   },
   [WFM_SURFACE_source_pulse] = {
     .name = "pulse",
@@ -237,6 +294,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, pulse),
     .choices = PULSE_NAMES,
     .n_choices = (int)(sizeof PULSE_NAMES / sizeof *PULSE_NAMES),
+    .json = "pulse",
+    .json_omit = 1,
   },
   [WFM_SURFACE_source_rrc_beta] = {
     .name = "rrc_beta",
@@ -245,6 +304,10 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .kind = WFM_SV_DOUBLE,
     .off = offsetof (wfm_source_t, rrc_beta),
     .unit_interval = 1,
+    .json = "rrc_beta",
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_pulse,
+    .when_value = 1,
   },
   [WFM_SURFACE_source_rrc_span] = {
     .name = "rrc_span",
@@ -252,6 +315,10 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_INT,
     .off = offsetof (wfm_source_t, rrc_span),
+    .json = "rrc_span",
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_pulse,
+    .when_value = 1,
   },
   [WFM_SURFACE_source_symbols] = {
     .name = "symbols",
@@ -276,6 +343,11 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SOURCE,
     .kind = WFM_SV_DOUBLE,
     .off = offsetof (wfm_source_t, symbol_rate),
+    .json = "symbol_rate",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 8,
   },
   [WFM_SURFACE_segment_fs] = {
     .name = "fs",
@@ -283,6 +355,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SEGMENT,
     .kind = WFM_SV_DOUBLE,
     .off = offsetof (wfm_segment_t, fs),
+    .json = "fs",
   },
   [WFM_SURFACE_segment_num_samples] = {
     .name = "num_samples",
@@ -292,6 +365,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_segment_t, num_samples),
     .range_bit = WFM_RANGE_NUM_SAMPLES,
     .hi_off = offsetof (wfm_segment_t, num_samples_hi),
+    .json = "num_samples",
   },
   [WFM_SURFACE_segment_off_samples] = {
     .name = "off_samples",
@@ -301,6 +375,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_segment_t, off_samples),
     .range_bit = WFM_RANGE_OFF_SAMPLES,
     .hi_off = offsetof (wfm_segment_t, off_samples_hi),
+    .json = "off_samples",
   },
   [WFM_SURFACE_segment_repeats] = {
     .name = "repeats",
@@ -308,6 +383,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .owner = WFM_SURF_SEGMENT,
     .kind = WFM_SV_SIZE,
     .off = offsetof (wfm_segment_t, repeats),
+    .json = "repeats",
+    .json_omit = 1,
   },
   [WFM_SURFACE_segment_delay_samples] = {
     .name = "delay_samples",
@@ -317,6 +394,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_segment_t, delay_samples),
     .range_bit = WFM_RANGE_DELAY_SAMPLES,
     .hi_off = offsetof (wfm_segment_t, delay_samples_hi),
+    .json = "delay_samples",
+    .json_omit = 1,
   },
   [WFM_SURFACE_segment_gap_noise] = {
     .name = "gap_noise",
@@ -326,6 +405,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_segment_t, gap_noise),
     .choices = GAP_NOISE_NAMES,
     .n_choices = (int)(sizeof GAP_NOISE_NAMES / sizeof *GAP_NOISE_NAMES),
+    .json = "gap_noise",
+    .json_omit = 1,
   },
 };
 

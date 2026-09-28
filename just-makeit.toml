@@ -1187,6 +1187,8 @@ ranged = [
 
 [[module.wfm_compose.source.fields]]
 name = "type"
+json = "type"
+json_required = true
 cli = "--type"
 metavar = "TYPE"
 help_section = "TYPE"
@@ -1197,6 +1199,7 @@ doc = "Waveform type."
 
 [[module.wfm_compose.source.fields]]
 name = "freq"
+json = "freq"
 cli = "--freq"
 metavar = "HZ"
 help_section = "SIGNAL"
@@ -1207,6 +1210,7 @@ doc = "Carrier or offset frequency in Hz; for chirp, the sweep start. With fs = 
 
 [[module.wfm_compose.source.fields]]
 name = "snr"
+json = "snr"
 cli = "--snr"
 metavar = "DB"
 help_section = "NOISE"
@@ -1216,6 +1220,7 @@ doc = "Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is cle
 
 [[module.wfm_compose.source.fields]]
 name = "snr_mode"
+json = "snr_mode"
 cli = "--snr-mode"
 metavar = "MODE"
 help_section = "NOISE"
@@ -1226,6 +1231,7 @@ doc = "How snr is interpreted. auto picks fs (the full sample-rate band) for ton
 
 [[module.wfm_compose.source.fields]]
 name = "seed"
+json = "seed"
 cli = "--seed"
 metavar = "N"
 help_section = "SIGNAL"
@@ -1235,6 +1241,7 @@ doc = "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it f
 
 [[module.wfm_compose.source.fields]]
 name = "sps"
+json = "sps"
 cli = "--sps"
 metavar = "N"
 help_section = "SIGNAL"
@@ -1244,6 +1251,7 @@ doc = "Samples per symbol (PSK) or per chip (PN): the oversampling factor."
 
 [[module.wfm_compose.source.fields]]
 name = "pn_length"
+json = "pn_length"
 cli = "--pn-length"
 metavar = "N"
 help_section = "PN"
@@ -1253,6 +1261,7 @@ doc = "PN LFSR register length; the sequence period is 2^pn_length - 1."
 
 [[module.wfm_compose.source.fields]]
 name = "pn_poly"
+json = "pn_poly"
 cli = "--pn-poly"
 metavar = "N"
 help_section = "PN"
@@ -1262,6 +1271,7 @@ doc = "PN generator polynomial; 0 selects a maximal-length (MLS) polynomial for 
 
 [[module.wfm_compose.source.fields]]
 name = "lfsr"
+json = "lfsr"
 cli = "--lfsr"
 metavar = "TYPE"
 help_section = "PN"
@@ -1272,6 +1282,8 @@ doc = "PN LFSR realisation: the same period, a different chip order."
 
 [[module.wfm_compose.source.fields]]
 name = "level"
+json = "level"
+json_omit = "default"
 cli = "--level"
 metavar = "DB"
 help_section = "AMPLITUDE"
@@ -1281,12 +1293,17 @@ doc = "Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a Se
 
 [[module.wfm_compose.source.fields]]
 name = "background"
+json = "background"
+json_omit = "default"
+json_type = "bool"
 type = "int"
 default = "0"
 doc = "Mark this source as part of the static background field (0/1). Plan.prepare() folds a contiguous leading run of background sources into ONE pre-summed cache entry instead of caching each separately, so a scene of many fixed emitters costs one buffer rather than hundreds. The composite is overridable as a unit: it takes a single slot in gains/phases/enable and counts as one in n_sources(), so scaling it trims the whole field while its members keep their relative levels. Background sources must come first in the segment (a non-prefix ordering is rejected by prepare, since the fold would no longer reproduce compose bit-for-bit). Ignored by compose() and by standalone Synth.steps()."
 
 [[module.wfm_compose.source.fields]]
 name = "f_end"
+json = "f_end"
+json_when = { type = "chirp" }
 cli = "--f-end"
 metavar = "HZ"
 help_section = "SIGNAL"
@@ -1296,6 +1313,9 @@ doc = "Chirp end frequency in Hz; ignored by other types."
 
 [[module.wfm_compose.source.fields]]
 name = "span"
+json = "span"
+json_when = { type = "chirp" }
+json_omit = "default"
 type = "size_t"
 default = "0"
 doc = "Chirp sweep length in samples: the frequency ramps from freq to f_end over this many samples, then holds at f_end. 0 means the enclosing Segment's num_samples. A standalone chirp (f_end != freq) must declare it, so step(), steps(N) and any chunking of reads produce the same waveform; generating one without it raises. Ignored by non-chirp types."
@@ -1305,6 +1325,8 @@ doc = "Chirp sweep length in samples: the frequency ramps from freq to f_end ove
 # geometries.
 [[module.wfm_compose.source.fields]]
 name = "doppler"
+json = "doppler"
+json_omit = "default"
 cli = "--doppler"
 metavar = "PPM"
 help_section = "DOPPLER"
@@ -1314,6 +1336,8 @@ doc = "Clock Doppler in ppm: the received time base is rescaled by 1 + doppler*1
 
 [[module.wfm_compose.source.fields]]
 name = "doppler_rate"
+json = "doppler_rate"
+json_omit = "default"
 cli = "--doppler-rate"
 metavar = "PPM_S"
 help_section = "DOPPLER"
@@ -1323,6 +1347,8 @@ doc = "Linear ramp on `doppler`, in ppm per second of elapsed stream time. The c
 
 [[module.wfm_compose.source.fields]]
 name = "carrier_hz"
+json = "carrier_hz"
+json_omit = "default"
 cli = "--carrier-hz"
 metavar = "HZ"
 help_section = "DOPPLER"
@@ -1332,6 +1358,8 @@ doc = "RF carrier in Hz that the ppm figures are referred to. It gives the coher
 
 [[module.wfm_compose.source.fields]]
 name = "doppler_lifetime"
+json = "doppler_lifetime"
+json_omit = "default"
 cli = "--doppler-lifetime"
 metavar = "L"
 help_section = "DOPPLER"
@@ -1355,6 +1383,8 @@ doc = "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the
 
 [[module.wfm_compose.source.fields]]
 name = "modulation"
+json = "modulation"
+json_when = { type = "bits" }
 cli = "--modulation"
 metavar = "M"
 help_section = "BITS"
@@ -1365,6 +1395,8 @@ doc = "Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk."
 
 [[module.wfm_compose.source.fields]]
 name = "pulse"
+json = "pulse"
+json_omit = "default"
 cli = "--pulse"
 metavar = "SHAPE"
 help_section = "PULSE"
@@ -1375,6 +1407,8 @@ doc = "Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect sample-and-hold
 
 [[module.wfm_compose.source.fields]]
 name = "rrc_beta"
+json = "rrc_beta"
+json_when = { pulse = "rrc" }
 cli = "--rrc-beta"
 metavar = "R"
 help_section = "PULSE"
@@ -1385,6 +1419,8 @@ doc = "RRC roll-off factor, in (0, 1], when pulse=rrc."
 
 [[module.wfm_compose.source.fields]]
 name = "rrc_span"
+json = "rrc_span"
+json_when = { pulse = "rrc" }
 cli = "--rrc-span"
 metavar = "N"
 help_section = "PULSE"
@@ -1476,6 +1512,9 @@ doc = "Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame includ
 
 [[module.wfm_compose.source.fields]]
 name = "symbol_rate"
+json = "symbol_rate"
+json_when = { type = "dsss" }
+json_omit = "default"
 cli = "--symbol-rate"
 metavar = "HZ"
 help_section = "DSSS_CONT"
@@ -1508,6 +1547,7 @@ ranged = [
 
 [[module.wfm_compose.segment.fields]]
 name = "fs"
+json = "fs"
 cli = "--fs"
 metavar = "HZ"
 help_section = "SIGNAL"
@@ -1517,6 +1557,7 @@ doc = "Sample rate in Hz, one per segment and shared by all its sources. With fs
 
 [[module.wfm_compose.segment.fields]]
 name = "num_samples"
+json = "num_samples"
 cli = "--count"
 metavar = "N"
 help_section = "SIGNAL"
@@ -1526,6 +1567,7 @@ doc = "Segment on-time in samples: the active span."
 
 [[module.wfm_compose.segment.fields]]
 name = "off_samples"
+json = "off_samples"
 cli = "--off"
 metavar = "N"
 help_section = "SIGNAL"
@@ -1535,6 +1577,8 @@ doc = "Trailing gap after the on-time, in samples. It carries the noise floor or
 
 [[module.wfm_compose.segment.fields]]
 name = "repeats"
+json = "repeats"
+json_omit = "default"
 cli = "--repeats"
 metavar = "N"
 help_section = "SIGNAL"
@@ -1544,6 +1588,8 @@ doc = "Play the segment this many times back-to-back (each instance = delay + on
 
 [[module.wfm_compose.segment.fields]]
 name = "delay_samples"
+json = "delay_samples"
+json_omit = "default"
 cli = "--delay"
 metavar = "N"
 help_section = "SIGNAL"
@@ -1553,6 +1599,8 @@ doc = "Leading gap before the on-time, in samples: the burst arrives after this 
 
 [[module.wfm_compose.segment.fields]]
 name = "gap_noise"
+json = "gap_noise"
+json_omit = "default"
 cli = "--gap-noise"
 metavar = "M"
 help_section = "SIGNAL"

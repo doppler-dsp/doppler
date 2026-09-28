@@ -3473,5 +3473,114 @@ main (void)
   /* Reports the DP_CHECK accumulator. Until doppler#1592's pins this file
      asserted only through DP_REQUIRE, so a bare `return 0` was latent; the
      first accumulating check would have been decoration without this. */
+  /* ── a record's BYTES are pinned ─────────────────────────────────────
+   *
+   * The surface rows write a source's and a segment's fields in table order
+   * (#853 item 9 changed that order once, by decision). Nothing else pins
+   * the bytes: the flag-matrix golden compares parsed JSON, and the replay
+   * tests compare a record with its own replay, both blind to order. A
+   * stored scene re-recorded should diff clean, so the exact text is held
+   * here, over each JSON policy a row can carry: the inline and the sum
+   * form, a ranged field (its span), a field written only for one type
+   * (f_end/span on a chirp, modulation on bits), the pulse=rrc pair,
+   * omitted-at-default (level, doppler, repeats, gap_noise), a bool-free
+   * spec. Regenerating this after a deliberate change is one paste. */
+  {
+    wfm_source_t chirp          = WFM_SOURCE_DEFAULTS;
+    chirp.type                  = WFM_SYNTH_CHIRP;
+    chirp.freq                  = 0.05;
+    chirp.freq_hi               = 0.1;
+    chirp.ranged                = WFM_RANGE_FREQ;
+    chirp.f_end                 = 0.2;
+    chirp.span                  = 256;
+    chirp.level                 = -3.0;
+    chirp.snr                   = 20.0;
+    static const uint8_t pat[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
+    wfm_source_t         bits   = WFM_SOURCE_DEFAULTS;
+    bits.type                   = WFM_SYNTH_BITS;
+    bits.modulation             = 2;
+    bits.sps                    = 4;
+    bits.pulse                  = 1;
+    bits.payload.bits           = pat;
+    bits.payload.len            = 8;
+    wfm_source_t tone           = WFM_SOURCE_DEFAULTS;
+    tone.freq                   = 0.125;
+    tone.doppler                = 2.5;
+    tone.carrier_hz             = 2.2e9;
+    wfm_source_t  pair[2]       = { bits, tone };
+    wfm_segment_t segs[2]    = { WFM_SEGMENT_DEFAULTS, WFM_SEGMENT_DEFAULTS };
+    segs[0].sources          = &chirp;
+    segs[0].n_sources        = 1;
+    segs[0].num_samples      = 512;
+    segs[1].sources          = pair;
+    segs[1].n_sources        = 2;
+    segs[1].repeats          = 3;
+    segs[1].gap_noise        = 1;
+    segs[1].off_samples      = 64;
+    static const char want[] = "{\n"
+                               "\t\"version\":\t1,\n"
+                               "\t\"repeat\":\tfalse,\n"
+                               "\t\"continuous\":\tfalse,\n"
+                               "\t\"segments\":\t[{\n"
+                               "\t\t\t\"fs\":\t1,\n"
+                               "\t\t\t\"num_samples\":\t512,\n"
+                               "\t\t\t\"off_samples\":\t0,\n"
+                               "\t\t\t\"type\":\t\"chirp\",\n"
+                               "\t\t\t\"freq\":\t[0.05, 0.1],\n"
+                               "\t\t\t\"snr\":\t20,\n"
+                               "\t\t\t\"snr_mode\":\t\"auto\",\n"
+                               "\t\t\t\"seed\":\t0,\n"
+                               "\t\t\t\"sps\":\t1,\n"
+                               "\t\t\t\"pn_length\":\t15,\n"
+                               "\t\t\t\"pn_poly\":\t0,\n"
+                               "\t\t\t\"lfsr\":\t\"galois\",\n"
+                               "\t\t\t\"level\":\t-3,\n"
+                               "\t\t\t\"f_end\":\t0.2,\n"
+                               "\t\t\t\"span\":\t256\n"
+                               "\t\t}, {\n"
+                               "\t\t\t\"fs\":\t1,\n"
+                               "\t\t\t\"num_samples\":\t1024,\n"
+                               "\t\t\t\"off_samples\":\t64,\n"
+                               "\t\t\t\"repeats\":\t3,\n"
+                               "\t\t\t\"gap_noise\":\t\"off\",\n"
+                               "\t\t\t\"sum\":\t[{\n"
+                               "\t\t\t\t\t\"type\":\t\"bits\",\n"
+                               "\t\t\t\t\t\"freq\":\t0,\n"
+                               "\t\t\t\t\t\"snr\":\t100,\n"
+                               "\t\t\t\t\t\"snr_mode\":\t\"auto\",\n"
+                               "\t\t\t\t\t\"seed\":\t0,\n"
+                               "\t\t\t\t\t\"sps\":\t4,\n"
+                               "\t\t\t\t\t\"pn_length\":\t15,\n"
+                               "\t\t\t\t\t\"pn_poly\":\t0,\n"
+                               "\t\t\t\t\t\"lfsr\":\t\"galois\",\n"
+                               "\t\t\t\t\t\"modulation\":\t\"qpsk\",\n"
+                               "\t\t\t\t\t\"pulse\":\t\"rrc\",\n"
+                               "\t\t\t\t\t\"rrc_beta\":\t0.35,\n"
+                               "\t\t\t\t\t\"rrc_span\":\t8,\n"
+                               "\t\t\t\t\t\"pattern\":\t\"10110010\"\n"
+                               "\t\t\t\t}, {\n"
+                               "\t\t\t\t\t\"type\":\t\"tone\",\n"
+                               "\t\t\t\t\t\"freq\":\t0.125,\n"
+                               "\t\t\t\t\t\"snr\":\t100,\n"
+                               "\t\t\t\t\t\"snr_mode\":\t\"auto\",\n"
+                               "\t\t\t\t\t\"seed\":\t0,\n"
+                               "\t\t\t\t\t\"sps\":\t1,\n"
+                               "\t\t\t\t\t\"pn_length\":\t15,\n"
+                               "\t\t\t\t\t\"pn_poly\":\t0,\n"
+                               "\t\t\t\t\t\"lfsr\":\t\"galois\",\n"
+                               "\t\t\t\t\t\"doppler\":\t2.5,\n"
+                               "\t\t\t\t\t\"carrier_hz\":\t2200000000\n"
+                               "\t\t\t\t}]\n"
+                               "\t\t}]\n"
+                               "}";
+    char             *got    = dp_wfm_spec_to_json (segs, 2, 0, 0, 0, 0.0);
+    DP_REQUIRE (got != NULL);
+    DP_CHECK_MSG (strcmp (got, want) == 0,
+                  "a record's bytes: keys in table order, each JSON policy");
+    if (strcmp (got, want) != 0)
+      (void)fprintf (stderr, "got:\n%s\n", got);
+    free (got);
+  }
+
   DP_TEST_END ("test_wfm_compose");
 }

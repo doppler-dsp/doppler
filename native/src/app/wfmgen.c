@@ -951,7 +951,7 @@ find_opt (const char *a, opt_t *out)
   for (size_t k = 0; k < WFM_SURFACE_N; k++)
     {
       const wfm_surface_row_t *r = &WFM_SURFACE[k];
-      if (strcmp (a, r->cli))
+      if (!r->cli || strcmp (a, r->cli)) /* a JSON-only row has no flag */
         continue;
       const size_t base = r->owner == WFM_SURF_SOURCE ? OFF (src) : OFF (seg);
       memset (out, 0, sizeof *out);

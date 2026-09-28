@@ -786,7 +786,12 @@ def ratchet(base: str) -> list[str]:
     # object's tests out of another's) and it is not a removal, so writing it
     # as one both lies in the ignore file and disarms a ratchet that should
     # stay armed.
-    excused: dict[str, tuple[str | None, str]] = {}
+    #
+    # A move may also carry `removes=N` right after the destination: N of the
+    # lost assertions pinned something deleted in the same change, and the
+    # rest moved. It excuses N and no more, so the ratchet stays armed on
+    # both files -- the bare form would switch this file's off for good.
+    excused: dict[str, tuple[str | None, int, str]] = {}
     if IGNORE.exists():
         for line in IGNORE.read_text().splitlines():
             line = line.split("#", 1)[0].strip()
@@ -794,10 +799,15 @@ def ratchet(base: str) -> list[str]:
                 continue
             name, _, rest = line.partition(" ")
             rest = rest.strip()
-            dest = None
+            dest, removed = None, 0
             if rest.startswith("-> "):
                 dest, _, rest = rest[3:].partition(" ")
-            excused[name] = (dest, rest.strip())
+                rest = rest.strip()
+                m = re.match(r"removes=(\d+)\s", rest + " ")
+                if m:
+                    removed = int(m.group(1))
+                    rest = rest[m.end() :]
+            excused[name] = (dest, removed, rest.strip())
 
     listing = subprocess.run(
         ["git", "ls-tree", "-r", "--name-only", base, "native/tests/"],
@@ -844,7 +854,7 @@ def ratchet(base: str) -> list[str]:
                 f"(-{before - after})"
             )
             continue
-        dest, _why = excused[key]
+        dest, removed, _why = excused[key]
         if dest is None:
             continue  # stated, permanent removal
         drel = f"{TESTS.relative_to(ROOT)}/{dest}"
@@ -855,12 +865,13 @@ def ratchet(base: str) -> list[str]:
             )
             continue
         lost_here = before - after
+        moved = lost_here - removed
         gained = count_assertions(dpath.read_text()) - at_base(drel)
-        if gained < lost_here:
+        if gained < moved:
             bad.append(
-                f"{rel}: -{lost_here} assertions, excused as moved to "
-                f"{dest} — but {dest} gained only {gained} since {shown}, "
-                f"so {lost_here - gained} went nowhere"
+                f"{rel}: -{lost_here} assertions ({removed} stated removed), "
+                f"excused as moved to {dest} — but {dest} gained only "
+                f"{gained} since {shown}, so {moved - gained} went nowhere"
             )
     return bad
 

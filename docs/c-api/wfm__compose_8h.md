@@ -54,6 +54,11 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 
 
+## Public Attributes
+
+| Type | Name |
+| ---: | :--- |
+|  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
 
 
 
@@ -99,6 +104,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
+|  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
@@ -320,6 +326,22 @@ The scale a number in dB is quoted on is not a detail a caller can infer, and it
 
 
         
+
+<hr>
+## Public Attributes Documentation
+
+
+
+
+### variable dp\_wfm\_why\_pn\_poly 
+
+_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._
+```C++
+const char dp_wfm_why_pn_poly[];
+```
+
+
+
 
 <hr>
 ## Public Functions Documentation
@@ -1235,6 +1257,57 @@ burst chips, or 0 for a non-dsss source, a CONTINUOUS dsss source (which has no 
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_error 
+
+_NULL when this source can be built; else why not, as a sentence._ 
+```C++
+const char * dp_wfm_source_error (
+    const wfm_source_t * src
+) 
+```
+
+
+
+The question every face asks before it builds  the wfmgen CLI, a scene read by [**dp\_wfm\_compose\_from\_json\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why), the standalone `Synth` through [**dp\_wfm\_source\_to\_synth()**](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) and the composer through [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create)  so all four refuse the same sources for the same reason. It checks the source's own parameters, then asks [**dp\_wfm\_source\_frame\_error()**](wfm__compose_8h.md#function-dp_wfm_source_frame_error) about its frame:
+
+
+
+* `pn_poly` must fit the `pn_length`-bit register ([**pn\_fits\_register()**](pn__core_8h.md#function-pn_fits_register)). The generator masks a wider one, silently, so `pn_poly = 0x40` on a 5-bit register is a register with no feedback: the seed, then zeros, a constant waveform that still looks like a PN source (doppler#1636). 0 selects the maximal-length polynomial and always fits.
+
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+
+
+
+**Returns:**
+
+NULL if there is nothing wrong, else a static message.
+
+
+
+```C++
+wfm_source_t s = { .type = WFM_SYNTH_PN, .sps = 1, .pn_length = 5,
+                   .pn_poly = 0x40 };
+dp_wfm_source_error (&s);   // "pn_poly has a bit above ..."
+s.pn_poly = 0x12;
+dp_wfm_source_error (&s);   // NULL: x^5 + x^2 + 1 fits
+```
+ 
 
 
         

@@ -1335,6 +1335,22 @@ main (void)
       }
   }
 
+  /* The builder refuses a pn_poly with a bit at or above its register
+   * (doppler#1636): dp_pn_create would mask 0x40 on a 5-bit register to no
+   * feedback. Refused here, so every face that builds -- the composer, the
+   * bound synth -- refuses it, whatever it asked first. */
+  for (int type = WFM_SYNTH_PN; type <= WFM_SYNTH_QPSK; type++)
+    {
+      DP_CHECK_MSG (
+          dp_wfm_synth_create (type, 1e6, 0.0, 100.0, 0, 1, 1, 5, 0x40, 0, 0.0)
+              == NULL,
+          "a pn_poly above its register is refused by the builder");
+      dp_wfm_synth_state_t *ok = dp_wfm_synth_create (type, 1e6, 0.0, 100.0, 0,
+                                                      1, 1, 5, 0x12, 0, 0.0);
+      DP_CHECK_MSG (ok != NULL, "...and one inside it is built");
+      dp_wfm_synth_destroy (ok);
+    }
+
   /* the serialization sections above also count via CHECK — fail if any
    * tripped (the early _fails gate only covered the pre-state sections). */
   DP_TEST_END ("test_wfm_synth_core");

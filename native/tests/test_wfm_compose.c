@@ -1930,6 +1930,32 @@ main (void)
                         "a PN length with no m-sequence is refused at create");
       }
 
+    /* A POLY wider than its register is masked by the generator, silently:
+     * 0x40 on a 5-bit register has no tap inside it, so it emits the seed
+     * and then zeros -- a constant waveform that still looks like a PN
+     * source, which `wfmgen --pn-poly 0x40 --pn-length 5` wrote at exit 0
+     * (doppler#1636; the Field twin was #1624). Refused at create, and the
+     * rule every face asks names it. */
+    {
+      wfm_source_t pn = {
+        .type = WFM_SYNTH_PN, .sps = 1, .pn_length = 5, .pn_poly = 0x40
+      };
+      wfm_segment_t gpn
+          = { .sources = &pn, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+      DP_REQUIRE_MSG (dp_wfm_compose_create (&gpn, 1, 0, 0) == NULL,
+                      "a pn_poly wider than pn_length is refused at create");
+      const char *why = dp_wfm_source_error (&pn);
+      DP_CHECK_MSG (why && strstr (why, "pn_poly")
+                        && strstr (why, "pn_length"),
+                    "...and the source rule names pn_poly and pn_length");
+      pn.pn_poly = 0x12; /* x^5 + x^2 + 1: inside the register */
+      DP_CHECK_MSG (dp_wfm_source_error (&pn) == NULL,
+                    "a pn_poly inside its register is not refused");
+      dp_wfm_compose_state_t *ok = dp_wfm_compose_create (&gpn, 1, 0, 0);
+      DP_CHECK_MSG (ok != NULL, "...and composes");
+      dp_wfm_compose_destroy (ok);
+    }
+
     /* Same answer inside a multi-source sum: one source that cannot be built
      * refuses the whole composition rather than summing the others and
      * quietly leaving this one out. */

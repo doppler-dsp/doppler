@@ -129,6 +129,30 @@ pn_mls_poly(uint32_t n)
     }
 }
 
+/**
+ * @brief Non-zero when @p v fits a register of @p n bits: no bit at or above
+ * bit @p n.
+ *
+ * The other half of the convention pn_mls_poly() states. dp_pn_create() and
+ * dp_gold_create() MASK a poly, a tap set or a seed to the register, silently,
+ * so a value with a bit above it is a different register from the one
+ * written: `0x40` on a 5-bit register is no feedback at all, and a seed of 32
+ * is the all-zero register. Every caller that takes these numbers from a
+ * person refuses what this rejects, rather than letting the mask repair it --
+ * the Field grammar (doppler#1624) and a source's `pn_poly` (doppler#1636).
+ *
+ * @code
+ * pn_fits_register (0x12, 5);   // 1: x^5 + x^2 + 1's taps, inside 5 bits
+ * pn_fits_register (0x40, 5);   // 0: bit 6, above the register
+ * pn_fits_register (~0ull, 64); // 1: a 64-bit register holds every value
+ * @endcode
+ */
+JM_FORCEINLINE int
+pn_fits_register(uint64_t v, uint32_t n)
+{
+    return n >= 64u || (v >> n) == 0u;
+}
+
 
 /**
  * @brief Allocate and initialise a maximal-length-sequence LFSR.

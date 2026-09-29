@@ -1426,9 +1426,10 @@ static PyGetSetDef Synth_getset[] = {
     NULL },
   { "pn_poly", (getter)Synth_get_pn_poly, (setter)Synth_set_pn_poly,
     "PN generator polynomial, in the Galois bit-vector convention; 0 selects "
-    "a maximal-length (MLS) polynomial for pn_length. A polynomial above 2^53 "
-    "does not survive a JSON number, so a scene file needs 0 (auto) for such "
-    "a register.\n",
+    "a maximal-length (MLS) polynomial for pn_length. It must fit the "
+    "pn_length-bit register: a bit at or above it is refused, not masked. A "
+    "polynomial above 2^53 does not survive a JSON number, so a scene file "
+    "needs 0 (auto) for such a register.\n",
     NULL },
   { "lfsr", (getter)Synth_get_lfsr, (setter)Synth_set_lfsr,
     "PN LFSR realisation. Both give the same period; fibonacci's chips are "
@@ -2713,9 +2714,10 @@ static PyGetSetDef Segment_getset[] = {
     NULL },
   { "pn_poly", (getter)Segment_flat_pn_poly, NULL,
     "PN generator polynomial, in the Galois bit-vector convention; 0 selects "
-    "a maximal-length (MLS) polynomial for pn_length. A polynomial above 2^53 "
-    "does not survive a JSON number, so a scene file needs 0 (auto) for such "
-    "a register.\n",
+    "a maximal-length (MLS) polynomial for pn_length. It must fit the "
+    "pn_length-bit register: a bit at or above it is refused, not masked. A "
+    "polynomial above 2^53 does not survive a JSON number, so a scene file "
+    "needs 0 (auto) for such a register.\n",
     NULL },
   { "lfsr", (getter)Segment_flat_lfsr, NULL,
     "PN LFSR realisation. Both give the same period; fibonacci's chips are "

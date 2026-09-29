@@ -93,7 +93,9 @@ typedef struct {
                           as 0. */
     uint64_t pn_poly;  /* PN generator polynomial, in the Galois bit-vector
                           convention; 0 selects a maximal-length (MLS)
-                          polynomial for pn_length. A polynomial above 2^53
+                          polynomial for pn_length. It must fit the
+                          pn_length-bit register: a bit at or above it is
+                          refused, not masked. A polynomial above 2^53
                           does not survive a JSON number, so a scene file
                           needs 0 (auto) for such a register. */
     int lfsr;          /* PN LFSR realisation. Both give the same period;
@@ -380,6 +382,10 @@ int dp_wfm_source_has_frame(const wfm_source_t *src);
 size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
 
 const char *dp_wfm_source_frame_error(const wfm_source_t *src);
+
+const char *dp_wfm_source_error(const wfm_source_t *src);
+
+extern const char dp_wfm_why_pn_poly[];
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 

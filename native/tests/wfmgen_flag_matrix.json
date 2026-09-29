@@ -1781,6 +1781,21 @@
     "outputs": {},
     "record": null
   },
+  "err_pn_poly_above_length": {
+    "argv": [
+      "--type",
+      "pn",
+      "--pn-length",
+      "5",
+      "--pn-poly",
+      "0x40",
+      "--count",
+      "32"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_retired_acq_code_gen": {
     "argv": [
       "--type",

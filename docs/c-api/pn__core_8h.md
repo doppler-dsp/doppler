@@ -72,6 +72,7 @@ _PN component API._ [More...](#detailed-description)
 |  void | [**dp\_pn\_reset**](#function-dp_pn_reset) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
 |  int | [**dp\_pn\_set\_state**](#function-dp_pn_set_state) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, const void \* blob) <br>_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
 |  size\_t | [**dp\_pn\_state\_bytes**](#function-dp_pn_state_bytes) (const [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Serialized-state byte size._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**pn\_fits\_register**](#function-pn_fits_register) (uint64\_t v, uint32\_t n) <br>_Non-zero when_ `v` _fits a register of_`n` _bits: no bit at or above bit_`n` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**pn\_mls\_poly**](#function-pn_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**pn\_step**](#function-pn_step) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._  |
 
@@ -391,6 +392,36 @@ size_t dp_pn_state_bytes (
 
 
 
+
+<hr>
+
+
+
+### function pn\_fits\_register 
+
+_Non-zero when_ `v` _fits a register of_`n` _bits: no bit at or above bit_`n` _._
+```C++
+JM_FORCEINLINE int pn_fits_register (
+    uint64_t v,
+    uint32_t n
+) 
+```
+
+
+
+The other half of the convention [**pn\_mls\_poly()**](pn__core_8h.md#function-pn_mls_poly) states. [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create) and [**dp\_gold\_create()**](gold__core_8h.md#function-dp_gold_create) MASK a poly, a tap set or a seed to the register, silently, so a value with a bit above it is a different register from the one written: `0x40` on a 5-bit register is no feedback at all, and a seed of 32 is the all-zero register. Every caller that takes these numbers from a person refuses what this rejects, rather than letting the mask repair it  the Field grammar (doppler#1624) and a source's `pn_poly` (doppler#1636).
+
+
+
+```C++
+pn_fits_register (0x12, 5);   // 1: x^5 + x^2 + 1's taps, inside 5 bits
+pn_fits_register (0x40, 5);   // 0: bit 6, above the register
+pn_fits_register (~0ull, 64); // 1: a 64-bit register holds every value
+```
+ 
+
+
+        
 
 <hr>
 

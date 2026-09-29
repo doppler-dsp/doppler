@@ -33,7 +33,8 @@ import subprocess
 import numpy as np
 import pytest
 
-from doppler.wfm import Composer, FrameDesc, Segment, cli, crc16
+from doppler.wfm import Composer, FrameDesc, Segment, Synth, cli, crc16
+from doppler.wfm.wfm import _SynthEngine
 
 SPS = 4
 FS = 1e6
@@ -528,3 +529,27 @@ def test_the_same_description_composes_once_its_producer_is_named():
     # in the unclaimed form: the CRC stage overwrote them.
     got = (x.real[::SPS] < 0).astype(np.uint8)[: len(PAYLOAD)]
     assert np.array_equal(got, PAYLOAD)
+
+
+# ── a pn_poly wider than its register (doppler#1636) ─────────────────────────
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda poly: Composer(
+            [Segment(type="pn", pn_length=5, pn_poly=poly, num_samples=32)]
+        ).compose(),
+        lambda poly: _SynthEngine("pn", pn_length=5, pn_poly=poly),
+        lambda poly: Synth(type="pn", pn_length=5, pn_poly=poly).steps(32),
+    ],
+    ids=["composer", "synth-engine", "synth"],
+)
+def test_a_pn_poly_above_its_register_is_refused(make):
+    """0x40 has no tap inside a 5-bit register, and the generator masked it
+    to a register with no feedback: the seed, then zeros. Both Python doors
+    refuse it -- the composer, and the synth bound straight to the builder --
+    while the same register's MLS polynomial still builds."""
+    with pytest.raises((ValueError, RuntimeError, MemoryError)):
+        make(0x40)
+    make(0x12)

@@ -323,9 +323,7 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
 
   /* A SEED, POLY or tap is a register's worth of bits. The generators mask
      a wider one, silently -- 32 on a 5-bit register is the all-zero one --
-     so it is refused here instead (doppler#1624). */
-  const uint64_t above = (reg == 64) ? 0 : ~(((uint64_t)1 << reg) - 1u);
-
+     so it is refused here instead (doppler#1624; pn_fits_register). */
   if (s.kind == WFM_SEQ_GOLD)
     {
       uint64_t v[4];
@@ -336,7 +334,7 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
         if (tok_u64 (t[3 + i], &v[i]) != 0)
           return field_refuse (why, "a gold tap or seed is not a number");
       for (size_t i = 0; i < 4; i++)
-        if (v[i] & above)
+        if (!pn_fits_register (v[i], s.reg_bits))
           return field_refuse (why, "a gold tap or seed has a bit above "
                                     "its REG-bit register");
       s.taps_a = v[0];
@@ -366,7 +364,7 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
     return field_refuse (why, "a pn SEED is not a number");
   if (nums > 1 && tok_u64 (t[4], &s.poly) != 0)
     return field_refuse (why, "a pn POLY is not a number");
-  if ((s.seed | s.poly) & above)
+  if (!pn_fits_register (s.seed | s.poly, s.reg_bits))
     return field_refuse (why, "a pn SEED or POLY has a bit above its "
                               "REG-bit register");
   /* No POLY means "the maximal-length one for this register", and a 1-bit

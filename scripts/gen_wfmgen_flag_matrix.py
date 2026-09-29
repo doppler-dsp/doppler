@@ -1067,6 +1067,22 @@ def cases() -> list[tuple[str, list[str]]]:
                 "256",
             ],
         ),
+        # A --pn-poly with a bit above --pn-length's register was masked to
+        # a register with no feedback: a constant waveform, exit 0
+        # (doppler#1636). Refused, exit 2. --count caps it either way.
+        (
+            "err_pn_poly_above_length",
+            [
+                "--type",
+                "pn",
+                "--pn-length",
+                "5",
+                "--pn-poly",
+                "0x40",
+                "--count",
+                "32",
+            ],
+        ),
         # A Field past WFM_FIELD_MAX_BITS is refused at parse, exit 2
         # (doppler#1622). Before, it parsed and the source allocated the
         # caller's length with the abort-on-OOM helper: 2^64-1 aborted

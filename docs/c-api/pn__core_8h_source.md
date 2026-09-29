@@ -102,6 +102,12 @@ pn_mls_poly(uint32_t n)
     }
 }
 
+JM_FORCEINLINE int
+pn_fits_register(uint64_t v, uint32_t n)
+{
+    return n >= 64u || (v >> n) == 0u;
+}
+
 
 dp_pn_state_t *dp_pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 

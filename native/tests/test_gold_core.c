@@ -345,5 +345,19 @@ main (void)
   }
   dp_gold_destroy (NULL); /* documented no-op; a crash here is the test */
 
+  /* Each register's fixed point is its MASKED seed's (doppler#1640): a seed
+   * that is a non-zero multiple of 2^length empties that register, and the
+   * "Gold code" is then the other register alone. Refused, for either seed;
+   * a wide seed that masks to non-zero still builds. */
+  DP_CHECK_MSG (dp_gold_create (0x3A6, 1024, 0x237, 0x49, 10) == NULL,
+                "seed_a masking to zero is refused");
+  DP_CHECK_MSG (dp_gold_create (0x3A6, 0x15E, 0x237, 2048, 10) == NULL,
+                "seed_b masking to zero is refused");
+  {
+    dp_gold_state_t *w = dp_gold_create (0x3A6, 1025, 0x237, 0x49, 10);
+    DP_CHECK_MSG (w != NULL, "a wide seed that masks to 1 builds");
+    dp_gold_destroy (w);
+  }
+
   DP_TEST_END ("test_gold_core");
 }

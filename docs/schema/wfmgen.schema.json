@@ -159,7 +159,7 @@
           "type": "integer",
           "minimum": 0,
           "default": 0,
-          "description": "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it for run-to-run change."
+          "description": "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it for run-to-run change. For a PN-sourced type it fills the pn_length-bit register, so a multiple of 2^pn_length (an empty register) is refused."
         },
         "sps": {
           "type": "integer",

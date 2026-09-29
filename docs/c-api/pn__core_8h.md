@@ -74,6 +74,7 @@ _PN component API._ [More...](#detailed-description)
 |  size\_t | [**dp\_pn\_state\_bytes**](#function-dp_pn_state_bytes) (const [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**pn\_fits\_register**](#function-pn_fits_register) (uint64\_t v, uint32\_t n) <br>_Non-zero when_ `v` _fits a register of_`n` _bits: no bit at or above bit_`n` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**pn\_mls\_poly**](#function-pn_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**pn\_register\_mask**](#function-pn_register_mask) (uint32\_t n) <br>_The bits of an_ `n-bit` _register: what_[_**dp\_pn\_create()**_](pn__core_8h.md#function-dp_pn_create) _and_[_**dp\_gold\_create()**_](gold__core_8h.md#function-dp_gold_create) _keep of a seed, a poly or a tap set. All ones at 64._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**pn\_step**](#function-pn_step) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._  |
 
 
@@ -173,7 +174,7 @@ dp_pn_state_t * dp_pn_create (
 
 
 * `poly` Galois feedback tap polynomial (right-shift convention). The LSB is the tap at position 0 (always 1 for a primitive poly); bit k=1 means tap at position k. Default 96 (0x60) is primitive for length=7, giving period 127. The Fibonacci taps are derived automatically so you only supply one value. 
-* `seed` Initial LFSR register state; must be non-zero (the all-zero state is a fixed point). Default 1. 
+* `seed` Initial LFSR register state; must be non-zero WITHIN the register, `seed & pn_register_mask (length)`  the all-zero state is a fixed point, and a seed that masks to it (128 on 7 bits) is refused like 0. Default 1. 
 * `length` Register width in bits, 1..64. The sequence period is 2^length - 1 for a primitive polynomial. Default 7. 
 * `lfsr` Realization: PN\_GALOIS (0, default) or PN\_FIBONACCI (1). 
 
@@ -445,6 +446,26 @@ The table lives here because the convention is pn's: `poly` is [**dp\_pn\_create
 
 
 Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged. 
+
+
+        
+
+<hr>
+
+
+
+### function pn\_register\_mask 
+
+_The bits of an_ `n-bit` _register: what_[_**dp\_pn\_create()**_](pn__core_8h.md#function-dp_pn_create) _and_[_**dp\_gold\_create()**_](gold__core_8h.md#function-dp_gold_create) _keep of a seed, a poly or a tap set. All ones at 64._
+```C++
+JM_FORCEINLINE uint64_t pn_register_mask (
+    uint32_t n
+) 
+```
+
+
+
+A seed is refused when `(seed & pn_register_mask (n)) == 0`, not when `seed == 0`: 128 on a 7-bit register is non-zero and masks to the all-zero register, the fixed point the rule exists to keep out (doppler#1640). A wide seed that masks to non-zero  129 to 1  is fine, and documented. 
 
 
         

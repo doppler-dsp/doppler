@@ -1083,6 +1083,21 @@ def cases() -> list[tuple[str, list[str]]]:
                 "32",
             ],
         ),
+        # A --seed that is a multiple of 2^--pn-length emptied the register:
+        # a constant waveform, exit 0 (doppler#1640). Refused, exit 2.
+        (
+            "err_seed_empties_the_register",
+            [
+                "--type",
+                "pn",
+                "--pn-length",
+                "7",
+                "--seed",
+                "128",
+                "--count",
+                "32",
+            ],
+        ),
         # A Field past WFM_FIELD_MAX_BITS is refused at parse, exit 2
         # (doppler#1622). Before, it parsed and the source allocated the
         # caller's length with the abort-on-OOM helper: 2^64-1 aborted

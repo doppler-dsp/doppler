@@ -148,9 +148,9 @@ dp_gold_state_t * dp_gold_create (
 
 
 * `taps_a` Register A feedback-tap mask; bit k set means stage k+1 is XORed into the feedback. Default 934 (stages 2,3,6,8,9,10 — the CCSDS-fixed Register A polynomial x^10+x^9+x^8+x^6+x^3+x^2+1). 
-* `seed_a` Register A initial value; must be non-zero. Per CCSDS this is "User dependent" — each of the 2^length-1 nonzero values selects a different member of the family (1023 distinct codes at length=10, verified in test\_gold\_core.c). Default 350 is the worked example from CCSDS 415.0-G-1 Figure 5-2 (PN Code Library Table 1, Code Number 365). 
+* `seed_a` Register A initial value; must be non-zero within the register (`seed_a & pn_register_mask (length)`: a multiple of 2^length is refused like 0). Per CCSDS this is "User dependent" — each of the 2^length-1 nonzero values selects a different member of the family (1023 distinct codes at length=10, verified in test\_gold\_core.c). Default 350 is the worked example from CCSDS 415.0-G-1 Figure 5-2 (PN Code Library Table 1, Code Number 365). 
 * `taps_b` Register B feedback-tap mask, same bit convention as `taps_a`. Default 567 (stages 1,2,3,5,6,10 — the CCSDS-fixed Register B polynomial). 
-* `seed_b` Register B initial value; must be non-zero. Default 73 (stages 1,4,7 — CCSDS's fixed Register B initial value 1001001000, unique per the standard, not user-selectable). 
+* `seed_b` Register B initial value; must be non-zero within the register, as `seed_a`. Default 73 (stages 1,4,7 — CCSDS's fixed Register B initial value 1001001000, unique per the standard, not user-selectable). 
 * `length` Register width in bits, 1..64. CCSDS command link uses 10 (period 1023). Default 10. 
 
 

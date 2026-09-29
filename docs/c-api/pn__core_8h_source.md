@@ -108,6 +108,12 @@ pn_fits_register(uint64_t v, uint32_t n)
     return n >= 64u || (v >> n) == 0u;
 }
 
+JM_FORCEINLINE uint64_t
+pn_register_mask(uint32_t n)
+{
+    return n >= 64u ? ~(uint64_t)0 : (((uint64_t)1 << n) - 1u);
+}
+
 
 dp_pn_state_t *dp_pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 

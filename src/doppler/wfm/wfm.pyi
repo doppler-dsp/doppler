@@ -80,8 +80,10 @@ class PN:
         127. The Fibonacci taps are derived automatically so you only supply
         one value.
     seed : int, default 0
-        Initial LFSR register state; must be non-zero (the all-zero state is a
-        fixed point). Default 1.
+        Initial LFSR register state; must be non-zero WITHIN the register,
+        `seed & pn_register_mask (length)` -- the all-zero state is a fixed
+        point, and a seed that masks to it (128 on 7 bits) is refused like 0.
+        Default 1.
     length : int, default 0
         Register width in bits, 1..64. The sequence period is 2^length - 1 for
         a primitive polynomial. Default 7.
@@ -682,19 +684,21 @@ class Gold:
         the feedback. Default 934 (stages 2,3,6,8,9,10 — the CCSDS-fixed
         Register A polynomial x^10+x^9+x^8+x^6+x^3+x^2+1).
     seed_a : int, default 350
-        Register A initial value; must be non-zero. Per CCSDS this is "User
-        dependent" — each of the 2^length-1 nonzero values selects a different
-        member of the family (1023 distinct codes at length=10, verified in
-        test_gold_core.c). Default 350 is the worked example from CCSDS
-        415.0-G-1 Figure 5-2 (PN Code Library Table 1, Code Number 365).
+        Register A initial value; must be non-zero within the register (`seed_a
+        & pn_register_mask (length)`: a multiple of 2^length is refused like
+        0). Per CCSDS this is "User dependent" — each of the 2^length-1 nonzero
+        values selects a different member of the family (1023 distinct codes at
+        length=10, verified in test_gold_core.c). Default 350 is the worked
+        example from CCSDS 415.0-G-1 Figure 5-2 (PN Code Library Table 1, Code
+        Number 365).
     taps_b : int, default 567
         Register B feedback-tap mask, same bit convention as ``taps_a``.
         Default 567 (stages 1,2,3,5,6,10 — the CCSDS-fixed Register B
         polynomial).
     seed_b : int, default 73
-        Register B initial value; must be non-zero. Default 73 (stages 1,4,7 —
-        CCSDS's fixed Register B initial value 1001001000, unique per the
-        standard, not user-selectable).
+        Register B initial value; must be non-zero within the register, as
+        seed_a. Default 73 (stages 1,4,7 — CCSDS's fixed Register B initial
+        value 1001001000, unique per the standard, not user-selectable).
     length : int, default 10
         Register width in bits, 1..64. CCSDS command link uses 10 (period
         1023). Default 10.

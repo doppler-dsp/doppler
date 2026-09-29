@@ -53,6 +53,7 @@
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_pn\_poly** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_why\_seed** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **DATA\_SRC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **DOPPLER\_LIFETIME\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **dp\_wfm\_reader\_state\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))

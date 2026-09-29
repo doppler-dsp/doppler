@@ -1563,6 +1563,9 @@ check_source (const wfmgen_opts_t *o)
   if (why == dp_wfm_why_pn_poly)
     (void)fprintf (stderr, "error: --pn-poly 0x%llx, --pn-length %d: %s\n",
                    (unsigned long long)o->src.pn_poly, o->src.pn_length, why);
+  else if (why == dp_wfm_why_seed)
+    (void)fprintf (stderr, "error: --seed %u, --pn-length %d: %s\n",
+                   (unsigned)o->src.seed, o->src.pn_length, why);
   else
     (void)fprintf (stderr, "error: %s\n", why);
   return 2;

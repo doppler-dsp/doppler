@@ -135,6 +135,14 @@ typedef struct
    allowed so that an eighth is SEEN and refused, rather than truncated. */
 #define FIELD_MAX_TOKENS 8u
 
+/* A macro's value as text, so a refusal names the number it enforces. */
+#define FIELD_STR_(x) #x
+#define FIELD_STR(x) FIELD_STR_ (x)
+
+static const char FIELD_TOO_LONG[]
+    = "LEN * REPS is past the Field bound "
+      "of " FIELD_STR (WFM_FIELD_MAX_BITS) " bits";
+
 static int
 field_refuse (const char **why, const char *msg)
 {
@@ -389,10 +397,13 @@ dp_wfm_field_parse (const char *spec, wfm_field_t *field, uint8_t **owned,
   if (rc != DP_OK)
     return rc;
 
-  if (reps > SIZE_MAX / q.len)
+  /* LEN and REPS are each at most WFM_FIELD_MAX_BITS here, so the product
+     is computed in 64 bits without wrapping. */
+  if (q.len > WFM_FIELD_MAX_BITS || reps > WFM_FIELD_MAX_BITS
+      || (uint64_t)q.len * reps > WFM_FIELD_MAX_BITS)
     {
       free (mine);
-      return field_refuse (why, "LEN * REPS is too many bits");
+      return field_refuse (why, FIELD_TOO_LONG);
     }
 
   memset (field, 0, sizeof *field);

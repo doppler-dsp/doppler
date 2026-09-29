@@ -186,7 +186,9 @@ LFSR   := "galois" | "fibonacci"                   default galois
 Numbers take decimal or `0x` hex, and a token must be consumed whole. `LEN`
 is the **output** length — `0` only as a data source, where it means *unbounded* (§F.5) — and `REG` the register width, `1..64`; they are named
 apart for the reason [the field kinds](#1-fields-where-a-run-of-bits-comes-from)
-give. A `0`/`1` string with any other character in it is refused, never
+give. `LEN * REPS` is at most `WFM_FIELD_MAX_BITS`
+([the limits](#the-limits-as-numbers)), and a longer Field is refused naming
+that number. A `0`/`1` string with any other character in it is refused, never
 filtered — a typo that quietly shortens a sync word is the failure this
 closes.
 
@@ -555,17 +557,30 @@ assembles, still decodes against itself, and syncs to nothing.
 
 ## The limits, as numbers
 
-| limit                  | value | what it bounds                 |
-| ---------------------- | ----- | ------------------------------ |
-| `WFM_FRAME_MAX_FIELDS` | 16    | fields per description         |
-| `WFM_FRAME_MAX_STAGES` | 8     | stages per description         |
-| `WFM_FRAME_CRC_BITS`   | 16    | the only CRC width             |
-| `WFM_FRAME_NAME_MAX`   | 16    | field-name bytes, NUL included |
+| limit                  | value  | what it bounds                  |
+| ---------------------- | ------ | ------------------------------- |
+| `WFM_FRAME_MAX_FIELDS` | 16     | fields per description          |
+| `WFM_FRAME_MAX_STAGES` | 8      | stages per description          |
+| `WFM_FRAME_CRC_BITS`   | 16     | the only CRC width              |
+| `WFM_FRAME_NAME_MAX`   | 16     | field-name bytes, NUL included  |
+| `WFM_FIELD_MAX_BITS`   | 261120 | bits in one Field, `LEN * REPS` |
 
 The field and stage bounds were raised against a measurement rather than a
 feeling: the deepest description doppler builds is six fields and five stages,
 and the descriptor is a POD carried by value, so the cost is bytes on a stack
-frame. Two further limits are structural rather than numeric: a cover is
+frame.
+
+The Field bound is derived from the stages, not picked. The longest frame a
+shipped stage accepts is the Reed-Solomon codeblock at its deepest
+interleaving: 255 symbols × 8 bits × depth 8 = **16320 bits**. The margin is
+**16**, the smallest power of two that still admits a Field one whole period
+of the default CCSDS randomiser long (131071 bits; a margin of 8 gives 130560,
+511 short). A Field is a finite run of a frame, so anything longer is a
+stream, which is the data source's job (§F.5). The bound is what lets the
+parser refuse a huge `LEN` before anything allocates the caller's number
+([#1622](https://github.com/doppler-dsp/doppler/issues/1622)), and
+`ccsds_tm/desc.c` re-derives it from the R-S constants at compile time, so a
+deeper codeblock fails the build instead of outgrowing it. Two further limits are structural rather than numeric: a cover is
 **contiguous**, and a stage derives **at most one** field.
 
 ______________________________________________________________________

@@ -305,6 +305,10 @@ static const char *const EDGES[] = {
   "dotted:5*1",
   "1*1",
   "pn:12:1",
+  "pn:31:5:32",
+  "pn:261120:18",
+  "pn:261121:18",
+  "0x1*65281",
 };
 
 int

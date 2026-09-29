@@ -254,11 +254,12 @@ round trips, 0 findings — which is the check that the committed harness is
 the recorded one. Two later refusals move the count, each by a measured
 amount, each measured against §F.6's parser with that one change:
 
-| parser                                  | round trips | why it moved                                                                              |
-| --------------------------------------- | ----------- | ----------------------------------------------------------------------------------------- |
-| §F.6's                                  | 259,037     | —                                                                                         |
-| §F.6's + the Field length bound (#1622) | 258,789     | 248 mutations push `LEN * REPS` past 261120 (a digit inserted into a LEN) and are refused |
-| §F.6's + SEED/POLY within REG (#1624)   | 257,563     | the generator reduces each drawn seed into its register; its draws are unchanged          |
+| parser                                   | round trips | why it moved                                                                                          |
+| ---------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| §F.6's                                   | 259,037     | —                                                                                                     |
+| §F.6's + the Field length bound (#1622)  | 258,789     | 248 mutations push `LEN * REPS` past 261120 (a digit inserted into a LEN) and are refused             |
+| §F.6's + SEED/POLY within REG (#1624)    | 257,563     | the generator reduces each drawn seed into its register; its draws are unchanged                      |
+| both, and the four bound/REG edges added | 257,316     | measured on main after #1625; the one new acceptance is the `pn:261120:18` edge, exactly at the bound |
 
 **#1624 was found by the claim inventory, not the corpus.** Every text the
 corpus generated had a seed inside its register or failed to parse for

@@ -164,6 +164,7 @@ CLI_REFUSALS = [
     ("pn:31:5:32", "REG"),  # #1624: a SEED wider than its register
     ("01a1", "0 or 1"),  # a typo in a literal is refused, not filtered
     ("data:1024", "data source"),  # named, not a typo
+    ("pn:4000000000:5", "261120"),  # #1622: past the Field bound, named
 ]
 
 
@@ -316,9 +317,9 @@ def build(write: bool = True) -> Report:
         [
             [
                 "`dp_wfm_field_*`",
-                "69",
-                "51 / 11 / 7",
-                "69 pinned (round trip and canonical form by the corpus, "
+                "70",
+                "52 / 11 / 7",
+                "70 pinned (round trip and canonical form by the corpus, "
                 "§2.3; literal storage by LSan under `make test-asan`)",
             ],
             [
@@ -660,10 +661,10 @@ def build(write: bool = True) -> Report:
             "habit is still worth keeping: check that "
             "`-k 'validation_limits and <obj>'` collects something before "
             "believing a green run.",
-            "**The Field grammar is certified header-first** (§1): 109 "
+            "**The Field grammar is certified header-first** (§1): 110 "
             "prose claims across the parser, the fixed frame, the JSON "
             "frame reader and `bytes_to_bin`, 19 of them held by nobody "
-            "before this pass and 107 pinned now. The inventory found a "
+            "before this pass and 108 pinned now. The inventory found a "
             "silent-mask defect in the grammar (F6, #1624), a refusal with "
             "no reason (F7) and a header sentence about a case that cannot "
             "happen (F8).",

@@ -500,7 +500,7 @@ f = Frame(sync=sync, payload=payload, crc="crc16")   # no preamble: omitted
 # payload bit knocked over. On a real record these come from a demodulator.
 clean = f.bits()
 damaged = clean.copy()
-damaged[f.layout().payload_off] ^= 1
+damaged[f.field_off(f.field_index("payload"))] ^= 1
 captured_frames = [clean, clean, damaged, clean, damaged]
 
 m = FrameMeter(target_errors=2)
@@ -513,12 +513,12 @@ assert m.errors == 2 and m.crc_passed == 3
 print(m.fer().lo)                      # assert on `lo`, never on `p_hat`
 ```
 
-`layout()` returns a `FrameLayout` record with fields `preamble_off`,
-`preamble_bits`, `sync_off`, `sync_bits`, `payload_off`, `payload_bits`,
-`crc_off`, `crc_bits` and `total_bits` — all in bits from the start of the
-frame. `crc_bits` is 16, or **0 when the payload is empty**: a CRC over nothing
-protects nothing, so it is dropped rather than carried as a trailer over no
-data.
+A frame is read by field NAME: `field_index("payload")` finds the field, and
+`field_off(i)` / `field_bits(i)` give where it sits and how long it is, in
+bits from the start of the frame. A `Frame` holds only the fields it was
+given, so an omitted preamble takes no index. The CRC field is 16 bits, or
+**0 when the payload is empty**: a CRC over nothing protects nothing, so it is
+dropped rather than carried as a trailer over no data.
 
 ::: doppler.wfm.Frame
 

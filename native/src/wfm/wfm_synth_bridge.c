@@ -25,36 +25,43 @@
 int
 dp_wfm_source_has_frame (const wfm_source_t *src)
 {
-  /* Preamble or sync word — never `crc`; see the header on why. Any coding
-     stage frames it too, and a CADU is why: [ASM | codeblock] carries neither
-     a preamble nor a sync word, so a source coded but unframed would take the
-     plain set_bits path and emit the payload with no coding at all. `crc`
-     stays excluded for the reason it always was — it DEFAULTS to crc16, so it
-     alone says nothing about the caller's intent, while every flag below is
-     off unless asked for.
+  /* A carried description, a preamble or a sync word -- never `crc`; see
+     the header on why. A coded frame is always a carried description (a
+     CADU's [ASM | codeblock] has neither a preamble nor a sync word), so
+     the description is what frames it.
 
-     Tested on LENGTH, never on the pointer -- the same rule the descriptor
-     builder below states. A GENERATED sequence (PN, Gold) has no array at
-     all, so a pointer test would read a PN sync as unframed and quietly emit
-     the payload unframed; and for a LITERAL, a length with no array is an
-     unbuildable descriptor that must REACH `dp_wfm_frame_assemble` to be
-     refused there rather than be silently dropped here. */
-  /* A carried description is the frame, whatever the flat fields say --
-     they are sugar for building one, so a source that already has one does
-     not need them consulted. */
+     Tested on LENGTH, never on the pointer -- the same rule
+     dp_wfm_frame_fixed states. A GENERATED sequence (PN, Gold) has no array
+     at all, so a pointer test would read a PN sync as unframed and quietly
+     emit the payload unframed; and for a LITERAL, a length with no array is
+     an unbuildable description that must REACH `dp_wfm_frame_assemble` to
+     be refused there rather than be silently dropped here. */
   return src
          && (src->frame != NULL || (src->acq_code.len && src->acq_reps)
-             || src->sync.len || src->attach_asm || src->rs_depth
-             || src->interleave_depth || src->randomise || src->convolutional);
+             || src->sync.len);
 }
 
 static int type_can_frame (const wfm_source_t *src);
+static int source_frame (const wfm_source_t *src, wfm_frame_desc_t *d);
 
 const char *
 dp_wfm_source_frame_error (const wfm_source_t *src)
 {
   if (!dp_wfm_source_has_frame (src))
     return NULL;
+  /* One frame, said one way (docs/design/frame-description.md R). A carried
+     description IS the frame, so a sync word or an unspread preamble beside
+     it is a second spelling of part of it -- and one that would be silently
+     dropped, because the description wins. A DSSS preamble is not a frame
+     field (it is sent unspread, outside the description), so it may sit
+     beside one. */
+  if (src->frame
+      && (src->sync.len
+          || (src->type != WFM_SYNTH_DSSS && src->acq_code.len
+              && src->acq_reps)))
+    return "a carried frame (--frame FILE, or a scene's \"frame\") is the "
+           "whole frame: put the sync word and the preamble in it as fields, "
+           "or drop it and use --acq-code/--sync/--crc for the common frame";
   if (src->type == WFM_SYNTH_DSSS)
     {
       /* A CONTINUOUS dsss stream has no frame at all; the CLI and the
@@ -65,106 +72,38 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
       /* A burst SPREADS its frame, so frame bits without a code are not a
          geometry this can build. It used to leave a zero-length capture and
          exit 0 -- a refusal nobody was told about. */
-      if ((src->sync.len || src->payload.len) && src->data_code.len == 0)
+      if ((src->frame || src->sync.len || src->payload.len)
+          && src->data_code.len == 0)
         return "a DSSS burst spreads its frame: --data-code is required "
                "whenever there are frame bits (--sync/--bits) to spread";
     }
   else if (!type_can_frame (src))
-    return "--acq-code/--sync frame a waveform, and this type carries no bit "
-           "stream to frame: use --type bits/bpsk/qpsk/pn, or --type dsss to "
-           "spread it";
+    return "--acq-code/--sync/--frame frame a waveform, and this type "
+           "carries no bit stream to frame: use --type bits/bpsk/qpsk/pn, or "
+           "--type dsss to spread it";
   /* LENGTH, not the pointer: a generated payload has no array. #755 refused
      the PN-sourced types outright here because their data is endless and
      nothing bounded it; a generated payload Field is that bound, so the
      question is the one BITS always answered -- is there a payload at all
      (gh-762). */
-  else if (src->payload.len == 0)
+  else if (!src->frame && src->payload.len == 0)
     return "a frame needs a payload: --bits <FIELD> (literal bits, or "
            "generated, e.g. --bits pn:1024:<pn-length> over the waveform's "
            "own register) or --bits-file";
 
-  /* The stage rules below reach a DSSS burst too, now that its frame is the
-     same description every other source's is (doppler#1017). Before that they
-     were unreachable for it in the worst way: the flags parsed, the stage was
-     dropped, and the waveform came out looking fine. */
-
-  /* 4.3.5.1's depths, checked here so a caller learns it from the flag rather
-     than from a kernel refusing mid-assembly. */
-  if (src->rs_depth != 0 && src->rs_depth != 1 && src->rs_depth != 2
-      && src->rs_depth != 3 && src->rs_depth != 4 && src->rs_depth != 5
-      && src->rs_depth != 8)
-    return "--rs-depth must be 1, 2, 3, 4, 5 or 8 (CCSDS 131.0-B-3 4.3.5.1)";
-
-  /* 4.4.1: a codeblock is a whole number of codewords, so the data the outer
-     code is given — the payload plus any CRC trailer — must be exactly
-     223*depth octets. Virtual fill is not implemented (gh-813), so anything
-     else is refused rather than padded: padding produces a codeblock that
-     encodes and decodes perfectly here and is the wrong length for the
-     receiver it was aimed at. */
-  if (src->rs_depth != 0)
-    {
-      const size_t data
-          = src->payload.len + (src->crc ? WFM_FRAME_CRC_BITS : 0u);
-      const size_t want = (size_t)CCSDS_TM_RS_K * src->rs_depth * 8u;
-      if (data != want)
-        return "--rs-depth needs the payload (plus its CRC, if any) to be "
-               "exactly 223*depth octets — virtual fill is not implemented, "
-               "so a short frame is refused rather than padded";
-    }
-
-  /* The interleaver's geometry, checked at the FLAG for the same reason the
-     outer code's is: the kernel would refuse mid-assembly, and a caller who
-     asked for a permutation the span cannot hold would get a zero-length
-     record and no sentence saying why. Measured on this exact case -- an
-     80-bit data group with `--interleave 8 --interleave-unit 8` -- which
-     produced an empty file and nothing on stderr.
-
-     The COLUMN count follows from the span, so what has to divide is
-     `depth * unit` into the data group. */
-  if (src->interleave_depth != 0)
-    {
-      const size_t unit
-          = src->interleave_unit_bits ? src->interleave_unit_bits : 1u;
-      /* The data group is payload + CRC + the OUTER CODE'S CHECK SYMBOLS,
-         which is what `dp_wfm_source_describe_frame` below gives the
-         interleave stage to cover, and is the only span that makes the
-         transform mean anything: an interleaver exists to spread a burst
-         across codewords, so leaving the parity contiguous would defeat the
-         point.
-
-         This guard omitted the parity, so it validated a DIFFERENT span
-         from the one the stage permutes. With --rs-depth 1 the check ran
-         against 1784 bits while the stage covered 2040, which refused the
-         canonical CCSDS arrangement -- 223 octets under RS(255,223),
-         interleaved 5 deep at unit 8 -- even though 2040 divides by 40
-         exactly. `bits_interleave_octets_with_outer_code` had that refusal
-         pinned in the flag-matrix golden as though it were correct. */
-      const size_t parity
-          = src->rs_depth ? (size_t)CCSDS_TM_RS_2E * (size_t)src->rs_depth * 8u
-                          : 0u;
-      const size_t data
-          = src->payload.len + (src->crc ? WFM_FRAME_CRC_BITS : 0u) + parity;
-      const size_t cell = (size_t)src->interleave_depth * unit;
-      if (cell == 0 || data == 0 || data % cell != 0)
-        return "--interleave needs the data group (payload, its CRC if any, "
-               "and the outer code's check symbols) to be a whole number of "
-               "depth x unit units — the column count follows from the span, "
-               "so a remainder has nowhere to go and is refused rather than "
-               "padded";
-    }
-
   /* Last, and deliberately last: does the description this source resolves to
      actually lay out? Every check above is about ONE flag's value, so it can
      name the flag. This one asks the geometry itself, which is the only way a
-     CARRIED description gets checked at all -- the flat fields it would
-     otherwise be derived from are not consulted when `src->frame` is set.
+     CARRIED description gets checked at all -- a coding stage's own rules
+     (an outer code's 223*I octets, an interleaver's whole number of units)
+     are this layout's and its kernels', not a flag's.
      doppler#1155: a derived field naming no producing stage laid out at zero
      length and generated an empty capture, exit 0 and nothing on stderr,
      which is the refusal-nobody-was-told-about shape --data-code already had
      to be dragged out of. */
   wfm_frame_desc_t        desc;
   wfm_frame_desc_layout_t lay;
-  if (dp_wfm_source_describe_frame (src, &desc) != 0
+  if (source_frame (src, &desc) != 0
       || dp_wfm_frame_desc_layout (&desc, &lay) != 0)
     return "this frame description does not lay out: a field that declares a "
            "length but supplies no bits is DERIVED and must name the stage "
@@ -172,186 +111,61 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
            "derived field must be the last field its stage covers, and an "
            "emitting stage must be the only one and must cover the whole "
            "frame";
+
+  /* And does it ASSEMBLE? A layout is geometry; each stage's kernel has
+     rules of its own that only running it can ask -- an outer code takes
+     exactly 223*I octets (virtual fill is not implemented, gh-813), an
+     interleaver a whole number of depth x unit units, a field's generator a
+     register it can build. A kernel that refuses mid-assembly used to leave
+     a zero-length capture, exit 0 and nothing on stderr (measured: an
+     80-bit group under an 8 x 8 interleaver). The flags that once guarded
+     each rule by name are gone; this one question guards every kernel,
+     including a caller's own through the same table. A frame with no bits
+     -- a DSSS burst that is preamble only -- has nothing to assemble. */
+  if (lay.out_bits > 0)
+    {
+      wfm_frame_ops_t ops;
+      dp_ccsds_tm_frame_ops (&ops, NULL);
+      uint8_t     *scratch = dp_xmalloc (lay.out_bits);
+      const size_t got
+          = dp_wfm_frame_assemble (&desc, &ops, scratch, lay.out_bits);
+      free (scratch);
+      if (got != lay.out_bits)
+        return "this frame does not assemble: a stage's kernel refused its "
+               "span -- an rs stage needs exactly 223*depth octets to cover "
+               "(virtual fill is not implemented), an interleave stage a "
+               "whole number of depth x unit_bits units, and a generated "
+               "field a register it can build";
+    }
   return NULL;
 }
 
-/* The source's frame as a DESCRIPTION — an ADAPTER, not a second layout.
+/* The source's frame as a DESCRIPTION: the carried one, else the common
+ * frame `dp_wfm_frame_fixed` builds from the four fields.
  *
- * Which stage covers what is 131.0-B-6's rule, generalised past the CADU:
+ * One decision here is this face's own: the preamble is a field for an
+ * unspread source and is NOT one for a spread burst. That is a physical fact
+ * rather than an inconsistency: a DSSS preamble is transmitted unmodulated
+ * and UNSPREAD, because it is the coherent pull-in target a receiver
+ * correlates raw chips against. It is therefore outside anything a stage
+ * could cover, and `dp_wfm_dsss_desc_chips` prepends it around the
+ * description rather than inside it.
  *
- *     marker / preamble / sync   found, not decoded -- covered by the inner
- *                                code alone, because all three must look
- *                                the same in every frame to be findable
- *     payload / crc / parity     the data group -- what the outer code, the
- *                                randomiser and the interleaver reach over
- *     everything                 the inner code
- *
- * The middle row is 10.3.4 generalised: the randomiser does not cover the
- * ASM, and the standard's reason -- a marker a receiver correlates against
- * must not vary between frames -- is exactly as true of a preamble and a
- * sync word. `wfm/wfm_frame.h` deliberately knows nothing about any of
- * this; test_wfm_compose checks the result against the kernels applied by
- * hand.
- *
- * One decision here is this face's own: the DSSS preamble is a field for an
- * unspread source and is NOT one for a spread burst.
- *
- * That is a physical fact rather than an inconsistency: a DSSS preamble is
- * transmitted unmodulated and UNSPREAD, because it is the coherent pull-in
- * target a receiver correlates raw chips against. It is therefore outside
- * anything a stage could cover, and `dp_wfm_dsss_desc_chips` prepends it
- * around the description rather than inside it.
- */
-int
-dp_wfm_source_describe_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
+ * A carried description is copied rather than aliased so the caller may
+ * reuse or free their own; the SEQUENCES it points at stay borrowed, on the
+ * same terms as everywhere else here. */
+static int
+source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 {
-  if (!src || !d)
-    return -1;
-
-  /* A caller-supplied description IS the frame. Copied rather than aliased
-     so the caller may reuse or free their own; the SEQUENCES it points at
-     are still borrowed, on the same terms as everywhere else here. */
   if (src->frame)
     {
       *d = *src->frame;
       return 0;
     }
-
   const int spread = (src->type == WFM_SYNTH_DSSS);
-  memset (d, 0, sizeof *d);
-
-  /* Built by NAME, through the general builder, rather than by filling a
-     CCSDS-shaped spec struct and asking ccsds_tm to translate it. That
-     struct was the one frame description every doppler face reached, which
-     made a standard's vocabulary the vocabulary -- a frame doppler had
-     never seen had to be spelled in CCSDS's slots or not at all.
-     `ccsds_tm` still owns the KERNELS (dp_ccsds_tm_frame_ops) and the marker's
-     expansion, which is the direction that was always right. */
-
-  wfm_seq_t   seq;
-  const char *first = NULL; /* the inner code covers from here */
-
-  /* The marker's bits come from the ONE function that expands them, never a
-     second transcription. Static because the description points at it and
-     must outlive this call; the same 32 bits in every frame. */
-  static uint8_t marker[CCSDS_TM_ASM_BITS];
-  if (src->attach_asm)
-    {
-      dp_ccsds_tm_asm_bits (marker);
-      memset (&seq, 0, sizeof seq);
-      seq.kind = WFM_SEQ_LITERAL;
-      seq.bits = marker;
-      seq.len  = CCSDS_TM_ASM_BITS;
-      if (dp_wfm_frame_add_field (d, "asm", &seq, 0u) < 0)
-        return -1;
-      first = "asm";
-    }
-
-  /* A field is included on its LENGTH, never on its pointer being non-NULL:
-     a length with no array is an unbuildable descriptor, and it has to reach
-     `dp_wfm_frame_assemble` to be refused there. Dropping the field instead
-     would assemble a frame quietly missing it.
-
-     A DSSS preamble is transmitted unmodulated and UNSPREAD -- it is the
-     coherent pull-in target a receiver correlates raw chips against -- so it
-     is outside anything a stage could cover, and `dp_wfm_dsss_desc_chips`
-     prepends it around the description rather than inside it. */
-  if (!spread && src->acq_code.len && src->acq_reps)
-    {
-      /* The caller's sequence, PASSED THROUGH rather than rebuilt as a
-         literal. A copy that set `kind = WFM_SEQ_LITERAL` discarded every
-         generated kind before the descriptor could see it, which is what
-         made PN and Gold unreachable from any face (gh-762). */
-      if (dp_wfm_frame_add_field (d, "preamble", &src->acq_code, src->acq_reps)
-          < 0)
-        return -1;
-      if (!first)
-        first = "preamble";
-    }
-
-  if (src->sync.len)
-    {
-      if (dp_wfm_frame_add_field (d, "sync", &src->sync, 0u) < 0)
-        return -1;
-      if (!first)
-        first = "sync";
-    }
-
-  /* The payload is a field even when its bits are unknown: a receiver holds
-     the geometry and fills the contents in later.
-
-     PASSED THROUGH, like the preamble above and for the same reason. This
-     used to copy the array into a fresh WFM_SEQ_LITERAL, which discarded a
-     generated payload before the descriptor could see it -- the last place
-     gh-762's flattening survived after the preamble and sync were fixed. */
-  if (dp_wfm_frame_add_field (d, "payload", &src->payload, 0u) < 0)
-    return -1;
-  if (!first)
-    first = "payload";
-
-  /* The derived fields, in wire order. Their producers are wired by the
-     stage that covers them -- which is why they can be appended before any
-     stage exists. */
-  if (src->crc && dp_wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0)
-    return -1;
-  if (src->rs_depth
-      && dp_wfm_frame_add_derived (d, "rs_parity",
-                                   (size_t)CCSDS_TM_RS_2E * src->rs_depth * 8u)
-             < 0)
-    return -1;
-
-  /* The data group ends at whichever derived field is last on the wire. */
-  const char *data_last
-      = src->rs_depth ? "rs_parity" : (src->crc ? "crc" : "payload");
-
-  /* Stages in APPLICATION order: the CRC, the outer code over the result,
-     the randomiser, the interleaver last of the data-group stages so it is
-     what the channel sees, then the inner code over everything. */
-  int st;
-  if (src->crc)
-    {
-      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_CRC16, "payload", "crc"))
-          < 0)
-        return -1;
-    }
-  if (src->rs_depth)
-    {
-      if ((st
-           = dp_wfm_frame_add_stage (d, WFM_STAGE_RS, "payload", "rs_parity"))
-          < 0)
-        return -1;
-      d->stage[st].depth = src->rs_depth;
-    }
-  if (src->randomise)
-    {
-      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_RANDOMISE, "payload",
-                                        data_last))
-          < 0)
-        return -1;
-      /* WHICH generator, carried on the stage: 131.0-B-6 specifies two and
-         they produce waveforms only the matching receiver derandomises, so
-         it is not a detail the kernel may pick for itself. */
-      d->stage[st].depth = (unsigned)src->randomise;
-    }
-  if (src->interleave_depth)
-    {
-      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_INTERLEAVE, "payload",
-                                        data_last))
-          < 0)
-        return -1;
-      d->stage[st].depth     = src->interleave_depth;
-      d->stage[st].unit_bits = src->interleave_unit_bits;
-    }
-  if (src->convolutional)
-    {
-      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_CONV, first, data_last))
-          < 0)
-        return -1;
-      /* 3.2.1: rate 1/2, so the frame it covers leaves twice as long. */
-      d->stage[st].emit_num = 2u;
-      d->stage[st].emit_den = 1u;
-    }
-  return 0;
+  return dp_wfm_frame_fixed (d, spread ? NULL : &src->acq_code,
+                             spread ? 0u : src->acq_reps, &src->sync,
+                             &src->payload, src->crc);
 }
 
 /* Expand a sequence into a caller-owned array, whatever produced it.
@@ -433,7 +247,7 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
   /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
      and reading it as "no payload" is how the generated kinds stayed
      unreachable everywhere else in this file. */
-  if (!type_can_frame (src) || src->payload.len == 0)
+  if (!type_can_frame (src) || (src->payload.len == 0 && !src->frame))
     return 0; /* nothing to attach; mirrors dp_wfm_synth_set_bits */
   if (!dp_wfm_source_has_frame (src))
     {
@@ -454,7 +268,7 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
   /* Framed: the pattern is the whole frame, assembled by the one
      descriptor, whatever waveform type carries it. */
   wfm_frame_desc_t d;
-  if (dp_wfm_source_describe_frame (src, &d) != 0)
+  if (source_frame (src, &d) != 0)
     return -1;
 
   wfm_frame_desc_layout_t lay;
@@ -529,11 +343,11 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       return rc;
     }
   /* A BURST is a frame that is spread. The frame comes from the same
-     description every other source is built from -- so `--conv`, `--asm`,
-     `--rs-depth` and `--randomise` reach a DSSS burst by existing, instead of
-     being read from the scene and then silently dropped (doppler#1017). */
+     description every other source is built from -- so a coding stage in a
+     carried description reaches a DSSS burst by existing, instead of being
+     read from the scene and then silently dropped (doppler#1017). */
   wfm_frame_desc_t d;
-  if (dp_wfm_source_describe_frame (src, &d) != 0)
+  if (source_frame (src, &d) != 0)
     return -1;
   const size_t n = dp_wfm_dsss_desc_nchips (&d, src->acq_code.len,
                                             src->acq_reps, src->data_code.len);
@@ -579,7 +393,7 @@ dp_wfm_source_dsss_nchips (const wfm_source_t *src)
 {
   wfm_frame_desc_t d;
   if (!src || src->type != WFM_SYNTH_DSSS || src->symbol_rate > 0.0
-      || dp_wfm_source_describe_frame (src, &d) != 0)
+      || source_frame (src, &d) != 0)
     return 0;
   return dp_wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
                                   src->data_code.len);

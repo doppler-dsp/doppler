@@ -88,6 +88,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_compose\_set\_seed\_advance**](#function-dp_wfm_compose_set_seed_advance) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**dp\_wfm\_compose\_spans**](#function-dp_wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
 |  char \* | [**dp\_wfm\_draws\_json**](#function-dp_wfm_draws_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_The same rows_ [_**dp\_wfm\_compose\_draws()**_](wfm__compose_8h.md#function-dp_wfm_compose_draws) _reports, as a JSON array._ |
+|  void | [**dp\_wfm\_frame\_free**](#function-dp_wfm_frame_free) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Free a description returned by_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _, bits and all. NULL is a no-op._ |
+|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_from\_json**](#function-dp_wfm_frame_from_json) (const char \* json, const char \*\* why) <br>_Read a frame description from its JSON form._  |
 |  void | [**dp\_wfm\_render\_destroy**](#function-dp_wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
 |  void | [**dp\_wfm\_render\_noise\_steps**](#function-dp_wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
@@ -96,7 +98,6 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
-|  int | [**dp\_wfm\_source\_describe\_frame**](#function-dp_wfm_source_describe_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Describe a source's frame: the fields, the stages, and their covers._  |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
@@ -859,6 +860,64 @@ free(js);
 
 
 
+### function dp\_wfm\_frame\_free 
+
+_Free a description returned by_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _, bits and all. NULL is a no-op._
+```C++
+void dp_wfm_frame_free (
+    wfm_frame_desc_t * d
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_frame\_from\_json 
+
+_Read a frame description from its JSON form._ 
+```C++
+wfm_frame_desc_t * dp_wfm_frame_from_json (
+    const char * json,
+    const char ** why
+) 
+```
+
+
+
+The form a scene's `"frame"` key holds, and what `wfmgen --frame FILE` reads — one reader for both: `{"fields": [...], "stages": [...]}`. A field with bits is its Field text, `"spec"` (`"0x1ACFFC1D"`, `"pn:31:5*4"`); a derived field is its `"bits"` and the `"derived_by"` stage (index plus one). A stage names its `"kind"` (`"crc16"`, `"rs"`, `"randomise"`, `"conv"`, `"interleave"`, or a number from `WFM_STAGE_USER` up) and its cover as `"first_field"`/`"n_fields"`, plus `"depth"`, `"unit_bits"` and `"emit_num"`/`"emit_den"` where the kind uses them.
+
+
+A malformed description is REFUSED, never salvaged: a frame read wrong builds a waveform that looks fine and is not the one described. Whether it lays out is a separate question, asked by `dp_wfm_source_frame_error()` once a source carries it.
+
+
+
+
+**Parameters:**
+
+
+* `json` the frame object, NUL-terminated. 
+* `why` receives a static reason on failure; may be NULL. 
+
+
+
+**Returns:**
+
+the description, owning its literal bits (free it with [**dp\_wfm\_frame\_free()**](wfm__compose_8h.md#function-dp_wfm_frame_free)), or NULL if the text is not a frame object. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_render\_destroy 
 
 _Free a renderer and everything it owns. NULL-safe._ 
@@ -1125,45 +1184,6 @@ The SNR in dB for create.
 
 
 
-### function dp\_wfm\_source\_describe\_frame 
-
-_Describe a source's frame: the fields, the stages, and their covers._ 
-```C++
-int dp_wfm_source_describe_frame (
-    const wfm_source_t * src,
-    wfm_frame_desc_t * d
-) 
-```
-
-
-
-The ONE place a `wfm_source_t`'s framing flags become a description, read by the `type=bits` assembler and the DSSS spreader alike, so the two cannot disagree about which stage covers what. For a DSSS burst the acquisition preamble is deliberately NOT a field: it is unmodulated and unspread, so it sits outside everything a stage can cover.
-
-
-
-
-**Parameters:**
-
-
-* `src` the source. 
-* `d` receives the description. 
-
-
-
-**Returns:**
-
-0, or non-zero if the source cannot be described. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_wfm\_source\_dsss\_nchips 
 
 _Chips one DSSS BURST from this source occupies, description and all._ 
@@ -1252,7 +1272,7 @@ int dp_wfm_source_has_frame (
 
 
 
-A preamble or a sync word is what says "framed". **Deliberately not `crc`**: it defaults to crc16 on every source (`[[module.wfm_compose.source.fields]]` and wfmgen alike), so reading it as intent would silently append a trailer to every unframed bit pattern anyone has ever generated. With neither a preamble nor a sync word, `crc` stays inert exactly as it always was.
+A carried description, a preamble or a sync word is what says "framed". **Deliberately not `crc`**: it defaults to crc16 on every source (`[[module.wfm_compose.source.fields]]` and wfmgen alike), so reading it as intent would silently append a trailer to every unframed bit pattern anyone has ever generated. With neither a preamble nor a sync word, `crc` stays inert exactly as it always was.
 
 
 

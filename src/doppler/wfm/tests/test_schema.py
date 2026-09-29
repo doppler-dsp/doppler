@@ -671,63 +671,55 @@ def test_coded_record_validates_and_round_trips(validator, tmp_path):
     rebuilding from it alone reproduces the samples byte for byte.
 
     The payload is 223 octets so the outer code has a whole codeword to work
-    on; with all four stages on and neither a preamble nor a sync word, this
-    IS a CCSDS CADU.
+    on; behind the marker, with the outer code, the randomiser and the inner
+    code and neither a preamble nor a sync word, this IS a CCSDS CADU --
+    a `--frame FILE` description, which the record carries whole.
     """
-    bits = "1" * (223 * 8)
-    rec = _record(
-        tmp_path,
+    frame = {
+        "fields": [
+            {"name": "asm", "spec": "0x1ACFFC1D"},
+            {"name": "payload", "spec": "1" * (223 * 8)},
+            {"name": "rs_parity", "bits": 256, "derived_by": 1},
+        ],
+        "stages": [
+            {"kind": "rs", "first_field": 1, "n_fields": 2, "depth": 1},
+            {"kind": "randomise", "first_field": 1, "n_fields": 2, "depth": 1},
+            {
+                "kind": "conv",
+                "first_field": 0,
+                "n_fields": 3,
+                "emit_num": 2,
+                "emit_den": 1,
+            },
+        ],
+    }
+    frame_path = tmp_path / "cadu.json"
+    frame_path.write_text(json.dumps(frame), encoding="utf-8")
+    args = [
         "--type",
         "bits",
-        "--bits",
-        bits,
-        "--rs-depth",
-        "1",
-        "--randomise",
-        "--asm",
-        "--conv",
-        "--crc",
-        "none",
+        "--frame",
+        str(frame_path),
         "--sps",
         "1",
         "--count",
         "4144",
-    )
+    ]
+    rec = _record(tmp_path, *args)
     validator.validate(rec)
 
     seg = rec["segments"][0]
-    assert seg["rs_depth"] == 1
-    assert seg["randomise"] == "ccsds"
-    assert seg["asm"] is True
-    assert seg["conv"] is True
+    kinds = [st["kind"] for st in seg["frame"]["stages"]]
+    assert kinds == ["rs", "randomise", "conv"], "every stage is recorded"
+    assert seg["frame"]["stages"][1]["depth"] == 1, "and WHICH randomiser"
+    assert "crc" not in seg, "a carried frame has no common-frame crc key"
 
     # And the round trip, which is the property the record exists for.
     src = tmp_path / "a.cf32"
     dst = tmp_path / "b.cf32"
     rec_path = tmp_path / "rec.json"
     subprocess.run(
-        [
-            _bin(),
-            "--type",
-            "bits",
-            "--bits",
-            bits,
-            "--rs-depth",
-            "1",
-            "--randomise",
-            "--asm",
-            "--conv",
-            "--crc",
-            "none",
-            "--sps",
-            "1",
-            "--count",
-            "4144",
-            "--output",
-            str(src),
-            "--record",
-            str(rec_path),
-        ],
+        [_bin(), *args, "--output", str(src), "--record", str(rec_path)],
         capture_output=True,
         check=True,
     )
@@ -742,15 +734,15 @@ def test_coded_record_validates_and_round_trips(validator, tmp_path):
 
 
 def test_an_uncoded_record_carries_no_coding_keys(tmp_path):
-    """Absent means off, so an uncoded record is unchanged by all of this.
+    """Absent means off, so an uncoded record carries no description.
 
-    Asserted from the other side because a writer that always emitted the
-    four keys would satisfy the test above and silently change every record
+    Asserted from the other side because a writer that always emitted a
+    frame would satisfy the test above and silently change every record
     that existed before coding did.
     """
     rec = _record(
         tmp_path, "--type", "bits", "--bits", "10110010", "--count", "64"
     )
     seg = rec["segments"][0]
-    for key in ("rs_depth", "randomise", "asm", "conv"):
+    for key in ("frame", "rs_depth", "randomise", "asm", "conv"):
         assert key not in seg

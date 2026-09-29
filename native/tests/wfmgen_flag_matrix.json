@@ -1,115 +1,4 @@
 {
-  "bits_ccsds_cadu": {
-    "argv": [
-      "--type",
-      "bits",
-      "--modulation",
-      "bpsk",
-      "--bits",
-      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-      "--rs-depth",
-      "1",
-      "--randomise",
-      "--asm",
-      "--conv",
-      "--crc",
-      "none",
-      "--sps",
-      "1",
-      "--count",
-      "4144"
-    ],
-    "exit": 0,
-    "outputs": {
-      "sink.bin": {
-        "bytes": 33152
-      }
-    },
-    "record": {
-      "continuous": false,
-      "repeat": false,
-      "segments": [
-        {
-          "asm": true,
-          "conv": true,
-          "crc": "none",
-          "freq": 0,
-          "fs": 1,
-          "lfsr": "galois",
-          "modulation": "bpsk",
-          "num_samples": 4144,
-          "off_samples": 0,
-          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-          "pn_length": 15,
-          "pn_poly": 0,
-          "randomise": "ccsds",
-          "rs_depth": 1,
-          "seed": 0,
-          "snr": 100,
-          "snr_mode": "auto",
-          "sps": 1,
-          "type": "bits"
-        }
-      ],
-      "version": 1
-    }
-  },
-  "bits_ccsds_cadu_legacy_rand": {
-    "argv": [
-      "--type",
-      "bits",
-      "--modulation",
-      "bpsk",
-      "--bits",
-      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-      "--rs-depth",
-      "1",
-      "--randomise",
-      "legacy",
-      "--asm",
-      "--conv",
-      "--crc",
-      "none",
-      "--sps",
-      "1",
-      "--count",
-      "4144"
-    ],
-    "exit": 0,
-    "outputs": {
-      "sink.bin": {
-        "bytes": 33152
-      }
-    },
-    "record": {
-      "continuous": false,
-      "repeat": false,
-      "segments": [
-        {
-          "asm": true,
-          "conv": true,
-          "crc": "none",
-          "freq": 0,
-          "fs": 1,
-          "lfsr": "galois",
-          "modulation": "bpsk",
-          "num_samples": 4144,
-          "off_samples": 0,
-          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-          "pn_length": 15,
-          "pn_poly": 0,
-          "randomise": "legacy",
-          "rs_depth": 1,
-          "seed": 0,
-          "snr": 100,
-          "snr_mode": "auto",
-          "sps": 1,
-          "type": "bits"
-        }
-      ],
-      "version": 1
-    }
-  },
   "bits_file": {
     "argv": [
       "--type",
@@ -137,6 +26,298 @@
           "num_samples": 32,
           "off_samples": 0,
           "payload": "0xb25a0fff",
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bits_frame_ccsds_cadu": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--frame",
+      "cadu.frame.json",
+      "--sps",
+      "1",
+      "--count",
+      "4144"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 33152
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "frame": {
+            "fields": [
+              {
+                "name": "asm",
+                "spec": "0x1acffc1d"
+              },
+              {
+                "name": "payload",
+                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+              },
+              {
+                "bits": 256,
+                "derived_by": 1,
+                "name": "rs_parity"
+              }
+            ],
+            "stages": [
+              {
+                "depth": 1,
+                "first_field": 1,
+                "kind": "rs",
+                "n_fields": 2
+              },
+              {
+                "depth": 1,
+                "first_field": 1,
+                "kind": "randomise",
+                "n_fields": 2
+              },
+              {
+                "emit_den": 1,
+                "emit_num": 2,
+                "kind": "conv",
+                "n_fields": 3
+              }
+            ]
+          },
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 4144,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bits_frame_ccsds_cadu_legacy_rand": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--frame",
+      "cadu_legacy.frame.json",
+      "--sps",
+      "1",
+      "--count",
+      "4144"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 33152
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "frame": {
+            "fields": [
+              {
+                "name": "asm",
+                "spec": "0x1acffc1d"
+              },
+              {
+                "name": "payload",
+                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+              },
+              {
+                "bits": 256,
+                "derived_by": 1,
+                "name": "rs_parity"
+              }
+            ],
+            "stages": [
+              {
+                "depth": 1,
+                "first_field": 1,
+                "kind": "rs",
+                "n_fields": 2
+              },
+              {
+                "depth": 2,
+                "first_field": 1,
+                "kind": "randomise",
+                "n_fields": 2
+              },
+              {
+                "emit_den": 1,
+                "emit_num": 2,
+                "kind": "conv",
+                "n_fields": 3
+              }
+            ]
+          },
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 4144,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bits_frame_interleave_bits": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--frame",
+      "interleave_bits.frame.json",
+      "--sps",
+      "1",
+      "--count",
+      "1800"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 14400
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "frame": {
+            "fields": [
+              {
+                "name": "payload",
+                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+              },
+              {
+                "bits": 16,
+                "derived_by": 1,
+                "name": "crc"
+              }
+            ],
+            "stages": [
+              {
+                "kind": "crc16",
+                "n_fields": 2
+              },
+              {
+                "depth": 8,
+                "kind": "interleave",
+                "n_fields": 2
+              }
+            ]
+          },
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 1800,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "bits"
+        }
+      ],
+      "version": 1
+    }
+  },
+  "bits_frame_interleave_octets_with_outer_code": {
+    "argv": [
+      "--type",
+      "bits",
+      "--modulation",
+      "bpsk",
+      "--frame",
+      "interleave_rs.frame.json",
+      "--sps",
+      "1",
+      "--count",
+      "2040"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 16320
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "frame": {
+            "fields": [
+              {
+                "name": "payload",
+                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+              },
+              {
+                "bits": 256,
+                "derived_by": 1,
+                "name": "rs_parity"
+              }
+            ],
+            "stages": [
+              {
+                "depth": 1,
+                "kind": "rs",
+                "n_fields": 2
+              },
+              {
+                "depth": 5,
+                "kind": "interleave",
+                "n_fields": 2,
+                "unit_bits": 8
+              }
+            ]
+          },
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "modulation": "bpsk",
+          "num_samples": 2040,
+          "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -232,109 +413,6 @@
           "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
-          "seed": 0,
-          "snr": 100,
-          "snr_mode": "auto",
-          "sps": 1,
-          "type": "bits"
-        }
-      ],
-      "version": 1
-    }
-  },
-  "bits_interleave_bits": {
-    "argv": [
-      "--type",
-      "bits",
-      "--modulation",
-      "bpsk",
-      "--bits",
-      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-      "--interleave",
-      "8",
-      "--sps",
-      "1",
-      "--count",
-      "1800"
-    ],
-    "exit": 0,
-    "outputs": {
-      "sink.bin": {
-        "bytes": 14400
-      }
-    },
-    "record": {
-      "continuous": false,
-      "repeat": false,
-      "segments": [
-        {
-          "crc": "crc16",
-          "freq": 0,
-          "fs": 1,
-          "interleave": 8,
-          "interleave_unit": 1,
-          "lfsr": "galois",
-          "modulation": "bpsk",
-          "num_samples": 1800,
-          "off_samples": 0,
-          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-          "pn_length": 15,
-          "pn_poly": 0,
-          "seed": 0,
-          "snr": 100,
-          "snr_mode": "auto",
-          "sps": 1,
-          "type": "bits"
-        }
-      ],
-      "version": 1
-    }
-  },
-  "bits_interleave_octets_with_outer_code": {
-    "argv": [
-      "--type",
-      "bits",
-      "--modulation",
-      "bpsk",
-      "--bits",
-      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-      "--rs-depth",
-      "1",
-      "--interleave",
-      "5",
-      "--interleave-unit",
-      "8",
-      "--crc",
-      "none",
-      "--sps",
-      "1",
-      "--count",
-      "2040"
-    ],
-    "exit": 0,
-    "outputs": {
-      "sink.bin": {
-        "bytes": 16320
-      }
-    },
-    "record": {
-      "continuous": false,
-      "repeat": false,
-      "segments": [
-        {
-          "crc": "none",
-          "freq": 0,
-          "fs": 1,
-          "interleave": 5,
-          "interleave_unit": 8,
-          "lfsr": "galois",
-          "modulation": "bpsk",
-          "num_samples": 2040,
-          "off_samples": 0,
-          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-          "pn_length": 15,
-          "pn_poly": 0,
-          "rs_depth": 1,
           "seed": 0,
           "snr": 100,
           "snr_mode": "auto",
@@ -1084,6 +1162,89 @@
       "version": 1
     }
   },
+  "dsss_frame_coded": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--acq-code",
+      "1010*2",
+      "--data-code",
+      "1011",
+      "--frame",
+      "dsss_coded.frame.json",
+      "--sps",
+      "2"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 9344
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "acq_code": "0xa*2",
+          "data_code": "0xb",
+          "frame": {
+            "fields": [
+              {
+                "name": "asm",
+                "spec": "0x1acffc1d"
+              },
+              {
+                "name": "sync",
+                "spec": "1111100110101"
+              },
+              {
+                "name": "payload",
+                "spec": "10110010101"
+              },
+              {
+                "bits": 16,
+                "derived_by": 1,
+                "name": "crc"
+              }
+            ],
+            "stages": [
+              {
+                "first_field": 2,
+                "kind": "crc16",
+                "n_fields": 2
+              },
+              {
+                "depth": 1,
+                "first_field": 2,
+                "kind": "randomise",
+                "n_fields": 2
+              },
+              {
+                "emit_den": 1,
+                "emit_num": 2,
+                "kind": "conv",
+                "n_fields": 4
+              }
+            ]
+          },
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 1168,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 2,
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
   "dsss_payload_gen": {
     "argv": [
       "--type",
@@ -1190,6 +1351,88 @@
     "outputs": {},
     "record": null
   },
+  "err_frame_not_a_frame": {
+    "argv": [
+      "--type",
+      "bits",
+      "--frame",
+      "bits.bin",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_frame_rs_short_payload": {
+    "argv": [
+      "--type",
+      "bits",
+      "--frame",
+      "rs_short.frame.json",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_frame_with_bits": {
+    "argv": [
+      "--type",
+      "bits",
+      "--frame",
+      "cadu.frame.json",
+      "--bits",
+      "1011",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_frame_with_crc": {
+    "argv": [
+      "--type",
+      "bits",
+      "--frame",
+      "cadu.frame.json",
+      "--crc",
+      "crc16",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_frame_with_from_file": {
+    "argv": [
+      "--from-file",
+      "scene.json",
+      "--frame",
+      "cadu.frame.json"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_frame_with_sync": {
+    "argv": [
+      "--type",
+      "bits",
+      "--frame",
+      "cadu.frame.json",
+      "--sync",
+      "1111100110101",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_framed_chirp": {
     "argv": [
       "--type",
@@ -1281,6 +1524,20 @@
     "outputs": {},
     "record": null
   },
+  "err_retired_asm": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--asm",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_retired_bits_hex": {
     "argv": [
       "--type",
@@ -1289,6 +1546,20 @@
       "b2",
       "--count",
       "32"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_conv": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--conv",
+      "--count",
+      "64"
     ],
     "exit": 2,
     "outputs": {},
@@ -1324,6 +1595,36 @@
     "outputs": {},
     "record": null
   },
+  "err_retired_interleave": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--interleave",
+      "4",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_interleave_unit": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--interleave-unit",
+      "8",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_retired_payload_gen": {
     "argv": [
       "--type",
@@ -1345,6 +1646,49 @@
       "1011",
       "--payload-len",
       "64",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_randomise": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--randomise",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_randomize": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--randomize",
+      "--count",
+      "64"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_rs_depth": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--rs-depth",
+      "1",
       "--count",
       "64"
     ],
@@ -1377,36 +1721,6 @@
       "5",
       "--count",
       "4"
-    ],
-    "exit": 2,
-    "outputs": {},
-    "record": null
-  },
-  "err_rs_depth_not_allowed": {
-    "argv": [
-      "--type",
-      "bits",
-      "--bits",
-      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-      "--rs-depth",
-      "7",
-      "--count",
-      "64"
-    ],
-    "exit": 2,
-    "outputs": {},
-    "record": null
-  },
-  "err_rs_depth_short_payload": {
-    "argv": [
-      "--type",
-      "bits",
-      "--bits",
-      "10110010",
-      "--rs-depth",
-      "1",
-      "--count",
-      "64"
     ],
     "exit": 2,
     "outputs": {},

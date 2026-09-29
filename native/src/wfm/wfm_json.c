@@ -91,57 +91,9 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
            this file parsed has no other owner, the same asymmetry the const
            bit arrays above already carry. Fields first: their literal bits
            hang off the description being freed. */
-        if (srcs[k].frame)
-          {
-            wfm_frame_desc_t *d = (wfm_frame_desc_t *)srcs[k].frame;
-            for (unsigned f = 0; f < d->n_fields; f++)
-              free ((void *)d->field[f].seq.bits);
-            free (d);
-            srcs[k].frame = NULL;
-          }
+        dp_wfm_frame_free ((wfm_frame_desc_t *)srcs[k].frame);
+        srcs[k].frame = NULL;
       }
-}
-
-/* Emit the coding STAGES a source's frame carries, and only those that are
- * on: a record is what makes a capture reproducible, so a stage the record
- * does not carry is a capture nobody can rebuild -- and the omission would
- * look exactly like a plain uncoded waveform. Written conditionally so an
- * uncoded record is byte-identical to what it was before coding existed.
- *
- * NOT type-gated, for the reason add_frame_fields() gives about the frame
- * itself: these lived inside the bits path, so a coded DSSS burst recorded
- * its geometry and dropped its stages, and --from-file rebuilt an uncoded
- * waveform from a record that looked complete (doppler#1017). One writer,
- * every source that can carry a stage. */
-static void
-add_stage_fields (cJSON *o, const wfm_source_t *src)
-{
-  if (src->rs_depth)
-    cJSON_AddNumberToObject (o, "rs_depth", (double)src->rs_depth);
-  /* WHICH generator, not merely that one ran: 131.0-B-6 specifies two and
-     only the matching receiver derandomises a given waveform, so a record
-     carrying a bare `true` could not rebuild the capture it describes. */
-  if (src->randomise)
-    cJSON_AddStringToObject (o, "randomise",
-                             RANDOMISE_NAMES[src->randomise == 2 ? 2 : 1]);
-  if (src->attach_asm)
-    cJSON_AddBoolToObject (o, "asm", 1);
-  if (src->convolutional)
-    cJSON_AddBoolToObject (o, "conv", 1);
-  /* The UNIT travels with the depth, and is not defaulted away on the write
-     side: 1 and 8 are different waveforms over the same data group, and a
-     record that carried only the depth would replay an octet-interleaved
-     capture as a bit-interleaved one -- the same length, different bytes,
-     no error. Written only when the interleaver ran, so an uncoded record
-     still carries no coding keys. */
-  if (src->interleave_depth)
-    {
-      cJSON_AddNumberToObject (o, "interleave", (double)src->interleave_depth);
-      cJSON_AddNumberToObject (o, "interleave_unit",
-                               (double)(src->interleave_unit_bits
-                                            ? src->interleave_unit_bits
-                                            : 1u));
-    }
 }
 
 /* The frame keys the surface table does not own: the CRC choice, whenever
@@ -153,7 +105,9 @@ add_stage_fields (cJSON *o, const wfm_source_t *src)
 static void
 add_frame_fields (cJSON *o, const wfm_source_t *src)
 {
-  if (!dp_wfm_source_has_frame (src))
+  /* A carried description IS the frame, CRC stage and all, so the common
+     frame's crc key would be a second, false statement beside it. */
+  if (!dp_wfm_source_has_frame (src) || src->frame)
     return;
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
@@ -175,7 +129,8 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
         cJSON_AddStringToObject (o, "data", "none");
       return;
     }
-  cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
+  if (!src->frame) /* a carried description carries its own CRC stage */
+    cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
 /* Emit a symbols source's complex constellation as a flat interleaved
@@ -632,7 +587,6 @@ static void
 add_source_obj (cJSON *so, const wfm_source_t *src)
 {
   add_rows (so, WFM_SURF_SOURCE, src);
-  add_stage_fields (so, src);
   add_symbols_fields (so, src);
   add_dsss_fields (so, src);
   /* Last, and only when one is carried: a source without a description
@@ -654,6 +608,9 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
  * free_src_bits() releases all of it, including on the partial-failure paths
  * below: every slot is counted into n_fields/n_stages as it is claimed, so a
  * description abandoned half-built still frees completely. */
+static int read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d,
+                           const char **why);
+
 static int
 read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
 {
@@ -668,7 +625,16 @@ read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
      branch no test can reach. */
   wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
   out->frame          = d; /* owned from here; free_src_bits releases it */
+  return read_frame_obj (fr, d, why);
+}
 
+/* Read one frame object -- {"fields": [...], "stages": [...]} -- into @p d,
+ * which the caller owns and frees with dp_wfm_frame_free() on either
+ * outcome. The one reader of the form: a scene's "frame" key and
+ * `wfmgen --frame FILE` both come through here. */
+static int
+read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char **why)
+{
   const cJSON *it;
   const cJSON *fields = cJSON_GetObjectItemCaseSensitive (fr, "fields");
   if (fields)
@@ -736,7 +702,8 @@ read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
   return 0;
 }
 
-/* Read the frame back: preamble, repetitions, sync word, CRC choice. The
+/* Read the frame back: the CRC choice (the preamble and sync word are table
+ * rows). The
  * inverse of add_frame_fields(), and called for every waveform type for the
  * same reason it is written for every waveform type. `crc` defaults to crc16
  * (the burst_demod frame contract carries a trailer) and is inert unless a
@@ -750,31 +717,6 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
       CRC_NAMES, 2);
   out->crc = (c < 0) ? 1 : c;
 
-  /* The coding stages. Absent means off, which is what a record written
-     before these existed says -- and what an uncoded one still says. */
-  out->rs_depth = (unsigned)num (so, "rs_depth", 0);
-  {
-    /* A string names the generator; a bare `true` is read as the default,
-       so a record written before the choice existed still loads. */
-    const cJSON *rnd = cJSON_GetObjectItemCaseSensitive (so, "randomise");
-    const char  *rn  = cJSON_GetStringValue (rnd);
-    if (rn != NULL)
-      {
-        const int idx  = name_index (rn, RANDOMISE_NAMES, 3);
-        out->randomise = (idx < 0) ? 0 : idx;
-      }
-    else
-      out->randomise = cJSON_IsTrue (rnd) ? 1 : 0;
-  }
-  out->attach_asm
-      = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "asm"));
-  out->convolutional
-      = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "conv"));
-  out->interleave_depth = (unsigned)num (so, "interleave", 0);
-  /* 0 reads as 1 in the kernel, so a record from before the unit was
-     written -- or one a human edited down to the depth alone -- replays as
-     bit interleaving, which is what a bare `--interleave R` means. */
-  out->interleave_unit_bits = (unsigned)num (so, "interleave_unit", 0);
   return 0;
 }
 
@@ -801,6 +743,24 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char **why)
                        "code as \"data_code\"" },
     { "sync_gen", "\"sync_gen\" is retired: write the generated sync word "
                   "as \"sync\", e.g. \"pn:63:6\"" },
+    /* The coding sugar: a coded frame is a description, "frame", whose
+       stages name the spans they cover (frame-description.md R). */
+    { "rs_depth", "\"rs_depth\" is retired: a coded frame is a \"frame\" "
+                  "description -- add an RS stage over its data group" },
+    { "randomise", "\"randomise\" is retired: a coded frame is a "
+                   "\"frame\" description -- add a randomise stage over its "
+                   "data group" },
+    { "asm",
+      "\"asm\" is retired: a coded frame is a \"frame\" description "
+      "-- add the marker as its first field, \"spec\": \"0x1ACFFC1D\"" },
+    { "conv", "\"conv\" is retired: a coded frame is a \"frame\" "
+              "description -- add a conv stage over every field" },
+    { "interleave", "\"interleave\" is retired: a coded frame is a "
+                    "\"frame\" description -- add an interleave stage over "
+                    "its data group" },
+    { "interleave_unit", "\"interleave_unit\" is retired: it is the "
+                         "interleave stage's \"unit_bits\" in a \"frame\" "
+                         "description" },
   };
   for (size_t k = 0; k < sizeof RETIRED / sizeof *RETIRED; k++)
     if (cJSON_GetObjectItemCaseSensitive (so, RETIRED[k].key))
@@ -1201,4 +1161,46 @@ dp_wfm_draws_json (const wfm_segment_t *segs, size_t n_segs)
   char *out = dp_xnn (cJSON_PrintUnformatted (arr));
   cJSON_Delete (arr);
   return out;
+}
+
+void
+dp_wfm_frame_free (wfm_frame_desc_t *d)
+{
+  if (!d)
+    return;
+  /* Fields first: their literal bits hang off the description being
+     freed. */
+  for (unsigned f = 0; f < d->n_fields; f++)
+    free ((void *)d->field[f].seq.bits);
+  free (d);
+}
+
+wfm_frame_desc_t *
+dp_wfm_frame_from_json (const char *json, const char **why)
+{
+  static const char *const not_obj
+      = "a frame is a JSON object: {\"fields\": [...], \"stages\": [...]}";
+  const char *dummy;
+  if (!why)
+    why = &dummy;
+  *why = NULL;
+  if (!json)
+    return NULL;
+  cJSON *root = cJSON_Parse (json);
+  if (!cJSON_IsObject (root))
+    {
+      cJSON_Delete (root);
+      *why = not_obj;
+      return NULL;
+    }
+  wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
+  if (read_frame_obj (root, d, why) != 0)
+    {
+      if (!*why)
+        *why = not_obj;
+      dp_wfm_frame_free (d);
+      d = NULL;
+    }
+  cJSON_Delete (root);
+  return d;
 }

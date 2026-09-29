@@ -899,9 +899,10 @@ is left is what a demodulator is for.
 covers which, because the answer is a specification's. That table —
 marker/preamble/sync are found-not-decoded, payload/CRC/parity is the data
 group, the inner code covers everything — is CCSDS 131.0-B-6 10.3.4
-generalised. It lives where descriptions are built from a source,
-`dp_wfm_source_describe_frame()`, and is checked there against the stage
-kernels applied by hand. A receiver calls neither.
+generalised. It lives in the description a caller writes — a `--frame`
+file, a scene's `"frame"`, or `dp_ccsds_tm_frame_describe()` for a CADU —
+and `test_wfm_compose.c` checks those shapes against the stage kernels
+applied by hand. A receiver reads none of it.
 
 ### 10.3 What the split cost, and what it bought
 

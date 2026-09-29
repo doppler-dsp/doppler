@@ -297,54 +297,17 @@ static const char USAGE[]
       "  e.g. --bits pn:1024:15. Types with no bit stream (tone, noise,\n"
       "  chirp, symbols) cannot be framed.\n"
       "\n"
-      "CHANNEL CODING  (--type bits | --type dsss)\n"
-      "  Stages over the frame's fields, each optional, and they do NOT all\n"
-      "  cover the same bits -- which is the point. A marker, a preamble and\n"
-      "  a sync word are things a receiver FINDS, so they must look the same\n"
-      "  in every frame: the outer code and the randomiser reach over the\n"
-      "  data group only, and the inner code reaches over everything.\n"
-      "  Setting any of them frames the waveform, as --sync does.\n"
-      "  --rs-depth I    Reed-Solomon (255,223) E=16, interleaved I deep;\n"
-      "                  1, 2, 3, 4, 5 or 8. The payload plus its CRC must\n"
-      "                  be exactly 223*I octets -- a short frame is "
-      "refused,\n"
-      "                  not padded (virtual fill is not implemented).\n"
-      "  --randomise [G] A section-10 pseudo-randomiser over the data group.\n"
-      "                  Its own inverse, so the receiver runs it too.\n"
-      "                    ccsds   131071-bit, h(x)=x^17+x^14+1 -- the\n"
-      "                            default, and what 131.0-B-6 10.4.1 needs\n"
-      "                    legacy  255-bit, h(x)=x^8+x^7+x^5+x^3+1, kept by\n"
-      "                            10.4.2 for legacy systems only; it puts\n"
-      "                            spectral lines at 1/255 of the symbol "
-      "rate\n"
-      "                    off     the same as omitting the flag\n"
-      "                  NOT interchangeable on the air: only the matching\n"
-      "                  receiver derandomises a given waveform.\n"
-      "  --asm           Prepend the 0x1ACFFC1D attached sync marker.\n"
-      "  --conv          Convolutional K=7 rate-1/2, over the WHOLE frame\n"
-      "                  including the marker; doubles the bit count.\n"
-      "  --interleave R  Block-interleave the data group R deep: write it by\n"
-      "                  rows into an R x C matrix and read it by columns,\n"
-      "                  where C follows from the span. After the outer\n"
-      "                  code and the randomiser, BEFORE --conv, so a burst\n"
-      "                  the inner decoder leaves behind is spread across\n"
-      "                  codewords. A burst of up to R\n"
-      "                  consecutive units then touches each codeword once,\n"
-      "                  so an outer code correcting t per codeword survives\n"
-      "                  a burst of t*R. Length-preserving; a span that is\n"
-      "                  not a whole number of R*unit units is refused.\n"
-      "  --interleave-unit N\n"
-      "                  Bits per permuted unit (default 1). Use 8 with\n"
-      "                  --rs-depth: RS is a code over GF(256), so spreading\n"
-      "                  a burst across CODEWORDS means permuting octets.\n"
-      "                  Bit-interleaving an octet code spreads a burst\n"
-      "                  inside a symbol that is already wrong.\n"
-      "  All four, with a 223*I-octet payload and no preamble or sync word,\n"
-      "  is a CCSDS CADU. That is a configuration of these flags, not a mode\n"
-      "  they switch into.\n"
-      "  On --type dsss the stages cover the SPREAD frame and not the\n"
-      "  acquisition preamble: a preamble is transmitted unmodulated,\n"
-      "  because it is what a receiver correlates raw chips against.\n"
+      "CODED OR CUSTOM FRAMES  (--type bits | bpsk | qpsk | pn | dsss)\n"
+      "  --frame FILE    A frame DESCRIPTION: fields in wire order, and\n"
+      "                  stages that each name the span they cover --\n"
+      "                  crc16, rs, randomise, interleave, conv, or a kind\n"
+      "                  of your own. The only way to add a coding stage;\n"
+      "                  a CCSDS CADU is one such file. It is the whole\n"
+      "                  frame, payload included, so --sync, --crc, --bits\n"
+      "                  and an unspread --acq-code are refused beside it.\n"
+      "                  The form is a scene's \"frame\" key, and --record\n"
+      "                  stores it there. On --type dsss it is the SPREAD\n"
+      "                  frame: --acq-code stays the unspread preamble.\n"
       "\n"
       "DSSS BURST  (--type dsss)\n"
       "  One burst = an unmodulated repeated preamble (code A) followed by\n"
@@ -374,8 +337,8 @@ static const char USAGE[]
       "  data symbol (fs/symbol_rate samples). Data source: default PRBS\n"
       "  (seeded PN a receiver regenerates), --data none for code-only\n"
       "  (the pure code), or --bits / --bits-file for a payload. Rejects\n"
-      "  the burst-frame flags (--acq-code/--sync/--crc) and --data with a\n"
-      "  payload. --data-code (above) is "
+      "  the burst-frame flags (--acq-code/--sync/--crc/--frame) and --data\n"
+      "  with a payload. --data-code (above) is "
       "required.\n" WFM_SURFACE_HELP_DSSS_CONT
       "  --data D             none | prbs data source (default prbs)\n"
       "\n"
@@ -471,6 +434,9 @@ source_free (wfm_source_t *s)
   s->acq_code.bits  = NULL;
   s->data_code.bits = NULL;
   s->sync.bits      = NULL;
+  /* A --frame description is the CLI's own, read from its file. */
+  dp_wfm_frame_free ((wfm_frame_desc_t *)s->frame);
+  s->frame = NULL;
 }
 
 /* ── The option table ────────────────────────────────────────────────────
@@ -512,6 +478,7 @@ typedef struct
   double        headroom; /* dB of peak backoff; gain = 10^(-H/20) */
   double        fc;       /* centre frequency, SigMF metadata only */
   const char   *from_file;
+  const char   *frame_path; /* --frame FILE: a coded or custom frame */
   const char   *out_path;
   const char   *record_path;
   int           repeat, continuous, detached;
@@ -615,24 +582,9 @@ static const opt_t OPTS[] = {
     .off  = OFF (endian),
     CHOICES (ENDIAN_NAMES) },
   { .name = "--bits-file", .kind = OPT_BITS_FILE, .off = OFF (src.payload) },
-  /* Channel coding, as STAGES over the frame's fields. Each is separately
-     optional because the standard makes it so, and they do not all cover the
-     same bits -- which is the whole reason the frame is a description rather
-     than a chain. See wfm/wfm_frame.h. */
-  { .name = "--rs-depth", .kind = OPT_U32, .off = OFF (src.rs_depth) },
-  { .name = "--interleave",
-    .kind = OPT_U32,
-    .off  = OFF (src.interleave_depth) },
-  { .name = "--interleave-unit",
-    .kind = OPT_U32,
-    .off  = OFF (src.interleave_unit_bits) },
-  { .name  = "--randomise",
-    .alias = "--randomize",
-    .kind  = OPT_CHOICE_OPT,
-    .off   = OFF (src.randomise),
-    CHOICES (RANDOMISE_NAMES) },
-  { .name = "--asm", .kind = OPT_SET, .off = OFF (src.attach_asm) },
-  { .name = "--conv", .kind = OPT_SET, .off = OFF (src.convolutional) },
+  /* A frame as a DESCRIPTION: the only way to add a coding stage, and how a
+     CCSDS CADU is written. The common frame is --acq-code/--sync/--crc. */
+  { .name = "--frame", .kind = OPT_STR, .off = OFF (frame_path) },
   { .name = "--data",
     .kind = OPT_CHOICE,
     .off  = OFF (src.dsss_code_only),
@@ -677,10 +629,13 @@ static const opt_t OPTS[] = {
  * every spelling of its field: the -hex and -gen forms, the separate
  * repetition count, and the payload's bound, which is exactly the PN
  * sequence `--bits pn:N:REG[:SEED[:POLY]]` names. */
-static const struct
+typedef struct
 {
   const char *flag, *instead;
-} RETIRED[] = {
+  const char *why; /* NULL: the Field took over this spelling */
+} retired_t;
+
+static const retired_t RETIRED[] = {
   { "--bits-hex", "--bits 0x<HEX>" },
   { "--payload-gen", "--bits <FIELD>, e.g. --bits pn:1024:10" },
   { "--payload-len",
@@ -692,15 +647,32 @@ static const struct
   { "--data-code-gen",
     "--data-code <FIELD>, e.g. --data-code gold:64:10:..." },
   { "--sync-gen", "--sync <FIELD>, e.g. --sync pn:63:6" },
+/* The coding sugar (docs/design/frame-description.md R): a coded frame is
+   a description, and a stage names the span it covers. */
+#define CODED "a coded frame is a description"
+  { "--rs-depth", "--frame FILE, with an \"rs\" stage over the data group",
+    CODED },
+  { "--randomise",
+    "--frame FILE, with a \"randomise\" stage over the data group", CODED },
+  { "--randomize",
+    "--frame FILE, with a \"randomise\" stage over the data group", CODED },
+  { "--asm", "--frame FILE, with the marker 0x1ACFFC1D as its first field",
+    CODED },
+  { "--conv", "--frame FILE, with a \"conv\" stage over every field", CODED },
+  { "--interleave",
+    "--frame FILE, with an \"interleave\" stage over the data group", CODED },
+  { "--interleave-unit", "--frame FILE: the interleave stage's \"unit_bits\"",
+    CODED },
+#undef CODED
 };
 
-/* The replacement for a retired flag, or NULL. */
-static const char *
+/* The retired row for a flag, or NULL. */
+static const retired_t *
 retired (const char *a)
 {
   for (size_t k = 0; k < sizeof RETIRED / sizeof *RETIRED; k++)
     if (!strcmp (a, RETIRED[k].flag))
-      return RETIRED[k].instead;
+      return &RETIRED[k];
   return NULL;
 }
 
@@ -851,12 +823,11 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
       const opt_t *opt = find_opt (a, &row) ? &row : NULL;
       if (!opt)
         {
-          const char *instead = retired (a);
-          if (instead)
-            (void)fprintf (stderr,
-                           "error: %s is retired: one flag per field now "
-                           "-- write %s\n",
-                           a, instead);
+          const retired_t *r = retired (a);
+          if (r)
+            (void)fprintf (stderr, "error: %s is retired: %s -- write %s\n", a,
+                           r->why ? r->why : "one flag per field now",
+                           r->instead);
           else
             (void)fprintf (stderr, "error: unknown option '%s' (try --help)\n",
                            a);
@@ -1442,17 +1413,59 @@ check_continuous_dsss (const wfmgen_opts_t *o)
                              "--data-code\n");
       return 2;
     }
-  if (o->src.acq_code.len || o->src.sync.len
+  if (o->src.acq_code.len || o->src.sync.len || o->src.frame
       || o->surf_seen[WFM_SURFACE_source_crc])
     {
-      (void)fprintf (stderr, "error: --acq-code/--sync/--crc are burst-frame "
-                             "flags, meaningless with --symbol-rate\n");
+      (void)fprintf (stderr, "error: --acq-code/--sync/--crc/--frame are "
+                             "burst-frame flags, meaningless with "
+                             "--symbol-rate\n");
       return 2;
     }
   if (o->data_flag_set && o->src.payload.len)
     {
       (void)fprintf (stderr,
                      "error: --data and --bits both set the data; use one\n");
+      return 2;
+    }
+  return 0;
+}
+
+/* `--frame FILE`: read a frame description and carry it on the source.
+ *
+ * The file holds what a scene's "frame" key holds, through the one reader
+ * of that form (dp_wfm_frame_from_json). A carried description IS the frame,
+ * so the flags that spell the common frame -- and the payload, which is one
+ * of its fields -- are refused beside it rather than silently dropped. The
+ * sync word and an unspread preamble are the bridge's refusal
+ * (dp_wfm_source_frame_error), shared with every face; --crc and --bits are
+ * this face's, because only here is it known they were GIVEN (crc defaults
+ * to crc16). Returns 0, or the exit code. */
+static int
+load_frame (wfmgen_opts_t *o)
+{
+  if (!o->frame_path)
+    return 0;
+  if (o->surf_seen[WFM_SURFACE_source_crc] || o->src.payload.len)
+    {
+      (void)fprintf (stderr, "error: --frame FILE is the whole frame: its CRC "
+                             "is a stage and its payload a field in the file, "
+                             "so --crc and --bits/--bits-file cannot sit "
+                             "beside it\n");
+      return 2;
+    }
+  char *text = slurp_file (o->frame_path);
+  if (!text)
+    {
+      (void)fprintf (stderr, "error: could not read %s\n", o->frame_path);
+      return 1;
+    }
+  const char *why = NULL;
+  o->src.frame    = dp_wfm_frame_from_json (text, &why);
+  free (text);
+  if (!o->src.frame)
+    {
+      (void)fprintf (stderr, "error: %s: %s\n", o->frame_path,
+                     why ? why : "not a frame description");
       return 2;
     }
   return 0;
@@ -1580,6 +1593,15 @@ wfmgen_run (int argc, char *argv[])
   if (rc)
     goto done;
 
+  if (o.frame_path && o.from_file)
+    {
+      (void)fprintf (stderr, "error: --frame describes the frame of a run "
+                             "built from flags; a --from-file scene carries "
+                             "its own, as a source's \"frame\"\n");
+      rc = 2;
+      goto done;
+    }
+
   /* Build the composer: from a JSON spec, or the single-segment flags. A
      recorded --headroom rides in the spec file and is reapplied here unless
      an explicit --headroom on this run overrides it. `comp` is declared at the
@@ -1611,6 +1633,9 @@ wfmgen_run (int argc, char *argv[])
     }
   else
     {
+      rc = load_frame (&o);
+      if (rc)
+        goto done;
       rc = check_continuous_dsss (&o);
       if (rc)
         goto done;

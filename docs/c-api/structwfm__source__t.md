@@ -38,10 +38,8 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 | ---: | :--- |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
-|  int | [**attach\_asm**](#variable-attach_asm)  <br> |
 |  int | [**background**](#variable-background)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
-|  int | [**convolutional**](#variable-convolutional)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
 |  double | [**doppler**](#variable-doppler)  <br> |
@@ -55,8 +53,6 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**frame**](#variable-frame)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  double | [**freq\_hi**](#variable-freq_hi)  <br> |
-|  unsigned | [**interleave\_depth**](#variable-interleave_depth)  <br> |
-|  unsigned | [**interleave\_unit\_bits**](#variable-interleave_unit_bits)  <br> |
 |  double | [**level**](#variable-level)  <br> |
 |  double | [**level\_hi**](#variable-level_hi)  <br> |
 |  int | [**lfsr**](#variable-lfsr)  <br> |
@@ -66,11 +62,9 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
 |  uint64\_t | [**pn\_poly**](#variable-pn_poly)  <br> |
 |  int | [**pulse**](#variable-pulse)  <br> |
-|  int | [**randomise**](#variable-randomise)  <br> |
 |  unsigned | [**ranged**](#variable-ranged)  <br> |
 |  double | [**rrc\_beta**](#variable-rrc_beta)  <br> |
 |  int | [**rrc\_span**](#variable-rrc_span)  <br> |
-|  unsigned | [**rs\_depth**](#variable-rs_depth)  <br> |
 |  uint32\_t | [**seed**](#variable-seed)  <br> |
 |  double | [**snr**](#variable-snr)  <br> |
 |  double | [**snr\_hi**](#variable-snr_hi)  <br> |
@@ -166,19 +160,6 @@ size_t wfm_source_t::acq_reps;
 
 
 
-### variable attach\_asm 
-
-```C++
-int wfm_source_t::attach_asm;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable background 
 
 ```C++
@@ -196,19 +177,6 @@ int wfm_source_t::background;
 
 ```C++
 double wfm_source_t::carrier_hz;
-```
-
-
-
-
-<hr>
-
-
-
-### variable convolutional 
-
-```C++
-int wfm_source_t::convolutional;
 ```
 
 
@@ -387,32 +355,6 @@ double wfm_source_t::freq_hi;
 
 
 
-### variable interleave\_depth 
-
-```C++
-unsigned wfm_source_t::interleave_depth;
-```
-
-
-
-
-<hr>
-
-
-
-### variable interleave\_unit\_bits 
-
-```C++
-unsigned wfm_source_t::interleave_unit_bits;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable level 
 
 ```C++
@@ -530,19 +472,6 @@ int wfm_source_t::pulse;
 
 
 
-### variable randomise 
-
-```C++
-int wfm_source_t::randomise;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable ranged 
 
 ```C++
@@ -573,19 +502,6 @@ double wfm_source_t::rrc_beta;
 
 ```C++
 int wfm_source_t::rrc_span;
-```
-
-
-
-
-<hr>
-
-
-
-### variable rs\_depth 
-
-```C++
-unsigned wfm_source_t::rs_depth;
 ```
 
 

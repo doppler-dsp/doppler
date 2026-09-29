@@ -276,52 +276,6 @@
           "minLength": 1,
           "description": "The payload bits: a Field on the command line and in a scene, an array in Python. For type=bits, the pattern, oversampled by sps and cycled to fill the request; for type=dsss, the payload bits of the burst frame."
         },
-        "rs_depth": {
-          "type": "integer",
-          "enum": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            8
-          ],
-          "description": "Channel coding: Reed-Solomon (255,223) E=16 over the frame's data group, interleaved this many codewords deep (CCSDS 131.0-B-3 4.3.5.1). The payload plus its CRC must be exactly 223*rs_depth octets — virtual fill is not implemented, so a short frame is refused rather than padded. Absent means no outer code."
-        },
-        "randomise": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "off",
-                "ccsds",
-                "legacy"
-              ]
-            },
-            {
-              "type": "boolean"
-            }
-          ],
-          "description": "Channel coding: WHICH section-10 pseudo-random sequence to XOR over the frame's DATA group — not over a marker, preamble or sync word, all of which a receiver has to find and which therefore must look the same in every frame. Its own inverse, so the receive side runs the identical call. \"ccsds\" is 131.0-B-6 10.4.1's 131071-bit generator (h(x)=x^17+x^14+1), which the standard requires; \"legacy\" is 10.4.2's 255-bit one (h(x)=x^8+x^7+x^5+x^3+1), kept for backward compatibility only and carrying spectral lines at 1/255 of the symbol rate. The two are not interchangeable on the air: only the matching receiver derandomises a given waveform. A bare boolean is accepted on input and read as \"ccsds\", so a record written before the choice existed still loads."
-        },
-        "asm": {
-          "type": "boolean",
-          "description": "Channel coding: prepend the 0x1ACFFC1D attached sync marker as a field. Not covered by the outer code or the randomiser, and covered by the inner code — that asymmetry is the whole reason a frame is a description of fields and spans rather than a chain of transforms."
-        },
-        "conv": {
-          "type": "boolean",
-          "description": "Channel coding: convolutional K=7 rate-1/2 (CCSDS 131.0-B-3 3.3) over the WHOLE frame, marker included. Doubles the bit count. With rs_depth, randomise and asm over a 223*I-octet payload and no preamble or sync word, the result is a CCSDS CADU."
-        },
-        "interleave": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Channel coding: block-interleave the data group this many units deep; 0 = none. LAST of the data-group stages, so it is what the channel sees. A burst of up to R consecutive units then touches each codeword at most once, so an outer code correcting t units per codeword survives a burst of t*R."
-        },
-        "interleave_unit": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Channel coding: bits per permuted unit; 0 reads as 1. Match it to the outer code's symbol — 8 with rs_depth, because Reed-Solomon is a code over GF(256) and spreading a burst across CODEWORDS means permuting octets. Bit-interleaving an octet code spreads a burst inside a symbol that is already wrong."
-        },
         "crc": {
           "type": "string",
           "enum": [
@@ -379,7 +333,7 @@
       }
     },
     "frame_desc": {
-      "description": "A frame the CALLER built, and the answer to \"what frame is this?\" when it is present. The flat framing and coding keys beside it (acq_code, sync, crc, rs_depth, randomise, asm, conv, interleave) stay, as SUGAR that builds one of these — so every scene written before this key existed still loads — but a description says things they cannot: a field of the caller's own bits at a position of their choosing, a stage covering a span they name, an arrangement no flag spells. Present, it WINS: wfm_source_describe_frame returns it instead of deriving one, rather than merging the two. KERNELS are not in here and cannot be: a stage names a KIND, and the code that runs it is a wfm_frame_ops_t entry a caller supplies in C.",
+      "description": "The FRAME, as a description, when the source carries one: fields in wire order and stages that each name the span they cover. It is the only way to add a coding stage (crc16, rs, randomise, interleave, conv, or a kind of your own) and how a CCSDS CADU is written. Present, it IS the frame: a sync word or an unspread preamble beside it is refused, and the flat keys acq_code, sync and crc describe only the common frame [preamble x reps | sync | payload | crc] when it is absent. `wfmgen --frame FILE` reads this same object. KERNELS are not in here and cannot be: a stage names a KIND, and the code that runs it is a wfm_frame_ops_t entry a caller supplies in C.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -615,24 +569,6 @@
         },
         "crc": {
           "$ref": "#/$defs/source/properties/crc"
-        },
-        "rs_depth": {
-          "$ref": "#/$defs/source/properties/rs_depth"
-        },
-        "randomise": {
-          "$ref": "#/$defs/source/properties/randomise"
-        },
-        "asm": {
-          "$ref": "#/$defs/source/properties/asm"
-        },
-        "conv": {
-          "$ref": "#/$defs/source/properties/conv"
-        },
-        "interleave": {
-          "$ref": "#/$defs/source/properties/interleave"
-        },
-        "interleave_unit": {
-          "$ref": "#/$defs/source/properties/interleave_unit"
         },
         "symbol_rate": {
           "$ref": "#/$defs/source/properties/symbol_rate"

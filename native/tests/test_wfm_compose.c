@@ -13,7 +13,7 @@
 #include "doppler/pn/pn_core.h"
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_defaults.h" /* WFM_SOURCE_DEFAULTS */
-#include "doppler/wfm/wfm_dsp.h" /* wfm_frame_dsss_* for the dsss burst section */
+#include "doppler/wfm/wfm_dsp.h"
 #include "doppler/wfm/wfm_frame.h" /* the descriptor the unspread frame section reads */
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
@@ -287,6 +287,136 @@ test_the_two_faces_agree (void)
   return 0;
 }
 
+/* The bits an unspread source puts on the WIRE, read back off its samples:
+ * the source's own synth (dp_wfm_compose_build_synth -- the one
+ * construction path), clean, BPSK, the sign of every sps-th sample. A test
+ * asserting on these observes the whole source path, whatever frame the
+ * bridge built, rather than a private step inside it. The modulation is
+ * forced to BPSK because the claim is about the bits, and BPSK is where the
+ * sign IS the bit (0 -> +1, 1 -> -1). Returns @p n, or 0 if the source did
+ * not build. */
+static size_t
+wire_bits (const wfm_source_t *src, uint8_t *out, size_t n)
+{
+  wfm_source_t s            = *src;
+  s.modulation              = 1; /* bpsk */
+  const size_t          sps = (s.sps < 1) ? 1u : (size_t)s.sps;
+  dp_wfm_synth_state_t *sy = dp_wfm_compose_build_synth (&s, 1.0, n * sps, 0.0,
+                                                         100.0, 0.0, 0, 0, 0);
+  if (!sy)
+    return 0;
+  float _Complex *x = malloc (n * sps * sizeof *x);
+  if (!x)
+    {
+      dp_wfm_synth_destroy (sy);
+      return 0;
+    }
+  dp_wfm_synth_steps (sy, x, n * sps);
+  for (size_t i = 0; i < n; i++)
+    out[i] = crealf (x[i * sps]) < 0.0f ? 1u : 0u;
+  free (x);
+  dp_wfm_synth_destroy (sy);
+  return n;
+}
+
+/* A CODED frame, described by name -- the shapes a `--frame FILE` carries,
+ * written the way a caller writes one. The covers are 131.0-B-6's rule,
+ * generalised past the CADU: a marker, a preamble and a sync word are
+ * FOUND, so only the inner code covers them; the payload, its CRC and the
+ * outer code's parity are the data group the outer code, the randomiser and
+ * the interleaver reach over; stages are listed in APPLICATION order, the
+ * interleaver last of the data-group stages so it is what the channel sees.
+ * The sequences are borrowed; the marker's bits are static. Returns 0. */
+typedef struct
+{
+  int              asm_;      /* the 0x1ACFFC1D marker, first            */
+  const wfm_seq_t *pre;       /* preamble, or NULL                        */
+  size_t           reps;      /* its repetitions                          */
+  const wfm_seq_t *sync;      /* sync word, or NULL                       */
+  const wfm_seq_t *payload;   /* the payload                              */
+  int              crc;       /* CRC-16 over the payload                  */
+  unsigned         rs;        /* outer code depth; 0 = none               */
+  unsigned         rand;      /* randomiser: 1 = 10.4.1, 2 = 10.4.2       */
+  unsigned         ilv, unit; /* interleaver depth and unit bits          */
+  int              conv;      /* inner code over every field              */
+} coded_t;
+
+static int
+coded_frame (const coded_t *c, wfm_frame_desc_t *d)
+{
+  static uint8_t marker[CCSDS_TM_ASM_BITS];
+  const char    *first = NULL;
+  memset (d, 0, sizeof *d);
+  if (c->asm_)
+    {
+      dp_ccsds_tm_asm_bits (marker);
+      const wfm_seq_t m = { .kind = WFM_SEQ_LITERAL,
+                            .bits = marker,
+                            .len  = CCSDS_TM_ASM_BITS };
+      if (dp_wfm_frame_add_field (d, "asm", &m, 0u) < 0)
+        return -1;
+      first = "asm";
+    }
+  if (c->pre && c->reps)
+    {
+      if (dp_wfm_frame_add_field (d, "preamble", c->pre, c->reps) < 0)
+        return -1;
+      first = first ? first : "preamble";
+    }
+  if (c->sync)
+    {
+      if (dp_wfm_frame_add_field (d, "sync", c->sync, 0u) < 0)
+        return -1;
+      first = first ? first : "sync";
+    }
+  if (dp_wfm_frame_add_field (d, "payload", c->payload, 0u) < 0)
+    return -1;
+  first = first ? first : "payload";
+  if (c->crc && dp_wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0)
+    return -1;
+  if (c->rs
+      && dp_wfm_frame_add_derived (d, "rs_parity",
+                                   (size_t)CCSDS_TM_RS_2E * c->rs * 8u)
+             < 0)
+    return -1;
+  const char *last = c->rs ? "rs_parity" : (c->crc ? "crc" : "payload");
+  int         st;
+  if (c->crc
+      && dp_wfm_frame_add_stage (d, WFM_STAGE_CRC16, "payload", "crc") < 0)
+    return -1;
+  if (c->rs)
+    {
+      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_RS, "payload", last)) < 0)
+        return -1;
+      d->stage[st].depth = c->rs;
+    }
+  if (c->rand)
+    {
+      if ((st
+           = dp_wfm_frame_add_stage (d, WFM_STAGE_RANDOMISE, "payload", last))
+          < 0)
+        return -1;
+      d->stage[st].depth = c->rand;
+    }
+  if (c->ilv)
+    {
+      if ((st
+           = dp_wfm_frame_add_stage (d, WFM_STAGE_INTERLEAVE, "payload", last))
+          < 0)
+        return -1;
+      d->stage[st].depth     = c->ilv;
+      d->stage[st].unit_bits = c->unit;
+    }
+  if (c->conv)
+    {
+      if ((st = dp_wfm_frame_add_stage (d, WFM_STAGE_CONV, first, last)) < 0)
+        return -1;
+      d->stage[st].emit_num = 2u; /* rate 1/2 */
+      d->stage[st].emit_den = 1u;
+    }
+  return 0;
+}
+
 /* ── a source EATS a frame the caller built ──────────────────────────
  * The frame builder already did everything asked of it -- named fields,
  * a caller's own bits at a position they choose, stages covering spans
@@ -295,9 +425,9 @@ test_the_two_faces_agree (void)
  * description from them, and offered no way to hand one in. So every new
  * coding type had to become another wfmgen flag rather than a stage.
  *
- * These pin the seam that fixes it. dp_wfm_source_describe_frame is also one
- * of the entry points no C test called, which is how it could be the ONE
- * place every consumer funnels through and still be unpinned. */
+ * These pin the seam that fixes it, and the rule that came with it: a
+ * carried description is the WHOLE frame, so a second spelling of part of
+ * it beside it is refused rather than silently dropped. */
 static int
 test_a_source_carries_the_frame_a_caller_built (void)
 {
@@ -333,7 +463,10 @@ test_a_source_carries_the_frame_a_caller_built (void)
       "frame: dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, 'payload', 'payl");
 
   wfm_source_t src = { 0 };
-  src.type         = WFM_SYNTH_BPSK;
+  src.type         = WFM_SYNTH_BITS;
+  src.pn_length    = 7;
+  src.modulation   = 1; /* bpsk */
+  src.sps          = 1;
   src.payload      = payload;
 
   /* Without a carried frame, none of the flat fields is set, so this
@@ -347,36 +480,43 @@ test_a_source_carries_the_frame_a_caller_built (void)
       dp_wfm_source_has_frame (&src),
       "frame: dp_wfm_source_has_frame (&src)"); /* carried == framed */
 
-  /* And the description the composer will use is the one handed in, not a
-     translation of the flat fields. */
-  wfm_frame_desc_t got;
-  DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &got) == 0,
-                  "frame: dp_wfm_source_describe_frame (&src, &got) == 0");
-  DP_REQUIRE_MSG (got.n_fields == d.n_fields,
-                  "frame: got.n_fields == d.n_fields");
-  DP_REQUIRE_MSG (got.n_stages == d.n_stages,
-                  "frame: got.n_stages == d.n_stages");
-  DP_REQUIRE_MSG (memcmp (&got, &d, sizeof d) == 0,
-                  "frame: memcmp (&got, &d, sizeof d) == 0");
+  /* And the frame on the wire is the one handed in: the source's own synth
+     emits exactly what the description assembles to. */
+  wfm_frame_desc_layout_t l;
+  DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
+  uint8_t want[64], got[64];
+  DP_REQUIRE_MSG (l.out_bits <= sizeof want
+                      && dp_wfm_frame_assemble (&d, NULL, want, sizeof want)
+                             == l.out_bits,
+                  "the description assembles");
+  DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) == NULL,
+                  "a carried frame is honoured as given");
+  DP_REQUIRE_MSG (wire_bits (&src, got, l.out_bits) == l.out_bits,
+                  "the source builds");
+  DP_REQUIRE_MSG (memcmp (got, want, l.out_bits) == 0,
+                  "frame: the wire carries the caller's description, bit for "
+                  "bit");
 
-  /* A carried frame BEATS the sugar: set a flat field that would have
-     produced a different description and the carried one still wins. */
-  src.attach_asm = 1;
-  DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &got) == 0,
-                  "frame: dp_wfm_source_describe_frame (&src, &got) == 0");
-  DP_REQUIRE_MSG (memcmp (&got, &d, sizeof d) == 0,
-                  "frame: memcmp (&got, &d, sizeof d) == 0");
+  /* ONE frame, said one way: a sync word beside a carried description is a
+     second spelling of part of it, and the description would silently win.
+     Refused -- and for the same reason an unspread preamble is. */
+  src.sync = marker;
+  DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) != NULL,
+                  "frame: a sync word beside a carried frame is refused");
+  memset (&src.sync, 0, sizeof src.sync);
+  src.acq_code = marker;
+  src.acq_reps = 2;
+  DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) != NULL,
+                  "frame: so is an unspread preamble");
 
-  /* Drop it and the sugar builds a description again -- the flat path is
-     untouched, which is what keeps every existing scene working. */
+  /* Drop the description and the same fields describe the COMMON frame --
+     the flat path is untouched, which is what keeps every existing scene
+     working. */
   src.frame = NULL;
   DP_REQUIRE_MSG (dp_wfm_source_has_frame (&src),
-                  "frame: dp_wfm_source_has_frame (&src)"); /* attach_asm alone
-                                                               frames it */
-  DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &got) == 0,
-                  "frame: dp_wfm_source_describe_frame (&src, &got) == 0");
-  DP_REQUIRE_MSG (memcmp (&got, &d, sizeof d) != 0,
-                  "frame: memcmp (&got, &d, sizeof d) != 0");
+                  "frame: a preamble alone frames the common frame");
+  DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) == NULL,
+                  "frame: and it builds");
 
   printf ("  a source carries the frame a caller built\n");
   return 0;
@@ -1456,10 +1596,25 @@ main (void)
      * description every other source's frame is, so a rate-1/2 inner code
      * doubles the frame -- and leaves the preamble alone, because the
      * preamble is not IN the description.
+     *
+     * The coded burst CARRIES its description: the common frame over the
+     * same sync, payload and CRC, plus an inner code over all of it. The
+     * source's own sync goes into the description, since a carried frame
+     * is the whole frame; the unspread preamble stays on the source.
      */
     {
-      wfm_source_t cv  = dsss;
-      cv.convolutional = 1;
+      wfm_frame_desc_t cvd;
+      DP_REQUIRE (dp_wfm_frame_fixed (&cvd, NULL, 0, &dsss.sync, &dsss.payload,
+                                      dsss.crc)
+                  == 0);
+      const int cst
+          = dp_wfm_frame_add_stage (&cvd, WFM_STAGE_CONV, "sync", "crc");
+      DP_REQUIRE (cst >= 0);
+      cvd.stage[cst].emit_num = 2u; /* rate 1/2 */
+      cvd.stage[cst].emit_den = 1u;
+      wfm_source_t cv         = dsss;
+      memset (&cv.sync, 0, sizeof cv.sync);
+      cv.frame = &cvd;
       wfm_segment_t gcv
           = { .sources = &cv, .n_sources = 1, .fs = 1e6, .off_samples = 0 };
       wfm_segment_t gpl
@@ -1513,8 +1668,10 @@ main (void)
       char                *jm2 = dp_wfm_spec_to_json (gm, 1, 0, 0, 0, 0.0);
       dp_wfm_compose_destroy (cm);
       DP_REQUIRE_MSG (jm2, "sum spec serialises");
-      DP_REQUIRE_MSG (strstr (jm2, "\"conv\"") != NULL,
-                      "a summed source's record must name its inner code");
+      DP_REQUIRE_MSG (strstr (jm2, "\"frame\"") != NULL
+                          && strstr (jm2, "\"conv\"") != NULL,
+                      "a summed source's record must carry its description, "
+                      "inner code and all");
       free (jm2);
     }
 
@@ -2345,16 +2502,18 @@ main (void)
      *
      * A preamble LENGTH with no preamble ARRAY is that state. No face can
      * currently spell it — the CLI and wfm_json.c both derive the length FROM
-     * the array — so it is a C-level guard and it is asserted in C. Note it
-     * passes dp_wfm_source_frame_error(): the user-facing rule is about the
-     * payload, and this is the layer under it. */
+     * the array — so it is a C-level guard and it is asserted in C. The
+     * user-facing rule now catches it FIRST, with a sentence: the source's
+     * frame is asked whether it assembles, and a field that cannot be built
+     * is a frame that does not. The build paths still refuse on their own,
+     * because a caller may build without asking. */
     wfm_source_t broken  = framed;
     broken.acq_code.bits = NULL; /* .len and acq_reps still set */
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&broken),
                     "still reads as framed");
-    DP_REQUIRE_MSG (
-        dp_wfm_source_frame_error (&broken) == NULL,
-        "and passes the payload rule — this is the layer under it");
+    const char *bwhy = dp_wfm_source_frame_error (&broken);
+    DP_REQUIRE_MSG (bwhy && strstr (bwhy, "does not assemble"),
+                    "and is refused as a frame that does not assemble");
     DP_REQUIRE_MSG (
         !dp_wfm_compose_build_synth (&broken, 1.0, nb, 0.0, 100.0, 0.0, 0, 0,
                                      0),
@@ -2391,56 +2550,70 @@ main (void)
     for (size_t i = 0; i < sizeof frame; i++)
       frame[i] = (uint8_t)(i & 1u);
 
-    wfm_source_t cadu = { .type                 = WFM_SYNTH_BITS,
-                          .snr                  = 100.0,
-                          .sps                  = 1,
-                          .pn_length            = 7,
-                          .modulation           = 1,
-                          .payload.bits         = frame,
-                          .payload.len          = sizeof frame,
-                          .crc                  = 0,
-                          .rs_depth             = 1,
-                          .interleave_depth     = 5,
-                          .interleave_unit_bits = 8 };
+    const wfm_seq_t pl
+        = { .kind = WFM_SEQ_LITERAL, .bits = frame, .len = sizeof frame };
+    wfm_frame_desc_t d5;
+    const coded_t    c5 = { .payload = &pl, .rs = 1, .ilv = 5, .unit = 8 };
+    DP_REQUIRE (coded_frame (&c5, &d5) == 0);
+    wfm_source_t cadu = { .type       = WFM_SYNTH_BITS,
+                          .snr        = 100.0,
+                          .sps        = 1,
+                          .pn_length  = 7,
+                          .modulation = 1,
+                          .crc        = 0,
+                          .frame      = &d5 };
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&cadu) == NULL,
                     "223 octets + RS parity is 2040 bits, which 5 x 8 "
                     "divides 51 times -- the arrangement CCSDS specifies");
 
-    /* The guard still bites, or removing it would have passed the case
-       above just as well. It has to be provoked WITHOUT disturbing the outer
-       code's own geometry: shortening the payload trips the --rs-depth guard
-       three statements earlier, which returns a different sentence and
-       satisfies a bare `!= NULL` while never reaching this one. So keep the
-       223 octets and change the depth: 2040 divides by 5*8 and does not
-       divide by 2*8, because 255 is odd. */
-    wfm_source_t odd_depth     = cadu;
-    odd_depth.interleave_depth = 2;
-    const char *why            = dp_wfm_source_frame_error (&odd_depth);
+    /* The refusal still bites, or losing it would have passed the case
+       above just as well. It is provoked WITHOUT disturbing the outer code's
+       own geometry, so the interleaver is what refuses: keep the 223 octets
+       and change the depth -- 2040 divides by 5*8 and does not divide by
+       2*8, because 255 is odd. A bad kernel geometry no longer lays out
+       cleanly and assembles to NOTHING: the source refuses it, with a
+       sentence, before anything is generated. */
+    wfm_frame_desc_t d2    = d5;
+    d2.stage[1].depth      = 2;
+    wfm_source_t odd_depth = cadu;
+    odd_depth.frame        = &d2;
+    const char *why        = dp_wfm_source_frame_error (&odd_depth);
     DP_REQUIRE_MSG (why != NULL,
                     "a data group that is not a whole number of units is "
                     "still refused");
-    /* And refused BY THIS GUARD -- asserting only that some sentence came
-       back is what let the case above pass on the outer code's message. */
-    DP_REQUIRE_MSG (strstr (why, "--interleave") == why,
-                    "the refusal has to name --interleave, not whichever "
-                    "guard happened to fire first");
+    DP_REQUIRE_MSG (strstr (why, "does not assemble") != NULL,
+                    "and refused as a frame that does not ASSEMBLE -- the "
+                    "kernel's own rule, asked by running it");
+
+    /* The outer code's rule, by the same question: a short payload is
+       refused rather than padded (virtual fill is not implemented). */
+    static const uint8_t sixteen[16] = { 0 };
+    const wfm_seq_t      s16
+        = { .kind = WFM_SEQ_LITERAL, .bits = sixteen, .len = sizeof sixteen };
+    wfm_frame_desc_t dshort;
+    const coded_t    cshort = { .payload = &s16, .rs = 1 };
+    DP_REQUIRE (coded_frame (&cshort, &dshort) == 0);
+    wfm_source_t short_rs = cadu;
+    short_rs.frame        = &dshort;
+    DP_REQUIRE_MSG (dp_wfm_source_frame_error (&short_rs) != NULL,
+                    "an outer code over 16 bits is refused, not padded");
 
     /* And without an outer code the span is payload + CRC, unchanged: 16
        payload bits and no CRC is two units of 8, so depth 2 divides it. */
-    wfm_source_t         no_outer    = cadu;
-    static const uint8_t sixteen[16] = { 0 };
-    no_outer.payload.bits            = (uint8_t *)sixteen;
-    no_outer.payload.len             = sizeof sixteen;
-    no_outer.rs_depth                = 0;
-    no_outer.interleave_depth        = 2;
+    wfm_frame_desc_t dno;
+    const coded_t    cno = { .payload = &s16, .ilv = 2, .unit = 8 };
+    DP_REQUIRE (coded_frame (&cno, &dno) == 0);
+    wfm_source_t no_outer = cadu;
+    no_outer.frame        = &dno;
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&no_outer) == NULL,
                     "with no outer code the group is payload + CRC");
   }
 
-  /* ── the bridge builds by NAME, and it must build the RIGHT frame ─────
+  /* ── a coded description assembles to the RIGHT frame, on the wire ────
    *
-   * `dp_wfm_source_describe_frame` builds through the general by-name
-   * builder. The oracle is the frame built by hand from the stage KERNELS,
+   * `coded_frame` above writes each shape by name, the way a `--frame FILE`
+   * does, and the source carries it. The oracle is the frame built by hand
+   * from the stage KERNELS,
    * in the order and over the spans frame-description.md states: the CRC
    * over the payload; the outer code over payload + CRC
    * (dp_ccsds_tm_frame_encode with only `rs_depth` set); the randomiser
@@ -2498,34 +2671,34 @@ main (void)
           n_bits = (size_t)223u * (size_t)CASES[c].rs * 8u
                    - (CASES[c].crc ? WFM_FRAME_CRC_BITS : 0u);
 
-        wfm_source_t src = { .type                 = WFM_SYNTH_BITS,
-                             .snr                  = 100.0,
-                             .sps                  = 1,
-                             .pn_length            = 7,
-                             .modulation           = 1,
-                             .payload.bits         = payload,
-                             .payload.len          = n_bits,
-                             .attach_asm           = CASES[c].asm_,
-                             .crc                  = CASES[c].crc,
-                             .rs_depth             = (unsigned)CASES[c].rs,
-                             .randomise            = CASES[c].rand,
-                             .convolutional        = CASES[c].conv,
-                             .interleave_depth     = CASES[c].ilv,
-                             .interleave_unit_bits = CASES[c].unit };
-        if (CASES[c].n_sync)
-          {
-            src.sync.bits = syncw;
-            src.sync.len  = CASES[c].n_sync;
-          }
-        if (CASES[c].n_pre)
-          {
-            src.acq_code.bits = pre;
-            src.acq_code.len  = CASES[c].n_pre;
-            src.acq_reps      = CASES[c].reps;
-          }
-
+        const wfm_seq_t pls
+            = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = n_bits };
+        const wfm_seq_t sys = { .kind = WFM_SEQ_LITERAL,
+                                .bits = syncw,
+                                .len  = CASES[c].n_sync };
+        const wfm_seq_t prs
+            = { .kind = WFM_SEQ_LITERAL, .bits = pre, .len = CASES[c].n_pre };
+        const coded_t    cc = { .asm_    = CASES[c].asm_,
+                                .pre     = CASES[c].n_pre ? &prs : NULL,
+                                .reps    = CASES[c].reps,
+                                .sync    = CASES[c].n_sync ? &sys : NULL,
+                                .payload = &pls,
+                                .crc     = CASES[c].crc,
+                                .rs      = (unsigned)CASES[c].rs,
+                                .rand    = (unsigned)CASES[c].rand,
+                                .ilv     = CASES[c].ilv,
+                                .unit    = CASES[c].unit,
+                                .conv    = CASES[c].conv };
         wfm_frame_desc_t d;
-        DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &d) == 0,
+        DP_REQUIRE_MSG (coded_frame (&cc, &d) == 0, CASES[c].what);
+        /* A source carries it, and has nothing to say against it. */
+        const wfm_source_t src = { .type       = WFM_SYNTH_BITS,
+                                   .snr        = 100.0,
+                                   .sps        = 1,
+                                   .pn_length  = 7,
+                                   .modulation = 1,
+                                   .frame      = &d };
+        DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) == NULL,
                         CASES[c].what);
 
         const unsigned want_stages
@@ -2630,6 +2803,15 @@ main (void)
         DP_CHECK_MSG (la.out_bits == ne,
                       "the layout predicts the length the frame assembles to");
         DP_CHECK_MSG (memcmp (got, expect, ng) == 0, CASES[c].what);
+
+        /* And the SOURCE puts exactly that on the wire -- the carried
+           description is what its synth plays, stage kernels and all. */
+        uint8_t *wire_b = (uint8_t *)malloc (ng);
+        DP_REQUIRE (wire_b != NULL);
+        DP_CHECK_MSG (wire_bits (&src, wire_b, ng) == ng
+                          && memcmp (wire_b, got, ng) == 0,
+                      CASES[c].what);
+        free (wire_b);
         free (got);
       }
   }
@@ -2638,7 +2820,7 @@ main (void)
    *
    * gh-762 step 2. `wfm_seq_t` has had four kinds all along and the frame
    * layer materialises every one of them, but no caller could spell
-   * anything but LITERAL: `dp_wfm_source_describe_frame` rebuilt each field as
+   * anything but LITERAL: the source's frame builder rebuilt each field as
    * a fresh literal, so a source's kind was discarded one call before the
    * descriptor could see it. The source now carries `wfm_seq_t` (step 1) and
    * the bridge passes it through, which is the whole change.
@@ -2672,20 +2854,11 @@ main (void)
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) == NULL,
                     "and it is a buildable shape");
 
-    wfm_frame_desc_t d;
-    DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &d) == 0, "describe");
-    const int i = dp_wfm_frame_field_index (&d, "sync");
-    DP_REQUIRE_MSG (i >= 0, "the sync field is there by name");
-    DP_REQUIRE_MSG (d.field[i].seq.kind == WFM_SEQ_PN,
-                    "and it is still a PN field -- the kind SURVIVED the "
-                    "bridge, which is the whole of gh-762 step 2");
-
-    wfm_frame_desc_layout_t l;
-    DP_REQUIRE_MSG (dp_wfm_frame_desc_layout (&d, &l) == 0, "layout");
-    static uint8_t got[4096];
-    DP_REQUIRE_MSG (dp_wfm_frame_assemble (&d, NULL, got, sizeof got)
-                        == l.out_bits,
-                    "and the frame assembles");
+    /* Read off the WIRE: the frame is [sync | payload] (no preamble, no
+       CRC), so the sync word is the first 31 bits the source emits. */
+    static uint8_t got[31 + 64];
+    DP_REQUIRE_MSG (wire_bits (&src, got, sizeof got) == sizeof got,
+                    "the source builds");
 
     static uint8_t want[31];
     dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5u), 3u, 5u, 0);
@@ -2694,28 +2867,27 @@ main (void)
                     "dp_pn_generate");
     dp_pn_destroy (pn);
     DP_REQUIRE_MSG (
-        memcmp (got + l.field_off[i], want, 31u) == 0,
+        memcmp (got, want, 31u) == 0,
         "a PN sync declared on the SOURCE is dp_pn_generate of its "
-        "own three numbers, at the offset the layout promised");
+        "own three numbers, on the wire -- the kind SURVIVED the bridge, "
+        "which is the whole of gh-762 step 2");
+    DP_REQUIRE_MSG (memcmp (got + 31, pay, sizeof pay) == 0,
+                    "and the payload follows it");
 
-    /* A literal source still describes a literal, unchanged. Both
-       directions: a bridge that stamped PN on everything would pass the
-       assertion above and break every existing caller. */
+    /* A literal source still sends a literal, unchanged. Both directions: a
+       bridge that stamped PN on everything would pass the assertion above
+       and break every existing caller. */
     static const uint8_t lit[4] = { 1, 0, 0, 1 };
     wfm_source_t         plain  = src;
     memset (&plain.sync, 0, sizeof plain.sync);
     plain.sync.kind = WFM_SEQ_LITERAL;
     plain.sync.bits = lit;
     plain.sync.len  = sizeof lit;
-    wfm_frame_desc_t d2;
-    DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&plain, &d2) == 0,
-                    "describe");
-    const int j = dp_wfm_frame_field_index (&d2, "sync");
-    DP_REQUIRE (j >= 0);
-    DP_REQUIRE_MSG (d2.field[j].seq.kind == WFM_SEQ_LITERAL
-                        && d2.field[j].seq.bits == lit,
-                    "a literal sync is still literal, and still the caller's "
-                    "own array rather than a copy");
+    uint8_t got2[sizeof lit + 64];
+    DP_REQUIRE (wire_bits (&plain, got2, sizeof got2) == sizeof got2);
+    DP_REQUIRE_MSG (memcmp (got2, lit, sizeof lit) == 0
+                        && memcmp (got2 + sizeof lit, pay, sizeof pay) == 0,
+                    "a literal sync is still the caller's literal bits");
   }
 
   /* ── a GENERATED sequence SURVIVES --record → --from-file ─────────────
@@ -2764,18 +2936,18 @@ main (void)
     dp_wfm_compose_state_t *jc = dp_wfm_compose_from_json (js);
     DP_REQUIRE_MSG (jc, "from_json");
 
-    /* The bits the reloaded description assembles must equal the original's,
-       and must equal dp_pn_generate -- an EXTERNAL truth, so a record that
-       round-tripped its own mistake perfectly would still fail. */
-    wfm_frame_desc_t d;
-    DP_REQUIRE_MSG (dp_wfm_source_describe_frame (&src, &d) == 0, "describe");
-    const int i = dp_wfm_frame_field_index (&d, "sync");
-    DP_REQUIRE (i >= 0);
-    wfm_frame_desc_layout_t l;
-    DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
-    static uint8_t got[4096];
-    DP_REQUIRE (dp_wfm_frame_assemble (&d, NULL, got, sizeof got)
-                == l.out_bits);
+    /* The bits the RELOADED source puts on the wire must equal
+       dp_pn_generate -- an EXTERNAL truth, so a record that round-tripped
+       its own mistake perfectly would still fail. The frame is
+       [sync | payload], so the sync word leads. */
+    size_t               jn = 0;
+    const wfm_segment_t *js_seg
+        = dp_wfm_compose_segments (jc, &jn, NULL, NULL);
+    DP_REQUIRE (jn == 1 && js_seg[0].n_sources == 1);
+    static uint8_t got[31 + 64];
+    DP_REQUIRE_MSG (wire_bits (&js_seg[0].sources[0], got, sizeof got)
+                        == sizeof got,
+                    "the reloaded source builds");
 
     static uint8_t want[31];
     dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (5u), 3u, 5u, 0);
@@ -2783,7 +2955,7 @@ main (void)
     DP_REQUIRE (dp_pn_generate (pn, 31u, want, 31u) == 31u);
     dp_pn_destroy (pn);
     DP_REQUIRE_MSG (
-        memcmp (got + l.field_off[i], want, 31u) == 0,
+        memcmp (got, want, 31u) == 0,
         "the recorded PN sync is dp_pn_generate of its own numbers");
 
     dp_wfm_compose_destroy (jc);
@@ -2831,12 +3003,21 @@ main (void)
 
       dp_wfm_compose_state_t *gc = dp_wfm_compose_from_json (gjs);
       DP_REQUIRE_MSG (gc, "gold/dotted from_json");
-      dp_wfm_compose_destroy (gc);
-      free (gjs);
 
-      /* The Gold sync's bits, against dp_gold_generate of the same numbers. */
-      wfm_frame_desc_t gd;
-      DP_REQUIRE (dp_wfm_source_describe_frame (&g, &gd) == 0);
+      /* The Gold sync's bits, against dp_gold_generate of the same numbers,
+         from the RELOADED source. A burst's frame is the common frame over
+         its sync, payload and CRC (the preamble is outside it, unspread),
+         so that description -- built from what the record gave back -- is
+         what is spread. */
+      size_t               gn = 0;
+      const wfm_segment_t *gseg2
+          = dp_wfm_compose_segments (gc, &gn, NULL, NULL);
+      DP_REQUIRE (gn == 1 && gseg2[0].n_sources == 1);
+      const wfm_source_t *gr = &gseg2[0].sources[0];
+      wfm_frame_desc_t    gd;
+      DP_REQUIRE (
+          dp_wfm_frame_fixed (&gd, NULL, 0, &gr->sync, &gr->payload, gr->crc)
+          == 0);
       const int gi = dp_wfm_frame_field_index (&gd, "sync");
       DP_REQUIRE (gi >= 0);
       wfm_frame_desc_layout_t gl;
@@ -2852,6 +3033,8 @@ main (void)
       DP_REQUIRE_MSG (memcmp (gbits + gl.field_off[gi], gwant, 16u) == 0,
                       "a recorded Gold sync IS dp_gold_generate of its own "
                       "five numbers");
+      dp_wfm_compose_destroy (gc);
+      free (gjs);
     }
 
     /* Refusals. Each of these BUILDS a waveform if ignored rather than
@@ -2885,6 +3068,30 @@ main (void)
             BITS_SCENE ("\"sync\":\"gold:8:65:1:1:1:1\"")),
         "a Gold register wider than the 64 bits dp_gold_create() holds is "
         "refused, not silently masked down");
+    /* The coding sugar is retired, each key refused with what replaced it:
+       a coded frame is a "frame" description. Loading any of them as though
+       it were absent would build an UNCODED waveform from a coded record. */
+    {
+      static const char *const coding[]
+          = { "\"rs_depth\":1",   "\"randomise\":\"ccsds\"",
+              "\"asm\":true",     "\"conv\":true",
+              "\"interleave\":4", "\"interleave_unit\":8" };
+      for (size_t k = 0; k < sizeof coding / sizeof *coding; k++)
+        {
+          char scene[256];
+          (void)snprintf (scene, sizeof scene,
+                          "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,"
+                          "\"type\":\"bits\",\"payload\":\"0101\",%s}]}",
+                          coding[k]);
+          const char             *why = NULL;
+          dp_wfm_compose_state_t *rc
+              = dp_wfm_compose_from_json_why (scene, &why);
+          DP_CHECK_MSG (rc == NULL && why && strstr (why, "retired")
+                            && strstr (why, "\"frame\""),
+                        "a retired coding key is refused, naming \"frame\"");
+          dp_wfm_compose_destroy (rc);
+        }
+    }
 #undef BITS_SCENE
     DP_REQUIRE_MSG (
         !dp_wfm_compose_from_json (

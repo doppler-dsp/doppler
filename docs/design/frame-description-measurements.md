@@ -241,6 +241,33 @@ abort-on-OOM helper. Python's `field_bits` reports "negative dimensions" for
 `2^64 - 1`. The design states no length limit, and choosing one is a design
 decision, so it is [#1622](https://github.com/doppler-dsp/doppler/issues/1622).
 
+### F.7 The corpus, committed, and the claim inventory (2026-09-29)
+
+Phase 8. The scratch harness behind §F.6 is now
+`native/validation/wfm_field_explore.c`: the full corpus under
+`make validate-c`, a `--check` subset of 1% (2000 + 2000 + the edges, about
+30 ms) registered in ctest, and the subset is what the wfmgen certification
+report runs.
+
+It reproduces §F.6 exactly on the parser §F.6 ran against — **259,037**
+round trips, 0 findings — which is the check that the committed harness is
+the recorded one. Two later refusals move the count, each by a measured
+amount, each measured against §F.6's parser with that one change:
+
+| parser                                  | round trips | why it moved                                                                              |
+| --------------------------------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| §F.6's                                  | 259,037     | —                                                                                         |
+| §F.6's + the Field length bound (#1622) | 258,789     | 248 mutations push `LEN * REPS` past 261120 (a digit inserted into a LEN) and are refused |
+| §F.6's + SEED/POLY within REG (#1624)   | 257,563     | the generator reduces each drawn seed into its register; its draws are unchanged          |
+
+**#1624 was found by the claim inventory, not the corpus.** Every text the
+corpus generated had a seed inside its register or failed to parse for
+another reason, so no generated text could show that `pn:31:5:32` renders
+zeros; the property the corpus holds (the text round-trips and renders the
+same bits as its canonical form) is true of a constant field. Reading the
+header's `REG` against the generators' masking is what found it — the
+reason phase 8 enumerates claims rather than trusting phase 7's zero.
+
 ## C. The CCSDS sites
 
 ### C.1 The sites, and how each was settled

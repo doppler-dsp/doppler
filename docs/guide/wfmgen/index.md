@@ -20,12 +20,13 @@ doppler ships a C-first **waveform generator**: one declarative synth engine
 
 This guide is four pages:
 
-| Page                      | The question it answers                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| **This one**              | What is the model, how do I run it, and what does a command look like?             |
-| [Waveforms](waveforms.md) | What can I generate, and with what knobs? Types, levels, framing, coding, Doppler. |
-| [Scenes](scenes.md)       | How do I put waveforms in time, sweep them, and stream them?                       |
-| [Python API](python.md)   | How do I do all of that from Python instead?                                       |
+| Page                          | The question it answers                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| **This one**                  | What is the model, how do I run it, and what does a command look like?             |
+| [Waveforms](waveforms.md)     | What can I generate, and with what knobs? Types, levels, framing, coding, Doppler. |
+| [Scenes](scenes.md)           | How do I put waveforms in time, sweep them, and stream them?                       |
+| [Python API](python.md)       | How do I do all of that from Python instead?                                       |
+| [Field reference](options.md) | What is each field called on each face, and what does it default to?               |
 
 Getting samples into a file and back out again is
 [Capture I/O](../wfm-io/index.md) — a section of its own, because reading a

@@ -12,7 +12,12 @@ class Synth:
     Parameters
     ----------
     type : str, default ``"tone"``
-        Waveform type.
+        Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence
+        (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits:
+        a caller's bit pattern, with selectable modulation. symbols: a caller's
+        complex constellation stream. dsss: spread spectrum -- a two-code burst
+        (repeated preamble + data-code-spread frame) by default, or a
+        continuous asynchronous stream when symbol_rate is set.
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     freq : float | tuple[float, float], default 0.0
@@ -22,21 +27,32 @@ class Synth:
         Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is
         clean: no AWGN is added.
     snr_mode : str, default ``"auto"``
-        How snr is interpreted. auto picks fs (the full sample-rate band) for
-        tone/pn/chirp/bits and Es/No for bpsk/qpsk.
+        How snr is interpreted. auto: Es/N0 for bpsk/qpsk/dsss, and relative to
+        full scale for tone/noise/pn/chirp/bits/symbols -- bits included,
+        because a bits frame has no symbol rate the engine can infer. fs: dB
+        relative to full scale. ebno: Eb/N0, per bit. esno: Es/N0, per symbol;
+        for a dsss burst the outer data symbol of len(data_code) chips x sps
+        samples, for a continuous dsss stream the fs/symbol_rate samples the
+        async symbol spans.
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
         PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it
         for run-to-run change.
     sps : int, default 1
         Samples per symbol (PSK) or per chip (PN): the oversampling factor.
+        Unused by noise, which records it as 0.
     pn_length : int, default 15
-        PN LFSR register length; the sequence period is 2^pn_length - 1.
+        PN LFSR register length in bits, 2 to 64 for the PN-bearing types; the
+        sequence period is 2^pn_length - 1. Unused by noise, which records it
+        as 0.
     pn_poly : int, default 0
-        PN generator polynomial; 0 selects a maximal-length (MLS) polynomial
-        for pn_length.
+        PN generator polynomial, in the Galois bit-vector convention; 0 selects
+        a maximal-length (MLS) polynomial for pn_length. A polynomial above
+        2^53 does not survive a JSON number, so a scene file needs 0 (auto) for
+        such a register.
     lfsr : str, default ``"galois"``
-        PN LFSR realisation: the same period, a different chip order.
+        PN LFSR realisation. Both give the same period; fibonacci's chips are
+        galois's in reverse order.
         One of ``"galois"``, ``"fibonacci"``.
     level : float | tuple[float, float], default 0.0
         Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a
@@ -96,16 +112,20 @@ class Synth:
         the request. For type=dsss (as `payload`): the payload bits of the
         burst frame.
     modulation : str, default ``"bpsk"``
-        Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.
+        Symbol mapping of a bits pattern. none: the pattern shaped and output
+        as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
+        bits.
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
     pulse : str, default ``"rect"``
-        Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect
-        sample-and-hold or rrc matched filter.
+        Pulse shape per symbol or chip, for pn/bpsk/qpsk/bits/symbols/dsss.
+        rect: rectangular, no ISI filtering. rrc: root-raised cosine; see
+        rrc_beta and rrc_span.
         One of ``"rect"``, ``"rrc"``.
     rrc_beta : float, default 0.35
         RRC roll-off factor, in (0, 1], when pulse=rrc.
     rrc_span : int, default 8
-        RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.
+        RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has
+        2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).
     symbols : NDArray[np.complex64] | None, default None
         For type=symbols: a complex constellation stream. Each element is the
         output point itself, oversampled by sps, cycled, and RRC-shaped with
@@ -175,8 +195,9 @@ class Synth:
         data modulation); 0 = data-modulated (the payload when supplied, else
         the seeded PN). Ignored for burst dsss and non-dsss types.
     fs : float, default 1.0
-        Sample rate in Hz, one per segment and shared by all its sources. With
-        fs = 1, frequencies are normalised.
+        Sample rate in Hz, one per segment and shared by all its sources. At
+        the default 1.0 every frequency is normalised (cycles per sample);
+        state it whenever a scene is in real Hz.
     """
 
     def __init__(
@@ -307,7 +328,12 @@ class Segment:
     Parameters
     ----------
     type : str, default ``"tone"``
-        Waveform type.
+        Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence
+        (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits:
+        a caller's bit pattern, with selectable modulation. symbols: a caller's
+        complex constellation stream. dsss: spread spectrum -- a two-code burst
+        (repeated preamble + data-code-spread frame) by default, or a
+        continuous asynchronous stream when symbol_rate is set.
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     freq : float | tuple[float, float], default 0.0
@@ -317,21 +343,32 @@ class Segment:
         Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more is
         clean: no AWGN is added.
     snr_mode : str, default ``"auto"``
-        How snr is interpreted. auto picks fs (the full sample-rate band) for
-        tone/pn/chirp/bits and Es/No for bpsk/qpsk.
+        How snr is interpreted. auto: Es/N0 for bpsk/qpsk/dsss, and relative to
+        full scale for tone/noise/pn/chirp/bits/symbols -- bits included,
+        because a bits frame has no symbol rate the engine can infer. fs: dB
+        relative to full scale. ebno: Eb/N0, per bit. esno: Es/N0, per symbol;
+        for a dsss burst the outer data symbol of len(data_code) chips x sps
+        samples, for a continuous dsss stream the fs/symbol_rate samples the
+        async symbol spans.
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
         PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it
         for run-to-run change.
     sps : int, default 1
         Samples per symbol (PSK) or per chip (PN): the oversampling factor.
+        Unused by noise, which records it as 0.
     pn_length : int, default 15
-        PN LFSR register length; the sequence period is 2^pn_length - 1.
+        PN LFSR register length in bits, 2 to 64 for the PN-bearing types; the
+        sequence period is 2^pn_length - 1. Unused by noise, which records it
+        as 0.
     pn_poly : int, default 0
-        PN generator polynomial; 0 selects a maximal-length (MLS) polynomial
-        for pn_length.
+        PN generator polynomial, in the Galois bit-vector convention; 0 selects
+        a maximal-length (MLS) polynomial for pn_length. A polynomial above
+        2^53 does not survive a JSON number, so a scene file needs 0 (auto) for
+        such a register.
     lfsr : str, default ``"galois"``
-        PN LFSR realisation: the same period, a different chip order.
+        PN LFSR realisation. Both give the same period; fibonacci's chips are
+        galois's in reverse order.
         One of ``"galois"``, ``"fibonacci"``.
     level : float | tuple[float, float], default 0.0
         Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a
@@ -391,16 +428,20 @@ class Segment:
         the request. For type=dsss (as `payload`): the payload bits of the
         burst frame.
     modulation : str, default ``"bpsk"``
-        Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.
+        Symbol mapping of a bits pattern. none: the pattern shaped and output
+        as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
+        bits.
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
     pulse : str, default ``"rect"``
-        Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect
-        sample-and-hold or rrc matched filter.
+        Pulse shape per symbol or chip, for pn/bpsk/qpsk/bits/symbols/dsss.
+        rect: rectangular, no ISI filtering. rrc: root-raised cosine; see
+        rrc_beta and rrc_span.
         One of ``"rect"``, ``"rrc"``.
     rrc_beta : float, default 0.35
         RRC roll-off factor, in (0, 1], when pulse=rrc.
     rrc_span : int, default 8
-        RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.
+        RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has
+        2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).
     symbols : NDArray[np.complex64] | None, default None
         For type=symbols: a complex constellation stream. Each element is the
         output point itself, oversampled by sps, cycled, and RRC-shaped with
@@ -470,10 +511,12 @@ class Segment:
         data modulation); 0 = data-modulated (the payload when supplied, else
         the seeded PN). Ignored for burst dsss and non-dsss types.
     fs : float, default 1.0
-        Sample rate in Hz, one per segment and shared by all its sources. With
-        fs = 1, frequencies are normalised.
+        Sample rate in Hz, one per segment and shared by all its sources. At
+        the default 1.0 every frequency is normalised (cycles per sample);
+        state it whenever a scene is in real Hz.
     num_samples : int | tuple[int, int], default 1024
-        Segment on-time in samples: the active span.
+        Segment on-time in samples: the synth runs for exactly this many
+        samples before the trailing gap.
     off_samples : int | tuple[int, int], default 0
         Trailing gap after the on-time, in samples. It carries the noise floor
         or hard zeros, per gap_noise.
@@ -484,9 +527,10 @@ class Segment:
         fixed. 0 and 1 both mean one instance.
     delay_samples : int | tuple[int, int], default 0
         Leading gap before the on-time, in samples: the burst arrives after
-        this delay. Ranged like off_samples and re-drawn per repeats instance,
-        so a (lo, hi) delay is per-burst arrival jitter. Use off_samples for
-        inter-burst spacing, delay_samples for arrival jitter.
+        this delay, and the gap carries the noise floor like off_samples.
+        Ranged like off_samples and re-drawn per repeats instance, so a (lo,
+        hi) delay is per-burst arrival jitter. Use off_samples for inter-burst
+        spacing, delay_samples for arrival jitter.
     gap_noise : str, default ``"auto"``
         Gap policy for this segment's delay and trailing gap. auto: gaps carry
         the segment's noise floor -- the sources' AWGN keeps running while the

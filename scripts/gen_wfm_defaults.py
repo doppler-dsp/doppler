@@ -35,6 +35,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 import textwrap
@@ -51,6 +52,8 @@ COMPOSE_H = ROOT / header("wfm/wfm_compose.h")
 NAMES_H = ROOT / header("wfm/wfm_names.h")
 SURFACE = ROOT / header("wfm/wfm_surface.h")
 WFMGEN_C = ROOT / "native" / "src" / "app" / "wfmgen.c"
+SCHEMA = ROOT / "docs" / "schema" / "wfmgen.schema.json"
+REFERENCE = ROOT / "docs" / "guide" / "wfmgen" / "options.md"
 
 # The C struct each manifest table describes.
 STRUCTS = {"source": "wfm_source_t", "segment": "wfm_segment_t"}
@@ -326,6 +329,8 @@ def surface_rows(man: dict) -> list[dict]:
                     "json_omit": f.get("json_omit"),
                     "json_bool": f.get("json_type") == "bool",
                     "json_when": f.get("json_when"),
+                    "json_schema": dict(f.get("json_schema", {})),
+                    "json_range": f.get("json_range"),
                     "kind": vkind,
                     "choices": choices,
                     "range_bit": ranged.get(name),
@@ -491,6 +496,163 @@ def help_splice_errors(man: dict) -> list[str]:
     return bad
 
 
+def _typed_default(r: dict):
+    """A row's manifest default as the JSON value a scene would carry."""
+    raw = r["default"]
+    if raw is None:
+        return None
+    if r["kind"] == "WFM_SV_CHOICE":
+        return raw
+    if r["json_bool"]:
+        return int(raw, 0) != 0
+    if r["kind"] == "WFM_SV_DOUBLE":
+        return float(raw)
+    return int(raw, 0)
+
+
+def row_schema(r: dict, doc: str) -> dict:
+    """One row's JSON Schema property, from the row alone.
+
+    The type from the C type (unsigned -> `minimum: 0`), the enum from the
+    choice table, `(0, 1]` from `unit_interval`, a range as `oneOf` scalar
+    or a [lo, hi] pair, then the row's own `json_schema` constraints. The
+    description is the header comment, plus what only the JSON face adds.
+    """
+    if r["kind"] == "WFM_SV_CHOICE":
+        scalar: dict = {"type": "string", "enum": list(r["values"])}
+    elif r["json_bool"]:
+        scalar = {"type": "boolean"}
+    elif r["kind"] == "WFM_SV_DOUBLE":
+        scalar = {"type": "number"}
+    elif r["kind"] in ("WFM_SV_SIZE", "WFM_SV_U32", "WFM_SV_U64"):
+        scalar = {"type": "integer", "minimum": 0}
+    else:
+        scalar = {"type": "integer"}
+    if r["unit_interval"]:
+        scalar.update({"exclusiveMinimum": 0, "maximum": 1})
+    scalar.update(r["json_schema"])
+    if r["range_bit"]:
+        rng = r["json_range"] or (
+            "number_range" if r["kind"] == "WFM_SV_DOUBLE" else "count_range"
+        )
+        prop: dict = {"oneOf": [scalar, {"$ref": f"#/$defs/{rng}"}]}
+        doc += " Scalar, or a [lo, hi] pair drawn uniformly per repeat."
+    else:
+        prop = scalar
+    if r["json_omit"]:
+        doc += " Omitted from a record at its default."
+    d = _typed_default(r)
+    if d is not None:
+        prop["default"] = d
+    prop["description"] = doc
+    return prop
+
+
+def render_schema() -> str:
+    """docs/schema/wfmgen.schema.json with every table row's property
+    generated, and every other key -- the frame, the payload, the codes --
+    left exactly as its owner wrote it.
+
+    A source row is defined once, under `source`; `inline_segment` refers
+    to it. A segment row is defined under `inline_segment`; `sum_segment`
+    refers to it. Nothing else in the file is touched.
+    """
+    man = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    defs = schema["$defs"]
+    text = COMPOSE_H.read_text(encoding="utf-8")
+    docs = {k: member_docs(text, st) for k, st in STRUCTS.items()}
+    for r in surface_rows(man):
+        if not r["json"]:
+            continue
+        key, doc = r["json"], docs[r["owner"]][r["name"]]["doc"]
+        if r["owner"] == "source":
+            defs["source"]["properties"][key] = row_schema(r, doc)
+            defs["inline_segment"]["properties"][key] = {
+                "$ref": f"#/$defs/source/properties/{key}"
+            }
+        else:
+            defs["inline_segment"]["properties"][key] = row_schema(r, doc)
+            defs["sum_segment"]["properties"][key] = {
+                "$ref": f"#/$defs/inline_segment/properties/{key}"
+            }
+    # A $defs entry only the table rows referred to is gone with them.
+    body = json.dumps(schema)
+    for name in list(defs):
+        if f'"#/$defs/{name}"' not in body.replace(
+            json.dumps({name: defs[name]})[1:-1], ""
+        ):
+            del defs[name]
+            body = json.dumps(schema)
+    return json.dumps(schema, indent=2, ensure_ascii=False) + "\n"
+
+
+def _md(text: str) -> str:
+    return text.replace("|", "\\|")
+
+
+def render_reference() -> str:
+    """docs/guide/wfmgen/options.md: every table field on every face.
+
+    One row per field, so the flag, the scene key, the Python keyword, the
+    type, the default and the meaning are read off one line rather than
+    matched up across three pages -- and none of it is typed twice.
+    """
+    man = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    text = COMPOSE_H.read_text(encoding="utf-8")
+    docs = {k: member_docs(text, st) for k, st in STRUCTS.items()}
+    out = [
+        "# Field reference",
+        "",
+        "<!-- GENERATED by scripts/gen_wfm_defaults.py from just-makeit.toml",
+        "     and wfm/wfm_compose.h. Do not edit: change the field's header",
+        "     comment or its manifest row, then run",
+        "     `python scripts/gen_wfm_defaults.py --write`. -->",
+        "",
+        "Every field of a wfmgen source or segment, on each face that",
+        "exposes it: the `wfmgen` flag, the scene-file key, and the Python",
+        "keyword. The description is the field's header comment, the same",
+        "text as `wfmgen --help` (its first sentence) and the Python",
+        "docstring. A ranged field also takes a `LO:HI` range on the command",
+        "line, or a `[lo, hi]` pair in a scene, drawn uniformly per repeat.",
+        "",
+        "Framing, payload and coding keys are described in",
+        "[Waveforms](waveforms.md) and [Scenes](scenes.md).",
+    ]
+    titles = {"source": "Source fields", "segment": "Segment fields"}
+    rows = surface_rows(man)
+    for owner in ("segment", "source"):
+        out += [
+            "",
+            f"## {titles[owner]}",
+            "",
+            "| Python | CLI | JSON | Type | Default | Description |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for r in (r for r in rows if r["owner"] == owner):
+            if r["kind"] == "WFM_SV_CHOICE":
+                typ = "one of " + ", ".join(f"`{v}`" for v in r["values"])
+            elif r["json_bool"]:
+                typ = "bool"
+            elif r["kind"] == "WFM_SV_DOUBLE":
+                typ = "number"
+            elif r["kind"] == "WFM_SV_SYMBOLS":
+                typ = "complex stream"
+            else:
+                typ = "integer"
+            if r["range_bit"]:
+                typ += ", or a range"
+            cli = f"`{r['cli']} {r['metavar']}`" if r["cli"] else "—"
+            js = f"`{r['json']}`" if r["json"] else "—"
+            dflt = f"`{r['default']}`" if r["default"] is not None else "—"
+            doc = docs[owner][r["name"]]["doc"]
+            out.append(
+                f"| `{r['name']}` | {cli} | {js} | {_md(typ)} | {dflt} | "
+                f"{_md(doc)} |"
+            )
+    return "\n".join(out) + "\n"
+
+
 def render_surface() -> str:
     man = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
     rows = surface_rows(man)
@@ -644,7 +806,12 @@ def main() -> int:
             print(f"gen_wfm_defaults: {d}", file=sys.stderr)
         return 1
 
-    outputs = ((HEADER, render()), (SURFACE, render_surface()))
+    outputs = (
+        (HEADER, render()),
+        (SURFACE, render_surface()),
+        (SCHEMA, render_schema()),
+        (REFERENCE, render_reference()),
+    )
     if args.write:
         for path, fresh in outputs:
             path.parent.mkdir(parents=True, exist_ok=True)

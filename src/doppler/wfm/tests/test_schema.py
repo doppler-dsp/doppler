@@ -608,6 +608,13 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
             ],
         },
     ),
+    (
+        # The writer emits `background` and the reader reads it, but the
+        # hand-written schema never listed it, so a record carrying it was
+        # refused. Its property is generated from the surface table now.
+        "background_source",
+        {"version": 1, "segments": [{**_SEG, "background": True}]},
+    ),
 ]
 
 _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [

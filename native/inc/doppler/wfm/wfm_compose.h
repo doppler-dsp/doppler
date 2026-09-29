@@ -141,25 +141,45 @@ typedef enum
  * in the `*_hi` companion (see the `ranged` enum).
  */
 typedef struct {
-    int type;          /* Waveform type. */
+    int type;          /* Waveform type. tone: complex sinusoid. noise:
+                          AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven
+                          modulation. chirp: linear-FM sweep. bits: a
+                          caller's bit pattern, with selectable modulation.
+                          symbols: a caller's complex constellation stream.
+                          dsss: spread spectrum -- a two-code burst
+                          (repeated preamble + data-code-spread frame) by
+                          default, or a continuous asynchronous stream when
+                          symbol_rate is set. */
     double freq;       /* Carrier or offset frequency in Hz; for chirp, the
                           sweep start. With fs = 1 it is in normalised
                           cycles per sample. */
     double snr;        /* Signal-to-noise ratio in dB, interpreted per
                           snr_mode. 100 or more is clean: no AWGN is added. */
-    int snr_mode;      /* How snr is interpreted. auto picks fs (the full
-                          sample-rate band) for tone/pn/chirp/bits and Es/No
-                          for bpsk/qpsk. */
+    int snr_mode;      /* How snr is interpreted. auto: Es/N0 for
+                          bpsk/qpsk/dsss, and relative to full scale for
+                          tone/noise/pn/chirp/bits/symbols -- bits included,
+                          because a bits frame has no symbol rate the engine
+                          can infer. fs: dB relative to full scale. ebno:
+                          Eb/N0, per bit. esno: Es/N0, per symbol; for a
+                          dsss burst the outer data symbol of len(data_code)
+                          chips x sps samples, for a continuous dsss stream
+                          the fs/symbol_rate samples the async symbol spans. */
     uint32_t seed;     /* PRNG and LFSR seed for the noise and PN streams.
                           Deterministic: vary it for run-to-run change. */
     int sps;           /* Samples per symbol (PSK) or per chip (PN): the
-                          oversampling factor. */
-    int pn_length;     /* PN LFSR register length; the sequence period is
-                          2^pn_length - 1. */
-    uint64_t pn_poly;  /* PN generator polynomial; 0 selects a
-                          maximal-length (MLS) polynomial for pn_length. */
-    int lfsr;          /* PN LFSR realisation: the same period, a different
-                          chip order. */
+                          oversampling factor. Unused by noise, which
+                          records it as 0. */
+    int pn_length;     /* PN LFSR register length in bits, 2 to 64 for the
+                          PN-bearing types; the sequence period is
+                          2^pn_length - 1. Unused by noise, which records it
+                          as 0. */
+    uint64_t pn_poly;  /* PN generator polynomial, in the Galois bit-vector
+                          convention; 0 selects a maximal-length (MLS)
+                          polynomial for pn_length. A polynomial above 2^53
+                          does not survive a JSON number, so a scene file
+                          needs 0 (auto) for such a register. */
+    int lfsr;          /* PN LFSR realisation. Both give the same period;
+                          fibonacci's chips are galois's in reverse order. */
     double level;      /* Source power in dBFS (<= 0; 0 is unit power).
                           Applies when summed in a Segment or Composer, as a
                           gain of 10^(level/20); a standalone Synth.steps()
@@ -196,20 +216,24 @@ typedef struct {
        WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
        made the preamble's generated kinds unreachable (gh-762). */
     wfm_seq_t payload; /* type=bits: pattern; type=dsss: frame payload */
-    int modulation;    /* Symbol mapping of a bits pattern: none (0/1
-                          amplitude), bpsk or qpsk. */
+    int modulation;    /* Symbol mapping of a bits pattern. none: the
+                          pattern shaped and output as-is (NRZ). bpsk: +/-1
+                          symbols. qpsk: Gray-coded symbols from pairs of
+                          bits. */
     float _Complex *symbols; /* For type=symbols: a complex constellation
                                 stream. Each element is the output point
                                 itself, oversampled by sps, cycled, and
                                 RRC-shaped with pulse=rrc, which generalises
                                 any modulation (pi/4-QPSK, QAM, ...). */
     size_t n_symbols;        /* type=symbols: stream length */
-    int pulse;         /* Pulse shape for the pn/bpsk/qpsk/bits symbol
-                          stream: rect sample-and-hold or rrc matched
-                          filter. */
+    int pulse;         /* Pulse shape per symbol or chip, for
+                          pn/bpsk/qpsk/bits/symbols/dsss. rect: rectangular,
+                          no ISI filtering. rrc: root-raised cosine; see
+                          rrc_beta and rrc_span. */
     double rrc_beta;   /* RRC roll-off factor, in (0, 1], when pulse=rrc. */
-    int rrc_span;      /* RRC filter span in symbols when pulse=rrc; taps =
-                          2*span*sps + 1. */
+    int rrc_span;      /* RRC filter support in symbols when pulse=rrc,
+                          ONE-SIDED: the filter has 2*rrc_span*sps + 1 taps,
+                          unit energy (sum of h^2 = 1). */
     unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND,DOPPLER*} bitmask */
     double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
     double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
@@ -375,9 +399,12 @@ typedef struct {
     wfm_source_t *sources; /* n_sources sources summed at the same time */
     size_t n_sources;
     double fs;             /* Sample rate in Hz, one per segment and shared
-                              by all its sources. With fs = 1, frequencies
-                              are normalised. */
-    size_t num_samples;    /* Segment on-time in samples: the active span. */
+                              by all its sources. At the default 1.0 every
+                              frequency is normalised (cycles per sample);
+                              state it whenever a scene is in real Hz. */
+    size_t num_samples;    /* Segment on-time in samples: the synth runs for
+                              exactly this many samples before the trailing
+                              gap. */
     size_t off_samples;    /* Trailing gap after the on-time, in samples. It
                               carries the noise floor or hard zeros, per
                               gap_noise. */
@@ -390,10 +417,10 @@ typedef struct {
        stays fixed. 0 and 1 both mean one instance. */
     size_t repeats;
     /* Leading gap before the on-time, in samples: the burst arrives after
-       this delay. Ranged like off_samples and re-drawn per repeats
-       instance, so a (lo, hi) delay is per-burst arrival jitter. Use
-       off_samples for inter-burst spacing, delay_samples for arrival
-       jitter. */
+       this delay, and the gap carries the noise floor like off_samples.
+       Ranged like off_samples and re-drawn per repeats instance, so a (lo,
+       hi) delay is per-burst arrival jitter. Use off_samples for
+       inter-burst spacing, delay_samples for arrival jitter. */
     size_t delay_samples;
     size_t delay_samples_hi; /* upper bound when WFM_RANGE_DELAY_SAMPLES */
     /* Gap policy for this segment's delay and trailing gap. auto: gaps

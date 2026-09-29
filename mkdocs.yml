@@ -308,6 +308,7 @@ nav:
       - Waveforms: guide/wfmgen/waveforms.md
       - Scenes: guide/wfmgen/scenes.md
       - Python API: guide/wfmgen/python.md
+      - Field Reference: guide/wfmgen/options.md
   - Capture I/O:
       - Capture I/O: guide/wfm-io/index.md
       - Writing Captures: guide/wfm-io/writing.md

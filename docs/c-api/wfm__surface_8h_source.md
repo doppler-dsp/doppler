@@ -414,13 +414,15 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
 #define WFM_SURFACE_HELP_SIGNAL \
   "  --fs HZ         Sample rate in Hz, one per segment and shared by all its\n" \
   "                  sources. (default 1.0)\n" \
-  "  --count N[:N]   Segment on-time in samples: the active span. (default 1024)\n" \
+  "  --count N[:N]   Segment on-time in samples: the synth runs for exactly this\n" \
+  "                  many samples before the trailing gap. (default 1024)\n" \
   "  --off N[:N]     Trailing gap after the on-time, in samples. (default 0)\n" \
   "  --repeats N     Play the segment this many times back-to-back (each instance\n" \
   "                  = delay + on-time + trailing gap) before advancing.\n" \
   "                  (default 1)\n" \
   "  --delay N[:N]   Leading gap before the on-time, in samples: the burst arrives\n" \
-  "                  after this delay. (default 0)\n" \
+  "                  after this delay, and the gap carries the noise floor like\n" \
+  "                  off_samples. (default 0)\n" \
   "  --gap-noise M   Gap policy for this segment's delay and trailing gap. One of:\n" \
   "                  auto | off. (default auto)\n" \
   "  --freq HZ[:HZ]  Carrier or offset frequency in Hz; for chirp, the sweep\n" \
@@ -442,12 +444,13 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   "                  (default auto)\n"
 
 #define WFM_SURFACE_HELP_PN \
-  "  --pn-length N   PN LFSR register length; the sequence period is 2^pn_length -\n" \
-  "                  1. (default 15)\n" \
-  "  --pn-poly N     PN generator polynomial; 0 selects a maximal-length (MLS)\n" \
-  "                  polynomial for pn_length. (default 0)\n" \
-  "  --lfsr TYPE     PN LFSR realisation: the same period, a different chip order.\n" \
-  "                  One of: galois | fibonacci. (default galois)\n"
+  "  --pn-length N   PN LFSR register length in bits, 2 to 64 for the PN-bearing\n" \
+  "                  types; the sequence period is 2^pn_length - 1. (default 15)\n" \
+  "  --pn-poly N     PN generator polynomial, in the Galois bit-vector convention;\n" \
+  "                  0 selects a maximal-length (MLS) polynomial for pn_length.\n" \
+  "                  (default 0)\n" \
+  "  --lfsr TYPE     PN LFSR realisation. One of: galois | fibonacci.\n" \
+  "                  (default galois)\n"
 
 #define WFM_SURFACE_HELP_AMPLITUDE \
   "  --level DB[:DB] Source power in dBFS (<= 0; 0 is unit power). (default 0.0)\n"
@@ -468,17 +471,18 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   "                  per_instance | persist. (default per_instance)\n"
 
 #define WFM_SURFACE_HELP_BITS \
-  "  --modulation M  Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk\n" \
-  "                  or qpsk. One of: none | bpsk | qpsk. (default bpsk)\n"
+  "  --modulation M  Symbol mapping of a bits pattern. One of: none | bpsk | qpsk.\n" \
+  "                  (default bpsk)\n"
 
 #define WFM_SURFACE_HELP_PULSE \
-  "  --pulse SHAPE   Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect\n" \
-  "                  sample-and-hold or rrc matched filter. One of: rect | rrc.\n" \
+  "  --pulse SHAPE   Pulse shape per symbol or chip, for\n" \
+  "                  pn/bpsk/qpsk/bits/symbols/dsss. One of: rect | rrc.\n" \
   "                  (default rect)\n" \
   "  --rrc-beta R    RRC roll-off factor, in (0, 1], when pulse=rrc.\n" \
   "                  (default 0.35)\n" \
-  "  --rrc-span N    RRC filter span in symbols when pulse=rrc; taps = 2*span*sps\n" \
-  "                  + 1. (default 8)\n"
+  "  --rrc-span N    RRC filter support in symbols when pulse=rrc, ONE-SIDED: the\n" \
+  "                  filter has 2*rrc_span*sps + 1 taps, unit energy (sum of h^2 =\n" \
+  "                  1). (default 8)\n"
 
 #define WFM_SURFACE_HELP_SYMBOLS \
   "  --symbols-file F\n" \

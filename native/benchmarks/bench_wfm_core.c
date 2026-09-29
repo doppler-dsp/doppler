@@ -16,15 +16,23 @@
  * energy normalisation and the singularity handling, and that is worth
  * knowing before anyone reaches for a hand-rolled version.
  *
+ * The Field rows time the one reader of the bit grammar
+ * (`dp_wfm_field_parse`) apart from the render behind it
+ * (`dp_wfm_field_bits`): a Field is read once per flag or scene key,
+ * so the parse is not a hot loop, but a long literal is where its cost
+ * lives, and `*REPS` should cost a copy, not a second generator run.
+ *
  * Units differ per row because the natural unit differs -- chips for the
  * spreader, bits for the CRC, taps for the design. Each row is normalised
  * to its OWN output element, so `ops` in the JSON means what it says.
  */
 #include "doppler/dp_complex.h"
 #include "doppler/wfm/wfm_core.h"
+#include "doppler/wfm/wfm_frame.h"
 #include "dp_bench.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define ITERATIONS 100
 #define N_BITS 8192
@@ -35,6 +43,7 @@
 #define RRC_SPAN 8
 #define RRC_TAPS (2 * RRC_SPAN * RRC_SPS + 1)
 #define N_T 4096
+#define N_FIELD 4096
 
 enum
 {
@@ -46,6 +55,9 @@ enum
   C_RRC_H,
   C_RC_H,
   C_MLS_POLY,
+  C_FIELD_PARSE_HEX,
+  C_FIELD_BITS_PN,
+  C_FIELD_BITS_REPS,
   N_CFG
 };
 
@@ -58,14 +70,20 @@ static const char *const cfg_name[N_CFG] = {
   "rrc_h[4096]",
   "rc_h[4096]",
   "mls_poly",
+  "field_parse[0x..,4096 bits]",
+  "field_bits[pn:4095:12]",
+  "field_bits[pn:1023:10*4]",
 };
 
 /* Calls per round, and the output elements one call produces. */
-static const int    cfg_reps[N_CFG] = { 8, 8, 8, 4, 1024, 16, 16, 8192 };
+static const int cfg_reps[N_CFG]
+    = { 8, 8, 8, 4, 1024, 16, 16, 8192, 16, 16, 16 };
 static const size_t cfg_out[N_CFG]
-    = { N_BITS, N_BITS, N_BITS, (size_t)N_SYMS *SF, RRC_TAPS, N_T, N_T, 1u };
+    = { N_BITS,  N_BITS, N_BITS, (size_t)N_SYMS *SF, RRC_TAPS, N_T, N_T, 1u,
+        N_FIELD, 4095u,  4092u };
 static const char *const cfg_unit[N_CFG] = {
-  "bit", "sym", "bit", "chip", "tap", "eval", "eval", "call",
+  "bit",  "sym",  "bit", "chip", "tap", "eval",
+  "eval", "call", "bit", "bit",  "bit",
 };
 
 static uint8_t bits[N_BITS];
@@ -76,6 +94,10 @@ static uint8_t code[CODE_LEN];
 static float _Complex chips[(size_t)N_SYMS * SF];
 static float  taps[RRC_TAPS];
 static double tvec[N_T], hout[N_T];
+
+/* 0x followed by N_FIELD/4 hex digits: a 4096-bit literal. */
+static char    hex_field[2 + N_FIELD / 4 + 1];
+static uint8_t field_out[N_FIELD];
 
 static volatile double sink = 0.0;
 
@@ -111,6 +133,23 @@ run (int cfg, int i)
       dp_rc_h (tvec, N_T, hout, 0.35);
       sink += hout[0];
       break;
+    case C_FIELD_PARSE_HEX:
+      {
+        wfm_field_t f;
+        uint8_t    *owned = NULL;
+        (void)dp_wfm_field_parse (hex_field, &f, &owned, NULL);
+        sink += (double)f.seq.len;
+        free (owned);
+      }
+      break;
+    case C_FIELD_BITS_PN:
+      sink += (double)dp_wfm_field_bits ("pn:4095:12", field_out, N_FIELD,
+                                         NULL);
+      break;
+    case C_FIELD_BITS_REPS:
+      sink += (double)dp_wfm_field_bits ("pn:1023:10*4", field_out, N_FIELD,
+                                         NULL);
+      break;
     default:
       sink += (double)dp_mls_poly (7u + (uint32_t)(i & 7));
       break;
@@ -137,6 +176,10 @@ main (void)
      deliberately NOT hitting t = 0 or t = +-1/(4*beta) exactly: those are
      the removable singularities, and a grid that lands on them would time
      the special case instead of the formula. */
+  hex_field[0] = '0';
+  hex_field[1] = 'x';
+  for (int i = 0; i < N_FIELD / 4; i++)
+    hex_field[2 + i] = "0123456789abcdef"[(i * 7 + 3) & 15];
   for (int i = 0; i < N_T; i++)
     tvec[i] = -4.0 + 8.0 * ((double)i + 0.5) / (double)N_T;
 

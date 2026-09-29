@@ -135,7 +135,8 @@ outer_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 /* Section 10. Its own inverse and length-preserving, so the receive side runs
  * the identical call over the identical span. */
 /* `depth` carries WHICH generator, because B-6 specifies two: 1 (or 0, the
- * unset default) selects 10.4.1's, 2 selects 10.4.2's legacy sequence. A
+ * unset default) selects 10.4.1's, 2 selects 10.4.2's legacy sequence, and
+ * anything else selects nothing -- the stage refuses its unit. A
  * kernel that picked for itself would produce a waveform the transmitter and
  * the receiver could disagree about, which is the failure this component is
  * shaped around. */
@@ -149,7 +150,10 @@ static int
 rand_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 {
   (void)user;
-  dp_ccsds_tm_randomise_with (rand_choice (st), bits, n);
+  const ccsds_tm_rand_t *r = rand_choice (st);
+  if (r == NULL)
+    return -1; /* a depth naming no generator: the frame is refused */
+  dp_ccsds_tm_randomise_with (r, bits, n);
   return 0;
 }
 
@@ -220,7 +224,10 @@ rand_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
            wfm_frame_stage_rx_t *rx, void *user)
 {
   (void)user;
-  dp_ccsds_tm_randomise_with (rand_choice (st), bits, n);
+  const ccsds_tm_rand_t *r = rand_choice (st);
+  if (r == NULL)
+    return -1; /* as rand_in_unit: never derandomise with a guess */
+  dp_ccsds_tm_randomise_with (r, bits, n);
   rx->units   = 1u;
   rx->ok      = 1u;
   rx->checked = 1;

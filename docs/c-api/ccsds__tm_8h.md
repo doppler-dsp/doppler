@@ -428,7 +428,23 @@ const ccsds_tm_rand_t * dp_ccsds_tm_rand_select (
 
 
 
-B-6 specifies two generators, so every place that carries the choice as a number  a frame description's randomise stage (`depth`) and `ccsds_tm_frame_cfg_t.randomise`  reads it here, and one value cannot mean two sequences (doppler#1609). 2 selects [**dp\_CCSDS\_TM\_RAND\_LEGACY**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand_legacy); anything else selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand), which is how a stage's unset depth (0) reads as the default. A caller whose field has a range to enforce refuses outside it BEFORE asking  dp\_ccsds\_tm\_frame\_layout refuses a cfg `randomise` outside 0..2.
+B-6 specifies two generators, so every place that carries the choice as a number  a frame description's randomise stage (`depth`) and `ccsds_tm_frame_cfg_t.randomise`  reads it here, and one value cannot mean two sequences (doppler#1609):
+
+
+
+|which   |generator    |
+|-----|-----|
+|0   |[**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand)  a stage's UNSET depth reads as the default    |
+|1   |[**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand) (10.4.1)    |
+|2   |[**dp\_CCSDS\_TM\_RAND\_LEGACY**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand_legacy) (10.4.2)    |
+|anything else   |NULL: B-6 defines no such generator   |
+
+
+
+
+
+
+NULL is a REFUSAL, and a caller must treat it as one: handing it on to [**dp\_ccsds\_tm\_randomise\_with**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise_with) would quietly select the default, which is exactly the reinterpretation this exists to stop. The description's randomise stage refuses its unit (so `dp_wfm_frame_assemble` and `dp_wfm_frame_check` refuse the frame), and dp\_ccsds\_tm\_frame\_layout refuses a cfg `randomise` outside 0..2 before asking.
 
 
 
@@ -436,13 +452,13 @@ B-6 specifies two generators, so every place that carries the choice as a number
 **Parameters:**
 
 
-* `which` 1 for 10.4.1, 2 for 10.4.2. 
+* `which` 0 or 1 for 10.4.1, 2 for 10.4.2. 
 
 
 
 **Returns:**
 
-The generator, never NULL.
+The generator, or NULL for a value that names none.
 
 
 

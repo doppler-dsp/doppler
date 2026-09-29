@@ -134,8 +134,9 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
         return "this frame does not assemble: a stage's kernel refused its "
                "span -- an rs stage needs exactly 223*depth octets to cover "
                "(virtual fill is not implemented), an interleave stage a "
-               "whole number of depth x unit_bits units, and a generated "
-               "field a register it can build";
+               "whole number of depth x unit_bits units, a randomise stage "
+               "a generator (depth 0 or 1 = 10.4.1, 2 = 10.4.2 legacy), and "
+               "a generated field a register it can build";
     }
   return NULL;
 }

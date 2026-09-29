@@ -1134,6 +1134,30 @@ main (void)
         DP_CHECK_MSG (dp_ccsds_tm_frame_describe (&b, NB, fbits, &d) != 0,
                       "describe refuses a randomise outside 0..2");
       }
+
+    /* The DESCRIPTION face, which since #853 is the only way to code a
+       frame (`--frame FILE`, a scene's "frame"): a randomise stage whose
+       depth names no generator is refused by assemble and by check, not
+       read as 10.4.1. The selector is where that is decided, so it is
+       asked directly too: 0 (unset) and 1 are 10.4.1, 2 is 10.4.2, and
+       anything else is NULL. */
+    DP_CHECK (dp_ccsds_tm_rand_select (0) == &dp_CCSDS_TM_RAND);
+    DP_CHECK (dp_ccsds_tm_rand_select (1) == &dp_CCSDS_TM_RAND);
+    DP_CHECK (dp_ccsds_tm_rand_select (2) == &dp_CCSDS_TM_RAND_LEGACY);
+    DP_CHECK_MSG (dp_ccsds_tm_rand_select (3) == NULL,
+                  "a generator B-6 does not define selects nothing");
+
+    const ccsds_tm_frame_cfg_t r1 = {
+      .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+    DP_REQUIRE (dp_ccsds_tm_frame_describe (&r1, NB, fbits, &d) == 0);
+    d.stage[1].depth = 3u; /* S_RAND */
+    DP_CHECK_MSG (dp_wfm_frame_assemble (&d, &ops, via, sizeof via) == 0,
+                  "a randomise stage of depth 3 is refused by assemble "
+                  "(#1609, the description face)");
+    memcpy (via, out, sizeof out);
+    DP_CHECK_MSG (dp_wfm_frame_check (&d, &ops, via, NULL) == -1,
+                  "...and by check, rather than derandomised with 10.4.1");
   }
 
   DP_TEST_END ("ccsds_tm_frame");

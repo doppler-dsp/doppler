@@ -89,6 +89,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**dp\_wfm\_frame\_desc\_layout**](#function-dp_wfm_frame_desc_layout) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) \* out) <br>_Derive every field offset, every stage span and both lengths._  |
 |  int | [**dp\_wfm\_frame\_field\_index**](#function-dp_wfm_frame_field_index) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
 |  int | [**dp\_wfm\_frame\_fixed**](#function-dp_wfm_frame_fixed) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* preamble, size\_t reps, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* payload, int crc) <br>_Describe the common frame:_ `[preamble x reps | sync | payload | crc]` _._ |
+|  int | [**dp\_wfm\_parse\_u64**](#function-dp_wfm_parse_u64) (const char \* p, size\_t n, uint64\_t \* v) <br>_Read an unsigned integer the way a Field's numbers are read._  |
 |  size\_t | [**dp\_wfm\_seq\_bits**](#function-dp_wfm_seq_bits) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* s, uint8\_t \* out, size\_t max\_out) <br>_Write_ `s's` _bits, whatever produces them. Returns the count._ |
 
 
@@ -992,6 +993,54 @@ wfm_frame_desc_t d;
 wfm_frame_desc_layout_t l;
 dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1);
 dp_wfm_frame_desc_layout (&d, &l);   // l.frame_bits == 13 + 16 + 16
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_parse\_u64 
+
+_Read an unsigned integer the way a Field's numbers are read._ 
+```C++
+int dp_wfm_parse_u64 (
+    const char * p,
+    size_t n,
+    uint64_t * v
+) 
+```
+
+
+
+THE number reader of the Field grammar, public so that a caller reading integers from text  wfmgen's numeric flags  applies the same rule rather than a second one (doppler#1611): decimal, or hex after `0x` (`0X`), consumed WHOLE. A sign, a space, a trailing character, an empty token, a bare `0x` and a value past `UINT64_MAX` are refused, and a leading `0` is decimal, never octal.
+
+
+
+
+**Parameters:**
+
+
+* `p` the text; need not be NUL-terminated. 
+* `n` its length in bytes. 
+* `v` receives the value; untouched on refusal. 
+
+
+
+**Returns:**
+
+0, or -1 for text outside the rule.
+
+
+
+```C++
+uint64_t v;
+int ok  = dp_wfm_parse_u64 ("0x10", 4, &v); // 0, v == 16
+int dec = dp_wfm_parse_u64 ("010", 3, &v);  // 0, v == 10, not octal
+int bad = dp_wfm_parse_u64 ("4x", 2, &v);   // -1, v unchanged
 ```
  
 

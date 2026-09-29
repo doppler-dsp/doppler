@@ -84,9 +84,10 @@ typedef struct {
                           the fs/symbol_rate samples the async symbol spans. */
     uint32_t seed;     /* PRNG and LFSR seed for the noise and PN streams.
                           Deterministic: vary it for run-to-run change. For
-                          a PN-sourced type it fills the pn_length-bit
-                          register, so a multiple of 2^pn_length (an empty
-                          register) is refused. */
+                          a PN-sourced type it starts the pn_length-bit
+                          register, masked: a seed whose low pn_length bits
+                          are zero starts the register at 1, as seed 0
+                          does. */
     int sps;           /* Samples per symbol (PSK) or per chip (PN): the
                           oversampling factor. Unused by noise, which
                           records it as 0. */
@@ -389,8 +390,6 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 const char *dp_wfm_source_error(const wfm_source_t *src);
 
 extern const char dp_wfm_why_pn_poly[];
-
-extern const char dp_wfm_why_seed[];
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 

@@ -59,7 +59,6 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
-|  const char | [**dp\_wfm\_why\_seed**](#variable-dp_wfm_why_seed)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`seed` _that masks to the all-zero_`pn_length` _-bit register (doppler#1640), exported for the same reason as_[_**dp\_wfm\_why\_pn\_poly**_](wfm__compose_8h.md#variable-dp_wfm_why_pn_poly) _._ |
 
 
 
@@ -339,20 +338,6 @@ The scale a number in dB is quoted on is not a detail a caller can infer, and it
 _The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._
 ```C++
 const char dp_wfm_why_pn_poly[];
-```
-
-
-
-
-<hr>
-
-
-
-### variable dp\_wfm\_why\_seed 
-
-_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`seed` _that masks to the all-zero_`pn_length` _-bit register (doppler#1640), exported for the same reason as_[_**dp\_wfm\_why\_pn\_poly**_](wfm__compose_8h.md#variable-dp_wfm_why_pn_poly) _._
-```C++
-const char dp_wfm_why_seed[];
 ```
 
 
@@ -1296,7 +1281,6 @@ The question every face asks before it builds  the wfmgen CLI, a scene read by [
 
 
 * `pn_poly` must fit the `pn_length`-bit register ([**pn\_fits\_register()**](pn__core_8h.md#function-pn_fits_register)). The generator masks a wider one, silently, so `pn_poly = 0x40` on a 5-bit register is a register with no feedback: the seed, then zeros, a constant waveform that still looks like a PN source (doppler#1636). 0 selects the maximal-length polynomial and always fits.
-* `seed` fills that register, masked, so it must have a bit inside it: 128 on a 7-bit register is the all-zero register, a constant stream (doppler#1640). A wider seed that masks to non-zero  129 to 1  is fine; 0 selects 1.
 
 
 

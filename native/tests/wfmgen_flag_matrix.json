@@ -2051,21 +2051,6 @@
     "outputs": {},
     "record": null
   },
-  "err_seed_empties_the_register": {
-    "argv": [
-      "--type",
-      "pn",
-      "--pn-length",
-      "7",
-      "--seed",
-      "128",
-      "--count",
-      "32"
-    ],
-    "exit": 2,
-    "outputs": {},
-    "record": null
-  },
   "err_seq_gen_gold_short": {
     "argv": [
       "--type",

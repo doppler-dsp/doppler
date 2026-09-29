@@ -1237,7 +1237,7 @@ metavar = "N"
 help_section = "SIGNAL"
 type = "uint32_t"
 default = "0"
-doc = "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it for run-to-run change. For a PN-sourced type it fills the pn_length-bit register, so a multiple of 2^pn_length (an empty register) is refused."
+doc = "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it for run-to-run change. For a PN-sourced type it starts the pn_length-bit register, masked: a seed whose low pn_length bits are zero starts the register at 1, as seed 0 does."
 
 [[module.wfm_compose.source.fields]]
 name = "sps"

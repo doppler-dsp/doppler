@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -1350,6 +1351,30 @@ main (void)
       DP_CHECK_MSG (ok != NULL, "...and one inside it is built");
       dp_wfm_synth_destroy (ok);
     }
+
+  /* A seed whose low pn_length bits are zero starts the register at 1, as
+   * seed 0 does (doppler#1640). It used to BE the all-zero register -- a
+   * constant stream at exit 0, reachable because the seed also seeds the
+   * noise and scenes range it freely (plan_background's 1000 + k hit
+   * 1024 on a 9-bit register). */
+  {
+    float _Complex a[64], b[64];
+    dp_wfm_synth_state_t *s128 = dp_wfm_synth_create (
+        WFM_SYNTH_PN, 1e6, 0.0, 100.0, 0, 128, 1, 7, 0, 0, 0.0);
+    dp_wfm_synth_state_t *s1 = dp_wfm_synth_create (
+        WFM_SYNTH_PN, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (s128 && s1, "seed 128 on 7 bits builds");
+    dp_wfm_synth_steps (s128, a, 64);
+    dp_wfm_synth_steps (s1, b, 64);
+    DP_CHECK_MSG (memcmp (a, b, sizeof a) == 0,
+                  "seed 128 on 7 bits is seed 1's sequence");
+    int varies = 0;
+    for (int i = 1; i < 64; i++)
+      varies |= crealf (a[i]) != crealf (a[0]);
+    DP_CHECK_MSG (varies, "...and is not constant");
+    dp_wfm_synth_destroy (s128);
+    dp_wfm_synth_destroy (s1);
+  }
 
   /* the serialization sections above also count via CHECK — fail if any
    * tripped (the early _fails gate only covered the pre-state sections). */

@@ -41,9 +41,16 @@ import sys
 import textwrap
 from pathlib import Path
 
-import tomllib
 from _layout import header
 from check_wfm_enum_tables import _tables
+
+# test_wfm_surface_roundtrip.py imports this module, and the Python 3.9/3.10
+# CI jobs run it there: the stdlib has no tomllib before 3.11. `tomli` is the
+# same parser under its pre-stdlib name, as check_wfm_enum_tables.py does.
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - exercised by the 3.9/3.10 CI matrix jobs
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "just-makeit.toml"

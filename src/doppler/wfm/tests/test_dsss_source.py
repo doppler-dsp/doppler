@@ -348,6 +348,51 @@ def test_stage_reaches_the_spread_frame(stage, extra_bits):
     )
 
 
+def test_a_record_carries_the_stages_and_replays_them():
+    """A coded burst's own record rebuilds it, stage for stage.
+
+    This is what a record is FOR. A coded DSSS capture once recorded its
+    codes, its preamble and its CRC, dropped its coding stages, and replayed
+    as a perfectly plausible UNCODED waveform. A coded frame is now a
+    description -- a scene's "frame" key, which is also how Python composes
+    one -- and the record carries it whole: every stage, and no
+    common-frame `crc` key beside it to say something else.
+    """
+    acq, dat, pay = _codes()
+    frame = {
+        "fields": [
+            {"name": "asm", "spec": "0x1ACFFC1D"},
+            {"name": "sync", "spec": "".join(map(str, SYNC))},
+            {"name": "payload", "spec": "".join(map(str, pay))},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+        ],
+        "stages": [
+            {"kind": "crc16", "first_field": 2, "n_fields": 2},
+            {
+                "kind": "conv",
+                "first_field": 0,
+                "n_fields": 4,
+                "emit_num": 2,
+                "emit_den": 1,
+            },
+        ],
+    }
+    seg = _scene_json([_seg_kwargs(1, 0, acq, dat, pay)])["segments"][0]
+    seg["snr"] = 99.0
+    del seg["sync"], seg["payload"]
+    seg["frame"] = frame
+
+    c = Composer.from_json(json.dumps({**_scene_json([]), "segments": [seg]}))
+    x_obj = np.asarray(c.compose())
+    rec = json.loads(c.to_json())["segments"][0]
+    kinds = [st["kind"] for st in rec["frame"]["stages"]]
+    assert kinds == ["crc16", "conv"], "the record dropped a stage"
+    assert "crc" not in rec, "a carried frame's record has no second CRC"
+
+    x_replay = np.asarray(Composer.from_json(c.to_json()).compose())
+    assert np.array_equal(x_obj, x_replay), "the record does not replay"
+
+
 @pytest.mark.parametrize(
     "key", ["rs_depth", "randomise", "attach_asm", "convolutional"]
 )

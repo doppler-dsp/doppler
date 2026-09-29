@@ -89,3 +89,17 @@ def test_the_retired_claim_is_caught(text: str) -> None:
 )
 def test_the_accurate_statements_pass(text: str) -> None:
     assert not any(p.search(text) for p in _windows_rows())
+
+
+def test_a_record_is_exempt_and_nothing_else_is() -> None:
+    """A dated record keeps the names it measured; a live page does not.
+
+    Checked against the file list rather than by name alone: an exemption
+    naming a file that no longer exists would be a waiver of nothing, and
+    one that grew to a directory would excuse every page in it.
+    """
+    for rel in gate.RECORDS:
+        assert (REPO / rel).is_file(), f"{rel}: an exempt record that is gone"
+        assert rel.endswith("-measurements.md"), (
+            f"{rel}: only dated measurement records are exempt"
+        )

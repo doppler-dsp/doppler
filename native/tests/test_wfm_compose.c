@@ -1589,10 +1589,11 @@ main (void)
 
     /* ── a coding stage reaches a DSSS burst ──────────────────────────
      *
-     * The flags were read from the scene and then dropped: `--conv` on a
-     * dsss source produced a byte-identical waveform to no `--conv` at all,
-     * because the burst was assembled by a private four-field builder that
-     * had never heard of a stage (doppler#1017). Now the burst is the same
+     * A coding stage once reached a DSSS burst in name only: the retired
+     * `--conv` flag on a dsss source produced a byte-identical waveform to
+     * no `--conv` at all, because the burst was assembled by a private
+     * four-field builder that had never heard of a stage (doppler#1017).
+     * The burst is now the same
      * description every other source's frame is, so a rate-1/2 inner code
      * doubles the frame -- and leaves the preamble alone, because the
      * preamble is not IN the description.

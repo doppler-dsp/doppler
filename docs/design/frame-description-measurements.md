@@ -198,6 +198,40 @@ warnings are accepted.
 
 ______________________________________________________________________
 
+### F.6 The parser, explored (2026-09-29)
+
+Phase 7 of the lifecycle, run once on purpose: a parser has no statistical
+envelope, so the exploration is a corpus, not a sweep. A scratch harness
+compiled `wfm_frame.c` under ASan and UBSan and drove
+`dp_wfm_field_parse`, `dp_wfm_field_format` and `dp_wfm_field_bits` with:
+
+| corpus                                                                                              | size    | property                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| generated valid Fields (bin, hex, pn, gold, dotted, `*REPS`)                                        | 200,000 | parse → format → parse is the same field; the text is canonical (formatting twice agrees); both texts render the same bits, every one 0 or 1 |
+| single-character mutations of those (delete, insert, replace, truncate)                             | 200,000 | accepted or refused, never a crash; if accepted, the same round trip                                                                         |
+| hand edges (2^64-1 and 2^64 lengths, `*0`, `**2`, huge `*REPS`, `PN:`, signed numbers, a bare `0x`) | 26      | as above                                                                                                                                     |
+
+**One finding, in 422 cases, all one class.** `pn:LEN:1` with no POLY —
+spelled `1`, `01` or `0x1` — was ACCEPTED by the parser and could never be
+built: a 1-bit register has no maximal-length polynomial, so the render
+refused it (#1602). The refusal therefore arrived later, on every face, and
+on two of them without a reason (`wfmgen --bits pn:12:1` and
+`--data-code pn:7:1` exited 1 with "could not build the waveform spec").
+It is now refused where the text is read, naming the remedy — give POLY, or
+a wider REG — and pinned in `test_wfm_frame.c`'s refusal table, red before
+the fix. A 1-bit register WITH a POLY builds, and is pinned as accepted.
+
+After the fix: 259,037 round trips, 200,000 mutations, **0 findings**, no
+sanitizer report.
+
+**A second finding, outside the parser, filed rather than fixed here.** A
+huge LEN parses (`pn:4000000000:5`, up to `2^64 - 1`) and the face that
+holds the bits then ABORTS: `wfmgen --bits pn:4000000000:5` exits 134, on
+`SIGABRT`, because the source path allocates the caller's length with the
+abort-on-OOM helper. Python's `field_bits` reports "negative dimensions" for
+`2^64 - 1`. The design states no length limit, and choosing one is a design
+decision, so it is [#1622](https://github.com/doppler-dsp/doppler/issues/1622).
+
 ## C. The CCSDS sites
 
 ### C.1 The sites, and how each was settled

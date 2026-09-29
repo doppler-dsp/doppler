@@ -342,6 +342,14 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
     return field_refuse (why, "a pn SEED is not a number");
   if (nums > 1 && tok_u64 (t[4], &s.poly) != 0)
     return field_refuse (why, "a pn POLY is not a number");
+  /* No POLY means "the maximal-length one for this register", and a 1-bit
+     register has none: the render refuses it (doppler#1602), so accepting
+     it here only moved the refusal to a later point on every face -- where
+     it arrived without a reason. Refused where the text is read, and the
+     one remedy that makes it buildable is named. */
+  if (s.poly == 0 && pn_mls_poly (s.reg_bits) == 0)
+    return field_refuse (why, "a pn REG this narrow has no maximal-length "
+                              "polynomial: give POLY, or a wider REG");
   *q = s;
   return DP_OK;
 }

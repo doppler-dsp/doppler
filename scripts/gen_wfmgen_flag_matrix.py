@@ -1337,6 +1337,17 @@ NUMERIC = [
     ("err_num_seed_overflow", "--seed", "4294967296"),
     ("err_num_freq_empty", "--freq", ""),
     ("err_num_freq_space", "--freq", " 0.1"),
+    # doppler#1629: a sample count (RANGE_N) is whole, non-negative and fits
+    # a size_t, on both sides of LO:HI. A negative one wrapped to 2^64 and
+    # the run wrote WITHOUT BOUND -- never run these against a binary that
+    # predates the fix without `ulimit -f` (it filled a shared /tmp once).
+    ("num_count_exponent", "--count", "1e3"),
+    ("err_num_delay_negative", "--delay", "-1"),
+    ("err_num_off_negative", "--off", "-1"),
+    ("err_num_count_negative", "--count", "-5"),
+    ("err_num_count_hi_negative", "--count", "4:-2"),
+    ("err_num_count_fraction", "--count", "1.5"),
+    ("err_num_off_fraction", "--off", "1.5"),
 ]
 STDERR_PINNED = {name for name, _, _ in NUMERIC}
 

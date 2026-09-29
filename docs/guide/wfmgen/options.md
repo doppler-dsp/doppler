@@ -15,7 +15,9 @@ line, or a `[lo, hi]` pair in a scene, drawn uniformly per repeat.
 On the command line an integer is decimal or `0x` hex, and a
 leading `0` is decimal, never octal. Every number must be the
 whole value: `4x`, `0.1abc` and an empty value are refused, naming
-the flag.
+the flag. A sample count (`--count`, `--off`, `--delay`, each
+side of a range) is a whole, non-negative number: `1e3` is 1000,
+and `1.5` or `-1` is refused.
 
 Framing, payload and coding keys are described in
 [Waveforms](waveforms.md) and [Scenes](scenes.md).

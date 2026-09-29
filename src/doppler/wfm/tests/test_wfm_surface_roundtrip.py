@@ -72,12 +72,25 @@ VALUE = {
     "pn_length": "9",
     # Decimal: the CLI reads a hex mask as 0 today (doppler#1611).
     "pn_poly": "24577",
+    # Field rows take their CANONICAL text (dp_wfm_field_format), so the
+    # record carries back exactly what was given.
+    "bits": "0x1acf",
+    "acq_code": "pn:31:5*2",
+    "sync": "pn:63:6",
+    "data_code": "pn:7:3:0x1",
 }
 
 #: Flags a row needs beside its own for the run to be buildable at all.
 EXTRA = {
     "modulation": ["--bits", "1011"],
     "symbol_rate": ["--data-code", "1011"],
+    # A payload is written for a source that carries one; a preamble or a
+    # sync word only for a FRAMED one, which needs a payload; a spreading
+    # code only for dsss.
+    "bits": ["--type", "bits"],
+    "acq_code": ["--type", "bits", "--bits", "0x1acf"],
+    "sync": ["--type", "bits", "--bits", "0x1acf"],
+    "data_code": ["--type", "dsss", "--bits", "0x1acf"],
 }
 
 #: Rows this test cannot drive, each with the reason.
@@ -165,7 +178,7 @@ def test_row_reaches_the_record_and_back(row: dict, tmp_path: Path) -> None:
 
     got = _key(first, row)
     assert got is not None, f"{row['cli']} {value} wrote no `{row['json']}`"
-    if row["values"]:
+    if row["values"] or row["kind"] == "WFM_SV_FIELD":
         assert got == value
     else:
         assert float(got) == float(value)

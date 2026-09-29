@@ -75,13 +75,13 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
            "spread it";
   /* LENGTH, not the pointer: a generated payload has no array. #755 refused
      the PN-sourced types outright here because their data is endless and
-     nothing bounded it; --payload-len is that bound, so the question is now
-     the same one BITS always answered -- is there a payload at all
+     nothing bounded it; a generated payload Field is that bound, so the
+     question is the one BITS always answered -- is there a payload at all
      (gh-762). */
   else if (src->payload.len == 0)
-    return "a frame needs a payload: --bits (or --bits-hex/--bits-file), "
-           "--payload-gen for a generated one, or --payload-len to bound one "
-           "the waveform's own PN fills";
+    return "a frame needs a payload: --bits <FIELD> (literal bits, or "
+           "generated, e.g. --bits pn:1024:<pn-length> over the waveform's "
+           "own register) or --bits-file";
 
   /* The stage rules below reach a DSSS burst too, now that its frame is the
      same description every other source's is (doppler#1017). Before that they

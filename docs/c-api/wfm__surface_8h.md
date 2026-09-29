@@ -136,11 +136,15 @@ enum wfm__surface_8h_1abc5c98fcc1211af2b80116dd6e0a035d {
     WFM_SURFACE_source_doppler_rate,
     WFM_SURFACE_source_carrier_hz,
     WFM_SURFACE_source_doppler_lifetime,
+    WFM_SURFACE_source_bits,
     WFM_SURFACE_source_modulation,
     WFM_SURFACE_source_pulse,
     WFM_SURFACE_source_rrc_beta,
     WFM_SURFACE_source_rrc_span,
     WFM_SURFACE_source_symbols,
+    WFM_SURFACE_source_acq_code,
+    WFM_SURFACE_source_data_code,
+    WFM_SURFACE_source_sync,
     WFM_SURFACE_source_crc,
     WFM_SURFACE_source_symbol_rate,
     WFM_SURFACE_segment_fs,
@@ -186,7 +190,8 @@ enum wfm_sv_kind_t {
     WFM_SV_U32,
     WFM_SV_U64,
     WFM_SV_CHOICE,
-    WFM_SV_SYMBOLS
+    WFM_SV_SYMBOLS,
+    WFM_SV_FIELD
 };
 ```
 

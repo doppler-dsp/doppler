@@ -278,9 +278,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "--type",
             "dsss",
             "--acq-code",
-            "10110010",
-            "--acq-reps",
-            "3",
+            "10110010*3",
             "--data-code",
             "0110",
             "--sync",
@@ -302,12 +300,10 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
         [
             "--type",
             "dsss",
-            "--acq-code-hex",
-            "b2",
-            "--acq-reps",
-            "2",
-            "--data-code-hex",
-            "6",
+            "--acq-code",
+            "0xb2*2",
+            "--data-code",
+            "0x6",
             "--bits",
             "10011",
             "--crc",
@@ -322,9 +318,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "--type",
             "dsss",
             "--acq-code",
-            "10110010",
-            "--acq-reps",
-            "3",
+            "10110010*3",
             "--data-code",
             "0110",
             "--bits",
@@ -349,9 +343,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "--type",
             "dsss",
             "--acq-code",
-            "10110010",
-            "--acq-reps",
-            "3",
+            "10110010*3",
             "--data-code",
             "0110",
             "--bits",
@@ -502,7 +494,7 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         {"version": 1, "segments": [{**_SEG, "lfsr": "fibonacci"}]},
     ),
     (
-        "bits_with_pattern",
+        "bits_with_payload",
         {
             "version": 1,
             "segments": [
@@ -510,7 +502,7 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
                     **_SEG,
                     "type": "bits",
                     "modulation": "qpsk",
-                    "pattern": "10110010",
+                    "payload": "10110010",
                     "pulse": "rrc",
                     "rrc_beta": 0.35,
                     "rrc_span": 8,
@@ -535,78 +527,29 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         "level_range",
         {"version": 1, "segments": [{**_SEG, "level": [-12.0, -3.0]}]},
     ),
-    # gh-762: a sequence produced from numbers rather than carried as an
-    # array. The whole point is that the METADATA reproduces the capture, so
-    # the record has to be able to say it.
+    # A sequence produced from numbers rather than carried as an array: the
+    # METADATA reproduces the capture, so the record says it -- as ONE Field
+    # text per field (frame-description.md F.1), `*REPS` on the preamble.
     (
         "generated_pn_sync",
-        {
-            "version": 1,
-            "segments": [
-                {
-                    **_SEG,
-                    "sync_gen": {
-                        "kind": "pn",
-                        "len": 1023,
-                        "reg_bits": 10,
-                        "poly": "0x409",
-                        "seed": "0x1",
-                        "lfsr": 0,
-                    },
-                }
-            ],
-        },
+        {"version": 1, "segments": [{**_SEG, "sync": "pn:1023:10:0x1:0x409"}]},
     ),
     (
         "generated_gold_acq_code",
         {
             "version": 1,
             "segments": [
-                {
-                    **_SEG,
-                    "acq_code_gen": {
-                        "kind": "gold",
-                        "len": 64,
-                        "reg_bits": 10,
-                        "taps_a": "0x3a6",
-                        "seed_a": "0x15e",
-                        "taps_b": "0x237",
-                        "seed_b": "0x49",
-                    },
-                }
+                {**_SEG, "acq_code": "gold:64:10:0x3a6:0x15e:0x237:0x49*2"}
             ],
         },
     ),
     (
-        "generated_dotted_needs_no_parameters",
-        {
-            "version": 1,
-            "segments": [
-                {**_SEG, "data_code_gen": {"kind": "dotted", "len": 16}}
-            ],
-        },
+        "generated_dotted_data_code",
+        {"version": 1, "segments": [{**_SEG, "data_code": "dotted:16"}]},
     ),
     (
-        # gh-762's last field. The payload wears two literal names --
-        # "pattern" on a bits source, "payload" on a dsss one -- but ONE
-        # generator key, because it is one field.
         "generated_payload",
-        {
-            "version": 1,
-            "segments": [
-                {
-                    **_SEG,
-                    "payload_gen": {
-                        "kind": "pn",
-                        "len": 1024,
-                        "reg_bits": 10,
-                        "poly": "0x409",
-                        "seed": "0x1",
-                        "lfsr": 0,
-                    },
-                }
-            ],
-        },
+        {"version": 1, "segments": [{**_SEG, "payload": "pn:1024:10"}]},
     ),
     (
         # The writer emits `background` and the reader reads it, but the
@@ -665,72 +608,30 @@ _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         "carrier_hz_not_a_number",
         {"version": 1, "segments": [{**_SEG, "carrier_hz": "S-band"}]},
     ),
-    # A 64-bit mask must be a hex STRING: a JSON number is a double, so a
-    # register above 2^53 would not survive the round trip.
+    # A Field is TEXT: its grammar is read by one parser, dp_wfm_field_parse
+    # (whose C tests pin every malformed form), so the schema asks only that
+    # it be a non-empty string -- a regex here would be a second reader.
     (
-        "generated_poly_as_number",
-        {
-            "version": 1,
-            "segments": [
-                {
-                    **_SEG,
-                    "sync_gen": {
-                        "kind": "pn",
-                        "len": 31,
-                        "reg_bits": 5,
-                        "poly": 9,
-                    },
-                }
-            ],
-        },
-    ),
-    # "literal" is deliberately absent from the enum: a literal field is
-    # recorded as its own '0'/'1' string, and a second way to say it is how
-    # two spellings of one thing start disagreeing.
-    (
-        "generated_kind_literal",
-        {
-            "version": 1,
-            "segments": [
-                {**_SEG, "sync_gen": {"kind": "literal", "len": 8}},
-            ],
-        },
+        "field_not_a_string",
+        {"version": 1, "segments": [{**_SEG, "sync": 5}]},
     ),
     (
-        "generated_kind_unknown",
-        {
-            "version": 1,
-            "segments": [{**_SEG, "sync_gen": {"kind": "martian", "len": 8}}],
-        },
+        "field_empty",
+        {"version": 1, "segments": [{**_SEG, "sync": ""}]},
     ),
-    (
-        "generated_missing_len",
-        {
-            "version": 1,
-            "segments": [{**_SEG, "sync_gen": {"kind": "pn"}}],
-        },
-    ),
-    (
-        "generated_unknown_key",
-        {
-            "version": 1,
-            "segments": [
-                {**_SEG, "sync_gen": {"kind": "pn", "len": 8, "wat": 1}}
-            ],
-        },
-    ),
-    (
-        "generated_reg_bits_over_64",
-        {
-            "version": 1,
-            "segments": [
-                {
-                    **_SEG,
-                    "sync_gen": {"kind": "pn", "len": 8, "reg_bits": 65},
-                }
-            ],
-        },
-    ),
+    # The keys a Field replaced are gone from the schema, so a record still
+    # carrying one is refused, as the reader refuses it (#853, F.3).
+    *[
+        (f"retired_{key}", {"version": 1, "segments": [{**_SEG, key: value}]})
+        for key, value in (
+            ("pattern", "0101"),
+            ("acq_reps", 2),
+            ("sync_gen", {"kind": "pn", "len": 31, "reg_bits": 5}),
+            ("acq_code_gen", {"kind": "dotted", "len": 8}),
+            ("data_code_gen", {"kind": "dotted", "len": 8}),
+            ("payload_gen", {"kind": "pn", "len": 64, "reg_bits": 7}),
+        )
+    ],
 ]
 
 

@@ -272,7 +272,7 @@ def test_interleave_survives_a_record_round_trip(
     tmp_path, depth, unit, payload
 ):
     """The flag has to reach the writer AND the reader, not just the kernel."""
-    bits = ["--bits", payload] if payload else ["--bits-hex", "b25a0f"]
+    bits = ["--bits", payload] if payload else ["--bits", "0xb25a0f"]
     record = tmp_path / "record.json"
     args = [
         "--type",

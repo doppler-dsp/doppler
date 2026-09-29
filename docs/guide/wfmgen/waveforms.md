@@ -57,8 +57,9 @@ ______________________________________________________________________
 ## Bits — your bit pattern, mapped
 
 A `bits` waveform plays back **your** sequence — a preamble, sync word, or test
-vector — given as a 0/1 string (`--bits 10110101`), a hex string
-(`--bits-hex AA55`, MSB first), or a **binary** file whose bytes are
+vector — given as a [Field](../../design/frame-description.md#f1-the-grammar) — a 0/1
+string (`--bits 10110101`), hex (`--bits 0xAA55`, MSB first) or a generated
+sequence (`--bits pn:1024:15`) — or a **binary** file whose bytes are
 the bits, MSB first per byte (`--bits-file frame.bin`) — which is how a
 real transfer frame reaches the tool.
 `--modulation` (`none` / `bpsk` / `qpsk`) maps the bits to symbols (`none` →
@@ -67,7 +68,7 @@ is held `--sps` samples and the pattern **cycles** to fill the requested length.
 
 ```sh
 wfmgen --type bits --bits 10110101 --modulation bpsk --sps 8 --count 64 -o sync.cf32
-wfmgen --type bits --bits-hex AA55 --modulation none --sps 4 -o preamble.cf32
+wfmgen --type bits --bits 0xAA55 --modulation none --sps 4 -o preamble.cf32
 ```
 
 ______________________________________________________________________
@@ -108,66 +109,65 @@ Setting `--acq-code` **or** `--sync` is what makes a source framed. `--crc` on
 its own does not — it defaults to `crc16`, so treating it as intent would put a
 trailer on every plain bit pattern ever generated.
 
-### A sequence given as numbers, not as a string
+### One Field per sequence
 
-A preamble, spreading code or sync word can be **generated** instead of typed
-out. `--acq-code-gen`, `--data-code-gen` and `--sync-gen` each take
-`KIND:LEN[:...]`, colon-separated like `--freq`'s `LO:HI`:
+`--acq-code`, `--data-code`, `--sync` and `--bits` each take **one Field** —
+literal bits, hex, or a generated sequence — in the same
+[grammar](../../design/frame-description.md#f1-the-grammar) a scene uses.
+Colon-separated, like `--freq`'s `LO:HI`:
 
-| spec                                            | means                                                                                       |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `pn:LEN:REG_BITS[:SEED[:POLY]]`                 | one LFSR. `SEED` 0 selects 1; `POLY` 0 selects the maximal-length polynomial for `REG_BITS` |
-| `gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B` | a Gold pair                                                                                 |
-| `dotted:LEN`                                    | alternating `1010…`, a line at Rs/2 to settle on                                            |
+| Field                                  | means                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------- |
+| `10110010`                             | literal bits (0 and 1 only)                                                            |
+| `0x1ACFFC1D`                           | literal hex, 4 bits a digit, MSB first                                                 |
+| `pn:LEN:REG[:SEED[:POLY]][:fibonacci]` | one LFSR. `SEED` 0 selects 1; `POLY` 0 selects the maximal-length polynomial for `REG` |
+| `gold:LEN:REG:TA:SA:TB:SB`             | a Gold pair                                                                            |
+| `dotted:LEN`                           | alternating `1010…`, a line at Rs/2 to settle on                                       |
+
+A `*REPS` suffix repeats the **preamble** — `--acq-code 'pn:127:7*4'` — and only
+the preamble. Quote it, or the shell globs the `*`.
 
 ```sh
-wfmgen --type bits --bits 10110010 --sync-gen pn:1023:10 \
+wfmgen --type bits --bits 10110010 --sync pn:1023:10 \
        --sps 4 --count 8192 --record run.json -o framed.cf32
 
 # A DSSS burst with BOTH of its codes generated: a 127-chip preamble a
 # receiver correlates against, and a 31-chip code spreading the payload.
-wfmgen --type dsss --acq-code-gen pn:127:7 --acq-reps 4 \
-       --data-code-gen pn:31:5 --sync 1111100110101 --bits-hex a5c3 \
+wfmgen --type dsss --acq-code 'pn:127:7*4' \
+       --data-code pn:31:5 --sync 1111100110101 --bits 0xa5c3 \
        --sps 2 --snr 8 --snr-mode esno -o burst.cf32
 ```
 
 Every number takes hex or decimal, so a tap mask reads as `0x409` the way it
 does in the literature.
 
-**Why this exists.** `--sync 1111100110101` is fine for a Barker-13. A
+**Why generated Fields exist.** `--sync 1111100110101` is fine for a Barker-13. A
 1023-chip sync word is not, and a `--record` of one is a 1023-character
-string that says nothing about what produced it. The generated form records
-six numbers instead, so a capture is reproducible from its metadata — which
-is the point of the kinds, not a shorthand for them:
+string that says nothing about what produced it. `--record` stores the Field
+itself, so a capture is reproducible from its metadata — which is the point of
+the kinds, not a shorthand for them:
 
 ```json
-"sync_gen": { "kind": "pn", "len": 1023, "reg_bits": 10,
-              "poly": "0x0", "seed": "0x0", "lfsr": 0 }
+"sync": "pn:1023:10"
 ```
 
-A field is one or the other. `--sync` and `--sync-gen` together is refused
-rather than resolved, because there is no correct answer to which one wins —
-in either order, and counting `--acq-code-hex` as the same field as
-`--acq-code`. Accepting the pair would write a `--record` carrying both
-spellings, which this tool's own `--from-file` then refuses to read.
+### The payload is a Field too
 
-### The payload, generated or just bounded
-
-The payload is a sequence like the other three, so `--payload-gen` takes the
-same `KIND:LEN[:...]` spec:
+The payload is a sequence like the other three, so `--bits` takes the same
+Field:
 
 ```sh
-wfmgen --type bits --modulation bpsk --payload-gen pn:65535:16 \
+wfmgen --type bits --modulation bpsk --bits pn:65535:16 \
        --sync 1111100110101 --sps 4 --count 65536 -o framed.cf32
 ```
 
-`--payload-len N` is the shorthand for the common case. It bounds the payload
-at `N` bits and fills it from the waveform's **own** PN parameters
-(`--pn-length`, `--pn-poly`, `--seed`), so the bits a receiver regenerates are
-the ones this waveform would have transmitted anyway:
+On `--type bpsk`/`qpsk`/`pn` a generated payload over the waveform's **own**
+register (`--pn-length`, and `--seed`/`--pn-poly` when set) bounds it at `LEN`
+bits, so the bits a receiver regenerates are the ones this waveform would have
+transmitted anyway:
 
 ```sh
-wfmgen --type bpsk --sync 1111100110101 --payload-len 1024 --pn-length 10 \
+wfmgen --type bpsk --sync 1111100110101 --bits pn:1024:10 --pn-length 10 \
        --sps 4 --count 16384 -o framed_bpsk.cf32
 ```
 
@@ -183,15 +183,12 @@ is no `--modulation` to disagree with it.
 A type that carries no bit stream at all — `tone`, `noise`, `chirp`,
 `symbols` — still cannot be framed, with or without a payload.
 
-`--payload-len`, `--payload-gen` and `--bits` are three spellings of one
-field, so giving two is refused the same way the other sequences are.
-
-For `--type bits` the payload is `--bits*` and `--modulation` maps it to BPSK or
+For `--type bits` the payload is `--bits`/`--bits-file` and `--modulation` maps it to BPSK or
 QPSK, so a framed unspread waveform is one command:
 
 ```sh
 wfmgen --type bits --modulation bpsk --bits 10110010 \
-       --acq-code 10101010 --acq-reps 4 --sync 1111100110101 --crc crc16 \
+       --acq-code '10101010*4' --sync 1111100110101 --crc crc16 \
        --sps 4 --count 8192 -o framed.cf32
 ```
 
@@ -201,7 +198,7 @@ of the frame. (A `dsss` burst is the exception: its length is intrinsic and
 `--count` is derived.)
 
 A frame needs a payload. The types whose symbols come from the PN LFSR —
-`bpsk`, `qpsk`, `pn` — take one from that LFSR once `--payload-len` bounds it
+`bpsk`, `qpsk`, `pn` — take one from that LFSR once a `--bits pn:…` Field bounds it
 (above), and **refuse** the framing flags without it, naming the replacement.
 Until [gh-755](https://github.com/doppler-dsp/doppler/issues/755) the whole
 unspread path ignored them silently, producing an unframed waveform at exit 0;
@@ -230,8 +227,9 @@ into a randomly-placed burst train over a continuous noise floor.
 
 **[DSSS bursts](waveforms.md#dsss-bursts) is the full reference** — anatomy, Es/N0
 semantics, placement, ground-truth SigMF annotations, and a decode-it-back
-walkthrough. CLI flags: `--acq-code[-hex]`, `--acq-reps`,
-`--data-code[-hex]`, `--sync`, `--crc none|crc16`, payload via `--bits*`.
+walkthrough. CLI flags: `--acq-code` (repetitions as its `*REPS`),
+`--data-code`, `--sync`, `--crc none|crc16`, payload via `--bits`/`--bits-file`
+— each sequence one [Field](../../design/frame-description.md#f1-the-grammar).
 
 ______________________________________________________________________
 
@@ -285,36 +283,30 @@ ______________________________________________________________________
 
 ## Engine parameter reference
 
-| Flag              | Type                                              | Default  | Meaning                                                                                          |
-| ----------------- | ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `--type`          | `tone noise pn bpsk qpsk chirp bits symbols dsss` | `tone`   | waveform                                                                                         |
-| `--fs`            | float (Hz)                                        | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample)                   |
-| `--freq`          | float (Hz)                                        | `0`      | frequency offset from baseband (mixed by the LO); chirp start                                    |
-| `--f-end`         | float (Hz)                                        | `0`      | chirp end frequency (`--type chirp` only)                                                        |
-| `--snr`           | float (dB)                                        | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100) — see [Levels & SNR](waveforms.md#levels-snr) |
-| `--snr-mode`      | `auto fs ebno esno`                               | `auto`   | how `--snr` is interpreted                                                                       |
-| `--seed`          | uint32                                            | `0`      | PRNG / LFSR seed (deterministic)                                                                 |
-| `--sps`           | int                                               | `1`      | samples per symbol (`*psk`/`bits`/`symbols`) / per chip (`pn`)                                   |
-| `--pn-length`     | int (2..64)                                       | `15`     | LFSR register length → period `2ⁿ−1`                                                             |
-| `--pn-poly`       | uint64                                            | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                                              |
-| `--lfsr`          | `galois fibonacci`                                | `galois` | LFSR realization (same polynomial/period, different sequence)                                    |
-| `--bits`          | 0/1 string                                        | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)                                 |
-| `--modulation`    | `none bpsk qpsk`                                  | `bpsk`   | `bits`: how the pattern maps to symbols                                                          |
-| `--symbols-file`  | path (cf32)                                       | —        | `symbols`: raw interleaved-I/Q complex64 constellation stream                                    |
-| `--acq-code`      | 0/1 string                                        | —        | `dsss`: preamble code (or `--acq-code-hex`)                                                      |
-| `--acq-code-gen`  | `KIND:LEN[:...]`                                  | —        | preamble as a generated sequence (`pn`/`gold`/`dotted`)                                          |
-| `--data-code-gen` | `KIND:LEN[:...]`                                  | —        | spreading code as a generated sequence                                                           |
-| `--sync-gen`      | `KIND:LEN[:...]`                                  | —        | sync word as a generated sequence                                                                |
-| `--payload-gen`   | `KIND:LEN[:...]`                                  | —        | payload as a generated sequence                                                                  |
-| `--payload-len`   | int                                               | —        | payload bounded at N bits, filled from this source's own PN                                      |
-| `--acq-reps`      | int                                               | `1`      | `dsss`: preamble repetitions                                                                     |
-| `--data-code`     | 0/1 string                                        | —        | `dsss`: payload spreading code (or `--data-code-hex`)                                            |
-| `--sync`          | 0/1 string                                        | —        | `dsss`: frame-sync word (optional)                                                               |
-| `--crc`           | `none crc16`                                      | `crc16`  | `dsss`: CRC-16 trailer over the payload bits                                                     |
-| `--pulse`         | `rect rrc`                                        | `rect`   | pulse shape; `rrc` = band-limited RRC shaping                                                    |
-| `--rrc-beta`      | float                                             | `0.35`   | RRC roll-off (`--pulse rrc`)                                                                     |
-| `--rrc-span`      | int                                               | `8`      | RRC filter support in symbols (`--pulse rrc`)                                                    |
-| `--count`         | int                                               | `1024`   | number of complex samples to generate                                                            |
+| Flag             | Type                                              | Default  | Meaning                                                                                          |
+| ---------------- | ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `--type`         | `tone noise pn bpsk qpsk chirp bits symbols dsss` | `tone`   | waveform                                                                                         |
+| `--fs`           | float (Hz)                                        | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample)                   |
+| `--freq`         | float (Hz)                                        | `0`      | frequency offset from baseband (mixed by the LO); chirp start                                    |
+| `--f-end`        | float (Hz)                                        | `0`      | chirp end frequency (`--type chirp` only)                                                        |
+| `--snr`          | float (dB)                                        | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100) — see [Levels & SNR](waveforms.md#levels-snr) |
+| `--snr-mode`     | `auto fs ebno esno`                               | `auto`   | how `--snr` is interpreted                                                                       |
+| `--seed`         | uint32                                            | `0`      | PRNG / LFSR seed (deterministic)                                                                 |
+| `--sps`          | int                                               | `1`      | samples per symbol (`*psk`/`bits`/`symbols`) / per chip (`pn`)                                   |
+| `--pn-length`    | int (2..64)                                       | `15`     | LFSR register length → period `2ⁿ−1`                                                             |
+| `--pn-poly`      | uint64                                            | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                                              |
+| `--lfsr`         | `galois fibonacci`                                | `galois` | LFSR realization (same polynomial/period, different sequence)                                    |
+| `--bits`         | Field                                             | —        | `bits`: pattern, e.g. `10110101`, `0xAA55`, `pn:1024:15` (or `--bits-file`)                      |
+| `--modulation`   | `none bpsk qpsk`                                  | `bpsk`   | `bits`: how the pattern maps to symbols                                                          |
+| `--symbols-file` | path (cf32)                                       | —        | `symbols`: raw interleaved-I/Q complex64 constellation stream                                    |
+| `--acq-code`     | Field                                             | —        | preamble code; `*REPS` repeats it, e.g. `'pn:127:7*4'`                                           |
+| `--data-code`    | Field                                             | —        | `dsss`: payload spreading code                                                                   |
+| `--sync`         | Field                                             | —        | frame-sync word (optional)                                                                       |
+| `--crc`          | `none crc16`                                      | `crc16`  | `dsss`: CRC-16 trailer over the payload bits                                                     |
+| `--pulse`        | `rect rrc`                                        | `rect`   | pulse shape; `rrc` = band-limited RRC shaping                                                    |
+| `--rrc-beta`     | float                                             | `0.35`   | RRC roll-off (`--pulse rrc`)                                                                     |
+| `--rrc-span`     | int                                               | `8`      | RRC filter support in symbols (`--pulse rrc`)                                                    |
+| `--count`        | int                                               | `1024`   | number of complex samples to generate                                                            |
 
 ______________________________________________________________________
 
@@ -666,14 +658,14 @@ rejection, all three wfmgen faces byte-compared — see the
 
 ### The same burst on the other two faces
 
-The JSON scene carries the same keys (codes as `"0/1"` strings, ranges as
+The JSON scene carries the same keys (codes as Field strings, ranges as
 pairs, `"repeats": 5`; `"gap_noise"`/`"delay_samples"` only when
 non-default), and the CLI single-segment face is:
 
 ```sh
 wfmgen --type dsss --fs 4e6 --sps 4 --seed 1 --snr 10 --snr-mode esno \
-       --acq-code-hex <hexA> --acq-reps 4 --data-code-hex <hexB> \
-       --sync 1111100110101 --bits-hex <payload-hex> \
+       --acq-code '0x<hexA>*4' --data-code 0x<hexB> \
+       --sync 1111100110101 --bits 0x<payload-hex> \
        --delay 2000:10000 --off 4000:12000 --repeats 5 \
        --record train.json -o train.cf32
 ```
@@ -734,7 +726,7 @@ way on every face:
 | ------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **PRBS** (default) | —                                     | bits from the source's seeded PN — endless, and a receiver regenerates them to score BER |
 | **code-only**      | `dsss_code_only=True` (`--data none`) | constant bit 0 → the pure spreading code, `+code` polarity, no data transitions          |
-| **payload**        | `payload=` (`--bits*`)                | a caller bit pattern, cycled `mod len`                                                   |
+| **payload**        | `payload=` (`--bits`)                 | a caller bit pattern, cycled `mod len`                                                   |
 
 The default **PRBS** is the useful one for a stream with no finite truth
 array: the data is a pure function of `(pn_poly, seed, pn_length, lfsr)`, so a
@@ -787,10 +779,10 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
        --snr 10 --snr-mode esno --count 40000 -o code-only.cf32
 ```
 
-`--data none` selects code-only; a supplied `--bits`/`--bits-hex` selects a
+`--data none` selects code-only; a supplied `--bits`/`--bits-file` selects a
 payload. Incompatible combinations are rejected (exit 2), not silently
 ignored: `--symbol-rate` with the burst-frame flags (`--acq-code`, `--sync`,
-`--crc`), `--data` together with `--bits*`, `--symbol-rate` without
+`--crc`), `--data` together with `--bits`/`--bits-file`, `--symbol-rate` without
 `--data-code`, and a non-positive `--symbol-rate`.
 
 #### SigMF distinguishes the two modes
@@ -943,10 +935,10 @@ A framed waveform with no coding, and the same frame scrambled and permuted:
 
 ```sh
 # [ sync | payload | CRC-16 ] -- no coding
-wfmgen --type bits --bits-hex b25a --sync 10110 --count 512 -o plain.cf32
+wfmgen --type bits --bits 0xb25a --sync 10110 --count 512 -o plain.cf32
 
 # the data group scrambled, then permuted 4 deep in octets
-wfmgen --type bits --bits-hex b25a --sync 10110 \
+wfmgen --type bits --bits 0xb25a --sync 10110 \
        --randomise --interleave 4 --interleave-unit 8 \
        --count 512 -o coded.cf32
 
@@ -972,14 +964,14 @@ whatever span it is given — the two share a name and no implementation. See
 #### `--randomise` — which generator, not whether
 
 ```sh
-wfmgen --type bits --bits-hex b25a --sync 10110 --randomise \
+wfmgen --type bits --bits 0xb25a --sync 10110 --randomise \
        --count 512 -o r-default.cf32
-wfmgen --type bits --bits-hex b25a --sync 10110 --randomise legacy \
+wfmgen --type bits --bits 0xb25a --sync 10110 --randomise legacy \
        --count 512 -o r-legacy.cf32
 
 # --randomize is the same flag, spelled the other way. Both spellings are
 # accepted everywhere, and produce the same bytes:
-wfmgen --type bits --bits-hex b25a --sync 10110 --randomize \
+wfmgen --type bits --bits 0xb25a --sync 10110 --randomize \
        --count 512 -o r-us.cf32
 python3 -c "print(open('r-default.cf32','rb').read() == open('r-us.cf32','rb').read())"
 ```
@@ -1012,8 +1004,8 @@ Convolutional `K = 7`, rate 1/2, over the **whole** frame including the
 marker, so the emitted bit count doubles:
 
 ```sh
-wfmgen --type bits --bits-hex b25a --asm --count 512 -o uncoded.cf32
-wfmgen --type bits --bits-hex b25a --asm --conv --count 512 -o inner.cf32
+wfmgen --type bits --bits 0xb25a --asm --count 512 -o uncoded.cf32
+wfmgen --type bits --bits 0xb25a --asm --conv --count 512 -o inner.cf32
 ```
 
 `--count` is samples, not frame bits, so both files are 512 samples — the
@@ -1031,11 +1023,11 @@ the stage's cover is what says how much there is to permute.
 
 ```sh
 # 4 deep over a 32-bit data group: it divides, so 8 columns
-wfmgen --type bits --bits-hex b25a --sync 10110 --interleave 4 \
+wfmgen --type bits --bits 0xb25a --sync 10110 --interleave 4 \
        --count 512 -o ok.cf32
 
 # 5 deep does not divide 32 -- refused, never padded
-wfmgen --type bits --bits-hex b25a --sync 10110 --interleave 5 \
+wfmgen --type bits --bits 0xb25a --sync 10110 --interleave 5 \
        --count 512 -o bad.cf32 || echo "refused, as documented"
 ```
 
@@ -1067,7 +1059,7 @@ That is a configuration of these flags, not a mode `wfmgen` switches into:
 # a 223-octet Transfer Frame, as hex
 python3 -c "print('5a'*223, end='')" > tf.hex
 
-wfmgen --type bits --bits-hex "$(cat tf.hex)" --crc none \
+wfmgen --type bits --bits "0x$(cat tf.hex)" --crc none \
        --rs-depth 1 --randomise --asm --conv \
        --modulation bpsk --sps 1 --count 4144 -o cadu.cf32
 ```
@@ -1088,7 +1080,7 @@ one — and it is where `--interleave-unit 8` earns its keep, because the code
 it is protecting has octets for symbols:
 
 ```sh
-wfmgen --type bits --bits-hex "$(cat tf.hex)" --crc none \
+wfmgen --type bits --bits "0x$(cat tf.hex)" --crc none \
        --rs-depth 1 --randomise --asm \
        --interleave 5 --interleave-unit 8 --conv \
        --modulation bpsk --sps 1 --count 4144 -o cadu-ilv.cf32
@@ -1106,7 +1098,7 @@ ______________________________________________________________________
 `--from-file` on that record reproduces the samples byte for byte:
 
 ```sh
-wfmgen --type bits --bits-hex b25a --sync 10110 \
+wfmgen --type bits --bits 0xb25a --sync 10110 \
        --randomise --interleave 4 --interleave-unit 8 \
        --count 512 --record run.json -o a.cf32
 wfmgen --from-file run.json -o b.cf32
@@ -1130,7 +1122,7 @@ preamble is transmitted unmodulated, because it is what a receiver correlates
 raw chips against.
 
 ```sh
-wfmgen --type dsss --bits-hex b25a --acq-code 1101100 --acq-reps 4 \
+wfmgen --type dsss --bits 0xb25a --acq-code '1101100*4' \
        --data-code 10110 --sync 10110 \
        --randomise --interleave 4 --sps 2 -o dsss.cf32
 ```

@@ -33,6 +33,36 @@
 static const wfm_source_t  DEF_SRC = WFM_SOURCE_DEFAULTS;
 static const wfm_segment_t DEF_SEG = WFM_SEGMENT_DEFAULTS;
 
+/* Write @p f as its canonical Field text under @p key (wfm_frame.h). The ONE
+   printer of the grammar is dp_wfm_field_format; this only sizes the buffer
+   for it. A field with no bits is omitted. */
+static void
+add_field_text (cJSON *o, const char *key, const wfm_field_t *f)
+{
+  if (f->seq.len == 0)
+    return;
+  const size_t n = dp_wfm_field_format (f, NULL, 0);
+  char        *t = dp_xmalloc (n + 1u);
+  dp_wfm_field_format (f, t, n + 1u);
+  cJSON_AddStringToObject (o, key, t);
+  free (t);
+}
+
+/* Read a Field's text through the ONE reader of the grammar. Returns 0, or
+   -1 with the parser's reason in @p why -- a non-string value included. */
+static int
+read_field_text (const cJSON *it, wfm_field_t *f, const char **why)
+{
+  const char *text  = cJSON_GetStringValue (it);
+  uint8_t    *owned = NULL;
+  if (!text)
+    {
+      *why = "a Field is written as text, e.g. \"0x1ACF\" or \"pn:63:6\"";
+      return -1;
+    }
+  return dp_wfm_field_parse (text, f, &owned, why) == DP_OK ? 0 : -1;
+}
+
 static int
 name_index (const char *s, const char *const *names, int n)
 {
@@ -41,36 +71,6 @@ name_index (const char *s, const char *const *names, int n)
       if (strcmp (s, names[i]) == 0)
         return i;
   return -1;
-}
-
-/* Render a bits pattern as a malloc'd "0/1" string (caller frees), or NULL. */
-static char *
-bits_to_string (const uint8_t *bits, size_t n)
-{
-  char *s = malloc (n + 1);
-  if (!s)
-    return NULL;
-  for (size_t i = 0; i < n; i++)
-    s[i] = bits[i] ? '1' : '0';
-  s[n] = '\0';
-  return s;
-}
-
-/* Parse a "0/1" string into a malloc'd bit array; *n gets the length. Other
- * characters are skipped. Returns NULL on allocation failure. */
-static uint8_t *
-string_to_bits (const char *s, size_t *n)
-{
-  size_t   len = strlen (s);
-  uint8_t *b   = malloc (len ? len : 1);
-  if (!b)
-    return NULL;
-  size_t k = 0;
-  for (size_t i = 0; i < len; i++)
-    if (s[i] == '0' || s[i] == '1')
-      b[k++] = (uint8_t)(s[i] - '0');
-  *n = k;
-  return b;
 }
 
 /* Free the per-source heap arrays (bits/symbols/dsss codes) of `ns` sources
@@ -144,161 +144,37 @@ add_stage_fields (cJSON *o, const wfm_source_t *src)
     }
 }
 
-/* Emit a bits source's modulation + pattern (no-op for other types). */
-static void
-add_bits_fields (cJSON *o, const wfm_source_t *src)
-{
-  if (src->type != WFM_SYNTH_BITS)
-    return;
-  if (src->payload.bits && src->payload.len)
-    {
-      char *bs = bits_to_string (src->payload.bits, src->payload.len);
-      if (bs)
-        {
-          cJSON_AddStringToObject (o, "pattern", bs);
-          free (bs);
-        }
-    }
-}
-
-/* Emit a "0/1" string field from a bit array (no-op when empty/OOM). */
-static void
-add_bit_string (cJSON *o, const char *key, const uint8_t *bits, size_t n)
-{
-  if (!bits || !n)
-    return;
-  char *s = bits_to_string (bits, n);
-  if (s)
-    {
-      cJSON_AddStringToObject (o, key, s);
-      free (s);
-    }
-}
-
-/* A 64-bit mask as a hex STRING, not a JSON number.
- *
- * `poly`, `seed` and the Gold taps are `uint64_t`, and a JSON number is a
- * double: anything above 2^53 does not survive the round trip. A register
- * width of 64 is inside `wfm_seq_t`'s documented range, so that is not a
- * theoretical loss -- it is the top of the range this field is FOR. Hex also
- * reads as what it is, a tap mask, which decimal does not. */
-static void
-add_u64_hex (cJSON *o, const char *key, uint64_t v)
-{
-  char buf[19];
-  snprintf (buf, sizeof buf, "0x%llx", (unsigned long long)v);
-  cJSON_AddStringToObject (o, key, buf);
-}
-
-/* Emit a GENERATED sequence's parameters under @p key.
- *
- * A generated sequence has no array to record -- carrying `(poly, seed,
- * reg_bits)` instead of a million-symbol run is its entire point, and what
- * makes a long capture reproducible from its metadata. `add_bit_string`
- * writes NOTHING for one, because there are no bits, so without this the
- * field would vanish from a `--record` and `--from-file` would rebuild an
- * unframed waveform: the same silent-unframed shape `add_frame_fields`
- * warns about below for the type gate.
- *
- * A LITERAL emits nothing here and is recorded by `add_bit_string` exactly
- * as it always was, so every record written before generated kinds existed
- * is byte-identical to the one written now. That matters: the 1-source
- * inline form's field order is frozen. */
-static void
-add_seq_gen (cJSON *o, const char *key, const wfm_seq_t *q)
-{
-  if (!q || q->kind == WFM_SEQ_LITERAL || q->len == 0)
-    return;
-  /* No OOM branch. Every cJSON_Add* below and the closing AddItemToObject
-     are no-ops on a NULL object, so a failed allocation omits the key here
-     exactly as an early return would -- and an unwind path no test can reach
-     is a line the patch-coverage gate cannot accept. Same reasoning as the
-     abort-on-OOM allocation helpers, and the same shape as the sibling
-     builders in this file that already omit the check. */
-  cJSON *g = cJSON_CreateObject ();
-  cJSON_AddStringToObject (g, "kind", SEQ_KIND_NAMES[q->kind]);
-  cJSON_AddNumberToObject (g, "len", (double)q->len);
-  if (q->kind == WFM_SEQ_PN)
-    {
-      cJSON_AddNumberToObject (g, "reg_bits", (double)q->reg_bits);
-      add_u64_hex (g, "poly", q->poly);
-      add_u64_hex (g, "seed", q->seed);
-      cJSON_AddNumberToObject (g, "lfsr", (double)q->lfsr);
-    }
-  else if (q->kind == WFM_SEQ_GOLD)
-    {
-      cJSON_AddNumberToObject (g, "reg_bits", (double)q->reg_bits);
-      add_u64_hex (g, "taps_a", q->taps_a);
-      add_u64_hex (g, "seed_a", q->seed_a);
-      add_u64_hex (g, "taps_b", q->taps_b);
-      add_u64_hex (g, "seed_b", q->seed_b);
-    }
-  /* DOTTED carries no parameters -- kind and len say all of it. */
-  cJSON_AddItemToObject (o, key, g);
-}
-
-/* Emit the FRAME a source carries — the preamble, its repetitions, the sync
- * word and the CRC choice. Deliberately NOT type-gated: an unspread `bits`
- * source can be framed too, and gating this on dsss is how a framed bits
- * --record came to omit the frame entirely, so --from-file silently rebuilt an
- * unframed waveform. `dp_wfm_source_has_frame()` is the same predicate the
- * generator uses, so what is recorded is exactly what was applied.
- *
- * The payload is NOT here: a bits source already emits it as "pattern" via
- * add_bits_fields(), and dsss emits it as "payload" below. */
+/* The frame keys the surface table does not own: the CRC choice, whenever
+ * the source is framed. Deliberately NOT type-gated: an unspread `bits`
+ * source can be framed too, and gating it on dsss is how a framed bits
+ * --record once came to omit the frame entirely. `dp_wfm_source_has_frame()`
+ * is the predicate the generator uses, so what is recorded is what was
+ * applied. The preamble, the sync word and the payload are table rows. */
 static void
 add_frame_fields (cJSON *o, const wfm_source_t *src)
 {
   if (!dp_wfm_source_has_frame (src))
     return;
-  add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
-  add_seq_gen (o, "acq_code_gen", &src->acq_code);
-  cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
-  add_bit_string (o, "sync", src->sync.bits, src->sync.len);
-  add_seq_gen (o, "sync_gen", &src->sync);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
-/* Emit a dsss source's burst geometry: the two codes, preamble repetitions,
- * sync word, payload bits, and CRC choice (no-op for other types). */
+/* A dsss source's keys the table does not own: its CRC choice as a burst,
+ * or -- continuous (symbol_rate > 0), which has no frame -- the data source
+ * when it is the code alone. The codes and the payload are table rows. */
 static void
 add_dsss_fields (cJSON *o, const wfm_source_t *src)
 {
-  /* The payload's GENERATOR, emitted here because this is the one helper
-     BOTH emit paths reach for EVERY type -- the frozen 1-source inline form
-     and the multi-source `sum` each build their own field list, so a key
-     added to only one of them is a key half the records lose. It sits beside
-     its two literal spellings rather than inside them ("pattern" on a bits
-     source, "payload" on a dsss one): one field under two names, and a
-     generated payload has bits for neither to write. */
-  add_seq_gen (o, "payload_gen", &src->payload);
   if (src->type != WFM_SYNTH_DSSS)
     {
-      /* Not spread, but possibly framed. */
-      add_frame_fields (o, src);
+      add_frame_fields (o, src); /* not spread, but possibly framed */
       return;
     }
-  /* CONTINUOUS (symbol_rate > 0): only the spreading code, the payload (when
-     one drives the data), and symbol_rate — no preamble/sync/CRC frame. Emit
-     just those so a continuous record round-trips clean, without the spurious
-     "acq_reps"/"crc" the burst path always writes. */
   if (src->symbol_rate > 0.0)
     {
-      add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
-      add_seq_gen (o, "data_code_gen", &src->data_code);
-      add_bit_string (o, "payload", src->payload.bits, src->payload.len);
       if (src->dsss_code_only) /* omit for the data-modulated default */
         cJSON_AddStringToObject (o, "data", "none");
       return;
     }
-  add_bit_string (o, "acq_code", src->acq_code.bits, src->acq_code.len);
-  add_seq_gen (o, "acq_code_gen", &src->acq_code);
-  cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
-  add_bit_string (o, "data_code", src->data_code.bits, src->data_code.len);
-  add_seq_gen (o, "data_code_gen", &src->data_code);
-  add_bit_string (o, "sync", src->sync.bits, src->sync.len);
-  add_seq_gen (o, "sync_gen", &src->sync);
-  add_bit_string (o, "payload", src->payload.bits, src->payload.len);
   cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
@@ -413,7 +289,6 @@ static const num_key_t STAGE_KEYS[] = {
 #define N_STAGE_KEYS (sizeof STAGE_KEYS / sizeof *STAGE_KEYS)
 
 static const num_key_t FIELD_KEYS[] = {
-  { "reps", offsetof (wfm_field_t, reps), 1 },
   { "bits", offsetof (wfm_field_t, bits), 1 },
   { "derived_by", offsetof (wfm_field_t, derived_by), 0 },
 };
@@ -522,21 +397,13 @@ add_frame_desc (cJSON *o, const wfm_source_t *src)
       cJSON             *fo = cJSON_CreateObject ();
       if (f->name[0])
         cJSON_AddStringToObject (fo, "name", f->name);
-      /* Literal bits as the same "0/1" string every other array in this file
-         uses; a generated field carries its parameters instead, through the
-         shared add_seq_gen. The two are mutually exclusive, and read_seq_gen
-         refuses a record that carries both. */
-      if (f->seq.kind == WFM_SEQ_LITERAL && f->seq.bits && f->seq.len)
-        {
-          char *s = bits_to_string (f->seq.bits, f->seq.len);
-          if (s)
-            {
-              cJSON_AddStringToObject (fo, "lit", s);
-              free (s);
-            }
-        }
-      add_seq_gen (fo, "gen", &f->seq);
-      add_num_keys (fo, f, FIELD_KEYS, N_FIELD_KEYS);
+      /* A field with bits is its Field text -- `*REPS` included -- through
+         the one printer of the grammar; a DERIVED field has no text form
+         and is its length and producing stage (frame-description.md F.3). */
+      if (f->derived_by)
+        add_num_keys (fo, f, FIELD_KEYS, N_FIELD_KEYS);
+      else
+        add_field_text (fo, "spec", f);
       cJSON_AddItemToArray (fields, fo);
     }
 
@@ -657,6 +524,17 @@ add_rows (cJSON *o, wfm_surf_owner_t owner, const void *base)
       if (r->has_when
           && row_choice (&WFM_SURFACE[r->when_row], base) != r->when_value)
         continue;
+      if (r->kind == WFM_SV_FIELD)
+        {
+          /* Its Field text, *REPS from the row's count when it has one. */
+          wfm_field_t f = { 0 };
+          f.seq         = *(const wfm_seq_t *)((const char *)base + r->off);
+          f.reps = r->reps_off
+                       ? *(const size_t *)((const char *)base + r->reps_off)
+                       : 1u;
+          add_field_text (o, r->json, &f);
+          continue;
+        }
       const int    is_ranged = r->range_bit && (ranged & r->range_bit);
       const double v = r->kind == WFM_SV_CHOICE ? row_choice (r, base)
                                                 : row_get (r, base, r->off);
@@ -684,7 +562,8 @@ add_rows (cJSON *o, wfm_surf_owner_t owner, const void *base)
    choice name, is the row's default. Returns -1 only for a REQUIRED row that
    is absent or unrecognised (a source's `type`). */
 static int
-read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base)
+read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
+           const char **why)
 {
   const void *def    = row_defaults (owner);
   unsigned   *ranged = (unsigned *)((char *)base + row_ranged_off (owner));
@@ -693,8 +572,27 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base)
       const wfm_surface_row_t *r = &WFM_SURFACE[k];
       if (r->owner != owner || !r->json)
         continue;
-      const double dv = row_get (r, def, r->off);
       const cJSON *it = cJSON_GetObjectItemCaseSensitive (o, r->json);
+      if (r->kind == WFM_SV_FIELD)
+        {
+          if (!it)
+            continue; /* absent: no such field (len 0) */
+          wfm_field_t f;
+          if (read_field_text (it, &f, why) != 0)
+            return -1;
+          if (f.reps > 1 && !r->reps_off)
+            {
+              if (f.seq.kind == WFM_SEQ_LITERAL)
+                free ((void *)f.seq.bits);
+              *why = "only \"acq_code\" repeats (a preamble): drop the *REPS";
+              return -1;
+            }
+          *(wfm_seq_t *)((char *)base + r->off) = f.seq;
+          if (r->reps_off)
+            *(size_t *)((char *)base + r->reps_off) = f.reps;
+          continue;
+        }
+      const double dv = row_get (r, def, r->off);
       if (r->kind == WFM_SV_CHOICE)
         {
           int i = name_index (cJSON_GetStringValue (it), r->choices,
@@ -702,7 +600,10 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base)
           if (i < 0)
             {
               if (r->json_required)
-                return -1;
+                {
+                  *why = "a source needs a known \"type\"";
+                  return -1;
+                }
               i = (int)dv;
             }
           row_set (r, base, r->off, i);
@@ -731,7 +632,6 @@ static void
 add_source_obj (cJSON *so, const wfm_source_t *src)
 {
   add_rows (so, WFM_SURF_SOURCE, src);
-  add_bits_fields (so, src);
   add_stage_fields (so, src);
   add_symbols_fields (so, src);
   add_dsss_fields (so, src);
@@ -740,79 +640,11 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   add_frame_desc (so, src);
 }
 
-/* A 64-bit mask from its hex string; 0 when the key is absent, which is what
-   `wfm_seq_t` reads as "derive it" for `poly` and "use 1" for a seed. */
-static uint64_t
-u64_hex (const cJSON *o, const char *key)
-{
-  const char *v
-      = cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (o, key));
-  return v ? (uint64_t)strtoull (v, NULL, 0) : 0u;
-}
-
-/* Restore a GENERATED sequence from @p key. Returns 0 when the key is absent
- * or was read, -1 when it is present and malformed.
- *
- * REFUSING rather than ignoring is the point. Every other way of being wrong
- * here produces a waveform that looks fine and is not the recorded one: an
- * unknown `kind` from a newer writer, a zero length, or a record carrying
- * BOTH the literal string and the generator block. A `--from-file` that
- * quietly builds a different waveform than the one recorded defeats the
- * whole reason the record exists. */
-static int
-read_seq_gen (const cJSON *so, const char *lit_key, const char *gen_key,
-              wfm_seq_t *q)
-{
-  const cJSON *g = cJSON_GetObjectItemCaseSensitive (so, gen_key);
-  if (!g)
-    return 0;
-  if (!cJSON_IsObject (g))
-    return -1;
-  /* One field, one source of bits. The writer never emits both. */
-  if (cJSON_GetObjectItemCaseSensitive (so, lit_key))
-    return -1;
-
-  const int k = name_index (
-      cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (g, "kind")),
-      SEQ_KIND_NAMES, 4);
-  /* 0 is "literal", which has no generator to restore -- as wrong here as an
-     unknown name, and wrong in the same direction. */
-  if (k <= 0)
-    return -1;
-  const double n = num (g, "len", 0);
-  if (n <= 0.0)
-    return -1;
-
-  q->kind = (wfm_seq_kind_t)k;
-  q->len  = (size_t)n;
-  q->bits = NULL;
-  if (q->kind == WFM_SEQ_PN)
-    {
-      q->reg_bits = (uint32_t)num (g, "reg_bits", 0);
-      q->poly     = u64_hex (g, "poly");
-      q->seed     = u64_hex (g, "seed");
-      q->lfsr     = (int)num (g, "lfsr", 0);
-      if (q->reg_bits == 0u || q->reg_bits > 64u)
-        return -1;
-    }
-  else if (q->kind == WFM_SEQ_GOLD)
-    {
-      q->reg_bits = (uint32_t)num (g, "reg_bits", 0);
-      q->taps_a   = u64_hex (g, "taps_a");
-      q->seed_a   = u64_hex (g, "seed_a");
-      q->taps_b   = u64_hex (g, "taps_b");
-      q->seed_b   = u64_hex (g, "seed_b");
-      if (q->reg_bits == 0u || q->reg_bits > 64u)
-        return -1;
-    }
-  return 0;
-}
-
 /* Restore a CARRIED frame description — the inverse of add_frame_desc().
  *
  * Returns 0 when the key is absent or was read, -1 when it is present and
- * malformed. Refusing rather than salvaging is the same judgement
- * read_seq_gen() makes and for the same reason: a frame read wrong builds a
+ * malformed. Refusing rather than salvaging is the same judgement the Field
+ * reader makes and for the same reason: a frame read wrong builds a
  * waveform that looks fine and is not the recorded one.
  *
  * The description, and any literal bit arrays hanging off its fields, are
@@ -823,7 +655,7 @@ read_seq_gen (const cJSON *so, const char *lit_key, const char *gen_key,
  * below: every slot is counted into n_fields/n_stages as it is claimed, so a
  * description abandoned half-built still frees completely. */
 static int
-read_frame_desc (const cJSON *so, wfm_source_t *out)
+read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
 {
   const cJSON *fr = cJSON_GetObjectItemCaseSensitive (so, "frame");
   if (!fr)
@@ -833,8 +665,7 @@ read_frame_desc (const cJSON *so, wfm_source_t *out)
 
   /* dp_xcalloc, not calloc: a fixed-size internal struct is the trusted
      allocation the abort-on-OOM helper is for, and it retires an unwind
-     branch no test can reach -- the same reasoning add_seq_gen() gives for
-     having no OOM path of its own. */
+     branch no test can reach. */
   wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
   out->frame          = d; /* owned from here; free_src_bits releases it */
 
@@ -863,21 +694,26 @@ read_frame_desc (const cJSON *so, wfm_source_t *out)
             snprintf (f->name, sizeof f->name, "%s", nm);
           }
 
-        const char *lit = cJSON_GetStringValue (
-            cJSON_GetObjectItemCaseSensitive (it, "lit"));
-        if (lit)
+        /* A field's bits are its Field text, "spec" -- `*REPS` inside it.
+           The keys it replaced are refused, never read beside it. */
+        if (cJSON_GetObjectItemCaseSensitive (it, "lit")
+            || cJSON_GetObjectItemCaseSensitive (it, "gen")
+            || cJSON_GetObjectItemCaseSensitive (it, "reps"))
           {
-            size_t   n = 0;
-            uint8_t *b = string_to_bits (lit, &n);
-            if (!b)
-              return -1;
-            f->seq.kind = WFM_SEQ_LITERAL;
-            f->seq.bits = b;
-            f->seq.len  = n;
+            *why = "a frame field's \"lit\", \"gen\" and \"reps\" are "
+                   "retired: write its Field as \"spec\", e.g. "
+                   "\"spec\": \"pn:31:5*4\"";
+            return -1;
           }
-        /* Also refuses a field carrying BOTH "lit" and "gen". */
-        if (read_seq_gen (it, "lit", "gen", &f->seq) != 0)
-          return -1;
+        const cJSON *sp = cJSON_GetObjectItemCaseSensitive (it, "spec");
+        if (sp)
+          {
+            char name[WFM_FRAME_NAME_MAX];
+            memcpy (name, f->name, sizeof name);
+            if (read_field_text (sp, f, why) != 0)
+              return -1;
+            memcpy (f->name, name, sizeof name); /* parse clears the name */
+          }
         read_num_keys (it, f, FIELD_KEYS, N_FIELD_KEYS);
       }
     }
@@ -909,42 +745,7 @@ read_frame_desc (const cJSON *so, wfm_source_t *out)
 static int
 read_frame_fields (const cJSON *so, wfm_source_t *out)
 {
-  const struct
-  {
-    const char *key;
-    /* `const uint8_t **`, matching the member: a source OWNS these bits, but
-       `wfm_seq_t` declares them const for the borrowing consumer. Storing a
-       freshly-allocated non-const buffer into a const slot is exactly the
-       direction C allows, so the read side needs no cast -- only the frees
-       do. */
-    const uint8_t **arr;
-    size_t         *len;
-  } bitkeys[] = {
-    { "acq_code", &out->acq_code.bits, &out->acq_code.len },
-    { "sync", &out->sync.bits, &out->sync.len },
-  };
-  for (size_t i = 0; i < sizeof bitkeys / sizeof bitkeys[0]; i++)
-    {
-      const char *v = cJSON_GetStringValue (
-          cJSON_GetObjectItemCaseSensitive (so, bitkeys[i].key));
-      if (v)
-        {
-          *bitkeys[i].arr = string_to_bits (v, bitkeys[i].len);
-          if (!*bitkeys[i].arr)
-            {
-              free_src_bits (out, 1); /* drop this source's partials */
-              return -1;
-            }
-        }
-    }
-  if (read_seq_gen (so, "acq_code", "acq_code_gen", &out->acq_code) != 0
-      || read_seq_gen (so, "sync", "sync_gen", &out->sync) != 0)
-    {
-      free_src_bits (out, 1);
-      return -1;
-    }
-  out->acq_reps = (size_t)num (so, "acq_reps", (double)DEF_SRC.acq_reps);
-  int c         = name_index (
+  int c = name_index (
       cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
       CRC_NAMES, 2);
   out->crc = (c < 0) ? 1 : c;
@@ -980,26 +781,44 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
-parse_source_obj (const cJSON *so, wfm_source_t *out)
+parse_source_obj (const cJSON *so, wfm_source_t *out, const char **why)
 {
+  /* Keys a Field replaced, refused by name with what replaced them -- never
+     read as aliases (docs/design/frame-description.md F.3). */
+  static const struct
+  {
+    const char *key, *why;
+  } RETIRED[] = {
+    { "pattern", "\"pattern\" is retired: the payload is \"payload\", a "
+                 "Field" },
+    { "payload_gen", "\"payload_gen\" is retired: write the generated "
+                     "payload as \"payload\", e.g. \"pn:1024:10\"" },
+    { "acq_code_gen", "\"acq_code_gen\" is retired: write the generated "
+                      "preamble as \"acq_code\", e.g. \"pn:1023:10\"" },
+    { "acq_reps", "\"acq_reps\" is retired: repeat the preamble in its "
+                  "Field, e.g. \"acq_code\": \"pn:31:5*4\"" },
+    { "data_code_gen", "\"data_code_gen\" is retired: write the generated "
+                       "code as \"data_code\"" },
+    { "sync_gen", "\"sync_gen\" is retired: write the generated sync word "
+                  "as \"sync\", e.g. \"pn:63:6\"" },
+  };
+  for (size_t k = 0; k < sizeof RETIRED / sizeof *RETIRED; k++)
+    if (cJSON_GetObjectItemCaseSensitive (so, RETIRED[k].key))
+      {
+        *why = RETIRED[k].why;
+        return -1;
+      }
+
   /* Every field outside the table starts at zero, except acq_reps, whose
      default is not "absent"; every table row is read -- or defaulted -- by
      read_rows, which refuses a missing or unknown `type`. */
   *out = (wfm_source_t){ .acq_reps = DEF_SRC.acq_reps };
-  if (read_rows (so, WFM_SURF_SOURCE, out) != 0)
-    return -1;
-  const int t = out->type;
-  if (t == WFM_SYNTH_BITS)
+  if (read_rows (so, WFM_SURF_SOURCE, out, why) != 0)
     {
-      const cJSON *pat      = cJSON_GetObjectItemCaseSensitive (so, "pattern");
-      const char  *patt_str = cJSON_GetStringValue (pat);
-      if (patt_str)
-        {
-          out->payload.bits = string_to_bits (patt_str, &out->payload.len);
-          if (!out->payload.bits)
-            return -1;
-        }
+      free_src_bits (out, 1); /* a Field parsed before the refused one */
+      return -1;
     }
+  const int t = out->type;
   /* The FRAME, whatever the waveform carrying it. Read for every type, the
    * mirror of add_frame_fields() on the way out — a framed `bits` source that
    * wrote its preamble and sync must get them back, or --record → --from-file
@@ -1010,7 +829,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
    * rather than before, so it is the LAST word on what frame this is —
    * matching dp_wfm_source_describe_frame(), where a carried description beats
    * the flat fields it sits beside instead of being merged with them. */
-  if (read_frame_desc (so, out) != 0)
+  if (read_frame_desc (so, out, why) != 0)
     {
       /* A refused description is still an ALLOCATED one -- it is reachable
          from `out->frame` the moment it exists, so that the partial-failure
@@ -1023,40 +842,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     }
   if (t == WFM_SYNTH_DSSS)
     {
-      /* The spread half: the payload's own code, the payload under "payload"
-       * (or the bits type's "pattern" — same field), and the continuous-mode
-       * discriminator. The preamble/sync/crc came from read_frame_fields. */
-      const char *dc = cJSON_GetStringValue (
-          cJSON_GetObjectItemCaseSensitive (so, "data_code"));
-      if (dc)
-        {
-          out->data_code.bits = string_to_bits (dc, &out->data_code.len);
-          if (!out->data_code.bits)
-            {
-              free_src_bits (out, 1); /* drop this source's partials */
-              return -1;
-            }
-        }
-      if (read_seq_gen (so, "data_code", "data_code_gen", &out->data_code)
-          != 0)
-        {
-          free_src_bits (out, 1);
-          return -1;
-        }
-      const char *pay = cJSON_GetStringValue (
-          cJSON_GetObjectItemCaseSensitive (so, "payload"));
-      if (!pay)
-        pay = cJSON_GetStringValue (
-            cJSON_GetObjectItemCaseSensitive (so, "pattern"));
-      if (pay)
-        {
-          out->payload.bits = string_to_bits (pay, &out->payload.len);
-          if (!out->payload.bits)
-            {
-              free_src_bits (out, 1); /* drop this source's partials */
-              return -1;
-            }
-        }
+      /* The spread half's one key the table does not own: the continuous
+       * data source. The codes and the payload are table rows. */
       /* "data": "prbs" (default) / absent = the seeded PN; "none" = code-only
          (pure code, no modulation); a payload overrides to itself. The
          table's index IS dsss_code_only, so the lookup assigns rather than
@@ -1067,22 +854,6 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           DATA_SRC_NAMES, 2);
       out->dsss_code_only = (data_src > 0) ? data_src : 0;
     }
-  /* The payload's generator, read once for every type. Its literal spelling
-     is "pattern" on a bits source and "payload" on a dsss one -- the same
-     field under two names -- so whichever is PRESENT is the one refused
-     alongside the generator. A record carrying both is refused rather than
-     resolved, for the reason read_seq_gen gives. */
-  if (read_seq_gen (so,
-                    cJSON_GetObjectItemCaseSensitive (so, "payload")
-                        ? "payload"
-                        : "pattern",
-                    "payload_gen", &out->payload)
-      != 0)
-    {
-      free_src_bits (out, 1);
-      return -1;
-    }
-
   if (t == WFM_SYNTH_SYMBOLS)
     {
       const cJSON *sy = cJSON_GetObjectItemCaseSensitive (so, "symbols");
@@ -1230,8 +1001,12 @@ dp_wfm_spec_headroom (const char *json)
 dp_wfm_compose_state_t *
 dp_wfm_compose_from_json_why (const char *json, const char **why)
 {
-  if (why)
-    *why = NULL;
+  /* Every reader below names its refusal through `why`, so it always has
+     somewhere to write -- the caller's, or this one when they pass NULL. */
+  const char *unasked = NULL;
+  if (!why)
+    why = &unasked;
+  *why        = NULL;
   cJSON *root = cJSON_Parse (json);
   if (!root)
     return NULL;
@@ -1283,7 +1058,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
         const cJSON *so = NULL;
         cJSON_ArrayForEach (so, sum)
         {
-          if (parse_source_obj (so, &srcs[k]) != 0)
+          if (parse_source_obj (so, &srcs[k], why) != 0)
             {
               free_src_bits (srcs,
                              k); /* k sources parsed OK before this one */
@@ -1299,7 +1074,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
         srcs = malloc (sizeof (wfm_source_t));
         if (!srcs)
           goto reject;
-        if (parse_source_obj (s, &srcs[0]) != 0)
+        if (parse_source_obj (s, &srcs[0], why) != 0)
           {
             free (srcs);
             goto reject;
@@ -1307,7 +1082,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
       }
     segs[i] = (wfm_segment_t){ .sources = srcs, .n_sources = ns };
     /* A segment has no required row, so this cannot refuse. */
-    (void)read_rows (s, WFM_SURF_SEGMENT, &segs[i]);
+    (void)read_rows (s, WFM_SURF_SEGMENT, &segs[i], why);
     i++;
     continue;
   reject:

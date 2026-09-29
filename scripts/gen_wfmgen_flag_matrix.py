@@ -286,8 +286,8 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits-hex",
-                "b2",
+                "--bits",
+                "0xb2",
                 "--modulation",
                 "none",
                 "--count",
@@ -326,9 +326,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "--bits",
                 "10110010",
                 "--acq-code",
-                "1010",
-                "--acq-reps",
-                "2",
+                "1010*2",
                 "--sync",
                 "1111100110101",
                 "--crc",
@@ -356,9 +354,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--bits",
                 "10110010",
-                # 31 = one full period of a 5-bit register, so the case also
-                # says the length is an OUTPUT length and not the period.
-                "--sync-gen",
+                "--sync",
                 "pn:31:5:3",
                 "--sps",
                 "2",
@@ -375,10 +371,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--bits",
                 "10110010",
-                # The taps are written in hex here and in decimal in the
-                # dsss case below, because both are accepted and a record
-                # that only ever saw one spelling proves half the parser.
-                "--sync-gen",
+                "--sync",
                 "gold:64:10:0x3a6:0x15e:0x237:0x49",
                 "--sps",
                 "2",
@@ -393,13 +386,11 @@ def cases() -> list[tuple[str, list[str]]]:
                 "dsss",
                 "--bits",
                 "1011",
-                "--acq-code-gen",
-                "dotted:8",
-                "--acq-reps",
-                "2",
-                "--data-code-gen",
+                "--acq-code",
+                "dotted:8*2",
+                "--data-code",
                 "pn:7:3:1",
-                "--sync-gen",
+                "--sync",
                 "gold:16:10:934:350:567:73",
                 "--sps",
                 "2",
@@ -551,9 +542,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "--type",
                 "dsss",
                 "--acq-code",
-                "1010",
-                "--acq-reps",
-                "2",
+                "1010*2",
                 "--data-code",
                 "1011",
                 "--sync",
@@ -571,12 +560,12 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "dsss",
-                "--acq-code-hex",
-                "a5",
-                "--data-code-hex",
-                "b2",
-                "--bits-hex",
-                "0f",
+                "--acq-code",
+                "0xa5",
+                "--data-code",
+                "0xb2",
+                "--bits",
+                "0x0f",
                 "--crc",
                 "none",
                 "--sps",
@@ -740,7 +729,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "dsss",
                 "--symbol-rate",
                 "100",
-                "--data-code-gen",
+                "--data-code",
                 "pn:15:4",
                 "--data",
                 "prbs",
@@ -760,7 +749,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "100",
                 "--data-code",
                 "1011",
-                "--sync-gen",
+                "--sync",
                 "pn:15:4",
             ],
         ),
@@ -791,22 +780,22 @@ def cases() -> list[tuple[str, list[str]]]:
                 "64",
             ],
         ),
-        # ---- the payload: bounded, or generated ----
-        # gh-762's last two flags. `--payload-len` retires #755's refusal:
-        # a PN-sourced waveform was refused a frame outright because its
-        # data is endless and nothing said where the payload stopped. The
-        # bound resolves to a PN sequence carrying the source's OWN pn
-        # parameters, so the record is six numbers and the replay is the
-        # waveform that was transmitted.
+        # ---- the payload: a generated Field ----
+        # A PN-sourced waveform (bpsk/qpsk/pn) was once refused a frame
+        # outright (#755): its data is endless, and nothing said where the
+        # payload stopped. A generated payload Field over the waveform's own
+        # register is that bound -- `--bits pn:N:REG`, which replaced the
+        # retired --payload-len bit for bit (#853) -- so the record is the
+        # Field and the replay is the waveform that was transmitted.
         (
-            "bpsk_framed_payload_len",
+            "bpsk_framed_pn_payload",
             [
                 "--type",
                 "bpsk",
                 "--sync",
                 "1111100110101",
-                "--payload-len",
-                "64",
+                "--bits",
+                "pn:64:7",
                 "--pn-length",
                 "7",
                 "--sps",
@@ -818,14 +807,14 @@ def cases() -> list[tuple[str, list[str]]]:
         # QPSK too: the frame's bits take the mapping the TYPE names, not a
         # --modulation, which would be a second way to spell the type.
         (
-            "qpsk_framed_payload_len",
+            "qpsk_framed_pn_payload",
             [
                 "--type",
                 "qpsk",
                 "--sync",
                 "1111100110101",
-                "--payload-len",
-                "128",
+                "--bits",
+                "pn:128:9",
                 "--pn-length",
                 "9",
                 "--sps",
@@ -841,7 +830,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--payload-gen",
+                "--bits",
                 "pn:64:7",
                 "--sync",
                 "1111100110101",
@@ -860,14 +849,12 @@ def cases() -> list[tuple[str, list[str]]]:
                 "dsss",
                 "--data-code",
                 "0110",
-                "--payload-gen",
+                "--bits",
                 "pn:31:5",
                 "--sync",
                 "10",
                 "--acq-code",
-                "10101010",
-                "--acq-reps",
-                "2",
+                "10101010*2",
                 "--sps",
                 "2",
                 "--count",
@@ -882,14 +869,12 @@ def cases() -> list[tuple[str, list[str]]]:
         # kind wearing a stray literal array, whose `--record` emitted both
         # `sync` and `sync_gen` and could then never be read back.
         (
-            "err_sync_literal_then_gen",
+            "err_retired_sync_gen",
             [
                 "--type",
                 "bits",
                 "--bits",
                 "10110010",
-                "--sync",
-                "0110",
                 "--sync-gen",
                 "pn:31:5",
                 "--count",
@@ -897,16 +882,14 @@ def cases() -> list[tuple[str, list[str]]]:
             ],
         ),
         (
-            "err_sync_gen_then_literal",
+            "err_sync_field_repeats",
             [
                 "--type",
                 "bits",
                 "--bits",
                 "10110010",
-                "--sync-gen",
-                "pn:31:5",
                 "--sync",
-                "0110",
+                "0110*2",
                 "--count",
                 "64",
             ],
@@ -915,7 +898,7 @@ def cases() -> list[tuple[str, list[str]]]:
         # too -- and on the preamble rather than the sync, so the pair table
         # is exercised on more than one of its rows.
         (
-            "err_acq_hex_then_gen",
+            "err_retired_acq_code_hex",
             [
                 "--type",
                 "dsss",
@@ -925,10 +908,6 @@ def cases() -> list[tuple[str, list[str]]]:
                 "0110",
                 "--acq-code-hex",
                 "a5",
-                "--acq-code-gen",
-                "dotted:8",
-                "--acq-reps",
-                "2",
                 "--count",
                 "256",
             ],
@@ -942,7 +921,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--bits",
                 "1011",
-                "--sync-gen",
+                "--sync",
                 "literal:8",
                 "--count",
                 "64",
@@ -955,7 +934,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--bits",
                 "1011",
-                "--sync-gen",
+                "--sync",
                 "pn",
                 "--count",
                 "64",
@@ -968,7 +947,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--bits",
                 "1011",
-                "--sync-gen",
+                "--sync",
                 "pn:31",
                 "--count",
                 "64",
@@ -981,7 +960,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--bits",
                 "1011",
-                "--sync-gen",
+                "--sync",
                 "gold:16:10:934",
                 "--count",
                 "64",
@@ -990,7 +969,7 @@ def cases() -> list[tuple[str, list[str]]]:
         # The payload is one field however it is spelled: an array, a
         # generator, or a length the waveform's own PN fills.
         (
-            "err_payload_len_and_bits",
+            "err_retired_payload_len",
             [
                 "--type",
                 "bits",
@@ -1003,20 +982,11 @@ def cases() -> list[tuple[str, list[str]]]:
             ],
         ),
         (
-            "err_payload_gen_and_bits",
-            [
-                "--type",
-                "bits",
-                "--bits",
-                "1011",
-                "--payload-gen",
-                "pn:64:7",
-                "--count",
-                "64",
-            ],
+            "err_retired_payload_gen",
+            ["--type", "bits", "--payload-gen", "pn:64:7", "--count", "64"],
         ),
         # A type carrying no bit stream still cannot be framed, payload or
-        # not -- --payload-len retired the refusal for bpsk/qpsk/pn only.
+        # not -- the refusal was lifted for bpsk/qpsk/pn only.
         (
             "err_framed_chirp",
             [
@@ -1024,10 +994,74 @@ def cases() -> list[tuple[str, list[str]]]:
                 "chirp",
                 "--sync",
                 "1111100110101",
-                "--payload-len",
-                "64",
+                "--bits",
+                "pn:64:15",
                 "--count",
                 "64",
+            ],
+        ),
+        # Each retired spelling is REFUSED by name, pointing at the Field
+        # flag that replaced it -- never read as an alias (#853, F.3).
+        (
+            "err_retired_bits_hex",
+            ["--type", "bits", "--bits-hex", "b2", "--count", "32"],
+        ),
+        (
+            "err_retired_acq_code_gen",
+            [
+                "--type",
+                "dsss",
+                "--bits",
+                "1011",
+                "--data-code",
+                "0110",
+                "--acq-code-gen",
+                "dotted:8",
+                "--count",
+                "256",
+            ],
+        ),
+        (
+            "err_retired_acq_reps",
+            [
+                "--type",
+                "dsss",
+                "--bits",
+                "1011",
+                "--data-code",
+                "0110",
+                "--acq-code",
+                "1010",
+                "--acq-reps",
+                "2",
+                "--count",
+                "256",
+            ],
+        ),
+        (
+            "err_retired_data_code_hex",
+            [
+                "--type",
+                "dsss",
+                "--bits",
+                "1011",
+                "--data-code-hex",
+                "b2",
+                "--count",
+                "256",
+            ],
+        ),
+        (
+            "err_retired_data_code_gen",
+            [
+                "--type",
+                "dsss",
+                "--bits",
+                "1011",
+                "--data-code-gen",
+                "pn:7:3:1",
+                "--count",
+                "256",
             ],
         ),
     ]

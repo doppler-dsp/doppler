@@ -345,7 +345,7 @@ if(DP_WITH_STREAM) # the CLI links the stream layer (#1575)
         wfmgen_core
         wfm_compose_core doppler_channel_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
         wfm_dsp_core wfm_frame_core ccsds_tm_core conv_core rs_core wfm_synth_core lo_core awgn_core pn_core gold_core fir_core resamp_core
-        cvt_core  # hex_to_bin: --acq-code-hex / --data-code-hex
+        cvt_core  # bytes_to_bin: --bits-file
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static

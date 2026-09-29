@@ -265,7 +265,7 @@ instead of N copy-pasted segments:
 ```jsonc
 { "type": "dsss", "fs": 4e6, "sps": 4,
   "snr": 10.0, "snr_mode": "esno",
-  "acq_code": "…", "acq_reps": 5, "data_code": "…",
+  "acq_code": "…*5", "data_code": "…",
   "payload": "…",
   "off_samples": [15000, 40000],   // jittered gap, min 15k — per instance
   "repeats": 5 }                    // → a 5-burst train
@@ -339,12 +339,12 @@ not carry one.
   "segments": [
     {
       "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
-      "pattern": "101010101010101010101010",
+      "payload": "101010101010101010101010",
       "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
       "frame": {
         "fields": [
-          { "name": "hdr", "lit": "0101110001011100" },
-          { "name": "payload", "lit": "101010101010101010101010" },
+          { "name": "hdr", "spec": "0101110001011100" },
+          { "name": "payload", "spec": "101010101010101010101010" },
           { "name": "crc", "bits": 16, "derived_by": 1 }
         ],
         "stages": [
@@ -378,6 +378,10 @@ EOF
 ```text
 byte-identical
 ```
+
+A field's `spec` is one
+[Field](../../design/frame-description.md#f1-the-grammar), the same text the
+CLI flags take — literal bits here, a generated `pn:…` just as well.
 
 What the description buys is everything past that: a field of your own bits
 at a position you choose, and a stage covering a span you name. `hdr` above
@@ -430,12 +434,12 @@ from doppler.wfm import Composer
 
 seg = {
     "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
-    "pattern": "101010101010101010101010",
+    "payload": "101010101010101010101010",
     "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
     "frame": {
         "fields": [
-            {"name": "hdr", "lit": "0101110001011100"},
-            {"name": "payload", "lit": "101010101010101010101010"},
+            {"name": "hdr", "spec": "0101110001011100"},
+            {"name": "payload", "spec": "101010101010101010101010"},
             {"name": "crc", "bits": 16, "derived_by": 1},
         ],
         "stages": [{"kind": "crc16", "first_field": 1, "n_fields": 2}],

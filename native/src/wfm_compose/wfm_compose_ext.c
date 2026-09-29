@@ -1569,9 +1569,9 @@ static PyGetSetDef Synth_getset[] = {
     "stream() honour both.\n",
     NULL },
   { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
-    "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill "
-    "the request. For type=dsss (as `payload`): the payload bits of the burst "
-    "frame.\n",
+    "The payload bits: a Field on the command line and in a scene, an array "
+    "in Python. For type=bits, the pattern, oversampled by sps and cycled to "
+    "fill the request; for type=dsss, the payload bits of the burst frame.\n",
     NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "
@@ -1595,27 +1595,27 @@ static PyGetSetDef Synth_getset[] = {
     "pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).\n",
     NULL },
   { "acq_code", (getter)Synth_get_acq_code, (setter)Synth_set_acq_code,
-    "The acquisition/preamble code (0/1), repeated acq_reps times at the head "
-    "of the frame — the coherent pull-in target "
-    "BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss "
-    "it is unmodulated chips ahead of the spread frame; for type=bits it is "
-    "the head of the bit pattern. Setting it (or sync) is what makes a source "
-    "FRAMED.\n",
+    "The preamble code, sent acq_reps times at the head of the frame (a "
+    "Field's *REPS on the command line and in a scene) -- the coherent "
+    "pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock "
+    "to. For type=dsss it is unmodulated chips ahead of the spread frame; for "
+    "type=bits it is the head of the bit pattern. Setting it (or sync) is "
+    "what makes a source FRAMED.\n",
     NULL },
   { "acq_reps", (getter)Synth_get_acq_reps, (setter)Synth_set_acq_reps,
-    "Preamble repetitions (periods of acq_code before the sync word).\n",
+    "Preamble repetitions: periods of acq_code before the sync word. On the "
+    "command line and in a scene it is acq_code's *REPS.\n",
     NULL },
   { "data_code", (getter)Synth_get_data_code, (setter)Synth_set_data_code,
-    "For type=dsss: the payload spreading code (0/1 chips) — a second code, "
-    "distinct from acq_code; every frame bit (sync | payload | crc) is "
-    "XOR-spread across its full length, so len(data_code) is the spreading "
-    "factor.\n",
+    "For type=dsss: the payload spreading code, a second code distinct from "
+    "acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its "
+    "full length, so len(data_code) is the spreading factor.\n",
     NULL },
   { "sync", (getter)Synth_get_sync, (setter)Synth_set_sync,
-    "The frame-sync word bits (e.g. Barker-13) between the preamble and the "
-    "payload — what BurstDemod.set_frame correlates to resolve frame position "
-    "and BPSK polarity, and what a BER alignment detects against. Optional; "
-    "setting it (or acq_code) is what makes a source FRAMED.\n",
+    "The frame-sync word (such as Barker-13) between the preamble and the "
+    "payload -- what BurstDemod.set_frame correlates to resolve frame "
+    "position and BPSK polarity, and what a BER alignment detects against. "
+    "Optional; setting it (or acq_code) is what makes a source FRAMED.\n",
     NULL },
   { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc,
     "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
@@ -2938,9 +2938,9 @@ static PyGetSetDef Segment_getset[] = {
     "stream() honour both.\n",
     NULL },
   { "bits", (getter)Segment_flat_bits, NULL,
-    "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill "
-    "the request. For type=dsss (as `payload`): the payload bits of the burst "
-    "frame.\n",
+    "The payload bits: a Field on the command line and in a scene, an array "
+    "in Python. For type=bits, the pattern, oversampled by sps and cycled to "
+    "fill the request; for type=dsss, the payload bits of the burst frame.\n",
     NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "
@@ -2964,27 +2964,27 @@ static PyGetSetDef Segment_getset[] = {
     "pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).\n",
     NULL },
   { "acq_code", (getter)Segment_flat_acq_code, NULL,
-    "The acquisition/preamble code (0/1), repeated acq_reps times at the head "
-    "of the frame — the coherent pull-in target "
-    "BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss "
-    "it is unmodulated chips ahead of the spread frame; for type=bits it is "
-    "the head of the bit pattern. Setting it (or sync) is what makes a source "
-    "FRAMED.\n",
+    "The preamble code, sent acq_reps times at the head of the frame (a "
+    "Field's *REPS on the command line and in a scene) -- the coherent "
+    "pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock "
+    "to. For type=dsss it is unmodulated chips ahead of the spread frame; for "
+    "type=bits it is the head of the bit pattern. Setting it (or sync) is "
+    "what makes a source FRAMED.\n",
     NULL },
   { "acq_reps", (getter)Segment_flat_acq_reps, NULL,
-    "Preamble repetitions (periods of acq_code before the sync word).\n",
+    "Preamble repetitions: periods of acq_code before the sync word. On the "
+    "command line and in a scene it is acq_code's *REPS.\n",
     NULL },
   { "data_code", (getter)Segment_flat_data_code, NULL,
-    "For type=dsss: the payload spreading code (0/1 chips) — a second code, "
-    "distinct from acq_code; every frame bit (sync | payload | crc) is "
-    "XOR-spread across its full length, so len(data_code) is the spreading "
-    "factor.\n",
+    "For type=dsss: the payload spreading code, a second code distinct from "
+    "acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its "
+    "full length, so len(data_code) is the spreading factor.\n",
     NULL },
   { "sync", (getter)Segment_flat_sync, NULL,
-    "The frame-sync word bits (e.g. Barker-13) between the preamble and the "
-    "payload — what BurstDemod.set_frame correlates to resolve frame position "
-    "and BPSK polarity, and what a BER alignment detects against. Optional; "
-    "setting it (or acq_code) is what makes a source FRAMED.\n",
+    "The frame-sync word (such as Barker-13) between the preamble and the "
+    "payload -- what BurstDemod.set_frame correlates to resolve frame "
+    "position and BPSK polarity, and what a BER alignment detects against. "
+    "Optional; setting it (or acq_code) is what makes a source FRAMED.\n",
     NULL },
   { "crc", (getter)Segment_flat_crc, NULL,
     "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "

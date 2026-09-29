@@ -48,6 +48,17 @@ def _bits(a) -> str:
     return "".join(str(int(b)) for b in a)
 
 
+def _field(a, reps: int = 1) -> str:
+    """The canonical Field text a record writes for bits ``a``: hex when the
+    length is a multiple of 4, 0/1 otherwise, and ``*REPS`` above one --
+    the rule dp_wfm_field_format states (wfm_frame.h)."""
+    if len(a) % 4 == 0:
+        text = "0x" + format(int(_bits(a), 2), f"0{len(a) // 4}x")
+    else:
+        text = _bits(a)
+    return text + (f"*{reps}" if reps > 1 else "")
+
+
 def _seg_kwargs(framed: bool, num_samples: int) -> dict:
     kw = {
         "type": "bits",
@@ -102,9 +113,7 @@ def _cli_frame_args(framed: bool, count: int) -> list[str]:
     if framed:
         args += [
             "--acq-code",
-            _bits(ACQ),
-            "--acq-reps",
-            str(REPS),
+            f"{_bits(ACQ)}*{REPS}",
             "--sync",
             _bits(SYNC),
             "--crc",
@@ -199,18 +208,19 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
     """Exit 2 and a message naming the replacement — not exit 0 and silence,
     and not the generic 'could not build the waveform spec' either.
 
-    A framed `--type bpsk` is no longer refused for its TYPE: gh-762's
-    `--payload-len` gave the PN-sourced waveforms the payload bound they
-    were missing, so what is left to refuse is a frame with no payload at
-    all — which is the same thing `--type bits` was always refused for.
+    A framed `--type bpsk` is no longer refused for its TYPE: a generated
+    payload Field over the waveform's own register (`--bits pn:N:REG`) is
+    the bound the PN-sourced waveforms were missing, so what is left to
+    refuse is a frame with no payload at all -- which is the same thing
+    `--type bits` was always refused for.
     """
     p, _ = _cli(
         ["--type", "bpsk", "--sync", _bits(SYNC), "--count", "256"], tmp_path
     )
     assert p.returncode == 2
     assert "payload" in p.stderr
-    assert "--payload-len" in p.stderr, (
-        "the refusal must name the flag that removes it"
+    assert "--bits" in p.stderr and "pn:" in p.stderr, (
+        "the refusal must name the Field that removes it"
     )
 
     # And with that bound supplied, the same command BUILDS.
@@ -220,8 +230,8 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
             "bpsk",
             "--sync",
             _bits(SYNC),
-            "--payload-len",
-            "64",
+            "--bits",
+            "pn:64:7",
             "--pn-length",
             "7",
             "--count",
@@ -238,8 +248,8 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
             "chirp",
             "--sync",
             _bits(SYNC),
-            "--payload-len",
-            "64",
+            "--bits",
+            "pn:64:15",
             "--count",
             "256",
         ],
@@ -284,8 +294,8 @@ def test_the_record_carries_the_frame_and_rebuilds_it(tmp_path):
     assert p.returncode == 0, p.stderr
 
     seg = json.loads(rec.read_text(encoding="utf-8"))["segments"][0]
-    assert seg["acq_code"] == _bits(ACQ)
-    assert seg["acq_reps"] == REPS
+    assert seg["acq_code"] == _field(ACQ, REPS)
+    assert "acq_reps" not in seg, "its repetitions ride in the Field"
     assert seg["sync"] == _bits(SYNC)
     assert seg["crc"] == "crc16"
 
@@ -322,14 +332,14 @@ def _carried(with_frame: bool) -> np.ndarray:
         "fs": FS,
         "sps": SPS,
         "modulation": "bpsk",
-        "pattern": _bits(PAYLOAD),
+        "payload": _bits(PAYLOAD),
         "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
     }
     if with_frame:
         seg["frame"] = {
             "fields": [
-                {"name": "sync", "lit": _bits(SYNC)},
-                {"name": "payload", "lit": _bits(PAYLOAD)},
+                {"name": "sync", "spec": _bits(SYNC)},
+                {"name": "payload", "spec": _bits(PAYLOAD)},
             ]
         }
     return np.asarray(
@@ -366,14 +376,14 @@ def test_a_carried_frame_survives_the_python_round_trip():
         "fs": FS,
         "sps": SPS,
         "modulation": "bpsk",
-        "pattern": _bits(PAYLOAD),
+        "payload": _bits(PAYLOAD),
         "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
-        "frame": {"fields": [{"name": "sync", "lit": _bits(SYNC)}]},
+        "frame": {"fields": [{"name": "sync", "spec": _bits(SYNC)}]},
     }
     once = Composer.from_json(json.dumps({"segments": [seg]})).to_json()
     got = json.loads(once)["segments"][0]["frame"]
     assert got["fields"][0]["name"] == "sync"
-    assert got["fields"][0]["lit"] == _bits(SYNC)
+    assert got["fields"][0]["spec"] == _field(SYNC)
     # And again, so the second pass is a fixed point rather than a decay.
     twice = Composer.from_json(once).to_json()
     assert json.loads(twice)["segments"][0]["frame"] == got
@@ -444,11 +454,11 @@ def _derived_scene(derived_by):
                     "fs": FS,
                     "sps": SPS,
                     "modulation": "bpsk",
-                    "pattern": _bits(PAYLOAD),
+                    "payload": _bits(PAYLOAD),
                     "num_samples": (len(PAYLOAD) + 16) * SPS,
                     "frame": {
                         "fields": [
-                            {"name": "payload", "lit": _bits(PAYLOAD)},
+                            {"name": "payload", "spec": _bits(PAYLOAD)},
                             crc,
                         ],
                         "stages": [

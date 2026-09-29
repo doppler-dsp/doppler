@@ -758,8 +758,8 @@ class TestCLI:
             [
                 "--type",
                 "bits",
-                "--bits-hex",
-                "A5",
+                "--bits",
+                "0xA5",
                 "--modulation",
                 "bpsk",
                 "--sps",

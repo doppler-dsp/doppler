@@ -33,6 +33,7 @@ typedef enum
   WFM_SV_U64,
   WFM_SV_CHOICE,  /* an int index into `choices` */
   WFM_SV_SYMBOLS, /* float _Complex *, its count at `len_off` */
+  WFM_SV_FIELD,   /* a wfm_seq_t, as a Field (wfm_frame.h) */
 } wfm_sv_kind_t;
 
 typedef struct
@@ -45,6 +46,8 @@ typedef struct
   unsigned           range_bit; /* WFM_RANGE_*; 0 = not ranged */
   size_t             hi_off;    /* `<name>_hi`, if ranged */
   size_t             len_off;   /* WFM_SV_SYMBOLS: the count */
+  size_t             reps_off;  /* WFM_SV_FIELD: where *REPS goes;
+                                    0 = the field does not repeat */
   const char *const *choices;   /* WFM_SV_CHOICE: the names */
   int                n_choices;
   int                unit_interval; /* require 0 < v <= 1 */
@@ -77,11 +80,15 @@ enum
   WFM_SURFACE_source_doppler_rate,
   WFM_SURFACE_source_carrier_hz,
   WFM_SURFACE_source_doppler_lifetime,
+  WFM_SURFACE_source_bits,
   WFM_SURFACE_source_modulation,
   WFM_SURFACE_source_pulse,
   WFM_SURFACE_source_rrc_beta,
   WFM_SURFACE_source_rrc_span,
   WFM_SURFACE_source_symbols,
+  WFM_SURFACE_source_acq_code,
+  WFM_SURFACE_source_data_code,
+  WFM_SURFACE_source_sync,
   WFM_SURFACE_source_crc,
   WFM_SURFACE_source_symbol_rate,
   WFM_SURFACE_segment_fs,
@@ -263,6 +270,14 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .json = "doppler_lifetime",
     .json_omit = 1,
   },
+  [WFM_SURFACE_source_bits] = {
+    .name = "bits",
+    .cli = "--bits",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, payload),
+    .json = "payload",
+  },
   [WFM_SURFACE_source_modulation] = {
     .name = "modulation",
     .cli = "--modulation",
@@ -317,6 +332,31 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .kind = WFM_SV_SYMBOLS,
     .off = offsetof (wfm_source_t, symbols),
     .len_off = offsetof (wfm_source_t, n_symbols),
+  },
+  [WFM_SURFACE_source_acq_code] = {
+    .name = "acq_code",
+    .cli = "--acq-code",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, acq_code),
+    .reps_off = offsetof (wfm_source_t, acq_reps),
+    .json = "acq_code",
+  },
+  [WFM_SURFACE_source_data_code] = {
+    .name = "data_code",
+    .cli = "--data-code",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, data_code),
+    .json = "data_code",
+  },
+  [WFM_SURFACE_source_sync] = {
+    .name = "sync",
+    .cli = "--sync",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, sync),
+    .json = "sync",
   },
   [WFM_SURFACE_source_crc] = {
     .name = "crc",
@@ -461,6 +501,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   "                  per_instance | persist. (default per_instance)\n"
 
 #define WFM_SURFACE_HELP_BITS \
+  "  --bits FIELD    The payload bits: a Field on the command line and in a scene,\n" \
+  "                  an array in Python.\n" \
   "  --modulation M  Symbol mapping of a bits pattern. One of: none | bpsk | qpsk.\n" \
   "                  (default bpsk)\n"
 
@@ -479,6 +521,18 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   "                  For type=symbols: a complex constellation stream.\n"
 
 #define WFM_SURFACE_HELP_DSSS_BURST \
+  "  --acq-code FIELD\n" \
+  "                  The preamble code, sent acq_reps times at the head of the\n" \
+  "                  frame (a Field's *REPS on the command line and in a scene) --\n" \
+  "                  the coherent pull-in target BurstDespreader.set_acq and\n" \
+  "                  BurstDemod.set_preamble lock to.\n" \
+  "  --data-code FIELD\n" \
+  "                  For type=dsss: the payload spreading code, a second code\n" \
+  "                  distinct from acq_code.\n" \
+  "  --sync FIELD    The frame-sync word (such as Barker-13) between the preamble\n" \
+  "                  and the payload -- what BurstDemod.set_frame correlates to\n" \
+  "                  resolve frame position and BPSK polarity, and what a BER\n" \
+  "                  alignment detects against.\n" \
   "  --crc C         The frame trailer: crc16 appends a CRC-16-CCITT over the\n" \
   "                  payload bits (what BurstDemod validates as frame_valid, and\n" \
   "                  what makes a truth-free frame error rate possible); none\n" \

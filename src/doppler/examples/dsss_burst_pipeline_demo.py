@@ -283,13 +283,16 @@ def build_scene():
 
 
 def _scene_json(segment_kwargs):
-    """The JSON-wire form of segment_kwargs (bit arrays as "0/1" strings) —
-    what ``--from-file``/``Composer.from_file`` expect."""
+    """The JSON-wire form of segment_kwargs -- what ``--from-file`` and
+    ``Composer.from_file`` expect. Each bit array becomes its Field text
+    (``"0/1"`` digits), and the preamble's repetitions ride in that text as
+    ``*REPS``: a scene has no separate ``acq_reps`` key."""
     segments = []
     for kw in segment_kwargs:
         d = dict(kw)
         for key in ("acq_code", "data_code", "sync", "payload"):
             d[key] = "".join(str(b) for b in d[key])
+        d["acq_code"] += f"*{d.pop('acq_reps')}"
         segments.append(d)
     return {
         "version": 1,

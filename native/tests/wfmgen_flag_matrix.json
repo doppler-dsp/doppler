@@ -30,7 +30,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "asm": true,
           "conv": true,
           "crc": "none",
@@ -40,7 +39,7 @@
           "modulation": "bpsk",
           "num_samples": 4144,
           "off_samples": 0,
-          "pattern": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "pn_length": 15,
           "pn_poly": 0,
           "randomise": "ccsds",
@@ -87,7 +86,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "asm": true,
           "conv": true,
           "crc": "none",
@@ -97,7 +95,7 @@
           "modulation": "bpsk",
           "num_samples": 4144,
           "off_samples": 0,
-          "pattern": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "pn_length": 15,
           "pn_poly": 0,
           "randomise": "legacy",
@@ -138,7 +136,7 @@
           "modulation": "bpsk",
           "num_samples": 32,
           "off_samples": 0,
-          "pattern": "10110010010110100000111111111111",
+          "payload": "0xb25a0fff",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -160,9 +158,7 @@
       "--bits",
       "10110010",
       "--acq-code",
-      "1010",
-      "--acq-reps",
-      "2",
+      "1010*2",
       "--sync",
       "1111100110101",
       "--crc",
@@ -183,8 +179,7 @@
       "repeat": false,
       "segments": [
         {
-          "acq_code": "1010",
-          "acq_reps": 2,
+          "acq_code": "0xa*2",
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
@@ -192,7 +187,7 @@
           "modulation": "bpsk",
           "num_samples": 64,
           "off_samples": 0,
-          "pattern": "10110010",
+          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -210,8 +205,8 @@
     "argv": [
       "--type",
       "bits",
-      "--bits-hex",
-      "b2",
+      "--bits",
+      "0xb2",
       "--modulation",
       "none",
       "--count",
@@ -234,7 +229,7 @@
           "modulation": "none",
           "num_samples": 32,
           "off_samples": 0,
-          "pattern": "10110010",
+          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -273,7 +268,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
@@ -283,7 +277,7 @@
           "modulation": "bpsk",
           "num_samples": 1800,
           "off_samples": 0,
-          "pattern": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -328,7 +322,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "none",
           "freq": 0,
           "fs": 1,
@@ -338,7 +331,7 @@
           "modulation": "bpsk",
           "num_samples": 2040,
           "off_samples": 0,
-          "pattern": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+          "payload": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "pn_length": 15,
           "pn_poly": 0,
           "rs_depth": 1,
@@ -382,7 +375,7 @@
           "modulation": "qpsk",
           "num_samples": 32,
           "off_samples": 0,
-          "pattern": "10110010",
+          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -401,7 +394,7 @@
       "bits",
       "--modulation",
       "bpsk",
-      "--payload-gen",
+      "--bits",
       "pn:64:7",
       "--sync",
       "1111100110101",
@@ -421,7 +414,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
@@ -429,14 +421,7 @@
           "modulation": "bpsk",
           "num_samples": 512,
           "off_samples": 0,
-          "payload_gen": {
-            "kind": "pn",
-            "len": 64,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 7,
-            "seed": "0x0"
-          },
+          "payload": "pn:64:7",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -458,7 +443,7 @@
       "bpsk",
       "--bits",
       "10110010",
-      "--sync-gen",
+      "--sync",
       "gold:64:10:0x3a6:0x15e:0x237:0x49",
       "--sps",
       "2",
@@ -476,7 +461,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
@@ -484,22 +468,14 @@
           "modulation": "bpsk",
           "num_samples": 64,
           "off_samples": 0,
-          "pattern": "10110010",
+          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync_gen": {
-            "kind": "gold",
-            "len": 64,
-            "reg_bits": 10,
-            "seed_a": "0x15e",
-            "seed_b": "0x49",
-            "taps_a": "0x3a6",
-            "taps_b": "0x237"
-          },
+          "sync": "gold:64:10:0x3a6:0x15e:0x237:0x49",
           "type": "bits"
         }
       ],
@@ -514,7 +490,7 @@
       "bpsk",
       "--bits",
       "10110010",
-      "--sync-gen",
+      "--sync",
       "pn:31:5:3",
       "--sps",
       "2",
@@ -532,7 +508,6 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
@@ -540,35 +515,28 @@
           "modulation": "bpsk",
           "num_samples": 64,
           "off_samples": 0,
-          "pattern": "10110010",
+          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync_gen": {
-            "kind": "pn",
-            "len": 31,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 5,
-            "seed": "0x3"
-          },
+          "sync": "pn:31:5:0x3",
           "type": "bits"
         }
       ],
       "version": 1
     }
   },
-  "bpsk_framed_payload_len": {
+  "bpsk_framed_pn_payload": {
     "argv": [
       "--type",
       "bpsk",
       "--sync",
       "1111100110101",
-      "--payload-len",
-      "64",
+      "--bits",
+      "pn:64:7",
       "--pn-length",
       "7",
       "--sps",
@@ -587,21 +555,13 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "num_samples": 512,
           "off_samples": 0,
-          "payload_gen": {
-            "kind": "pn",
-            "len": 64,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 7,
-            "seed": "0x0"
-          },
+          "payload": "pn:64:7",
           "pn_length": 7,
           "pn_poly": 0,
           "seed": 0,
@@ -892,9 +852,7 @@
       "--type",
       "dsss",
       "--acq-code",
-      "1010",
-      "--acq-reps",
-      "2",
+      "1010*2",
       "--data-code",
       "1011",
       "--sync",
@@ -917,16 +875,15 @@
       "repeat": false,
       "segments": [
         {
-          "acq_code": "1010",
-          "acq_reps": 2,
+          "acq_code": "0xa*2",
           "crc": "crc16",
-          "data_code": "1011",
+          "data_code": "0xb",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "num_samples": 312,
           "off_samples": 0,
-          "payload": "10101010",
+          "payload": "0xaa",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -944,12 +901,12 @@
     "argv": [
       "--type",
       "dsss",
-      "--acq-code-hex",
-      "a5",
-      "--data-code-hex",
-      "b2",
-      "--bits-hex",
-      "0f",
+      "--acq-code",
+      "0xa5",
+      "--data-code",
+      "0xb2",
+      "--bits",
+      "0x0f",
       "--crc",
       "none",
       "--sps",
@@ -966,16 +923,15 @@
       "repeat": false,
       "segments": [
         {
-          "acq_code": "10100101",
-          "acq_reps": 1,
+          "acq_code": "0xa5",
           "crc": "none",
-          "data_code": "10110010",
+          "data_code": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "num_samples": 144,
           "off_samples": 0,
-          "payload": "00001111",
+          "payload": "0x0f",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -994,13 +950,11 @@
       "dsss",
       "--bits",
       "1011",
-      "--acq-code-gen",
-      "dotted:8",
-      "--acq-reps",
-      "2",
-      "--data-code-gen",
+      "--acq-code",
+      "dotted:8*2",
+      "--data-code",
       "pn:7:3:1",
-      "--sync-gen",
+      "--sync",
       "gold:16:10:934:350:567:73",
       "--sps",
       "2",
@@ -1018,41 +972,22 @@
       "repeat": false,
       "segments": [
         {
-          "acq_code_gen": {
-            "kind": "dotted",
-            "len": 8
-          },
-          "acq_reps": 2,
+          "acq_code": "dotted:8*2",
           "crc": "crc16",
-          "data_code_gen": {
-            "kind": "pn",
-            "len": 7,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 3,
-            "seed": "0x1"
-          },
+          "data_code": "pn:7:3:0x1",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "num_samples": 536,
           "off_samples": 0,
-          "payload": "1011",
+          "payload": "0xb",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync_gen": {
-            "kind": "gold",
-            "len": 16,
-            "reg_bits": 10,
-            "seed_a": "0x15e",
-            "seed_b": "0x49",
-            "taps_a": "0x3a6",
-            "taps_b": "0x237"
-          },
+          "sync": "gold:16:10:0x3a6:0x15e:0x237:0x49",
           "type": "dsss"
         }
       ],
@@ -1085,7 +1020,7 @@
       "repeat": false,
       "segments": [
         {
-          "data_code": "1011",
+          "data_code": "0xb",
           "freq": 0,
           "fs": 48000,
           "lfsr": "galois",
@@ -1110,7 +1045,7 @@
       "dsss",
       "--symbol-rate",
       "100",
-      "--data-code-gen",
+      "--data-code",
       "pn:15:4",
       "--data",
       "prbs",
@@ -1130,14 +1065,7 @@
       "repeat": false,
       "segments": [
         {
-          "data_code_gen": {
-            "kind": "pn",
-            "len": 15,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 4,
-            "seed": "0x0"
-          },
+          "data_code": "pn:15:4",
           "freq": 0,
           "fs": 48000,
           "lfsr": "galois",
@@ -1162,14 +1090,12 @@
       "dsss",
       "--data-code",
       "0110",
-      "--payload-gen",
+      "--bits",
       "pn:31:5",
       "--sync",
       "10",
       "--acq-code",
-      "10101010",
-      "--acq-reps",
-      "2",
+      "10101010*2",
       "--sps",
       "2",
       "--count",
@@ -1186,23 +1112,15 @@
       "repeat": false,
       "segments": [
         {
-          "acq_code": "10101010",
-          "acq_reps": 2,
+          "acq_code": "0xaa*2",
           "crc": "crc16",
-          "data_code": "0110",
+          "data_code": "0x6",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "num_samples": 424,
           "off_samples": 0,
-          "payload_gen": {
-            "kind": "pn",
-            "len": 31,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 5,
-            "seed": "0x0"
-          },
+          "payload": "pn:31:5",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -1215,27 +1133,6 @@
       ],
       "version": 1
     }
-  },
-  "err_acq_hex_then_gen": {
-    "argv": [
-      "--type",
-      "dsss",
-      "--bits",
-      "1011",
-      "--data-code",
-      "0110",
-      "--acq-code-hex",
-      "a5",
-      "--acq-code-gen",
-      "dotted:8",
-      "--acq-reps",
-      "2",
-      "--count",
-      "256"
-    ],
-    "exit": 2,
-    "outputs": {},
-    "record": null
   },
   "err_bad_choice": {
     "argv": [
@@ -1286,7 +1183,7 @@
       "100",
       "--data-code",
       "1011",
-      "--sync-gen",
+      "--sync",
       "pn:15:4"
     ],
     "exit": 2,
@@ -1299,8 +1196,8 @@
       "chirp",
       "--sync",
       "1111100110101",
-      "--payload-len",
-      "64",
+      "--bits",
+      "pn:64:15",
       "--count",
       "64"
     ],
@@ -1318,12 +1215,119 @@
     "outputs": {},
     "record": null
   },
-  "err_payload_gen_and_bits": {
+  "err_pn_length_no_msequence": {
+    "argv": [
+      "--type",
+      "pn",
+      "--pn-length",
+      "65",
+      "--count",
+      "64"
+    ],
+    "exit": 1,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_acq_code_gen": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--bits",
+      "1011",
+      "--data-code",
+      "0110",
+      "--acq-code-gen",
+      "dotted:8",
+      "--count",
+      "256"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_acq_code_hex": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--bits",
+      "1011",
+      "--data-code",
+      "0110",
+      "--acq-code-hex",
+      "a5",
+      "--count",
+      "256"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_acq_reps": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--bits",
+      "1011",
+      "--data-code",
+      "0110",
+      "--acq-code",
+      "1010",
+      "--acq-reps",
+      "2",
+      "--count",
+      "256"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_bits_hex": {
     "argv": [
       "--type",
       "bits",
+      "--bits-hex",
+      "b2",
+      "--count",
+      "32"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_data_code_gen": {
+    "argv": [
+      "--type",
+      "dsss",
       "--bits",
       "1011",
+      "--data-code-gen",
+      "pn:7:3:1",
+      "--count",
+      "256"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_data_code_hex": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--bits",
+      "1011",
+      "--data-code-hex",
+      "b2",
+      "--count",
+      "256"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_retired_payload_gen": {
+    "argv": [
+      "--type",
+      "bits",
       "--payload-gen",
       "pn:64:7",
       "--count",
@@ -1333,7 +1337,7 @@
     "outputs": {},
     "record": null
   },
-  "err_payload_len_and_bits": {
+  "err_retired_payload_len": {
     "argv": [
       "--type",
       "bits",
@@ -1348,16 +1352,18 @@
     "outputs": {},
     "record": null
   },
-  "err_pn_length_no_msequence": {
+  "err_retired_sync_gen": {
     "argv": [
       "--type",
-      "pn",
-      "--pn-length",
-      "65",
+      "bits",
+      "--bits",
+      "10110010",
+      "--sync-gen",
+      "pn:31:5",
       "--count",
       "64"
     ],
-    "exit": 1,
+    "exit": 2,
     "outputs": {},
     "record": null
   },
@@ -1412,7 +1418,7 @@
       "bits",
       "--bits",
       "1011",
-      "--sync-gen",
+      "--sync",
       "gold:16:10:934",
       "--count",
       "64"
@@ -1427,7 +1433,7 @@
       "bits",
       "--bits",
       "1011",
-      "--sync-gen",
+      "--sync",
       "literal:8",
       "--count",
       "64"
@@ -1442,7 +1448,7 @@
       "bits",
       "--bits",
       "1011",
-      "--sync-gen",
+      "--sync",
       "pn",
       "--count",
       "64"
@@ -1457,7 +1463,7 @@
       "bits",
       "--bits",
       "1011",
-      "--sync-gen",
+      "--sync",
       "pn:31",
       "--count",
       "64"
@@ -1466,33 +1472,14 @@
     "outputs": {},
     "record": null
   },
-  "err_sync_gen_then_literal": {
-    "argv": [
-      "--type",
-      "bits",
-      "--bits",
-      "10110010",
-      "--sync-gen",
-      "pn:31:5",
-      "--sync",
-      "0110",
-      "--count",
-      "64"
-    ],
-    "exit": 2,
-    "outputs": {},
-    "record": null
-  },
-  "err_sync_literal_then_gen": {
+  "err_sync_field_repeats": {
     "argv": [
       "--type",
       "bits",
       "--bits",
       "10110010",
       "--sync",
-      "0110",
-      "--sync-gen",
-      "pn:31:5",
+      "0110*2",
       "--count",
       "64"
     ],
@@ -1871,14 +1858,14 @@
       "version": 1
     }
   },
-  "qpsk_framed_payload_len": {
+  "qpsk_framed_pn_payload": {
     "argv": [
       "--type",
       "qpsk",
       "--sync",
       "1111100110101",
-      "--payload-len",
-      "128",
+      "--bits",
+      "pn:128:9",
       "--pn-length",
       "9",
       "--sps",
@@ -1897,21 +1884,13 @@
       "repeat": false,
       "segments": [
         {
-          "acq_reps": 1,
           "crc": "crc16",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "num_samples": 1024,
           "off_samples": 0,
-          "payload_gen": {
-            "kind": "pn",
-            "len": 128,
-            "lfsr": 0,
-            "poly": "0x0",
-            "reg_bits": 9,
-            "seed": "0x0"
-          },
+          "payload": "pn:128:9",
           "pn_length": 9,
           "pn_poly": 0,
           "seed": 0,

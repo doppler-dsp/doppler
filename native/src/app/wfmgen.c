@@ -76,56 +76,6 @@ parse_range (const char *v, double *hi, int *ranged)
   return strtod (v, NULL);
 }
 
-/* Parse a binary string ("10110101") into a malloc'd 0/1 array; *n gets the
- * length. Whitespace is skipped; any other char fails (returns NULL). */
-static uint8_t *
-parse_bit_string (const char *s, size_t *n)
-{
-  size_t   cap = strlen (s), len = 0;
-  uint8_t *b = malloc (cap ? cap : 1);
-  if (!b)
-    return NULL;
-  for (; *s; s++)
-    {
-      if (*s == '0' || *s == '1')
-        /* len advances only on a kept char, so len < strlen(s) == cap. */
-        /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
-        b[len++] = (uint8_t)(*s - '0');
-      else if (*s != ' ' && *s != '\t' && *s != '\n' && *s != '\r')
-        {
-          free (b);
-          return NULL;
-        }
-    }
-  *n = len;
-  return b;
-}
-
-/* Parse a hex string ("AA55") into a malloc'd 0/1 array (MSB first), 4 bits
- * per hex digit; *n gets the bit count. Returns NULL on a non-hex char.
- *
- * The digit loop used to live here, which made it a second statement of a
- * conversion cvt already owns -- same MSB-first order, same four bits per
- * digit, same refusal on a bad char. Two copies of that is how a marker
- * comes to be expanded one way by the generator and another by a receiver.
- * What stays here is the ALLOCATION, because the caller owns the array; the
- * conversion is cvt's. */
-static uint8_t *
-parse_hex_string (const char *s, size_t *n)
-{
-  const size_t nbits = 4u * strlen (s);
-  uint8_t     *b     = malloc (nbits ? nbits : 1);
-  if (!b)
-    return NULL;
-  if (nbits && dp_hex_to_bin (s, b, nbits, DP_BITORDER_BIG) != nbits)
-    {
-      free (b);
-      return NULL;
-    }
-  *n = nbits;
-  return b;
-}
-
 /* Warn (and optionally fail) when an integer wire type clipped. peak > 1 means
  * the composite ran past full-scale; report the overshoot in dB (the headroom
  * it would need) and how to capture it losslessly. Float types never clip.
@@ -161,8 +111,8 @@ report_clip (double peak, double frac, int stype, double headroom,
  * read, or if it is empty -- a payload of no bits is a usage error, not a
  * zero-length frame.
  *
- * Bytes, not text, and deliberately not both. `--bits` already takes a 0/1
- * string and `--bits-hex` a hex one, so a real binary file is the case with
+ * Bytes, not text, and deliberately not both. `--bits` already takes a
+ * Field -- 0/1, hex, or generated -- so a real binary file is the case with
  * no other route -- and it is the one the CCSDS example needs, which asks
  * for "a 223*I-octet Transfer Frame on disk". Sniffing the content to
  * accept either was considered and refused: a binary file whose bytes
@@ -328,8 +278,6 @@ static const char USAGE[]
       "\n"
       "PULSE SHAPING\n" WFM_SURFACE_HELP_PULSE "\n"
       "BITS INPUT  (--type bits)\n"
-      "  --bits BITSTR   Literal bit string, e.g. \"10110010\"\n"
-      "  --bits-hex HEX  Hex string, e.g. \"b2\" -> 10110010 (MSB-first)\n"
       "  --bits-file F   Binary file; bits consumed MSB-first per "
       "byte\n" WFM_SURFACE_HELP_BITS "\n"
       "SYMBOLS INPUT  (--type symbols)\n" WFM_SURFACE_HELP_SYMBOLS
@@ -338,15 +286,16 @@ static const char USAGE[]
       "\n"
       "FRAMING  (--type bits, and --type dsss below)\n"
       "  --acq-code/--sync describe a FRAME:\n"
-      "      [preamble x acq-reps | sync | payload | CRC-16]\n"
+      "      [preamble x REPS | sync | payload | CRC-16]\n"
       "  and setting either one is what frames the waveform (--crc alone\n"
       "  does not -- it defaults to crc16). For --type bits the payload is\n"
-      "  --bits/--bits-hex/--bits-file and --modulation maps it to BPSK or\n"
-      "  QPSK; the frame then CYCLES to fill --count, so one description\n"
-      "  gives a multi-frame record. A frame needs a payload: --type\n"
-      "  bpsk/qpsk/pn take one from their own PN LFSR once --payload-len\n"
-      "  bounds it, and are refused without it. Types with no bit stream\n"
-      "  (tone, noise, chirp, symbols) cannot be framed.\n"
+      "  --bits or --bits-file and --modulation maps it to BPSK or QPSK;\n"
+      "  the frame then CYCLES to fill --count, so one description gives a\n"
+      "  multi-frame record. A frame needs a payload: for --type "
+      "bpsk/qpsk/pn\n"
+      "  give it as a generated Field over the waveform's own register,\n"
+      "  e.g. --bits pn:1024:15. Types with no bit stream (tone, noise,\n"
+      "  chirp, symbols) cannot be framed.\n"
       "\n"
       "CHANNEL CODING  (--type bits | --type dsss)\n"
       "  Stages over the frame's fields, each optional, and they do NOT all\n"
@@ -400,42 +349,22 @@ static const char USAGE[]
       "DSSS BURST  (--type dsss)\n"
       "  One burst = an unmodulated repeated preamble (code A) followed by\n"
       "  the frame [sync | payload | CRC-16], every frame bit spread by a\n"
-      "  second code B. The payload bits come from --bits/--bits-hex/\n"
-      "  --bits-file; --sps is samples per CHIP; --count is derived (one\n"
+      "  second code B. The payload bits come from --bits or --bits-file;\n"
+      "  --sps is samples per CHIP; --count is derived (one\n"
       "  burst = n_chips * sps samples) and ignored; --snr-mode esno is the\n"
-      "  Es/N0 of the outer DATA symbol (code-B chips x sps samples).\n"
-      "  --acq-code BITS      Preamble code as a 0/1 string\n"
-      "  --acq-code-hex HEX   Preamble code as hex (MSB-first)\n"
-      "  --acq-code-gen SPEC  Preamble code GENERATED (see below)\n"
-      "  --acq-reps N         Preamble repetitions (default 1)\n"
-      "  --data-code BITS     Payload spreading code as a 0/1 string\n"
-      "  --data-code-hex HEX  Payload spreading code as hex (MSB-first)\n"
-      "  --data-code-gen SPEC Payload spreading code GENERATED (see below)\n"
-      "  --sync BITS          Frame-sync word, e.g. Barker-13 (default none)\n"
-      "  --sync-gen SPEC      Frame-sync word GENERATED (see below)\n"
-      "  --payload-gen SPEC   Payload GENERATED (see below)\n"
-      "  --payload-len N      Payload bounded at N bits, filled from this\n"
-      "                       source's own --pn-length/--pn-poly/--seed.\n"
-      "                       This is what lets --type bpsk|qpsk|pn carry a\n"
-      "                       frame at all: their data is an endless LFSR,\n"
-      "                       so nothing said where the payload "
-      "stopped.\n" WFM_SURFACE_HELP_DSSS_BURST "\n"
-      "GENERATED SEQUENCES  (--acq-code-gen / --data-code-gen / --sync-gen)\n"
-      "  SPEC is KIND:LEN[:...], colon-separated like --freq's LO:HI. A\n"
-      "  1023-chip code is six numbers here instead of a 1023-character\n"
-      "  string, and --record stores those numbers, so the capture is\n"
-      "  reproducible from its own metadata. Every number takes hex or\n"
-      "  decimal, so a tap mask reads as 0x409 the way it does in the\n"
-      "  literature. A field takes ONE spelling: the literal flag above or\n"
-      "  its -gen form, never both.\n"
-      "    pn:LEN:REG_BITS[:SEED[:POLY]]        one LFSR; SEED 0 selects 1,\n"
-      "                                         POLY 0 the maximal-length\n"
-      "                                         polynomial for REG_BITS\n"
-      "    gold:LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B   a Gold pair\n"
-      "    dotted:LEN                           alternating 1010..., a line\n"
-      "                                         at Rs/2 to settle on\n"
-      "  --bits, --payload-gen and --payload-len are three spellings of ONE\n"
-      "  field; giving two is refused rather than resolved.\n"
+      "  Es/N0 of the outer DATA symbol (code-B chips x sps "
+      "samples).\n" WFM_SURFACE_HELP_DSSS_BURST "\n"
+      "FIELDS  (--acq-code / --sync / --data-code / --bits)\n"
+      "  Each takes ONE Field -- literal bits or a generated sequence:\n"
+      "    10110010                         literal bits (0 and 1 only)\n"
+      "    0x1ACFFC1D                       literal hex, 4 bits a digit\n"
+      "    pn:LEN:REG[:SEED[:POLY]][:fibonacci]   an LFSR sequence\n"
+      "    gold:LEN:REG:TA:SA:TB:SB         a Gold code from two registers\n"
+      "    dotted:LEN                       alternating 1010...\n"
+      "  LEN is the output length, REG the register width (1..64); numbers\n"
+      "  take decimal or 0x hex. Add *REPS to repeat a preamble:\n"
+      "  --acq-code 'pn:31:5*4' (quote the *). --record stores the Field,\n"
+      "  so a 1023-chip code is six numbers, not 1023 characters.\n"
       "\n"
       "DSSS CONTINUOUS  (--type dsss --symbol-rate HZ)\n"
       "  An endless stream: code B repeats forever and data rides it at\n"
@@ -444,10 +373,10 @@ static const char USAGE[]
       "  --count is honoured verbatim; --snr-mode esno is the Es/N0 of the\n"
       "  data symbol (fs/symbol_rate samples). Data source: default PRBS\n"
       "  (seeded PN a receiver regenerates), --data none for code-only\n"
-      "  (the pure code), or --bits* for a payload. Rejects the burst-frame\n"
-      "  flags (--acq-code/--sync/--crc) and --data with "
-      "--bits*.\n" WFM_SURFACE_HELP_DSSS_CONT
-      "  --data-code[-hex] C  Spreading code (required)\n"
+      "  (the pure code), or --bits / --bits-file for a payload. Rejects\n"
+      "  the burst-frame flags (--acq-code/--sync/--crc) and --data with a\n"
+      "  payload. --data-code (above) is "
+      "required.\n" WFM_SURFACE_HELP_DSSS_CONT
       "  --data D             none | prbs data source (default prbs)\n"
       "\n"
       "CLOCK DOPPLER\n"
@@ -597,10 +526,6 @@ typedef struct
      defaults to crc16, so giving it is what frames a waveform, and a given
      --symbol-rate is refused at <= 0 where the default 0 means burst. */
   int surf_seen[WFM_SURFACE_N];
-  /* --payload-len: a payload BOUNDED rather than spelled. Resolved after the
-     whole line is read, because it is expressed in the source's own PN
-     parameters and those may be typed after it. */
-  size_t payload_len;
 } wfmgen_opts_t;
 
 /* How a flag's value is read. The enum type is used for `opt_t.kind` (rather
@@ -622,11 +547,11 @@ enum opt_kind
   OPT_U64,        /* strtoull -> uint64_t                                 */
   OPT_RANGE_D,    /* LO[:HI] -> double at off, hi at aux, bit in src.ranged */
   OPT_RANGE_N,    /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
-  OPT_BITS,       /* "0101" -> uint8_t * at off, its length at aux        */
-  OPT_HEX,        /* "a5"   -> uint8_t * at off, its bit count at aux     */
   OPT_BITS_FILE,  /* a file whose BYTES are the bits, MSB first          */
   OPT_SYMBOLS,    /* a raw cf32 file -> float _Complex * at off           */
-  OPT_SEQ_GEN,    /* KIND:LEN[:...] -> a generated wfm_seq_t at off        */
+  OPT_FIELD,      /* a Field (wfm_frame.h) -> the wfm_seq_t at off; its
+                     *REPS to the size_t at aux, or refused when the row
+                     has no repetition count                             */
 };
 
 /* One flag.
@@ -643,6 +568,7 @@ typedef struct
   enum opt_kind      kind;
   int                unit_interval; /* OPT_DOUBLE: require 0 < v <= 1 */
   unsigned           range_bit;     /* OPT_RANGE_*: the WFM_RANGE_* bit */
+  int                field_reps;    /* OPT_FIELD: aux takes *REPS       */
   size_t             off;
   size_t             aux;
   size_t             seen;
@@ -674,159 +600,6 @@ typedef struct
  * Every number goes through strtoull base 0, so a tap mask may be written
  * `0x409` as it is in the record and in the literature, or in decimal.
  * Returns 0, or -1 having already said what was wrong. */
-/* One field, one source of bits -- refused rather than resolved.
- *
- * There is no correct answer to which spelling wins, and both ways of being
- * wrong are silent. `--sync 0110 --sync-gen pn:31:5` leaves the generated
- * kind over a stray literal array, so `--record` emits BOTH `sync` and
- * `sync_gen` and the reader (which refuses exactly that pair) cannot load the
- * capture the run just wrote. The other order clears the array and the
- * literal vanishes with nothing said. This is the CLI face of the rule
- * `read_seq_gen` already enforces on the JSON one.
- *
- * ONE table drives both checks. The two orders are caught in different
- * places -- a literal already present is caught before parse_seq_gen's memset
- * erases it, a literal parsed afterwards is caught once the whole line is
- * read -- and a pair declared twice is a pair that can disagree about which
- * flags it names. */
-static const struct
-{
-  const char *lit, *gen;
-  size_t      off;
-} SEQ_PAIRS[] = {
-  { "--acq-code", "--acq-code-gen", OFF (src.acq_code) },
-  { "--data-code", "--data-code-gen", OFF (src.data_code) },
-  { "--sync", "--sync-gen", OFF (src.sync) },
-  { "--bits", "--payload-gen", OFF (src.payload) },
-};
-
-/* Complain about @p gen_flag's pair. Returns 2 -- the exit code every other
-   usage error here uses, so a scripted caller sees one number for "you typed
-   something impossible" whichever order it was typed in. */
-static int
-seq_both_spellings (const char *gen_flag)
-{
-  const char *lit = "the literal form";
-  for (size_t i = 0; i < sizeof SEQ_PAIRS / sizeof *SEQ_PAIRS; i++)
-    if (strcmp (SEQ_PAIRS[i].gen, gen_flag) == 0)
-      lit = SEQ_PAIRS[i].lit;
-  (void)fprintf (stderr,
-                 "error: %s and %s set the same field -- give one, not "
-                 "both (a generated sequence has no bit string)\n",
-                 lit, gen_flag);
-  return 2;
-}
-
-/* The next ':'-separated field of *cursor, NUL-terminated in place, or NULL
-   when none is left. The same contract as strtok_r (s, ":", &save) (empty
-   fields are skipped, so "pn::10" reads as pn:10), spelled out here because
-   strtok_r is POSIX and the Windows CRT does not provide it. */
-static char *
-next_colon_field (char **cursor)
-{
-  char *p = *cursor + strspn (*cursor, ":");
-  if (*p == '\0')
-    {
-      *cursor = p;
-      return NULL;
-    }
-  char *end = p + strcspn (p, ":");
-  *cursor   = *end ? end + 1 : end;
-  *end      = '\0';
-  return p;
-}
-
-static int
-parse_seq_gen (const char *flag, const char *v, wfm_seq_t *q)
-{
-  char buf[256];
-  if (!v || strlen (v) >= sizeof buf)
-    {
-      (void)fprintf (stderr, "error: %s: missing or overlong value\n", flag);
-      return -1;
-    }
-  /* A literal already parsed into this field. Caught here because the memset
-     below would erase the evidence. */
-  if (q->bits)
-    {
-      (void)seq_both_spellings (flag);
-      return -1; /* the OPT_SEQ_GEN case maps any non-zero to exit 2 */
-    }
-  memcpy (buf, v, strlen (v) + 1);
-
-  char *cursor = buf;
-  char *tok    = next_colon_field (&cursor);
-  int   kind   = tok ? lookup (tok, SEQ_KIND_NAMES, 4) : -1;
-  /* `literal` is rejected, not merely unmatched: a literal sequence is what
-     --sync, --acq-code and --data-code are for, and a second way to spell
-     it is how two
-     spellings of one thing start disagreeing. */
-  if (kind <= 0)
-    {
-      (void)fprintf (stderr,
-                     "error: %s: kind must be pn, gold or dotted "
-                     "(a literal sequence is --sync/--acq-code/--data-code)\n",
-                     flag);
-      return -1;
-    }
-
-  unsigned long long field[7] = { 0 };
-  size_t             n        = 0;
-  while ((tok = next_colon_field (&cursor)) != NULL && n < 7)
-    field[n++] = strtoull (tok, NULL, 0);
-
-  memset (q, 0, sizeof *q);
-  q->kind = (wfm_seq_kind_t)kind;
-  if (n < 1 || field[0] == 0ull)
-    {
-      (void)fprintf (stderr, "error: %s: a length is required, e.g. %s\n",
-                     flag, kind == 3 ? "dotted:16" : "pn:1023:10");
-      return -1;
-    }
-  q->len = (size_t)field[0];
-
-  if (q->kind == WFM_SEQ_PN)
-    {
-      q->reg_bits = (uint32_t)(n > 1 ? field[1] : 0ull);
-      q->seed     = n > 2 ? field[2] : 0ull;
-      q->poly     = n > 3 ? field[3] : 0ull;
-      if (q->reg_bits == 0u || q->reg_bits > 64u)
-        {
-          (void)fprintf (stderr,
-                         "error: %s: pn needs a register width in 1..64, "
-                         "e.g. pn:1023:10\n",
-                         flag);
-          return -1;
-        }
-    }
-  else if (q->kind == WFM_SEQ_GOLD)
-    {
-      if (n < 6)
-        {
-          (void)fprintf (stderr,
-                         "error: %s: gold needs "
-                         "LEN:REG_BITS:TAPS_A:SEED_A:TAPS_B:SEED_B, "
-                         "e.g. gold:64:10:934:350:567:73\n",
-                         flag);
-          return -1;
-        }
-      q->reg_bits = (uint32_t)field[1];
-      q->taps_a   = field[2];
-      q->seed_a   = field[3];
-      q->taps_b   = field[4];
-      q->seed_b   = field[5];
-      if (q->reg_bits == 0u || q->reg_bits > 64u)
-        {
-          (void)fprintf (stderr,
-                         "error: %s: gold needs a register width in 1..64\n",
-                         flag);
-          return -1;
-        }
-    }
-  /* DOTTED takes only its length. */
-  return 0;
-}
-
 static const opt_t OPTS[] = {
   { .name = "--from-file", .kind = OPT_STR, .off = OFF (from_file) },
   { .name = "--sample-type",
@@ -841,46 +614,7 @@ static const opt_t OPTS[] = {
     .kind = OPT_CHOICE,
     .off  = OFF (endian),
     CHOICES (ENDIAN_NAMES) },
-  { .name = "--bits",
-    .kind = OPT_BITS,
-    .off  = OFF (src.payload.bits),
-    .aux  = AUX (src.payload.len) },
-  { .name = "--bits-hex",
-    .kind = OPT_HEX,
-    .off  = OFF (src.payload.bits),
-    .aux  = AUX (src.payload.len) },
-  { .name = "--bits-file",
-    .kind = OPT_BITS_FILE,
-    .off  = OFF (src.payload.bits),
-    .aux  = AUX (src.payload.len) },
-  { .name = "--payload-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.payload) },
-  { .name = "--payload-len", .kind = OPT_SIZE, .off = OFF (payload_len) },
-  { .name = "--acq-code",
-    .kind = OPT_BITS,
-    .off  = OFF (src.acq_code.bits),
-    .aux  = AUX (src.acq_code.len) },
-  { .name = "--acq-code-hex",
-    .kind = OPT_HEX,
-    .off  = OFF (src.acq_code.bits),
-    .aux  = AUX (src.acq_code.len) },
-  { .name = "--acq-code-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.acq_code) },
-  { .name = "--acq-reps", .kind = OPT_SIZE, .off = OFF (src.acq_reps) },
-  { .name = "--data-code",
-    .kind = OPT_BITS,
-    .off  = OFF (src.data_code.bits),
-    .aux  = AUX (src.data_code.len) },
-  { .name = "--data-code-hex",
-    .kind = OPT_HEX,
-    .off  = OFF (src.data_code.bits),
-    .aux  = AUX (src.data_code.len) },
-  { .name = "--data-code-gen",
-    .kind = OPT_SEQ_GEN,
-    .off  = OFF (src.data_code) },
-  { .name = "--sync",
-    .kind = OPT_BITS,
-    .off  = OFF (src.sync.bits),
-    .aux  = AUX (src.sync.len) },
-  { .name = "--sync-gen", .kind = OPT_SEQ_GEN, .off = OFF (src.sync) },
+  { .name = "--bits-file", .kind = OPT_BITS_FILE, .off = OFF (src.payload) },
   /* Channel coding, as STAGES over the frame's fields. Each is separately
      optional because the standard makes it so, and they do not all cover the
      same bits -- which is the whole reason the frame is a description rather
@@ -938,6 +672,38 @@ static const opt_t OPTS[] = {
    table (wfm/wfm_surface.h), and is turned into the same opt_t here, so one
    parse switch reads both. The row's offsets are into its own struct, so
    this adds where that struct sits in wfmgen_opts_t. */
+/* Flags that USED to exist, each refused with what replaced it -- never
+ * aliased (docs/design/frame-description.md F.3). A Field flag took over
+ * every spelling of its field: the -hex and -gen forms, the separate
+ * repetition count, and the payload's bound, which is exactly the PN
+ * sequence `--bits pn:N:REG[:SEED[:POLY]]` names. */
+static const struct
+{
+  const char *flag, *instead;
+} RETIRED[] = {
+  { "--bits-hex", "--bits 0x<HEX>" },
+  { "--payload-gen", "--bits <FIELD>, e.g. --bits pn:1024:10" },
+  { "--payload-len",
+    "--bits pn:<N>:<pn-length>[:<seed>[:<poly>]] -- the same bits" },
+  { "--acq-code-hex", "--acq-code 0x<HEX>" },
+  { "--acq-code-gen", "--acq-code <FIELD>, e.g. --acq-code pn:1023:10" },
+  { "--acq-reps", "--acq-code '<FIELD>*<N>', e.g. --acq-code 'pn:31:5*4'" },
+  { "--data-code-hex", "--data-code 0x<HEX>" },
+  { "--data-code-gen",
+    "--data-code <FIELD>, e.g. --data-code gold:64:10:..." },
+  { "--sync-gen", "--sync <FIELD>, e.g. --sync pn:63:6" },
+};
+
+/* The replacement for a retired flag, or NULL. */
+static const char *
+retired (const char *a)
+{
+  for (size_t k = 0; k < sizeof RETIRED / sizeof *RETIRED; k++)
+    if (!strcmp (a, RETIRED[k].flag))
+      return RETIRED[k].instead;
+  return NULL;
+}
+
 static int
 find_opt (const char *a, opt_t *out)
 {
@@ -990,45 +756,75 @@ find_opt (const char *a, opt_t *out)
           out->kind = OPT_SYMBOLS;
           out->aux  = base + r->len_off;
           break;
+        case WFM_SV_FIELD:
+          out->kind       = OPT_FIELD;
+          out->field_reps = r->reps_off != 0;
+          if (out->field_reps)
+            out->aux = base + r->reps_off;
+          break;
         }
       return 1;
     }
   return 0;
 }
 
-/* The three bit-array flags, which differ only in where the characters come
- * from and which alphabet they are in: a literal 0/1 string, a hex string, or
- * a file holding a 0/1 string. Returns 0, or the exit code — 1 when the file
- * cannot be read, 2 when the characters are not what the flag accepts. */
+/* A Field flag (--acq-code, --sync, --data-code, --bits): the text parsed by
+ * the ONE reader of the grammar, dp_wfm_field_parse, into the source's
+ * wfm_seq_t. A repeated flag replaces -- its literal array is freed, since
+ * the source owns it. *REPS goes to the row's repetition count (`aux`) when
+ * it has one (--acq-code: acq_reps); anywhere else it is refused, because a
+ * sync word or a payload sent twice is not what those fields mean. Returns 0,
+ * or 2 with the parser's own reason, prefixed by the flag. */
 static int
-parse_bits_into (const opt_t *opt, const char *a, const char *v, uint8_t **dst,
-                 size_t *n)
+parse_field_into (const opt_t *opt, const char *a, const char *v,
+                  wfm_seq_t *dst, size_t *reps)
 {
-  free (*dst); /* a repeated flag replaces, it does not leak */
-  switch (opt->kind)
+  wfm_field_t f;
+  uint8_t    *owned = NULL;
+  const char *why   = NULL;
+  if (dp_wfm_field_parse (v, &f, &owned, &why) != DP_OK)
     {
-    case OPT_HEX:
-      *dst = parse_hex_string (v, n);
-      break;
-    case OPT_BITS_FILE:
-      *dst = bits_from_file (v, n);
-      if (!*dst)
-        {
-          (void)fprintf (stderr, "error: %s cannot read %s, or it is empty\n",
-                         a, v);
-          return 1;
-        }
-      return 0;
-    default:
-      *dst = parse_bit_string (v, n);
-      break;
-    }
-  if (!*dst)
-    {
-      (void)fprintf (stderr, "error: %s expects a %s\n", a,
-                     opt->kind == OPT_HEX ? "hex string" : "0/1 string");
+      (void)fprintf (stderr, "error: %s %s: %s\n", a, v, why);
       return 2;
     }
+  if (f.reps > 1 && !opt->field_reps)
+    {
+      free (owned);
+      (void)fprintf (stderr,
+                     "error: %s %s: only --acq-code repeats (a preamble); "
+                     "drop the *%zu\n",
+                     a, v, f.reps);
+      return 2;
+    }
+  if (dst->kind == WFM_SEQ_LITERAL)
+    free ((void *)dst->bits); /* owned by the source; see wfm_seq_t */
+  *dst = f.seq;
+  if (opt->field_reps)
+    *reps = f.reps;
+  return 0;
+}
+
+/* --bits-file: a file whose BYTES are the payload's bits, MSB first. It
+ * writes the WHOLE sequence -- kind as well as bits -- so it replaces a
+ * generated --bits rather than leaving a stray array under it. Returns 0,
+ * or 1 when the file cannot be read. */
+static int
+parse_bits_file (const char *a, const char *v, wfm_seq_t *dst)
+{
+  size_t   n    = 0;
+  uint8_t *bits = bits_from_file (v, &n);
+  if (!bits)
+    {
+      (void)fprintf (stderr, "error: %s cannot read %s, or it is empty\n", a,
+                     v);
+      return 1;
+    }
+  if (dst->kind == WFM_SEQ_LITERAL)
+    free ((void *)dst->bits);
+  memset (dst, 0, sizeof *dst);
+  dst->kind = WFM_SEQ_LITERAL;
+  dst->bits = bits;
+  dst->len  = n;
   return 0;
 }
 
@@ -1055,8 +851,15 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
       const opt_t *opt = find_opt (a, &row) ? &row : NULL;
       if (!opt)
         {
-          (void)fprintf (stderr, "error: unknown option '%s' (try --help)\n",
-                         a);
+          const char *instead = retired (a);
+          if (instead)
+            (void)fprintf (stderr,
+                           "error: %s is retired: one flag per field now "
+                           "-- write %s\n",
+                           a, instead);
+          else
+            (void)fprintf (stderr, "error: unknown option '%s' (try --help)\n",
+                           a);
           return 2;
         }
 
@@ -1138,9 +941,13 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           *(size_t *)dst = (size_t)strtoull (v, NULL, 10);
           break;
 
-        case OPT_SEQ_GEN:
-          if (parse_seq_gen (a, v, (wfm_seq_t *)dst) != 0)
-            return 2;
+        case OPT_FIELD:
+          {
+            int rc = parse_field_into (opt, a, v, (wfm_seq_t *)dst,
+                                       (size_t *)aux);
+            if (rc)
+              return rc;
+          }
           break;
 
         case OPT_U32:
@@ -1173,14 +980,11 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           }
           break;
 
-        case OPT_BITS:
-        case OPT_HEX:
         case OPT_BITS_FILE:
           {
-            int bits_rc
-                = parse_bits_into (opt, a, v, (uint8_t **)dst, (size_t *)aux);
-            if (bits_rc)
-              return bits_rc;
+            int rc = parse_bits_file (a, v, (wfm_seq_t *)dst);
+            if (rc)
+              return rc;
           }
           break;
 
@@ -1201,54 +1005,6 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
         }
     }
 
-  /* The other order: a generated kind still standing under a literal array
-     that a later --sync/--acq-code/--data-code parsed on top of it. */
-  for (size_t i = 0; i < sizeof SEQ_PAIRS / sizeof *SEQ_PAIRS; i++)
-    {
-      const wfm_seq_t *q = (const wfm_seq_t *)((char *)o + SEQ_PAIRS[i].off);
-      if (q->kind != WFM_SEQ_LITERAL && q->bits)
-        return seq_both_spellings (SEQ_PAIRS[i].gen);
-    }
-
-  /* --payload-len: a payload BOUNDED rather than spelled.
-   *
-   * #755 refused a frame on --type bpsk/qpsk/pn because their data comes
-   * from the synth's own endless LFSR and nothing said where the payload
-   * stopped. This is that bound -- and it resolves to a PN sequence carrying
-   * the source's OWN pn parameters, so the payload a receiver regenerates is
-   * the one the waveform would have transmitted anyway. Six numbers in the
-   * record instead of a 100k-character string.
-   *
-   * Resolved here rather than at parse time because --pn-length/--pn-poly/
-   * --seed may be typed after it, and reading them early would silently bind
-   * the defaults. */
-  if (o->payload_len)
-    {
-      if (o->src.payload.len)
-        {
-          (void)fprintf (stderr,
-                         "error: --payload-len and %s set the same field -- "
-                         "give one, not both (--payload-len bounds a payload "
-                         "the waveform's own PN fills)\n",
-                         o->src.payload.kind == WFM_SEQ_LITERAL
-                             ? "--bits"
-                             : "--payload-gen");
-          return 2;
-        }
-      o->src.payload.kind     = WFM_SEQ_PN;
-      o->src.payload.len      = o->payload_len;
-      o->src.payload.reg_bits = (uint32_t)o->src.pn_length;
-      o->src.payload.poly     = o->src.pn_poly;
-      o->src.payload.seed     = o->src.seed;
-      o->src.payload.lfsr     = o->src.lfsr;
-      if (o->src.payload.reg_bits == 0u || o->src.payload.reg_bits > 64u)
-        {
-          (void)fprintf (stderr,
-                         "error: --payload-len needs --pn-length in 1..64 "
-                         "(it is the register the payload is drawn from)\n");
-          return 2;
-        }
-    }
   return 0;
 }
 
@@ -1676,9 +1432,10 @@ check_continuous_dsss (const wfmgen_opts_t *o)
       (void)fprintf (stderr, "error: --symbol-rate is only for --type dsss\n");
       return 2;
     }
-  /* LENGTH, not the pointer: a generated sequence (--data-code-gen,
-     --sync-gen) has no array, so a pointer test read a real code as absent
-     and a real sync as absent (doppler#1592) -- the has_frame bug again. */
+  /* LENGTH, not the pointer: a generated sequence (--data-code pn:...,
+     --sync gold:...) has no array, so a pointer test read a real code as
+     absent and a real sync as absent (doppler#1592) -- the has_frame bug
+     again. */
   if (o->src.data_code.len == 0)
     {
       (void)fprintf (stderr, "error: continuous dsss (--symbol-rate) needs "

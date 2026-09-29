@@ -133,7 +133,11 @@ typedef struct {
        six numbers in a --record. The bridge used to flatten this to
        WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
        made the preamble's generated kinds unreachable (gh-762). */
-    wfm_seq_t payload; /* type=bits: pattern; type=dsss: frame payload */
+    wfm_seq_t payload; /* The payload bits: a Field on the command line and
+                          in a scene, an array in Python. For type=bits, the
+                          pattern, oversampled by sps and cycled to fill the
+                          request; for type=dsss, the payload bits of the
+                          burst frame. */
     int modulation;    /* Symbol mapping of a bits pattern. none: the
                           pattern shaped and output as-is (NRZ). bpsk: +/-1
                           symbols. qpsk: Gray-coded symbols from pairs of
@@ -235,10 +239,29 @@ typedef struct {
        OWNERSHIP: a source OWNS its `.bits`. `wfm_seq_t` declares them
        `const uint8_t *` because a frame DESCRIPTOR borrows them, and the
        borrowing consumer is the common one; the owner casts to free. */
-    wfm_seq_t acq_code;  /* preamble code (0/1); len 0 = no preamble */
-    size_t acq_reps;     /* preamble repetitions */
-    wfm_seq_t data_code; /* payload spreading code; len = spreading factor */
-    wfm_seq_t sync;      /* frame-sync word bits; len 0 = none */
+    wfm_seq_t acq_code;  /* The preamble code, sent acq_reps times at the
+                            head of the frame (a Field's *REPS on the
+                            command line and in a scene) -- the coherent
+                            pull-in target BurstDespreader.set_acq and
+                            BurstDemod.set_preamble lock to. For type=dsss
+                            it is unmodulated chips ahead of the spread
+                            frame; for type=bits it is the head of the bit
+                            pattern. Setting it (or sync) is what makes a
+                            source FRAMED. */
+    size_t acq_reps;     /* Preamble repetitions: periods of acq_code before
+                            the sync word. On the command line and in a
+                            scene it is acq_code's *REPS. */
+    wfm_seq_t data_code; /* For type=dsss: the payload spreading code, a
+                            second code distinct from acq_code. Every frame
+                            bit (sync, payload, crc) is XOR-spread across
+                            its full length, so len(data_code) is the
+                            spreading factor. */
+    wfm_seq_t sync;      /* The frame-sync word (such as Barker-13) between
+                            the preamble and the payload -- what
+                            BurstDemod.set_frame correlates to resolve frame
+                            position and BPSK polarity, and what a BER
+                            alignment detects against. Optional; setting it
+                            (or acq_code) is what makes a source FRAMED. */
     int crc;             /* The frame trailer: crc16 appends a CRC-16-CCITT
                             over the payload bits (what BurstDemod validates
                             as frame_valid, and what makes a truth-free

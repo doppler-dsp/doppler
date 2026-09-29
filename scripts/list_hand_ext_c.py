@@ -18,8 +18,12 @@ Examples
 """
 
 import pathlib
+import sys
 
-import tomllib
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - the 3.9/3.10 CI matrix jobs
+    import tomli as tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 

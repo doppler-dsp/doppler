@@ -35,20 +35,101 @@ def test_dotted_starts_high():
     assert field_bits("dotted:5").tolist() == [1, 0, 1, 0, 1]
 
 
-@pytest.mark.parametrize(
-    "spec",
-    [
-        "",
-        "pn::10",  # an empty field is not skipped
-        "pn:12abc:5",  # a number is consumed whole
-        "0102",  # a literal holds only 0 and 1
-        "0x",  # no digits
-        "pn:31:65",  # register past 64
-        "pn:12:1",  # no m-sequence for a 1-bit register (doppler#1602)
-        "data:1024",  # not supported until the data source exists
-        "literal:0101",
-    ],
-)
+#: The corpus, shared by every test below so the parity test cannot drift
+#: from what the grammar tests pin. VALID parses; MALFORMED must raise.
+VALID = [
+    "0x1ACFFC1D",
+    "1101",
+    "0101",
+    "0xAA55",
+    "0xA",
+    "0X0F",  # the prefix is case-blind
+    "pn:31:5",
+    "pn:31:5*4",
+    "0101*2",
+    "dotted:5",
+]
+MALFORMED = [
+    "",
+    "pn::10",  # an empty field is not skipped
+    "pn:12abc:5",  # a number is consumed whole
+    "0102",  # a literal holds only 0 and 1
+    "0x",  # no digits
+    "pn:31:65",  # register past 64
+    "pn:12:1",  # no m-sequence for a 1-bit register (doppler#1602)
+    "data:1024",  # not supported until the data source exists
+    "literal:0101",
+]
+
+
+@pytest.mark.parametrize("spec", VALID)
+def test_valid_text_parses(spec):
+    assert field_bits(spec).size > 0
+
+
+@pytest.mark.parametrize("spec", MALFORMED)
 def test_malformed_text_raises_never_returns_empty(spec):
     with pytest.raises(RuntimeError, match="failed"):
         field_bits(spec)
+
+
+# ── the SECOND grammar: jm's bit_pattern coercion on a Source ──────────────
+#
+# A composer bytes field with `coerce = "bit_pattern"` (just-makeit.toml:
+# bits/payload, acq_code, data_code, sync) parses a `str` with jm's OWN
+# grammar -- 0/1 or 0x hex -- not the Field's. It is kept because dropping it
+# would also refuse numpy arrays and int sequences, and a literal Field is
+# data. So the two grammars are pinned against each other: where they agree,
+# and where they do not. The gaps are asserted as they are TODAY, so the jm
+# fix (route a str through field_bits) turns them red on purpose -- and then
+# the gap tests, and this second grammar, are deleted.
+
+_JM1709 = (
+    "just-makeit#1709: jm's coercion now agrees with field_bits here -- "
+    "delete this gap test and the second grammar with it"
+)
+
+
+def _jm_grammar(spec: str) -> bool:
+    """What jm's coercion reads: a 0/1 string, or 0x hex with no repeat."""
+    body = spec[2:] if spec[:2].lower() == "0x" else spec
+    return "*" not in spec and ":" not in spec and bool(body)
+
+
+def _coerce(spec: str):
+    from doppler.wfm import Segment
+
+    return Segment(type="bits", payload=spec).bits
+
+
+@pytest.mark.parametrize("spec", [s for s in VALID if _jm_grammar(s)])
+def test_the_coercion_agrees_with_field_bits(spec):
+    """Binary and hex: one text, the same bits through either door."""
+    assert list(_coerce(spec)) == field_bits(spec).tolist()
+
+
+@pytest.mark.parametrize("spec", [s for s in VALID if not _jm_grammar(s)])
+def test_gap_the_coercion_refuses_a_valid_field(spec):
+    """A generated field and `*REPS` are Fields jm cannot read.
+
+    `wfmgen --bits pn:31:5` and a scene's `"payload": "pn:31:5"` work;
+    `Segment(payload="pn:31:5")` does not. Pass `field_bits(spec)` instead.
+    """
+    try:
+        _coerce(spec)
+    except ValueError:
+        return
+    pytest.fail(_JM1709)
+
+
+@pytest.mark.parametrize("spec", ["", "0x"])
+def test_gap_the_coercion_accepts_an_empty_field(spec):
+    """`""` and a bare `0x` read as an absent pattern, not a typo."""
+    with pytest.raises(RuntimeError):
+        field_bits(spec)
+    assert spec in MALFORMED
+    try:
+        got = _coerce(spec)
+    except ValueError:
+        pytest.fail(_JM1709)  # refused, as field_bits refuses: fixed
+    assert got in (None, b""), "the coercion read an empty field as bits"

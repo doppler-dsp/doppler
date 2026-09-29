@@ -48,6 +48,8 @@ extern "C"
 #define WFM_FRAME_MAX_FIELDS 16
 #define WFM_FRAME_MAX_STAGES 8
 
+#define WFM_FIELD_MAX_BITS 261120
+
   typedef struct
   {
     size_t first; 

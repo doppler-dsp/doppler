@@ -403,6 +403,9 @@ static const field_ok_t FIELD_OK[] = {
     "gold:64:10:0x3a6:0x15e:0x237:0x49" },
   { "dotted:16", WFM_SEQ_DOTTED, 16, 1, 0, 0, 0, 0, "dotted:16" },
   { "dotted:5*2", WFM_SEQ_DOTTED, 5, 2, 0, 0, 0, 0, "dotted:5*2" },
+  /* WFM_FIELD_MAX_BITS exactly, written as LEN and as LEN * REPS. */
+  { "pn:261120:18", WFM_SEQ_PN, 261120, 1, 18, 0, 0, 0, "pn:261120:18" },
+  { "0x1*65280", WFM_SEQ_LITERAL, 4, 65280, 0, 0, 0, 0, "0x1*65280" },
 };
 
 /* Text the grammar does not contain. Every one must be refused, name a
@@ -433,6 +436,10 @@ static const char *const FIELD_BAD[] = {
   "pn:31:5:fibonacci:1",       /* the register form is last             */
   "pn:31:5:gallois",           /* a misspelt register form              */
   "pn:18446744073709551616:5", /* 2^64, overflow                       */
+  "pn:18446744073709551615:5", /* 2^64 - 1: a number, past the bound   */
+  "pn:261121:18",              /* WFM_FIELD_MAX_BITS + 1                */
+  "pn:130561:18*2",            /* the bound is on LEN * REPS            */
+  "0x1*65281",                 /* a literal's too                       */
   /* A 1-bit register has no m-sequence, so with no POLY there is nothing
      to build: accepted, it failed later on every face with no reason given
      (found by the D12 exploration; the render refused it since #1602). */
@@ -574,6 +581,14 @@ test_field_text (void)
                               &(uint8_t *){ NULL }, &why);
     DP_CHECK_MSG (why && strstr (why, "data source") != NULL,
                   "data:LEN is refused by name, not as a typo");
+  }
+  {
+    /* The bound is named, so a caller learns the number, not only "no". */
+    const char *why = NULL;
+    (void)dp_wfm_field_parse ("pn:261121:18", &(wfm_field_t){ 0 },
+                              &(uint8_t *){ NULL }, &why);
+    DP_CHECK_MSG (why && strstr (why, "261120") != NULL,
+                  "a Field past the bound is refused naming the bound");
   }
 
   /* The render's own refusals. */

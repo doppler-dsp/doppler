@@ -30,6 +30,18 @@
 
 #include <string.h>
 
+/* wfm_frame.h states WFM_FIELD_MAX_BITS as a number, because it cannot see
+   the R-S constants it is derived from; this file sees both. The deepest R-S
+   codeblock, times a margin of 16: a codeblock that grows makes this fail,
+   and the bound is re-derived rather than silently outgrown. */
+_Static_assert (WFM_FIELD_MAX_BITS
+                    == 16 * CCSDS_TM_RS_N * 8 * CCSDS_TM_RS_MAX_DEPTH,
+                "WFM_FIELD_MAX_BITS is 16 deepest R-S codeblocks");
+_Static_assert (WFM_FIELD_MAX_BITS >= CCSDS_TM_RAND_PERIOD,
+                "a Field holds one whole default randomiser period");
+_Static_assert (WFM_FIELD_MAX_BITS / 2 < CCSDS_TM_RAND_PERIOD,
+                "16 is the smallest power-of-two margin that does");
+
 /* Field and stage indices. Named because every cover is a range of them, and
    an off-by-one would move a span silently -- which is the failure this whole
    component is shaped around. */

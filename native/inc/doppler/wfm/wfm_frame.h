@@ -107,6 +107,21 @@ extern "C"
 #define WFM_FRAME_MAX_STAGES 8
 
   /**
+   * @brief Bits one Field may hold, `LEN * REPS`; the grammar refuses more.
+   *
+   * Derived, not picked. The longest frame a shipped stage accepts is the
+   * CCSDS Reed-Solomon codeblock at its deepest interleaving, 255 symbols x
+   * 8 bits x depth 8 = 16320 bits. The margin is 16, the smallest power of
+   * two that still admits a Field one whole period of the default CCSDS
+   * randomiser long (131071 bits; 8 x 16320 falls 511 short). A Field is a
+   * finite run of a frame, so a longer one is a STREAM, which is a data
+   * source's job, not a Field's. The bound is checked at parse, before any
+   * allocation sized by the caller's number. `ccsds_tm/desc.c` re-derives
+   * it from the R-S constants at compile time, so it cannot drift.
+   */
+#define WFM_FIELD_MAX_BITS 261120
+
+  /**
    * @brief A run of bits inside the assembled frame, `[first, first + n)`.
    *
    * A stage that did not run reports `n == 0`, and its @p first is then zero
@@ -566,6 +581,8 @@ extern "C"
    * `pn` with no `POLY` means the maximal-length polynomial for its
    * register, so a register that has none (width 1) is refused unless a
    * `POLY` is given.
+   * `LEN * REPS` is at most @ref WFM_FIELD_MAX_BITS, and the refusal names
+   * that number: a longer run is a stream, not a Field.
    * A `0`/`1` string with any other character in it is refused rather than
    * filtered, because a typo that quietly shortens a sync word syncs to
    * nothing and fails nowhere.

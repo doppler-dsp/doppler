@@ -108,7 +108,6 @@
 * **rc\_stage\_t** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **ratesync\_\_core\_8h\_1a61dadd085c1777f559549e05962b2c9e** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635** ([**ratesync\_core.h**](ratesync__core_8h.md))
-* **RANDOMISE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
 ## s

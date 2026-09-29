@@ -785,10 +785,9 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char **why)
    * quietly rebuilds a different waveform. */
   if (read_frame_fields (so, out) != 0)
     return -1;
-  /* A CARRIED description, if the record has one. Read after the flat fields
-   * rather than before, so it is the LAST word on what frame this is —
-   * matching dp_wfm_source_describe_frame(), where a carried description beats
-   * the flat fields it sits beside instead of being merged with them. */
+  /* A CARRIED description, if the record has one. It is the whole frame, so
+   * a sync word or an unspread preamble read beside it above is refused by
+   * dp_wfm_source_frame_error() rather than merged with it or dropped. */
   if (read_frame_desc (so, out, why) != 0)
     {
       /* A refused description is still an ALLOCATED one -- it is reachable

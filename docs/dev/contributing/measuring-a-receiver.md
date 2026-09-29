@@ -234,7 +234,7 @@ itself measured rather than assumed. `dp_rx_test.h` is the one exception and
 it is tracked as such.
 
 **Shipped, so a caller outside this repo gets the same path:** `BerMeter`,
-`FrameMeter`, `wfm_frame_t`, `doppler_channel`, and both estimators, all with
+`FrameMeter`, the frame description (`Frame`/`FrameDesc`), `doppler_channel`, and both estimators, all with
 Python bindings. The named operating points deliberately do **not** ship —
 they are our conventions, not an API, and a caller measuring their own
 receiver wants the machinery rather than our choice of `sps = 8`.

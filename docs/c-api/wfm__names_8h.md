@@ -47,7 +47,6 @@
 |  const char \*const | [**LFSR\_NAMES**](#variable-lfsr_names)   = `{ "galois", "fibonacci" }`<br> |
 |  const char \*const | [**MODE\_NAMES**](#variable-mode_names)   = `{ "auto", "fs", "ebno", "esno" }`<br> |
 |  const char \*const | [**PULSE\_NAMES**](#variable-pulse_names)   = `{ "rect", "rrc" }`<br> |
-|  const char \*const | [**RANDOMISE\_NAMES**](#variable-randomise_names)   = `{ "off", "ccsds", "legacy" }`<br> |
 |  const char \*const | [**SEED\_ADVANCE\_NAMES**](#variable-seed_advance_names)   = `{ "none", "noise", "all" }`<br> |
 |  const char \*const | [**SEQ\_KIND\_NAMES**](#variable-seq_kind_names)   = `{ "literal", "pn", "gold", "dotted" }`<br> |
 |  const char \*const | [**STAGE\_KIND\_NAMES**](#variable-stage_kind_names)   = `{ "crc16", "rs", "randomise", "conv", "interleave" }`<br> |
@@ -228,19 +227,6 @@ const char* const MODE_NAMES[];
 
 ```C++
 const char* const PULSE_NAMES[];
-```
-
-
-
-
-<hr>
-
-
-
-### variable RANDOMISE\_NAMES 
-
-```C++
-const char* const RANDOMISE_NAMES[];
 ```
 
 

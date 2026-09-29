@@ -101,14 +101,4 @@ static const char *const DATA_SRC_NAMES[] = { "prbs", "none" };
 static const char *const SEQ_KIND_NAMES[]
     = { "literal", "pn", "gold", "dotted" };
 
-/* --randomise: WHICH section-10 generator, because 131.0-B-6 specifies two
-   and they produce waveforms only the matching receiver derandomises.
-   Index 0 is "off" so an absent flag and an explicit off are one value, and
-   index 1 is B-6 10.4.1's -- the `shall` -- which is what OPT_CHOICE_OPT
-   selects when the flag is given with no value. "legacy" is 10.4.2's 255-bit
-   sequence, kept for backward compatibility and carrying spectral lines at
-   1/255 of the symbol rate.
-   SSOT: enum=randomise */
-static const char *const RANDOMISE_NAMES[] = { "off", "ccsds", "legacy" };
-
 #endif /* WFM_NAMES_H */

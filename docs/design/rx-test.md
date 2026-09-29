@@ -118,7 +118,7 @@ Nine waveform types:
 | `WFM_SYNTH_SYMBOLS` | 7     | raw constellation points               |
 | `WFM_SYNTH_DSSS`    | 8     | two-code burst **or** continuous       |
 
-Attach functions: `dp_wfm_synth_set_bits`, `dp_wfm_synth_set_dsss`,
+Attach functions: `dp_wfm_synth_set_bits`, `dp_wfm_synth_set_dsss_chips`,
 `dp_wfm_synth_set_dsss_cont`, `dp_wfm_synth_set_symbols`, `dp_wfm_synth_set_rrc`,
 `dp_wfm_synth_set_chirp_span`. Noise: `dp_wfm_synth_noise_steps`,
 `dp_wfm_synth_reseed_noise`, with `snr_mode` selecting an Es/N0 convention.
@@ -142,9 +142,9 @@ size_t dp_wfm_frame_dsss_chips  (const uint8_t *acq_code, size_t acq_len, …);
 ```
 
 Both emit **chips**, and the layout `[preamble | sync | payload | CRC-16]` is
-expressed exactly once — inside the DSSS spreader. `dp_wfm_synth_set_dsss()`
-takes `acq_code`/`acq_reps` (repeated preamble), `sync`/`sync_len` (frame-sync
-word, Barker-13 by convention), `payload`, and `crc`.
+expressed exactly once — inside the DSSS spreader. The synth's DSSS entry
+point took `acq_code`/`acq_reps` (repeated preamble), `sync`/`sync_len`
+(frame-sync word, Barker-13 by convention), `payload`, and `crc`.
 
 **The unspread path has none of it.** `dp_wfm_synth_set_bits(state, bits, n, modulation)` takes bits and a modulation index and nothing else. wfmgen's own
 help states the continuous DSSS mode has "No preamble/sync/CRC frame" and
@@ -607,7 +607,12 @@ ______________________________________________________________________
 
 ## 7. The frame descriptor
 
-**Built, in part — see §7.6 for what landed and what has not.** One struct describing a frame's *bit layout*, read
+**Built, then generalised.** The four-field struct this section designed was
+the first configuration of a general frame *description* — fields plus the
+stages that cover them — and was deleted once every caller read the
+description instead ([A Frame as a Description](frame-description.md) §R).
+The common frame below is now `dp_wfm_frame_fixed()`, read by field name;
+the reasoning here still holds. See §7.6 for what landed. One struct describing a frame's *bit layout*, read
 by the generator that builds it and by the measurer that scores it. The
 existing DSSS assembler already states the reason it must be shared — it is
 "assembled in one place so TX and RX can never drift" — and this generalises
@@ -671,23 +676,16 @@ typedef struct
 } wfm_seq_t;
 
 /**
- * @brief A frame's bit layout: [preamble x reps | sync | payload | crc].
+ * @brief Describe the common frame: [preamble x reps | sync | payload | crc].
  *
  * The preamble sits OUTSIDE the sync/payload/CRC group, matching the existing
  * DSSS contract: it is unmodulated, it is not covered by the CRC, and in the
- * spread case it is not spread. It is the coherent-integration target.
+ * spread case it is not spread. It is the coherent-integration target. The
+ * CRC is a stage over the payload and the trailer it derives.
  */
-typedef struct
-{
-  wfm_seq_t preamble;      /**< len 0 = none                                */
-  size_t    preamble_reps; /**< repetitions of `preamble`; 0 = none         */
-  wfm_seq_t sync;          /**< len 0 = unsynced (BER then needs an
-                                external alignment -- see 2.4)              */
-  wfm_seq_t payload;
-  int       crc; /**< non-zero: a CRC-16-CCITT trailer over the payload,
-                      MSB-first. Same flag, same meaning as
-                      dp_wfm_frame_dsss_chips().                               */
-} wfm_frame_t;
+int dp_wfm_frame_fixed (wfm_frame_desc_t *d, const wfm_seq_t *preamble,
+                        size_t reps, const wfm_seq_t *sync,
+                        const wfm_seq_t *payload, int crc);
 ```
 
 **Why generated kinds matter more than literal ones.** A literal array is what
@@ -713,40 +711,32 @@ recompute it, which is exactly how TX and RX drift.
 <!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
-/** @brief Where each field lands, in bits from the start of the frame. */
-typedef struct
-{
-  size_t preamble_off, preamble_bits;
-  size_t sync_off,     sync_bits;
-  size_t payload_off,  payload_bits;
-  size_t crc_off,      crc_bits;   /**< 16, or 0 when crc is NONE or the
-                                        payload is empty — a CRC over
-                                        nothing protects nothing           */
-  size_t total_bits;
-} wfm_frame_layout_t;
+/** @brief Every field's offset and length, every stage's span. */
+int dp_wfm_frame_desc_layout (const wfm_frame_desc_t *d,
+                              wfm_frame_desc_layout_t *out);
 
-/** @brief Total frame bits, or 0 if the geometry is invalid/empty. */
-size_t dp_wfm_frame_nbits (const wfm_frame_t *f);
-
-/** @brief Fill @p out with the field offsets. Returns 0, or -1 if invalid. */
-int dp_wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out);
+/** @brief The field called @p name, or -1 -- how a caller finds "payload". */
+int dp_wfm_frame_field_index (const wfm_frame_desc_t *d, const char *name);
 
 /** @brief Materialise the frame as one flat 0/1 bit array.
- *  @return bits written, or 0 if invalid or @p max_out is too small. */
-size_t dp_wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+ *  @return bits written, or 0 if refused or @p max_out is too small. */
+size_t dp_wfm_frame_assemble (const wfm_frame_desc_t *d,
+                              const wfm_frame_ops_t *ops, uint8_t *out,
+                              size_t max_out);
 
 /** @brief Check a received frame's CRC in place.
- *  @return 1 pass, 0 fail, -1 if the frame carries no CRC. */
-int dp_wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits);
+ *  @return 1 pass, 0 fail, -1 if the description carries no CRC. */
+int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
+                              const uint8_t *rx_bits);
 ```
 
-`dp_wfm_frame_crc_ok()` is what makes the truth-free FER of §2.5 possible: it
+`dp_wfm_frame_desc_crc_ok()` is what makes the truth-free FER of §2.5 possible: it
 needs the layout and the received bits, and no payload truth at all.
 
 ### 7.3 What it costs the existing DSSS path
 
 `dp_wfm_frame_dsss_chips()` keeps its signature and its contract, but its body
-becomes: build `wfm_frame_t` from its arguments, call `dp_wfm_frame_bits()` for
+becomes: describe the frame from its arguments, assemble it for
 the `sync | payload | crc` group, spread that, and prepend the repeated
 preamble. The layout stops being expressed twice. `dp_wfm_frame_dsss_nchips()`
 becomes `preamble bits + dp_wfm_frame_nbits(frame group) * data_len`.
@@ -793,7 +783,7 @@ anything reachable only from there is exercised by nobody but us, and that is
 the right test for a *capability*. This is a convention: five arbitrary lengths
 that exist so two of OUR measurements are comparable. Shipping them would make
 those lengths an API to keep stable, and a caller describing their own frame
-needs `wfm_frame_t`, not our choice of 1024. The descriptor ships; the set does
+needs a description of their own, not our choice of 1024. The description ships; the set does
 not.
 
 The sync length of 127 is a **placeholder pending the §6 measurement**, not a

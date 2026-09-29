@@ -62,3 +62,15 @@ doppler-doxygen:	the CI image — see deploy/docker/README.md
 # gen_wfm_defaults). Guard it on sys.version_info, or import inside the one
 # function that needs it.
 ^import tomllib\b	if sys.version_info >= (3, 11): import tomllib / else: import tomli as tomllib
+
+# doppler#853 item 11: a frame is a description. The four-field struct, its
+# named layout and the bridges that spoke it are deleted, and so is the
+# source's by-name compiler; every caller reads a `wfm_frame_desc_t`, and the
+# common frame is `dp_wfm_frame_fixed()`. `set_dsss` alone is retired -- its
+# `_chips`/`_cont`/`_window` siblings are live, hence the look-ahead.
+\bwfm_frame_t\b	wfm_frame_desc_t, built by dp_wfm_frame_fixed() for the common frame
+\bwfm_frame_layout_t\b	wfm_frame_desc_layout_t, read by field name (dp_wfm_frame_field_index)
+\bdp_wfm_frame_describe\b	dp_wfm_frame_fixed()
+\bdp_wfm_source_describe_frame\b	the source's carried frame, or dp_wfm_frame_fixed() of its common fields
+\bFrameLayout\b	Frame.field_off(Frame.field_index("payload")) -- a frame is read by name
+\bdp_wfm_synth_set_dsss\b(?!_)	dp_wfm_dsss_desc_chips() then dp_wfm_synth_set_dsss_chips()

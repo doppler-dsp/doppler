@@ -75,6 +75,10 @@ SKIP_PARTS = frozenset(
         "node_modules",
     }
 )
+# Dated measurement records: the tree as it was measured, never edited to
+# follow a rename (see main()).
+RECORDS = ("docs/design/frame-description-measurements.md",)
+
 SUFFIXES = frozenset(
     {".c", ".h", ".py", ".md", ".txt", ".toml", ".yml", ".yaml", ".sh", ".pyi"}
 )
@@ -154,6 +158,11 @@ def main() -> int:
     # cannot be a call site. The FULL CHANGELOG.md is assembled from these
     # and is likewise prose.
     exempt_dirs = (ROOT / "changelog.d",)
+    # ...and a DATED MEASUREMENT RECORD, for the same reason: it states what
+    # the tree held on the day it was measured, and editing it to satisfy a
+    # later rename would rewrite the evidence. Named file by file, so a
+    # design page that describes the present is still held to the rule.
+    exempt |= {(ROOT / rel).resolve() for rel in RECORDS}
 
     hits: list[str] = []
     for path in _files():

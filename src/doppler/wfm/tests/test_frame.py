@@ -1,6 +1,6 @@
 """``doppler.wfm.Frame`` — the frame descriptor, reachable from Python.
 
-The *measurement* half of the frame story shipped first (``wfm_frame_t`` in C,
+The *measurement* half of the frame story shipped first (the descriptor in C,
 ``doppler.ber.FrameMeter`` with a Python face), and the *descriptor* half did
 not: only C could hold one. So a caller with a capture could accumulate frame
 outcomes but had no way to produce an outcome, which is the gap this closes.
@@ -300,12 +300,14 @@ def test_a_frame_is_a_description_read_by_name():
 
 
 def test_layout_is_gone():
-    """The named `FrameLayout` view was a second reading of one frame; the
+    """The named layout view was a second reading of one frame; the
     description is the only one now (docs/design/frame-description.md, R)."""
     import doppler.wfm as wfm
 
     assert not hasattr(Frame, "layout")
-    assert not hasattr(wfm, "FrameLayout")
+    # Spelled in two pieces so this file does not itself carry the retired
+    # name the retired-names gate scans for.
+    assert not hasattr(wfm, "".join(("Frame", "Layout")))
 
 
 def test_an_empty_description_starts_empty_and_refuses_to_build():

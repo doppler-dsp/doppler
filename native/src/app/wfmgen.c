@@ -500,25 +500,21 @@ typedef struct
    parse_args, instead of it silently falling through as a no-op. */
 enum opt_kind
 {
-  OPT_SET,        /* takes no value; the destination int becomes 1        */
-  OPT_STR,        /* the raw token, stored verbatim (NULL is tolerated)   */
-  OPT_CHOICE,     /* one name from `tbl`; the destination int gets its index */
-  OPT_CHOICE_OPT, /* OPT_CHOICE whose value may be OMITTED, and then means
-                     index 1 -- so `--flag` and `--flag <name>` both work.
-                     The table must therefore be ordered with the "off" or
-                     absent sense at 0 and the default ON sense at 1. */
-  OPT_DOUBLE,     /* strtod                                               */
-  OPT_INT,        /* strtol                                               */
-  OPT_SIZE,       /* strtoull -> size_t                                   */
-  OPT_U32,        /* strtoul  -> uint32_t                                 */
-  OPT_U64,        /* strtoull -> uint64_t                                 */
-  OPT_RANGE_D,    /* LO[:HI] -> double at off, hi at aux, bit in src.ranged */
-  OPT_RANGE_N,    /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
-  OPT_BITS_FILE,  /* a file whose BYTES are the bits, MSB first          */
-  OPT_SYMBOLS,    /* a raw cf32 file -> float _Complex * at off           */
-  OPT_FIELD,      /* a Field (wfm_frame.h) -> the wfm_seq_t at off; its
-                     *REPS to the size_t at aux, or refused when the row
-                     has no repetition count                             */
+  OPT_SET,       /* takes no value; the destination int becomes 1        */
+  OPT_STR,       /* the raw token, stored verbatim (NULL is tolerated)   */
+  OPT_CHOICE,    /* one name from `tbl`; the destination int gets its index */
+  OPT_DOUBLE,    /* strtod                                               */
+  OPT_INT,       /* strtol                                               */
+  OPT_SIZE,      /* strtoull -> size_t                                   */
+  OPT_U32,       /* strtoul  -> uint32_t                                 */
+  OPT_U64,       /* strtoull -> uint64_t                                 */
+  OPT_RANGE_D,   /* LO[:HI] -> double at off, hi at aux, bit in src.ranged */
+  OPT_RANGE_N,   /* LO[:HI] -> size_t at off, hi at aux, bit in seg.ranged */
+  OPT_BITS_FILE, /* a file whose BYTES are the bits, MSB first          */
+  OPT_SYMBOLS,   /* a raw cf32 file -> float _Complex * at off           */
+  OPT_FIELD,     /* a Field (wfm_frame.h) -> the wfm_seq_t at off; its
+                    *REPS to the size_t at aux, or refused when the row
+                    has no repetition count                             */
 };
 
 /* One flag.
@@ -840,18 +836,9 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
          must reject it rather than hand it to strtod, which is undefined and
          segfaults in practice. */
       const char *v = NULL;
-      if (opt->kind == OPT_CHOICE_OPT)
-        {
-          /* PEEK. The value is optional, so a following token is only ours
-             if it is not another flag -- otherwise `--randomise --asm` would
-             eat `--asm` and report it as a bad value. */
-          if (i + 1 < argc && argv[i + 1][0] != '-')
-            v = argv[++i];
-        }
-      else if (opt->kind != OPT_SET)
+      if (opt->kind != OPT_SET)
         v = (i + 1 < argc) ? argv[++i] : NULL;
-      if (!v && opt->kind != OPT_SET && opt->kind != OPT_STR
-          && opt->kind != OPT_CHOICE_OPT)
+      if (!v && opt->kind != OPT_SET && opt->kind != OPT_STR)
         {
           (void)fprintf (stderr, "error: %s requires a value\n", a);
           return 2;
@@ -872,14 +859,6 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           *(const char **)dst = v;
           break;
 
-        case OPT_CHOICE_OPT:
-          if (v == NULL)
-            {
-              *(int *)dst = 1; /* the flag alone means its default ON sense */
-              break;
-            }
-          /* fall through: with a value it is an ordinary choice */
-          /* FALLTHROUGH */
         case OPT_CHOICE:
           {
             int idx = lookup (v, opt->tbl, opt->ntbl);

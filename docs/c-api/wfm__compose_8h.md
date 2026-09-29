@@ -86,6 +86,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_compose\_draws**](#function-dp_wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
 |  size\_t | [**dp\_wfm\_compose\_execute**](#function-dp_wfm_compose_execute) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file**](#function-dp_wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file\_why**](#function-dp_wfm_compose_from_file_why) (const char \* path, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_file**_](wfm__compose_8h.md#function-dp_wfm_compose_from_file) _, able to say why a scene was refused._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json**](#function-dp_wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_why**](#function-dp_wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
 |  int | [**dp\_wfm\_compose\_seed\_advance**](#function-dp_wfm_compose_seed_advance) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._ |
@@ -603,6 +604,45 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_file (
 **Returns:**
 
 Composer state, or NULL on read/parse error. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_compose\_from\_file\_why 
+
+[_**dp\_wfm\_compose\_from\_file**_](wfm__compose_8h.md#function-dp_wfm_compose_from_file) _, able to say why a scene was refused._
+```C++
+dp_wfm_compose_state_t * dp_wfm_compose_from_file_why (
+    const char * path,
+    const char ** why
+) 
+```
+
+
+
+Reads `path` and hands its text to [**dp\_wfm\_compose\_from\_json\_why**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why), so the reason is that function's: a retired key or a refused frame, named. A file that cannot be read gives NULL and leaves `why` NULL.
+
+
+
+
+**Parameters:**
+
+
+* `path` the spec file. 
+* `why` optional; as for [**dp\_wfm\_compose\_from\_json\_why**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why). 
+
+
+
+**Returns:**
+
+Composer state, or NULL on read/parse error / a refused scene. 
 
 
 

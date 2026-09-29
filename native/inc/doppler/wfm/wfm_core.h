@@ -161,6 +161,9 @@ void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
  * @param spec  NUL-terminated Field text.
  * @param out   receives the bits, one per byte, 0 or 1; sized by
  *              `dp_wfm_field_bits (spec, NULL, 0, NULL)`.
+ * @param why   optional; as @ref dp_wfm_field_bits -- a STATIC sentence
+ *              naming the refusal, NULL on success. The binding raises it
+ *              as the ValueError's message.
  * @return the bits written, or 0 on refusal (the binding raises).
  *
  * @code
@@ -174,11 +177,11 @@ void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
  * >>> field_bits("pn::10")
  * Traceback (most recent call last):
  *     ...
- * RuntimeError: dp_field_bits failed (returned 0)
+ * ValueError: LEN, the output length in bits, must be a number > 0
  *
  * @endcode
  */
-size_t dp_field_bits(const char * spec, uint8_t *out);
+size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
 #ifdef __cplusplus
 }
 #endif

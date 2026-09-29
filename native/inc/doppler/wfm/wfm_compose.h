@@ -1072,6 +1072,20 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
  */
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 
+/**
+ * @brief @ref dp_wfm_compose_from_file, able to say why a scene was refused.
+ *
+ * Reads @p path and hands its text to @ref dp_wfm_compose_from_json_why, so
+ * the reason is that function's: a retired key or a refused frame, named. A
+ * file that cannot be read gives NULL and leaves @p why NULL.
+ *
+ * @param path  the spec file.
+ * @param why   optional; as for @ref dp_wfm_compose_from_json_why.
+ * @return Composer state, or NULL on read/parse error / a refused scene.
+ */
+dp_wfm_compose_state_t *dp_wfm_compose_from_file_why(const char *path,
+                                                     const char **why);
+
 #ifdef __cplusplus
 }
 #endif

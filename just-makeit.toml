@@ -1029,6 +1029,7 @@ out_type = "uint8_t"
 variable_output = true
 out_size = "dp_wfm_field_bits(spec, NULL, 0, NULL)"
 check_return = true
+why = true
 
 [[module.wfm.functions.params]]
 name = "spec"
@@ -1632,6 +1633,13 @@ header = "doppler/timing/timing_core.h"
 
 [module.wfm_compose.json]
 enabled = true
+# doppler#1614: both readers take a trailing `const char **why`, so a refused
+# scene (a retired key, a frame that cannot assemble) raises the C's sentence
+# naming it instead of "<fn> failed" (just-makeit#1706).
+from_json_fn = "dp_wfm_compose_from_json_why"
+from_json_why = true
+from_file_fn = "dp_wfm_compose_from_file_why"
+from_file_why = true
 to_json_fn = "dp_wfm_spec_to_json"
 # The trailing literals are spliced after (segs, n, repeat, continuous), so the
 # order here IS the C signature's. `self->state` is in scope in jm's generated

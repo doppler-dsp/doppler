@@ -3487,10 +3487,15 @@ Composer_from_json (PyObject *cls, PyObject *args)
   const char *json;
   if (!PyArg_ParseTuple (args, "s", &json))
     return NULL;
-  dp_wfm_compose_state_t *st = dp_wfm_compose_from_json (json);
+  const char             *_why = NULL;
+  dp_wfm_compose_state_t *st   = dp_wfm_compose_from_json_why (json, &_why);
   if (!st)
     {
-      PyErr_SetString (PyExc_ValueError, "dp_wfm_compose_from_json failed");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "dp_wfm_compose_from_json_why failed");
       return NULL;
     }
   ComposerObject *self = (ComposerObject *)type->tp_alloc (type, 0);
@@ -3512,12 +3517,16 @@ Composer_from_file (PyObject *cls, PyObject *args)
   PyObject *pathobj;
   if (!PyArg_ParseTuple (args, "O&", PyUnicode_FSConverter, &pathobj))
     return NULL;
+  const char             *_why = NULL;
   dp_wfm_compose_state_t *st
-      = dp_wfm_compose_from_file (PyBytes_AS_STRING (pathobj));
+      = dp_wfm_compose_from_file_why (PyBytes_AS_STRING (pathobj), &_why);
   Py_DECREF (pathobj);
   if (!st)
     {
-      PyErr_SetString (PyExc_OSError, "dp_wfm_compose_from_file failed");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_OSError, "dp_wfm_compose_from_file_why failed");
       return NULL;
     }
   ComposerObject *self = (ComposerObject *)type->tp_alloc (type, 0);

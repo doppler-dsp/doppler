@@ -34,7 +34,7 @@ void dp_rrc_taps(double beta, int sps, int span, float *out);
 void dp_dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
 void dp_rrc_h(const double *t, size_t t_len, double *out, double beta);
 void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
-size_t dp_field_bits(const char * spec, uint8_t *out);
+size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
 #ifdef __cplusplus
 }
 #endif

@@ -55,3 +55,10 @@ doppler-doxygen:	the CI image — see deploy/docker/README.md
 # #1360), and stale "unsupported" comments outlived that by a release.
 (?i)(does not|doesn't) target Windows	Windows builds with clang/clang-cl: docs/install/source.md#windows
 (?i)Windows[^.\n]{0,20}\bis (intentionally |deliberately )?(unsupported|not supported)	Windows builds with clang/clang-cl: docs/install/source.md#windows
+
+# A module-level `import tomllib` is 3.11+, and doppler's floor is 3.9: a
+# script a test imports, or runs with sys.executable, fails ONLY the Python
+# 3.9/3.10 CI jobs -- three times now (check_wfm_enum_tables, gen_issue_tracker,
+# gen_wfm_defaults). Guard it on sys.version_info, or import inside the one
+# function that needs it.
+^import tomllib\b	if sys.version_info >= (3, 11): import tomllib / else: import tomli as tomllib

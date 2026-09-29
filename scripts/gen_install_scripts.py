@@ -44,7 +44,10 @@ import argparse
 import sys
 from pathlib import Path
 
-import tomllib
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - the 3.9/3.10 CI matrix jobs
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 BOOTSTRAP_TOML = ROOT / "bootstrap.toml"

@@ -94,4 +94,5 @@ validate_carrier_nda_scurve              0.1
 validate_carrier_nda_step_response       0.1
 validate_interleave_burst_gain           0.1
 validate_lockdet_verify                  0.1
+validate_wfm_field_explore               0.1
 validate_wfmgen_certify                  0.1

@@ -1543,22 +1543,28 @@ load_frame (wfmgen_opts_t *o)
 }
 
 /**
- * @brief Refuse a frame this waveform type cannot carry — with the reason.
+ * @brief Refuse a source that cannot be built — with the reason.
  *
- * The rule itself is `dp_wfm_source_frame_error()`, shared with the standalone
- * Synth and the composer so all three faces answer identically. What this adds
- * is the CLI's half of the contract: a named exit code and the reason on
- * stderr, rather than the generic build failure a NULL from
- * `dp_wfm_compose_create()` produces. Both refuse; only one of them tells you
- * what to do instead.
+ * The rule itself is `dp_wfm_source_error()`: a source's own parameters
+ * (a `--pn-poly` wider than `--pn-length`'s register) and then its frame
+ * (`dp_wfm_source_frame_error()`), shared with the standalone Synth, the
+ * scene reader and the composer so every face answers identically. What
+ * this adds is the CLI's half of the contract: a named exit code, the reason
+ * on stderr, and the flag values when the reason is about them -- rather
+ * than the generic build failure a NULL from `dp_wfm_compose_create()`
+ * produces. Both refuse; only one of them tells you what to do instead.
  */
 static int
-check_frame (const wfmgen_opts_t *o)
+check_source (const wfmgen_opts_t *o)
 {
-  const char *why = dp_wfm_source_frame_error (&o->src);
+  const char *why = dp_wfm_source_error (&o->src);
   if (!why)
     return 0;
-  (void)fprintf (stderr, "error: %s\n", why);
+  if (why == dp_wfm_why_pn_poly)
+    (void)fprintf (stderr, "error: --pn-poly 0x%llx, --pn-length %d: %s\n",
+                   (unsigned long long)o->src.pn_poly, o->src.pn_length, why);
+  else
+    (void)fprintf (stderr, "error: %s\n", why);
   return 2;
 }
 
@@ -1710,7 +1716,7 @@ wfmgen_run (int argc, char *argv[])
       rc = check_continuous_dsss (&o);
       if (rc)
         goto done;
-      rc = check_frame (&o);
+      rc = check_source (&o);
       if (rc)
         goto done;
       comp = dp_wfm_compose_create (&o.seg, 1, o.repeat, o.continuous);

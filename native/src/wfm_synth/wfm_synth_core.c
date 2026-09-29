@@ -60,8 +60,11 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
     {
       uint64_t poly
           = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
-      if (poly == 0)
-        { /* no MLS table entry for this length */
+      /* No MLS table entry for this length, or a poly with a bit above the
+         register, which dp_pn_create would mask -- to no feedback at all
+         for 0x40 on a 5-bit register (doppler#1636). */
+      if (poly == 0 || !pn_fits_register (poly, (uint32_t)pn_length))
+        {
           if (obj->lo)
             dp_lo_destroy (obj->lo);
           free (obj);
@@ -86,7 +89,7 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
     {
       uint64_t poly
           = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
-      if (poly != 0)
+      if (poly != 0 && pn_fits_register (poly, (uint32_t)pn_length))
         obj->pn
             = dp_pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
     }

@@ -47,9 +47,10 @@ class Synth:
         as 0.
     pn_poly : int, default 0
         PN generator polynomial, in the Galois bit-vector convention; 0 selects
-        a maximal-length (MLS) polynomial for pn_length. A polynomial above
-        2^53 does not survive a JSON number, so a scene file needs 0 (auto) for
-        such a register.
+        a maximal-length (MLS) polynomial for pn_length. It must fit the
+        pn_length-bit register: a bit at or above it is refused, not masked. A
+        polynomial above 2^53 does not survive a JSON number, so a scene file
+        needs 0 (auto) for such a register.
     lfsr : str, default ``"galois"``
         PN LFSR realisation. Both give the same period; fibonacci's chips are
         galois's in reverse order.
@@ -328,9 +329,10 @@ class Segment:
         as 0.
     pn_poly : int, default 0
         PN generator polynomial, in the Galois bit-vector convention; 0 selects
-        a maximal-length (MLS) polynomial for pn_length. A polynomial above
-        2^53 does not survive a JSON number, so a scene file needs 0 (auto) for
-        such a register.
+        a maximal-length (MLS) polynomial for pn_length. It must fit the
+        pn_length-bit register: a bit at or above it is refused, not masked. A
+        polynomial above 2^53 does not survive a JSON number, so a scene file
+        needs 0 (auto) for such a register.
     lfsr : str, default ``"galois"``
         PN LFSR realisation. Both give the same period; fibonacci's chips are
         galois's in reverse order.

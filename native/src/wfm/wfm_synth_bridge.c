@@ -44,6 +44,24 @@ dp_wfm_source_has_frame (const wfm_source_t *src)
 static int type_can_frame (const wfm_source_t *src);
 static int source_frame (const wfm_source_t *src, wfm_frame_desc_t *d);
 
+const char dp_wfm_why_pn_poly[]
+    = "pn_poly has a bit at or above bit pn_length, outside the register "
+      "it configures, and the generator would mask it away: give a pn_poly "
+      "inside the pn_length-bit register, or 0 for its maximal-length "
+      "polynomial";
+
+const char *
+dp_wfm_source_error (const wfm_source_t *src)
+{
+  /* Only where a PN register is built from it: a framed bpsk is built as a
+     BITS synth (dp_wfm_source_synth_type), and a tone never reads it. */
+  const int t = dp_wfm_source_synth_type (src);
+  if (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK && src->pn_poly
+      && !pn_fits_register (src->pn_poly, (uint32_t)src->pn_length))
+    return dp_wfm_why_pn_poly;
+  return dp_wfm_source_frame_error (src);
+}
+
 const char *
 dp_wfm_source_frame_error (const wfm_source_t *src)
 {
@@ -447,7 +465,7 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* A frame this waveform type cannot carry. Refusing is the whole point:
      these fields used to be accepted and dropped, so the caller got an
      unframed waveform and no way to find out. */
-  if (dp_wfm_source_frame_error (src) != NULL)
+  if (dp_wfm_source_error (src) != NULL)
     return NULL;
   /* A sweeping chirp needs its span, and standalone there is no segment to
      lend one. It used to lock to the length of the first read, so step(),

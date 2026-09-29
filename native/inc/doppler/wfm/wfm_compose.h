@@ -175,7 +175,9 @@ typedef struct {
                           as 0. */
     uint64_t pn_poly;  /* PN generator polynomial, in the Galois bit-vector
                           convention; 0 selects a maximal-length (MLS)
-                          polynomial for pn_length. A polynomial above 2^53
+                          polynomial for pn_length. It must fit the
+                          pn_length-bit register: a bit at or above it is
+                          refused, not masked. A polynomial above 2^53
                           does not survive a JSON number, so a scene file
                           needs 0 (auto) for such a register. */
     int lfsr;          /* PN LFSR realisation. Both give the same period;
@@ -692,6 +694,43 @@ size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
  * @return NULL if there is nothing wrong, else a static message.
  */
 const char *dp_wfm_source_frame_error(const wfm_source_t *src);
+
+/**
+ * @brief NULL when this source can be built; else why not, as a sentence.
+ *
+ * The question every face asks before it builds -- the wfmgen CLI, a scene
+ * read by dp_wfm_compose_from_json_why(), the standalone `Synth` through
+ * dp_wfm_source_to_synth() and the composer through dp_wfm_compose_create()
+ * -- so all four refuse the same sources for the same reason. It checks the
+ * source's own parameters, then asks dp_wfm_source_frame_error() about its
+ * frame:
+ *
+ * - `pn_poly` must fit the `pn_length`-bit register (pn_fits_register()).
+ *   The generator masks a wider one, silently, so `pn_poly = 0x40` on a
+ *   5-bit register is a register with no feedback: the seed, then zeros,
+ *   a constant waveform that still looks like a PN source (doppler#1636).
+ *   0 selects the maximal-length polynomial and always fits.
+ *
+ * @param src  The source.
+ * @return NULL if there is nothing wrong, else a static message.
+ *
+ * @code
+ * wfm_source_t s = { .type = WFM_SYNTH_PN, .sps = 1, .pn_length = 5,
+ *                    .pn_poly = 0x40 };
+ * dp_wfm_source_error (&s);   // "pn_poly has a bit above ..."
+ * s.pn_poly = 0x12;
+ * dp_wfm_source_error (&s);   // NULL: x^5 + x^2 + 1 fits
+ * @endcode
+ */
+const char *dp_wfm_source_error(const wfm_source_t *src);
+
+/**
+ * @brief The reason dp_wfm_source_error() gives for a `pn_poly` wider than
+ *        its register -- exported so a face that knows the values (the
+ *        wfmgen CLI) can name them beside it, by identity rather than by
+ *        matching text.
+ */
+extern const char dp_wfm_why_pn_poly[];
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.

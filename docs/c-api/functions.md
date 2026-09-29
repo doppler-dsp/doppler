@@ -544,6 +544,7 @@
 * **dp\_ccsds\_tm\_asm\_bits** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_asm\_find** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_rand\_init** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
+* **dp\_ccsds\_tm\_rand\_select** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_rand\_seq** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_rand\_seq\_with** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_ccsds\_tm\_rand\_step** ([**ccsds\_tm.h**](ccsds__tm_8h.md))

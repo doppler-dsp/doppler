@@ -108,6 +108,12 @@ dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits, size_t n)
     bits[i] = (uint8_t)((bits[i] ^ dp_ccsds_tm_rand_step (&s)) & 1u);
 }
 
+const ccsds_tm_rand_t *
+dp_ccsds_tm_rand_select (unsigned which)
+{
+  return (which == 2u) ? &dp_CCSDS_TM_RAND_LEGACY : &dp_CCSDS_TM_RAND;
+}
+
 void
 dp_ccsds_tm_randomise (uint8_t *bits, size_t n)
 {

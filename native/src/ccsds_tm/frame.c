@@ -39,7 +39,12 @@ size_t
 dp_ccsds_tm_frame_layout (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
                           ccsds_tm_frame_layout_t *out)
 {
-  if (frame_len == 0)
+  /* 0 none, 1 10.4.1, 2 10.4.2 -- the stage's own reading of the same
+     number (dp_ccsds_tm_rand_select). Anything else is refused rather than
+     read as "on": a value this field cannot mean used to build 10.4.1's
+     waveform silently (doppler#1609). Every path asks this function, so
+     encode, decode and describe all refuse it. */
+  if (frame_len == 0 || cfg->randomise < 0 || cfg->randomise > 2)
     return 0;
 
   size_t block_bytes;
@@ -134,7 +139,9 @@ dp_ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg, conv_enc_t *conv,
      inner code is given the CADU. Nothing here depends on the order the two
      lines are written in. */
   if (cfg->randomise)
-    dp_ccsds_tm_randomise (block, lay.block_bits);
+    dp_ccsds_tm_randomise_with (
+        dp_ccsds_tm_rand_select ((unsigned)cfg->randomise), block,
+        lay.block_bits);
 
   if (cfg->attach_asm)
     dp_ccsds_tm_asm_bits (cadu);
@@ -233,7 +240,8 @@ dp_ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg, const uint8_t *cadu,
   ccsds_tm_rand_state_t *pn = NULL;
   if (cfg->randomise)
     {
-      dp_ccsds_tm_rand_init (&rand_state, NULL);
+      dp_ccsds_tm_rand_init (
+          &rand_state, dp_ccsds_tm_rand_select ((unsigned)cfg->randomise));
       pn = &rand_state;
     }
 

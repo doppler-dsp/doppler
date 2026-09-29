@@ -1025,5 +1025,116 @@ main (void)
                         "wrote");
   }
 
+  /* ── the cfg's `randomise` SELECTS the generator, as the stage does ─────
+   *
+   * doppler#1609. The stage reads depth 2 as 10.4.2's legacy sequence (the
+   * block above); the cfg read `randomise` as on/off, so `.randomise = 2`
+   * built a 10.4.1 waveform that no legacy receiver reads, and describe --
+   * which never set the stage's depth -- agreed with it. The value now
+   * means the same thing on every path: 0 none, 1 10.4.1, 2 10.4.2, and
+   * anything else is refused rather than reinterpreted.
+   *
+   * The truth is the legacy sequence's published prefix (B-3 10.4.2,
+   * FF 48 0E C0 9A), positioned after the marker -- not a sequence this
+   * file generates, which would agree with a wrong generator.
+   */
+  {
+    static const uint8_t legacy40[40] = {
+      1, 1, 1, 1, 1, 1, 1, 1, /* FF */
+      0, 1, 0, 0, 1, 0, 0, 0, /* 48 */
+      0, 0, 0, 0, 1, 1, 1, 0, /* 0E */
+      1, 1, 0, 0, 0, 0, 0, 0, /* C0 */
+      1, 0, 0, 1, 1, 0, 1, 0  /* 9A */
+    };
+    enum
+    {
+      NB = 64
+    };
+    const ccsds_tm_frame_cfg_t cfg = {
+      .rs_depth = 0, .randomise = 2, .attach_asm = 1, .convolutional = 0
+    };
+    static uint8_t frame[NB]; /* zeros: the sequence IS the output */
+    static uint8_t out[32 + NB * 8];
+    DP_REQUIRE (
+        dp_ccsds_tm_frame_encode (&cfg, NULL, frame, NB, out, sizeof out)
+        == sizeof out);
+    DP_CHECK_MSG (memcmp (out, asm_published, sizeof asm_published) == 0,
+                  "randomise = 2: the marker is still unrandomised");
+    DP_CHECK_MSG (memcmp (out + 32, legacy40, sizeof legacy40) == 0,
+                  "randomise = 2 encodes with 10.4.2's legacy sequence, "
+                  "from the first bit of the block (#1609)");
+
+    /* decode reverses the SAME generator: zeros come back ... */
+    static uint8_t back[NB];
+    memset (back, 0xA5, sizeof back);
+    DP_REQUIRE (
+        dp_ccsds_tm_frame_decode (&cfg, out, sizeof out, back, NB, NULL)
+        == NB);
+    int zeros = 1;
+    for (size_t i = 0; i < NB; i++)
+      zeros &= back[i] == 0u;
+    DP_CHECK_MSG (zeros, "randomise = 2 decodes its own CADU back to zeros");
+
+    /* ... and a 10.4.1 decode of it does not, or the choice is decoration */
+    const ccsds_tm_frame_cfg_t c1 = {
+      .rs_depth = 0, .randomise = 1, .attach_asm = 1, .convolutional = 0
+    };
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&c1, out, sizeof out, back, NB, NULL)
+                == NB);
+    zeros = 1;
+    for (size_t i = 0; i < NB; i++)
+      zeros &= back[i] == 0u;
+    DP_CHECK_MSG (!zeros, "a 10.4.1 decode does not recover a legacy CADU");
+
+    /* describe agrees with encode, bit for bit, through the stage table */
+    static uint8_t   fbits[NB * 8];
+    wfm_frame_desc_t d;
+    DP_REQUIRE (dp_ccsds_tm_frame_describe (&cfg, NB, fbits, &d) == 0);
+    wfm_frame_ops_t ops;
+    dp_ccsds_tm_frame_ops (&ops, NULL);
+    static uint8_t via[32 + NB * 8];
+    DP_REQUIRE (dp_wfm_frame_assemble (&d, &ops, via, sizeof via)
+                == sizeof via);
+    DP_CHECK_MSG (memcmp (via, out, sizeof out) == 0,
+                  "randomise = 2: describe's frame is encode's frame");
+
+    /* With the outer code in the path: a real payload round-trips. */
+    const ccsds_tm_frame_cfg_t rs = {
+      .rs_depth = 1, .randomise = 2, .attach_asm = 1, .convolutional = 0
+    };
+    static uint8_t info[CCSDS_TM_RS_K], info_back[CCSDS_TM_RS_K];
+    for (size_t i = 0; i < sizeof info; i++)
+      info[i] = (uint8_t)(i * 37u + 11u);
+    static uint8_t cadu[32 + CCSDS_TM_RS_N * 8];
+    DP_REQUIRE (dp_ccsds_tm_frame_encode (&rs, NULL, info, sizeof info, cadu,
+                                          sizeof cadu)
+                == sizeof cadu);
+    DP_REQUIRE (dp_ccsds_tm_frame_decode (&rs, cadu, sizeof cadu, info_back,
+                                          sizeof info_back, NULL)
+                == sizeof info);
+    DP_CHECK_MSG (memcmp (info, info_back, sizeof info) == 0,
+                  "randomise = 2 with R-S depth 1 round-trips");
+
+    /* Anything else is refused on every path, not read as "on". */
+    const int bad[] = { 3, -1 };
+    for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++)
+      {
+        ccsds_tm_frame_cfg_t b = cfg;
+        b.randomise            = bad[k];
+        DP_CHECK_MSG (dp_ccsds_tm_frame_layout (&b, NB, NULL) == 0,
+                      "layout refuses a randomise outside 0..2");
+        DP_CHECK_MSG (
+            dp_ccsds_tm_frame_encode (&b, NULL, frame, NB, out, sizeof out)
+                == 0,
+            "encode refuses a randomise outside 0..2");
+        DP_CHECK_MSG (
+            dp_ccsds_tm_frame_decode (&b, out, sizeof out, back, NB, NULL)
+                == 0,
+            "decode refuses a randomise outside 0..2");
+        DP_CHECK_MSG (dp_ccsds_tm_frame_describe (&b, NB, fbits, &d) != 0,
+                      "describe refuses a randomise outside 0..2");
+      }
+  }
+
   DP_TEST_END ("ccsds_tm_frame");
 }

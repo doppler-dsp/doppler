@@ -77,6 +77,7 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 |  void | [**dp\_ccsds\_tm\_asm\_bits**](#function-dp_ccsds_tm_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._ |
 |  int | [**dp\_ccsds\_tm\_asm\_find**](#function-dp_ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](ccsds__tm_8h.md#typedef-ccsds_tm_asm_hit_t) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
 |  void | [**dp\_ccsds\_tm\_rand\_init**](#function-dp_ccsds_tm_rand_init) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s, const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r) <br>_Load_ `r's` _preset, ready to emit its first bit._ |
+|  const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* | [**dp\_ccsds\_tm\_rand\_select**](#function-dp_ccsds_tm_rand_select) (unsigned which) <br>_The randomiser a numeric choice names: 2 is 10.4.2's legacy one._  |
 |  void | [**dp\_ccsds\_tm\_rand\_seq**](#function-dp_ccsds_tm_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
 |  void | [**dp\_ccsds\_tm\_rand\_seq\_with**](#function-dp_ccsds_tm_rand_seq_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* out, size\_t n) <br>[_**dp\_ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq) _with a chosen randomiser._ |
 |  uint8\_t | [**dp\_ccsds\_tm\_rand\_step**](#function-dp_ccsds_tm_rand_step) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s) <br>_Emit one bit and advance._  |
@@ -408,6 +409,49 @@ void dp_ccsds_tm_rand_init (
 * `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ccsds\_tm\_rand\_select 
+
+_The randomiser a numeric choice names: 2 is 10.4.2's legacy one._ 
+```C++
+const ccsds_tm_rand_t * dp_ccsds_tm_rand_select (
+    unsigned which
+) 
+```
+
+
+
+B-6 specifies two generators, so every place that carries the choice as a number  a frame description's randomise stage (`depth`) and `ccsds_tm_frame_cfg_t.randomise`  reads it here, and one value cannot mean two sequences (doppler#1609). 2 selects [**dp\_CCSDS\_TM\_RAND\_LEGACY**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand_legacy); anything else selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand), which is how a stage's unset depth (0) reads as the default. A caller whose field has a range to enforce refuses outside it BEFORE asking  dp\_ccsds\_tm\_frame\_layout refuses a cfg `randomise` outside 0..2.
+
+
+
+
+**Parameters:**
+
+
+* `which` 1 for 10.4.1, 2 for 10.4.2. 
+
+
+
+**Returns:**
+
+The generator, never NULL.
+
+
+
+```C++
+uint8_t bits[8] = { 0 };
+dp_ccsds_tm_randomise_with (dp_ccsds_tm_rand_select (2), bits, 8);
+// bits == 1 1 1 1 1 1 1 1: the legacy sequence's first octet, FF
+```
+ 
 
 
         

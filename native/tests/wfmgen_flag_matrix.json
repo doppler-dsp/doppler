@@ -1484,6 +1484,48 @@
     "outputs": {},
     "record": null
   },
+  "err_num_count_fraction": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--count",
+      "1.5"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --count takes a whole, non-negative sample count, or a LO:HI range of two -- not '1.5'\n"
+  },
+  "err_num_count_hi_negative": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--count",
+      "4:-2"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --count takes a whole, non-negative sample count, or a LO:HI range of two -- not '4:-2'\n"
+  },
+  "err_num_count_negative": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--count",
+      "-5"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --count takes a whole, non-negative sample count, or a LO:HI range of two -- not '-5'\n"
+  },
   "err_num_count_trailing": {
     "argv": [
       "--type",
@@ -1497,6 +1539,20 @@
     "outputs": {},
     "record": null,
     "stderr": "error: --count takes a number, or a LO:HI range -- not '64x'\n"
+  },
+  "err_num_delay_negative": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--delay",
+      "-1"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --delay takes a whole, non-negative sample count, or a LO:HI range of two -- not '-1'\n"
   },
   "err_num_fc_trailing": {
     "argv": [
@@ -1567,6 +1623,34 @@
     "outputs": {},
     "record": null,
     "stderr": "error: --freq takes a number, or a LO:HI range -- not '0.1abc'\n"
+  },
+  "err_num_off_fraction": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--off",
+      "1.5"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --off takes a whole, non-negative sample count, or a LO:HI range of two -- not '1.5'\n"
+  },
+  "err_num_off_negative": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--off",
+      "-1"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --off takes a whole, non-negative sample count, or a LO:HI range of two -- not '-1'\n"
   },
   "err_num_pn_poly_trailing": {
     "argv": [
@@ -2171,6 +2255,44 @@
       ],
       "version": 1
     }
+  },
+  "num_count_exponent": {
+    "argv": [
+      "--type",
+      "tone",
+      "--count",
+      "64",
+      "--count",
+      "1e3"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 8000
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "freq": 0,
+          "fs": 1,
+          "lfsr": "galois",
+          "num_samples": 1000,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "tone"
+        }
+      ],
+      "version": 1
+    },
+    "stderr": ""
   },
   "num_pn_poly_hex": {
     "argv": [

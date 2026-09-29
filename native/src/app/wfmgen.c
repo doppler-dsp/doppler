@@ -98,6 +98,17 @@ flag_uint (const char *a, const char *v, uint64_t max, uint64_t *out)
   return 0;
 }
 
+/* Non-zero when @p d is a count a size_t can hold: whole, non-negative and
+ * in range. On LP64 SIZE_MAX rounds UP to 2^64 as a double, so the strict
+ * `< 2^64` is the bound there; `<= SIZE_MAX` is the bound where size_t is
+ * 32 bits and exact. NaN fails `>= 0`. */
+static int
+whole_count (double d)
+{
+  return d >= 0.0 && d < 18446744073709551616.0 && d == floor (d)
+         && d <= (double)SIZE_MAX;
+}
+
 /* Parse a numeric flag value as a scalar (`12000`) or a uniform range
  * (`9000:14000`) into *lo; on a range it also sets *hi and *ranged so the
  * composer redraws the field each repeat. A bare scalar leaves *ranged 0.
@@ -991,6 +1002,19 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
             double lo = 0.0, hi = 0.0;
             if (parse_range (a, v, &lo, &hi, &ranged))
               return 2;
+            /* A sample count, read as a double so `1e3` stays legal -- but
+               only a WHOLE, non-negative one that fits: converting a
+               negative double to size_t is undefined, and on x86-64 it made
+               `--delay -1` a 2^64-sample run that wrote without bound
+               (doppler#1629); `1.5` truncated silently. */
+            if (!whole_count (lo) || (ranged && !whole_count (hi)))
+              {
+                (void)fprintf (stderr,
+                               "error: %s takes a whole, non-negative sample "
+                               "count, or a LO:HI range of two -- not '%s'\n",
+                               a, v);
+                return 2;
+              }
             *(size_t *)dst = (size_t)lo;
             *(size_t *)aux = (size_t)hi;
             o->seg.ranged  = ranged ? (o->seg.ranged | opt->range_bit)

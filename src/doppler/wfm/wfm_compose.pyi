@@ -108,9 +108,9 @@ class Synth:
         stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
-        For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill
-        the request. For type=dsss (as `payload`): the payload bits of the
-        burst frame.
+        The payload bits: a Field on the command line and in a scene, an array
+        in Python. For type=bits, the pattern, oversampled by sps and cycled to
+        fill the request; for type=dsss, the payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
         as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
@@ -131,22 +131,22 @@ class Synth:
         output point itself, oversampled by sps, cycled, and RRC-shaped with
         pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).
     acq_code : bytes | None, default None
-        The acquisition/preamble code (0/1), repeated acq_reps times at the
-        head of the frame — the coherent pull-in target
-        BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss
-        it is unmodulated chips ahead of the spread frame; for type=bits it is
-        the head of the bit pattern. Setting it (or sync) is what makes a
-        source FRAMED.
+        The preamble code, sent acq_reps times at the head of the frame (a
+        Field's *REPS on the command line and in a scene) -- the coherent
+        pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock
+        to. For type=dsss it is unmodulated chips ahead of the spread frame;
+        for type=bits it is the head of the bit pattern. Setting it (or sync)
+        is what makes a source FRAMED.
     acq_reps : int, default 1
-        Preamble repetitions (periods of acq_code before the sync word).
+        Preamble repetitions: periods of acq_code before the sync word. On the
+        command line and in a scene it is acq_code's *REPS.
     data_code : bytes | None, default None
-        For type=dsss: the payload spreading code (0/1 chips) — a second code,
-        distinct from acq_code; every frame bit (sync | payload | crc) is
-        XOR-spread across its full length, so len(data_code) is the spreading
-        factor.
+        For type=dsss: the payload spreading code, a second code distinct from
+        acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its
+        full length, so len(data_code) is the spreading factor.
     sync : bytes | None, default None
-        The frame-sync word bits (e.g. Barker-13) between the preamble and the
-        payload — what BurstDemod.set_frame correlates to resolve frame
+        The frame-sync word (such as Barker-13) between the preamble and the
+        payload -- what BurstDemod.set_frame correlates to resolve frame
         position and BPSK polarity, and what a BER alignment detects against.
         Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``
@@ -424,9 +424,9 @@ class Segment:
         stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
-        For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill
-        the request. For type=dsss (as `payload`): the payload bits of the
-        burst frame.
+        The payload bits: a Field on the command line and in a scene, an array
+        in Python. For type=bits, the pattern, oversampled by sps and cycled to
+        fill the request; for type=dsss, the payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
         as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
@@ -447,22 +447,22 @@ class Segment:
         output point itself, oversampled by sps, cycled, and RRC-shaped with
         pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).
     acq_code : bytes | None, default None
-        The acquisition/preamble code (0/1), repeated acq_reps times at the
-        head of the frame — the coherent pull-in target
-        BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss
-        it is unmodulated chips ahead of the spread frame; for type=bits it is
-        the head of the bit pattern. Setting it (or sync) is what makes a
-        source FRAMED.
+        The preamble code, sent acq_reps times at the head of the frame (a
+        Field's *REPS on the command line and in a scene) -- the coherent
+        pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock
+        to. For type=dsss it is unmodulated chips ahead of the spread frame;
+        for type=bits it is the head of the bit pattern. Setting it (or sync)
+        is what makes a source FRAMED.
     acq_reps : int, default 1
-        Preamble repetitions (periods of acq_code before the sync word).
+        Preamble repetitions: periods of acq_code before the sync word. On the
+        command line and in a scene it is acq_code's *REPS.
     data_code : bytes | None, default None
-        For type=dsss: the payload spreading code (0/1 chips) — a second code,
-        distinct from acq_code; every frame bit (sync | payload | crc) is
-        XOR-spread across its full length, so len(data_code) is the spreading
-        factor.
+        For type=dsss: the payload spreading code, a second code distinct from
+        acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its
+        full length, so len(data_code) is the spreading factor.
     sync : bytes | None, default None
-        The frame-sync word bits (e.g. Barker-13) between the preamble and the
-        payload — what BurstDemod.set_frame correlates to resolve frame
+        The frame-sync word (such as Barker-13) between the preamble and the
+        payload -- what BurstDemod.set_frame correlates to resolve frame
         position and BPSK polarity, and what a BER alignment detects against.
         Optional; setting it (or acq_code) is what makes a source FRAMED.
     crc : str, default ``"crc16"``

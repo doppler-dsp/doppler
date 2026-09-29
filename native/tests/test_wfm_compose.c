@@ -465,9 +465,9 @@ test_a_carried_frame_survives_the_scene_json (void)
   d.stage[2].depth     = 5u;
   d.stage[2].unit_bits = 11u;
 
-  /* BITS rather than BPSK: the spec writes a literal payload back only for
-     a bits source ("pattern"), and a payload that does not survive the round
-     trip would make the reject below fire for the wrong reason. */
+  /* BITS rather than BPSK: a bits source's payload is the literal it was
+     given, and a payload that did not survive the round trip would make the
+     reject below fire for the wrong reason. */
   wfm_source_t src = { .type      = WFM_SYNTH_BITS,
                        .freq      = 0.0,
                        .snr       = 40.0,
@@ -568,24 +568,24 @@ test_a_carried_frame_survives_the_scene_json (void)
      nothing about the frame. */
 #define FRAME_SCENE(FR)                                                       \
   "{\"segments\":[{\"type\":\"bits\",\"fs\":1e6,\"num_samples\":16,"          \
-  "\"pattern\":\"1100101001110001\",\"frame\":" FR "}]}"
+  "\"payload\":\"1100101001110001\",\"frame\":" FR "}]}"
 
   dp_wfm_compose_state_t *ctl = dp_wfm_compose_from_json (
-      FRAME_SCENE ("{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\"}]}"));
+      FRAME_SCENE ("{\"fields\":[{\"name\":\"a\",\"spec\":\"1010\"}]}"));
   DP_REQUIRE_MSG (ctl, "json-frame: the control scene parses");
   dp_wfm_compose_destroy (ctl);
 
   /* A kind this build does not know is REFUSED, not defaulted -- kind 0 is
      crc16, so a reader that fell back would turn a typo into a CRC stage. */
   DP_REQUIRE_MSG (!dp_wfm_compose_from_json (FRAME_SCENE (
-                      "{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\"}],"
+                      "{\"fields\":[{\"name\":\"a\",\"spec\":\"1010\"}],"
                       "\"stages\":[{\"kind\":\"crc32\",\"n_fields\":1}]}")),
                   "json-frame: an unknown stage NAME is refused");
-  DP_REQUIRE_MSG (
-      !dp_wfm_compose_from_json (FRAME_SCENE (
-          "{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\","
-          "\"gen\":{\"kind\":\"pn\",\"len\":8,\"reg_bits\":4}}]}")),
-      "json-frame: a field carrying BOTH lit and gen is refused");
+  /* A field's bits are ONE Field, "spec"; the keys it replaced are
+     refused by name rather than read beside it. */
+  DP_REQUIRE_MSG (!dp_wfm_compose_from_json (FRAME_SCENE (
+                      "{\"fields\":[{\"name\":\"a\",\"lit\":\"1010\"}]}")),
+                  "json-frame: a field's retired \"lit\" key is refused");
 #undef FRAME_SCENE
 
   printf ("  a carried frame survives the scene json\n");
@@ -1389,24 +1389,18 @@ main (void)
         "dsss json round-trip byte-identical");
     dp_wfm_compose_destroy (jc2);
 
-    /* "pattern" is accepted as an alias for "payload" on parse: rename the
-     * emitted key in place (same length) and re-parse — same bytes. */
+    /* "pattern" USED to be an alias for "payload". A Field replaced every
+     * spelling of its field, and the old ones are refused by name -- never
+     * read as aliases (frame-description.md F.3). Rename the emitted key in
+     * place (same length) and the scene must be refused, naming the key. */
     char *pat = strstr (js, "\"payload\"");
     DP_REQUIRE_MSG (pat, "payload key present");
     memcpy (pat, "\"pattern\"", 9);
-    dp_wfm_compose_state_t *jp = dp_wfm_compose_from_json (js);
-    DP_REQUIRE_MSG (jp, "pattern alias parses");
-    static float _Complex jp2[1024];
-    size_t pt = 0;
-    while ((n = dp_wfm_compose_execute (jp, buf, 777)) > 0)
-      {
-        for (size_t i = 0; i < n; i++)
-          jp2[pt + i] = buf[i];
-        pt += n;
-      }
-    DP_REQUIRE_MSG (
-        pt == dt && memcmp (dall, jp2, dt * sizeof (float _Complex)) == 0,
-        "pattern alias byte-identical to payload");
+    const char             *why = NULL;
+    dp_wfm_compose_state_t *jp  = dp_wfm_compose_from_json_why (js, &why);
+    DP_CHECK_MSG (jp == NULL, "a retired \"pattern\" key is refused");
+    DP_CHECK_MSG (why && strstr (why, "\"pattern\""),
+                  "and the refusal names the key it refused");
     dp_wfm_compose_destroy (jp);
     free (js);
 
@@ -2166,7 +2160,7 @@ main (void)
     DP_REQUIRE_MSG (psy, "and it BUILDS on the standalone face");
     dp_wfm_synth_destroy (psy);
 
-    /* The same source with a GENERATED payload -- the shape --payload-len
+    /* The same source with a GENERATED payload -- the shape `--bits pn:N:REG`
        resolves to, and what makes a 100k-bit frame six numbers in a record. */
     wfm_source_t framed_gen = framed_pn;
     framed_gen.payload
@@ -2751,15 +2745,14 @@ main (void)
         = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 256 };
     char *js = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (js, "to_json");
-    DP_REQUIRE_MSG (strstr (js, "\"sync_gen\""),
-                    "a generated sync is RECORDED -- it has no bit string, "
-                    "so without its own key the field left no trace at all");
-    DP_REQUIRE_MSG (!strstr (js, "\"sync\":"),
-                    "and not also as a literal: one field, one source of "
-                    "bits");
-    DP_REQUIRE_MSG (strstr (js, "\"kind\":\"pn\"")
-                        || strstr (js, "\"kind\":\t\"pn\""),
-                    "the kind is named");
+    DP_REQUIRE_MSG (strstr (js, "\"pn:31:5:0x3\""),
+                    "a generated sync is RECORDED as its Field text -- it "
+                    "has no bit string, so the numbers ARE the record");
+    DP_REQUIRE_MSG (!strstr (js, "\"sync_gen\""),
+                    "under ONE key: the retired sync_gen is never written");
+    DP_REQUIRE_MSG (!strstr (js, "\"kind\""),
+                    "and no parameter object beside it -- the text is the "
+                    "whole of the field");
 
     dp_wfm_compose_state_t *jc = dp_wfm_compose_from_json (js);
     DP_REQUIRE_MSG (jc, "from_json");
@@ -2820,15 +2813,14 @@ main (void)
           = { .sources = &g, .n_sources = 1, .fs = 1e6, .num_samples = 512 };
       char *gjs = dp_wfm_spec_to_json (&gseg, 1, 0, 0, 0, 0.0);
       DP_REQUIRE_MSG (gjs, "gold/dotted to_json");
-      DP_REQUIRE_MSG (strstr (gjs, "\"sync_gen\"")
-                          && strstr (gjs, "\"acq_code_gen\"")
-                          && strstr (gjs, "\"data_code_gen\""),
-                      "all three sequences record their generators");
-      /* Checked as two pieces: cJSON separates a key from its value with a
-         tab, and pinning the whitespace would make this a formatting test. */
-      DP_REQUIRE_MSG (strstr (gjs, "\"taps_a\"") && strstr (gjs, "0x3a6"),
+      DP_REQUIRE_MSG (strstr (gjs, "\"dotted:8*2\"")
+                          && strstr (gjs, "\"pn:7:3:0x1\"")
+                          && strstr (gjs, "\"gold:16:10:"),
+                      "all three sequences record their Field text, the "
+                      "preamble's repetitions as its *REPS");
+      DP_REQUIRE_MSG (strstr (gjs, "0x3a6:0x15e:0x237:0x49"),
                       "a Gold tap mask is recorded as HEX -- a uint64 does "
-                      "not survive a JSON number");
+                      "not survive a JSON number, and text does");
 
       dp_wfm_compose_state_t *gc = dp_wfm_compose_from_json (gjs);
       DP_REQUIRE_MSG (gc, "gold/dotted from_json");
@@ -2858,51 +2850,41 @@ main (void)
     /* Refusals. Each of these BUILDS a waveform if ignored rather than
        refused, and it is not the recorded one -- which is the one failure a
        record exists to prevent. */
+#define BITS_SCENE(EXTRA)                                                     \
+  "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","          \
+  "\"payload\":\"0101\"," EXTRA "}]}"
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (
-            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
-            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"martian\","
-            "\"len\":8}}]}"),
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":\"martian:8\"")),
         "an unknown kind is refused, not silently dropped -- a newer writer's "
         "record must not load as a different waveform");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (
-            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
-            "\"pattern\":\"0101\",\"sync\":\"0110\","
-            "\"sync_gen\":{\"kind\":\"pn\",\"len\":8,\"reg_bits\":3}}]}"),
-        "a field carrying BOTH a literal and a generator is refused");
+        !dp_wfm_compose_from_json (BITS_SCENE (
+            "\"sync\":\"0110\",\"sync_gen\":{\"kind\":\"pn\",\"len\":8,"
+            "\"reg_bits\":3}")),
+        "a retired sync_gen beside the Field is refused, not merged");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (
-            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
-            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"pn\",\"len\":8,"
-            "\"reg_bits\":0}}]}"),
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":\"pn:8:0\"")),
         "a PN with no register width is refused");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (
-            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
-            "\"pattern\":\"0101\",\"sync_gen\":5}]}"),
-        "a generator block that is not an object is refused -- a scalar there "
-        "is a writer this reader does not understand");
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":5")),
+        "a Field that is not text is refused -- a number there is a writer "
+        "this reader does not understand");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (
-            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
-            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"pn\","
-            "\"reg_bits\":5}}]}"),
-        "a generator with no length is refused -- length is the one parameter "
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":\"pn:0:5\"")),
+        "a generator of no length is refused -- length is the one parameter "
         "no default can supply");
     DP_REQUIRE_MSG (
         !dp_wfm_compose_from_json (
-            "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"bits\","
-            "\"pattern\":\"0101\",\"sync_gen\":{\"kind\":\"gold\",\"len\":8,"
-            "\"reg_bits\":65}}]}"),
+            BITS_SCENE ("\"sync\":\"gold:8:65:1:1:1:1\"")),
         "a Gold register wider than the 64 bits dp_gold_create() holds is "
         "refused, not silently masked down");
+#undef BITS_SCENE
     DP_REQUIRE_MSG (
         !dp_wfm_compose_from_json (
             "{\"segments\":[{\"fs\":1e6,\"num_samples\":16,\"type\":\"dsss\","
-            "\"data_code_gen\":{\"kind\":\"martian\",\"len\":8}}]}"),
-        "a malformed data_code_gen is refused on the dsss source too -- the "
-        "spread half reads its generators through the same gate");
+            "\"data_code\":\"martian:8\"}]}"),
+        "a malformed data_code is refused on the dsss source too -- the "
+        "spread half reads its Fields through the same parser");
   }
 
   /* ── the chip path MATERIALISES a generated code ─────────────────
@@ -3553,11 +3535,11 @@ main (void)
                                "\t\t\t\t\t\"pn_length\":\t15,\n"
                                "\t\t\t\t\t\"pn_poly\":\t0,\n"
                                "\t\t\t\t\t\"lfsr\":\t\"galois\",\n"
+                               "\t\t\t\t\t\"payload\":\t\"0xb2\",\n"
                                "\t\t\t\t\t\"modulation\":\t\"qpsk\",\n"
                                "\t\t\t\t\t\"pulse\":\t\"rrc\",\n"
                                "\t\t\t\t\t\"rrc_beta\":\t0.35,\n"
-                               "\t\t\t\t\t\"rrc_span\":\t8,\n"
-                               "\t\t\t\t\t\"pattern\":\t\"10110010\"\n"
+                               "\t\t\t\t\t\"rrc_span\":\t8\n"
                                "\t\t\t\t}, {\n"
                                "\t\t\t\t\t\"type\":\t\"tone\",\n"
                                "\t\t\t\t\t\"freq\":\t0.125,\n"

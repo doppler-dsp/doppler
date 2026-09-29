@@ -1374,6 +1374,10 @@ doc = "How long this source's Doppler channel lives. per_instance: the channel d
 
 [[module.wfm_compose.source.fields]]
 name = "bits"
+json = "payload"
+cli = "--bits"
+metavar = "FIELD"
+help_section = "BITS"
 type = "uint8_t*"
 bytes = true
 aliases = ["pattern", "payload"]
@@ -1383,7 +1387,7 @@ coerce = "bit_pattern"
 # and its aliases are unchanged -- only where the owned array lives moved.
 c_ptr = "payload.bits"
 c_len = "payload.len"
-doc = "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request. For type=dsss (as `payload`): the payload bits of the burst frame."
+doc = "The payload bits: a Field on the command line and in a scene, an array in Python. For type=bits, the pattern, oversampled by sps and cycled to fill the request; for type=dsss, the payload bits of the burst frame."
 
 [[module.wfm_compose.source.fields]]
 name = "modulation"
@@ -1444,6 +1448,11 @@ doc = "For type=symbols: a complex constellation stream. Each element is the out
 
 [[module.wfm_compose.source.fields]]
 name = "acq_code"
+json = "acq_code"
+cli = "--acq-code"
+metavar = "FIELD"
+help_section = "DSSS_BURST"
+field_reps = "acq_reps"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
@@ -1451,16 +1460,20 @@ coerce = "bit_pattern"
 # `.bits`/`.len` inside it rather than at the default `acq_code`/`n_acq_code`.
 c_ptr = "acq_code.bits"
 c_len = "acq_code.len"
-doc = "The acquisition/preamble code (0/1), repeated acq_reps times at the head of the frame — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss it is unmodulated chips ahead of the spread frame; for type=bits it is the head of the bit pattern. Setting it (or sync) is what makes a source FRAMED."
+doc = "The preamble code, sent acq_reps times at the head of the frame (a Field's *REPS on the command line and in a scene) -- the coherent pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock to. For type=dsss it is unmodulated chips ahead of the spread frame; for type=bits it is the head of the bit pattern. Setting it (or sync) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
 name = "acq_reps"
 type = "size_t"
 default = "1"
-doc = "Preamble repetitions (periods of acq_code before the sync word)."
+doc = "Preamble repetitions: periods of acq_code before the sync word. On the command line and in a scene it is acq_code's *REPS."
 
 [[module.wfm_compose.source.fields]]
 name = "data_code"
+json = "data_code"
+cli = "--data-code"
+metavar = "FIELD"
+help_section = "DSSS_BURST"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
@@ -1468,10 +1481,14 @@ coerce = "bit_pattern"
 # `.bits`/`.len` inside it rather than at the default `data_code`/`n_data_code`.
 c_ptr = "data_code.bits"
 c_len = "data_code.len"
-doc = "For type=dsss: the payload spreading code (0/1 chips) — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so len(data_code) is the spreading factor."
+doc = "For type=dsss: the payload spreading code, a second code distinct from acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its full length, so len(data_code) is the spreading factor."
 
 [[module.wfm_compose.source.fields]]
 name = "sync"
+json = "sync"
+cli = "--sync"
+metavar = "FIELD"
+help_section = "DSSS_BURST"
 type = "uint8_t*"
 bytes = true
 coerce = "bit_pattern"
@@ -1479,7 +1496,7 @@ coerce = "bit_pattern"
 # `.bits`/`.len` inside it rather than at the default `sync`/`n_sync`.
 c_ptr = "sync.bits"
 c_len = "sync.len"
-doc = "The frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
+doc = "The frame-sync word (such as Barker-13) between the preamble and the payload -- what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
 
 [[module.wfm_compose.source.fields]]
 name = "crc"

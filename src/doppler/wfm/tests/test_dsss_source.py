@@ -90,6 +90,8 @@ def _scene_json(kwargs_list) -> dict:
         d = dict(kw)
         for key in ("acq_code", "data_code", "sync", "payload"):
             d[key] = "".join(str(b) for b in d[key])
+        # A scene carries the preamble's repetitions in its Field, *REPS.
+        d["acq_code"] += f"*{d.pop('acq_reps')}"
         segments.append(d)
     return {
         "version": 1,
@@ -165,9 +167,7 @@ def test_cli_bare_flags_match_kwargs(tmp_path):
             "--snr-mode",
             "esno",
             "--acq-code",
-            "".join(map(str, acq)),
-            "--acq-reps",
-            str(REPS),
+            "".join(map(str, acq)) + f"*{REPS}",
             "--data-code",
             "".join(map(str, dat)),
             "--sync",

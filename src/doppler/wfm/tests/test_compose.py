@@ -632,7 +632,7 @@ def _bits(snr, n=64):
         "seed": 1,
         "sps": 1,
         "modulation": "bpsk",
-        "pattern": "10110100",
+        "payload": "10110100",
         "num_samples": n,
         "off_samples": 0,
     }
@@ -1433,10 +1433,10 @@ def test_bits_json_roundtrip():
         ]
     )
     js = a.to_json()
-    assert '"pattern"' in js and '"modulation"' in js
+    assert '"payload"' in js and '"modulation"' in js
     b = Composer.from_json(js)
     assert np.array_equal(a.compose(), b.compose())
-    assert '"pattern"' not in Composer([Segment("tone")]).to_json()
+    assert '"payload"' not in Composer([Segment("tone")]).to_json()
 
 
 def test_bits_in_sum_scene():

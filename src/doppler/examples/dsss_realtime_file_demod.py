@@ -158,8 +158,8 @@ def write_scene(path, *, snr_db=SNR_DB):
                 "snr_mode": "fs",  # chip SNR, as the reader's header says
                 "seed": 1,
                 "sps": SPC,  # samples per CHIP
-                "acq_code": _bitstr(_ACODE),
-                "acq_reps": REPS,
+                # the preamble's repetitions ride in its Field as *REPS
+                "acq_code": f"{_bitstr(_ACODE)}*{REPS}",
                 "data_code": _bitstr(_DCODE),
                 "sync": _bitstr(SYNC),
                 "payload": _bitstr(_PAYLOAD_BITS),

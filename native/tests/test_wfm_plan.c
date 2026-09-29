@@ -293,10 +293,10 @@ test_framed_scene_matches_compose (void)
         "\"type\":\"bits\",\"fs\":1000000,\"snr\":12,\"snr_mode\":\"fs\","
         "\"seed\":7,\"sps\":4,\"modulation\":\"bpsk\","
         "\"num_samples\":1088,\"off_samples\":512,"
-        "\"pattern\":\"" PAY_BITS_LIT "\","
+        "\"payload\":\"" PAY_BITS_LIT "\","
         "\"frame\":{\"fields\":["
-        "{\"name\":\"hdr\",\"lit\":\"0101010101010101\"},"
-        "{\"name\":\"payload\",\"lit\":\"" PAY_BITS_LIT "\"},"
+        "{\"name\":\"hdr\",\"spec\":\"0101010101010101\"},"
+        "{\"name\":\"payload\",\"spec\":\"" PAY_BITS_LIT "\"},"
         "{\"name\":\"crc\",\"bits\":16,\"derived_by\":1}],"
         "\"stages\":[{\"kind\":\"crc16\",\"first_field\":1,\"n_fields\":2}]"
         "}}]}";

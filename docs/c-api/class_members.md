@@ -834,6 +834,7 @@
 * **rrc\_beta** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **rrc\_span** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **range\_bit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **reps\_off** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 
 ## s

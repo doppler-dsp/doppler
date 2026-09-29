@@ -51,6 +51,7 @@
 |  size\_t | [**off**](#variable-off)  <br> |
 |  [**wfm\_surf\_owner\_t**](wfm__surface_8h.md#enum-wfm_surf_owner_t) | [**owner**](#variable-owner)  <br> |
 |  unsigned | [**range\_bit**](#variable-range_bit)  <br> |
+|  size\_t | [**reps\_off**](#variable-reps_off)  <br> |
 |  int | [**unit\_interval**](#variable-unit_interval)  <br> |
 |  int | [**when\_row**](#variable-when_row)  <br> |
 |  int | [**when\_value**](#variable-when_value)  <br> |
@@ -289,6 +290,19 @@ wfm_surf_owner_t wfm_surface_row_t::owner;
 
 ```C++
 unsigned wfm_surface_row_t::range_bit;
+```
+
+
+
+
+<hr>
+
+
+
+### variable reps\_off 
+
+```C++
+size_t wfm_surface_row_t::reps_off;
 ```
 
 

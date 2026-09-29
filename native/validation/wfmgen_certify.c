@@ -31,26 +31,18 @@
  *   wfmgen_certify --check                render every scene, exit 0 if sane
  */
 #include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_defaults.h"
 
 #include "doppler/dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* The CLI's single-segment defaults, replicated.
- *
- * THIS REPLICATION IS ITSELF A FINDING, and the reason it is spelled out
- * here rather than called. `wfmgen.c` sets these as a struct literal inside
- * main(); `just-makeit.toml` sets them again for Python; a C caller gets a
- * zero-initialised struct and none of them. The comment in wfmgen.c says the
- * literal "mirror[s] the Python Synth/Composer defaults" -- mirrored in three
- * places, shared from none. So goal 2's byte-identity quietly depends on a C
- * caller knowing values the C API never told them, and the first thing this
- * harness has to do is prove it can guess right. See §1 of the report. */
-#define DEF_SPS 1
-#define DEF_SNR 100.0
-#define DEF_PN_LENGTH 15
-
+/* The defaults a C caller is given: WFM_SOURCE_DEFAULTS, generated from the
+ * manifest (#1142). This harness once replicated three of them by hand, and
+ * said so as a finding -- the C API told a caller none of the values goal 2
+ * depends on. It now starts from the one declaration every face reads, so
+ * the C leg measures what a C caller actually gets. */
 typedef struct
 {
   const char *name;
@@ -75,15 +67,9 @@ static const scene_t SCENES[] = {
 static size_t
 render (const scene_t *sc, float complex *out)
 {
-  wfm_source_t src = { 0 };
+  wfm_source_t src = WFM_SOURCE_DEFAULTS;
   src.type         = sc->type;
   src.freq         = SCENE_FREQ;
-  src.snr          = DEF_SNR;
-  src.snr_mode     = 0;
-  src.seed         = 0;
-  src.sps          = DEF_SPS;
-  src.pn_length    = DEF_PN_LENGTH;
-  src.pn_poly      = 0;
 
   wfm_segment_t seg = { 0 };
   seg.sources       = &src;

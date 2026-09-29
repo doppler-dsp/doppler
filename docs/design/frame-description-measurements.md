@@ -211,6 +211,15 @@ compiled `wfm_frame.c` under ASan and UBSan and drove
 | single-character mutations of those (delete, insert, replace, truncate)                             | 200,000 | accepted or refused, never a crash; if accepted, the same round trip                                                                         |
 | hand edges (2^64-1 and 2^64 lengths, `*0`, `**2`, huge `*REPS`, `PN:`, signed numbers, a bare `0x`) | 26      | as above                                                                                                                                     |
 
+The corpus is reproducible: an xorshift64 generator seeded with
+`0x9E3779B97F4A7C15` picks one of five shapes — a 1–70-bit binary literal,
+a `0x`/`0X` literal of 1–20 digits drawn from both cases, `pn` (LEN 1–3000,
+REG 2–31, five argument shapes including an explicit seed, a hex seed and
+zero poly, `fibonacci`, and one malformed empty-seed form), `gold` over the
+CCSDS preferred pair with LEN 1–2000, and `dotted` with LEN 1–500 — and
+appends `*1`–`*9` to a third of them. The mutations draw from the
+alphabet `01:x*X_- +pngoldtd9aF\t`.
+
 **One finding, in 422 cases, all one class.** `pn:LEN:1` with no POLY —
 spelled `1`, `01` or `0x1` — was ACCEPTED by the parser and could never be
 built: a 1-bit register has no maximal-length polynomial, so the render

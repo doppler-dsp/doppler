@@ -75,7 +75,6 @@ GOLDEN = ROOT / "native" / "tests" / "wfmgen_flag_matrix.json"
 SKIP = {
     # Aliases of a flag already covered; same arm, same field.
     "-o": "alias of --output, covered by out_file",
-    "--randomize": "alias of --randomise, covered by bits_ccsds_cadu",
     # Writes a PAIR of files rather than one, so there is no single output
     # for this matrix to size. It does not spawn anything: --detached
     # selects BLUE's detached-header format, the HCB in <out>.hdr and the
@@ -117,6 +116,110 @@ MIN_REPLAY_CASES = 25
 BITS_FILE = "bits.bin"
 SYMS_FILE = "syms.cf32"
 SCENE_FILE = "scene.json"
+
+# The frame DESCRIPTIONS the `--frame` cases read, in the form a scene's
+# "frame" key holds. Each is the frame a retired coding flag used to build,
+# written out: fields in wire order, and stages that name the span each
+# covers -- `first_field` and `n_fields` -- in application order. A derived
+# field (a CRC trailer, the outer code's parity) is its length in bits and
+# the stage that produces it, `derived_by` = that stage's index plus one.
+_TF = "1" * (223 * 8)  # a 223-octet Transfer Frame, the RS(255,223) message
+_RS_PARITY = {"name": "rs_parity", "bits": 32 * 8, "derived_by": 1}
+FRAMES = {
+    # payload + CRC-16, block-interleaved 8 deep over bits
+    "interleave_bits.frame.json": {
+        "fields": [
+            {"name": "payload", "spec": _TF},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+        ],
+        "stages": [
+            {"kind": "crc16", "first_field": 0, "n_fields": 2},
+            {
+                "kind": "interleave",
+                "first_field": 0,
+                "n_fields": 2,
+                "depth": 8,
+            },
+        ],
+    },
+    # the outer code, then 5 deep over octets across its codewords
+    "interleave_rs.frame.json": {
+        "fields": [{"name": "payload", "spec": _TF}, _RS_PARITY],
+        "stages": [
+            {"kind": "rs", "first_field": 0, "n_fields": 2, "depth": 1},
+            {
+                "kind": "interleave",
+                "first_field": 0,
+                "n_fields": 2,
+                "depth": 5,
+                "unit_bits": 8,
+            },
+        ],
+    },
+    # a CCSDS CADU: the marker, the outer code, the randomiser over the
+    # data group only, and the inner code over everything
+    "cadu.frame.json": {
+        "fields": [
+            {"name": "asm", "spec": "0x1ACFFC1D"},
+            {"name": "payload", "spec": _TF},
+            _RS_PARITY,
+        ],
+        "stages": [
+            {"kind": "rs", "first_field": 1, "n_fields": 2, "depth": 1},
+            {"kind": "randomise", "first_field": 1, "n_fields": 2, "depth": 1},
+            {
+                "kind": "conv",
+                "first_field": 0,
+                "n_fields": 3,
+                "emit_num": 2,
+                "emit_den": 1,
+            },
+        ],
+    },
+    # a DSSS burst's SPREAD frame: marker, Barker-13 sync, payload, CRC,
+    # randomised over the data group and inner-coded over all of it
+    "dsss_coded.frame.json": {
+        "fields": [
+            {"name": "asm", "spec": "0x1ACFFC1D"},
+            {"name": "sync", "spec": "1111100110101"},
+            {"name": "payload", "spec": "10110010101"},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+        ],
+        "stages": [
+            {"kind": "crc16", "first_field": 2, "n_fields": 2},
+            {"kind": "randomise", "first_field": 2, "n_fields": 2, "depth": 1},
+            {
+                "kind": "conv",
+                "first_field": 0,
+                "n_fields": 4,
+                "emit_num": 2,
+                "emit_den": 1,
+            },
+        ],
+    },
+    # an outer code over one octet: not 223*I octets, so refused
+    "rs_short.frame.json": {
+        "fields": [
+            {"name": "payload", "spec": "10110010"},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+            {"name": "rs_parity", "bits": 32 * 8, "derived_by": 2},
+        ],
+        "stages": [
+            {"kind": "crc16", "first_field": 0, "n_fields": 2},
+            {"kind": "rs", "first_field": 0, "n_fields": 3, "depth": 1},
+        ],
+    },
+}
+# The same CADU with 10.4.2's legacy randomiser: the generator is the stage's
+# depth (1 = 10.4.1's, 2 = 10.4.2's), which a record has to carry.
+FRAMES["cadu_legacy.frame.json"] = json.loads(
+    json.dumps(FRAMES["cadu.frame.json"])
+)
+FRAMES["cadu_legacy.frame.json"]["stages"][1]["depth"] = 2
+
+#: Every file a case READS, written by fixtures(). A case's outputs are the
+#: other files in its directory, so this is what tells the two apart.
+FIXTURES = frozenset({BITS_FILE, SYMS_FILE, SCENE_FILE, *FRAMES})
 
 
 def cases() -> list[tuple[str, list[str]]]:
@@ -398,27 +501,26 @@ def cases() -> list[tuple[str, list[str]]]:
                 "512",
             ],
         ),
-        # ---- the block interleaver, and the unit that makes it work ----
-        # Two cases rather than one, because the two flags are not the same
-        # kind of thing: --interleave selects the stage, --interleave-unit
-        # selects WHAT it permutes, and only the second is easy to get wrong
-        # in a way that still produces a waveform. Both spans are chosen to
-        # divide -- the column count follows from the span, so a remainder is
-        # refused (which the wfmgen CLI-error tests cover separately).
+        # ---- coded frames: a description, `--frame FILE` (#853 item 11) ----
+        # The coding flags are gone; a coded frame is a DESCRIPTION whose
+        # stages name the spans they cover. Each case below is the frame the
+        # retired flags used to build, written as data (FRAMES, above), and
+        # was proven byte-identical to the flag-spelled run it replaces
+        # before those flags were deleted.
         #
-        # 223*8 = 1784 payload bits + a CRC-16 trailer = 1800, and 1800 is
-        # 8*225 and 8*8*28.125 -- so unit=8 needs a depth that divides 225.
+        # The interleaver is two cases rather than one, because depth and
+        # unit are not the same kind of thing: the depth selects the stage,
+        # the unit selects WHAT it permutes, and only the second is easy to
+        # get wrong in a way that still produces a waveform.
         (
-            "bits_interleave_bits",
+            "bits_frame_interleave_bits",
             [
                 "--type",
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
-                "1" * (223 * 8),
-                "--interleave",
-                "8",
+                "--frame",
+                "interleave_bits.frame.json",
                 "--sps",
                 "1",
                 "--count",
@@ -426,112 +528,142 @@ def cases() -> list[tuple[str, list[str]]]:
             ],
         ),
         (
-            "bits_interleave_octets_with_outer_code",
+            # Depth 5 over octets, behind the outer code: one codeword per
+            # row, so a burst spreads one symbol into each.
+            "bits_frame_interleave_octets_with_outer_code",
             [
-                # Depth 5 over octets, which is the arrangement the burst-gain
-                # validation measures: one codeword per row, so a burst spreads
-                # one symbol into each.
                 "--type",
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
-                "1" * (223 * 8),
-                "--rs-depth",
-                "1",
-                "--interleave",
-                "5",
-                "--interleave-unit",
-                "8",
-                "--crc",
-                "none",
+                "--frame",
+                "interleave_rs.frame.json",
                 "--sps",
                 "1",
                 "--count",
                 "2040",
             ],
         ),
-        # ---- channel coding: the stages, and the CADU they configure ----
-        # A 223-octet Transfer Frame with all four stages on and neither a
-        # preamble nor a sync word IS a CCSDS CADU. Pinned as one case rather
-        # than four because the flags are not independent -- the outer code
-        # fixes the payload length, and the interesting property is the
-        # COVERAGE asymmetry between them, which only appears together.
+        # A 223-octet Transfer Frame with the marker, the outer code, the
+        # randomiser and the inner code IS a CCSDS CADU -- and the COVERAGE
+        # asymmetry between the stages is the interesting property, which
+        # only appears with all of them together.
         (
-            "bits_ccsds_cadu",
+            "bits_frame_ccsds_cadu",
             [
                 "--type",
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
-                "1" * (223 * 8),
-                "--rs-depth",
-                "1",
-                "--randomise",
-                "--asm",
-                "--conv",
-                "--crc",
-                "none",
+                "--frame",
+                "cadu.frame.json",
                 "--sps",
                 "1",
                 "--count",
                 "4144",
             ],
         ),
-        # The SAME CADU with the legacy randomiser. Its own case because
-        # "which generator" is the axis --record has to carry: B-6 specifies
-        # two, and only the matching receiver derandomises a given waveform,
-        # so a record that recorded a bare `true` could not rebuild either.
+        # The SAME CADU with the legacy randomiser: "which generator" is the
+        # axis a record has to carry, because only the matching receiver
+        # derandomises a given waveform.
         (
-            "bits_ccsds_cadu_legacy_rand",
+            "bits_frame_ccsds_cadu_legacy_rand",
             [
                 "--type",
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
-                "1" * (223 * 8),
-                "--rs-depth",
-                "1",
-                "--randomise",
-                "legacy",
-                "--asm",
-                "--conv",
-                "--crc",
-                "none",
+                "--frame",
+                "cadu_legacy.frame.json",
                 "--sps",
                 "1",
                 "--count",
                 "4144",
+            ],
+        ),
+        # A coded DSSS burst: the description is the SPREAD frame, and the
+        # acquisition preamble stays on the source, unspread.
+        (
+            "dsss_frame_coded",
+            [
+                "--type",
+                "dsss",
+                "--acq-code",
+                "1010*2",
+                "--data-code",
+                "1011",
+                "--frame",
+                "dsss_coded.frame.json",
+                "--sps",
+                "2",
             ],
         ),
         # The outer code refuses a payload off the 223*I grid rather than
-        # padding it -- virtual fill is not implemented (gh-813), and a
-        # silently padded codeblock is the wrong length for the receiver it
-        # was aimed at.
+        # padding it -- virtual fill is not implemented (gh-813). With the
+        # flag gone the refusal is the kernel's, asked by assembling.
         (
-            "err_rs_depth_short_payload",
+            "err_frame_rs_short_payload",
             [
                 "--type",
                 "bits",
-                "--bits",
-                "10110010",
-                "--rs-depth",
-                "1",
+                "--frame",
+                "rs_short.frame.json",
+                "--count",
+                "64",
+            ],
+        ),
+        # A carried frame is the whole frame: the common-frame flags beside
+        # it are refused rather than silently dropped.
+        (
+            "err_frame_with_sync",
+            [
+                "--type",
+                "bits",
+                "--frame",
+                "cadu.frame.json",
+                "--sync",
+                "1111100110101",
                 "--count",
                 "64",
             ],
         ),
         (
-            "err_rs_depth_not_allowed",
+            "err_frame_with_crc",
             [
                 "--type",
                 "bits",
+                "--frame",
+                "cadu.frame.json",
+                "--crc",
+                "crc16",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_frame_with_bits",
+            [
+                "--type",
+                "bits",
+                "--frame",
+                "cadu.frame.json",
                 "--bits",
-                "1" * (223 * 8),
-                "--rs-depth",
-                "7",
+                "1011",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_frame_with_from_file",
+            ["--from-file", SCENE_FILE, "--frame", "cadu.frame.json"],
+        ),
+        (
+            "err_frame_not_a_frame",
+            [
+                "--type",
+                "bits",
+                "--frame",
+                BITS_FILE,
                 "--count",
                 "64",
             ],
@@ -1064,6 +1196,86 @@ def cases() -> list[tuple[str, list[str]]]:
                 "256",
             ],
         ),
+        # The coding flags, each refused naming `--frame FILE` (#853).
+        (
+            "err_retired_rs_depth",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--rs-depth",
+                "1",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_retired_randomise",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--randomise",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_retired_randomize",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--randomize",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_retired_asm",
+            ["--type", "bits", "--bits", "10110010", "--asm", "--count", "64"],
+        ),
+        (
+            "err_retired_conv",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--conv",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_retired_interleave",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--interleave",
+                "4",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_retired_interleave_unit",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "10110010",
+                "--interleave-unit",
+                "8",
+                "--count",
+                "64",
+            ],
+        ),
     ]
 
 
@@ -1152,7 +1364,7 @@ def run_case(exe: Path, argv: list[str], workdir: Path) -> dict:
     # cf32 from ci16 and raw from csv, and it is the same number on every
     # toolchain; the content-sensitive part is relational_checks().
     for f in sorted(workdir.iterdir()):
-        if f.name in {"record.json", BITS_FILE, SYMS_FILE, SCENE_FILE}:
+        if f.name == "record.json" or f.name in FIXTURES:
             continue
         if f.is_file():
             out["outputs"][f.name] = {"bytes": f.stat().st_size}
@@ -1231,6 +1443,9 @@ def fixtures(workdir: Path, exe: Path) -> None:
     # 0/1 string, so this fixture made the case exit 2 -- the flag's
     # only coverage was the failure it caused.
     (workdir / BITS_FILE).write_bytes(bytes([0xB2, 0x5A, 0x0F, 0xFF]))
+    # The --frame descriptions, as files.
+    for name, frame in FRAMES.items():
+        (workdir / name).write_text(json.dumps(frame), encoding="utf-8")
     # 4 constellation points as interleaved float32 I,Q.
     import struct
 

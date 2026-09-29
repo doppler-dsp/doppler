@@ -209,17 +209,19 @@ typedef struct {
                                because its cache renders each source
                                independently and concurrently; compose() and
                                stream() honour both. */
-    /* A frame the CALLER built, and the answer to "what frame is this?"
-       when it is set. The flat framing and coding fields below stay, as
-       SUGAR that builds one of these -- so every existing scene, flag and
-       JSON key keeps working -- but a description says things they cannot:
-       a field of the caller's own bits at a position of their choosing, a
-       stage covering a span they name, an arrangement no flag spells.
+    /* The FRAME, as a description, when the source carries one -- the only
+       way a source says anything but the common frame: a coding stage, a
+       field of the caller's own bits at a position of their choosing, a
+       stage covering a span they name. `wfmgen --frame FILE` and a scene's
+       `frame` key both land here. When it is set it IS the frame, and the
+       common-frame fields below (acq_code/sync/crc/payload) do not frame
+       this source.
 
        Borrowed, never owned: the description points at the caller's
        sequences exactly as `wfm_seq_t` is borrowed elsewhere here, so it
-       must outlive the source. NULL means "derive one from the fields
-       below", which is what every source did before this existed.
+       must outlive the source. NULL means the common frame,
+       `[preamble x reps | sync | payload | crc]`, which
+       `dp_wfm_frame_fixed()` builds from the fields below.
 
        KERNELS stay in C by design. A description names a stage's KIND; the
        code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a
@@ -289,43 +291,6 @@ typedef struct {
                             data-modulated (the payload when supplied, else
                             the seeded PN). Ignored for burst dsss and
                             non-dsss types. */
-    /* Channel coding over the frame, as STAGES with the spans they cover
-       (wfm/wfm_frame.h). Each is optional and they do not all cover the same
-       bits, which is the whole reason the frame is a description rather than
-       a pipeline: the outer code and the randomiser reach over the payload
-       group, and the inner code reaches over everything including a marker
-       neither of the other two touches.
-
-       Set all four with a Transfer Frame payload and no preamble or sync word
-       and the result is a CCSDS CADU. That is the point -- CCSDS is the
-       configuration these flags reach, not a mode they switch into. */
-    unsigned rs_depth;   /* outer code interleaving depth; 0 = no outer code.
-                            4.3.5.1 allows 1,2,3,4,5,8 and the payload must be
-                            exactly 223*depth octets -- virtual fill is not
-                            implemented (gh-813), so any other length is
-                            refused rather than padded. */
-    int randomise;       /* XOR a section-10 pseudo-random sequence over the
-                            payload group -- not over a marker, which has to
-                            look the same in every frame to be found.
-                            0 = off, 1 = 131.0-B-6 10.4.1's 131071-bit
-                            sequence (the `shall`), 2 = 10.4.2's 255-bit one,
-                            which B-6 keeps only for legacy systems. It is a
-                            CHOICE rather than a flag because B-6 makes it
-                            one, and because the two produce waveforms only
-                            the matching receiver derandomises. */
-    int attach_asm;      /* prepend the 0x1ACFFC1D marker as a FIELD */
-    int convolutional;   /* inner code over the whole frame, marker included;
-                            doubles the bit count (rate 1/2, K=7) */
-    unsigned interleave_depth;      /* block interleaver over the data group;
-                            0 = none. LAST of the data-group stages, so it is
-                            what the channel sees: an interleaver exists to
-                            make a burst arrive spread across the outer
-                            code's codewords, so anything between it and the
-                            wire would undo the point. */
-    unsigned interleave_unit_bits;  /* bits per permuted unit; 0 reads as 1.
-                            Match it to the outer code's symbol -- 8 for RS
-                            over GF(256). Permuting BITS inside a symbol that
-                            is already wrong buys nothing. */
 } wfm_source_t;
 
 typedef struct {
@@ -412,8 +377,6 @@ int dp_wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src
 
 int dp_wfm_source_has_frame(const wfm_source_t *src);
 
-int dp_wfm_source_describe_frame(const wfm_source_t *src, wfm_frame_desc_t *d);
-
 size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
 
 const char *dp_wfm_source_frame_error(const wfm_source_t *src);
@@ -479,6 +442,10 @@ char *dp_wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
 double dp_wfm_spec_headroom(const char *json);
 
 char *dp_wfm_spec_template_json(void);
+
+wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
+
+void dp_wfm_frame_free(wfm_frame_desc_t *d);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 

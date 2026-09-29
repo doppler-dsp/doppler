@@ -311,7 +311,9 @@ def _mls(stages, seed):
 def _link(payload_bits=96, *, crc=True, **stages):
     """`(capture, payload, receiver_kwargs)` for one generated burst.
 
-    The stage kwargs go to the SCENE only. The receiver is told nothing
+    A coded burst is a DESCRIPTION: `_deframer`'s, with the real payload,
+    whose bits the source spreads -- the one frame both ends read. The
+    stages reach the scene only through it. The receiver is told nothing
     about them — that is the split — so its `frame_syms` is the frame's
     length and nothing else.
     """
@@ -341,7 +343,14 @@ def _link(payload_bits=96, *, crc=True, **stages):
         "off_samples": 200_000,  # room for the receiver's retain span
         "crc": "crc16" if crc else "none",
     }
-    seg.update(stages)
+    if stages:
+        # The whole coded frame, sync word first, IS the payload of an
+        # otherwise unframed spread: the preamble stays on the source,
+        # unspread, and everything after it is the description's bits.
+        tx = _deframer(payload_bits, crc=crc, payload=payload, **stages)
+        seg["payload"] = np.asarray(tx.bits()).tobytes()
+        del seg["sync"]
+        seg["crc"] = "none"
     # The frame's LENGTH is all the receiver is told, and every stage that
     # adds a field adds to it: an outer code's check symbols are on the wire
     # like everything else.
@@ -366,8 +375,13 @@ def _link(payload_bits=96, *, crc=True, **stages):
     return np.asarray(Composer([Segment(**seg)]).compose()), payload, rx_kw
 
 
-def _deframer(payload_bits=96, *, crc=True, randomise=False, rs_depth=0):
+def _deframer(
+    payload_bits=96, *, crc=True, randomise=False, rs_depth=0, payload=None
+):
     """The frame the transmitter built, described for the receive side.
+
+    With `payload`, the same description is the TRANSMIT side's: its bits
+    are the burst.
 
     Field by field, because that is what a description IS — and the covers
     are DECLARED: a randomiser reaches over the payload group and not over
@@ -378,8 +392,9 @@ def _deframer(payload_bits=96, *, crc=True, randomise=False, rs_depth=0):
     d = FrameDesc()
     d.add_field("sync", _TX_SYNC)
     d.add_field(
-        "payload", np.zeros(payload_bits, np.uint8)
-    )  # geometry; bits arrive later
+        "payload",
+        np.zeros(payload_bits, np.uint8) if payload is None else payload,
+    )  # geometry, when the bits arrive later
     n_data = 1
     # A derived field is wired to the first stage whose cover ends on it, so
     # the CRC trailer goes to the CRC stage and the parity to the outer code.

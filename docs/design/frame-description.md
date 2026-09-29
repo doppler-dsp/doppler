@@ -673,9 +673,12 @@ it is measured:
     mask, and nothing has demanded one.
 - **Whether 16 fields and 8 stages are the right bounds.** They were sized
     against the deepest description that exists, not against a class of them.
-- **The migration cost of the DSSS path.** It reads the four named offsets
-    of `wfm_frame_t` rather than an indexed field list; §R deletes that
-    struct, so this is measured when the path moves, not guessed now.
+- ~~**The migration cost of the DSSS path.**~~ Measured when it moved
+    (item 11): nothing new was needed. The spreader already took a
+    description (`dp_wfm_dsss_desc_chips`), so the four-field form was a
+    wrapper, and every caller now builds `dp_wfm_frame_fixed()` or carries
+    its own. The unspread preamble stays outside the description, as §R
+    states. Every replacement was byte-identical.
 - **Whether `*N` survives real use.** It needs shell quoting. Today a
     repetition count appears 8 times across the docs and examples, always on
     the acquisition code and always `4`, and 4 times in the flag-matrix

@@ -277,89 +277,90 @@ def test_standalone_synth_face():
 # the amount the description implies, and the preamble did not move at all.
 
 
-def _burst(acq, dat, pay, **extra):
+def _burst(acq, dat, pay, stage=None):
+    """A clean burst over `[sync | payload | CRC-16]`, coded by `stage`.
+
+    A coded frame is a DESCRIPTION: `FrameDesc` states the fields and the
+    span each stage covers, and the source spreads its bits as an otherwise
+    unframed payload -- the preamble stays on the source, unspread. With no
+    stage the same description is the common frame, so the two bursts
+    differ by the stage and nothing else.
+    """
+    from doppler.wfm import (
+        STAGE_CONV,
+        STAGE_CRC16,
+        STAGE_RANDOMISE,
+        FrameDesc,
+        field_bits,
+    )
+
+    d = FrameDesc()
+    if stage == "asm":
+        d.add_field("asm", np.asarray(field_bits("0x1ACFFC1D")))
+    d.add_field("sync", SYNC)
+    d.add_field("payload", pay)
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc", 0, 0)
+    if stage == "randomise":
+        d.add_stage_over(STAGE_RANDOMISE, "payload", "crc", 1, 0)
+    if stage == "conv":
+        d.add_stage(
+            STAGE_CONV, first_field=0, n_fields=3, emit_num=2, emit_den=1
+        )
+    d.build()
+
     kw = _seg_kwargs(1, 0, acq, dat, pay)
     kw["snr"] = 99.0  # the stage is the only thing that may move a sample
-    kw.update(extra)
+    kw["payload"] = np.asarray(d.bits()).tobytes()
+    del kw["sync"]
+    kw["crc"] = "none"
     return np.asarray(Composer([Segment(**kw)]).compose())
 
 
-#: (flag, extra frame BITS the stage adds). The inner code doubles the frame
-#: it covers; the marker adds its 32 bits; the randomiser is XOR in place.
-STAGE_BITS = [("convolutional", FRAME), ("attach_asm", 32), ("randomise", 0)]
+#: (stage, extra frame BITS it adds). The inner code doubles the frame it
+#: covers; the marker adds its 32 bits; the randomiser is XOR in place.
+STAGE_BITS = [("conv", FRAME), ("asm", 32), ("randomise", 0)]
 
 
-@pytest.mark.parametrize(("flag", "extra_bits"), STAGE_BITS)
-def test_stage_reaches_the_spread_frame(flag, extra_bits):
+@pytest.mark.parametrize(("stage", "extra_bits"), STAGE_BITS)
+def test_stage_reaches_the_spread_frame(stage, extra_bits):
     """It runs, it costs what the description says, and it spares the
     preamble."""
     acq, dat, pay = _codes()
     plain = _burst(acq, dat, pay)
-    coded = _burst(acq, dat, pay, **{flag: 1})
+    coded = _burst(acq, dat, pay, stage)
 
     pre = ACQ_SF * REPS * SPC  # unmodulated preamble, in SAMPLES
     assert coded.size == plain.size + extra_bits * DATA_SF * SPC, (
-        f"{flag} did not lengthen the burst by its own bits, spread"
+        f"{stage} did not lengthen the burst by its own bits, spread"
     )
     # The preamble is the coherent pull-in target: it is transmitted
     # unmodulated and UNSPREAD, so it is outside every stage's cover. A
     # stage that touched it would break acquisition for every receiver.
     assert np.array_equal(coded[:pre], plain[:pre]), (
-        f"{flag} moved the preamble, which is not part of the frame"
+        f"{stage} moved the preamble, which is not part of the frame"
     )
-    # ...and it must have changed what it does cover, or the flag was
-    # parsed and dropped — the exact failure this section exists to catch.
+    # ...and it must have changed what it does cover, or the stage was
+    # declared and dropped -- the exact failure this section exists to catch.
     n = min(coded.size, plain.size) - pre
     assert not np.array_equal(coded[pre : pre + n], plain[pre : pre + n]), (
-        f"{flag} left the spread frame byte-identical: the stage did not run"
+        f"{stage} left the spread frame byte-identical: the stage did not run"
     )
 
 
-def test_a_record_carries_the_stages_and_replays_them():
-    """A coded burst's own record rebuilds it, stage for stage.
+@pytest.mark.parametrize(
+    "key", ["rs_depth", "randomise", "attach_asm", "convolutional"]
+)
+def test_the_coding_kwargs_are_gone(key):
+    """A coded frame is a description (docs/design/frame-description.md R).
 
-    This is what a record is FOR, and it was the quiet half of the same
-    defect: the stage keys were written inside the `bits` path, so a coded
-    DSSS capture recorded its codes, its preamble and its CRC, dropped its
-    coding stages, and replayed as a perfectly plausible UNCODED waveform.
-    A record that omits a stage is a capture nobody can rebuild.
-
-    Note the two spellings, which are deliberate and worth pinning: the
-    Python kwarg is the C member (`convolutional`, `attach_asm` — `asm` is
-    a GNU C keyword and cannot name one), while the scene and the CLI use
-    the short forms (`conv`, `asm`).
+    The four source kwargs that used to spell stages are refused rather
+    than accepted and ignored: a coded capture that silently came out
+    uncoded is the failure the stages section exists to prevent.
     """
     acq, dat, pay = _codes()
-    kw = _seg_kwargs(1, 0, acq, dat, pay)
-    kw["snr"] = 99.0
-    kw["convolutional"] = 1
-    kw["attach_asm"] = 1
-
-    c = Composer([Segment(**kw)])
-    x_obj = np.asarray(c.compose())
-    rec = json.loads(c.to_json())["segments"][0]
-    assert rec.get("conv") is True, "the record dropped the inner code"
-    assert rec.get("asm") is True, "the record dropped the marker"
-
-    x_replay = np.asarray(Composer.from_json(c.to_json()).compose())
-    assert np.array_equal(x_obj, x_replay), "the record does not replay"
-
-
-def test_rs_depth_refuses_a_short_frame_rather_than_padding():
-    """The outer code's geometry is checked on the spread path too.
-
-    A codeblock is a whole number of codewords, so the data the outer code
-    is given must be exactly 223*depth octets. Virtual fill is not
-    implemented, and padding would produce a codeblock that encodes and
-    decodes perfectly here and is the wrong length for the receiver it was
-    aimed at. Until the stages reached a DSSS burst this could not be
-    wrong, because `rs_depth` was dropped before it was ever checked.
-    """
-    acq, dat, pay = _codes()
-    kw = _seg_kwargs(1, 0, acq, dat, pay)
-    kw["rs_depth"] = 1  # PAYLOAD + CRC is nowhere near 223 octets
-    with pytest.raises(ValueError):
-        Composer([Segment(**kw)]).compose()
+    with pytest.raises(TypeError):
+        Segment(**_seg_kwargs(1, 0, acq, dat, pay), **{key: 1})
 
 
 def test_invalid_geometry_raises_or_degrades():

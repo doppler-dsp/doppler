@@ -62,31 +62,43 @@ arrays begin from nothing.
 
 ## From the command line
 
-The same description, reached through `wfmgen`'s flags:
+The same description, handed to `wfmgen` as a file — the form a scene's
+`"frame"` key holds. Depth 5, so the payload is `223 × 5` octets and the
+outer code's parity `32 × 5`:
 
-<!-- docs-snippet: no-exec=needs a 223*I-octet Transfer Frame on disk and a built wfmgen on PATH; the same invocation is executed, and its output compared against the encoder, by the flag matrix's bits_ccsds_cadu case -->
-
-```console
-$ wfmgen --type bits --bits-file transfer_frame.bits \
-      --rs-depth 5 --randomise --asm --conv \
-      --modulation bpsk --sps 1 --crc none --count 20464 -o cadu.cf32
+```json title="cadu5.json"
+{
+  "fields": [
+    {"name": "asm", "spec": "0x1ACFFC1D"},
+    {"name": "payload", "spec": "pn:8920:15"},
+    {"name": "rs_parity", "bits": 1280, "derived_by": 1}
+  ],
+  "stages": [
+    {"kind": "rs", "first_field": 1, "n_fields": 2, "depth": 5},
+    {"kind": "randomise", "first_field": 1, "n_fields": 2, "depth": 1},
+    {"kind": "conv", "first_field": 0, "n_fields": 3,
+     "emit_num": 2, "emit_den": 1}
+  ]
+}
 ```
 
-`--randomise` takes an optional generator. Bare selects `ccsds` — 131.0-B-6
-10.4.1's 131071-bit sequence, which the standard requires. Passing `legacy`
-selects 10.4.2's 255-bit one, kept for backward compatibility only. The two
-are **not interchangeable on the air**, so `--record` carries which was used
-rather than a bare `true`.
+```sh
+wfmgen --type bits --modulation bpsk --frame cadu5.json \
+       --sps 1 --count 20464 -o cadu.cf32
+```
 
-Each flag is a stage, each is optional, and setting any of them frames the
-waveform. All four over a `223 × I`-octet payload with no preamble and no sync
-word **is** a CADU. `--record` carries the coding, so `--from-file` on that
+The randomiser's `depth` names **which** generator: `1` is 131.0-B-6
+10.4.1's 131071-bit sequence, which the standard requires, and `2` is
+10.4.2's 255-bit one, kept for backward compatibility only. The two are
+**not interchangeable on the air**, so the description carries which was
+used and `--record` writes the description whole — `--from-file` on that
 record reproduces the samples byte for byte.
 
 A payload off the `223 × I` grid is **refused, not padded** — virtual fill is
 not implemented ([gh-813](https://github.com/doppler-dsp/doppler/issues/813)),
 and a silently padded codeblock is the wrong length for the receiver it was
-aimed at.
+aimed at. Every key the file takes is in
+[Coded frames](../guide/wfmgen/waveforms.md#coded-frames-frame-file).
 
 ## What the receive side buys — the plot
 

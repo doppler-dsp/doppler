@@ -320,10 +320,6 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                     "data_code",
                                     "sync",
                                     "crc",
-                                    "rs_depth",
-                                    "randomise",
-                                    "attach_asm",
-                                    "convolutional",
                                     "symbol_rate",
                                     "dsss_code_only",
                                     "fs",
@@ -356,10 +352,6 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject    *data_code        = NULL;
   PyObject    *sync             = NULL;
   const char  *crc              = "crc16";
-  int          rs_depth         = 0;
-  int          randomise        = 0;
-  int          attach_asm       = 0;
-  int          convolutional    = 0;
   double       symbol_rate      = 0.0;
   int          dsss_code_only   = 0;
   double       fs               = 1e6;
@@ -450,12 +442,11 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsiiiidid", kwlist, &type,
-          &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
-          &level, &background, &f_end, &span, &doppler, &doppler_rate,
-          &carrier_hz, &doppler_lifetime, &bits, &modulation, &pulse,
-          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code,
-          &sync, &crc, &rs_depth, &randomise, &attach_asm, &convolutional,
+          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsdid", kwlist, &type, &freq,
+          &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level,
+          &background, &f_end, &span, &doppler, &doppler_rate, &carrier_hz,
+          &doppler_lifetime, &bits, &modulation, &pulse, &rrc_beta, &rrc_span,
+          &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
           &symbol_rate, &dsss_code_only, &fs))
     {
       if (_kw_owned)
@@ -696,10 +687,6 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.crc = _i;
   }
-  self->src.rs_depth       = rs_depth;
-  self->src.randomise      = randomise;
-  self->src.attach_asm     = attach_asm;
-  self->src.convolutional  = convolutional;
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
   return 0;
@@ -1353,66 +1340,6 @@ Synth_set_crc (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
-Synth_get_rs_depth (SynthObject *self, void *closure)
-{
-  (void)closure;
-  return PyLong_FromLong ((long)self->src.rs_depth);
-}
-static int
-Synth_set_rs_depth (SynthObject *self, PyObject *value, void *closure)
-{
-  (void)closure;
-  self->src.rs_depth = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
-    return -1;
-  return 0;
-}
-static PyObject *
-Synth_get_randomise (SynthObject *self, void *closure)
-{
-  (void)closure;
-  return PyLong_FromLong ((long)self->src.randomise);
-}
-static int
-Synth_set_randomise (SynthObject *self, PyObject *value, void *closure)
-{
-  (void)closure;
-  self->src.randomise = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
-    return -1;
-  return 0;
-}
-static PyObject *
-Synth_get_attach_asm (SynthObject *self, void *closure)
-{
-  (void)closure;
-  return PyLong_FromLong ((long)self->src.attach_asm);
-}
-static int
-Synth_set_attach_asm (SynthObject *self, PyObject *value, void *closure)
-{
-  (void)closure;
-  self->src.attach_asm = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
-    return -1;
-  return 0;
-}
-static PyObject *
-Synth_get_convolutional (SynthObject *self, void *closure)
-{
-  (void)closure;
-  return PyLong_FromLong ((long)self->src.convolutional);
-}
-static int
-Synth_set_convolutional (SynthObject *self, PyObject *value, void *closure)
-{
-  (void)closure;
-  self->src.convolutional = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
-    return -1;
-  return 0;
-}
-static PyObject *
 Synth_get_symbol_rate (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -1623,38 +1550,6 @@ static PyGetSetDef Synth_getset[] = {
     "frame error rate possible); none omits it. Applies only to a FRAMED "
     "source: it defaults to crc16, so it alone never frames an otherwise "
     "plain pattern.\n",
-    NULL },
-  { "rs_depth", (getter)Synth_get_rs_depth, (setter)Synth_set_rs_depth,
-    "Reed-Solomon (255,223) E=16 over the data group, interleaved this many "
-    "codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2, "
-    "3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth "
-    "octets — virtual fill is not implemented, so any other length is REFUSED "
-    "rather than padded. The wfmgen scene and CLI spell it `rs_depth` / "
-    "`--rs-depth`.\n",
-    NULL },
-  { "randomise", (getter)Synth_get_randomise, (setter)Synth_set_randomise,
-    "XOR a CCSDS section-10 pseudo-randomiser over the data group — the "
-    "payload, its CRC and the outer code's parity, but never a marker or a "
-    "preamble, which have to read the same in every frame to be findable. 0 = "
-    "off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 = "
-    "10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only "
-    "the matching receiver derandomises a given waveform. CLI: `--randomise "
-    "[G]`.\n",
-    NULL },
-  { "attach_asm", (getter)Synth_get_attach_asm, (setter)Synth_set_attach_asm,
-    "Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's first "
-    "field — what a receiver correlates to find a frame in a bit stream. Not "
-    "covered by the randomiser, and covered by the inner code, which is the "
-    "coverage rule the description carries. The wfmgen scene and CLI spell it "
-    "`asm` / `--asm`.\n",
-    NULL },
-  { "convolutional", (getter)Synth_get_convolutional,
-    (setter)Synth_set_convolutional,
-    "Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame "
-    "including the marker, doubling its bit count. For a `dsss` burst it "
-    "covers everything that is spread and NOT the acquisition preamble — a "
-    "preamble is transmitted unmodulated because it is the coherent pull-in "
-    "target. The wfmgen scene and CLI spell it `conv` / `--conv`.\n",
     NULL },
   { "symbol_rate", (getter)Synth_get_symbol_rate,
     (setter)Synth_set_symbol_rate,
@@ -2694,58 +2589,6 @@ Segment_flat_crc (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "crc");
 }
 static PyObject *
-Segment_flat_rs_depth (SegmentObject *self, void *closure)
-{
-  (void)closure;
-  if (PyList_GET_SIZE (self->sources) != 1)
-    {
-      PyErr_SetString (PyExc_AttributeError,
-                       "rs_depth is only on a single-source Segment");
-      return NULL;
-    }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "rs_depth");
-}
-static PyObject *
-Segment_flat_randomise (SegmentObject *self, void *closure)
-{
-  (void)closure;
-  if (PyList_GET_SIZE (self->sources) != 1)
-    {
-      PyErr_SetString (PyExc_AttributeError,
-                       "randomise is only on a single-source Segment");
-      return NULL;
-    }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "randomise");
-}
-static PyObject *
-Segment_flat_attach_asm (SegmentObject *self, void *closure)
-{
-  (void)closure;
-  if (PyList_GET_SIZE (self->sources) != 1)
-    {
-      PyErr_SetString (PyExc_AttributeError,
-                       "attach_asm is only on a single-source Segment");
-      return NULL;
-    }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "attach_asm");
-}
-static PyObject *
-Segment_flat_convolutional (SegmentObject *self, void *closure)
-{
-  (void)closure;
-  if (PyList_GET_SIZE (self->sources) != 1)
-    {
-      PyErr_SetString (PyExc_AttributeError,
-                       "convolutional is only on a single-source Segment");
-      return NULL;
-    }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "convolutional");
-}
-static PyObject *
 Segment_flat_symbol_rate (SegmentObject *self, void *closure)
 {
   (void)closure;
@@ -2992,37 +2835,6 @@ static PyGetSetDef Segment_getset[] = {
     "frame error rate possible); none omits it. Applies only to a FRAMED "
     "source: it defaults to crc16, so it alone never frames an otherwise "
     "plain pattern.\n",
-    NULL },
-  { "rs_depth", (getter)Segment_flat_rs_depth, NULL,
-    "Reed-Solomon (255,223) E=16 over the data group, interleaved this many "
-    "codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2, "
-    "3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth "
-    "octets — virtual fill is not implemented, so any other length is REFUSED "
-    "rather than padded. The wfmgen scene and CLI spell it `rs_depth` / "
-    "`--rs-depth`.\n",
-    NULL },
-  { "randomise", (getter)Segment_flat_randomise, NULL,
-    "XOR a CCSDS section-10 pseudo-randomiser over the data group — the "
-    "payload, its CRC and the outer code's parity, but never a marker or a "
-    "preamble, which have to read the same in every frame to be findable. 0 = "
-    "off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 = "
-    "10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only "
-    "the matching receiver derandomises a given waveform. CLI: `--randomise "
-    "[G]`.\n",
-    NULL },
-  { "attach_asm", (getter)Segment_flat_attach_asm, NULL,
-    "Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's first "
-    "field — what a receiver correlates to find a frame in a bit stream. Not "
-    "covered by the randomiser, and covered by the inner code, which is the "
-    "coverage rule the description carries. The wfmgen scene and CLI spell it "
-    "`asm` / `--asm`.\n",
-    NULL },
-  { "convolutional", (getter)Segment_flat_convolutional, NULL,
-    "Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame "
-    "including the marker, doubling its bit count. For a `dsss` burst it "
-    "covers everything that is spread and NOT the acquisition preamble — a "
-    "preamble is transmitted unmodulated because it is the coherent pull-in "
-    "target. The wfmgen scene and CLI spell it `conv` / `--conv`.\n",
     NULL },
   { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL,
     "For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading "
@@ -3918,10 +3730,6 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "data_code",
                                                   "sync",
                                                   "crc",
-                                                  "rs_depth",
-                                                  "randomise",
-                                                  "attach_asm",
-                                                  "convolutional",
                                                   "symbol_rate",
                                                   "dsss_code_only",
                                                   NULL };

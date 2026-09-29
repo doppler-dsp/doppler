@@ -1,19 +1,15 @@
 # A Frame You Built, Generated
 
-wfmgen has always been able to frame a waveform. What it could not do was
-take a frame *you* described.
-
-Framing reached the generator as flat flags — `--sync`, `--acq-code`,
-`--crc`, `--rs-depth`, `--asm`, `--conv` — and between them they spell the
-frames doppler already knows, at the positions doppler already puts them. A
-layout outside that shape needed a new flag, which is one more spelling of
-something [`wfm_frame_desc_t`](ccsds-link.md) could already describe: fields
-in wire order, stages with the span each covers.
+wfmgen frames a waveform two ways, and they are not two representations.
+`--acq-code`, `--sync` and `--crc` spell **one** frame, the common
+`[preamble × reps | sync | payload | crc]`. Everything else — a field of
+your own at a position you choose, a coding stage, a CCSDS CADU — is a
+[`wfm_frame_desc_t`](ccsds-link.md): fields in wire order, stages with the
+span each covers.
 
 `wfm_source_t.frame` is the way in. Point a source at a description and that
-description **is** the frame; the flat fields stay, as sugar that builds one
-of these, so every scene, flag and JSON key written before this keeps working
-unchanged.
+description **is** the frame. `wfmgen --frame FILE` and a scene's `"frame"`
+key reach the same member.
 
 ## The whole thing, in one program
 
@@ -133,19 +129,20 @@ produces a frame that still assembles, still decodes against itself, and syncs
 to nothing. With it, the frame assembles *and reverses* through the same open
 lookup, and `dp_wfm_frame_check` reports both stages reversed.
 
-## The flags are sugar for exactly this
+## The common frame is a description too
 
-`dp_wfm_source_describe_frame()` is the one place every consumer funnels
-through, whichever way a source spelled its frame. Ask a flag-spelled source
-for its description, hand that description to a second source, and the two
-compose **byte-identically** — which is what makes "the flat fields are
-sugar" a measurement rather than a claim.
+`--acq-code`, `--sync` and `--crc` go through one function,
+`dp_wfm_frame_fixed()`, which builds the common frame as an ordinary
+description with fields called `"preamble"`, `"sync"`, `"payload"` and
+`"crc"`. Hand that description to a second source and the two compose
+**byte-identically** — which is what makes "one frame representation" a
+measurement rather than a claim.
 
 The worked version of that check, and of every claim above, is
 [`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/wfmgen_frame_demo.c):
 it composes framed against unframed, demodulates the frame back to the
 description's own bits, shows one description cycling to fill a three-frame
-record, proves the sugar equivalence above, and ends on the caller's own stage
+record, proves the equivalence above, and ends on the caller's own stage
 kind. It self-validates and exits non-zero if any of it stops holding — which
 is why the sections are numbered here rather than counted.
 

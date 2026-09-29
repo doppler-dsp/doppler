@@ -1,17 +1,13 @@
 /**
  * wfmgen_frame_demo.c — wfmgen eats a frame YOU built.
  *
- * Every other way into wfmgen's framing spells the frame with FLAGS:
- * `--sync`, `--acq-code`, `--crc`, `--rs-depth`, `--asm`. Between them they
- * cover the frames doppler already knows, at the positions doppler already
- * puts them — and a frame outside that shape needed a new flag, which is one
- * more spelling of a layout `wfm_frame_desc_t` could already describe.
- *
- * `wfm_source_t.frame` is the way in. A caller builds a description — named
- * fields in wire order, named stages with the span each covers — points a
- * source at it, and composes. The flat fields stay, as SUGAR that builds one
- * of these, so every scene, flag and JSON key written before this keeps
- * working unchanged.
+ * The flags `--acq-code`, `--sync` and `--crc` spell ONE frame, the common
+ * one: `[preamble x reps | sync | payload | crc]`. Anything else — a field
+ * of your own, a coding stage, a CCSDS CADU — is a description, and
+ * `wfm_source_t.frame` is the way in. A caller builds one — named fields in
+ * wire order, named stages with the span each covers — points a source at
+ * it, and composes. `wfmgen --frame FILE` and a scene's "frame" key reach
+ * the same member.
  *
  * What this demonstrates, in order:
  *
@@ -23,9 +19,9 @@
  *      dp_wfm_frame_assemble() of the same description, bit for bit.
  *   4. The frame CYCLES, so one description fills whatever length is asked
  *      for and a one-frame description is a multi-frame record.
- *   5. The flags really are sugar: dp_wfm_source_describe_frame() turns a
- *      flag-spelled source into a description, and a second source carrying
- *      that description composes BYTE-IDENTICALLY to the first.
+ *   5. The common frame is a description too: a flag-spelled source and a
+ *      second one carrying dp_wfm_frame_fixed() of the same fields compose
+ *      BYTE-IDENTICALLY.
  *   6. A stage kind that is YOURS: a kind from WFM_STAGE_USER up, its kernel
  *      supplied through wfm_frame_ops_t, refused when absent and reversed
  *      through the same open lookup when present.
@@ -374,8 +370,8 @@ main (void)
           "description\n\n",
           FRAMES, FRAME_BITS, SPS, TOTAL);
 
-  /* ── 5. The flat flags are sugar for exactly this ───────────────────── */
-  printf ("--- 5. The flags build a description; so can you ---\n");
+  /* ── 5. The common frame is a description too ───────────────────────── */
+  printf ("--- 5. The flags spell the common frame; so can you ---\n");
 
   /* Spelled the old way: a sync word, a payload, and a CRC trailer. */
   wfm_source_t flags = bits_source (payload_bits);
@@ -383,11 +379,13 @@ main (void)
   flags.crc          = 1;
   check (dp_wfm_source_has_frame (&flags), "the flat fields frame it too");
 
-  /* And read back OUT as a description — the one every consumer funnels
-     through, whichever way the source spelled its frame. */
+  /* The same frame, as the description dp_wfm_frame_fixed() builds — the
+     one function the flags go through, so there is no second layout. */
   wfm_frame_desc_t from_flags;
-  check (dp_wfm_source_describe_frame (&flags, &from_flags) == 0,
-         "dp_wfm_source_describe_frame turns the flags into a description");
+  check (dp_wfm_frame_fixed (&from_flags, NULL, 0, &flags.sync, &flags.payload,
+                             flags.crc)
+             == 0,
+         "dp_wfm_frame_fixed describes the common frame");
 
   wfm_source_t carried = bits_source (payload_bits);
   carried.frame        = &from_flags;

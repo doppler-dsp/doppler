@@ -239,12 +239,13 @@ def test_python_to_json_round_trips_it(tmp_path, mode):
     assert not np.array_equal(direct[:PERIOD], direct[PERIOD : 2 * PERIOD])
 
 
-# ── the same defect, on a second flag ────────────────────────────────────
+# ── the same defect, on a coding stage ───────────────────────────────────
 #
-# `--interleave` was dropped by the record on the flag's first release
+# The interleaver was dropped by the record on its first release
 # (doppler#1031), exactly as `seed_advance` had been. The replay came back
 # the same LENGTH with different bytes and no error — a capture that looks
-# like the one you recorded and is a different waveform.
+# like the one you recorded and is a different waveform. A coded frame is a
+# `--frame FILE` description now, and the record must carry it whole.
 #
 # It is a finite run, so unlike the loop tests above it can be compared as
 # whole files rather than a prefix off a pipe.
@@ -261,66 +262,86 @@ def _run_to(tmp_path: Path, name: str, *args: str) -> bytes:
     return out.read_bytes()
 
 
+def _frame_file(tmp_path: Path, payload: str, depth: int, unit: int) -> Path:
+    """[sync | payload | CRC-16], with an interleave stage over the data
+    group when `depth` is non-zero."""
+    stages = [{"kind": "crc16", "first_field": 1, "n_fields": 2}]
+    if depth:
+        stages.append(
+            {
+                "kind": "interleave",
+                "first_field": 1,
+                "n_fields": 2,
+                "depth": depth,
+                "unit_bits": unit,
+            }
+        )
+    frame = {
+        "fields": [
+            {"name": "sync", "spec": "11110011"},
+            {"name": "payload", "spec": payload},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+        ],
+        "stages": stages,
+    }
+    path = tmp_path / f"frame_{depth}_{unit}.json"
+    path.write_text(json.dumps(frame), encoding="utf-8")
+    return path
+
+
+_ARGS = ["--type", "bits", "--modulation", "bpsk", "--sps", "1"]
+
+
 @pytest.mark.parametrize(
     ("depth", "unit", "payload"),
     [
         (4, 1, "1011001011010010"),  # bit interleaving, the bare form
-        (5, 8, None),  # octet units: 24 payload bits + 16 CRC = 5 x 8
+        (5, 8, "0xb25a0f"),  # octet units: 24 payload bits + 16 CRC = 5 x 8
     ],
 )
 def test_interleave_survives_a_record_round_trip(
     tmp_path, depth, unit, payload
 ):
-    """The flag has to reach the writer AND the reader, not just the kernel."""
-    bits = ["--bits", payload] if payload else ["--bits", "0xb25a0f"]
+    """The stage has to reach the writer AND the reader, not just the
+    kernel."""
     record = tmp_path / "record.json"
-    args = [
-        "--type",
-        "bits",
-        "--modulation",
-        "bpsk",
-        *bits,
-        "--sync",
-        "11110011",
-        "--sps",
-        "1",
-        "--count",
-        "4096",
-        "--interleave",
-        str(depth),
-        "--interleave-unit",
-        str(unit),
-    ]
+    frame = _frame_file(tmp_path, payload, depth, unit)
+    args = [*_ARGS, "--frame", str(frame), "--count", "4096"]
     first = _run_to(tmp_path, "a.iq", *args, "--record", str(record))
     again = _run_to(tmp_path, "b.iq", "--from-file", str(record))
 
     spec = json.loads(record.read_text(encoding="utf-8"))["segments"][0]
-    assert spec["interleave"] == depth
-    assert spec["interleave_unit"] == unit
+    stage = spec["frame"]["stages"][1]
+    assert stage["kind"] == "interleave"
+    assert stage["depth"] == depth
+    assert stage.get("unit_bits", 0) in ((unit,) if unit > 1 else (0, 1))
     assert again == first, (
-        f"--interleave {depth} --interleave-unit {unit} did not survive "
-        f"--record; the replay is {len(again)} bytes against {len(first)}"
+        f"an interleave stage {depth} x {unit} did not survive --record; "
+        f"the replay is {len(again)} bytes against {len(first)}"
     )
 
 
 def test_an_interleaved_run_differs_from_an_uninterleaved_one(tmp_path):
-    """Guard the guard: if the flag changed nothing, the test above is
+    """Guard the guard: if the stage changed nothing, the test above is
     vacuous and would pass against a writer that dropped it."""
-    args = [
-        "--type",
-        "bits",
-        "--modulation",
-        "bpsk",
-        "--bits",
-        "1011001011010010",
-        "--sync",
-        "11110011",
-        "--sps",
-        "1",
+    payload = "1011001011010010"
+    plain = _run_to(
+        tmp_path,
+        "plain.iq",
+        *_ARGS,
+        "--frame",
+        str(_frame_file(tmp_path, payload, 0, 0)),
         "--count",
         "4096",
-    ]
-    plain = _run_to(tmp_path, "plain.iq", *args)
-    woven = _run_to(tmp_path, "woven.iq", *args, "--interleave", "4")
+    )
+    woven = _run_to(
+        tmp_path,
+        "woven.iq",
+        *_ARGS,
+        "--frame",
+        str(_frame_file(tmp_path, payload, 4, 1)),
+        "--count",
+        "4096",
+    )
     assert len(plain) == len(woven), "the interleaver is length-preserving"
-    assert plain != woven, "--interleave changed nothing to record"
+    assert plain != woven, "the interleave stage changed nothing to record"

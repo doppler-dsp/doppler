@@ -108,6 +108,17 @@ def test_the_coercion_agrees_with_field_bits(spec):
     assert list(_coerce(spec)) == field_bits(spec).tolist()
 
 
+@pytest.mark.parametrize("spec", [s for s in MALFORMED if s not in ("", "0x")])
+def test_the_coercion_refuses_what_field_bits_refuses(spec):
+    """The refusals the two grammars SHARE, pinned so neither drifts alone.
+
+    If jm ever read "0102" as some pattern, the agreement tests above would
+    stay green -- they only cover VALID text.
+    """
+    with pytest.raises(ValueError):
+        _coerce(spec)
+
+
 @pytest.mark.parametrize("spec", [s for s in VALID if not _jm_grammar(s)])
 def test_gap_the_coercion_refuses_a_valid_field(spec):
     """A generated field and `*REPS` are Fields jm cannot read.

@@ -1351,6 +1351,32 @@
     "outputs": {},
     "record": null
   },
+  "err_field_past_the_bound": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "pn:4000000000:5",
+      "--count",
+      "16"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_field_past_the_bound_2e64": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "pn:18446744073709551615:5",
+      "--count",
+      "16"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
   "err_frame_not_a_frame": {
     "argv": [
       "--type",

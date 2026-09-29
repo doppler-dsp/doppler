@@ -144,3 +144,14 @@ def test_gap_the_coercion_accepts_an_empty_field(spec):
     except ValueError:
         pytest.fail(_JM1709)  # refused, as field_bits refuses: fixed
     assert got in (None, b""), "the coercion read an empty field as bits"
+
+
+def test_a_field_past_the_bound_raises_not_a_numpy_error():
+    # doppler#1622: 2^64 - 1 was cast to a negative dimension by the
+    # self-sizing binding (just-makeit#1710) and surfaced as numpy's
+    # "negative dimensions". The parser now refuses it, so the binding's
+    # own refusal is what raises. (The C refusal names the bound; the
+    # binding carries it only once just-makeit#1706 lands.)
+    with pytest.raises(RuntimeError) as e:
+        field_bits("pn:18446744073709551615:5")
+    assert "negative dimensions" not in str(e.value)

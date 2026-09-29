@@ -39,7 +39,7 @@ import numpy as np
 
 from doppler.tests._repo import repo_root
 from doppler.tests._validation_common import Report, cli
-from doppler.wfm import _SynthEngine, rrc_taps
+from doppler.wfm import Frame, _SynthEngine, rrc_taps
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
@@ -134,13 +134,18 @@ def synth(wtype: str, span: int = 4096, **kw) -> _SynthEngine:
     elif wtype == "symbols":
         s.set_symbols(SYMBOL_STREAM)
     elif wtype == "dsss":
-        s.set_dsss(
-            DSSS_CODE,
-            3,
-            DSSS_CODE,
-            np.array([1, 0], np.uint8),
-            np.array([1, 1, 0, 1, 0], np.uint8),
-            1,
+        # Three unspread preamble periods, then a Frame's bits -- sync 11010,
+        # payload 10, CRC-16 -- each spread by the same code.
+        frame = Frame(
+            sync=np.array([1, 1, 0, 1, 0], np.uint8),
+            payload=np.array([1, 0], np.uint8),
+            crc="crc16",
+        )
+        bits = np.asarray(frame.bits())
+        s.set_dsss_chips(
+            np.concatenate(
+                [np.tile(DSSS_CODE, 3), (bits[:, None] ^ DSSS_CODE).ravel()]
+            )
         )
     return s
 
@@ -817,8 +822,8 @@ def measure_accessors(d: Data) -> None:
     R.md()
     d.unreachable = [
         (
-            "`dp_wfm_synth_set_dsss_chips` -- installs a pre-assembled burst; "
-            "the four-field `set_dsss` is bound and routes through it."
+            "`dp_wfm_synth_set_dsss_chips` -- installs a pre-assembled burst, "
+            "and is bound as `_SynthEngine.set_dsss_chips`."
         ),
         (
             "`dp_wfm_synth_reseed_noise` -- fresh noise per segment repeat, "

@@ -90,3 +90,9 @@ test_ccsds_tm_frame.c -> test_wfm_compose.c removes=1  #853 item 8: the
   count and "every stage covers something" moved to test_wfm_compose's
   bridge oracle, over nine source shapes instead of four. The interleave
   stage's depth/unit check is covered there by the interleaved bits.
+test_wfm_dsp.c -> test_wfm_frame.c  #853 item 11: the hand-computed DSSS
+  burst vector pinned `dp_wfm_frame_dsss_nchips`/`_chips`, the four-field
+  builder, which was a FRAME function living in the DSP test. The builder is
+  deleted; the vector moved to test_wfm_frame.c unchanged, over the
+  description pair (`dp_wfm_frame_fixed` + `dp_wfm_dsss_desc_*`), and its
+  nchips edge cases joined that file's chip-count table.

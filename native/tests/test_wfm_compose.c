@@ -1308,7 +1308,13 @@ main (void)
                         .num_samples = 17,
                         .off_samples = 10 };
 
-    size_t nchips = dp_wfm_frame_dsss_nchips (8, 3, 4, 2, 5, 1);
+    /* The burst the source should produce, through the description pair:
+       the common frame over the same sync/payload/CRC, spread. */
+    const wfm_seq_t hsyn = { .kind = WFM_SEQ_LITERAL, .bits = sync, .len = 2 };
+    const wfm_seq_t hpay = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = 5 };
+    wfm_frame_desc_t hd;
+    DP_REQUIRE (dp_wfm_frame_fixed (&hd, NULL, 0, &hsyn, &hpay, 1) == 0);
+    size_t nchips = dp_wfm_dsss_desc_nchips (&hd, 8, 3, 4);
     DP_REQUIRE_MSG (nchips == 8 * 3 + (2 + 5 + 16) * 4, "burst chip count");
     size_t on = nchips * 2;
 
@@ -1331,8 +1337,8 @@ main (void)
     /* equivalent hand-spread bits segment at the hand-converted fs SNR (the
      * exact conversion the demo used: esno − 10log10(sf·sps), mode fs). */
     static uint8_t chips[512];
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_chips (acq, 8, 3, dcode, 4, sync, 2, pay,
-                                             5, 1, chips)
+    DP_REQUIRE_MSG (dp_wfm_dsss_desc_chips (&hd, NULL, acq, 8, 3, dcode, 4,
+                                            chips, sizeof chips)
                         == nchips,
                     "hand chips");
     wfm_source_t            bits = { .type = WFM_SYNTH_BITS,
@@ -2293,29 +2299,30 @@ main (void)
     /* And it is not merely DIFFERENT — it is the descriptor's own bits, so
        the layout, the CRC's position and its bit order come from the one
        place the receiver reads them from too. */
-    wfm_frame_t f   = { 0 };
-    f.preamble.kind = WFM_SEQ_LITERAL;
-    f.preamble.bits = acq_bits;
-    f.preamble.len  = sizeof acq_bits;
-    f.preamble_reps = 4;
-    f.sync.kind     = WFM_SEQ_LITERAL;
-    f.sync.bits     = sync_bits;
-    f.sync.len      = sizeof sync_bits;
-    f.payload.kind  = WFM_SEQ_LITERAL;
-    f.payload.bits  = payload;
-    f.payload.len   = sizeof payload;
-    f.crc           = 1;
-    DP_REQUIRE_MSG (dp_wfm_frame_nbits (&f) == nb, "the frame is nb bits");
+    const wfm_seq_t fpre = { .kind = WFM_SEQ_LITERAL,
+                             .bits = acq_bits,
+                             .len  = sizeof acq_bits };
+    const wfm_seq_t fsyn = { .kind = WFM_SEQ_LITERAL,
+                             .bits = sync_bits,
+                             .len  = sizeof sync_bits };
+    const wfm_seq_t fpay
+        = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = sizeof payload };
+    wfm_frame_desc_t        f;
+    wfm_frame_desc_layout_t fl;
+    DP_REQUIRE (dp_wfm_frame_fixed (&f, &fpre, 4, &fsyn, &fpay, 1) == 0);
+    DP_REQUIRE_MSG (dp_wfm_frame_desc_layout (&f, &fl) == 0
+                        && fl.frame_bits == nb,
+                    "the frame is nb bits");
     uint8_t *want = malloc (nb);
-    DP_REQUIRE_MSG (want && dp_wfm_frame_bits (&f, want, nb) == nb,
+    DP_REQUIRE_MSG (want && dp_wfm_frame_assemble (&f, NULL, want, nb) == nb,
                     "frame bits");
     for (size_t i = 0; i < nb; i++)
       {
         /* bpsk: bit 0 -> +1, bit 1 -> -1 (wfm_synth's mapping, sps == 1). */
         float expect = want[i] ? -1.0f : 1.0f;
         DP_REQUIRE_MSG (fabsf (crealf (b[i]) - expect) < 1e-6f,
-                        "the framed stream IS dp_wfm_frame_bits of its own "
-                        "descriptor, symbol for symbol");
+                        "the framed stream IS the assembly of its own "
+                        "description, symbol for symbol");
       }
     /* One frame, then it CYCLES — which is what turns a one-frame description
        into a multi-frame record without a repeat count in the descriptor. */
@@ -2329,12 +2336,12 @@ main (void)
 
     /* ── an UNBUILDABLE frame must FAIL the build, on both paths ──────────
      *
-     * dp_wfm_frame_bits() refuses a descriptor it cannot materialise rather
-     * than half-writing one, and the two construction paths have to turn that
-     * into a NULL synth. Without that they would fall through to an unframed
-     * waveform — the very failure the rest of this section exists to pin,
-     * one layer down and this time silent even to a byte comparison, because
-     * there would be nothing to compare against.
+     * dp_wfm_frame_assemble() refuses a description it cannot materialise
+     * rather than half-writing one, and the two construction paths have to
+     * turn that into a NULL synth. Without that they would fall through to an
+     * unframed waveform — the very failure the rest of this section exists to
+     * pin, one layer down and this time silent even to a byte comparison,
+     * because there would be nothing to compare against.
      *
      * A preamble LENGTH with no preamble ARRAY is that state. No face can
      * currently spell it — the CLI and wfm_json.c both derive the length FROM

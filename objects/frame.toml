@@ -1,8 +1,9 @@
 # frame — a frame's bit layout, describable from Python.
 #
-# The RECEIVE half of the frame story. `wfm_frame_t` (native/inc/doppler/wfm/wfm_frame.h)
-# is what the generator builds a frame from and what `dp_wfm_frame_crc_ok()` scores
-# one against; until now only C could hold one, so `doppler.ber.FrameMeter` --
+# The RECEIVE half of the frame story. A description (`wfm_frame_desc_t`,
+# native/inc/doppler/wfm/wfm_frame.h) is what the generator builds a frame from
+# and what `dp_wfm_frame_desc_crc_ok()` scores one against; until now only C
+# could hold one, so `doppler.ber.FrameMeter` --
 # which exists precisely to turn CRC outcomes into an exact FER interval -- had
 # no way to be fed from Python. This object closes that: describe the frame,
 # `bits()` it to compare against, `crc_ok(rx)` a capture, feed the result to
@@ -35,7 +36,7 @@ no_reset = "true"
 class_name = "Frame"
 create_error = "ValueError"
 create_error_message = "frame geometry is empty, or a field holds an element that is not a bit (0 or 1)"
-# wfm_frame_core holds dp_wfm_frame_bits/_layout/_crc_ok; pn/gold/cvt are its
+# wfm_frame_core holds dp_wfm_frame_fixed/_assemble/_desc_crc_ok; pn/gold/cvt are its
 # own dependencies (the generated kinds, and the Field text form's hex), named
 # here because an OBJECT library does not carry its dependencies' objects.
 # ccsds_tm: `build()` runs the coded stages a description may name, and
@@ -110,26 +111,6 @@ nogil = true
 [[frame.views]]
 class_name = "FrameDesc"
 create_fn = "dp_frame_create_desc"
-
-[[frame.methods]]
-name = "layout"
-arg_type = "void"
-return_type = "wfm_frame_layout_t"
-single = true
-record_name = "FrameLayout"
-record_doc = "Where each field lands, in bits from the start of the frame. The offsets a receiver needs to slice a capture -- computed once, by the same code the generator laid the frame out with."
-record_module = "doppler.wfm"
-result_fields = [
-    { name = "preamble_off", type = "size_t" },
-    { name = "preamble_bits", type = "size_t" },
-    { name = "sync_off", type = "size_t" },
-    { name = "sync_bits", type = "size_t" },
-    { name = "payload_off", type = "size_t" },
-    { name = "payload_bits", type = "size_t" },
-    { name = "crc_off", type = "size_t" },
-    { name = "crc_bits", type = "size_t" },
-    { name = "total_bits", type = "size_t" },
-]
 
 [[frame.methods]]
 name = "crc_ok"
@@ -285,7 +266,7 @@ nogil = true
 
 [[frame.methods]]
 name = "n_fields"
-doc = "Fields in the description. A `Frame` built the four-field way reports 4 -- `wfm_frame_t` IS a configuration of the general description, so the indexed view below reads it too."
+doc = "Fields in the description. A `Frame` counts only the fields it was given -- `Frame(sync=..., payload=..., crc=\"crc16\")` is 3 -- so read a field by name with `field_index`, not by position."
 arg_type = "void"
 return_type = "size_t"
 

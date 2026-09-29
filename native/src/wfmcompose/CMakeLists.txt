@@ -150,7 +150,7 @@ target_include_directories(test_wfm_frame PRIVATE
 add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
 
 # native/tests/dp_frame_test.h is the NAMED starter set built on that
-# descriptor -- five wfm_frame_t values a receiver harness selects by name, so
+# descriptor -- five descriptions a receiver harness selects by name, so
 # that a run is reproducible from its description and two harnesses cannot
 # quietly disagree about what "a burst frame" means. Header-only and owned by
 # no object, so its test is registered beside the descriptor's.

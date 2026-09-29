@@ -207,18 +207,28 @@ def _make_symbols_engine() -> Any:
 def _make_dsss_engine() -> Any:
     """A type=dsss synth with a two-code burst attached (noisy, so the AWGN
     child rides the blob too). The chip pattern is config (rebuilt by
-    set_dsss); bit_idx/sym_pos are the running fields the round-trip must
-    carry across a mid-burst split."""
+    set_dsss_chips); bit_idx/sym_pos are the running fields the round-trip
+    must carry across a mid-burst split.
+
+    The burst is a Frame's bits spread by the data code behind the unspread
+    preamble -- the stimulus only has to be a burst, so it is built here
+    rather than through a binding that exists for nothing else."""
+    from doppler.wfm import Frame
+
     e = _SynthEngine(
         type="dsss", fs=1.0, freq=0.0, snr=-3.0, snr_mode="fs", seed=5, sps=2
     )
     rng = np.random.default_rng(3)
-    e.set_dsss(
-        acq_code=rng.integers(0, 2, 32, dtype=np.uint8),
-        acq_reps=3,
-        data_code=rng.integers(0, 2, 8, dtype=np.uint8),
-        payload=rng.integers(0, 2, 40, dtype=np.uint8),
+    acq = rng.integers(0, 2, 32, dtype=np.uint8)
+    code = rng.integers(0, 2, 8, dtype=np.uint8)
+    frame = Frame(
         sync=np.array([1, 1, 1, 0, 0, 1, 0], np.uint8),
+        payload=rng.integers(0, 2, 40, dtype=np.uint8),
+        crc="crc16",
+    )
+    bits = np.asarray(frame.bits())
+    e.set_dsss_chips(
+        np.concatenate([np.tile(acq, 3), (bits[:, None] ^ code).ravel()])
     )
     return e
 

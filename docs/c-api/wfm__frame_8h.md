@@ -34,12 +34,10 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | struct | [**wfm\_field\_t**](structwfm__field__t.md) <br>_One field of a frame — a run of bits that appears on the wire._  |
 | struct | [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) <br>_Where every field and every stage landed._  |
 | struct | [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) <br>_A frame as a description: what is on the wire, and what covers it._  |
-| struct | [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) <br>_Where each field lands, in bits from the start of the frame._  |
 | struct | [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) <br>_The kernels an assembly runs, and whatever state they carry._  |
 | struct | [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) <br>_What_ [_**dp\_wfm\_frame\_check**_](wfm__frame_8h.md#function-dp_wfm_frame_check) _found, stage by stage._ |
 | struct | [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md) <br>_A run of bits inside the assembled frame,_ `[first, first + n)` _._ |
 | struct | [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md) <br>_What undoing one stage found._  |
-| struct | [**wfm\_frame\_t**](structwfm__frame__t.md) <br>_A frame's bit layout:_ `[preamble × reps | sync | payload | crc]` _._ |
 | struct | [**wfm\_seq\_t**](structwfm__seq__t.md) <br>_A run of bits, however it is produced._  |
 | struct | [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md) <br>_How one kind of stage actually transforms bits._  |
 | struct | [**wfm\_stage\_t**](structwfm__stage__t.md) <br>_One transform, and — the whole point — the fields it covers._  |
@@ -49,7 +47,6 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_frame\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-wfm__frame_8h_1a385c44f6fb256e5716a2302a5b940388)  <br>_Field indices_ [_**dp\_wfm\_frame\_describe**_](wfm__frame_8h.md#function-dp_wfm_frame_describe) _writes, in wire order._ |
 | enum  | [**wfm\_seq\_kind\_t**](#enum-wfm_seq_kind_t)  <br>_Where a run of bits comes from._  |
 | enum  | [**wfm\_stage\_kind\_t**](#enum-wfm_stage_kind_t)  <br>_Stage kinds doppler itself names._  |
 
@@ -87,15 +84,11 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**dp\_wfm\_frame\_add\_stage**](#function-dp_wfm_frame_add_stage) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, const char \* first, const char \* last) <br>_Append a stage covering_ `[first .. last]` _BY NAME. Returns its index, or -1._ |
 |  int | [**dp\_wfm\_frame\_add\_stage\_at**](#function-dp_wfm_frame_add_stage_at) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, unsigned first, unsigned n\_fields) <br>_Append a stage covering_ `n_fields` _fields from index_`first` _. Returns its index, or -1._ |
 |  size\_t | [**dp\_wfm\_frame\_assemble**](#function-dp_wfm_frame_assemble) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* out, size\_t max\_out) <br>_Materialise a description: run every field, then every stage._  |
-|  size\_t | [**dp\_wfm\_frame\_bits**](#function-dp_wfm_frame_bits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, uint8\_t \* out, size\_t max\_out) <br>_Materialise the frame as one flat 0/1 bit array._  |
 |  int | [**dp\_wfm\_frame\_check**](#function-dp_wfm_frame_check) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* bits, [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) \* rx) <br>_Undo a description's stages over a received frame, and report._  |
-|  int | [**dp\_wfm\_frame\_crc\_ok**](#function-dp_wfm_frame_crc_ok) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC in place._  |
 |  int | [**dp\_wfm\_frame\_desc\_crc\_ok**](#function-dp_wfm_frame_desc_crc_ok) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC against any description that has one._  |
 |  int | [**dp\_wfm\_frame\_desc\_layout**](#function-dp_wfm_frame_desc_layout) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) \* out) <br>_Derive every field offset, every stage span and both lengths._  |
-|  int | [**dp\_wfm\_frame\_describe**](#function-dp_wfm_frame_describe) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* out) <br>_Express a_ [_**wfm\_frame\_t**_](structwfm__frame__t.md) _as a_[_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _._ |
 |  int | [**dp\_wfm\_frame\_field\_index**](#function-dp_wfm_frame_field_index) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
-|  int | [**dp\_wfm\_frame\_layout**](#function-dp_wfm_frame_layout) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f, [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) \* out) <br>_Fill_ `out` _with the field offsets._ |
-|  size\_t | [**dp\_wfm\_frame\_nbits**](#function-dp_wfm_frame_nbits) (const [**wfm\_frame\_t**](structwfm__frame__t.md) \* f) <br>_Total frame bits, or 0 if the geometry is empty._  |
+|  int | [**dp\_wfm\_frame\_fixed**](#function-dp_wfm_frame_fixed) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* preamble, size\_t reps, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* payload, int crc) <br>_Describe the common frame:_ `[preamble x reps | sync | payload | crc]` _._ |
 |  size\_t | [**dp\_wfm\_seq\_bits**](#function-dp_wfm_seq_bits) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* s, uint8\_t \* out, size\_t max\_out) <br>_Write_ `s's` _bits, whatever produces them. Returns the count._ |
 
 
@@ -137,7 +130,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 
 
 One struct saying what a frame contains, used by the generator that builds it and by the measurer that scores it. The DSSS assembler already stated the reason it must be shared — it is "assembled in one place so TX and RX can
-never drift" — and this generalises that from one waveform to all of them: `dp_wfm_frame_dsss_chips()` now builds these bits and spreads them, rather than carrying a second copy of the layout.
+never drift" — and this generalises that from one waveform to all of them: `dp_wfm_dsss_desc_chips()` assembles a description and spreads it, rather than carrying a second copy of the layout.
 
 
 ### It describes BITS
@@ -164,7 +157,7 @@ sync" is a configuration rather than a feature, and `dp_pn_create()` / `dp_gold_
 
 
 
-`dp_crc16_ccitt()`, over the payload only, MSB-first, carried as the same `int crc` flag `dp_wfm_frame_dsss_chips()` already took. A second CRC would be a wire-format decision and nothing is asking for one.
+`dp_crc16_ccitt()`, over the payload only, MSB-first — the `WFM_STAGE_CRC16` stage, and the `crc` flag of `dp_wfm_frame_fixed()`. A second CRC would be a wire-format decision and nothing is asking for one.
 
 
 
@@ -177,25 +170,6 @@ sync" is a configuration rather than a feature, and `dp_pn_create()` / `dp_gold_
     
 ## Public Types Documentation
 
-
-
-
-### enum wfm\_\_frame\_8h\_1a385c44f6fb256e5716a2302a5b940388 
-
-_Field indices_ [_**dp\_wfm\_frame\_describe**_](wfm__frame_8h.md#function-dp_wfm_frame_describe) _writes, in wire order._
-```C++
-enum wfm__frame_8h_1a385c44f6fb256e5716a2302a5b940388 {
-    WFM_FRAME_FIELD_PREAMBLE = 0,
-    WFM_FRAME_FIELD_SYNC = 1,
-    WFM_FRAME_FIELD_PAYLOAD = 2,
-    WFM_FRAME_FIELD_CRC = 3
-};
-```
-
-
-
-
-<hr>
 
 
 
@@ -267,7 +241,7 @@ size_t dp_wfm_dsss_desc_chips (
 
 
 
- The general form of [**dp\_wfm\_frame\_dsss\_chips**](wfm__dsp_8h.md#function-dp_wfm_frame_dsss_chips), and the only spreader — the four-field entry point is this one with the description filled in.
+ The only spreader: a common DSSS burst is this with a description from [**dp\_wfm\_frame\_fixed**](wfm__frame_8h.md#function-dp_wfm_frame_fixed), and a coded one is this with a coded one.
 
 
 \*\*The preamble is not a field of `d`, by design.\*\* It is unmodulated, unspread and uncoded, because it is the coherent pull-in target a receiver correlates raw chips against; a stage covering "the whole
@@ -755,7 +729,7 @@ size_t dp_wfm_frame_assemble (
 
 
 
-The general form of [**dp\_wfm\_frame\_bits**](wfm__frame_8h.md#function-dp_wfm_frame_bits). Fields are written in wire order, then each stage is applied over the span [**dp\_wfm\_frame\_desc\_layout**](wfm__frame_8h.md#function-dp_wfm_frame_desc_layout) gave it — over that span and no other, which is the whole content of the coverage table a standard's framing turns out to be.
+Fields are written in wire order, then each stage is applied over the span [**dp\_wfm\_frame\_desc\_layout**](wfm__frame_8h.md#function-dp_wfm_frame_desc_layout) gave it — over that span and no other, which is the whole content of the coverage table a standard's framing turns out to be.
 
 
 
@@ -773,47 +747,6 @@ The general form of [**dp\_wfm\_frame\_bits**](wfm__frame_8h.md#function-dp_wfm_
 **Returns:**
 
 The bits written, or 0 if the description is refused, a stage has no kernel, a field cannot be built, or `max_out` is too small — in which case `out` is untouched. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_wfm\_frame\_bits 
-
-_Materialise the frame as one flat 0/1 bit array._ 
-```C++
-size_t dp_wfm_frame_bits (
-    const wfm_frame_t * f,
-    uint8_t * out,
-    size_t max_out
-) 
-```
-
-
-
-Generated fields are produced here, from the descriptor, so a receiver holding the same handful of numbers regenerates the identical bits.
-
-
-
-
-**Parameters:**
-
-
-* `f` the frame. 
-* `out` output, one bit per byte. 
-* `max_out` capacity of `out`. 
-
-
-
-**Returns:**
-
-bits written, or 0 if the geometry is empty, a field is unbuildable (a LITERAL with no array, a PN with no register width), or `max_out` is too small. 
 
 
 
@@ -874,45 +807,6 @@ It begins AFTER the inner code and after frame synchronisation, for the reason `
 
 
 
-### function dp\_wfm\_frame\_crc\_ok 
-
-_Check a received frame's CRC in place._ 
-```C++
-int dp_wfm_frame_crc_ok (
-    const wfm_frame_t * f,
-    const uint8_t * rx_bits
-) 
-```
-
-
-
-**This is what makes a truth-free frame error rate possible.** It needs the layout and the received bits and no payload truth at all — so it works on a real capture, and unlike a self-referenced EVM or a blind M2M4 it still catches a false lock, because a rotated constellation fails the check rather than looking clean.
-
-
-
-
-**Parameters:**
-
-
-* `f` the frame the bits are laid out by. 
-* `rx_bits` received bits, `dp_wfm_frame_nbits(f)` of them. 
-
-
-
-**Returns:**
-
-1 pass, 0 fail, -1 if the frame carries no CRC (or on NULL). 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_wfm\_frame\_desc\_crc\_ok 
 
 _Check a received frame's CRC against any description that has one._ 
@@ -925,7 +819,7 @@ int dp_wfm_frame_desc_crc_ok (
 
 
 
-The general form of [**dp\_wfm\_frame\_crc\_ok**](wfm__frame_8h.md#function-dp_wfm_frame_crc_ok), and the same truth-free claim: it needs the description and the received bits and no payload truth at all. What the CRC protects is everything its stage covers except the trailer that stage derived — read back from the same rule the assembler writes by, so the two cannot disagree about where the trailer is.
+**This is what makes a truth-free frame error rate possible.** It needs the description and the received bits and no payload truth at all — so it works on a real capture, and unlike a self-referenced EVM or a blind M2M4 it still catches a false lock, because a rotated constellation fails the check rather than looking clean. What the CRC protects is everything its stage covers except the trailer that stage derived — read back from the same rule the assembler writes by, so the two cannot disagree about where the trailer is.
 
 
 
@@ -964,10 +858,10 @@ int dp_wfm_frame_desc_layout (
 
 
 
-The one operation both shipped framers already have, widened: this is `dp_wfm_frame_layout()`'s arithmetic and `dp_ccsds_tm_frame_layout()`'s, with the field and stage lists supplied rather than fixed.
+The one operation both shipped framers already have, widened: this is the common frame's arithmetic and `dp_ccsds_tm_frame_layout()`'s, with the field and stage lists supplied rather than fixed.
 
 
-A derived field whose producing stage covers no caller-supplied bits is dropped to zero length — which is the general form of the rule [**dp\_wfm\_frame\_layout**](wfm__frame_8h.md#function-dp_wfm_frame_layout) has always applied, that a CRC over an empty payload protects nothing and is not emitted.
+A derived field whose producing stage covers no caller-supplied bits is dropped to zero length — which is the general form of the rule the common frame has always applied, that a CRC over an empty payload protects nothing and is not emitted.
 
 
 An EMITTING stage (`emit_num` set) is refused unless it covers the whole frame, and a second one is refused outright. Refusing here is the point: such a description used to lay out perfectly and then be unassemblable for ever, because `out_bits` was computed from the cover while [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble) hands the kernel the whole frame. The caller got a 0 from `assemble` and no way to learn that the geometry, not the data, was wrong. Geometry is decided here, so it is refused here.
@@ -989,46 +883,6 @@ A field that declares `bits` but supplies no sequence is DERIVED, and one that n
 **Returns:**
 
 0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, or an emitting stage covers less than the whole frame or is not the only one. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_wfm\_frame\_describe 
-
-_Express a_ [_**wfm\_frame\_t**_](structwfm__frame__t.md) _as a_[_**wfm\_frame\_desc\_t**_](structwfm__frame__desc__t.md) _._
-```C++
-int dp_wfm_frame_describe (
-    const wfm_frame_t * f,
-    wfm_frame_desc_t * out
-) 
-```
-
-
-
-The bridge that makes the closed struct a configuration rather than a rival: four fields in wire order, plus one CRC stage covering the payload and the trailer it derives. Exported because it is also the worked example — the shortest complete answer to "what does a description of my
-frame look like".
-
-
-
-
-**Parameters:**
-
-
-* `f` the frame. 
-* `out` receives the description. 
-
-
-
-**Returns:**
-
-0, or -1 if either argument is NULL. 
 
 
 
@@ -1082,46 +936,29 @@ the field's index, or -1 if `d` or `name` is NULL, `name` is empty, or no field 
 
 
 
-### function dp\_wfm\_frame\_layout 
+### function dp\_wfm\_frame\_fixed 
 
-_Fill_ `out` _with the field offsets._
+_Describe the common frame:_ `[preamble x reps | sync | payload | crc]` _._
 ```C++
-int dp_wfm_frame_layout (
-    const wfm_frame_t * f,
-    wfm_frame_layout_t * out
+int dp_wfm_frame_fixed (
+    wfm_frame_desc_t * d,
+    const wfm_seq_t * preamble,
+    size_t reps,
+    const wfm_seq_t * sync,
+    const wfm_seq_t * payload,
+    int crc
 ) 
 ```
 
 
 
-The arithmetic both directions need, computed once. Today it is inline in `dp_wfm_frame_dsss_nchips()`, and a receiver scoring a frame would have to recompute it — which is exactly how TX and RX drift apart.
+The one fixed layout every face reaches without writing a description of its own — `wfmgen`'s `--acq-code`, `--sync` and `--crc`, a scene's keys of the same names, the `Frame` object and the receiver harnesses. It is built through the general by-name builder, so what comes back is an ordinary description with fields called `"preamble"`, `"sync"`, `"payload"` and `"crc"`, and there is no second layout behind it.
 
 
+A field is present when its sequence has a LENGTH, never merely a pointer, and the preamble additionally needs `reps:` a length with no bits reaches [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble) and is refused there, rather than being dropped here and assembling a frame quietly missing it. The payload is always a field, even an empty one, so that a CRC always has something to cover — and a CRC over an empty payload lays out as a stage that did not run, because a trailer over nothing protects nothing.
 
 
-**Returns:**
-
-0, or -1 if `f` or `out` is NULL. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_wfm\_frame\_nbits 
-
-_Total frame bits, or 0 if the geometry is empty._ 
-```C++
-size_t dp_wfm_frame_nbits (
-    const wfm_frame_t * f
-) 
-```
-
+The sequences are BORROWED, as everywhere in a description: they must outlive `d`.
 
 
 
@@ -1129,9 +966,33 @@ size_t dp_wfm_frame_nbits (
 **Parameters:**
 
 
-* `f` the frame; must be non-NULL. 
+* `d` receives the description; overwritten. 
+* `preamble` preamble sequence; NULL or zero-length for none. 
+* `reps` preamble repetitions; 0 means no preamble. 
+* `sync` sync-word sequence; NULL or zero-length for none. 
+* `payload` payload sequence; NULL for an empty payload. 
+* `crc` non-zero: a CRC-16-CCITT trailer over the payload. 
 
 
+
+**Returns:**
+
+0, or -1 if `d` is NULL.
+
+
+
+```C++
+// Barker-13 sync over a 16-bit payload, with a CRC-16 trailer.
+static const uint8_t b13[13] = {1,1,1,1,1,0,0,1,1,0,1,0,1};
+static const uint8_t pay[16] = {0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1};
+wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = b13, .len = 13 };
+wfm_seq_t data = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = 16 };
+wfm_frame_desc_t d;
+wfm_frame_desc_layout_t l;
+dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1);
+dp_wfm_frame_desc_layout (&d, &l);   // l.frame_bits == 13 + 16 + 16
+```
+ 
 
 
         

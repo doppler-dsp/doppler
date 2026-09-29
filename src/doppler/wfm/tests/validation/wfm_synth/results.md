@@ -253,7 +253,7 @@ All ten get/set accessors are bound and behave: `sym_pos` counts 0..nsps-1 and w
 
 **C-ONLY.** Five entry points the header declares are not on the Python face. Each is certified in C instead -- the new §C, §D, §E and §A of `test_wfm_synth_core.c` -- and none is a gap in the binding except the first:
 
-- `dp_wfm_synth_set_dsss_chips` -- installs a pre-assembled burst; the four-field `set_dsss` is bound and routes through it.
+- `dp_wfm_synth_set_dsss_chips` -- installs a pre-assembled burst, and is bound as `_SynthEngine.set_dsss_chips`.
 - `dp_wfm_synth_reseed_noise` -- fresh noise per segment repeat, used by the composer in C.
 - `dp_wfm_synth_noise_steps` -- renders a segment's off-time gap, used by the composer in C.
 - `wfm_synth_snr_over_fs` / `wfm_synth_bps` -- header inlines; the conversion they perform is measured end-to-end in §2.4.

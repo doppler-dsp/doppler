@@ -143,7 +143,7 @@ That is why [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.
 `ccsds_tm_rs.h` takes **packed** symbols, because a Reed-Solomon symbol is a byte; `ccsds_tm.h` takes **unpacked** bits, one per byte, because a randomiser and a convolutional coder are bit machines. Both are right, and the conversion between them belongs to exactly one place rather than being hidden inside a kernel that then only works for one caller.
 
 
-This is that place: [**dp\_ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_encode) takes a Transfer Frame as packed octets and returns unpacked channel symbols, the representation `dp_wfm_frame_bits` and the spreader already pass around. Octets go on the wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol the same way.
+This is that place: [**dp\_ccsds\_tm\_frame\_encode**](ccsds__tm__frame_8h.md#function-dp_ccsds_tm_frame_encode) takes a Transfer Frame as packed octets and returns unpacked channel symbols, the representation `dp_wfm_frame_assemble` and the spreader already pass around. Octets go on the wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol the same way.
 
 
 

@@ -128,62 +128,7 @@ main (void)
                     "crc16-ccitt check vector");
   }
 
-  /* ── Frame builder: preamble tile + XOR spread + MSB-first CRC trailer,
-   * against a fully hand-computed vector. */
-  {
-    uint8_t acq[3]   = { 1, 0, 1 };
-    uint8_t dcode[2] = { 0, 1 };
-    uint8_t sync[2]  = { 1, 0 };
-    uint8_t pay[3]   = { 1, 1, 0 };
-
-    /* sizing: 3*2 preamble + (2 sync + 3 payload + 16 crc) * 2 chips */
-    size_t n = dp_wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 1);
-    DP_REQUIRE_MSG (n == 6 + 21 * 2,
-                    "nchips counts preamble + spread frame + crc");
-    /* crc off / no payload: trailer only with payload bits to protect */
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (3, 2, 2, 2, 3, 0) == 6 + 5 * 2,
-                    "nchips without crc");
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (3, 2, 2, 2, 0, 1) == 6 + 2 * 2,
-                    "crc over empty payload is dropped");
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 2, 0, 3, 0) == 3 * 2,
-                    "preamble-less frame");
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (3, 2, 0, 0, 0, 0) == 6,
-                    "preamble only");
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 0, 2, 3, 1) == 0,
-                    "frame bits with no data code is invalid");
-    DP_REQUIRE_MSG (dp_wfm_frame_dsss_nchips (0, 0, 2, 0, 0, 0) == 0,
-                    "empty burst");
-
-    static uint8_t out[64];
-    /* the chips builder mirrors the sizing guard: invalid geometry (frame
-     * bits with no data code) writes nothing and returns 0 */
-    DP_REQUIRE_MSG (
-        dp_wfm_frame_dsss_chips (NULL, 0, 0, NULL, 0, sync, 2, pay, 3, 1, out)
-            == 0,
-        "chips builder rejects invalid geometry");
-    DP_REQUIRE_MSG (
-        dp_wfm_frame_dsss_chips (acq, 3, 2, dcode, 2, sync, 2, pay, 3, 1, out)
-            == n,
-        "chips written == nchips");
-    /* preamble: acq tiled twice, unmodulated */
-    const uint8_t pre[6] = { 1, 0, 1, 1, 0, 1 };
-    DP_REQUIRE_MSG (memcmp (out, pre, 6) == 0, "preamble is the tiled code");
-    /* frame: each bit XOR the code — sync 1,0 then payload 1,1,0 */
-    const uint8_t head[10] = { 1, 0, 0, 1, /* sync 1,0 */
-                               1, 0, 1, 0, 0, 1 /* payload 1,1,0 */ };
-    DP_REQUIRE_MSG (memcmp (out + 6, head, 10) == 0, "frame bits XOR-spread");
-    /* crc trailer: crc16(payload) spread MSB-first */
-    uint16_t c = dp_crc16_ccitt (pay, 3);
-    for (size_t i = 0; i < 16; i++)
-      {
-        uint8_t b = (uint8_t)((c >> (15 - i)) & 1u);
-        DP_REQUIRE_MSG (out[16 + 2 * i] == (b ^ 0u)
-                            && out[16 + 2 * i + 1] == (b ^ 1u),
-                        "crc trailer spread MSB-first");
-      }
-  }
-
   printf ("test_wfm_dsp: OK (rrc unit-energy/symmetric, dsss "
-          "spread/despread, crc16 vector, burst frame builder)\n");
+          "spread/despread, crc16 vector)\n");
   return 0;
 }

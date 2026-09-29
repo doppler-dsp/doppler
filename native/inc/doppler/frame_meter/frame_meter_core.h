@@ -22,8 +22,8 @@
  * back separately.
  *
  * A frame carrying no CRC (`crc = -1`, which is exactly what
- * `dp_wfm_frame_crc_ok()` returns for one) counts as delivered when its sync was
- * detected. Counting it as an error instead would make every unprotected frame
+ * `dp_wfm_frame_desc_crc_ok()` returns for one) counts as delivered when its
+ * sync was detected. Counting it as an error instead would make every unprotected frame
  * fail, which is a measurement of the frame format rather than the receiver.
  *
  * ## The stopping rule is the ERROR count, and that is not decoration
@@ -115,7 +115,8 @@ extern "C"
    *                 detector's own decision — `ber_align_t::ok`, or
    *                 `burst_demod`'s frame_offset validity — never a threshold
    *                 applied afterwards to a statistic.
-   * @param crc      `dp_wfm_frame_crc_ok()`'s return, passed straight through:
+   * @param crc      `dp_wfm_frame_desc_crc_ok()`'s return, passed straight
+   *                 through:
    *                 1 pass, 0 fail, -1 the frame carries no CRC.
    *
    * A frame counts as an error when its sync was not detected, or when it was

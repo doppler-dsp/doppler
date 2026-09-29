@@ -31,9 +31,6 @@ typedef struct {
     int rx_units;
     int rx_ok;
     int rx_symbols;
-    wfm_frame_t f;
-    wfm_frame_layout_t l;
-    int named;
     uint8_t *own[WFM_FRAME_MAX_FIELDS];
     uint8_t *one;
 /*<<property_struct_fields>>*/
@@ -47,8 +44,6 @@ void dp_frame_destroy(dp_frame_state_t *state);
 size_t dp_frame_bits_max_out(dp_frame_state_t *state, size_t n);
 
 size_t dp_frame_bits(dp_frame_state_t *state, size_t n, uint8_t *out, size_t max_out);
-
-wfm_frame_layout_t dp_frame_layout(dp_frame_state_t *state);
 
 int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_bits_len);
 

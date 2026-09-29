@@ -12,8 +12,9 @@
  *     returns; borrowing would read freed memory on the first bits() call);
  *   - it takes BITS, and refuses an element that is not one rather than
  *     masking it (a digit string passed where bits belong reads as 101);
- *   - it agrees with dp_wfm_frame_bits() BIT FOR BIT, because the whole reason
- *     for it is that a receiver and a generator hold the same descriptor;
+ *   - it agrees with dp_wfm_frame_fixed() + dp_wfm_frame_assemble() BIT FOR
+ *     BIT, because the whole reason for it is that a receiver and a
+ *     generator hold the same description;
  *   - it REFUSES what cannot be materialised, at construction, rather than
  *     handing back an object that produces a frame with a hole in it;
  *   - a repeat is bit-identical: bits() tiles the one materialised frame,
@@ -51,7 +52,7 @@ empty_desc (void)
 int
 main (void)
 {
-  /* ── the descriptor IS wfm_frame's, bit for bit ────────────────────────
+  /* ── the description IS the common frame's, bit for bit ────────────────
    *
    * Built independently here from the same fields: if this object ever grew
    * its own layout arithmetic, the two would part company and the receiver
@@ -59,51 +60,49 @@ main (void)
   {
     /* The preamble repeated three times IN ITS BITS -- the only way a
        repetition reaches this object now -- against a reference that states
-       it as `preamble_reps = 3`. The two spellings must be one frame. */
+       it as three repetitions of the field. The two spellings must be one
+       frame. */
     uint8_t pre3[12];
     DP_REQUIRE (dp_wfm_field_bits ("1010*3", pre3, sizeof pre3, NULL) == 12);
     dp_frame_state_t *f = dp_frame_create (pre3, 12, SYNC, 13, PAY, 16, 1);
     DP_REQUIRE_MSG (f, "a literal frame builds");
 
-    wfm_frame_t w   = { 0 };
-    w.preamble.kind = WFM_SEQ_LITERAL;
-    w.preamble.bits = PRE;
-    w.preamble.len  = 4;
-    w.preamble_reps = 3;
-    w.sync.kind     = WFM_SEQ_LITERAL;
-    w.sync.bits     = SYNC;
-    w.sync.len      = 13;
-    w.payload.kind  = WFM_SEQ_LITERAL;
-    w.payload.bits  = PAY;
-    w.payload.len   = 16;
-    w.crc           = 1;
+    const wfm_seq_t pre = { .kind = WFM_SEQ_LITERAL, .bits = PRE, .len = 4 };
+    const wfm_seq_t syn = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = 13 };
+    const wfm_seq_t pay = { .kind = WFM_SEQ_LITERAL, .bits = PAY, .len = 16 };
+    wfm_frame_desc_t        w;
+    wfm_frame_desc_layout_t r;
+    DP_REQUIRE (dp_wfm_frame_fixed (&w, &pre, 3, &syn, &pay, 1) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&w, &r) == 0);
 
-    size_t nb = dp_wfm_frame_nbits (&w);
+    size_t nb = r.frame_bits;
     DP_REQUIRE_MSG (nb == 4 * 3 + 13 + 16 + 16, "12 + 13 + 16 + 16");
     DP_REQUIRE_MSG (f->nbits == nb, "the object reports the same length");
 
     uint8_t *want = malloc (nb);
     uint8_t *got  = malloc (nb);
     DP_REQUIRE_MSG (want && got, "alloc");
-    DP_REQUIRE_MSG (dp_wfm_frame_bits (&w, want, nb) == nb, "reference bits");
+    DP_REQUIRE_MSG (dp_wfm_frame_assemble (&w, NULL, want, nb) == nb,
+                    "reference bits");
     DP_REQUIRE_MSG (dp_frame_bits (f, 1, got, nb) == nb, "object bits");
     DP_REQUIRE_MSG (memcmp (want, got, nb) == 0,
-                    "the object's bits ARE dp_wfm_frame_bits of the same "
-                    "descriptor");
+                    "the object's bits ARE the assembly of the same "
+                    "description");
 
-    /* The layout is handed back, not recomputed. */
-    wfm_frame_layout_t l = dp_frame_layout (f);
-    wfm_frame_layout_t r;
-    dp_wfm_frame_layout (&w, &r);
-    DP_REQUIRE_MSG (memcmp (&l, &r, sizeof l) == 0,
+    /* The layout is the one the description lays out to, not recomputed. */
+    DP_REQUIRE_MSG (memcmp (&f->dl, &r, sizeof r) == 0,
                     "and so is the layout, field for field");
+    const int pi = dp_frame_field_index (f, "payload");
+    DP_REQUIRE_MSG (pi >= 0 && dp_frame_field_off (f, (size_t)pi) == 12 + 13,
+                    "the payload is found by name, after preamble and sync");
+    const size_t pay_off = dp_frame_field_off (f, (size_t)pi);
 
     /* Its own bits pass its own CRC — the truth-free check, on truth. */
     DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, nb) == 1, "a clean frame checks");
-    got[l.payload_off + 3] ^= 1u;
+    got[pay_off + 3] ^= 1u;
     DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, nb) == 0,
                     "one flipped payload bit fails the CRC");
-    got[l.payload_off + 3] ^= 1u;
+    got[pay_off + 3] ^= 1u;
     DP_REQUIRE_MSG (dp_frame_crc_ok (f, got, nb - 1) == -1,
                     "and short input is refused, not scored on a partial "
                     "frame");
@@ -117,29 +116,31 @@ main (void)
    *
    * The constructor's arrays are borrowed from the caller — in the Python
    * face, from a numpy buffer released the moment the constructor returns —
-   * so the state keeps its own copies and `state->f` remains a usable
-   * `wfm_frame_t` for as long as the object lives.
+   * so the state keeps its own copies and `state->d` remains a usable
+   * description for as long as the object lives.
    *
    * This has to be asserted THROUGH the descriptor, not through bits(). The
    * frame is materialised at create, so bits() would hand back the cached
    * copy and pass just as happily if the arrays were borrowed and freed —
    * measured, by making the copy borrow: every check below still passed.
-   * Re-materialising from `f` is what actually reads the copies. */
+   * Re-materialising from `d` is what actually reads the copies. */
   {
     uint8_t *scratch = malloc (13);
     DP_REQUIRE_MSG (scratch, "alloc");
     memcpy (scratch, SYNC, 13);
     dp_frame_state_t *f = dp_frame_create (NULL, 0, scratch, 13, PAY, 16, 0);
     DP_REQUIRE_MSG (f, "builds from a scratch buffer");
-    DP_REQUIRE_MSG (f->f.sync.bits != scratch,
+    const int si = dp_wfm_frame_field_index (&f->d, "sync");
+    DP_REQUIRE_MSG (si >= 0 && f->d.field[si].seq.bits != scratch,
                     "the sync word was copied, not borrowed");
     memset (scratch, 0xAA, 13); /* poison, then free */
     free (scratch);
 
     uint8_t *got = malloc (f->nbits);
     DP_REQUIRE_MSG (got, "alloc");
-    DP_REQUIRE_MSG (dp_wfm_frame_bits (&f->f, got, f->nbits) == f->nbits,
-                    "the descriptor still materialises on its own");
+    DP_REQUIRE_MSG (dp_wfm_frame_assemble (&f->d, NULL, got, f->nbits)
+                        == f->nbits,
+                    "the description still materialises on its own");
     DP_REQUIRE_MSG (memcmp (got, SYNC, 13) == 0,
                     "and its sync word outlived the buffer it came from");
     free (got);
@@ -223,7 +224,7 @@ main (void)
 
   /* ── the builder: the same object, described field by field ──────────
    *
-   * dp_frame_create() takes the three fields wfm_frame_t names. This takes one
+   * dp_frame_create() takes the common frame's three fields. This takes one
    * field at a time, and the two must produce the SAME frame where both can
    * express it -- otherwise there are two descriptors again, which is what
    * the generalization exists to end.
@@ -266,13 +267,25 @@ main (void)
     DP_CHECK_MSG (dp_frame_crc_ok (b, bb, b->nbits) == 1,
                   "a described frame is its own truth, like a configured one");
 
-    /* The named view belongs to the configured path alone: a described frame
-       has no field called "payload", and saying so beats inventing offsets
-       for fields that do not exist. */
-    DP_CHECK_MSG (dp_frame_layout (b).total_bits == 0,
-                  "layout()'s NAMED view is empty for a described frame");
-    DP_CHECK_MSG (dp_frame_layout (c).total_bits == c->nbits,
-                  "...and populated for a configured one");
+    /* And the SAME description, not merely the same bits: the configured
+       path names its fields exactly as the builder above was told to, at the
+       same indices, so a receiver reading either by name reads the same
+       offsets. There is no second, named view of a frame to disagree. */
+    DP_CHECK_MSG (dp_frame_n_fields (c) == dp_frame_n_fields (b)
+                      && dp_frame_n_stages (c) == dp_frame_n_stages (b),
+                  "the same number of fields and stages");
+    static const char *const names[3] = { "sync", "payload", "crc" };
+    for (int k = 0; k < 3; k++)
+      {
+        const int i = dp_frame_field_index (c, names[k]);
+        DP_CHECK_MSG (i == k && dp_frame_field_index (b, names[k]) == k
+                          && dp_frame_field_off (c, (size_t)i)
+                                 == dp_frame_field_off (b, (size_t)i)
+                          && dp_frame_field_bits (c, (size_t)i)
+                                 == dp_frame_field_bits (b, (size_t)i),
+                      "each field is found by the same name at the same "
+                      "index and offset");
+      }
 
     /* A description is closed once built. */
     DP_CHECK (dp_frame_add_field (b, "late", PAY, 16) == -1);

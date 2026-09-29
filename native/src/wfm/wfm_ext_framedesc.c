@@ -232,70 +232,6 @@ FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
   return arr0;
 }
 
-static PyStructSequence_Field FrameDescObj_layout_fields[] = {
-  { "preamble_off", NULL },
-  { "preamble_bits", NULL },
-  { "sync_off", NULL },
-  { "sync_bits", NULL },
-  { "payload_off", NULL },
-  { "payload_bits", NULL },
-  { "crc_off", NULL },
-  { "crc_bits", "16, or 0 when crc is unset or the payload is empty — a CRC "
-                "over nothing protects nothing" },
-  { "total_bits", NULL },
-  { NULL, NULL },
-};
-static PyStructSequence_Desc FrameDescObj_layout_desc
-    = { "doppler.wfm.FrameLayout",
-        "Where each field lands, in bits from the start of the frame. The "
-        "offsets a receiver needs to slice a capture -- computed once, by the "
-        "same code the generator laid the frame out with.",
-        FrameDescObj_layout_fields, 9 };
-static PyTypeObject *FrameDescObj_layout_type = NULL;
-
-static PyObject *
-FrameDescObj_layout (FrameDescObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!FrameDescObj_layout_type)
-    {
-      FrameDescObj_layout_type
-          = PyStructSequence_NewType (&FrameDescObj_layout_desc);
-      if (!FrameDescObj_layout_type)
-        return NULL;
-    }
-  wfm_frame_layout_t _r = dp_frame_layout (self->handle);
-  PyObject          *_o = PyStructSequence_New (FrameDescObj_layout_type);
-  if (!_o)
-    return NULL;
-  PyStructSequence_SET_ITEM (
-      _o, 0,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.preamble_off));
-  PyStructSequence_SET_ITEM (
-      _o, 1,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.preamble_bits));
-  PyStructSequence_SET_ITEM (
-      _o, 2, PyLong_FromUnsignedLongLong ((unsigned long long)_r.sync_off));
-  PyStructSequence_SET_ITEM (
-      _o, 3, PyLong_FromUnsignedLongLong ((unsigned long long)_r.sync_bits));
-  PyStructSequence_SET_ITEM (
-      _o, 4, PyLong_FromUnsignedLongLong ((unsigned long long)_r.payload_off));
-  PyStructSequence_SET_ITEM (
-      _o, 5,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.payload_bits));
-  PyStructSequence_SET_ITEM (
-      _o, 6, PyLong_FromUnsignedLongLong ((unsigned long long)_r.crc_off));
-  PyStructSequence_SET_ITEM (
-      _o, 7, PyLong_FromUnsignedLongLong ((unsigned long long)_r.crc_bits));
-  PyStructSequence_SET_ITEM (
-      _o, 8, PyLong_FromUnsignedLongLong ((unsigned long long)_r.total_bits));
-  return _o;
-}
-
 static PyObject *
 FrameDescObj_crc_ok (FrameDescObject *self, PyObject *args, PyObject *kwds)
 {
@@ -980,37 +916,6 @@ static PyMethodDef FrameDescObj_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
-  { "layout", (PyCFunction)FrameDescObj_layout, METH_VARARGS,
-    "layout() -> FrameLayout record (preamble_off, preamble_bits, sync_off, "
-    "sync_bits, payload_off, payload_bits, crc_off, crc_bits, total_bits)\n"
-    "\n"
-    "Where each field lands, in bits from the start of the frame.\n"
-    "\n"
-    "The offsets a receiver needs to slice a capture, computed by the same\n"
-    "code the generator laid the frame out with.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "FrameLayout\n"
-    "    Where each named field lands.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.wfm import Frame\n"
-    ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
-    ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
-    ">>> lay = Frame(sync=sync, payload=payload, crc=\"crc16\").layout()\n"
-    ">>> lay.sync_off, lay.payload_off, lay.crc_off\n"
-    "(0, 13, 29)\n"
-    ">>> lay.total_bits\n"
-    "45\n"
-    "\n"
-    "This is the NAMED view, so it reports the four fields a `Frame` is "
-    "built\n"
-    "from. A description assembled with `add_field` reports zeros here and "
-    "is\n"
-    "read with `field_off()` / `field_bits()` instead.\n" },
   { "crc_ok", (PyCFunction)(void *)FrameDescObj_crc_ok,
     METH_VARARGS | METH_KEYWORDS,
     "crc_ok(rx_bits) -> int\n"
@@ -1044,7 +949,8 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> d.crc_ok(d.bits())           # its own bits are its own truth\n"
     "1\n"
     ">>> rx = np.asarray(d.bits()).copy()\n"
-    ">>> rx[d.field_off(2)] ^= 1      # flip one payload bit\n"
+    ">>> rx[d.field_off(d.field_index(\"payload\"))] ^= 1   # one payload "
+    "bit\n"
     ">>> d.crc_ok(rx)\n"
     "0\n" },
   { "add_field", (PyCFunction)(void *)FrameDescObj_add_field,
@@ -1469,7 +1375,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> got = np.asarray(f.deframe(rx))\n"
     ">>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed\n"
     "(1, 1, 1)\n"
-    ">>> off = f.layout().payload_off       # the payload is a SLICE\n"
+    ">>> off = f.field_off(f.field_index(\"payload\"))   # a SLICE\n"
     ">>> bool(np.array_equal(got[off:off + 16], payload))\n"
     "True\n"
     ">>> rx[off] ^= 1                       # one bit flipped in flight\n"
@@ -1557,7 +1463,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     "Flip a bit the CRC covers and the verdict turns over:\n"
     "\n"
     ">>> rx = np.asarray(d.bits(1)).copy()\n"
-    ">>> rx[d.field_off(2)] ^= 1\n"
+    ">>> rx[d.field_off(d.field_index(\"payload\"))] ^= 1\n"
     ">>> d.check(rx).passed\n"
     "0\n"
     "\n"
@@ -1571,9 +1477,9 @@ static PyMethodDef FrameDescObj_methods[] = {
   { "n_fields", (PyCFunction)FrameDescObj_n_fields, METH_NOARGS,
     "n_fields() -> int\n"
     "\n"
-    "Fields in the description. A `Frame` built the four-field way reports 4 "
-    "-- `wfm_frame_t` IS a configuration of the general description, so the "
-    "indexed view below reads it too.\n"
+    "Fields in the description. A `Frame` counts only the fields it was given "
+    "-- `Frame(sync=..., payload=..., crc=\"crc16\")` is 3 -- so read a field "
+    "by name with `field_index`, not by position.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1587,8 +1493,8 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)\n"
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
     ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
-    ">>> d.n_fields()          # the four named fields, absent ones included\n"
-    "4\n" },
+    ">>> d.n_fields()          # sync, payload, crc -- no preamble was given\n"
+    "3\n" },
   { "n_stages", (PyCFunction)FrameDescObj_n_stages, METH_NOARGS,
     "n_stages() -> int\n"
     "\n"
@@ -1633,15 +1539,16 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
     ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
-    ">>> d.field_off(1), d.field_off(2), d.field_off(3)\n"
+    ">>> d.field_off(0), d.field_off(1), d.field_off(2)\n"
     "(0, 13, 29)\n"
     "\n"
-    "Field 0 is the absent preamble: an empty field still HAS an index, so "
-    "the\n"
-    "indices a caller passed to `add_field` keep meaning what they meant.\n"
+    "An absent field has no index: no preamble was given, so field 0 is the\n"
+    "sync word. Ask for a field by name rather than by position, and an "
+    "index\n"
+    "past the end is 0.\n"
     "\n"
-    ">>> d.field_off(0), d.field_bits(0)\n"
-    "(0, 0)\n" },
+    ">>> d.field_off(d.field_index(\"crc\")), d.field_off(7)\n"
+    "(29, 0)\n" },
   { "field_bits", (PyCFunction)(void *)FrameDescObj_field_bits,
     METH_VARARGS | METH_KEYWORDS,
     "field_bits(i) -> int\n"
@@ -1666,7 +1573,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)\n"
     ">>> d = FrameDesc(sync=sync, payload=payload, crc=\"crc16\")\n"
     ">>> d.build()\n"
-    ">>> d.field_bits(1), d.field_bits(2), d.field_bits(3)\n"
+    ">>> d.field_bits(0), d.field_bits(1), d.field_bits(2)\n"
     "(13, 16, 16)\n" },
   { "stage_first", (PyCFunction)(void *)FrameDescObj_stage_first,
     METH_VARARGS | METH_KEYWORDS,

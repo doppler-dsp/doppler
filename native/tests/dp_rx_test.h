@@ -29,7 +29,7 @@
  * | piece                  | supplies                                     |
  * | ---------------------- | -------------------------------------------- |
  * | `dp_frame_test.h`      | the named frames — what is transmitted       |
- * | `dp_wfm_frame_bits()`     | the frame materialised as bits               |
+ * | `dp_wfm_frame_assemble()` | the frame materialised as bits              |
  * | `wfm_synth`            | symbols, pulse, oversampling, carrier, AWGN  |
  * | `doppler_channel`      | Doppler offset and rate — one coupled clock  |
  * | the receiver           | via `dp_rx_iface_t`, the only forked part    |
@@ -59,8 +59,8 @@
  * of shipped capabilities plus a handful of named configurations that exist so
  * OUR measurements are comparable; shipping them would make our choice of
  * `sps = 8` an API to keep stable. A caller measuring their own receiver wants
- * `BerMeter`, `FrameMeter`, `wfm_frame_t` and `doppler_channel` — all of which
- * already ship — not our operating points.
+ * `BerMeter`, `FrameMeter`, `wfm_frame_desc_t` and `doppler_channel` — all of
+ * which already ship — not our operating points.
  */
 #ifndef DP_RX_TEST_H
 #define DP_RX_TEST_H
@@ -638,7 +638,7 @@ dp_rx_iface_missing (const dp_rx_iface_t *rx)
  * sync word long enough at this Es/N0" into a number.
  *
  * @param m      Constellation order.
- * @param f      The frame descriptor — the SAME one the transmitter built
+ * @param d      The frame description — the SAME one the transmitter built
  *               from, which is the entire point: the layout, the CRC's
  *               position and its bit order are stated once.
  * @param l      Its layout.
@@ -650,10 +650,11 @@ dp_rx_iface_missing (const dp_rx_iface_t *rx)
  * @param phase  The record's residual constellation rotation, radians.
  * @param lo     First symbol of the scored window.
  * @param fm     The accumulator.
- * @param rxbits Scratch, at least `l->total_bits` bytes.
+ * @param rxbits Scratch, at least `l->frame_bits` bytes.
  */
 static inline void
-dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
+dp_rx_score_frames (int m, const wfm_frame_desc_t *d,
+                    const wfm_frame_desc_layout_t *l,
                     const float _Complex *out, size_t n, const uint8_t *truth,
                     size_t nsym, long lag, double phase, size_t lo,
                     dp_frame_meter_state_t *fm, uint8_t *rxbits)
@@ -667,7 +668,9 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
   size_t                n_rxa   = (n > rx_skip) ? n - rx_skip : 0;
   const uint8_t        *tra     = truth + tr_skip;
   size_t                n_tra   = (nsym > tr_skip) ? nsym - tr_skip : 0;
-  size_t                nbits   = l->total_bits;
+  size_t                nbits   = l->frame_bits;
+  size_t                sync_off;
+  size_t                sync_bits = dp_frame_field (d, l, "sync", &sync_off);
   /* The frame layout is stated in BITS; `out` and `truth` hold SYMBOLS. At
      BPSK the two coincide, which is why this arithmetic survived unnoticed in
      `rx_frame_fer.c` — its geometry struct says "BPSK only for now" and every
@@ -677,9 +680,9 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
      what `dp_rx_run()` already does for the RECORD marker (`sync_off / bps`,
      `sync_bits / bps`, `nbits / bps`) — the two disagreeing was the tell. */
   size_t bps  = (size_t)mpsk_bps (m);
-  size_t fsym = bps ? nbits / bps : 0;        /* symbols per frame */
-  size_t soff = bps ? l->sync_off / bps : 0;  /* sync, in symbols  */
-  size_t slen = bps ? l->sync_bits / bps : 0; /* ditto, length     */
+  size_t fsym = bps ? nbits / bps : 0;     /* symbols per frame */
+  size_t soff = bps ? sync_off / bps : 0;  /* sync, in symbols  */
+  size_t slen = bps ? sync_bits / bps : 0; /* ditto, length     */
   /* One rotation for the whole record, from the marker — not re-estimated per
      frame, which would be a per-frame minimisation over the answer. */
   float _Complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
@@ -692,7 +695,7 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
      NOTHING instead: the caller's `frames > 0 && sync_detected > 0 &&
      crc_passed > 0` gate then fails loudly rather than reporting an invented
      rate. */
-  if (!bps || !fsym || nbits % bps || l->sync_off % bps || l->sync_bits % bps)
+  if (!bps || !fsym || nbits % bps || sync_off % bps || sync_bits % bps)
     return;
 
   for (k = 0; (k + 1) * fsym <= nsym; k++)
@@ -740,7 +743,7 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
           for (t = 0; t < bps; t++)
             rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
         }
-      crc = dp_wfm_frame_crc_ok (f, rxbits);
+      crc = dp_wfm_frame_desc_crc_ok (d, rxbits);
       dp_frame_meter_add (fm, s1.ok, crc);
     }
 }
@@ -761,16 +764,17 @@ static inline dp_rx_result_t
 dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
 {
   dp_rx_result_t          r;
-  wfm_frame_t             f = dp_frame_named (pt->frame);
-  wfm_frame_layout_t      l;
+  wfm_frame_desc_t        f = dp_frame_named (pt->frame);
+  wfm_frame_desc_layout_t l;
   dp_ber_t                acc;
-  size_t                  nbits = dp_wfm_frame_nbits (&f), nsym;
-  size_t                  bps   = (size_t)mpsk_bps (pt->m);
-  uint8_t                *bits = NULL, *truth = NULL, *rxbits = NULL;
-  float _Complex         *out = NULL;
-  unsigned char          *lc = NULL, *tk = NULL;
-  double                 *err = NULL;
-  dp_frame_meter_state_t *fm  = NULL;
+  size_t                  nbits = dp_frame_desc_nbits (&f), nsym;
+  size_t          sync_off = 0, sync_bits = 0, pay_bits = 0, crc_bits = 0;
+  size_t          bps  = (size_t)mpsk_bps (pt->m);
+  uint8_t        *bits = NULL, *truth = NULL, *rxbits = NULL;
+  float _Complex *out = NULL;
+  unsigned char  *lc = NULL, *tk = NULL;
+  double         *err        = NULL;
+  dp_frame_meter_state_t *fm = NULL;
   size_t                  lo = 0, hi = 0, settle = 0;
   int                     settled = 0;
 
@@ -795,15 +799,18 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
       }
   }
 
-  if (nbits == 0 || dp_wfm_frame_layout (&f, &l) != 0)
+  if (nbits == 0 || dp_wfm_frame_desc_layout (&f, &l) != 0)
     {
       r.refused = "frame geometry is invalid";
       return r;
     }
+  sync_bits = dp_frame_field (&f, &l, "sync", &sync_off);
+  pay_bits  = dp_frame_field (&f, &l, "payload", NULL);
+  crc_bits  = dp_frame_field (&f, &l, "crc", NULL);
   /* A precondition, not a verdict: every metric scores DATA symbols, and a
      preamble-only frame has none. Running it would end in a *settling*
      verdict, the wrong diagnosis for a frame never meant to demodulate. */
-  if (l.payload_bits == 0)
+  if (pay_bits == 0)
     {
       r.refused = "frame carries no payload — nothing to demodulate";
       return r;
@@ -819,8 +826,8 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
      check. Without either there is no truth-free outcome, and reporting one
      anyway is the failure this instrument exists to refuse — which is why
      `framed == 0` prints n/a rather than an FER of 0.0. */
-  r.framed     = (l.sync_bits >= 8 && l.crc_bits > 0);
-  r.prot_bits  = l.payload_bits + l.crc_bits;
+  r.framed     = (sync_bits >= 8 && crc_bits > 0);
+  r.prot_bits  = pay_bits + crc_bits;
   r.frame_bits = nbits;
 
   fm     = dp_frame_meter_create (DP_RX_TARGET_FRAME_ERRORS, DP_BER_CONF);
@@ -833,7 +840,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   err    = (double *)malloc (nsym * sizeof *err);
   dp_ber_init (&acc, pt->m, DP_BER_TARGET_ERRORS);
   if (!bits || !truth || !out || !lc || !tk || !err || !rxbits || !fm
-      || !acc.meter || dp_wfm_frame_bits (&f, bits, nbits) != nbits)
+      || !acc.meter || dp_wfm_frame_assemble (&f, NULL, bits, nbits) != nbits)
     {
       r.refused = "allocation failed";
       goto done;
@@ -900,16 +907,16 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
         r.lock_duty += dp_rx_duty (lc, settle, n);
         r.lock_stat_duty += dp_rx_duty (tk, settle, n);
 
-        if (l.sync_bits >= 8)
+        if (sync_bits >= 8)
           {
             /* The sync word IS the marker, repeating with the frame period. */
             size_t per     = nbits / bps;
             size_t floor_t = settle + (size_t)DP_BER_LAG_SPAN;
-            size_t t0      = l.sync_off / bps;
+            size_t t0      = sync_off / bps;
             if (t0 < floor_t)
               t0 += per * ((floor_t - t0 + per - 1) / per);
             mk.sym    = NULL;
-            mk.n      = l.sync_bits / bps;
+            mk.n      = sync_bits / bps;
             mk.t0     = t0;
             mk.period = per;
             mk.reps   = 0;

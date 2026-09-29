@@ -85,7 +85,7 @@ _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame pr
 ## Detailed Description
 
 
-The DSSS burst frame convention is `sync | payload | CRC-16`, with the 16-bit trailer computed over the payload bits only and transmitted MSB-first. `burst_demod` validates it on receive and the wfmgen DSSS frame builder (`dp_wfm_frame_dsss_chips`) appends it on transmit; both call this one inline so the two ends can never drift.
+The DSSS burst frame convention is `sync | payload | CRC-16`, with the 16-bit trailer computed over the payload bits only and transmitted MSB-first. `burst_demod` validates it on receive and a frame's CRC stage (`WFM_STAGE_CRC16`, `wfm/wfm_frame.h`) appends it on transmit; both call this one inline so the two ends can never drift.
 
 
 Header-only (like `wfm_synth_mls_poly`) so no component grows a link-line dependency for a 10-line kernel. 

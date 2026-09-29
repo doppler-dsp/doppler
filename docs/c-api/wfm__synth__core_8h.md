@@ -48,7 +48,7 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e**](#enum-wfm__synth__core_8h_1a05589fbab0657f08285ebdfe93f5ec9e)  <br> |
+| enum  | [**wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d**](#enum-wfm__synth__core_8h_1abc5c98fcc1211af2b80116dd6e0a035d)  <br> |
 | enum  | [**wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8**](#enum-wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8)  <br> |
 
 
@@ -89,8 +89,7 @@ _Synth component API._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_synth\_set\_chirp\_span**](#function-dp_wfm_synth_set_chirp_span) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, size\_t span) <br>_Pin a chirp's sweep span to_ `span` _samples (no-op for non-chirp)._ |
 |  void | [**dp\_wfm\_synth\_set\_cur\_im**](#function-dp_wfm_synth_set_cur_im) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol imaginary (Q) component in-place. Takes effect on the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _within the current symbol hold._ |
 |  void | [**dp\_wfm\_synth\_set\_cur\_re**](#function-dp_wfm_synth_set_cur_re) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol real (I) component in-place. Takes effect on the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _within the current symbol hold._ |
-|  int | [**dp\_wfm\_synth\_set\_dsss**](#function-dp_wfm_synth_set_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc) <br>_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._  |
-|  int | [**dp\_wfm\_synth\_set\_dsss\_chips**](#function-dp_wfm_synth_set_dsss_chips) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an already-assembled DSSS burst as the chip pattern._  |
+|  int | [**dp\_wfm\_synth\_set\_dsss\_chips**](#function-dp_wfm_synth_set_dsss_chips) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an assembled two-code DSSS burst as the chip pattern._  |
 |  int | [**dp\_wfm\_synth\_set\_dsss\_cont**](#function-dp_wfm_synth_set_dsss_cont) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* code, size\_t code\_len, double chips\_per\_symbol, int data\_mode, const uint8\_t \* data, size\_t n\_data) <br>_Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation._  |
 |  int | [**dp\_wfm\_synth\_set\_dsss\_window**](#function-dp_wfm_synth_set_dsss_window) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, size\_t code\_only\_symbols, size\_t frame\_symbols) <br>_Give the continuous DSSS stream a frame with a pure-code window._  |
 |  void | [**dp\_wfm\_synth\_set\_nsps**](#function-dp_wfm_synth_set_nsps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
@@ -166,31 +165,10 @@ dp_wfm_synth_destroy(obj);
 
 
 
-### enum wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e 
+### enum wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d 
 
 ```C++
-enum wfm__synth__core_8h_1a05589fbab0657f08285ebdfe93f5ec9e {
-    WFM_DSSS_DATA_NONE = 0,
-    WFM_DSSS_DATA_BITS = 1,
-    WFM_DSSS_DATA_PRBS = 2
-};
-```
-
-
-
-Continuous-DSSS data-symbol source (dp\_wfm\_synth\_set\_dsss\_cont's data\_mode). 
-
-
-        
-
-<hr>
-
-
-
-### enum wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8 
-
-```C++
-enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
+enum wfm__synth__core_8h_1abc5c98fcc1211af2b80116dd6e0a035d {
     WFM_SYNTH_TONE = 0,
     WFM_SYNTH_NOISE = 1,
     WFM_SYNTH_PN = 2,
@@ -206,6 +184,27 @@ enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
 
 
 Waveform type discriminant (the `type` create argument / type choice). 
+
+
+        
+
+<hr>
+
+
+
+### enum wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8 
+
+```C++
+enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
+    WFM_DSSS_DATA_NONE = 0,
+    WFM_DSSS_DATA_BITS = 1,
+    WFM_DSSS_DATA_PRBS = 2
+};
+```
+
+
+
+Continuous-DSSS data-symbol source (dp\_wfm\_synth\_set\_dsss\_cont's data\_mode). 
 
 
         
@@ -242,7 +241,7 @@ dp_wfm_synth_state_t * dp_wfm_synth_create (
 **Parameters:**
 
 
-* `type` Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, 8=dsss. The Python binding accepts strings "tone"\|"noise"\|"pn"\|"bpsk"\|"qpsk"\|"chirp"\|"bits"\|"symbols"\|"dsss". For "bits" attach the pattern with [**dp\_wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_bits); for "symbols" attach the complex stream with [**dp\_wfm\_synth\_set\_symbols()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_symbols); for "dsss" attach the burst with [**dp\_wfm\_synth\_set\_dsss()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss) after create(). 
+* `type` Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, 8=dsss. The Python binding accepts strings "tone"\|"noise"\|"pn"\|"bpsk"\|"qpsk"\|"chirp"\|"bits"\|"symbols"\|"dsss". For "bits" attach the pattern with [**dp\_wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_bits); for "symbols" attach the complex stream with [**dp\_wfm\_synth\_set\_symbols()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_symbols); for "dsss" attach the burst with [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) after create(). 
 * `fs` Sample rate in Hz. Sets the carrier frequency normalisation and the noise bandwidth. Default 1 000 000.0. 
 * `freq` Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is created only when freq != 0. For a chirp this is the start frequency f\_start (the instantaneous frequency at t=0). Default 0.0. 
 * `snr` Target SNR in dB, interpreted per `snr_mode`. Values &gt;= WFM\_SYNTH\_SNR\_CLEAN (100) disable AWGN. Default 100.0. 
@@ -741,72 +740,9 @@ void dp_wfm_synth_set_cur_re (
 
 
 
-### function dp\_wfm\_synth\_set\_dsss 
-
-_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._ 
-```C++
-int dp_wfm_synth_set_dsss (
-    dp_wfm_synth_state_t * state,
-    const uint8_t * acq_code,
-    size_t acq_len,
-    size_t acq_reps,
-    const uint8_t * data_code,
-    size_t data_len,
-    const uint8_t * sync,
-    size_t sync_len,
-    const uint8_t * payload,
-    size_t payload_len,
-    int crc
-) 
-```
-
-
-
-Assembles the burst chip pattern through `dp_wfm_frame_dsss_chips()` — an unmodulated preamble (`acq_code` repeated `acq_reps` times, the coherent acquisition target) followed by the frame `sync | payload | CRC-16`, each frame bit XOR-spread by the distinct `data_code` — and installs it as the synth's BPSK chip stream (each chip held for the create-time `sps` samples, i.e. `sps` is samples per _chip_ here). This is the transmit side of `BurstDemod`'s frame contract: the same codes, sync word, and payload length hand to `dp_burst_demod_set_preamble`/`set_sync` on receive.
-
-
-One pass of the pattern is one burst (`n_chips * sps` samples); like the bits pattern it cycles if more samples are requested — the composer sizes a dsss segment's on-time to exactly one burst. Replaces any previous pattern; resets the read position.
-
-
-NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to the _chip_ (the output symbol). The Segment/Synth faces convert a data-symbol Es/N0 (`snr_mode="esno"`) to the over-fs value with `10*log10(sf*sps)` before create; see `dp_wfm_snr_over_fs()`.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `acq_code` Preamble code (0/1), length `acq_len`; NULL when `acq_len*acq_reps == 0`. 
-* `acq_len` Preamble code length in chips. 
-* `acq_reps` Preamble repetitions. 
-* `data_code` Payload spreading code (0/1), length `data_len`. 
-* `data_len` Chips per frame symbol (the spreading factor). 
-* `sync` Frame-sync word bits (0/1); NULL for none. 
-* `sync_len` Sync word length in bits. 
-* `payload` Payload bits (0/1); NULL for a preamble-only burst. 
-* `payload_len` Payload length in bits. 
-* `crc` Non-zero: append a CRC-16-CCITT trailer ([**dp\_crc16.h**](dp__crc16_8h.md)) over the payload bits. 
-
-
-
-**Returns:**
-
-0 on success; -1 on invalid geometry (frame bits with no data code, or an empty burst) or allocation failure. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_wfm\_synth\_set\_dsss\_chips 
 
-_Install an already-assembled DSSS burst as the chip pattern._ 
+_Install an assembled two-code DSSS burst as the chip pattern._ 
 ```C++
 int dp_wfm_synth_set_dsss_chips (
     dp_wfm_synth_state_t * state,
@@ -817,7 +753,13 @@ int dp_wfm_synth_set_dsss_chips (
 
 
 
-The spreading half of `dp_wfm_synth_set_dsss()`, split out so a caller who assembled the frame from a `wfm_frame_desc_t`  a burst carrying an inner code, an ASM, an outer code or a randomiser  installs it through the same path as the four-field form rather than through a second one. Chips are copied; `chips` stays the caller's.
+The burst is assembled from a frame DESCRIPTION by `dp_wfm_dsss_desc_chips()` (`wfm/wfm_frame.h`)  an unmodulated preamble (`acq_code` repeated `acq_reps` times, the coherent acquisition target) followed by every bit of the assembled frame XOR-spread by the distinct `data_code`  and installed here as the synth's BPSK chip stream, each chip held for the create-time `sps` samples, i.e. `sps` is samples per _chip_ here. The common frame `sync | payload | CRC-16` is `dp_wfm_frame_fixed()`; a coded burst is any other description. This is the transmit side of `BurstDemod`'s frame contract: the same codes, sync word, and payload length hand to `dp_burst_demod_set_preamble`/`set_sync` on receive.
+
+
+One pass of the pattern is one burst (`n_chips * sps` samples); like the bits pattern it cycles if more samples are requested — the composer sizes a dsss segment's on-time to exactly one burst. Replaces any previous pattern; resets the read position. Chips are copied; `chips` stays the caller's.
+
+
+NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to the _chip_ (the output symbol). The Segment/Synth faces convert a data-symbol Es/N0 (`snr_mode="esno"`) to the over-fs value with `10*log10(sf*sps)` before create; see `dp_wfm_snr_over_fs()`.
 
 
 
@@ -862,7 +804,7 @@ int dp_wfm_synth_set_dsss_cont (
 
 
 
-The continuous counterpart to [**dp\_wfm\_synth\_set\_dsss()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss): the same `type="dsss"` waveform, switched to the endless mode by supplying `chips_per_symbol` (= `chip_rate / symbol_rate`). One waveform type, one discriminator — no tenth entry in the five hand-maintained name tables `wfm_names.h` records rotting once already.
+The continuous counterpart to [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips): the same `type="dsss"` waveform, switched to the endless mode by supplying `chips_per_symbol` (= `chip_rate / symbol_rate`). One waveform type, one discriminator — no tenth entry in the five hand-maintained name tables `wfm_names.h` records rotting once already.
 
 
 **Lazy, not materialised.** Chips are generated per sample by `wfm_synth_cont_dsss_chip` off a running counter, so the stream is genuinely endless — there is no pattern length to pick and the standalone `Synth` face works unbounded. The data-symbol source is chosen by `data_mode:` 

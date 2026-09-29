@@ -6,8 +6,8 @@
  * it and by the measurer that scores it. The DSSS assembler already stated the
  * reason it must be shared — it is "assembled in one place so TX and RX can
  * never drift" — and this generalises that from one waveform to all of them:
- * `dp_wfm_frame_dsss_chips()` now builds these bits and spreads them, rather than
- * carrying a second copy of the layout.
+ * `dp_wfm_dsss_desc_chips()` assembles a description and spreads it, rather
+ * than carrying a second copy of the layout.
  *
  * ## It describes BITS
  *
@@ -30,9 +30,9 @@
  *
  * ## The CRC is the one we already have
  *
- * `dp_crc16_ccitt()`, over the payload only, MSB-first, carried as the same
- * `int crc` flag `dp_wfm_frame_dsss_chips()` already took. A second CRC would be
- * a wire-format decision and nothing is asking for one.
+ * `dp_crc16_ccitt()`, over the payload only, MSB-first — the
+ * `WFM_STAGE_CRC16` stage, and the `crc` flag of `dp_wfm_frame_fixed()`. A
+ * second CRC would be a wire-format decision and nothing is asking for one.
  *
  * @see docs/design/rx-test.md section 7
  */
@@ -261,8 +261,8 @@ extern "C"
    *
    * A standard's framing is a CONFIGURATION of this, in the same way
    * `dp_CCSDS_TM_CONV` configures `conv_code_t` and `dp_CCSDS_TM_RS` configures
-   * `rs_code_t`. @ref wfm_frame_t is the first such configuration and is
-   * built by @ref dp_wfm_frame_describe.
+   * `rs_code_t`. The common frame is the first such configuration and is
+   * built by @ref dp_wfm_frame_fixed.
    *
    * @see docs/design/frame-description.md
    */
@@ -660,8 +660,7 @@ extern "C"
   /**
    * @brief Materialise a description: run every field, then every stage.
    *
-   * The general form of @ref dp_wfm_frame_bits. Fields are written in wire
-   * order, then each stage is applied over the span
+   * Fields are written in wire order, then each stage is applied over the span
    * @ref dp_wfm_frame_desc_layout gave it — over that span and no other, which
    * is the whole content of the coverage table a standard's framing turns
    * out to be.
@@ -684,12 +683,12 @@ extern "C"
    * @brief Derive every field offset, every stage span and both lengths.
    *
    * The one operation both shipped framers already have, widened: this is
-   * `dp_wfm_frame_layout()`'s arithmetic and `dp_ccsds_tm_frame_layout()`'s, with
+   * the common frame's arithmetic and `dp_ccsds_tm_frame_layout()`'s, with
    * the field and stage lists supplied rather than fixed.
    *
    * A derived field whose producing stage covers no caller-supplied bits is
    * dropped to zero length — which is the general form of the rule
-   * @ref dp_wfm_frame_layout has always applied, that a CRC over an empty
+   * the common frame has always applied, that a CRC over an empty
    * payload protects nothing and is not emitted.
    *
    * An EMITTING stage (@c emit_num set) is refused unless it covers the
@@ -722,96 +721,50 @@ extern "C"
                              wfm_frame_desc_layout_t *out);
 
   /**
-   * @brief A frame's bit layout: `[preamble × reps | sync | payload | crc]`.
+   * @brief Describe the common frame: `[preamble x reps | sync | payload | crc]`.
    *
-   * The preamble sits OUTSIDE the sync/payload/CRC group, matching the DSSS
-   * contract this generalises: it is unmodulated, it is not covered by the
-   * CRC, and in the spread case it is not spread. It is the
-   * coherent-integration target.
+   * The one fixed layout every face reaches without writing a description
+   * of its own — `wfmgen`'s `--acq-code`, `--sync` and `--crc`, a scene's
+   * keys of the same names, the `Frame` object and the receiver harnesses.
+   * It is built through the general by-name builder, so what comes back is
+   * an ordinary description with fields called `"preamble"`, `"sync"`,
+   * `"payload"` and `"crc"`, and there is no second layout behind it.
    *
-   * This is a **configuration** of @ref wfm_frame_desc_t — four fields and
-   * one stage — not a second descriptor. @ref dp_wfm_frame_layout builds it
-   * through @ref dp_wfm_frame_describe and reads the general layout back, so
-   * there is one implementation of the arithmetic and the two cannot drift.
+   * A field is present when its sequence has a LENGTH, never merely a
+   * pointer, and the preamble additionally needs @p reps: a length with no
+   * bits reaches @ref dp_wfm_frame_assemble and is refused there, rather
+   * than being dropped here and assembling a frame quietly missing it. The
+   * payload is always a field, even an empty one, so that a CRC always has
+   * something to cover — and a CRC over an empty payload lays out as a
+   * stage that did not run, because a trailer over nothing protects
+   * nothing.
+   *
+   * The sequences are BORROWED, as everywhere in a description: they must
+   * outlive @p d.
+   *
+   * @param d         receives the description; overwritten.
+   * @param preamble  preamble sequence; NULL or zero-length for none.
+   * @param reps      preamble repetitions; 0 means no preamble.
+   * @param sync      sync-word sequence; NULL or zero-length for none.
+   * @param payload   payload sequence; NULL for an empty payload.
+   * @param crc       non-zero: a CRC-16-CCITT trailer over the payload.
+   * @return 0, or -1 if @p d is NULL.
+   *
+   * @code
+   * // Barker-13 sync over a 16-bit payload, with a CRC-16 trailer.
+   * static const uint8_t b13[13] = {1,1,1,1,1,0,0,1,1,0,1,0,1};
+   * static const uint8_t pay[16] = {0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1};
+   * wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = b13, .len = 13 };
+   * wfm_seq_t data = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = 16 };
+   * wfm_frame_desc_t d;
+   * wfm_frame_desc_layout_t l;
+   * dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1);
+   * dp_wfm_frame_desc_layout (&d, &l);   // l.frame_bits == 13 + 16 + 16
+   * @endcode
    */
-  typedef struct
-  {
-    wfm_seq_t preamble;      /**< len 0 = none                             */
-    size_t    preamble_reps; /**< repetitions of @p preamble; 0 = none     */
-    wfm_seq_t sync;          /**< len 0 = unsynced — BER then needs an
-                                  external alignment                       */
-    wfm_seq_t payload;
-    int       crc; /**< non-zero: CRC-16-CCITT over the payload, MSB-first */
-  } wfm_frame_t;
-
-  /** @brief Where each field lands, in bits from the start of the frame. */
-  typedef struct
-  {
-    size_t preamble_off, preamble_bits;
-    size_t sync_off, sync_bits;
-    size_t payload_off, payload_bits;
-    size_t crc_off, crc_bits; /**< 16, or 0 when @p crc is unset or the
-                                   payload is empty — a CRC over nothing
-                                   protects nothing                        */
-    size_t total_bits;
-  } wfm_frame_layout_t;
-
-  /** @brief Field indices @ref dp_wfm_frame_describe writes, in wire order. */
-  enum
-  {
-    WFM_FRAME_FIELD_PREAMBLE = 0,
-    WFM_FRAME_FIELD_SYNC     = 1,
-    WFM_FRAME_FIELD_PAYLOAD  = 2,
-    WFM_FRAME_FIELD_CRC      = 3
-  };
-
-  /**
-   * @brief Express a @ref wfm_frame_t as a @ref wfm_frame_desc_t.
-   *
-   * The bridge that makes the closed struct a configuration rather than a
-   * rival: four fields in wire order, plus one CRC stage covering the payload
-   * and the trailer it derives. Exported because it is also the worked
-   * example — the shortest complete answer to "what does a description of my
-   * frame look like".
-   *
-   * @param f    the frame.
-   * @param out  receives the description.
-   * @return 0, or -1 if either argument is NULL.
-   */
-  int dp_wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out);
-
-  /**
-   * @brief Total frame bits, or 0 if the geometry is empty.
-   *
-   * @param f  the frame; must be non-NULL.
-   */
-  size_t dp_wfm_frame_nbits (const wfm_frame_t *f);
-
-  /**
-   * @brief Fill @p out with the field offsets.
-   *
-   * The arithmetic both directions need, computed once. Today it is inline in
-   * `dp_wfm_frame_dsss_nchips()`, and a receiver scoring a frame would have to
-   * recompute it — which is exactly how TX and RX drift apart.
-   *
-   * @return 0, or -1 if @p f or @p out is NULL.
-   */
-  int dp_wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out);
-
-  /**
-   * @brief Materialise the frame as one flat 0/1 bit array.
-   *
-   * Generated fields are produced here, from the descriptor, so a receiver
-   * holding the same handful of numbers regenerates the identical bits.
-   *
-   * @param f        the frame.
-   * @param out      output, one bit per byte.
-   * @param max_out  capacity of @p out.
-   * @return bits written, or 0 if the geometry is empty, a field is
-   *         unbuildable (a LITERAL with no array, a PN with no register
-   *         width), or @p max_out is too small.
-   */
-  size_t dp_wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+  int dp_wfm_frame_fixed (wfm_frame_desc_t *d, const wfm_seq_t *preamble,
+                          size_t reps, const wfm_seq_t *sync,
+                          const wfm_seq_t *payload, int crc);
 
   /**
    * @brief Chip count of a DSSS burst built from a description.
@@ -836,8 +789,8 @@ extern "C"
    *
    *     [ acq_code x acq_reps | dp_wfm_frame_assemble(d) (+) data_code ]
    *
-   * The general form of @ref dp_wfm_frame_dsss_chips, and the only spreader —
-   * the four-field entry point is this one with the description filled in.
+   * The only spreader: a common DSSS burst is this with a description from
+   * @ref dp_wfm_frame_fixed, and a coded one is this with a coded one.
    *
    * **The preamble is not a field of @p d, by design.** It is unmodulated,
    * unspread and uncoded, because it is the coherent pull-in target a
@@ -911,9 +864,11 @@ extern "C"
   /**
    * @brief Check a received frame's CRC against any description that has one.
    *
-   * The general form of @ref dp_wfm_frame_crc_ok, and the same truth-free claim:
-   * it needs the description and the received bits and no payload truth at
-   * all. What the CRC protects is everything its stage covers except the
+   * **This is what makes a truth-free frame error rate possible.** It needs
+   * the description and the received bits and no payload truth at all — so
+   * it works on a real capture, and unlike a self-referenced EVM or a blind
+   * M2M4 it still catches a false lock, because a rotated constellation
+   * fails the check rather than looking clean. What the CRC protects is everything its stage covers except the
    * trailer that stage derived — read back from the same rule the assembler
    * writes by, so the two cannot disagree about where the trailer is.
    *
@@ -927,20 +882,6 @@ extern "C"
   int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
                              const uint8_t          *rx_bits);
 
-  /**
-   * @brief Check a received frame's CRC in place.
-   *
-   * **This is what makes a truth-free frame error rate possible.** It needs
-   * the layout and the received bits and no payload truth at all — so it works
-   * on a real capture, and unlike a self-referenced EVM or a blind M2M4 it
-   * still catches a false lock, because a rotated constellation fails the
-   * check rather than looking clean.
-   *
-   * @param f        the frame the bits are laid out by.
-   * @param rx_bits  received bits, `dp_wfm_frame_nbits(f)` of them.
-   * @return 1 pass, 0 fail, -1 if the frame carries no CRC (or on NULL).
-   */
-  int dp_wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits);
 
 #ifdef __cplusplus
 }

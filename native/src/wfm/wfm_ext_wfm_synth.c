@@ -236,65 +236,34 @@ _SynthEngine_set_bits (_SynthEngineObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* set_dsss(acq_code, acq_reps, data_code, payload=None, sync=None, crc=1) —
- * build and attach a two-code DSSS burst to a type=dsss synth. Arrays are
- * any array-like of 0/1 (coerced to uint8); crc non-zero appends the
- * CRC-16-CCITT trailer over the payload bits. */
+/* set_dsss_chips(chips) — attach an ALREADY-ASSEMBLED DSSS burst to a
+ * type=dsss synth: one chip per element, 0/1, BPSK-mapped by the synth.
+ *
+ * The burst is assembled from a frame DESCRIPTION -- a `Frame`'s bits, spread
+ * by the data code behind the unspread preamble -- and not here: there is no
+ * four-field form of a frame left to bind (docs/design/frame-description.md
+ * section R). Any array-like of 0/1, coerced to uint8; the chips are copied.
+ */
 static PyObject *
-_SynthEngine_set_dsss (_SynthEngineObject *self, PyObject *args,
-                       PyObject *kwds)
+_SynthEngine_set_dsss_chips (_SynthEngineObject *self, PyObject *arg)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *kwlist[] = { "acq_code", "acq_reps", "data_code", "payload",
-                            "sync",     "crc",      NULL };
-  PyObject    *acq_obj = Py_None, *data_obj = Py_None;
-  PyObject    *pay_obj = Py_None, *sync_obj = Py_None;
-  Py_ssize_t   reps = 1;
-  int          crc  = 1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OnOOOi", kwlist, &acq_obj,
-                                    &reps, &data_obj, &pay_obj, &sync_obj,
-                                    &crc))
+  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
+      arg, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!arr)
     return NULL;
-  /* Coerce each optional array-like to a contiguous uint8 view (None → no
-   * such burst element); collected so every DECREF happens on one path. */
-  PyArrayObject *arrs[4] = { NULL, NULL, NULL, NULL };
-  PyObject      *objs[4] = { acq_obj, data_obj, pay_obj, sync_obj };
-  const uint8_t *dat[4]  = { NULL, NULL, NULL, NULL };
-  size_t         len[4]  = { 0, 0, 0, 0 };
-  int            ok      = 1;
-  for (int i = 0; i < 4 && ok; i++)
-    {
-      if (objs[i] == Py_None)
-        continue;
-      arrs[i] = (PyArrayObject *)PyArray_FROM_OTF (objs[i], NPY_UINT8,
-                                                   NPY_ARRAY_C_CONTIGUOUS);
-      if (!arrs[i])
-        ok = 0;
-      else
-        {
-          dat[i] = (const uint8_t *)PyArray_DATA (arrs[i]);
-          len[i] = (size_t)PyArray_SIZE (arrs[i]);
-        }
-    }
-  int rc = -1;
-  if (ok)
-    rc = dp_wfm_synth_set_dsss (self->handle, dat[0], len[0],
-                                (size_t)(reps < 0 ? 0 : reps), dat[1], len[1],
-                                dat[3], len[3], dat[2], len[2], crc);
-  for (int i = 0; i < 4; i++)
-    Py_XDECREF (arrs[i]);
-  if (!ok)
-    return NULL;
+  int rc = dp_wfm_synth_set_dsss_chips (self->handle,
+                                        (const uint8_t *)PyArray_DATA (arr),
+                                        (size_t)PyArray_SIZE (arr));
+  Py_DECREF (arr);
   if (rc != 0)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "set_dsss: invalid burst geometry (frame bits need a "
-                       "data code; burst must be non-empty), or not a dsss "
-                       "synth");
+                       "set_dsss_chips: the burst must be non-empty");
       return NULL;
     }
   Py_RETURN_NONE;
@@ -754,16 +723,14 @@ static PyMethodDef _SynthEngine_methods[] = {
     "type='symbols' synth.\n"
     "Each element is the constellation point itself (no bit mapping), "
     "oversampled by sps, cycled, and RRC-shaped when set_rrc is active.\n" },
-  { "set_dsss", (PyCFunction)_SynthEngine_set_dsss,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_dsss(acq_code=None, acq_reps=1, data_code=None, payload=None, "
-    "sync=None, crc=1) -> None\n"
+  { "set_dsss_chips", (PyCFunction)_SynthEngine_set_dsss_chips, METH_O,
+    "set_dsss_chips(chips) -> None\n"
     "\n"
-    "Build and attach a two-code DSSS burst to a type=dsss synth: an\n"
-    "unmodulated repeated preamble (acq_code x acq_reps) followed by the\n"
-    "frame [sync | payload | CRC-16], every frame bit spread by data_code.\n"
-    "Arrays are array-likes of 0/1 (coerced to uint8); crc!=0 appends the\n"
-    "CRC-16-CCITT trailer over the payload bits.\n" },
+    "Attach an already-assembled DSSS burst to a type=dsss synth: one chip\n"
+    "per element, 0/1 (coerced to uint8), BPSK-mapped by the synth and\n"
+    "played cyclically. Assemble it from a frame description -- the\n"
+    "unspread preamble, then every bit of a Frame's bits() spread by the\n"
+    "data code. A no-op on any other waveform type.\n" },
   { "set_dsss_cont", (PyCFunction)_SynthEngine_set_dsss_cont,
     METH_VARARGS | METH_KEYWORDS,
     "set_dsss_cont(code, chips_per_symbol, data='prbs', payload=None) -> "
@@ -984,7 +951,7 @@ static PyTypeObject _SynthEngineType = {
     "\"symbols\"\n"
     "    attach the complex stream with dp_wfm_synth_set_symbols(); for "
     "\"dsss\"\n"
-    "    attach the burst with dp_wfm_synth_set_dsss() after create().\n"
+    "    attach the burst with dp_wfm_synth_set_dsss_chips() after create().\n"
     "fs : float, default 1000000.0\n"
     "    Sample rate in Hz. Sets the carrier frequency normalisation and the\n"
     "    noise bandwidth. Default 1 000 000.0.\n"

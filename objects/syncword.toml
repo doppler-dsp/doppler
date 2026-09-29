@@ -41,7 +41,8 @@ create_error_message = "SyncFinder: the marker must be a non-empty array of 0/1 
 depends_on = [{ name = "detection", link = true }]
 
 # The marker, unpacked: one bit per element, LSB. The same convention
-# dp_wfm_frame_bits, dp_crc16_ccitt and dp_ccsds_tm_randomise already pass around.
+# dp_wfm_frame_assemble, dp_crc16_ccitt and dp_ccsds_tm_randomise already pass
+# around.
 [[syncword.init_params]]
 name = "marker"
 type = "uint8_t[]"

@@ -59,20 +59,22 @@ def _frame(crc="crc16"):
 # ── geometry, delegated ─────────────────────────────────────────────────────
 
 
+def _field(f, name):
+    """(offset, bits) of the field called `name` -- a frame is read by name."""
+    i = f.field_index(name)
+    assert i >= 0, name
+    return f.field_off(i), f.field_bits(i)
+
+
 def test_nbits_and_layout_are_the_descriptors_own():
     f = _frame()
     assert f.nbits == REPS * len(ACQ) + len(SYNC) + len(PAYLOAD) + 16
 
-    lay = f.layout()
-    assert lay.preamble_off == 0
-    assert lay.preamble_bits == REPS * len(ACQ)
-    assert lay.sync_off == lay.preamble_bits
-    assert lay.sync_bits == len(SYNC)
-    assert lay.payload_off == lay.sync_off + lay.sync_bits
-    assert lay.payload_bits == len(PAYLOAD)
-    assert lay.crc_off == lay.payload_off + lay.payload_bits
-    assert lay.crc_bits == 16
-    assert lay.total_bits == f.nbits
+    pre = REPS * len(ACQ)
+    assert _field(f, "preamble") == (0, pre)
+    assert _field(f, "sync") == (pre, len(SYNC))
+    assert _field(f, "payload") == (pre + len(SYNC), len(PAYLOAD))
+    assert _field(f, "crc") == (pre + len(SYNC) + len(PAYLOAD), 16)
 
 
 def test_bits_are_preamble_sync_payload_crc_in_that_order():
@@ -90,7 +92,7 @@ def test_a_crc_over_no_payload_is_dropped():
     """
     f = Frame(sync=SYNC, crc="crc16")
     assert f.nbits == len(SYNC)
-    assert f.layout().crc_bits == 0
+    assert _field(f, "crc")[1] == 0
 
 
 # ── the truth-free check ────────────────────────────────────────────────────
@@ -102,7 +104,7 @@ def test_crc_ok_passes_its_own_bits_and_fails_one_flipped_one():
     assert f.crc_ok(b) == 1
 
     bad = b.copy()
-    bad[f.layout().payload_off] ^= 1
+    bad[_field(f, "payload")[0]] ^= 1
     assert f.crc_ok(bad) == 0
 
 
@@ -221,7 +223,7 @@ def test_frames_scored_into_a_frame_meter():
     f = _frame()
     clean = f.bits()
     corrupt = clean.copy()
-    corrupt[f.layout().payload_off + 2] ^= 1
+    corrupt[_field(f, "payload")[0] + 2] ^= 1
 
     m = FrameMeter(target_errors=4)
     for i in range(20):
@@ -264,31 +266,46 @@ def test_framedesc_is_the_same_frame_deferred():
     assert d.crc_ok(d.bits(1)) == 1
 
 
-def test_the_indexed_view_reads_a_configured_frame_too():
-    """`wfm_frame_t` IS a configuration, so the general accessors reach it.
+def test_a_frame_is_a_description_read_by_name():
+    """The constructor describes the common frame, and nothing else does.
 
-    Checked against the NAMED view rather than against literals: the two are
-    the same layout read two ways, and a description that disagreed with the
-    struct it was built from would be two descriptors again.
+    It holds exactly the fields it was given, named, in wire order -- there
+    is no second, named view of a frame beside the description, so the
+    indexed accessors are the only way in and a name is how a caller finds
+    its field.
     """
     f = _frame()
-    lay = f.layout()
-
     assert f.n_fields() == 4
     assert f.n_stages() == 1
-    assert (f.field_off(0), f.field_bits(0)) == (
-        lay.preamble_off,
-        lay.preamble_bits,
-    )
-    assert (f.field_off(2), f.field_bits(2)) == (
-        lay.payload_off,
-        lay.payload_bits,
-    )
-    assert (f.field_off(3), f.field_bits(3)) == (lay.crc_off, lay.crc_bits)
+    assert [
+        f.field_index(n) for n in ("preamble", "sync", "payload", "crc")
+    ] == [
+        0,
+        1,
+        2,
+        3,
+    ]
     # The CRC stage covers the payload AND the trailer it derives -- the rule
     # that lets one kernel signature serve every check-symbol stage.
-    assert f.stage_first(0) == lay.payload_off
-    assert f.stage_bits(0) == lay.payload_bits + lay.crc_bits
+    pay_off, pay_bits = _field(f, "payload")
+    assert f.stage_first(0) == pay_off
+    assert f.stage_bits(0) == pay_bits + _field(f, "crc")[1]
+
+    # An omitted field takes no index: the payload of a frame with no
+    # preamble is field 1, which is why a caller asks by name.
+    g = Frame(sync=SYNC, payload=PAYLOAD, crc="crc16")
+    assert g.n_fields() == 3
+    assert g.field_index("preamble") == -1
+    assert g.field_index("payload") == 1
+
+
+def test_layout_is_gone():
+    """The named `FrameLayout` view was a second reading of one frame; the
+    description is the only one now (docs/design/frame-description.md, R)."""
+    import doppler.wfm as wfm
+
+    assert not hasattr(Frame, "layout")
+    assert not hasattr(wfm, "FrameLayout")
 
 
 def test_an_empty_description_starts_empty_and_refuses_to_build():

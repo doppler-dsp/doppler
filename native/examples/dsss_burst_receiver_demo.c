@@ -444,11 +444,11 @@ main (void)
         {
           const size_t got_n = dp_frame_deframe (f, out + i * FRAME_SYMS,
                                                  FRAME_SYMS, undone, nbits);
-          /* The NAMED view, because this frame was built the four-field
-             way: [preamble | sync | payload | crc]. A field-by-field
-             description would index its own fields instead. */
-          const size_t poff = dp_frame_layout (f).payload_off;
-          int          same = (got_n == FRAME_SYMS);
+          /* The payload is found by NAME: a frame is a description, and
+             every field in it is read the same way. */
+          const size_t poff = dp_frame_field_off (
+              f, (size_t)dp_frame_field_index (f, "payload"));
+          int same = (got_n == FRAME_SYMS);
           for (size_t k = 0; k < PAYLOAD && same; k++)
             same = (undone[poff + k] == payload[k]);
           /* `checked` is the load-bearing half: a frame carrying NO check

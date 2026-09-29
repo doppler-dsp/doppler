@@ -181,7 +181,7 @@ That one boundary is worth the care: 8.2.2.2's NOTE, discussing the LDPC CSM, co
 **Every kernel here is falsified by a published vector, not by a round trip.** Encode-then-decode agrees with itself for a great many wrong implementations — a mis-ordered tap, a swapped generator polynomial, the wrong field representation — because the decoder inverts whatever the encoder did. The check that bites is the one the standard prints.
 
 
-Bit convention: every function here takes and returns **unpacked** bits, one per byte in the LSB, which is what `dp_wfm_frame_bits`, `dp_crc16_ccitt` and the spreader already pass around. Packed byte streams are a separate (and wanted) representation; conflating them silently is how MSB-first came to be hardcoded in three places that agree by luck.
+Bit convention: every function here takes and returns **unpacked** bits, one per byte in the LSB, which is what `dp_wfm_frame_assemble`, `dp_crc16_ccitt` and the spreader already pass around. Packed byte streams are a separate (and wanted) representation; conflating them silently is how MSB-first came to be hardcoded in three places that agree by luck.
 
 
 

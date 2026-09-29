@@ -227,7 +227,7 @@ typedef struct {
        kernel in C and hands it to `dp_wfm_frame_assemble` directly. */
     const wfm_frame_desc_t *frame;
 
-    /* type=dsss: the two-code burst geometry (dp_wfm_frame_dsss_chips). The
+    /* type=dsss: the two-code burst geometry (dp_wfm_dsss_desc_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
        "a run of bits, however produced" -- LITERAL plus the generated PN /

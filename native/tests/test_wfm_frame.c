@@ -596,6 +596,17 @@ test_field_text (void)
                   "cause");
     DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1:1:1", NULL, 0, NULL) == 12,
                   "...and one with a POLY sizes");
+    /* ...and BUILDS: rendered, every element a bit. Parse and sizing alone
+       would leave "a 1-bit register with a POLY is buildable" a claim. */
+    memset (big, 0xAA, sizeof big);
+    why = NULL;
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1:1:1", big, sizeof big, &why)
+                      == 12,
+                  "a 1-bit register with a POLY renders all 12 bits");
+    int all_bits = 1;
+    for (size_t i = 0; i < sizeof big; i++)
+      all_bits &= (big[i] <= 1u);
+    DP_CHECK_MSG (all_bits, "...and every one is 0 or 1");
     wfm_seq_t s = { .kind = WFM_SEQ_PN, .len = 12, .reg_bits = 1 };
     DP_CHECK_MSG (dp_wfm_seq_bits (&s, big, sizeof big) == 0,
                   "dp_wfm_seq_bits refuses a register with no m-sequence "

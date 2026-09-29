@@ -101,6 +101,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
+|  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
 |  double | [**dp\_wfm\_spec\_headroom**](#function-dp_wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**dp\_wfm\_spec\_template\_json**](#function-dp_wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**dp\_wfm\_spec\_to\_json**](#function-dp_wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, int seed\_advance, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
@@ -1155,7 +1156,7 @@ double dp_wfm_source_create_snr (
 
 
 
-`dp_wfm_synth_create()` runs before a dsss source's codes are attached, so it cannot know the spreading factor its own esno would need. This helper — the one create-time entry point shared by the composer (`dp_wfm_compose_build_synth`) and the standalone-Synth bridge (`dp_wfm_source_to_synth`), so every face agrees to the bit — converts a dsss source's SNR to the over-fs reference (via `dp_wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes through unchanged.
+`dp_wfm_synth_create()` runs before a dsss source's codes are attached, so it cannot know the spreading factor its own esno would need. This helper — the one create-time entry point shared by the composer (`dp_wfm_compose_build_synth`) and the standalone-Synth bridge (`dp_wfm_source_to_synth`), so every face agrees to the bit — converts a dsss source's SNR to the over-fs reference (via `dp_wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream uses `fs/symbol_rate`) and returns `snr_mode=fs`. A framed `bpsk`/`qpsk`/`pn` is referred the same way, because its synth is created as BITS ([**dp\_wfm\_source\_synth\_type()**](wfm__compose_8h.md#function-dp_wfm_source_synth_type)). Every other source passes through unchanged.
 
 
 
@@ -1235,7 +1236,7 @@ const char * dp_wfm_source_frame_error (
 ONE rule, asked by all three faces — the wfmgen CLI before it generates, the standalone `Synth` through `dp_wfm_source_to_synth`, and the composer through `dp_wfm_compose_create` — because the alternative is what shipped: the flags were accepted, stored and readable back on every face, and applied on none of them, so a caller who asked for a framed waveform silently got an unframed one.
 
 
-A frame needs a payload, and the unspread types that source their symbols from the PN LFSR (`bpsk`/`qpsk`/`pn`) have no length to bound one. So the frame is honoured where the payload is EXPLICIT — `type=bits` with a pattern, which `modulation` already maps to BPSK or QPSK — and refused with a reason everywhere else.
+A frame needs a payload. `type=bits` and the PN-sourced `bpsk`/`qpsk`/`pn` carry one when a payload is given (literal or generated, gh-762); the latter are then built as a BITS synth ([**dp\_wfm\_source\_synth\_type()**](wfm__compose_8h.md#function-dp_wfm_source_synth_type)). Types with no bit stream (tone, noise, chirp, symbols) are refused with a reason.
 
 
 
@@ -1281,6 +1282,54 @@ A carried description, a preamble or a sync word is what says "framed". **Delibe
 
 
 * `src` The source; NULL reads as unframed. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_synth\_type 
+
+_The synth type to create this source with._ 
+```C++
+int dp_wfm_source_synth_type (
+    const wfm_source_t * src
+) 
+```
+
+
+
+The source's own type, except for a FRAMED `bpsk`/`qpsk`/`pn`: that one transmits its frame, and the only synth that plays a bit pattern is a `WFM_SYNTH_BITS` one (`dp_wfm_synth_set_bits()` is a no-op on any other), so it is created as BITS and [**dp\_wfm\_source\_attach\_frame()**](wfm__compose_8h.md#function-dp_wfm_source_attach_frame) hands it the frame with the mapping the type names (bpsk for `bpsk`/`pn`, Gray QPSK for `qpsk`). Created with its own type it played the LFSR stream and dropped the frame (doppler#1616).
+
+
+Asked by both construction faces (`dp_wfm_compose_build_synth` and the standalone `dp_wfm_source_to_synth`) and by [**dp\_wfm\_source\_create\_snr()**](wfm__compose_8h.md#function-dp_wfm_source_create_snr), which refers such a source's SNR to fs so its noise stays in the reference its type names.
+
+
+
+```C++
+wfm_source_t s = { .type = WFM_SYNTH_BPSK };
+int t = dp_wfm_source_synth_type (&s); // unframed: WFM_SYNTH_BPSK
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+
+
+
+**Returns:**
+
+A `WFM_SYNTH_*` type. 
+
 
 
 

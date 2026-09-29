@@ -232,8 +232,8 @@ dp_wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
   int    snr_mode = 0;
   double snr_c    = dp_wfm_source_create_snr (src, fs, snr, &snr_mode);
   dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
-      src->type, fs, freq, snr_c, snr_mode, seed, src->sps, src->pn_length,
-      src->pn_poly, src->lfsr, f_end);
+      dp_wfm_source_synth_type (src), fs, freq, snr_c, snr_mode, seed,
+      src->sps, src->pn_length, src->pn_poly, src->lfsr, f_end);
   if (!syn)
     return NULL;
   /* Pin a chirp's sweep to its declared span, else the on-time (no-op for

@@ -94,9 +94,15 @@ dp_wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
 {
   *snr_mode = src->snr_mode;
   /* dp_wfm_synth_create() sees only sps, so a dsss data-symbol Es/N0 must be
-   * pre-referred to fs here (the codes attach after create). Clean sources
-   * pass through so the no-AWGN shortcut still applies. */
-  if (src->type == WFM_SYNTH_DSSS && snr < WFM_SYNTH_SNR_CLEAN)
+   * pre-referred to fs here (the codes attach after create). So must a FRAMED
+   * bpsk/qpsk/pn: its synth is created as BITS (dp_wfm_source_synth_type),
+   * whose auto mode is fs and whose bits/symbol is 1, so handing it the
+   * source's own figure would move the noise off the reference its TYPE
+   * names -- the one dp_wfm_snr_over_fs resolves for the segment floor.
+   * Clean sources pass through so the no-AWGN shortcut still applies. */
+  if ((src->type == WFM_SYNTH_DSSS
+       || dp_wfm_source_synth_type (src) != src->type)
+      && snr < WFM_SYNTH_SNR_CLEAN)
     {
       snr = dp_wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
                                 src->data_code.len, dsss_sym_span (src, fs),

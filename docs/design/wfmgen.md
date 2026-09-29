@@ -186,17 +186,18 @@ ones the tool exists for, are the least gated of all.
     *Gated:* `test_wfm_compose.c`.
 
 1. **Adding a knob cannot fork an API.** One declaration per parameter, in
-    the manifest, and every face generated from it. *Today this holds for
-    Python and the C defaults only* — jm generates the one and
-    `gen_wfm_defaults.py` the other, and enum names have one C home
-    (`check_wfm_enum_tables.py`). The CLI option table, the help text, the
-    JSON reader and writer, the schema and the reference docs each restate a
-    parameter by hand, about six declarations apiece, and they have already
-    drifted: the JSON reader defaults `seed`, `sps` and `pn_length` to
-    1 / 8 / 7 against the manifest's 0 / 1 / 15
+    the manifest, and every face generated from it: jm generates the
+    Python face, and `gen_wfm_defaults.py` the C defaults and
+    [the surface table](#one-surface-table) that the CLI option table, its
+    `--help` lines, the JSON reader, the schema and the options reference
+    are generated from. Enum names have one C home
+    (`check_wfm_enum_tables.py`). *Gated:* `gen_wfm_defaults.py --check` in
+    `make lint` fails on a stale output or a hand-written flag line, and
+    `test_wfm_surface_roundtrip.py` holds CLI → `--record` → JSON → CLI to a
+    fixed point for every row. The drift this closed was measured: the JSON
+    reader defaulted `seed`, `sps` and `pn_length` to 1 / 8 / 7 against the
+    manifest's 0 / 1 / 15
     ([#1596](https://github.com/doppler-dsp/doppler/issues/1596)).
-    [One surface table](#one-surface-table) is the design that makes the goal
-    true.
 
 1. **0 dBFS (decibels relative to full scale) is unit average power**, and
     clipping is observable rather than
@@ -231,7 +232,7 @@ if edited by hand:
 | output                                                                                                                 | replaces                                                |
 | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | `wfm_defaults.h`                                                                                                       | (already generated)                                     |
-| `wfm_surface.h` — one row per parameter: JSON key, CLI spelling and aliases, offset, type, choice table, default, help | nothing yet; the table the rest read                    |
+| `wfm_surface.h` — one row per parameter: JSON key, CLI spelling and aliases, offset, type, choice table, default, help | nothing: it is the table the rest read                  |
 | the CLI option table and `--help` text                                                                                 | `OPTS[]` and `USAGE[]` in `wfmgen.c`, hand-written      |
 | the JSON reader and writer, as one loop over the table                                                                 | the per-key code in `wfm_json.c`, with its own defaults |
 | `docs/schema/wfmgen.schema.json`                                                                                       | the hand-written schema                                 |

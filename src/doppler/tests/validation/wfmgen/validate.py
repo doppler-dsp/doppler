@@ -21,6 +21,7 @@ PRIMARY — was pinned at two legs of four.
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,13 @@ from doppler.tests._validation_common import Report, cli
 HERE = Path(__file__).resolve().parent
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_wfmgen_certify"
+)
+
+# The Field parser's corpus harness (phase 7). This report runs its
+# `--check` subset -- a few ms -- and states what it found; the full corpus
+# is `make validate-c`.
+EXPLORE = exe(
+    build_dir(__file__) / "native/validation/validate_wfm_field_explore"
 )
 
 R = Report()
@@ -125,11 +133,68 @@ def _measure(tmp: Path) -> dict[str, tuple[str, str, str]]:
     return {s: _render_three_ways(s, tmp) for s in SCENES}
 
 
+def _explore() -> dict[str, int]:
+    """The corpus harness's `--check` counts. Raises rather than skipping."""
+    if not EXPLORE.is_file():
+        raise SystemExit(
+            f"{EXPLORE} not built — run `make build`. This validator FAILS "
+            "rather than skipping."
+        )
+    r = subprocess.run(
+        [str(EXPLORE), "--check"], capture_output=True, text=True
+    )
+    m = re.search(
+        r"accepted (\d+), round trips (\d+), findings (\d+)", r.stdout
+    )
+    if not m:
+        raise SystemExit(f"unexpected harness output:\n{r.stdout}")
+    return {
+        "exit": r.returncode,
+        "accepted": int(m[1]),
+        "round_trips": int(m[2]),
+        "findings": int(m[3]),
+    }
+
+
+# A malformed Field on the command line, and the words its refusal must
+# contain. Each is a rule the grammar states; the CLI must exit 2 with a
+# sentence naming it rather than build nothing and say nothing.
+CLI_REFUSALS = [
+    ("pn:12:1", "POLY"),  # D12: a 1-bit register has no m-sequence
+    ("pn:31:5:32", "REG"),  # #1624: a SEED wider than its register
+    ("01a1", "0 or 1"),  # a typo in a literal is refused, not filtered
+    ("data:1024", "data source"),  # named, not a typo
+]
+
+
+def _cli_refusal(spec: str, tmp: Path) -> tuple[int, str]:
+    r = subprocess.run(
+        [
+            _wfmgen_bin(),
+            "--type",
+            "bits",
+            "--bits",
+            spec,
+            "--count",
+            "16",
+            "-o",
+            str(tmp / "refused.cf32"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return r.returncode, r.stderr.strip()
+
+
 def build(write: bool = True) -> Report:
     import tempfile
 
     with tempfile.TemporaryDirectory() as td:
         got = _measure(Path(td))
+        corpus = _explore()
+        refusals = [
+            (sp, w, *_cli_refusal(sp, Path(td))) for sp, w in CLI_REFUSALS
+        ]
 
     R.md("# wfmgen — certification evidence")
     R.md()
@@ -173,8 +238,9 @@ def build(write: bool = True) -> Report:
                 "1",
                 "Full-featured across the three axes",
                 "`check_wfmgen_flag_docs.py`",
-                "**runs** — 67 flags documented; the page itself "
-                "notes nothing states the intended coverage",
+                "**runs** — 52 flags documented, 51 exercised; the one "
+                "left, `-o`, is short and the gate reads long flags only "
+                "(F4)",
             ],
             [
                 "2",
@@ -217,7 +283,9 @@ def build(write: bool = True) -> Report:
                 "8",
                 "Adding a knob cannot fork an API",
                 "drift-check, enum tables, flag docs/matrix",
-                "**runs** — but see F2: the DEFAULTS are outside all of them",
+                "**runs** — and since #853 item 9 it holds for every face: "
+                "the CLI table, `--help`, the JSON reader and the schema are "
+                "generated from one surface table (F9)",
             ],
             [
                 "9",
@@ -229,6 +297,58 @@ def build(write: bool = True) -> Report:
     )
     R.md()
 
+    R.md("### Claim coverage — the Field, the grammar every face reads")
+    R.md()
+    R.md(
+        "#853 put every frame field on ONE text form, read by one parser. "
+        "That part of the tool DOES have a header, so it is certified the "
+        "campaign's usual way: every prose claim in `wfm_frame.h` "
+        "(`dp_wfm_field_parse`/`_format`/`_bits`/`_render`, "
+        "`dp_wfm_frame_fixed`), `wfm_compose.h` (`dp_wfm_frame_from_json`, "
+        "`dp_wfm_frame_free`) and `cvt_core.h` (`dp_bytes_to_bin`) was "
+        "enumerated and mapped onto the C test that pins it; every claim "
+        "that was absent or held only at one vector got a C test, and each "
+        "new test was sabotaged and seen to go red."
+    )
+    R.md()
+    R.table(
+        ["surface", "claims", "before: pinned / literals / absent", "now"],
+        [
+            [
+                "`dp_wfm_field_*`",
+                "69",
+                "51 / 11 / 7",
+                "69 pinned (round trip and canonical form by the corpus, "
+                "§2.3; literal storage by LSan under `make test-asan`)",
+            ],
+            [
+                "`dp_wfm_frame_fixed`",
+                "15",
+                "7 / 3 / 5",
+                "14 pinned; *every face reaches it* is pinned for the "
+                "`Frame` face only",
+            ],
+            [
+                "`dp_wfm_frame_from_json`, `_free`",
+                "15",
+                "0 / 8 / 7",
+                "14 pinned; *a malformed description is refused* at the "
+                "cases written",
+            ],
+            ["`dp_bytes_to_bin`", "10", "7 / 3 / 0", "10 pinned, every octet"],
+        ],
+    )
+    R.md()
+    R.md(
+        "The inventory found three defects, all fixed here (F6-F8). The "
+        "sabotages -- a SEED or tap above REG allowed, `why` copied per "
+        "call, `*1` written back, the NUL left out of the fits check, "
+        "`from_json(NULL)` with no reason, LITTLE ignored, a refusal "
+        "writing one byte -- each took exactly its check red; `reps == 0` "
+        "read as zero was caught first by the geometry tests that rely on "
+        "it."
+    )
+    R.md()
     R.md("## 2. Characterisation")
     R.md()
     R.md("### 2.1 The four APIs, rendered and compared")
@@ -282,6 +402,38 @@ def build(write: bool = True) -> Report:
         "symbol IS the pn waveform. That is correct behaviour and worth "
         "stating, because the parametrisation reads as five independent "
         "cases and the coverage is narrower than it looks."
+    )
+    R.md()
+    R.md("### 2.3 The Field corpus")
+    R.md()
+    R.md(
+        "`native/validation/wfm_field_explore.c` (phase 7, recorded in "
+        "frame-description-measurements.md §F.6) drives generated, mutated "
+        "and hand-edge text through the one reader, the one writer and the "
+        "one door to bits, holding for every accepted text: "
+        "parse → format → parse is the same field, the text is canonical, "
+        "and both texts render the same bits, each 0 or 1. This report "
+        "runs its `--check` subset; the full corpus (200 000 generated + "
+        "200 000 mutations) is `make validate-c`."
+    )
+    R.md()
+    R.table(
+        ["run", "accepted", "round trips held", "findings"],
+        [
+            [
+                "`--check`, seed `0x9E3779B97F4A7C15`",
+                str(corpus["accepted"]),
+                str(corpus["round_trips"]),
+                str(corpus["findings"]),
+            ]
+        ],
+    )
+    R.md()
+    R.md("### 2.4 A malformed Field on the command line")
+    R.md()
+    R.table(
+        ["`--bits`", "exit", "stderr"],
+        [[f"`{sp}`", str(rc), f"`{err}`"] for sp, _, rc, err in refusals],
     )
     R.md()
 
@@ -348,22 +500,18 @@ def build(write: bool = True) -> Report:
     )
     R.find(
         "F4",
-        "GAP",
-        "**Fourteen of the 67 flags are documented and exercised by "
-        "nothing.** The flag-docs gate prints two numbers and only the first "
-        "is ever quoted: 67 documented, and *53 of 67 exercised* across 81 "
-        "`wfmgen` command lines. Being documented is the claim that gate "
-        "makes, so this is not a gate failure — it is the measured size of "
-        "the hole goal 1 already admits in prose, that nothing states the "
-        "intended coverage. Among them `--clip-error`/`--clip-report`, which "
-        "are the observability half of goal 9, and `--level`, which is how "
-        "every non-anchor source places its power. The count may no longer "
-        "grow: #1143 turned it into a RATCHET checked both ways, so a new "
-        "unexercised flag fails and a waiver that outlives its defect fails "
-        "too. The debt itself is #1149 and still open, which is why this "
-        "stays a GAP — bounding a hole is not filling it. One of the "
-        "fourteen, `-o`, is only the short alias of an exercised "
-        "`--output`, so thirteen capabilities are genuinely undemonstrated.",
+        "FIXED",
+        "**Fourteen of the 67 flags were documented and exercised by "
+        "nothing.** The flag-docs gate printed two numbers and only the "
+        "first was ever quoted: 67 documented, and *53 of 67 exercised*. "
+        "#1143 made the count a RATCHET checked both ways, and #1149 paid it "
+        "down: every real capability got a runnable line on the page "
+        "already explaining it. Today, after #853 retired the frame sugar "
+        "flags: **52 documented, 51 exercised**. The one left is `-o`, "
+        "which IS used under docs/ -- the gate tokenises long flags only, "
+        "so a short one is unexercised by construction. That is a fact "
+        "about the checker, recorded in its ratchet file, not a gap in the "
+        "docs.",
     )
     R.find(
         "F5",
@@ -386,6 +534,57 @@ def build(write: bool = True) -> Report:
         "zero tests before. The campaign's own recurring shape, found in "
         "the campaign's own infrastructure.",
     )
+    R.find(
+        "F6",
+        "FIXED",
+        "**A SEED, POLY or Gold tap wider than REG was silently masked** "
+        "(#1624, found by this inventory). `wfm_frame.h` says REG is the "
+        "register width; the generators mask every number to it, so "
+        "`pn:31:5:32` -- whose low five bits are zero -- rendered 31 zeros, "
+        "the all-zero register that `0 selects 1` exists to avoid, reached "
+        "by a spelling that default does not catch. `pn:10:5:0:0x40` was a "
+        "register with no feedback. A constant field still looks like a "
+        "field: the #1602 class, one spelling further out. Refused at parse "
+        "now, naming REG; five rows in the refusal table were red first, "
+        "and the corpus generator reduces each drawn seed into its "
+        "register so its draws stay the recorded ones.",
+    )
+    R.find(
+        "F7",
+        "FIXED",
+        "**`dp_wfm_frame_from_json(NULL, &why)` refused with no reason.** "
+        "The header promises a static reason on every failure; the NULL "
+        "path returned before setting one. The entry point `wfmgen --frame "
+        "FILE` uses had no direct C test at all -- the scene tests reached "
+        "only the reader it shares -- so seven of its fifteen claims were "
+        "held by nobody. Now pinned directly, the NULL reason red first.",
+    )
+    R.find(
+        "F8",
+        "FIXED",
+        "**A header claim described a case that cannot happen.** "
+        "`dp_wfm_field_bits` said a sizing call checks the grammar only, so "
+        "'a Gold pair that is not a preferred pair' sizes and then fails to "
+        "render. `dp_gold_create` checks no such thing, and after D12 and "
+        "F6 every text the grammar accepts renders -- the branch that "
+        "reported the failure was dead code with a sentence attached. The "
+        "claim is now the true one, *every accepted text renders*, pinned "
+        "over every accepted table row in C and every accepted text of the "
+        "corpus (§2.3); the dead branch is gone.",
+    )
+    R.find(
+        "F9",
+        "FIXED",
+        "**The design page said goal 8 held for two faces.** #853 item 9 "
+        "generated the CLI option table, `--help`, the JSON reader, the "
+        "schema and the options reference from one surface table, and the "
+        "page still read *today this holds for Python and the C defaults "
+        "only*, with `wfm_surface.h` listed as replacing *nothing yet*. A "
+        "design page that under-states its own gating is the mirror of one "
+        "that over-states it, and §1 reads the page first. Corrected, with "
+        "the gates named: `gen_wfm_defaults.py --check` in `make lint` and "
+        "`test_wfm_surface_roundtrip.py`.",
+    )
     R.md()
 
     R.md("## 4. Limits")
@@ -401,6 +600,22 @@ def build(write: bool = True) -> Report:
         R.limit(
             c == p,
             f"`{s}`: the C struct API and Python render byte-identically",
+        )
+    R.limit(
+        corpus["findings"] == 0 and corpus["exit"] == 0,
+        "the Field corpus (`--check`): every accepted text round-trips, "
+        "formats canonically and renders the same bits as its canonical "
+        "form",
+    )
+    R.limit(
+        corpus["round_trips"] == corpus["accepted"] > 0,
+        "the Field corpus holds its properties for EVERY text it accepts, "
+        "not a subset",
+    )
+    for sp, want, rc, err in refusals:
+        R.limit(
+            rc == 2 and want in err,
+            f"`wfmgen --bits {sp}` exits 2 with a sentence naming `{want}`",
         )
     R.limit(
         HARNESS.is_file(),
@@ -445,6 +660,19 @@ def build(write: bool = True) -> Report:
             "habit is still worth keeping: check that "
             "`-k 'validation_limits and <obj>'` collects something before "
             "believing a green run.",
+            "**The Field grammar is certified header-first** (§1): 109 "
+            "prose claims across the parser, the fixed frame, the JSON "
+            "frame reader and `bytes_to_bin`, 19 of them held by nobody "
+            "before this pass and 107 pinned now. The inventory found a "
+            "silent-mask defect in the grammar (F6, #1624), a refusal with "
+            "no reason (F7) and a header sentence about a case that cannot "
+            "happen (F8).",
+            "**The phase-7 corpus is a committed harness now** (§2.3), "
+            "and this report runs its subset rather than quoting a scratch "
+            "run. On the parser it was recorded against, the recorded seed "
+            "reproduces the record's 259 037 round trips exactly; since "
+            "F6 each drawn seed is reduced into its register, so the texts "
+            "differ where a seed was out of range and the draws do not.",
             "**The five-scene matrix is four distinct waveforms** (§2.2): "
             "`pn` and `bpsk` are byte-identical at these defaults, so the "
             "parametrisation reads broader than the coverage is.",

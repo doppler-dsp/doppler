@@ -1773,6 +1773,7 @@
 
 * **pn\_fits\_register** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_mls\_poly** ([**pn\_core.h**](pn__core_8h.md))
+* **pn\_register\_mask** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_step** ([**pn\_core.h**](pn__core_8h.md))
 
 

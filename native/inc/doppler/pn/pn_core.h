@@ -153,6 +153,22 @@ pn_fits_register(uint64_t v, uint32_t n)
     return n >= 64u || (v >> n) == 0u;
 }
 
+/**
+ * @brief The bits of an @p n-bit register: what dp_pn_create() and
+ * dp_gold_create() keep of a seed, a poly or a tap set. All ones at 64.
+ *
+ * A seed is refused when `(seed & pn_register_mask (n)) == 0`, not when
+ * `seed == 0`: 128 on a 7-bit register is non-zero and masks to the
+ * all-zero register, the fixed point the rule exists to keep out
+ * (doppler#1640). A wide seed that masks to non-zero -- 129 to 1 -- is
+ * fine, and documented.
+ */
+JM_FORCEINLINE uint64_t
+pn_register_mask(uint32_t n)
+{
+    return n >= 64u ? ~(uint64_t)0 : (((uint64_t)1 << n) - 1u);
+}
+
 
 /**
  * @brief Allocate and initialise a maximal-length-sequence LFSR.
@@ -166,8 +182,10 @@ pn_fits_register(uint64_t v, uint32_t n)
  *              poly); bit k=1 means tap at position k. Default 96 (0x60)
  *              is primitive for length=7, giving period 127. The Fibonacci
  *              taps are derived automatically so you only supply one value.
- * @param seed  Initial LFSR register state; must be non-zero (the all-zero
- *              state is a fixed point). Default 1.
+ * @param seed  Initial LFSR register state; must be non-zero WITHIN the
+ *              register, `seed & pn_register_mask (length)` -- the all-zero
+ *              state is a fixed point, and a seed that masks to it (128 on
+ *              7 bits) is refused like 0. Default 1.
  * @param length  Register width in bits, 1..64. The sequence period is
  *              2^length - 1 for a primitive polynomial. Default 7.
  * @param lfsr  Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).

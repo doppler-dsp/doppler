@@ -846,6 +846,32 @@ class TestCLI:
         assert "--pn-poly 0x40" in r.stderr
         assert "--pn-length 5" in r.stderr
 
+    def test_a_seed_that_empties_the_register_is_refused(
+        self, tmp_path
+    ) -> None:
+        # doppler#1640: 128 on a 7-bit register masked to all-zero, constant.
+        r = subprocess.run(
+            [
+                WFMGEN,
+                "--type",
+                "pn",
+                "--pn-length",
+                "7",
+                "--seed",
+                "128",
+                "--count",
+                "32",
+                "-o",
+                str(tmp_path / "x.cf32"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert r.returncode == 2, r.stderr
+        assert "--seed 128" in r.stderr
+        assert "--pn-length 7" in r.stderr
+
     def test_json_template_subcommand(self, tmp_path) -> None:
         r = subprocess.run(
             [WFMGEN, "json-template"], check=True, capture_output=True

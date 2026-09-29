@@ -260,6 +260,24 @@ main (void)
    * "length 1..64" are contract, and neither was exercised here. */
   DP_CHECK (dp_pn_create (pn_mls_poly (7), 0, 7, PN_GALOIS) == NULL);
   DP_CHECK (dp_pn_create (pn_mls_poly (7), 1, 0, PN_GALOIS) == NULL);
+
+  /* The fixed point is the MASKED seed's, not the argument's (doppler#1640).
+   * 128 is non-zero and its low seven bits are all zero, so it passed the
+   * `seed == 0` check and then emptied a 7-bit register: a constant stream
+   * at exit 0, reachable because a source's seed also seeds its noise.
+   * Refused now -- and a wide seed whose masked value is NOT zero stays the
+   * documented, working case. */
+  DP_CHECK_MSG (dp_pn_create (pn_mls_poly (7), 128, 7, PN_GALOIS) == NULL,
+                "a seed that masks to the all-zero register is refused");
+  DP_CHECK_MSG (
+      dp_pn_create (pn_mls_poly (7), (uint64_t)1 << 40, 7, PN_FIBONACCI)
+          == NULL,
+      "...in either realisation, for any multiple of 2^n");
+  {
+    dp_pn_state_t *w = dp_pn_create (pn_mls_poly (7), 129, 7, PN_GALOIS);
+    DP_CHECK_MSG (w && w->seed == 1u, "129 on 7 bits masks to 1 and builds");
+    dp_pn_destroy (w);
+  }
   dp_pn_destroy (NULL); /* documented no-op; a crash here is the test */
 
   /* ── "A zero poly is not a polynomial" ─────────────────────────────────

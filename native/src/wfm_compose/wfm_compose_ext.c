@@ -1413,7 +1413,8 @@ static PyGetSetDef Synth_getset[] = {
     NULL },
   { "seed", (getter)Synth_get_seed, (setter)Synth_set_seed,
     "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it "
-    "for run-to-run change.\n",
+    "for run-to-run change. For a PN-sourced type it fills the pn_length-bit "
+    "register, so a multiple of 2^pn_length (an empty register) is refused.\n",
     NULL },
   { "sps", (getter)Synth_get_sps, (setter)Synth_set_sps,
     "Samples per symbol (PSK) or per chip (PN): the oversampling factor. "
@@ -2701,7 +2702,8 @@ static PyGetSetDef Segment_getset[] = {
     NULL },
   { "seed", (getter)Segment_flat_seed, NULL,
     "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it "
-    "for run-to-run change.\n",
+    "for run-to-run change. For a PN-sourced type it fills the pn_length-bit "
+    "register, so a multiple of 2^pn_length (an empty register) is refused.\n",
     NULL },
   { "sps", (getter)Segment_flat_sps, NULL,
     "Samples per symbol (PSK) or per chip (PN): the oversampling factor. "

@@ -12,17 +12,19 @@
 dp_pn_state_t *
 dp_pn_create (uint64_t poly, uint64_t seed, uint32_t length, int lfsr)
 {
-  /* all-zero register is a fixed point; register holds up to 64 bits */
-  if (seed == 0 || length == 0 || length > 64)
+  /* All-zero register is a fixed point; register holds up to 64 bits. The
+     MASKED seed is what fills it: 128 on 7 bits is non-zero and empties it
+     (doppler#1640), so the check is on what the register would hold. */
+  if (length == 0 || length > 64 || (seed & pn_register_mask (length)) == 0)
     return NULL;
   dp_pn_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  obj->mask = (length >= 64) ? ~(uint64_t)0 : (((uint64_t)1 << length) - 1u);
-  obj->poly = poly & obj->mask;
-  obj->seed = seed & obj->mask;
-  obj->reg  = obj->seed;
-  obj->kind = (lfsr == PN_FIBONACCI) ? PN_FIBONACCI : PN_GALOIS;
+  obj->mask     = pn_register_mask (length);
+  obj->poly     = poly & obj->mask;
+  obj->seed     = seed & obj->mask;
+  obj->reg      = obj->seed;
+  obj->kind     = (lfsr == PN_FIBONACCI) ? PN_FIBONACCI : PN_GALOIS;
   obj->topshift = length - 1u;
   if (obj->kind == PN_FIBONACCI)
     {

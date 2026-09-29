@@ -1,4 +1,5 @@
 #include "doppler/gold/gold_core.h"
+#include "doppler/pn/pn_core.h" /* pn_register_mask: one register convention */
 
 /*
  * CCSDS Command Link Gold Code Generator (CCSDS 415.0-G-1 5.2.2.4).
@@ -19,13 +20,17 @@ dp_gold_state_t *
 dp_gold_create (uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,
                 uint64_t seed_b, uint32_t length)
 {
-  /* all-zero register is a fixed point; register holds up to 64 bits */
-  if (seed_a == 0 || seed_b == 0 || length == 0 || length > 64)
+  /* All-zero register is a fixed point; register holds up to 64 bits. Each
+     MASKED seed is what fills its register: a non-zero multiple of 2^length
+     empties it, and the code is then the other register alone
+     (doppler#1640). */
+  if (length == 0 || length > 64 || (seed_a & pn_register_mask (length)) == 0
+      || (seed_b & pn_register_mask (length)) == 0)
     return NULL;
   dp_gold_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  obj->mask   = (length >= 64) ? ~(uint64_t)0 : (((uint64_t)1 << length) - 1u);
+  obj->mask   = pn_register_mask (length);
   obj->taps_a = taps_a & obj->mask;
   obj->taps_b = taps_b & obj->mask;
   obj->seed_a = seed_a & obj->mask;

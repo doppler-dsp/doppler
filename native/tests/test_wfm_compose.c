@@ -1954,6 +1954,23 @@ main (void)
       dp_wfm_compose_state_t *ok = dp_wfm_compose_create (&gpn, 1, 0, 0);
       DP_CHECK_MSG (ok != NULL, "...and composes");
       dp_wfm_compose_destroy (ok);
+
+      /* The seed's twin (doppler#1640): 128 on a 7-bit register masks to
+       * the all-zero one, a constant stream at exit 0 -- and the seed also
+       * seeds the noise, so large seeds are ordinary. Refused, and named;
+       * 129, which masks to 1, is not. */
+      pn.pn_poly   = 0;
+      pn.pn_length = 7;
+      pn.seed      = 128;
+      DP_REQUIRE_MSG (dp_wfm_compose_create (&gpn, 1, 0, 0) == NULL,
+                      "a seed that empties the register is refused at "
+                      "create");
+      why = dp_wfm_source_error (&pn);
+      DP_CHECK_MSG (why && strstr (why, "seed") && strstr (why, "pn_length"),
+                    "...and the source rule names seed and pn_length");
+      pn.seed = 129;
+      DP_CHECK_MSG (dp_wfm_source_error (&pn) == NULL,
+                    "a wide seed that masks to non-zero is not refused");
     }
 
     /* Same answer inside a multi-source sum: one source that cannot be built

@@ -38,11 +38,15 @@
  *   validate_wfm_field_explore           full corpus: 200000 + 200000 + edges
  *   validate_wfm_field_explore --check   the same, 2000 + 2000 + edges
  *
- * Exit status is non-zero on any finding, and each finding is printed.
+ * Every finding is a failed DP_CHECK_MSG, and the run also CHECKS that it
+ * checked something: text was accepted, every accepted text round-tripped,
+ * every mutation ran. A generator that produced nothing the parser accepts
+ * would otherwise find nothing and pass. DP_TEST_END gives the status.
  */
 #include "doppler/clib_common.h"
 #include "doppler/wfm/wfm_frame.h"
 #include "dp_rng_test.h"
+#include "dp_test.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -92,12 +96,15 @@ same_field (const wfm_field_t *a, const wfm_field_t *b)
          && x->seed_b == y->seed_b;
 }
 
+/* A finding is a failed check: printed with the text that caused it, and
+   counted by dp_test.h, so the run's status is the harness's, not ours. */
 static void
 finding (tally_t *t, const char *what, const char *spec, const char *more)
 {
   printf ("FINDING %s: '%s'%s%s\n", what, spec, more ? " -- " : "",
           more ? more : "");
   t->findings++;
+  DP_CHECK_MSG (0, what);
 }
 
 /* Hold the three properties for one text. `must_parse`: a refusal is a
@@ -338,5 +345,13 @@ main (int argc, char **argv)
           sizeof EDGES / sizeof *EDGES);
   printf ("accepted %lu, round trips %lu, findings %lu\n", t.accepted,
           t.round_trips, t.findings);
-  return t.findings != 0;
+
+  /* Not vacuous: the corpus reached the parser, and past it. */
+  DP_CHECK_MSG (t.accepted > (unsigned long)n / 2u,
+                "most generated text is accepted -- the corpus reached the "
+                "grammar");
+  DP_CHECK_MSG (t.round_trips == t.accepted,
+                "every accepted text held all three properties");
+  DP_CHECK_MSG (t.mutations == (unsigned long)n, "every mutation ran");
+  DP_TEST_END ("wfm_field_explore");
 }

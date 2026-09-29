@@ -204,6 +204,33 @@ def test_the_cli_and_the_composer_agree(tmp_path):
     np.testing.assert_allclose(from_cli, _compose(True, n), atol=1e-6)
 
 
+def test_the_cli_frame_is_the_frame_objects_bits(tmp_path):
+    """The CLI face of `dp_wfm_frame_fixed`: its wire bits ARE `Frame`'s.
+
+    `wfm_frame.h` says the common frame is the one layout every face reaches
+    -- the CLI's `--acq-code`/`--sync`/`--crc`, a scene's keys, the `Frame`
+    object. `Frame` pins its own face in C (`test_frame_core.c`); this pins
+    the CLI's against it, so two faces are held to one builder rather than
+    each to its own expectation. Read at one sample per symbol, where BPSK
+    sends bit 0 as +1 and bit 1 as -1.
+    """
+    from doppler.wfm import Frame
+
+    args = _cli_frame_args(True, NBITS)
+    args[args.index("--sps") + 1] = "1"
+    args[args.index("--fs") + 1] = "1"
+    p, out = _cli(args, tmp_path)
+    assert p.returncode == 0, p.stderr
+
+    y = np.frombuffer(out.read_bytes(), np.complex64).real[:NBITS]
+    wire = (y < 0).astype(np.uint8)
+    frame = Frame(
+        preamble=np.tile(ACQ, REPS), sync=SYNC, payload=PAYLOAD, crc="crc16"
+    )
+    assert frame.nbits == NBITS
+    assert np.array_equal(wire, frame.bits())
+
+
 def test_the_cli_refuses_with_the_reason(tmp_path):
     """Exit 2 and a message naming the replacement — not exit 0 and silence,
     and not the generic 'could not build the waveform spec' either.

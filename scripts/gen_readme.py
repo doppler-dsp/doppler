@@ -11,7 +11,7 @@ Performance/Licensing drift in exactly the sections the first,
 quickstart-only version of this generator didn't cover). docs/index.md
 is the single source of truth: this script extracts everything after
 its ``<!-- readme-sync:source-start -->`` marker (tagline, navigation,
-Why, Performance, Quick start, Build, Docs, Licensing -- through end of
+Why, Performance, Try it, Docs, Licensing -- through end of
 file), rewrites it for GitHub rendering, and writes the result into
 README.md between marker comments -- same idiom as
 ``gen_related_pages.py``'s ``<!-- related-pages:start -->``/``:end``
@@ -105,10 +105,10 @@ def extract_section() -> str:
             "-- it must sit right after the badge header, before the "
             "tagline paragraph."
         )
-    if "## Quick start" not in section:
+    if "## Try it" not in section:
         raise SystemExit(
             "gen_readme: the extracted docs/index.md region has no "
-            "'## Quick start' heading -- is the source marker misplaced?"
+            "'## Try it' heading -- is the source marker misplaced?"
         )
     return section.lstrip("\n")
 

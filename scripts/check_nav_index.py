@@ -39,6 +39,10 @@ MKDOCS_YML = os.path.join(ROOT, "mkdocs.yml")
 # nearest enclosing ``index.md``; for design/dev/gallery, which have none
 # below their root, that is exactly the old behaviour.
 SECTIONS = {
+    # The API index is the "Full Python + C API index" the homepage links;
+    # it had silently fallen 9 pages behind (acquire, ber, coding, dsss,
+    # interp, interrupt, mpsk, snr, track) before this row existed.
+    "api": "docs/api",
     "design": "docs/design",
     "dev": "docs/dev",
     "gallery": "docs/gallery",

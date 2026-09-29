@@ -307,6 +307,7 @@ nav:
       - Waveform Generator (wfmgen): guide/wfmgen/index.md
       - Waveforms: guide/wfmgen/waveforms.md
       - Scenes: guide/wfmgen/scenes.md
+      - "Fields: Bits as Text": guide/wfmgen/fields.md
       - Python API: guide/wfmgen/python.md
       - Field Reference: guide/wfmgen/options.md
   - Capture I/O:

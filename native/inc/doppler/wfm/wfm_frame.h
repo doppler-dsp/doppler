@@ -552,6 +552,14 @@ extern "C"
    * @return bits written, or 0 if the field is derived, empty, larger than
    *         @p max_out, or its sequence cannot be built. On 0, @p out may
    *         have been partly written.
+   *
+   * @code
+   * wfm_field_t f;
+   * uint8_t    *owned;
+   * uint8_t     b[124];
+   * dp_wfm_field_parse ("pn:31:5*4", &f, &owned, NULL);
+   * dp_wfm_field_render (&f, b, sizeof b);   // 124: one period, then 3 copies
+   * @endcode
    */
   size_t dp_wfm_field_render (const wfm_field_t *f, uint8_t *out,
                               size_t max_out);

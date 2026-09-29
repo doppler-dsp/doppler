@@ -117,17 +117,9 @@ trailer on every plain bit pattern ever generated.
 ### One Field per sequence
 
 `--acq-code`, `--data-code`, `--sync` and `--bits` each take **one Field** —
-literal bits, hex, or a generated sequence — in the same
-[grammar](../../design/frame-description.md#f1-the-grammar) a scene uses.
-Colon-separated, like `--freq`'s `LO:HI`:
-
-| Field                                  | means                                                                                  |
-| -------------------------------------- | -------------------------------------------------------------------------------------- |
-| `10110010`                             | literal bits (0 and 1 only)                                                            |
-| `0x1ACFFC1D`                           | literal hex, 4 bits a digit, MSB first                                                 |
-| `pn:LEN:REG[:SEED[:POLY]][:fibonacci]` | one LFSR. `SEED` 0 selects 1; `POLY` 0 selects the maximal-length polynomial for `REG` |
-| `gold:LEN:REG:TA:SA:TB:SB`             | a Gold pair                                                                            |
-| `dotted:LEN`                           | alternating `1010…`, a line at Rs/2 to settle on                                       |
+literal bits, hex, or a generated sequence — in the one grammar every face
+reads. Its forms, numbers, limits and refusals are
+[Fields: bits as text](fields.md).
 
 A `*REPS` suffix repeats the **preamble** — `--acq-code 'pn:127:7*4'` — and only
 the preamble. Quote it, or the shell globs the `*`.

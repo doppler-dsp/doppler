@@ -559,6 +559,7 @@ extern "C"
    * uint8_t     b[124];
    * dp_wfm_field_parse ("pn:31:5*4", &f, &owned, NULL);
    * dp_wfm_field_render (&f, b, sizeof b);   // 124: one period, then 3 copies
+   * free (owned);   // NULL for a generated field; a literal's bits otherwise
    * @endcode
    */
   size_t dp_wfm_field_render (const wfm_field_t *f, uint8_t *out,

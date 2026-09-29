@@ -325,6 +325,29 @@ extern "C"
                                 size_t n);
 
   /**
+   * @brief The randomiser a numeric choice names: 2 is 10.4.2's legacy one.
+   *
+   * B-6 specifies two generators, so every place that carries the choice as
+   * a number -- a frame description's randomise stage (`depth`) and
+   * `ccsds_tm_frame_cfg_t.randomise` -- reads it here, and one value cannot
+   * mean two sequences (doppler#1609). 2 selects @ref dp_CCSDS_TM_RAND_LEGACY;
+   * anything else selects @ref dp_CCSDS_TM_RAND, which is how a stage's unset
+   * depth (0) reads as the default. A caller whose field has a range to
+   * enforce refuses outside it BEFORE asking -- dp_ccsds_tm_frame_layout
+   * refuses a cfg `randomise` outside 0..2.
+   *
+   * @param which  1 for 10.4.1, 2 for 10.4.2.
+   * @return The generator, never NULL.
+   *
+   * @code
+   * uint8_t bits[8] = { 0 };
+   * dp_ccsds_tm_randomise_with (dp_ccsds_tm_rand_select (2), bits, 8);
+   * // bits == 1 1 1 1 1 1 1 1: the legacy sequence's first octet, FF
+   * @endcode
+   */
+  const ccsds_tm_rand_t *dp_ccsds_tm_rand_select (unsigned which);
+
+  /**
    * @brief The CCSDS inner code, as a @ref conv_code_t.
    *
    * 131.0-B-3 section 3.3.1: the non-systematic rate-1/2 K = 7 code with

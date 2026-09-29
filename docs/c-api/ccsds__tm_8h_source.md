@@ -68,6 +68,8 @@ extern "C"
   void dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
                                 size_t n);
 
+  const ccsds_tm_rand_t *dp_ccsds_tm_rand_select (unsigned which);
+
   extern const conv_code_t dp_CCSDS_TM_CONV;
 
   static inline size_t

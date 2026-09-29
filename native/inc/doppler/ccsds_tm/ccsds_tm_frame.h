@@ -92,7 +92,9 @@ extern "C"
   typedef struct
   {
     unsigned rs_depth;      /**< Interleaving depth; 0 for no outer code */
-    int      randomise;     /**< Apply the section-10 pseudo-randomiser */
+    int      randomise;     /**< Section-10 pseudo-randomiser: 0 none,
+                                 1 10.4.1's (the default), 2 10.4.2's legacy
+                                 one; anything else is refused */
     int      attach_asm;    /**< Prepend the ASM, making the unit a CADU */
     int      convolutional; /**< Apply the section-3 inner code */
   } ccsds_tm_frame_cfg_t;

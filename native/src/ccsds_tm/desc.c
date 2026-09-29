@@ -142,7 +142,7 @@ outer_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 static const ccsds_tm_rand_t *
 rand_choice (const wfm_stage_t *st)
 {
-  return (st->depth == 2u) ? &dp_CCSDS_TM_RAND_LEGACY : &dp_CCSDS_TM_RAND;
+  return dp_ccsds_tm_rand_select (st->depth);
 }
 
 static int
@@ -287,6 +287,7 @@ dp_ccsds_tm_frame_describe (const ccsds_tm_frame_cfg_t *cfg, size_t frame_len,
   /* 10.3.2 / 10.3.4 note 1: the same span, for a different reason — which is
      why they are two stages rather than one. */
   out->stage[S_RAND].kind        = WFM_STAGE_RANDOMISE;
+  out->stage[S_RAND].depth       = (unsigned)cfg->randomise; /* 0..2 */
   out->stage[S_RAND].first_field = F_FRAME;
   out->stage[S_RAND].n_fields
       = cfg->randomise ? (cfg->rs_depth ? 2u : 1u) : 0u;

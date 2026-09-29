@@ -138,7 +138,7 @@ int ccsds_tm_frame_cfg_t::randomise;
 
 
 
-Apply the section-10 pseudo-randomiser 
+Section-10 pseudo-randomiser: 0 none, 1 10.4.1's (the default), 2 10.4.2's legacy one; anything else is refused 
 
 
         

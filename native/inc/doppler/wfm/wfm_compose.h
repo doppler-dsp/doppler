@@ -166,9 +166,10 @@ typedef struct {
                           the fs/symbol_rate samples the async symbol spans. */
     uint32_t seed;     /* PRNG and LFSR seed for the noise and PN streams.
                           Deterministic: vary it for run-to-run change. For
-                          a PN-sourced type it fills the pn_length-bit
-                          register, so a multiple of 2^pn_length (an empty
-                          register) is refused. */
+                          a PN-sourced type it starts the pn_length-bit
+                          register, masked: a seed whose low pn_length bits
+                          are zero starts the register at 1, as seed 0
+                          does. */
     int sps;           /* Samples per symbol (PSK) or per chip (PN): the
                           oversampling factor. Unused by noise, which
                           records it as 0. */
@@ -713,10 +714,6 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
  *   5-bit register is a register with no feedback: the seed, then zeros,
  *   a constant waveform that still looks like a PN source (doppler#1636).
  *   0 selects the maximal-length polynomial and always fits.
- * - `seed` fills that register, masked, so it must have a bit inside it:
- *   128 on a 7-bit register is the all-zero register, a constant stream
- *   (doppler#1640). A wider seed that masks to non-zero -- 129 to 1 -- is
- *   fine; 0 selects 1.
  *
  * @param src  The source.
  * @return NULL if there is nothing wrong, else a static message.
@@ -738,13 +735,6 @@ const char *dp_wfm_source_error(const wfm_source_t *src);
  *        matching text.
  */
 extern const char dp_wfm_why_pn_poly[];
-
-/**
- * @brief The reason dp_wfm_source_error() gives for a `seed` that masks to
- *        the all-zero `pn_length`-bit register (doppler#1640), exported for
- *        the same reason as @ref dp_wfm_why_pn_poly.
- */
-extern const char dp_wfm_why_seed[];
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.

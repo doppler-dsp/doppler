@@ -3,6 +3,18 @@
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
 #include "doppler/wfm/wfm_dsp.h" /* dp_wfm_polyphase_bank — the RRC polyphase bank */
 
+/* The register state a source's seed starts a PN at. The seed also seeds
+   the noise, so it ranges freely (a scene's `1000 + k`), and a value whose
+   low pn_length bits are zero would be the all-zero register -- a constant
+   stream (doppler#1640). It starts at 1 instead, exactly as seed 0 does;
+   dp_pn_create itself refuses a masked-zero seed, since there the seed IS
+   the register state and zero means nothing. */
+static uint64_t
+pn_start_state (uint32_t seed, int pn_length)
+{
+  return (seed & pn_register_mask ((uint32_t)pn_length)) ? seed : 1u;
+}
+
 dp_wfm_synth_state_t *
 dp_wfm_synth_create (int type, double fs, double freq, double snr,
                      int snr_mode, uint32_t seed, int sps, int pn_length,
@@ -70,8 +82,8 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
           free (obj);
           return NULL;
         }
-      obj->pn
-          = dp_pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
+      obj->pn = dp_pn_create (poly, pn_start_state (seed, pn_length),
+                              (uint32_t)pn_length, lfsr);
       if (!obj->pn)
         {
           if (obj->lo)
@@ -90,8 +102,8 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
       uint64_t poly
           = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
       if (poly != 0 && pn_fits_register (poly, (uint32_t)pn_length))
-        obj->pn
-            = dp_pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
+        obj->pn = dp_pn_create (poly, pn_start_state (seed, pn_length),
+                                (uint32_t)pn_length, lfsr);
     }
 
   /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno.

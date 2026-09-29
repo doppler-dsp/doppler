@@ -50,11 +50,6 @@ const char dp_wfm_why_pn_poly[]
       "inside the pn_length-bit register, or 0 for its maximal-length "
       "polynomial";
 
-const char dp_wfm_why_seed[]
-    = "seed is a multiple of 2^pn_length, so the pn_length-bit register "
-      "it fills is all zeros and the PN stream is constant: give a seed "
-      "with a bit inside the register (0 selects 1)";
-
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
 {
@@ -64,12 +59,6 @@ dp_wfm_source_error (const wfm_source_t *src)
   if (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK && src->pn_poly
       && !pn_fits_register (src->pn_poly, (uint32_t)src->pn_length))
     return dp_wfm_why_pn_poly;
-  /* The seed fills that register, masked (doppler#1640); 0 selects 1. */
-  if (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK && src->pn_length > 0
-      && ((src->seed ? (uint64_t)src->seed : 1u)
-          & pn_register_mask ((uint32_t)src->pn_length))
-             == 0)
-    return dp_wfm_why_seed;
   return dp_wfm_source_frame_error (src);
 }
 

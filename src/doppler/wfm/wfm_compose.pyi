@@ -37,8 +37,9 @@ class Synth:
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
         PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it
-        for run-to-run change. For a PN-sourced type it fills the pn_length-bit
-        register, so a multiple of 2^pn_length (an empty register) is refused.
+        for run-to-run change. For a PN-sourced type it starts the
+        pn_length-bit register, masked: a seed whose low pn_length bits are
+        zero starts the register at 1, as seed 0 does.
     sps : int, default 1
         Samples per symbol (PSK) or per chip (PN): the oversampling factor.
         Unused by noise, which records it as 0.
@@ -320,8 +321,9 @@ class Segment:
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
         PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it
-        for run-to-run change. For a PN-sourced type it fills the pn_length-bit
-        register, so a multiple of 2^pn_length (an empty register) is refused.
+        for run-to-run change. For a PN-sourced type it starts the
+        pn_length-bit register, masked: a seed whose low pn_length bits are
+        zero starts the register at 1, as seed 0 does.
     sps : int, default 1
         Samples per symbol (PSK) or per chip (PN): the oversampling factor.
         Unused by noise, which records it as 0.

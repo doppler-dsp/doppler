@@ -846,31 +846,41 @@ class TestCLI:
         assert "--pn-poly 0x40" in r.stderr
         assert "--pn-length 5" in r.stderr
 
-    def test_a_seed_that_empties_the_register_is_refused(
-        self, tmp_path
-    ) -> None:
-        # doppler#1640: 128 on a 7-bit register masked to all-zero, constant.
-        r = subprocess.run(
-            [
-                WFMGEN,
-                "--type",
-                "pn",
-                "--pn-length",
-                "7",
-                "--seed",
-                "128",
-                "--count",
-                "32",
-                "-o",
-                str(tmp_path / "x.cf32"),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert r.returncode == 2, r.stderr
-        assert "--seed 128" in r.stderr
-        assert "--pn-length 7" in r.stderr
+    def test_a_seed_that_masks_to_zero_starts_at_one(self, tmp_path) -> None:
+        # doppler#1640: 128 on a 7-bit register used to BE the all-zero
+        # register -- a constant stream at exit 0. It starts at 1, as seed 0
+        # does, so its waveform is seed 1's, and it varies.
+        def run(seed: int) -> np.ndarray:
+            out = tmp_path / f"s{seed}.cf32"
+            subprocess.run(
+                [
+                    WFMGEN,
+                    "--type",
+                    "pn",
+                    "--pn-length",
+                    "7",
+                    "--seed",
+                    str(seed),
+                    "--sps",
+                    "1",
+                    "--snr",
+                    "100",
+                    "--count",
+                    "64",
+                    "--sample-type",
+                    "cf32",
+                    "-o",
+                    str(out),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            return np.fromfile(out, dtype=np.complex64)
+
+        s128, s1 = run(128), run(1)
+        assert np.array_equal(s128, s1)
+        assert len(np.unique(np.sign(s128.real))) == 2
 
     def test_json_template_subcommand(self, tmp_path) -> None:
         r = subprocess.run(

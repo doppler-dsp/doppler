@@ -152,23 +152,24 @@ tok_is (field_tok_t t, const char *word)
 
 /* A number consumed WHOLE: decimal, or hex after `0x`. A sign, a space, a
    trailing letter, an empty token and a bare `0x` are all refused, and a
-   leading 0 is decimal -- there is no octal to mistype into. */
-static int
-tok_u64 (field_tok_t t, uint64_t *v)
+   leading 0 is decimal -- there is no octal to mistype into. Public because
+   wfmgen's numeric flags read by the same rule (doppler#1611). */
+int
+dp_wfm_parse_u64 (const char *p, size_t n, uint64_t *v)
 {
   unsigned base = 10u;
   size_t   i    = 0;
-  if (t.n >= 2 && t.p[0] == '0' && (t.p[1] == 'x' || t.p[1] == 'X'))
+  if (n >= 2 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
     {
       base = 16u;
       i    = 2;
     }
-  if (i == t.n)
+  if (i == n)
     return -1;
   uint64_t acc = 0;
-  for (; i < t.n; i++)
+  for (; i < n; i++)
     {
-      const int c = (unsigned char)t.p[i];
+      const int c = (unsigned char)p[i];
       unsigned  d;
       if (c >= '0' && c <= '9')
         d = (unsigned)(c - '0');
@@ -184,6 +185,12 @@ tok_u64 (field_tok_t t, uint64_t *v)
     }
   *v = acc;
   return 0;
+}
+
+static int
+tok_u64 (field_tok_t t, uint64_t *v)
+{
+  return dp_wfm_parse_u64 (t.p, t.n, v);
 }
 
 /* Split [p, p + n) at every ':'. An EMPTY token is kept, so the caller sees

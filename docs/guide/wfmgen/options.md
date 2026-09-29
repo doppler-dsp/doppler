@@ -12,6 +12,11 @@ text as `wfmgen --help` (its first sentence) and the Python
 docstring. A ranged field also takes a `LO:HI` range on the command
 line, or a `[lo, hi]` pair in a scene, drawn uniformly per repeat.
 
+On the command line an integer is decimal or `0x` hex, and a
+leading `0` is decimal, never octal. Every number must be the
+whole value: `4x`, `0.1abc` and an empty value are refused, naming
+the flag.
+
 Framing, payload and coding keys are described in
 [Waveforms](waveforms.md) and [Scenes](scenes.md).
 

@@ -1585,6 +1585,7 @@
 * **dp\_wfm\_frame\_desc\_layout** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_frame\_field\_index** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_frame\_fixed** ([**wfm\_frame.h**](wfm__frame_8h.md))
+* **dp\_wfm\_parse\_u64** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_seq\_bits** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_kw\_check\_standard** ([**wfm\_keywords.h**](wfm__keywords_8h.md))
 * **dp\_wfm\_kw\_decode** ([**wfm\_keywords.h**](wfm__keywords_8h.md))

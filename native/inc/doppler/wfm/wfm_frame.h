@@ -600,6 +600,30 @@ extern "C"
                           uint8_t **owned, const char **why);
 
   /**
+   * @brief Read an unsigned integer the way a Field's numbers are read.
+   *
+   * THE number reader of the Field grammar, public so that a caller reading
+   * integers from text -- wfmgen's numeric flags -- applies the same rule
+   * rather than a second one (doppler#1611): decimal, or hex after `0x`
+   * (`0X`), consumed WHOLE. A sign, a space, a trailing character, an empty
+   * token, a bare `0x` and a value past `UINT64_MAX` are refused, and a
+   * leading `0` is decimal, never octal.
+   *
+   * @param p  the text; need not be NUL-terminated.
+   * @param n  its length in bytes.
+   * @param v  receives the value; untouched on refusal.
+   * @return 0, or -1 for text outside the rule.
+   *
+   * @code
+   * uint64_t v;
+   * int ok  = dp_wfm_parse_u64 ("0x10", 4, &v); // 0, v == 16
+   * int dec = dp_wfm_parse_u64 ("010", 3, &v);  // 0, v == 10, not octal
+   * int bad = dp_wfm_parse_u64 ("4x", 2, &v);   // -1, v unchanged
+   * @endcode
+   */
+  int dp_wfm_parse_u64 (const char *p, size_t n, uint64_t *v);
+
+  /**
    * @brief Write a field's canonical text form. Returns its length.
    *
    * The ONLY writer of the grammar, and the inverse of

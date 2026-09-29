@@ -14,6 +14,7 @@
  */
 #include "doppler/cvt/cvt_core.h"
 #include "doppler/dp_complex.h"
+#include <limits.h> /* INT_MAX -- an integer flag is bounded by its field */
 #include <math.h>
 #include <signal.h>
 #include <stddef.h> /* offsetof — the option table names fields by offset */
@@ -58,22 +59,71 @@ lookup (const char *s, const char *const *tbl, int n)
   return -1;
 }
 
+/* A real number that is EXACTLY the text [s, stop): strtod must consume all
+ * of it. strtod alone stops at the first character it cannot use and skips
+ * leading space, so `0.1abc` read as 0.1 and an empty token as 0, exit 0
+ * (doppler#1611). Returns 0, or -1 for text that is not wholly a number. */
+static int
+read_double (const char *s, const char *stop, double *d)
+{
+  if (s == stop || *s == ' ' || *s == '\t' || *s == '\n')
+    return -1;
+  char        *end;
+  const double x = strtod (s, &end);
+  if (end != stop)
+    return -1;
+  *d = x;
+  return 0;
+}
+
+/* An integer flag value, read by the Field grammar's own reader
+ * (dp_wfm_parse_u64) so a flag and a Field read one number one way:
+ * decimal, or hex after `0x`, consumed whole; a leading 0 is decimal, never
+ * octal. `--seed 0x10` used to record 0 and `--pn-poly 0x6000` to select
+ * auto (doppler#1611). Refused past `max`, which is the destination's range.
+ * Returns 0, or 2 (the usage-error exit) after saying why. */
+static int
+flag_uint (const char *a, const char *v, uint64_t max, uint64_t *out)
+{
+  uint64_t x;
+  if (dp_wfm_parse_u64 (v, strlen (v), &x) != 0 || x > max)
+    {
+      (void)fprintf (stderr,
+                     "error: %s takes a whole number, decimal or 0x hex, "
+                     "from 0 to %llu -- not '%s'\n",
+                     a, (unsigned long long)max, v);
+      return 2;
+    }
+  *out = x;
+  return 0;
+}
+
 /* Parse a numeric flag value as a scalar (`12000`) or a uniform range
- * (`9000:14000`). Returns the low value; on a range it also sets *hi and
- * *ranged so the composer redraws the field each repeat. A bare scalar leaves
- * *ranged 0; strtod stops at the ':', so it yields lo directly. */
-static double
-parse_range (const char *v, double *hi, int *ranged)
+ * (`9000:14000`) into *lo; on a range it also sets *hi and *ranged so the
+ * composer redraws the field each repeat. A bare scalar leaves *ranged 0.
+ * Each side must be wholly a number: a trailing character, an empty side
+ * (`12000:`) or a leading space is refused. Returns 0, or 2 after saying
+ * why. */
+static int
+parse_range (const char *a, const char *v, double *lo, double *hi, int *ranged)
 {
   const char *colon = strchr (v, ':');
-  if (colon && colon[1])
+  const char *end   = v + strlen (v);
+  double      l, h = 0.0;
+  if (read_double (v, colon ? colon : end, &l) != 0
+      || (colon && read_double (colon + 1, end, &h) != 0))
     {
-      *hi     = strtod (colon + 1, NULL);
-      *ranged = 1;
+      (void)fprintf (stderr,
+                     "error: %s takes a number, or a LO:HI range "
+                     "-- not '%s'\n",
+                     a, v);
+      return 2;
     }
-  else
-    *ranged = 0;
-  return strtod (v, NULL);
+  *lo     = l;
+  *ranged = colon != NULL;
+  if (colon)
+    *hi = h;
+  return 0;
 }
 
 /* Warn (and optionally fail) when an integer wire type clipped. peak > 1 means
@@ -873,7 +923,13 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
 
         case OPT_DOUBLE:
           {
-            double d = strtod (v, NULL);
+            double d;
+            if (read_double (v, v + strlen (v), &d) != 0)
+              {
+                (void)fprintf (stderr,
+                               "error: %s takes a number -- not '%s'\n", a, v);
+                return 2;
+              }
             if (opt->unit_interval && (d <= 0.0 || d > 1.0))
               {
                 (void)fprintf (stderr, "error: %s must be in (0, 1]\n", a);
@@ -883,12 +939,29 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           }
           break;
 
+        /* The four integer kinds differ only in the destination's width,
+           which is the bound a value must fit rather than wrap into. */
         case OPT_INT:
-          *(int *)dst = (int)strtol (v, NULL, 10);
-          break;
-
         case OPT_SIZE:
-          *(size_t *)dst = (size_t)strtoull (v, NULL, 10);
+        case OPT_U32:
+        case OPT_U64:
+          {
+            const uint64_t max = opt->kind == OPT_INT    ? (uint64_t)INT_MAX
+                                 : opt->kind == OPT_SIZE ? (uint64_t)SIZE_MAX
+                                 : opt->kind == OPT_U32  ? (uint64_t)UINT32_MAX
+                                                         : UINT64_MAX;
+            uint64_t       x;
+            if (flag_uint (a, v, max, &x) != 0)
+              return 2;
+            if (opt->kind == OPT_INT)
+              *(int *)dst = (int)x;
+            else if (opt->kind == OPT_SIZE)
+              *(size_t *)dst = (size_t)x;
+            else if (opt->kind == OPT_U32)
+              *(uint32_t *)dst = (uint32_t)x;
+            else
+              *(uint64_t *)dst = x;
+          }
           break;
 
         case OPT_FIELD:
@@ -900,30 +973,25 @@ parse_args (int argc, char *argv[], wfmgen_opts_t *o)
           }
           break;
 
-        case OPT_U32:
-          *(uint32_t *)dst = (uint32_t)strtoul (v, NULL, 10);
-          break;
-
-        case OPT_U64:
-          *(uint64_t *)dst = (uint64_t)strtoull (v, NULL, 10);
-          break;
-
         case OPT_RANGE_D:
           {
             /* parse_range writes *hi only for a real range, so a later bare
                scalar clears the bit and leaves the stale hi unread. */
-            int ranged     = 0;
-            *(double *)dst = parse_range (v, (double *)aux, &ranged);
-            o->src.ranged  = ranged ? (o->src.ranged | opt->range_bit)
-                                    : (o->src.ranged & ~opt->range_bit);
+            int ranged = 0;
+            if (parse_range (a, v, (double *)dst, (double *)aux, &ranged))
+              return 2;
+            o->src.ranged = ranged ? (o->src.ranged | opt->range_bit)
+                                   : (o->src.ranged & ~opt->range_bit);
           }
           break;
 
         case OPT_RANGE_N:
           {
-            int    ranged  = 0;
-            double hi      = 0.0;
-            *(size_t *)dst = (size_t)parse_range (v, &hi, &ranged);
+            int    ranged = 0;
+            double lo = 0.0, hi = 0.0;
+            if (parse_range (a, v, &lo, &hi, &ranged))
+              return 2;
+            *(size_t *)dst = (size_t)lo;
             *(size_t *)aux = (size_t)hi;
             o->seg.ranged  = ranged ? (o->seg.ranged | opt->range_bit)
                                     : (o->seg.ranged & ~opt->range_bit);

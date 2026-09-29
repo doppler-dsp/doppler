@@ -1276,7 +1276,42 @@ def cases() -> list[tuple[str, list[str]]]:
                 "64",
             ],
         ),
+    ] + [
+        (name, ["--type", "tone", "--count", "64", flag, value])
+        for name, flag, value in NUMERIC
     ]
+
+
+# doppler#1611: a numeric flag reads its WHOLE token or refuses it, exit 2,
+# naming the flag and the value. They used to stop at the first character
+# that was not a digit and exit 0: `--seed 0x10` recorded 0 and `--sps 4x`
+# recorded 4. An integer is decimal or `0x` hex, a leading 0 is decimal --
+# the Field grammar's rule, read by the same reader. One case per numeric
+# option kind, and every row of the issue's table. Their stderr is pinned
+# too (STDERR_PINNED), because the sentence is what the fix promises.
+NUMERIC = [
+    # accepted: hex, and a leading zero that is NOT octal
+    ("num_seed_hex", "--seed", "0x10"),
+    ("num_pn_poly_hex", "--pn-poly", "0x6000"),
+    ("num_seed_leading_zero", "--seed", "010"),
+    # refused: a trailing character, per kind (U32, U64, INT, SIZE,
+    # RANGE_N, RANGE_D and its hi, DOUBLE)
+    ("err_num_seed_trailing", "--seed", "16x"),
+    ("err_num_pn_poly_trailing", "--pn-poly", "0x6000z"),
+    ("err_num_sps_trailing", "--sps", "4x"),
+    ("err_num_repeats_trailing", "--repeats", "2junk"),
+    ("err_num_count_trailing", "--count", "64x"),
+    ("err_num_freq_trailing", "--freq", "0.1abc"),
+    ("err_num_freq_hi_trailing", "--freq", "0.1:0.2x"),
+    ("err_num_fc_trailing", "--fc", "1e6x"),
+    # refused: what the whole-token rule alone would not catch
+    ("err_num_seed_bare_0x", "--seed", "0x"),
+    ("err_num_seed_sign", "--seed", "-1"),
+    ("err_num_seed_overflow", "--seed", "4294967296"),
+    ("err_num_freq_empty", "--freq", ""),
+    ("err_num_freq_space", "--freq", " 0.1"),
+]
+STDERR_PINNED = {name for name, _, _ in NUMERIC}
 
 
 # The option table's rows, e.g. `{ .name = "--freq", .alias = "-o", ... }`.
@@ -1325,8 +1360,15 @@ def dispatcher_flags(root: Path = ROOT) -> set[str]:
     return flags
 
 
-def run_case(exe: Path, argv: list[str], workdir: Path) -> dict:
-    """Run one case and capture everything that is behaviour."""
+def run_case(
+    exe: Path, argv: list[str], workdir: Path, pin_stderr: bool = False
+) -> dict:
+    """Run one case and capture everything that is behaviour.
+
+    `pin_stderr` adds what the tool printed to stderr -- for a case whose
+    claim IS the sentence (a refusal naming its flag), not for every case,
+    since most print nothing worth freezing.
+    """
     rec = workdir / "record.json"
     # Every case gets --record; a run that exits before building the spec
     # simply leaves no file, which is itself pinned (record: null).
@@ -1356,6 +1398,8 @@ def run_case(exe: Path, argv: list[str], workdir: Path) -> dict:
         code = "timeout"
 
     out: dict = {"argv": argv, "exit": code, "record": None, "outputs": {}}
+    if pin_stderr and code != "timeout":
+        out["stderr"] = proc.stderr.decode("utf-8", "replace")
     if rec.is_file():
         out["record"] = json.loads(rec.read_text())
 
@@ -1628,7 +1672,9 @@ def build_matrix(exe: Path) -> dict:
         with tempfile.TemporaryDirectory() as td:
             wd = Path(td)
             fixtures(wd, exe)
-            matrix[name] = run_case(exe, argv, wd)
+            matrix[name] = run_case(
+                exe, argv, wd, pin_stderr=name in STDERR_PINNED
+            )
     return matrix
 
 

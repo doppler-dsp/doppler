@@ -166,6 +166,8 @@ extern "C"
   int dp_wfm_field_parse (const char *spec, wfm_field_t *field,
                           uint8_t **owned, const char **why);
 
+  int dp_wfm_parse_u64 (const char *p, size_t n, uint64_t *v);
+
   size_t dp_wfm_field_format (const wfm_field_t *field, char *buf,
                               size_t cap);
 

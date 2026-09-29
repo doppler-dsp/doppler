@@ -321,6 +321,11 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
     return field_refuse (why, "REG, the register width, must be 1..64");
   s.reg_bits = (uint32_t)reg;
 
+  /* A SEED, POLY or tap is a register's worth of bits. The generators mask
+     a wider one, silently -- 32 on a 5-bit register is the all-zero one --
+     so it is refused here instead (doppler#1624). */
+  const uint64_t above = (reg == 64) ? 0 : ~(((uint64_t)1 << reg) - 1u);
+
   if (s.kind == WFM_SEQ_GOLD)
     {
       uint64_t v[4];
@@ -330,6 +335,10 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
       for (size_t i = 0; i < 4; i++)
         if (tok_u64 (t[3 + i], &v[i]) != 0)
           return field_refuse (why, "a gold tap or seed is not a number");
+      for (size_t i = 0; i < 4; i++)
+        if (v[i] & above)
+          return field_refuse (why, "a gold tap or seed has a bit above "
+                                    "its REG-bit register");
       s.taps_a = v[0];
       s.seed_a = v[1];
       s.taps_b = v[2];
@@ -357,6 +366,9 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
     return field_refuse (why, "a pn SEED is not a number");
   if (nums > 1 && tok_u64 (t[4], &s.poly) != 0)
     return field_refuse (why, "a pn POLY is not a number");
+  if ((s.seed | s.poly) & above)
+    return field_refuse (why, "a pn SEED or POLY has a bit above its "
+                              "REG-bit register");
   /* No POLY means "the maximal-length one for this register", and a 1-bit
      register has none: the render refuses it (doppler#1602), so accepting
      it here only moved the refusal to a later point on every face -- where
@@ -545,18 +557,16 @@ dp_wfm_field_bits (const char *spec, uint8_t *out, size_t max_out,
   size_t n = supplied_bits (&f);
   if (out)
     {
+      /* The parser refuses what a generator cannot build, so with room
+         the render writes all n: the explore corpus holds it for every
+         text it accepts (native/validation/wfm_field_explore.c). */
       if (n > max_out)
         {
           (void)field_refuse (why, "the output is smaller than the field");
           n = 0;
         }
-      else if (dp_wfm_field_render (&f, out, max_out) != n)
-        {
-          (void)field_refuse (why, "the generator refused its parameters "
-                                   "(a register these numbers do not "
-                                   "describe)");
-          n = 0;
-        }
+      else
+        (void)dp_wfm_field_render (&f, out, max_out);
     }
   free (owned);
   return n;

@@ -562,7 +562,10 @@ extern "C"
    * A number is decimal, or hex after `0x`, and must be consumed WHOLE:
    * `12abc`, `-1`, ` 5` and an empty field (`pn::10`) are refused, not read
    * as far as they go. A leading `0` is decimal, never octal. `LEN` is the
-   * output length and must be > 0; `REG` is the register width, 1..64.
+   * output length and must be > 0; `REG` is the register width, 1..64. A
+   * `pn` with no `POLY` means the maximal-length polynomial for its
+   * register, so a register that has none (width 1) is refused unless a
+   * `POLY` is given.
    * A `0`/`1` string with any other character in it is refused rather than
    * filtered, because a typo that quietly shortens a sync word syncs to
    * nothing and fails nowhere.

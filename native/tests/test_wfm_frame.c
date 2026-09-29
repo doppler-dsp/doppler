@@ -397,6 +397,8 @@ static const field_ok_t FIELD_OK[] = {
     "pn:64:7:0x5:fibonacci" },
   { "pn:31:5:0:0x12", WFM_SEQ_PN, 31, 1, 5, 0, 0x12, 0, "pn:31:5:0:0x12" },
   { "pn:31:5:7:0X12", WFM_SEQ_PN, 31, 1, 5, 7, 0x12, 0, "pn:31:5:0x7:0x12" },
+  /* A 1-bit register IS buildable when the POLY is given. */
+  { "pn:8:1:1:1", WFM_SEQ_PN, 8, 1, 1, 1, 1, 0, "pn:8:1:0x1:0x1" },
   { "gold:64:10:934:350:567:73", WFM_SEQ_GOLD, 64, 1, 10, 0, 0, 0,
     "gold:64:10:0x3a6:0x15e:0x237:0x49" },
   { "dotted:16", WFM_SEQ_DOTTED, 16, 1, 0, 0, 0, 0, "dotted:16" },
@@ -431,16 +433,22 @@ static const char *const FIELD_BAD[] = {
   "pn:31:5:fibonacci:1",       /* the register form is last             */
   "pn:31:5:gallois",           /* a misspelt register form              */
   "pn:18446744073709551616:5", /* 2^64, overflow                       */
-  "gold:64:10:1:2:3",          /* gold short a seed                     */
-  "gold:64:10:1:2:3:4:5",      /* gold one too many                     */
-  "gold:64:10:1:2:3:x",        /* gold with a non-number                */
-  "dotted",                    /* no LEN                                */
-  "dotted:16:1",               /* dotted takes only LEN                 */
-  "literal:0101",              /* a literal is its bits                 */
-  "data:1024",                 /* not supported yet, and said so        */
-  "prbs:9",                    /* retired name                          */
-  "2",                         /* not a bit                             */
-  "abc",                       /* not a field                           */
+  /* A 1-bit register has no m-sequence, so with no POLY there is nothing
+     to build: accepted, it failed later on every face with no reason given
+     (found by the D12 exploration; the render refused it since #1602). */
+  "pn:12:1",              /* REG 1, no POLY                        */
+  "pn:12:01:5",           /* ...spelled with a leading zero        */
+  "pn:12:0x1:5:0",        /* ...or with an explicit POLY of 0      */
+  "gold:64:10:1:2:3",     /* gold short a seed                     */
+  "gold:64:10:1:2:3:4:5", /* gold one too many                     */
+  "gold:64:10:1:2:3:x",   /* gold with a non-number                */
+  "dotted",               /* no LEN                                */
+  "dotted:16:1",          /* dotted takes only LEN                 */
+  "literal:0101",         /* a literal is its bits                 */
+  "data:1024",            /* not supported yet, and said so        */
+  "prbs:9",               /* retired name                          */
+  "2",                    /* not a bit                             */
+  "abc",                  /* not a field                           */
 };
 
 static int
@@ -575,17 +583,19 @@ test_field_text (void)
     DP_CHECK_MSG (dp_wfm_field_bits ("pn:31:5", b, sizeof b, &why) == 0
                       && why != NULL,
                   "an output too small is refused, with a cause");
-    /* doppler#1602: a register with no m-sequence polynomial. Sizing checks
-       the grammar only, so it passes; the render must refuse rather than
-       emit the seed and then zeros. */
+    /* doppler#1602: a register with no m-sequence polynomial. The TEXT is
+       refused where it is read (D12): sizing used to answer 12 and leave the
+       refusal to the render, which every face then reported without a
+       reason. The render keeps its own refusal for a sequence built by
+       hand, below, rather than emit the seed and then zeros. */
     uint8_t big[12];
     why = NULL;
-    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1", NULL, 0, NULL) == 12,
-                  "sizing a 1-bit register is grammar-only");
-    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1", big, sizeof big, &why) == 0
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1", NULL, 0, &why) == 0
                       && why != NULL,
-                  "a PN register with no m-sequence is refused at render "
-                  "(doppler#1602)");
+                  "sizing a 1-bit register with no POLY is refused, with a "
+                  "cause");
+    DP_CHECK_MSG (dp_wfm_field_bits ("pn:12:1:1:1", NULL, 0, NULL) == 12,
+                  "...and one with a POLY sizes");
     wfm_seq_t s = { .kind = WFM_SEQ_PN, .len = 12, .reg_bits = 1 };
     DP_CHECK_MSG (dp_wfm_seq_bits (&s, big, sizeof big) == 0,
                   "dp_wfm_seq_bits refuses a register with no m-sequence "

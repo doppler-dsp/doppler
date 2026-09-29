@@ -216,6 +216,12 @@ FRAMES["cadu_legacy.frame.json"] = json.loads(
     json.dumps(FRAMES["cadu.frame.json"])
 )
 FRAMES["cadu_legacy.frame.json"]["stages"][1]["depth"] = 2
+# ...and with a generator B-6 does not define: refused, never read as 10.4.1
+# (doppler#1609 on the description face -- the only face that codes a frame).
+FRAMES["cadu_rand3.frame.json"] = json.loads(
+    json.dumps(FRAMES["cadu.frame.json"])
+)
+FRAMES["cadu_rand3.frame.json"]["stages"][1]["depth"] = 3
 
 #: Every file a case READS, written by fixtures(). A case's outputs are the
 #: other files in its directory, so this is what tells the two apart.
@@ -575,6 +581,23 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--frame",
                 "cadu_legacy.frame.json",
+                "--sps",
+                "1",
+                "--count",
+                "4144",
+            ],
+        ),
+        # A randomise stage naming no generator (depth 3) is refused, exit 2
+        # -- it used to build 10.4.1's waveform silently (doppler#1609).
+        (
+            "err_frame_randomise_depth3",
+            [
+                "--type",
+                "bits",
+                "--modulation",
+                "bpsk",
+                "--frame",
+                "cadu_rand3.frame.json",
                 "--sps",
                 "1",
                 "--count",
@@ -1338,7 +1361,9 @@ NUMERIC = [
     ("err_num_freq_empty", "--freq", ""),
     ("err_num_freq_space", "--freq", " 0.1"),
 ]
-STDERR_PINNED = {name for name, _, _ in NUMERIC}
+STDERR_PINNED = {name for name, _, _ in NUMERIC} | {
+    "err_frame_randomise_depth3"
+}
 
 
 # The option table's rows, e.g. `{ .name = "--freq", .alias = "-o", ... }`.

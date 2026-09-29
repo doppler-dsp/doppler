@@ -111,7 +111,16 @@ dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits, size_t n)
 const ccsds_tm_rand_t *
 dp_ccsds_tm_rand_select (unsigned which)
 {
-  return (which == 2u) ? &dp_CCSDS_TM_RAND_LEGACY : &dp_CCSDS_TM_RAND;
+  switch (which)
+    {
+    case 0u: /* a stage's unset depth: the default */
+    case 1u:
+      return &dp_CCSDS_TM_RAND;
+    case 2u:
+      return &dp_CCSDS_TM_RAND_LEGACY;
+    default:
+      return NULL; /* no such generator: refused, never the default */
+    }
 }
 
 void

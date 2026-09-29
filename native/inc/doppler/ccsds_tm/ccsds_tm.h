@@ -330,14 +330,24 @@ extern "C"
    * B-6 specifies two generators, so every place that carries the choice as
    * a number -- a frame description's randomise stage (`depth`) and
    * `ccsds_tm_frame_cfg_t.randomise` -- reads it here, and one value cannot
-   * mean two sequences (doppler#1609). 2 selects @ref dp_CCSDS_TM_RAND_LEGACY;
-   * anything else selects @ref dp_CCSDS_TM_RAND, which is how a stage's unset
-   * depth (0) reads as the default. A caller whose field has a range to
-   * enforce refuses outside it BEFORE asking -- dp_ccsds_tm_frame_layout
-   * refuses a cfg `randomise` outside 0..2.
+   * mean two sequences (doppler#1609):
    *
-   * @param which  1 for 10.4.1, 2 for 10.4.2.
-   * @return The generator, never NULL.
+   * | which | generator |
+   * |---|---|
+   * | 0 | @ref dp_CCSDS_TM_RAND -- a stage's UNSET depth reads as the default |
+   * | 1 | @ref dp_CCSDS_TM_RAND (10.4.1) |
+   * | 2 | @ref dp_CCSDS_TM_RAND_LEGACY (10.4.2) |
+   * | anything else | NULL: B-6 defines no such generator |
+   *
+   * NULL is a REFUSAL, and a caller must treat it as one: handing it on to
+   * @ref dp_ccsds_tm_randomise_with would quietly select the default, which
+   * is exactly the reinterpretation this exists to stop. The description's
+   * randomise stage refuses its unit (so `dp_wfm_frame_assemble` and
+   * `dp_wfm_frame_check` refuse the frame), and dp_ccsds_tm_frame_layout
+   * refuses a cfg `randomise` outside 0..2 before asking.
+   *
+   * @param which  0 or 1 for 10.4.1, 2 for 10.4.2.
+   * @return The generator, or NULL for a value that names none.
    *
    * @code
    * uint8_t bits[8] = { 0 };

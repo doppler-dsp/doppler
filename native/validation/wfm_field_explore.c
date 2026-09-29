@@ -42,6 +42,7 @@
  */
 #include "doppler/clib_common.h"
 #include "doppler/wfm/wfm_frame.h"
+#include "dp_rng_test.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -62,13 +63,11 @@ static const char ALPHABET[] = "01:x*X_- +pngoldtd9aF\t";
 
 static uint64_t rng = SEED;
 
+/* The shared xorshift64 (13/7/17): the recorded corpus is its stream. */
 static uint64_t
 rnd (void)
 {
-  rng ^= rng << 13;
-  rng ^= rng >> 7;
-  rng ^= rng << 17;
-  return rng;
+  return dp_xs64 (&rng);
 }
 
 typedef struct

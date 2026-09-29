@@ -11,7 +11,6 @@
 #include "doppler/dp_interleave.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/pn/pn_core.h"
-#include "doppler/wfm/wfm_dsp.h" /* the DSSS burst assembler declared there */
 #include "doppler/wfm/wfm_names.h" /* SEQ_KIND_NAMES, LFSR_NAMES */
 
 #include <stdio.h>
@@ -665,71 +664,38 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
 }
 
 int
-dp_wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out)
+dp_wfm_frame_fixed (wfm_frame_desc_t *d, const wfm_seq_t *preamble,
+                    size_t reps, const wfm_seq_t *sync,
+                    const wfm_seq_t *payload, int crc)
 {
-  if (!f || !out)
+  if (!d)
     return -1;
-  memset (out, 0, sizeof *out);
+  memset (d, 0, sizeof *d);
 
-  /* `preamble_reps == 0` means NO preamble, which is this struct's rule and
-     not the general one — a field that simply does not repeat leaves `reps`
-     zero and is emitted once. So the repetition count is what decides here,
-     and a zero one leaves the field empty rather than emitting one period. */
-  if (f->preamble_reps)
-    {
-      out->field[WFM_FRAME_FIELD_PREAMBLE].seq  = f->preamble;
-      out->field[WFM_FRAME_FIELD_PREAMBLE].reps = f->preamble_reps;
-    }
-  out->field[WFM_FRAME_FIELD_SYNC].seq    = f->sync;
-  out->field[WFM_FRAME_FIELD_PAYLOAD].seq = f->payload;
-
-  /* The CRC is a field AND a stage: a trailer on the wire, derived by a
-     transform covering the payload it protects and the trailer it wrote.
-     Both are ALWAYS declared, and `f->crc` unset switches the stage off by
-     giving it nothing to cover — which is what an optional stage is in this
-     representation, and what `dp_ccsds_tm_frame_layout()` already reports for
-     a stage that did not run. Declaring the field either way is also what
-     keeps `crc_off` at the end of the payload when the trailer is absent. */
-  out->field[WFM_FRAME_FIELD_CRC].bits       = WFM_FRAME_CRC_BITS;
-  out->field[WFM_FRAME_FIELD_CRC].derived_by = 1u; /* stage 0, plus one */
-  out->n_fields                              = 4u;
-
-  out->stage[0].kind        = WFM_STAGE_CRC16;
-  out->stage[0].first_field = WFM_FRAME_FIELD_PAYLOAD;
-  out->stage[0].n_fields    = f->crc ? 2u : 0u; /* payload + its own trailer */
-  out->n_stages             = 1u;
-  return 0;
-}
-
-int
-dp_wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out)
-{
-  wfm_frame_desc_t        d;
-  wfm_frame_desc_layout_t l;
-  if (!f || !out || dp_wfm_frame_describe (f, &d) != 0
-      || dp_wfm_frame_desc_layout (&d, &l) != 0)
+  /* A field is included on its LENGTH, never on its pointer: a length with
+     no array is an unbuildable description, and it has to reach
+     dp_wfm_frame_assemble to be refused there rather than be dropped here
+     and assemble a frame quietly missing it. A preamble needs a repetition
+     count as well, because `reps` is how many periods go on the wire and
+     zero of them is none. */
+  if (preamble && preamble->len && reps
+      && dp_wfm_frame_add_field (d, "preamble", preamble, reps) < 0)
     return -1;
-  memset (out, 0, sizeof *out);
+  if (sync && sync->len && dp_wfm_frame_add_field (d, "sync", sync, 0u) < 0)
+    return -1;
 
-  out->preamble_off  = l.field_off[WFM_FRAME_FIELD_PREAMBLE];
-  out->preamble_bits = l.field_bits[WFM_FRAME_FIELD_PREAMBLE];
-  out->sync_off      = l.field_off[WFM_FRAME_FIELD_SYNC];
-  out->sync_bits     = l.field_bits[WFM_FRAME_FIELD_SYNC];
-  out->payload_off   = l.field_off[WFM_FRAME_FIELD_PAYLOAD];
-  out->payload_bits  = l.field_bits[WFM_FRAME_FIELD_PAYLOAD];
-  out->crc_off       = l.field_off[WFM_FRAME_FIELD_CRC];
-  out->crc_bits      = l.field_bits[WFM_FRAME_FIELD_CRC];
-  out->total_bits    = l.frame_bits;
+  /* The payload is a field even when it is empty, so a CRC stage always has
+     one to cover: a CRC over nothing protects nothing, and the layout
+     reports that stage as not run rather than as a trailer of 16 bits. */
+  static const wfm_seq_t none = { .kind = WFM_SEQ_LITERAL };
+  if (dp_wfm_frame_add_field (d, "payload", payload ? payload : &none, 0u) < 0)
+    return -1;
+  if (crc
+      && (dp_wfm_frame_add_derived (d, "crc", WFM_FRAME_CRC_BITS) < 0
+          || dp_wfm_frame_add_stage (d, WFM_STAGE_CRC16, "payload", "crc")
+                 < 0))
+    return -1;
   return 0;
-}
-
-size_t
-dp_wfm_frame_nbits (const wfm_frame_t *f)
-{
-  wfm_frame_layout_t l;
-  if (dp_wfm_frame_layout (f, &l) != 0)
-    return 0;
-  return l.total_bits;
 }
 
 /* CRC-16-CCITT over the head of the span, written MSB-first into its tail.
@@ -941,15 +907,6 @@ dp_wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
   return l.out_bits;
 }
 
-size_t
-dp_wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out)
-{
-  wfm_frame_desc_t d;
-  if (!f || dp_wfm_frame_describe (f, &d) != 0)
-    return 0;
-  return dp_wfm_frame_assemble (&d, NULL, out, max_out);
-}
-
 int
 dp_wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
                     uint8_t *bits, wfm_frame_rx_t *rx)
@@ -1027,23 +984,13 @@ dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
   return -1; /* no CRC stage: "carries no check" is not "the check failed" */
 }
 
-int
-dp_wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits)
-{
-  wfm_frame_desc_t d;
-  if (!f || dp_wfm_frame_describe (f, &d) != 0)
-    return -1;
-  return dp_wfm_frame_desc_crc_ok (&d, rx_bits);
-}
-
 /* ── the DSSS burst: a FRAME, then spread ──────────────────────────────
  *
  * These live here rather than in wfm_dsp.c because they are frame functions:
  * what they do is assemble the layout above and spread it. Keeping them beside
  * the descriptor is also what keeps `wfm_dsp_core` -- spreading and RRC taps,
  * linked by every receiver that wants a matched filter -- free of the pn/gold
- * dependency the generated sequence kinds carry. Their declarations stay in
- * wfm/wfm_dsp.h, where every caller already looks for them.
+ * dependency the generated sequence kinds carry.
  */
 size_t
 dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
@@ -1104,57 +1051,6 @@ dp_wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
 
   free (bits);
   return w;
-}
-
-/* The four-field DSSS burst, expressed as the general one.
- *
- * `wfm_frame_t` is one configuration of `wfm_frame_desc_t`, so this pair is
- * the description pair with the description filled in — no second layout, no
- * second spreader, and no way for the two spellings to answer differently.
- * Note what is NOT in the description: the acquisition preamble. It is
- * unmodulated and unspread, so it belongs to the waveform rather than to the
- * frame, and `dp_wfm_dsss_desc_chips` prepends it. */
-static int
-dsss_four_field (const uint8_t *sync, size_t sync_len, const uint8_t *payload,
-                 size_t payload_len, int crc, wfm_frame_desc_t *out)
-{
-  wfm_frame_t f  = { 0 };
-  f.sync.kind    = WFM_SEQ_LITERAL;
-  f.sync.bits    = sync;
-  f.sync.len     = sync_len;
-  f.payload.kind = WFM_SEQ_LITERAL;
-  f.payload.bits = payload;
-  f.payload.len  = payload_len;
-  f.crc          = crc;
-  return dp_wfm_frame_describe (&f, out);
-}
-
-size_t
-dp_wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len,
-                          size_t sync_len, size_t payload_len, int crc)
-{
-  wfm_frame_desc_t d;
-  if (dsss_four_field (NULL, sync_len, NULL, payload_len, crc, &d) != 0)
-    return 0;
-  return dp_wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
-}
-
-size_t
-dp_wfm_frame_dsss_chips (const uint8_t *acq_code, size_t acq_len,
-                         size_t acq_reps, const uint8_t *data_code,
-                         size_t data_len, const uint8_t *sync, size_t sync_len,
-                         const uint8_t *payload, size_t payload_len, int crc,
-                         uint8_t *out)
-{
-  wfm_frame_desc_t d;
-  if (dsss_four_field (sync, sync_len, payload, payload_len, crc, &d) != 0)
-    return 0;
-  const size_t total
-      = dp_wfm_dsss_desc_nchips (&d, acq_len, acq_reps, data_len);
-  /* The four-field form has no capacity argument and never had one: its
-     caller sizes `out` from _nchips by contract. Pass that same number. */
-  return dp_wfm_dsss_desc_chips (&d, NULL, acq_code, acq_len, acq_reps,
-                                 data_code, data_len, out, total);
 }
 
 int

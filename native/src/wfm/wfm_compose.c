@@ -650,7 +650,7 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
        * A CONTINUOUS dsss source (symbol_rate > 0) has NO intrinsic length —
        * the stream is endless and --count IS the span. It must be excluded
        * here, and not only because the derivation is meaningless:
-       * dp_wfm_frame_dsss_nchips() returns a nonzero (garbage) value for it
+       * dp_wfm_source_dsss_nchips() returns a nonzero (garbage) value for it
        * (n_bits payload * data_code.len + a spurious CRC), which would pass
        * the `if (nchips)` guard and silently overwrite the user's num_samples.
        */

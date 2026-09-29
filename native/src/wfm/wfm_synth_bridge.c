@@ -490,7 +490,7 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs)
 {
   if (src->type != WFM_SYNTH_DSSS)
-    return 0; /* no-op, mirrors dp_wfm_synth_set_dsss */
+    return 0; /* no-op, mirrors dp_wfm_synth_set_dsss_chips */
   if (src->symbol_rate > 0.0)
     {
       /* Continuous async: the data clock is independent of the code. sps is

@@ -48,7 +48,7 @@
  *
  * This is that place: @ref dp_ccsds_tm_frame_encode takes a Transfer Frame as
  * packed octets and returns unpacked channel symbols, the representation
- * `dp_wfm_frame_bits` and the spreader already pass around. Octets go on the
+ * `dp_wfm_frame_assemble` and the spreader already pass around. Octets go on the
  * wire **MSB-first** — figure 9-1 numbers the first transmitted bit of the
  * ASM as the most significant bit of `0x1A`, and 4.3.9.2 orders an R-S symbol
  * the same way.

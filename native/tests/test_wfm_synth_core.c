@@ -1,5 +1,6 @@
 #include "doppler/dp_complex.h"
 #include "doppler/mpsk/mpsk_core.h"
+#include "doppler/wfm/wfm_frame.h" /* the burst: dp_wfm_frame_fixed + spread */
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -540,9 +541,10 @@ main (void)
     dp_wfm_synth_destroy (b);
   }
 
-  /* dsss: set_dsss assembles the two-code burst (preamble + spread frame)
-   * into the bits machinery, a mid-burst split resumes bit-exact (noisy, so
-   * the AWGN child state is exercised too), and bad geometry is rejected. */
+  /* dsss: set_dsss_chips installs the two-code burst (preamble + spread
+   * frame, assembled from the common frame's description) into the bits
+   * machinery, a mid-burst split resumes bit-exact (noisy, so the AWGN
+   * child state is exercised too), and an empty burst is rejected. */
   {
     const uint8_t acq[8]   = { 1, 0, 1, 1, 0, 0, 1, 0 };
     const uint8_t dcode[4] = { 0, 1, 1, 0 };
@@ -555,12 +557,16 @@ main (void)
     dp_wfm_synth_state_t *b = dp_wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0,
                                                    3.0, 1, 9, 2, 7, 0, 0, 0.0);
     DP_CHECK (a != NULL && b != NULL);
-    DP_CHECK (
-        dp_wfm_synth_set_dsss (a, acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1)
-        == 0);
-    DP_CHECK (
-        dp_wfm_synth_set_dsss (b, acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1)
-        == 0);
+    const wfm_seq_t  syn = { .kind = WFM_SEQ_LITERAL, .bits = sync, .len = 2 };
+    const wfm_seq_t  pl  = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = 5 };
+    wfm_frame_desc_t fd;
+    uint8_t          chips[116];
+    DP_CHECK (dp_wfm_frame_fixed (&fd, NULL, 0, &syn, &pl, 1) == 0);
+    DP_CHECK (dp_wfm_dsss_desc_chips (&fd, NULL, acq, 8, 3, dcode, 4, chips,
+                                      sizeof chips)
+              == sizeof chips);
+    DP_CHECK (dp_wfm_synth_set_dsss_chips (a, chips, sizeof chips) == 0);
+    DP_CHECK (dp_wfm_synth_set_dsss_chips (b, chips, sizeof chips) == 0);
     DP_CHECK (a->n_bits == 116 && a->bit_mod == 1);
     /* the head of the pattern is the unmodulated tiled preamble */
     for (int i = 0; i < 8; i++)
@@ -584,18 +590,15 @@ main (void)
     ((uint8_t *)blob)[0] ^= 0xFFu; /* envelope reject */
     DP_CHECK (dp_wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
     free (blob);
-    /* geometry rejects: frame bits without a data code; empty burst;
-     * no-op on a non-dsss synth. */
-    DP_CHECK (dp_wfm_synth_set_dsss (a, acq, 8, 3, NULL, 0, sync, 2, pay, 5, 1)
-              == -1);
-    DP_CHECK (
-        dp_wfm_synth_set_dsss (a, NULL, 0, 0, dcode, 4, NULL, 0, NULL, 0, 0)
-        == -1);
+    /* rejects: an empty burst (the geometry rules -- frame bits with no
+     * data code, nothing to send -- are the description's, and are pinned
+     * in test_wfm_frame.c); a no-op on a non-dsss synth. */
+    DP_CHECK (dp_wfm_synth_set_dsss_chips (a, NULL, 0) == -1);
+    DP_CHECK (dp_wfm_synth_set_dsss_chips (a, chips, 0) == -1);
     dp_wfm_synth_state_t *tn = dp_wfm_synth_create (
         WFM_SYNTH_TONE, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0, 0.0);
-    DP_CHECK (
-        dp_wfm_synth_set_dsss (tn, acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1)
-        == 0); /* no-op for other types */
+    DP_CHECK (dp_wfm_synth_set_dsss_chips (tn, chips, sizeof chips)
+              == 0); /* no-op for other types */
     dp_wfm_synth_destroy (tn);
     dp_wfm_synth_destroy (a);
     dp_wfm_synth_destroy (b);

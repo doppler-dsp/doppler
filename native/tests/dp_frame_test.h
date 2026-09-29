@@ -1,6 +1,6 @@
 /**
  * @file dp_frame_test.h
- * @brief The named starter frame set: one `wfm_frame_t`, five configurations.
+ * @brief The named starter frame set: one description, five configurations.
  *
  * A frame is arbitrary by construction — that is the point of the descriptor
  * (`wfm/wfm_frame.h`). But an arbitrary frame per test is how a convention
@@ -8,10 +8,11 @@
  * reason, their numbers stop being comparable, and nothing says so. So the
  * harness ships **a handful of named ones** and a test says which it used.
  *
- * Every entry below is the SAME struct with different `wfm_seq_t` values.
+ * Every entry below is the SAME layout with different `wfm_seq_t` values.
  * There is no per-name code path, no switch in the builder that changes what
- * a field means, and no second layout — five rows of a table, materialised by
- * the one `dp_wfm_frame_bits()`. Sync and payload draw from the same
+ * a field means, and no second layout — five rows of a table, each described
+ * by the one `dp_wfm_frame_fixed()` and materialised by the one
+ * `dp_wfm_frame_assemble()`. Sync and payload draw from the same
  * generators independently, so a Gold sync with a PN payload is a
  * configuration this set simply does not happen to name.
  *
@@ -147,94 +148,167 @@ dp_frame_label (dp_frame_name_t name)
 #define DP_FRAME_GOLD_BITS 10u
 
 /**
- * @brief The named frame @p name, by value.
+ * @brief The named frame @p name, as a description, by value.
  *
- * Returns a frame with `preamble.len == 0` for a name outside the set, which
- * `dp_wfm_frame_nbits()` reports as 0 bits — a caller that fails to check gets
- * an empty frame it cannot transmit, not a plausible one it can.
+ * The description is self-contained: its generated fields carry their
+ * parameters by value and its one literal field points at the static
+ * `dp_frame_barker13`, so it may be copied and kept.
+ *
+ * Returns an EMPTY description for a name outside the set, which lays out at
+ * 0 bits — a caller that fails to check gets an empty frame it cannot
+ * transmit, not a plausible one it can.
  */
-static inline wfm_frame_t
+static inline wfm_frame_desc_t
 dp_frame_named (dp_frame_name_t name)
 {
-  wfm_frame_t f = { 0 };
-
   /* Every frame that has a preamble has the SAME one, differing only in how
      many periods of it there are — so a comparison between two of them is not
      also a comparison between two acquisition targets. */
-  f.preamble.kind = WFM_SEQ_DOTTED;
-  f.preamble.len  = 2; /* one period of 1010...; see the file docstring */
+  const wfm_seq_t pre  = { .kind = WFM_SEQ_DOTTED, .len = 2 }; /* one period */
+  wfm_seq_t       sync = { .kind = WFM_SEQ_LITERAL };
+  wfm_seq_t       pay  = { .kind = WFM_SEQ_LITERAL };
+  size_t          reps = 0;
+  int             crc  = 0;
 
   switch (name)
     {
     case RX_FRAME_NONE:
       /* No preamble, no sync, no CRC: the unframed PRBS a receiver test uses
-         today. The payload descriptor is RX_FRAME_CONT's, verbatim, so the
-         pair differs by the frame and by nothing else. */
-      f.preamble.len     = 0;
-      f.preamble_reps    = 0;
-      f.payload.kind     = WFM_SEQ_PN;
-      f.payload.len      = 304;
-      f.payload.reg_bits = 11;
-      f.payload.seed     = 1;
-      f.crc              = 0;
-      return f;
+         today. The payload is RX_FRAME_CONT's, verbatim, so the pair differs
+         by the frame and by nothing else. */
+      pay = (wfm_seq_t){
+        .kind = WFM_SEQ_PN, .len = 304, .reg_bits = 11, .seed = 1
+      };
+      break;
 
     case RX_FRAME_BURST:
-      f.preamble_reps    = 64; /* 128 preamble bits */
-      f.sync.kind        = WFM_SEQ_LITERAL;
-      f.sync.bits        = dp_frame_barker13;
-      f.sync.len         = sizeof dp_frame_barker13;
-      f.payload.kind     = WFM_SEQ_PN;
-      f.payload.len      = 128;
-      f.payload.reg_bits = 9;
-      f.payload.seed     = 3;
-      f.crc              = 1;
-      return f;
+      reps = 64; /* 128 preamble bits */
+      sync = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                          .bits = dp_frame_barker13,
+                          .len  = sizeof dp_frame_barker13 };
+      pay  = (wfm_seq_t){
+        .kind = WFM_SEQ_PN, .len = 128, .reg_bits = 9, .seed = 3
+      };
+      crc = 1;
+      break;
 
     case RX_FRAME_CONT:
-      f.preamble_reps    = 256; /* 512 preamble bits */
-      f.sync.kind        = WFM_SEQ_PN;
-      f.sync.len         = 127; /* one period of a 7-bit register */
-      f.sync.reg_bits    = 7;
-      f.sync.seed        = 5;
-      f.payload.kind     = WFM_SEQ_PN;
-      f.payload.len      = 304;
-      f.payload.reg_bits = 11;
-      f.payload.seed     = 1;
-      f.crc              = 1;
-      return f;
+      reps = 256; /* 512 preamble bits */
+      /* one period of a 7-bit register */
+      sync = (wfm_seq_t){
+        .kind = WFM_SEQ_PN, .len = 127, .reg_bits = 7, .seed = 5
+      };
+      pay = (wfm_seq_t){
+        .kind = WFM_SEQ_PN, .len = 304, .reg_bits = 11, .seed = 1
+      };
+      crc = 1;
+      break;
 
     case RX_FRAME_GOLD:
       /* Identical geometry to RX_FRAME_CONT; only the sequence family moves.
        */
-      f.preamble_reps    = 256;
-      f.sync.kind        = WFM_SEQ_GOLD;
-      f.sync.len         = 127;
-      f.sync.reg_bits    = DP_FRAME_GOLD_BITS;
-      f.sync.taps_a      = DP_FRAME_GOLD_TAPS_A;
-      f.sync.seed_a      = 350;
-      f.sync.taps_b      = DP_FRAME_GOLD_TAPS_B;
-      f.sync.seed_b      = 73;
-      f.payload.kind     = WFM_SEQ_GOLD;
-      f.payload.len      = 304;
-      f.payload.reg_bits = DP_FRAME_GOLD_BITS;
-      f.payload.taps_a   = DP_FRAME_GOLD_TAPS_A;
-      f.payload.seed_a   = 511;
-      f.payload.taps_b   = DP_FRAME_GOLD_TAPS_B;
-      f.payload.seed_b   = 97;
-      f.crc              = 1;
-      return f;
+      reps = 256;
+      sync = (wfm_seq_t){ .kind     = WFM_SEQ_GOLD,
+                          .len      = 127,
+                          .reg_bits = DP_FRAME_GOLD_BITS,
+                          .taps_a   = DP_FRAME_GOLD_TAPS_A,
+                          .seed_a   = 350,
+                          .taps_b   = DP_FRAME_GOLD_TAPS_B,
+                          .seed_b   = 73 };
+      pay  = (wfm_seq_t){ .kind     = WFM_SEQ_GOLD,
+                          .len      = 304,
+                          .reg_bits = DP_FRAME_GOLD_BITS,
+                          .taps_a   = DP_FRAME_GOLD_TAPS_A,
+                          .seed_a   = 511,
+                          .taps_b   = DP_FRAME_GOLD_TAPS_B,
+                          .seed_b   = 97 };
+      crc  = 1;
+      break;
 
     case RX_FRAME_ACQ:
-      f.preamble_reps = 256; /* 512 preamble bits, and nothing else */
-      return f;
+      reps = 256; /* 512 preamble bits, and nothing else */
+      break;
 
     case DP_FRAME_COUNT:
-      break;
+    default:
+      {
+        wfm_frame_desc_t empty = { 0 };
+        return empty;
+      }
     }
 
-  f.preamble.len = 0;
-  return f;
+  wfm_frame_desc_t d;
+  (void)dp_wfm_frame_fixed (&d, &pre, reps, &sync, &pay, crc);
+  return d;
+}
+
+/**
+ * @brief Bits in @p d's assembled frame, or 0 if it does not lay out.
+ *
+ * The harness's one spelling of "how long is this frame", so a caller sizes
+ * a buffer from the same layout the assembler writes by.
+ */
+static inline size_t
+dp_frame_desc_nbits (const wfm_frame_desc_t *d)
+{
+  wfm_frame_desc_layout_t l;
+  return dp_wfm_frame_desc_layout (d, &l) == 0 ? l.frame_bits : 0;
+}
+
+/**
+ * @brief Bits in the field called @p name, and its offset through @p off.
+ *
+ * The one way this harness reads a frame's geometry: by the field's NAME,
+ * from the layout of the description the transmitter was built from. A field
+ * the frame does not carry is 0 bits, and @p off is then 0 and meaningless.
+ *
+ * @param d     the description.
+ * @param l     its layout.
+ * @param name  `"preamble"`, `"sync"`, `"payload"` or `"crc"`.
+ * @param off   receives the field's bit offset; may be NULL.
+ */
+static inline size_t
+dp_frame_field (const wfm_frame_desc_t *d, const wfm_frame_desc_layout_t *l,
+                const char *name, size_t *off)
+{
+  const int i = dp_wfm_frame_field_index (d, name);
+  if (off)
+    *off = (i < 0) ? 0 : l->field_off[i];
+  return (i < 0) ? 0 : l->field_bits[i];
+}
+
+/** @brief A common frame's geometry, every field read by name. */
+typedef struct
+{
+  size_t pre_off, pre;   /**< preamble offset and bits (x reps)  */
+  size_t sync_off, sync; /**< sync word                           */
+  size_t pay_off, pay;   /**< payload                             */
+  size_t crc_off, crc;   /**< CRC trailer; 0 bits when not run    */
+  size_t total;          /**< the assembled frame                 */
+} dp_frame_geo_t;
+
+/**
+ * @brief @p d's geometry, all four fields by name; all zero if @p d does not
+ *        lay out.
+ *
+ * Gathered into one struct so a test can compare two frames' whole geometry
+ * at once. It is a READING of the description's layout, not a second one:
+ * every number comes from `dp_wfm_frame_desc_layout()` through
+ * @ref dp_frame_field, and an absent field is 0 bits at offset 0.
+ */
+static inline dp_frame_geo_t
+dp_frame_geo (const wfm_frame_desc_t *d)
+{
+  wfm_frame_desc_layout_t l;
+  dp_frame_geo_t          g = { 0 };
+  if (dp_wfm_frame_desc_layout (d, &l) != 0)
+    return g;
+  g.pre   = dp_frame_field (d, &l, "preamble", &g.pre_off);
+  g.sync  = dp_frame_field (d, &l, "sync", &g.sync_off);
+  g.pay   = dp_frame_field (d, &l, "payload", &g.pay_off);
+  g.crc   = dp_frame_field (d, &l, "crc", &g.crc_off);
+  g.total = l.frame_bits;
+  return g;
 }
 
 #endif /* DP_FRAME_TEST_H */

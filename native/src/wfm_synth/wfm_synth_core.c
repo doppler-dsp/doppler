@@ -1,7 +1,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
-#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_frame_dsss_chips — the DSSS burst builder */
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_polyphase_bank — the RRC polyphase bank */
 
 dp_wfm_synth_state_t *
 dp_wfm_synth_create (int type, double fs, double freq, double snr,
@@ -250,36 +250,12 @@ dp_wfm_synth_set_dsss_chips (dp_wfm_synth_state_t *state, const uint8_t *chips,
 }
 
 int
-dp_wfm_synth_set_dsss (dp_wfm_synth_state_t *state, const uint8_t *acq_code,
-                       size_t acq_len, size_t acq_reps,
-                       const uint8_t *data_code, size_t data_len,
-                       const uint8_t *sync, size_t sync_len,
-                       const uint8_t *payload, size_t payload_len, int crc)
-{
-  if (state->wtype != WFM_SYNTH_DSSS)
-    return 0; /* no-op for every other type */
-  size_t n = dp_wfm_frame_dsss_nchips (acq_len, acq_reps, data_len, sync_len,
-                                       payload_len, crc);
-  if (n == 0)
-    return -1; /* frame bits with no data code, or an empty burst */
-  uint8_t *chips = malloc (n);
-  if (!chips)
-    return -1;
-  (void)dp_wfm_frame_dsss_chips (acq_code, acq_len, acq_reps, data_code,
-                                 data_len, sync, sync_len, payload,
-                                 payload_len, crc, chips);
-  const int rc = dp_wfm_synth_set_dsss_chips (state, chips, n);
-  free (chips);
-  return rc;
-}
-
-int
 dp_wfm_synth_set_dsss_cont (dp_wfm_synth_state_t *state, const uint8_t *code,
                             size_t code_len, double chips_per_symbol,
                             int data_mode, const uint8_t *data, size_t n_data)
 {
   if (state->wtype != WFM_SYNTH_DSSS)
-    return 0; /* no-op for every other type, same as set_dsss */
+    return 0; /* no-op for every other type, same as set_dsss_chips */
   if (!code || code_len == 0 || !(chips_per_symbol >= 1.0)
       || data_mode < WFM_DSSS_DATA_NONE || data_mode > WFM_DSSS_DATA_PRBS
       || (data_mode == WFM_DSSS_DATA_BITS && (!data || n_data == 0))

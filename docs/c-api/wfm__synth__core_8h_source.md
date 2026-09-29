@@ -39,7 +39,8 @@ enum {
     WFM_SYNTH_SYMBOLS
     = 7,                /* user complex-symbol stream, oversampled + cycled */
     WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
-                           spread frame, built by dp_wfm_synth_set_dsss();
+                           spread frame, installed by
+                           dp_wfm_synth_set_dsss_chips();
                            OR a continuous asynchronous stream when a
                            symbol_rate is supplied (dp_wfm_synth_set_dsss_cont).
                            The two modes share this one type — a symbol_rate
@@ -232,12 +233,6 @@ void dp_wfm_synth_set_chirp_span(dp_wfm_synth_state_t *state, size_t span);
 int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
-int dp_wfm_synth_set_dsss(dp_wfm_synth_state_t *state, const uint8_t *acq_code,
-                       size_t acq_len, size_t acq_reps,
-                       const uint8_t *data_code, size_t data_len,
-                       const uint8_t *sync, size_t sync_len,
-                       const uint8_t *payload, size_t payload_len, int crc);
-
 int dp_wfm_synth_set_dsss_chips(dp_wfm_synth_state_t *state, const uint8_t *chips,
                              size_t n_chips);
 
@@ -283,7 +278,7 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
         /* User bit pattern, oversampled sps and cycled to fill the request. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
          * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
-         * same machinery over the chip pattern set_dsss() assembled. */
+         * same machinery over the chip pattern set_dsss_chips() installed. */
         if (state->sym_pos == 0) {
             if (state->chips_per_symbol > 0.0) { /* continuous DSSS: lazy chip */
                 state->cur_re = wfm_synth_cont_dsss_chip(state);

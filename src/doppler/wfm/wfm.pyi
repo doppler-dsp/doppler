@@ -4,41 +4,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
-class FrameLayout(tuple[int, int, int, int, int, int, int, int, int]):
-    """Where each field lands, in bits from the start of the frame. The offsets
-    a receiver needs to slice a capture -- computed once, by the same code the
-    generator laid the frame out with.
-
-    Attributes
-    ----------
-    crc_bits : int
-        16, or 0 when crc is unset or the payload is empty — a CRC over nothing protects nothing
-    """
-
-    @property
-    def preamble_off(self) -> int: ...
-    @property
-    def preamble_bits(self) -> int: ...
-    @property
-    def sync_off(self) -> int: ...
-    @property
-    def sync_bits(self) -> int: ...
-    @property
-    def payload_off(self) -> int: ...
-    @property
-    def payload_bits(self) -> int: ...
-    @property
-    def crc_off(self) -> int: ...
-    @property
-    def crc_bits(self) -> int:
-        """16, or 0 when crc is unset or the payload is empty — a CRC over
-        nothing protects nothing
-        """
-
-    @property
-    def total_bits(self) -> int: ...
-
-@final
 class FrameCheck(tuple[int, int, int, int, int, int, int]):
     """What checking one received frame found. `ok == units` is the verdict;
     `symbols` is what it cost, which is margin being spent and is visible
@@ -333,7 +298,7 @@ class _SynthEngine:
         "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss". For
         "bits" attach the pattern with dp_wfm_synth_set_bits(); for "symbols"
         attach the complex stream with dp_wfm_synth_set_symbols(); for "dsss"
-        attach the burst with dp_wfm_synth_set_dsss() after create().
+        attach the burst with dp_wfm_synth_set_dsss_chips() after create().
     fs : float, default 1000000.0
         Sample rate in Hz. Sets the carrier frequency normalisation and the
         noise bandwidth. Default 1 000 000.0.
@@ -959,7 +924,7 @@ class Frame:
     >>> f = Frame(sync=sync, payload=payload, crc="crc16")
     >>> f.nbits                                          # 13 + 16 + 16
     45
-    >>> f.layout().payload_off
+    >>> f.field_off(f.field_index("payload"))
     13
     >>> f.crc_ok(f.bits())        # its own bits are its own truth
     1
@@ -1029,35 +994,6 @@ class Frame:
             Output.
         """
 
-    def layout(self) -> FrameLayout:
-        """Where each field lands, in bits from the start of the frame.
-
-        The offsets a receiver needs to slice a capture, computed by the same
-        code the generator laid the frame out with.
-
-        Returns
-        -------
-        FrameLayout
-            Where each named field lands.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import Frame
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
-        >>> lay.sync_off, lay.payload_off, lay.crc_off
-        (0, 13, 29)
-        >>> lay.total_bits
-        45
-
-        This is the NAMED view, so it reports the four fields a `Frame` is built
-        from. A description assembled with `add_field` reports zeros here and is
-        read with `field_off()` / `field_bits()` instead.
-
-        """
-
     def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
         """Check one received frame's CRC.
 
@@ -1088,7 +1024,7 @@ class Frame:
         >>> d.crc_ok(d.bits())           # its own bits are its own truth
         1
         >>> rx = np.asarray(d.bits()).copy()
-        >>> rx[d.field_off(2)] ^= 1      # flip one payload bit
+        >>> rx[d.field_off(d.field_index("payload"))] ^= 1   # one payload bit
         >>> d.crc_ok(rx)
         0
 
@@ -1529,7 +1465,7 @@ class Frame:
         >>> got = np.asarray(f.deframe(rx))
         >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
         (1, 1, 1)
-        >>> off = f.layout().payload_off       # the payload is a SLICE
+        >>> off = f.field_off(f.field_index("payload"))   # a SLICE
         >>> bool(np.array_equal(got[off:off + 16], payload))
         True
         >>> rx[off] ^= 1                       # one bit flipped in flight
@@ -1619,7 +1555,7 @@ class Frame:
         Flip a bit the CRC covers and the verdict turns over:
 
         >>> rx = np.asarray(d.bits(1)).copy()
-        >>> rx[d.field_off(2)] ^= 1
+        >>> rx[d.field_off(d.field_index("payload"))] ^= 1
         >>> d.check(rx).passed
         0
 
@@ -1634,9 +1570,9 @@ class Frame:
         """
 
     def n_fields(self) -> int:
-        """Fields in the description. A `Frame` built the four-field way
-        reports 4 -- `wfm_frame_t` IS a configuration of the general
-        description, so the indexed view below reads it too.
+        """Fields in the description. A `Frame` counts only the fields it was
+        given -- `Frame(sync=..., payload=..., crc="crc16")` is 3 -- so read a
+        field by name with `field_index`, not by position.
 
         Returns
         -------
@@ -1650,8 +1586,8 @@ class Frame:
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
         >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
-        >>> d.n_fields()          # the four named fields, absent ones included
-        4
+        >>> d.n_fields()          # sync, payload, crc -- no preamble was given
+        3
 
         """
 
@@ -1697,14 +1633,15 @@ class Frame:
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
         >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
-        >>> d.field_off(1), d.field_off(2), d.field_off(3)
+        >>> d.field_off(0), d.field_off(1), d.field_off(2)
         (0, 13, 29)
 
-        Field 0 is the absent preamble: an empty field still HAS an index, so the
-        indices a caller passed to `add_field` keep meaning what they meant.
+        An absent field has no index: no preamble was given, so field 0 is the
+        sync word. Ask for a field by name rather than by position, and an index
+        past the end is 0.
 
-        >>> d.field_off(0), d.field_bits(0)
-        (0, 0)
+        >>> d.field_off(d.field_index("crc")), d.field_off(7)
+        (29, 0)
 
         """
 
@@ -1729,7 +1666,7 @@ class Frame:
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
         >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
-        >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
+        >>> d.field_bits(0), d.field_bits(1), d.field_bits(2)
         (13, 16, 16)
 
         """
@@ -1975,35 +1912,6 @@ class FrameDesc:
             Output.
         """
 
-    def layout(self) -> FrameLayout:
-        """Where each field lands, in bits from the start of the frame.
-
-        The offsets a receiver needs to slice a capture, computed by the same
-        code the generator laid the frame out with.
-
-        Returns
-        -------
-        FrameLayout
-            Where each named field lands.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm import Frame
-        >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
-        >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
-        >>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
-        >>> lay.sync_off, lay.payload_off, lay.crc_off
-        (0, 13, 29)
-        >>> lay.total_bits
-        45
-
-        This is the NAMED view, so it reports the four fields a `Frame` is built
-        from. A description assembled with `add_field` reports zeros here and is
-        read with `field_off()` / `field_bits()` instead.
-
-        """
-
     def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
         """Check one received frame's CRC.
 
@@ -2034,7 +1942,7 @@ class FrameDesc:
         >>> d.crc_ok(d.bits())           # its own bits are its own truth
         1
         >>> rx = np.asarray(d.bits()).copy()
-        >>> rx[d.field_off(2)] ^= 1      # flip one payload bit
+        >>> rx[d.field_off(d.field_index("payload"))] ^= 1   # one payload bit
         >>> d.crc_ok(rx)
         0
 
@@ -2475,7 +2383,7 @@ class FrameDesc:
         >>> got = np.asarray(f.deframe(rx))
         >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
         (1, 1, 1)
-        >>> off = f.layout().payload_off       # the payload is a SLICE
+        >>> off = f.field_off(f.field_index("payload"))   # a SLICE
         >>> bool(np.array_equal(got[off:off + 16], payload))
         True
         >>> rx[off] ^= 1                       # one bit flipped in flight
@@ -2565,7 +2473,7 @@ class FrameDesc:
         Flip a bit the CRC covers and the verdict turns over:
 
         >>> rx = np.asarray(d.bits(1)).copy()
-        >>> rx[d.field_off(2)] ^= 1
+        >>> rx[d.field_off(d.field_index("payload"))] ^= 1
         >>> d.check(rx).passed
         0
 
@@ -2580,9 +2488,9 @@ class FrameDesc:
         """
 
     def n_fields(self) -> int:
-        """Fields in the description. A `Frame` built the four-field way
-        reports 4 -- `wfm_frame_t` IS a configuration of the general
-        description, so the indexed view below reads it too.
+        """Fields in the description. A `Frame` counts only the fields it was
+        given -- `Frame(sync=..., payload=..., crc="crc16")` is 3 -- so read a
+        field by name with `field_index`, not by position.
 
         Returns
         -------
@@ -2596,8 +2504,8 @@ class FrameDesc:
         >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
         >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
-        >>> d.n_fields()          # the four named fields, absent ones included
-        4
+        >>> d.n_fields()          # sync, payload, crc -- no preamble was given
+        3
 
         """
 
@@ -2643,14 +2551,15 @@ class FrameDesc:
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
         >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
-        >>> d.field_off(1), d.field_off(2), d.field_off(3)
+        >>> d.field_off(0), d.field_off(1), d.field_off(2)
         (0, 13, 29)
 
-        Field 0 is the absent preamble: an empty field still HAS an index, so the
-        indices a caller passed to `add_field` keep meaning what they meant.
+        An absent field has no index: no preamble was given, so field 0 is the
+        sync word. Ask for a field by name rather than by position, and an index
+        past the end is 0.
 
-        >>> d.field_off(0), d.field_bits(0)
-        (0, 0)
+        >>> d.field_off(d.field_index("crc")), d.field_off(7)
+        (29, 0)
 
         """
 
@@ -2675,7 +2584,7 @@ class FrameDesc:
         >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
         >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
         >>> d.build()
-        >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
+        >>> d.field_bits(0), d.field_bits(1), d.field_bits(2)
         (13, 16, 16)
 
         """

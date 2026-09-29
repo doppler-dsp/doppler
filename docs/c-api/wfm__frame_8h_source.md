@@ -179,39 +179,9 @@ extern "C"
   int dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);
 
-  typedef struct
-  {
-    wfm_seq_t preamble;      
-    size_t    preamble_reps; 
-    wfm_seq_t sync;          
-    wfm_seq_t payload;
-    int       crc; 
-  } wfm_frame_t;
-
-  typedef struct
-  {
-    size_t preamble_off, preamble_bits;
-    size_t sync_off, sync_bits;
-    size_t payload_off, payload_bits;
-    size_t crc_off, crc_bits; 
-    size_t total_bits;
-  } wfm_frame_layout_t;
-
-  enum
-  {
-    WFM_FRAME_FIELD_PREAMBLE = 0,
-    WFM_FRAME_FIELD_SYNC     = 1,
-    WFM_FRAME_FIELD_PAYLOAD  = 2,
-    WFM_FRAME_FIELD_CRC      = 3
-  };
-
-  int dp_wfm_frame_describe (const wfm_frame_t *f, wfm_frame_desc_t *out);
-
-  size_t dp_wfm_frame_nbits (const wfm_frame_t *f);
-
-  int dp_wfm_frame_layout (const wfm_frame_t *f, wfm_frame_layout_t *out);
-
-  size_t dp_wfm_frame_bits (const wfm_frame_t *f, uint8_t *out, size_t max_out);
+  int dp_wfm_frame_fixed (wfm_frame_desc_t *d, const wfm_seq_t *preamble,
+                          size_t reps, const wfm_seq_t *sync,
+                          const wfm_seq_t *payload, int crc);
 
   size_t dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len,
                                size_t acq_reps, size_t data_len);
@@ -228,7 +198,6 @@ extern "C"
   int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
                              const uint8_t          *rx_bits);
 
-  int dp_wfm_frame_crc_ok (const wfm_frame_t *f, const uint8_t *rx_bits);
 
 #ifdef __cplusplus
 }

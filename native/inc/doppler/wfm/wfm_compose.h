@@ -309,7 +309,7 @@ typedef struct {
        kernel in C and hands it to `dp_wfm_frame_assemble` directly. */
     const wfm_frame_desc_t *frame;
 
-    /* type=dsss: the two-code burst geometry (dp_wfm_frame_dsss_chips). The
+    /* type=dsss: the two-code burst geometry (dp_wfm_dsss_desc_chips). The
        payload bits ride the shared `bits` field above (alias "payload"). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
        "a run of bits, however produced" -- LITERAL plus the generated PN /
@@ -666,7 +666,7 @@ double dp_wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
  * The single dsss-attach path, called by BOTH synth-construction faces
  * (`dp_wfm_compose_build_synth` and the standalone `dp_wfm_source_to_synth`), so the
  * two cannot drift on how a dsss stream is configured. Selects on
- * `symbol_rate`: 0 → the burst form (`dp_wfm_synth_set_dsss`); > 0 → the
+ * `symbol_rate`: 0 → the burst form (`dp_wfm_synth_set_dsss_chips`); > 0 → the
  * continuous form (`dp_wfm_synth_set_dsss_cont`) with `chips_per_symbol =
  * (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied
  * (`bits`) and otherwise from the seeded PN. A no-op for a non-dsss source.
@@ -747,7 +747,7 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
  *
  * The `type=bits` counterpart of dp_wfm_source_attach_dsss(), and called from the
  * same two places for the same reason. When the source carries a frame, the
- * pattern handed to `dp_wfm_synth_set_bits()` is `dp_wfm_frame_bits()` of
+ * pattern handed to `dp_wfm_synth_set_bits()` is `dp_wfm_frame_assemble()` of
  * `[preamble x reps | sync | payload | crc]` rather than the payload alone —
  * so the layout, the CRC's position and its bit order come from the one
  * descriptor that the DSSS path and the receiver already read.

@@ -3,8 +3,8 @@
  * reasoning behind each boundary, live on the declarations in
  * frame/frame_core.h.
  *
- * Everything here is lifecycle: copy the literal arrays, populate a
- * `wfm_frame_t`, and delegate. No offset, no CRC position and no bit order is
+ * Everything here is lifecycle: copy the literal arrays, describe them, and
+ * delegate. No offset, no CRC position and no bit order is
  * computed in this file — those live once, in wfm_frame.c, which is what lets
  * a receiver and a generator hold the same descriptor and agree.
  */
@@ -45,27 +45,41 @@ literal_fill (wfm_seq_t *s, uint8_t **own, const uint8_t *bits, size_t len)
 }
 
 /* The three fields and the CRC, shared by both constructors so they cannot
-   disagree about what an argument means. A preamble has no repetition count
-   of its own: a repeated one is repeated in its bits
-   (`field_bits("pn:31:5*4")`), and `wfm_frame_t` reads `preamble_reps == 0` as
-   NO preamble, so a supplied one is one repetition of itself. */
+   disagree about what an argument means. They are copied, then described by
+   the ONE fixed-layout builder, dp_wfm_frame_fixed -- so a Frame and a
+   wfmgen `--sync`/`--crc` frame are the same description, not two layouts
+   that happen to agree.
+
+   A preamble has no repetition count of its own: a repeated one is repeated
+   in its bits (`field_bits("pn:31:5*4")`), so a supplied one is one
+   repetition of itself. Each copy is owned in the slot of the field it
+   landed in, which is how dp_frame_add_field owns its copies too. */
 static int
 frame_init (dp_frame_state_t *obj, const uint8_t *preamble,
             size_t preamble_len, const uint8_t *sync, size_t sync_len,
             const uint8_t *payload, size_t payload_len, int crc)
 {
-  if (literal_fill (&obj->f.preamble, &obj->own[WFM_FRAME_FIELD_PREAMBLE],
-                    preamble, preamble_len)
-          != 0
-      || literal_fill (&obj->f.sync, &obj->own[WFM_FRAME_FIELD_SYNC], sync,
-                       sync_len)
-             != 0
-      || literal_fill (&obj->f.payload, &obj->own[WFM_FRAME_FIELD_PAYLOAD],
-                       payload, payload_len)
-             != 0)
-    return -1;
-  obj->f.preamble_reps = obj->f.preamble.len ? 1u : 0u;
-  obj->f.crc           = crc;
+  wfm_seq_t pre, syn, pay;
+  uint8_t  *own[3] = { NULL, NULL, NULL };
+  if (literal_fill (&pre, &own[0], preamble, preamble_len) != 0
+      || literal_fill (&syn, &own[1], sync, sync_len) != 0
+      || literal_fill (&pay, &own[2], payload, payload_len) != 0
+      || dp_wfm_frame_fixed (&obj->d, &pre, 1u, &syn, &pay, crc) != 0)
+    {
+      free (own[0]);
+      free (own[1]);
+      free (own[2]);
+      return -1;
+    }
+  static const char *const name[3] = { "preamble", "sync", "payload" };
+  for (int k = 0; k < 3; k++)
+    {
+      const int i = dp_wfm_frame_field_index (&obj->d, name[k]);
+      if (i >= 0)
+        obj->own[i] = own[k];
+      else
+        free (own[k]); /* absent, so nothing was allocated -- free (NULL) */
+    }
   return 0;
 }
 
@@ -77,24 +91,9 @@ dp_frame_create (const uint8_t *preamble, size_t preamble_len,
   dp_frame_state_t *obj = dp_xcalloc (1, sizeof (*obj));
   if (frame_init (obj, preamble, preamble_len, sync, sync_len, payload,
                   payload_len, crc)
-      != 0)
-    {
-      dp_frame_destroy (obj);
-      return NULL;
-    }
-
-  /* The four fields ARE a description, so this path and the builder converge
-     here and every method below reads only `d`. The seq structs carry the
-     `bits` pointers literal_fill already aimed at the owned copies, so
-     nothing needs repointing. */
-  dp_wfm_frame_describe (&obj->f, &obj->d);
-  obj->named = 1;
-
-  /* Geometry once, from the one implementation. */
-  dp_wfm_frame_layout (&obj->f, &obj->l);
-  dp_wfm_frame_desc_layout (&obj->d, &obj->dl);
-  obj->nbits = obj->l.total_bits;
-  if (obj->nbits == 0)
+          != 0
+      || dp_wfm_frame_desc_layout (&obj->d, &obj->dl) != 0
+      || (obj->nbits = obj->dl.frame_bits) == 0)
     {
       dp_frame_destroy (obj);
       return NULL;
@@ -146,12 +145,6 @@ dp_frame_bits (dp_frame_state_t *state, size_t n, uint8_t *out, size_t max_out)
   return n * state->nbits;
 }
 
-wfm_frame_layout_t
-dp_frame_layout (dp_frame_state_t *state)
-{
-  return state->l;
-}
-
 int
 dp_frame_crc_ok (dp_frame_state_t *state, const uint8_t *rx_bits,
                  size_t rx_bits_len)
@@ -163,10 +156,11 @@ dp_frame_crc_ok (dp_frame_state_t *state, const uint8_t *rx_bits,
 
 /* ── the builder ──────────────────────────────────────────────────────
  *
- * The other way in. dp_frame_create() above takes the four fields wfm_frame_t
- * names; these take one field at a time, so a caller can describe a frame
- * that fixed list cannot hold. Both fill the same `d`, and every method above
- * reads only that -- which is the whole reason the two can share them.
+ * The other way in. dp_frame_create() above takes the common frame's three
+ * fields and its CRC; these take one field at a time, so a caller can describe
+ * a frame that fixed list cannot hold. Both fill the same `d`, and every
+ * method above reads only that -- which is the whole reason the two can share
+ * them.
  */
 
 dp_frame_state_t *
@@ -179,32 +173,21 @@ dp_frame_create_desc (const uint8_t *preamble, size_t preamble_len,
   /* The SAME arguments as dp_frame_create, and that is the flavor: this one
      stops before materialising, so the fields are a STARTING POINT a caller
      extends rather than a finished frame. Omit all three to begin from
-     nothing.
+     nothing -- an EMPTY description rather than an empty payload field,
+     which would take index 0 and push the caller's first real field to 1.
 
      An empty description is therefore legal here and refused there. The
      difference is where completeness can be judged: dp_frame_create()'s
      description is complete when it returns, and this one is not complete
      until dp_frame_build() is called. */
-  if (frame_init (obj, preamble, preamble_len, sync, sync_len, payload,
-                  payload_len, crc)
-      != 0)
+  if (preamble_len + sync_len + payload_len != 0
+      && frame_init (obj, preamble, preamble_len, sync, sync_len, payload,
+                     payload_len, crc)
+             != 0)
     {
       dp_frame_destroy (obj);
       return NULL;
     }
-
-  /* An empty geometry starts an EMPTY description rather than four
-     zero-length fields. dp_wfm_frame_describe always emits its four, which is
-     right there -- it is what keeps `crc_off` at the end of the payload when
-     the trailer is absent -- and wrong here, where a placeholder field would
-     take an index, push the caller's first real field to 4, and leave a
-     description whose field count does not match what anyone wrote. */
-  if (dp_wfm_frame_nbits (&obj->f) != 0)
-    dp_wfm_frame_describe (&obj->f, &obj->d);
-
-  /* `named` stays 0 on purpose: layout()'s NAMED view would go stale the
-     moment a fifth field is appended, and a stale offset is worse than an
-     absent one. A description is read through the indexed accessors. */
   return obj;
 }
 

@@ -82,7 +82,6 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 |  size\_t | [**dp\_frame\_field\_bits**](#function-dp_frame_field_bits) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_Bits in field_ `i` _, or 0 if there is no such field._ |
 |  int | [**dp\_frame\_field\_index**](#function-dp_frame_field_index) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
 |  size\_t | [**dp\_frame\_field\_off**](#function-dp_frame_field_off) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, size\_t i) <br>_Bit offset of field_ `i` _, or 0 if there is no such field._ |
-|  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**dp\_frame\_layout**](#function-dp_frame_layout) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Where each field lands, in bits from the start of the frame._  |
 |  size\_t | [**dp\_frame\_n\_fields**](#function-dp_frame_n_fields) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Fields in the description._  |
 |  size\_t | [**dp\_frame\_n\_stages**](#function-dp_frame_n_stages) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state) <br>_Stages in the description._  |
 |  int | [**dp\_frame\_name\_field**](#function-dp_frame_name_field) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, uint32\_t index, const char \* name) <br>_Give an already-appended field a name, or clear it with_ `""` _._ |
@@ -119,14 +118,14 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 ## Detailed Description
 
 
-This is the RECEIVE half of the frame story. `wfm_frame_t` (`wfm/wfm_frame.h`) is what a generator builds a frame from and what `dp_wfm_frame_crc_ok()` scores a received one against, and until now only C could hold one — so `ber`'s frame meter, which exists precisely to turn CRC outcomes into an exact error-rate interval, had no way to be fed from the language most captures are analysed in.
+This is the RECEIVE half of the frame story. A frame description (`wfm_frame_desc_t`, `wfm/wfm_frame.h`) is what a generator builds a frame from and what `dp_wfm_frame_desc_crc_ok()` scores a received one against, and until now only C could hold one — so `ber`'s frame meter, which exists precisely to turn CRC outcomes into an exact error-rate interval, had no way to be fed from the language most captures are analysed in.
 
 
 ### It owns NO layout
 
 
 
-Every decision — where the CRC sits, that it covers the payload alone and nothing else, that a repeated preamble repeats the SAME bits — stays in `wfm_frame.c`. This object is lifecycle and delegation: it copies the caller's literal arrays so the descriptor outlives the call that made it, materialises the frame once, and hands everything else to `dp_wfm_frame_layout()` / `dp_wfm_frame_bits()` / `dp_wfm_frame_crc_ok()`. Re-deriving any of it here would rebuild exactly the TX/RX drift the descriptor was introduced to stop.
+Every decision — where the CRC sits, that it covers the payload alone and nothing else, that a repeated preamble repeats the SAME bits — stays in `wfm_frame.c`. This object is lifecycle and delegation: it copies the caller's literal arrays so the description outlives the call that made it, describes them with `dp_wfm_frame_fixed()`, materialises the frame once, and hands everything else to `dp_wfm_frame_desc_layout()` / `dp_wfm_frame_assemble()` / `dp_wfm_frame_desc_crc_ok()`. Re-deriving any of it here would rebuild exactly the TX/RX drift the description was introduced to stop.
 
 
 
@@ -615,7 +614,7 @@ The outcome. `passed` is 0 and `checked` is 0 when the description carries no re
 Flip a bit the CRC covers and the verdict turns over:
 
 >>> rx = np.asarray(d.bits(1)).copy()
->>> rx[d.field_off(2)] ^= 1
+>>> rx[d.field_off(d.field_index("payload"))] ^= 1
 >>> d.check(rx).passed
 0
 
@@ -679,7 +678,7 @@ int dp_frame_crc_ok (
 >>> d.crc_ok(d.bits())           # its own bits are its own truth
 1
 >>> rx = np.asarray(d.bits()).copy()
->>> rx[d.field_off(2)] ^= 1      # flip one payload bit
+>>> rx[d.field_off(d.field_index("payload"))] ^= 1   # one payload bit
 >>> d.crc_ok(rx)
 0
 ```
@@ -748,7 +747,7 @@ Caller must call [**dp\_frame\_destroy()**](frame__core_8h.md#function-dp_frame_
 >>> f = Frame(sync=sync, payload=payload, crc="crc16")
 >>> f.nbits                                          # 13 + 16 + 16
 45
->>> f.layout().payload_off
+>>> f.field_off(f.field_index("payload"))
 13
 >>> f.crc_ok(f.bits())        # its own bits are its own truth
 1
@@ -791,7 +790,7 @@ It is also what makes the CCSDS coding reachable from Python at all. `ccsds_tm` 
 An empty description is legal here and refused by [**dp\_frame\_create**](frame__core_8h.md#function-dp_frame_create), and the difference is where completeness can be judged: that constructor's description is complete when it returns, and this one is not complete until [**dp\_frame\_build**](frame__core_8h.md#function-dp_frame_build) is called.
 
 
-[**dp\_frame\_layout**](frame__core_8h.md#function-dp_frame_layout)'s NAMED view reports nothing for a description, on purpose — it would go stale the moment a fifth field is appended, and a stale offset is worse than an absent one. Read a description through [**dp\_frame\_field\_off**](frame__core_8h.md#function-dp_frame_field_off) and its siblings.
+Read either one through [**dp\_frame\_field\_index**](frame__core_8h.md#function-dp_frame_field_index) and the indexed accessors beside it, [**dp\_frame\_field\_off**](frame__core_8h.md#function-dp_frame_field_off) and its siblings.
 
 
 
@@ -884,7 +883,7 @@ Bits written — the frame's length — or 0 if the description is empty or eith
 >>> got = np.asarray(f.deframe(rx))
 >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
 (1, 1, 1)
->>> off = f.layout().payload_off       # the payload is a SLICE
+>>> off = f.field_off(f.field_index("payload"))   # a SLICE
 >>> bool(np.array_equal(got[off:off + 16], payload))
 True
 >>> rx[off] ^= 1                       # one bit flipped in flight
@@ -1005,7 +1004,7 @@ The field's length in bits.
 >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
 >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
 >>> d.build()
->>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
+>>> d.field_bits(0), d.field_bits(1), d.field_bits(2)
 (13, 16, 16)
 ```
  
@@ -1103,67 +1102,15 @@ Bits from the start of the frame.
 >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
 >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
 >>> d.build()
->>> d.field_off(1), d.field_off(2), d.field_off(3)
+>>> d.field_off(0), d.field_off(1), d.field_off(2)
 (0, 13, 29)
 
-Field 0 is the absent preamble: an empty field still HAS an index, so the
-indices a caller passed to `add_field` keep meaning what they meant.
+An absent field has no index: no preamble was given, so field 0 is the
+sync word. Ask for a field by name rather than by position, and an index
+past the end is 0.
 
->>> d.field_off(0), d.field_bits(0)
-(0, 0)
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function dp\_frame\_layout 
-
-_Where each field lands, in bits from the start of the frame._ 
-```C++
-wfm_frame_layout_t dp_frame_layout (
-    dp_frame_state_t * state
-) 
-```
-
-
-
-The offsets a receiver needs to slice a capture, computed by the same code the generator laid the frame out with.
-
-
-
-
-**Parameters:**
-
-
-* `state` The frame. 
-
-
-
-**Returns:**
-
-Where each named field lands.
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.wfm import Frame
->>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
->>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
->>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
->>> lay.sync_off, lay.payload_off, lay.crc_off
-(0, 13, 29)
->>> lay.total_bits
-45
-
-This is the NAMED view, so it reports the four fields a `Frame` is built
-from. A description assembled with `add_field` reports zeros here and is
-read with `field_off()` / `field_bits()` instead.
+>>> d.field_off(d.field_index("crc")), d.field_off(7)
+(29, 0)
 ```
  
 
@@ -1206,8 +1153,8 @@ How many fields the description carries.
 >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
 >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
 >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
->>> d.n_fields()          # the four named fields, absent ones included
-4
+>>> d.n_fields()          # sync, payload, crc -- no preamble was given
+3
 ```
  
 

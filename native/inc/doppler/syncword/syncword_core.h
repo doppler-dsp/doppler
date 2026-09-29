@@ -25,8 +25,8 @@
  * in this module.
  *
  * Bit convention: **unpacked** bits, one per byte in the LSB, which is what
- * `dp_wfm_frame_bits`, `dp_crc16_ccitt` and `dp_ccsds_tm_randomise` already pass
- * around.
+ * `dp_wfm_frame_assemble`, `dp_crc16_ccitt` and `dp_ccsds_tm_randomise`
+ * already pass around.
  *
  * Lifecycle: `create -> [find / pfa / max_errors_for]* -> destroy`.
  *

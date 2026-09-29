@@ -2,22 +2,23 @@
  * @file frame_core.h
  * @brief A frame's bit layout, held as an object so Python can describe one.
  *
- * This is the RECEIVE half of the frame story. `wfm_frame_t`
- * (`wfm/wfm_frame.h`) is what a generator builds a frame from and what
- * `dp_wfm_frame_crc_ok()` scores a received one against, and until now only C
- * could hold one — so `ber`'s frame meter, which exists precisely to turn CRC
- * outcomes into an exact error-rate interval, had no way to be fed from the
- * language most captures are analysed in.
+ * This is the RECEIVE half of the frame story. A frame description
+ * (`wfm_frame_desc_t`, `wfm/wfm_frame.h`) is what a generator builds a frame
+ * from and what `dp_wfm_frame_desc_crc_ok()` scores a received one against,
+ * and until now only C could hold one — so `ber`'s frame meter, which exists
+ * precisely to turn CRC outcomes into an exact error-rate interval, had no
+ * way to be fed from the language most captures are analysed in.
  *
  * ## It owns NO layout
  *
  * Every decision — where the CRC sits, that it covers the payload alone and
  * nothing else, that a repeated preamble repeats the SAME bits — stays in
  * `wfm_frame.c`. This object is lifecycle and delegation: it copies the
- * caller's literal arrays so the descriptor outlives the call that made it,
- * materialises the frame once, and hands everything else to
- * `dp_wfm_frame_layout()` / `dp_wfm_frame_bits()` / `dp_wfm_frame_crc_ok()`. Re-deriving
- * any of it here would rebuild exactly the TX/RX drift the descriptor was
+ * caller's literal arrays so the description outlives the call that made it,
+ * describes them with `dp_wfm_frame_fixed()`, materialises the frame once,
+ * and hands everything else to `dp_wfm_frame_desc_layout()` /
+ * `dp_wfm_frame_assemble()` / `dp_wfm_frame_desc_crc_ok()`. Re-deriving any
+ * of it here would rebuild exactly the TX/RX drift the description was
  * introduced to stop.
  *
  * ## It takes BITS
@@ -79,9 +80,9 @@ extern "C" {
  */
 typedef struct {
     /** The DESCRIPTION — fields and stages — which is what everything here
-        delegates on. `wfm_frame_t` is one configuration of it, so the
-        thirty-odd-argument constructor and the field-by-field builder produce
-        the same kind of thing and share every method below. Its `bits`
+        delegates on. The constructor describes the common frame through
+        `dp_wfm_frame_fixed()` and the builder appends field by field, so the
+        two produce the same kind of thing and share every method below. Its `bits`
         pointers address the owned copies, never the caller's arrays: a Python
         buffer is released the moment the call that supplied it returns. */
     wfm_frame_desc_t d;
@@ -97,16 +98,6 @@ typedef struct {
     int rx_units;
     int rx_ok;
     int rx_symbols;
-    /** The four-field configuration, kept only when the object was built that
-        way — it is what `layout()`'s NAMED view reports. A description built
-        field by field has no preamble/sync/payload/crc to name, and
-        `layout()` says so by reporting a zero `total_bits` rather than
-        inventing offsets for fields that do not exist. */
-    wfm_frame_t f;
-    /** Computed at create for the configured path; zero otherwise. */
-    wfm_frame_layout_t l;
-    /** Non-zero once the configured path filled `f` and `l`. */
-    int named;
     /** Owned copies of every literal field; NULL for a generated kind. */
     uint8_t *own[WFM_FRAME_MAX_FIELDS];
     /** One materialised frame, built at create (configured) or at `build()`
@@ -146,7 +137,7 @@ typedef struct {
  * >>> f = Frame(sync=sync, payload=payload, crc="crc16")
  * >>> f.nbits                                          # 13 + 16 + 16
  * 45
- * >>> f.layout().payload_off
+ * >>> f.field_off(f.field_index("payload"))
  * 13
  * >>> f.crc_ok(f.bits())        # its own bits are its own truth
  * 1
@@ -202,34 +193,6 @@ size_t dp_frame_bits_max_out(dp_frame_state_t *state, size_t n);
 size_t dp_frame_bits(dp_frame_state_t *state, size_t n, uint8_t *out, size_t max_out);
 
 /**
- * @brief Where each field lands, in bits from the start of the frame.
- *
- * The offsets a receiver needs to slice a capture, computed by the same code
- * the generator laid the frame out with.
- *
- * @param state  The frame.
- * @return Where each named field lands.
- *
- * @code
- * >>> import numpy as np
- * >>> from doppler.wfm import Frame
- * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
- * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
- * >>> lay = Frame(sync=sync, payload=payload, crc="crc16").layout()
- * >>> lay.sync_off, lay.payload_off, lay.crc_off
- * (0, 13, 29)
- * >>> lay.total_bits
- * 45
- *
- * This is the NAMED view, so it reports the four fields a `Frame` is built
- * from. A description assembled with `add_field` reports zeros here and is
- * read with `field_off()` / `field_bits()` instead.
- *
- * @endcode
- */
-wfm_frame_layout_t dp_frame_layout(dp_frame_state_t *state);
-
-/**
  * @brief Check one received frame's CRC.
  *
  * **This is what makes a truth-free frame error rate possible.** It needs no
@@ -253,7 +216,7 @@ wfm_frame_layout_t dp_frame_layout(dp_frame_state_t *state);
  * >>> d.crc_ok(d.bits())           # its own bits are its own truth
  * 1
  * >>> rx = np.asarray(d.bits()).copy()
- * >>> rx[d.field_off(2)] ^= 1      # flip one payload bit
+ * >>> rx[d.field_off(d.field_index("payload"))] ^= 1   # one payload bit
  * >>> d.crc_ok(rx)
  * 0
  *
@@ -286,10 +249,8 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
  * description is complete when it returns, and this one is not complete until
  * @ref dp_frame_build is called.
  *
- * @ref dp_frame_layout's NAMED view reports nothing for a description, on
- * purpose — it would go stale the moment a fifth field is appended, and a
- * stale offset is worse than an absent one. Read a description through
- * @ref dp_frame_field_off and its siblings.
+ * Read either one through @ref dp_frame_field_index and the indexed
+ * accessors beside it, @ref dp_frame_field_off and its siblings.
  *
  * @return An unbuilt description, or NULL if an element is not a bit.
  *
@@ -638,7 +599,7 @@ typedef struct {
  * Flip a bit the CRC covers and the verdict turns over:
  *
  * >>> rx = np.asarray(d.bits(1)).copy()
- * >>> rx[d.field_off(2)] ^= 1
+ * >>> rx[d.field_off(d.field_index("payload"))] ^= 1
  * >>> d.check(rx).passed
  * 0
  *
@@ -696,7 +657,7 @@ frame_check_t dp_frame_check(dp_frame_state_t *state, const uint8_t *rx_bits, si
  * >>> got = np.asarray(f.deframe(rx))
  * >>> f.rx_ok, f.rx_units, f.rx_checked  # one CRC, and it passed
  * (1, 1, 1)
- * >>> off = f.layout().payload_off       # the payload is a SLICE
+ * >>> off = f.field_off(f.field_index("payload"))   # a SLICE
  * >>> bool(np.array_equal(got[off:off + 16], payload))
  * True
  * >>> rx[off] ^= 1                       # one bit flipped in flight
@@ -736,8 +697,8 @@ size_t dp_frame_deframe_max_out(dp_frame_state_t *state, size_t rx_bits_len);
  * >>> sync = np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8)
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
  * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
- * >>> d.n_fields()          # the four named fields, absent ones included
- * 4
+ * >>> d.n_fields()          # sync, payload, crc -- no preamble was given
+ * 3
  *
  * @endcode
  */
@@ -776,14 +737,15 @@ size_t dp_frame_n_stages(dp_frame_state_t *state);
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
  * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
- * >>> d.field_off(1), d.field_off(2), d.field_off(3)
+ * >>> d.field_off(0), d.field_off(1), d.field_off(2)
  * (0, 13, 29)
  *
- * Field 0 is the absent preamble: an empty field still HAS an index, so the
- * indices a caller passed to `add_field` keep meaning what they meant.
+ * An absent field has no index: no preamble was given, so field 0 is the
+ * sync word. Ask for a field by name rather than by position, and an index
+ * past the end is 0.
  *
- * >>> d.field_off(0), d.field_bits(0)
- * (0, 0)
+ * >>> d.field_off(d.field_index("crc")), d.field_off(7)
+ * (29, 0)
  *
  * @endcode
  */
@@ -802,7 +764,7 @@ size_t dp_frame_field_off(dp_frame_state_t *state, size_t i);
  * >>> payload = np.array([0,1,1,0,1,0,0,1,1,1,0,0,0,1,0,1], np.uint8)
  * >>> d = FrameDesc(sync=sync, payload=payload, crc="crc16")
  * >>> d.build()
- * >>> d.field_bits(1), d.field_bits(2), d.field_bits(3)
+ * >>> d.field_bits(0), d.field_bits(1), d.field_bits(2)
  * (13, 16, 16)
  *
  * @endcode

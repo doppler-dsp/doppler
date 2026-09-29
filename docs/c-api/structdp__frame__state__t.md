@@ -38,9 +38,6 @@ _Frame state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) | [**d**](#variable-d)  <br> |
 |  [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) | [**dl**](#variable-dl)  <br> |
-|  [**wfm\_frame\_t**](structwfm__frame__t.md) | [**f**](#variable-f)  <br> |
-|  [**wfm\_frame\_layout\_t**](structwfm__frame__layout__t.md) | [**l**](#variable-l)  <br> |
-|  int | [**named**](#variable-named)  <br> |
 |  size\_t | [**nbits**](#variable-nbits)  <br> |
 |  uint8\_t \* | [**one**](#variable-one)  <br> |
 |  uint8\_t \* | [**own**](#variable-own)  <br> |
@@ -112,7 +109,7 @@ wfm_frame_desc_t dp_frame_state_t::d;
 
 
 
-The DESCRIPTION — fields and stages — which is what everything here delegates on. `wfm_frame_t` is one configuration of it, so the thirty-odd-argument constructor and the field-by-field builder produce the same kind of thing and share every method below. Its `bits` pointers address the owned copies, never the caller's arrays: a Python buffer is released the moment the call that supplied it returns. 
+The DESCRIPTION — fields and stages — which is what everything here delegates on. The constructor describes the common frame through `dp_wfm_frame_fixed()` and the builder appends field by field, so the two produce the same kind of thing and share every method below. Its `bits` pointers address the owned copies, never the caller's arrays: a Python buffer is released the moment the call that supplied it returns. 
 
 
         
@@ -130,57 +127,6 @@ wfm_frame_desc_layout_t dp_frame_state_t::dl;
 
 
 The general layout, derived at build. 
-
-
-        
-
-<hr>
-
-
-
-### variable f 
-
-```C++
-wfm_frame_t dp_frame_state_t::f;
-```
-
-
-
-The four-field configuration, kept only when the object was built that way — it is what `layout()`'s NAMED view reports. A description built field by field has no preamble/sync/payload/crc to name, and `layout()` says so by reporting a zero `total_bits` rather than inventing offsets for fields that do not exist. 
-
-
-        
-
-<hr>
-
-
-
-### variable l 
-
-```C++
-wfm_frame_layout_t dp_frame_state_t::l;
-```
-
-
-
-Computed at create for the configured path; zero otherwise. 
-
-
-        
-
-<hr>
-
-
-
-### variable named 
-
-```C++
-int dp_frame_state_t::named;
-```
-
-
-
-Non-zero once the configured path filled `f` and `l`. 
 
 
         

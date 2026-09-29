@@ -2,6 +2,15 @@
 
 ## Get it!
 
+!!! note
+
+    Isolate your install from system python with a virtual environment!
+
+    ```bash
+    python3 -m venv .venv
+    . .venv/bin/activate
+    ```
+
 ```bash
 pip install doppler-dsp
 ```
@@ -192,6 +201,16 @@ stream — the CLI and the Python API produce byte-identical output:
 wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32                    # a single waveform
 wfmgen --from-file scenario.json -o scenario.cf32                             # a multi-segment scene
 wfmgen --type qpsk --continuous --realtime --output nats://127.0.0.1:4222/iq  # stream to NATS
+```
+
+The same waveform from Python:
+
+```python
+from doppler.wfm import Synth
+
+synth = Synth(type="qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, seed=1)
+iq = synth.steps(4096)   # complex64 ndarray
+print(f"generated {len(iq)} QPSK samples")
 ```
 
 See [Waveform Generator (wfmgen)](guide/wfmgen/index.md) for scenes,

@@ -371,7 +371,8 @@ add_test(NAME validate_wfmgen_certify COMMAND validate_wfmgen_certify --check)
 add_executable(validate_wfm_field_explore
                ${CMAKE_CURRENT_SOURCE_DIR}/wfm_field_explore.c)
 target_include_directories(validate_wfm_field_explore
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_wfm_field_explore PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 add_test(NAME validate_wfm_field_explore
          COMMAND validate_wfm_field_explore --check)

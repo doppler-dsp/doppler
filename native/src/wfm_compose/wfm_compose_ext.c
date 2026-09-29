@@ -1459,7 +1459,13 @@ Synth_set_fs (SynthObject *self, PyObject *value, void *closure)
 }
 
 static PyGetSetDef Synth_getset[] = {
-  { "type", (getter)Synth_get_type, (setter)Synth_set_type, "Waveform type.\n",
+  { "type", (getter)Synth_get_type, (setter)Synth_set_type,
+    "Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence "
+    "(LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: a "
+    "caller's bit pattern, with selectable modulation. symbols: a caller's "
+    "complex constellation stream. dsss: spread spectrum -- a two-code burst "
+    "(repeated preamble + data-code-spread frame) by default, or a continuous "
+    "asynchronous stream when symbol_rate is set.\n",
     NULL },
   { "freq", (getter)Synth_get_freq, (setter)Synth_set_freq,
     "Carrier or offset frequency in Hz; for chirp, the sweep start. With fs = "
@@ -1470,25 +1476,37 @@ static PyGetSetDef Synth_getset[] = {
     "clean: no AWGN is added.\n",
     NULL },
   { "snr_mode", (getter)Synth_get_snr_mode, (setter)Synth_set_snr_mode,
-    "How snr is interpreted. auto picks fs (the full sample-rate band) for "
-    "tone/pn/chirp/bits and Es/No for bpsk/qpsk.\n",
+    "How snr is interpreted. auto: Es/N0 for bpsk/qpsk/dsss, and relative to "
+    "full scale for tone/noise/pn/chirp/bits/symbols -- bits included, "
+    "because a bits frame has no symbol rate the engine can infer. fs: dB "
+    "relative to full scale. ebno: Eb/N0, per bit. esno: Es/N0, per symbol; "
+    "for a dsss burst the outer data symbol of len(data_code) chips x sps "
+    "samples, for a continuous dsss stream the fs/symbol_rate samples the "
+    "async symbol spans.\n",
     NULL },
   { "seed", (getter)Synth_get_seed, (setter)Synth_set_seed,
     "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it "
     "for run-to-run change.\n",
     NULL },
   { "sps", (getter)Synth_get_sps, (setter)Synth_set_sps,
-    "Samples per symbol (PSK) or per chip (PN): the oversampling factor.\n",
+    "Samples per symbol (PSK) or per chip (PN): the oversampling factor. "
+    "Unused by noise, which records it as 0.\n",
     NULL },
   { "pn_length", (getter)Synth_get_pn_length, (setter)Synth_set_pn_length,
-    "PN LFSR register length; the sequence period is 2^pn_length - 1.\n",
+    "PN LFSR register length in bits, 2 to 64 for the PN-bearing types; the "
+    "sequence period is 2^pn_length - 1. Unused by noise, which records it as "
+    "0.\n",
     NULL },
   { "pn_poly", (getter)Synth_get_pn_poly, (setter)Synth_set_pn_poly,
-    "PN generator polynomial; 0 selects a maximal-length (MLS) polynomial for "
-    "pn_length.\n",
+    "PN generator polynomial, in the Galois bit-vector convention; 0 selects "
+    "a maximal-length (MLS) polynomial for pn_length. A polynomial above 2^53 "
+    "does not survive a JSON number, so a scene file needs 0 (auto) for such "
+    "a register.\n",
     NULL },
   { "lfsr", (getter)Synth_get_lfsr, (setter)Synth_set_lfsr,
-    "PN LFSR realisation: the same period, a different chip order.\n", NULL },
+    "PN LFSR realisation. Both give the same period; fibonacci's chips are "
+    "galois's in reverse order.\n",
+    NULL },
   { "level", (getter)Synth_get_level, (setter)Synth_set_level,
     "Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a "
     "Segment or Composer, as a gain of 10^(level/20); a standalone "
@@ -1556,16 +1574,20 @@ static PyGetSetDef Synth_getset[] = {
     "frame.\n",
     NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
-    "Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.\n",
+    "Symbol mapping of a bits pattern. none: the pattern shaped and output "
+    "as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of "
+    "bits.\n",
     NULL },
   { "pulse", (getter)Synth_get_pulse, (setter)Synth_set_pulse,
-    "Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect "
-    "sample-and-hold or rrc matched filter.\n",
+    "Pulse shape per symbol or chip, for pn/bpsk/qpsk/bits/symbols/dsss. "
+    "rect: rectangular, no ISI filtering. rrc: root-raised cosine; see "
+    "rrc_beta and rrc_span.\n",
     NULL },
   { "rrc_beta", (getter)Synth_get_rrc_beta, (setter)Synth_set_rrc_beta,
     "RRC roll-off factor, in (0, 1], when pulse=rrc.\n", NULL },
   { "rrc_span", (getter)Synth_get_rrc_span, (setter)Synth_set_rrc_span,
-    "RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.\n",
+    "RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has "
+    "2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).\n",
     NULL },
   { "symbols", (getter)Synth_get_symbols, (setter)Synth_set_symbols,
     "For type=symbols: a complex constellation stream. Each element is the "
@@ -2774,12 +2796,15 @@ Segment_add (SegmentObject *self, PyObject *args)
 static PyGetSetDef Segment_getset[] = {
   { "sources", (getter)Segment_get_sources, NULL, NULL, NULL },
   { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs,
-    "Sample rate in Hz, one per segment and shared by all its sources. With "
-    "fs = 1, frequencies are normalised.\n",
+    "Sample rate in Hz, one per segment and shared by all its sources. At the "
+    "default 1.0 every frequency is normalised (cycles per sample); state it "
+    "whenever a scene is in real Hz.\n",
     NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
-    "Segment on-time in samples: the active span.\n", NULL },
+    "Segment on-time in samples: the synth runs for exactly this many samples "
+    "before the trailing gap.\n",
+    NULL },
   { "off_samples", (getter)Segment_get_off_samples,
     (setter)Segment_set_off_samples,
     "Trailing gap after the on-time, in samples. It carries the noise floor "
@@ -2794,9 +2819,10 @@ static PyGetSetDef Segment_getset[] = {
   { "delay_samples", (getter)Segment_get_delay_samples,
     (setter)Segment_set_delay_samples,
     "Leading gap before the on-time, in samples: the burst arrives after this "
-    "delay. Ranged like off_samples and re-drawn per repeats instance, so a "
-    "(lo, hi) delay is per-burst arrival jitter. Use off_samples for "
-    "inter-burst spacing, delay_samples for arrival jitter.\n",
+    "delay, and the gap carries the noise floor like off_samples. Ranged like "
+    "off_samples and re-drawn per repeats instance, so a (lo, hi) delay is "
+    "per-burst arrival jitter. Use off_samples for inter-burst spacing, "
+    "delay_samples for arrival jitter.\n",
     NULL },
   { "gap_noise", (getter)Segment_get_gap_noise, (setter)Segment_set_gap_noise,
     "Gap policy for this segment's delay and trailing gap. auto: gaps carry "
@@ -2804,7 +2830,14 @@ static PyGetSetDef Segment_getset[] = {
     "signal stops (clean scenes still get exact-zero gaps). off: gaps are "
     "hard zeros.\n",
     NULL },
-  { "type", (getter)Segment_flat_type, NULL, "Waveform type.\n", NULL },
+  { "type", (getter)Segment_flat_type, NULL,
+    "Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence "
+    "(LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: a "
+    "caller's bit pattern, with selectable modulation. symbols: a caller's "
+    "complex constellation stream. dsss: spread spectrum -- a two-code burst "
+    "(repeated preamble + data-code-spread frame) by default, or a continuous "
+    "asynchronous stream when symbol_rate is set.\n",
+    NULL },
   { "freq", (getter)Segment_flat_freq, NULL,
     "Carrier or offset frequency in Hz; for chirp, the sweep start. With fs = "
     "1 it is in normalised cycles per sample.\n",
@@ -2814,25 +2847,37 @@ static PyGetSetDef Segment_getset[] = {
     "clean: no AWGN is added.\n",
     NULL },
   { "snr_mode", (getter)Segment_flat_snr_mode, NULL,
-    "How snr is interpreted. auto picks fs (the full sample-rate band) for "
-    "tone/pn/chirp/bits and Es/No for bpsk/qpsk.\n",
+    "How snr is interpreted. auto: Es/N0 for bpsk/qpsk/dsss, and relative to "
+    "full scale for tone/noise/pn/chirp/bits/symbols -- bits included, "
+    "because a bits frame has no symbol rate the engine can infer. fs: dB "
+    "relative to full scale. ebno: Eb/N0, per bit. esno: Es/N0, per symbol; "
+    "for a dsss burst the outer data symbol of len(data_code) chips x sps "
+    "samples, for a continuous dsss stream the fs/symbol_rate samples the "
+    "async symbol spans.\n",
     NULL },
   { "seed", (getter)Segment_flat_seed, NULL,
     "PRNG and LFSR seed for the noise and PN streams. Deterministic: vary it "
     "for run-to-run change.\n",
     NULL },
   { "sps", (getter)Segment_flat_sps, NULL,
-    "Samples per symbol (PSK) or per chip (PN): the oversampling factor.\n",
+    "Samples per symbol (PSK) or per chip (PN): the oversampling factor. "
+    "Unused by noise, which records it as 0.\n",
     NULL },
   { "pn_length", (getter)Segment_flat_pn_length, NULL,
-    "PN LFSR register length; the sequence period is 2^pn_length - 1.\n",
+    "PN LFSR register length in bits, 2 to 64 for the PN-bearing types; the "
+    "sequence period is 2^pn_length - 1. Unused by noise, which records it as "
+    "0.\n",
     NULL },
   { "pn_poly", (getter)Segment_flat_pn_poly, NULL,
-    "PN generator polynomial; 0 selects a maximal-length (MLS) polynomial for "
-    "pn_length.\n",
+    "PN generator polynomial, in the Galois bit-vector convention; 0 selects "
+    "a maximal-length (MLS) polynomial for pn_length. A polynomial above 2^53 "
+    "does not survive a JSON number, so a scene file needs 0 (auto) for such "
+    "a register.\n",
     NULL },
   { "lfsr", (getter)Segment_flat_lfsr, NULL,
-    "PN LFSR realisation: the same period, a different chip order.\n", NULL },
+    "PN LFSR realisation. Both give the same period; fibonacci's chips are "
+    "galois's in reverse order.\n",
+    NULL },
   { "level", (getter)Segment_flat_level, NULL,
     "Source power in dBFS (<= 0; 0 is unit power). Applies when summed in a "
     "Segment or Composer, as a gain of 10^(level/20); a standalone "
@@ -2898,16 +2943,20 @@ static PyGetSetDef Segment_getset[] = {
     "frame.\n",
     NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL,
-    "Symbol mapping of a bits pattern: none (0/1 amplitude), bpsk or qpsk.\n",
+    "Symbol mapping of a bits pattern. none: the pattern shaped and output "
+    "as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of "
+    "bits.\n",
     NULL },
   { "pulse", (getter)Segment_flat_pulse, NULL,
-    "Pulse shape for the pn/bpsk/qpsk/bits symbol stream: rect "
-    "sample-and-hold or rrc matched filter.\n",
+    "Pulse shape per symbol or chip, for pn/bpsk/qpsk/bits/symbols/dsss. "
+    "rect: rectangular, no ISI filtering. rrc: root-raised cosine; see "
+    "rrc_beta and rrc_span.\n",
     NULL },
   { "rrc_beta", (getter)Segment_flat_rrc_beta, NULL,
     "RRC roll-off factor, in (0, 1], when pulse=rrc.\n", NULL },
   { "rrc_span", (getter)Segment_flat_rrc_span, NULL,
-    "RRC filter span in symbols when pulse=rrc; taps = 2*span*sps + 1.\n",
+    "RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has "
+    "2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).\n",
     NULL },
   { "symbols", (getter)Segment_flat_symbols, NULL,
     "For type=symbols: a complex constellation stream. Each element is the "

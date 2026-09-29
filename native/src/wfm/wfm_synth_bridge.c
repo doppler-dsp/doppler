@@ -242,6 +242,21 @@ type_can_frame (const wfm_source_t *src)
 }
 
 int
+dp_wfm_source_synth_type (const wfm_source_t *src)
+{
+  /* Exactly the sources dp_wfm_source_attach_frame hands a FRAME to, less
+     BITS (already one). A framed bpsk/qpsk/pn transmits the frame, and the
+     only synth that plays a bit pattern is a BITS one -- set_bits is a no-op
+     on any other -- so a synth created with the source's own type played
+     its LFSR and dropped the frame (doppler#1616). The mapping the type
+     names still reaches the wire: attach_frame passes frame_modulation(). */
+  if (src->type != WFM_SYNTH_BITS && type_can_frame (src)
+      && dp_wfm_source_has_frame (src) && (src->payload.len || src->frame))
+    return WFM_SYNTH_BITS;
+  return src->type;
+}
+
+int
 dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
 {
   /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
@@ -447,8 +462,9 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   int    snr_mode = 0;
   double snr_c    = dp_wfm_source_create_snr (src, fs, src->snr, &snr_mode);
   dp_wfm_synth_state_t *eng = dp_wfm_synth_create (
-      src->type, fs, src->freq, snr_c, snr_mode, src->seed, src->sps,
-      src->pn_length, src->pn_poly, src->lfsr, src->f_end);
+      dp_wfm_source_synth_type (src), fs, src->freq, snr_c, snr_mode,
+      src->seed, src->sps, src->pn_length, src->pn_poly, src->lfsr,
+      src->f_end);
   if (!eng)
     return NULL;
   dp_wfm_synth_set_chirp_span (eng, src->span); /* no-op for non-chirp */

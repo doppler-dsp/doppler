@@ -54,7 +54,9 @@ static int
 test_the_create_snr_seam (void)
 {
   /* ── every non-dsss type passes through UNCHANGED, mode included ─────
-     The pre-referral exists for one type. For the rest, touching either
+     The pre-referral exists for dsss, and for a FRAMED PN-sourced type
+     (built as BITS -- test_a_framed_pn_type_sends_its_frame). These
+     sources are unframed. For the rest, touching either
      value here would silently move the noise of every composed source,
      and the generator's own conversion would then be applied twice. */
   {
@@ -729,6 +731,126 @@ test_a_carried_frame_survives_the_scene_json (void)
 #undef FRAME_SCENE
 
   printf ("  a carried frame survives the scene json\n");
+  return 0;
+}
+
+/* ── a framed bpsk/qpsk/pn puts its FRAME on the wire (doppler#1616) ────
+ *
+ * gh-762 made the PN-sourced types frameable: `frame_modulation()` names
+ * their mapping and `dp_wfm_source_frame_error()` passes them. But the
+ * synth was created with the source's own type, and `set_bits` is a no-op
+ * for anything but a BITS synth -- so the frame was assembled, handed over
+ * and dropped, and the waveform was the LFSR stream. No test read one back
+ * off the wire.
+ *
+ * The truth for bpsk is the issue's own reproduction, read off the CLI's
+ * `--type bits --modulation bpsk` twin: Barker-13 | 10110011 | CRC-16. For
+ * every type the twin is `bits` with the modulation the type names, sample
+ * for sample, on BOTH construction faces -- clean, and noisy in the type's
+ * own SNR reference, so the noise a framed bpsk gets is still Es/N0.
+ */
+static int
+test_a_framed_pn_type_sends_its_frame (void)
+{
+  static const uint8_t barker[13] = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1 };
+  static const uint8_t pay[8]     = { 1, 0, 1, 1, 0, 0, 1, 1 };
+  static const char    want[]     = "1111100110101101100110111011001001000";
+  const size_t         nw         = sizeof want - 1u; /* 13 + 8 + 16 */
+
+  wfm_source_t src = { 0 };
+  src.type         = WFM_SYNTH_BPSK;
+  src.sps          = 1;
+  src.seed         = 5;
+  src.pn_length    = 7;
+  src.snr          = 100.0;
+  src.crc          = 1; /* crc16 */
+  src.sync.kind    = WFM_SEQ_LITERAL;
+  src.sync.bits    = barker;
+  src.sync.len     = sizeof barker;
+  src.payload.kind = WFM_SEQ_LITERAL;
+  src.payload.bits = pay;
+  src.payload.len  = sizeof pay;
+  DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) == NULL,
+                  "precondition: a framed bpsk is a shape the rule accepts");
+
+  uint8_t got[64];
+  DP_REQUIRE_MSG (wire_bits (&src, got, nw) == nw, "framed bpsk builds");
+  int same = 1;
+  for (size_t i = 0; i < nw; i++)
+    same &= (got[i] == (uint8_t)(want[i] - '0'));
+  DP_CHECK_MSG (same, "a framed --type bpsk sends Barker-13 | payload | "
+                      "CRC-16 -- the frame, not its own PN stream (#1616)");
+
+  const size_t    n = 4u * nw * 4u; /* four frames at sps 4 */
+  float _Complex *a = malloc (n * sizeof *a);
+  float _Complex *b = malloc (n * sizeof *b);
+  DP_REQUIRE_MSG (a && b, "framed pn: alloc");
+  const struct
+  {
+    int type, modulation;
+  } T[]
+      = { { WFM_SYNTH_BPSK, 1 }, { WFM_SYNTH_QPSK, 2 }, { WFM_SYNTH_PN, 1 } };
+  for (size_t t = 0; t < sizeof T / sizeof T[0]; t++)
+    for (int noisy = 0; noisy <= 2; noisy++)
+      {
+        /* clean; noisy in auto (Es/N0 for bpsk/qpsk, fs for pn -- a BITS
+           synth's own auto is fs); noisy in Eb/No, where qpsk's two bits
+           per symbol count and a BITS synth's one would not. */
+        wfm_source_t s = src;
+        s.type         = T[t].type;
+        s.sps          = 4;
+        s.snr          = noisy ? 9.0 : 100.0;
+        s.snr_mode     = noisy == 2 ? 2 : 0;
+
+        /* The twin: the same frame as a `bits` source with the mapping the
+           type names, its noise stated over fs -- what the TYPE's own
+           reference resolves to, through the shared conversion. */
+        wfm_source_t tw = s;
+        tw.type         = WFM_SYNTH_BITS;
+        tw.modulation   = T[t].modulation;
+        tw.snr_mode     = noisy ? 1 : 0;
+        tw.snr = noisy ? dp_wfm_snr_over_fs (s.snr_mode, s.type, s.sps, 0, 0.0,
+                                             s.snr)
+                       : 100.0;
+
+        dp_wfm_synth_state_t *twin = dp_wfm_compose_build_synth (
+            &tw, 1e6, n, 0.0, tw.snr, 0.0, 0, 0, 0);
+        dp_wfm_synth_state_t *comp = dp_wfm_compose_build_synth (
+            &s, 1e6, n, 0.0, s.snr, 0.0, 0, 0, 0);
+        dp_wfm_synth_state_t *bridge = dp_wfm_source_to_synth (&s, 1e6);
+        DP_REQUIRE_MSG (twin && comp && bridge, "framed pn: all build");
+
+        dp_wfm_synth_steps (twin, a, n);
+        dp_wfm_synth_steps (comp, b, n);
+        DP_CHECK_MSG (memcmp (a, b, n * sizeof *a) == 0,
+                      "composer: a framed bpsk/qpsk/pn is its `bits` twin, "
+                      "sample for sample, noise included");
+        dp_wfm_synth_steps (bridge, b, n);
+        DP_CHECK_MSG (memcmp (a, b, n * sizeof *a) == 0,
+                      "standalone: and so is the bridge's synth");
+        dp_wfm_synth_destroy (twin);
+        dp_wfm_synth_destroy (comp);
+        dp_wfm_synth_destroy (bridge);
+      }
+
+  /* An UNFRAMED bpsk keeps its PN stream: the switch is the frame's, not
+     the type's. A bridge that made every bpsk a BITS synth would pass
+     everything above and silence every unframed PN source. */
+  {
+    wfm_source_t u = src;
+    memset (&u.sync, 0, sizeof u.sync);
+    DP_REQUIRE (!dp_wfm_source_has_frame (&u));
+    wfm_source_t plain = u;
+    memset (&plain.payload, 0, sizeof plain.payload);
+    DP_REQUIRE (wire_bits (&u, got, 32) == 32);
+    uint8_t ref[32];
+    DP_REQUIRE (wire_bits (&plain, ref, 32) == 32);
+    DP_CHECK_MSG (memcmp (got, ref, 32) == 0,
+                  "an unframed bpsk still emits its own PN stream");
+  }
+  free (a);
+  free (b);
+  printf ("  a framed bpsk/qpsk/pn sends its frame\n");
   return 0;
 }
 
@@ -3659,6 +3781,8 @@ main (void)
   if (test_a_source_carries_the_frame_a_caller_built ())
     return 1;
   if (test_a_carried_frame_survives_the_scene_json ())
+    return 1;
+  if (test_a_framed_pn_type_sends_its_frame ())
     return 1;
 
   printf (

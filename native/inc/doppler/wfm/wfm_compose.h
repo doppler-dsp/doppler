@@ -611,8 +611,9 @@ double dp_wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
  * and the standalone-Synth bridge (`dp_wfm_source_to_synth`), so every face agrees
  * to the bit — converts a dsss source's SNR to the over-fs reference (via
  * `dp_wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream
- * uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes
- * through unchanged.
+ * uses `fs/symbol_rate`) and returns `snr_mode=fs`. A framed `bpsk`/`qpsk`/`pn`
+ * is referred the same way, because its synth is created as BITS
+ * (dp_wfm_source_synth_type()). Every other source passes through unchanged.
  *
  * @param src      The source (supplies type/sps/snr_mode/n_data_code/
  *                 symbol_rate).
@@ -681,11 +682,11 @@ size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
  * of them, so a caller who asked for a framed waveform silently got an
  * unframed one.
  *
- * A frame needs a payload, and the unspread types that source their symbols
- * from the PN LFSR (`bpsk`/`qpsk`/`pn`) have no length to bound one. So the
- * frame is honoured where the payload is EXPLICIT — `type=bits` with a
- * pattern, which `modulation` already maps to BPSK or QPSK — and refused with
- * a reason everywhere else.
+ * A frame needs a payload. `type=bits` and the PN-sourced `bpsk`/`qpsk`/`pn`
+ * carry one when a payload is given (literal or generated, gh-762); the
+ * latter are then built as a BITS synth (dp_wfm_source_synth_type()).
+ * Types with no bit stream (tone, noise, chirp, symbols) are refused with a
+ * reason.
  *
  * @param src  The source.
  * @return NULL if there is nothing wrong, else a static message.
@@ -711,6 +712,32 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
  * @return 0 on success (or a non-bits/no-pattern no-op); -1 on failure.
  */
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
+
+/**
+ * @brief The synth type to create this source with.
+ *
+ * The source's own type, except for a FRAMED `bpsk`/`qpsk`/`pn`: that one
+ * transmits its frame, and the only synth that plays a bit pattern is a
+ * `WFM_SYNTH_BITS` one (`dp_wfm_synth_set_bits()` is a no-op on any other),
+ * so it is created as BITS and dp_wfm_source_attach_frame() hands it the
+ * frame with the mapping the type names (bpsk for `bpsk`/`pn`, Gray QPSK for
+ * `qpsk`). Created with its own type it played the LFSR stream and dropped
+ * the frame (doppler#1616).
+ *
+ * Asked by both construction faces (`dp_wfm_compose_build_synth` and the
+ * standalone `dp_wfm_source_to_synth`) and by dp_wfm_source_create_snr(),
+ * which refers such a source's SNR to fs so its noise stays in the reference
+ * its type names.
+ *
+ * @code
+ * wfm_source_t s = { .type = WFM_SYNTH_BPSK };
+ * int t = dp_wfm_source_synth_type (&s); // unframed: WFM_SYNTH_BPSK
+ * @endcode
+ *
+ * @param src  The source.
+ * @return A `WFM_SYNTH_*` type.
+ */
+int dp_wfm_source_synth_type(const wfm_source_t *src);
 
 /**
  * @brief Construct + configure the synth for one resolved source.

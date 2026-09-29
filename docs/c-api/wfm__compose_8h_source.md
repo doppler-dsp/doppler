@@ -383,6 +383,8 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
+int dp_wfm_source_synth_type(const wfm_source_t *src);
+
 dp_wfm_synth_state_t *dp_wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,

@@ -1393,10 +1393,10 @@ def relational_checks(exe: Path, problems: list[str]) -> None:
             "1",
         ]
 
-        def emit(name: str, extra: list[str]) -> bytes:
+        def emit(name: str, extra: list[str], head: list[str] = base) -> bytes:
             path = wd / name
             subprocess.run(
-                [str(exe), *base, *extra, "--output", str(path)],
+                [str(exe), *head, *extra, "--output", str(path)],
                 cwd=wd,
                 capture_output=True,
                 timeout=TIMEOUT_S,
@@ -1433,6 +1433,28 @@ def relational_checks(exe: Path, problems: list[str]) -> None:
                 f"ci16 output is {len(ci16)} bytes against "
                 f"cf32's {len(le)}; expected exactly half"
             )
+
+        # A framed bpsk/qpsk/pn transmits its FRAME, so its bytes are the
+        # framed `bits` source with the mapping the type names -- the same
+        # run of the same build, so no mantissa bit can differ. The record
+        # cannot see this: it was identical while the wire carried the
+        # type's own PN stream instead (doppler#1616).
+        frame = ["--sync", "1111100110101", "--bits", "10110011"]
+        frame += ["--crc", "crc16", "--sps", "2", "--count", "148"]
+        frame += ["--seed", "1"]
+        for typ, mod in (("bpsk", "bpsk"), ("qpsk", "qpsk"), ("pn", "bpsk")):
+            got = emit(f"{typ}.bin", ["--type", typ], frame)
+            twin = emit(
+                f"{typ}-bits.bin",
+                ["--type", "bits", "--modulation", mod],
+                frame,
+            )
+            if got != twin:
+                problems.append(
+                    f"a framed --type {typ} is not the framed --type bits "
+                    f"--modulation {mod} waveform: the frame is not what "
+                    f"reaches the wire"
+                )
 
 
 def fixtures(workdir: Path, exe: Path) -> None:

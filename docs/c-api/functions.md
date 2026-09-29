@@ -1550,6 +1550,7 @@
 * **dp\_wfm\_source\_dsss\_nchips** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_frame\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_has\_frame** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_source\_synth\_type** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_spec\_headroom** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_spec\_template\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_spec\_to\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))

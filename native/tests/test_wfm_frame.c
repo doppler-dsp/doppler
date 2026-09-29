@@ -834,6 +834,7 @@ test_field_claims (void)
     u.seq.reg_bits = 1;
     DP_CHECK_MSG (dp_wfm_field_render (&u, four, sizeof four) == 0,
                   "a sequence that cannot be built is not rendered");
+    free (owned); /* NULL for a generated field, as the header's @code */
   }
   return 0;
 }

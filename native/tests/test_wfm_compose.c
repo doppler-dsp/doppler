@@ -936,6 +936,19 @@ test_frame_from_json_directly (void)
                     "frame_from_json: why may be NULL");
     }
   dp_wfm_frame_free (NULL); /* NULL is a no-op */
+
+  /* The header's @code example, as written. */
+  {
+    const char       *why;
+    wfm_frame_desc_t *ex = dp_wfm_frame_from_json (
+        "{\"fields\": [{\"name\": \"sync\", \"spec\": \"0x1ACFFC1D\"},"
+        "              {\"name\": \"data\", \"spec\": \"pn:31:5*4\"}]}",
+        &why);
+    DP_CHECK_MSG (ex && ex->n_fields == 2 && ex->field[1].reps == 4,
+                  "frame_from_json @code: two fields, the second *4");
+    dp_wfm_frame_free (ex);
+    dp_wfm_frame_free (dp_wfm_frame_from_json ("{\"fields\": []}", NULL));
+  }
   printf ("  dp_wfm_frame_from_json reads, refuses and frees\n");
   return 0;
 }

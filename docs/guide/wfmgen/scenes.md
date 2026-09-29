@@ -380,7 +380,7 @@ byte-identical
 ```
 
 A field's `spec` is one
-[Field](../../design/frame-description.md#f1-the-grammar), the same text the
+[Field](fields.md), the same text the
 CLI flags take — literal bits here, a generated `pn:…` just as well.
 
 What the description buys is everything past that: a field of your own bits

@@ -968,12 +968,29 @@ char *dp_wfm_spec_template_json(void);
  * @param why   receives a static reason on failure; may be NULL.
  * @return the description, owning its literal bits (free it with
  *         dp_wfm_frame_free()), or NULL if the text is not a frame object.
+ *
+ * @code
+ * const char       *why;
+ * wfm_frame_desc_t *d = dp_wfm_frame_from_json (
+ *     "{\"fields\": [{\"name\": \"sync\", \"spec\": \"0x1ACFFC1D\"},"
+ *     "              {\"name\": \"data\", \"spec\": \"pn:31:5*4\"}]}",
+ *     &why);
+ * if (!d)
+ *   fprintf (stderr, "error: %s\n", why);
+ * // d->n_fields == 2; d->field[1].reps == 4
+ * dp_wfm_frame_free (d);
+ * @endcode
  */
 wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
 
 /**
  * @brief Free a description returned by dp_wfm_frame_from_json(), bits and
  *        all. NULL is a no-op.
+ *
+ * @code
+ * dp_wfm_frame_free (dp_wfm_frame_from_json ("{\"fields\": []}", NULL));
+ * dp_wfm_frame_free (NULL);   // nothing to free
+ * @endcode
  */
 void dp_wfm_frame_free(wfm_frame_desc_t *d);
 

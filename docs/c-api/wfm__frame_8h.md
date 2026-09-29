@@ -533,10 +533,18 @@ The one place a field's REPETITION is expanded, used by [**dp\_wfm\_frame\_assem
 
 **Returns:**
 
-bits written, or 0 if the field is derived, empty, larger than `max_out`, or its sequence cannot be built. On 0, `out` may have been partly written. 
+bits written, or 0 if the field is derived, empty, larger than `max_out`, or its sequence cannot be built. On 0, `out` may have been partly written.
 
 
 
+```C++
+wfm_field_t f;
+uint8_t    *owned;
+uint8_t     b[124];
+dp_wfm_field_parse ("pn:31:5*4", &f, &owned, NULL);
+dp_wfm_field_render (&f, b, sizeof b);   // 124: one period, then 3 copies
+```
+ 
 
 
         

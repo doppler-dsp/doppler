@@ -873,6 +873,15 @@ void dp_wfm_frame_free (
 
 
 
+```C++
+dp_wfm_frame_free (dp_wfm_frame_from_json ("{\"fields\": []}", NULL));
+dp_wfm_frame_free (NULL);   // nothing to free
+```
+ 
+
+
+        
+
 <hr>
 
 
@@ -907,10 +916,22 @@ A malformed description is REFUSED, never salvaged: a frame read wrong builds a 
 
 **Returns:**
 
-the description, owning its literal bits (free it with [**dp\_wfm\_frame\_free()**](wfm__compose_8h.md#function-dp_wfm_frame_free)), or NULL if the text is not a frame object. 
+the description, owning its literal bits (free it with [**dp\_wfm\_frame\_free()**](wfm__compose_8h.md#function-dp_wfm_frame_free)), or NULL if the text is not a frame object.
 
 
 
+```C++
+const char       *why;
+wfm_frame_desc_t *d = dp_wfm_frame_from_json (
+    "{\"fields\": [{\"name\": \"sync\", \"spec\": \"0x1ACFFC1D\"},"
+    "              {\"name\": \"data\", \"spec\": \"pn:31:5*4\"}]}",
+    &why);
+if (!d)
+  fprintf (stderr, "error: %s\n", why);
+// d->n_fields == 2; d->field[1].reps == 4
+dp_wfm_frame_free (d);
+```
+ 
 
 
         

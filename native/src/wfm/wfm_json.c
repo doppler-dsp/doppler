@@ -1096,6 +1096,12 @@ dp_wfm_compose_from_json (const char *json)
 dp_wfm_compose_state_t *
 dp_wfm_compose_from_file (const char *path)
 {
+  return dp_wfm_compose_from_file_why (path, NULL);
+}
+
+dp_wfm_compose_state_t *
+dp_wfm_compose_from_file_why (const char *path, const char **why)
+{
   FILE *f = fopen (path, "rb");
   if (!f)
     return NULL;
@@ -1116,7 +1122,7 @@ dp_wfm_compose_from_file (const char *path)
   size_t rd = fread (buf, 1, (size_t)len, f);
   fclose (f);
   buf[rd]                   = '\0';
-  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (buf);
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_why (buf, why);
   free (buf);
   return c;
 }

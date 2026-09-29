@@ -1531,6 +1531,7 @@
 * **dp\_wfm\_compose\_draws** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_compose\_execute** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_compose\_from\_file** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_compose\_from\_file\_why** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_compose\_from\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_compose\_from\_json\_why** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_compose\_seed\_advance** ([**wfm\_compose.h**](wfm__compose_8h.md))

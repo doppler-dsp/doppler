@@ -284,6 +284,38 @@ def test_json_roundtrip():
     assert np.array_equal(a.compose(), b.compose())
 
 
+#: Keys a Field or a frame description replaced. The C reader refuses each
+#: with a sentence naming it (wfm_json.c); both JSON readers must raise that
+#: sentence, not "<fn> failed" (doppler#1614, just-makeit#1706).
+_RETIRED = [("sync_gen", "pn:63:6"), ("rs_depth", 1), ("pattern", "0101")]
+
+
+def _scene_with(key, value):
+    d = json.loads(Composer([Segment(type="tone")]).to_json())
+    d["segments"][0][key] = value
+    return json.dumps(d)
+
+
+@pytest.mark.parametrize("key,value", _RETIRED)
+def test_from_json_names_a_retired_key(key, value):
+    with pytest.raises(ValueError, match=f'"{key}" is retired'):
+        Composer.from_json(_scene_with(key, value))
+
+
+@pytest.mark.parametrize("key,value", _RETIRED)
+def test_from_file_names_a_retired_key(key, value, tmp_path):
+    path = tmp_path / "scene.json"
+    path.write_text(_scene_with(key, value), encoding="utf-8")
+    with pytest.raises(ValueError, match=f'"{key}" is retired'):
+        Composer.from_file(str(path))
+
+
+def test_from_file_an_unreadable_path_is_still_oserror(tmp_path):
+    """No reason to carry: the file never reached the parser."""
+    with pytest.raises(OSError):
+        Composer.from_file(str(tmp_path / "absent.json"))
+
+
 # Two distinct QPSK constellation streams for the symbols round-trip tests.
 _SYM1 = np.array([1 + 1j, -1 + 1j, 1 - 1j, -1 - 1j] * 100, np.complex64)
 _SYM2 = np.array([1 - 1j, 1 + 1j, -1 - 1j, -1 + 1j] * 100, np.complex64)

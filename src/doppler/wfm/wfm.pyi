@@ -2931,7 +2931,7 @@ def field_bits(spec: str) -> NDArray[np.uint8]:
     >>> field_bits("pn::10")
     Traceback (most recent call last):
         ...
-    RuntimeError: dp_field_bits failed (returned 0)
+    ValueError: LEN, the output length in bits, must be a number > 0
 
     """
 

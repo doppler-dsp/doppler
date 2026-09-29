@@ -7,6 +7,8 @@ malformed spec RAISES rather than returning an empty array -- the
 silent-gap shape just-makeit#1704 fixed for self-sizing functions.
 """
 
+import re
+
 import numpy as np
 import pytest
 
@@ -61,15 +63,34 @@ MALFORMED = [
     "literal:0101",
 ]
 
+#: A stable piece of the C parser's sentence for each MALFORMED spec: the
+#: binding raises that sentence (just-makeit#1706), so a match proves the
+#: REASON crossed the boundary, not only that something raised.
+REASON = {
+    "": "empty field",
+    "pn::10": "LEN",
+    "pn:12abc:5": "LEN",
+    "0102": "binary literal",
+    "0x": "hex literal",
+    "pn:31:65": "REG",
+    "pn:12:1": "POLY",
+    "data:1024": "data source",
+    "literal:0101": "literal:",
+}
+
 
 @pytest.mark.parametrize("spec", VALID)
 def test_valid_text_parses(spec):
     assert field_bits(spec).size > 0
 
 
+def test_every_malformed_spec_has_a_reason():
+    assert set(REASON) == set(MALFORMED)
+
+
 @pytest.mark.parametrize("spec", MALFORMED)
-def test_malformed_text_raises_never_returns_empty(spec):
-    with pytest.raises(RuntimeError, match="failed"):
+def test_malformed_text_raises_its_reason_never_returns_empty(spec):
+    with pytest.raises(ValueError, match=re.escape(REASON[spec])):
         field_bits(spec)
 
 
@@ -136,7 +157,7 @@ def test_gap_the_coercion_refuses_a_valid_field(spec):
 @pytest.mark.parametrize("spec", ["", "0x"])
 def test_gap_the_coercion_accepts_an_empty_field(spec):
     """`""` and a bare `0x` read as an absent pattern, not a typo."""
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
         field_bits(spec)
     assert spec in MALFORMED
     try:
@@ -150,8 +171,7 @@ def test_a_field_past_the_bound_raises_not_a_numpy_error():
     # doppler#1622: 2^64 - 1 was cast to a negative dimension by the
     # self-sizing binding (just-makeit#1710) and surfaced as numpy's
     # "negative dimensions". The parser now refuses it, so the binding's
-    # own refusal is what raises. (The C refusal names the bound; the
-    # binding carries it only once just-makeit#1706 lands.)
-    with pytest.raises(RuntimeError) as e:
+    # own refusal is what raises, naming the bound (just-makeit#1706).
+    with pytest.raises(ValueError, match="Field bound") as e:
         field_bits("pn:18446744073709551615:5")
     assert "negative dimensions" not in str(e.value)

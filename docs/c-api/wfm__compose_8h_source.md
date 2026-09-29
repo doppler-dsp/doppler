@@ -466,6 +466,9 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 
+dp_wfm_compose_state_t *dp_wfm_compose_from_file_why(const char *path,
+                                                     const char **why);
+
 #ifdef __cplusplus
 }
 #endif

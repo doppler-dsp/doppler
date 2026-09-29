@@ -212,13 +212,17 @@ _bind_field_bits (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  size_t _n = (size_t)dp_field_bits (
-      spec, (uint8_t *)PyArray_DATA ((PyArrayObject *)_out));
+  const char *_why = NULL;
+  size_t      _n   = (size_t)dp_field_bits (
+      spec, (uint8_t *)PyArray_DATA ((PyArrayObject *)_out), &_why);
   if (_n == 0)
     {
       Py_DECREF (_out);
-      PyErr_SetString (PyExc_RuntimeError,
-                       "dp_field_bits failed (returned 0)");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_RuntimeError,
+                         "dp_field_bits failed (returned 0)");
       return NULL;
     }
   PyArray_DIMS ((PyArrayObject *)_out)[0] = (npy_intp)_n;
@@ -485,7 +489,7 @@ static PyMethodDef wfm_module_methods[] = {
     ">>> field_bits(\"pn::10\")\n"
     "Traceback (most recent call last):\n"
     "    ...\n"
-    "RuntimeError: dp_field_bits failed (returned 0)\n" },
+    "ValueError: LEN, the output length in bits, must be a number > 0\n" },
   { "rrc_taps", (PyCFunction)(void *)_bind_rrc_taps,
     METH_VARARGS | METH_KEYWORDS,
     "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 "

@@ -365,6 +365,17 @@ target_include_directories(validate_wfmgen_certify
 target_link_libraries(validate_wfmgen_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 add_test(NAME validate_wfmgen_certify COMMAND validate_wfmgen_certify --check)
 
+# The Field parser's corpus (phase 7): generated, mutated and edge text
+# through the one reader and writer of the grammar, with the recorded seed.
+# The full corpus is `make validate-c`; `--check` is 1% of it, a few ms.
+add_executable(validate_wfm_field_explore
+               ${CMAKE_CURRENT_SOURCE_DIR}/wfm_field_explore.c)
+target_include_directories(validate_wfm_field_explore
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_wfm_field_explore PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+add_test(NAME validate_wfm_field_explore
+         COMMAND validate_wfm_field_explore --check)
+
 # One emitter on the acquisition engine's own surface: the sidelobe floor
 # per tile distance and the CFAR reference it sets -- the number the
 # continuous async-DSSS design forks on (docs/design/async-dsss-receiver.md

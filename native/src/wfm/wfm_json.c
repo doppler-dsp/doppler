@@ -1184,7 +1184,10 @@ dp_wfm_frame_from_json (const char *json, const char **why)
     why = &dummy;
   *why = NULL;
   if (!json)
-    return NULL;
+    {
+      *why = "no frame text to read";
+      return NULL;
+    }
   cJSON *root = cJSON_Parse (json);
   if (!cJSON_IsObject (root))
     {

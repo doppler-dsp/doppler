@@ -352,13 +352,14 @@ size_t dp_wfm_field_bits (
 * `spec` NUL-terminated text, as [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse) reads it. 
 * `out` receives the bits, one per byte; NULL to size. 
 * `max_out` capacity of `out` in bits; ignored when `out` is NULL. 
-* `why` optional; as [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse), plus the render's own refusals (a generator that rejects its parameters, a buffer too small). 
+* `why` optional; as [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse), plus "the output
+                is smaller than the field". 
 
 
 
 **Returns:**
 
-the field's length in bits (repetitions included), or 0 on a refusal. A Field is never empty, so 0 is unambiguous. **A sizing call checks the grammar only**: a generator that rejects its own parameters (a Gold pair that is not a preferred pair) is found by the call that renders, which then returns 0.
+the field's length in bits (repetitions included), or 0 on a refusal. A Field is never empty, so 0 is unambiguous. **Every text the grammar accepts renders**: the parser refuses what a generator could not build (a 1-bit register with no POLY, a number wider than REG), so the sizing call's answer is what the rendering call writes, given room.
 
 
 

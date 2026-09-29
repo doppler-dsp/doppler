@@ -406,6 +406,9 @@ static const field_ok_t FIELD_OK[] = {
   /* WFM_FIELD_MAX_BITS exactly, written as LEN and as LEN * REPS. */
   { "pn:261120:18", WFM_SEQ_PN, 261120, 1, 18, 0, 0, 0, "pn:261120:18" },
   { "0x1*65280", WFM_SEQ_LITERAL, 4, 65280, 0, 0, 0, 0, "0x1*65280" },
+  /* The widest SEED and POLY a 5-bit register holds. */
+  { "pn:31:5:31:0x1f", WFM_SEQ_PN, 31, 1, 5, 31, 0x1f, 0,
+    "pn:31:5:0x1f:0x1f" },
 };
 
 /* Text the grammar does not contain. Every one must be refused, name a
@@ -443,19 +446,27 @@ static const char *const FIELD_BAD[] = {
   /* A 1-bit register has no m-sequence, so with no POLY there is nothing
      to build: accepted, it failed later on every face with no reason given
      (found by the D12 exploration; the render refused it since #1602). */
-  "pn:12:1",              /* REG 1, no POLY                        */
-  "pn:12:01:5",           /* ...spelled with a leading zero        */
-  "pn:12:0x1:5:0",        /* ...or with an explicit POLY of 0      */
-  "gold:64:10:1:2:3",     /* gold short a seed                     */
-  "gold:64:10:1:2:3:4:5", /* gold one too many                     */
-  "gold:64:10:1:2:3:x",   /* gold with a non-number                */
-  "dotted",               /* no LEN                                */
-  "dotted:16:1",          /* dotted takes only LEN                 */
-  "literal:0101",         /* a literal is its bits                 */
-  "data:1024",            /* not supported yet, and said so        */
-  "prbs:9",               /* retired name                          */
-  "2",                    /* not a bit                             */
-  "abc",                  /* not a field                           */
+  "pn:12:1",       /* REG 1, no POLY                        */
+  "pn:12:01:5",    /* ...spelled with a leading zero        */
+  "pn:12:0x1:5:0", /* ...or with an explicit POLY of 0      */
+  /* A number wider than the register it configures is masked by the
+     generator, silently: 32 on a 5-bit register is the all-zero one, and a
+     constant field still looks like a field (doppler#1624, found by D13). */
+  "pn:31:5:32",               /* SEED's bits all above REG             */
+  "pn:31:5:0x21",             /* SEED partly above REG                 */
+  "pn:10:5:0:0x40",           /* POLY with no tap inside REG           */
+  "gold:31:5:0x12:32:0x1e:1", /* a Gold seed above REG                 */
+  "gold:31:5:0x12:1:0x3e:1",  /* a Gold tap above REG                  */
+  "gold:64:10:1:2:3",         /* gold short a seed                     */
+  "gold:64:10:1:2:3:4:5",     /* gold one too many                     */
+  "gold:64:10:1:2:3:x",       /* gold with a non-number                */
+  "dotted",                   /* no LEN                                */
+  "dotted:16:1",              /* dotted takes only LEN                 */
+  "literal:0101",             /* a literal is its bits                 */
+  "data:1024",                /* not supported yet, and said so        */
+  "prbs:9",                   /* retired name                          */
+  "2",                        /* not a bit                             */
+  "abc",                      /* not a field                           */
 };
 
 static int
@@ -656,6 +667,232 @@ test_field_text (void)
                       && strcmp (s, "abc") == 0,
                   "a short buffer is left untouched");
   }
+  return 0;
+}
+
+/* The Field claims the header states and test_field_text reaches only at
+ * its table's rows, or not at all (D13's inventory). Each is phrased as the
+ * header phrases it, and each was proven by sabotaging what it pins. */
+static int
+test_field_claims (void)
+{
+  /* why is a STATIC sentence: the same refusal returns the same pointer,
+     which a per-call allocation could not. */
+  {
+    const char *w1 = NULL, *w2 = NULL;
+    (void)dp_wfm_field_parse ("pn:0:5", &(wfm_field_t){ 0 },
+                              &(uint8_t *){ NULL }, &w1);
+    (void)dp_wfm_field_parse ("pn:0:5", &(wfm_field_t){ 0 },
+                              &(uint8_t *){ NULL }, &w2);
+    DP_CHECK_MSG (w1 != NULL && w1 == w2, "why is a static sentence");
+  }
+
+  /* A refused field is untouched in EVERY byte, not only its first. */
+  {
+    wfm_field_t f, ref;
+    memset (&f, 0xA5, sizeof f);
+    memcpy (&ref, &f, sizeof f);
+    uint8_t *owned = NULL;
+    DP_CHECK (dp_wfm_field_parse ("pn:31:0", &f, &owned, NULL)
+              == DP_ERR_INVALID);
+    DP_CHECK_MSG (memcmp (&f, &ref, sizeof f) == 0,
+                  "the whole field is untouched on refusal");
+  }
+
+  /* A literal's bits live in the storage handed back as `owned`. */
+  {
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    DP_REQUIRE (dp_wfm_field_parse ("0x1ACFFC1D", &f, &owned, NULL) == DP_OK);
+    DP_CHECK_MSG (owned != NULL && f.seq.bits == owned,
+                  "field->seq.bits points into owned");
+    free (owned);
+  }
+
+  /* Hex is a NUMBER everywhere a number is read, not only in SEED/POLY. */
+  {
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    DP_CHECK_MSG (dp_wfm_field_parse ("pn:0x1f:0x5*0x2", &f, &owned, NULL)
+                          == DP_OK
+                      && f.seq.len == 31 && f.seq.reg_bits == 5 && f.reps == 2,
+                  "LEN, REG and REPS read hex too");
+  }
+
+  /* LEN > 0 for every kind, and REG's upper bound 64 is inclusive. */
+  {
+    static const char *const zero[] = { "dotted:0", "gold:0:10:1:2:3:4" };
+    for (size_t i = 0; i < 2; i++)
+      DP_CHECK_MSG (dp_wfm_field_parse (zero[i], &(wfm_field_t){ 0 },
+                                        &(uint8_t *){ NULL }, NULL)
+                        == DP_ERR_INVALID,
+                    zero[i]);
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    DP_CHECK_MSG (dp_wfm_field_parse ("pn:64:64", &f, &owned, NULL) == DP_OK
+                      && f.seq.reg_bits == 64,
+                  "REG 64 is accepted");
+  }
+
+  /* `*REPS` is written only when reps > 1: `*1` in, none out. */
+  {
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    char        t[16];
+    DP_REQUIRE (dp_wfm_field_parse ("0101*1", &f, &owned, NULL) == DP_OK);
+    DP_CHECK_MSG (dp_wfm_field_format (&f, t, sizeof t) == 3
+                      && strcmp (t, "0x5") == 0,
+                  "*1 is not written back");
+    free (owned);
+  }
+
+  /* Nothing is written unless ALL of it fits, the NUL included: a buffer
+     with room for the text and not its terminator is left untouched. */
+  {
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    DP_REQUIRE (dp_wfm_field_parse ("pn:31:5", &f, &owned, NULL) == DP_OK);
+    char t[7] = "abcdef"; /* "pn:31:5" is 7 characters */
+    DP_CHECK_MSG (dp_wfm_field_format (&f, t, 7) == 7
+                      && strcmp (t, "abcdef") == 0,
+                  "one byte short of the NUL writes nothing");
+  }
+
+  /* A number past its register is refused naming the register. */
+  {
+    const char *why = NULL;
+    (void)dp_wfm_field_parse ("pn:31:5:32", &(wfm_field_t){ 0 },
+                              &(uint8_t *){ NULL }, &why);
+    DP_CHECK_MSG (why && strstr (why, "REG") != NULL,
+                  "a SEED wider than REG is refused naming REG");
+  }
+
+  /* "4 bits a digit, MSB first", for every digit and both cases. */
+  {
+    static const char hexd[] = "0123456789abcdefABCDEF";
+    int               ok     = 1;
+    for (size_t i = 0; i < sizeof hexd - 1u; i++)
+      {
+        char           spec[4] = { '0', 'x', hexd[i], '\0' };
+        uint8_t        b[4];
+        const unsigned v = (unsigned)(i < 16 ? i : i - 6);
+        ok &= dp_wfm_field_bits (spec, b, 4, NULL) == 4;
+        for (unsigned k = 0; k < 4; k++)
+          ok &= b[k] == ((v >> (3u - k)) & 1u);
+      }
+    DP_CHECK_MSG (ok, "every hex digit is its 4 bits, MSB first");
+  }
+
+  /* max_out is ignored when out is NULL. */
+  DP_CHECK_MSG (dp_wfm_field_bits ("pn:31:5*4", NULL, 1, NULL) == 124,
+                "sizing ignores max_out");
+
+  /* Every text the grammar accepts renders, and writes exactly what the
+     sizing call said: every accepted row, sized then rendered. (The
+     explore corpus holds the same over 250k texts.) */
+  for (size_t i = 0; i < sizeof FIELD_OK / sizeof *FIELD_OK; i++)
+    {
+      const size_t n = dp_wfm_field_bits (FIELD_OK[i].spec, NULL, 0, NULL);
+      uint8_t     *b = dp_xmalloc (n);
+      DP_CHECK_MSG (
+          n > 0 && dp_wfm_field_bits (FIELD_OK[i].spec, b, n, NULL) == n,
+          FIELD_OK[i].spec);
+      free (b);
+    }
+
+  /* dp_wfm_field_render's own contract, called directly rather than only
+     through dp_wfm_field_bits. */
+  {
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    uint8_t     one[31], four[124];
+    DP_REQUIRE (dp_wfm_field_parse ("pn:31:5*4", &f, &owned, NULL) == DP_OK);
+    DP_CHECK_MSG (dp_wfm_field_render (&f, four, sizeof four) == 124,
+                  "render writes len * reps bits");
+    DP_CHECK_MSG (dp_wfm_field_render (&f, four, 123) == 0,
+                  "render refuses an output one bit short");
+    f.reps = 0; /* "reps == 0 means one" */
+    DP_CHECK_MSG (dp_wfm_field_render (&f, one, sizeof one) == 31
+                      && memcmp (one, four, 31) == 0,
+                  "reps 0 renders one period");
+    char t[16];
+    DP_CHECK_MSG (dp_wfm_field_format (&f, t, sizeof t) == 7
+                      && strcmp (t, "pn:31:5") == 0,
+                  "...and formats with no *REPS");
+
+    wfm_field_t e;
+    memset (&e, 0, sizeof e);
+    e.seq.kind = WFM_SEQ_LITERAL;
+    e.seq.bits = one;
+    DP_CHECK_MSG (dp_wfm_field_render (&e, four, sizeof four) == 0,
+                  "an empty field is not rendered");
+
+    wfm_field_t u;
+    memset (&u, 0, sizeof u);
+    u.seq.kind     = WFM_SEQ_PN;
+    u.seq.len      = 12;
+    u.seq.reg_bits = 1;
+    DP_CHECK_MSG (dp_wfm_field_render (&u, four, sizeof four) == 0,
+                  "a sequence that cannot be built is not rendered");
+  }
+  return 0;
+}
+
+/* dp_wfm_frame_fixed's prose, claim by claim (D13's inventory). The first
+ * block is the header's @code example, run as written. */
+static int
+test_frame_fixed_claims (void)
+{
+  static const uint8_t b13[13] = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1 };
+  static const uint8_t pay[16]
+      = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1 };
+  wfm_seq_t        sync = { .kind = WFM_SEQ_LITERAL, .bits = b13, .len = 13 };
+  wfm_seq_t        data = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = 16 };
+  wfm_frame_desc_t d;
+  wfm_frame_desc_layout_t l;
+
+  /* The header's example. */
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1) == 0);
+  DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
+  DP_CHECK_MSG (l.frame_bits == 13 + 16 + 16,
+                "frame_fixed @code: 13 + 16 + 16 bits");
+
+  /* The sequences are BORROWED: the field points at the caller's bits. */
+  const int is = dp_wfm_frame_field_index (&d, "sync");
+  DP_CHECK_MSG (is >= 0 && d.field[is].seq.bits == b13,
+                "frame_fixed borrows the caller's sequence, never copies");
+
+  /* d is OVERWRITTEN: residue from a previous description is gone. */
+  memset (&d, 0xA5, sizeof d);
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1) == 0);
+  DP_CHECK_MSG (d.n_fields == 3 && d.n_stages == 1
+                    && dp_wfm_frame_field_index (&d, "preamble") < 0,
+                "frame_fixed overwrites d whole, leaving no residue");
+
+  /* A field is present by LENGTH, never merely a pointer: a zero-length
+     sync with bits, and a preamble with reps but no length, are absent. */
+  wfm_seq_t none = { .kind = WFM_SEQ_LITERAL, .bits = b13, .len = 0 };
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, &none, 4, &none, &data, 0) == 0);
+  DP_CHECK_MSG (dp_wfm_frame_field_index (&d, "sync") < 0
+                    && dp_wfm_frame_field_index (&d, "preamble") < 0,
+                "a pointer with no length is not a field");
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 4, NULL, &data, 0) == 0);
+  DP_CHECK_MSG (dp_wfm_frame_field_index (&d, "preamble") < 0,
+                "a NULL preamble with reps is not a field");
+
+  /* The payload is always a field, even an empty one, so the CRC stage
+     still exists -- and lays out as a stage that did not run. */
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, NULL, NULL, 1) == 0);
+  DP_CHECK_MSG (dp_wfm_frame_field_index (&d, "payload") >= 0
+                    && d.n_stages == 1,
+                "an empty payload is still a field under a CRC stage");
+  DP_REQUIRE (dp_wfm_frame_desc_layout (&d, &l) == 0);
+  DP_CHECK_MSG (l.stage[0].n == 0, "...and that stage does not run");
+
+  /* crc is "non-zero", not "one". */
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, NULL, &data, -1) == 0);
+  DP_CHECK_MSG (d.n_stages == 1 && d.stage[0].kind == WFM_STAGE_CRC16,
+                "any non-zero crc asks for the CRC");
   return 0;
 }
 
@@ -1822,6 +2059,10 @@ main (void)
   if (test_dsss_nchips ())
     return 1;
   if (test_field_text ())
+    return 1;
+  if (test_field_claims ())
+    return 1;
+  if (test_frame_fixed_claims ())
     return 1;
   DP_TEST_END ("wfm_frame");
 }

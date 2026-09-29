@@ -206,7 +206,33 @@ main (void)
     DP_CHECK (dp_bytes_to_bin (oct, 2u, NULL, 16u, DP_BITORDER_BIG) == 0);
     DP_CHECK (dp_bytes_to_bin (oct, 2u, ob, 15u, DP_BITORDER_BIG) == 0);
     DP_CHECK (dp_bytes_to_bin (oct, 2u, ob, sizeof ob, 7) == 0);
-    DP_CHECK_MSG (ob[0] == 7u && ob[15] == 7u, "a refusal writes nothing");
+    int untouched = 1;
+    for (size_t i = 0; i < sizeof ob; i++)
+      untouched &= (ob[i] == 7u);
+    DP_CHECK_MSG (untouched, "a refusal writes nothing, in any byte");
+  }
+
+  /* Every octet value, both orders: 8 bits an octet, each 0 or 1, and the
+     two orders each other's reverse within the octet (D13: the header's
+     claims held at every input, not at one vector). */
+  {
+    uint8_t all[256], big[2048], little[2048];
+    for (size_t i = 0; i < 256; i++)
+      all[i] = (uint8_t)i;
+    DP_CHECK_MSG (dp_bytes_to_bin (all, 256u, big, sizeof big, DP_BITORDER_BIG)
+                      == 2048u,
+                  "each octet gives 8 bits");
+    DP_REQUIRE (
+        dp_bytes_to_bin (all, 256u, little, sizeof little, DP_BITORDER_LITTLE)
+        == 2048u);
+    int ok = 1;
+    for (size_t i = 0; i < 256; i++)
+      for (unsigned b = 0; b < 8u; b++)
+        {
+          const uint8_t want = (uint8_t)((i >> (7u - b)) & 1u);
+          ok &= big[i * 8u + b] == want && little[i * 8u + 7u - b] == want;
+        }
+    DP_CHECK_MSG (ok, "BIG is MSB first, LITTLE its reverse, every octet");
   }
 
   DP_TEST_END ("test_cvt_core");

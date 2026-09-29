@@ -854,6 +854,92 @@ test_a_framed_pn_type_sends_its_frame (void)
   return 0;
 }
 
+/* dp_wfm_frame_from_json / dp_wfm_frame_free, called directly: the entry
+ * point `wfmgen --frame FILE` uses, which the scene tests above reach only
+ * through the reader they share. Each check is a header claim (D13). */
+static int
+test_frame_from_json_directly (void)
+{
+  /* Every stage kind by name, each key it may carry, and a derived field. */
+  static const char full[]
+      = "{\"fields\":[{\"name\":\"asm\",\"spec\":\"0x1ACFFC1D\"},"
+        "{\"name\":\"data\",\"spec\":\"pn:31:5*4\"},"
+        "{\"name\":\"crc\",\"bits\":16,\"derived_by\":1}],"
+        "\"stages\":[{\"kind\":\"crc16\",\"first_field\":1,\"n_fields\":2},"
+        "{\"kind\":\"rs\",\"first_field\":1,\"n_fields\":1,\"depth\":1},"
+        "{\"kind\":\"randomise\",\"first_field\":1,\"n_fields\":2},"
+        "{\"kind\":\"interleave\",\"first_field\":1,\"n_fields\":1,"
+        "\"depth\":4,\"unit_bits\":31},"
+        "{\"kind\":\"conv\",\"first_field\":0,\"n_fields\":3,"
+        "\"emit_num\":2,\"emit_den\":1}]}";
+  const char       *why = "unset";
+  wfm_frame_desc_t *d   = dp_wfm_frame_from_json (full, &why);
+  DP_REQUIRE_MSG (d != NULL, "frame_from_json: a full description reads");
+  DP_CHECK_MSG (why == NULL, "frame_from_json: success leaves why NULL");
+  DP_CHECK_MSG (d->n_fields == 3 && d->n_stages == 5,
+                "frame_from_json: three fields, five stages");
+  DP_CHECK_MSG (d->field[0].seq.kind == WFM_SEQ_LITERAL
+                    && d->field[0].seq.len == 32 && d->field[0].seq.bits,
+                "frame_from_json: a literal spec owns its bits");
+  DP_CHECK_MSG (d->field[1].seq.kind == WFM_SEQ_PN && d->field[1].reps == 4,
+                "frame_from_json: a generated spec keeps its *REPS");
+  DP_CHECK_MSG (d->field[2].bits == 16 && d->field[2].derived_by == 1,
+                "frame_from_json: a derived field is bits + derived_by");
+  DP_CHECK_MSG (d->stage[0].kind == WFM_STAGE_CRC16
+                    && d->stage[1].kind == WFM_STAGE_RS
+                    && d->stage[2].kind == WFM_STAGE_RANDOMISE
+                    && d->stage[3].kind == WFM_STAGE_INTERLEAVE
+                    && d->stage[4].kind == WFM_STAGE_CONV,
+                "frame_from_json: all five kinds read by name");
+  DP_CHECK_MSG (d->stage[3].depth == 4 && d->stage[3].unit_bits == 31,
+                "frame_from_json: depth and unit_bits");
+  DP_CHECK_MSG (d->stage[4].emit_num == 2 && d->stage[4].emit_den == 1,
+                "frame_from_json: emit_num and emit_den");
+  dp_wfm_frame_free (d); /* bits and all: LSan holds it under test-asan */
+
+  /* Reading is not laying out: a derived field that is not the last of its
+     producer's cover is an invariant of the LAYOUT (wfm_frame.h), so this
+     description reads, and does not lay out. */
+  d = dp_wfm_frame_from_json (
+      "{\"fields\":[{\"name\":\"crc\",\"bits\":16,\"derived_by\":1},"
+      "{\"name\":\"data\",\"spec\":\"pn:31:5\"}],"
+      "\"stages\":[{\"kind\":\"crc16\",\"first_field\":0,"
+      "\"n_fields\":2}]}",
+      NULL);
+  wfm_frame_desc_layout_t lay;
+  DP_CHECK_MSG (d != NULL && dp_wfm_frame_desc_layout (d, &lay) != 0,
+                "frame_from_json: a description that will not lay out "
+                "still reads");
+  dp_wfm_frame_free (d); /* bits and all: LSan holds it under test-asan */
+
+  /* A caller's own kind, by number. */
+  d = dp_wfm_frame_from_json ("{\"fields\":[{\"spec\":\"1010\"}],"
+                              "\"stages\":[{\"kind\":4097,\"n_fields\":1}]}",
+                              NULL);
+  DP_CHECK_MSG (d && d->stage[0].kind == WFM_STAGE_USER + 1u,
+                "frame_from_json: a numeric kind reads as that kind");
+  dp_wfm_frame_free (d);
+
+  /* Not a frame object: NULL, each with a static reason. */
+  static const char *const not_frame[]
+      = { "[]", "garbage", "{\"fields\":{}}",
+          "{\"fields\":[{\"spec\":\"2\"}]}", NULL };
+  for (size_t i = 0; i < sizeof not_frame / sizeof *not_frame; i++)
+    {
+      const char *w1 = NULL, *w2 = NULL;
+      DP_CHECK_MSG (dp_wfm_frame_from_json (not_frame[i], &w1) == NULL,
+                    not_frame[i] ? not_frame[i] : "(NULL text)");
+      (void)dp_wfm_frame_from_json (not_frame[i], &w2);
+      DP_CHECK_MSG (w1 != NULL && w1 == w2,
+                    not_frame[i] ? not_frame[i] : "(NULL text) has a reason");
+      DP_CHECK_MSG (dp_wfm_frame_from_json (not_frame[i], NULL) == NULL,
+                    "frame_from_json: why may be NULL");
+    }
+  dp_wfm_frame_free (NULL); /* NULL is a no-op */
+  printf ("  dp_wfm_frame_from_json reads, refuses and frees\n");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3783,6 +3869,8 @@ main (void)
   if (test_a_carried_frame_survives_the_scene_json ())
     return 1;
   if (test_a_framed_pn_type_sends_its_frame ())
+    return 1;
+  if (test_frame_from_json_directly ())
     return 1;
 
   printf (

@@ -683,14 +683,14 @@ extern "C"
    * @param spec     NUL-terminated text, as @ref dp_wfm_field_parse reads it.
    * @param out      receives the bits, one per byte; NULL to size.
    * @param max_out  capacity of @p out in bits; ignored when @p out is NULL.
-   * @param why      optional; as @ref dp_wfm_field_parse, plus the render's
-   *                 own refusals (a generator that rejects its parameters,
-   *                 a buffer too small).
+   * @param why      optional; as @ref dp_wfm_field_parse, plus "the output
+   *                 is smaller than the field".
    * @return the field's length in bits (repetitions included), or 0 on a
-   *         refusal. A Field is never empty, so 0 is unambiguous. **A sizing
-   *         call checks the grammar only**: a generator that rejects its own
-   *         parameters (a Gold pair that is not a preferred pair) is found by
-   *         the call that renders, which then returns 0.
+   *         refusal. A Field is never empty, so 0 is unambiguous. **Every
+   *         text the grammar accepts renders**: the parser refuses what a
+   *         generator could not build (a 1-bit register with no POLY, a
+   *         number wider than REG), so the sizing call's answer is what the
+   *         rendering call writes, given room.
    *
    * @code
    * uint8_t b[124];

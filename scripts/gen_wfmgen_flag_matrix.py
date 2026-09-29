@@ -1044,6 +1044,33 @@ def cases() -> list[tuple[str, list[str]]]:
                 "256",
             ],
         ),
+        # A Field past WFM_FIELD_MAX_BITS is refused at parse, exit 2
+        # (doppler#1622). Before, it parsed and the source allocated the
+        # caller's length with the abort-on-OOM helper: 2^64-1 aborted
+        # (exit 134) on every machine, while 4e9 spent 7.8 GB and 40 s and
+        # exited 0 where the memory existed -- so both are pinned.
+        (
+            "err_field_past_the_bound_2e64",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "pn:18446744073709551615:5",
+                "--count",
+                "16",
+            ],
+        ),
+        (
+            "err_field_past_the_bound",
+            [
+                "--type",
+                "bits",
+                "--bits",
+                "pn:4000000000:5",
+                "--count",
+                "16",
+            ],
+        ),
         # The generated parser's own refusals: `literal` is not a kind it
         # will spell, and a length is the one parameter no default supplies.
         (

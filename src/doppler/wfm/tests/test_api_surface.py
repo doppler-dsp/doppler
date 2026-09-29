@@ -793,6 +793,33 @@ class TestCLI:
         )
         assert np.array_equal(h, b)
 
+    @pytest.mark.parametrize(
+        "spec", ["pn:4000000000:5", "pn:18446744073709551615:5"]
+    )
+    def test_a_field_past_the_bound_is_refused_naming_it(
+        self, spec, tmp_path
+    ) -> None:
+        # doppler#1622: this used to parse, then allocate the caller's
+        # length -- SIGABRT (134) where the memory was not there.
+        r = subprocess.run(
+            [
+                WFMGEN,
+                "--type",
+                "bits",
+                "--bits",
+                spec,
+                "--count",
+                "16",
+                "-o",
+                str(tmp_path / "x.cf32"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert r.returncode == 2, r.stderr
+        assert "261120" in r.stderr
+
     def test_json_template_subcommand(self, tmp_path) -> None:
         r = subprocess.run(
             [WFMGEN, "json-template"], check=True, capture_output=True

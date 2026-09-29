@@ -326,8 +326,10 @@ def build(write: bool = True) -> Report:
                 "`dp_wfm_frame_fixed`",
                 "15",
                 "7 / 3 / 5",
-                "14 pinned; *every face reaches it* is pinned for the "
-                "`Frame` face only",
+                "15 pinned; *every face reaches it* holds three ways: the "
+                "`Frame` face in C, the CLI's wire bits against `Frame`'s "
+                "(`test_frame_source.py`), and the scene against the CLI "
+                "by the record replays",
             ],
             [
                 "`dp_wfm_frame_from_json`, `_free`",
@@ -413,7 +415,11 @@ def build(write: bool = True) -> Report:
         "and hand-edge text through the one reader, the one writer and the "
         "one door to bits, holding for every accepted text: "
         "parse → format → parse is the same field, the text is canonical, "
-        "and both texts render the same bits, each 0 or 1. This report "
+        "and both texts render the same bits, each 0 or 1. It asserts "
+        "through `dp_test.h`, including that it checked something -- most "
+        "generated text reached the grammar -- so a generator that "
+        "produced nothing acceptable fails rather than finding nothing. "
+        "This report "
         "runs its `--check` subset; the full corpus (200 000 generated + "
         "200 000 mutations) is `make validate-c`."
     )
@@ -664,7 +670,7 @@ def build(write: bool = True) -> Report:
             "**The Field grammar is certified header-first** (§1): 110 "
             "prose claims across the parser, the fixed frame, the JSON "
             "frame reader and `bytes_to_bin`, 19 of them held by nobody "
-            "before this pass and 108 pinned now. The inventory found a "
+            "before this pass and 109 pinned now. The inventory found a "
             "silent-mask defect in the grammar (F6, #1624), a refusal with "
             "no reason (F7) and a header sentence about a case that cannot "
             "happen (F8).",

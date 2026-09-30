@@ -151,7 +151,7 @@ user sees in the record is never a frame cut short.
     A convolutional register that runs *across* frames is a different
     waveform and stays out of scope (§8).
 
-### 4.8 What the record and SigMF carry
+### 4.8 What `--record` and SigMF carry
 
 - **The record** (`--record`, `dp_wfm_spec_to_json`) stores the data source
     as written. A literal is stored inline, as the payload is today. A file

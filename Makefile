@@ -1380,7 +1380,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 print-jm-version nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
-                ci-aggregator-check \
+                ci-aggregator-check python-versions-check \
                 jm-pin \
                 issue-link-check \
                 validate validate-c validate-check \
@@ -1486,7 +1486,8 @@ include standard.mk
 # that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
 # run natively and skip Docker entirely.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      workflow-syntax-check ci-aggregator-check release-notes-size-check \
+      workflow-syntax-check ci-aggregator-check python-versions-check \
+      release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
@@ -1532,6 +1533,9 @@ workflow-syntax-check: ## Verify every workflow `run:` block is valid shell
 # aggregator (2026-09-14) moved the gate into a hand-kept YAML list; this reads it.
 ci-aggregator-check: ## Verify every ci.yml job feeds the required `CI passed` check
 	@uv run python scripts/check_ci_aggregator.py
+
+python-versions-check: ## Verify the Python classifiers match requires-python
+	@uv run python scripts/python_versions.py
 
 kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
 	@uv run python scripts/check_kwarg_parity.py

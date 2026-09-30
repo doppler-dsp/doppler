@@ -3998,7 +3998,8 @@ test-api-docs: ## Doctest the docs/api/*.md reference pages
 # earns.
 test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 	@fail=0; empty=0; n=0; \
-	 for t in test_doc_snippets test_c_doc_snippets test_sh_doc_snippets; do \
+	 for t in test_doc_snippets test_c_doc_snippets test_c_header_code \
+	              test_sh_doc_snippets; do \
 	     echo "=== $$t ==="; \
 	     n=$$((n + 1)); \
 	     $(LEAK_CHECK) -- uv run python -m pytest -m docs_snippets -q \

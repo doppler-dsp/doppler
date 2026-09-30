@@ -147,8 +147,11 @@ becomes the Python docstring on both faces, so writing it well is cheaper
 than fixing it twice — [Docstring Authoring](docstring-authoring.md) is the
 home for that.
 
-**Its `@code` blocks are tests.** `jm` flows each one into the `.pyi` as an
-`Examples` section and `make test-stubs` executes it, so an example that
+**Its `@code` blocks are tests.** A `>>>` block is the binding's example:
+`jm` flows it into the `.pyi` as an `Examples` section and `make test-stubs`
+executes it. A block written in C is compiled `-Werror` against
+`libdoppler.a` and run by `make test-snippets` (`test_c_header_code.py`;
+a fragment with no `main` is wrapped in one). Either way an example that
 drifts fails a gate rather than misleading a reader quietly. Write them
 against a real run — pin the expected output by running the thing, never by
 reasoning about what it should print. That is phase 9's first deliverable and
@@ -275,7 +278,7 @@ keeps it honest — none of them optional except where the table says so:
 
 | you owe                                               | it lives in                                           | kept true by                                        |
 | ----------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| a `@code` example on each public function             | `native/inc/<obj>/<obj>_core.h`                       | `make test-stubs`                                   |
+| a `@code` example on each public function             | `native/inc/<obj>/<obj>_core.h`                       | `make test-stubs`, `make test-snippets`             |
 | a markdown guide, **when** prose outgrows a docstring | `docs/design/<algo>.md`, or `docs/guide/`             | `make docs-check`, `check_nav_index.py`             |
 | a benchmark, C **and** Python                         | `native/benchmarks/`, `src/doppler/<mod>/benchmarks/` | `make bench`, `make bench-compare`                  |
 | a runnable example, C **and** Python                  | `native/examples/`, `src/doppler/examples/`           | `make test-examples-c`, `make test-examples-python` |

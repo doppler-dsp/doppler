@@ -59,7 +59,7 @@ MALFORMED = [
     "0x",  # no digits
     "pn:31:65",  # register past 64
     "pn:12:1",  # no m-sequence for a 1-bit register (doppler#1602)
-    "data:1024",  # not supported until the data source exists
+    "data:1024",  # a data field has no bits of its own (they are its source's)
     "literal:0101",
 ]
 

@@ -109,7 +109,7 @@ static const char *const DATA_SRC_NAMES[] = { "prbs", "none" };
 /* Where a frame field's bits come from.
    SSOT: enum=wfm_seq_kind, cenum=doppler/wfm/wfm_frame.h:wfm_seq_kind_t */
 static const char *const SEQ_KIND_NAMES[]
-    = { "literal", "pn", "gold", "dotted" };
+    = { "literal", "pn", "gold", "dotted", "data" };
 
 #endif /* WFM_NAMES_H */
 ```

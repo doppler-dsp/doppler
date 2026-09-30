@@ -48,7 +48,7 @@
 |  const char \*const | [**MODE\_NAMES**](#variable-mode_names)   = `{ "auto", "fs", "ebno", "esno" }`<br> |
 |  const char \*const | [**PULSE\_NAMES**](#variable-pulse_names)   = `{ "rect", "rrc" }`<br> |
 |  const char \*const | [**SEED\_ADVANCE\_NAMES**](#variable-seed_advance_names)   = `{ "none", "noise", "all" }`<br> |
-|  const char \*const | [**SEQ\_KIND\_NAMES**](#variable-seq_kind_names)   = `{ "literal", "pn", "gold", "dotted" }`<br> |
+|  const char \*const | [**SEQ\_KIND\_NAMES**](#variable-seq_kind_names)   = `{ "literal", "pn", "gold", "dotted", "data" }`<br> |
 |  const char \*const | [**STAGE\_KIND\_NAMES**](#variable-stage_kind_names)   = `{ "crc16", "rs", "randomise", "conv", "interleave" }`<br> |
 |  const char \*const | [**STYPE\_NAMES**](#variable-stype_names)   = `/* multi line expression */`<br> |
 |  const char \*const | [**TYPE\_NAMES**](#variable-type_names)   = `/* multi line expression */`<br> |

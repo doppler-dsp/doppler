@@ -74,6 +74,12 @@ dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
         dp_gold_destroy (g);
         return n;
       }
+
+    case WFM_SEQ_DATA:
+      /* A payload drawn from the frame's data source (docs/design/
+         payload-data-source.md): the description knows its length, never
+         its bits, so there is nothing here to write. */
+      return 0;
     }
   return 0;
 }
@@ -274,19 +280,18 @@ parse_literal (const char *p, size_t n, wfm_seq_t *q, uint8_t **owned,
   return DP_OK;
 }
 
-/* A generated field: `pn:`, `gold:` or `dotted:`, the kind word being the
-   same SEQ_KIND_NAMES spelling the JSON scene and the CLI use. */
+/* A generated field -- `pn:`, `gold:` or `dotted:` -- or `data:`, the kind
+   word being the same SEQ_KIND_NAMES spelling the JSON scene and the CLI
+   use. */
 static int
 parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
 {
   field_tok_t  t[FIELD_MAX_TOKENS];
   const size_t k = split_colons (p, n, t);
 
-  if (tok_is (t[0], "data"))
-    return field_refuse (why, "data:LEN names a payload drawn from a data "
-                              "source, which is not supported yet");
   int kind = -1;
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < (int)(sizeof SEQ_KIND_NAMES / sizeof *SEQ_KIND_NAMES);
+       i++)
     if (tok_is (t[0], SEQ_KIND_NAMES[i]))
       kind = i;
   if (kind == WFM_SEQ_LITERAL)
@@ -294,7 +299,7 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
                               "in hex (0x5), not as literal:");
   if (kind < 0)
     return field_refuse (why, "a field is 0/1 bits, 0x hex, or starts "
-                              "with pn:, gold: or dotted:");
+                              "with pn:, gold:, dotted: or data:");
   if (k > FIELD_MAX_TOKENS)
     return field_refuse (why, "too many ':' fields");
 
@@ -312,6 +317,13 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
     {
       if (k != 2)
         return field_refuse (why, "dotted takes only a length: dotted:LEN");
+      *q = s;
+      return DP_OK;
+    }
+  if (s.kind == WFM_SEQ_DATA)
+    {
+      if (k != 2)
+        return field_refuse (why, "data takes only a length: data:LEN");
       *q = s;
       return DP_OK;
     }
@@ -493,6 +505,11 @@ field_emit (const wfm_field_t *f, char *dst)
       put (dst, &at, b);
       break;
 
+    case WFM_SEQ_DATA:
+      (void)snprintf (b, sizeof b, "data:%zu", s->len);
+      put (dst, &at, b);
+      break;
+
     case WFM_SEQ_PN:
       (void)snprintf (b, sizeof b, "pn:%zu:%u", s->len, s->reg_bits);
       put (dst, &at, b);
@@ -552,6 +569,12 @@ dp_wfm_field_bits (const char *spec, uint8_t *out, size_t max_out,
   uint8_t    *owned = NULL;
   if (dp_wfm_field_parse (spec, &f, &owned, why) != DP_OK)
     return 0;
+  if (f.seq.kind == WFM_SEQ_DATA)
+    {
+      (void)field_refuse (why, "data:LEN has no bits of its own: they "
+                               "come from the frame's data source");
+      return 0;
+    }
   size_t n = supplied_bits (&f);
   if (out)
     {
@@ -605,10 +628,17 @@ dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
    * dp_wfm_frame_add_stage() wires the producer from the cover it is given --
    * so the check exists for the readers that take the two facts as
    * independent integers and could otherwise let them disagree. */
+  /* A frame draws from ONE data source, so it carries at most one data
+     field: a second would be a second position for the same bits, with no
+     rule for which chunk lands where. */
+  unsigned n_data = 0;
   for (unsigned i = 0; i < d->n_fields; i++)
     {
       const wfm_field_t *f = &d->field[i];
       if (!f->derived_by && f->bits && f->seq.len == 0)
+        return -1;
+      if (!f->derived_by && f->seq.kind == WFM_SEQ_DATA && f->seq.len
+          && ++n_data > 1u)
         return -1;
       out->field_bits[i] = supplied_bits (f);
     }

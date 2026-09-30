@@ -17,7 +17,9 @@
  * 2. the text is canonical: formatting the re-parsed field gives the same
  *    text, and a NULL buffer sizes it exactly;
  * 3. the original and the canonical text render the SAME bits, every one
- *    0 or 1 (for a field of at most 2^16 bits, to keep the run short).
+ *    0 or 1 (for a field of at most 2^16 bits, to keep the run short) --
+ *    except `data:LEN`, whose bits are its data source's, so BOTH texts
+ *    must be refused by the door to bits instead.
  *
  * A generated-valid text that is REFUSED is a finding too. A mutated text
  * may be accepted or refused; it must never crash, and if accepted it must
@@ -147,7 +149,13 @@ round_trip (tally_t *t, const char *spec, int must_parse)
     finding (t, "the text is not canonical", spec, t1);
 
   const size_t n = f.seq.len * f.reps;
-  if (n <= BITS_CAP)
+  if (f.seq.kind == WFM_SEQ_DATA)
+    {
+      if (dp_wfm_field_bits (spec, NULL, 0, NULL) != 0
+          || dp_wfm_field_bits (t1, NULL, 0, NULL) != 0)
+        finding (t, "a data field rendered bits of its own", spec, t1);
+    }
+  else if (n <= BITS_CAP)
     {
       uint8_t     *b1 = dp_xmalloc (n), *b2 = dp_xmalloc (n);
       const size_t r1 = dp_wfm_field_bits (spec, b1, n, NULL);
@@ -315,6 +323,13 @@ static const char *const EDGES[] = {
   "pn:261120:18",
   "pn:261121:18",
   "0x1*65281",
+  "data:1",
+  "data:0x10*3",
+  "data:261120",
+  "data:261121",
+  "data:0",
+  "data:8:1",
+  "DATA:8",
 };
 
 int

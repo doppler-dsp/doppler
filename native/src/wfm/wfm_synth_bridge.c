@@ -53,6 +53,21 @@ const char dp_wfm_why_pn_poly[]
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
 {
+  /* `data:LEN` is a frame's payload drawn from a data source
+     (docs/design/payload-data-source.md). In the payload slot nothing
+     connects that source yet; in any other slot it is a category error,
+     because a sync word, a preamble and a spreading code carry their own
+     bits. Checked here, where every face -- the CLI, a scene, the
+     composer -- asks about a source, so it is named once for all three. */
+  if (src->payload.kind == WFM_SEQ_DATA && src->payload.len)
+    return "a payload of data:LEN draws its bits from a data source, and "
+           "wfmgen does not connect one yet (doppler#1619)";
+  if ((src->sync.kind == WFM_SEQ_DATA && src->sync.len)
+      || (src->acq_code.kind == WFM_SEQ_DATA && src->acq_code.len)
+      || (src->data_code.kind == WFM_SEQ_DATA && src->data_code.len))
+    return "data:LEN is only a frame's payload, drawn from a data source; "
+           "a sync word, a preamble or a spreading code carries its own "
+           "bits";
   /* Only where a PN register is built from it: a framed bpsk is built as a
      BITS synth (dp_wfm_source_synth_type), and a tone never reads it. */
   const int t = dp_wfm_source_synth_type (src);
@@ -129,6 +144,16 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
            "derived field must be the last field its stage covers, and an "
            "emitting stage must be the only one and must cover the whole "
            "frame";
+
+  /* A payload that is `data:LEN` lays out -- the description knows its
+     length -- but its bits are a data source's, and none is connected yet
+     (docs/design/payload-data-source.md §7, step 5). Named here, because
+     the assembler below can only report it as a field it could not build. */
+  for (unsigned i = 0; i < desc.n_fields; i++)
+    if (!desc.field[i].derived_by && desc.field[i].seq.kind == WFM_SEQ_DATA
+        && desc.field[i].seq.len)
+      return "this frame's payload is data:LEN, whose bits come from a data "
+             "source, and wfmgen does not connect one yet (doppler#1619)";
 
   /* And does it ASSEMBLE? A layout is geometry; each stage's kernel has
      rules of its own that only running it can ask -- an outer code takes

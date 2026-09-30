@@ -15,7 +15,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* The pipe and temp-file calls this test makes, per platform: the source
+   reads a Windows anonymous pipe through PeekNamedPipe, so the same
+   no-clock "nothing yet" is driven there through _pipe. */
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#include <sys/stat.h>
+#define pipe(p) _pipe ((p), 4096, _O_BINARY)
+#define write(f, b, n) _write ((f), (b), (unsigned)(n))
+#define close(f) _close (f)
+#define unlink(p) _unlink (p)
+static int
+mkstemp (char *tmpl)
+{
+  if (_mktemp_s (tmpl, strlen (tmpl) + 1u) != 0)
+    return -1;
+  return _open (tmpl, _O_CREAT | _O_EXCL | _O_RDWR | _O_BINARY,
+                _S_IREAD | _S_IWRITE);
+}
+#define TMP_ENV "TEMP"
+#else
 #include <unistd.h>
+#define TMP_ENV "TMPDIR"
+#endif
 
 static char why[256];
 
@@ -31,12 +55,12 @@ unpack (const uint8_t *o, size_t n, uint8_t *bits)
 static int
 temp_file (const uint8_t *o, size_t n, char *path, size_t cap)
 {
-  const char *dir = getenv ("TMPDIR");
+  const char *dir = getenv (TMP_ENV);
   (void)snprintf (path, cap, "%s/test_wfm_data.XXXXXX", dir ? dir : "/tmp");
   const int fd = mkstemp (path);
   if (fd < 0)
     return -1;
-  const int ok = n == 0 || write (fd, o, n) == (ssize_t)n;
+  const int ok = n == 0 || (long long)write (fd, o, n) == (long long)n;
   close (fd);
   return ok ? 0 : -1;
 }

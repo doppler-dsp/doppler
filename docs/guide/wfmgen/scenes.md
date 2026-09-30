@@ -433,7 +433,7 @@ snrs = np.arange(-6.0, 13.0, 3.0)
 # each point: mean peak-SNR over 8 independent noise draws
 detect = [np.mean([peak_snr(plan.at(s, 2000 + j)) for j in range(8)])
           for s in snrs]
-len(detect) == len(snrs)
+assert len(detect) == len(snrs)
 ```
 
 The measured curve climbs with channel SNR and then flattens as the

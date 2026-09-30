@@ -780,7 +780,7 @@ burst = Segment(
 scene = Composer([burst])
 
 plan = prepare(scene)                    # spreading/pulse-shaping ONCE
-np.array_equal(plan.render(), scene.compose())   # bit-identical baseline
+assert np.array_equal(plan.render(), scene.compose())   # bit-identical
 # each point below is a cheap re-weighted sum + a regenerated noise synth,
 # not a re-synthesis -- both the Es/N0 AND the inter-burst jitter move
 for esn0_db in (4.0, 7.0, 10.0, 13.0):

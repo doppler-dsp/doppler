@@ -85,7 +85,6 @@ doppler/wfm_synth/wfm_synth_core.h::wfm_synth_bps
 doppler/wfm/wfm_compose.h::dp_wfm_compose_spans
 doppler/wfm/wfm_compose.h::dp_wfm_draws_json
 doppler/wfm/wfm_frame.h::dp_wfm_field_format
-doppler/wfm/wfm_frame.h::dp_wfm_field_parse
 doppler/wfm/wfm_sink.h::dp_wfm_stream_sink_available
 doppler/wfm_writer/wfm_writer_core.h::dp_wfm_writer_add_keyword
 doppler/wfm_writer/wfm_writer_core.h::dp_wfm_writer_open

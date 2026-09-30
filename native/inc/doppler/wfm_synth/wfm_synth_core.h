@@ -561,18 +561,36 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
  * @return 0, or -1 if the synth is not type=bits or has no pattern.
  *
  * @code
- * // A source of two 4-bit frames, then the end.
- * static int two (void *u, uint8_t *bits, size_t n)
+ * #include "doppler/wfm_synth/wfm_synth_core.h"
+ * #include <complex.h>
+ *
+ * // One more 4-bit frame of ones after the first, then the end.
+ * static int
+ * one_more (void *u, uint8_t *bits, size_t n)
  * {
  *   int *left = u;
- *   if ((*left)-- <= 0) return 1;           // the end
- *   for (size_t i = 0; i < n; i++) bits[i] = 1;
+ *   if ((*left)-- <= 0)
+ *     return 1; // the end
+ *   for (size_t i = 0; i < n; i++)
+ *     bits[i] = 1;
  *   return 0;
  * }
- * int left = 1;                             // one more after the first
- * dp_wfm_synth_set_bits (s, (const uint8_t[]){ 0, 1, 0, 1 }, 4, 0);
- * dp_wfm_synth_set_refill (s, two, &left, NULL);
- * // 0101, then 1111, then silence; dp_wfm_synth_data_ended (s) == 1
+ *
+ * int
+ * main (void)
+ * {
+ *   dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+ *       WFM_SYNTH_BITS, 1e6, 0.0, 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+ *   int left = 1;
+ *   dp_wfm_synth_set_bits (s, (const uint8_t[]){ 0, 1, 0, 1 }, 4, 0);
+ *   dp_wfm_synth_set_refill (s, one_more, &left, NULL);
+ *   float _Complex x[12];
+ *   dp_wfm_synth_steps (s, x, 12); // 0101, then 1111, then silence
+ *   const int ok = crealf (x[1]) > 0.5f && crealf (x[4]) > 0.5f
+ *                  && cabsf (x[11]) < 1e-3f && dp_wfm_synth_data_ended (s);
+ *   dp_wfm_synth_destroy (s);
+ *   return ok ? 0 : 1;
+ * }
  * @endcode
  */
 int dp_wfm_synth_set_refill(dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,

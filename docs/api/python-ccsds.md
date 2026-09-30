@@ -36,8 +36,9 @@ the top of the constant.
 from doppler.ccsds import asm_bits
 
 b = asm_bits()
-b.size, b[:8].tolist()                          # (32, [0, 0, 0, 1, 1, 0, 1, 0])
-int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D   # True
+assert b.size == 32
+assert b[:8].tolist() == [0, 0, 0, 1, 1, 0, 1, 0]      # 0x1A, MSB first
+assert int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
 ```
 
 **A call rather than a constant you expand.** An MSB-first expansion written

@@ -220,6 +220,16 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # A docs fence or an example that computes a claim and drops it (a bare
+      # `np.array_equal(...)` statement) runs green and checks nothing; so
+      # does an example with no assert at all. doppler#1682.
+      - id: doc-claims
+        name: doc claims are checked
+        entry: make -s lint-doc-claims
+        language: system
+        pass_filenames: false
+        types_or: [markdown, python]
+
       # A trusted internal allocation goes through clib_common.h's
       # abort-on-OOM helpers. Fires on any C change: a bare malloc can
       # appear in any core, and the point is to catch the FIRST one.

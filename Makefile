@@ -127,7 +127,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
-               why-param
+               why-param doc-claims
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -348,6 +348,16 @@ LINT_header-example-arity = \
 # every parameter named `why` or `*_why` must be exactly `const char **`.
 # Rule: docs/dev/contributing/error-convention.md. Plain python3: stdlib only.
 LINT_why-param = python3 scripts/check_why_param.py
+
+# The snippet runners execute every docs fence and test_examples.py every
+# example, so broken code is caught. Code that checks NOTHING is not: a bare
+# `np.array_equal(a, b)` statement runs, discards its answer, and the page
+# still tells the reader a and b are equal. This refuses a claim computed and
+# dropped, and an example with no assert/raise/sys.exit(<expr>) at all
+# (doppler#1682). Discovery is the snippet runners' own, imported. Plain
+# `python3`: the script needs nothing outside the standard library and the
+# source tree.
+LINT_doc-claims = python3 scripts/check_doc_claims.py
 
 # A waveform name table's ORDER is the C enum value, so a second copy does not
 # fail to compile -- it maps a flag to the wrong waveform. just-makeit.toml has

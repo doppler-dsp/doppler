@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/* After detector_core.h, which it requires: its own block, so the
+   include sort cannot hoist it. */
+#include "doppler/detector/det_private.h"
+
 #define N 64
 
 int
@@ -233,6 +237,36 @@ main (void)
     DP_CHECK (b->_last_corr_valid == a->_last_corr_valid);
     dp_detector_destroy (a);
     dp_detector_destroy (b);
+  }
+
+  /* ── the noise estimate's two homes agree, and each owns its modes ──
+     det_noise_scan() is the one-pass modes a scratch-less caller (acq's
+     per-chunk reference) calls directly; det_noise_estimate() sorts for
+     MEDIAN and hands it every other mode. */
+  {
+    const float mag[7] = { 9.0f, 4.0f, 1.0f, 7.0f, 3.0f, 8.0f, 9.0f };
+    float       scratch[7];
+    /* bins [1, 5]: 4 1 7 3 8 -> mean 4.6, median 4, min 1, max 8 */
+    const struct
+    {
+      det_noise_mode_t mode;
+      float            want;
+    } row[] = { { DET_NOISE_MEAN, 4.6f },
+                { DET_NOISE_MEDIAN, 4.0f },
+                { DET_NOISE_MIN, 1.0f },
+                { DET_NOISE_MAX, 8.0f } };
+    for (size_t i = 0; i < sizeof row / sizeof row[0]; i++)
+      {
+        const float got = det_noise_estimate (mag, 1, 5, scratch, row[i].mode);
+        DP_CHECK (fabsf (got - row[i].want) < 1e-6f);
+        /* Every mode but MEDIAN is the scan's, bit for bit; MEDIAN is
+           not one it can reach, and it says so with 0. */
+        const float scan = det_noise_scan (mag, 1, 5, row[i].mode);
+        DP_CHECK (row[i].mode == DET_NOISE_MEDIAN ? scan == 0.0f
+                                                  : scan == got);
+        /* An empty range is 0 in every mode, before any scratch. */
+        DP_CHECK (det_noise_estimate (mag, 5, 1, NULL, row[i].mode) == 0.0f);
+      }
   }
 
   DP_TEST_END ("test_detector_core");

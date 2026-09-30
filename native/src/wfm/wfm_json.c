@@ -421,10 +421,9 @@ row_get (const wfm_surface_row_t *r, const void *base, size_t off)
       return (double)*(const uint32_t *)p;
     case WFM_SV_U64:
       return (double)*(const uint64_t *)p;
-    case WFM_SV_SYMBOLS:
-      break; /* not a JSON row: a symbols stream has its own encoding */
-    case WFM_SV_FIELD:
-      break; /* its caller owns it: a Field is text, not a double */
+    case WFM_SV_SYMBOLS: /* a symbols stream has its own encoding */
+    case WFM_SV_FIELD:   /* its caller owns it: a Field is text */
+      break;             /* neither is a JSON number row */
     }
   return 0.0;
 }
@@ -452,9 +451,8 @@ row_set (const wfm_surface_row_t *r, void *base, size_t off, double v)
       *(uint64_t *)p = (uint64_t)v;
       break;
     case WFM_SV_SYMBOLS:
-      break;
     case WFM_SV_FIELD:
-      break; /* its caller owns it: a Field is text, not a double */
+      break; /* neither is a JSON number row, as in row_get() */
     }
 }
 

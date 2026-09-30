@@ -203,17 +203,17 @@ main (void)
      and there is no shorter honest way to say it. `= { 0 }` then named
      members, never a positional initialiser list — wfm_source_t carries
      30-odd members and a positional list shifts silently the moment one is
-     inserted. */
+     inserted. The payload's bits are the description's `payload` field, so
+     the source carries no payload of its own: the frame is the whole frame,
+     and a source with both is refused (doppler#1683). */
   wfm_source_t src = { 0 };
   src.type         = WFM_SYNTH_BITS;
-  src.payload
-      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = pay, .len = PAY_BITS };
-  src.modulation = WFM_BITMOD_BPSK;
-  src.sps        = SPS;
-  src.snr        = SNR_DB;
-  src.snr_mode   = WFM_SNR_ESNO;
-  src.seed       = SEED;
-  src.frame      = &d; /* borrowed; the description outlives compose */
+  src.modulation   = WFM_BITMOD_BPSK;
+  src.sps          = SPS;
+  src.snr          = SNR_DB;
+  src.snr_mode     = WFM_SNR_ESNO;
+  src.seed         = SEED;
+  src.frame        = &d; /* borrowed; the description outlives compose */
 
   /* The naive shape: one segment per burst. It works, and it is sixty copies
      of one fact — change the gap and you change it sixty times. */

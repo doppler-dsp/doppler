@@ -258,8 +258,9 @@ dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
   state->refill      = fn;
   state->refill_user = user;
   state->refill_free = fn ? free_user : NULL;
-  state->refill_due  = 0;
   state->data_ended  = 0;
+  if (!fn && state->bit_idx >= state->n_bits)
+    state->bit_idx = 0; /* detached at a boundary: cycle from the top */
   return 0;
 }
 

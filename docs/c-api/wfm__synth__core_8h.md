@@ -1329,7 +1329,7 @@ Unit-modulus constellation point (a unit-amplitude line at `bit_mod == 0`), whic
 The next bit of the pattern, or none once the data has ended.
 
 
-With no refill the pattern cycles, as it always has. With one, a frame is drawn LAZILY  when its first bit is needed, never when the previous frame's last bit is read  so a source's counts are the frames actually started, and a paced source is asked when the frame is due. A refill that reports the end latches `data_ended`. The one place the cursor wraps, so the per-sample and block paths cannot disagree about a frame boundary.
+With no refill the pattern cycles, as it always has, and the per-bit cost is the one bounds check the cursor already needs. With one, the cursor STOPS at `n_bits` instead of wrapping, so that same check finds the frame boundary: the next frame is drawn lazily, when its first bit is due  the source's counts are frames started, and a paced source is asked when the frame is due. A refill that reports the end latches `data_ended` and leaves the cursor at `n_bits`, so every later call is the slow path's immediate "no bit". The one place the cursor wraps, so the per-sample and block paths cannot disagree about a frame boundary.
 
 
 

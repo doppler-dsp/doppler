@@ -251,7 +251,8 @@ A composer source's bit fields (`Synth`/`Segment` `payload=`, `sync=`,
 `Segment(payload="pn:31:5")` is the bits `field_bits("pn:31:5")` returns and
 a malformed spec is refused with the same reason. One difference remains:
 a `*REPS` suffix on `acq_code` expands into the code itself there, where the
-CLI and a scene carry it as `acq_reps`.
+CLI and a scene carry it as `acq_reps`
+([#1668](https://github.com/doppler-dsp/doppler/issues/1668)).
 
 **An object takes bits; module helpers make them.** `Frame` and `FrameDesc`
 take each field as an unpacked `uint8` array and nothing else:

@@ -56,14 +56,17 @@ const ccsds_tm_rand_t dp_CCSDS_TM_RAND_LEGACY = {
   /* .period */ 255u
 };
 
-void
+int
 dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s, const ccsds_tm_rand_t *r)
 {
+  /* NULL is dp_ccsds_tm_rand_select's refusal, so it is refused here too:
+     reading it as the default would undo that refusal silently (#1633). */
   if (r == NULL)
-    r = &dp_CCSDS_TM_RAND;
+    return DP_ERR_INVALID;
   s->reg    = r->seed & (uint32_t)((1u << r->stages) - 1u);
   s->taps   = r->taps;
   s->stages = r->stages;
+  return DP_OK;
 }
 
 uint8_t
@@ -84,28 +87,32 @@ dp_ccsds_tm_rand_step (ccsds_tm_rand_state_t *s)
   return out;
 }
 
-void
+int
 dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out, size_t n)
 {
   ccsds_tm_rand_state_t s;
-  dp_ccsds_tm_rand_init (&s, r);
+  if (dp_ccsds_tm_rand_init (&s, r) != DP_OK)
+    return DP_ERR_INVALID;
   for (size_t i = 0; i < n; i++)
     out[i] = dp_ccsds_tm_rand_step (&s);
+  return DP_OK;
 }
 
 void
 dp_ccsds_tm_rand_seq (uint8_t *out, size_t n)
 {
-  dp_ccsds_tm_rand_seq_with (NULL, out, n);
+  (void)dp_ccsds_tm_rand_seq_with (&dp_CCSDS_TM_RAND, out, n);
 }
 
-void
+int
 dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits, size_t n)
 {
   ccsds_tm_rand_state_t s;
-  dp_ccsds_tm_rand_init (&s, r);
+  if (dp_ccsds_tm_rand_init (&s, r) != DP_OK)
+    return DP_ERR_INVALID;
   for (size_t i = 0; i < n; i++)
     bits[i] = (uint8_t)((bits[i] ^ dp_ccsds_tm_rand_step (&s)) & 1u);
+  return DP_OK;
 }
 
 const ccsds_tm_rand_t *
@@ -126,5 +133,5 @@ dp_ccsds_tm_rand_select (unsigned which)
 void
 dp_ccsds_tm_randomise (uint8_t *bits, size_t n)
 {
-  dp_ccsds_tm_randomise_with (NULL, bits, n);
+  (void)dp_ccsds_tm_randomise_with (&dp_CCSDS_TM_RAND, bits, n);
 }

@@ -82,6 +82,7 @@
 #ifndef CCSDS_TM_H
 #define CCSDS_TM_H
 
+#include "doppler/clib_common.h"
 #include "doppler/conv/conv_core.h"
 #include "doppler/dp_syncword.h"
 #include "doppler/viterbi/viterbi_core.h"
@@ -184,10 +185,14 @@ extern "C"
    * @brief Load @p r's preset, ready to emit its first bit.
    *
    * @param s  Receives the state.
-   * @param r  The randomiser; `NULL` selects @ref dp_CCSDS_TM_RAND.
+   * @param r  The randomiser, e.g. @ref dp_CCSDS_TM_RAND. `NULL` is refused,
+   *           never read as the default: it is what
+   *           @ref dp_ccsds_tm_rand_select returns for a generator B-6 does
+   *           not define.
+   * @return   DP_OK, or DP_ERR_INVALID for `NULL` (@p s is not written).
    */
-  void dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
-                           const ccsds_tm_rand_t *r);
+  int dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
+                             const ccsds_tm_rand_t *r);
 
   /**
    * @brief Emit one bit and advance.
@@ -317,12 +322,14 @@ extern "C"
   /**
    * @brief @ref dp_ccsds_tm_randomise with a chosen randomiser.
    *
-   * @param r     The randomiser; `NULL` selects @ref dp_CCSDS_TM_RAND.
+   * @param r     The randomiser. `NULL` is refused, never read as the
+   *              default -- the default is @ref dp_ccsds_tm_randomise.
    * @param bits  Unpacked bits (one per byte, LSB); modified in place.
    * @param n     Number of bits.
+   * @return      DP_OK, or DP_ERR_INVALID for `NULL` (@p bits untouched).
    */
-  void dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
-                                size_t n);
+  int dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
+                                  size_t n);
 
   /**
    * @brief The randomiser a numeric choice names: 2 is 10.4.2's legacy one.
@@ -339,9 +346,11 @@ extern "C"
    * | 2 | @ref dp_CCSDS_TM_RAND_LEGACY (10.4.2) |
    * | anything else | NULL: B-6 defines no such generator |
    *
-   * NULL is a REFUSAL, and a caller must treat it as one: handing it on to
-   * @ref dp_ccsds_tm_randomise_with would quietly select the default, which
-   * is exactly the reinterpretation this exists to stop. The description's
+   * NULL is a REFUSAL, and it stays one downstream:
+   * @ref dp_ccsds_tm_randomise_with, @ref dp_ccsds_tm_rand_seq_with and
+   * @ref dp_ccsds_tm_rand_init refuse it too (DP_ERR_INVALID) rather than
+   * read it as the default, which would be exactly the reinterpretation
+   * this exists to stop (doppler#1633). The description's
    * randomise stage refuses its unit (so `dp_wfm_frame_assemble` and
    * `dp_wfm_frame_check` refuse the frame), and dp_ccsds_tm_frame_layout
    * refuses a cfg `randomise` outside 0..2 before asking.
@@ -405,12 +414,14 @@ extern "C"
   /**
    * @brief @ref dp_ccsds_tm_rand_seq with a chosen randomiser.
    *
-   * @param r    The randomiser; `NULL` selects @ref dp_CCSDS_TM_RAND.
+   * @param r    The randomiser. `NULL` is refused, never read as the
+   *             default -- the default is @ref dp_ccsds_tm_rand_seq.
    * @param out  Receives @p n unpacked bits.
    * @param n    Number of bits to generate.
+   * @return     DP_OK, or DP_ERR_INVALID for `NULL` (@p out untouched).
    */
-  void dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
-                               size_t n);
+  int dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
+                                 size_t n);
 
 #ifdef __cplusplus
 }

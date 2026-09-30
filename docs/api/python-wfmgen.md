@@ -54,22 +54,26 @@ s = Synth(type="tone", freq=1000, fs=1e6).step()
 ### Bits (user-defined pattern)
 
 A `bits` waveform plays back a **specific bit sequence** — preambles, sync
-words, test vectors, exact packet structures. The pattern is a binary string
-(`"10110101"`), a hex string (`"0xAA55"`, MSB first), or any array-like of 0/1;
+words, test vectors, exact packet structures. The pattern is bits: a `uint8`
+array, `bytes` or any sequence of 0/1. Text becomes bits through
+`field_bits()` — binary, `0x` hex (MSB first), or a generated field such as
+`pn:31:5` — and a `str` passed directly is refused, naming it.
 `modulation` maps the bits to symbols (`"none"` → 0/1 amplitude, `"bpsk"` → ±1,
 `"qpsk"` → two bits per symbol, Gray-coded). Each bit is held `sps` samples and
 the pattern **cycles** to fill the requested length, so one pass is
 `Synth.n_samples`.
 
 ```python
-from doppler.wfm import Synth, bits
+from doppler.wfm import Synth, bits, field_bits
 
 # 8-bit preamble, BPSK, 4 samples/bit → 32 samples for one pass
-s = bits(pattern="10110101", sps=4, modulation="bpsk")
+s = bits(pattern=field_bits("10110101"), sps=4, modulation="bpsk")
 preamble = s.steps(32)  # 8 bits * 4 sps
 
 # Hex sync word, unmodulated 0/1; direct construction is equivalent
-sync = Synth(type="bits", pattern="0xAA55", modulation="none", sps=8)
+sync = Synth(
+    type="bits", pattern=field_bits("0xAA55"), modulation="none", sps=8
+)
 
 # From a numpy array
 import numpy as np

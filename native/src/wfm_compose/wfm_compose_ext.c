@@ -216,7 +216,7 @@ _attach_symbols (wfm_source_t *src, PyObject *obj)
   return 1;
 }
 
-/* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence)
+/* Coerce a 0/1 pattern (bytes | int sequence) or None
  * into an owned *dst and *n_dst (one shared coercer; each bytes field
  * passes its own struct destination). */
 static int
@@ -243,66 +243,9 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
       *n_dst = (size_t)nb;
       return 1;
     }
-  if (PyUnicode_Check (obj))
-    {
-      Py_ssize_t  slen;
-      const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
-      if (!s)
-        return 0;
-      if (slen >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
-        {
-          Py_ssize_t nd = slen - 2, nb = nd * 4; /* hex digit -> 4 bits MSB */
-          uint8_t   *buf = (uint8_t *)malloc (nb ? (size_t)nb : 1);
-          if (!buf)
-            {
-              PyErr_NoMemory ();
-              return 0;
-            }
-          for (Py_ssize_t i = 0; i < nd; i++)
-            {
-              char c = s[2 + i];
-              int  v = (c >= '0' && c <= '9')   ? c - '0'
-                       : (c >= 'a' && c <= 'f') ? c - 'a' + 10
-                       : (c >= 'A' && c <= 'F') ? c - 'A' + 10
-                                                : -1;
-              if (v < 0)
-                {
-                  free (buf);
-                  PyErr_SetString (PyExc_ValueError, "invalid hex digit");
-                  return 0;
-                }
-              for (int b = 0; b < 4; b++)
-                buf[i * 4 + b] = (uint8_t)((v >> (3 - b)) & 1);
-            }
-          *dst   = buf;
-          *n_dst = (size_t)nb;
-          return 1;
-        }
-      uint8_t *buf = (uint8_t *)malloc (slen ? (size_t)slen : 1);
-      if (!buf)
-        {
-          PyErr_NoMemory ();
-          return 0;
-        }
-      for (Py_ssize_t i = 0; i < slen; i++)
-        {
-          if (s[i] != '0' && s[i] != '1')
-            {
-              free (buf);
-              PyErr_SetString (PyExc_ValueError,
-                               "bit string must be 0/1 or '0x..' hex");
-              return 0;
-            }
-          buf[i] = (uint8_t)(s[i] - '0');
-        }
-      Py_ssize_t nb = slen;
-      *dst          = buf;
-      *n_dst        = (size_t)nb;
-      return 1;
-    }
   {
-    PyObject *seq = PySequence_Fast (
-        obj, "bits must be bytes, a 0/1 string, or a sequence of ints");
+    PyObject *seq
+        = PySequence_Fast (obj, "bits must be bytes or a sequence of ints");
     if (!seq)
       return 0;
     Py_ssize_t nb  = PySequence_Fast_GET_SIZE (seq);
@@ -329,6 +272,52 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
     *n_dst = (size_t)nb;
     return 1;
   }
+}
+
+/* A str is read by the project's dp_wfm_source_bits_refuse_text()
+ * (coerce_str_fn, gh-1709) -- sized, then filled; 0 is a refusal and *why
+ * its reason. Anything else is _attach_bytes's. */
+static int
+_coerce_dp_wfm_source_bits_refuse_text (uint8_t **dst, size_t *n_dst,
+                                        PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_source_bits_refuse_text (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_source_bits_refuse_text (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (
+          PyExc_ValueError,
+          why ? why : "dp_wfm_source_bits_refuse_text() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
 }
 
 static int
@@ -681,8 +670,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.doppler_lifetime = _i;
   }
-  if (!_attach_bytes ((uint8_t **)&self->src.payload.bits,
-                      &self->src.payload.len, bits))
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.payload.bits, &self->src.payload.len, bits))
     return -1;
   {
     int _i = _enum_index (_enum_bitmod, modulation);
@@ -709,15 +698,17 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.rrc_span = rrc_span;
   if (!_attach_symbols (&self->src, symbols))
     return -1;
-  if (!_attach_bytes ((uint8_t **)&self->src.acq_code.bits,
-                      &self->src.acq_code.len, acq_code))
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.acq_code.bits, &self->src.acq_code.len,
+          acq_code))
     return -1;
   self->src.acq_reps = acq_reps;
-  if (!_attach_bytes ((uint8_t **)&self->src.data_code.bits,
-                      &self->src.data_code.len, data_code))
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.data_code.bits, &self->src.data_code.len,
+          data_code))
     return -1;
-  if (!_attach_bytes ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
-                      sync))
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.sync.bits, &self->src.sync.len, sync))
     return -1;
   {
     int _i = _enum_index (_enum_crc, crc);
@@ -1159,8 +1150,9 @@ static int
 Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.payload.bits,
-                        &self->src.payload.len, value)
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.payload.bits, &self->src.payload.len,
+             value)
              ? 0
              : -1;
 }
@@ -1293,8 +1285,9 @@ static int
 Synth_set_acq_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.acq_code.bits,
-                        &self->src.acq_code.len, value)
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.acq_code.bits, &self->src.acq_code.len,
+             value)
              ? 0
              : -1;
 }
@@ -1326,8 +1319,9 @@ static int
 Synth_set_data_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.data_code.bits,
-                        &self->src.data_code.len, value)
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.data_code.bits, &self->src.data_code.len,
+             value)
              ? 0
              : -1;
 }
@@ -1344,8 +1338,8 @@ static int
 Synth_set_sync (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
-                        value)
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.sync.bits, &self->src.sync.len, value)
              ? 0
              : -1;
 }

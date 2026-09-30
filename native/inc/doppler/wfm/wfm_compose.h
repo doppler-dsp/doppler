@@ -1038,6 +1038,36 @@ wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
 void dp_wfm_frame_free(wfm_frame_desc_t *d);
 
 /**
+ * @brief Refuse text for a source's bit field: an object takes bits.
+ *
+ * A composer source's bit fields (`payload`, `sync`, `acq_code`,
+ * `data_code`) take BITS on the Python face -- a `uint8` array, bytes or a
+ * sequence of 0/1 -- and module helpers make them from other forms:
+ * `field_bits(text)` for the Field grammar, `cvt.hex_to_bin`,
+ * `cvt.bytes_to_bin`. A `str` is refused rather than read, so the object
+ * has one shape and the Field grammar one door. The text faces (the CLI, a
+ * scene) keep reading a Field through dp_wfm_field_parse().
+ *
+ * It has the shape of dp_wfm_field_bits() because the binding calls it
+ * where that would be called (just-makeit's `coerce_str_fn`), and it always
+ * refuses: it returns 0 and sets @p why to its one static reason.
+ *
+ * @param text     ignored.
+ * @param out      never written.
+ * @param max_out  ignored.
+ * @param why      receives the static reason; may be NULL.
+ * @return 0, always.
+ *
+ * @code
+ * const char *why;
+ * size_t      n = dp_wfm_source_bits_refuse_text ("0101", NULL, 0, &why);
+ * // n == 0; why names field_bits()
+ * @endcode
+ */
+size_t dp_wfm_source_bits_refuse_text(const char *text, uint8_t *out,
+                                      size_t max_out, const char **why);
+
+/**
  * @brief Build a composer from a JSON spec string (for --from-file).
  * @return Composer state, or NULL on parse error / bad type / no segments.
  */

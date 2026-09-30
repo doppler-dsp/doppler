@@ -249,8 +249,11 @@ One flag and one JSON key per field on the text faces — `--sync`,
 take each field as an unpacked `uint8` array and nothing else:
 `Frame(preamble=, sync=, payload=, crc=)`, each field an empty-by-default
 keyword (omitted, it reaches C as `NULL, 0`), and
-`FrameDesc.add_field(name, bits)`. Every other form reaches them through a
-module-level helper that returns bits:
+`FrameDesc.add_field(name, bits)`. A composer source's bit fields (`Synth` /
+`Segment` `payload=`, `sync=`, `acq_code=`, `data_code=`) follow the same
+rule: they take bits, and a `str` is refused with a reason naming
+`field_bits()`. Every other form reaches them through a module-level helper
+that returns bits:
 
 | helper                 | from                            | over                                   |
 | ---------------------- | ------------------------------- | -------------------------------------- |

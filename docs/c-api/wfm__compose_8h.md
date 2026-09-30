@@ -103,6 +103,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  double | [**dp\_wfm\_snr\_over\_fs**](#function-dp_wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
+|  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for a source's bit field: an object takes bits._  |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
@@ -1217,6 +1218,58 @@ The frame CYCLES, exactly as an unframed pattern does: one descriptor fills what
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_bits\_refuse\_text 
+
+_Refuse text for a source's bit field: an object takes bits._ 
+```C++
+size_t dp_wfm_source_bits_refuse_text (
+    const char * text,
+    uint8_t * out,
+    size_t max_out,
+    const char ** why
+) 
+```
+
+
+
+A composer source's bit fields (`payload`, `sync`, `acq_code`, `data_code`) take BITS on the Python face  a `uint8` array, bytes or a sequence of 0/1  and module helpers make them from other forms: `field_bits(text)` for the Field grammar, `cvt.hex_to_bin`, `cvt.bytes_to_bin`. A `str` is refused rather than read, so the object has one shape and the Field grammar one door. The text faces (the CLI, a scene) keep reading a Field through [**dp\_wfm\_field\_parse()**](wfm__frame_8h.md#function-dp_wfm_field_parse).
+
+
+It has the shape of [**dp\_wfm\_field\_bits()**](wfm__frame_8h.md#function-dp_wfm_field_bits) because the binding calls it where that would be called (just-makeit's `coerce_str_fn`), and it always refuses: it returns 0 and sets `why` to its one static reason.
+
+
+
+
+**Parameters:**
+
+
+* `text` ignored. 
+* `out` never written. 
+* `max_out` ignored. 
+* `why` receives the static reason; may be NULL. 
+
+
+
+**Returns:**
+
+0, always.
+
+
+
+```C++
+const char *why;
+size_t      n = dp_wfm_source_bits_refuse_text ("0101", NULL, 0, &why);
+// n == 0; why names field_bits()
+```
+ 
 
 
         

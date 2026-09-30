@@ -94,77 +94,58 @@ def test_malformed_text_raises_its_reason_never_returns_empty(spec):
         field_bits(spec)
 
 
-# ── the SECOND grammar: jm's bit_pattern coercion on a Source ──────────────
+# ── a source's bit field takes bits, never text ──────────────────────────────
 #
-# A composer bytes field with `coerce = "bit_pattern"` (just-makeit.toml:
-# bits/payload, acq_code, data_code, sync) parses a `str` with jm's OWN
-# grammar -- 0/1 or 0x hex -- not the Field's. It is kept because dropping it
-# would also refuse numpy arrays and int sequences, and a literal Field is
-# data. So the two grammars are pinned against each other: where they agree,
-# and where they do not. The gaps are asserted as they are TODAY, so the jm
-# fix (route a str through field_bits) turns them red on purpose -- and then
-# the gap tests, and this second grammar, are deleted.
+# An object takes bits; module helpers make them (docs/design/
+# frame-description.md, F.3). A composer source's bit fields (bits/payload,
+# sync, acq_code, data_code) keep jm's `coerce = "bit_pattern"`, because
+# without it jm refuses arrays, and name `coerce_str_fn =
+# "dp_wfm_source_bits_refuse_text"`, which refuses every str with one reason
+# pointing here. So text has one door, field_bits(), and the object one
+# shape.
 
-_JM1709 = (
-    "just-makeit#1709: jm's coercion now agrees with field_bits here -- "
-    "delete this gap test and the second grammar with it"
-)
+_REFUSED = re.escape("build them from text with field_bits()")
 
-
-def _jm_grammar(spec: str) -> bool:
-    """What jm's coercion reads: a 0/1 string, or 0x hex with no repeat."""
-    body = spec[2:] if spec[:2].lower() == "0x" else spec
-    return "*" not in spec and ":" not in spec and bool(body)
+#: Every source bit field, and a kwarg that reaches it.
+_FIELDS = ["payload", "pattern", "bits", "sync", "acq_code", "data_code"]
 
 
-def _coerce(spec: str):
+def _synth(**kw):
+    from doppler.wfm import Synth
+
+    return Synth(type="dsss", **kw)
+
+
+@pytest.mark.parametrize("field", _FIELDS)
+@pytest.mark.parametrize("spec", ["0101", "0xAA55", "pn:31:5", ""])
+def test_a_source_bit_field_refuses_text_naming_field_bits(field, spec):
+    """Valid Field text or not, a str is refused -- on the constructor."""
+    with pytest.raises(ValueError, match=_REFUSED):
+        _synth(**{field: spec})
+
+
+@pytest.mark.parametrize("field", ["bits", "sync", "acq_code", "data_code"])
+def test_the_setter_refuses_text_and_keeps_the_bits(field):
+    src = _synth(**{field: field_bits("0101")})
+    with pytest.raises(ValueError, match=_REFUSED):
+        setattr(src, field, "1100")
+    assert list(getattr(src, field)) == [0, 1, 0, 1]
+
+
+def test_a_segment_kwarg_refuses_text_too():
     from doppler.wfm import Segment
 
-    return Segment(type="bits", payload=spec).bits
+    with pytest.raises(ValueError, match=_REFUSED):
+        Segment(type="bits", payload="pn:31:5")
 
 
-@pytest.mark.parametrize("spec", [s for s in VALID if _jm_grammar(s)])
-def test_the_coercion_agrees_with_field_bits(spec):
-    """Binary and hex: one text, the same bits through either door."""
-    assert list(_coerce(spec)) == field_bits(spec).tolist()
+@pytest.mark.parametrize("spec", VALID)
+def test_field_bits_output_is_what_a_source_takes(spec):
+    """The door text goes through: its bits are taken as they are."""
+    from doppler.wfm import Segment
 
-
-@pytest.mark.parametrize("spec", [s for s in MALFORMED if s not in ("", "0x")])
-def test_the_coercion_refuses_what_field_bits_refuses(spec):
-    """The refusals the two grammars SHARE, pinned so neither drifts alone.
-
-    If jm ever read "0102" as some pattern, the agreement tests above would
-    stay green -- they only cover VALID text.
-    """
-    with pytest.raises(ValueError):
-        _coerce(spec)
-
-
-@pytest.mark.parametrize("spec", [s for s in VALID if not _jm_grammar(s)])
-def test_gap_the_coercion_refuses_a_valid_field(spec):
-    """A generated field and `*REPS` are Fields jm cannot read.
-
-    `wfmgen --bits pn:31:5` and a scene's `"payload": "pn:31:5"` work;
-    `Segment(payload="pn:31:5")` does not. Pass `field_bits(spec)` instead.
-    """
-    try:
-        _coerce(spec)
-    except ValueError:
-        return
-    pytest.fail(_JM1709)
-
-
-@pytest.mark.parametrize("spec", ["", "0x"])
-def test_gap_the_coercion_accepts_an_empty_field(spec):
-    """`""` and a bare `0x` read as an absent pattern, not a typo."""
-    with pytest.raises(ValueError):
-        field_bits(spec)
-    assert spec in MALFORMED
-    try:
-        got = _coerce(spec)
-    except ValueError:
-        pytest.fail(_JM1709)  # refused, as field_bits refuses: fixed
-    assert got in (None, b""), "the coercion read an empty field as bits"
+    got = Segment(type="bits", payload=field_bits(spec)).bits
+    assert list(got) == field_bits(spec).tolist()
 
 
 def test_a_field_past_the_bound_raises_not_a_numpy_error():

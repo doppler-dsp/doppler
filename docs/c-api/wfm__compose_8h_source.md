@@ -459,6 +459,9 @@ wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
 
 void dp_wfm_frame_free(wfm_frame_desc_t *d);
 
+size_t dp_wfm_source_bits_refuse_text(const char *text, uint8_t *out,
+                                      size_t max_out, const char **why);
+
 dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,

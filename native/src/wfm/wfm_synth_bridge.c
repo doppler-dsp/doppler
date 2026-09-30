@@ -22,6 +22,19 @@
 /* Pulse enum index 1 == "rrc" (see the wfm_pulse [[enum]] SSOT). */
 #define WFM_PULSE_RRC 1
 
+size_t
+dp_wfm_source_bits_refuse_text (const char *text, uint8_t *out, size_t max_out,
+                                const char **why)
+{
+  (void)text;
+  (void)out;
+  (void)max_out;
+  if (why)
+    *why = "a bit field takes bits (a uint8 array); build them from text "
+           "with field_bits()";
+  return 0;
+}
+
 int
 dp_wfm_source_has_frame (const wfm_source_t *src)
 {

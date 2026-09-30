@@ -10,7 +10,7 @@ import pytest
 
 from doppler.mpsk import mpsk_map
 from doppler.snr import snr_data_aided_db
-from doppler.wfm import PN, Synth, bits, chirp, mls_poly, rrc_taps
+from doppler.wfm import PN, Synth, bits, chirp, field_bits, mls_poly, rrc_taps
 
 
 def _inst_freq(x, fs):
@@ -285,7 +285,7 @@ def test_rrc_shapes_bits():
     """pulse='rrc' on a user bit pattern is NOT a no-op: it band-limits the
     stream just like the pn/bpsk/qpsk path. Guards the silent-ignore bug where
     --type bits accepted --pulse rrc but emitted rectangular pulses anyway."""
-    pat = "1011001010110100"
+    pat = field_bits("1011001010110100")
     rect = bits(pattern=pat, sps=8, modulation="bpsk").steps(8192)
     rrc = bits(
         pattern=pat, sps=8, modulation="bpsk", pulse="rrc", rrc_beta=0.22
@@ -350,7 +350,7 @@ def test_rrc_bits_matches_matched_filter(sps):
 
 def test_rrc_bits_reset_reproduces():
     s = bits(
-        pattern="11010010",
+        pattern=field_bits("11010010"),
         sps=4,
         modulation="bpsk",
         seed=5,
@@ -367,7 +367,7 @@ def test_rrc_bits_carrier_and_noise():
     """The RRC bits block path mixes the shaped baseband with the LO carrier
     and AWGN. Exercise every mix tail: LO-only, AWGN-only, and LO+AWGN — plus
     the unmodulated (modulation='none') latch under the FIR."""
-    pat = "1011001010110100"
+    pat = field_bits("1011001010110100")
     base = {
         "pattern": pat,
         "sps": 8,
@@ -421,7 +421,7 @@ def test_rrc_bits_step_matches_steps():
 
 def test_bits_bpsk_mapping():
     """bpsk: bit 0 -> +1, bit 1 -> -1; each bit held sps samples."""
-    s = bits(pattern="10110101", sps=4, modulation="bpsk")
+    s = bits(pattern=field_bits("10110101"), sps=4, modulation="bpsk")
     y = s.steps(32)  # 8 bits * 4 sps = 32 samples / pass
     centers = y[2::4].real.round().astype(int).tolist()
     assert centers == [-1, 1, -1, -1, 1, -1, 1, -1]  # 1->-1, 0->+1
@@ -429,7 +429,7 @@ def test_bits_bpsk_mapping():
 
 def test_bits_none_amplitude():
     """none: bit 0 -> 0, bit 1 -> 1 amplitude."""
-    y = bits(pattern="1100", sps=1, modulation="none").steps(4)
+    y = bits(pattern=field_bits("1100"), sps=1, modulation="none").steps(4)
     assert y.real.round().astype(int).tolist() == [1, 1, 0, 0]
 
 
@@ -444,14 +444,15 @@ def test_bits_qpsk_four_points():
 
 
 def test_bits_hex_pattern():
-    """A 0x.. hex string expands MSB-first to bits."""
-    y = bits(pattern="0xA5", sps=1, modulation="none").steps(8)  # 1010 0101
+    """field_bits("0x..") expands MSB-first to bits."""
+    pattern = field_bits("0xA5")  # 1010 0101
+    y = bits(pattern=pattern, sps=1, modulation="none").steps(8)
     assert y.real.astype(int).tolist() == [1, 0, 1, 0, 0, 1, 0, 1]
 
 
 def test_bits_cycles_to_fill():
     """The pattern repeats to fill a request longer than one pass."""
-    s = bits(pattern="101", sps=2, modulation="none")
+    s = bits(pattern=field_bits("101"), sps=2, modulation="none")
     period = 3 * 2  # 3 bits * 2 sps = 6 samples / pass
     one = s.steps(period)
     s.reset()
@@ -460,7 +461,7 @@ def test_bits_cycles_to_fill():
 
 
 def test_bits_reset_reproduces():
-    s = bits(pattern="11010010", sps=3, modulation="bpsk", seed=5)
+    s = bits(pattern=field_bits("11010010"), sps=3, modulation="bpsk", seed=5)
     period = 8 * 3  # 8 bits * 3 sps
     a = s.steps(period)
     s.reset()
@@ -532,9 +533,10 @@ def test_bits_needs_pattern():
         Synth(type="bits").steps(4)
 
 
-def test_bits_bad_string_rejected():
-    with pytest.raises(ValueError):
-        bits(pattern="10201").steps(4)  # '2' is not a bit
+def test_bits_text_is_refused_naming_field_bits():
+    # An object takes bits; text becomes bits through field_bits().
+    with pytest.raises(ValueError, match=r"field_bits\(\)"):
+        bits(pattern="1011")
 
 
 # ── symbols (user complex constellation) ─────────────────────────────────────

@@ -1548,6 +1548,7 @@
 * **dp\_wfm\_snr\_over\_fs** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_attach\_dsss** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_attach\_frame** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_source\_bits\_refuse\_text** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_create\_snr** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_dsss\_nchips** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))

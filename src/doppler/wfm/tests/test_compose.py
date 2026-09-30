@@ -19,7 +19,14 @@ import numpy as np
 import pytest
 
 from doppler.tests._repo import build_dir, exe
-from doppler.wfm import cli, dsss_spread, mls_poly, rrc_taps, write_blue_header
+from doppler.wfm import (
+    cli,
+    dsss_spread,
+    field_bits,
+    mls_poly,
+    rrc_taps,
+    write_blue_header,
+)
 from doppler.wfm.compose import (
     Composer,
     Reader,
@@ -1436,7 +1443,7 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
     x = Composer(
         Segment(
             "bits",
-            pattern="10110100",
+            pattern=field_bits("10110100"),
             modulation="qpsk",
             sps=4,
             fs=1e6,
@@ -1457,7 +1464,7 @@ def test_bits_json_roundtrip():
         [
             Segment(
                 "bits",
-                pattern="110100",
+                pattern=field_bits("110100"),
                 modulation="bpsk",
                 sps=2,
                 num_samples=12,
@@ -1476,7 +1483,7 @@ def test_bits_in_sum_scene():
     from doppler.wfm import bits, tone
 
     mix = Segment.sum(
-        bits(pattern="10110101", modulation="bpsk", sps=4),
+        bits(pattern=field_bits("10110101"), modulation="bpsk", sps=4),
         tone(freq=2e5, level=-6),
         num_samples=128,
     )

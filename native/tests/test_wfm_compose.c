@@ -958,6 +958,33 @@ test_frame_from_json_directly (void)
   return 0;
 }
 
+/* dp_wfm_source_bits_refuse_text: a source's bit field takes bits, so its
+ * text face always refuses, with one reason naming field_bits(). */
+static int
+test_source_bits_refuse_text (void)
+{
+  uint8_t     out[4] = { 7, 7, 7, 7 };
+  const char *why    = NULL;
+  DP_CHECK_MSG (dp_wfm_source_bits_refuse_text ("0101", out, sizeof out, &why)
+                    == 0,
+                "bits_refuse_text: valid Field text is still refused");
+  DP_CHECK_MSG (why && strstr (why, "field_bits()"),
+                "bits_refuse_text: the reason names field_bits()");
+  DP_CHECK_MSG (out[0] == 7 && out[3] == 7,
+                "bits_refuse_text: nothing is written");
+  DP_CHECK_MSG (dp_wfm_source_bits_refuse_text ("", NULL, 0, NULL) == 0,
+                "bits_refuse_text: why may be NULL");
+  /* The header's @code example, as written. */
+  {
+    const char *w;
+    size_t      n = dp_wfm_source_bits_refuse_text ("0101", NULL, 0, &w);
+    DP_CHECK_MSG (n == 0 && strstr (w, "field_bits()"),
+                  "bits_refuse_text @code: n == 0, why names field_bits()");
+  }
+  printf ("  dp_wfm_source_bits_refuse_text refuses every str\n");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3927,6 +3954,8 @@ main (void)
   if (test_a_framed_pn_type_sends_its_frame ())
     return 1;
   if (test_frame_from_json_directly ())
+    return 1;
+  if (test_source_bits_refuse_text ())
     return 1;
 
   printf (

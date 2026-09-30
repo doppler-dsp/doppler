@@ -56,7 +56,9 @@ extern "C"
     WFM_SEQ_LITERAL = 0, /**< a 0/1 array the caller owns                  */
     WFM_SEQ_PN      = 1, /**< dp_pn_create()   — m-sequence, one LFSR         */
     WFM_SEQ_GOLD    = 2, /**< dp_gold_create() — two LFSRs, a Gold family     */
-    WFM_SEQ_DOTTED  = 3  /**< alternating 1010…; a line at Rs/2 to settle on */
+    WFM_SEQ_DOTTED  = 3, /**< alternating 1010…; a line at Rs/2 to settle on */
+    WFM_SEQ_DATA    = 4  /**< `data:LEN`: LEN bits per frame from the frame's
+                              data source; it has no bits of its own      */
   } wfm_seq_kind_t;
 
   /**
@@ -530,7 +532,8 @@ extern "C"
    * @param max_out  capacity; 0 is returned if @p s->len exceeds it.
    * @return bits written, or 0 if the sequence is unbuildable (a LITERAL
    *         with no array, a length past @p max_out, a generator that
-   *         refused its own parameters).
+   *         refused its own parameters) or has no bits of its own
+   *         (@ref WFM_SEQ_DATA, whose bits are its data source's).
    */
   size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
 
@@ -550,7 +553,8 @@ extern "C"
    * @param out      receives `f->seq.len * reps` bits, one per byte.
    * @param max_out  capacity of @p out in bits.
    * @return bits written, or 0 if the field is derived, empty, larger than
-   *         @p max_out, or its sequence cannot be built. On 0, @p out may
+   *         @p max_out, a data field (its bits are its data source's), or
+   *         its sequence cannot be built. On 0, @p out may
    *         have been partly written.
    *
    * @code
@@ -596,9 +600,10 @@ extern "C"
    * filtered, because a typo that quietly shortens a sync word syncs to
    * nothing and fails nowhere.
    *
-   * `data:LEN` is part of the grammar but not yet of this parser: it names a
-   * payload drawn from a data source, which a `wfm_seq_t` cannot carry
-   * until that source exists. It is refused, by name.
+   * `data:LEN` parses to a @ref WFM_SEQ_DATA field: LEN bits per frame,
+   * drawn from the frame's data source, so the description knows its
+   * length and never its bits. `LEN` must be > 0 and nothing may follow
+   * it (docs/design/payload-data-source.md).
    *
    * @param spec   NUL-terminated text.
    * @param field  receives the field: `name` empty, `derived_by` 0, `reps`
@@ -693,13 +698,15 @@ extern "C"
    * @param out      receives the bits, one per byte; NULL to size.
    * @param max_out  capacity of @p out in bits; ignored when @p out is NULL.
    * @param why      optional; as @ref dp_wfm_field_parse, plus "the output
-   *                 is smaller than the field".
+   *                 is smaller than the field" and, for `data:LEN`, that
+   *                 its bits come from the frame's data source.
    * @return the field's length in bits (repetitions included), or 0 on a
    *         refusal. A Field is never empty, so 0 is unambiguous. **Every
-   *         text the grammar accepts renders**: the parser refuses what a
-   *         generator could not build (a 1-bit register with no POLY, a
-   *         number wider than REG), so the sizing call's answer is what the
-   *         rendering call writes, given room.
+   *         text the grammar accepts renders, except `data:LEN`**, which
+   *         has no bits of its own and is refused, sizing or rendering: the
+   *         parser refuses what a generator could not build (a 1-bit
+   *         register with no POLY, a number wider than REG), so the sizing
+   *         call's answer is what the rendering call writes, given room.
    *
    * @code
    * uint8_t b[124];
@@ -763,12 +770,17 @@ extern "C"
    * reach the state at all, since @ref dp_wfm_frame_add_stage wires the
    * producer from the cover it is given.
    *
+   * A frame draws from ONE data source, so it carries at most one
+   * @ref WFM_SEQ_DATA field; a second is refused. The data field's length
+   * counts like any other, so a frame's geometry is known before its data
+   * is.
+   *
    * @param d    the description.
    * @param out  receives the layout.
    * @return 0, or -1 if @p d or @p out is NULL, a count or a cover runs
-   *         past its array, a derived field names no producing stage, or an
+   *         past its array, a derived field names no producing stage, an
    *         emitting stage covers less than the whole frame or is not the
-   *         only one.
+   *         only one, or the frame has two data fields.
    */
   int dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);

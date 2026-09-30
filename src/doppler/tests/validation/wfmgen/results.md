@@ -90,7 +90,7 @@ The five scenes produce **4 distinct waveforms**, not five: `pn` and `bpsk` hash
 
 | run | accepted | round trips held | findings |
 |---|---|---|---|
-| `--check`, seed `0x9E3779B97F4A7C15` | 2603 | 2603 | 0 |
+| `--check`, seed `0x9E3779B97F4A7C15` | 2606 | 2606 | 0 |
 
 
 ### 2.4 A malformed Field on the command line
@@ -100,7 +100,7 @@ The five scenes produce **4 distinct waveforms**, not five: `pn` and `bpsk` hash
 | `pn:12:1` | 2 | `error: --bits pn:12:1: a pn REG this narrow has no maximal-length polynomial: give POLY, or a wider REG` |
 | `pn:31:5:32` | 2 | `error: --bits pn:31:5:32: a pn SEED or POLY has a bit above its REG-bit register` |
 | `01a1` | 2 | `error: --bits 01a1: a binary literal holds a character other than 0 or 1` |
-| `data:1024` | 2 | `error: --bits data:1024: data:LEN names a payload drawn from a data source, which is not supported yet` |
+| `data:1024` | 2 | `error: a payload of data:LEN draws its bits from a data source, and wfmgen does not connect one yet (doppler#1619)` |
 | `pn:4000000000:5` | 2 | `error: --bits pn:4000000000:5: LEN * REPS is past the Field bound of 261120 bits` |
 
 

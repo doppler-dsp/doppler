@@ -2815,6 +2815,34 @@ main (void)
                     "and the standalone bridge agrees — they share the attach "
                     "for exactly this reason");
 
+    /* A payload that is `data:LEN` lays out -- its length is known -- but
+       nothing yet connects the data source that fills it
+       (docs/design/payload-data-source.md §7). It is refused by NAME,
+       before the assembler would report it as a kernel's refusal. */
+    wfm_source_t dsrc = framed;
+    dsrc.payload      = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 64 };
+    const char *dwhy  = dp_wfm_source_frame_error (&dsrc);
+    DP_REQUIRE_MSG (dwhy && strstr (dwhy, "data source"),
+                    "a data field is refused as having no data source");
+    DP_REQUIRE_MSG (!dp_wfm_source_to_synth (&dsrc, 1.0),
+                    "and nothing is built from it");
+
+    /* The same field in a source's own slots, with no frame to carry it:
+       every face's source check refuses it by name. The payload's source
+       is not connected yet; the other slots carry their own bits. */
+    wfm_source_t bare = { 0 };
+    bare.type         = WFM_SYNTH_BITS;
+    bare.payload      = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 64 };
+    const char *pwhy  = dp_wfm_source_error (&bare);
+    DP_REQUIRE_MSG (pwhy && strstr (pwhy, "data source"),
+                    "a data:LEN payload is refused, naming the data source");
+    wfm_source_t syn = framed;
+    syn.sync         = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 16 };
+    const char *swhy = dp_wfm_source_error (&syn);
+    DP_REQUIRE_MSG (swhy && strstr (swhy, "only a frame's payload"),
+                    "a data:LEN sync word is refused: only a payload draws "
+                    "from a data source");
+
     dp_wfm_synth_destroy (sp);
     dp_wfm_synth_destroy (sf);
     dp_wfm_synth_destroy (sc);

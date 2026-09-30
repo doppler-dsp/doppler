@@ -27,7 +27,8 @@ extern "C"
     WFM_SEQ_LITERAL = 0, 
     WFM_SEQ_PN      = 1, 
     WFM_SEQ_GOLD    = 2, 
-    WFM_SEQ_DOTTED  = 3  
+    WFM_SEQ_DOTTED  = 3, 
+    WFM_SEQ_DATA    = 4  
   } wfm_seq_kind_t;
 
   typedef struct

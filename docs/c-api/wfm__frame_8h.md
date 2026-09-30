@@ -183,7 +183,8 @@ enum wfm_seq_kind_t {
     WFM_SEQ_LITERAL = 0,
     WFM_SEQ_PN = 1,
     WFM_SEQ_GOLD = 2,
-    WFM_SEQ_DOTTED = 3
+    WFM_SEQ_DOTTED = 3,
+    WFM_SEQ_DATA = 4
 };
 ```
 
@@ -353,13 +354,13 @@ size_t dp_wfm_field_bits (
 * `out` receives the bits, one per byte; NULL to size. 
 * `max_out` capacity of `out` in bits; ignored when `out` is NULL. 
 * `why` optional; as [**dp\_wfm\_field\_parse**](wfm__frame_8h.md#function-dp_wfm_field_parse), plus "the output
-                is smaller than the field". 
+                is smaller than the field" and, for `data:LEN`, that its bits come from the frame's data source. 
 
 
 
 **Returns:**
 
-the field's length in bits (repetitions included), or 0 on a refusal. A Field is never empty, so 0 is unambiguous. **Every text the grammar accepts renders**: the parser refuses what a generator could not build (a 1-bit register with no POLY, a number wider than REG), so the sizing call's answer is what the rendering call writes, given room.
+the field's length in bits (repetitions included), or 0 on a refusal. A Field is never empty, so 0 is unambiguous. **Every text the grammar accepts renders, except `data:LEN`**, which has no bits of its own and is refused, sizing or rendering: the parser refuses what a generator could not build (a 1-bit register with no POLY, a number wider than REG), so the sizing call's answer is what the rendering call writes, given room.
 
 
 
@@ -465,7 +466,7 @@ LFSR   := "galois" | "fibonacci"                  default galois
 A number is decimal, or hex after `0x`, and must be consumed WHOLE: `12abc`, `-1`, `5` and an empty field (`pn::10`) are refused, not read as far as they go. A leading `0` is decimal, never octal. `LEN` is the output length and must be &gt; 0; `REG` is the register width, 1..64. A `pn` with no `POLY` means the maximal-length polynomial for its register, so a register that has none (width 1) is refused unless a `POLY` is given. `LEN * REPS` is at most [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), and the refusal names that number: a longer run is a stream, not a Field. A `0`/`1` string with any other character in it is refused rather than filtered, because a typo that quietly shortens a sync word syncs to nothing and fails nowhere.
 
 
-`data:LEN` is part of the grammar but not yet of this parser: it names a payload drawn from a data source, which a `wfm_seq_t` cannot carry until that source exists. It is refused, by name.
+`data:LEN` parses to a WFM\_SEQ\_DATA field: LEN bits per frame, drawn from the frame's data source, so the description knows its length and never its bits. `LEN` must be &gt; 0 and nothing may follow it (docs/design/payload-data-source.md).
 
 
 
@@ -533,7 +534,7 @@ The one place a field's REPETITION is expanded, used by [**dp\_wfm\_frame\_assem
 
 **Returns:**
 
-bits written, or 0 if the field is derived, empty, larger than `max_out`, or its sequence cannot be built. On 0, `out` may have been partly written.
+bits written, or 0 if the field is derived, empty, larger than `max_out`, a data field (its bits are its data source's), or its sequence cannot be built. On 0, `out` may have been partly written.
 
 
 
@@ -882,6 +883,9 @@ An EMITTING stage (`emit_num` set) is refused unless it covers the whole frame, 
 A field that declares `bits` but supplies no sequence is DERIVED, and one that names no producing stage (`derived_by` zero) is refused for the same reason. It used to lay out at zero length: the frame came out short, the stage that should have filled the field ran over a cover whose tail no longer existed, and the caller got a record rather than an error. Every reader funnels through here, so refusing at this one point covers the scene JSON and the CLI as well as the builder — which cannot reach the state at all, since [**dp\_wfm\_frame\_add\_stage**](wfm__frame_8h.md#function-dp_wfm_frame_add_stage) wires the producer from the cover it is given.
 
 
+A frame draws from ONE data source, so it carries at most one WFM\_SEQ\_DATA field; a second is refused. The data field's length counts like any other, so a frame's geometry is known before its data is.
+
+
 
 
 **Parameters:**
@@ -894,7 +898,7 @@ A field that declares `bits` but supplies no sequence is DERIVED, and one that n
 
 **Returns:**
 
-0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, or an emitting stage covers less than the whole frame or is not the only one. 
+0, or -1 if `d` or `out` is NULL, a count or a cover runs past its array, a derived field names no producing stage, an emitting stage covers less than the whole frame or is not the only one, or the frame has two data fields. 
 
 
 
@@ -1090,7 +1094,7 @@ The one place a `wfm_seq_t` becomes bits. A descriptor materialises its own fiel
 
 **Returns:**
 
-bits written, or 0 if the sequence is unbuildable (a LITERAL with no array, a length past `max_out`, a generator that refused its own parameters). 
+bits written, or 0 if the sequence is unbuildable (a LITERAL with no array, a length past `max_out`, a generator that refused its own parameters) or has no bits of its own (WFM\_SEQ\_DATA, whose bits are its data source's). 
 
 
 

@@ -267,6 +267,99 @@ periodic autocorrelation (an extended m-sequence gives 8.0; the best of a
 brackets what that costs — ratio 31 found every burst offset, 1.07 lost
 47% of them.
 
+## BER vs Eb/N0, through one `Plan`
+
+![DSSS burst BER against Eb/N0: measured points with 99% intervals on coherent BPSK and the sync-phase-limited curve](../assets/dsss_burst_ber_demo.png)
+
+The last step is the receiver's performance: a Monte Carlo of bit error
+rate against Eb/N0, scored against theory. The burst carries **PN data and
+nothing else** — no CRC, no frame description — and the transmit bits and
+the scoring truth come from one Field string through `wfm.field_bits`. The
+script is its own gate,
+[`dsss_burst_ber_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/dsss_burst_ber_demo.py),
+so the sweep's runtime (about 6 s by default) stays out of the sections
+above.
+
+**The stimulus is one `Plan`.** It renders the burst's signal once;
+`plan.at(snr, seed)` then draws fresh noise per trial. Its contract is
+asserted before anything is measured: at the scene's own SNR and the
+anchor seed, a draw is a full compose of the same scene, byte for byte.
+
+<!-- docs-snippet: skip=an excerpt of the example's module scope (ACQ, SYNC, receiver() are defined above it); the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_ber_demo.py:plan"
+```
+
+**Eb/N0 is per data bit.** Plan's `snr` follows the segment's
+`snr_mode="fs"`, signal over the noise in the full sample band. A data bit
+spans `fs / Rb = SF · spc` samples, so the conversion carries the
+processing gain (10·log10 31 = 14.91 dB) and the oversampling (3.01 dB):
+
+<!-- docs-snippet: skip=an excerpt of the example's module scope; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_ber_demo.py:ebn0"
+```
+
+**Each point stops on errors**, as in
+[Measuring an Error Rate, Defensibly](ber-awgn.md): 100 bit errors and at
+least 20 bursts, because errors inside one burst share that burst's phase
+estimate and are not independent. A point that has not reached its target
+inside ten times the trials theory needs is not quoted. The window scored
+is the one the receiver decoded at the burst's true start. A trial without
+one is counted as a miss, not as errors, so the BER is conditional on
+acquisition.
+
+<!-- docs-snippet: skip=an excerpt that runs inside the example's namespace (plan, receiver, PAYLOAD); the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_ber_demo.py:measure"
+```
+
+**The margin is derived, not fitted.** `BurstDemod` has no tracking loop.
+Its carrier phase comes from the complex peak of the 13-symbol sync
+correlation. That estimate's error has variance `1 / (2·13·Eb/N0)`, and it
+scales the decision by `cos φ`. Averaging BPSK's `Q` over that error gives
+the BER this receiver must reach: about 0.2 dB worse than ideal at 0 dB,
+and shrinking as `1/(Eb/N0)`.
+
+<!-- docs-snippet: skip=an excerpt of the example's module scope; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_ber_demo.py:margin"
+```
+
+Every point's 99% interval has to overlap the band between the two curves.
+Its `hi` must reach ideal BPSK, because a receiver cannot beat coherent
+detection, so a point below it means the Eb/N0 axis is wrong. Its `lo`
+must reach the sync-limited curve, or the receiver has a loss its phase
+estimate does not explain. The run also asserts that every trial drew
+distinct noise, and that misses stay within the `pd = 0.999` the
+acquisition was designed for.
+
+<!-- docs-snippet: skip=an excerpt of main(), whose names (points, meter) are its locals; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_ber_demo.py:assert"
+```
+
+Measured once with `--full` (0–8 dB, at least 1000 errors and 20 bursts
+per point: 6892 bursts, 200 s), no burst was missed. The loss against
+ideal BPSK, read off each measured rate, was:
+
+| Eb/N0 (dB) | 0    | 1    | 2    | 3    | 4    | 5    | 6    | 7    | 8    |
+| ---------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| loss (dB)  | 0.18 | 0.31 | 0.01 | 0.15 | 0.08 | 0.03 | 0.03 | 0.05 | 0.02 |
+
+Only the 1 dB interval excludes ideal BPSK. Every interval reaches the
+sync-limited curve. The default run is five of these points at 100 errors
+(218 bursts, about 6 s).
+
+**Limits.** The payload is the same in every trial, because a Plan caches
+the signal and only the noise varies. It is a BER and not an FER, because
+there is no frame to check.
+
 ## Related pages
 
 - [5-Burst DSSS Link](dsss-burst-pipeline.md) — the same chain, hand-composed, each stage on its own

@@ -236,7 +236,8 @@ class Plan:
             ``False`` drops a source (an exact ``gain=0`` term).
         snr : float, optional
             Global SNR in dB — moves only the noise floor (its convention is
-            the anchor source's ``snr_mode``).
+            the anchor source's ``snr_mode``). A scene with no noisy source
+            has no floor to move, and ``snr`` raises ``ValueError``.
         seed : int, optional
             Noise seed for this realization (defaults to the scene's, i.e. the
             value that reproduces a full compose).
@@ -254,6 +255,7 @@ class Plan:
         if enable is not None:
             ov["enable"] = [bool(x) for x in enable]
         if snr is not None:
+            self._h.check_snr()  # refuses a scene with no noise floor
             ov["snr"] = float(snr)
         if seed is not None:
             ov["seed"] = int(seed)
@@ -264,8 +266,11 @@ class Plan:
 
         The hot loop of an SNR sweep or Monte-Carlo run. ``seed`` defaults to
         :attr:`anchor_seed` (which reproduces a full compose at the scene's
-        base SNR).
+        base SNR). A scene with no noisy source has no floor for ``snr`` to
+        move, so it raises ``ValueError`` rather than returning the clean
+        signal at every SNR.
         """
+        self._h.check_snr()  # refuses a scene with no noise floor
         return self._h.at(
             float(snr), self.anchor_seed if seed is None else int(seed)
         )

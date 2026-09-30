@@ -518,6 +518,23 @@ True
 rejected
 ```
 
+A scene with **no noise** prepares too, but an `snr` then has no floor to
+move, so `at()` and `render(snr=…)` refuse it rather than hand back the clean
+signal at every SNR, which a sweep would read as a perfect receiver. The
+baseline `render()` and a `seed` still work. Give a source a finite `snr`
+and an `snr_mode`, and the floor is there to sweep:
+
+```pycon
+>>> clean = prepare(Composer(type="tone", num_samples=256))
+>>> try:
+...     clean.at(6.0)
+... except ValueError as exc:
+...     print(str(exc).split(":")[0])
+this scene carries no noise, so the Plan has no noise floor for snr to move
+>>> len(prepare(Composer(type="tone", num_samples=256, snr=20.0)).at(6.0))
+256
+```
+
 A prepared `Plan` **can** be serialized — `plan.save()` → `bytes`,
 `plan.dump(path)` → a file, restored with `PlanFromBlob` / `PlanFromFile` — and
 the restored cache reproduces the stimulus bit-for-bit. But reach for it only to

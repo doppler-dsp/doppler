@@ -45,7 +45,8 @@ class Plan:
         segment-major, length = dp_wfm_plan_n_sources()). An empty object (or
         NULL) renders the baseline — bit-identical to
         `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples
-        to `out`.
+        to `out`. An `"snr"` key on a Plan whose scene carries no noise is
+        refused (see dp_wfm_plan_check_snr()).
 
         Parameters
         ----------
@@ -55,7 +56,8 @@ class Plan:
         Returns
         -------
         NDArray[Any]
-            Samples actually written for this draw (<= dp_wfm_plan_len(p)).
+            Samples actually written for this draw (<= dp_wfm_plan_len(p)), or
+            0 when refused, with `out` untouched.
         """
     def at(self, snr: float, seed: int) -> NDArray[Any]:
         """Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
@@ -63,7 +65,8 @@ class Plan:
         `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;
         writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with
         only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override
-        here.
+        here, and so is `snr`: on a Plan whose scene carries no noise it is
+        refused (see dp_wfm_plan_check_snr()).
 
         Parameters
         ----------
@@ -75,7 +78,35 @@ class Plan:
         Returns
         -------
         NDArray[Any]
-            Samples actually written for this draw (<= dp_wfm_plan_len(p)).
+            Samples actually written for this draw (<= dp_wfm_plan_len(p)), or
+            0 when refused, with `out` untouched.
+        """
+    def check_snr(self) -> None:
+        """Whether an `snr` can be applied to this Plan.
+
+        O(1): the answer is fixed at prepare time. A caller about to sweep SNR
+        checks it once; `dp_wfm_plan_at()` and `dp_wfm_plan_render()` apply the
+        same rule themselves.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``this scene carries no noise, so the Plan has no noise floor for
+            snr to move: give a source a finite snr (below 100 dB) and an
+            snr_mode``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.wfm import Composer, prepare
+        >>> clean = prepare(Composer(type="tone", num_samples=64))
+        >>> clean.at(6.0)
+        Traceback (most recent call last):
+            ...
+        ValueError: this scene carries no noise, so the Plan has no noise floor for snr to move: give a source a finite snr (below 100 dB) and an snr_mode (rc=-4)
+        >>> len(prepare(Composer(type="tone", num_samples=64, snr=10.0)).at(6.0))
+        64
+
         """
     def length(self) -> int:
         """Worst-case materialized length in samples (every ranged gap at its

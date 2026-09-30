@@ -8,6 +8,7 @@
  * compose; the per-axis tests re-materialize a variation and memcmp it against
  * a full compose of the equivalently-modified spec.
  */
+#include "doppler/clib_common.h"
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_plan.h"
 #include "dp_test.h"
@@ -711,6 +712,30 @@ main (void)
   DP_REQUIRE_MSG (pclean, "accept clean (no-noise) scene");
   DP_REQUIRE_MSG (dp_wfm_plan_anchor_seed (pclean) == 0,
                   "anchor_seed == 0 for a no-noise scene");
+
+  /* #1695: a clean scene has no noise floor for an snr to move. at() and a
+   * render "snr" key used to return the clean signal at EVERY snr, so a BER
+   * sweep over it read a perfect receiver; now both are refused, 0 samples
+   * and `out` untouched, and dp_wfm_plan_check_snr says so. What still has a
+   * meaning on a clean scene -- the baseline, and a seed (which redraws a
+   * ranged gap) -- still renders. The sentinel makes "untouched" evidence. */
+  DP_REQUIRE_MSG (dp_wfm_plan_check_snr (pclean) == DP_ERR_INVALID,
+                  "CLEAN: check_snr refuses a scene with no noise");
+  DP_REQUIRE_MSG (dp_wfm_plan_check_snr (NULL) == DP_ERR_INVALID,
+                  "CLEAN: check_snr(NULL) refuses");
+  for (size_t i = 0; i < L; i++)
+    got[i] = 1.0f + 2.0f * I;
+  DP_REQUIRE_MSG (dp_wfm_plan_at (pclean, 6.0, 1, got) == 0,
+                  "CLEAN: at(snr) is refused: 0 samples");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (pclean, "{\"snr\":6.0}", got) == 0,
+                  "CLEAN: render({snr}) is refused: 0 samples");
+  for (size_t i = 0; i < L; i++)
+    DP_REQUIRE_MSG (got[i] == 1.0f + 2.0f * I,
+                    "CLEAN: a refused draw leaves out untouched");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (pclean, "{}", got) == L,
+                  "CLEAN: the baseline still renders");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (pclean, "{\"seed\":5}", got) == L,
+                  "CLEAN: a seed alone still renders");
   dp_wfm_plan_destroy (pclean);
   free (jclean);
 
@@ -726,6 +751,8 @@ main (void)
   DP_REQUIRE_MSG (compose_collect (jsolo, ref) == L, "compose solo baseline");
   wfm_plan_t *psolo = dp_wfm_plan_prepare (jsolo);
   DP_REQUIRE_MSG (psolo, "accept bundled noisy source");
+  DP_REQUIRE_MSG (dp_wfm_plan_check_snr (psolo) == DP_OK,
+                  "NOISY: check_snr accepts a scene with a noisy source");
   DP_REQUIRE_MSG (dp_wfm_plan_n_sources (psolo) == 1,
                   "bundled n_sources == 1");
   DP_REQUIRE_MSG (dp_wfm_plan_render (psolo, "{}", got) == L,

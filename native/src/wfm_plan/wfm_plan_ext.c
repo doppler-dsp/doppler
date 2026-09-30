@@ -168,6 +168,29 @@ Plan_at (PlanObject *self, PyObject *args)
 }
 
 static PyObject *
+Plan_check_snr (PlanObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->closed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
+      return NULL;
+    }
+  int _rc;
+  _rc = dp_wfm_plan_check_snr (self->h);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "this scene carries no noise, so the Plan has no noise "
+                    "floor for snr to move: give a source a finite snr "
+                    "(below 100 dB) and an snr_mode",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 Plan_length (PlanObject *self, PyObject *args)
 {
   (void)args;
@@ -303,7 +326,8 @@ static PyMethodDef Plan_methods[] = {
     "segment-major, length = dp_wfm_plan_n_sources()). An empty object (or\n"
     "NULL) renders the baseline — bit-identical to\n"
     "`Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples\n"
-    "to `out`.\n"
+    "to `out`. An `\"snr\"` key on a Plan whose scene carries no noise is\n"
+    "refused (see dp_wfm_plan_check_snr()).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -313,7 +337,8 @@ static PyMethodDef Plan_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[Any]\n"
-    "    Samples actually written for this draw (<= dp_wfm_plan_len(p)).\n" },
+    "    Samples actually written for this draw (<= dp_wfm_plan_len(p)), or\n"
+    "    0 when refused, with `out` untouched.\n" },
   { "at", (PyCFunction)Plan_at, METH_VARARGS,
     "Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).\n"
     "\n"
@@ -321,7 +346,8 @@ static PyMethodDef Plan_methods[] = {
     "writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with\n"
     "only `{\"snr\":snr,\"seed\":seed}` — `seed` is always an explicit "
     "override\n"
-    "here.\n"
+    "here, and so is `snr`: on a Plan whose scene carries no noise it is\n"
+    "refused (see dp_wfm_plan_check_snr()).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -333,7 +359,36 @@ static PyMethodDef Plan_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[Any]\n"
-    "    Samples actually written for this draw (<= dp_wfm_plan_len(p)).\n" },
+    "    Samples actually written for this draw (<= dp_wfm_plan_len(p)), or\n"
+    "    0 when refused, with `out` untouched.\n" },
+  { "check_snr", (PyCFunction)Plan_check_snr, METH_VARARGS,
+    "Whether an `snr` can be applied to this Plan.\n"
+    "\n"
+    "O(1): the answer is fixed at prepare time. A caller about to sweep SNR\n"
+    "checks it once; `dp_wfm_plan_at()` and `dp_wfm_plan_render()` apply the\n"
+    "same rule themselves.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``this scene carries no noise, so the Plan has no noise floor for\n"
+    "    snr to move: give a source a finite snr (below 100 dB) and an\n"
+    "    snr_mode``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import Composer, prepare\n"
+    ">>> clean = prepare(Composer(type=\"tone\", num_samples=64))\n"
+    ">>> clean.at(6.0)\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: this scene carries no noise, so the Plan has no noise floor "
+    "for snr to move: give a source a finite snr (below 100 dB) and an "
+    "snr_mode (rc=-4)\n"
+    ">>> len(prepare(Composer(type=\"tone\", num_samples=64, "
+    "snr=10.0)).at(6.0))\n"
+    "64\n" },
   { "length", (PyCFunction)Plan_length, METH_VARARGS,
     "Worst-case materialized length in samples (every ranged gap at its\n"
     "`hi` bound) — the jm binding's out_len_fn / allocation capacity.\n"

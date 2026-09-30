@@ -55,6 +55,12 @@ jobs:
     timeout-minutes: 25
     outputs:
       src: ${{ steps.classify.outputs.src }}
+      # The site's inputs changed, so the `docs` job must build it even when
+      # the matrix can skip. A release PR re-renders gallery PNGs, publishes
+      # benchmark snapshots, renders docs/benchmarks.md and assembles the
+      # changelog -- all inert to the C/Python matrix (CI_INERT_RE), none of
+      # them inert to the site. Fail-safe: anything unclassifiable is true.
+      docs: ${{ steps.classify.outputs.docs }}
     steps:
     - uses: actions/checkout@v7
       with:
@@ -68,9 +74,21 @@ jobs:
           # branch is all zeros), ci-changes cannot prove a bump -> src=true.
           push) base="${{ github.event.before }}"
                 git fetch -q --depth=1 origin "$base" 2>/dev/null || true ;;
-          *) echo "src=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          *) { echo "src=true"; echo "docs=true"; } >> "$GITHUB_OUTPUT"
+             exit 0 ;;
         esac
         make -s ci-changes BASE="$base"
+        if files=$(git diff --name-only "$base" HEAD 2>/dev/null) \
+           && [ -n "$files" ]; then
+          # A here-string, not `printf | grep -q`: under pipefail an early
+          # `grep -q` match SIGPIPEs the printf and would read as NO match.
+          if grep -Eq \
+              '^(docs/|benchmarks/published/|mkdocs[^/]*\.yml$|CHANGELOG\.md$|changelog\.d/)' \
+              <<< "$files"
+          then echo "docs=true"; else echo "docs=false"; fi
+        else
+          echo "docs=true"
+        fi >> "$GITHUB_OUTPUT"
 
   pin:
     name: Resolve the pinned CI image
@@ -780,8 +798,11 @@ jobs:
   # ------------------------------------------------------------------
   docs:
     needs: changes
-    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    if: needs.changes.outputs.src == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk) -- unless the
+    # site's own inputs changed, which a release PR's always do; see `changes`.
+    if: >-
+      needs.changes.outputs.src == 'true' ||
+      needs.changes.outputs.docs == 'true'
     name: Docs
     runs-on: ubuntu-latest
     timeout-minutes: 45

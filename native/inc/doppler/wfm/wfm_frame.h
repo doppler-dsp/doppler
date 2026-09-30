@@ -786,9 +786,18 @@ extern "C"
    *         when @p d has a data field and @p data is NULL.
    *
    * @code
-   * uint8_t chunk[24], frame[40];
-   * // d: [data:24 | crc16], built with dp_wfm_frame_fixed
-   * dp_wfm_frame_assemble_data (&d, NULL, chunk, frame, sizeof frame); // 40
+   * const wfm_seq_t  data = { .kind = WFM_SEQ_DATA, .len = 24 };
+   * wfm_frame_desc_t d;
+   * dp_wfm_frame_fixed (&d, NULL, 0, NULL, &data, 1); // [data:24 | crc16]
+   * uint8_t chunk[24] = { 1, 0, 1, 1 }, frame[40];
+   * // the chunk at the data field's offset, then a CRC-16 over it
+   * if (dp_wfm_frame_assemble_data (&d, NULL, chunk, frame, sizeof frame)
+   *         != 40
+   *     || frame[0] != 1 || frame[1] != 0)
+   *   return 1;
+   * // with no chunk, the data field is refused, as by dp_wfm_frame_assemble
+   * if (dp_wfm_frame_assemble_data (&d, NULL, NULL, frame, sizeof frame) != 0)
+   *   return 1;
    * @endcode
    */
   size_t dp_wfm_frame_assemble_data (const wfm_frame_desc_t *d,

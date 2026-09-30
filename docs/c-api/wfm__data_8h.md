@@ -319,13 +319,18 @@ WFM\_DATA\_FRAME, WFM\_DATA\_IDLE (paced only), WFM\_DATA\_END or WFM\_DATA\_ERR
 
 
 ```C++
-uint8_t b[16];
-switch (dp_wfm_data_frame (s, WFM_DATA_PACED, 1, b, sizeof b))
-  {
-  case WFM_DATA_FRAME: break; // b is the next 16 bits of data
-  case WFM_DATA_IDLE:  break; // b is all fill: nothing had arrived
-  default:             break; // ended, or a read failed
-  }
+const char     *why;
+wfm_data_src_t *s = dp_wfm_data_create ("0xABCD", NULL, 16, "10", &why);
+uint8_t         b[16];
+// A Field never pauses, so this is a data frame: 1010 1011 1100 1101.
+// A paced pipe with nothing yet would give WFM_DATA_IDLE, b all fill.
+if (dp_wfm_data_frame (s, WFM_DATA_PACED, 1, b, sizeof b)
+        != WFM_DATA_FRAME
+    || b[0] != 1 || b[1] != 0)
+  return 1;
+if (dp_wfm_data_frame (s, WFM_DATA_PACED, 1, b, sizeof b) != WFM_DATA_END)
+  return 1; // 16 bits in 16-bit frames: one frame, then the end
+dp_wfm_data_destroy (s);
 ```
  
 

@@ -191,6 +191,11 @@ function(dp_gnu_compile_options target scope)
     target_compile_options(${target} ${scope} ${_flags})
 endfunction()
 
+# The warning policy's flags and vendor opt-out, defined before any
+# subdirectory so fft's CMakeLists can name DP_VENDOR_NO_WARN; applied by
+# dp_apply_warnings() at the end of this file.
+include(cmake/warnings.cmake)
+
 # M_PI and friends are NOT in standard C, and the UCRT is the platform that
 # says so: <math.h> defines them only when _USE_MATH_DEFINES was set BEFORE it
 # was first included. glibc and Apple libc expose them under their default
@@ -1522,6 +1527,9 @@ endif()
 # ── Validation harnesses (hand-owned, Monte-Carlo vs theory) ─────────
 add_subdirectory(native/validation)
 # ── Validation end ──────────────────────────────────────────────────
+
+# ── Warnings: last, so every target above exists (doppler#1658) ─────
+dp_apply_warnings()
 
 # ── Packaging (.deb / .rpm) ──────────────────────────────────────────
 # POSIX packages only; Windows ships the zip and the vcpkg port.

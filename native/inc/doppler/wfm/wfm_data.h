@@ -14,6 +14,10 @@
  * | a regular file                    | finite   | `ceil(8 * bytes / LEN)`   |
  * | stdin, a pipe (any other fd)      | stream   | until the input ends      |
  *
+ * `--data none` is not a source: it means no data at all (continuous DSSS
+ * sends its code alone), so a face that reads `none` builds no source, and
+ * @ref dp_wfm_data_create refuses the word as text outside the grammar.
+ *
  * A file and a pipe carry **packed** octets, unpacked MSB first by
  * `dp_bytes_to_bin`. `LEN` need not be a multiple of 8: an octet can
  * straddle two frames, and the source keeps the leftover bits for the next.
@@ -133,7 +137,10 @@ extern "C"
    *
    * @return the bits of a literal or generated Field, or of a regular file;
    *         0 for a stream (`pn:0:…`, `-`, a pipe), for text outside the
-   *         grammar, and for a file that cannot be opened.
+   *         grammar, and for a file that cannot be opened. A 0 does not say
+   *         which, so call this after a successful @ref dp_wfm_data_create,
+   *         where the source is known to exist and its stats say whether it
+   *         is a stream.
    *
    * @code
    * const uint64_t n = dp_wfm_data_length_bits ("0xABC", NULL);   // 12

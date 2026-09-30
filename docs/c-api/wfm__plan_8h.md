@@ -61,6 +61,7 @@
 | ---: | :--- |
 |  uint64\_t | [**dp\_wfm\_plan\_anchor\_seed**](#function-dp_wfm_plan_anchor_seed) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_The noise seed that reproduces a full compose._  |
 |  size\_t | [**dp\_wfm\_plan\_at**](#function-dp_wfm_plan_at) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, double snr, uint64\_t seed, float \_Complex \* out) <br>_Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse)._  |
+|  int | [**dp\_wfm\_plan\_check\_snr**](#function-dp_wfm_plan_check_snr) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Whether an_ `snr` _can be applied to this Plan._ |
 |  void | [**dp\_wfm\_plan\_destroy**](#function-dp_wfm_plan_destroy) ([**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Destroy a Plan and free its caches. NULL is a no-op._  |
 |  int | [**dp\_wfm\_plan\_dump**](#function-dp_wfm_plan_dump) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* path) <br>_Save a Plan to a file (_ [_**dp\_wfm\_plan\_save()**_](wfm__plan_8h.md#function-dp_wfm_plan_save) _bytes at_`path` _)._ |
 |  size\_t | [**dp\_wfm\_plan\_len**](#function-dp_wfm_plan_len) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Worst-case materialized length in samples (every ranged gap at its_ `hi` _bound) — the jm binding's out\_len\_fn / allocation capacity._ |
@@ -98,6 +99,11 @@
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DP\_WFM\_PLAN\_WHY\_NO\_NOISE**](wfm__plan_8h.md#define-dp_wfm_plan_why_no_noise)  `/* multi line expression */`<br>_Why a Plan refuses an_ `snr` _: its scene carries no noise._ |
 
 ## Public Types Documentation
 
@@ -157,14 +163,58 @@ size_t dp_wfm_plan_at (
 
 
 
-`out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance; writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here.
+`out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance; writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here, and so is `snr`: on a Plan whose scene carries no noise it is refused (see [**dp\_wfm\_plan\_check\_snr()**](wfm__plan_8h.md#function-dp_wfm_plan_check_snr)).
 
 
 
 
 **Returns:**
 
-Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)). 
+Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)), or 0 when refused, with `out` untouched. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_plan\_check\_snr 
+
+_Whether an_ `snr` _can be applied to this Plan._
+```C++
+int dp_wfm_plan_check_snr (
+    const wfm_plan_t * p
+) 
+```
+
+
+
+O(1): the answer is fixed at prepare time. A caller about to sweep SNR checks it once; `dp_wfm_plan_at()` and `dp_wfm_plan_render()` apply the same rule themselves.
+
+
+
+```C++
+>>> from doppler.wfm import Composer, prepare
+>>> clean = prepare(Composer(type="tone", num_samples=64))
+>>> clean.at(6.0)
+Traceback (most recent call last):
+    ...
+ValueError: this scene carries no noise, so the Plan has no noise floor for snr to move: give a source a finite snr (below 100 dB) and an snr_mode (rc=-4)
+>>> len(prepare(Composer(type="tone", num_samples=64, snr=10.0)).at(6.0))
+64
+```
+
+
+
+
+
+**Returns:**
+
+0 (DP\_OK) when some segment carries noise; DP\_ERR\_INVALID (-4) when none does, for the reason DP\_WFM\_PLAN\_WHY\_NO\_NOISE. 
 
 
 
@@ -335,14 +385,14 @@ size_t dp_wfm_plan_render (
 
 
 
-`overrides_json` is a small JSON object, all keys optional: `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and segment-major, length = [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources)). An empty object (or NULL) renders the baseline — bit-identical to `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples to `out`.
+`overrides_json` is a small JSON object, all keys optional: `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and segment-major, length = [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources)). An empty object (or NULL) renders the baseline — bit-identical to `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples to `out`. An `"snr"` key on a Plan whose scene carries no noise is refused (see [**dp\_wfm\_plan\_check\_snr()**](wfm__plan_8h.md#function-dp_wfm_plan_check_snr)).
 
 
 
 
 **Returns:**
 
-Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)). 
+Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)), or 0 when refused, with `out` untouched. 
 
 
 
@@ -426,6 +476,27 @@ size_t dp_wfm_plan_save_bytes (
 
 
 The number of bytes [**dp\_wfm\_plan\_save()**](wfm__plan_8h.md#function-dp_wfm_plan_save) writes: a small envelope with the DSP fingerprint, the embedded spec JSON, and every cached signal buffer. Dominated by the buffers (Σ per-source num\_samples · 8 bytes) — multi-MB for a large scene, which is exactly why the spec-rebuild path is the default. 
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_NO\_NOISE 
+
+_Why a Plan refuses an_ `snr` _: its scene carries no noise._
+```C++
+#define DP_WFM_PLAN_WHY_NO_NOISE `/* multi line expression */`
+```
+
+
+
+A segment is noisy when a source in it has an `snr` below WFM\_SYNTH\_SNR\_CLEAN (100 dB), which gives the segment a noise floor that an `snr` override moves. A scene with no such segment has nothing for the override to move, so `dp_wfm_plan_at()` and a `"snr"` key to `dp_wfm_plan_render()` are refused rather than returning the clean signal at every SNR  a sweep over it would read a perfect receiver. The static reason every face reports. 
 
 
         

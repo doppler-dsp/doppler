@@ -546,3 +546,62 @@ def test_fixed_gap_scene_draws_one_rectangular_length() -> None:
     draws = list(plan.monte_carlo(6.0, 4, seed0=1))
     assert len({int(d.shape[0]) for d in draws}) == 1
     assert np.array(draws).shape == (4, len(plan))
+
+
+def _header_why_no_noise() -> str:
+    """DP_WFM_PLAN_WHY_NO_NOISE, read from wfm_plan.h: the one sentence."""
+    import re
+
+    from doppler.tests._repo import repo_root
+
+    text = (
+        repo_root(__file__)
+        / "native"
+        / "inc"
+        / "doppler"
+        / "wfm"
+        / "wfm_plan.h"
+    ).read_text(encoding="utf-8")
+    body = text.split("#define DP_WFM_PLAN_WHY_NO_NOISE", 1)[1]
+    body = body.split("\n\n", 1)[0]
+    return "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', body))
+
+
+def _clean_plan() -> Plan:
+    """A scene whose every source is clean: no noise floor anywhere."""
+    return prepare(Composer(type="tone", fs=1e6, num_samples=256))
+
+
+def test_a_clean_scene_refuses_an_snr_naming_the_fix() -> None:
+    # #1695: at(snr) on a scene with no noise returned the clean signal at
+    # EVERY snr, so a BER sweep over it read a perfect receiver. It is
+    # refused, and the reason is the C header's sentence, word for word.
+    why = _header_why_no_noise()
+    assert why.startswith("this scene carries no noise")
+    plan = _clean_plan()
+    for draw in (
+        lambda: plan.at(6.0),
+        lambda: plan.at(6.0, seed=3),
+        lambda: plan.render(snr=6.0),
+        lambda: next(plan.sweep([0.0, 6.0])),
+        lambda: next(plan.monte_carlo(6.0, 2)),
+    ):
+        with pytest.raises(ValueError) as exc:
+            draw()
+        assert str(exc.value).startswith(why), str(exc.value)
+
+
+def test_a_clean_scene_still_renders_what_it_can() -> None:
+    # The baseline and a seed (which redraws a ranged gap) mean something on
+    # a clean scene, so they are not refused.
+    plan = _clean_plan()
+    clean = Composer(type="tone", fs=1e6, num_samples=256).compose()
+    assert np.array_equal(plan.render(), clean)
+    assert plan.render(seed=5).shape == clean.shape
+
+
+def test_a_noisy_scene_moves_its_floor() -> None:
+    # The refusal's edge: one noisy source is enough, and at() honours snr.
+    plan = prepare(Composer(type="tone", fs=1e6, num_samples=256, snr=10.0))
+    lo, hi = plan.at(0.0, seed=1), plan.at(30.0, seed=1)
+    assert np.mean(np.abs(lo - hi) ** 2) > 1e-3

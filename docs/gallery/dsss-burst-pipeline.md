@@ -31,7 +31,7 @@ the `Composer`/`Segment` object API built with no JSON at all. Each burst is
 XOR-spreads the `sync | payload | CRC-16` frame with the second code, sizes
 the segment to exactly one burst, and interprets `snr_mode="esno"` as the
 payload *data-symbol* Es/N0 (see the
-[waveforms guide](../guide/wfmgen/waveforms.md#dsss-two-code-spread-spectrum-bursts)).
+[waveforms guide](../guide/wfmgen/waveforms.md#dsss-bursts)).
 All three faces should produce byte-identical samples for the same scene —
 and here that's not just documentation, it's an assertion:
 

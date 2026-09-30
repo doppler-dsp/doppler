@@ -87,19 +87,18 @@ extern "C"
    * @param len   bits per frame, `LEN` of the frame's `data:LEN`; > 0.
    * @param fill  a Field whose bits pad the last frame and fill an idle
    *              one, or NULL for none. `data:LEN` is refused as a fill.
-   * @param why     optional; receives a sentence naming the cause of a
-   *                refusal, with its numbers (a remainder is stated in
-   *                bits). Untouched on success.
-   * @param why_cap capacity of @p why in bytes, NUL included.
+   * @param why   optional; receives a STATIC sentence naming the cause of a
+   *              refusal (a Field's is the parser's own), untouched on
+   *              success. A remainder is stated in bits by the caller, from
+   *              @ref dp_wfm_data_length_bits.
    * @return the source, or NULL: text outside the grammar, a file that
    *         cannot be opened, an empty finite source, a finite source that
    *         does not divide into `LEN`-bit frames with no fill, or a pipe
    *         with no fill.
    *
    * @code
-   * char            why[160];
-   * wfm_data_src_t *s
-   *     = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, why, sizeof why);
+   * const char     *why;
+   * wfm_data_src_t *s = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
    * uint8_t         b[8];
    * dp_wfm_data_next (s, 1, b, sizeof b, -1); // WFM_DATA_FRAME: 1010 1011
    * dp_wfm_data_next (s, 1, b, sizeof b, -1); // WFM_DATA_FRAME: 1100 1101
@@ -109,7 +108,7 @@ extern "C"
    */
   wfm_data_src_t *dp_wfm_data_create (const char *data, const char *path,
                                       size_t len, const char *fill,
-                                      char *why, size_t why_cap);
+                                      const char **why);
 
   /**
    * @brief Build a data source over an open file descriptor. NULL on refusal.
@@ -120,8 +119,28 @@ extern "C"
    * needs @p fill. The source never closes @p fd.
    */
   wfm_data_src_t *dp_wfm_data_create_fd (int fd, size_t len,
-                                         const char *fill, char *why,
-                                         size_t why_cap);
+                                         const char *fill, const char **why);
+
+  /**
+   * @brief A source's length in bits, known before it is built; 0 for a
+   * stream.
+   *
+   * What a caller needs before the first sample: how many `LEN`-bit frames
+   * a finite source makes, `ceil(bits / LEN)`, and -- when
+   * @ref dp_wfm_data_create refuses a source that leaves a remainder with no
+   * fill -- the numbers to state that remainder in. Exactly one of @p data
+   * and @p path, as @ref dp_wfm_data_create takes them.
+   *
+   * @return the bits of a literal or generated Field, or of a regular file;
+   *         0 for a stream (`pn:0:…`, `-`, a pipe), for text outside the
+   *         grammar, and for a file that cannot be opened.
+   *
+   * @code
+   * const uint64_t n = dp_wfm_data_length_bits ("0xABC", NULL);   // 12
+   * // in 8-bit frames: the last holds n % 8 = 4 and is 8 - 4 = 4 short
+   * @endcode
+   */
+  uint64_t dp_wfm_data_length_bits (const char *data, const char *path);
 
   /** @brief Free a source; closes a file it opened itself. NULL is a no-op. */
   void dp_wfm_data_destroy (wfm_data_src_t *s);

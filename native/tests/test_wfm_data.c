@@ -41,7 +41,7 @@ mkstemp (char *tmpl)
 #define TMP_ENV "TMPDIR"
 #endif
 
-static char why[256];
+static const char *why;
 
 /* Bits of an octet string, MSB first: the expected unpacking. */
 static void
@@ -69,8 +69,7 @@ temp_file (const uint8_t *o, size_t n, char *path, size_t cap)
 static int
 test_finite_split (void)
 {
-  wfm_data_src_t *s
-      = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, why, sizeof why);
+  wfm_data_src_t *s = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
   DP_REQUIRE_MSG (s != NULL, why);
   uint8_t want[16], b[8];
   unpack ((const uint8_t[]){ 0xAB, 0xCD }, 2, want);
@@ -89,7 +88,7 @@ test_finite_split (void)
   /* A generated Field with LEN > 0 is finite the same way. */
   uint8_t pn[20], c[10];
   DP_REQUIRE (dp_wfm_field_bits ("pn:20:5", pn, sizeof pn, NULL) == 20);
-  s = dp_wfm_data_create ("pn:20:5", NULL, 10, NULL, why, sizeof why);
+  s = dp_wfm_data_create ("pn:20:5", NULL, 10, NULL, &why);
   DP_REQUIRE_MSG (s != NULL, why);
   DP_CHECK (dp_wfm_data_next (s, 1, c, sizeof c, -1) == WFM_DATA_FRAME
             && memcmp (c, pn, 10) == 0);
@@ -104,8 +103,7 @@ test_finite_split (void)
 static int
 test_one_draw_per_frame (void)
 {
-  wfm_data_src_t *s
-      = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, why, sizeof why);
+  wfm_data_src_t *s = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
   DP_REQUIRE_MSG (s != NULL, why);
   uint8_t want[16], b[24];
   unpack ((const uint8_t[]){ 0xAB, 0xCD }, 2, want);
@@ -131,15 +129,17 @@ test_one_draw_per_frame (void)
 static int
 test_fill (void)
 {
-  why[0] = '\0';
-  wfm_data_src_t *s
-      = dp_wfm_data_create ("0xABC", NULL, 8, NULL, why, sizeof why);
+  why               = NULL;
+  wfm_data_src_t *s = dp_wfm_data_create ("0xABC", NULL, 8, NULL, &why);
   DP_CHECK_MSG (s == NULL, "12 bits in 8-bit frames with no fill: refused");
-  DP_CHECK_MSG (strstr (why, "12 bits") && strstr (why, "4 bits short"),
-                "and the refusal names the remainder");
+  DP_CHECK_MSG (why && strstr (why, "--fill"),
+                "and the reason names what would fix it");
+  DP_CHECK_MSG (dp_wfm_data_length_bits ("0xABC", NULL) == 12,
+                "and the length is there to state the remainder in: 12 bits, "
+                "4 into the last 8-bit frame, 4 short");
   dp_wfm_data_destroy (s);
 
-  s = dp_wfm_data_create ("0xABC", NULL, 8, "01", why, sizeof why);
+  s = dp_wfm_data_create ("0xABC", NULL, 8, "01", &why);
   DP_REQUIRE_MSG (s != NULL, why);
   uint8_t b[8];
   DP_REQUIRE (dp_wfm_data_next (s, 1, b, sizeof b, -1) == WFM_DATA_FRAME);
@@ -167,7 +167,7 @@ test_pipe_straddle (void)
   DP_REQUIRE (write (p[1], oct, 3) == 3);
   close (p[1]);
 
-  wfm_data_src_t *s = dp_wfm_data_create_fd (p[0], 10, "0", why, sizeof why);
+  wfm_data_src_t *s = dp_wfm_data_create_fd (p[0], 10, "0", &why);
   DP_REQUIRE_MSG (s != NULL, why);
   uint8_t want[24], got[30], b[10];
   unpack (oct, 3, want);
@@ -194,8 +194,7 @@ test_pipe_straddle (void)
   close (p[0]);
 
   DP_REQUIRE (pipe (p) == 0);
-  DP_CHECK_MSG (dp_wfm_data_create_fd (p[0], 10, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create_fd (p[0], 10, NULL, &why) == NULL,
                 "a pipe with no fill is refused before anything is read");
   DP_CHECK (strstr (why, "fill") != NULL);
   close (p[0]);
@@ -209,7 +208,7 @@ test_not_yet (void)
 {
   int p[2];
   DP_REQUIRE (pipe (p) == 0);
-  wfm_data_src_t *s = dp_wfm_data_create_fd (p[0], 16, "10", why, sizeof why);
+  wfm_data_src_t *s = dp_wfm_data_create_fd (p[0], 16, "10", &why);
   DP_REQUIRE_MSG (s != NULL, why);
   uint8_t b[16], want[16];
 
@@ -230,6 +229,10 @@ test_not_yet (void)
   DP_CHECK_MSG (dp_wfm_data_next (s, 1, b, sizeof b, 0) == WFM_DATA_NOT_YET,
                 "a partial chunk is nothing yet");
   DP_REQUIRE (dp_wfm_data_idle (s, 1, b, sizeof b) == WFM_DATA_FRAME);
+  for (size_t i = 0; i < 16; i++)
+    DP_CHECK_MSG (b[i] == (uint8_t)((i & 1u) ^ 1u),
+                  "§4.1: an idle frame is ALL fill, even with 8 bits of the "
+                  "next chunk buffered -- it never carries a partial chunk");
   DP_REQUIRE (write (p[1], (const uint8_t[]){ 0x78 }, 1) == 1);
   unpack ((const uint8_t[]){ 0x56, 0x78 }, 2, want);
   DP_CHECK_MSG (dp_wfm_data_next (s, 1, b, sizeof b, 0) == WFM_DATA_FRAME
@@ -262,8 +265,7 @@ test_file (void)
   char path[512];
   DP_REQUIRE (temp_file (oct, sizeof oct, path, sizeof path) == 0);
 
-  wfm_data_src_t *s
-      = dp_wfm_data_create (NULL, path, 96, NULL, why, sizeof why);
+  wfm_data_src_t *s = dp_wfm_data_create (NULL, path, 96, NULL, &why);
   DP_REQUIRE_MSG (s != NULL, why); /* 2400 bits = 25 frames of 96 */
   uint8_t          b[96], want[2400];
   wfm_data_stats_t st;
@@ -284,21 +286,19 @@ test_file (void)
                 "the file's hash, read once, equals the whole file's");
   dp_wfm_data_destroy (s);
 
-  why[0] = '\0';
-  DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 128, NULL, why, sizeof why)
-                    == NULL,
+  why = NULL;
+  DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 128, NULL, &why) == NULL,
                 "a file that does not divide, with no fill: refused");
-  DP_CHECK_MSG (strstr (why, "2400 bits") && strstr (why, "short"),
-                "naming the remainder, before a sample");
+  DP_CHECK_MSG (why && strstr (why, "--fill")
+                    && dp_wfm_data_length_bits (NULL, path) == 2400,
+                "before a sample, with its length from fstat");
   unlink (path);
 
   DP_REQUIRE (temp_file (NULL, 0, path, sizeof path) == 0);
-  DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 8, "0", why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 8, "0", &why) == NULL,
                 "an empty file is refused, fill or not");
   unlink (path);
-  DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 8, "0", why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 8, "0", &why) == NULL,
                 "a file that cannot be opened is refused");
   return 0;
 }
@@ -307,8 +307,7 @@ test_file (void)
 static int
 test_pn_stream (void)
 {
-  wfm_data_src_t *s
-      = dp_wfm_data_create ("pn:0:9:0x7", NULL, 50, NULL, why, sizeof why);
+  wfm_data_src_t *s = dp_wfm_data_create ("pn:0:9:0x7", NULL, 50, NULL, &why);
   DP_REQUIRE_MSG (s != NULL, why);
   uint8_t want[150], got[150];
   DP_REQUIRE (dp_wfm_field_bits ("pn:150:9:0x7", want, sizeof want, NULL)
@@ -322,13 +321,17 @@ test_pn_stream (void)
   wfm_data_stats_t st;
   dp_wfm_data_stats (s, &st);
   DP_CHECK (st.stream && st.total_bits == 0 && !st.hashed);
+  DP_CHECK_MSG (dp_wfm_data_length_bits ("pn:0:9:0x7", NULL) == 0
+                    && dp_wfm_data_length_bits ("pn:150:9", NULL) == 150
+                    && dp_wfm_data_length_bits (NULL, "-") == 0
+                    && dp_wfm_data_length_bits ("0xAG", NULL) == 0
+                    && dp_wfm_data_length_bits ("0xAB", "-") == 0,
+                "a stream, bad text and both-given have no length");
   dp_wfm_data_destroy (s);
 
-  DP_CHECK_MSG (
-      dp_wfm_data_create ("pn:0:9*2", NULL, 50, NULL, why, sizeof why) == NULL,
-      "a stream has no end to repeat: *REPS is refused");
-  DP_CHECK_MSG (dp_wfm_data_create ("pn:0:65", NULL, 50, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("pn:0:9*2", NULL, 50, NULL, &why) == NULL,
+                "a stream has no end to repeat: *REPS is refused");
+  DP_CHECK_MSG (dp_wfm_data_create ("pn:0:65", NULL, 50, NULL, &why) == NULL,
                 "and the rest of the Field is still the parser's to refuse");
   return 0;
 }
@@ -337,32 +340,24 @@ test_pn_stream (void)
 static int
 test_refusals (void)
 {
-  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", "-", 8, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", "-", 8, NULL, &why) == NULL,
                 "--data and --data-from-file together: refused");
   DP_CHECK (strstr (why, "--data") && strstr (why, "--data-from-file"));
-  DP_CHECK_MSG (dp_wfm_data_create (NULL, NULL, 8, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create (NULL, NULL, 8, NULL, &why) == NULL,
                 "neither: refused");
-  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 0, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 0, NULL, &why) == NULL,
                 "LEN 0: refused");
-  DP_CHECK_MSG (dp_wfm_data_create ("data:8", NULL, 8, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("data:8", NULL, 8, NULL, &why) == NULL,
                 "a data field cannot be its own source");
-  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 8, "data:8", why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 8, "data:8", &why) == NULL,
                 "nor a fill");
-  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 8, "0x1*", why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 8, "0x1*", &why) == NULL,
                 "a fill outside the grammar is the parser's refusal");
-  DP_CHECK_MSG (dp_wfm_data_create ("0xAG", NULL, 8, NULL, why, sizeof why)
-                    == NULL,
+  DP_CHECK_MSG (dp_wfm_data_create ("0xAG", NULL, 8, NULL, &why) == NULL,
                 "so is data outside it");
 
-  wfm_data_src_t *s
-      = dp_wfm_data_create ("0xAB", NULL, 8, NULL, why, sizeof why);
-  uint8_t b[8];
+  wfm_data_src_t *s = dp_wfm_data_create ("0xAB", NULL, 8, NULL, &why);
+  uint8_t         b[8];
   DP_CHECK_MSG (dp_wfm_data_idle (s, 1, b, sizeof b) == WFM_DATA_ERROR,
                 "no fill, no idle frame");
   dp_wfm_data_destroy (s);

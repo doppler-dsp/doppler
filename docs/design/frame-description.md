@@ -192,16 +192,16 @@ that number. A `0`/`1` string with any other character in it is refused, never
 filtered — a typo that quietly shortens a sync word is the failure this
 closes.
 
-| writes as                           | means                                                      |
-| ----------------------------------- | ---------------------------------------------------------- |
-| `11101011`                          | eight literal bits                                         |
-| `0x1ACFFC1D`                        | the 32-bit CCSDS marker                                    |
-| `pn:1023:10`                        | a 1023-bit m-sequence, 10-bit Galois register              |
-| `pn:64:7:0x5:0:fibonacci`           | 64 bits, seed 5, default poly, Fibonacci                   |
-| `gold:64:10:0x3A6:0x15E:0x237:0x49` | a Gold code from two registers                             |
-| `dotted:16`                         | `1010…`, 16 bits                                           |
-| `pn:31:5*4`                         | a 31-chip code, sent four times (a preamble)               |
-| `data:1024`                         | a payload: 1024 bits per frame, drawn from `--data` (§F.5) |
+| writes as                           | means                                                             |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `11101011`                          | eight literal bits                                                |
+| `0x1ACFFC1D`                        | the 32-bit CCSDS marker                                           |
+| `pn:1023:10`                        | a 1023-bit m-sequence, 10-bit Galois register                     |
+| `pn:64:7:0x5:0:fibonacci`           | 64 bits, seed 5, default poly, Fibonacci                          |
+| `gold:64:10:0x3A6:0x15E:0x237:0x49` | a Gold code from two registers                                    |
+| `dotted:16`                         | `1010…`, 16 bits                                                  |
+| `pn:31:5*4`                         | a 31-chip code, sent four times (a preamble)                      |
+| `data:1024`                         | a payload: 1024 bits per frame, drawn from the data source (§F.5) |
 
 **`reps` belongs to the Field**, because `wfm_field_t` carries it: a preamble
 is not a fifth kind but any of the four repeated. `*` needs quoting in a
@@ -235,14 +235,14 @@ written. Every face calls them; none restates the grammar.
 
 | face            | a literal field                                                                     | a generated field                     |
 | --------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
-| CLI             | the text form; a payload's bits come from `--data` (§F.5)                           | the text form                         |
+| CLI             | the text form; a payload's bits come from its data source (§F.5)                    | the text form                         |
 | JSON            | the text form (hex when the length allows, so a long payload is ¼ the characters)   | the text form                         |
 | a carried frame | `{"name", "spec"}` as text, or `{"name", "derived_by", "bits"}` for a derived field | `{"name", "spec"}`                    |
 | Python          | an array, as `<field>=`                                                             | `field_bits(text)`, then as a literal |
 | C               | a `(bits, len)` pair                                                                | `dp_wfm_field_parse()`                |
 
 One flag and one JSON key per field on the text faces — `--sync`,
-`--acq-code`, `--data-code` — and one for the payload's source, `--data`
+`--acq-code`, `--data-code` — and one for the payload's source, `--data` or `--data-from-file`
 (§F.5).
 
 **An object takes bits; module helpers make them.** `Frame` and `FrameDesc`
@@ -279,7 +279,7 @@ CRC trailer's bits. It is declared by the stage that produces it
 The spellings this replaces are **refused, not aliased**, each with a message
 naming its replacement: `--X-hex`, `--X-gen`, `--acq-reps`, the five payload
 flags `--bits`, `--bits-hex`, `--bits-file`, `--payload-gen` and
-`--payload-len` (all now `--data`), and the JSON keys `*_gen`,
+`--payload-len` (now `--data`, or `--data-from-file` for a file), and the JSON keys `*_gen`,
 `pattern`, `acq_reps`, `lit` and `gen`. Two spellings of one thing is the
 condition this section exists to end.
 
@@ -288,11 +288,11 @@ condition this section exists to end.
 A literal field's bits arrive in one of two shapes, and the difference is the
 whole of what can go wrong:
 
-| source                        | shape                                          | on which face                       |
-| ----------------------------- | ---------------------------------------------- | ----------------------------------- |
-| an array                      | **unpacked** — one bit per element, `0` or `1` | Python, C                           |
-| a binary file                 | **packed** octets, MSB first                   | CLI `--data PATH`; Python via `cvt` |
-| a byte stream — stdin, a pipe | **packed** octets, MSB first                   | CLI `--data -`; Python via `cvt`    |
+| source                        | shape                                          | on which face                                 |
+| ----------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| an array                      | **unpacked** — one bit per element, `0` or `1` | Python, C                                     |
+| a binary file                 | **packed** octets, MSB first                   | CLI `--data-from-file PATH`; Python via `cvt` |
+| a byte stream — stdin, a pipe | **packed** octets, MSB first                   | CLI `--data-from-file -`; Python via `cvt`    |
 
 **One primitive unpacks.** Packed octets become bits in exactly one place, a
 `bytes_to_bin` beside `hex_to_bin` in `cvt` — the same conversion a hex
@@ -333,16 +333,18 @@ bits are not in the description, which is exactly what a payload is, and it
 keeps the frame a description: its layout, its length and every stage's
 cover are known without the data.
 
-**The data source is declared once, with `--data`** — the flag continuous
-DSSS already uses for the same question:
+**The data source is declared once**, by exactly one of two flags.
+`--data` takes a Field, and is the flag continuous DSSS already uses for the
+same question. `--data-from-file` takes a path, or `-` for stdin. Both
+given is refused, naming the pair:
 
-| `--data`                                           | a              | frames                                                    |
-| -------------------------------------------------- | -------------- | --------------------------------------------------------- |
-| a file path                                        | finite source  | `ceil(bits / LEN)`, then the burst ends                   |
-| a literal Field, or a generated one with `LEN > 0` | finite source  | the same                                                  |
-| `-`                                                | stream — stdin | until the input ends                                      |
-| a generated Field, `pn:0:REG[:SEED]`               | stream, seeded | until `--count`; a receiver regenerates it from the Field |
-| `none`                                             | no data        | code only — continuous DSSS, unchanged                    |
+| source                                                      | a              | frames                                                    |
+| ----------------------------------------------------------- | -------------- | --------------------------------------------------------- |
+| `--data-from-file PATH`                                     | finite source  | `ceil(bits / LEN)`, then the burst ends                   |
+| `--data`, a literal Field or a generated one with `LEN > 0` | finite source  | the same                                                  |
+| `--data-from-file -`                                        | stream — stdin | until the input ends                                      |
+| `--data`, a generated Field, `pn:0:REG[:SEED]`              | stream, seeded | until `--count`; a receiver regenerates it from the Field |
+| `--data none`                                               | no data        | code only — continuous DSSS, unchanged                    |
 
 A file and stdin carry **packed** octets, unpacked by the one primitive of
 §F.4.
@@ -378,7 +380,7 @@ stream source is **refused** rather than given a second meaning.
 
 **What a record can replay.** A finite source is replayed byte for byte: its
 bits (or its file and a hash of it) are in the record. A stream is not — the
-record holds its description (`-`, `pn:0:23:0x5`), and a generated source replays because
+record holds its description (`--data-from-file -`, `pn:0:23:0x5`), and a generated source replays because
 it is a function of its seed; stdin replays only if the same bytes are fed
 again.
 

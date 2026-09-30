@@ -61,8 +61,8 @@ FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t         preamble_len = 0;
   if (preamble_obj && preamble_obj != Py_None)
     {
-      preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          preamble_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+      preamble_arr = jm_array_arg (preamble_obj, NPY_UINT8,
+                                   NPY_ARRAY_C_CONTIGUOUS, "preamble");
       if (!preamble_arr)
         {
           return -1;
@@ -73,8 +73,8 @@ FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t         sync_len = 0;
   if (sync_obj && sync_obj != Py_None)
     {
-      sync_arr = (PyArrayObject *)PyArray_FROM_OTF (sync_obj, NPY_UINT8,
-                                                    NPY_ARRAY_C_CONTIGUOUS);
+      sync_arr
+          = jm_array_arg (sync_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sync");
       if (!sync_arr)
         {
           Py_XDECREF (preamble_arr);
@@ -86,8 +86,8 @@ FrameObj_init (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t         payload_len = 0;
   if (payload_obj && payload_obj != Py_None)
     {
-      payload_arr = (PyArrayObject *)PyArray_FROM_OTF (payload_obj, NPY_UINT8,
-                                                       NPY_ARRAY_C_CONTIGUOUS);
+      payload_arr = jm_array_arg (payload_obj, NPY_UINT8,
+                                  NPY_ARRAY_C_CONTIGUOUS, "payload");
       if (!payload_arr)
         {
           Py_XDECREF (preamble_arr);
@@ -156,8 +156,9 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -201,7 +202,15 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t _need = (size_t)n;
   size_t _cap  = dp_frame_bits_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Frame.bits: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -244,8 +253,8 @@ FrameObj_crc_ok (FrameObject *self, PyObject *args, PyObject *kwds)
   PyObject    *rx_bits_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rx_bits_obj))
     return NULL;
-  PyArrayObject *rx_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *rx_bits_arr = jm_array_arg (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits");
   if (!rx_bits_arr)
     {
       return NULL;
@@ -271,8 +280,8 @@ FrameObj_add_field (FrameObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "sO", _kwlist, &name,
                                     &bits_obj))
     return NULL;
-  PyArrayObject *bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *bits_arr
+      = jm_array_arg (bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits");
   if (!bits_arr)
     {
       return NULL;
@@ -490,8 +499,8 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &rx_bits_obj,
                                     &out_obj))
     return NULL;
-  rx_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (rx_bits_obj, NPY_UINT8,
-                                                   NPY_ARRAY_C_CONTIGUOUS);
+  rx_bits_arr = jm_array_arg (rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS,
+                              "rx_bits");
   if (!rx_bits_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -509,8 +518,9 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (rx_bits_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (rx_bits_arr);
@@ -554,7 +564,16 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_frame_deframe_max_out (self->handle,
                                            (size_t)PyArray_SIZE (rx_bits_arr));
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Frame.deframe: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -618,8 +637,8 @@ FrameObj_check (FrameObject *self, PyObject *args, PyObject *kwds)
   PyObject    *rx_bits_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rx_bits_obj))
     return NULL;
-  PyArrayObject *rx_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *rx_bits_arr = jm_array_arg (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits");
   if (!rx_bits_arr)
     {
       return NULL;
@@ -804,7 +823,6 @@ Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
     }
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
 }
-
 static PyObject *
 Frame_getprop__capsule (FrameObject *self, void *Py_UNUSED (closure))
 {

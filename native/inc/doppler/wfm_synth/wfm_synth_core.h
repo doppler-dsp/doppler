@@ -199,6 +199,41 @@ typedef struct {
 } dp_wfm_synth_state_t;
 
 /**
+ * @brief The next bit of the pattern, or none once the data has ended.
+ *
+ * With no refill the pattern cycles, as it always has, and the per-bit cost
+ * is the one bounds check the cursor already needs. With one, the cursor
+ * STOPS at `n_bits` instead of wrapping, so that same check finds the frame
+ * boundary: the next frame is drawn lazily, when its first bit is due --
+ * the source's counts are frames started, and a paced source is asked when
+ * the frame is due. A refill that reports the end latches `data_ended` and
+ * leaves the cursor at `n_bits`, so every later call is the slow path's
+ * immediate "no bit". The one place the cursor wraps, so the per-sample and
+ * block paths cannot disagree about a frame boundary.
+ *
+ * @param s    the synth; a type=bits synth with a pattern set.
+ * @param bit  receives the next bit, 0 or 1, when one is returned.
+ * @return 1 with the bit in @p *bit, or 0: the data has ended.
+ */
+JM_FORCEINLINE int
+wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
+{
+    if (s->bit_idx >= s->n_bits) { /* only with a refill: a frame is due */
+        if (s->data_ended)
+            return 0;
+        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
+            s->data_ended = 1;
+            return 0;
+        }
+        s->bit_idx = 0;
+    }
+    *bit = s->bits[s->bit_idx] ? 1u : 0u;
+    if (++s->bit_idx >= s->n_bits && !s->refill)
+        s->bit_idx = 0;
+    return 1;
+}
+
+/**
  * @brief Next symbol from the user bit pattern, cycled — one mapping, every M.
  *
  * **The single home for the bits->symbol map.** It had four copies: two in
@@ -229,39 +264,6 @@ typedef struct {
  * @return Unit-modulus constellation point (a unit-amplitude line at
  *         `bit_mod == 0`), which is what Synth's unit-power SNR reference needs.
  */
-/**
- * @brief The next bit of the pattern, or none once the data has ended.
- *
- * With no refill the pattern cycles, as it always has, and the per-bit cost
- * is the one bounds check the cursor already needs. With one, the cursor
- * STOPS at `n_bits` instead of wrapping, so that same check finds the frame
- * boundary: the next frame is drawn lazily, when its first bit is due --
- * the source's counts are frames started, and a paced source is asked when
- * the frame is due. A refill that reports the end latches `data_ended` and
- * leaves the cursor at `n_bits`, so every later call is the slow path's
- * immediate "no bit". The one place the cursor wraps, so the per-sample and
- * block paths cannot disagree about a frame boundary.
- *
- * @return 1 with the bit in @p *bit, or 0: the data has ended.
- */
-JM_FORCEINLINE int
-wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
-{
-    if (s->bit_idx >= s->n_bits) { /* only with a refill: a frame is due */
-        if (s->data_ended)
-            return 0;
-        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
-            s->data_ended = 1;
-            return 0;
-        }
-        s->bit_idx = 0;
-    }
-    *bit = s->bits[s->bit_idx] ? 1u : 0u;
-    if (++s->bit_idx >= s->n_bits && !s->refill)
-        s->bit_idx = 0;
-    return 1;
-}
-
 JM_FORCEINLINE float _Complex
 wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
 {

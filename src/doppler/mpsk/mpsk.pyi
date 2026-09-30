@@ -1,7 +1,10 @@
 # mpsk/mpsk.pyi — type stubs for the mpsk C extension.
 import numpy as np
 from numpy.typing import NDArray
-def mpsk_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
+def mpsk_map(
+    sym: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    m: int = 4,
+) -> NDArray[np.complex64]:
     """Map Gray-coded M-PSK labels to unit-amplitude constellation points.
 
     Element-wise inverse of dp_mpsk_demap(): each input byte is one
@@ -10,7 +13,7 @@ def mpsk_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
 
     Parameters
     ----------
-    sym : NDArray[np.uint8]
+    sym : NDArray[np.uint8] | bytes | bytearray | memoryview
         Gray label bytes (0..M-1), one per symbol.
     m : int
         M in {2,4,8}.
@@ -63,7 +66,10 @@ def mpsk_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
 
     """
 
-def mpsk_diff_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
+def mpsk_diff_map(
+    sym: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    m: int = 4,
+) -> NDArray[np.complex64]:
     """Differential M-PSK map: the label selects a phase INCREMENT.
 
     Information rides on phase *differences*: the running constellation
@@ -80,7 +86,7 @@ def mpsk_diff_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
 
     Parameters
     ----------
-    sym : NDArray[np.uint8]
+    sym : NDArray[np.uint8] | bytes | bytearray | memoryview
         Gray label bytes (0..M-1), one per symbol.
     m : int
         M in {2,4,8}.

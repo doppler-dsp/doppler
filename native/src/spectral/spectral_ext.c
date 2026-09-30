@@ -13,6 +13,47 @@
 
 #include "doppler/spectral/spectral_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 #include "spectral_ext_corr.c"
 #include "spectral_ext_corr2d.c"
 #include "spectral_ext_detector.c"
@@ -29,8 +70,8 @@ _bind_kaiser_enbw (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *w_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &w_obj))
     return NULL;
-  PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *w_arr = (PyArrayObject *)jm_array_arg (
+      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "w");
   if (!w_arr)
     {
       return NULL;
@@ -62,8 +103,8 @@ _bind_kaiser_window (PyObject *self, PyObject *args, PyObject *kwds)
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *w_arr = (PyArrayObject *)jm_array_arg (
+      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "w");
   if (!w_arr)
     {
       return NULL;
@@ -105,8 +146,8 @@ _bind_hann_window (PyObject *self, PyObject *args, PyObject *kwds)
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *w_arr = (PyArrayObject *)jm_array_arg (
+      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "w");
   if (!w_arr)
     {
       return NULL;
@@ -137,8 +178,8 @@ _bind_blackman_harris_window (PyObject *self, PyObject *args, PyObject *kwds)
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *w_arr = (PyArrayObject *)jm_array_arg (
+      w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "w");
   if (!w_arr)
     {
       return NULL;
@@ -161,16 +202,25 @@ _bind_magnitude_db_cf32 (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Off", _kwlist, &x_obj,
                                     &lin_floor, &offset_db))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp              _dim  = (npy_intp)x_len;
-  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
+  size_t                _dim_need = (size_t)(x_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "magnitude_db_cf32: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -194,16 +244,25 @@ _bind_magnitude_db_cf64 (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odf", _kwlist, &x_obj,
                                     &lin_floor, &offset_db))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
   size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp               _dim  = (npy_intp)x_len;
-  PyObject              *_out  = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
+  size_t                 _dim_need = (size_t)(x_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "magnitude_db_cf64: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -228,16 +287,25 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
                                     &n_peaks_raw, &min_db))
     return NULL;
   size_t         n_peaks = (size_t)n_peaks_raw;
-  PyArrayObject *db_arr  = (PyArrayObject *)PyArray_FROM_OTF (
-      db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *db_arr  = (PyArrayObject *)jm_array_arg (
+      db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "db");
   if (!db_arr)
     {
       return NULL;
     }
-  const float *db       = (const float *)PyArray_DATA (db_arr);
-  size_t       db_len   = (size_t)PyArray_SIZE (db_arr);
-  size_t       _max     = (size_t)n_peaks;
-  dp_peak_t   *_results = (dp_peak_t *)malloc (_max * sizeof (dp_peak_t));
+  const float *db        = (const float *)PyArray_DATA (db_arr);
+  size_t       db_len    = (size_t)PyArray_SIZE (db_arr);
+  size_t       _max_need = (size_t)((size_t)n_peaks);
+  if (_max_need > (size_t)(PY_SSIZE_T_MAX / sizeof (dp_peak_t)))
+    {
+      Py_DECREF (db_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "find_peaks_f32: output of %zu elements is too large",
+                    _max_need);
+      return NULL;
+    }
+  size_t     _max     = (size_t)_max_need;
+  dp_peak_t *_results = (dp_peak_t *)malloc (_max * sizeof (dp_peak_t));
   if (!_results)
     {
       Py_DECREF (db_arr);
@@ -279,8 +347,8 @@ _bind_obw_from_power (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odd", _kwlist, &pwr_obj, &fs,
                                     &frac))
     return NULL;
-  PyArrayObject *pwr_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      pwr_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *pwr_arr = (PyArrayObject *)jm_array_arg (
+      pwr_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "pwr");
   if (!pwr_arr)
     {
       return NULL;
@@ -300,8 +368,8 @@ _bind_noise_floor_db (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *db_obj    = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &db_obj))
     return NULL;
-  PyArrayObject *db_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *db_arr = (PyArrayObject *)jm_array_arg (
+      db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "db");
   if (!db_arr)
     {
       return NULL;

@@ -13,6 +13,47 @@
 
 #include "doppler/snr/snr_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 static PyObject *
 _bind_snr_data_aided_db (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -23,16 +64,16 @@ _bind_snr_data_aided_db (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &soft_obj,
                                     &sign_bits_obj))
     return NULL;
-  PyArrayObject *soft_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      soft_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *soft_arr = (PyArrayObject *)jm_array_arg (
+      soft_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "soft");
   if (!soft_arr)
     {
       return NULL;
     }
   const float _Complex *soft = (const float _Complex *)PyArray_DATA (soft_arr);
   size_t                soft_len      = (size_t)PyArray_SIZE (soft_arr);
-  PyArrayObject        *sign_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sign_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject        *sign_bits_arr = (PyArrayObject *)jm_array_arg (
+      sign_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sign_bits");
   if (!sign_bits_arr)
     {
       Py_DECREF (soft_arr);
@@ -54,8 +95,8 @@ _bind_snr_m2m4_db (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -79,16 +120,16 @@ _bind_snr_data_aided_db_series (PyObject *self, PyObject *args, PyObject *kwds)
                                     &sign_bits_obj, &window_raw))
     return NULL;
   size_t         window   = (size_t)window_raw;
-  PyArrayObject *soft_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      soft_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *soft_arr = (PyArrayObject *)jm_array_arg (
+      soft_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "soft");
   if (!soft_arr)
     {
       return NULL;
     }
   const float _Complex *soft = (const float _Complex *)PyArray_DATA (soft_arr);
   size_t                soft_len      = (size_t)PyArray_SIZE (soft_arr);
-  PyArrayObject        *sign_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sign_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject        *sign_bits_arr = (PyArrayObject *)jm_array_arg (
+      sign_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sign_bits");
   if (!sign_bits_arr)
     {
       Py_DECREF (soft_arr);
@@ -96,8 +137,19 @@ _bind_snr_data_aided_db_series (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *sign_bits     = (const uint8_t *)PyArray_DATA (sign_bits_arr);
   size_t         sign_bits_len = (size_t)PyArray_SIZE (sign_bits_arr);
-  npy_intp       _dim          = (npy_intp)(soft_len);
-  PyObject      *_out          = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  size_t         _dim_need     = (size_t)(soft_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (soft_arr);
+      Py_DECREF (sign_bits_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "snr_data_aided_db_series: output of %zu elements is too large",
+          _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
   if (!_out)
     {
       Py_DECREF (soft_arr);
@@ -123,16 +175,25 @@ _bind_snr_m2m4_db_series (PyObject *self, PyObject *args, PyObject *kwds)
                                     &window_raw))
     return NULL;
   size_t         window = (size_t)window_raw;
-  PyArrayObject *x_arr  = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr  = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp              _dim  = (npy_intp)(x_len);
-  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  size_t                _dim_need = (size_t)(x_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "snr_m2m4_db_series: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -165,7 +226,7 @@ static PyMethodDef snr_module_methods[] = {
     "----------\n"
     "soft : NDArray[np.complex64]\n"
     "    Despread complex symbols.\n"
-    "sign_bits : NDArray[np.uint8]\n"
+    "sign_bits : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Known transmitted bits (0/1; 0 -> +1, 1 -> -1).\n"
     "\n"
     "Returns\n"
@@ -233,7 +294,7 @@ static PyMethodDef snr_module_methods[] = {
     "----------\n"
     "soft : NDArray[np.complex64]\n"
     "    Despread complex symbols.\n"
-    "sign_bits : NDArray[np.uint8]\n"
+    "sign_bits : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Known transmitted bits (0/1).\n"
     "window : int\n"
     "    Window width in samples.\n"

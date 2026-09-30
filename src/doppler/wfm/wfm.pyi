@@ -937,9 +937,9 @@ class Frame:
 
     def __init__(
         self,
-        preamble: NDArray[np.uint8] = ...,
-        sync: NDArray[np.uint8] = ...,
-        payload: NDArray[np.uint8] = ...,
+        preamble: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        sync: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        payload: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
     def bits(
@@ -998,7 +998,10 @@ class Frame:
             Output.
         """
 
-    def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
+    def crc_ok(
+        self,
+        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> int:
         """Check one received frame's CRC.
 
         **This is what makes a truth-free frame error rate possible.** It needs
@@ -1008,7 +1011,7 @@ class Frame:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8]
+        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte.
 
         Returns
@@ -1034,7 +1037,11 @@ class Frame:
 
         """
 
-    def add_field(self, name: str, bits: NDArray[np.uint8]) -> int:
+    def add_field(
+        self,
+        name: str,
+        bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> int:
         """Append one named field to a description (see `FrameDesc`): bits and
         nothing else, one per element, each 0 or 1. Text reaches it through
         `field_bits()`, hex and packed octets through `cvt`. A field a STAGE
@@ -1052,7 +1059,7 @@ class Frame:
         name : str
             The field's name, or NULL/"" for anonymous; a name another field
             carries is refused.
-        bits : NDArray[np.uint8]
+        bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             The bits, one per element, each 0 or 1.
 
         Returns
@@ -1416,7 +1423,7 @@ class Frame:
 
     def deframe(
         self,
-        rx_bits: NDArray[np.uint8],
+        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo the description's stages over a received frame and hand back
@@ -1446,7 +1453,7 @@ class Frame:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8]
+        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, `frame_bits` of them; treated as a capture and never
             modified.
         out : NDArray[np.uint8] | None
@@ -1503,7 +1510,10 @@ class Frame:
             The frame's length in bits, or 0 for an empty description.
         """
 
-    def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
+    def check(
+        self,
+        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> FrameCheck:
         """Undo the description's stages over a received frame and report what
         was found -- the receive mirror of `bits()`, reading the same
         description, so a transmitter and a receiver holding the same `Frame`
@@ -1533,7 +1543,7 @@ class Frame:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8]
+        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte. Copied, not modified.
 
         Returns
@@ -1855,9 +1865,9 @@ class FrameDesc:
 
     def __init__(
         self,
-        preamble: NDArray[np.uint8] = ...,
-        sync: NDArray[np.uint8] = ...,
-        payload: NDArray[np.uint8] = ...,
+        preamble: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        sync: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        payload: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
     def bits(
@@ -1916,7 +1926,10 @@ class FrameDesc:
             Output.
         """
 
-    def crc_ok(self, rx_bits: NDArray[np.uint8]) -> int:
+    def crc_ok(
+        self,
+        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> int:
         """Check one received frame's CRC.
 
         **This is what makes a truth-free frame error rate possible.** It needs
@@ -1926,7 +1939,7 @@ class FrameDesc:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8]
+        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte.
 
         Returns
@@ -1952,7 +1965,11 @@ class FrameDesc:
 
         """
 
-    def add_field(self, name: str, bits: NDArray[np.uint8]) -> int:
+    def add_field(
+        self,
+        name: str,
+        bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> int:
         """Append one named field to a description (see `FrameDesc`): bits and
         nothing else, one per element, each 0 or 1. Text reaches it through
         `field_bits()`, hex and packed octets through `cvt`. A field a STAGE
@@ -1970,7 +1987,7 @@ class FrameDesc:
         name : str
             The field's name, or NULL/"" for anonymous; a name another field
             carries is refused.
-        bits : NDArray[np.uint8]
+        bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             The bits, one per element, each 0 or 1.
 
         Returns
@@ -2334,7 +2351,7 @@ class FrameDesc:
 
     def deframe(
         self,
-        rx_bits: NDArray[np.uint8],
+        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo the description's stages over a received frame and hand back
@@ -2364,7 +2381,7 @@ class FrameDesc:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8]
+        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, `frame_bits` of them; treated as a capture and never
             modified.
         out : NDArray[np.uint8] | None
@@ -2421,7 +2438,10 @@ class FrameDesc:
             The frame's length in bits, or 0 for an empty description.
         """
 
-    def check(self, rx_bits: NDArray[np.uint8]) -> FrameCheck:
+    def check(
+        self,
+        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> FrameCheck:
         """Undo the description's stages over a received frame and report what
         was found -- the receive mirror of `bits()`, reading the same
         description, so a transmitter and a receiver holding the same `Frame`
@@ -2451,7 +2471,7 @@ class FrameDesc:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8]
+        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte. Copied, not modified.
 
         Returns
@@ -2723,12 +2743,12 @@ class FrameDesc:
             Traceback object, or None. Ignored.
         """
 
-def bpsk_map(bits: NDArray[np.uint8]) -> NDArray[np.complex64]:
+def bpsk_map(bits: NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArray[np.complex64]:
     """Map bits {0,1} to BPSK symbols {+1,-1} (cf32).
 
     Parameters
     ----------
-    bits : NDArray[np.uint8]
+    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         Array of uint8 values; only the LSB of each byte is used.
 
     Returns
@@ -2746,12 +2766,12 @@ def bpsk_map(bits: NDArray[np.uint8]) -> NDArray[np.complex64]:
 
     """
 
-def qpsk_map(syms: NDArray[np.uint8]) -> NDArray[np.complex64]:
+def qpsk_map(syms: NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArray[np.complex64]:
     """Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32).
 
     Parameters
     ----------
-    syms : NDArray[np.uint8]
+    syms : NDArray[np.uint8] | bytes | bytearray | memoryview
         Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits
         above position 1 are ignored.
 
@@ -2851,14 +2871,14 @@ def mls_poly(n: int) -> int:
 
     """
 
-def crc16(bits: NDArray[np.uint8]) -> int:
+def crc16(bits: NDArray[np.uint8] | bytes | bytearray | memoryview) -> int:
     """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array,
     MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod
     validates.
 
     Parameters
     ----------
-    bits : NDArray[np.uint8]
+    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         Array of 0/1 bit values (one per byte).
 
     Returns
@@ -2942,7 +2962,7 @@ def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
 
 def dsss_spread(
     syms: NDArray[np.complex64],
-    code: NDArray[np.uint8],
+    code: NDArray[np.uint8] | bytes | bytearray | memoryview,
     sf: int,
 ) -> NDArray[np.complex64]:
     """Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf

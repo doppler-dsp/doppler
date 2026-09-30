@@ -13,6 +13,47 @@
 
 #include "doppler/mpsk/mpsk_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 static PyObject *
 _bind_mpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -22,16 +63,25 @@ _bind_mpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
   int          m         = 4;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|i", _kwlist, &sym_obj, &m))
     return NULL;
-  PyArrayObject *sym_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sym_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *sym_arr = (PyArrayObject *)jm_array_arg (
+      sym_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sym");
   if (!sym_arr)
     {
       return NULL;
     }
-  const uint8_t *sym     = (const uint8_t *)PyArray_DATA (sym_arr);
-  size_t         sym_len = (size_t)PyArray_SIZE (sym_arr);
-  npy_intp       _dim    = (npy_intp)sym_len;
-  PyObject      *_out    = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
+  const uint8_t *sym       = (const uint8_t *)PyArray_DATA (sym_arr);
+  size_t         sym_len   = (size_t)PyArray_SIZE (sym_arr);
+  size_t         _dim_need = (size_t)(sym_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (sym_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "mpsk_map: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
   if (!_out)
     {
       Py_DECREF (sym_arr);
@@ -52,16 +102,25 @@ _bind_mpsk_demap (PyObject *self, PyObject *args, PyObject *kwds)
   int          m         = 4;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|i", _kwlist, &x_obj, &m))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp              _dim  = (npy_intp)x_len;
-  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
+  size_t                _dim_need = (size_t)(x_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "mpsk_demap: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -81,16 +140,25 @@ _bind_mpsk_diff_map (PyObject *self, PyObject *args, PyObject *kwds)
   int          m         = 4;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|i", _kwlist, &sym_obj, &m))
     return NULL;
-  PyArrayObject *sym_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sym_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *sym_arr = (PyArrayObject *)jm_array_arg (
+      sym_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sym");
   if (!sym_arr)
     {
       return NULL;
     }
-  const uint8_t *sym     = (const uint8_t *)PyArray_DATA (sym_arr);
-  size_t         sym_len = (size_t)PyArray_SIZE (sym_arr);
-  npy_intp       _dim    = (npy_intp)sym_len;
-  PyObject      *_out    = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
+  const uint8_t *sym       = (const uint8_t *)PyArray_DATA (sym_arr);
+  size_t         sym_len   = (size_t)PyArray_SIZE (sym_arr);
+  size_t         _dim_need = (size_t)(sym_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (sym_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "mpsk_diff_map: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
   if (!_out)
     {
       Py_DECREF (sym_arr);
@@ -111,16 +179,25 @@ _bind_mpsk_diff_demap (PyObject *self, PyObject *args, PyObject *kwds)
   int          m         = 4;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|i", _kwlist, &x_obj, &m))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp              _dim  = (npy_intp)x_len;
-  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
+  size_t                _dim_need = (size_t)(x_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "mpsk_diff_demap: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -144,8 +221,8 @@ _bind_mpsk_soft_demap (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO|if", _kwlist, &x_obj,
                                     &llr_obj, &m, &n0))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -164,8 +241,8 @@ _bind_mpsk_soft_demap (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  PyArrayObject *llr_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      llr_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *llr_arr = (PyArrayObject *)jm_array_arg (
+      llr_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "llr");
   if (!llr_arr)
     {
       Py_DECREF (x_arr);
@@ -205,7 +282,7 @@ static PyMethodDef mpsk_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "sym : NDArray[np.uint8]\n"
+    "sym : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Gray label bytes (0..M-1), one per symbol.\n"
     "m : int\n"
     "    M in {2,4,8}.\n"
@@ -271,7 +348,7 @@ static PyMethodDef mpsk_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "sym : NDArray[np.uint8]\n"
+    "sym : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Gray label bytes (0..M-1), one per symbol.\n"
     "m : int\n"
     "    M in {2,4,8}.\n"

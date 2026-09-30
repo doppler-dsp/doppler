@@ -289,7 +289,7 @@ class Despreader:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         sps: int = 4,
         init_norm_freq: float = 0.0,
         init_chip: float = 0.0,
@@ -733,7 +733,7 @@ class BurstDespreader:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         sf: int = 1,
         sps: int = 2,
         init_norm_freq: float = 0.0,
@@ -828,7 +828,11 @@ class BurstDespreader:
     def bits_max_out(self) -> int:
         """Max output length bits() can produce for the current state. Use to size the ``out=`` buffer."""
 
-    def set_acq(self, acq_code: NDArray[np.uint8], acq_reps: int) -> None:
+    def set_acq(
+        self,
+        acq_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        acq_reps: int,
+    ) -> None:
         """Enable preamble-aided pull-in: track acq_reps periods of the
         (distinct) acq_code coherently before despreading the payload with the
         data code. Call before feeding the burst; clears when the preamble is
@@ -846,7 +850,7 @@ class BurstDespreader:
 
         Parameters
         ----------
-        acq_code : NDArray[np.uint8]
+        acq_code : NDArray[np.uint8] | bytes | bytearray | memoryview
             Acquisition code (0/1), length acq_code_len; copied.
         acq_reps : int
             Number of acq-code periods in the preamble.
@@ -1270,7 +1274,7 @@ class BurstDemod:
 
     def __init__(
         self,
-        data_code: NDArray[np.uint8],
+        data_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         spc: int = 4,
         chip_rate: float = 1.0e6,
         carrier_hz: float = 0.0,
@@ -1299,7 +1303,11 @@ class BurstDemod:
 
         """
 
-    def set_preamble(self, acq_code: NDArray[np.uint8], reps: int) -> None:
+    def set_preamble(
+        self,
+        acq_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        reps: int,
+    ) -> None:
         """Set the (unmodulated) acquisition preamble code + repetition count
         used for the feedforward (f0, rate) estimate.
 
@@ -1311,7 +1319,7 @@ class BurstDemod:
 
         Parameters
         ----------
-        acq_code : NDArray[np.uint8]
+        acq_code : NDArray[np.uint8] | bytes | bytearray | memoryview
             Acq preamble spreading code, one 0/1 chip per element; copied into
             the object.
         reps : int
@@ -1328,7 +1336,10 @@ class BurstDemod:
 
         """
 
-    def set_sync(self, sync: NDArray[np.uint8]) -> None:
+    def set_sync(
+        self,
+        sync: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> None:
         """Set the known frame-sync word (0/1 BPSK symbols) used for frame
         alignment and phase/sign resolution. The ONLY thing this object is told
         about the frame's content, and for a physical-layer reason: without the
@@ -1350,7 +1361,7 @@ class BurstDemod:
 
         Parameters
         ----------
-        sync : NDArray[np.uint8]
+        sync : NDArray[np.uint8] | bytes | bytearray | memoryview
             Frame-sync word, one 0/1 symbol per element; copied.
 
         Examples
@@ -1766,7 +1777,7 @@ class DsssReceiver:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -2287,7 +2298,7 @@ class AsyncDsssReceiver:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -3031,7 +3042,7 @@ class CellAsyncDsssReceiver:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -3702,7 +3713,7 @@ class AsyncDsssPool:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -4132,9 +4143,9 @@ class DsssBurstReceiver:
 
     def __init__(
         self,
-        acq_code: NDArray[np.uint8],
-        data_code: NDArray[np.uint8],
-        sync: NDArray[np.uint8],
+        acq_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        data_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        sync: NDArray[np.uint8] | bytes | bytearray | memoryview,
         reps: int = 5,
         spc: int = 4,
         chip_rate: float = 1000000.0,

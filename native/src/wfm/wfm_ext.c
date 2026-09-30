@@ -13,6 +13,47 @@
 
 #include "doppler/wfm/wfm_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 #include "wfm_ext_frame.c"
 #include "wfm_ext_framedesc.c"
 #include "wfm_ext_gold.c"
@@ -27,16 +68,25 @@ _bind_bpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *bits_obj  = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &bits_obj))
     return NULL;
-  PyArrayObject *bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *bits_arr = (PyArrayObject *)jm_array_arg (
+      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits");
   if (!bits_arr)
     {
       return NULL;
     }
-  const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
-  size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
-  npy_intp       _dim     = (npy_intp)bits_len;
-  PyObject      *_out     = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
+  const uint8_t *bits      = (const uint8_t *)PyArray_DATA (bits_arr);
+  size_t         bits_len  = (size_t)PyArray_SIZE (bits_arr);
+  size_t         _dim_need = (size_t)(bits_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (bits_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "bpsk_map: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
   if (!_out)
     {
       Py_DECREF (bits_arr);
@@ -56,16 +106,25 @@ _bind_qpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *syms_obj  = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &syms_obj))
     return NULL;
-  PyArrayObject *syms_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      syms_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *syms_arr = (PyArrayObject *)jm_array_arg (
+      syms_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "syms");
   if (!syms_arr)
     {
       return NULL;
     }
-  const uint8_t *syms     = (const uint8_t *)PyArray_DATA (syms_arr);
-  size_t         syms_len = (size_t)PyArray_SIZE (syms_arr);
-  npy_intp       _dim     = (npy_intp)syms_len;
-  PyObject      *_out     = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
+  const uint8_t *syms      = (const uint8_t *)PyArray_DATA (syms_arr);
+  size_t         syms_len  = (size_t)PyArray_SIZE (syms_arr);
+  size_t         _dim_need = (size_t)(syms_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (syms_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "qpsk_map: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
   if (!_out)
     {
       Py_DECREF (syms_arr);
@@ -127,8 +186,8 @@ _bind_crc16 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *bits_obj  = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &bits_obj))
     return NULL;
-  PyArrayObject *bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *bits_arr = (PyArrayObject *)jm_array_arg (
+      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits");
   if (!bits_arr)
     {
       return NULL;
@@ -149,16 +208,24 @@ _bind_rrc_h (PyObject *self, PyObject *args, PyObject *kwds)
   double       beta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &t_obj, &beta))
     return NULL;
-  PyArrayObject *t_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      t_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *t_arr = (PyArrayObject *)jm_array_arg (
+      t_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "t");
   if (!t_arr)
     {
       return NULL;
     }
-  const double *t     = (const double *)PyArray_DATA (t_arr);
-  size_t        t_len = (size_t)PyArray_SIZE (t_arr);
-  npy_intp      _dim  = (npy_intp)t_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  const double *t         = (const double *)PyArray_DATA (t_arr);
+  size_t        t_len     = (size_t)PyArray_SIZE (t_arr);
+  size_t        _dim_need = (size_t)(t_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (t_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "rrc_h: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
   if (!_out)
     {
       Py_DECREF (t_arr);
@@ -178,16 +245,24 @@ _bind_rc_h (PyObject *self, PyObject *args, PyObject *kwds)
   double       beta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &t_obj, &beta))
     return NULL;
-  PyArrayObject *t_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      t_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *t_arr = (PyArrayObject *)jm_array_arg (
+      t_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "t");
   if (!t_arr)
     {
       return NULL;
     }
-  const double *t     = (const double *)PyArray_DATA (t_arr);
-  size_t        t_len = (size_t)PyArray_SIZE (t_arr);
-  npy_intp      _dim  = (npy_intp)t_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  const double *t         = (const double *)PyArray_DATA (t_arr);
+  size_t        t_len     = (size_t)PyArray_SIZE (t_arr);
+  size_t        _dim_need = (size_t)(t_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (t_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "rc_h: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
   if (!_out)
     {
       Py_DECREF (t_arr);
@@ -206,7 +281,15 @@ _bind_field_bits (PyObject *self, PyObject *args, PyObject *kwds)
   const char  *spec      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &spec))
     return NULL;
-  npy_intp  _dim = (npy_intp)(dp_wfm_field_bits (spec, NULL, 0, NULL));
+  size_t _dim_need = (size_t)(dp_wfm_field_bits (spec, NULL, 0, NULL));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "field_bits: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
   PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
   if (!_out)
     {
@@ -240,7 +323,15 @@ _bind_rrc_taps (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dii", _kwlist, &beta, &sps,
                                     &span))
     return NULL;
-  npy_intp  _dim = (npy_intp)(2 * span * sps + 1);
+  size_t _dim_need = (size_t)(2 * span * sps + 1);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "rrc_taps: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
   PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
   if (!_out)
     {
@@ -261,25 +352,35 @@ _bind_dsss_spread (PyObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOi", _kwlist, &syms_obj,
                                     &code_obj, &sf))
     return NULL;
-  PyArrayObject *syms_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      syms_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *syms_arr = (PyArrayObject *)jm_array_arg (
+      syms_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "syms");
   if (!syms_arr)
     {
       return NULL;
     }
   const float _Complex *syms = (const float _Complex *)PyArray_DATA (syms_arr);
   size_t                syms_len = (size_t)PyArray_SIZE (syms_arr);
-  PyArrayObject        *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject        *code_arr = (PyArrayObject *)jm_array_arg (
+      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       Py_DECREF (syms_arr);
       return NULL;
     }
-  const uint8_t *code     = (const uint8_t *)PyArray_DATA (code_arr);
-  size_t         code_len = (size_t)PyArray_SIZE (code_arr);
-  npy_intp       _dim     = (npy_intp)(syms_len * sf);
-  PyObject      *_out     = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
+  const uint8_t *code      = (const uint8_t *)PyArray_DATA (code_arr);
+  size_t         code_len  = (size_t)PyArray_SIZE (code_arr);
+  size_t         _dim_need = (size_t)(syms_len * sf);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (syms_arr);
+      Py_DECREF (code_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "dsss_spread: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
   if (!_out)
     {
       Py_DECREF (syms_arr);
@@ -304,7 +405,7 @@ static PyMethodDef wfm_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "bits : NDArray[np.uint8]\n"
+    "bits : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Array of uint8 values; only the LSB of each byte is used.\n"
     "\n"
     "Returns\n"
@@ -325,7 +426,7 @@ static PyMethodDef wfm_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "syms : NDArray[np.uint8]\n"
+    "syms : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits\n"
     "    above position 1 are ignored.\n"
     "\n"
@@ -419,7 +520,7 @@ static PyMethodDef wfm_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "bits : NDArray[np.uint8]\n"
+    "bits : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Array of 0/1 bit values (one per byte).\n"
     "\n"
     "Returns\n"

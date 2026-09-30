@@ -1600,6 +1600,7 @@
 * **dp\_wfm\_kw\_entry\_size** ([**wfm\_keywords.h**](wfm__keywords_8h.md))
 * **dp\_wfm\_plan\_anchor\_seed** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **dp\_wfm\_plan\_at** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **dp\_wfm\_plan\_check\_snr** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **dp\_wfm\_plan\_destroy** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **dp\_wfm\_plan\_dump** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **dp\_wfm\_plan\_len** ([**wfm\_plan.h**](wfm__plan_8h.md))

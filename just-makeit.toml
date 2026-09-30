@@ -346,6 +346,17 @@ type = "double"
 name = "seed"
 type = "uint64_t"
 
+# #1695: a scene with no noise has no floor for an snr to move. at() and a
+# render "snr" return 0 in C; this is the face that says why, raised before
+# the draw. The message is DP_WFM_PLAN_WHY_NO_NOISE (wfm_plan.h) verbatim --
+# test_plan.py holds the two to one sentence.
+[[module.wfm_plan.methods]]
+name = "check_snr"
+fn = "dp_wfm_plan_check_snr"
+returns = "int"
+error = "ValueError"
+error_message = "this scene carries no noise, so the Plan has no noise floor for snr to move: give a source a finite snr (below 100 dB) and an snr_mode"
+
 # Scalar introspection (no-arg → scalar): the Python wrapper reads anchor_seed
 # for render()'s default seed and n_sources to size override arrays.
 [[module.wfm_plan.methods]]

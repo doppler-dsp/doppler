@@ -26,6 +26,7 @@
 #include "doppler/wfm/wfm_plan.h"
 
 #include "doppler/awgn/awgn_core.h"
+#include "doppler/clib_common.h"
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_plan_dsp_hash.h" /* WFM_PLAN_DSP_HASH_U64 (configure-time) */
 #include "doppler/wfm_synth/wfm_synth_core.h"
@@ -965,6 +966,16 @@ read_dbl_array (const cJSON *root, const char *key, double *dst, size_t n)
   return 1;
 }
 
+int
+dp_wfm_plan_check_snr (const wfm_plan_t *p)
+{
+  if (p)
+    for (size_t i = 0; i < p->n_segs; i++)
+      if (p->segs[i].has_noise)
+        return DP_OK;
+  return DP_ERR_INVALID;
+}
+
 size_t
 dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
                     float _Complex *out)
@@ -985,6 +996,11 @@ dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
       const cJSON *s = cJSON_GetObjectItemCaseSensitive (root, "snr");
       if (cJSON_IsNumber (s))
         {
+          if (dp_wfm_plan_check_snr (p) != DP_OK)
+            {
+              cJSON_Delete (root);
+              return 0; /* nothing for the snr to move: refused */
+            }
           snr       = s->valuedouble;
           snr_given = 1;
         }
@@ -1035,8 +1051,8 @@ size_t
 dp_wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
                 float _Complex *out)
 {
-  if (!p)
-    return 0;
+  if (dp_wfm_plan_check_snr (p) != DP_OK)
+    return 0; /* nothing for the snr to move: refused */
   return materialize (p, NULL, NULL, NULL, snr, 1, seed, 1, out);
 }
 

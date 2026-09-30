@@ -102,6 +102,12 @@ extern "C"
 
   uint64_t dp_wfm_plan_anchor_seed (const wfm_plan_t *p);
 
+#define DP_WFM_PLAN_WHY_NO_NOISE                                              \
+  "this scene carries no noise, so the Plan has no noise floor for snr to "   \
+  "move: give a source a finite snr (below 100 dB) and an snr_mode"
+
+  int dp_wfm_plan_check_snr (const wfm_plan_t *p);
+
   size_t dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
                           float _Complex *out);
 

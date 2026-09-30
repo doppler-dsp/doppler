@@ -76,8 +76,8 @@ is `[preamble × reps | sync | data:LEN | crc]`.
 ## 4. The rules the shape leaves open
 
 Each of these came up while prototyping the chunker (record §4) or reading
-the code that is replaced. Each is a recommendation for review, not yet a
-decision.
+the code that is replaced. Each is a decision, settled in review
+([#1650](https://github.com/doppler-dsp/doppler/pull/1650)).
 
 ### 4.1 An idle frame is all fill
 
@@ -154,15 +154,32 @@ user sees in the record is never a frame cut short.
 
 ### 4.8 What `--record` and SigMF carry
 
-- **The record** (`--record`, `dp_wfm_spec_to_json`) stores the data source
-    as written. A literal is stored inline, as the payload is today. A file
-    is stored as its path, its length in bits and a content hash, and a
-    replay refuses a file whose hash differs (how a file is identified is
-    open, §6). A stream stores its description (`"data_from_file": "-"`,
-    `"data": "pn:0:23:0x5"`).
-- **The truth for scoring**: frames sent, fill bits in the last frame, idle
-    frames sent. These go in the record, and as `wfmgen:` annotations in
-    the SigMF metadata beside today's `wfmgen:seed` and `wfmgen:data`.
+**The record** (`--record`, `dp_wfm_spec_to_json`) stores the data source
+as it was given:
+
+| source                   | recorded                                        | a replay                                                                            |
+| ------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `--data`, a literal      | the Field, inline, as the payload is today      | sends it again                                                                      |
+| `--data pn:0:REG[:SEED]` | the Field                                       | regenerates it from the seed                                                        |
+| `--data-from-file PATH`  | the path, the length in bits, a 64-bit hash     | refuses a file whose hash differs, naming the file and both hashes                  |
+| `--data-from-file -`     | `"-"`, the bits read, the hash of what was read | refuses unless `--data-from-file` is given again, then checks its hash the same way |
+
+A file is identified by its **content**, not its name: a path alone
+replays whatever that file holds on the day, and a length alone misses an
+edit of the same size.
+
+**The hash is FNV-1a 64.** It identifies content and does not protect it,
+so a non-cryptographic hash is the right size. FNV-1a is a few lines with
+no vendoring, it is byte-at-a-time and therefore incremental by
+construction, and its published test vectors give its C test a fixed
+reference. xxHash64 is faster, but it is much more code, and nothing needs
+the speed: the hash runs at the rate the file is read, and the file is read
+at the rate frames are sent. It is **one new primitive**, `dp_hash64`,
+computed as the source reads each chunk, so a file is never read twice.
+
+**The truth for scoring**: frames sent, fill bits in the last frame, idle
+frames sent. These go in the record, and as `wfmgen:` annotations in the
+SigMF metadata beside today's `wfmgen:seed` and `wfmgen:data`.
 
 ### 4.9 Each face, one source
 
@@ -254,10 +271,6 @@ source is refused as two spellings of one thing.
 - **When SigMF metadata is written.** The idle count is known only at the
     end of a run. Whether `.sigmf-meta` is written at close or has to be
     rewritten there is unread.
-- **The content hash.** Nothing in `native/` hashes content (the plan
-    hash is a build-time hash of source code). Recording a file by its hash
-    needs a new primitive (only CRC-16-CCITT exists, `dp_crc16.h`, too weak
-    to identify a file), and which one is undecided.
 
 ## 7. The plan, in phases
 
@@ -269,7 +282,8 @@ source is refused as two spellings of one thing.
 - **its state:** the bit residue (§4.2), the fill, the fill phase, and the
     running counts (frames, fill bits, idle frames);
 - **its operation:** "give me the next chunk", answering data, nothing yet,
-    or ended (§4.5), with the fill applied.
+    or ended (§4.5), with the fill applied, and a file's hash updated
+    from each chunk as it is read (§4.8).
 
 It composes, rather than re-implements: `dp_bytes_to_bin` for the unpack,
 `dp_pn_generate` for `pn:0` (stateful, and already serializable), and the
@@ -284,22 +298,31 @@ by `dp_wfm_frame_assemble`, once per chunk.
 1. **The parser and the frame accept `data:LEN`**, with exactly one data
     field per frame and `LEN > 0` there. Red first: the tests that pin
     today's refusal flip.
+1. **`dp_hash64`**, FNV-1a 64 (§4.8), under `native/inc/doppler/`. It
+    is a new primitive: nothing in `native/` hashes content (the plan hash
+    is a build-time hash of source code, and CRC-16 is too weak to identify
+    a file). It has an incremental interface, a C test against the
+    published vectors that includes feeding the same bytes in split
+    chunks, and it is certified later like any object.
 1. **The data source object**, with a C test for each row of §4.4 and
     §4.6, and for §4.1 and §4.2, each proven red by sabotage.
 1. **The pull replaces the cycle**: the synth takes the next frame at each
     frame boundary, and idle frames happen in the paced loop.
-1. **The faces**: the surface rows for `--data`, `--data-len` and `--fill`
+1. **The faces**: the surface rows for `--data`, `--data-from-file` (one
+    exclusive pair, §4.9), `--data-len` and `--fill`
     through `gen_wfm_defaults.py`, the JSON keys, and `Source(data=)`, with
     the deletions and refusals of §5. This lands with or after #1617, which
     moves the payload off `wfm_source_t`.
-1. **The record and SigMF** (§4.8), and replay (use case 1 byte for byte,
-    use case 3 by its seed).
+1. **The record and SigMF** (§4.8), and replay: a literal byte for byte, a
+    file checked by its hash, `pn:0` by its seed, and stdin refused
+    without a file.
 1. **Explore, once:** measure the two throughput unknowns of §6, and write
     fast tests at the points they find.
 1. **Document:** the guide's payload section becomes the §F.5 table, and
-    the flag-matrix golden and examples move to `--data`.
+    the flag-matrix golden and examples move to `--data` and
+    `--data-from-file`.
 
-Steps 2 to 4 need nothing from #1617 and can land first. Step 5 cannot.
+Steps 2 to 5 need nothing from #1617 and can land first. Step 6 cannot.
 
 ## 8. Deliberately not in scope
 

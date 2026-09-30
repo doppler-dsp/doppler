@@ -131,7 +131,7 @@ A file and a pipe carry **packed** octets, unpacked MSB first by `dp_bytes_to_bi
 **Each chunk has one of three outcomes** (§4.5): a frame of data, nothing yet, or the end. _Nothing yet_ happens only when a caller asks with a timeout and a pipe has not delivered; the bits already read are kept for the next frame, and it is the paced caller that decides to send an idle frame instead, all fill (§4.1). An unpaced caller asks with no timeout and waits, as `cat` does.
 
 
-A source read from an fd hashes every octet it reads with dp\_hash64, so a record can identify the file without reading it twice (§4.8).
+A source read from an fd hashes every octet it reads with `dp_hash64()`, so a record can identify the file without reading it twice (§4.8).
 
 
 Not in this object yet: the state triplet (a stream's resume position), which lands with the faces that serialize it. 

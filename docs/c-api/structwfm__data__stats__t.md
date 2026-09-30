@@ -136,7 +136,7 @@ uint64_t wfm_data_stats_t::hash;
 
 
 
-dp\_hash64 of the octets read (fd only) 
+`dp_hash64()` of the octets read (fd only) 
  
 
 

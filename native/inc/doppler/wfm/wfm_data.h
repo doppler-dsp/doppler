@@ -36,7 +36,7 @@
  * waits, as `cat` does.
  *
  * A source read from an fd hashes every octet it reads with
- * @ref dp_hash64, so a record can identify the file without reading it
+ * `dp_hash64()`, so a record can identify the file without reading it
  * twice (§4.8).
  *
  * Not in this object yet: the state triplet (a stream's resume position),
@@ -73,7 +73,7 @@ extern "C"
     uint64_t pad_bits;    /**< fill bits in the padded last frame, else 0   */
     uint64_t bits;        /**< source bits consumed so far (no fill)        */
     uint64_t total_bits;  /**< a finite source's length; 0 for a stream     */
-    uint64_t hash;        /**< @ref dp_hash64 of the octets read (fd only)  */
+    uint64_t hash;        /**< `dp_hash64()` of the octets read (fd only)  */
     int      hashed;      /**< non-zero when @p hash is meaningful          */
     int      stream;      /**< non-zero for a stream (pipe, `pn:0`)         */
   } wfm_data_stats_t;

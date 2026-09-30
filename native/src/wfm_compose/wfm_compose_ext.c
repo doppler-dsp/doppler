@@ -179,6 +179,7 @@ Synth_dealloc (SynthObject *self)
   free ((void *)self->src.acq_code.bits);
   free ((void *)self->src.data_code.bits);
   free ((void *)self->src.sync.bits);
+  dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -213,6 +214,87 @@ _attach_symbols (wfm_source_t *src, PyObject *obj)
   Py_DECREF (_arr);
   src->symbols   = _buf;
   src->n_symbols = (size_t)_n;
+  return 1;
+}
+
+/* gh-1711: bind `frame` -- None clears it, a str goes through
+ * dp_wfm_frame_refuse_text, anything else is copied. The source owns the
+ * result. */
+static int
+_attach_frame (wfm_source_t *_jm_src, PyObject *_jm_obj)
+{
+  wfm_frame_desc_t *_jm_new = NULL;
+  if (!_jm_obj || _jm_obj == Py_None)
+    {
+      /* cleared */
+    }
+  else if (PyUnicode_Check (_jm_obj))
+    {
+      Py_ssize_t  _jm_len;
+      const char *_jm_s = PyUnicode_AsUTF8AndSize (_jm_obj, &_jm_len);
+      if (!_jm_s)
+        return 0;
+      /* The whole str or nothing: a NUL would hand the parser a prefix
+       * (the same refusal as a coerce_str_fn field, gh-1709). */
+      if (strlen (_jm_s) != (size_t)_jm_len)
+        {
+          PyErr_SetString (PyExc_ValueError, "embedded null character");
+          return 0;
+        }
+      const char *_why = NULL;
+      _jm_new          = dp_wfm_frame_refuse_text (_jm_s, &_why);
+      if (!_jm_new)
+        {
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (
+                PyExc_ValueError,
+                "frame: dp_wfm_frame_refuse_text refused the text");
+          return 0;
+        }
+    }
+  else
+    {
+      wfm_frame_desc_t *frame = NULL;
+      if (_jm_obj != Py_None)
+        {
+          PyObject *frame_cap = _jm_obj;
+          Py_INCREF (frame_cap);
+          if (!PyCapsule_CheckExact (frame_cap))
+            {
+              Py_DECREF (frame_cap);
+              frame_cap = PyObject_GetAttrString (_jm_obj, "_capsule");
+              if (!frame_cap)
+                {
+                  if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                    return 0;
+                  PyErr_Clear ();
+                  PyErr_Format (
+                      PyExc_TypeError,
+                      "frame must be the doppler.wfm.frame_desc capsule"
+                      " or an object exposing it as ._capsule,"
+                      " not %s",
+                      Py_TYPE (_jm_obj)->tp_name);
+                  return 0;
+                }
+            }
+          frame = (wfm_frame_desc_t *)PyCapsule_GetPointer (
+              frame_cap, "doppler.wfm.frame_desc");
+          Py_DECREF (frame_cap);
+          if (!frame)
+            return 0;
+        }
+      _jm_new = dp_wfm_frame_copy (frame);
+      if (!_jm_new)
+        {
+          PyErr_SetString (PyExc_RuntimeError,
+                           "dp_wfm_frame_copy returned NULL");
+          return 0;
+        }
+    }
+  dp_wfm_frame_free ((wfm_frame_desc_t *)_jm_src->frame);
+  _jm_src->frame = _jm_new;
   return 1;
 }
 
@@ -353,6 +435,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                     "crc",
                                     "symbol_rate",
                                     "dsss_code_only",
+                                    "frame",
                                     "fs",
                                     NULL };
   const char  *type             = "tone";
@@ -385,6 +468,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   const char  *crc              = "crc16";
   double       symbol_rate      = 0.0;
   int          dsss_code_only   = 0;
+  PyObject    *frame            = NULL;
   double       fs               = 1e6;
   PyObject    *_kw              = kwds;
   int          _kw_owned        = 0;
@@ -473,12 +557,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsdid", kwlist, &type, &freq,
+          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsdiOd", kwlist, &type, &freq,
           &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level,
           &background, &f_end, &span, &doppler, &doppler_rate, &carrier_hz,
           &doppler_lifetime, &bits, &modulation, &pulse, &rrc_beta, &rrc_span,
           &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
-          &symbol_rate, &dsss_code_only, &fs))
+          &symbol_rate, &dsss_code_only, &frame, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -722,6 +806,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   }
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
+  if (!_attach_frame (&self->src, frame))
+    return -1;
   return 0;
 }
 
@@ -1406,6 +1492,29 @@ Synth_set_dsss_code_only (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_get_frame (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (!self->src.frame)
+    Py_RETURN_NONE;
+  char *_t = dp_wfm_frame_to_json (self->src.frame);
+  if (!_t)
+    {
+      PyErr_SetString (PyExc_RuntimeError,
+                       "dp_wfm_frame_to_json returned NULL");
+      return NULL;
+    }
+  PyObject *_r = PyUnicode_FromString (_t);
+  free (_t);
+  return _r;
+}
+static int
+Synth_set_frame (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  return _attach_frame (&self->src, value) ? 0 : -1;
+}
+static PyObject *
 Synth_get_fs (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -1604,6 +1713,27 @@ static PyGetSetDef Synth_getset[] = {
     "Continuous dsss data source: 1 = code-only (the pure spreading code, no "
     "data modulation); 0 = data-modulated (the payload when supplied, else "
     "the seeded PN). Ignored for burst dsss and non-dsss types.\n",
+    NULL },
+  { "frame", (getter)Synth_get_frame, (setter)Synth_set_frame,
+    "The FRAME, as a description, when the source carries one -- the only way "
+    "a source says anything but the common frame: a coding stage, a field of "
+    "the caller's own bits at a position of their choosing, a stage covering "
+    "a span they name. `wfmgen --frame FILE`, a scene's `frame` key and "
+    "Python's `frame=` (a FrameDesc or a Frame) all land here. When it is set "
+    "it IS the frame, and the common-frame fields below "
+    "(acq_code/sync/crc/payload) do not frame this source. NULL means the "
+    "common frame, `[preamble x reps | sync | payload | crc]`, which "
+    "`dp_wfm_frame_fixed()` builds from the fields below. A C caller's "
+    "description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere "
+    "here, so it must outlive the source. The composer and a Python source "
+    "hold their own copy (`dp_wfm_frame_copy()`), so a later change to the "
+    "FrameDesc does not reach them. On the Python face `frame=` is an input: "
+    "read it back from the composer's JSON (its getter is jm's, pending "
+    "removal: doppler#1694). KERNELS stay in C by design. A description names "
+    "a stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and "
+    "a caller adding a genuinely new transform (convolutional interleaving, "
+    "say) writes that kernel in C and hands it to `dp_wfm_frame_assemble` "
+    "directly.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -2653,6 +2783,18 @@ Segment_flat_dsss_code_only (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
                                  "dsss_code_only");
 }
+static PyObject *
+Segment_flat_frame (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "frame is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "frame");
+}
 
 static PyObject *
 Segment_add (SegmentObject *self, PyObject *args)
@@ -2890,6 +3032,27 @@ static PyGetSetDef Segment_getset[] = {
     "Continuous dsss data source: 1 = code-only (the pure spreading code, no "
     "data modulation); 0 = data-modulated (the payload when supplied, else "
     "the seeded PN). Ignored for burst dsss and non-dsss types.\n",
+    NULL },
+  { "frame", (getter)Segment_flat_frame, NULL,
+    "The FRAME, as a description, when the source carries one -- the only way "
+    "a source says anything but the common frame: a coding stage, a field of "
+    "the caller's own bits at a position of their choosing, a stage covering "
+    "a span they name. `wfmgen --frame FILE`, a scene's `frame` key and "
+    "Python's `frame=` (a FrameDesc or a Frame) all land here. When it is set "
+    "it IS the frame, and the common-frame fields below "
+    "(acq_code/sync/crc/payload) do not frame this source. NULL means the "
+    "common frame, `[preamble x reps | sync | payload | crc]`, which "
+    "`dp_wfm_frame_fixed()` builds from the fields below. A C caller's "
+    "description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere "
+    "here, so it must outlive the source. The composer and a Python source "
+    "hold their own copy (`dp_wfm_frame_copy()`), so a later change to the "
+    "FrameDesc does not reach them. On the Python face `frame=` is an input: "
+    "read it back from the composer's JSON (its getter is jm's, pending "
+    "removal: doppler#1694). KERNELS stay in C by design. A description names "
+    "a stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and "
+    "a caller adding a genuinely new transform (convolutional interleaving, "
+    "say) writes that kernel in C and hands it to `dp_wfm_frame_assemble` "
+    "directly.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -3148,6 +3311,19 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
               syn->src.sync.bits = NULL;
               syn->src.sync.len  = 0;
             }
+          {
+            wfm_frame_desc_t *_a0 = (wfm_frame_desc_t *)syn->src.frame;
+            syn->src.frame        = NULL;
+            if (_a0 && !(syn->src.frame = dp_wfm_frame_copy (_a0)))
+              {
+                Py_DECREF (syn);
+                Py_DECREF (srclist);
+                Py_DECREF (list);
+                PyErr_SetString (PyExc_RuntimeError,
+                                 "dp_wfm_frame_copy returned NULL");
+                return NULL;
+              }
+          }
           PyList_SET_ITEM (srclist, (Py_ssize_t)k, (PyObject *)syn);
         }
       SegmentObject *sg
@@ -3783,6 +3959,7 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "crc",
                                                   "symbol_rate",
                                                   "dsss_code_only",
+                                                  "frame",
                                                   NULL };
 
 static PyObject *

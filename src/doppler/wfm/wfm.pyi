@@ -1,5 +1,5 @@
 # wfm/wfm.pyi — type stubs for the wfm C extension.
-from typing import final, Literal
+from typing import Any, final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -1769,6 +1769,13 @@ class Frame:
     def nbits(self) -> int:
         """Nbits."""
 
+    @property
+    def _capsule(self) -> Any:
+        """The description as a `doppler.wfm.frame_desc` capsule (a borrowed
+        `wfm_frame_desc_t *`), the handle a composer source's `frame=` copies
+        from. Valid while this object lives.
+        """
+
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -2696,6 +2703,13 @@ class FrameDesc:
     @property
     def nbits(self) -> int:
         """Nbits."""
+
+    @property
+    def _capsule(self) -> Any:
+        """The description as a `doppler.wfm.frame_desc` capsule (a borrowed
+        `wfm_frame_desc_t *`), the handle a composer source's `frame=` copies
+        from. Valid while this object lives.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

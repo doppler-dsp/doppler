@@ -308,3 +308,14 @@ params = [{ name = "i", type = "size_t" }]
 name = "nbits"
 type = "size_t"
 field = true
+
+# just-makeit#1711: the description as a capsule, so a composer source's
+# `frame=` (an owned-pointer field) can take a Frame or a FrameDesc across
+# the module boundary without reading this object's layout.
+[[frame.properties]]
+name = "_capsule"
+type = "capsule"
+capsule = "doppler.wfm.frame_desc"
+expr = "&self->handle->d"
+capsule_type = "wfm_frame_desc_t *"
+doc = "The description as a `doppler.wfm.frame_desc` capsule (a borrowed `wfm_frame_desc_t *`), the handle a composer source's `frame=` copies from. Valid while this object lives."

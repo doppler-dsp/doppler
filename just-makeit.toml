@@ -1540,6 +1540,27 @@ type = "int"
 default = "0"
 doc = "Continuous dsss data source: 1 = code-only (the pure spreading code, no data modulation); 0 = data-modulated (the payload when supplied, else the seeded PN). Ignored for burst dsss and non-dsss types."
 
+# just-makeit#1711: an owned-pointer field. The source holds its own COPY of
+# the description (copy_fn), so neither a FrameDesc nor the composer need
+# outlive the other. An object takes a description, never text: parse_fn
+# refuses every str with one reason (parse_why, just-makeit#1735). The
+# composer's JSON is delegated to wfm_json.c, which reads and writes
+# "frame" itself, so the refusal never reaches a record. frame= is an
+# input: jm still renders a getter (format_fn, the description's JSON)
+# until just-makeit#1753 allows a write-only field (doppler#1694); read it
+# from the record instead. No
+# `cli`/`json` row: `--frame FILE` and the scene key are wfmgen's and
+# wfm_json.c's own.
+[[module.wfm_compose.source.fields]]
+name = "frame"
+object = "frame.FrameDesc"
+copy_fn = "dp_wfm_frame_copy"
+free_fn = "dp_wfm_frame_free"
+parse_fn = "dp_wfm_frame_refuse_text"
+parse_why = true
+format_fn = "dp_wfm_frame_to_json"
+doc = "The FRAME, as a description, when the source carries one -- the only way a source says anything but the common frame: a coding stage, a field of the caller's own bits at a position of their choosing, a stage covering a span they name. `wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a FrameDesc or a Frame) all land here. When it is set it IS the frame, and the common-frame fields below (acq_code/sync/crc/payload) do not frame this source. NULL means the common frame, `[preamble x reps | sync | payload | crc]`, which `dp_wfm_frame_fixed()` builds from the fields below. A C caller's description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it must outlive the source. The composer and a Python source hold their own copy (`dp_wfm_frame_copy()`), so a later change to the FrameDesc does not reach them. On the Python face `frame=` is an input: read it back from the composer's JSON (its getter is jm's, pending removal: doppler#1694). KERNELS stay in C by design. A description names a stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a genuinely new transform (convolutional interleaving, say) writes that kernel in C and hands it to `dp_wfm_frame_assemble` directly."
+
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
 bridge_fn = "dp_wfm_source_to_synth"

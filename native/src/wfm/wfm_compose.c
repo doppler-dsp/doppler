@@ -41,14 +41,8 @@ free_segment_sources (wfm_segment_t *seg)
            the composer took its OWN copy so the caller's need not outlive
            it, so the copy is the composer's to release. Its fields' literal
            bits go first -- they hang off the description. */
-        if (seg->sources[k].frame)
-          {
-            wfm_frame_desc_t *d = (wfm_frame_desc_t *)seg->sources[k].frame;
-            for (unsigned f = 0; f < d->n_fields; f++)
-              free ((void *)d->field[f].seq.bits);
-            free (d);
-            seg->sources[k].frame = NULL;
-          }
+        dp_wfm_frame_free ((wfm_frame_desc_t *)seg->sources[k].frame);
+        seg->sources[k].frame = NULL;
       }
   free (seg->sources);
   seg->sources = NULL;
@@ -83,29 +77,9 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
      outlive it -- but the composer deliberately outlives its caller's
      buffers, which is what every dup_u8 below is for. So it takes its own
      copy of the description AND of each field's literal bits, and owns
-     both. Without this a `--from-file` scene would be reading a description
-     its parser had already freed. */
-  if (src->frame)
-    {
-      wfm_frame_desc_t *d = dp_xmalloc (sizeof *d);
-      *d                  = *src->frame;
-      dst->frame          = d;
-      /* Null every borrowed pointer FIRST, so a failure part-way leaves a
-         description free_segment_sources() can walk without touching a
-         buffer that belongs to the caller. */
-      for (unsigned f = 0; f < d->n_fields; f++)
-        d->field[f].seq.bits = NULL;
-      for (unsigned f = 0; f < d->n_fields; f++)
-        {
-          const wfm_seq_t *q = &src->frame->field[f].seq;
-          if (q->bits && q->len)
-            {
-              d->field[f].seq.bits = dup_u8 (q->bits, q->len);
-              if (!d->field[f].seq.bits)
-                return -1;
-            }
-        }
-    }
+     both (dp_wfm_frame_copy). Without this a `--from-file` scene would be
+     reading a description its parser had already freed. */
+  dst->frame = dp_wfm_frame_copy (src->frame);
   if (src->payload.bits && src->payload.len)
     {
       dst->payload.bits = dup_u8 (src->payload.bits, src->payload.len);

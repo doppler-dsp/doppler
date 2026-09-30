@@ -35,6 +35,16 @@ dp_wfm_source_bits_refuse_text (const char *text, uint8_t *out, size_t max_out,
   return 0;
 }
 
+wfm_frame_desc_t *
+dp_wfm_frame_refuse_text (const char *text, const char **why)
+{
+  (void)text;
+  if (why)
+    *why = "frame= takes a FrameDesc or a Frame; a description as JSON is a "
+           "scene's \"frame\" key (Composer.from_json)";
+  return NULL;
+}
+
 int
 dp_wfm_source_has_frame (const wfm_source_t *src)
 {

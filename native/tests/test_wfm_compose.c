@@ -985,6 +985,107 @@ test_source_bits_refuse_text (void)
   return 0;
 }
 
+/* dp_wfm_frame_refuse_text: `frame=` takes a description, so its text face
+ * refuses, naming the object forms and the scene's "frame" key. */
+static int
+test_frame_refuse_text (void)
+{
+  const char *why = NULL;
+  DP_CHECK_MSG (dp_wfm_frame_refuse_text ("{\"fields\": []}", &why) == NULL,
+                "frame_refuse_text: a valid description's text is refused");
+  DP_CHECK_MSG (why && strstr (why, "FrameDesc")
+                    && strstr (why, "\"frame\" key"),
+                "frame_refuse_text: the reason names the object and the key");
+  DP_CHECK_MSG (dp_wfm_frame_refuse_text ("x", NULL) == NULL,
+                "frame_refuse_text: why may be NULL");
+  /* The header's @code example, as written. */
+  {
+    const char       *w;
+    wfm_frame_desc_t *d = dp_wfm_frame_refuse_text ("{\"fields\": []}", &w);
+    DP_CHECK_MSG (d == NULL && strstr (w, "FrameDesc"),
+                  "frame_refuse_text @code: NULL, why names FrameDesc");
+  }
+  printf ("  dp_wfm_frame_refuse_text refuses every str\n");
+  return 0;
+}
+
+/* dp_wfm_frame_to_json / _copy: with dp_wfm_frame_from_json, the three a
+ * binding's owned-pointer field calls (just-makeit#1711), each pinned on the
+ * header's claims. */
+static int
+test_frame_to_json_copy (void)
+{
+  static const char full[]
+      = "{\"fields\":[{\"name\":\"asm\",\"spec\":\"0x1ACFFC1D\"},"
+        "{\"name\":\"data\",\"spec\":\"pn:31:5*4\"},"
+        "{\"name\":\"crc\",\"bits\":16,\"derived_by\":1}],"
+        "\"stages\":[{\"kind\":\"crc16\",\"first_field\":1,"
+        "\"n_fields\":2}]}";
+
+  wfm_frame_desc_t *d = dp_wfm_frame_from_json (full, NULL);
+  DP_REQUIRE_MSG (d != NULL && d->n_fields == 3 && d->n_stages == 1,
+                  "frame_to_json: the description under test reads");
+
+  /* to_json is the scene writer's text, and it reads back to itself. */
+  char *once = dp_wfm_frame_to_json (d);
+  DP_REQUIRE_MSG (once != NULL, "frame_to_json: a description writes");
+  DP_CHECK_MSG (strstr (once, "\"name\":\"asm\"")
+                    && strstr (once, "\"derived_by\":1")
+                    && strstr (once, "\"kind\":\"crc16\""),
+                "frame_to_json: fields, a derived field and the stage");
+  wfm_frame_desc_t *back  = dp_wfm_frame_from_json (once, NULL);
+  char             *twice = dp_wfm_frame_to_json (back);
+  DP_CHECK_MSG (back && twice && strcmp (once, twice) == 0,
+                "frame_to_json: parse(to_json(d)) writes the same text");
+  DP_CHECK_MSG (dp_wfm_frame_to_json (NULL) == NULL,
+                "frame_to_json: NULL gives NULL");
+  free (twice);
+  dp_wfm_frame_free (back);
+
+  /* copy owns its bits: equal text, distinct buffers, and it outlives the
+     original (LSan and ASan hold the frees under test-asan). */
+  wfm_frame_desc_t *c = dp_wfm_frame_copy (d);
+  DP_REQUIRE_MSG (c != NULL, "frame_copy: a description copies");
+  DP_CHECK_MSG (c->field[0].seq.bits != NULL
+                    && c->field[0].seq.bits != d->field[0].seq.bits
+                    && memcmp (c->field[0].seq.bits, d->field[0].seq.bits,
+                               d->field[0].seq.len)
+                           == 0,
+                "frame_copy: a literal field's bits are copied, not shared");
+  DP_CHECK_MSG (c->field[2].seq.bits == NULL,
+                "frame_copy: a derived field stays without bits");
+  dp_wfm_frame_free (d);
+  char *copied = dp_wfm_frame_to_json (c);
+  DP_CHECK_MSG (copied && strcmp (copied, once) == 0,
+                "frame_copy: the copy survives the original's free");
+  free (copied);
+  free (once);
+  dp_wfm_frame_free (c);
+  DP_CHECK_MSG (dp_wfm_frame_copy (NULL) == NULL,
+                "frame_copy: NULL gives NULL");
+
+  /* The header's @code examples, as written. */
+  {
+    wfm_frame_desc_t *e = dp_wfm_frame_from_json (
+        "{\"fields\": [{\"spec\": \"1010\"}]}", NULL);
+    DP_CHECK_MSG (e && e->n_fields == 1, "frame @code: one field");
+    char *text = dp_wfm_frame_to_json (e);
+    DP_CHECK_MSG (text
+                      && strcmp (text, "{\"fields\":[{\"spec\":\"0xa\"}],"
+                                       "\"stages\":[]}")
+                             == 0,
+                  "frame_to_json @code: the text as documented");
+    free (text);
+    wfm_frame_desc_t *b = dp_wfm_frame_copy (e);
+    dp_wfm_frame_free (e);
+    DP_CHECK_MSG (b && b->field[0].seq.len == 4,
+                  "frame_copy @code: the copy keeps four bits");
+    dp_wfm_frame_free (b);
+  }
+  printf ("  dp_wfm_frame_to_json/_copy round-trip and own\n");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3984,6 +4085,10 @@ main (void)
   if (test_frame_from_json_directly ())
     return 1;
   if (test_source_bits_refuse_text ())
+    return 1;
+  if (test_frame_refuse_text ())
+    return 1;
+  if (test_frame_to_json_copy ())
     return 1;
 
   printf (

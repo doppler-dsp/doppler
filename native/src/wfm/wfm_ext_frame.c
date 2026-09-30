@@ -805,6 +805,20 @@ Frame_getprop_nbits (FrameObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nbits);
 }
 
+static PyObject *
+Frame_getprop__capsule (FrameObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* Borrowed: NULL destructor, so the capsule never
+     frees a pointer Frame still owns. */
+  return PyCapsule_New ((void *)(&self->handle->d), "doppler.wfm.frame_desc",
+                        NULL);
+}
+
 static PyGetSetDef Frame_getset[] = {
   { "rx_ok", (getter)Frame_getprop_rx_ok, NULL,
     "Checks that came out good in the last deframe() -- one per CRC, one per "
@@ -824,6 +838,11 @@ static PyGetSetDef Frame_getset[] = {
     "before it is lost -- what an outer code reports and a CRC cannot.\n",
     NULL },
   { "nbits", (getter)Frame_getprop_nbits, NULL, "Nbits.\n", NULL },
+  { "_capsule", (getter)Frame_getprop__capsule, NULL,
+    "The description as a `doppler.wfm.frame_desc` capsule (a borrowed "
+    "`wfm_frame_desc_t *`), the handle a composer source's `frame=` copies "
+    "from. Valid while this object lives.\n",
+    NULL },
   { NULL }
 };
 

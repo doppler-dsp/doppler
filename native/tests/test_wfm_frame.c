@@ -940,6 +940,16 @@ test_data_field (void)
   DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, out, sizeof out) == 0,
                 "a frame whose data has no source is not assembled");
 
+  /* A repeated data field is ONE draw of LEN bits sent REPS times in its
+     frame -- frame-description.md §F.1 ("a repeat is invariant ... it
+     never draws new data") and §F.5. So it lays out at LEN * REPS and is
+     still one data field, not REPS of them. */
+  wfm_frame_desc_t rep = { 0 };
+  DP_REQUIRE (dp_wfm_frame_add_field (&rep, "payload", &data, 3) == 0);
+  DP_CHECK_MSG (dp_wfm_frame_desc_layout (&rep, &l) == 0
+                    && l.field_bits[0] == 3u * 24u && l.frame_bits == 72u,
+                "data:24*3 lays out at 72 bits, as one data field");
+
   wfm_frame_desc_t two = { 0 };
   DP_REQUIRE (dp_wfm_frame_add_field (&two, "a", &data, 1) == 0);
   DP_REQUIRE (dp_wfm_frame_add_field (&two, "b", &data, 1) == 1);

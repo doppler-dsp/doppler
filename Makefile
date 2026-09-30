@@ -1406,6 +1406,17 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 # itself. Edit canonical and re-vendor; never edit these in place.
 VENDORED_FILES = scripts/release-watch.sh scripts/pr-watch.sh
 
+# What `ci-changes` may IGNORE when it asks "is this a version bump and
+# nothing else?" (standard.mk's knob, extended rather than copied). A release
+# PR carries more than the bump: the gallery PNGs `make gallery` re-rendered
+# and the benchmark snapshots `make bench-interleaved` measured, plus the
+# docs/benchmarks.md rendered from them. None of them is compiled, imported
+# or executed by the test matrix, so treating them as source ran the whole
+# matrix twice per release (the PR, then main) over code its parent had
+# already passed. The Docs workflow still builds the site from them, so a
+# broken asset is still caught -- just not by re-running the C/Python tests.
+CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|docs/benchmarks\.md)$$
+
 include standard.mk
 
 # ── Everything below is genuinely doppler's own ──────────────────────────────

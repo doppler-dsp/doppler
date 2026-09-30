@@ -126,7 +126,7 @@ def _fence_findings(root: Path) -> list[str]:
     docs = root / "docs"
     for page in sorted(docs.rglob("*.md")):
         text = page.read_text(encoding="utf-8")
-        rel = page.relative_to(root)
+        rel = page.relative_to(root).as_posix()
         for _marker, code in iter_fences(text, "python"):
             resolved = resolve_snippets(code)
             try:
@@ -153,7 +153,7 @@ def _example_findings(root: Path) -> list[str]:
     examples = root / "src" / "doppler" / "examples"
     pairs = _pair_scripts(examples)
     for script in sorted(examples.glob("*.py")):
-        rel = script.relative_to(root)
+        rel = script.relative_to(root).as_posix()
         source = script.read_text(encoding="utf-8")
         try:
             tree = ast.parse(source)

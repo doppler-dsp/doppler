@@ -454,7 +454,7 @@ ______________________________________________________________________
 | `make test-python` | pytest, the same selection CI runs        |
 | `make test-rust`   | Rust FFI tests (`cargo test`)             |
 | `make docs`        | Build documentation site                  |
-| `make gates`       | every gate CI requires — run before push  |
+| `make gates`       | every gate CI runs — to reproduce a red   |
 
 **Two pre-commit hooks cover the generated tree**, which `make lint` cannot
 see: `gen-c-api-drift` regenerates `docs/c-api` when a staged file matches the

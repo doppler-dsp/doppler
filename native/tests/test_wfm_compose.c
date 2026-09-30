@@ -23,6 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <process.h> /* getpid, under its POSIX name; the UCRT has no <unistd.h> */
+#else
+#include <unistd.h>
+#endif
 
 /* The standalone-Synth half of the shared bridge. It has no header of its own
    — the Python binding declares it the same way (wfm_compose_ext.c) — and the
@@ -4040,6 +4045,69 @@ main (void)
     if (strcmp (got, want) != 0)
       (void)fprintf (stderr, "got:\n%s\n", got);
     free (got);
+  }
+
+  /* ── the file readers: from_file and its reason-naming twin ───────────
+   *
+   * Python reaches only dp_wfm_compose_from_file_why (just-makeit#1706), so
+   * the plain reader is pinned here: it must read a valid scene, refuse a
+   * missing path, and refuse a retired key -- and the _why twin must name
+   * that key, as dp_wfm_compose_from_json_why does for text. */
+  {
+    static const char ok[]
+        = "{\"version\": 1, \"segments\": [{\"type\": \"tone\", "
+          "\"num_samples\": 64}]}";
+    static const char retired[]
+        = "{\"version\": 1, \"segments\": [{\"type\": \"tone\", "
+          "\"num_samples\": 64, \"sync_gen\": \"pn:63:6\"}]}";
+    char ok_path[512], bad_path[512], missing[512];
+    int  pid = (int)getpid ();
+    snprintf (ok_path, sizeof ok_path, "%s/dp_wfm_from_file_ok_%d.json",
+              dp_test_tmpdir (), pid);
+    snprintf (bad_path, sizeof bad_path, "%s/dp_wfm_from_file_retired_%d.json",
+              dp_test_tmpdir (), pid);
+    snprintf (missing, sizeof missing, "%s/dp_wfm_from_file_absent_%d.json",
+              dp_test_tmpdir (), pid);
+
+    /* the text itself: valid and refused, before any file is involved */
+    dp_wfm_compose_state_t *t = dp_wfm_compose_from_json (ok);
+    DP_REQUIRE_MSG (t, "the valid scene parses as text");
+    dp_wfm_compose_destroy (t);
+
+    FILE *f = fopen (ok_path, "wb");
+    DP_REQUIRE_MSG (f, "write the valid scene file");
+    DP_REQUIRE (fwrite (ok, 1, sizeof ok - 1, f) == sizeof ok - 1);
+    fclose (f);
+    f = fopen (bad_path, "wb");
+    DP_REQUIRE_MSG (f, "write the retired-key scene file");
+    DP_REQUIRE (fwrite (retired, 1, sizeof retired - 1, f)
+                == sizeof retired - 1);
+    fclose (f);
+
+    dp_wfm_compose_state_t *c = dp_wfm_compose_from_file (ok_path);
+    DP_CHECK_MSG (c != NULL, "from_file reads a valid scene");
+    dp_wfm_compose_destroy (c);
+    DP_CHECK_MSG (dp_wfm_compose_from_file (missing) == NULL,
+                  "from_file refuses a missing path");
+    DP_CHECK_MSG (dp_wfm_compose_from_file (bad_path) == NULL,
+                  "from_file refuses a retired key");
+
+    const char *why = NULL;
+    c               = dp_wfm_compose_from_file_why (bad_path, &why);
+    DP_CHECK_MSG (c == NULL, "from_file_why refuses a retired key");
+    DP_CHECK_MSG (why && strstr (why, "\"sync_gen\""),
+                  "and its reason names the key");
+    why = NULL;
+    c   = dp_wfm_compose_from_file_why (missing, &why);
+    DP_CHECK_MSG (c == NULL && why == NULL,
+                  "an unreadable path is refused with no reason");
+    why = NULL;
+    c   = dp_wfm_compose_from_file_why (ok_path, &why);
+    DP_CHECK_MSG (c != NULL, "from_file_why reads a valid scene");
+    dp_wfm_compose_destroy (c);
+
+    DP_CHECK_MSG (remove (ok_path) == 0, "remove the valid scene file");
+    DP_CHECK_MSG (remove (bad_path) == 0, "remove the retired scene file");
   }
 
   DP_TEST_END ("test_wfm_compose");

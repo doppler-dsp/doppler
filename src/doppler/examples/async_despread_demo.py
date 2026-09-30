@@ -99,7 +99,10 @@ def carrier_wipe(rx):
 # --8<-- [end:signal]
 
 
-def main(out_path="async_despread_demo.png"):
+def main(
+    out_path="async_despread_demo.png",
+    lock_path="async_despread_demo_lock.png",
+):
     import matplotlib
 
     matplotlib.use("Agg")
@@ -238,11 +241,6 @@ def main(out_path="async_despread_demo.png"):
     # meaningful, whereas the panels above are noiseless so the envelope story
     # stays clean. Draw it in its own figure (on its own noisy signal) so the
     # two are never conflated.
-    lock_path = (
-        out_path[:-4] + "_lock.png"
-        if out_path.endswith(".png")
-        else out_path + "_lock.png"
-    )
     _lock_figure(code, plt, lock_path)
 
 
@@ -340,4 +338,14 @@ def _lock_figure(code, plt, out_path):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "async_despread_demo.png")
+    # Both default names are literals in main()'s signature on purpose:
+    # `make gallery` moves exactly the quoted "<name>.png" literals a script
+    # names (scripts/check_gallery_scripts.py). A lock path DERIVED from
+    # out_path was invisible to it, so the committed _lock.png was never
+    # refreshed. A custom out.png still gets its sibling out_lock.png.
+    if len(sys.argv) > 1:
+        out = sys.argv[1]
+        stem = out[:-4] if out.endswith(".png") else out
+        main(out, stem + "_lock.png")
+    else:
+        main()

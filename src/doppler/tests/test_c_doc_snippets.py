@@ -159,7 +159,7 @@ def _broker_reachable(host="127.0.0.1", port=4222):
         return False
 
 
-def _compile_and_run(blockid, code, tmp_path, run=True):
+def _compile_and_run(blockid, code, tmp_path, run=True, extra_cflags=()):
     src = tmp_path / "snippet.c"
     src.write_text(code)
     exe = tmp_path / "snippet"
@@ -201,6 +201,7 @@ def _compile_and_run(blockid, code, tmp_path, run=True):
         "-Wall",
         "-Wextra",
         "-Werror",
+        *extra_cflags,
         "-I",
         str(REPO / "native" / "inc"),
         "-I",

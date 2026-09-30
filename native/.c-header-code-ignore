@@ -1,0 +1,91 @@
+# Backlog for src/doppler/tests/test_c_header_code.py -- a RATCHET.
+#
+# One header @code block per line, `<header under native/inc>::<function>`,
+# that did not compile -Werror or did not exit 0 when the gate landed
+# (#1635). Most are fragments leaning on undeclared locals; some are real
+# drift -- a renamed function, a changed arity. Draining it is #1651.
+#
+# THIS LIST MAY ONLY SHRINK. An entry whose block now passes, or no longer
+# exists, fails test_ignore_list_not_stale until it is deleted. A new block
+# does not belong here: make it compile, or mark it in the block itself with
+# `// header-code: no-run=REASON` or `// header-code: skip=REASON`.
+
+doppler/acq/acq_core.h::acq_surface_sink_fn
+doppler/adc/adc_core.h::dp_adc_create
+doppler/agc/agc_core.h::agc_exp10_
+doppler/async_dsss_receiver/async_dsss_receiver_core.h::ASYNC_DSSS_RX_CARRIER_PULLIN_HZ
+doppler/awgn/awgn_core.h::dp_awgn
+doppler/ber_meter/ber_meter_core.h::DP_FOURCC
+doppler/buffer/buffer.h::DECLARE_DP_BUFFER_VIEW
+doppler/buffer/buffer.h::_peek
+doppler/buffer/buffer.h::_write_some
+doppler/burst_acq/burst_acq_core.h::dp_burst_acq_create
+doppler/burst_capture/burst_capture_core.h::DP_FOURCC
+doppler/burst_demod/burst_demod_core.h::dp_burst_demod_create
+doppler/carrier_acq/carrier_acq_core.h::dp_carrier_acq_create
+doppler/carrier_mpsk/carrier_mpsk_core.h::dp_carrier_mpsk_init
+doppler/carrier_nda/carrier_nda_core.h::carrier_nda_disc
+doppler/ccsds_tm/ccsds_tm_frame.h::dp_ccsds_tm_frame_decode
+doppler/ccsds_tm/ccsds_tm.h::ccsds_tm_conv_max_out
+doppler/cic/cic_core.h::dp_cic_create
+doppler/conv_enc/conv_enc_core.h::dp_conv_enc_create
+doppler/corr2d/corr2d_core.h::dp_corr2d_create
+doppler/corr/corr_core.h::dp_corr_create
+doppler/costas/costas_core.h::dp_costas_init
+doppler/ddc/ddc_core.h::dp_ddc_create
+doppler/ddcr/ddcr_core.h::dp_ddcr_create
+doppler/delay/delay_core.h::dp_delay_create
+doppler/despreader/despreader_core.h::dp_despreader_init
+doppler/detector2d/detector2d_core.h::dp_detector2d_create
+doppler/detector/detector_core.h::dp_detector_create
+doppler/dll/dll_core.h::dll_chip_sign
+doppler/doppler_channel/doppler_channel_core.h::DP_FOURCC
+doppler/dp_interrupt.h::dp_interrupt
+doppler/dp_simd.h::DP_SUMSQ_F32
+doppler/dp_tlm_capture/dp_tlm_capture_core.h::dp_tlm_capture_open
+doppler/dp_tlm/dp_tlm_core.h::DECLARE_DP_BUFFER
+doppler/dp_tlm/dp_tlm_core.h::dp_tlm_demux
+doppler/dsss_burst_receiver/dsss_burst_receiver_core.h::dp_dsss_burst_receiver_create
+doppler/dsss_receiver/dsss_receiver_core.h::dp_dsss_receiver_create
+doppler/f32_to_uq15/f32_to_uq15_core.h::dp_f32_to_uq15_create
+doppler/farrow/farrow_core.h::farrow_init
+doppler/fft2d/fft2d_core.h::dp_fft2d_create
+doppler/fft/fft_core.h::dp_fft_create
+doppler/fir/fir_core.h::fir_step
+doppler/HalfbandDecimator/HalfbandDecimator_core.h::dp_HalfbandDecimator_create
+doppler/hbdecim/hbdecim_core.h::dp_hbdecim_create
+doppler/hbdecim/hbdecim_core.h::dp_hbdecim_dc_gain
+doppler/hbdecim/hbdecim_r2c_core.h::dp_hbdecim_r2c_create
+doppler/hbdecim_q15/hbdecim_q15_core.h::dp_hbdecim_q15_create
+doppler/interleaver/interleaver_core.h::dp_interleaver_create
+doppler/jm_simd.h::JM_ZERO_F32
+doppler/lockdet/lockdet_core.h::dp_lockdet_init
+doppler/mpsk_receiver/mpsk_receiver_core.h::dp_mpsk_receiver_create
+doppler/mpsk_receiver/mpsk_receiver_core.h::dp_mpsk_receiver_create#1
+doppler/pn/pn_core.h::pn_mls_poly
+doppler/ppe/ppe_core.h::dp_ppe_create
+doppler/q15_mac.h::hsum_epi32_i64
+doppler/RateConverter/RateConverter_core.h::dp_RateConverter_convert
+doppler/RateConverter/RateConverter_core.h::dp_RateConverter_create
+doppler/ratesync/ratesync_core.h::dp_ratesync_loop_init
+doppler/Resampler/Resampler_core.h::dp_Resampler_create
+doppler/resamp/resamp_core.h::dp_resamp_create
+doppler/rs/rs_core.h::dp_rs_decode
+doppler/snr/snr_core.h::dp_snr_data_aided_db
+doppler/specan/specan_core.h::dp_specan_create
+doppler/stream/stream.h::dp_stream_interrupt
+doppler/stream/tlm_sink.h::dp_tlm_sink_open
+doppler/symsync/symsync_core.h::gardner_ted
+doppler/tonemeas/tonemeas_core.h::dp_tonemeas_create
+doppler/uq15_to_f32/uq15_to_f32_core.h::dp_uq15_to_f32_create
+doppler/viterbi/viterbi_core.h::dp_node_sync_scan
+doppler/wfm_reader/wfm_reader_core.h::dp_wfm_reader_set_stop_fn
+doppler/wfm_reader/wfm_reader_core.h::WFM_READER_STYPE_AUTO
+doppler/wfm_synth/wfm_synth_core.h::wfm_synth_bps
+doppler/wfm/wfm_compose.h::dp_wfm_compose_spans
+doppler/wfm/wfm_compose.h::dp_wfm_draws_json
+doppler/wfm/wfm_frame.h::dp_wfm_field_format
+doppler/wfm/wfm_frame.h::dp_wfm_field_parse
+doppler/wfm/wfm_sink.h::dp_wfm_stream_sink_available
+doppler/wfm_writer/wfm_writer_core.h::dp_wfm_writer_add_keyword
+doppler/wfm_writer/wfm_writer_core.h::dp_wfm_writer_open

@@ -126,7 +126,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                retired-names ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
-               version-literals text-encoding cmake-script-policy
+               version-literals text-encoding cmake-script-policy \
+               why-param
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -339,6 +340,14 @@ LINT_cmake-script-policy = python3 scripts/check_cmake_script_policy.py
 # Ratcheted: the 11 that predate it may only shrink.
 LINT_header-example-arity = \
     $(UV) run python scripts/check_header_example_arity.py
+
+# A refusal names its cause through `const char **why` -- a static sentence,
+# written only on refusal, NULL allowed, never freed. Every public refusal API
+# already did, and nothing said so, so the next one proposed a second shape
+# (`char *why, size_t why_cap`). Derived from native/inc/**, never a list:
+# every parameter named `why` or `*_why` must be exactly `const char **`.
+# Rule: docs/dev/contributing/error-convention.md. Plain python3: stdlib only.
+LINT_why-param = python3 scripts/check_why_param.py
 
 # A waveform name table's ORDER is the C enum value, so a second copy does not
 # fail to compile -- it maps a flag to the wrong waveform. just-makeit.toml has

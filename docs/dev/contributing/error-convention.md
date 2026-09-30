@@ -95,6 +95,59 @@ int main(void)
 
 ______________________________________________________________________
 
+## Refusal reasons — `const char **why`
+
+A function that can refuse its input and say why takes the reason as one
+parameter, always spelled the same way:
+
+<!-- docs-snippet: skip=a signature-only excerpt; the program below runs it -->
+
+```c
+size_t dp_field_bits (const char *spec, uint8_t *out, const char **why);
+```
+
+- **Static.** On refusal the function stores a pointer to a string literal:
+    a fixed sentence that outlives the call.
+- **Written only on refusal.** On success `*why` is left as the caller set
+    it, so initialise it if you read it unconditionally.
+- **Optional.** `why` may be `NULL`; the function then refuses silently, by
+    its return value alone.
+- **Never freed.** The caller does not own the string.
+
+```c
+#include <doppler/wfm/wfm_core.h>
+#include <stdio.h>
+
+int main(void)
+{
+  const char *why = NULL;
+  if (dp_field_bits("pn::10", NULL, &why) != 0 || !why)
+    return 1;                      /* must refuse, and say why */
+  printf("refused: %s\n", why);    /* a static sentence: never free() it */
+  return 0;
+}
+```
+
+Why this shape and no other:
+
+- **One shape for every binding.** jm binds exactly this one: a function's
+    `why = true` and a composer's `from_json_why` / `from_file_why` raise
+    `*why` as the `ValueError`'s message. A second shape, such as a
+    caller-owned `char *why, size_t why_cap` buffer, needs its own binding
+    and splits the convention in two.
+- **No allocation on an error path.** A pointer to a literal cannot fail. A
+    formatted buffer can truncate, and a heap string needs an owner.
+- **A reason is a fixed sentence.** If a caller needs a number (which byte,
+    how far out of range), give it an accessor. Don't format it into the
+    reason.
+
+`make lint-why-param` enforces this. It runs `scripts/check_why_param.py`
+over every header under `native/inc/`, with no list to register in, and
+fails on any function parameter named `why` or ending `_why` that is not
+exactly `const char **`.
+
+______________________________________________________________________
+
 ## What just-makeit generates
 
 jm generates `_ext.c` (Python glue) and stubs for `_core.h`/`_core.c`.

@@ -254,8 +254,23 @@ main (void)
 
   fill_noise (idle, BENCH_N, 0.1, 12345u);
   fill_noise (hit, BENCH_N, 0.1, 12345u);
-  size_t nb  = build_burst (burst);
-  frame_syms = (nb - REPS * ACQ_SF * SPC) / (DATA_SF * SPC);
+  /* The frame's length is read off the burst, so a burst whose tail past
+     the preamble is not a whole number of symbols has no length to read:
+     dividing would drop the remainder and tell the receiver a frame nobody
+     sent. Refused before anything is timed. */
+  const size_t nb  = build_burst (burst);
+  const size_t pre = REPS * ACQ_SF * SPC;
+  const size_t sym = DATA_SF * SPC;
+  if (nb <= pre || (nb - pre) % sym != 0)
+    {
+      (void)fprintf (stderr,
+                     "bench_dsss_burst_receiver: the burst's %zu samples past "
+                     "the preamble are not a whole number of %zu-sample "
+                     "symbols\n",
+                     nb > pre ? nb - pre : 0u, sym);
+      return 1;
+    }
+  frame_syms = (nb - pre) / sym;
   for (size_t i = 0; i < nb && BURST_AT + i < BENCH_N; i++)
     hit[BURST_AT + i] += burst[i];
 
@@ -270,13 +285,29 @@ main (void)
   printf ("  push_burst: %zu of them passed the CRC (frame_syms = %zu)\n",
           p_burst, frame_syms);
   (void)p_idle;
-  if (n_burst != 0 && p_burst == 0)
-    printf ("  WARNING: no decoded burst passed its CRC -- the receiver is\n"
-            "           slicing a frame other than the one transmitted.\n");
-  if (n_burst == 0)
-    printf ("  WARNING: push_burst decoded nothing — the timing below is a\n"
-            "           search-only figure, not the decode path it names.\n");
   printf ("\n");
+
+  /* Both are FAILURES, not warnings. Nothing in CI runs this benchmark, so a
+     printed warning is read by nobody -- which is how doppler#1669 went
+     unseen. A non-zero exit, with no JSON written, is what stops `make
+     bench` or `bench-save` from recording a number for a decode path that
+     did not run, or ran over the wrong frame. */
+  if (n_burst == 0)
+    {
+      (void)fprintf (stderr,
+                     "bench_dsss_burst_receiver: push_burst decoded nothing; "
+                     "its timing would be a search-only figure\n");
+      return 1;
+    }
+  if (p_burst == 0)
+    {
+      (void)fprintf (stderr,
+                     "bench_dsss_burst_receiver: %zu burst(s) decoded and "
+                     "none passed its CRC; the receiver is slicing a frame "
+                     "other than the one transmitted\n",
+                     n_burst);
+      return 1;
+    }
 
   jm_bench_write_json (&_bench, "dsss_burst_receiver");
   return 0;

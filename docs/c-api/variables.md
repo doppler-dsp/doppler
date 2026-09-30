@@ -52,6 +52,7 @@
 * **dp\_lo\_sin\_lut** ([**lo\_core.h**](lo__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_why\_dsss\_cont\_rate** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_pn\_poly** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **DATA\_SRC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **DOPPLER\_LIFETIME\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))

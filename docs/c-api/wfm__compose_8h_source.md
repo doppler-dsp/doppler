@@ -391,6 +391,10 @@ const char *dp_wfm_source_error(const wfm_source_t *src);
 
 extern const char dp_wfm_why_pn_poly[];
 
+const char *dp_wfm_source_error_fs(const wfm_source_t *src, double fs);
+
+extern const char dp_wfm_why_dsss_cont_rate[];
+
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
 int dp_wfm_source_synth_type(const wfm_source_t *src);

@@ -1553,6 +1553,7 @@
 * **dp\_wfm\_source\_create\_snr** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_dsss\_nchips** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_source\_error\_fs** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_frame\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_has\_frame** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_synth\_type** ([**wfm\_compose.h**](wfm__compose_8h.md))

@@ -553,3 +553,46 @@ def test_a_pn_poly_above_its_register_is_refused(make):
     with pytest.raises((ValueError, RuntimeError, MemoryError)):
         make(0x40)
     make(0x12)
+
+
+# ── a continuous dsss chip rate below its symbol rate (doppler#1706) ─────────
+
+
+def test_a_continuous_dsss_below_one_chip_per_symbol_is_named(tmp_path):
+    """At the default fs=1.0, symbol_rate=1000 leaves no chips per symbol.
+    The scene and the CLI name the rate, the same sentence on both, and the
+    same source at a real fs composes."""
+    seg = {
+        "type": "dsss",
+        "sps": 2,
+        "symbol_rate": 1000.0,
+        "data_code": "pn:15:4",
+        "num_samples": 64,
+    }
+    with pytest.raises(ValueError) as scene:
+        Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    why = str(scene.value)
+    assert "chip rate fs / sps is below symbol_rate" in why, why
+
+    p, _ = _cli(
+        [
+            "--type",
+            "dsss",
+            "--sps",
+            "2",
+            "--symbol-rate",
+            "1000",
+            "--data-code",
+            "pn:15:4",
+            "--count",
+            "64",
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 2, p.stderr
+    assert "--symbol-rate 1000, --fs 1, --sps 2" in p.stderr
+    assert why in p.stderr
+
+    seg["fs"] = 1e6
+    x = Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    assert len(x.compose()) == 64

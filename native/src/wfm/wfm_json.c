@@ -1065,7 +1065,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
   const char *bad = NULL;
   for (size_t j = 0; j < n && !bad; j++)
     for (size_t k = 0; k < segs[j].n_sources && !bad; k++)
-      bad = dp_wfm_source_error (&segs[j].sources[k]);
+      bad = dp_wfm_source_error_fs (&segs[j].sources[k], segs[j].fs);
 
   dp_wfm_compose_state_t *c = NULL;
   if (bad)

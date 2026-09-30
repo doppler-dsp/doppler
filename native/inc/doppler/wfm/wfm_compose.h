@@ -737,6 +737,34 @@ const char *dp_wfm_source_error(const wfm_source_t *src);
 extern const char dp_wfm_why_pn_poly[];
 
 /**
+ * @brief dp_wfm_source_error(), plus the rules that need the sample rate.
+ *
+ * A source does not carry its segment's `fs`, so a rule about a RATE cannot
+ * live in dp_wfm_source_error(). Every face that knows the rate -- the
+ * wfmgen CLI, a scene read by dp_wfm_compose_from_json_why(), the composer
+ * and the standalone bridge -- asks this instead, and so refuses the same
+ * sources for the same sentence.
+ *
+ * - A continuous dsss stream (`symbol_rate > 0`) sends at least one chip
+ *   per data symbol, so its chip rate `fs / sps` must be at least
+ *   `symbol_rate`. Below it the synth has no chips to put a symbol on, and
+ *   used to refuse with a bare NULL (doppler#1706): the default `fs = 1.0`
+ *   with a `symbol_rate` in Hz is the case that finds it.
+ *
+ * @param src  the source.
+ * @param fs   its segment's sample rate, in Hz.
+ * @return NULL if there is nothing wrong, else a static message.
+ */
+const char *dp_wfm_source_error_fs(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The reason dp_wfm_source_error_fs() gives a continuous dsss source
+ *        whose chip rate is below its symbol rate -- exported so the CLI can
+ *        name the values beside it, by identity.
+ */
+extern const char dp_wfm_why_dsss_cont_rate[];
+
+/**
  * @brief Attach an unspread source's bit pattern, framed or not.
  *
  * The `type=bits` counterpart of dp_wfm_source_attach_dsss(), and called from the

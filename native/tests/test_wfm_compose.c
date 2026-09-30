@@ -2000,6 +2000,41 @@ main (void)
                     "a seed that masks to zero is not a source error");
     }
 
+    /* doppler#1706: a continuous dsss stream needs at least one chip per
+     * data symbol, fs / sps >= symbol_rate. At the default fs = 1.0 a
+     * symbol_rate in Hz is refused by the synth -- which answered with a
+     * bare NULL. The rate rule is dp_wfm_source_error_fs()'s, compared by
+     * identity with its exported reason; the edge (exactly one chip per
+     * symbol) is allowed, and the same source at a real fs composes. */
+    {
+      static const uint8_t code[3] = { 1, 0, 1 };
+      wfm_source_t         cs      = { .type        = WFM_SYNTH_DSSS,
+                                       .sps         = 2,
+                                       .symbol_rate = 1000.0,
+                                       .pn_length   = 15, /* PRBS data */
+                                       .data_code   = { .kind = WFM_SEQ_LITERAL,
+                                                        .bits = code,
+                                                        .len  = sizeof code } };
+      wfm_segment_t        gc
+          = { .sources = &cs, .n_sources = 1, .fs = 1.0, .num_samples = 64 };
+      DP_CHECK_MSG (dp_wfm_source_error (&cs) == NULL,
+                    "the rate rule is not a source-only rule");
+      DP_CHECK_MSG (dp_wfm_source_error_fs (&cs, 1.0)
+                        == dp_wfm_why_dsss_cont_rate,
+                    "fs 1.0, sps 2, symbol_rate 1000: the rate reason");
+      DP_CHECK_MSG (dp_wfm_compose_create (&gc, 1, 0, 0) == NULL,
+                    "...and the composer refuses it");
+      DP_CHECK_MSG (dp_wfm_source_error_fs (&cs, 1999.0)
+                        == dp_wfm_why_dsss_cont_rate,
+                    "just under one chip per symbol is refused");
+      DP_CHECK_MSG (dp_wfm_source_error_fs (&cs, 2000.0) == NULL,
+                    "exactly one chip per symbol is allowed");
+      gc.fs                     = 1e6;
+      dp_wfm_compose_state_t *c = dp_wfm_compose_create (&gc, 1, 0, 0);
+      DP_CHECK_MSG (c != NULL, "the same source at fs 1e6 composes");
+      dp_wfm_compose_destroy (c);
+    }
+
     /* Same answer inside a multi-source sum: one source that cannot be built
      * refuses the whole composition rather than summing the others and
      * quietly leaving this one out. */

@@ -729,7 +729,10 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
 payload. Incompatible combinations are rejected (exit 2), not silently
 ignored: `--symbol-rate` with the burst-frame flags (`--acq-code`, `--sync`,
 `--crc`), `--data` together with `--bits`/`--bits-file`, `--symbol-rate` without
-`--data-code`, and a non-positive `--symbol-rate`.
+`--data-code`, a non-positive `--symbol-rate`, and a chip rate `fs / sps`
+below `--symbol-rate`. A stream sends at least one chip per data symbol, so
+the default `--fs 1.0` (a normalised rate) with a `--symbol-rate` in Hz is
+refused, naming the three values; give the real `--fs`.
 
 #### SigMF distinguishes the two modes
 

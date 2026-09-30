@@ -1557,12 +1557,15 @@ load_frame (wfmgen_opts_t *o)
 static int
 check_source (const wfmgen_opts_t *o)
 {
-  const char *why = dp_wfm_source_error (&o->src);
+  const char *why = dp_wfm_source_error_fs (&o->src, o->seg.fs);
   if (!why)
     return 0;
   if (why == dp_wfm_why_pn_poly)
     (void)fprintf (stderr, "error: --pn-poly 0x%llx, --pn-length %d: %s\n",
                    (unsigned long long)o->src.pn_poly, o->src.pn_length, why);
+  else if (why == dp_wfm_why_dsss_cont_rate)
+    (void)fprintf (stderr, "error: --symbol-rate %g, --fs %g, --sps %d: %s\n",
+                   o->src.symbol_rate, o->seg.fs, o->src.sps, why);
   else
     (void)fprintf (stderr, "error: %s\n", why);
   return 2;

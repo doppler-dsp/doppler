@@ -58,6 +58,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  const char | [**dp\_wfm\_why\_dsss\_cont\_rate**](#variable-dp_wfm_why_dsss_cont_rate)  <br>_The reason_ [_**dp\_wfm\_source\_error\_fs()**_](wfm__compose_8h.md#function-dp_wfm_source_error_fs) _gives a continuous dsss source whose chip rate is below its symbol rate_ _exported so the CLI can name the values beside it, by identity._ |
 |  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
 
 
@@ -107,6 +108,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
+|  const char \* | [**dp\_wfm\_source\_error\_fs**](#function-dp_wfm_source_error_fs) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>[_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _, plus the rules that need the sample rate._ |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
@@ -332,6 +334,20 @@ The scale a number in dB is quoted on is not a detail a caller can infer, and it
 <hr>
 ## Public Attributes Documentation
 
+
+
+
+### variable dp\_wfm\_why\_dsss\_cont\_rate 
+
+_The reason_ [_**dp\_wfm\_source\_error\_fs()**_](wfm__compose_8h.md#function-dp_wfm_source_error_fs) _gives a continuous dsss source whose chip rate is below its symbol rate_ _exported so the CLI can name the values beside it, by identity._
+```C++
+const char dp_wfm_why_dsss_cont_rate[];
+```
+
+
+
+
+<hr>
 
 
 
@@ -1401,6 +1417,51 @@ s.pn_poly = 0x12;
 dp_wfm_source_error (&s);   // NULL: x^5 + x^2 + 1 fits
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_error\_fs 
+
+[_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _, plus the rules that need the sample rate._
+```C++
+const char * dp_wfm_source_error_fs (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+A source does not carry its segment's `fs`, so a rule about a RATE cannot live in [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error). Every face that knows the rate  the wfmgen CLI, a scene read by [**dp\_wfm\_compose\_from\_json\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why), the composer and the standalone bridge  asks this instead, and so refuses the same sources for the same sentence.
+
+
+
+* A continuous dsss stream (`symbol_rate > 0`) sends at least one chip per data symbol, so its chip rate `fs / sps` must be at least `symbol_rate`. Below it the synth has no chips to put a symbol on, and used to refuse with a bare NULL (doppler#1706): the default `fs = 1.0` with a `symbol_rate` in Hz is the case that finds it.
+
+
+
+
+
+
+**Parameters:**
+
+
+* `src` the source. 
+* `fs` its segment's sample rate, in Hz. 
+
+
+
+**Returns:**
+
+NULL if there is nothing wrong, else a static message. 
+
+
+
 
 
         

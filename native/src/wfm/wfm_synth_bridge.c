@@ -90,6 +90,27 @@ dp_wfm_source_error (const wfm_source_t *src)
   return dp_wfm_source_frame_error (src);
 }
 
+const char dp_wfm_why_dsss_cont_rate[]
+    = "a continuous dsss stream sends at least one chip per data symbol, "
+      "and its chip rate fs / sps is below symbol_rate: raise fs (it "
+      "defaults to 1.0, a normalised rate), lower sps, or lower "
+      "symbol_rate";
+
+const char *
+dp_wfm_source_error_fs (const wfm_source_t *src, double fs)
+{
+  const char *why = dp_wfm_source_error (src);
+  if (why)
+    return why;
+  /* The same comparison dp_wfm_synth_set_dsss_cont() refuses on, as
+     chips_per_symbol >= 1, and written the same way round so a NaN is
+     refused rather than passed. */
+  if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
+      && !(src->sps > 0 && fs / (double)src->sps >= src->symbol_rate))
+    return dp_wfm_why_dsss_cont_rate;
+  return NULL;
+}
+
 const char *
 dp_wfm_source_frame_error (const wfm_source_t *src)
 {
@@ -503,7 +524,7 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* A frame this waveform type cannot carry. Refusing is the whole point:
      these fields used to be accepted and dropped, so the caller got an
      unframed waveform and no way to find out. */
-  if (dp_wfm_source_error (src) != NULL)
+  if (dp_wfm_source_error_fs (src, fs) != NULL)
     return NULL;
   /* A sweeping chirp needs its span, and standalone there is no segment to
      lend one. It used to lock to the length of the first read, so step(),

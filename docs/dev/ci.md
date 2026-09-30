@@ -292,7 +292,11 @@ other versions run in the queue.
 - `heavy` is `src && full`. Every heavy job is gated on
     `if: needs.changes.outputs.heavy == 'true'`, and none of them reads the
     event name.
-- `pythons` is the Python matrix: one version or all six.
+- `pythons` is the Python matrix: the lowest version or all of them. It
+    is read from `pyproject.toml`'s `Programming Language :: Python :: 3.N`
+    classifiers by `scripts/python_versions.py`; `ci.yml` names no version.
+    `make python-versions-check` holds the lowest classifier equal to the
+    `requires-python` floor and every classifier inside its range.
 
 **`CI passed` knows the difference.** On a pull_request, a skipped heavy job
 is green: it was skipped by design. On `merge_group` or `push`, a skipped

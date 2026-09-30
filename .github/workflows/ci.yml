@@ -93,12 +93,14 @@ jobs:
     - id: classify
       run: |
         # One place decides fast vs full; see the outputs above.
+        # The Python matrix is read from pyproject.toml's classifiers, never
+        # written here: the lowest on a pull_request, all of them otherwise.
         if [ "${{ github.event_name }}" = pull_request ]; then
-          full=false; pythons='["3.9"]'
+          full=false; versions=floor
         else
-          full=true
-          pythons='["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]'
+          full=true; versions=full
         fi
+        pythons=$(python3 scripts/python_versions.py --matrix "$versions")
         { echo "full=$full"; echo "pythons=$pythons"; } >> "$GITHUB_OUTPUT"
         case "${{ github.event_name }}" in
           # A PR is checked out as its merge commit: HEAD^ is the base tip.

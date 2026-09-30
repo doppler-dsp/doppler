@@ -28,10 +28,11 @@ A script's plot is every quoted ``"<name>.png"`` literal in its source --
 ``savefig("x.png")``, ``out_path="x.png"``, ``main(out="x.png")`` all
 qualify. Quoted only: a usage line such as ``[out.png]`` is prose.
 
-Existing orphans are a RATCHET in ``scripts/.gallery-orphans-allow``: one
-``<script path> | <reason>`` per line. The list may only shrink -- an entry
-whose script is now listed, or whose plot is no longer committed, fails the
-gate until it is deleted.
+There is no waiver. The 19 orphans found when the gate landed were a
+ratchet in ``scripts/.gallery-orphans-allow`` until #1647 drained it; at zero
+the file and its reader were deleted rather than kept, because an empty
+waiver list is only an invitation to waive the next orphan instead of
+rendering it.
 
 Usage
 -----
@@ -48,7 +49,6 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = "src/doppler/examples"
 ASSETS = "docs/assets"
-ALLOW = ROOT / "scripts" / ".gallery-orphans-allow"
 
 #: A quoted PNG file name: the plot a script writes by default.
 PNG_RE = re.compile(r"""["']([A-Za-z0-9][A-Za-z0-9_.-]*\.png)["']""")
@@ -62,29 +62,7 @@ def plots(path: pathlib.Path) -> list[str]:
     return list(seen)
 
 
-def read_allow(path: pathlib.Path) -> tuple[dict[str, str], list[str]]:
-    """``({script: reason}, [malformed lines])`` from the ratchet file.
-
-    A line with no reason is malformed, not an entry: the reason is the
-    point, so the file cannot waive anything by accident.
-    """
-    entries: dict[str, str] = {}
-    bad: list[str] = []
-    if not path.is_file():
-        return entries, bad
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        script, sep, reason = line.partition("|")
-        if not sep or not reason.strip():
-            bad.append(line)
-            continue
-        entries[script.strip()] = reason.strip()
-    return entries, bad
-
-
-def check(repo: pathlib.Path, listed: list[str], allow: pathlib.Path) -> int:
+def check(repo: pathlib.Path, listed: list[str]) -> int:
     rc = 0
     for s in listed:
         p = repo / s
@@ -108,19 +86,13 @@ def check(repo: pathlib.Path, listed: list[str], allow: pathlib.Path) -> int:
         if mine:
             orphans[rel] = mine
 
-    entries, bad = read_allow(allow)
-    for line in bad:
-        rc = 1
-        print(f"gallery-scripts: allowlist line has no reason: {line!r}")
-
-    new = {s: pngs for s, pngs in orphans.items() if s not in entries}
-    if new:
+    if orphans:
         rc = 1
         print(
-            f"gallery-scripts: {len(new)} example(s) name a plot committed "
-            f"under {ASSETS}/ but are not in GALLERY_SCRIPTS:"
+            f"gallery-scripts: {len(orphans)} example(s) name a plot "
+            f"committed under {ASSETS}/ but are not in GALLERY_SCRIPTS:"
         )
-        for s, pngs in new.items():
+        for s, pngs in orphans.items():
             print(f"    {s}  ->  {', '.join(pngs)}")
         print(
             "  Nothing re-renders that plot, so it goes stale unseen and the\n"
@@ -128,21 +100,8 @@ def check(repo: pathlib.Path, listed: list[str], allow: pathlib.Path) -> int:
             "  script to GALLERY_SCRIPTS in the Makefile."
         )
 
-    stale = sorted(set(entries) - set(orphans))
-    if stale:
-        rc = 1
-        print(
-            "gallery-scripts: the allowlist is a ratchet and these entries "
-            "no longer name an orphan -- delete them:"
-        )
-        for s in stale:
-            print(f"    {s}")
-
     if rc == 0:
-        print(
-            f"gallery-scripts: OK -- {len(listed)} scripts, "
-            f"{len(entries)} allowlisted orphan(s)"
-        )
+        print(f"gallery-scripts: OK -- {len(listed)} scripts, no orphans")
     return rc
 
 
@@ -153,7 +112,6 @@ def main(argv: list[str] | None = None) -> int:
         default=str(ROOT),
         help="repo root (a test points this at its fixture)",
     )
-    ap.add_argument("--allow", default=str(ALLOW), help="ratchet file")
     ap.add_argument(
         "--outputs",
         action="store_true",
@@ -170,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
             for png in plots(repo / s):
                 print(png)
         return 0
-    return check(repo, args.scripts, pathlib.Path(args.allow))
+    return check(repo, args.scripts)
 
 
 if __name__ == "__main__":

@@ -119,13 +119,17 @@ frame and resolve the BPSK sign, and slices from there. With a description,
 the sync word is **field 0**. That holds for both configurations that exist:
 `dp_wfm_frame_fixed()` without a preamble puts `sync` first, and
 `dp_ccsds_tm_frame_describe()` puts the marker at field 0 (its fields have no
-names). The alternative, the field *named* `sync`, is decision D1 (§10).
+names). The owner chose this over the field *named* `sync` (D1, §10).
 
 Field 0 is refused, and the constructor returns `NULL`, when it:
 
 - is empty, derived, or a data field: the receiver needs bits it knows;
 - is covered by any stage: a stage that rewrites the sync word on the wire
-    leaves the receiver correlating against bits nobody sent.
+    leaves the receiver correlating against bits nobody sent;
+- is **named `preamble`**. `dp_wfm_frame_fixed()` with a preamble puts it at
+    field 0 under that name, and a DSSS preamble is not a field of the
+    spread frame. Refused by name, so that mistake is a `NULL` rather than
+    a receiver that correlates against its own preamble.
 
 ### 3.4 What is refused
 
@@ -303,7 +307,7 @@ ______________________________________________________________________
     `BURST_DEMOD_CRC_BITS`** (`burst_demod_core.c:3,12`).
 - **`ccsds_tm`, `conv` and `rs` in both receivers' `depends_on`**, and the
     comment in `objects/burst_demod.toml:24-28` claiming the demodulator
-    uses them (subject to D4).
+    uses them (D4).
 - **The 21 sums, 16 literals and 66 call sites of §5, and the 27
     hand-built frames of §5.4**, each replaced by one description per
     caller.
@@ -384,7 +388,7 @@ cannot describe a `data:LEN` payload today. The existing test works around
 it with zeros, "geometry, when the bits arrive later"
 (`src/doppler/dsss/tests/test_dsss_burst_receiver.py:397`). The fix is
 `FrameDesc.add_data(name, n)`, over a C `dp_frame_add_data` that adds a
-`WFM_SEQ_DATA` field (decision D5). It depends on #1660 merging, and nothing
+`WFM_SEQ_DATA` field (D5). It depends on #1660 merging, and nothing
 before plan step 6 needs it.
 
 ### 8.3 The transmit side in Python waits for #1617
@@ -435,40 +439,40 @@ ______________________________________________________________________
     `PAYLOAD` (`test_burst_demod_core.c:209`). Found during migration.
     **Fallback:** such a caller describes the frame it actually slices.
 
-## 10. Decisions this page asks for
+## 10. Decided
 
-Each is a recommendation with its trade. The owner decides in review.
+The owner decided all five in review of
+[#1673](https://github.com/doppler-dsp/doppler/pull/1673) on 2026-09-30,
+each as recommended, with one addition to D1. The trade each one accepts is
+kept beside it.
 
-- **D1. Which field is the sync word.** *Recommended:* field 0. It holds for
-    both configurations that exist, and CCSDS's fields have no names.
-    *Trade:* a description with a leading `preamble` field
-    (`dp_wfm_frame_fixed` with one) would put the preamble where the sync
-    word belongs. The DSSS rule that a preamble is not a field makes that a
-    caller error. *Alternative:* the field named `sync`, which refuses that
-    case by name, and refuses a CADU too, whose field 0 has no name.
-- **D2. One constructor, or two.** *Recommended:* the description only.
+- **D1. The sync word is field 0.** It holds for both configurations that
+    exist, and CCSDS's fields have no names. **Addition:** a field 0 named
+    `preamble` is refused by name (§3.3). *Trade:* a leading field of any
+    other name is taken as the sync word, so a mislabelled description is
+    a caller error. *Not chosen:* the field named `sync`, which would also
+    refuse a CADU, whose field 0 has no name.
+- **D2. One constructor, taking the description.**
     `Frame(sync=field_bits(…), payload=…, crc="crc16")` is the bit-array
     door #1620 names, so a second flavour taking `sync=` and `frame_syms=`
     would be two spellings of one receiver. *Trade:* every caller of §5.3
     changes, and it ships as a breaking change with a changelog entry.
-- **D3. `frame_valid` for a description with no CRC.** *Recommended:* not
-    valid, and the capture releases the window. That is today's behaviour
-    (`dsss_br_frame_valid` returns 0 below `sync_len + 16` bits), so it is
-    byte-identical. *Trade:* an unprotected link never claims a span, so a
-    decoy after it is not suppressed either. *Alternative:* valid on
-    demodulation, the rule before #1181, which changes behaviour and needs
-    its own test.
-- **D4. What the verdict reads.** *Recommended:* the CRC only, through
+- **D3. A description with no CRC is not valid**, and the capture releases
+    the window. That is today's behaviour (`dsss_br_frame_valid` returns 0
+    below `sync_len + 16` bits), so it is byte-identical. *Trade:* an
+    unprotected link never claims a span, so a decoy after it is not
+    suppressed either. *Not chosen:* valid on demodulation, the rule before
+    #1181.
+- **D4. The verdict reads the CRC only**, through
     `dp_wfm_frame_desc_crc_ok()` in `wfm_frame`, so `ccsds_tm`, `conv` and
     `rs` leave the link lines. *Trade:* a frame with an outer code and no
-    CRC is judged not valid (D3), though R-S could say it decoded.
-    *Alternative:* `dp_wfm_frame_check()` with the CCSDS ops, which keeps the
-    three links and puts a code's verdict back in the receiver, where
-    [§10][s10] took it out.
-- **D5. The Python door for `data:LEN`.** *Recommended:*
-    `FrameDesc.add_data(name, n)`. *Trade:* one more method on the frame
-    object. *Alternative:* accept Field text in `add_field`, which reopens
-    the "an object takes bits" rule of [§F.3][f3].
+    CRC is judged not valid (D3), though R-S could say it decoded. *Not
+    chosen:* `dp_wfm_frame_check()` with the CCSDS ops, which would put a
+    code's verdict back in the receiver, where [§10][s10] took it out.
+- **D5. The Python door for `data:LEN` is `FrameDesc.add_data(name, n)`.**
+    *Trade:* one more method on the frame object. *Not chosen:* Field text
+    in `add_field`, which reopens the "an object takes bits" rule of
+    [§F.3][f3].
 
 ______________________________________________________________________
 
@@ -478,9 +482,10 @@ ______________________________________________________________________
 1. **C: the description constructor, beside the old one**, on both
     receivers, with the derivations of §3.2 and the refusals of §3.3 and
     §3.4. It carries the A/B test of §4.1 over every fixture, and a C test
-    per refusal. Each derivation is proven by sabotage: `out_bits` off by
-    one, a burst length off by a chip, the CRC check skipped. It fixes #1669
-    in passing. Gate: `make test`.
+    per refusal, the field 0 named `preamble` among them. Each is proven by
+    sabotage: `out_bits` off by one, a burst length off by a chip, the CRC
+    check skipped, the `preamble` refusal removed. Gate: `make test`.
+    (#1669, the benchmark's wrong length, is fixed on its own first.)
 1. **Python: the frame publishes a capsule, and the receivers take
     `object = "frame"`.** U1 is measured first, on a fresh scaffold. Gate:
     `make drift-check`, `make test-stubs`, and the Python A/B over the same

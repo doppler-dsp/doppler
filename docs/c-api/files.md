@@ -269,6 +269,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**wfm**](dir_d559aca39cc004340b6be1a6e35e20bd.md)     
                 * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
                 * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     
+                * **file** [**wfm\_data.h**](wfm__data_8h.md) _A frame's data source: where a_ `data:LEN` _payload's bits come from._    
                 * **file** [**wfm\_defaults.h**](wfm__defaults_8h.md)     
                 * **file** [**wfm\_dsp.h**](wfm__dsp_8h.md) _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._     
                 * **file** [**wfm\_frame.h**](wfm__frame_8h.md) _A frame's BIT layout, described once and read from both ends._     

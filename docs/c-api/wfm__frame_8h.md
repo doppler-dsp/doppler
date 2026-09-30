@@ -12,6 +12,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include "doppler/pn/pn_core.h"`
 
 
 
@@ -91,6 +92,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**dp\_wfm\_frame\_fixed**](#function-dp_wfm_frame_fixed) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* preamble, size\_t reps, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* payload, int crc) <br>_Describe the common frame:_ `[preamble x reps | sync | payload | crc]` _._ |
 |  int | [**dp\_wfm\_parse\_u64**](#function-dp_wfm_parse_u64) (const char \* p, size\_t n, uint64\_t \* v) <br>_Read an unsigned integer the way a Field's numbers are read._  |
 |  size\_t | [**dp\_wfm\_seq\_bits**](#function-dp_wfm_seq_bits) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* s, uint8\_t \* out, size\_t max\_out) <br>_Write_ `s's` _bits, whatever produces them. Returns the count._ |
+|  [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* | [**dp\_wfm\_seq\_pn\_create**](#function-dp_wfm_seq_pn_create) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* s) <br>_The PN generator a_ WFM\_SEQ\_PN _sequence names, at its first bit. NULL if it names none._ |
 
 
 
@@ -1098,6 +1100,51 @@ bits written, or 0 if the sequence is unbuildable (a LITERAL with no array, a le
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_seq\_pn\_create 
+
+_The PN generator a_ WFM\_SEQ\_PN _sequence names, at its first bit. NULL if it names none._
+```C++
+dp_pn_state_t * dp_wfm_seq_pn_create (
+    const wfm_seq_t * s
+) 
+```
+
+
+
+The ONE resolution of a PN sequence's defaults: a zero `poly` is the maximal-length polynomial for its register (and a register that has none is refused), and a zero `seed` is 1. [**dp\_wfm\_seq\_bits**](wfm__frame_8h.md#function-dp_wfm_seq_bits) renders a field through it, and a `pn:0` data source keeps one running across frames, so a stream's chunk `k` is bits `[k LEN, (k+1) LEN)` of the very sequence its Field names.
+
+
+
+
+**Parameters:**
+
+
+* `s` a sequence of kind WFM\_SEQ\_PN; any other kind is NULL. 
+
+
+
+**Returns:**
+
+a generator the caller frees with `dp_pn_destroy()`, or NULL.
+
+
+
+```C++
+wfm_seq_t      q = { .kind = WFM_SEQ_PN, .len = 31, .reg_bits = 5 };
+dp_pn_state_t *p = dp_wfm_seq_pn_create (&q);
+uint8_t        b[31];
+dp_pn_generate (p, 31, b, 31);   // one period of the 5-bit m-sequence
+dp_pn_destroy (p);
+```
+ 
 
 
         

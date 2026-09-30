@@ -195,7 +195,6 @@ typedef struct {
     wfm_synth_refill_fn refill;
     void *refill_user;
     void (*refill_free)(void *);
-    uint8_t refill_due; /* the next bit opens a frame not yet drawn */
     uint8_t data_ended;
 } dp_wfm_synth_state_t;
 
@@ -233,30 +232,33 @@ typedef struct {
 /**
  * @brief The next bit of the pattern, or none once the data has ended.
  *
- * With no refill the pattern cycles, as it always has. With one, a frame is
- * drawn LAZILY -- when its first bit is needed, never when the previous
- * frame's last bit is read -- so a source's counts are the frames actually
- * started, and a paced source is asked when the frame is due. A refill that
- * reports the end latches `data_ended`. The one place the cursor wraps, so
- * the per-sample and block paths cannot disagree about a frame boundary.
+ * With no refill the pattern cycles, as it always has, and the per-bit cost
+ * is the one bounds check the cursor already needs. With one, the cursor
+ * STOPS at `n_bits` instead of wrapping, so that same check finds the frame
+ * boundary: the next frame is drawn lazily, when its first bit is due --
+ * the source's counts are frames started, and a paced source is asked when
+ * the frame is due. A refill that reports the end latches `data_ended` and
+ * leaves the cursor at `n_bits`, so every later call is the slow path's
+ * immediate "no bit". The one place the cursor wraps, so the per-sample and
+ * block paths cannot disagree about a frame boundary.
  *
  * @return 1 with the bit in @p *bit, or 0: the data has ended.
  */
 JM_FORCEINLINE int
 wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
 {
-    if (s->refill_due) {
-        s->refill_due = 0;
-        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0)
+    if (s->bit_idx >= s->n_bits) { /* only with a refill: a frame is due */
+        if (s->data_ended)
+            return 0;
+        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
             s->data_ended = 1;
+            return 0;
+        }
+        s->bit_idx = 0;
     }
-    if (s->data_ended)
-        return 0;
     *bit = s->bits[s->bit_idx] ? 1u : 0u;
-    if (++s->bit_idx >= s->n_bits) {
-        s->bit_idx    = 0;
-        s->refill_due = s->refill != NULL;
-    }
+    if (++s->bit_idx >= s->n_bits && !s->refill)
+        s->bit_idx = 0;
     return 1;
 }
 

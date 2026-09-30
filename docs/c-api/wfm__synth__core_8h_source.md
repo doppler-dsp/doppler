@@ -129,25 +129,24 @@ typedef struct {
     wfm_synth_refill_fn refill;
     void *refill_user;
     void (*refill_free)(void *);
-    uint8_t refill_due; /* the next bit opens a frame not yet drawn */
     uint8_t data_ended;
 } dp_wfm_synth_state_t;
 
 JM_FORCEINLINE int
 wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
 {
-    if (s->refill_due) {
-        s->refill_due = 0;
-        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0)
+    if (s->bit_idx >= s->n_bits) { /* only with a refill: a frame is due */
+        if (s->data_ended)
+            return 0;
+        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
             s->data_ended = 1;
+            return 0;
+        }
+        s->bit_idx = 0;
     }
-    if (s->data_ended)
-        return 0;
     *bit = s->bits[s->bit_idx] ? 1u : 0u;
-    if (++s->bit_idx >= s->n_bits) {
-        s->bit_idx    = 0;
-        s->refill_due = s->refill != NULL;
-    }
+    if (++s->bit_idx >= s->n_bits && !s->refill)
+        s->bit_idx = 0;
     return 1;
 }
 

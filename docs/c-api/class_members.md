@@ -817,7 +817,6 @@
 * **rbw** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **rate\_est** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
 * **refill** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
-* **refill\_due** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **refill\_free** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **refill\_user** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **rbw\_hz** ([**imd\_meas\_t**](structimd__meas__t.md), [**npr\_meas\_t**](structnpr__meas__t.md), [**tone\_meas\_t**](structtone__meas__t.md))

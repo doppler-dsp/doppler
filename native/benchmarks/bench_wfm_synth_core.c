@@ -93,6 +93,53 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
   dp_wfm_synth_destroy (obj);
 }
 
+/* Bench a type=bits synth over a set pattern -- the path a framed bpsk/qpsk
+ * source and, from #1619, a data source drive. `mod` 0 is the 0/1
+ * amplitude line: at sps 1 every sample reads a bit, the tightest per-bit
+ * loop the synth has. No source is attached, so this is the cycled
+ * pattern's cost -- the path a frame pulled from a data source must not
+ * slow down. */
+static void
+bench_cfg_bits (const char *name, int sps, int mod, float _Complex *out,
+                jm_bench_t *bench)
+{
+  dp_wfm_synth_state_t *obj = dp_wfm_synth_create (
+      6 /* bits */, 1e6, 0.0, 100.0, 0, 1, sps, 7, 0, 0, 0.0);
+  uint8_t pat[1023];
+  for (size_t i = 0, r = 0x5A5u; i < sizeof pat; i++)
+    {
+      r      = r * 1103515245u + 12345u;
+      pat[i] = (uint8_t)((r >> 16) & 1u);
+    }
+  if (!obj || dp_wfm_synth_set_bits (obj, pat, sizeof pat, mod) != 0)
+    {
+      printf ("  %-26s   (create failed)\n", name);
+      if (obj)
+        dp_wfm_synth_destroy (obj);
+      return;
+    }
+  dp_wfm_synth_steps (obj, out, BENCH_N); /* warm up */
+
+  uint64_t t0, t1;
+  double   times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++)
+    {
+      t0 = jm_bench_now_ns ();
+      dp_wfm_synth_steps (obj, out, BENCH_N);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
+    }
+  double mean = 0.0;
+  for (int r = 0; r < ITERATIONS; r++)
+    mean += times[r];
+  mean /= ITERATIONS;
+  double msas = (double)BENCH_N / mean / 1e6;
+  printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
+  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+
+  dp_wfm_synth_destroy (obj);
+}
+
 int
 main (void)
 {
@@ -120,6 +167,9 @@ main (void)
   bench_cfg ("bpsk  +noise", 3, 8, 7, 0, 20.0, 1e5, out, &bench);
   bench_cfg ("qpsk  clean", 4, 8, 7, 0, 100.0, 1e5, out, &bench);
   bench_cfg ("qpsk  +noise", 4, 8, 7, 0, 20.0, 1e5, out, &bench);
+  bench_cfg_bits ("bits  amplitude sps=1", 1, 0, out, &bench);
+  bench_cfg_bits ("bits  bpsk sps=8", 8, 1, out, &bench);
+  bench_cfg_bits ("bits  qpsk sps=8", 8, 2, out, &bench);
 
   /* RRC pulse shaping — the polyphase resamp shaper (power-of-two sps). */
   bench_cfg_rrc ("bpsk  rrc sps=4", 3, 4, 7, 100.0, 1e5, out, &bench);

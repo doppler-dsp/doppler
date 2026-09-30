@@ -665,7 +665,13 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
       data_pull_free (p);
       return -1;
     }
-  syn->data_ended = (uint8_t)ended;
+  if (ended)
+    {
+      /* An empty stream: silent from the first sample. The cursor sits at
+         the boundary, where bit_next sees the latched end. */
+      syn->data_ended = 1;
+      syn->bit_idx    = syn->n_bits;
+    }
   return 0;
 }
 

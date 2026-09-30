@@ -1831,7 +1831,26 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/dsss_receiver_demo.py \
     src/doppler/examples/carrier_acq_rrc_demo.py \
     src/doppler/examples/mpsk_receiver_demo.py \
-    src/doppler/examples/mpsk_receiver_performance_demo.py
+    src/doppler/examples/mpsk_receiver_performance_demo.py \
+    src/doppler/examples/async_despread_demo.py \
+    src/doppler/examples/async_despreader_study.py \
+    src/doppler/examples/async_dsss_pool_demo.py \
+    src/doppler/examples/coding_demo.py \
+    src/doppler/examples/costas_demo.py \
+    src/doppler/examples/costas_theory_demo.py \
+    src/doppler/examples/cvt_quantization_demo.py \
+    src/doppler/examples/dll_demo.py \
+    src/doppler/examples/dll_theory_demo.py \
+    src/doppler/examples/farrow_demo.py \
+    src/doppler/examples/mpsk_carrier_theory_demo.py \
+    src/doppler/examples/mpsk_constellation_demo.py \
+    src/doppler/examples/mpsk_doppler_profile_demo.py \
+    src/doppler/examples/mpsk_nda_theory_demo.py \
+    src/doppler/examples/q15_uq15_demo.py \
+    src/doppler/examples/receiver_lock_demo.py \
+    src/doppler/examples/symsync_demo.py \
+    src/doppler/examples/symsync_theory_demo.py \
+    src/doppler/examples/wfm_json_demo.py
 
 # The receiver-dynamics figure. NOT a gallery script: the measurement is C
 # (validate_rx_dynamics) and this only renders the telemetry that harness
@@ -1843,7 +1862,7 @@ plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness
 # The direction a derived move list cannot close: an example whose plot is
 # committed under docs/assets/ but which nothing re-renders, because it was
 # never added to GALLERY_SCRIPTS. Passed IN, like release-freshness-check.
-# Pre-existing orphans are a ratchet in scripts/.gallery-orphans-allow.
+# No waiver list: the 19 orphans it once held were drained in #1647.
 gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
 	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)
 

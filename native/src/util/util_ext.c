@@ -13,6 +13,47 @@
 
 #include "doppler/util/util_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 static PyObject *
 _bind_square_clip (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -134,8 +175,8 @@ _bind_simpson_weights (PyObject *self, PyObject *args, PyObject *kwds)
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      w_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *w_arr = (PyArrayObject *)jm_array_arg (
+      w_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "w");
   if (!w_arr)
     {
       return NULL;
@@ -172,8 +213,8 @@ _bind_midpoint_nodes (PyObject *self, PyObject *args, PyObject *kwds)
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *u_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      u_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *u_arr = (PyArrayObject *)jm_array_arg (
+      u_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "u");
   if (!u_arr)
     {
       return NULL;
@@ -205,8 +246,8 @@ _bind_gauss_hermite (PyObject *self, PyObject *args, PyObject *kwds)
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *z_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      z_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *z_arr = (PyArrayObject *)jm_array_arg (
+      z_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "z");
   if (!z_arr)
     {
       return NULL;
@@ -225,8 +266,8 @@ _bind_gauss_hermite (PyObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (z_arr);
       return NULL;
     }
-  PyArrayObject *p_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      p_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *p_arr = (PyArrayObject *)jm_array_arg (
+      p_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "p");
   if (!p_arr)
     {
       Py_DECREF (z_arr);

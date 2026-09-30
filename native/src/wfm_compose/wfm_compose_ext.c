@@ -20,6 +20,47 @@
 #include "doppler/wfm_writer/wfm_writer_core.h"
 #include <stdio.h>
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
 _enum_index (const char *const *tab, const char *s)
@@ -150,8 +191,9 @@ _attach_symbols (wfm_source_t *src, PyObject *obj)
   src->n_symbols = 0;
   if (!obj || obj == Py_None)
     return 1;
-  PyArrayObject *_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST);
+  PyArrayObject *_arr
+      = jm_array_arg (obj, NPY_COMPLEX64,
+                      NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST, "symbols");
   if (!_arr)
     return 0;
   Py_ssize_t _n = PyArray_SIZE (_arr);
@@ -3276,9 +3318,9 @@ Composer_init (ComposerObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   /* The transient segs' bits pointers ALIAS the Synth objects' buffers, so
-   * seglist must outlive dp_wfm_compose_create (which deep-copies them) —
-   * dropping it earlier would, in the single-segment-kwargs path where seglist
-   * is the sole owner, free the bits out from under the read. */
+   * seglist must outlive the create call below (which deep-copies them) --
+   * dropping it earlier would, in the single-segment-kwargs path where
+   * seglist is the sole owner, free the bits out from under the read. */
   self->state = dp_wfm_compose_create (segs, n, repeat, continuous);
   _free_dp_wfm_compose_segments (segs, n);
   Py_DECREF (seglist);

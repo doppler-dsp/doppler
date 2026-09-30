@@ -13,6 +13,47 @@
 
 #include "doppler/ber/ber_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 #include "ber_ext_ber_meter.c"
 #include "ber_ext_frame_meter.c"
 
@@ -89,8 +130,8 @@ _bind_ber_lock_symbol (PyObject *self, PyObject *args, PyObject *kwds)
                                     &sustain_raw, &min_frac))
     return NULL;
   size_t         sustain   = (size_t)sustain_raw;
-  PyArrayObject *flags_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      flags_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *flags_arr = (PyArrayObject *)jm_array_arg (
+      flags_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "flags");
   if (!flags_arr)
     {
       return NULL;
@@ -116,8 +157,8 @@ _bind_ber_evm_db (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   size_t         lo     = (size_t)lo_raw;
   size_t         hi     = (size_t)hi_raw;
-  PyArrayObject *rx_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *rx_arr = (PyArrayObject *)jm_array_arg (
+      rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "rx");
   if (!rx_arr)
     {
       return NULL;
@@ -323,7 +364,7 @@ static PyMethodDef ber_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "flags : NDArray[np.uint8]\n"
+    "flags : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Input.\n"
     "sustain : int\n"
     "    Input.\n"

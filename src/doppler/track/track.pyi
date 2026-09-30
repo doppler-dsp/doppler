@@ -736,7 +736,7 @@ class Dll:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         sps: int = 2,
         init_chip: float = 0.0,
         bn: float = 0.01,

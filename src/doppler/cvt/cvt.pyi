@@ -2569,7 +2569,7 @@ def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
     """
 
 def bytes_to_bin(
-    octets: NDArray[np.uint8],
+    octets: NDArray[np.uint8] | bytes | bytearray | memoryview,
     out: NDArray[np.uint8],
     bitorder: int,
 ) -> int:
@@ -2587,7 +2587,7 @@ def bytes_to_bin(
 
     Parameters
     ----------
-    octets : NDArray[np.uint8]
+    octets : NDArray[np.uint8] | bytes | bytearray | memoryview
         the packed bytes.
     out : NDArray[np.uint8]
         receives `8 * octets_len` bytes, each 0 or 1.
@@ -2612,7 +2612,10 @@ def bytes_to_bin(
 
     """
 
-def bin_to_int(bits: NDArray[np.uint8], bitorder: int) -> int:
+def bin_to_int(
+    bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    bitorder: int,
+) -> int:
     """Read unpacked bits back into an integer -- the inverse of int_to_bin.
 
     Returns the value rather than a status, because that is the shape a
@@ -2623,7 +2626,7 @@ def bin_to_int(bits: NDArray[np.uint8], bitorder: int) -> int:
 
     Parameters
     ----------
-    bits : NDArray[np.uint8]
+    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         1..64 unpacked bits; any non-zero byte reads as 1.
     bitorder : int
         DP_BITORDER_BIG or DP_BITORDER_LITTLE.
@@ -2644,7 +2647,7 @@ def bin_to_int(bits: NDArray[np.uint8], bitorder: int) -> int:
     """
 
 def bin_to_hex(
-    bits: NDArray[np.uint8],
+    bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
     out: NDArray[np.uint8],
     bitorder: int,
 ) -> int:
@@ -2665,7 +2668,7 @@ def bin_to_hex(
 
     Parameters
     ----------
-    bits : NDArray[np.uint8]
+    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         unpacked bits; any non-zero byte reads as 1.
     out : NDArray[np.uint8]
         receives the digits plus a NUL.
@@ -2691,7 +2694,10 @@ def bin_to_hex(
 
     """
 
-def bin_to_nrz(bits: NDArray[np.uint8], out: NDArray[np.float32]) -> int:
+def bin_to_nrz(
+    bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    out: NDArray[np.float32],
+) -> int:
     """Map unpacked bits to bipolar NRZ symbols: bit 0 -> +1.0, bit 1 -> -1.0.
     That is `1 - 2*b`, the convention already used across doppler (qpsk_map.c
     and the despreader/ber doctests), NOT the opposite sign -- a mapper that
@@ -2709,7 +2715,7 @@ def bin_to_nrz(bits: NDArray[np.uint8], out: NDArray[np.float32]) -> int:
 
     Parameters
     ----------
-    bits : NDArray[np.uint8]
+    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         unpacked bits; any non-zero byte reads as 1.
     out : NDArray[np.float32]
         receives bits_len symbols, each +1.0f or -1.0f.

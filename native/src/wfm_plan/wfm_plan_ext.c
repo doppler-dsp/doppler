@@ -19,6 +19,47 @@
 
 #include "doppler/wfm/wfm_plan.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
 _enum_index (const char *const *tab, const char *s)
@@ -73,7 +114,15 @@ Plan_render (PlanObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
       return NULL;
     }
-  npy_intp  _n  = (npy_intp)dp_wfm_plan_len (self->h);
+  size_t _n_need = (size_t)(dp_wfm_plan_len (self->h));
+  if (_n_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Plan.render: output of %zu elements is too large",
+                    _n_need);
+      return NULL;
+    }
+  npy_intp  _n  = (npy_intp)_n_need;
   PyObject *arr = PyArray_SimpleNew (1, &_n, NPY_COMPLEX64);
   if (!arr)
     return NULL;
@@ -98,7 +147,14 @@ Plan_at (PlanObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
       return NULL;
     }
-  npy_intp  _n  = (npy_intp)dp_wfm_plan_len (self->h);
+  size_t _n_need = (size_t)(dp_wfm_plan_len (self->h));
+  if (_n_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Plan.at: output of %zu elements is too large", _n_need);
+      return NULL;
+    }
+  npy_intp  _n  = (npy_intp)_n_need;
   PyObject *arr = PyArray_SimpleNew (1, &_n, NPY_COMPLEX64);
   if (!arr)
     return NULL;

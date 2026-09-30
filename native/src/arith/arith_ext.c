@@ -13,6 +13,47 @@
 
 #include "doppler/arith/arith_core.h"
 
+#ifndef JM_ARRAY_ARG_DEFINED
+#define JM_ARRAY_ARG_DEFINED
+/* Convert a Python argument for an array parameter to an ndarray of
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
+ * it reads as text (gh-1700): a str is refused, never parsed as a number,
+ * and for a one-byte element type a byte buffer (bytes, bytearray,
+ * memoryview) is its bytes, one element per byte. `name` is the parameter,
+ * for the message. Returns a new reference, or NULL with an exception. */
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
+  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "%s must be an array of numbers, not %.200s", name,
+                    Py_TYPE (obj)->tp_name);
+      return NULL;
+    }
+  if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
+    {
+      PyObject *view = PyMemoryView_FromObject (obj);
+      if (!view)
+        return NULL;
+      if (PyMemoryView_GET_BUFFER (view)->itemsize == 1)
+        {
+          PyObject *raw = PyArray_FromBuffer (
+              view, PyArray_DescrFromType (typenum), -1, 0);
+          Py_DECREF (view);
+          if (!raw)
+            return NULL;
+          PyObject *arr = PyArray_FROM_OTF (raw, typenum, requirements);
+          Py_DECREF (raw);
+          return (PyArrayObject *)arr;
+        }
+      Py_DECREF (view);
+    }
+  return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+#endif /* JM_ARRAY_ARG_DEFINED */
+
 #include "arith_ext_acc_q15.c"
 #include "arith_ext_acc_q8.c"
 
@@ -25,25 +66,34 @@ _bind_add_q15 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
       return NULL;
     }
-  const int16_t *b     = (const int16_t *)PyArray_DATA (b_arr);
-  size_t         b_len = (size_t)PyArray_SIZE (b_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
+  const int16_t *b         = (const int16_t *)PyArray_DATA (b_arr);
+  size_t         b_len     = (size_t)PyArray_SIZE (b_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "add_q15: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -66,25 +116,34 @@ _bind_sub_q15 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
       return NULL;
     }
-  const int16_t *b     = (const int16_t *)PyArray_DATA (b_arr);
-  size_t         b_len = (size_t)PyArray_SIZE (b_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
+  const int16_t *b         = (const int16_t *)PyArray_DATA (b_arr);
+  size_t         b_len     = (size_t)PyArray_SIZE (b_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "sub_q15: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -107,25 +166,34 @@ _bind_mul_q15 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
       return NULL;
     }
-  const int16_t *b     = (const int16_t *)PyArray_DATA (b_arr);
-  size_t         b_len = (size_t)PyArray_SIZE (b_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
+  const int16_t *b         = (const int16_t *)PyArray_DATA (b_arr);
+  size_t         b_len     = (size_t)PyArray_SIZE (b_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "mul_q15: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -148,16 +216,16 @@ _bind_dot_q15 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
@@ -180,16 +248,24 @@ _bind_shl_q15 (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Oi", _kwlist, &a_obj, &n))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
-  const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
-  size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
+  const int16_t *a         = (const int16_t *)PyArray_DATA (a_arr);
+  size_t         a_len     = (size_t)PyArray_SIZE (a_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "shl_q15: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -209,16 +285,24 @@ _bind_shr_q15 (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Oi", _kwlist, &a_obj, &n))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
-  const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
-  size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
+  const int16_t *a         = (const int16_t *)PyArray_DATA (a_arr);
+  size_t         a_len     = (size_t)PyArray_SIZE (a_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "shr_q15: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT16, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -238,25 +322,34 @@ _bind_add_q8 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int8_t  *a     = (const int8_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
       return NULL;
     }
-  const int8_t *b     = (const int8_t *)PyArray_DATA (b_arr);
-  size_t        b_len = (size_t)PyArray_SIZE (b_arr);
-  npy_intp      _dim  = (npy_intp)a_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
+  const int8_t *b         = (const int8_t *)PyArray_DATA (b_arr);
+  size_t        b_len     = (size_t)PyArray_SIZE (b_arr);
+  size_t        _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "add_q8: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -279,25 +372,34 @@ _bind_sub_q8 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int8_t  *a     = (const int8_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
       return NULL;
     }
-  const int8_t *b     = (const int8_t *)PyArray_DATA (b_arr);
-  size_t        b_len = (size_t)PyArray_SIZE (b_arr);
-  npy_intp      _dim  = (npy_intp)a_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
+  const int8_t *b         = (const int8_t *)PyArray_DATA (b_arr);
+  size_t        b_len     = (size_t)PyArray_SIZE (b_arr);
+  size_t        _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "sub_q8: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -320,25 +422,34 @@ _bind_mul_q8 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int8_t  *a     = (const int8_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
       return NULL;
     }
-  const int8_t *b     = (const int8_t *)PyArray_DATA (b_arr);
-  size_t        b_len = (size_t)PyArray_SIZE (b_arr);
-  npy_intp      _dim  = (npy_intp)a_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
+  const int8_t *b         = (const int8_t *)PyArray_DATA (b_arr);
+  size_t        b_len     = (size_t)PyArray_SIZE (b_arr);
+  size_t        _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "mul_q8: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -361,16 +472,16 @@ _bind_dot_q8 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int8_t  *a     = (const int8_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr = (PyArrayObject *)jm_array_arg (
+      b_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
@@ -393,16 +504,24 @@ _bind_shl_q8 (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Oi", _kwlist, &a_obj, &n))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
-  const int8_t *a     = (const int8_t *)PyArray_DATA (a_arr);
-  size_t        a_len = (size_t)PyArray_SIZE (a_arr);
-  npy_intp      _dim  = (npy_intp)a_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
+  const int8_t *a         = (const int8_t *)PyArray_DATA (a_arr);
+  size_t        a_len     = (size_t)PyArray_SIZE (a_arr);
+  size_t        _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "shl_q8: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -422,16 +541,24 @@ _bind_shr_q8 (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Oi", _kwlist, &a_obj, &n))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
-  const int8_t *a     = (const int8_t *)PyArray_DATA (a_arr);
-  size_t        a_len = (size_t)PyArray_SIZE (a_arr);
-  npy_intp      _dim  = (npy_intp)a_len;
-  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
+  const int8_t *a         = (const int8_t *)PyArray_DATA (a_arr);
+  size_t        a_len     = (size_t)PyArray_SIZE (a_arr);
+  size_t        _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "shr_q8: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT8, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -451,16 +578,24 @@ _bind_shl_i64 (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Oi", _kwlist, &a_obj, &n))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
-  const int64_t *a     = (const int64_t *)PyArray_DATA (a_arr);
-  size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT64, 0);
+  const int64_t *a         = (const int64_t *)PyArray_DATA (a_arr);
+  size_t         a_len     = (size_t)PyArray_SIZE (a_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "shl_i64: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT64, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -480,16 +615,24 @@ _bind_shr_i64 (PyObject *self, PyObject *args, PyObject *kwds)
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Oi", _kwlist, &a_obj, &n))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr = (PyArrayObject *)jm_array_arg (
+      a_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
-  const int64_t *a     = (const int64_t *)PyArray_DATA (a_arr);
-  size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  npy_intp       _dim  = (npy_intp)a_len;
-  PyObject      *_out  = PyArray_EMPTY (1, &_dim, NPY_INT64, 0);
+  const int64_t *a         = (const int64_t *)PyArray_DATA (a_arr);
+  size_t         a_len     = (size_t)PyArray_SIZE (a_arr);
+  size_t         _dim_need = (size_t)(a_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (a_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "shr_i64: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_INT64, 0);
   if (!_out)
     {
       Py_DECREF (a_arr);
@@ -656,9 +799,9 @@ static PyMethodDef arith_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "a : NDArray[np.int8]\n"
+    "a : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    First input array (int8_t).\n"
-    "b : NDArray[np.int8]\n"
+    "b : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Second input array (int8_t), same length as a.\n"
     "\n"
     "Returns\n"
@@ -679,9 +822,9 @@ static PyMethodDef arith_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "a : NDArray[np.int8]\n"
+    "a : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Minuend array (int8_t).\n"
-    "b : NDArray[np.int8]\n"
+    "b : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Subtrahend array (int8_t), same length as a.\n"
     "\n"
     "Returns\n"
@@ -703,9 +846,9 @@ static PyMethodDef arith_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "a : NDArray[np.int8]\n"
+    "a : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    First input array (int8_t).\n"
-    "b : NDArray[np.int8]\n"
+    "b : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Second input array (int8_t), same length as a.\n"
     "\n"
     "Returns\n"
@@ -727,9 +870,9 @@ static PyMethodDef arith_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "a : NDArray[np.int8]\n"
+    "a : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    First input array (int8_t).\n"
-    "b : NDArray[np.int8]\n"
+    "b : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Second input array (int8_t), same length as a.\n"
     "\n"
     "Returns\n"
@@ -750,7 +893,7 @@ static PyMethodDef arith_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "a : NDArray[np.int8]\n"
+    "a : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Input array (int8_t).\n"
     "n : int\n"
     "    Shift count (non-negative integer).\n"
@@ -772,7 +915,7 @@ static PyMethodDef arith_module_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "a : NDArray[np.int8]\n"
+    "a : NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Input array (int8_t).\n"
     "n : int\n"
     "    Shift count (non-negative integer).\n"

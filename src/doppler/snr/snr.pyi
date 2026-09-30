@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 def snr_data_aided_db(
     soft: NDArray[np.complex64],
-    sign_bits: NDArray[np.uint8],
+    sign_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
 ) -> float:
     """Data-aided Es/N0 (dB): strip the known sign, Es/N0 = a^2 /
     mean(|z-a|^2).
@@ -19,7 +19,7 @@ def snr_data_aided_db(
     ----------
     soft : NDArray[np.complex64]
         Despread complex symbols.
-    sign_bits : NDArray[np.uint8]
+    sign_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         Known transmitted bits (0/1; 0 -> +1, 1 -> -1).
 
     Returns
@@ -80,7 +80,7 @@ def snr_m2m4_db(x: NDArray[np.complex64]) -> float:
 
 def snr_data_aided_db_series(
     soft: NDArray[np.complex64],
-    sign_bits: NDArray[np.uint8],
+    sign_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
     window: int,
 ) -> NDArray[np.float64]:
     """Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift.
@@ -94,7 +94,7 @@ def snr_data_aided_db_series(
     ----------
     soft : NDArray[np.complex64]
         Despread complex symbols.
-    sign_bits : NDArray[np.uint8]
+    sign_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
         Known transmitted bits (0/1).
     window : int
         Window width in samples.

@@ -410,14 +410,18 @@ class AccQ8:
 
         """
 
-    def madd(self, a: NDArray[np.int8], b: NDArray[np.int8]) -> None:
+    def madd(
+        self,
+        a: NDArray[np.int8] | bytes | bytearray | memoryview,
+        b: NDArray[np.int8] | bytes | bytearray | memoryview,
+    ) -> None:
         """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).
 
         Parameters
         ----------
-        a : NDArray[np.int8]
+        a : NDArray[np.int8] | bytes | bytearray | memoryview
             First input array (int8_t).
-        b : NDArray[np.int8]
+        b : NDArray[np.int8] | bytes | bytearray | memoryview
             Second input array (int8_t), same length as a.
 
         Examples
@@ -728,14 +732,17 @@ def shr_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
 
     """
 
-def add_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
+def add_q8(
+    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+) -> NDArray[np.int8]:
     """Elementwise saturating two's complement add of two Q8 arrays.
 
     Parameters
     ----------
-    a : NDArray[np.int8]
+    a : NDArray[np.int8] | bytes | bytearray | memoryview
         First input array (int8_t).
-    b : NDArray[np.int8]
+    b : NDArray[np.int8] | bytes | bytearray | memoryview
         Second input array (int8_t), same length as a.
 
     Returns
@@ -754,14 +761,17 @@ def add_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
 
     """
 
-def sub_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
+def sub_q8(
+    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+) -> NDArray[np.int8]:
     """Elementwise saturating two's complement subtract of two Q8 arrays.
 
     Parameters
     ----------
-    a : NDArray[np.int8]
+    a : NDArray[np.int8] | bytes | bytearray | memoryview
         Minuend array (int8_t).
-    b : NDArray[np.int8]
+    b : NDArray[np.int8] | bytes | bytearray | memoryview
         Subtrahend array (int8_t), same length as a.
 
     Returns
@@ -780,15 +790,18 @@ def sub_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
 
     """
 
-def mul_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
+def mul_q8(
+    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+) -> NDArray[np.int8]:
     """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] +
     64) >> 7).
 
     Parameters
     ----------
-    a : NDArray[np.int8]
+    a : NDArray[np.int8] | bytes | bytearray | memoryview
         First input array (int8_t).
-    b : NDArray[np.int8]
+    b : NDArray[np.int8] | bytes | bytearray | memoryview
         Second input array (int8_t), same length as a.
 
     Returns
@@ -807,15 +820,18 @@ def mul_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
 
     """
 
-def dot_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> int:
+def dot_q8(
+    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+) -> int:
     """Inner product of two Q8 arrays. Returns the raw Q14 accumulation as
     int32_t.
 
     Parameters
     ----------
-    a : NDArray[np.int8]
+    a : NDArray[np.int8] | bytes | bytearray | memoryview
         First input array (int8_t).
-    b : NDArray[np.int8]
+    b : NDArray[np.int8] | bytes | bytearray | memoryview
         Second input array (int8_t), same length as a.
 
     Returns
@@ -834,12 +850,15 @@ def dot_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> int:
 
     """
 
-def shl_q8(a: NDArray[np.int8], n: int) -> NDArray[np.int8]:
+def shl_q8(
+    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    n: int,
+) -> NDArray[np.int8]:
     """Elementwise arithmetic left shift of a Q8 array with saturation.
 
     Parameters
     ----------
-    a : NDArray[np.int8]
+    a : NDArray[np.int8] | bytes | bytearray | memoryview
         Input array (int8_t).
     n : int
         Shift count (non-negative integer).
@@ -859,12 +878,15 @@ def shl_q8(a: NDArray[np.int8], n: int) -> NDArray[np.int8]:
 
     """
 
-def shr_q8(a: NDArray[np.int8], n: int) -> NDArray[np.int8]:
+def shr_q8(
+    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    n: int,
+) -> NDArray[np.int8]:
     """Elementwise arithmetic right shift of a Q8 array with round-half-up.
 
     Parameters
     ----------
-    a : NDArray[np.int8]
+    a : NDArray[np.int8] | bytes | bytearray | memoryview
         Input array (int8_t).
     n : int
         Shift count (non-negative integer).

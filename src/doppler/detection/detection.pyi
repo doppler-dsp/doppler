@@ -353,8 +353,15 @@ class SyncFinder:
 
     """
 
-    def __init__(self, marker: NDArray[np.uint8]) -> None: ...
-    def find(self, bits: NDArray[np.uint8], max_errors: int = 0) -> SyncHit:
+    def __init__(
+        self,
+        marker: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> None: ...
+    def find(
+        self,
+        bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        max_errors: int = 0,
+    ) -> SyncHit:
         """Find the first marker in bits, either polarity.
 
         The FIRST offset whose Hamming distance to the marker, or to its
@@ -367,7 +374,7 @@ class SyncFinder:
 
         Parameters
         ----------
-        bits : NDArray[np.uint8]
+        bits : NDArray[np.uint8] | bytes | bytearray | memoryview
             Unpacked bits, one per byte.
         max_errors : int
             Largest tolerated Hamming distance, in bits.

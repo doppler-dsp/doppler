@@ -355,7 +355,7 @@ class Acquisition:
 
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
         spc: int = 4,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,

@@ -119,7 +119,10 @@ class BerMeter:
 
         """
 
-    def set_truth(self, truth: NDArray[np.uint8]) -> None:
+    def set_truth(
+        self,
+        truth: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> None:
         """Install the transmitted symbol INDICES (0..m-1, not Gray labels)
         this meter scores against. Copied, so the caller's buffer need not
         outlive the call, and reused across every burst. Raises ValueError if
@@ -133,7 +136,7 @@ class BerMeter:
 
         Parameters
         ----------
-        truth : NDArray[np.uint8]
+        truth : NDArray[np.uint8] | bytes | bytearray | memoryview
             Transmitted symbol indices, each in `0..m-1`.
 
         Raises
@@ -1025,7 +1028,7 @@ def ber_settle_syms(bn_timing: float, bn_carrier: float) -> int:
     """
 
 def ber_lock_symbol(
-    flags: NDArray[np.uint8],
+    flags: NDArray[np.uint8] | bytes | bytearray | memoryview,
     sustain: int = 200,
     min_frac: float = 0.9,
 ) -> int:
@@ -1049,7 +1052,7 @@ def ber_lock_symbol(
 
     Parameters
     ----------
-    flags : NDArray[np.uint8]
+    flags : NDArray[np.uint8] | bytes | bytearray | memoryview
         Input.
     sustain : int
         Input.

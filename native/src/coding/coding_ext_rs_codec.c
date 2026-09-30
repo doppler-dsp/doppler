@@ -670,7 +670,7 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "codeword : NDArray[np.uint8]\n"
+    "codeword : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    `n` symbols.\n"
     "\n"
     "Returns\n"

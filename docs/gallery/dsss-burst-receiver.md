@@ -277,12 +277,15 @@ nothing else** — no CRC, no frame description — and the transmit bits and
 the scoring truth come from one Field string through `wfm.field_bits`. The
 script is its own gate,
 [`dsss_burst_ber_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/dsss_burst_ber_demo.py),
-so the sweep's runtime (about 6 s by default) stays out of the sections
+so the sweep's runtime (about 2 s by default) stays out of the sections
 above.
 
-**The stimulus is one `Plan`.** It renders the burst's signal once;
-`plan.at(snr, seed)` then draws fresh noise per trial. Its contract is
-asserted before anything is measured: at the scene's own SNR and the
+**The stimulus is one `Plan`.** The scene is one dsss source, so
+`Composer(type="dsss", …)` takes it directly. With `snr_mode="ebno"`, `snr`
+is the Eb/N0 of one data bit, and `plan.at(ebn0, seed)` takes the same
+number: there is no conversion to an over-fs SNR anywhere. The Plan renders
+the burst's signal once and draws fresh noise per trial. Its contract is
+asserted before anything is measured: at the scene's own Eb/N0 and the
 anchor seed, a draw is a full compose of the same scene, byte for byte.
 
 <!-- docs-snippet: skip=an excerpt of the example's module scope (ACQ, SYNC, receiver() are defined above it); the script itself is executed on every push by `make test-examples-python` -->
@@ -291,15 +294,15 @@ anchor seed, a draw is a full compose of the same scene, byte for byte.
 --8<-- "src/doppler/examples/dsss_burst_ber_demo.py:plan"
 ```
 
-**Eb/N0 is per data bit.** Plan's `snr` follows the segment's
-`snr_mode="fs"`, signal over the noise in the full sample band. A data bit
-spans `fs / Rb = SF · spc` samples, so the conversion carries the
-processing gain (10·log10 31 = 14.91 dB) and the oversampling (3.01 dB):
+**One receiver serves every trial.** Constructing one solves its detection
+design each time, which is most of a trial's cost. `reset()` keeps the design
+and clears the stream, and a reset receiver decodes a draw exactly as a fresh
+one does — asserted on the output and on every event:
 
-<!-- docs-snippet: skip=an excerpt of the example's module scope; the script itself is executed on every push by `make test-examples-python` -->
+<!-- docs-snippet: skip=an excerpt of the example's module scope (plan, receiver() are defined above it); the script itself is executed on every push by `make test-examples-python` -->
 
 ```python
---8<-- "src/doppler/examples/dsss_burst_ber_demo.py:ebn0"
+--8<-- "src/doppler/examples/dsss_burst_ber_demo.py:reuse"
 ```
 
 **Each point stops on errors**, as in
@@ -345,7 +348,7 @@ acquisition was designed for.
 ```
 
 Measured once with `--full` (0–8 dB, at least 1000 errors and 20 bursts
-per point: 6892 bursts, 200 s), no burst was missed. The loss against
+per point: 6892 bursts, 52 s), no burst was missed. The loss against
 ideal BPSK, read off each measured rate, was:
 
 | Eb/N0 (dB) | 0    | 1    | 2    | 3    | 4    | 5    | 6    | 7    | 8    |
@@ -354,7 +357,7 @@ ideal BPSK, read off each measured rate, was:
 
 Only the 1 dB interval excludes ideal BPSK. Every interval reaches the
 sync-limited curve. The default run is five of these points at 100 errors
-(218 bursts, about 6 s).
+(218 bursts, about 2 s).
 
 **Limits.** The payload is the same in every trial, because a Plan caches
 the signal and only the noise varies. It is a BER and not an FER, because

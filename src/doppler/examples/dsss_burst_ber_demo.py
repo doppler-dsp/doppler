@@ -51,13 +51,7 @@ import numpy as np
 
 from doppler.ber import BerMeter, ber_esn0_db_for_ser, ber_theory_ber
 from doppler.dsss import DsssBurstReceiver
-from doppler.wfm import (
-    Composer,
-    Segment,
-    field_bits,
-    prepare,
-    wfm_ebno_to_snr_db,
-)
+from doppler.wfm import Composer, field_bits, prepare
 
 FULL = "--full" in sys.argv
 
@@ -78,27 +72,8 @@ SF = len(DATA)  # chips per data bit: the processing gain, 10log10(31)
 FRAME_SYMS = len(SYNC) + len(PAYLOAD)  # what push() returns per burst
 LEAD = 4000  # noise ahead of the burst: its true start, in samples
 
-# --8<-- [start:ebn0]
-# Eb/N0 -> the SNR Plan takes. The segment uses snr_mode="fs": signal power
-# (unit, a rect-chip BPSK burst) over the noise power in the FULL sample
-# band. Per data bit the signal energy is summed over every sample the bit
-# occupies, and there are
-#
-#     fs / Rb = (chip_rate * SPC) / (chip_rate / SF) = SF * SPC
-#
-# of them, so  SNR_fs = Eb/N0 - 10 log10(SF * SPC)  for one bit per symbol
-# (BPSK). Here 10 log10(31 * 2) = 17.92 dB: the processing gain (14.91 dB)
-# plus the oversampling (3.01 dB). doppler's own law does the arithmetic.
-SAMPLES_PER_BIT = SF * SPC
+SAMPLES_PER_BIT = SF * SPC  # fs / Rb: one data bit spans SF chips
 RB = CHIP_RATE / SF  # data bit rate, bit/s
-
-
-def snr_fs_db(ebn0_db: float) -> float:
-    """Plan's ``snr`` (dB over fs) for a data-bit Eb/N0 (dB)."""
-    return wfm_ebno_to_snr_db(ebn0_db, 1, SAMPLES_PER_BIT)
-
-
-# --8<-- [end:ebn0]
 
 # ── the sweep ───────────────────────────────────────────────────────────────
 if FULL:
@@ -168,36 +143,55 @@ def sync_phase_limited_ber(ebn0_db: float) -> float:
 # ── the scene, and the Plan over it ─────────────────────────────────────────
 # --8<-- [start:plan]
 BASE_EBN0_DB = 6.0
-probe = receiver()
-burst = Segment(
+rx = receiver()  # ONE receiver for the whole sweep: reset() between trials
+# One dsss source is the whole scene, so the Composer takes it directly.
+# snr_mode="ebno" makes `snr` the Eb/N0 of one data bit (a dsss source's
+# symbol is the despread data bit), and Plan's at() takes the SAME number:
+# no hand conversion to the over-fs SNR anywhere below.
+scene = Composer(
     type="dsss",
     fs=FS,
-    snr=snr_fs_db(BASE_EBN0_DB),
-    snr_mode="fs",  # the SNR Plan's at() takes is this same convention
+    snr=BASE_EBN0_DB,
+    snr_mode="ebno",
     seed=11,
     sps=SPC,  # samples per CHIP
-    acq_code=ACQ.tobytes(),
+    acq_code=ACQ,
     acq_reps=REPS,
-    data_code=DATA.tobytes(),
-    sync=SYNC.tobytes(),
-    payload=PAYLOAD.tobytes(),  # PN data, and nothing after it
+    data_code=DATA,
+    sync=SYNC,
+    payload=PAYLOAD,  # PN data, and nothing after it
     crc="none",
     delay_samples=LEAD,
     # the receiver holds a burst until it has seen refine_span past its
     # end, so that much trailing noise is what lets it emit
-    off_samples=probe.refine_span,
+    off_samples=rx.refine_span,
     gap_noise="auto",
 )
-scene = Composer([burst])
 plan = prepare(scene)  # the burst's signal is rendered ONCE, here
 
-# The anchor contract: at the scene's own SNR and the anchor seed, a Plan
+# The anchor contract: at the scene's own Eb/N0 and the anchor seed, a Plan
 # draw IS a full compose of the same scene, byte for byte.
-anchor = plan.at(snr_fs_db(BASE_EBN0_DB), plan.anchor_seed)
+anchor = plan.at(BASE_EBN0_DB, plan.anchor_seed)
 assert anchor.tobytes() == scene.compose().tobytes(), (
-    "plan.at(base_snr, anchor_seed) is not byte-identical to compose()"
+    "plan.at(base_ebn0, anchor_seed) is not byte-identical to compose()"
 )
 # --8<-- [end:plan]
+
+# --8<-- [start:reuse]
+# Building a receiver solves its detection design (the Pd/Pfa threshold)
+# every time; reset() keeps the design and clears the stream. A reused
+# receiver must decode a trial exactly as a fresh one does -- pinned here,
+# on a draw pushed AFTER the reused one has already decoded another.
+rx.push(plan.at(BASE_EBN0_DB, 1))
+rx.reset()
+x = plan.at(BASE_EBN0_DB, 2)
+fresh = receiver()
+assert np.array_equal(np.asarray(rx.push(x)), np.asarray(fresh.push(x)))
+assert rx.events().tobytes() == fresh.events().tobytes(), (
+    "a reset() receiver's events differ from a fresh receiver's"
+)
+rx.reset()
+# --8<-- [end:reuse]
 
 
 # --8<-- [start:measure]
@@ -205,11 +199,11 @@ def measure(ebn0_db: float, seed0: int, meter: BerMeter) -> dict:
     """One Eb/N0 point: trials until TARGET_ERRORS (and MIN_TRIALS bursts).
 
     Each trial is a fresh noise draw of the same cached burst, pushed whole
-    through a fresh receiver. The window scored is the one the receiver
+    through the one receiver, reset between trials (output-identical to a
+    fresh one, asserted above). The window scored is the one the receiver
     decoded at the burst's true start; the payload is the frame after the
     sync word, compared bit for bit with the Field's own bits.
     """
-    snr = snr_fs_db(ebn0_db)
     ideal = ber_theory_ber(2, 10.0 ** (ebn0_db / 10.0))
     max_trials = max(
         MIN_TRIALS, int(BUDGET * TARGET_ERRORS / (ideal * PAYLOAD.size))
@@ -219,10 +213,10 @@ def measure(ebn0_db: float, seed0: int, meter: BerMeter) -> dict:
     while (errors < TARGET_ERRORS or trials < MIN_TRIALS) and (
         trials < max_trials
     ):
-        x = plan.at(snr, seed0 + trials)
+        x = plan.at(ebn0_db, seed0 + trials)
         trials += 1
         draws.add(hash(x.tobytes()))
-        rx = receiver()
+        rx.reset()
         out = np.asarray(rx.push(x))
         hit = [
             k
@@ -264,7 +258,7 @@ def main(out: str = "dsss_burst_ber_demo.png") -> None:
         f"Rb {RB / 1e3:.2f} kbit/s"
     )
     print(
-        f"Eb/N0 -> Plan snr: -{10 * np.log10(SAMPLES_PER_BIT):.2f} dB; "
+        f"snr_mode=ebno: {SAMPLES_PER_BIT} samples per data bit; "
         f"acquisition designed at {CN0_DESIGN_DBHZ:.1f} dB-Hz, pd {PD}"
     )
     print(

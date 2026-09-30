@@ -148,6 +148,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**syncword\_hit\_t**](structsyncword__hit__t.md) _What_ [_**dp\_syncword\_find**_](syncword__core_8h.md#function-dp_syncword_find) _found._    
 * **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._     
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
+* **struct** [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md) _What a source has done so far: the truth a record carries._     
 * **struct** [**wfm\_draw\_t**](structwfm__draw__t.md) _One rendered source instance: its timing AND the values it was actually rendered with._     
 * **struct** [**wfm\_field\_t**](structwfm__field__t.md) _One field of a frame — a run of bits that appears on the wire._     
 * **struct** [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) _Where every field and every stage landed._     

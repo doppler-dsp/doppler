@@ -139,6 +139,8 @@
 * **wfm\_render\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_snr\_mode\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_data\_src\_t** ([**wfm\_data.h**](wfm__data_8h.md))
+* **wfm\_data\_status\_t** ([**wfm\_data.h**](wfm__data_8h.md))
 * **wfm\_seq\_kind\_t** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_stage\_kind\_t** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_plan\_t** ([**wfm\_plan.h**](wfm__plan_8h.md))

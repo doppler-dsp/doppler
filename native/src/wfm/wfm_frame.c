@@ -17,6 +17,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+dp_pn_state_t *
+dp_wfm_seq_pn_create (const wfm_seq_t *s)
+{
+  if (!s || s->kind != WFM_SEQ_PN)
+    return NULL;
+  /* poly 0 is "the maximal-length one for this register", the same
+     resolution dp_wfm_synth_create() applies to its --pn-poly. Passing 0
+     through to dp_pn_create() instead means a register with NO FEEDBACK:
+     it shifts the seed out and emits zeros for ever, which is a constant
+     field that still looks like a field. And a register with NO
+     m-sequence to resolve to (width 1: pn_mls_poly is 0) is refused rather
+     than built as that same no-feedback register -- doppler#1602, the
+     frame-field twin of #1590's source fix. */
+  const uint64_t poly = s->poly ? s->poly : pn_mls_poly (s->reg_bits);
+  if (poly == 0)
+    return NULL;
+  return dp_pn_create (poly, s->seed ? s->seed : 1u, s->reg_bits, s->lfsr);
+}
+
 /* A field's bits, written at `out`. Returns the count, or 0 if the descriptor
    cannot produce them — which is a REFUSAL, not a short write: a frame that
    half-materialises would be scored against a truth nobody can regenerate. */
@@ -43,19 +62,7 @@ dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t cap)
 
     case WFM_SEQ_PN:
       {
-        /* poly 0 is "the maximal-length one for this register", the same
-           resolution dp_wfm_synth_create() applies to its --pn-poly. Passing 0
-           through to dp_pn_create() instead means a register with NO FEEDBACK:
-           it shifts the seed out and emits zeros for ever, which is a
-           constant field that still looks like a field. And a register
-           with NO m-sequence to resolve to (width 1: pn_mls_poly is 0) is
-           refused rather than built as that same no-feedback register --
-           doppler#1602, the frame-field twin of #1590's source fix. */
-        const uint64_t poly = s->poly ? s->poly : pn_mls_poly (s->reg_bits);
-        if (poly == 0)
-          return 0;
-        dp_pn_state_t *p = dp_pn_create (poly, s->seed ? s->seed : 1u,
-                                         s->reg_bits, s->lfsr);
+        dp_pn_state_t *p = dp_wfm_seq_pn_create (s);
         if (!p)
           return 0;
         size_t n = dp_pn_generate (p, s->len, out, cap);

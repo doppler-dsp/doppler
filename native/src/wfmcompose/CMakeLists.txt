@@ -134,6 +134,27 @@ target_include_directories(wfm_frame_core PUBLIC
 # through dp_bin_to_hex -- cvt's, rather than a second hex codec here.
 target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core cvt_core ${DP_MATH_LIBRARY})
 
+# A frame's data source (wfm/wfm_data.h): where a data:LEN payload's bits
+# come from -- a finite Field, a pn:0 stream, a file or a pipe -- LEN at a
+# time. Its own OBJECT library so that only what consumes a data source
+# links the fd reader; it composes the Field parser (wfm_frame_core) rather
+# than reading Fields a second way, and cvt's dp_bytes_to_bin for the
+# unpack (docs/design/payload-data-source.md).
+add_library(wfm_data_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_data.c)
+target_include_directories(wfm_data_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
+target_link_libraries(wfm_data_core PUBLIC wfm_frame_core cvt_core pn_core)
+
+add_executable(test_wfm_data
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_data.c)
+target_link_libraries(test_wfm_data PRIVATE wfm_data_core wfm_frame_core
+    cvt_core pn_core gold_core ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_data PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_wfm_data COMMAND test_wfm_data)
+
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
 add_library(wfm_dsp_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_dsp.c)

@@ -271,6 +271,13 @@ gh pr merge --rebase   # (or --squash) ONLY once `CI passed` is green — never 
 The release tag will point at this merged commit, so CI passing here is what
 makes the release safe.
 
+With the merge queue on, `gh pr merge` puts the PR in the queue instead of
+merging it. The queue runs `CI passed` again, on main plus the PR, and
+merges only when that run is green. The release PR is a version bump alone,
+so it takes the fast path there too: `changes` compares the group to its
+`merge_group.base_sha`, sees only the bump, and skips the matrix its parent
+already passed. See [CI](ci.md#pull-requests-and-the-merge-queue).
+
 ## 6. Tag merged main
 
 ```sh

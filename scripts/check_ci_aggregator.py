@@ -21,8 +21,15 @@ What is checked
 - every other job in the workflow is in its ``needs``;
 - every entry in its ``needs`` names a job that exists;
 - the bump-only fast path agrees with itself: every job gated on
-  ``needs.changes.outputs.src`` needs ``changes``, and the aggregator's
-  ``SKIPPABLE`` is exactly the set of gated jobs (see scripts/ci_passed.py).
+  ``needs.changes.outputs.src`` or ``.heavy`` needs ``changes``, and the
+  aggregator's ``SKIPPABLE`` is exactly the set of gated jobs (see
+  scripts/ci_passed.py);
+- the pull_request split agrees with itself: the aggregator's ``HEAVY`` is
+  exactly the jobs gated on ``needs.changes.outputs.heavy``, and ``changes``
+  declares both ``full`` (which ci_passed.py reads to tell a skip by design
+  from a skip that should not have happened) and ``heavy``. Without the
+  equality a heavy job missing from HEAVY turns every PR red, and a job in
+  HEAVY that is not gated is granted a skip it never takes.
 
 Usage
 -----
@@ -96,6 +103,7 @@ def check(path: pathlib.Path) -> list[str]:
             f"{path}: `{AGGREGATOR}` needs `{job}`, which is not a job here"
         )
     problems += _check_fast_path(path, jobs, agg)
+    problems += _check_heavy(path, jobs, agg)
     return problems
 
 
@@ -121,6 +129,7 @@ def _check_fast_path(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
         name
         for name, job in jobs.items()
         if "needs.changes.outputs.src" in str(job.get("if", ""))
+        or "needs.changes.outputs.heavy" in str(job.get("if", ""))
     }
     problems = [
         f"{path}: job `{name}` is gated on `changes` but does not need it, "
@@ -153,6 +162,61 @@ def _check_fast_path(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
     return problems
 
 
+def _declared(agg: dict, key: str) -> set[str] | None:
+    """The space-separated job set a ci-passed step declares in ``key``."""
+    out: set[str] | None = None
+    for step in agg.get("steps") or []:
+        env = step.get("env") or {}
+        if key in env:
+            out = set(str(env[key]).split())
+    return out
+
+
+def _check_heavy(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
+    """The pull_request split: HEAVY is exactly the jobs gated on ``heavy``.
+
+    A heavy job is skipped on every pull_request by design and must run on
+    merge_group and push. ci_passed.py grants the skip only to HEAVY, and only
+    when ``changes.full`` is ``false``, so both directions of drift show up:
+
+    - gated on ``heavy`` but missing from HEAVY: every PR goes red;
+    - in HEAVY but not gated: the aggregator would pass a skip of a job that
+      should never skip -- the permission outlives the reason.
+    """
+    gated = {
+        name
+        for name, job in jobs.items()
+        if "needs.changes.outputs.heavy" in str(job.get("if", ""))
+    }
+    declared = _declared(agg, "HEAVY")
+    problems: list[str] = []
+    if gated or declared:
+        outputs = (jobs.get("changes") or {}).get("outputs") or {}
+        for key in ("full", "heavy"):
+            if key not in outputs:
+                problems.append(
+                    f"{path}: `changes` declares no `{key}` output, so the "
+                    "pull_request split has nothing to read"
+                )
+    if gated and declared is None:
+        problems.append(
+            f"{path}: jobs are gated on `heavy` but `{AGGREGATOR}` declares "
+            "no HEAVY, so every pull_request would read as a failure"
+        )
+        return problems
+    for name in sorted(gated - (declared or set())):
+        problems.append(
+            f"{path}: `{name}` is gated on `heavy` but not in "
+            f"`{AGGREGATOR}`'s HEAVY -- every pull_request goes red"
+        )
+    for name in sorted((declared or set()) - gated):
+        problems.append(
+            f"{path}: `{AGGREGATOR}`'s HEAVY lists `{name}`, which is not "
+            "gated on `heavy` -- a skip it should never take would be green"
+        )
+    return problems
+
+
 def main(argv: list[str]) -> int:
     paths = [pathlib.Path(a) for a in argv] if argv else [WORKFLOW]
     problems = [p for path in paths for p in check(path)]
@@ -161,9 +225,13 @@ def main(argv: list[str]) -> int:
     if problems:
         return 1
     doc = yaml.safe_load(paths[0].read_text(encoding="utf-8")) or {}
-    gated = len(doc.get("jobs") or {}) - 1  # every job but the aggregator
+    jobs = doc.get("jobs") or {}
+    gated = len(jobs) - 1  # every job but the aggregator
+    heavy = len(_declared(jobs.get(AGGREGATOR) or {}, "HEAVY") or ())
     print(
         f"ci-aggregator-check: OK -- all {gated} job(s) gate `{REQUIRED_NAME}`"
+        f"; {heavy} heavy, skipped on pull_request, required on merge_group "
+        "and push"
     )
     return 0
 

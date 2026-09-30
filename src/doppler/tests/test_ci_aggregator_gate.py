@@ -149,3 +149,57 @@ def test_skippable_may_not_name_an_ungated_job(tmp_path: Path) -> None:
     )
     assert r.returncode == 1
     assert "lists `lint`, which is not gated" in r.stdout
+
+
+_SPLIT = """
+    jobs:
+      changes:
+        runs-on: ubuntu-latest
+        outputs:
+          src: x
+          full: x
+          heavy: x
+      lint:
+        runs-on: ubuntu-latest
+      matrix:
+        needs: changes
+        if: needs.changes.outputs.heavy == 'true'
+        runs-on: ubuntu-latest
+      ci-passed:
+        name: CI passed
+        needs: [changes, lint, matrix]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+          - env:
+              SKIPPABLE: matrix
+              HEAVY: {heavy}
+            run: python3 scripts/ci_passed.py
+"""
+
+
+def test_a_sound_split_passes(tmp_path: Path) -> None:
+    r = _check(tmp_path, _SPLIT.format(heavy="matrix"))
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "1 heavy" in r.stdout
+
+
+def test_a_heavy_job_missing_from_heavy_is_caught(tmp_path: Path) -> None:
+    # Every pull_request would go red on the skip it takes by design.
+    r = _check(tmp_path, _SPLIT.format(heavy="other"))
+    assert r.returncode == 1
+    assert "not in `ci-passed`'s HEAVY" in r.stdout
+
+
+def test_heavy_may_not_name_an_ungated_job(tmp_path: Path) -> None:
+    # The dangerous direction: a PR could skip lint and stay green.
+    r = _check(tmp_path, _SPLIT.format(heavy="matrix lint"))
+    assert r.returncode == 1
+    assert "HEAVY lists `lint`, which is not" in r.stdout
+
+
+def test_the_split_needs_changes_to_declare_full(tmp_path: Path) -> None:
+    body = _SPLIT.format(heavy="matrix").replace("          full: x\n", "")
+    r = _check(tmp_path, body)
+    assert r.returncode == 1
+    assert "no `full` output" in r.stdout

@@ -259,13 +259,79 @@ These exist because each one failed to hold at least once:
 
 ______________________________________________________________________
 
+## Pull requests and the merge queue
+
+`ci.yml` runs on three events, and CI does not do the same work on all three:
+
+| event                           | what runs                                                                                                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pull_request`                  | the **fast gates**: `changes`, `pin`, `build-and-test-linux`, `pre-commit` (`make lint`), `manifest-drift`, `docs`, `doxygen`, `ci-image-repin`, and `python` on **3.9 only** |
+| `merge_group` (the merge queue) | **everything**: the fast gates, `python` on every version 3.9–3.14, and the heavy jobs listed below                                                                           |
+| `push` to `main` / `develop`    | everything, as for `merge_group`                                                                                                                                              |
+
+The heavy jobs are `build-and-test-linux-arm64`, `build-and-test-windows`,
+`wheel-smoke-windows`, `build-and-test-macos`, `glibc-228`,
+`sweep-validators`, `docker`, `linux-packages`, `sanitizers` and `coverage`.
+
+**Why split.** A queued PR is tested again, on a temporary
+`gh-readonly-queue/main/pr-N-<sha>` branch holding main, the entries ahead of
+it in the queue, and the PR. That run is the one that gates the merge,
+because it tests the tree that will actually land. If both runs did the full
+matrix, every PR would cost two, and the first would prove less than the
+second. So a PR gets fast feedback, and the queue pays for the full matrix
+once.
+
+On a PR, `python` runs only on 3.9 because that is the declared floor, and
+code that breaks on an older interpreter usually breaks there first. The
+other versions run in the queue.
+
+**One declaration.** The `changes` job decides the split:
+
+- `full` is `false` on a `pull_request` and `true` for every other event, so
+    an event it does not know is treated as a full run.
+- `heavy` is `src && full`. Every heavy job is gated on
+    `if: needs.changes.outputs.heavy == 'true'`, and none of them reads the
+    event name.
+- `pythons` is the Python matrix: one version or all six.
+
+**`CI passed` knows the difference.** On a pull_request, a skipped heavy job
+is green: it was skipped by design. On `merge_group` or `push`, a skipped
+heavy job is **red** unless the diff is a version bump alone.
+`scripts/ci_passed.py` makes that call from the aggregator's `HEAVY` list and
+the `full` output. `make ci-aggregator-check` holds `HEAVY` to exactly the
+jobs gated on `heavy`. It fails if a job is gated but not listed, because
+then every PR goes red. It also fails if a job is listed but not gated,
+because then the aggregator would let a job skip that never should.
+
+**The bump fast path still works in the queue.** `changes` compares the
+group to its `merge_group.base_sha`: main plus the entries ahead, so the diff
+is this PR alone. A release PR's version bump is therefore still classified
+as a bump (`src=false`) in the queue. The per-branch gates use the same base:
+`CHANGELOG_BASE` (for `changelog-check` and `issue-link-check`) and
+`coverage`'s `COV_BASE` both read `merge_group.base_sha`. Diff coverage
+compared against `origin/main` would also judge the lines of every queue
+entry ahead of this one.
+
+**A queue run is never cancelled by a PR push.** Every merge group has its
+own ref, so it is alone in its concurrency group, and `cancel-in-progress`
+is only on for `pull_request`. A push to a PR goes to that PR's own group.
+
+**Merge method.** Configure the queue to **rebase**. `issue-link-check`
+reads the `Closes #N` / `No-issue:` declaration from commit messages. A
+squash commit carries whatever message the squash template produces, which
+can drop that declaration.
+
+`windows.yml` is advisory, and it does not change with the queue.
+
+______________________________________________________________________
+
 ## What runs where
 
 | job                                                              | environment                           | notes                                                                                             |
 | ---------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `build-and-test-linux`                                           | pinned image, one per glibc           | split from macOS because `container:` is Linux-only and cannot be switched off for one matrix leg |
 | `build-and-test-macos`                                           | hosted runner, brew                   | no macOS container to bake                                                                        |
-| `python` (3.9–3.14)                                              | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
+| `python` (3.9 on a PR; 3.9–3.14 in the queue)                    | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
 | `coverage`                                                       | pinned image                          | clang source-based, C ∪ Python ∪ Rust — see [Coverage](coverage.md)                               |
 | `glibc-228`                                                      | Debian 10 image via `make glibc-gate` | the floor gate; its own toolchain by necessity                                                    |
 | `doxygen`, `docs`, `pre-commit`, `manifest-drift`, `specan-demo` | pinned image or plain runner          | no system deps beyond the image                                                                   |

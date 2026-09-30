@@ -64,10 +64,11 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 
 | Type | Name |
 | ---: | :--- |
-|  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create**](#function-dp_wfm_data_create) (const char \* data, const char \* path, size\_t len, const char \* fill, char \* why, size\_t why\_cap) <br>_Build a data source from a Field or from a path. NULL on refusal._  |
-|  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create\_fd**](#function-dp_wfm_data_create_fd) (int fd, size\_t len, const char \* fill, char \* why, size\_t why\_cap) <br>_Build a data source over an open file descriptor. NULL on refusal._  |
+|  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create**](#function-dp_wfm_data_create) (const char \* data, const char \* path, size\_t len, const char \* fill, const char \*\* why) <br>_Build a data source from a Field or from a path. NULL on refusal._  |
+|  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create\_fd**](#function-dp_wfm_data_create_fd) (int fd, size\_t len, const char \* fill, const char \*\* why) <br>_Build a data source over an open file descriptor. NULL on refusal._  |
 |  void | [**dp\_wfm\_data\_destroy**](#function-dp_wfm_data_destroy) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s) <br>_Free a source; closes a file it opened itself. NULL is a no-op._  |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_idle**](#function-dp_wfm_data_idle) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_Write an idle frame's data field: all fill,_ `reps` _times._ |
+|  uint64\_t | [**dp\_wfm\_data\_length\_bits**](#function-dp_wfm_data_length_bits) (const char \* data, const char \* path) <br>_A source's length in bits, known before it is built; 0 for a stream._  |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_next**](#function-dp_wfm_data_next) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out, int timeout\_ms) <br>_Write the next frame's data field: ONE chunk of_ `LEN` _bits, written_`reps` _times._ |
 |  void | [**dp\_wfm\_data\_stats**](#function-dp_wfm_data_stats) (const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md) \* out) <br>_What the source has done so far._  |
 
@@ -183,8 +184,7 @@ wfm_data_src_t * dp_wfm_data_create (
     const char * path,
     size_t len,
     const char * fill,
-    char * why,
-    size_t why_cap
+    const char ** why
 ) 
 ```
 
@@ -202,8 +202,7 @@ Exactly one of `data` and `path` is given: `--data` and `--data-from-file` are o
 * `path` a file, or `-` for stdin; NULL when `data` is given. 
 * `len` bits per frame, `LEN` of the frame's `data:LEN`; &gt; 0. 
 * `fill` a Field whose bits pad the last frame and fill an idle one, or NULL for none. `data:LEN` is refused as a fill. 
-* `why` optional; receives a sentence naming the cause of a refusal, with its numbers (a remainder is stated in bits). Untouched on success. 
-* `why_cap` capacity of `why` in bytes, NUL included. 
+* `why` optional; receives a STATIC sentence naming the cause of a refusal (a Field's is the parser's own), untouched on success. A remainder is stated in bits by the caller, from [**dp\_wfm\_data\_length\_bits**](wfm__data_8h.md#function-dp_wfm_data_length_bits). 
 
 
 
@@ -214,9 +213,8 @@ the source, or NULL: text outside the grammar, a file that cannot be opened, an 
 
 
 ```C++
-char            why[160];
-wfm_data_src_t *s
-    = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, why, sizeof why);
+const char     *why;
+wfm_data_src_t *s = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
 uint8_t         b[8];
 dp_wfm_data_next (s, 1, b, sizeof b, -1); // WFM_DATA_FRAME: 1010 1011
 dp_wfm_data_next (s, 1, b, sizeof b, -1); // WFM_DATA_FRAME: 1100 1101
@@ -240,8 +238,7 @@ wfm_data_src_t * dp_wfm_data_create_fd (
     int fd,
     size_t len,
     const char * fill,
-    char * why,
-    size_t why_cap
+    const char ** why
 ) 
 ```
 
@@ -297,6 +294,42 @@ WFM\_DATA\_FRAME, or WFM\_DATA\_ERROR when the source has no fill or `out` is to
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_data\_length\_bits 
+
+_A source's length in bits, known before it is built; 0 for a stream._ 
+```C++
+uint64_t dp_wfm_data_length_bits (
+    const char * data,
+    const char * path
+) 
+```
+
+
+
+What a caller needs before the first sample: how many `LEN`-bit frames a finite source makes, `ceil(bits / LEN)`, and  when [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) refuses a source that leaves a remainder with no fill  the numbers to state that remainder in. Exactly one of `data` and `path`, as [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) takes them.
+
+
+
+
+**Returns:**
+
+the bits of a literal or generated Field, or of a regular file; 0 for a stream (`pn:0:…`, `-`, a pipe), for text outside the grammar, and for a file that cannot be opened.
+
+
+
+```C++
+const uint64_t n = dp_wfm_data_length_bits ("0xABC", NULL);   // 12
+// in 8-bit frames: the last holds n % 8 = 4 and is 8 - 4 = 4 short
+```
+ 
 
 
         

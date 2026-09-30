@@ -45,21 +45,9 @@ def _fixture(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _run(
-    repo: Path, *args: str, allow: str | None = None
-) -> subprocess.CompletedProcess[str]:
-    allow_path = repo / "allow"
-    allow_path.write_text(allow or "")
+def _run(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT),
-            "--repo",
-            str(repo),
-            "--allow",
-            str(allow_path),
-            *args,
-        ],
+        [sys.executable, str(SCRIPT), "--repo", str(repo), *args],
         capture_output=True,
         text=True,
         check=False,
@@ -79,33 +67,6 @@ def test_dropped_script_is_red(tmp_path: Path) -> None:
     assert r.returncode == 1
     assert f"{EX}/b_demo.py" in r.stdout
     assert "b_plot.png" in r.stdout
-
-
-def test_allowlisted_orphan_passes(tmp_path: Path) -> None:
-    repo = _fixture(tmp_path)
-    r = _run(
-        repo, f"{EX}/a_demo.py", allow=f"{EX}/b_demo.py | not yet rendered\n"
-    )
-    assert r.returncode == 0, r.stdout + r.stderr
-
-
-def test_stale_allowlist_entry_is_red(tmp_path: Path) -> None:
-    """A ratchet: an entry that is now listed must leave the allowlist."""
-    repo = _fixture(tmp_path)
-    r = _run(
-        repo,
-        f"{EX}/a_demo.py",
-        f"{EX}/b_demo.py",
-        allow=f"{EX}/b_demo.py | not yet rendered\n",
-    )
-    assert r.returncode == 1
-    assert "ratchet" in r.stdout
-
-
-def test_allowlist_entry_without_reason_does_not_count(tmp_path: Path) -> None:
-    repo = _fixture(tmp_path)
-    r = _run(repo, f"{EX}/a_demo.py", allow=f"{EX}/b_demo.py\n")
-    assert r.returncode == 1
 
 
 def test_listed_script_naming_no_plot_is_red(tmp_path: Path) -> None:

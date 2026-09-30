@@ -22,8 +22,20 @@ segments mode exists:
 The DLL runs on a **carrier-wiped** stream: the carrier loop is *upstream*
 (here a genie de-rotate stands in for the Costas loop that
 :class:`~doppler.dsss.AsyncDsssReceiver` runs before its DLL). With the carrier
-removed and the rate aided, the despread output is clean BPSK — no residual
-ring — and the code stays locked through the Doppler.
+removed and the rate aided, the despread output settles to clean BPSK and the
+code stays locked through the Doppler.
+
+It settles; it does not start there. The code NCO's increment is truncated
+to an integer phase step (``nco_core.h``, 15f2a366): each update runs up to
+1 LSB slow, 1.9e-6 of the code rate here, and half that on average. So the
+loop starts against a frequency step of about 9.5e-7, which its integrator
+has to absorb. That step sets only the SIZE of the disturbance. Its LENGTH
+is set by the code loop's bandwidth: a type-2 loop pulls a frequency step in
+with time constant ``1/(zeta*wn)``, ``wn = 8*zeta*bn/(1 + 4*zeta**2)``, about
+375 epochs at the ``bn = 0.002``, ``zeta = 0.707`` used here. While the
+integrator ramps up, the code phase lags, the despread envelope ripples and
+the lock statistic dips. The run is long enough to show both the dip and the
+recovery.
 
 Writes TWO figures. The despread story is noiseless so the envelope is clean;
 the lock detector needs noise to be meaningful, so it gets its own figure on
@@ -33,9 +45,9 @@ its own noisy signal — the two are never conflated.
   * **Oversampled async BPSK out** — the despread partial stream at ``K``
     samples/symbol; the symbol edges (dashed) slide through the code epochs
     because the symbol clock is independent of the code clock.
-  * **Clean despread constellation** — the same partials in the complex plane:
-    two tight BPSK clusters at ±1 (carrier wiped upstream, rate aided), not the
-    smeared ring an uncorrected residual carrier would leave.
+  * **Clean despread constellation** — the settled partials in the complex
+    plane: two tight BPSK clusters at ±1 (carrier wiped upstream, rate
+    aided), not the smeared ring an uncorrected residual carrier would leave.
   * **Code rate from aiding** — ``code_rate`` (the loop's own observable) sits
     at ~1.0 while the aid supplies the true ``1 + DCODE`` code-rate dilation:
     the DLL isn't rate-tracking the Doppler, it's being *handed* the rate.
@@ -43,7 +55,8 @@ its own noisy signal — the two are never conflated.
 ``<out>_lock.png`` — the always-on lock detector on a SEPARATE noisy run: the
   non-coherent lock statistic ``R = sqrt(2*sum|P|^2 / E|O|^2)`` (acquisition's
   test, with a random off-peak EMA noise reference) climbing past the CFAR
-  threshold at several SNRs, beside the noisy despread output it ran on.
+  threshold at several SNRs, dipping while the code loop pulls in the NCO's
+  frequency step and recovering, beside the noisy despread output it ran on.
 
 Run:  python -m doppler.examples.async_despread_demo  [out.png]
 """
@@ -69,7 +82,23 @@ F0 = 3e-4  # residual carrier, cyc/sample (removed upstream before the DLL)
 DCODE = 2e-4  # code Doppler (chip-rate offset), supplied to the DLL as aid
 DSYM = 4e-3  # symbol-vs-code rate offset (async)
 PHI = 0.37 * TE  # symbol-clock phase, samples
-NSYM = 300
+
+# The code loop, and how long it needs. bn is normalised to the code-epoch
+# rate (the loop updates once per epoch). The truncating code NCO starts the
+# loop with a frequency step of up to 1 LSB: that step sets the SIZE of the
+# transient. Its LENGTH comes from the loop bandwidth alone. A type-2 loop's
+# response to a frequency step decays as exp(-zeta*wn*t), so its time
+# constant is 1/(zeta*wn) epochs. This is dp_loop_filter_wn's formula (the
+# check in main() pins it to LoopFilter's own gains). After 3 time constants
+# the code-phase error is down to e^-3 = 5% of its peak, which costs R about
+# 1.5% against the ~30% at the trough, so that is where the settled TAIL
+# starts.
+BN, ZETA = 0.002, 0.707  # code-loop noise bandwidth (per epoch), damping
+WN = 8.0 * ZETA * BN / (1.0 + 4.0 * ZETA**2)  # rad/epoch
+TAU = 1.0 / (ZETA * WN)  # pull-in time constant, epochs (~375)
+SETTLE = int(np.ceil(3.0 * TAU))  # first settled epoch (~1126)
+TAIL = 300  # settled epochs the tail asserts read
+NSYM = SETTLE + TAIL  # one symbol spans ~1.004 epochs, so nep >= this
 
 
 def make_signal(code, seed=9):
@@ -112,12 +141,22 @@ def main(
     rxw = carrier_wipe(make_signal(code)[0])  # carrier removed upstream
     _, tsym = make_signal(code)
 
-    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
+    # The run length above restates dp_loop_filter_wn. Pin it to the loop
+    # the library actually builds: for its bilinear PI gains
+    # ki/kp = wn*t/(2*zeta), at t = 1 update per epoch.
+    from doppler.track import LoopFilter
+
+    lf = LoopFilter(BN, ZETA, 1.0)
+    assert abs(2.0 * ZETA * lf.ki / lf.kp - WN) < 1e-12 * WN, "wn drifted"
+
+    d = Dll(code, SPS, 0.0, BN, ZETA, 0.5, segments=K)
+    assert abs(d.bn - BN) < 1e-15, "Dll does not run the loop SETTLE assumes"
     # Carrier→code aiding: the upstream carrier loop's offset, as a code-rate
     # ratio, hands the DLL the Doppler dilation it can't pull in on its own.
     d.set_rate_aid(DCODE)
 
     nep = len(rxw) // TE
+    assert nep >= SETTLE + TAIL, f"run of {nep} epochs ends before the tail"
     rate = np.empty(nep)
     chunks = []
     for e in range(nep):
@@ -127,7 +166,7 @@ def main(
 
     # Aided + carrier-wiped: the despread envelope sits at ~1 (except the
     # partial straddling each async symbol edge) and the code holds lock.
-    env_med = float(np.median(np.abs(part[len(part) // 2 :])))
+    env_med = float(np.median(np.abs(part[SETTLE * K :])))
     print(f"settled despread envelope median = {env_med:.3f}")
     assert env_med > 0.9, "despread envelope collapsed"
     print(f"code locked = {bool(d.locked)}  lock_stat = {d.lock_stat:.1f}")
@@ -136,14 +175,14 @@ def main(
     # code_rate is the loop's OWN observable (1 + integrator); with the aid
     # carrying the DCODE dilation, the loop only mops up residual, so it stays
     # near 1.0 — far below the true 1 + DCODE the aid supplies.
-    settled_rate = float(rate[nep // 2 :].mean())
+    settled_rate = float(rate[SETTLE:].mean())
     print(f"loop code_rate (aid off the books) = {settled_rate:.6f}")
     assert abs(settled_rate - 1.0) < DCODE, "loop residual larger than the aid"
 
     fig, (a, b, c) = plt.subplots(1, 3, figsize=(13.5, 4.2))
 
     # --- 1. oversampled asynchronous BPSK out (settled window) ---
-    off = (len(part) * 6 // 10) // K * K  # past the code-loop pull-in
+    off = (SETTLE + TAIL // 2) * K  # inside the settled tail
     nshow = 16
     span = nshow * K
     pp = np.arange(off, off + span)
@@ -182,7 +221,7 @@ def main(
     a.grid(alpha=0.25)
 
     # --- 2. clean despread constellation (carrier wiped + rate aided) ---
-    w = part[200 : 200 + 80 * K]
+    w = part[SETTLE * K : (SETTLE + 80) * K]  # settled
     # align the BPSK axis to real (a downstream Costas job; genie here)
     w = w * np.exp(-0.5j * np.angle(np.mean(w**2)))
     b.scatter(w.real, w.imag, s=12, color="#1f77b4", alpha=0.5)
@@ -193,7 +232,7 @@ def main(
     b.axhline(0, color="k", lw=0.5)
     b.axvline(0, color="k", lw=0.5)
     b.set_title(
-        "Clean despread BPSK\n(carrier wiped upstream, rate aided — no ring)",
+        "Clean despread BPSK, settled\n(carrier wiped upstream, rate aided)",
         fontsize=9,
     )
     b.set_xlabel("I")
@@ -258,6 +297,7 @@ def _lock_figure(code, plt, out_path):
     rxw = carrier_wipe(make_signal(code)[0])
     nep = len(rxw) // TE
     thr = det_threshold_noncoherent(1e-3, 20)  # default lock config
+    assert nep >= SETTLE + TAIL, f"run of {nep} epochs ends before the tail"
     rng = np.random.default_rng(5)
 
     def add_noise(namp):
@@ -272,14 +312,14 @@ def _lock_figure(code, plt, out_path):
 
     # --- left: R vs epoch at several SNRs, + noise-only, vs threshold ---
     runs = [
-        ("strong (namp 3)", add_noise(3.0), "#1f77b4", None),
+        ("strong (namp 3)", add_noise(3.0), "#1f77b4", "strong"),
         ("weak (namp 9)", add_noise(9.0), "#2ca02c", "mid"),
         ("very weak (namp 16)", add_noise(16.0), "#ff7f0e", None),
         ("noise only", noise_only(9.0), "#d62728", None),
     ]
     mid_part = None
     for label, rxn, col, tag in runs:
-        dl = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
+        dl = Dll(code, SPS, 0.0, BN, ZETA, 0.5, segments=K)
         dl.set_rate_aid(DCODE)
         R = np.empty(nep)
         chunks = []
@@ -291,21 +331,48 @@ def _lock_figure(code, plt, out_path):
         a.plot(np.arange(nep), R, color=col, lw=1.0, label=label)
         if tag == "mid":
             mid_part = np.concatenate(chunks)
-        # CFAR behaviour: the strong and weak signal runs' settled lock
-        # statistic must sit above the threshold; the noise-only run
-        # must not.  The "very weak" run is deliberately marginal (it
-        # hovers at the gate) and is shown, not asserted.
-        r_med = float(np.median(R[nep // 2 :]))
-        print(f"lock stat median ({label}) = {r_med:.1f} vs eta {thr:.1f}")
+        # Asserts read the settled TAIL (epochs >= SETTLE), not a median
+        # over half the run: a median cannot tell a pull-in dip from a
+        # loop walking off, which is how a decaying R went unnoticed (#1670).
+        #  * CFAR: the strong and weak runs' tail sits at least 1.5x above
+        #    eta; the noise-only tail stays below it. The very weak run is
+        #    deliberately marginal (~1.4x) and gets no eta margin.
+        #  * Recovery: every signal run's tail comes back to within 10% of
+        #    where it started (epochs 2-39, before the dip has grown). The
+        #    trough is ~30% down, so a run cut short or a loop that never
+        #    absorbs the step fails here.
+        r_tail = float(np.median(R[SETTLE:]))
+        print(
+            f"lock stat tail median ({label}) = {r_tail:.1f} vs eta {thr:.1f}"
+        )
         if label == "noise only":
-            assert r_med < thr, "noise-only lock stat crossed the gate"
-        elif not label.startswith("very weak"):
-            assert r_med > thr, f"lock not declared on the {label} run"
+            assert r_tail < thr, "noise-only lock stat crossed the gate"
+            continue
+        if not label.startswith("very weak"):
+            assert r_tail > 1.5 * thr, f"{label}: tail R within 1.5x of eta"
+        r_start = float(np.median(R[2:40]))
+        assert r_tail > 0.9 * r_start, (
+            f"{label}: R did not recover ({r_tail:.1f} vs {r_start:.1f})"
+        )
+        if tag == "strong":
+            # The dip, measured on a 50-epoch running median (R itself is
+            # noisy epoch to epoch): its trough, and the first epoch after
+            # it where R is back within 5% of the start level.
+            win = np.lib.stride_tricks.sliding_window_view(R, 50)
+            sm = np.median(win, axis=1)  # sm[e] = median of R[e : e + 50]
+            trough = 2 + int(np.argmin(sm[2:SETTLE]))
+            back = trough + int(np.argmax(sm[trough:] > 0.95 * r_start))
+            print(
+                f"strong run: start R {r_start:.1f}, trough "
+                f"{sm[trough]:.1f} at epochs {trough}-{trough + 49}, back "
+                f"within 5% from epoch {back} (tau = {TAU:.0f} epochs)"
+            )
     a.axhline(thr, color="k", ls="--", lw=1.3, label=f"η={thr:.1f} (pfa=1e-3)")
+    a.axvline(SETTLE, color="0.5", ls=":", lw=1.2, label="3τ: settled tail")
     a.set_ylim(0, None)
     a.set_title(
         "Lock statistic R vs epoch (noisy)\n"
-        "R = √(2·Σ|P|²/E|O|²); SF=1023 → signal sits far above η",
+        f"dip: loop pulls in the NCO's 1-LSB step, τ = 1/(ζωn) ≈ {TAU:.0f}",
         fontsize=9,
     )
     a.set_xlabel("code epoch")
@@ -315,7 +382,7 @@ def _lock_figure(code, plt, out_path):
 
     # --- right: the noisy despread output the middle trace ran on ---
     if mid_part is not None:
-        seg = mid_part[len(mid_part) // 2 : len(mid_part) // 2 + 80 * K]
+        seg = mid_part[SETTLE * K : (SETTLE + 80) * K]  # settled
         seg = seg * np.exp(-0.5j * np.angle(np.mean(seg**2)))
         b.scatter(seg.real, seg.imag, s=10, color="#2ca02c", alpha=0.4)
         lim = 1.3 * float(np.median(np.abs(seg))) + 1e-9

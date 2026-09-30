@@ -26,6 +26,10 @@ same value the receiver's refine/track stages use.
 
 ## What you're seeing
 
+The first two panels are drawn from the **settled tail** of the run, after the
+code loop has pulled in its start-up transient (see
+[The pull-in transient](#the-pull-in-transient) below).
+
 **Left — Oversampled asynchronous BPSK out.** The despread segment stream at
 `K = 11` samples/symbol, with the `|despread|` envelope (gray) drawn so the
 amplitude is explicit. The symbol edges (red, dashed) **slide** through the
@@ -37,8 +41,8 @@ symbol, which then integrates two opposite-sign data halves and is scaled by
 **confined to 1-of-`K`** instead of wiping a whole epoch — exactly what
 segmented coherent correlation buys you.
 
-**Middle — Clean despread BPSK.** The same segments in the complex plane: two
-tight BPSK clusters at ±1, *not* a smeared ring. The carrier was removed
+**Middle — Clean despread BPSK, settled.** Settled segments in the complex
+plane: two tight BPSK clusters at ±1, *not* a smeared ring. The carrier was removed
 upstream and the code rate is aided, so nothing rotates within the correlation —
 the despread is coherent. (An uncorrected residual carrier is what would smear
 these onto a ring; that is the carrier loop's job, done before the DLL, not
@@ -68,15 +72,43 @@ signal — the same carrier-wiped, rate-aided DLL.
 It forms `R = √(2·Σ|P|²/E|O|²)` over `N` looks — prompt power over a CFAR noise
 reference taken from a **random off-peak correlation** (re-drawn each epoch,
 EMA-averaged) — and latches `Dll.locked` when `R` crosses
-`det_threshold_noncoherent(pfa, N)`. **Left:** `R` per epoch at several SNRs; with
-Gold-1023's ~30 dB despread gain the signal traces sit far above the threshold
-even when very weak, while the noise-only trace hugs `√(2N) ≈ 6.3` below it.
+`det_threshold_noncoherent(pfa, N)`. **Left:** `R` per epoch at several SNRs.
+With Gold-1023's ~30 dB despread gain the strong and weak traces sit well above
+the threshold throughout, and the noise-only trace hugs `√(2N) ≈ 6.3` below it.
+The very weak trace is marginal by design: it touches the threshold at the
+bottom of the dip described next.
 **Right:** the noisy despread output behind the "weak" trace — the BPSK is still
 recoverable and the detector reports lock on it. Because the noise reference rides
 an EMA much longer than the `N`-look test (and is cumulative-mean-bootstrapped so
 it is unbiased from the first look), the false-alarm rate holds at the target
 `pfa` (default `1e-3`) from the start. The statistic and threshold are the *same*
 ones the FFT acquisition uses, so acquire and track agree on "detected".
+
+## The pull-in transient
+
+Every signal trace in the lock figure **dips and recovers**. This is the code
+loop pulling in a start-up frequency step, not a loop losing lock.
+
+- **The disturbance.** The code NCO's phase increment is truncated to an integer
+    step. That is deliberate: `nco_core.h:248`, from 15f2a366, keeps the loop
+    bit-identical across hosts. Each update therefore runs up to 1 LSB slow,
+    1.9e-6 of the code rate at this geometry, and half that on average. The
+    loop starts against a code-rate step of about 9.5e-7. The step sets only
+    the *size* of the transient.
+- **The recovery time.** The *length* of the transient is set by the loop
+    bandwidth. A type-2 loop pulls in a frequency step with time constant
+    `τ = 1/(ζωₙ)`, where `ωₙ = 8ζBₙ/(1+4ζ²)`. At this DLL's `bn = 0.002` per
+    epoch and `ζ = 0.707`, that is **τ ≈ 375 epochs**. While the integrator
+    ramps, the code phase lags, and `R` and the despread envelope suffer.
+- **Measured by the demo's own run.** The strong trace starts at `R ≈ 39.6`
+    and bottoms at **27.1 (32% down) around epochs 315–364**. It is back
+    within 5% of its start **from epoch 726**. The demo runs `3τ ≈ 1126`
+    epochs plus a 300-epoch tail. Past 3τ the code-phase error is under 5% of
+    its peak, and the example asserts on that settled tail: each signal
+    run's `R` must return to within 10% of its start, and the strong and weak
+    runs must clear the threshold by 1.5x.
+
+A narrower `bn` makes the dip longer, and a wider one shorter.
 
 ## How it works
 
@@ -99,7 +131,7 @@ the upstream carrier loop.
 code = np.asarray(Gold().generate(SF)).astype(np.uint8)
 rxw = carrier_wipe(make_signal(code)[0])   # carrier removed upstream
 
-d = Dll(code, sps=SPS, init_chip=0.0, bn=0.002, zeta=0.707, spacing=0.5,
+d = Dll(code, sps=SPS, init_chip=0.0, bn=BN, zeta=ZETA, spacing=0.5,
         segments=K)
 d.set_rate_aid(DCODE)     # carrier->code aiding supplies the code-rate dilation
 part = d.steps(rxw)       # oversampled async BPSK out (PN removed), clean BPSK

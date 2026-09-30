@@ -337,6 +337,15 @@ of epochs. Measured: empirical Pfa ≈ 9e-4 against a 1e-3 target from the start
 a noise stream. `Dll.locked`, `Dll.lock_stat` and `Dll.noise_est` read it back,
 inside the normal `steps()`, with no opt-in.
 
+**`R` is not flat from the first epoch: it dips while the code loop pulls in.**
+The disturbance is the code NCO's truncated increment (`nco_core.h:248`,
+15f2a366): up to 1 LSB slow per update, about 9.5e-7 of the code rate on
+average at SF=1023 and sps=8. Its duration is the loop's, `τ = 1/(ζωₙ)` with
+`ωₙ = 8ζBₙ/(1+4ζ²)`, which is about 375 epochs at `bn = 0.002` and
+`ζ = 0.707`. In the [streaming despreader demo](../gallery/async-despread.md),
+`R` falls 32%, bottoming around epochs 315–364, and is back within 5% from
+epoch 726. Size a lock-dependent decision against the trough, or wait out 3τ.
+
 ### 3.6 The look-back window finds the transition-free epoch
 
 The code loop's error comes from the one-epoch window with the **most prompt

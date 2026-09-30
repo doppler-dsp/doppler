@@ -42,6 +42,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/pn/pn_core.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -536,6 +538,30 @@ extern "C"
    *         (@ref WFM_SEQ_DATA, whose bits are its data source's).
    */
   size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
+
+  /**
+   * @brief The PN generator a @ref WFM_SEQ_PN sequence names, at its first
+   * bit. NULL if it names none.
+   *
+   * The ONE resolution of a PN sequence's defaults: a zero `poly` is the
+   * maximal-length polynomial for its register (and a register that has none
+   * is refused), and a zero `seed` is 1. @ref dp_wfm_seq_bits renders a
+   * field through it, and a `pn:0` data source keeps one running across
+   * frames, so a stream's chunk `k` is bits `[k LEN, (k+1) LEN)` of the very
+   * sequence its Field names.
+   *
+   * @param s  a sequence of kind @ref WFM_SEQ_PN; any other kind is NULL.
+   * @return a generator the caller frees with `dp_pn_destroy()`, or NULL.
+   *
+   * @code
+   * wfm_seq_t      q = { .kind = WFM_SEQ_PN, .len = 31, .reg_bits = 5 };
+   * dp_pn_state_t *p = dp_wfm_seq_pn_create (&q);
+   * uint8_t        b[31];
+   * dp_pn_generate (p, 31, b, 31);   // one period of the 5-bit m-sequence
+   * dp_pn_destroy (p);
+   * @endcode
+   */
+  dp_pn_state_t *dp_wfm_seq_pn_create (const wfm_seq_t *s);
 
   /**
    * @brief Write a field's bits: its sequence once, then repeated. Returns

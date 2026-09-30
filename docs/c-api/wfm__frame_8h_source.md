@@ -15,6 +15,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/pn/pn_core.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -162,6 +164,8 @@ extern "C"
                                  unsigned first, unsigned n_fields);
 
   size_t dp_wfm_seq_bits (const wfm_seq_t *s, uint8_t *out, size_t max_out);
+
+  dp_pn_state_t *dp_wfm_seq_pn_create (const wfm_seq_t *s);
 
   size_t dp_wfm_field_render (const wfm_field_t *f, uint8_t *out,
                               size_t max_out);

@@ -200,6 +200,7 @@
 
 ## w
 
+* [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md)
 * [**wfm\_draw\_t**](structwfm__draw__t.md)
 * [**wfm\_field\_t**](structwfm__field__t.md)
 * [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md)

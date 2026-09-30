@@ -49,6 +49,15 @@ gh-723 rewrite changed the shape being scanned, and a discovery that
 matches nothing would have reported full coverage of an empty set.
 ``dispatcher_flags`` therefore hard-fails unless it finds a handful of
 anchor flags that will exist for as long as the tool does.
+
+Usage
+-----
+``make wfmgen-flag-matrix`` regenerates the golden
+(``native/tests/wfmgen_flag_matrix.json``) against ``build/``'s wfmgen,
+through ``uv``. It is the only supported way to refresh it: the Makefile is
+the one place that says how a tool runs (#1627). ctest runs the check as
+``wfmgen_flag_matrix`` (``--check``), and its failure message names the
+target.
 """
 
 from __future__ import annotations
@@ -1833,8 +1842,8 @@ def main() -> int:
 
     if not GOLDEN.is_file():
         print(
-            f"wfmgen_flag_matrix: no golden at {GOLDEN}; run without "
-            f"--check to create it",
+            f"wfmgen_flag_matrix: no golden at {GOLDEN}; run "
+            f"`make wfmgen-flag-matrix` to create it",
             file=sys.stderr,
         )
         return 1
@@ -1857,8 +1866,8 @@ def main() -> int:
         for p in problems:
             print(f"  {p}")
         print(
-            "\n  If the change is intended, re-run without --check and "
-            "commit the golden."
+            "\n  If the change is intended, regenerate the golden with "
+            "`make wfmgen-flag-matrix` and commit it."
         )
         return 1
 

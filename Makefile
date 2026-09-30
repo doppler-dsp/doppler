@@ -1390,7 +1390,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
                 container-mount-check \
-                cargo-lock-check design-pages-check \
+                cargo-lock-check design-pages-check wfmgen-flag-matrix \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
@@ -2600,6 +2600,16 @@ endif
 # value.
 issues: ## Refresh docs/dev/issues.md from the live issue list (needs gh)
 	uv run python scripts/gen_issue_tracker.py --write
+
+# The wfmgen flag-matrix golden is GATED by ctest (`wfmgen_flag_matrix`,
+# native/src/wfmcompose/CMakeLists.txt, which runs the script with --check)
+# and REGENERATED only here: the same script, through uv, against the binary
+# `build` just made. Before this target every PR that changed a case ran the
+# script by hand with whatever interpreter and build path it had (#1627), and
+# the script's docstring and its failure message both name this target.
+WFMGEN_EXE = $(BUILD_DIR)/native/src/wfmcompose/wfmgen
+wfmgen-flag-matrix: build ## Regenerate native/tests/wfmgen_flag_matrix.json
+	$(UV) run python scripts/gen_wfmgen_flag_matrix.py --exe $(WFMGEN_EXE)
 
 docs-relink: ## Regenerate every generated doc region
 	uv run python scripts/gen_related_pages.py --write

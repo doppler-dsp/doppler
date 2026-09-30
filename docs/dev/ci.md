@@ -21,10 +21,12 @@ make ci-run TARGET='build test-rust'   # any goals, in CI's environment
 make ci-gates                          # the whole gate set, in CI's environment
 ```
 
-`ci-gates` is the pre-push check. It composes `gates` rather than listing
-gates again: `gates` is already *every gate CI runs* — `gates-check` enforces
-that against `ci.yml` — so the only thing the container adds is the
-environment.
+`ci-gates` reproduces CI locally, for when a CI red needs more than its job
+log. It composes `gates` rather than listing gates again: `gates` is already
+*every gate CI runs* — `gates-check` enforces that against `ci.yml` — so the
+only thing the container adds is the environment. It is not a pre-push
+ritual: before pushing, run what proves your change and let CI be the gate
+([Release](release.md), step 1's tip).
 
 It is deliberately **not** a git pre-push hook. `gates` includes `coverage` at
 roughly ten minutes, and a hook that slow is one people pass `--no-verify` to.

@@ -3689,8 +3689,9 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 # names /w/... — paths that do not exist here, which breaks clangd silently.
 	@ln -sfn $(BUILD_DIR)/compile_commands.json compile_commands.json
 
-# The composition a developer actually wants before pushing: the gate set
-# CI runs, in the environment CI runs it in. `gates` is already "every gate CI
+# The gate set CI runs, in the environment CI runs it in: how to reproduce a
+# CI red locally. Not a pre-push ritual -- before pushing, run what proves the
+# change and let CI be the gate (docs/dev/release.md, #1646). `gates` is already "every gate CI
 # runs" (gates-check enforces that against ci.yml); this is that list with the
 # environment question removed too.
 #
@@ -3698,7 +3699,7 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 # ~10 minutes -- a hook that slow is one people pass --no-verify to, and a
 # gate routinely bypassed is decoration. It is a target you run when you mean
 # it, and CI remains the thing that is not optional.
-ci-gates: ## Run the full gate set inside the PINNED CI image (pre-push check)
+ci-gates: ## Run the full gate set inside the PINNED CI image (reproduce CI)
 	@$(MAKE) --no-print-directory ci-run TARGET=gates
 
 ci-image-shell: ## A shell in the LOCALLY BUILT CI image (see ci-image)

@@ -210,6 +210,16 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # A refusal reason has one shape, `const char **why`, and jm binds
+      # exactly that one. Fires on any C change: a new refusal API can land
+      # in any header.
+      - id: why-param
+        name: why parameter is const char **
+        entry: make -s lint-why-param
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # A trusted internal allocation goes through clib_common.h's
       # abort-on-OOM helpers. Fires on any C change: a bare malloc can
       # appear in any core, and the point is to catch the FIRST one.

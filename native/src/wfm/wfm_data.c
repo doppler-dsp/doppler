@@ -17,7 +17,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -157,38 +156,34 @@ struct wfm_data_src
   wfm_data_stats_t st;
 };
 
+/* A refusal's reason: STATIC, as every refusal in doppler is
+   (`const char **why`). The one number a face may want -- a finite source's
+   length, to state a remainder -- is dp_wfm_data_length_bits(), not a
+   second form of `why`. */
 static void
-say (char *why, size_t cap, const char *fmt, ...)
+say (const char **why, const char *msg)
 {
-  if (!why || cap == 0)
-    return;
-  va_list ap;
-  va_start (ap, fmt);
-  (void)vsnprintf (why, cap, fmt, ap);
-  va_end (ap);
+  if (why)
+    *why = msg;
 }
 
 static wfm_data_src_t *
-refuse (wfm_data_src_t *s, char *why, size_t cap, const char *msg)
+refuse (wfm_data_src_t *s, const char **why, const char *msg)
 {
-  say (why, cap, "%s", msg);
+  if (msg)
+    say (why, msg);
   dp_wfm_data_destroy (s);
   return NULL;
 }
 
 /* A Field's bits through the one door (dp_wfm_field_bits), which refuses
-   data:LEN by name. Returns the count, or 0 with the reason in `why`. */
+   data:LEN by name. Returns the count, or 0 with the parser's reason. */
 static size_t
-field_to_bits (const char *spec, uint8_t **out, char *why, size_t cap,
-               const char *what)
+field_to_bits (const char *spec, uint8_t **out, const char **why)
 {
-  const char  *r = NULL;
-  const size_t n = dp_wfm_field_bits (spec, NULL, 0, &r);
+  const size_t n = dp_wfm_field_bits (spec, NULL, 0, why);
   if (n == 0)
-    {
-      say (why, cap, "%s %s: %s", what, spec, r ? r : "not a Field");
-      return 0;
-    }
+    return 0;
   *out = dp_xmalloc (n);
   (void)dp_wfm_field_bits (spec, *out, n, NULL);
   return n;
@@ -196,12 +191,12 @@ field_to_bits (const char *spec, uint8_t **out, char *why, size_t cap,
 
 /* Every refusal decidable before the first sample (§4.3, §4.4), once. */
 static wfm_data_src_t *
-check_length (wfm_data_src_t *s, char *why, size_t cap)
+check_length (wfm_data_src_t *s, const char **why)
 {
   if (s->st.stream)
     {
       if (s->kind == SRC_FD && !s->fill)
-        return refuse (s, why, cap,
+        return refuse (s, why,
                        "a stream's length is unknown until it ends, so it "
                        "needs a fill (--fill) for its last frame and for "
                        "idle frames");
@@ -209,34 +204,43 @@ check_length (wfm_data_src_t *s, char *why, size_t cap)
     }
   const uint64_t n = s->st.total_bits;
   if (n == 0)
-    return refuse (s, why, cap, "the data is empty: a burst of no frames");
-  const uint64_t tail = n % s->len;
-  if (tail && !s->fill)
-    {
-      say (why, cap,
-           "the data is %llu bits: its last %zu-bit frame holds %llu and "
-           "is %llu bits short, and no fill (--fill) is declared",
-           (unsigned long long)n, s->len, (unsigned long long)tail,
-           (unsigned long long)(s->len - tail));
-      dp_wfm_data_destroy (s);
-      return NULL;
-    }
+    return refuse (s, why, "the data is empty: a burst of no frames");
+  if (n % s->len && !s->fill)
+    return refuse (s, why,
+                   "the data does not fill its last frame and no fill "
+                   "(--fill) is declared; dp_wfm_data_length_bits() gives "
+                   "its length, so the remainder can be stated in bits");
   return s;
 }
 
 static wfm_data_src_t *
-alloc_src (size_t len, const char *fill, char *why, size_t cap)
+alloc_src (size_t len, const char *fill, const char **why)
 {
   wfm_data_src_t *s = dp_xcalloc (1, sizeof *s);
   s->len            = len;
   s->fd             = -1;
   if (fill)
     {
-      s->nfill = field_to_bits (fill, &s->fill, why, cap, "--fill");
+      s->nfill = field_to_bits (fill, &s->fill, why);
       if (s->nfill == 0)
-        return refuse (s, NULL, 0, NULL);
+        return refuse (s, why, NULL);
     }
   return s;
+}
+
+/* Where `pn:0:` stops being LEN: the colon after a LEN that reads as 0, or
+   NULL when @p data is not a pn stream. */
+static const char *
+pn_stream_rest (const char *data)
+{
+  if (strncmp (data, "pn:", 3) != 0)
+    return NULL;
+  const char *colon = strchr (data + 3, ':');
+  uint64_t    len;
+  if (!colon || dp_wfm_parse_u64 (data + 3, (size_t)(colon - data - 3), &len)
+      || len != 0)
+    return NULL;
+  return colon;
 }
 
 /* `pn:0:REST` -- LEN 0 is a stream. The one parser reads the rest, through
@@ -244,41 +248,29 @@ alloc_src (size_t len, const char *fill, char *why, size_t cap)
    refused here too. Returns 1 if @p data is a pn stream, 0 if not, -1 on a
    refusal (reason in `why`). */
 static int
-pn_stream (wfm_data_src_t *s, const char *data, char *why, size_t cap)
+pn_stream (wfm_data_src_t *s, const char *data, const char **why)
 {
-  if (strncmp (data, "pn:", 3) != 0)
+  const char *colon = pn_stream_rest (data);
+  if (!colon)
     return 0;
-  const char *colon = strchr (data + 3, ':');
-  uint64_t    len;
-  if (!colon || dp_wfm_parse_u64 (data + 3, (size_t)(colon - data - 3), &len)
-      || len != 0)
-    return 0;
-
   const size_t n    = strlen (colon) + 5u;
   char        *text = dp_xmalloc (n);
   (void)snprintf (text, n, "pn:1%s", colon);
   wfm_field_t f;
   uint8_t    *owned = NULL;
-  const char *r     = NULL;
-  const int   rc    = dp_wfm_field_parse (text, &f, &owned, &r);
+  const int   rc    = dp_wfm_field_parse (text, &f, &owned, why);
   free (text);
   if (rc != 0)
-    {
-      say (why, cap, "--data %s: %s", data, r);
-      return -1;
-    }
+    return -1;
   if (f.reps > 1)
     {
-      say (why, cap,
-           "--data %s: a stream has no end to repeat, so *REPS "
-           "is refused",
-           data);
+      say (why, "a stream has no end to repeat, so *REPS is refused");
       return -1;
     }
   s->pn = dp_wfm_seq_pn_create (&f.seq);
   if (!s->pn)
     {
-      say (why, cap, "--data %s: no generator for this register", data);
+      say (why, "no generator for this register");
       return -1;
     }
   s->kind      = SRC_PN;
@@ -286,36 +278,55 @@ pn_stream (wfm_data_src_t *s, const char *data, char *why, size_t cap)
   return 1;
 }
 
+uint64_t
+dp_wfm_data_length_bits (const char *data, const char *path)
+{
+  if ((data != NULL) == (path != NULL))
+    return 0;
+  if (data)
+    return pn_stream_rest (data)
+               ? 0u
+               : (uint64_t)dp_wfm_field_bits (data, NULL, 0, NULL);
+  if (strcmp (path, "-") == 0)
+    return 0;
+  const int fd = fd_open (path);
+  if (fd < 0)
+    return 0;
+  int                regular = 0;
+  unsigned long long bytes   = 0;
+  const int          ok      = fd_stat (fd, &regular, &bytes) == 0;
+  fd_close (fd);
+  return ok && regular ? (uint64_t)bytes * 8u : 0u;
+}
+
 wfm_data_src_t *
 dp_wfm_data_create (const char *data, const char *path, size_t len,
-                    const char *fill, char *why, size_t why_cap)
+                    const char *fill, const char **why)
 {
   if ((data != NULL) == (path != NULL))
     {
-      say (why, why_cap,
-           data ? "--data and --data-from-file both name the payload's "
-                  "source; give one"
-                : "no data source: give --data or --data-from-file");
+      say (why, data ? "--data and --data-from-file both name the payload's "
+                       "source; give one"
+                     : "no data source: give --data or --data-from-file");
       return NULL;
     }
   if (len == 0)
     {
-      say (why, why_cap, "a data field carries bits: LEN must be > 0");
+      say (why, "a data field carries bits: LEN must be > 0");
       return NULL;
     }
 
   if (path)
     {
       if (strcmp (path, "-") == 0)
-        return dp_wfm_data_create_fd (STDIN_FD, len, fill, why, why_cap);
+        return dp_wfm_data_create_fd (STDIN_FD, len, fill, why);
       const int fd = fd_open (path);
       if (fd < 0)
         {
-          say (why, why_cap, "--data-from-file %s: %s", path,
-               strerror (errno));
+          say (why, "the data file cannot be opened (errno says why)");
           return NULL;
         }
-      wfm_data_src_t *s = dp_wfm_data_create_fd (fd, len, fill, why, why_cap);
+      wfm_data_src_t *s = dp_wfm_data_create_fd (fd, len, fill, why);
       if (!s)
         fd_close (fd);
       else
@@ -323,41 +334,39 @@ dp_wfm_data_create (const char *data, const char *path, size_t len,
       return s;
     }
 
-  wfm_data_src_t *s = alloc_src (len, fill, why, why_cap);
+  wfm_data_src_t *s = alloc_src (len, fill, why);
   if (!s)
     return NULL;
-  const int ps = pn_stream (s, data, why, why_cap);
+  const int ps = pn_stream (s, data, why);
   if (ps < 0)
-    return refuse (s, NULL, 0, NULL);
+    return refuse (s, why, NULL);
   if (ps == 0)
     {
       s->kind  = SRC_FIELD;
-      s->nbits = field_to_bits (data, &s->bits, why, why_cap, "--data");
+      s->nbits = field_to_bits (data, &s->bits, why);
       if (s->nbits == 0)
-        return refuse (s, NULL, 0, NULL);
+        return refuse (s, why, NULL);
       s->st.total_bits = s->nbits;
     }
-  return check_length (s, why, why_cap);
+  return check_length (s, why);
 }
 
 wfm_data_src_t *
-dp_wfm_data_create_fd (int fd, size_t len, const char *fill, char *why,
-                       size_t why_cap)
+dp_wfm_data_create_fd (int fd, size_t len, const char *fill, const char **why)
 {
   if (len == 0)
     {
-      say (why, why_cap, "a data field carries bits: LEN must be > 0");
+      say (why, "a data field carries bits: LEN must be > 0");
       return NULL;
     }
   int                regular;
   unsigned long long bytes;
   if (fd < 0 || fd_stat (fd, &regular, &bytes) != 0)
     {
-      say (why, why_cap, "the data source cannot be read: %s",
-           strerror (errno));
+      say (why, "the data source cannot be read (errno says why)");
       return NULL;
     }
-  wfm_data_src_t *s = alloc_src (len, fill, why, why_cap);
+  wfm_data_src_t *s = alloc_src (len, fill, why);
   if (!s)
     return NULL;
   s->kind      = SRC_FD;
@@ -370,7 +379,7 @@ dp_wfm_data_create_fd (int fd, size_t len, const char *fill, char *why,
     s->st.total_bits = (uint64_t)bytes * 8u;
   else
     s->st.stream = 1;
-  return check_length (s, why, why_cap);
+  return check_length (s, why);
 }
 
 void

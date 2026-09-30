@@ -44,11 +44,12 @@ extern "C"
 
   wfm_data_src_t *dp_wfm_data_create (const char *data, const char *path,
                                       size_t len, const char *fill,
-                                      char *why, size_t why_cap);
+                                      const char **why);
 
   wfm_data_src_t *dp_wfm_data_create_fd (int fd, size_t len,
-                                         const char *fill, char *why,
-                                         size_t why_cap);
+                                         const char *fill, const char **why);
+
+  uint64_t dp_wfm_data_length_bits (const char *data, const char *path);
 
   void dp_wfm_data_destroy (wfm_data_src_t *s);
 

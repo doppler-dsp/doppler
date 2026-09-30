@@ -1577,6 +1577,7 @@
 * **dp\_wfm\_data\_create\_fd** ([**wfm\_data.h**](wfm__data_8h.md))
 * **dp\_wfm\_data\_destroy** ([**wfm\_data.h**](wfm__data_8h.md))
 * **dp\_wfm\_data\_idle** ([**wfm\_data.h**](wfm__data_8h.md))
+* **dp\_wfm\_data\_length\_bits** ([**wfm\_data.h**](wfm__data_8h.md))
 * **dp\_wfm\_data\_next** ([**wfm\_data.h**](wfm__data_8h.md))
 * **dp\_wfm\_data\_stats** ([**wfm\_data.h**](wfm__data_8h.md))
 * **dp\_wfm\_cont\_dsss\_chips** ([**wfm\_dsp.h**](wfm__dsp_8h.md))

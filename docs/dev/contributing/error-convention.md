@@ -131,8 +131,9 @@ int main(void)
 Why this shape and no other:
 
 - **One shape for every binding.** jm binds exactly this one: a function's
-    `why = true` and a composer's `from_json_why` / `from_file_why` raise
-    `*why` as the `ValueError`'s message. A second shape, such as a
+    `why = true`, a composer's `from_json_why` / `from_file_why`, and an
+    owned-pointer source field's `parse_why` all raise `*why` as the
+    `ValueError`'s message. A second shape, such as a
     caller-owned `char *why, size_t why_cap` buffer, needs its own binding
     and splits the convention in two.
 - **No allocation on an error path.** A pointer to a literal cannot fail. A

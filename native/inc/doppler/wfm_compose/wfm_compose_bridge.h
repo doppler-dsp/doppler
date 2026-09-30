@@ -12,6 +12,7 @@
 
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "doppler/frame/frame_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +25,18 @@ dp_wfm_synth_state_t *dp_wfm_source_to_synth(const wfm_source_t *, double);
  * (coerce_str_fn, gh-1709): out NULL sizes; returns the bit count, or 0
  * with *why set on a refusal. */
 size_t dp_wfm_source_bits_refuse_text(const char *, uint8_t *, size_t, const char **);
+
+/* Owned pointer `frame` (gh-1711): copy. */
+wfm_frame_desc_t *dp_wfm_frame_copy(const wfm_frame_desc_t *);
+
+/* Owned pointer `frame` (gh-1711): free. */
+void dp_wfm_frame_free(wfm_frame_desc_t *);
+
+/* Owned pointer `frame` (gh-1711): parse, naming a refusal in *why. */
+wfm_frame_desc_t *dp_wfm_frame_refuse_text(const char *, const char **why);
+
+/* Owned pointer `frame` (gh-1711): format. */
+char *dp_wfm_frame_to_json(const wfm_frame_desc_t *);
 
 #ifdef __cplusplus
 }

@@ -218,16 +218,19 @@ typedef struct {
     /* The FRAME, as a description, when the source carries one -- the only
        way a source says anything but the common frame: a coding stage, a
        field of the caller's own bits at a position of their choosing, a
-       stage covering a span they name. `wfmgen --frame FILE` and a scene's
-       `frame` key both land here. When it is set it IS the frame, and the
-       common-frame fields below (acq_code/sync/crc/payload) do not frame
-       this source.
+       stage covering a span they name. `wfmgen --frame FILE`, a scene's
+       `frame` key and Python's `frame=` (a FrameDesc or a Frame) all land
+       here. When it is set it IS the frame, and the common-frame
+       fields below (acq_code/sync/crc/payload) do not frame this source.
+       NULL means the common frame, `[preamble x reps | sync | payload |
+       crc]`, which `dp_wfm_frame_fixed()` builds from the fields below.
 
-       Borrowed, never owned: the description points at the caller's
-       sequences exactly as `wfm_seq_t` is borrowed elsewhere here, so it
-       must outlive the source. NULL means the common frame,
-       `[preamble x reps | sync | payload | crc]`, which
-       `dp_wfm_frame_fixed()` builds from the fields below.
+       A C caller's description is borrowed, exactly as `wfm_seq_t` is
+       borrowed elsewhere here, so it must outlive the source. The composer
+       and a Python source hold their own copy (`dp_wfm_frame_copy()`), so
+       a later change to the FrameDesc does not reach them. On the Python
+       face `frame=` is an input: read it back from the composer's JSON
+       (its getter is jm's, pending removal: doppler#1694).
 
        KERNELS stay in C by design. A description names a stage's KIND; the
        code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a
@@ -461,6 +464,12 @@ void dp_wfm_frame_free(wfm_frame_desc_t *d);
 
 size_t dp_wfm_source_bits_refuse_text(const char *text, uint8_t *out,
                                       size_t max_out, const char **why);
+
+wfm_frame_desc_t *dp_wfm_frame_refuse_text(const char *text, const char **why);
+
+char *dp_wfm_frame_to_json(const wfm_frame_desc_t *d);
+
+wfm_frame_desc_t *dp_wfm_frame_copy(const wfm_frame_desc_t *d);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 

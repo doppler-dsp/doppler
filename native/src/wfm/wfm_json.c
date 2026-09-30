@@ -337,13 +337,21 @@ read_stage_kind (const cJSON *o, uint32_t *out)
  *
  * Written only when a description is carried, so every record from a source
  * without one stays byte-identical to what it was before this existed. */
+static cJSON *frame_desc_obj (const wfm_frame_desc_t *d);
+
 static void
 add_frame_desc (cJSON *o, const wfm_source_t *src)
 {
-  const wfm_frame_desc_t *d = src->frame;
-  if (!d)
-    return;
+  if (src->frame)
+    cJSON_AddItemToObject (o, "frame", frame_desc_obj (src->frame));
+}
 
+/* One frame object -- {"fields": [...], "stages": [...]} -- the inverse of
+ * read_frame_obj(). The one writer of the form: a scene's "frame" key and
+ * dp_wfm_frame_to_json() both come through here. */
+static cJSON *
+frame_desc_obj (const wfm_frame_desc_t *d)
+{
   cJSON *fr     = cJSON_CreateObject ();
   cJSON *fields = cJSON_AddArrayToObject (fr, "fields");
   for (unsigned i = 0; i < d->n_fields; i++)
@@ -371,7 +379,7 @@ add_frame_desc (cJSON *o, const wfm_source_t *src)
       add_num_keys (so, s, STAGE_KEYS, N_STAGE_KEYS);
       cJSON_AddItemToArray (stages, so);
     }
-  cJSON_AddItemToObject (o, "frame", fr);
+  return fr;
 }
 
 /* ── the surface rows: every table field, both directions ──────────────
@@ -1210,5 +1218,39 @@ dp_wfm_frame_from_json (const char *json, const char **why)
       d = NULL;
     }
   cJSON_Delete (root);
+  return d;
+}
+
+char *
+dp_wfm_frame_to_json (const wfm_frame_desc_t *d)
+{
+  if (!d)
+    return NULL;
+  cJSON *fr  = frame_desc_obj (d);
+  char  *out = dp_xnn (cJSON_PrintUnformatted (fr));
+  cJSON_Delete (fr);
+  return out;
+}
+
+wfm_frame_desc_t *
+dp_wfm_frame_copy (const wfm_frame_desc_t *src)
+{
+  if (!src)
+    return NULL;
+  wfm_frame_desc_t *d = dp_xmalloc (sizeof *d);
+  *d                  = *src;
+  /* Each literal field's bits are the caller's; the copy owns its own, so
+     dp_wfm_frame_free() on it never reaches a buffer it did not allocate. */
+  for (unsigned f = 0; f < d->n_fields; f++)
+    {
+      const wfm_seq_t *q   = &src->field[f].seq;
+      d->field[f].seq.bits = NULL;
+      if (q->bits && q->len)
+        {
+          uint8_t *b = dp_xmalloc (q->len);
+          memcpy (b, q->bits, q->len);
+          d->field[f].seq.bits = b;
+        }
+    }
   return d;
 }

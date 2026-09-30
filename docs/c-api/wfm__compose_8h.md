@@ -94,8 +94,11 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_compose\_set\_seed\_advance**](#function-dp_wfm_compose_set_seed_advance) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**dp\_wfm\_compose\_spans**](#function-dp_wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
 |  char \* | [**dp\_wfm\_draws\_json**](#function-dp_wfm_draws_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_The same rows_ [_**dp\_wfm\_compose\_draws()**_](wfm__compose_8h.md#function-dp_wfm_compose_draws) _reports, as a JSON array._ |
+|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_copy**](#function-dp_wfm_frame_copy) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Deep-copy a description: the struct and each literal field's bits._  |
 |  void | [**dp\_wfm\_frame\_free**](#function-dp_wfm_frame_free) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Free a description returned by_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _, bits and all. NULL is a no-op._ |
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_from\_json**](#function-dp_wfm_frame_from_json) (const char \* json, const char \*\* why) <br>_Read a frame description from its JSON form._  |
+|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_refuse\_text**](#function-dp_wfm_frame_refuse_text) (const char \* text, const char \*\* why) <br>_Refuse text for a source's_ `frame=` _: it takes a description._ |
+|  char \* | [**dp\_wfm\_frame\_to\_json**](#function-dp_wfm_frame_to_json) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Write a description as its JSON frame object, the text_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _reads back._ |
 |  void | [**dp\_wfm\_render\_destroy**](#function-dp_wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
 |  void | [**dp\_wfm\_render\_noise\_steps**](#function-dp_wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
@@ -924,6 +927,52 @@ free(js);
 
 
 
+### function dp\_wfm\_frame\_copy 
+
+_Deep-copy a description: the struct and each literal field's bits._ 
+```C++
+wfm_frame_desc_t * dp_wfm_frame_copy (
+    const wfm_frame_desc_t * d
+) 
+```
+
+
+
+A source borrows its description; a holder that must outlive the caller's (the composer, a Python `Synth`) takes a copy instead, and releases it with [**dp\_wfm\_frame\_free()**](wfm__compose_8h.md#function-dp_wfm_frame_free). A later change to the original, or freeing it, does not reach the copy.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description to copy; NULL gives NULL. 
+
+
+
+**Returns:**
+
+the owned copy.
+
+
+
+```C++
+wfm_frame_desc_t *a
+    = dp_wfm_frame_from_json ("{\"fields\": [{\"spec\": \"1010\"}]}", NULL);
+wfm_frame_desc_t *b = dp_wfm_frame_copy (a);
+dp_wfm_frame_free (a);   // b is unaffected
+// b->field[0].seq.len == 4
+dp_wfm_frame_free (b);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_frame\_free 
 
 _Free a description returned by_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _, bits and all. NULL is a no-op._
@@ -992,6 +1041,97 @@ wfm_frame_desc_t *d = dp_wfm_frame_from_json (
 if (!d)
   fprintf (stderr, "error: %s\n", why);
 // d->n_fields == 2; d->field[1].reps == 4
+dp_wfm_frame_free (d);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_frame\_refuse\_text 
+
+_Refuse text for a source's_ `frame=` _: it takes a description._
+```C++
+wfm_frame_desc_t * dp_wfm_frame_refuse_text (
+    const char * text,
+    const char ** why
+) 
+```
+
+
+
+The frame face of [**dp\_wfm\_source\_bits\_refuse\_text()**](wfm__compose_8h.md#function-dp_wfm_source_bits_refuse_text). A source's `frame=` takes a `FrameDesc` or a `Frame` on the Python face, and a `str` is refused rather than read as JSON; a description written as JSON is a scene's `"frame"` key, read by [**dp\_wfm\_frame\_from\_json()**](wfm__compose_8h.md#function-dp_wfm_frame_from_json). It has the shape of that reader because the binding calls it where the reader would be called (just-makeit's owned-pointer `parse_fn` with `parse_why`).
+
+
+
+
+**Parameters:**
+
+
+* `text` ignored. 
+* `why` receives the static reason; may be NULL. 
+
+
+
+**Returns:**
+
+NULL, always.
+
+
+
+```C++
+const char *why;
+wfm_frame_desc_t *d = dp_wfm_frame_refuse_text ("{\"fields\": []}", &why);
+// d == NULL; why names FrameDesc
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_frame\_to\_json 
+
+_Write a description as its JSON frame object, the text_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _reads back._
+```C++
+char * dp_wfm_frame_to_json (
+    const wfm_frame_desc_t * d
+) 
+```
+
+
+
+The same writer a scene's `"frame"` key uses, so the two cannot spell a description differently: a literal field is its Field text, a derived field its `bits` and `derived_by`, a stage its kind and cover.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description; NULL gives NULL. 
+
+
+
+**Returns:**
+
+a NUL-terminated string the caller releases with free().
+
+
+
+```C++
+wfm_frame_desc_t *d
+    = dp_wfm_frame_from_json ("{\"fields\": [{\"spec\": \"1010\"}]}", NULL);
+char *text = dp_wfm_frame_to_json (d);
+// text: {"fields":[{"spec":"0xa"}],"stages":[]}
+free (text);
 dp_wfm_frame_free (d);
 ```
  

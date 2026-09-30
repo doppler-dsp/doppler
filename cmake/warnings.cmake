@@ -6,9 +6,10 @@
 # true was visible to no gate -- #1642 surfaced only because clang enables
 # -Wswitch by default and gcc does not.
 #
-# WHERE. Included once, at the END of the root CMakeLists.txt, so every
-# target already exists. It walks the directory tree rather than setting
-# add_compile_options() up front, for two reasons:
+# WHERE. Included near the top of the root CMakeLists.txt (so fft's
+# CMakeLists can name DP_VENDOR_NO_WARN), and applied by dp_apply_warnings()
+# at its END, once every target exists. It walks the directory tree rather
+# than setting add_compile_options() up front, for two reasons:
 #
 #   * jm generates most per-module CMakeLists.txt, and a flag written into one
 #     is drift. A walk reaches every generated target from here, unedited.
@@ -41,12 +42,15 @@
 # which spells it `/clang:-Wall` there. (MSVC's own cl.exe cannot build
 # doppler at all; see the root CMakeLists.txt.)
 #
-# DOPPLER_WERROR=OFF keeps the warnings and drops -Werror, for a build from
-# the sdist on a compiler newer than any doppler has met. Every gate runs with
-# the default.
+# -Werror is OPT-IN (DOPPLER_WERROR, default OFF). A consumer building from
+# source -- the sdist through pip, vcpkg, a deb/rpm, add_subdirectory or
+# FetchContent -- gets the warnings and never an error, so a warning class
+# some future compiler adds to -Wall cannot stop them building a doppler they
+# do not maintain. doppler's own builds pass ON from the Makefile's configure
+# (WERROR_FLAG), which is what `make build`, `make test` and CI run.
 
 option(DOPPLER_WERROR
-       "Treat compiler warnings in doppler's own code as errors" ON)
+       "Treat compiler warnings in doppler's own code as errors" OFF)
 
 set(DP_WARNING_FLAGS -Wall -Wextra)
 

@@ -668,9 +668,20 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
 CCACHE_BIN   := $(shell command -v ccache 2>/dev/null)
 CCACHE_FLAGS := $(if $(CCACHE_BIN),-DCMAKE_C_COMPILER_LAUNCHER=ccache,)
 
+# -Werror on doppler's own C (cmake/warnings.cmake, doppler#1658). The CMake
+# option defaults OFF, so a consumer -- vcpkg, a deb/rpm, add_subdirectory,
+# FetchContent -- gets the warnings and never an error for a warning a newer
+# compiler invents. doppler's OWN builds turn it on HERE, which every make
+# configure below reaches, and CI drives make. The one exception is the PEP 517
+# hook (`just-build`): an sdist a user builds with pip goes through it, so it
+# must not inherit the gate. Before $(CMAKE_ARGS), so
+# CMAKE_ARGS=-DDOPPLER_WERROR=OFF still wins.
+DOPPLER_WERROR ?= ON
+WERROR_FLAG     = -DDOPPLER_WERROR=$(DOPPLER_WERROR)
+
 CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
               -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CCACHE_FLAGS) \
-              $(CMAKE_ARGS)
+              $(WERROR_FLAG) $(CMAKE_ARGS)
 
 # `CMAKE_FLAGS` reaches the CONFIGURE step only, and the standard's `build`
 # ends with a bare `cmake --build $(BUILD_DIR)` — so there is no flag surface
@@ -1029,7 +1040,7 @@ $(CMAKE) -B $(COV_DIR) -S . \
     -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
     -DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    $(CMAKE_ARGS)
+    $(WERROR_FLAG) $(CMAKE_ARGS)
 $(COV_GUARD) $(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
 mkdir -p $(COV_DIR)/pkg/doppler
 # The extract below is ADDITIVE -- it overwrites what it carries and leaves
@@ -1926,7 +1937,7 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 		"-DCMAKE_C_FLAGS=$(UBSAN_FLAGS)" \
 		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=undefined" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=undefined" \
-		$(CMAKE_ARGS)
+		$(WERROR_FLAG) $(CMAKE_ARGS)
 	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
 # An empty result set is not a pass -- see test-asan.
 	@n=$$($(CTEST) --test-dir $(UBSAN_DIR) $(SAN_EXCLUDE_SWEEP) -N | sed -n 's/^Total Tests: //p'); \
@@ -1981,7 +1992,7 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 		"-DCMAKE_C_FLAGS=$(ASAN_FLAGS)" \
 		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address" \
-		$(CMAKE_ARGS)
+		$(WERROR_FLAG) $(CMAKE_ARGS)
 	$(CMAKE) --build $(ASAN_DIR) --parallel $(NPROC)
 # An empty result set is not a pass -- the same trap test-tsan guards, and it
 # bites harder here because this target takes no pattern: a configure that
@@ -2053,7 +2064,7 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 		"-DCMAKE_C_FLAGS=$(TSAN_FLAGS)" \
 		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread" \
-		$(CMAKE_ARGS)
+		$(WERROR_FLAG) $(CMAKE_ARGS)
 	$(CMAKE) --build $(TSAN_DIR) --parallel $(NPROC)
 # An empty result set is not a pass -- the same trap the glibc and tarball
 # gates were both caught by, and the one this target's old name-pattern was
@@ -2181,6 +2192,7 @@ gen-c-api-check: ## Fail if the committed docs/c-api is stale against the header
 # there to be packaged. The docs group is excluded so a docs-dep network blip
 # cannot fail a wheel build.
 just-build: UV_SYNC_FLAGS = --no-group docs
+just-build: DOPPLER_WERROR = OFF
 just-build: pyext ## PEP 517 build hook for just-buildit
 	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
 	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler

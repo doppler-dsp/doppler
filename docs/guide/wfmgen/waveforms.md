@@ -96,7 +96,7 @@ wfmgen --type symbols --symbols-file qam16.cf32 --sps 8 --pulse rrc -o qam.cf32
 In Python the constellation is the `symbols=` keyword on the composer `Synth`
 (`Synth(type="symbols", symbols=iq, sps=8)`); on the low-level `_SynthEngine`
 it is attached with `set_symbols()` after construction. See the
-[Python API](python.md) page for a worked pi/4-QPSK example, and the
+[Python API](../../api/python-wfmgen.md#symbols-arbitrary-constellation) for a worked pi/4-QPSK example, and the
 [Symbols gallery walkthrough](../../gallery/symbols.md) for pi/4-QPSK and
 16-QAM constellations with rect vs RRC pulses.
 
@@ -168,12 +168,11 @@ wfmgen --type bpsk --sync 1111100110101 --bits pn:1024:10 --pn-length 10 \
        --sps 4 --count 16384 -o framed_bpsk.cf32
 ```
 
-**That command used to exit 2.** A frame on `--type bpsk`/`qpsk`/`pn` was
-refused outright, because those waveforms take their data from the synth's
-own endless LFSR and nothing said where the payload stopped. A length is
-exactly that bound, so a framed PN-sourced waveform is now the same
-descriptor every other source builds, and a [coded frame](#coded-frames-frame-file)
-reaches it too. The frame's bits take the mapping the **type**
+Those waveforms take their data from the synth's own endless LFSR, and the
+Field's length is what says where the payload stops, so a framed PN-sourced
+waveform is the same descriptor every other source builds, and a
+[coded frame](#coded-frames-frame-file) reaches it too. The frame's bits take
+the mapping the **type**
 names, so a framed `--type qpsk` is Gray-coded QPSK over the frame and there
 is no `--modulation` to disagree with it.
 
@@ -196,10 +195,8 @@ of the frame. (A `dsss` burst is the exception: its length is intrinsic and
 
 A frame needs a payload. The types whose symbols come from the PN LFSR —
 `bpsk`, `qpsk`, `pn` — take one from that LFSR once a `--bits pn:…` Field bounds it
-(above), and **refuse** the framing flags without it, naming the replacement.
-Until [gh-755](https://github.com/doppler-dsp/doppler/issues/755) the whole
-unspread path ignored them silently, producing an unframed waveform at exit 0;
-that is why the refusal is loud.
+(above), and **refuse** the framing flags without it, naming the replacement,
+rather than write an unframed waveform at exit 0.
 
 The same keywords work on the Python `Synth` and `Segment`
 (`sync=`, `acq_code=`, `acq_reps=`, `crc=`), and `--record` carries them, so
@@ -208,25 +205,6 @@ The same keywords work on the Python `Synth` and `Segment`
 The layout is one C descriptor (`native/inc/doppler/wfm/wfm_frame.h`) read by the
 generator that builds it and the measurer that scores it — see
 [Receiver Test Harness](../../design/rx-test.md) §7.
-
-______________________________________________________________________
-
-## DSSS — two-code spread-spectrum bursts
-
-A `dsss` waveform is a complete **direct-sequence spread-spectrum burst** —
-an unmodulated repeated preamble (`acq_code` × `acq_reps`) followed by the
-frame `sync | payload | CRC-16`, every frame bit spread by a second, distinct
-`data_code` — the transmit side of the
-[`BurstDemod`](../../api/python-dsss.md) frame contract. `sps` is samples per
-*chip*, `esno` refers to the outer *data* symbol, the burst length is
-intrinsic, and `repeats`/`delay_samples`/`off_samples` turn one declaration
-into a randomly-placed burst train over a continuous noise floor.
-
-**[DSSS bursts](waveforms.md#dsss-bursts) is the full reference** — anatomy, Es/N0
-semantics, placement, ground-truth SigMF annotations, and a decode-it-back
-walkthrough. CLI flags: `--acq-code` (repetitions as its `*REPS`),
-`--data-code`, `--sync`, `--crc none|crc16`, payload via `--bits`/`--bits-file`
-— each sequence one [Field](../../design/frame-description.md#f1-the-grammar).
 
 ______________________________________________________________________
 
@@ -620,38 +598,9 @@ starts = [int(a["core:sample_start"]) for a in meta["annotations"]]
 assert len(starts) == 5                     # one per instance, in order
 ```
 
-### Decode it back
-
-The same codes and sync word seed the receiver; every burst comes back
-CRC-valid with the exact payload — through the noisy gaps, using the
-sidecar's ground-truth positions:
-
-```python
-from doppler.wfm import crc16
-from doppler.dsss import BurstDemod
-
-burst_len = (128 * 4 + (13 + 200 + 16) * 25) * 4   # n_chips * sps
-decoded = 0
-# The demodulator returns the FRAME and no verdict — it stops at
-# decisions — so the payload is a slice and the CRC is checked here.
-frame_syms = 13 + 200 + 16
-for s in starts:
-    bd = BurstDemod(dat, spc=4, chip_rate=1e6, frame_syms=frame_syms)
-    bd.set_preamble(acq, 4)
-    bd.set_sync(BARKER13)
-    bd.set_prior(0.0, 0)
-    frame = bd.demod(x[s : s + burst_len])
-    got = frame[13:13 + 200]
-    rx_crc = 0
-    for b in frame[13 + 200:][:16]:
-        rx_crc = (rx_crc << 1) | int(b)
-    decoded += bool(rx_crc == int(crc16(got)) and np.array_equal(got, pay))
-assert decoded == 5
-```
-
-(For a full walkthrough — acquisition search over the capture, false-alarm
-rejection, all three wfmgen faces byte-compared — see the
-[DSSS burst pipeline gallery](../../gallery/dsss-burst-pipeline.md).)
+Decoding the train back — acquisition over the whole capture, the burst held
+across block boundaries, every frame checked — is the
+[DsssBurstReceiver walkthrough](../../gallery/dsss-burst-receiver.md).
 
 ### The same burst on the other two faces
 
@@ -837,8 +786,8 @@ np.array_equal(plan.render(), scene.compose())   # bit-identical baseline
 for esn0_db in (4.0, 7.0, 10.0, 13.0):
     for mc_seed in (1000, 1001, 1002):
         draw = plan.render(snr=esn0_db, seed=mc_seed)
-        # feed `draw` to Acquisition / BurstDespreader / BurstDemod per
-        # the pipeline walkthrough above for a Pd/Pfa-vs-Es/N0 curve
+        # feed `draw` to a DsssBurstReceiver (the walkthrough linked
+        # above) for a Pd/Pfa-vs-Es/N0 curve
 len(plan)   # worst-case capacity (every ranged gap at its `hi` bound)
 ```
 
@@ -990,9 +939,114 @@ wfmgen --type bits --frame bad.json --count 4144 -o bad.cf32 \
   || echo "refused, as documented"
 ```
 
-The six flags that used to spell these stages — `--rs-depth`,
-`--randomise`, `--asm`, `--conv`, `--interleave`, `--interleave-unit` —
-are refused by name, each pointing here.
+### In a scene, and from Python
+
+A scene carries the same description under a source's **`frame`** key, and
+`--frame FILE` reads exactly that value. The description is the whole frame,
+so the common frame's keys (`sync`, `crc`, `payload`) do not belong beside it.
+
+```json title="frame.json"
+{
+  "version": 1,
+  "segments": [
+    {
+      "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
+      "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
+      "frame": {
+        "fields": [
+          { "name": "hdr", "spec": "0101110001011100" },
+          { "name": "payload", "spec": "101010101010101010101010" },
+          { "name": "crc", "bits": 16, "derived_by": 1 }
+        ],
+        "stages": [
+          { "kind": "crc16", "first_field": 1, "n_fields": 2 }
+        ]
+      }
+    }
+  ]
+}
+```
+
+`hdr` is a field of the caller's own bits at a position the caller chose,
+outside the CRC's cover. Spelled as the common frame instead — `hdr` as its
+sync word — it is the same frame, and the two are byte-identical, because
+`--sync`/`--crc` build their frame through `dp_wfm_frame_fixed()`, which is a
+description too:
+
+```sh
+wfmgen --from-file frame.json -o from_desc.cf32
+wfmgen --type bits --bits 101010101010101010101010 \
+       --sync 0101110001011100 --crc crc16 \
+       --fs 1e6 --sps 4 --snr 100 --count 224 -o from_flags.cf32
+python3 - <<'EOF'
+import pathlib
+import sys
+
+a = pathlib.Path("from_desc.cf32").read_bytes()
+b = pathlib.Path("from_flags.cf32").read_bytes()
+print("byte-identical" if a == b else "DIFFER")
+sys.exit(0 if a == b else 1)
+EOF
+```
+
+```text
+byte-identical
+```
+
+!!! warning "A derived field must name its producer: `derived_by`"
+
+    A field with a declared length and no bits — a CRC trailer, a block of
+    check symbols — is **derived**, and in JSON it must say which stage
+    produces it: `derived_by` is the stage's index **plus one**, so `1` means
+    stage 0. The `+1` is what makes a zero mean "the caller supplies this
+    field" rather than "the output of stage 0".
+
+    Omit it and the scene is **refused**, naming what is missing — the
+    geometry is decided in one place, so the CLI, the C API and Python all
+    say the same thing:
+
+    ```text
+    error: this frame description does not lay out: a field that declares a
+    length but supplies no bits is DERIVED and must name the stage that
+    fills it (`derived_by` = the stage's index plus one), …
+    ```
+
+    The C builder cannot make this mistake: `dp_wfm_frame_add_stage()` takes
+    the cover by name and wires the producer itself.
+
+**From C**, `wfm_source_t.frame` takes a `wfm_frame_desc_t *`, built by name
+with `dp_wfm_frame_add_field()` / `dp_wfm_frame_add_derived()` /
+`dp_wfm_frame_add_stage()`; the
+[gallery page](../../gallery/wfmgen-carried-frame.md) is a whole program.
+**From Python**, a composer source reaches the description through the scene
+JSON, because `Composer.from_json()` runs the same C code
+`wfmgen --from-file` does:
+
+```python
+import json
+
+from doppler.wfm import Composer
+
+seg = {
+    "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
+    "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
+    "frame": {
+        "fields": [
+            {"name": "hdr", "spec": "0101110001011100"},
+            {"name": "payload", "spec": "101010101010101010101010"},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+        ],
+        "stages": [{"kind": "crc16", "first_field": 1, "n_fields": 2}],
+    },
+}
+x = Composer.from_json(json.dumps({"version": 1, "segments": [seg]})).compose()
+assert len(x) == 224
+```
+
+A description goes back **out** through `to_json()` and `--record`, so a
+scene read and re-written keeps its frame. A stage whose `kind` has no
+kernel — a number from `WFM_STAGE_USER` (4096) up with no `wfm_frame_ops_t`
+entry — is refused, never skipped.
 
 ### On `--type dsss`
 

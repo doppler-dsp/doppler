@@ -203,7 +203,7 @@ with Reader("capture.blue") as r:                     # file type auto-detected
 
 `generate → Reader.read` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../../types.md#reading-interleaved-iq-in-python)
-and the [Python API](../wfmgen/python.md) page.
+and the [Python API](../../api/python-wfmgen.md) page.
 
 ______________________________________________________________________
 

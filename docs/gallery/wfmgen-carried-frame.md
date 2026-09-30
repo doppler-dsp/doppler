@@ -163,7 +163,7 @@ frame in Python, rather than per stage inside the assembler.
 
 The C struct is the primary interface, and the other two carry the same
 description rather than reimplementing it — see
-[Scenes: a frame the caller built](../guide/wfmgen/scenes.md#a-frame-the-caller-built)
+[Waveforms: in a scene, and from Python](../guide/wfmgen/waveforms.md#in-a-scene-and-from-python)
 for the scene JSON's `frame` key and what Python does with it.
 
 ## Related pages

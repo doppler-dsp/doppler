@@ -922,11 +922,26 @@ size_t
 dp_wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
                        uint8_t *out, size_t max_out)
 {
+  return dp_wfm_frame_assemble_data (d, ops, NULL, out, max_out);
+}
+
+size_t
+dp_wfm_frame_assemble_data (const wfm_frame_desc_t *d,
+                            const wfm_frame_ops_t *ops, const uint8_t *data,
+                            uint8_t *out, size_t max_out)
+{
   wfm_frame_desc_layout_t l;
   if (!d || !out || dp_wfm_frame_desc_layout (d, &l) != 0)
     return 0;
   if (l.out_bits == 0 || l.out_bits > max_out)
     return 0;
+
+  /* A data field's bits are the caller's chunk; without one the frame is
+     refused BEFORE anything is written, like an unrunnable stage below. */
+  for (unsigned i = 0; i < d->n_fields; i++)
+    if (!d->field[i].derived_by && d->field[i].seq.kind == WFM_SEQ_DATA
+        && l.field_bits[i] && !data)
+      return 0;
 
   /* Every stage must have a kernel BEFORE anything is written. A stage
      discovered to be unrunnable half way through would leave a partly coded
@@ -954,7 +969,9 @@ dp_wfm_frame_assemble (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
       if (n == 0 || f->derived_by)
         continue; /* absent, or written by the stage that derives it */
 
-      if (dp_wfm_field_render (f, frame + l.field_off[i], n) != n)
+      if (f->seq.kind == WFM_SEQ_DATA)
+        memcpy (frame + l.field_off[i], data, n); /* LEN * REPS, as drawn */
+      else if (dp_wfm_field_render (f, frame + l.field_off[i], n) != n)
         return 0;
     }
 

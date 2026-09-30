@@ -557,3 +557,112 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
     }
   return eng;
 }
+
+/* ── the pull: a frame per chunk of a data source ─────────────────────── */
+
+typedef struct
+{
+  wfm_frame_desc_t  d;
+  wfm_frame_ops_t   ops;
+  int               has_ops;
+  wfm_data_src_t   *src;
+  wfm_data_pacing_t pacing;
+  size_t            reps, chunk_bits;
+  uint8_t          *chunk;
+} data_pull_t;
+
+static void
+data_pull_free (void *u)
+{
+  data_pull_t *p = u;
+  if (!p)
+    return;
+  dp_wfm_data_destroy (p->src);
+  free (p->chunk);
+  free (p);
+}
+
+/* One frame: the next chunk under the pacing rule, assembled into `bits`.
+   Returns 0, or 1 when the data has ended (an error ends it too: a frame
+   that cannot be built is not sent). */
+static int
+data_pull_refill (void *u, uint8_t *bits, size_t n)
+{
+  data_pull_t            *p  = u;
+  const wfm_data_status_t st = dp_wfm_data_frame (p->src, p->pacing, p->reps,
+                                                  p->chunk, p->chunk_bits);
+  if (st != WFM_DATA_FRAME && st != WFM_DATA_IDLE)
+    return 1;
+  return dp_wfm_frame_assemble_data (&p->d, p->has_ops ? &p->ops : NULL,
+                                     p->chunk, bits, n)
+                 == n
+             ? 0
+             : 1;
+}
+
+int
+dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
+                          const wfm_frame_ops_t *ops, wfm_data_src_t *src,
+                          wfm_data_pacing_t pacing, int modulation)
+{
+  data_pull_t *p = dp_xcalloc (1, sizeof *p);
+  p->src         = src; /* owned from here, success or not */
+  if (!syn || !d || !src || syn->wtype != WFM_SYNTH_BITS)
+    {
+      data_pull_free (p);
+      return -1;
+    }
+
+  wfm_frame_desc_layout_t l;
+  int                     at = -1;
+  if (dp_wfm_frame_desc_layout (d, &l) == 0)
+    for (unsigned i = 0; i < d->n_fields; i++)
+      if (!d->field[i].derived_by && d->field[i].seq.kind == WFM_SEQ_DATA
+          && d->field[i].seq.len)
+        at = (int)i;
+  if (at < 0 || l.out_bits == 0)
+    {
+      data_pull_free (p);
+      return -1;
+    }
+  p->d          = *d;
+  p->has_ops    = ops != NULL;
+  p->ops        = ops ? *ops : (wfm_frame_ops_t){ 0 };
+  p->pacing     = pacing;
+  p->reps       = d->field[at].reps ? d->field[at].reps : 1u;
+  p->chunk_bits = l.field_bits[at];
+  p->chunk      = dp_xmalloc (p->chunk_bits);
+
+  /* The first frame now; an empty stream is a synth that is silent from
+     its first sample, not a failure. */
+  uint8_t         *first = dp_xcalloc (l.out_bits, 1);
+  const int        ended = data_pull_refill (p, first, l.out_bits);
+  wfm_data_stats_t st;
+  dp_wfm_data_stats (src, &st);
+  if (ended && (st.frames || st.idle_frames || !st.stream))
+    {
+      /* a first frame that could not be built -- not an empty stream */
+      free (first);
+      data_pull_free (p);
+      return -1;
+    }
+  const int rc = dp_wfm_synth_set_bits (syn, first, l.out_bits, modulation);
+  free (first);
+  if (rc != 0
+      || dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free)
+             != 0)
+    {
+      data_pull_free (p);
+      return -1;
+    }
+  syn->data_ended = (uint8_t)ended;
+  return 0;
+}
+
+const wfm_data_src_t *
+dp_wfm_synth_data_source (const dp_wfm_synth_state_t *syn)
+{
+  return syn && syn->refill == data_pull_refill
+             ? ((const data_pull_t *)syn->refill_user)->src
+             : NULL;
+}

@@ -766,6 +766,37 @@ extern "C"
                              size_t max_out);
 
   /**
+   * @brief @ref dp_wfm_frame_assemble, with a data field's bits supplied.
+   *
+   * A @ref WFM_SEQ_DATA field has no bits of its own: they are one chunk of
+   * the frame's data source, drawn per frame (wfm/wfm_data.h). This writes
+   * @p data at the data field's offset and then runs every stage, so a
+   * stage covering the payload -- a CRC, an outer code -- covers THIS
+   * frame's chunk. @ref dp_wfm_frame_assemble is this with @p data NULL.
+   *
+   * @param d        the description; at most one data field (the layout
+   *                 refuses two).
+   * @param ops      as @ref dp_wfm_frame_assemble.
+   * @param data     the data field's bits, `LEN * REPS` of them, one per
+   *                 byte, as `dp_wfm_data_next()` writes them; ignored when
+   *                 @p d has no data field, and required when it has one.
+   * @param out      as @ref dp_wfm_frame_assemble.
+   * @param max_out  as @ref dp_wfm_frame_assemble.
+   * @return the bits written, or 0 as @ref dp_wfm_frame_assemble, and also
+   *         when @p d has a data field and @p data is NULL.
+   *
+   * @code
+   * uint8_t chunk[24], frame[40];
+   * // d: [data:24 | crc16], built with dp_wfm_frame_fixed
+   * dp_wfm_frame_assemble_data (&d, NULL, chunk, frame, sizeof frame); // 40
+   * @endcode
+   */
+  size_t dp_wfm_frame_assemble_data (const wfm_frame_desc_t *d,
+                                     const wfm_frame_ops_t *ops,
+                                     const uint8_t *data, uint8_t *out,
+                                     size_t max_out);
+
+  /**
    * @brief Derive every field offset, every stage span and both lengths.
    *
    * The one operation both shipped framers already have, widened: this is

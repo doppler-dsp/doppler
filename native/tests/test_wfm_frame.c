@@ -940,6 +940,38 @@ test_data_field (void)
   DP_CHECK_MSG (dp_wfm_frame_assemble (&d, NULL, out, sizeof out) == 0,
                 "a frame whose data has no source is not assembled");
 
+  /* Given the chunk, the same frame assembles: the data field is the
+     caller's bits at the field's offset, and a stage over it runs over
+     THAT chunk -- a CRC per frame over its own data. */
+  uint8_t chunk[24];
+  for (size_t i = 0; i < 24; i++)
+    chunk[i] = (uint8_t)((i * 7u + 3u) % 5u == 0);
+  DP_CHECK_MSG (dp_wfm_frame_assemble_data (&d, NULL, NULL, out, sizeof out)
+                    == 0,
+                "no chunk, no frame: the data field is still refused");
+  DP_REQUIRE_MSG (dp_wfm_frame_assemble_data (&d, NULL, chunk, out, sizeof out)
+                      == 24u + WFM_FRAME_CRC_BITS,
+                  "with its chunk, a data frame assembles");
+  DP_CHECK_MSG (memcmp (out, chunk, 24) == 0,
+                "the data field is the chunk, at its offset");
+  const uint16_t crc = dp_crc16_ccitt (chunk, 24);
+  for (size_t i = 0; i < 16; i++)
+    DP_CHECK_MSG (out[24 + i] == ((crc >> (15u - i)) & 1u),
+                  "and the CRC covers that chunk");
+
+  /* A frame with no data field ignores the chunk: it is the plain
+     assemble, bit for bit. */
+  const wfm_seq_t  lit = { .kind = WFM_SEQ_DOTTED, .len = 12 };
+  wfm_frame_desc_t nd;
+  DP_REQUIRE (dp_wfm_frame_fixed (&nd, NULL, 0, NULL, &lit, 1) == 0);
+  uint8_t      o1[64], o2[64];
+  const size_t n1 = dp_wfm_frame_assemble (&nd, NULL, o1, sizeof o1);
+  DP_CHECK_MSG (
+      n1 > 0
+          && dp_wfm_frame_assemble_data (&nd, NULL, chunk, o2, sizeof o2) == n1
+          && memcmp (o1, o2, n1) == 0,
+      "no data field: assemble_data is assemble");
+
   /* A repeated data field is ONE draw of LEN bits sent REPS times in its
      frame -- frame-description.md §F.1 ("a repeat is invariant ... it
      never draws new data") and §F.5. So it lays out at LEN * REPS and is

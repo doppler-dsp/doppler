@@ -38,6 +38,7 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 
 | Type | Name |
 | ---: | :--- |
+| enum  | [**wfm\_data\_pacing\_t**](#enum-wfm_data_pacing_t)  <br>_Whether frames are due at a time (_ `--realtime` _) or on demand._ |
 | typedef struct wfm\_data\_src | [**wfm\_data\_src\_t**](#typedef-wfm_data_src_t)  <br>_Opaque; see_ [_**dp\_wfm\_data\_create**_](wfm__data_8h.md#function-dp_wfm_data_create) _._ |
 | enum  | [**wfm\_data\_status\_t**](#enum-wfm_data_status_t)  <br>_What a request for the next frame's data produced._  |
 
@@ -67,6 +68,7 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 |  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create**](#function-dp_wfm_data_create) (const char \* data, const char \* path, size\_t len, const char \* fill, const char \*\* why) <br>_Build a data source from a Field or from a path. NULL on refusal._  |
 |  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create\_fd**](#function-dp_wfm_data_create_fd) (int fd, size\_t len, const char \* fill, const char \*\* why) <br>_Build a data source over an open file descriptor. NULL on refusal._  |
 |  void | [**dp\_wfm\_data\_destroy**](#function-dp_wfm_data_destroy) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s) <br>_Free a source; closes a file it opened itself. NULL is a no-op._  |
+|  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_frame**](#function-dp_wfm_data_frame) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_The next frame's data field under a pacing: THE rule for idle frames._  |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_idle**](#function-dp_wfm_data_idle) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_Write an idle frame's data field: all fill,_ `reps` _times._ |
 |  uint64\_t | [**dp\_wfm\_data\_length\_bits**](#function-dp_wfm_data_length_bits) (const char \* data, const char \* path) <br>_A source's length in bits, known before it is built; 0 for a stream._  |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_next**](#function-dp_wfm_data_next) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out, int timeout\_ms) <br>_Write the next frame's data field: ONE chunk of_ `LEN` _bits, written_`reps` _times._ |
@@ -143,6 +145,23 @@ Not in this object yet: the state triplet (a stream's resume position), which la
 
 
 
+### enum wfm\_data\_pacing\_t 
+
+_Whether frames are due at a time (_ `--realtime` _) or on demand._
+```C++
+enum wfm_data_pacing_t {
+    WFM_DATA_UNPACED = 0,
+    WFM_DATA_PACED = 1
+};
+```
+
+
+
+
+<hr>
+
+
+
 ### typedef wfm\_data\_src\_t 
 
 _Opaque; see_ [_**dp\_wfm\_data\_create**_](wfm__data_8h.md#function-dp_wfm_data_create) _._
@@ -165,7 +184,8 @@ enum wfm_data_status_t {
     WFM_DATA_FRAME = 0,
     WFM_DATA_NOT_YET = 1,
     WFM_DATA_END = 2,
-    WFM_DATA_ERROR = 3
+    WFM_DATA_ERROR = 3,
+    WFM_DATA_IDLE = 4
 };
 ```
 
@@ -267,6 +287,50 @@ void dp_wfm_data_destroy (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_data\_frame 
+
+_The next frame's data field under a pacing: THE rule for idle frames._ 
+```C++
+wfm_data_status_t dp_wfm_data_frame (
+    wfm_data_src_t * s,
+    wfm_data_pacing_t pacing,
+    size_t reps,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+§4.5 in one place: only a paced caller gets idle frames. Paced, the source is asked without waiting, and _nothing yet_ becomes an all-fill idle frame ([**dp\_wfm\_data\_idle**](wfm__data_8h.md#function-dp_wfm_data_idle)), so the carrier and the frame timing never break. Unpaced, it waits for as long as the data takes and never sends an idle frame. Every frame-pulling caller goes through this, so no caller has to remember which timeout means which.
+
+
+
+
+**Returns:**
+
+WFM\_DATA\_FRAME, WFM\_DATA\_IDLE (paced only), WFM\_DATA\_END or WFM\_DATA\_ERROR.
+
+
+
+```C++
+uint8_t b[16];
+switch (dp_wfm_data_frame (s, WFM_DATA_PACED, 1, b, sizeof b))
+  {
+  case WFM_DATA_FRAME: break; // b is the next 16 bits of data
+  case WFM_DATA_IDLE:  break; // b is all fill: nothing had arrived
+  default:             break; // ended, or a read failed
+  }
+```
+ 
+
+
+        
 
 <hr>
 

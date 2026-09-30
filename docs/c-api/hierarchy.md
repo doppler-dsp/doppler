@@ -127,7 +127,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) _U8ToF32 state._ 
 * **struct** [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) _UQ15ToF32 state._ 
 * **struct** [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._ 
-* **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) _Synth state._ 
+* **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) 
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md) 
 * **struct** [**dsss\_br\_event\_t**](structdsss__br__event__t.md) _One completed burst's event, as_ `events()` _hands it back._
 * **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) 

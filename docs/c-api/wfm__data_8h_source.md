@@ -25,8 +25,15 @@ extern "C"
     WFM_DATA_FRAME   = 0, 
     WFM_DATA_NOT_YET = 1, 
     WFM_DATA_END     = 2, 
-    WFM_DATA_ERROR   = 3  
+    WFM_DATA_ERROR   = 3, 
+    WFM_DATA_IDLE    = 4  
   } wfm_data_status_t;
+
+  typedef enum
+  {
+    WFM_DATA_UNPACED = 0, 
+    WFM_DATA_PACED   = 1  
+  } wfm_data_pacing_t;
 
   typedef struct wfm_data_src wfm_data_src_t;
 
@@ -59,6 +66,10 @@ extern "C"
 
   wfm_data_status_t dp_wfm_data_idle (wfm_data_src_t *s, size_t reps,
                                       uint8_t *out, size_t max_out);
+
+  wfm_data_status_t dp_wfm_data_frame (wfm_data_src_t *s,
+                                       wfm_data_pacing_t pacing, size_t reps,
+                                       uint8_t *out, size_t max_out);
 
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);
 

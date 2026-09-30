@@ -13,6 +13,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/wfm_synth/wfm_synth_core.h"`
 * `#include "doppler/wfm/wfm_frame.h"`
+* `#include "doppler/wfm/wfm_data.h"`
 * `#include "doppler/doppler_channel/doppler_channel_core.h"`
 
 
@@ -113,6 +114,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  double | [**dp\_wfm\_spec\_headroom**](#function-dp_wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**dp\_wfm\_spec\_template\_json**](#function-dp_wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**dp\_wfm\_spec\_to\_json**](#function-dp_wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, int seed\_advance, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
+|  int | [**dp\_wfm\_synth\_attach\_data**](#function-dp_wfm_synth_attach_data) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* src, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing, int modulation) <br>_Drive a type=bits synth from a frame whose payload is a data source._  |
+|  const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_synth\_data\_source**](#function-dp_wfm_synth_data_source) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn) <br>_The data source a synth pulls from (dp\_wfm\_synth\_attach\_data), or NULL: its stats are the run's truth for scoring._  |
 
 
 
@@ -1610,6 +1613,83 @@ malloc'd JSON (caller frees), or NULL on allocation failure.
 
 
         
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_attach\_data 
+
+_Drive a type=bits synth from a frame whose payload is a data source._ 
+```C++
+int dp_wfm_synth_attach_data (
+    dp_wfm_synth_state_t * syn,
+    const wfm_frame_desc_t * d,
+    const wfm_frame_ops_t * ops,
+    wfm_data_src_t * src,
+    wfm_data_pacing_t pacing,
+    int modulation
+) 
+```
+
+
+
+The pull that replaces the cycle (docs/design/payload-data-source.md §7). Each frame is `d` assembled over the next chunk of `src` (dp\_wfm\_frame\_assemble\_data): the first now, and each one after at the previous frame's last bit, so every stage over the payload covers its own frame's chunk. Under `pacing`, a source with nothing yet sends an idle frame (dp\_wfm\_data\_frame, the one rule). When `src` ends, the synth goes silent and [**dp\_wfm\_synth\_data\_ended()**](wfm__synth__core_8h.md#function-dp_wfm_synth_data_ended) says so.
+
+
+
+
+**Parameters:**
+
+
+* `syn` a synth created with type=bits. 
+* `d` the frame; exactly one field is `data:LEN`, and LEN is the source's. 
+* `ops` stage kernels, as [**dp\_wfm\_frame\_assemble()**](wfm__frame_8h.md#function-dp_wfm_frame_assemble); may be NULL. 
+* `src` the data source; the synth OWNS it from here, success or not, and frees it with the synth. 
+* `pacing` WFM\_DATA\_PACED for `--realtime`, else WFM\_DATA\_UNPACED. 
+* `modulation` as [**dp\_wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_bits). 
+
+
+
+**Returns:**
+
+0, or -1: not a bits synth, no data field in `d`, a frame that does not assemble, or a source that failed its first read.
+
+
+
+```C++
+wfm_frame_desc_t d;
+const wfm_seq_t  data = { .kind = WFM_SEQ_DATA, .len = 16 };
+dp_wfm_frame_fixed (&d, NULL, 0, NULL, &data, 1);        // [data:16 | crc]
+wfm_data_src_t *src = dp_wfm_data_create ("0x0123456789AB", NULL, 16, NULL,
+                                          NULL);
+dp_wfm_synth_state_t *s
+    = dp_wfm_synth_create (WFM_SYNTH_BITS, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0,
+                           0, 0.0);
+dp_wfm_synth_attach_data (s, &d, NULL, src, WFM_DATA_UNPACED, 1); // bpsk
+// three 32-bit frames, each over its own 16-bit chunk, then silence
+dp_wfm_synth_destroy (s);                 // frees src too
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_data\_source 
+
+_The data source a synth pulls from (dp\_wfm\_synth\_attach\_data), or NULL: its stats are the run's truth for scoring._ 
+```C++
+const wfm_data_src_t * dp_wfm_synth_data_source (
+    const dp_wfm_synth_state_t * syn
+) 
+```
+
+
+
 
 <hr>
 

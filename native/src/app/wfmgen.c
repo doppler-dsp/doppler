@@ -358,17 +358,13 @@ static const char USAGE[]
       "  e.g. --bits pn:1024:15. Types with no bit stream (tone, noise,\n"
       "  chirp, symbols) cannot be framed.\n"
       "\n"
-      "CODED OR CUSTOM FRAMES  (--type bits | bpsk | qpsk | pn | dsss)\n"
-      "  --frame FILE    A frame DESCRIPTION: fields in wire order, and\n"
-      "                  stages that each name the span they cover --\n"
-      "                  crc16, rs, randomise, interleave, conv, or a kind\n"
-      "                  of your own. The only way to add a coding stage;\n"
-      "                  a CCSDS CADU is one such file. It is the whole\n"
-      "                  frame, payload included, so --sync, --crc, --bits\n"
-      "                  and an unspread --acq-code are refused beside it.\n"
-      "                  The form is a scene's \"frame\" key, and --record\n"
-      "                  stores it there. On --type dsss it is the SPREAD\n"
-      "                  frame: --acq-code stays the unspread preamble.\n"
+      "CODED OR CUSTOM FRAMES  (--type bits | bpsk | qpsk | pn | "
+      "dsss)\n" WFM_SURFACE_HELP_CODED
+      "  The only way to add a coding stage; a CCSDS CADU is one such file.\n"
+      "  It is the whole frame, so --sync, --crc and an unspread --acq-code\n"
+      "  are refused beside it too. FILE holds a scene's \"frame\" object,\n"
+      "  and --record stores it there. On --type dsss it is the SPREAD\n"
+      "  frame: --acq-code stays the unspread preamble.\n"
       "\n"
       "DSSS BURST  (--type dsss)\n"
       "  One burst = an unmodulated repeated preamble (code A) followed by\n"
@@ -539,7 +535,6 @@ typedef struct
   double        headroom; /* dB of peak backoff; gain = 10^(-H/20) */
   double        fc;       /* centre frequency, SigMF metadata only */
   const char   *from_file;
-  const char   *frame_path; /* --frame FILE: a coded or custom frame */
   const char   *out_path;
   const char   *record_path;
   int           repeat, continuous, detached;
@@ -554,7 +549,13 @@ typedef struct
      defaults to crc16, so giving it is what frames a waveform, and a given
      --symbol-rate is refused at <= 0 where the default 0 means burst. */
   int surf_seen[WFM_SURFACE_N];
+  /* A BESPOKE row's raw value (--frame FILE), read by this face's own code
+     rather than the generic parse switch. */
+  const char *surf_text[WFM_SURFACE_N];
 } wfmgen_opts_t;
+
+/* --frame FILE: the source's frame row, a bespoke one. */
+#define FRAME_PATH(o) ((o)->surf_text[WFM_SURFACE_source_frame])
 
 /* How a flag's value is read. The enum type is used for `opt_t.kind` (rather
    than a plain int) so -Wswitch reports a kind added here with no arm in
@@ -639,9 +640,6 @@ static const opt_t OPTS[] = {
     .off  = OFF (endian),
     CHOICES (ENDIAN_NAMES) },
   { .name = "--bits-file", .kind = OPT_BITS_FILE, .off = OFF (src.payload) },
-  /* A frame as a DESCRIPTION: the only way to add a coding stage, and how a
-     CCSDS CADU is written. The common frame is --acq-code/--sync/--crc. */
-  { .name = "--frame", .kind = OPT_STR, .off = OFF (frame_path) },
   { .name = "--data",
     .kind = OPT_CHOICE,
     .off  = OFF (src.dsss_code_only),
@@ -791,6 +789,11 @@ find_opt (const char *a, opt_t *out)
           if (out->field_reps)
             out->aux = base + r->reps_off;
           break;
+        case WFM_SV_BESPOKE:
+          /* Kept as the raw token; the face reads it (load_frame). */
+          out->kind = OPT_STR;
+          out->off  = OFF (surf_text) + k * sizeof (const char *);
+          break;
         }
       return 1;
     }
@@ -819,10 +822,8 @@ parse_field_into (const opt_t *opt, const char *a, const char *v,
   if (f.reps > 1 && !opt->field_reps)
     {
       free (owned);
-      (void)fprintf (stderr,
-                     "error: %s %s: only --acq-code repeats (a preamble); "
-                     "drop the *%zu\n",
-                     a, v, f.reps);
+      (void)fprintf (stderr, "error: %s %s: %s\n", a, v,
+                     WFM_SURFACE_REPS_WHY_CLI);
       return 2;
     }
   if (dst->kind == WFM_SEQ_LITERAL)
@@ -1501,33 +1502,61 @@ check_continuous_dsss (const wfmgen_opts_t *o)
   return 0;
 }
 
+/* Two surface rows given together that no face takes together (the
+ * manifest's `exclusive`, rendered as WFM_SURFACE_EXCLUSIVE). A row is GIVEN
+ * when its flag was, or when another flag filled its member (--bits-file
+ * fills the payload --bits names). Returns 0, or 2 having said why. */
+static int
+check_exclusive (const wfmgen_opts_t *o)
+{
+  for (size_t k = 0; k < WFM_SURFACE_N_EXCLUSIVE; k++)
+    {
+      const wfm_surface_exclusive_t *e       = &WFM_SURFACE_EXCLUSIVE[k];
+      const int                      ends[2] = { e->a, e->b };
+      int                            given   = 0;
+      for (int j = 0; j < 2; j++)
+        {
+          const wfm_surface_row_t *r    = &WFM_SURFACE[ends[j]];
+          const void              *base = r->owner == WFM_SURF_SOURCE
+                                              ? (const void *)&o->src
+                                              : (const void *)&o->seg;
+          given += o->surf_seen[ends[j]] || wfm_surface_row_is_set (r, base);
+        }
+      if (given == 2 && e->cli_why)
+        {
+          (void)fprintf (stderr, "error: %s\n", e->cli_why);
+          return 2;
+        }
+    }
+  return 0;
+}
+
 /* `--frame FILE`: read a frame description and carry it on the source.
  *
  * The file holds what a scene's "frame" key holds, through the one reader
  * of that form (dp_wfm_frame_from_json). A carried description IS the frame,
- * so the flags that spell the common frame -- and the payload, which is one
- * of its fields -- are refused beside it rather than silently dropped. The
- * sync word and an unspread preamble are the bridge's refusal
- * (dp_wfm_source_frame_error), shared with every face; --crc and --bits are
- * this face's, because only here is it known they were GIVEN (crc defaults
- * to crc16). Returns 0, or the exit code. */
+ * so the flags that spell the common frame are refused beside it rather than
+ * silently dropped: --bits by the surface table's exclusion (check_exclusive,
+ * the same declaration every face refuses from); the sync word and an
+ * unspread preamble by the bridge (dp_wfm_source_frame_error); --crc here,
+ * because only this face can tell it was GIVEN (crc defaults to crc16).
+ * Returns 0, or the exit code. */
 static int
 load_frame (wfmgen_opts_t *o)
 {
-  if (!o->frame_path)
+  if (!FRAME_PATH (o))
     return 0;
-  if (o->surf_seen[WFM_SURFACE_source_crc] || o->src.payload.len)
+  if (o->surf_seen[WFM_SURFACE_source_crc])
     {
       (void)fprintf (stderr, "error: --frame FILE is the whole frame: its CRC "
-                             "is a stage and its payload a field in the file, "
-                             "so --crc and --bits/--bits-file cannot sit "
+                             "is a stage in the file, so --crc cannot sit "
                              "beside it\n");
       return 2;
     }
-  char *text = slurp_file (o->frame_path);
+  char *text = slurp_file (FRAME_PATH (o));
   if (!text)
     {
-      (void)fprintf (stderr, "error: could not read %s\n", o->frame_path);
+      (void)fprintf (stderr, "error: could not read %s\n", FRAME_PATH (o));
       return 1;
     }
   const char *why = NULL;
@@ -1535,7 +1564,7 @@ load_frame (wfmgen_opts_t *o)
   free (text);
   if (!o->src.frame)
     {
-      (void)fprintf (stderr, "error: %s: %s\n", o->frame_path,
+      (void)fprintf (stderr, "error: %s: %s\n", FRAME_PATH (o),
                      why ? why : "not a frame description");
       return 2;
     }
@@ -1669,8 +1698,11 @@ wfmgen_run (int argc, char *argv[])
   rc = check_detached (&o);
   if (rc)
     goto done;
+  rc = check_exclusive (&o);
+  if (rc)
+    goto done;
 
-  if (o.frame_path && o.from_file)
+  if (FRAME_PATH (&o) && o.from_file)
     {
       (void)fprintf (stderr, "error: --frame describes the frame of a run "
                              "built from flags; a --from-file scene carries "

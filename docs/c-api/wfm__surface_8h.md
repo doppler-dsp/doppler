@@ -32,6 +32,7 @@
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md) <br> |
 | struct | [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md) <br> |
 
 
@@ -53,6 +54,7 @@
 | Type | Name |
 | ---: | :--- |
 |  const [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md) | [**WFM\_SURFACE**](#variable-wfm_surface)  <br> |
+|  const [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md) | [**WFM\_SURFACE\_EXCLUSIVE**](#variable-wfm_surface_exclusive)   = `/* multi line expression */`<br> |
 
 
 
@@ -69,6 +71,11 @@
 
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  int | [**wfm\_surface\_row\_is\_set**](#function-wfm_surface_row_is_set) (const [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md) \* r, const void \* base) <br> |
 
 
 
@@ -100,6 +107,7 @@
 | ---: | :--- |
 | define  | [**WFM\_SURFACE\_HELP\_AMPLITUDE**](wfm__surface_8h.md#define-wfm_surface_help_amplitude)  `"  --level DB[:DB] Source power in dBFS (&lt;= 0; 0 is unit power). (default 0.0)\n"`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_BITS**](wfm__surface_8h.md#define-wfm_surface_help_bits)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_CODED**](wfm__surface_8h.md#define-wfm_surface_help_coded)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_DOPPLER**](wfm__surface_8h.md#define-wfm_surface_help_doppler)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_DSSS\_BURST**](wfm__surface_8h.md#define-wfm_surface_help_dsss_burst)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_DSSS\_CONT**](wfm__surface_8h.md#define-wfm_surface_help_dsss_cont)  `/* multi line expression */`<br> |
@@ -109,6 +117,9 @@
 | define  | [**WFM\_SURFACE\_HELP\_SIGNAL**](wfm__surface_8h.md#define-wfm_surface_help_signal)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_SYMBOLS**](wfm__surface_8h.md#define-wfm_surface_help_symbols)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_TYPE**](wfm__surface_8h.md#define-wfm_surface_help_type)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_N\_EXCLUSIVE**](wfm__surface_8h.md#define-wfm_surface_n_exclusive)  `1`<br> |
+| define  | [**WFM\_SURFACE\_REPS\_WHY\_CLI**](wfm__surface_8h.md#define-wfm_surface_reps_why_cli)  `"only --acq-code repeats (a preamble): drop the \*REPS"`<br> |
+| define  | [**WFM\_SURFACE\_REPS\_WHY\_JSON**](wfm__surface_8h.md#define-wfm_surface_reps_why_json)  `"only \"acq\_code\" repeats (a preamble): drop the \*REPS"`<br> |
 
 ## Public Types Documentation
 
@@ -147,6 +158,7 @@ enum wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388 {
     WFM_SURFACE_source_sync,
     WFM_SURFACE_source_crc,
     WFM_SURFACE_source_symbol_rate,
+    WFM_SURFACE_source_frame,
     WFM_SURFACE_segment_fs,
     WFM_SURFACE_segment_num_samples,
     WFM_SURFACE_segment_off_samples,
@@ -191,7 +203,8 @@ enum wfm_sv_kind_t {
     WFM_SV_U64,
     WFM_SV_CHOICE,
     WFM_SV_SYMBOLS,
-    WFM_SV_FIELD
+    WFM_SV_FIELD,
+    WFM_SV_BESPOKE
 };
 ```
 
@@ -208,6 +221,37 @@ enum wfm_sv_kind_t {
 
 ```C++
 const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_SURFACE\_EXCLUSIVE 
+
+```C++
+const wfm_surface_exclusive_t WFM_SURFACE_EXCLUSIVE[1];
+```
+
+
+
+
+<hr>
+## Public Static Functions Documentation
+
+
+
+
+### function wfm\_surface\_row\_is\_set 
+
+```C++
+static inline int wfm_surface_row_is_set (
+    const wfm_surface_row_t * r,
+    const void * base
+) 
 ```
 
 
@@ -237,6 +281,19 @@ const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N];
 
 ```C++
 #define WFM_SURFACE_HELP_BITS `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_CODED 
+
+```C++
+#define WFM_SURFACE_HELP_CODED `/* multi line expression */`
 ```
 
 
@@ -354,6 +411,45 @@ const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N];
 
 ```C++
 #define WFM_SURFACE_HELP_TYPE `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_N\_EXCLUSIVE 
+
+```C++
+#define WFM_SURFACE_N_EXCLUSIVE `1`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_REPS\_WHY\_CLI 
+
+```C++
+#define WFM_SURFACE_REPS_WHY_CLI `"only --acq-code repeats (a preamble): drop the *REPS"`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_REPS\_WHY\_JSON 
+
+```C++
+#define WFM_SURFACE_REPS_WHY_JSON `"only \"acq_code\" repeats (a preamble): drop the *REPS"`
 ```
 
 

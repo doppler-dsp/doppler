@@ -330,7 +330,18 @@
           "default": false,
           "description": "Mark this source as part of the static background field (0/1). Plan.prepare() folds a contiguous leading run of background sources into ONE pre-summed cache entry instead of caching each separately, so a scene of many fixed emitters costs one buffer rather than hundreds. The composite is overridable as a unit: it takes a single slot in gains/phases/enable and counts as one in n_sources(), so scaling it trims the whole field while its members keep their relative levels. Background sources must come first in the segment (a non-prefix ordering is rejected by prepare, since the fold would no longer reproduce compose bit-for-bit). Ignored by compose() and by standalone Synth.steps(). Omitted from a record at its default."
         }
-      }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "payload",
+              "frame"
+            ]
+          },
+          "description": "\"payload\" and \"frame\" cannot both be given: a frame description is the whole frame, and carries its payload as a field"
+        }
+      ]
     },
     "frame_desc": {
       "description": "The FRAME, as a description, when the source carries one: fields in wire order and stages that each name the span they cover. It is the only way to add a coding stage (crc16, rs, randomise, interleave, conv, or a kind of your own) and how a CCSDS CADU is written. Present, it IS the frame: a sync word or an unspread preamble beside it is refused, and the flat keys acq_code, sync and crc describe only the common frame [preamble x reps | sync | payload | crc] when it is absent. `wfmgen --frame FILE` reads this same object. KERNELS are not in here and cannot be: a stage names a KIND, and the code that runs it is a wfm_frame_ops_t entry a caller supplies in C.",
@@ -591,7 +602,18 @@
         "background": {
           "$ref": "#/$defs/source/properties/background"
         }
-      }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "payload",
+              "frame"
+            ]
+          },
+          "description": "\"payload\" and \"frame\" cannot both be given: a frame description is the whole frame, and carries its payload as a field"
+        }
+      ]
     },
     "sum_segment": {
       "description": "Multi-source segment: two or more sources are summed over the same time span. Noise resolution (wfm_resolve_noise) requires exactly one source to anchor the noise floor — that source carries snr without level; all other sources use level (dBFS) to place their power relative to the floor.",

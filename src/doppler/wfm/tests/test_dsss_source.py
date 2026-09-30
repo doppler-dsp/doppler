@@ -410,13 +410,13 @@ def test_the_coding_kwargs_are_gone(key):
 
 def test_invalid_geometry_raises_or_degrades():
     """Payload with no data code is invalid: the standalone Synth raises at
-    first generation."""
+    first generation, with dp_wfm_source_error()'s reason."""
     acq, dat, pay = _codes()
     kw = _seg_kwargs(1, 0, acq, dat, pay)
     kw.pop("data_code")
     kw.pop("off_samples")
     s = Synth(**kw)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError, match="--data-code is required"):
         s.steps(64)
 
 

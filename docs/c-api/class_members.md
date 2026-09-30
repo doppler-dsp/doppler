@@ -48,6 +48,7 @@
 * **avgs** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
 * **awgn** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **amp\_uncert\_db** ([**tone\_meas\_t**](structtone__meas__t.md))
+* **a** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 
 
 ## b
@@ -87,6 +88,7 @@
 * **bank** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **bin\_hz** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **background** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **b** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 
 
 ## c
@@ -196,6 +198,7 @@
 * **ctrl\_phase** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **crest\_db** ([**time\_stats\_t**](structtime__stats__t.md))
 * **crc** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **cli\_why** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 * **choices** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **cli** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
@@ -464,6 +467,7 @@
 
 ## j
 
+* **json\_why** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 * **json** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_bool** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_omit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
@@ -659,6 +663,7 @@
 * **op** ([**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md))
 * **off\_samples** ([**wfm\_segment\_t**](structwfm__segment__t.md))
 * **off\_samples\_hi** ([**wfm\_segment\_t**](structwfm__segment__t.md))
+* **obj\_why** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 * **owner** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
 

@@ -1715,25 +1715,26 @@ static PyGetSetDef Synth_getset[] = {
     "the seeded PN). Ignored for burst dsss and non-dsss types.\n",
     NULL },
   { "frame", (getter)Synth_get_frame, (setter)Synth_set_frame,
-    "The FRAME, as a description, when the source carries one -- the only way "
-    "a source says anything but the common frame: a coding stage, a field of "
-    "the caller's own bits at a position of their choosing, a stage covering "
-    "a span they name. `wfmgen --frame FILE`, a scene's `frame` key and "
-    "Python's `frame=` (a FrameDesc or a Frame) all land here. When it is set "
-    "it IS the frame, and the common-frame fields below "
-    "(acq_code/sync/crc/payload) do not frame this source. NULL means the "
-    "common frame, `[preamble x reps | sync | payload | crc]`, which "
-    "`dp_wfm_frame_fixed()` builds from the fields below. A C caller's "
-    "description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere "
-    "here, so it must outlive the source. The composer and a Python source "
-    "hold their own copy (`dp_wfm_frame_copy()`), so a later change to the "
-    "FrameDesc does not reach them. On the Python face `frame=` is an input: "
-    "read it back from the composer's JSON (its getter is jm's, pending "
-    "removal: doppler#1694). KERNELS stay in C by design. A description names "
-    "a stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and "
-    "a caller adding a genuinely new transform (convolutional interleaving, "
-    "say) writes that kernel in C and hands it to `dp_wfm_frame_assemble` "
-    "directly.\n",
+    "A frame DESCRIPTION, the whole frame: fields in wire order, and stages "
+    "that each name the span they cover (crc16, rs, randomise, interleave, "
+    "conv, or a kind of your own). It is the only way a source says anything "
+    "but the common frame: a coding stage, a field of the caller's own bits "
+    "at a position of their choosing, a stage covering a span they name. "
+    "`wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a "
+    "FrameDesc or a Frame) all land here. When it is set it IS the frame, and "
+    "the common-frame fields below (acq_code/sync/crc/payload) do not frame "
+    "this source. NULL means the common frame, `[preamble x reps | sync | "
+    "payload | crc]`, which `dp_wfm_frame_fixed()` builds from the fields "
+    "below. A C caller's description is borrowed, exactly as `wfm_seq_t` is "
+    "borrowed elsewhere here, so it must outlive the source. The composer and "
+    "a Python source hold their own copy (`dp_wfm_frame_copy()`), so a later "
+    "change to the FrameDesc does not reach them. On the Python face `frame=` "
+    "is an input: read it back from the composer's JSON (its getter is jm's, "
+    "pending removal: doppler#1694). KERNELS stay in C by design. A "
+    "description names a stage's KIND; the code that runs it is a "
+    "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
+    "(convolutional interleaving, say) writes that kernel in C and hands it "
+    "to `dp_wfm_frame_assemble` directly.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -1748,8 +1749,13 @@ Synth_ensure_gen (SynthObject *self)
       self->_gen = dp_wfm_source_to_synth (&self->src, self->fs);
       if (!self->_gen)
         {
-          PyErr_SetString (PyExc_RuntimeError,
-                           "dp_wfm_source_to_synth returned NULL");
+          const char *why
+              = dp_wfm_source_to_synth_error (&self->src, self->fs);
+          if (why)
+            PyErr_SetString (PyExc_ValueError, why);
+          else
+            PyErr_SetString (PyExc_RuntimeError,
+                             "dp_wfm_source_to_synth returned NULL");
           return -1;
         }
     }
@@ -1819,10 +1825,10 @@ static PyMethodDef Synth_methods[] = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If `n` is negative.\n"
+    "    If `n` is negative. If `dp_wfm_source_to_synth` refuses this\n"
+    "    configuration; the message is its reason.\n"
     "RuntimeError\n"
-    "    If `dp_wfm_source_to_synth` cannot build the generator from this\n"
-    "    configuration.\n" },
+    "    If `dp_wfm_source_to_synth` fails and gives no reason.\n" },
   { "step", (PyCFunction)Synth_step, METH_NOARGS,
     "step() -> complex\n"
     "\n"
@@ -1838,9 +1844,11 @@ static PyMethodDef Synth_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
+    "ValueError\n"
+    "    If `dp_wfm_source_to_synth` refuses this configuration; the message\n"
+    "    is its reason.\n"
     "RuntimeError\n"
-    "    If `dp_wfm_source_to_synth` cannot build the generator from this\n"
-    "    configuration.\n" },
+    "    If `dp_wfm_source_to_synth` fails and gives no reason.\n" },
   { "reset", (PyCFunction)Synth_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -3034,25 +3042,26 @@ static PyGetSetDef Segment_getset[] = {
     "the seeded PN). Ignored for burst dsss and non-dsss types.\n",
     NULL },
   { "frame", (getter)Segment_flat_frame, NULL,
-    "The FRAME, as a description, when the source carries one -- the only way "
-    "a source says anything but the common frame: a coding stage, a field of "
-    "the caller's own bits at a position of their choosing, a stage covering "
-    "a span they name. `wfmgen --frame FILE`, a scene's `frame` key and "
-    "Python's `frame=` (a FrameDesc or a Frame) all land here. When it is set "
-    "it IS the frame, and the common-frame fields below "
-    "(acq_code/sync/crc/payload) do not frame this source. NULL means the "
-    "common frame, `[preamble x reps | sync | payload | crc]`, which "
-    "`dp_wfm_frame_fixed()` builds from the fields below. A C caller's "
-    "description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere "
-    "here, so it must outlive the source. The composer and a Python source "
-    "hold their own copy (`dp_wfm_frame_copy()`), so a later change to the "
-    "FrameDesc does not reach them. On the Python face `frame=` is an input: "
-    "read it back from the composer's JSON (its getter is jm's, pending "
-    "removal: doppler#1694). KERNELS stay in C by design. A description names "
-    "a stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and "
-    "a caller adding a genuinely new transform (convolutional interleaving, "
-    "say) writes that kernel in C and hands it to `dp_wfm_frame_assemble` "
-    "directly.\n",
+    "A frame DESCRIPTION, the whole frame: fields in wire order, and stages "
+    "that each name the span they cover (crc16, rs, randomise, interleave, "
+    "conv, or a kind of your own). It is the only way a source says anything "
+    "but the common frame: a coding stage, a field of the caller's own bits "
+    "at a position of their choosing, a stage covering a span they name. "
+    "`wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a "
+    "FrameDesc or a Frame) all land here. When it is set it IS the frame, and "
+    "the common-frame fields below (acq_code/sync/crc/payload) do not frame "
+    "this source. NULL means the common frame, `[preamble x reps | sync | "
+    "payload | crc]`, which `dp_wfm_frame_fixed()` builds from the fields "
+    "below. A C caller's description is borrowed, exactly as `wfm_seq_t` is "
+    "borrowed elsewhere here, so it must outlive the source. The composer and "
+    "a Python source hold their own copy (`dp_wfm_frame_copy()`), so a later "
+    "change to the FrameDesc does not reach them. On the Python face `frame=` "
+    "is an input: read it back from the composer's JSON (its getter is jm's, "
+    "pending removal: doppler#1694). KERNELS stay in C by design. A "
+    "description names a stage's KIND; the code that runs it is a "
+    "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
+    "(convolutional interleaving, say) writes that kernel in C and hands it "
+    "to `dp_wfm_frame_assemble` directly.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };

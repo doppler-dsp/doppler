@@ -147,6 +147,7 @@
 * **wfm\_plan\_t** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **wfm\_stream\_sink\_t** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **WFM\_SURFACE** ([**wfm\_surface.h**](wfm__surface_8h.md))
+* **WFM\_SURFACE\_EXCLUSIVE** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_\_surface\_8h\_1a385c44f6fb256e5716a2302a5b940388** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_surf\_owner\_t** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_sv\_kind\_t** ([**wfm\_surface.h**](wfm__surface_8h.md))

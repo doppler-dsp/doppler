@@ -216,10 +216,12 @@ typedef struct {
                                because its cache renders each source
                                independently and concurrently; compose() and
                                stream() honour both. */
-    /* The FRAME, as a description, when the source carries one -- the only
-       way a source says anything but the common frame: a coding stage, a
-       field of the caller's own bits at a position of their choosing, a
-       stage covering a span they name. `wfmgen --frame FILE`, a scene's
+    /* A frame DESCRIPTION, the whole frame: fields in wire order, and
+       stages that each name the span they cover (crc16, rs, randomise,
+       interleave, conv, or a kind of your own). It is the only way a source
+       says anything but the common frame: a coding stage, a field of the
+       caller's own bits at a position of their choosing, a stage covering a
+       span they name. `wfmgen --frame FILE`, a scene's
        `frame` key and Python's `frame=` (a FrameDesc or a Frame) all land
        here. When it is set it IS the frame, and the common-frame
        fields below (acq_code/sync/crc/payload) do not frame this source.
@@ -394,6 +396,8 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 const char *dp_wfm_source_error(const wfm_source_t *src);
 
 extern const char dp_wfm_why_pn_poly[];
+
+const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 

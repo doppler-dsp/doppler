@@ -482,7 +482,8 @@ add_rows (cJSON *o, wfm_surf_owner_t owner, const void *base)
   for (size_t k = 0; k < WFM_SURFACE_N; k++)
     {
       const wfm_surface_row_t *r = &WFM_SURFACE[k];
-      if (r->owner != owner || !r->json)
+      /* A bespoke row's key is written by its own code (add_frame_desc). */
+      if (r->owner != owner || !r->json || r->kind == WFM_SV_BESPOKE)
         continue;
       if (r->has_when
           && row_choice (&WFM_SURFACE[r->when_row], base) != r->when_value)
@@ -530,10 +531,25 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
 {
   const void *def    = row_defaults (owner);
   unsigned   *ranged = (unsigned *)((char *)base + row_ranged_off (owner));
+  /* Two keys no face takes together (the manifest's `exclusive`): refused
+     before either is read, so neither is silently dropped. */
+  for (size_t k = 0; k < WFM_SURFACE_N_EXCLUSIVE; k++)
+    {
+      const wfm_surface_exclusive_t *e = &WFM_SURFACE_EXCLUSIVE[k];
+      const wfm_surface_row_t *a = &WFM_SURFACE[e->a], *b = &WFM_SURFACE[e->b];
+      if (a->owner == owner && e->json_why
+          && cJSON_GetObjectItemCaseSensitive (o, a->json)
+          && cJSON_GetObjectItemCaseSensitive (o, b->json))
+        {
+          *why = e->json_why;
+          return -1;
+        }
+    }
   for (size_t k = 0; k < WFM_SURFACE_N; k++)
     {
       const wfm_surface_row_t *r = &WFM_SURFACE[k];
-      if (r->owner != owner || !r->json)
+      /* A bespoke row's key is read by its own code (read_frame_desc). */
+      if (r->owner != owner || !r->json || r->kind == WFM_SV_BESPOKE)
         continue;
       const cJSON *it = cJSON_GetObjectItemCaseSensitive (o, r->json);
       if (r->kind == WFM_SV_FIELD)
@@ -547,7 +563,7 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
             {
               if (f.seq.kind == WFM_SEQ_LITERAL)
                 free ((void *)f.seq.bits);
-              *why = "only \"acq_code\" repeats (a preamble): drop the *REPS";
+              *why = WFM_SURFACE_REPS_WHY_JSON;
               return -1;
             }
           *(wfm_seq_t *)((char *)base + r->off) = f.seq;

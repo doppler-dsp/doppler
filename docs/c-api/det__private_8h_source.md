@@ -27,7 +27,7 @@
  * dp_f32_create requires the byte count to be page-aligned, which varies
  * by OS (4 KiB on Linux/Windows, 16 KiB on macOS).  We start at the
  * smallest power-of-2 >= cap_min and double until create succeeds. */
-static dp_f32_t *
+static inline dp_f32_t *
 det_ring_create (size_t cap_min)
 {
   size_t cap = dp_next_pow_two (cap_min > 1 ? cap_min : 1);
@@ -45,7 +45,7 @@ det_ring_create (size_t cap_min)
   return ring;
 }
 
-static int
+static inline int
 det_cmp_f32_asc (const void *a, const void *b)
 {
   float fa = *(const float *)a;
@@ -53,13 +53,10 @@ det_cmp_f32_asc (const void *a, const void *b)
   return (fa > fb) - (fa < fb);
 }
 
-static float
-det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
-                 det_noise_mode_t mode)
+static inline float
+det_noise_scan (const float *mag, size_t lo, size_t hi,
+                det_noise_mode_t mode)
 {
-  if (lo > hi)
-    return 0.0f;
-  size_t count = hi - lo + 1;
   switch (mode)
     {
     case DET_NOISE_MEAN:
@@ -67,12 +64,8 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
         float s = 0.0f;
         for (size_t i = lo; i <= hi; i++)
           s += mag[i];
-        return s / (float)count;
+        return s / (float)(hi - lo + 1);
       }
-    case DET_NOISE_MEDIAN:
-      memcpy (scratch, mag + lo, count * sizeof (float));
-      qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
-      return scratch[count / 2];
     case DET_NOISE_MIN:
       {
         float m = mag[lo];
@@ -89,8 +82,23 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
             m = mag[i];
         return m;
       }
+    default:
+      return 0.0f; /* MEDIAN: det_noise_estimate() owns it */
     }
-  return 0.0f; /* unreachable */
+}
+
+static inline float
+det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
+                    det_noise_mode_t mode)
+{
+  if (lo > hi)
+    return 0.0f;
+  if (mode != DET_NOISE_MEDIAN)
+    return det_noise_scan (mag, lo, hi, mode);
+  const size_t count = hi - lo + 1;
+  memcpy (scratch, mag + lo, count * sizeof (float));
+  qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
+  return scratch[count / 2];
 }
 
 /* det_peak_t (one listed peak) is public in detector2d_core.h; the 1-D
@@ -105,12 +113,12 @@ typedef struct
 } det_peak_t;
 #endif
 
-static size_t
+static inline size_t
 det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
                size_t excl_rows, size_t excl_cols, uint8_t *mask,
                det_peak_t *out, size_t max_peaks);
 
-static size_t
+static inline size_t
 det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
 {
   size_t best = k1;
@@ -130,7 +138,7 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
   return best;
 }
 
-static void
+static inline void
 det_peak_zone (uint8_t *mask, size_t ny, size_t nx, size_t r, size_t c,
                size_t excl_rows, size_t excl_cols)
 {
@@ -144,7 +152,7 @@ det_peak_zone (uint8_t *mask, size_t ny, size_t nx, size_t r, size_t c,
     }
 }
 
-static size_t
+static inline size_t
 det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
                size_t excl_rows, size_t excl_cols, uint8_t *mask,
                det_peak_t *out, size_t max_peaks)

@@ -26,6 +26,14 @@ target_include_directories(fft_core PRIVATE ${CMAKE_SOURCE_DIR}/vendor)
 set_source_files_properties(${CMAKE_SOURCE_DIR}/vendor/pffft/pffft.c PROPERTIES
     INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/vendor/pffft
     COMPILE_DEFINITIONS "_USE_MATH_DEFINES;_DEFAULT_SOURCE")
+# Upstream code keeps upstream's warnings: fft_core gets doppler's -Wall
+# -Wextra -Werror from cmake/warnings.cmake, and these two sources opt out.
+# Set HERE because a source property only reaches targets in the directory
+# that sets it.
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/vendor/pocketfft/pocketfft_c99.c
+    ${CMAKE_SOURCE_DIR}/vendor/pffft/pffft.c
+    PROPERTIES COMPILE_OPTIONS "${DP_VENDOR_NO_WARN}")
 target_link_libraries(fft_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_fft_core

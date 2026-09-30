@@ -580,3 +580,14 @@ endforeach()
 # can say anything about. It costs 0.34s there. Labelled `threaded` instead of
 # `sweep`, so `-LE sweep` keeps it.
 set_tests_properties(validate_rx_dynamics PROPERTIES LABELS threaded)
+
+# The three -ffp-contract=off harnesses above override the root's -ffast-math
+# ON PURPOSE -- that is the whole point of the flag there -- and clang says so
+# with -Woverriding-option, a driver diagnostic that cmake/warnings.cmake's
+# -Werror makes fatal. Acknowledged per target, on clang only (gcc has no such
+# warning), rather than relaxed for the whole build.
+foreach(_t validate_dll_jitter validate_ratesync_scurve
+           validate_loop_filter_noise_bw)
+    target_compile_options(${_t} PRIVATE
+        $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-overriding-option>)
+endforeach()

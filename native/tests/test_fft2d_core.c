@@ -179,5 +179,39 @@ main (void)
     dp_fft2d_destroy (obj);
   }
 
+  /* ── a non-power-of-two width: the column pass without a transpose ──
+     A power-of-two nx transposes and runs the columns as rows; any other
+     width gathers each column into scratch instead, and only a width
+     like this one reaches it. Checked against the direct 2-D DFT. */
+  {
+    enum
+    {
+      QY = 3,
+      QX = 5,
+      QN = QY * QX
+    };
+    dp_fft2d_state_t *obj = dp_fft2d_create (QY, QX, -1, 1);
+    DP_CHECK (obj != NULL);
+    double _Complex in[QN], got[QN];
+    for (size_t i = 0; i < QN; i++)
+      in[i] = (double)(i + 1) + (double)(i % 3) * I;
+    DP_CHECK (dp_fft2d_execute_cf64 (obj, in, QN, got, QN) == QN);
+    for (size_t ky = 0; ky < QY; ky++)
+      for (size_t kx = 0; kx < QX; kx++)
+        {
+          double _Complex want = 0.0;
+          for (size_t y = 0; y < QY; y++)
+            for (size_t x = 0; x < QX; x++)
+              {
+                const double ph
+                    = -2.0 * M_PI
+                      * ((double)(ky * y) / QY + (double)(kx * x) / QX);
+                want += in[y * QX + x] * (cos (ph) + sin (ph) * I);
+              }
+          DP_CHECK (ceq64 (got[ky * QX + kx], want));
+        }
+    dp_fft2d_destroy (obj);
+  }
+
   DP_TEST_END ("test_fft2d_core");
 }

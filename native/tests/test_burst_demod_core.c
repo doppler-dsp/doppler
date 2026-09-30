@@ -718,13 +718,16 @@ main (void)
           = pow (10.0, -((es_n0_db) - 10.0 * log10 ((double)(DATA_SF * SPC))) \
                            / 20.0);                                           \
       seed_state = 12345u;                                                    \
-      for (size_t k_ = 0; k_ < (lead); k_++)                                  \
+      /* Bound once: a literal 0 lead would compare size_t < 0, which         \
+         -Wtype-limits reports and cmake/warnings.cmake makes an error. */    \
+      const size_t lead_ = (lead);                                            \
+      for (size_t k_ = 0; k_ < lead_; k_++)                                   \
         z[k_] = 0.0f;                                                         \
       for (size_t k_ = 0; k_ < n_; k_++)                                      \
-        z[k_ + (lead)] = y[k_];                                               \
+        z[k_ + lead_] = y[k_];                                                \
       /* dp_cgauss is E|z|^2 = 1, so sigma scales straight to total noise     \
          power -- the shared harness owns the convention. */                  \
-      for (size_t k_ = 0; k_ < n_ + (lead); k_++)                             \
+      for (size_t k_ = 0; k_ < n_ + lead_; k_++)                              \
         z[k_] += (float)sig_ * dp_cgauss (&seed_state);                       \
       dp_burst_demod_state_t *dd_ = dp_burst_demod_create (                   \
           dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, (segs));      \
@@ -733,7 +736,7 @@ main (void)
       dp_burst_demod_set_sync (dd_, SYNC, SYNC_LEN);                          \
       dp_burst_demod_set_prior (dd_, f0_, 0);                                 \
       size_t nb_                                                              \
-          = dp_burst_demod_demod (dd_, z, n_ + (lead), bits, FRAME_SYMS);     \
+          = dp_burst_demod_demod (dd_, z, n_ + lead_, bits, FRAME_SYMS);      \
       got_cn0 = (nb_ == FRAME_SYMS) ? dd_->est_cn0_dbhz : -1e9;               \
       got_tau = dd_->est_timing_chips;                                        \
       dp_burst_demod_destroy (dd_);                                           \

@@ -29,7 +29,8 @@ main (void)
   dp_loop_filter_state_t *obj = dp_loop_filter_create (0.01, 0.707, 1.0);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile double _sink;
+  volatile double _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

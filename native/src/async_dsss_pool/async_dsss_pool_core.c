@@ -468,7 +468,7 @@ dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *s, const void *blob)
 {
   DP_SET_OPEN (ASYNC_DSSS_POOL_STATE_MAGIC, ASYNC_DSSS_POOL_STATE_VERSION,
                dp_async_dsss_pool_state_bytes (s));
-  async_dsss_pool_extra_t extra;
+  async_dsss_pool_extra_t extra = { 0 };
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_slots != (uint64_t)s->n_slots
       || extra.n_assigned > (uint64_t)s->n_slots)

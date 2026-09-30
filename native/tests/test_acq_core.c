@@ -1203,7 +1203,13 @@ _acq_doppler_rate_check (void)
 static int
 _acq_cell_corr_grid_check (void)
 {
-  const size_t    P = 510, E = 3, col = 37;
+  /* E sizes two arrays, so it is a constant expression: a `const`
+     object would make them VLAs clang folds only as an extension. */
+  enum
+  {
+    E = 3
+  };
+  const size_t    P = 510, col = 37;
   const double    fs = 1.0e6, span = fs / (double)P, t0 = 1234.0;
   uint32_t        rng = 20260924u;
   float _Complex *pre = malloc (P * sizeof *pre);
@@ -1870,7 +1876,7 @@ main (void)
           {
             surf[k] = (float)(dp_xs32 (&rng) % 5);
           }
-        det_peak_t a, b;
+        det_peak_t a = { 0 }, b = { 0 };
         memset (mask, 0, sizeof mask);
         size_t na = det_peak_list (surf, NY, NX, -1.0f, 1, 1, mask, &a, 1);
         size_t nb = det_peak_list (surf, NY, NX, -1.0f, 1, 1, NULL, &b, 1);

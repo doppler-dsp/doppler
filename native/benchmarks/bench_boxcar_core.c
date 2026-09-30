@@ -29,7 +29,8 @@ main (void)
   dp_boxcar_state_t *obj = dp_boxcar_create (4, 1.0);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile float _Complex _sink;
+  volatile float _Complex _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

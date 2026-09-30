@@ -29,7 +29,8 @@ main (void)
   dp_adc_state_t *obj = dp_adc_create (16, -10.0f, 0);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile int64_t _sink;
+  volatile int64_t _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

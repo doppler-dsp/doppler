@@ -64,6 +64,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 | ---: | :--- |
 |  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
 |  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
+|  float | [**det\_noise\_scan**](#function-det_noise_scan) (const float \* mag, size\_t lo, size\_t hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; by a one-pass mode._  |
 |  size\_t | [**det\_peak\_list**](#function-det_peak_list) (const float \* surf, size\_t ny, size\_t nx, float gate, size\_t excl\_rows, size\_t excl\_cols, uint8\_t \* mask, [**det\_peak\_t**](structdet__peak__t.md) \* out, size\_t max\_peaks) <br>_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._ |
 |  size\_t | [**det\_peak\_scan**](#function-det_peak_scan) (const float \* surf, const uint8\_t \* mask, size\_t k0, size\_t k1) <br>_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._ |
 |  void | [**det\_peak\_zone**](#function-det_peak_zone) (uint8\_t \* mask, size\_t ny, size\_t nx, size\_t r, size\_t c, size\_t excl\_rows, size\_t excl\_cols) <br>_The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._ |
@@ -114,7 +115,7 @@ Not part of the public API. Include after the module's own header so that det\_n
 ### function det\_cmp\_f32\_asc 
 
 ```C++
-static int det_cmp_f32_asc (
+static inline int det_cmp_f32_asc (
     const void * a,
     const void * b
 ) 
@@ -131,7 +132,7 @@ static int det_cmp_f32_asc (
 
 _Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._ 
 ```C++
-static float det_noise_estimate (
+static inline float det_noise_estimate (
     const float * mag,
     size_t lo,
     size_t hi,
@@ -142,7 +143,7 @@ static float det_noise_estimate (
 
 
 
-Returns 0 if lo &gt; hi (empty range) — the caller maps that to test\_stat=0.
+Returns 0 if lo &gt; hi (empty range)  the caller maps that to test\_stat=0. MEDIAN sorts a copy in `scratch`; every other mode is det\_noise\_scan().
 
 
 
@@ -172,11 +173,54 @@ Aggregated noise estimate, or 0 if lo &gt; hi.
 
 
 
+### function det\_noise\_scan 
+
+_Aggregate \|corr\| over bins &#91;lo, hi&#93; by a one-pass mode._ 
+```C++
+static inline float det_noise_scan (
+    const float * mag,
+    size_t lo,
+    size_t hi,
+    det_noise_mode_t mode
+) 
+```
+
+
+
+The modes that need no scratch  MEAN, MIN and MAX  in one pass over the range. MEDIAN has no one-pass form: it sorts a copy, so it lives in det\_noise\_estimate() alone, and a caller with no scratch (a per-chunk reference, say) calls this and cannot reach it.
+
+
+
+
+**Parameters:**
+
+
+* `mag` Magnitude vector (length &gt;= hi+1). 
+* `lo` First bin, inclusive; lo &lt;= hi. 
+* `hi` Last bin, inclusive. 
+* `mode` DET\_NOISE\_MEAN, DET\_NOISE\_MIN or DET\_NOISE\_MAX. 
+
+
+
+**Returns:**
+
+Aggregated noise estimate; 0 for any other mode. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function det\_peak\_list 
 
 _The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._
 ```C++
-static size_t det_peak_list (
+static inline size_t det_peak_list (
     const float * surf,
     size_t ny,
     size_t nx,
@@ -234,7 +278,7 @@ Peaks listed (0 when nothing exceeds the gate).
 
 _One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._
 ```C++
-static size_t det_peak_scan (
+static inline size_t det_peak_scan (
     const float * surf,
     const uint8_t * mask,
     size_t k0,
@@ -257,7 +301,7 @@ Returns the cell, or `k1` when no cell in the range is a candidate. The pick is 
 
 _The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._
 ```C++
-static void det_peak_zone (
+static inline void det_peak_zone (
     uint8_t * mask,
     size_t ny,
     size_t nx,
@@ -278,7 +322,7 @@ static void det_peak_zone (
 ### function det\_ring\_create 
 
 ```C++
-static dp_f32_t * det_ring_create (
+static inline dp_f32_t * det_ring_create (
     size_t cap_min
 ) 
 ```

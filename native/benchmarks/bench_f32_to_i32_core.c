@@ -30,7 +30,8 @@ main (void)
   dp_f32_to_i32_state_t *obj = dp_f32_to_i32_create (2147483648.0);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile int32_t _sink;
+  volatile int32_t _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

@@ -25,8 +25,10 @@ detector2d_compute_stat_2d (dp_detector2d_state_t *state)
     state->mag_buf[k] = cabsf (state->out_buf[k]);
 
   /* The one argmax under both detectors (det_peak_list, at one peak and
-     no gate: the maximum, as this detector has always reported it). */
-  det_peak_t pk;
+     no gate: the maximum, as this detector has always reported it). It
+     always writes `pk`; zeroed because GCC 13 cannot see that and warns
+     -Wuninitialized. */
+  det_peak_t pk = { 0 };
   (void)det_peak_list (state->mag_buf, state->ny, state->nx, -1.0f, 0, 0, NULL,
                        &pk, 1);
   state->peak_row = pk.row;

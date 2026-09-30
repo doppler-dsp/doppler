@@ -171,6 +171,11 @@ static int
 pullin (const draw_t *d, const uint8_t *code, double cn0_dbhz, double off_hz,
         size_t at, double *t_lock)
 {
+  /* First, before any DP_REQUIRE: that macro RETURNS 1 on failure, which
+     here reads as "pulled in", and the caller then adds *t_lock to its mean.
+     The failure is still counted by dp_test_fails_, but the lock time must
+     not be garbage (doppler#1658, found by -Wmaybe-uninitialized). */
+  *t_lock                            = -1.0;
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, PFA, PD, SEGMENTS,
       RX_SPS, 0, CARRIER_HZ, 0.0, D_OP, ASYNC_DSSS_RX_CELL_GAIN,
@@ -183,8 +188,7 @@ pullin (const draw_t *d, const uint8_t *code, double cn0_dbhz, double off_hz,
       == DP_OK);
   const size_t   n_feed = (size_t)(PULLIN_S * FS);
   float complex *out    = dp_xmalloc (TE * sizeof *out);
-  *t_lock               = -1.0;
-  size_t pos            = at;
+  size_t         pos    = at;
   while (pos + TE <= at + n_feed && pos + TE <= d->n)
     {
       (void)dp_async_dsss_receiver_steps (rx, d->x + pos, TE, out, TE);

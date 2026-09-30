@@ -904,7 +904,7 @@ _mf_recovered_amp (double sps, double beta, int compensate)
   double best = 0.0;
   for (int j = 0; j < 16; j++)
     {
-      size_t          n;
+      size_t          n = 0; /* _mf_tx_beta leaves it unset on OOM */
       float _Complex *x = _mf_tx_beta (sps, beta, j / 16.0, &n);
       float _Complex *y = calloc (n, sizeof *y);
       if (x && y)
@@ -973,7 +973,7 @@ _mf_amp_scaled (double scale, int use_agc)
   double       best = 0.0;
   for (int j = 0; j < 16; j++)
     {
-      size_t          n;
+      size_t          n = 0; /* _mf_tx_beta leaves it unset on OOM */
       float _Complex *x = _mf_tx_beta (sps, beta, j / 16.0, &n);
       float _Complex *y = calloc (n, sizeof *y);
       if (x && y)

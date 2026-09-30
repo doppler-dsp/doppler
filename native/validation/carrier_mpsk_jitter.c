@@ -219,6 +219,11 @@ main (int argc, char **argv)
         mono = 0;
       prev = pv;
     }
+  /* Each doubling of bn must roughly double the jitter. This was computed
+     and printed as PASS without ever reaching `fail` (doppler#1658, found by
+     -Wunused-but-set-variable). */
+  if (check && !mono)
+    fail = 1;
 
   /* tracking threshold tightens with M: jitter at a mid SNR explodes for the
    * larger constellation while the smaller one is still locked */

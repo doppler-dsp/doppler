@@ -230,7 +230,6 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
       = cond != COND_STATIC
             ? dp_doppler_channel_create (FS, CARRIER_HZ, d0, rate)
             : NULL;
-  const double   f0  = d0 * 1e-6 * CARRIER_HZ;
   float complex *sig = dp_xmalloc (TE * sizeof *sig);
   float complex *blk = dp_xmalloc (TE * sizeof *blk);
   /* The channel's output runs a few samples off TE per block; a carry

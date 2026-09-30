@@ -31,7 +31,8 @@ main (void)
   dp_lockdet_state_t *obj = dp_lockdet_create (1.5, 1.2, 3, 3);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile int _sink;
+  volatile int _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

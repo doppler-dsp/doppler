@@ -107,6 +107,16 @@
 static int dp_test_fails_  = 0;
 static int dp_test_checks_ = 0;
 
+/* Reads both counters so a translation unit that includes this header only
+ * for its helpers -- the rx_* validation harnesses reach it through
+ * dp_rx_test.h -- does not trip -Wunused-variable, an error under
+ * cmake/warnings.cmake. An unused static inline is never warned about. */
+static inline int
+dp_test_counters_ (void)
+{
+  return dp_test_fails_ + dp_test_checks_;
+}
+
 #ifdef DP_TEST_VERBOSE
 #define DP_TEST_PASS_(what) printf ("  PASS  %s\n", (what))
 #else

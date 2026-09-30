@@ -31,7 +31,8 @@ main (void)
   dp_agc_state_t *obj = dp_agc_create (0.0, 0.0025, 0.05);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile float _Complex _sink;
+  volatile float _Complex _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

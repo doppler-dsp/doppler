@@ -185,6 +185,11 @@ extern "C"
                              const wfm_frame_ops_t *ops, uint8_t *out,
                              size_t max_out);
 
+  size_t dp_wfm_frame_assemble_data (const wfm_frame_desc_t *d,
+                                     const wfm_frame_ops_t *ops,
+                                     const uint8_t *data, uint8_t *out,
+                                     size_t max_out);
+
   int dp_wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);
 

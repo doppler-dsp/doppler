@@ -139,6 +139,16 @@ wfm_synth_mls_poly(uint32_t n)
  *
  * Allocate with dp_wfm_synth_create().
  */
+/**
+ * @brief Where a BITS synth's next frame comes from, in place of the cycle.
+ *
+ * Called when the synth has read the last of its `n` bits: write the next
+ * frame's `n` bits into @p bits and return 0, or return non-zero when the
+ * data has ended. The frame length never changes, which is what lets the
+ * synth refill its own buffer in place. See dp_wfm_synth_set_refill().
+ */
+typedef int (*wfm_synth_refill_fn)(void *user, uint8_t *bits, size_t n);
+
 typedef struct {
     int wtype;
     int nsps;
@@ -179,6 +189,14 @@ typedef struct {
     dp_lo_state_t * lo;
     dp_awgn_state_t * awgn;
     dp_pn_state_t * pn;
+    /* A frame source (dp_wfm_synth_set_refill): NULL cycles `bits`. Once it
+       reports the end, `data_ended` latches and every symbol after is zero --
+       silence, never a held symbol (a line on the air nobody sent). */
+    wfm_synth_refill_fn refill;
+    void *refill_user;
+    void (*refill_free)(void *);
+    uint8_t refill_due; /* the next bit opens a frame not yet drawn */
+    uint8_t data_ended;
 } dp_wfm_synth_state_t;
 
 /**
@@ -212,19 +230,57 @@ typedef struct {
  * @return Unit-modulus constellation point (a unit-amplitude line at
  *         `bit_mod == 0`), which is what Synth's unit-power SNR reference needs.
  */
+/**
+ * @brief The next bit of the pattern, or none once the data has ended.
+ *
+ * With no refill the pattern cycles, as it always has. With one, a frame is
+ * drawn LAZILY -- when its first bit is needed, never when the previous
+ * frame's last bit is read -- so a source's counts are the frames actually
+ * started, and a paced source is asked when the frame is due. A refill that
+ * reports the end latches `data_ended`. The one place the cursor wraps, so
+ * the per-sample and block paths cannot disagree about a frame boundary.
+ *
+ * @return 1 with the bit in @p *bit, or 0: the data has ended.
+ */
+JM_FORCEINLINE int
+wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
+{
+    if (s->refill_due) {
+        s->refill_due = 0;
+        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0)
+            s->data_ended = 1;
+    }
+    if (s->data_ended)
+        return 0;
+    *bit = s->bits[s->bit_idx] ? 1u : 0u;
+    if (++s->bit_idx >= s->n_bits) {
+        s->bit_idx    = 0;
+        s->refill_due = s->refill != NULL;
+    }
+    return 1;
+}
+
 JM_FORCEINLINE float _Complex
 wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
 {
-    unsigned g = 0u;
+    unsigned g = 0u, b = 0u;
     int      k;
     if (s->bit_mod <= 0) {
-        float a    = s->bits[s->bit_idx] ? 1.0f : 0.0f;
-        s->bit_idx = (s->bit_idx + 1) % s->n_bits;
-        return a + 0.0f * I;
+        if (!wfm_synth_bit_next(s, &b))
+            return 0.0f + 0.0f * I; /* silence after the data */
+        return (b ? 1.0f : 0.0f) + 0.0f * I;
     }
     for (k = 0; k < s->bit_mod; k++) { /* MSB-first within the symbol */
-        g          = (g << 1) | (unsigned)(s->bits[s->bit_idx] ? 1u : 0u);
-        s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+        if (!wfm_synth_bit_next(s, &b)) {
+            /* Silence once the data has ended -- never a held symbol, a
+               line on the air nobody sent. A symbol the end cuts short is
+               completed with zero bits: the frame did not divide into
+               symbols, and the zeros only finish the symbol it started. */
+            if (k == 0)
+                return 0.0f + 0.0f * I;
+            b = 0u;
+        }
+        g = (g << 1) | b;
     }
     return mpsk_constellation(g, 1 << s->bit_mod);
 }
@@ -478,6 +534,48 @@ void dp_wfm_synth_set_chirp_span(dp_wfm_synth_state_t *state, size_t span);
  */
 int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
+
+/**
+ * @brief Pull each frame from @p fn instead of cycling the pattern.
+ *
+ * The pattern set by dp_wfm_synth_set_bits() is the FIRST frame; when its
+ * last bit has been read, @p fn writes the next frame's bits into the synth's
+ * buffer (the same `n`), and so on. When @p fn reports the end, the synth
+ * latches it (dp_wfm_synth_data_ended()) and emits zero -- silence -- from
+ * then on. A later dp_wfm_synth_set_bits() detaches the refill.
+ *
+ * A synth with a refill attached REFUSES serialization --
+ * dp_wfm_synth_state_bytes() returns 0 and dp_wfm_synth_set_state() is
+ * DP_ERR_INVALID -- because the pulled frame and the source's position are
+ * state it cannot yet carry (doppler#1681).
+ *
+ * @param state      a type=bits synth with a pattern set.
+ * @param fn         the frame source; NULL detaches.
+ * @param user       passed to @p fn; owned by the synth when @p free_user
+ *                   is given, which it calls on detach or destroy.
+ * @param free_user  frees @p user, or NULL.
+ * @return 0, or -1 if the synth is not type=bits or has no pattern.
+ *
+ * @code
+ * // A source of two 4-bit frames, then the end.
+ * static int two (void *u, uint8_t *bits, size_t n)
+ * {
+ *   int *left = u;
+ *   if ((*left)-- <= 0) return 1;           // the end
+ *   for (size_t i = 0; i < n; i++) bits[i] = 1;
+ *   return 0;
+ * }
+ * int left = 1;                             // one more after the first
+ * dp_wfm_synth_set_bits (s, (const uint8_t[]){ 0, 1, 0, 1 }, 4, 0);
+ * dp_wfm_synth_set_refill (s, two, &left, NULL);
+ * // 0101, then 1111, then silence; dp_wfm_synth_data_ended (s) == 1
+ * @endcode
+ */
+int dp_wfm_synth_set_refill(dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
+                         void *user, void (*free_user)(void *));
+
+/** @brief Non-zero once an attached frame source has reported its end. */
+int dp_wfm_synth_data_ended(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Install an assembled two-code DSSS burst as the chip pattern.

@@ -533,6 +533,20 @@ dp_wfm_data_idle (wfm_data_src_t *s, size_t reps, uint8_t *out, size_t max_out)
   return WFM_DATA_FRAME;
 }
 
+wfm_data_status_t
+dp_wfm_data_frame (wfm_data_src_t *s, wfm_data_pacing_t pacing, size_t reps,
+                   uint8_t *out, size_t max_out)
+{
+  const int               paced = pacing == WFM_DATA_PACED;
+  const wfm_data_status_t st
+      = dp_wfm_data_next (s, reps, out, max_out, paced ? 0 : -1);
+  if (st != WFM_DATA_NOT_YET)
+    return st;
+  return dp_wfm_data_idle (s, reps, out, max_out) == WFM_DATA_FRAME
+             ? WFM_DATA_IDLE
+             : WFM_DATA_ERROR;
+}
+
 void
 dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out)
 {

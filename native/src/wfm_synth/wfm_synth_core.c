@@ -241,7 +241,32 @@ dp_wfm_synth_set_bits (dp_wfm_synth_state_t *state, const uint8_t *bits,
   state->n_bits  = n;
   state->bit_idx = 0;
   state->bit_mod = modulation;
+  /* A new pattern is a new source: whatever refill fed the old one no
+     longer describes these bits. */
+  (void)dp_wfm_synth_set_refill (state, NULL, NULL, NULL);
   return 0;
+}
+
+int
+dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
+                         void *user, void (*free_user) (void *))
+{
+  if (fn && (state->wtype != WFM_SYNTH_BITS || !state->bits || !state->n_bits))
+    return -1;
+  if (state->refill_free)
+    state->refill_free (state->refill_user);
+  state->refill      = fn;
+  state->refill_user = user;
+  state->refill_free = fn ? free_user : NULL;
+  state->refill_due  = 0;
+  state->data_ended  = 0;
+  return 0;
+}
+
+int
+dp_wfm_synth_data_ended (const dp_wfm_synth_state_t *state)
+{
+  return state->data_ended != 0;
 }
 
 int
@@ -354,6 +379,8 @@ dp_wfm_synth_destroy (dp_wfm_synth_state_t *state)
     dp_fir_destroy (state->fir);
   if (state->shaper)
     dp_resamp_destroy (state->shaper);
+  if (state->refill_free)
+    state->refill_free (state->refill_user);
   free (state->bits);
   free (state->symbols);
   free (state->code);
@@ -428,6 +455,11 @@ dp_wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
 size_t
 dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
 {
+  /* A pulled frame and its source's position are state this blob cannot
+     carry yet (doppler#1681): refused, rather than a blob that resumes the
+     wrong data. */
+  if (s->refill)
+    return 0;
   size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
              + 2 * sizeof (float)                        /* cur_re/im    */
              + sizeof (uint64_t)                         /* bit_idx      */
@@ -455,6 +487,8 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
 void
 dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
 {
+  if (s->refill)
+    return; /* refused: state_bytes said 0 (doppler#1681) */
   DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
   dp_w_u32 (&_w, (uint32_t)s->sym_pos);
@@ -486,6 +520,8 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
 int
 dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
 {
+  if (s->refill)
+    return DP_ERR_INVALID; /* doppler#1681 */
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
   s->sym_pos = (int)dp_r_u32 (&_r);

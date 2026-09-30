@@ -8,7 +8,7 @@
 
 
 
-_Synth state._ [More...](#detailed-description)
+
 
 * `#include <wfm_synth_core.h>`
 
@@ -53,6 +53,7 @@ _Synth state._ [More...](#detailed-description)
 |  uint8\_t | [**cur\_data**](#variable-cur_data)  <br> |
 |  float | [**cur\_im**](#variable-cur_im)  <br> |
 |  float | [**cur\_re**](#variable-cur_re)  <br> |
+|  uint8\_t | [**data\_ended**](#variable-data_ended)  <br> |
 |  int | [**data\_mode**](#variable-data_mode)  <br> |
 |  [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* | [**fir**](#variable-fir)  <br> |
 |  size\_t | [**frame\_symbols**](#variable-frame_symbols)  <br> |
@@ -63,6 +64,10 @@ _Synth state._ [More...](#detailed-description)
 |  int | [**nsps**](#variable-nsps)  <br> |
 |  [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* | [**pn**](#variable-pn)  <br> |
 |  uint8\_t | [**primed**](#variable-primed)  <br> |
+|  [**wfm\_synth\_refill\_fn**](wfm__synth__core_8h.md#typedef-wfm_synth_refill_fn) | [**refill**](#variable-refill)  <br> |
+|  uint8\_t | [**refill\_due**](#variable-refill_due)  <br> |
+|  void(\* | [**refill\_free**](#variable-refill_free)  <br> |
+|  void \* | [**refill\_user**](#variable-refill_user)  <br> |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**shaper**](#variable-shaper)  <br> |
 |  uint64\_t | [**sym\_idx**](#variable-sym_idx)  <br> |
 |  int | [**sym\_pos**](#variable-sym_pos)  <br> |
@@ -113,13 +118,6 @@ _Synth state._ [More...](#detailed-description)
 
 
 
-## Detailed Description
-
-
-Allocate with [**dp\_wfm\_synth\_create()**](wfm__synth__core_8h.md#function-dp_wfm_synth_create). 
-
-
-    
 ## Public Attributes Documentation
 
 
@@ -346,6 +344,19 @@ float dp_wfm_synth_state_t::cur_re;
 
 
 
+### variable data\_ended 
+
+```C++
+uint8_t dp_wfm_synth_state_t::data_ended;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable data\_mode 
 
 ```C++
@@ -467,6 +478,58 @@ dp_pn_state_t* dp_wfm_synth_state_t::pn;
 
 ```C++
 uint8_t dp_wfm_synth_state_t::primed;
+```
+
+
+
+
+<hr>
+
+
+
+### variable refill 
+
+```C++
+wfm_synth_refill_fn dp_wfm_synth_state_t::refill;
+```
+
+
+
+
+<hr>
+
+
+
+### variable refill\_due 
+
+```C++
+uint8_t dp_wfm_synth_state_t::refill_due;
+```
+
+
+
+
+<hr>
+
+
+
+### variable refill\_free 
+
+```C++
+void(* dp_wfm_synth_state_t::refill_free) (void *);
+```
+
+
+
+
+<hr>
+
+
+
+### variable refill\_user 
+
+```C++
+void* dp_wfm_synth_state_t::refill_user;
 ```
 
 

@@ -298,6 +298,7 @@ nav:
       - "A Frame as a Description: the measurement record": design/frame-description-measurements.md
       - The Payload as a Data Source: design/payload-data-source.md
       - "The Payload as a Data Source: the measurement record": design/payload-data-source-measurements.md
+      - A Receiver Built from a Frame Description: design/rx-frame-description.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - wfmgen — the waveform generator: design/wfmgen.md

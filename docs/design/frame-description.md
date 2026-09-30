@@ -724,6 +724,7 @@ it is measured:
     grow into; the block interleaver already ships as `INTERLEAVE`. None is
     being added here.
 - **The receive side.** `BurstDemod` and `DsssBurstReceiver` still take raw
-    code arrays and a hand-computed `frame_syms`. Moving them onto Fields and
-    a `FrameDesc` is its own pass through the lifecycle, after this one
-    ([#853](https://github.com/doppler-dsp/doppler/issues/853)).
+    code arrays and a hand-computed `frame_syms`. Moving them onto a
+    description is its own pass through the lifecycle:
+    [A Receiver Built from a Frame Description](rx-frame-description.md)
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).

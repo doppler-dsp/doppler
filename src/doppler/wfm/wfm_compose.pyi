@@ -260,10 +260,10 @@ class Synth:
         Raises
         ------
         ValueError
-            If `n` is negative.
+            If `n` is negative. If `dp_wfm_source_to_synth` refuses this
+            configuration; the message is its reason.
         RuntimeError
-            If `dp_wfm_source_to_synth` cannot build the generator from this
-            configuration.
+            If `dp_wfm_source_to_synth` fails and gives no reason.
         """
     def step(self) -> complex:
         """Generate the next sample of this source on its own.
@@ -278,9 +278,11 @@ class Synth:
 
         Raises
         ------
+        ValueError
+            If `dp_wfm_source_to_synth` refuses this configuration; the message
+            is its reason.
         RuntimeError
-            If `dp_wfm_source_to_synth` cannot build the generator from this
-            configuration.
+            If `dp_wfm_source_to_synth` fails and gives no reason.
         """
     def reset(self) -> None:
         """Rewind the generator to sample 0.

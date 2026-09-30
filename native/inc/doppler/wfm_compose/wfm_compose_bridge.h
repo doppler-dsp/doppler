@@ -20,6 +20,11 @@ extern "C" {
 /* Build the composed generator from a source config (source -> generator). */
 dp_wfm_synth_state_t *dp_wfm_source_to_synth(const wfm_source_t *, double);
 
+/* Why dp_wfm_source_to_synth() refused: a reason raised as ValueError, or NULL
+ * for none (RuntimeError). Same arguments; called only after it returned
+ * NULL (gh-1307). */
+const char *dp_wfm_source_to_synth_error(const wfm_source_t *, double);
+
 /* Read a str as the bits of `bits`, `acq_code`, `data_code`, `sync`
  * (coerce_str_fn, gh-1709): out NULL sizes; returns the bit count, or 0
  * with *why set on a refusal. */

@@ -525,6 +525,26 @@ A `dsss` segment is one complete burst honouring the
     inside a multi-source `sum()` keeps the segment's explicit
     `num_samples`.)
 
+Either half may be absent, not both. A **preamble alone** (`acq_code`, no
+sync, no payload) is a valid burst, the stimulus for an acquisition test;
+a frame with no preamble is valid too. A frame with no `data_code` to spread
+it, a burst with neither half, and a continuous stream with no `data_code`
+are refused, each naming the code to give:
+
+```pycon
+>>> from doppler.wfm import Composer, Synth, field_bits
+>>> pre = Composer(type="dsss", sps=2, acq_code=field_bits("pn:31:5"),
+...                acq_reps=3)
+>>> len(pre.compose()) == 3 * 31 * 2           # the preamble, and only it
+True
+>>> try:
+...     Synth(type="dsss", sps=2, acq_code=field_bits("pn:31:5"),
+...           payload=field_bits("0101")).steps(8)
+... except ValueError as exc:
+...     print(str(exc).split(":")[0])
+a dsss burst spreads its frame (sync, payload, crc) with data_code, and none is given
+```
+
 ### Es/N0 that means what the receiver measures
 
 `snr_mode="esno"` (and `auto`) targets the Es/N0 of the outer **data

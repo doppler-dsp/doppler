@@ -729,12 +729,39 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 const char *dp_wfm_source_error(const wfm_source_t *src);
 
 /**
+ * @brief Why dp_wfm_source_to_synth() refused this source, or NULL.
+ *
+ * The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`,
+ * gh-1307), consulted only when the bridge returned NULL. It is
+ * dp_wfm_source_error() with the bridge's own arguments, so a source the
+ * composer, a scene and the CLI refuse is refused by `Synth.steps()` for
+ * the same sentence. NULL means the bridge refused for a reason outside
+ * that rule (a bits source with no pattern, a chirp with no span).
+ *
+ * @param src  the source.
+ * @param fs   the sample rate the bridge was given (unused by the rule).
+ * @return a static reason, or NULL.
+ */
+const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
+
+/**
  * @brief The reason dp_wfm_source_error() gives for a `pn_poly` wider than
  *        its register -- exported so a face that knows the values (the
  *        wfmgen CLI) can name them beside it, by identity rather than by
  *        matching text.
  */
 extern const char dp_wfm_why_pn_poly[];
+
+/**
+ * @brief The reasons dp_wfm_source_error() gives a dsss source missing a
+ *        code (doppler#1696): a burst whose frame has no data_code to spread
+ *        it, a burst with neither a preamble nor a frame, and a continuous
+ *        stream with no data_code. Exported so a test or a face can hold a
+ *        refusal to its reason by identity.
+ */
+extern const char dp_wfm_why_dsss_frame_no_data_code[];
+extern const char dp_wfm_why_dsss_empty[];
+extern const char dp_wfm_why_dsss_cont_no_data_code[];
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.
@@ -889,6 +916,29 @@ typedef struct wfm_compose_state dp_wfm_compose_state_t;
  */
 dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+/**
+ * @brief dp_wfm_compose_create(), able to say why a source was refused.
+ *
+ * Each source is asked dp_wfm_source_error() before anything is built, and
+ * the first refusal's sentence is what @p why receives -- the same sentence
+ * the wfmgen CLI and a scene read by dp_wfm_compose_from_json_why() report,
+ * because it is the same rule. A dsss source without the code it needs is
+ * the case doppler#1696 found, where the NULL named nothing.
+ *
+ * @param segs        as for dp_wfm_compose_create().
+ * @param n_segs      as for dp_wfm_compose_create().
+ * @param repeat      as for dp_wfm_compose_create().
+ * @param continuous  as for dp_wfm_compose_create().
+ * @param why         optional; receives a STATIC reason when a source is
+ *                    refused, and is left as it was in every other case
+ *                    (success, an allocation failure, a synth failure).
+ * @return Heap state, or NULL as for dp_wfm_compose_create().
+ */
+dp_wfm_compose_state_t *dp_wfm_compose_create_why(const wfm_segment_t *segs,
+                                                  size_t n_segs, int repeat,
+                                                  int continuous,
+                                                  const char **why);
 
 /**
  * @brief Choose how the seed advances on each repeat of a looped/continuous

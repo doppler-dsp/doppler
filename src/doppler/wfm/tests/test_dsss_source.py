@@ -410,13 +410,14 @@ def test_the_coding_kwargs_are_gone(key):
 
 def test_invalid_geometry_raises_or_degrades():
     """Payload with no data code is invalid: the standalone Synth raises at
-    first generation."""
+    first generation, naming the missing code (doppler#1696; it used to be a
+    RuntimeError that named nothing)."""
     acq, dat, pay = _codes()
     kw = _seg_kwargs(1, 0, acq, dat, pay)
     kw.pop("data_code")
     kw.pop("off_samples")
     s = Synth(**kw)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError, match="give data_code"):
         s.steps(64)
 
 

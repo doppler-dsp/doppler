@@ -2000,6 +2000,85 @@ main (void)
                     "a seed that masks to zero is not a source error");
     }
 
+    /* doppler#1696: a dsss source missing a code. The composer refused
+     * these with a bare NULL -- "dp_wfm_compose_create failed", naming no
+     * field -- and each now has its own reason, reported by
+     * dp_wfm_compose_create_why() and every other face that asks
+     * dp_wfm_source_error(). The reasons are compared by IDENTITY with the
+     * exported arrays, so a test cannot pass on a different sentence that
+     * happens to share a word. A preamble alone is the documented valid
+     * edge, and must still compose. */
+    {
+      static const uint8_t acq[7] = { 1, 1, 1, 0, 0, 1, 0 };
+      static const uint8_t dat[3] = { 1, 0, 1 };
+      static const uint8_t pay[4] = { 1, 0, 1, 1 };
+      const wfm_seq_t      A
+          = { .kind = WFM_SEQ_LITERAL, .bits = acq, .len = sizeof acq };
+      const wfm_seq_t D
+          = { .kind = WFM_SEQ_LITERAL, .bits = dat, .len = sizeof dat };
+      const wfm_seq_t P
+          = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = sizeof pay };
+      struct
+      {
+        const char *name;
+        wfm_seq_t   acq, data, payload;
+        double      symbol_rate;
+        const char *want; /* NULL: composes */
+      } cases[] = {
+        { "no codes, no frame",
+          { 0 },
+          { 0 },
+          { 0 },
+          0.0,
+          dp_wfm_why_dsss_empty },
+        { "data_code, no frame", { 0 }, D, { 0 }, 0.0, dp_wfm_why_dsss_empty },
+        { "a payload, no data_code",
+          A,
+          { 0 },
+          P,
+          0.0,
+          dp_wfm_why_dsss_frame_no_data_code },
+        { "continuous, no data_code",
+          { 0 },
+          { 0 },
+          { 0 },
+          1e3,
+          dp_wfm_why_dsss_cont_no_data_code },
+        { "a preamble alone", A, { 0 }, { 0 }, 0.0, NULL },
+        { "a payload, no preamble", { 0 }, D, P, 0.0, NULL },
+        { "the whole burst", A, D, P, 0.0, NULL },
+      };
+      for (size_t c = 0; c < sizeof cases / sizeof *cases; c++)
+        {
+          wfm_source_t  src = { .type        = WFM_SYNTH_DSSS,
+                                .sps         = 2,
+                                .acq_reps    = 2,
+                                .acq_code    = cases[c].acq,
+                                .data_code   = cases[c].data,
+                                .payload     = cases[c].payload,
+                                .symbol_rate = cases[c].symbol_rate };
+          wfm_segment_t g   = {
+            .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 64
+          };
+          const char             *why = "untouched";
+          dp_wfm_compose_state_t *st
+              = dp_wfm_compose_create_why (&g, 1, 0, 0, &why);
+          if (cases[c].want)
+            {
+              DP_CHECK_MSG (st == NULL, cases[c].name);
+              DP_CHECK_MSG (why == cases[c].want, cases[c].name);
+              DP_CHECK_MSG (dp_wfm_source_error (&src) == cases[c].want,
+                            cases[c].name);
+            }
+          else
+            {
+              DP_CHECK_MSG (st != NULL, cases[c].name);
+              DP_CHECK_MSG (strcmp (why, "untouched") == 0, cases[c].name);
+            }
+          dp_wfm_compose_destroy (st);
+        }
+    }
+
     /* Same answer inside a multi-source sum: one source that cannot be built
      * refuses the whole composition rather than summing the others and
      * quietly leaving this one out. */

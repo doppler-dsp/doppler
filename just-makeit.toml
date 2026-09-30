@@ -1543,6 +1543,11 @@ doc = "Continuous dsss data source: 1 = code-only (the pure spreading code, no d
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
 bridge_fn = "dp_wfm_source_to_synth"
+# doppler#1696: a refused build raises the source's reason (ValueError), the
+# sentence the CLI, a scene and the C composer give, rather than a bare
+# "returned NULL". The Composer's own create has no such channel yet:
+# just-makeit#1755.
+bridge_error_fn = "dp_wfm_source_to_synth_error"
 
 [module.wfm_compose.segment]
 type_name = "Segment"

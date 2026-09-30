@@ -63,6 +63,44 @@ const char dp_wfm_why_pn_poly[]
       "inside the pn_length-bit register, or 0 for its maximal-length "
       "polynomial";
 
+/* doppler#1696. A dsss source's two codes do different jobs, and each one
+   missing is its own sentence rather than a NULL from the builder:
+   `acq_code` is the preamble a receiver acquires on, and `data_code` is what
+   spreads the frame -- and, for a continuous stream, the only thing there
+   is. A burst of just the preamble (no sync, no payload, no data_code) is
+   valid: it is what an acquisition stimulus is, and waveforms.md says so. */
+const char dp_wfm_why_dsss_frame_no_data_code[]
+    = "a dsss burst spreads its frame (sync, payload, crc) with data_code, "
+      "and none is given: give data_code, a spreading code such as "
+      "pn:31:5 -- or no sync and no payload, for a preamble-only burst";
+const char dp_wfm_why_dsss_empty[]
+    = "a dsss burst has nothing to send: give acq_code, the preamble a "
+      "receiver acquires on, or a payload spread by data_code, or both";
+const char dp_wfm_why_dsss_cont_no_data_code[]
+    = "a continuous dsss stream (symbol_rate > 0) is its spreading code, "
+      "and no data_code is given: give data_code, a code such as pn:31:5";
+
+/* The dsss half of dp_wfm_source_error: NULL, or which code is missing. A
+   frame the description refuses is not decided here -- that is
+   dp_wfm_source_frame_error's, and it names its own reason. */
+static const char *
+dsss_error (const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_DSSS)
+    return NULL;
+  if (src->symbol_rate > 0.0)
+    return src->data_code.len ? NULL : dp_wfm_why_dsss_cont_no_data_code;
+  wfm_frame_desc_t        d;
+  wfm_frame_desc_layout_t l;
+  if (source_frame (src, &d) != 0 || dp_wfm_frame_desc_layout (&d, &l) != 0)
+    return NULL;
+  if (l.out_bits && !src->data_code.len)
+    return dp_wfm_why_dsss_frame_no_data_code;
+  if (!l.out_bits && !(src->acq_code.len && src->acq_reps))
+    return dp_wfm_why_dsss_empty;
+  return NULL;
+}
+
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
 {
@@ -87,7 +125,8 @@ dp_wfm_source_error (const wfm_source_t *src)
   if (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK && src->pn_poly
       && !pn_fits_register (src->pn_poly, (uint32_t)src->pn_length))
     return dp_wfm_why_pn_poly;
-  return dp_wfm_source_frame_error (src);
+  const char *why = dsss_error (src);
+  return why ? why : dp_wfm_source_frame_error (src);
 }
 
 const char *
@@ -469,6 +508,13 @@ dp_wfm_source_dsss_nchips (const wfm_source_t *src)
     return 0;
   return dp_wfm_dsss_desc_nchips (&d, src->acq_code.len, src->acq_reps,
                                   src->data_code.len);
+}
+
+const char *
+dp_wfm_source_to_synth_error (const wfm_source_t *src, double fs)
+{
+  (void)fs; /* the rule is the source's; fs is the bridge's own argument */
+  return dp_wfm_source_error (src);
 }
 
 dp_wfm_synth_state_t *

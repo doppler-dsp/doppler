@@ -389,7 +389,13 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 
 const char *dp_wfm_source_error(const wfm_source_t *src);
 
+const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
+
 extern const char dp_wfm_why_pn_poly[];
+
+extern const char dp_wfm_why_dsss_frame_no_data_code[];
+extern const char dp_wfm_why_dsss_empty[];
+extern const char dp_wfm_why_dsss_cont_no_data_code[];
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 
@@ -427,6 +433,11 @@ typedef struct wfm_compose_state dp_wfm_compose_state_t;
 
 dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+dp_wfm_compose_state_t *dp_wfm_compose_create_why(const wfm_segment_t *segs,
+                                                  size_t n_segs, int repeat,
+                                                  int continuous,
+                                                  const char **why);
 
 void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
 

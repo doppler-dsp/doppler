@@ -574,6 +574,13 @@ dp_wfm_compose_state_t *
 dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
                        int continuous)
 {
+  return dp_wfm_compose_create_why (segs, n_segs, repeat, continuous, NULL);
+}
+
+dp_wfm_compose_state_t *
+dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
+                           int repeat, int continuous, const char **why)
+{
   if (!segs || n_segs == 0)
     return NULL;
   /* Refuse a frame no source in this scene can carry, BEFORE anything is
@@ -583,8 +590,15 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
      place. */
   for (size_t i = 0; i < n_segs; i++)
     for (size_t k = 0; k < segs[i].n_sources; k++)
-      if (dp_wfm_source_error (&segs[i].sources[k]) != NULL)
-        return NULL;
+      {
+        const char *bad = dp_wfm_source_error (&segs[i].sources[k]);
+        if (bad)
+          {
+            if (why)
+              *why = bad;
+            return NULL;
+          }
+      }
   /* The frame is not the only thing a source can get wrong: anything the
      synth itself refuses (a PN length with no m-sequence, doppler#1590) took
      the same silent-gap path. So build each source once, here, through the

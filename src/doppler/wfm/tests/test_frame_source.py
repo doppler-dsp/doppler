@@ -33,7 +33,15 @@ import subprocess
 import numpy as np
 import pytest
 
-from doppler.wfm import Composer, FrameDesc, Segment, Synth, cli, crc16
+from doppler.wfm import (
+    Composer,
+    FrameDesc,
+    Segment,
+    Synth,
+    cli,
+    crc16,
+    field_bits,
+)
 from doppler.wfm.wfm import _SynthEngine
 
 SPS = 4
@@ -553,3 +561,48 @@ def test_a_pn_poly_above_its_register_is_refused(make):
     with pytest.raises((ValueError, RuntimeError, MemoryError)):
         make(0x40)
     make(0x12)
+
+
+# ── a dsss source missing a code (doppler#1696) ──────────────────────────────
+
+_ACQ = "pn:31:5"
+_DATA = "pn:15:4"
+
+
+@pytest.mark.parametrize(
+    ("codes", "field"),
+    [
+        ({}, "acq_code"),
+        ({"data_code": _DATA}, "acq_code"),
+        ({"acq_code": _ACQ, "payload": "0101"}, "data_code"),
+        ({"symbol_rate": 1e3}, "data_code"),
+    ],
+    ids=["nothing", "data-code-only", "payload-no-data-code", "continuous"],
+)
+def test_a_dsss_source_missing_a_code_names_it(codes, field):
+    """Each refusal names the code to give, and the standalone Synth and a
+    scene say the SAME sentence, because both ask dp_wfm_source_error. The
+    Composer refuses too; its reason waits on just-makeit#1755."""
+    kw = {
+        k: field_bits(v) if isinstance(v, str) and k != "symbol_rate" else v
+        for k, v in codes.items()
+    }
+    with pytest.raises(ValueError) as synth:
+        Synth(type="dsss", sps=2, **kw).steps(8)
+    assert f"give {field}" in str(synth.value), str(synth.value)
+
+    seg = {"type": "dsss", "sps": 2, **codes}
+    with pytest.raises(ValueError) as scene:
+        Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    assert str(scene.value) == str(synth.value)
+
+    with pytest.raises(ValueError):
+        Composer(type="dsss", sps=2, num_samples=64, **kw)
+
+
+def test_a_preamble_alone_is_a_valid_dsss_burst():
+    """The documented edge (waveforms.md, "The burst anatomy"): acq_code with
+    no sync and no payload is an acquisition stimulus, reps x the code."""
+    acq = field_bits(_ACQ)
+    x = Composer(type="dsss", sps=2, acq_code=acq, acq_reps=3).compose()
+    assert len(x) == 3 * len(acq) * 2

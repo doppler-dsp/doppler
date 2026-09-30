@@ -1255,6 +1255,19 @@ target_include_directories(test_dp_isotime
 target_compile_options(test_dp_isotime PRIVATE -O2)
 add_test(NAME test_dp_isotime COMMAND test_dp_isotime)
 
+# native/inc/doppler/dp_hash64.h is FNV-1a 64, the one content hash: a data
+# source hashes a file as it reads it, so a record can identify the file and
+# a replay can refuse a different one (docs/design/payload-data-source.md
+# §4.8). Header-only and owned by no object, so it is registered here, and
+# it links nothing. The test pins the published FNV vectors and the
+# incremental contract.
+add_executable(test_dp_hash64 native/tests/test_dp_hash64.c)
+target_include_directories(test_dp_hash64
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_hash64 PRIVATE -O2)
+add_test(NAME test_dp_hash64 COMMAND test_dp_hash64)
+
 # native/inc/doppler/wfm/wfm_time.h is the BLUE timecode <-> UNIX epoch conversion,
 # shared by wfm_reader and wfm_writer (separate components, so header-only)
 # and belonging to no object. Its test is mostly about the judgement around

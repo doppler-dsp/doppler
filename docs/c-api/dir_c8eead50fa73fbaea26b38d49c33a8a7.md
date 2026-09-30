@@ -26,6 +26,7 @@
 | file | [**dp\_complex.h**](dp__complex_8h.md) <br>_The complex-math surface, routed so it survives Windows._  |
 | file | [**dp\_crc16.h**](dp__crc16_8h.md) <br>_CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._  |
 | file | [**dp\_format.h**](dp__format_8h.md) <br>_Complex sample formats, named by their BLUE/Platinum codes._  |
+| file | [**dp\_hash64.h**](dp__hash64_8h.md) <br>_FNV-1a 64 over bytes, incrementally: the one content hash in doppler._  |
 | file | [**dp\_interleave.h**](dp__interleave_8h.md) <br>_Block interleaving — the permutation, and nothing else._  |
 | file | [**dp\_interrupt.h**](dp__interrupt_8h.md) <br>_Asking a blocking wait to stop, whatever it is waiting on._  |
 | file | [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md) <br> |

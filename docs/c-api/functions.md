@@ -45,6 +45,7 @@
 * **dp\_format\_full\_scale** ([**dp\_format.h**](dp__format_8h.md))
 * **dp\_format\_is\_valid** ([**dp\_format.h**](dp__format_8h.md))
 * **dp\_format\_size** ([**dp\_format.h**](dp__format_8h.md))
+* **dp\_hash64** ([**dp\_hash64.h**](dp__hash64_8h.md))
 * **dp\_deinterleave\_f32** ([**dp\_interleave.h**](dp__interleave_8h.md))
 * **dp\_deinterleave\_index** ([**dp\_interleave.h**](dp__interleave_8h.md))
 * **dp\_deinterleave\_u8** ([**dp\_interleave.h**](dp__interleave_8h.md))

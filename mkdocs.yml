@@ -296,6 +296,8 @@ nav:
       - Receiver Test Harness: design/rx-test.md
       - A Frame as a Description: design/frame-description.md
       - "A Frame as a Description: the measurement record": design/frame-description-measurements.md
+      - The Payload as a Data Source: design/payload-data-source.md
+      - "The Payload as a Data Source: the measurement record": design/payload-data-source-measurements.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - wfmgen — the waveform generator: design/wfmgen.md

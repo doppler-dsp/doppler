@@ -78,6 +78,12 @@ instead.)
     the dated record behind it: the survey that counted seven spellings of a
     field, the prototype that proved one grammar lossless, and how the CCSDS
     sites were settled, under the same section letters
+- [The Payload as a Data Source](payload-data-source.md) — a frame declares
+    `data:LEN` and `--data` names where the bits come from (a file, a
+    literal, stdin, a seeded stream): fill, idle frames, run length, what is
+    deleted, and the unknowns
+- [The Payload as a Data Source — the measurement record](payload-data-source-measurements.md) —
+    the chunker prototyped before any C, and the three rules it changed
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

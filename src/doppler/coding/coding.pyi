@@ -58,7 +58,7 @@ class ConvEncoder:
 
     def encode(
         self,
-        x: NDArray[np.uint8],
+        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Encode information bits into channel symbols.
@@ -72,7 +72,7 @@ class ConvEncoder:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
         out : NDArray[np.uint8] | None
             Receives `n_in * n` unpacked symbols, one per byte.
@@ -499,7 +499,7 @@ class ReedSolomon:
     ) -> None: ...
     def encode(
         self,
-        x: NDArray[np.uint8],
+        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Encode `k` information symbols into a whole `n`-symbol codeword.
@@ -521,7 +521,7 @@ class ReedSolomon:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
         out : NDArray[np.uint8] | None
             Receives `n` symbols; may be in.
@@ -611,7 +611,7 @@ class ReedSolomon:
 
     def syndromes(
         self,
-        x: NDArray[np.uint8],
+        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """The `nroots` syndromes of an `n`-symbol word.
@@ -623,7 +623,7 @@ class ReedSolomon:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
         out : NDArray[np.uint8] | None
             Receives `nroots` syndromes.
@@ -661,12 +661,15 @@ class ReedSolomon:
             Output.
         """
 
-    def codeword_ok(self, codeword: NDArray[np.uint8]) -> int:
+    def codeword_ok(
+        self,
+        codeword: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    ) -> int:
         """Is this a valid codeword? — every syndrome zero.
 
         Parameters
         ----------
-        codeword : NDArray[np.uint8]
+        codeword : NDArray[np.uint8] | bytes | bytearray | memoryview
             `n` symbols.
 
         Returns
@@ -853,7 +856,7 @@ class Interleaver:
 
     def interleave(
         self,
-        x: NDArray[np.uint8],
+        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Interleave a whole number of blocks: write the input by rows into a
@@ -864,7 +867,7 @@ class Interleaver:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
         out : NDArray[np.uint8] | None
             Where to write n_in bits; must not overlap in.
@@ -919,7 +922,7 @@ class Interleaver:
 
     def deinterleave(
         self,
-        x: NDArray[np.uint8],
+        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo `interleave()` over the same geometry. De-interleaving a `rows`
@@ -929,7 +932,7 @@ class Interleaver:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
         out : NDArray[np.uint8] | None
             Where to write n_in bits; must not overlap in.
@@ -1179,7 +1182,7 @@ class Deinterleaver:
 
     def deinterleave(
         self,
-        x: NDArray[np.uint8],
+        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
         out: NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo `interleave()` over the same geometry. De-interleaving a `rows`
@@ -1189,7 +1192,7 @@ class Deinterleaver:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
         out : NDArray[np.uint8] | None
             Where to write n_in bits; must not overlap in.

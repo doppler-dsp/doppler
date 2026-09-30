@@ -277,8 +277,8 @@ CRC trailer's bits. It is declared by the stage that produces it
 (`add_derived`) and appears in a carried frame only as its name and length.
 
 The spellings this replaces are **refused, not aliased**, each with a message
-naming its replacement: `--X-hex`, `--X-gen`, `--acq-reps`, the six payload
-flags `--bits`, `--bits-hex`, `--bits-file`, `--payload`, `--payload-gen` and
+naming its replacement: `--X-hex`, `--X-gen`, `--acq-reps`, the five payload
+flags `--bits`, `--bits-hex`, `--bits-file`, `--payload-gen` and
 `--payload-len` (all now `--data`), and the JSON keys `*_gen`,
 `pattern`, `acq_reps`, `lit` and `gen`. Two spellings of one thing is the
 condition this section exists to end.
@@ -385,6 +385,8 @@ again.
 This is designed here so that Field and the one frame are shaped for it; it
 is **built as its own pass through the lifecycle, after** the Field and the
 surface table land ([#853](https://github.com/doppler-dsp/doppler/issues/853)).
+That pass is [The Payload as a Data Source](payload-data-source.md): the
+rules this section leaves open, what it deletes, and its unknowns.
 
 ______________________________________________________________________
 

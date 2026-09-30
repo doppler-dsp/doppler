@@ -84,6 +84,11 @@ instead.)
     deleted, and the unknowns
 - [The Payload as a Data Source — the measurement record](payload-data-source-measurements.md) —
     the chunker prototyped before any C, and the three rules it changed
+- [A Receiver Built from a Frame Description](rx-frame-description.md) —
+    `BurstDemod` and `DsssBurstReceiver` told the frame instead of its
+    length: the sync word, the frame and burst lengths and the CRC verdict
+    derived from one description, the callers that compute them by hand
+    today, and the order of work
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

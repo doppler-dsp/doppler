@@ -15,6 +15,7 @@
 #include "doppler/clib_common.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "doppler/wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
+#include "doppler/wfm/wfm_data.h" /* a data:LEN payload's source */
 #include "doppler/doppler_channel/doppler_channel_core.h" /* a source's clock Doppler */
 
 #ifdef __cplusplus
@@ -395,6 +396,12 @@ const char *dp_wfm_source_error(const wfm_source_t *src);
 extern const char dp_wfm_why_pn_poly[];
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
+
+int dp_wfm_synth_attach_data(dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
+                             const wfm_frame_ops_t *ops, wfm_data_src_t *src,
+                             wfm_data_pacing_t pacing, int modulation);
+
+const wfm_data_src_t *dp_wfm_synth_data_source(const dp_wfm_synth_state_t *syn);
 
 int dp_wfm_source_synth_type(const wfm_source_t *src);
 

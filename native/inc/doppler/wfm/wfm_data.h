@@ -59,8 +59,16 @@ extern "C"
     WFM_DATA_FRAME   = 0, /**< a frame's data was written                  */
     WFM_DATA_NOT_YET = 1, /**< a pipe has not delivered; nothing written   */
     WFM_DATA_END     = 2, /**< the source has ended; nothing written       */
-    WFM_DATA_ERROR   = 3  /**< a read failed (errno is set); nothing written */
+    WFM_DATA_ERROR   = 3, /**< a read failed (errno is set); nothing written */
+    WFM_DATA_IDLE    = 4  /**< an idle frame, all fill, was written        */
   } wfm_data_status_t;
+
+  /** @brief Whether frames are due at a time (`--realtime`) or on demand. */
+  typedef enum
+  {
+    WFM_DATA_UNPACED = 0, /**< wait for the data, as `cat` does       */
+    WFM_DATA_PACED   = 1  /**< never wait: nothing yet is an idle frame */
+  } wfm_data_pacing_t;
 
   /** @brief Opaque; see @ref dp_wfm_data_create. */
   typedef struct wfm_data_src wfm_data_src_t;
@@ -189,6 +197,34 @@ extern "C"
    */
   wfm_data_status_t dp_wfm_data_idle (wfm_data_src_t *s, size_t reps,
                                       uint8_t *out, size_t max_out);
+
+  /**
+   * @brief The next frame's data field under a pacing: THE rule for idle
+   * frames.
+   *
+   * §4.5 in one place: only a paced caller gets idle frames. Paced, the
+   * source is asked without waiting, and *nothing yet* becomes an all-fill
+   * idle frame (@ref dp_wfm_data_idle), so the carrier and the frame timing
+   * never break. Unpaced, it waits for as long as the data takes and never
+   * sends an idle frame. Every frame-pulling caller goes through this, so
+   * no caller has to remember which timeout means which.
+   *
+   * @return @ref WFM_DATA_FRAME, @ref WFM_DATA_IDLE (paced only),
+   *         @ref WFM_DATA_END or @ref WFM_DATA_ERROR.
+   *
+   * @code
+   * uint8_t b[16];
+   * switch (dp_wfm_data_frame (s, WFM_DATA_PACED, 1, b, sizeof b))
+   *   {
+   *   case WFM_DATA_FRAME: break; // b is the next 16 bits of data
+   *   case WFM_DATA_IDLE:  break; // b is all fill: nothing had arrived
+   *   default:             break; // ended, or a read failed
+   *   }
+   * @endcode
+   */
+  wfm_data_status_t dp_wfm_data_frame (wfm_data_src_t *s,
+                                       wfm_data_pacing_t pacing, size_t reps,
+                                       uint8_t *out, size_t max_out);
 
   /** @brief What the source has done so far. */
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);

@@ -69,6 +69,21 @@ target_include_directories(wfm_compose_core PUBLIC
 # tests and the .so that link this object library pick up -pthread transitively.
 target_link_libraries(wfm_compose_core PUBLIC ${DP_MATH_LIBRARY} Threads::Threads)
 
+# The pull that replaces the cycle: a synth fed frame by frame from a data
+# source (dp_wfm_synth_attach_data in the bridge). Links as test_wfm_compose
+# does, because the bridge is part of wfm_compose_core.
+add_executable(test_wfm_synth_data
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_data.c)
+target_link_libraries(test_wfm_synth_data PRIVATE
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    ccsds_tm_core conv_core rs_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
+    ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_synth_data PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_wfm_synth_data COMMAND test_wfm_synth_data)
+
 add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn

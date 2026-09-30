@@ -85,6 +85,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**dp\_wfm\_frame\_add\_stage**](#function-dp_wfm_frame_add_stage) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, const char \* first, const char \* last) <br>_Append a stage covering_ `[first .. last]` _BY NAME. Returns its index, or -1._ |
 |  int | [**dp\_wfm\_frame\_add\_stage\_at**](#function-dp_wfm_frame_add_stage_at) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint32\_t kind, unsigned first, unsigned n\_fields) <br>_Append a stage covering_ `n_fields` _fields from index_`first` _. Returns its index, or -1._ |
 |  size\_t | [**dp\_wfm\_frame\_assemble**](#function-dp_wfm_frame_assemble) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* out, size\_t max\_out) <br>_Materialise a description: run every field, then every stage._  |
+|  size\_t | [**dp\_wfm\_frame\_assemble\_data**](#function-dp_wfm_frame_assemble_data) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, const uint8\_t \* data, uint8\_t \* out, size\_t max\_out) <br>[_**dp\_wfm\_frame\_assemble**_](wfm__frame_8h.md#function-dp_wfm_frame_assemble) _, with a data field's bits supplied._ |
 |  int | [**dp\_wfm\_frame\_check**](#function-dp_wfm_frame_check) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* bits, [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) \* rx) <br>_Undo a description's stages over a received frame, and report._  |
 |  int | [**dp\_wfm\_frame\_desc\_crc\_ok**](#function-dp_wfm_frame_desc_crc_ok) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC against any description that has one._  |
 |  int | [**dp\_wfm\_frame\_desc\_layout**](#function-dp_wfm_frame_desc_layout) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) \* out) <br>_Derive every field offset, every stage span and both lengths._  |
@@ -765,6 +766,57 @@ The bits written, or 0 if the description is refused, a stage has no kernel, a f
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_frame\_assemble\_data 
+
+[_**dp\_wfm\_frame\_assemble**_](wfm__frame_8h.md#function-dp_wfm_frame_assemble) _, with a data field's bits supplied._
+```C++
+size_t dp_wfm_frame_assemble_data (
+    const wfm_frame_desc_t * d,
+    const wfm_frame_ops_t * ops,
+    const uint8_t * data,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+A WFM\_SEQ\_DATA field has no bits of its own: they are one chunk of the frame's data source, drawn per frame ([**wfm/wfm\_data.h**](wfm__data_8h.md)). This writes `data` at the data field's offset and then runs every stage, so a stage covering the payload  a CRC, an outer code  covers THIS frame's chunk. [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble) is this with `data` NULL.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description; at most one data field (the layout refuses two). 
+* `ops` as [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble). 
+* `data` the data field's bits, `LEN * REPS` of them, one per byte, as `dp_wfm_data_next()` writes them; ignored when `d` has no data field, and required when it has one. 
+* `out` as [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble). 
+* `max_out` as [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble). 
+
+
+
+**Returns:**
+
+the bits written, or 0 as [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble), and also when `d` has a data field and `data` is NULL.
+
+
+
+```C++
+uint8_t chunk[24], frame[40];
+// d: [data:24 | crc16], built with dp_wfm_frame_fixed
+dp_wfm_frame_assemble_data (&d, NULL, chunk, frame, sizeof frame); // 40
+```
+ 
 
 
         

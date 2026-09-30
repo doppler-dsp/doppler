@@ -139,6 +139,7 @@
 * **wfm\_render\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_snr\_mode\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_data\_pacing\_t** ([**wfm\_data.h**](wfm__data_8h.md))
 * **wfm\_data\_src\_t** ([**wfm\_data.h**](wfm__data_8h.md))
 * **wfm\_data\_status\_t** ([**wfm\_data.h**](wfm__data_8h.md))
 * **wfm\_seq\_kind\_t** ([**wfm\_frame.h**](wfm__frame_8h.md))
@@ -156,6 +157,7 @@
 * **wfm\_t0\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_refill\_fn** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_filetype\_t** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
 
 

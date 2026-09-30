@@ -17,13 +17,113 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+
+/* The fd layer, once per platform: open, read, close, is-it-a-file, and
+   "is there anything to read within the timeout". Windows has no poll(2)
+   for a pipe, so availability comes from PeekNamedPipe, which works on
+   anonymous pipes (stdin from a shell pipe is one); a file or a console is
+   always ready, as poll(2) says of a regular file. */
+#ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <io.h>
+#include <windows.h>
+#define STDIN_FD 0
+static int
+fd_open (const char *path)
+{
+  return _open (path, _O_RDONLY | _O_BINARY);
+}
+static long long
+fd_read (int fd, void *b, size_t n)
+{
+  return _read (fd, b, (unsigned)n);
+}
+static void
+fd_close (int fd)
+{
+  (void)_close (fd);
+}
+static int
+fd_stat (int fd, int *regular, unsigned long long *bytes)
+{
+  struct _stat64 sb;
+  if (_fstat64 (fd, &sb) != 0)
+    return -1;
+  *regular = (sb.st_mode & _S_IFMT) == _S_IFREG;
+  *bytes   = (unsigned long long)sb.st_size;
+  if (!*regular)
+    (void)_setmode (fd, _O_BINARY); /* a pipe's bytes, not text: no CRLF,
+                                       no ^Z as end of file */
+  return 0;
+}
+static int
+fd_wait (int fd, int timeout_ms)
+{
+  HANDLE h = (HANDLE)_get_osfhandle (fd);
+  if (GetFileType (h) != FILE_TYPE_PIPE)
+    return 1;
+  for (int waited = 0;; waited++)
+    {
+      DWORD avail = 0;
+      if (!PeekNamedPipe (h, NULL, 0, NULL, &avail, NULL))
+        return 1; /* broken: the read reports the end */
+      if (avail)
+        return 1;
+      if (waited >= timeout_ms)
+        return 0;
+      Sleep (1);
+    }
+}
+#else
+#include <poll.h>
 #include <unistd.h>
+#define STDIN_FD STDIN_FILENO
+static int
+fd_open (const char *path)
+{
+  return open (path, O_RDONLY);
+}
+static long long
+fd_read (int fd, void *b, size_t n)
+{
+  return (long long)read (fd, b, n);
+}
+static void
+fd_close (int fd)
+{
+  (void)close (fd);
+}
+static int
+fd_stat (int fd, int *regular, unsigned long long *bytes)
+{
+  struct stat sb;
+  if (fstat (fd, &sb) != 0)
+    return -1;
+  *regular = S_ISREG (sb.st_mode);
+  *bytes   = (unsigned long long)sb.st_size;
+  return 0;
+}
+static int
+fd_wait (int fd, int timeout_ms)
+{
+  for (;;)
+    {
+      struct pollfd p = { .fd = fd, .events = POLLIN };
+      const int     r = poll (&p, 1, timeout_ms);
+      if (r < 0 && errno == EINTR)
+        continue;
+      return r < 0 ? -1 : r > 0;
+    }
+}
+#endif
 
 typedef enum
 {
@@ -207,8 +307,8 @@ dp_wfm_data_create (const char *data, const char *path, size_t len,
   if (path)
     {
       if (strcmp (path, "-") == 0)
-        return dp_wfm_data_create_fd (STDIN_FILENO, len, fill, why, why_cap);
-      const int fd = open (path, O_RDONLY);
+        return dp_wfm_data_create_fd (STDIN_FD, len, fill, why, why_cap);
+      const int fd = fd_open (path);
       if (fd < 0)
         {
           say (why, why_cap, "--data-from-file %s: %s", path,
@@ -217,7 +317,7 @@ dp_wfm_data_create (const char *data, const char *path, size_t len,
         }
       wfm_data_src_t *s = dp_wfm_data_create_fd (fd, len, fill, why, why_cap);
       if (!s)
-        close (fd);
+        fd_close (fd);
       else
         s->own_fd = 1;
       return s;
@@ -249,8 +349,9 @@ dp_wfm_data_create_fd (int fd, size_t len, const char *fill, char *why,
       say (why, why_cap, "a data field carries bits: LEN must be > 0");
       return NULL;
     }
-  struct stat sb;
-  if (fd < 0 || fstat (fd, &sb) != 0)
+  int                regular;
+  unsigned long long bytes;
+  if (fd < 0 || fd_stat (fd, &regular, &bytes) != 0)
     {
       say (why, why_cap, "the data source cannot be read: %s",
            strerror (errno));
@@ -265,8 +366,8 @@ dp_wfm_data_create_fd (int fd, size_t len, const char *fill, char *why,
   s->st.hash   = DP_HASH64_INIT;
   s->res       = dp_xmalloc (len + 8u);
   s->oct       = dp_xmalloc (len / 8u + 2u);
-  if (S_ISREG (sb.st_mode))
-    s->st.total_bits = (uint64_t)sb.st_size * 8u;
+  if (regular)
+    s->st.total_bits = (uint64_t)bytes * 8u;
   else
     s->st.stream = 1;
   return check_length (s, why, why_cap);
@@ -278,7 +379,7 @@ dp_wfm_data_destroy (wfm_data_src_t *s)
   if (!s)
     return;
   if (s->own_fd && s->fd >= 0)
-    close (s->fd);
+    fd_close (s->fd);
   if (s->pn)
     dp_pn_destroy (s->pn);
   free (s->bits);
@@ -306,18 +407,15 @@ fill_residue (wfm_data_src_t *s, int timeout_ms)
     {
       if (wait >= 0)
         {
-          struct pollfd p = { .fd = s->fd, .events = POLLIN };
-          const int     r = poll (&p, 1, wait);
-          if (r < 0 && errno == EINTR)
-            continue;
+          const int r = fd_wait (s->fd, wait);
           if (r < 0)
             return -1;
           if (r == 0)
             return 0; /* nothing yet; what was read stays in `res` */
           wait = 0;   /* the timeout bounds the WAIT, not every read */
         }
-      const size_t  need = (s->len - s->have + 7u) / 8u;
-      const ssize_t got  = read (s->fd, s->oct, need);
+      const size_t    need = (s->len - s->have + 7u) / 8u;
+      const long long got  = fd_read (s->fd, s->oct, need);
       if (got < 0 && errno == EINTR)
         continue;
       if (got < 0)

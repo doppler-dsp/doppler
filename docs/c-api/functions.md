@@ -1575,7 +1575,7 @@
 * **dp\_wfm\_rrc\_taps** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
 * **dp\_wfm\_dsss\_desc\_chips** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_dsss\_desc\_nchips** ([**wfm\_frame.h**](wfm__frame_8h.md))
-* **dp\_wfm\_field\_bits** ([**wfm\_frame.h**](wfm__frame_8h.md))
+* **dp\_wfm\_field\_bits** ([**wfm\_frame.h**](wfm__frame_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_field\_format** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_field\_parse** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **dp\_wfm\_field\_render** ([**wfm\_frame.h**](wfm__frame_8h.md))

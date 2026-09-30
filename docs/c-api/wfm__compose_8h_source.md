@@ -139,9 +139,9 @@ typedef struct {
        six numbers in a --record. The bridge used to flatten this to
        WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
        made the preamble's generated kinds unreachable (gh-762). */
-    wfm_seq_t payload; /* The payload bits: a Field on the command line and
-                          in a scene, an array in Python. For type=bits, the
-                          pattern, oversampled by sps and cycled to fill the
+    wfm_seq_t payload; /* The payload bits: a Field (text on the command
+                          line, in a scene or as a Python str) or, in
+                          Python, an array. For type=bits, the pattern, oversampled by sps and cycled to fill the
                           request; for type=dsss, the payload bits of the
                           burst frame. */
     int modulation;    /* Symbol mapping of a bits pattern. none: the

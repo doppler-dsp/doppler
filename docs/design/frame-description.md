@@ -245,6 +245,14 @@ One flag and one JSON key per field on the text faces — `--sync`,
 `--acq-code`, `--data-code` — and one for the payload's source, `--data`
 (§F.5).
 
+A composer source's bit fields (`Synth`/`Segment` `payload=`, `sync=`,
+`acq_code=`, `data_code=`) take the text form as a Python `str` too, read by
+`dp_wfm_field_bits()` itself (`coerce_str_fn`, just-makeit#1709), so
+`Segment(payload="pn:31:5")` is the bits `field_bits("pn:31:5")` returns and
+a malformed spec is refused with the same reason. One difference remains:
+a `*REPS` suffix on `acq_code` expands into the code itself there, where the
+CLI and a scene carry it as `acq_reps`.
+
 **An object takes bits; module helpers make them.** `Frame` and `FrameDesc`
 take each field as an unpacked `uint8` array and nothing else:
 `Frame(preamble=, sync=, payload=, crc=)`, each field an empty-by-default

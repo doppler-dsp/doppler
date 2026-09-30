@@ -94,27 +94,15 @@ def test_malformed_text_raises_its_reason_never_returns_empty(spec):
         field_bits(spec)
 
 
-# ── the SECOND grammar: jm's bit_pattern coercion on a Source ──────────────
+# ── the same grammar through a Source's bit_pattern coercion ───────────────
 #
 # A composer bytes field with `coerce = "bit_pattern"` (just-makeit.toml:
-# bits/payload, acq_code, data_code, sync) parses a `str` with jm's OWN
-# grammar -- 0/1 or 0x hex -- not the Field's. It is kept because dropping it
-# would also refuse numpy arrays and int sequences, and a literal Field is
-# data. So the two grammars are pinned against each other: where they agree,
-# and where they do not. The gaps are asserted as they are TODAY, so the jm
-# fix (route a str through field_bits) turns them red on purpose -- and then
-# the gap tests, and this second grammar, are deleted.
-
-_JM1709 = (
-    "just-makeit#1709: jm's coercion now agrees with field_bits here -- "
-    "delete this gap test and the second grammar with it"
-)
-
-
-def _jm_grammar(spec: str) -> bool:
-    """What jm's coercion reads: a 0/1 string, or 0x hex with no repeat."""
-    body = spec[2:] if spec[:2].lower() == "0x" else spec
-    return "*" not in spec and ":" not in spec and bool(body)
+# bits/payload, acq_code, data_code, sync) reads a `str` through
+# `coerce_str_fn = "dp_wfm_field_bits"` (just-makeit#1709): the Field parser
+# above, not a grammar of jm's own. So the whole corpus is pinned through
+# that door too -- every VALID spec gives field_bits' bits, and every
+# MALFORMED spec is refused with field_bits' reason. A second grammar
+# drifting back in would fail here on the first spec it read differently.
 
 
 def _coerce(spec: str):
@@ -123,48 +111,19 @@ def _coerce(spec: str):
     return Segment(type="bits", payload=spec).bits
 
 
-@pytest.mark.parametrize("spec", [s for s in VALID if _jm_grammar(s)])
+@pytest.mark.parametrize("spec", VALID)
 def test_the_coercion_agrees_with_field_bits(spec):
-    """Binary and hex: one text, the same bits through either door."""
+    """One text, the same bits through either door -- generated kinds and
+    `*REPS` included, which jm's own grammar refused before #1709."""
     assert list(_coerce(spec)) == field_bits(spec).tolist()
 
 
-@pytest.mark.parametrize("spec", [s for s in MALFORMED if s not in ("", "0x")])
+@pytest.mark.parametrize("spec", MALFORMED)
 def test_the_coercion_refuses_what_field_bits_refuses(spec):
-    """The refusals the two grammars SHARE, pinned so neither drifts alone.
-
-    If jm ever read "0102" as some pattern, the agreement tests above would
-    stay green -- they only cover VALID text.
-    """
-    with pytest.raises(ValueError):
+    """Every refusal, with the parser's own reason -- `""` and a bare `0x`
+    included, which jm's own grammar read as an absent pattern."""
+    with pytest.raises(ValueError, match=re.escape(REASON[spec])):
         _coerce(spec)
-
-
-@pytest.mark.parametrize("spec", [s for s in VALID if not _jm_grammar(s)])
-def test_gap_the_coercion_refuses_a_valid_field(spec):
-    """A generated field and `*REPS` are Fields jm cannot read.
-
-    `wfmgen --bits pn:31:5` and a scene's `"payload": "pn:31:5"` work;
-    `Segment(payload="pn:31:5")` does not. Pass `field_bits(spec)` instead.
-    """
-    try:
-        _coerce(spec)
-    except ValueError:
-        return
-    pytest.fail(_JM1709)
-
-
-@pytest.mark.parametrize("spec", ["", "0x"])
-def test_gap_the_coercion_accepts_an_empty_field(spec):
-    """`""` and a bare `0x` read as an absent pattern, not a typo."""
-    with pytest.raises(ValueError):
-        field_bits(spec)
-    assert spec in MALFORMED
-    try:
-        got = _coerce(spec)
-    except ValueError:
-        pytest.fail(_JM1709)  # refused, as field_bits refuses: fixed
-    assert got in (None, b""), "the coercion read an empty field as bits"
 
 
 def test_a_field_past_the_bound_raises_not_a_numpy_error():

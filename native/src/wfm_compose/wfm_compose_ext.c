@@ -331,6 +331,182 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
   }
 }
 
+/* `bits`: a str is read by the project's dp_wfm_field_bits() (coerce_str_fn,
+ * gh-1709) -- sized, then filled; 0 is a refusal and *why its reason.
+ * Anything else is _attach_bytes's. */
+static int
+_coerce_bits (uint8_t **dst, size_t *n_dst, PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_field_bits (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_field_bits (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (PyExc_ValueError,
+                       why ? why : "dp_wfm_field_bits() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
+}
+
+/* `acq_code`: a str is read by the project's dp_wfm_field_bits()
+ * (coerce_str_fn, gh-1709) -- sized, then filled; 0 is a refusal and *why its
+ * reason. Anything else is _attach_bytes's. */
+static int
+_coerce_acq_code (uint8_t **dst, size_t *n_dst, PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_field_bits (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_field_bits (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (PyExc_ValueError,
+                       why ? why : "dp_wfm_field_bits() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
+}
+
+/* `data_code`: a str is read by the project's dp_wfm_field_bits()
+ * (coerce_str_fn, gh-1709) -- sized, then filled; 0 is a refusal and *why its
+ * reason. Anything else is _attach_bytes's. */
+static int
+_coerce_data_code (uint8_t **dst, size_t *n_dst, PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_field_bits (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_field_bits (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (PyExc_ValueError,
+                       why ? why : "dp_wfm_field_bits() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
+}
+
+/* `sync`: a str is read by the project's dp_wfm_field_bits() (coerce_str_fn,
+ * gh-1709) -- sized, then filled; 0 is a refusal and *why its reason.
+ * Anything else is _attach_bytes's. */
+static int
+_coerce_sync (uint8_t **dst, size_t *n_dst, PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_field_bits (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_field_bits (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (PyExc_ValueError,
+                       why ? why : "dp_wfm_field_bits() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
+}
+
 static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
@@ -681,8 +857,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.doppler_lifetime = _i;
   }
-  if (!_attach_bytes ((uint8_t **)&self->src.payload.bits,
-                      &self->src.payload.len, bits))
+  if (!_coerce_bits ((uint8_t **)&self->src.payload.bits,
+                     &self->src.payload.len, bits))
     return -1;
   {
     int _i = _enum_index (_enum_bitmod, modulation);
@@ -709,15 +885,15 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.rrc_span = rrc_span;
   if (!_attach_symbols (&self->src, symbols))
     return -1;
-  if (!_attach_bytes ((uint8_t **)&self->src.acq_code.bits,
-                      &self->src.acq_code.len, acq_code))
+  if (!_coerce_acq_code ((uint8_t **)&self->src.acq_code.bits,
+                         &self->src.acq_code.len, acq_code))
     return -1;
   self->src.acq_reps = acq_reps;
-  if (!_attach_bytes ((uint8_t **)&self->src.data_code.bits,
-                      &self->src.data_code.len, data_code))
+  if (!_coerce_data_code ((uint8_t **)&self->src.data_code.bits,
+                          &self->src.data_code.len, data_code))
     return -1;
-  if (!_attach_bytes ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
-                      sync))
+  if (!_coerce_sync ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
+                     sync))
     return -1;
   {
     int _i = _enum_index (_enum_crc, crc);
@@ -1159,8 +1335,8 @@ static int
 Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.payload.bits,
-                        &self->src.payload.len, value)
+  return _coerce_bits ((uint8_t **)&self->src.payload.bits,
+                       &self->src.payload.len, value)
              ? 0
              : -1;
 }
@@ -1293,8 +1469,8 @@ static int
 Synth_set_acq_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.acq_code.bits,
-                        &self->src.acq_code.len, value)
+  return _coerce_acq_code ((uint8_t **)&self->src.acq_code.bits,
+                           &self->src.acq_code.len, value)
              ? 0
              : -1;
 }
@@ -1326,8 +1502,8 @@ static int
 Synth_set_data_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.data_code.bits,
-                        &self->src.data_code.len, value)
+  return _coerce_data_code ((uint8_t **)&self->src.data_code.bits,
+                            &self->src.data_code.len, value)
              ? 0
              : -1;
 }
@@ -1344,8 +1520,8 @@ static int
 Synth_set_sync (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_bytes ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
-                        value)
+  return _coerce_sync ((uint8_t **)&self->src.sync.bits, &self->src.sync.len,
+                       value)
              ? 0
              : -1;
 }
@@ -1541,9 +1717,10 @@ static PyGetSetDef Synth_getset[] = {
     "stream() honour both.\n",
     NULL },
   { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
-    "The payload bits: a Field on the command line and in a scene, an array "
-    "in Python. For type=bits, the pattern, oversampled by sps and cycled to "
-    "fill the request; for type=dsss, the payload bits of the burst frame.\n",
+    "The payload bits: a Field (text on the command line, in a scene or as a "
+    "Python str) or, in Python, an array. For type=bits, the pattern, "
+    "oversampled by sps and cycled to fill the request; for type=dsss, the "
+    "payload bits of the burst frame.\n",
     NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "
@@ -2829,9 +3006,10 @@ static PyGetSetDef Segment_getset[] = {
     "stream() honour both.\n",
     NULL },
   { "bits", (getter)Segment_flat_bits, NULL,
-    "The payload bits: a Field on the command line and in a scene, an array "
-    "in Python. For type=bits, the pattern, oversampled by sps and cycled to "
-    "fill the request; for type=dsss, the payload bits of the burst frame.\n",
+    "The payload bits: a Field (text on the command line, in a scene or as a "
+    "Python str) or, in Python, an array. For type=bits, the pattern, "
+    "oversampled by sps and cycled to fill the request; for type=dsss, the "
+    "payload bits of the burst frame.\n",
     NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "

@@ -111,9 +111,10 @@ class Synth:
         stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
-        The payload bits: a Field on the command line and in a scene, an array
-        in Python. For type=bits, the pattern, oversampled by sps and cycled to
-        fill the request; for type=dsss, the payload bits of the burst frame.
+        The payload bits: a Field (text on the command line, in a scene or as a
+        Python str) or, in Python, an array. For type=bits, the pattern,
+        oversampled by sps and cycled to fill the request; for type=dsss, the
+        payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
         as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
@@ -395,9 +396,10 @@ class Segment:
         stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
     bits : bytes | None, default None
-        The payload bits: a Field on the command line and in a scene, an array
-        in Python. For type=bits, the pattern, oversampled by sps and cycled to
-        fill the request; for type=dsss, the payload bits of the burst frame.
+        The payload bits: a Field (text on the command line, in a scene or as a
+        Python str) or, in Python, an array. For type=bits, the pattern,
+        oversampled by sps and cycled to fill the request; for type=dsss, the
+        payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
         as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of

@@ -274,7 +274,7 @@
         "payload": {
           "type": "string",
           "minLength": 1,
-          "description": "The payload bits: a Field on the command line and in a scene, an array in Python. For type=bits, the pattern, oversampled by sps and cycled to fill the request; for type=dsss, the payload bits of the burst frame."
+          "description": "The payload bits: a Field (text on the command line, in a scene or as a Python str) or, in Python, an array. For type=bits, the pattern, oversampled by sps and cycled to fill the request; for type=dsss, the payload bits of the burst frame."
         },
         "crc": {
           "type": "string",

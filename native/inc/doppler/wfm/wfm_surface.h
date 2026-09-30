@@ -501,8 +501,8 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   "                  per_instance | persist. (default per_instance)\n"
 
 #define WFM_SURFACE_HELP_BITS \
-  "  --bits FIELD    The payload bits: a Field on the command line and in a scene,\n" \
-  "                  an array in Python.\n" \
+  "  --bits FIELD    The payload bits: a Field (text on the command line, in a\n" \
+  "                  scene or as a Python str) or, in Python, an array.\n" \
   "  --modulation M  Symbol mapping of a bits pattern. One of: none | bpsk | qpsk.\n" \
   "                  (default bpsk)\n"
 

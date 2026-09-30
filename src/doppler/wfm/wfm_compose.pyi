@@ -4,6 +4,7 @@ from typing import Any, Iterator
 from typing_extensions import disjoint_base
 import numpy as np
 from numpy.typing import NDArray
+from doppler.wfm import FrameDesc
 
 @disjoint_base
 class Synth:
@@ -170,6 +171,26 @@ class Synth:
         Continuous dsss data source: 1 = code-only (the pure spreading code, no
         data modulation); 0 = data-modulated (the payload when supplied, else
         the seeded PN). Ignored for burst dsss and non-dsss types.
+    frame : FrameDesc | str | None, default None
+        The FRAME, as a description, when the source carries one -- the only
+        way a source says anything but the common frame: a coding stage, a
+        field of the caller's own bits at a position of their choosing, a stage
+        covering a span they name. `wfmgen --frame FILE`, a scene's `frame` key
+        and Python's `frame=` (a FrameDesc or a Frame) all land here. When it
+        is set it IS the frame, and the common-frame fields below
+        (acq_code/sync/crc/payload) do not frame this source. NULL means the
+        common frame, `[preamble x reps | sync | payload | crc]`, which
+        `dp_wfm_frame_fixed()` builds from the fields below. A C caller's
+        description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere
+        here, so it must outlive the source. The composer and a Python source
+        hold their own copy (`dp_wfm_frame_copy()`), so a later change to the
+        FrameDesc does not reach them. On the Python face `frame=` is an input:
+        read it back from the composer's JSON (its getter is jm's, pending
+        removal: doppler#1694). KERNELS stay in C by design. A description
+        names a stage's KIND; the code that runs it is a `wfm_frame_ops_t`
+        entry, and a caller adding a genuinely new transform (convolutional
+        interleaving, say) writes that kernel in C and hands it to
+        `dp_wfm_frame_assemble` directly.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -208,6 +229,7 @@ class Synth:
         crc: str = ...,
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
+        frame: FrameDesc | str | None = ...,
         fs: float = ...,
     ) -> None: ...
     type: str
@@ -240,6 +262,10 @@ class Synth:
     crc: str
     symbol_rate: float
     dsss_code_only: int
+    @property
+    def frame(self) -> str | None: ...
+    @frame.setter
+    def frame(self, value: FrameDesc | str | None) -> None: ...
     fs: float
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate the next *n* samples of this source on its own.
@@ -454,6 +480,26 @@ class Segment:
         Continuous dsss data source: 1 = code-only (the pure spreading code, no
         data modulation); 0 = data-modulated (the payload when supplied, else
         the seeded PN). Ignored for burst dsss and non-dsss types.
+    frame : FrameDesc | str | None, default None
+        The FRAME, as a description, when the source carries one -- the only
+        way a source says anything but the common frame: a coding stage, a
+        field of the caller's own bits at a position of their choosing, a stage
+        covering a span they name. `wfmgen --frame FILE`, a scene's `frame` key
+        and Python's `frame=` (a FrameDesc or a Frame) all land here. When it
+        is set it IS the frame, and the common-frame fields below
+        (acq_code/sync/crc/payload) do not frame this source. NULL means the
+        common frame, `[preamble x reps | sync | payload | crc]`, which
+        `dp_wfm_frame_fixed()` builds from the fields below. A C caller's
+        description is borrowed, exactly as `wfm_seq_t` is borrowed elsewhere
+        here, so it must outlive the source. The composer and a Python source
+        hold their own copy (`dp_wfm_frame_copy()`), so a later change to the
+        FrameDesc does not reach them. On the Python face `frame=` is an input:
+        read it back from the composer's JSON (its getter is jm's, pending
+        removal: doppler#1694). KERNELS stay in C by design. A description
+        names a stage's KIND; the code that runs it is a `wfm_frame_ops_t`
+        entry, and a caller adding a genuinely new transform (convolutional
+        interleaving, say) writes that kernel in C and hands it to
+        `dp_wfm_frame_assemble` directly.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -520,6 +566,7 @@ class Segment:
     crc: str
     symbol_rate: float
     dsss_code_only: int
+    frame: str | None
     def __init__(
         self,
         type: str = ...,
@@ -552,6 +599,7 @@ class Segment:
         crc: str = ...,
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
+        frame: FrameDesc | str | None = ...,
         fs: float = ...,
         num_samples: int | tuple[int, int] = ...,
         off_samples: int | tuple[int, int] = ...,

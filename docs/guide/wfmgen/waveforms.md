@@ -1018,30 +1018,19 @@ byte-identical
 with `dp_wfm_frame_add_field()` / `dp_wfm_frame_add_derived()` /
 `dp_wfm_frame_add_stage()`; the
 [gallery page](../../gallery/wfmgen-carried-frame.md) is a whole program.
-**From Python**, a composer source reaches the description through the scene
-JSON, because `Composer.from_json()` runs the same C code
-`wfmgen --from-file` does:
+**From Python**, a source's `frame=` takes the description as a `FrameDesc`
+(or a `Frame`), built by name as in C. A `str` is refused: a description
+written as JSON is the scene's `"frame"` key, which `Composer.from_json()`
+reads with the same C code `wfmgen --from-file` runs. The source keeps its
+own copy, and `frame=` is an input: read it back from `Composer.to_json()`.
 
 ```python
-import json
-
-from doppler.wfm import Composer
-
-seg = {
-    "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
-    "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
-    "frame": {
-        "fields": [
-            {"name": "hdr", "spec": "0101110001011100"},
-            {"name": "payload", "spec": "101010101010101010101010"},
-            {"name": "crc", "bits": 16, "derived_by": 1},
-        ],
-        "stages": [{"kind": "crc16", "first_field": 1, "n_fields": 2}],
-    },
-}
-x = Composer.from_json(json.dumps({"version": 1, "segments": [seg]})).compose()
-assert len(x) == 224
+--8<-- "src/doppler/examples/wfmgen_frame_demo.py:frame"
 ```
+
+The whole script, `src/doppler/examples/wfmgen_frame_demo.py`, checks that
+the frame reaches the samples and that the record rebuilds them; its C twin
+is `native/examples/wfmgen_frame_demo.c`.
 
 A description goes back **out** through `to_json()` and `--record`, so a
 scene read and re-written keeps its frame. A stage whose `kind` has no

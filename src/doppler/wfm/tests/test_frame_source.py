@@ -27,6 +27,8 @@ another is the failure this file exists to catch:
 type. See ``docs/design/rx-test.md`` §7 for the descriptor.
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 
@@ -378,11 +380,9 @@ def _carried(with_frame: bool) -> np.ndarray:
 def test_python_reaches_a_carried_frame_with_no_new_binding():
     """The whole point of the ``frame`` key, demonstrated end to end.
 
-    ``Segment`` is jm-generated and jm has no field type that accepts another
-    extension object, so ``Segment(frame=FrameDesc(...))`` cannot be declared.
-    It does not need to be: ``Composer.from_json`` is the same C code
-    ``wfmgen --from-file`` runs, so a description crosses into Python through
-    the scene JSON and needs no binding of its own.
+    ``Composer.from_json`` is the same C code ``wfmgen --from-file`` runs, so
+    a description crosses into Python through the scene JSON as well as
+    through ``Segment(frame=...)`` (the sugar pinned against it below).
 
     Behavioural, per this file's own rule — not "the key was accepted" but
     "the samples moved". A carried frame puts the sync word on the wire ahead
@@ -417,19 +417,9 @@ def test_a_carried_frame_survives_the_python_round_trip():
     assert json.loads(twice)["segments"][0]["frame"] == got
 
 
-# ── waiting on just-makeit#1224 ─────────────────────────────────────────────
+# ── `frame=` on a source (just-makeit#1711) ─────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "just-makeit#1224: an init_param/field cannot take another generated "
-        "object, so `frame=` cannot be declared on Segment. Strict on "
-        "purpose -- when jm ships it AND objects/… declares the field, this "
-        "XPASSes and fails CI until the marker is removed, which is how the "
-        "adoption announces itself instead of waiting to be remembered."
-    ),
-)
 def test_segment_takes_a_framedesc_directly():
     """The ergonomic form, and the exact bar its adoption has to clear.
 
@@ -457,6 +447,99 @@ def test_segment_takes_a_framedesc_directly():
     )
     direct = np.asarray(Composer([seg]).compose())
     assert np.array_equal(direct, _carried(True))
+
+
+def _desc() -> FrameDesc:
+    return FrameDesc(np.zeros(0, np.uint8), SYNC, PAYLOAD, crc="crc16")
+
+
+def _recorded(src) -> dict | None:
+    """A source's frame, read the one way it is read back: the record.
+
+    `frame=` is an input. The composer's JSON (the scene's "frame" key) is
+    where a source's frame is read, so every check below goes through it.
+    """
+    seg = Segment.sum(src, num_samples=64)
+    return json.loads(Composer(seg).to_json())["segments"][0].get("frame")
+
+
+def test_the_record_carries_the_description():
+    got = _recorded(Synth(type="bits", sps=SPS, frame=_desc()))
+    assert [f.get("name") for f in got["fields"]] == ["sync", "payload", "crc"]
+    assert got["stages"][0]["kind"] == "crc16"
+    assert _recorded(Synth(type="bits", sps=SPS)) is None
+    assert _recorded(Synth(type="bits", sps=SPS, frame=None)) is None
+
+
+def test_a_frame_and_a_framedesc_are_one_description():
+    frame = _desc()
+    frame.build()
+    assert _recorded(Synth(type="bits", sps=SPS, frame=frame)) == _recorded(
+        Synth(type="bits", sps=SPS, frame=_desc())
+    )
+
+
+def test_frame_refuses_text_naming_the_object_and_the_scene_key():
+    """An object takes a description; JSON text is a scene's "frame" key."""
+    text = json.dumps(_recorded(Synth(type="bits", sps=SPS, frame=_desc())))
+    with pytest.raises(ValueError, match=r"FrameDesc.*\"frame\" key"):
+        Synth(type="bits", frame=text)
+
+
+def test_frame_is_a_snapshot_not_a_reference():
+    """The source copies: a later add_field, or freeing the FrameDesc, does
+    not reach it -- which is why `Composer.segments` can hand one back."""
+    desc = FrameDesc()
+    desc.add_field("sync", SYNC)
+    src = Synth(type="bits", sps=SPS, frame=desc)
+    before = _recorded(src)
+    desc.add_field("payload", PAYLOAD)
+    del desc
+    assert _recorded(src) == before
+
+
+def test_a_refused_frame_keeps_the_old_one():
+    src = Synth(type="bits", sps=SPS, frame=_desc())
+    before = _recorded(src)
+    with pytest.raises(ValueError, match="FrameDesc"):
+        src.frame = '{"fields": []}'
+    with pytest.raises(TypeError, match="frame_desc"):
+        src.frame = 3
+    assert _recorded(src) == before
+    src.frame = None
+    assert _recorded(src) is None
+
+
+def test_the_getter_today_returns_the_recorded_json():
+    """Pins jm's getter as it is, so dropping it is a deliberate change.
+
+    `frame=` is an input and is read back from the record; the getter
+    exists only because jm requires `format_fn` (doppler#1694, pending
+    just-makeit#1753). Today it gives the JSON the record carries.
+    """
+    src = Synth(type="bits", sps=SPS, frame=_desc())
+    assert json.loads(src.frame) == _recorded(src)
+    assert Synth(type="bits", sps=SPS).frame is None
+
+
+def test_frame_survives_the_composer_record():
+    """to_json writes the description and from_json rebuilds the same
+    samples and the same record: `frame=` round-trips through the record."""
+    seg = Segment(
+        type="bits",
+        fs=FS,
+        sps=SPS,
+        modulation="bpsk",
+        bits=PAYLOAD.tobytes(),
+        num_samples=(len(SYNC) + len(PAYLOAD) + 16) * SPS,
+        frame=_desc(),
+    )
+    text = Composer([seg]).to_json()
+    again = Composer.from_json(text)
+    assert again.to_json() == text
+    assert np.array_equal(
+        np.asarray(again.compose()), np.asarray(Composer([seg]).compose())
+    )
 
 
 # ── a derived field must name its producer (doppler#1155) ───────────────────

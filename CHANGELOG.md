@@ -13,6 +13,278 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-09-29
+
+### Breaking
+
+- **`ccsds_tm_frame_spec_t` and `dp_ccsds_tm_frame_desc_of()` are deleted.**
+    They were a second derivation of which stage covers which fields, for
+    literal fields only. Build a description with `dp_wfm_frame_add_field` /
+    `add_derived` / `add_stage`, or `dp_ccsds_tm_frame_describe` for a
+    CADU (#853).
+
+- **`Frame.layout()` and `FrameLayout` are removed; read a field by name.**
+    `f.field_off(f.field_index("payload"))` replaces
+    `f.layout().payload_off`. A `Frame` now holds only the fields it was
+    given, so `Frame(sync=..., payload=..., crc="crc16")` has 3 fields, not
+    4 -- an index that assumed an absent preamble shifts by one (#853).
+
+- **`Frame` and `FrameDesc` take bits, and nothing else.** The 38 constructor
+    arguments are now three omittable bit arrays and `crc`:
+    `Frame(sync=..., payload=field_bits("pn:1024:10"), crc="crc16")`. A
+    generated field is its `field_bits` text; a repeated preamble is repeated
+    in its bits. `add_field(name, bits)` replaces the 15-argument form, and
+    `add_hex` / `add_value` are gone (`field_bits("0x1ACF")`). A field a stage
+    fills is `add_derived(name, bits)`; either form of `add_stage` wires it.
+    An element that is not 0 or 1 is refused rather than masked. The old
+    spellings are refused, not aliased (#853).
+
+- **`wfm_frame_t` and its four-field API are deleted; a frame is a
+    description.** `wfm_frame_layout_t`, `dp_wfm_frame_describe`,
+    `dp_wfm_frame_nbits` / `_layout` / `_bits` / `_crc_ok`,
+    `dp_wfm_frame_dsss_nchips` / `_chips` and `dp_wfm_synth_set_dsss` go.
+    `dp_wfm_frame_fixed` describes the common `[preamble x reps | sync |   payload | crc]` frame with fields named `"preamble"`, `"sync"`,
+    `"payload"` and `"crc"`; assemble it with `dp_wfm_frame_assemble`, check
+    it with `dp_wfm_frame_desc_crc_ok`, spread it with
+    `dp_wfm_dsss_desc_chips` and install the chips with
+    `dp_wfm_synth_set_dsss_chips`. Every replacement is byte-identical (#853).
+
+- **A coded frame is a description: `wfmgen --frame FILE`.** The coding
+    flags `--rs-depth`, `--randomise`, `--asm`, `--conv`, `--interleave`
+    and `--interleave-unit`, and their scene keys, are refused, naming
+    `--frame FILE` / `"frame"`; the file is what a scene's `"frame"` holds
+    and `--record` carries it whole. The `Source` kwargs `rs_depth`,
+    `randomise`, `attach_asm` and `convolutional` are gone: from Python,
+    compose a coded source from a scene with a `"frame"` until #1617.
+    Byte-identical to the flag-spelled runs (#853).
+
+- **wfmgen takes ONE Field per sequence field.** `--acq-code`, `--sync`,
+    `--data-code` and `--bits` each take a Field: literal bits, `0x…` hex, or
+    a generated `pn`/`gold`/`dotted` sequence, with `*REPS` on the preamble.
+    `--X-hex`, `--X-gen`, `--acq-reps`, `--payload-gen` and `--payload-len`
+    are refused, each naming its replacement, which produces the same samples.
+    In a scene, `pattern`, `*_gen` and `acq_reps` give way to one Field string
+    per key, and a carried frame's `lit`/`gen` to `spec` (#853).
+
+### Added
+
+- **`cvt.bytes_to_bin` unpacks octets to bits.** Packed data (a binary
+    file, a byte stream) now reaches a frame field through one named
+    conversion, and `wfmgen --bits-file` uses it instead of a private copy
+    (#853).
+
+- **`doppler.wfm.field_bits(text)`** turns a Field's text form into bits:
+    `field_bits("0x1ACFFC1D")`, `field_bits("pn:1023:10")`,
+    `field_bits("dotted:8*2")`. It is the one door from text to the bits a
+    frame takes, over the C parser, and malformed text raises rather than
+    returning an empty array (#853).
+
+- **One reader and one writer for a Field's text form.**
+    `dp_wfm_field_parse` reads the grammar every text face will share:
+    `0101`, `0x1ACFFC1D`, `pn:LEN:REG[:SEED[:POLY]][:galois|fibonacci]`,
+    `gold:…`, `dotted:LEN` and `*REPS`. `dp_wfm_field_format` writes its
+    canonical form back, and `dp_wfm_field_bits` goes straight from text to
+    bits. A refusal names its cause, and a number must be consumed whole, so
+    `pn::10`, `12abc` and `010` are refused or read as written rather than
+    guessed at (#853).
+
+- **Fields: bits as text** — one guide page for the grammar every face
+    reads (`1101`, `0xA5`, `pn:LEN:REG`, `gold:…`, `dotted:LEN`, `*REPS`):
+    its numbers, its limits and what it refuses. A C and a Python example
+    (`wfm_field_demo`) and benchmark rows for the parser come with it (#853).
+
+### Changed
+
+- **The C assertion ratchet has its own tests.** All three entry forms in
+    `.assertion-ratchet-ignore`, including `removes=N` (#1610), each have a
+    passing and a failing case.
+
+- **The docs homepage (and the README generated from it) is an index.** It
+    keeps the pitch, the navigation, one Python example and a pointer for C.
+    Install, build and the other examples live only in Quick Start. Its
+    hand-quoted benchmark numbers (from another CPU and build) are replaced
+    by a link to the generated Benchmarks page.
+
+- **A `Source`'s string bit pattern is pinned against `field_bits`.** jm's
+    coercion reads binary and hex exactly as the Field grammar does, and a
+    test now holds that — and its two gaps: a generated Field or `*REPS` is
+    refused (pass `field_bits(text)`), and `""`/`"0x"` read as empty.
+    Both close with just-makeit#1709 (#853).
+
+- **just-makeit pin 0.92.2 → 0.92.3.** It carries just-makeit#1704's fix:
+    `check_return` on a self-sizing module function raises on a zero count,
+    which is what makes `field_bits()` raise on malformed text rather than
+    return an empty array.
+
+- **just-makeit pin 0.92.3 → 0.93.0.** It carries just-makeit#1706: a C
+    refusal can hand its reason to the Python exception (`why = true` on a
+    module function, `from_json_why`/`from_file_why` on a composer's JSON
+    readers). `make jm-apply` at the tag changes no generated file.
+
+- **A source's frame is refused unless it assembles.** A stage whose kernel
+    cannot run over its span — an `rs` stage off the `223 × depth`-octet
+    grid, an `interleave` stage that does not divide its span — used to
+    write an empty capture at exit 0. It is now refused with the reason on
+    every face, as is a carried frame with a sync word or an unspread
+    preamble beside it (#853).
+
+- **Scene JSON reads and writes its fields from the surface table.** A
+    source's and a segment's keys now come out in table order: the same
+    keys and values as before, reordered once. Each key's JSON rules (when
+    it is omitted, when it applies) are declared in the manifest, and a
+    record's bytes are pinned by a test (#853).
+
+- **Each wfm source and segment field has one description.** Its header
+    comment and its Python docstring had drifted apart for 31 of 32 fields.
+    They are now the same text, and `make lint` fails if they differ again
+    (#853).
+
+- **`field_bits()` and `Composer.from_file` refusals raise `ValueError`
+    with the reason.** Malformed Field text raised
+    `RuntimeError: dp_field_bits failed (returned 0)`; it now raises
+    `ValueError` naming the fault (`POLY`, the Field bound, ...). A scene
+    file the reader refuses raises `ValueError` rather than `OSError`; a
+    file that cannot be read is still `OSError`.
+
+- **The scene schema's field properties and a new field reference are
+    generated.** `docs/schema/wfmgen.schema.json` takes each source and
+    segment field from the surface table (hand-owned keys untouched). A
+    `background` source, which the reader always accepted, no longer fails
+    validation. The new `guide/wfmgen/options.md` lists every field's flag,
+    scene key, Python keyword, type, default and meaning (#853).
+
+- **wfmgen's field flags come from one generated table.** The 28 flags that
+    set a source or segment field are rows of `wfm/wfm_surface.h`, generated
+    from `just-makeit.toml`, rather than hand-written rows in `wfmgen.c`.
+    Behaviour is unchanged: the flag-matrix golden is byte-identical (#853).
+
+- **`wfmgen --help` describes each field flag from its header comment.**
+    The 28 field options' help lines, choices and defaults are generated from
+    the surface table, so they cannot disagree with what the parser accepts
+    or with the Python docstring. The section text is unchanged; the option
+    lines read differently once (#853).
+
+### Fixed
+
+- **The API Reference index lists every API page.** It had fallen 9 pages
+    behind: acquire, ber, coding, dsss, interp, interrupt, mpsk, snr and
+    track. `check_nav_index.py` now covers `docs/api/` so a new page cannot
+    be missed again.
+
+- **`ccsds_tm_frame_cfg_t.randomise` selects the generator.** `2` used to
+    build 10.4.1's sequence silently, while the same value on a description's
+    randomise stage meant 10.4.2's legacy one. Encode, decode and describe
+    now read 0 as none, 1 as 10.4.1 and 2 as 10.4.2, through one mapping
+    (`dp_ccsds_tm_rand_select`). Any other value is refused (#1609).
+
+- **A randomise stage naming no generator is refused.** A `--frame` file or
+    scene frame whose randomise stage had depth 3 silently used 10.4.1. It
+    now fails to assemble, and wfmgen exits 2 saying why (#1609).
+
+- **The example projects refuse a stale doppler install at configure time.**
+    Each `example-projects/*/CMakeLists.txt` now asks for
+    `find_package(doppler <release> REQUIRED)`, stamped by `make docs-relink`
+    at each release, so an old install is refused by CMake rather than
+    failing later as a missing header (#1583).
+
+- **`pn:LEN:1` with no POLY is refused where it is read.** A 1-bit register
+    has no maximal-length polynomial, so it could never be built, but the
+    parser accepted it and every face failed later, two with no reason
+    given. It now fails at parse, naming the remedy (give POLY, or a wider
+    REG). Found by exploring the parser (#853).
+
+- **A huge Field length is refused, not an abort.** `pn:4000000000:5`
+    killed `wfmgen` with SIGABRT. A Field's `LEN * REPS` is now bounded at
+    `WFM_FIELD_MAX_BITS` (261120), derived in the frame design's limits
+    table, and the refusal names it (#1622).
+
+- **A Field SEED, POLY or Gold tap wider than REG is refused.** The
+    generators masked it to the register, so `pn:31:5:32` rendered 31 zeros
+    and `pn:10:5:0:0x40` a register with no feedback. It is refused where
+    the text is read, naming REG (#1624).
+
+- **`dp_wfm_frame_from_json(NULL, &why)` names a reason.** It refused
+    without setting `why`, which the header promises on every failure.
+
+- **A framed `--type bpsk`, `qpsk` or `pn` transmits its frame.** It was
+    accepted and emitted the synth's own PN stream: the frame was assembled
+    and then dropped, because only a `bits` synth plays a bit pattern. Such a
+    source is now built as `bits` with the mapping its type names, on the
+    composer and the standalone `Synth` alike, and its SNR keeps its type's
+    reference (#1616).
+
+- **Generated sequences are no longer read as absent.** Checks that tested a
+    sequence's array rather than its length refused `--data-code-gen` with
+    `--symbol-rate`, let `--sync-gen` past the burst-frame refusal, refused a
+    generated `bits` payload, and silently sent the PRBS default in place of a
+    generated continuous-DSSS payload (#1592).
+
+- **A JSON scene that omits a key gets the same default as the flags and
+    Python.** The reader typed its own: `seed`/`sps`/`pn_length` were 1/8/7
+    against 0/1/15, and an omitted `num_samples` made an empty segment. It now
+    reads the generated manifest defaults (#1596).
+
+- **`Composer.from_json` / `from_file` name what they refused.** A scene
+    carrying a retired key such as `sync_gen` raised
+    `ValueError: dp_wfm_compose_from_json failed`; it now raises the C
+    reader's sentence, which names the key and its replacement (#1614).
+
+- **A scene with a source the generator cannot build is refused, not
+    rendered as silence.** `wfmgen --pn-length 65` used to write 0 bytes and
+    exit 0; the composer now builds each source once when it is created, through
+    the same builder the render uses, and refuses the scene (#1590).
+
+- **A PN frame field with no m-sequence is refused.** A generated preamble,
+    sync or payload with a 1-bit register and no explicit polynomial rendered
+    the seed and then zeros, and reported success. It is now refused, the
+    frame-field twin of the source fix in #1590 (#1602).
+
+- **A `pn_poly` wider than `pn_length` is refused.** The generator masked it
+    to the register, so `wfmgen --type pn --pn-length 5 --pn-poly 0x40` wrote
+    a constant waveform -- the seed, then zeros -- at exit 0. Refused on
+    every face (CLI, scene, `Composer`, `Synth`), and the CLI names both
+    values (#1636).
+
+- **A seed whose low `pn_length` bits are zero starts the register at 1.**
+    `dp_pn_create` and `dp_gold_create` checked `seed == 0` before masking,
+    so a non-zero multiple of 2^length emptied the register and generated a
+    constant stream at exit 0 -- `wfmgen --type pn --pn-length 7 --seed 128`,
+    and one emitter of the `plan_background` gallery scene (`1000 + k` hit
+    1024 on 9 bits). A source's seed also seeds its noise, so it is not
+    refused: it starts the register at 1, as seed 0 does. The constructors
+    themselves now refuse a masked-zero seed (#1640).
+
+- **`--crc` with `--symbol-rate` is refused**, as `--help` always said:
+    continuous DSSS has no frame for a CRC to protect (#1595).
+
+- **`wfmgen --detached --repeat` is refused**, like `--continuous`: a detached
+    BLUE header is written when the run ends, and a looping run never ends — it
+    wrote until the disk filled and left no `.hdr` (#1591).
+
+- **wfmgen's numeric flags read the whole value or refuse it.** They used to
+    stop at the first character that was not a digit, exit 0: `--seed 0x10`
+    recorded 0, `--pn-poly 0x6000` selected auto and `--sps 4x` recorded 4.
+    Now a bad value exits 2 with a sentence naming the flag. Integers take
+    decimal or `0x` hex, read by the Field grammar's own reader, so a leading
+    0 is decimal and never octal (#1611).
+
+- **`dp_doppler_wfmgen()` puts the caller's SIGINT/SIGTERM handlers back**
+    on every return; it used to leave its own installed, contrary to its header
+    (#1594).
+
+- **A negative sample count no longer writes without bound.** `--count`,
+    `--off` and `--delay` took a negative value and wrapped it to 2^64, so
+    `--count 64 --delay -1` ran until the disk filled. A fraction truncated
+    silently. Each side of the value, or of a `LO:HI` range, must now be a
+    whole, non-negative count; anything else exits 2 naming the flag. `1e3`
+    still reads as 1000 (#1629).
+
+- **`wfmgen --help` says what the flags do.** `--realtime-resync`
+    re-anchors the clock whenever output falls behind, not at segment
+    boundaries. `--interleave` runs before `--conv`, not last. `--type   bpsk/qpsk/pn` frame once `--payload-len` bounds their payload, rather
+    than refusing framing outright. The same corrections reach the guide,
+    and stale comments naming removed tools and transports are fixed (#1598).
+
 ## [0.58.0] - 2026-09-27
 
 ### Breaking
@@ -14857,8 +15129,9 @@ ______________________________________________________________________
 [0.56.0]: https://github.com/doppler-dsp/doppler/compare/v0.55.0...v0.56.0
 [0.57.0]: https://github.com/doppler-dsp/doppler/compare/v0.56.0...v0.57.0
 [0.58.0]: https://github.com/doppler-dsp/doppler/compare/v0.57.0...v0.58.0
+[0.59.0]: https://github.com/doppler-dsp/doppler/compare/v0.58.0...v0.59.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.58.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.59.0...HEAD

@@ -171,12 +171,20 @@ fill_noise (float _Complex *x, size_t n, double sigma, uint32_t seed)
     }
 }
 
+/* Symbols the frame occupies, from the sync word on: what the receiver is
+ * told to slice. Read off the burst build_burst() actually produced -- its
+ * samples past the preamble, one symbol per DATA_SF*SPC of them -- rather
+ * than restated, so the receiver cannot be told a different frame from the
+ * one transmitted. It was passed PAYLOAD (32 of 61) until doppler#1669,
+ * which timed half a decode and failed every CRC. */
+static size_t frame_syms;
+
 static dp_dsss_burst_receiver_state_t *
 make_rx (void)
 {
   return dp_dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
-      SPC, CHIP_RATE, PAYLOAD, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+      SPC, CHIP_RATE, frame_syms, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
 }
 
 /**
@@ -187,15 +195,22 @@ make_rx (void)
  * feeding the same burst thirty times into one instance would measure the
  * dedup path from the second repeat onward rather than the decode.
  *
+ * @param passed  Receives how many of those passed their CRC -- printed
+ *                beside the count, because a burst sliced to the wrong
+ *                length is still "decoded" and still timed (doppler#1669).
  * @return Bursts decoded across all repeats -- printed, so a run that
  *         silently stopped detecting is visible rather than fast.
  */
 static size_t
-time_push (const float _Complex *x, const char *name, jm_bench_t *bench)
+time_push (const float _Complex *x, const char *name, jm_bench_t *bench,
+           size_t *passed)
 {
-  double   times[ITERATIONS];
-  size_t   decoded = 0;
-  uint64_t t0, t1;
+  double          times[ITERATIONS];
+  size_t          decoded = 0;
+  dsss_br_event_t ev[8];
+  uint64_t        t0, t1;
+
+  *passed = 0;
 
   dp_dsss_burst_receiver_state_t *probe = make_rx ();
   size_t cap = dp_dsss_burst_receiver_push_max_out (probe, BENCH_N);
@@ -211,7 +226,10 @@ time_push (const float _Complex *x, const char *name, jm_bench_t *bench)
       size_t n = dp_dsss_burst_receiver_push (rx, x, BENCH_N, out, cap);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
-      decoded += n / PAYLOAD;
+      decoded += n / frame_syms;
+      size_t k = dp_dsss_burst_receiver_events (rx, 0, ev, 8);
+      for (size_t i = 0; i < k; i++)
+        *passed += ev[i].frame_valid;
       dp_dsss_burst_receiver_destroy (rx);
     }
 
@@ -236,17 +254,25 @@ main (void)
 
   fill_noise (idle, BENCH_N, 0.1, 12345u);
   fill_noise (hit, BENCH_N, 0.1, 12345u);
-  size_t nb = build_burst (burst);
+  size_t nb  = build_burst (burst);
+  frame_syms = (nb - REPS * ACQ_SF * SPC) / (DATA_SF * SPC);
   for (size_t i = 0; i < nb && BURST_AT + i < BENCH_N; i++)
     hit[BURST_AT + i] += burst[i];
 
-  size_t n_idle  = time_push (idle, "push_idle", &_bench);
-  size_t n_burst = time_push (hit, "push_burst", &_bench);
+  size_t p_idle, p_burst;
+  size_t n_idle  = time_push (idle, "push_idle", &_bench, &p_idle);
+  size_t n_burst = time_push (hit, "push_burst", &_bench, &p_burst);
 
   printf ("  push_idle : %zu burst(s) decoded over %d block(s)\n", n_idle,
           ITERATIONS);
   printf ("  push_burst: %zu burst(s) decoded over %d block(s)\n", n_burst,
           ITERATIONS);
+  printf ("  push_burst: %zu of them passed the CRC (frame_syms = %zu)\n",
+          p_burst, frame_syms);
+  (void)p_idle;
+  if (n_burst != 0 && p_burst == 0)
+    printf ("  WARNING: no decoded burst passed its CRC -- the receiver is\n"
+            "           slicing a frame other than the one transmitted.\n");
   if (n_burst == 0)
     printf ("  WARNING: push_burst decoded nothing — the timing below is a\n"
             "           search-only figure, not the decode path it names.\n");

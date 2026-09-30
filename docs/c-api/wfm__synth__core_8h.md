@@ -104,8 +104,8 @@ _Synth component API._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_synth\_state\_bytes**](#function-dp_wfm_synth_state_bytes) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**dp\_wfm\_synth\_steps**](#function-dp_wfm_synth_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_Next symbol from the user bit pattern, cycled — one mapping, every M._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_The next bit of the pattern, or none once the data has ended._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern, cycled — one mapping, every M._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**wfm\_synth\_cont\_dsss\_chip**](#function-wfm_synth_cont_dsss_chip) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_One continuous-DSSS chip:_ `code[n % n_code] ^ data` _, as a BPSK sign._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_The MLS primitive polynomial table — pn's, reached by its old name._  |
@@ -1289,11 +1289,49 @@ void dp_wfm_synth_steps (
 
 ### function wfm\_synth\_bit\_next 
 
-_Next symbol from the user bit pattern, cycled — one mapping, every M._ 
+_The next bit of the pattern, or none once the data has ended._ 
 ```C++
 JM_FORCEINLINE int wfm_synth_bit_next (
     dp_wfm_synth_state_t * s,
     unsigned * bit
+) 
+```
+
+
+
+With no refill the pattern cycles, as it always has, and the per-bit cost is the one bounds check the cursor already needs. With one, the cursor STOPS at `n_bits` instead of wrapping, so that same check finds the frame boundary: the next frame is drawn lazily, when its first bit is due  the source's counts are frames started, and a paced source is asked when the frame is due. A refill that reports the end latches `data_ended` and leaves the cursor at `n_bits`, so every later call is the slow path's immediate "no bit". The one place the cursor wraps, so the per-sample and block paths cannot disagree about a frame boundary.
+
+
+
+
+**Parameters:**
+
+
+* `s` the synth; a type=bits synth with a pattern set. 
+* `bit` receives the next bit, 0 or 1, when one is returned. 
+
+
+
+**Returns:**
+
+1 with the bit in `*bit`, or 0: the data has ended. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_synth\_bit\_symbol 
+
+_Next symbol from the user bit pattern, cycled — one mapping, every M._ 
+```C++
+JM_FORCEINLINE float _Complex wfm_synth_bit_symbol (
+    dp_wfm_synth_state_t * s
 ) 
 ```
 
@@ -1323,41 +1361,13 @@ That shared mapping is the point. The QPSK branches this replaces put `b0` on th
 
 **Returns:**
 
-Unit-modulus constellation point (a unit-amplitude line at `bit_mod == 0`), which is what Synth's unit-power SNR reference needs.
-
-
-The next bit of the pattern, or none once the data has ended.
-
-
-With no refill the pattern cycles, as it always has, and the per-bit cost is the one bounds check the cursor already needs. With one, the cursor STOPS at `n_bits` instead of wrapping, so that same check finds the frame boundary: the next frame is drawn lazily, when its first bit is due  the source's counts are frames started, and a paced source is asked when the frame is due. A refill that reports the end latches `data_ended` and leaves the cursor at `n_bits`, so every later call is the slow path's immediate "no bit". The one place the cursor wraps, so the per-sample and block paths cannot disagree about a frame boundary.
-
-
-
-
-**Returns:**
-
-1 with the bit in `*bit`, or 0: the data has ended. 
+Unit-modulus constellation point (a unit-amplitude line at `bit_mod == 0`), which is what Synth's unit-power SNR reference needs. 
 
 
 
 
 
         
-
-<hr>
-
-
-
-### function wfm\_synth\_bit\_symbol 
-
-```C++
-JM_FORCEINLINE float _Complex wfm_synth_bit_symbol (
-    dp_wfm_synth_state_t * s
-) 
-```
-
-
-
 
 <hr>
 

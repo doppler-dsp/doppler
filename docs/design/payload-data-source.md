@@ -2,8 +2,9 @@
 
 A frame's payload stops being one block of bits and becomes **a place bits
 are drawn from**. The frame declares how many bits it carries, `data:LEN`,
-and `--data` names where they come from: a file, a literal, stdin, or a
-seeded generator. The shape was settled with the Field, in
+and one of two flags names where they come from: `--data` takes a Field (a
+literal or a seeded generator), and `--data-from-file` takes a file, or
+stdin as `-`. The shape was settled with the Field, in
 [frame description §F.5](frame-description.md#f5-the-payload-is-a-data-source);
 this page is the pass that builds it
 ([#1619](https://github.com/doppler-dsp/doppler/issues/1619), part of
@@ -25,7 +26,7 @@ ______________________________________________________________________
     so a receiver's output can be compared bit for bit against the input.
     Today the only way is to make the payload the whole file, which makes
     one frame of arbitrary length.
-1. **An infinite stream.** A pipe or a live source (`sdr | wfmgen --data -`),
+1. **An infinite stream.** A pipe or a live source (`sdr | wfmgen --data-from-file -`),
     chunked into frames for as long as it runs. Paced with `--realtime`, the
     transmitter must not stop when the input pauses: a receiver that loses
     carrier has to reacquire.
@@ -44,7 +45,7 @@ and how many idle frames were sent. That is the truth the record carries
 ## 2. Goals
 
 - **One payload model.** Every payload is `data:LEN` in the frame plus one
-    `--data` source. The six payload spellings and the cycle behind them go.
+    source, named by exactly one of `--data` and `--data-from-file`. The six payload spellings and the cycle behind them go.
 - **The frame stays a description.** Its layout, length and every stage's
     cover are known before a single data bit is read, so a receiver built
     in the know (§F.5) needs nothing from the stream.
@@ -62,8 +63,8 @@ and how many idle frames were sent. That is the truth the record carries
 
 Taken as given from
 [§F.5](frame-description.md#f5-the-payload-is-a-data-source), and not
-restated: `data:LEN`; the `--data` table (file, literal Field, `-`,
-`pn:0:REG[:SEED]`, `none`); packed octets MSB first; the last partial chunk
+restated: `data:LEN`; the source table (`--data` for a literal Field,
+`pn:0:REG[:SEED]` or `none`; `--data-from-file` for a file or `-`); packed octets MSB first; the last partial chunk
 padded from `--fill` or refused; idle frames on a paced underrun; cycling
 deleted; `--repeat` repeats a finite burst and is refused over a stream; a
 finite source replays byte for byte, a stream replays its description.
@@ -105,7 +106,7 @@ reads as success.
 | source                  | needs `--fill` when                           | checked                 |
 | ----------------------- | --------------------------------------------- | ----------------------- |
 | a file, a literal Field | its length is not a multiple of `LEN`         | before the first sample |
-| `-` (stdin)             | **always**: its length is unknowable up front | before the first sample |
+| `--data-from-file -`    | **always**: its length is unknowable up front | before the first sample |
 | `pn:0:REG[:SEED]`       | never: it neither ends nor pauses             | —                       |
 | `none`                  | never: there is no payload                    | —                       |
 
@@ -131,7 +132,7 @@ idle behaviour is pinned without a clock.
 | source            | the run is                | `--count`                                           |
 | ----------------- | ------------------------- | --------------------------------------------------- |
 | finite            | `ceil(bits / LEN)` frames | **refused** (today, DSSS burst silently ignores it) |
-| `-`               | until the input ends      | optional upper bound                                |
+| stdin             | until the input ends      | optional upper bound                                |
 | `pn:0:REG[:SEED]` | until `--count`           | **required**                                        |
 
 A run with a data source ends **on a frame boundary**. Where `--count`
@@ -156,25 +157,43 @@ user sees in the record is never a frame cut short.
 - **The record** (`--record`, `dp_wfm_spec_to_json`) stores the data source
     as written. A literal is stored inline, as the payload is today. A file
     is stored as its path, its length in bits and a content hash, and a
-    replay refuses a file whose hash differs. A stream stores its
-    description (`-`, `pn:0:23:0x5`).
+    replay refuses a file whose hash differs (how a file is identified is
+    open, §6). A stream stores its description (`"data_from_file": "-"`,
+    `"data": "pn:0:23:0x5"`).
 - **The truth for scoring**: frames sent, fill bits in the last frame, idle
     frames sent. These go in the record, and as `wfmgen:` annotations in
     the SigMF metadata beside today's `wfmgen:seed` and `wfmgen:data`.
 
 ### 4.9 Each face, one source
 
-| face       | spelling                                                                                                           |
-| ---------- | ------------------------------------------------------------------------------------------------------------------ |
-| CLI        | `--data SRC --data-len LEN [--fill FIELD]`                                                                         |
-| JSON scene | `"data"`, `"data_len"`, `"fill"`; `"data"` takes the same text as the CLI                                          |
-| Python     | `Source(data=, data_len=, fill=)`: a bit array (a finite literal) or Field text; a file through `cvt.bytes_to_bin` |
-| C          | the data source object (§7), built from the same text                                                              |
+**Two flags, never a guess.** `--data` takes only the Field grammar: a
+literal, `pn:0:REG[:SEED]`, or `none`. It never recognises a path, so no
+file name can be mistaken for a Field. `--data-from-file PATH` takes a
+file, and `-` means stdin, the Unix convention.
 
-A `--data` value that parses as a Field (`0x…`, `[01]+`, `pn:…`) is a
-Field; anything else is a path. A file whose name parses as a Field is
-written with a directory (`./0101`). A stream from Python (a generator of
-bytes) is not in this pass (§8).
+| face       | spelling                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| CLI        | `--data FIELD` or `--data-from-file PATH`, with `--data-len LEN [--fill FIELD]`               |
+| JSON scene | `"data"` or `"data_from_file"`, with `"data_len"` and `"fill"`; the values are the CLI's text |
+| Python     | `Source(data=, data_len=, fill=)`: a bit array or Field text                                  |
+| C          | the data source object (§7), built from a Field or from a path                                |
+
+**The pair is one declaration.** Both given is refused, naming the pair,
+on every face. The surface table (`wfm_surface.h`, generated by
+`gen_wfm_defaults.py`) has no way to say that today: the one such rule,
+`--data` against `--bits`, is hand-written at `wfmgen.c:1496-1500`. The
+two rows therefore carry one shared exclusion key, and the generator
+derives the CLI refusal, the JSON reader's refusal, the help text and the
+schema's `"not": {"required": [...]}` from it. Neither given, on a frame
+with a `data:LEN` field, is refused too, except for continuous DSSS,
+whose default is kept (§5).
+
+**Python has no `data_from_file=`, deliberately.** A file is
+`cvt.bytes_to_bin(path.read_bytes())`, which already exists, and a second
+keyword would be a second route to the same bits. What a keyword would add
+is the C reader's incremental read, for a file too large to hold in
+memory. No caller has one, so it is left out until one does. A stream
+from Python (a generator of bytes) is not in this pass (§8).
 
 ## 5. What is deleted
 
@@ -184,7 +203,7 @@ Every site below was read at `adf362b9`.
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | payload **cycling**                                                             | `wfm_synth_core.h:222,227,275` (`% n_bits`); the latch at `wfm_synth_core.c:622-628`; the bridge's single assemble, `wfm_synth_bridge.c:316-330`; the help text at `wfmgen.c:354` | a frame pulled from the source at each frame boundary |
 | `--bits FIELD`, JSON `"payload"`                                                | the surface row at `wfm_surface.h:273-280`                                                                                                                                        | `--data FIELD --data-len LEN`                         |
-| `--bits-file PATH`                                                              | `wfmgen.c:641`, `bits_from_file` at `wfmgen.c:184` (reads the whole file)                                                                                                         | `--data PATH`                                         |
+| `--bits-file PATH`                                                              | `wfmgen.c:641`, `bits_from_file` at `wfmgen.c:184` (reads the whole file)                                                                                                         | `--data-from-file PATH`                               |
 | `--data prbs\|none` (a two-way choice)                                          | `wfmgen.c:645-649`, `DATA_SRC_NAMES` at `wfm_names.h:91-97`                                                                                                                       | `--data pn:0:REG[:SEED]` or `none`                    |
 | `wfm_source_t.dsss_code_only`                                                   | `wfm_compose.h:377-381`                                                                                                                                                           | the `none` source                                     |
 | `wfm_source_t.payload` (a `wfm_seq_t`)                                          | `wfm_compose.h:217-228`; moving it off is [#1617](https://github.com/doppler-dsp/doppler/issues/1617)                                                                             | the source's data source                              |
@@ -194,8 +213,9 @@ Every site below was read at `adf362b9`.
 
 `--bits-hex`, `--payload-gen` and `--payload-len` are already refused
 (`wfmgen.c:694-699`), but their messages name `--bits` as the replacement.
-They are repointed at `--data`, and `--bits`, `--bits-file`, `"payload"`,
-`"pattern"` and `"payload_gen"` join them as refusals naming `--data`.
+They are repointed at `--data`, and `--bits`, `"payload"`, `"pattern"` and
+`"payload_gen"` join them as refusals naming `--data`. `--bits-file` is
+refused naming `--data-from-file`.
 `--payload` never existed on the CLI; §F.3's list named it, and this
 pass corrects it.
 
@@ -243,7 +263,8 @@ source is refused as two spellings of one thing.
 
 **The object.** One C data source, in the `wfm` module:
 
-- **built from:** the `--data` text (a Field, a path, `-` or `none`), plus
+- **built from:** a Field (`--data`) or a path (`--data-from-file`, `-`
+    for stdin), plus
     `LEN` and an optional fill Field;
 - **its state:** the bit residue (§4.2), the fill, the fill phase, and the
     running counts (frames, fill bits, idle frames);

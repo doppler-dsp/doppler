@@ -230,11 +230,15 @@ def test_ignore_list_not_stale(tmp_path):
     )
 
 
+@pytest.mark.docs_snippets
 def test_wrapping_catches_a_renamed_function(tmp_path):
     """Sabotage, pinned: a block calling a function that does not exist.
 
-    Not a docs_snippets case -- it needs no header block, only the build,
-    and proves the wrapper does not swallow an implicit declaration.
+    Proves the wrapper does not swallow an implicit declaration. A
+    docs_snippets case like the rest, because it links ``libdoppler.a``:
+    the plain Python suite runs where that archive is not built (Windows'
+    clang-cl job has none), and a missing archive is not this test's
+    subject.
     """
     code = "size_t n = dp_no_such_function (1);\n"
     with pytest.raises(AssertionError, match="failed to compile"):

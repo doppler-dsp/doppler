@@ -26,7 +26,15 @@
 #include <fcntl.h>
 #include <io.h>
 #define pipe(p) _pipe ((p), 4096, _O_BINARY)
-#define write(f, b, n) _write ((f), (b), (unsigned)(n))
+/* A function, not a function-like macro: a call passes compound literals
+   such as (const uint8_t[]){ 0xC3, 0x5A }, whose commas would split a
+   macro's arguments -- clang-cl refused exactly that. */
+static int
+write_shim (int f, const void *b, size_t n)
+{
+  return _write (f, b, (unsigned)n);
+}
+#define write write_shim
 #define close(f) _close (f)
 #else
 #include <unistd.h>

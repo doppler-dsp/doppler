@@ -54,12 +54,9 @@ det_cmp_f32_asc (const void *a, const void *b)
 }
 
 static inline float
-det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
-                 det_noise_mode_t mode)
+det_noise_scan (const float *mag, size_t lo, size_t hi,
+                det_noise_mode_t mode)
 {
-  if (lo > hi)
-    return 0.0f;
-  size_t count = hi - lo + 1;
   switch (mode)
     {
     case DET_NOISE_MEAN:
@@ -67,12 +64,8 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
         float s = 0.0f;
         for (size_t i = lo; i <= hi; i++)
           s += mag[i];
-        return s / (float)count;
+        return s / (float)(hi - lo + 1);
       }
-    case DET_NOISE_MEDIAN:
-      memcpy (scratch, mag + lo, count * sizeof (float));
-      qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
-      return scratch[count / 2];
     case DET_NOISE_MIN:
       {
         float m = mag[lo];
@@ -89,8 +82,23 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
             m = mag[i];
         return m;
       }
+    default:
+      return 0.0f; /* MEDIAN: det_noise_estimate() owns it */
     }
-  return 0.0f; /* unreachable */
+}
+
+static inline float
+det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
+                    det_noise_mode_t mode)
+{
+  if (lo > hi)
+    return 0.0f;
+  if (mode != DET_NOISE_MEDIAN)
+    return det_noise_scan (mag, lo, hi, mode);
+  const size_t count = hi - lo + 1;
+  memcpy (scratch, mag + lo, count * sizeof (float));
+  qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
+  return scratch[count / 2];
 }
 
 /* det_peak_t (one listed peak) is public in detector2d_core.h; the 1-D

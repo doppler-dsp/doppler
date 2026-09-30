@@ -51,26 +51,23 @@ det_cmp_f32_asc (const void *a, const void *b)
 }
 
 /**
- * @brief Aggregate |corr| over bins &#91;lo, hi&#93; using the selected mode.
+ * @brief Aggregate |corr| over bins &#91;lo, hi&#93; by a one-pass mode.
  *
- * Returns 0 if lo > hi (empty range) — the caller maps that to test_stat=0.
+ * The modes that need no scratch -- MEAN, MIN and MAX -- in one pass
+ * over the range. MEDIAN has no one-pass form: it sorts a copy, so it
+ * lives in det_noise_estimate() alone, and a caller with no scratch
+ * (a per-chunk reference, say) calls this and cannot reach it.
  *
  * @param mag     Magnitude vector (length >= hi+1).
- * @param lo      First bin, inclusive.
+ * @param lo      First bin, inclusive; lo <= hi.
  * @param hi      Last bin, inclusive.
- * @param scratch Caller-allocated buffer of length >= (hi-lo+1) floats;
- *                used only for DET_NOISE_MEDIAN (avoids a heap alloc per
- *                push).
- * @param mode    Aggregation mode.
- * @return        Aggregated noise estimate, or 0 if lo > hi.
+ * @param mode    DET_NOISE_MEAN, DET_NOISE_MIN or DET_NOISE_MAX.
+ * @return        Aggregated noise estimate; 0 for any other mode.
  */
 static inline float
-det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
-                 det_noise_mode_t mode)
+det_noise_scan (const float *mag, size_t lo, size_t hi,
+                det_noise_mode_t mode)
 {
-  if (lo > hi)
-    return 0.0f;
-  size_t count = hi - lo + 1;
   switch (mode)
     {
     case DET_NOISE_MEAN:
@@ -78,12 +75,8 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
         float s = 0.0f;
         for (size_t i = lo; i <= hi; i++)
           s += mag[i];
-        return s / (float)count;
+        return s / (float)(hi - lo + 1);
       }
-    case DET_NOISE_MEDIAN:
-      memcpy (scratch, mag + lo, count * sizeof (float));
-      qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
-      return scratch[count / 2];
     case DET_NOISE_MIN:
       {
         float m = mag[lo];
@@ -100,8 +93,38 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
             m = mag[i];
         return m;
       }
+    default:
+      return 0.0f; /* MEDIAN: det_noise_estimate() owns it */
     }
-  return 0.0f; /* unreachable */
+}
+
+/**
+ * @brief Aggregate |corr| over bins &#91;lo, hi&#93; using the selected mode.
+ *
+ * Returns 0 if lo > hi (empty range) -- the caller maps that to test_stat=0.
+ * MEDIAN sorts a copy in `scratch`; every other mode is det_noise_scan().
+ *
+ * @param mag     Magnitude vector (length >= hi+1).
+ * @param lo      First bin, inclusive.
+ * @param hi      Last bin, inclusive.
+ * @param scratch Caller-allocated buffer of length >= (hi-lo+1) floats;
+ *                used only for DET_NOISE_MEDIAN (avoids a heap alloc per
+ *                push).
+ * @param mode    Aggregation mode.
+ * @return        Aggregated noise estimate, or 0 if lo > hi.
+ */
+static inline float
+det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
+                    det_noise_mode_t mode)
+{
+  if (lo > hi)
+    return 0.0f;
+  if (mode != DET_NOISE_MEDIAN)
+    return det_noise_scan (mag, lo, hi, mode);
+  const size_t count = hi - lo + 1;
+  memcpy (scratch, mag + lo, count * sizeof (float));
+  qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
+  return scratch[count / 2];
 }
 
 /* det_peak_t (one listed peak) is public in detector2d_core.h; the 1-D

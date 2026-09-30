@@ -1203,7 +1203,13 @@ _acq_doppler_rate_check (void)
 static int
 _acq_cell_corr_grid_check (void)
 {
-  const size_t    P = 510, E = 3, col = 37;
+  /* E sizes two arrays, so it is a constant expression: a `const`
+     object would make them VLAs clang folds only as an extension. */
+  enum
+  {
+    E = 3
+  };
+  const size_t    P = 510, col = 37;
   const double    fs = 1.0e6, span = fs / (double)P, t0 = 1234.0;
   uint32_t        rng = 20260924u;
   float _Complex *pre = malloc (P * sizeof *pre);

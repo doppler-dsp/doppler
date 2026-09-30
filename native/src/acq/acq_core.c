@@ -190,13 +190,12 @@ acq_tile_decide (size_t r, void *ctx)
       st->mag_buf[k] = cabsf (st->out_buf[k]);
   memcpy (st->peak_mask + k0, st->band_mask + k0, k1 - k0);
   acq_part_t *p = &st->parts[r];
-  /* No scratch here, so never MEDIAN: acq_scan_surface() sets `reference`
-     only for the modes with a per-chunk form. Restated at the NULL, where
-     the inlined MEDIAN branch would otherwise hand it to qsort. */
-  p->ref
-      = sc->reference && st->noise_mode != DET_NOISE_MEDIAN
-            ? det_noise_estimate (sc->surf, k0, k1 - 1, NULL, st->noise_mode)
-            : 0.0f;
+  /* No scratch here, so the one-pass modes only: acq_scan_surface() sets
+     `reference` only for the modes with a per-chunk form, and MEDIAN is
+     not one det_noise_scan() can reach. */
+  p->ref         = sc->reference
+                       ? det_noise_scan (sc->surf, k0, k1 - 1, st->noise_mode)
+                       : 0.0f;
   const size_t b = det_peak_scan (sc->surf, st->band_mask, k0, k1);
   p->best        = b == k1 ? st->n_surf : b;
 }

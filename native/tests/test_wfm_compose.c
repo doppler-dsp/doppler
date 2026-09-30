@@ -622,11 +622,9 @@ test_a_carried_frame_survives_the_scene_json (void)
                        .seed      = 1,
                        .sps       = 4,
                        .pn_length = 7 };
-  /* A framed source needs a payload -- dp_wfm_source_frame_error() refuses one
-     without, and a CARRIED description is framing by the same predicate, so
-     the rule reaches this source exactly as it reaches a flat-framed one. */
-  src.payload = payload;
-  src.frame   = &d;
+  /* No payload beside it: a carried description is the whole frame, and its
+     payload is one of its fields (doppler#1683 refuses the pair). */
+  src.frame = &d;
   wfm_segment_t seg
       = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 256 };
 
@@ -710,12 +708,10 @@ test_a_carried_frame_survives_the_scene_json (void)
 
   /* Each reject below differs from THIS scene by exactly one thing: the
      frame defect under test. Asserting the control PARSES is what stops
-     them passing for an unrelated reason -- a framed source with no payload
-     is refused outright, so a frame reject written without one proves
-     nothing about the frame. */
+     them passing for an unrelated reason. */
 #define FRAME_SCENE(FR)                                                       \
   "{\"segments\":[{\"type\":\"bits\",\"fs\":1e6,\"num_samples\":16,"          \
-  "\"payload\":\"1100101001110001\",\"frame\":" FR "}]}"
+  "\"frame\":" FR "}]}"
 
   dp_wfm_compose_state_t *ctl = dp_wfm_compose_from_json (
       FRAME_SCENE ("{\"fields\":[{\"name\":\"a\",\"spec\":\"1010\"}]}"));
@@ -1969,6 +1965,8 @@ main (void)
       cvd.stage[cst].emit_den = 1u;
       wfm_source_t cv         = dsss;
       memset (&cv.sync, 0, sizeof cv.sync);
+      /* The payload is a field of the description too (doppler#1683). */
+      memset (&cv.payload, 0, sizeof cv.payload);
       cv.frame = &cvd;
       wfm_segment_t gcv
           = { .sources = &cv, .n_sources = 1, .fs = 1e6, .off_samples = 0 };

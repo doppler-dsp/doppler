@@ -943,7 +943,9 @@ wfmgen --type bits --frame bad.json --count 4144 -o bad.cf32 \
 
 A scene carries the same description under a source's **`frame`** key, and
 `--frame FILE` reads exactly that value. The description is the whole frame,
-so the common frame's keys (`sync`, `crc`, `payload`) do not belong beside it.
+so the common frame's keys do not belong beside it: a `payload` (`--bits`,
+`payload=`) is refused on every face, from one declaration in the field
+table, and so is a `sync` or an unspread preamble.
 
 ```json title="frame.json"
 {

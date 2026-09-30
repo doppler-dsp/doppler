@@ -17,6 +17,7 @@
 #include "doppler/wfm/wfm_compose.h"         /* wfm_source_t */
 #include "doppler/wfm/wfm_dsp.h"   /* wfm_rrc_ntaps / dp_wfm_rrc_taps */
 #include "doppler/wfm/wfm_frame.h" /* the frame descriptor both faces now read */
+#include "doppler/wfm/wfm_surface.h" /* the exclusions every face refuses */
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
 /* Pulse enum index 1 == "rrc" (see the wfm_pulse [[enum]] SSOT). */
@@ -76,6 +77,18 @@ const char dp_wfm_why_pn_poly[]
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
 {
+  /* Two members no face takes together (the manifest's `exclusive`). The
+     CLI and a scene refuse the pair by flag and key, naming their own
+     spelling; this is the object face's refusal -- a Python source or a C
+     caller -- asked here, where every face asks about a source. */
+  for (size_t k = 0; k < WFM_SURFACE_N_EXCLUSIVE; k++)
+    {
+      const wfm_surface_exclusive_t *e = &WFM_SURFACE_EXCLUSIVE[k];
+      if (WFM_SURFACE[e->a].owner == WFM_SURF_SOURCE
+          && wfm_surface_row_is_set (&WFM_SURFACE[e->a], src)
+          && wfm_surface_row_is_set (&WFM_SURFACE[e->b], src))
+        return e->obj_why;
+    }
   /* `data:LEN` is a frame's payload drawn from a data source
      (docs/design/payload-data-source.md). In the payload slot nothing
      connects that source yet; in any other slot it is a category error,
@@ -98,6 +111,13 @@ dp_wfm_source_error (const wfm_source_t *src)
       && !pn_fits_register (src->pn_poly, (uint32_t)src->pn_length))
     return dp_wfm_why_pn_poly;
   return dp_wfm_source_frame_error (src);
+}
+
+const char *
+dp_wfm_source_to_synth_error (const wfm_source_t *src, double fs)
+{
+  (void)fs;
+  return dp_wfm_source_error (src);
 }
 
 const char *
@@ -487,8 +507,10 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* A "bits" waveform with no pattern has nothing to transmit. Reject it here
      so the generated Synth_ensure_gen turns this NULL into an error at first
      generation (the old Synth.__init__ raised eagerly; standalone generation
-     is lazy, so the guard moves to first steps()/step()). */
-  if (src->type == WFM_SYNTH_BITS && src->payload.len == 0)
+     is lazy, so the guard moves to first steps()/step()). A carried frame
+     IS the pattern -- its payload is a field of it, never beside it
+     (doppler#1683) -- so it needs none. */
+  if (src->type == WFM_SYNTH_BITS && src->payload.len == 0 && !src->frame)
     return NULL;
   /* Likewise a "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))

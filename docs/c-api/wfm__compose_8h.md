@@ -114,6 +114,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
+|  const char \* | [**dp\_wfm\_source\_to\_synth\_error**](#function-dp_wfm_source_to_synth_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Why_ [_**dp\_wfm\_source\_to\_synth()**_](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) _refused this source, or NULL._ |
 |  double | [**dp\_wfm\_spec\_headroom**](#function-dp_wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**dp\_wfm\_spec\_template\_json**](#function-dp_wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**dp\_wfm\_spec\_to\_json**](#function-dp_wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, int seed\_advance, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
@@ -1517,6 +1518,7 @@ The question every face asks before it builds  the wfmgen CLI, a scene read by [
 
 
 * `pn_poly` must fit the `pn_length`-bit register ([**pn\_fits\_register()**](pn__core_8h.md#function-pn_fits_register)). The generator masks a wider one, silently, so `pn_poly = 0x40` on a 5-bit register is a register with no feedback: the seed, then zeros, a constant waveform that still looks like a PN source (doppler#1636). 0 selects the maximal-length polynomial and always fits.
+* No two members the surface table declares exclusive may both be set (`WFM_SURFACE_EXCLUSIVE`, [**wfm\_surface.h**](wfm__surface_8h.md)): a carried `frame` is the whole frame, so a `payload` beside it would be dropped (doppler#1683). The CLI and a scene refuse the same pair first, naming their own spelling.
 
 
 
@@ -1662,6 +1664,51 @@ A `WFM_SYNTH_*` type.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_to\_synth\_error 
+
+_Why_ [_**dp\_wfm\_source\_to\_synth()**_](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) _refused this source, or NULL._
+```C++
+const char * dp_wfm_source_to_synth_error (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`, which takes the bridge's own arguments): [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error), so a refused Synth raises the same sentence as every other face. NULL leaves the binding's generic error, for a refusal that is not the source's.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` The sample rate (unused: no refusal depends on it). 
+
+
+
+**Returns:**
+
+A static sentence, or NULL.
+
+
+
+```C++
+wfm_source_t s = { .type = WFM_SYNTH_PN, .sps = 1, .pn_length = 5,
+                   .pn_poly = 0x40 };
+dp_wfm_source_to_synth_error (&s, 1e6);   // dp_wfm_why_pn_poly
+```
+ 
 
 
         

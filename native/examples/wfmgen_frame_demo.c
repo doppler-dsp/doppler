@@ -318,12 +318,15 @@ main (void)
   check (!dp_wfm_source_has_frame (&plain),
          "the source is unframed before a description is attached");
 
+  /* The description is the WHOLE frame, its payload one of its fields, so
+     the flat payload goes: a source with both is refused (doppler#1683). */
   wfm_source_t src = plain;
-  src.frame        = &d;
+  memset (&src.payload, 0, sizeof src.payload);
+  src.frame = &d;
   check (dp_wfm_source_has_frame (&src),
          "carrying a description IS what makes a source framed");
-  check (dp_wfm_source_frame_error (&src) == NULL,
-         "this type can honour a frame (type=bits, explicit payload)");
+  check (dp_wfm_source_error (&src) == NULL,
+         "this type can honour a frame (type=bits, payload a field of it)");
 
   size_t n_framed   = compose_one (&src, framed, TOTAL);
   size_t n_unframed = compose_one (&plain, unframed, TOTAL);
@@ -388,7 +391,8 @@ main (void)
          "dp_wfm_frame_fixed describes the common frame");
 
   wfm_source_t carried = bits_source (payload_bits);
-  carried.frame        = &from_flags;
+  memset (&carried.payload, 0, sizeof carried.payload); /* in the frame */
+  carried.frame = &from_flags;
 
   size_t n_sugar   = compose_one (&flags, sugar, TOTAL);
   size_t n_relayed = compose_one (&carried, relayed, TOTAL);

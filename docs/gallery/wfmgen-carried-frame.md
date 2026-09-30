@@ -56,17 +56,17 @@ main (void)
       || dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") < 0)
     return 1;
 
-  /* One source, carrying it. A frame needs an explicit payload, which is
-     what `type=bits` gives it. */
+  /* One source, carrying it. The description is the whole frame, payload
+     included, so the source has no payload of its own: one beside it is
+     refused (doppler#1683). */
   wfm_source_t src = { 0 };
   src.type = WFM_SYNTH_BITS;
-  src.payload = p;
   src.modulation = 1; /* bpsk */
   src.sps = (int)SPS;
   src.snr = WFM_SYNTH_SNR_CLEAN; /* no AWGN, so the checks are equalities */
   src.snr_mode = 1;
   src.frame = &d;
-  if (dp_wfm_source_frame_error (&src) != NULL)
+  if (dp_wfm_source_error (&src) != NULL)
     return 1;
 
   wfm_segment_t seg = { 0 };

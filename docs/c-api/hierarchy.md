@@ -165,5 +165,6 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**wfm\_span\_t**](structwfm__span__t.md) _One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._
 * **struct** [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md) _How one kind of stage actually transforms bits._ 
 * **struct** [**wfm\_stage\_t**](structwfm__stage__t.md) _One transform, and — the whole point — the fields it covers._ 
+* **struct** [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md) 
 * **struct** [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md) 
 

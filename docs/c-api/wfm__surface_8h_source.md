@@ -44,6 +44,8 @@ typedef enum
   WFM_SV_CHOICE,  /* an int index into `choices` */
   WFM_SV_SYMBOLS, /* float _Complex *, its count at `len_off` */
   WFM_SV_FIELD,   /* a wfm_seq_t, as a Field (wfm_frame.h) */
+  WFM_SV_BESPOKE, /* a pointer each face reads with its own code;
+                     the generic readers and writers skip it */
 } wfm_sv_kind_t;
 
 typedef struct
@@ -101,6 +103,7 @@ enum
   WFM_SURFACE_source_sync,
   WFM_SURFACE_source_crc,
   WFM_SURFACE_source_symbol_rate,
+  WFM_SURFACE_source_frame,
   WFM_SURFACE_segment_fs,
   WFM_SURFACE_segment_num_samples,
   WFM_SURFACE_segment_off_samples,
@@ -389,6 +392,14 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .when_row = WFM_SURFACE_source_type,
     .when_value = 8,
   },
+  [WFM_SURFACE_source_frame] = {
+    .name = "frame",
+    .cli = "--frame",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_BESPOKE,
+    .off = offsetof (wfm_source_t, frame),
+    .json = "frame",
+  },
   [WFM_SURFACE_segment_fs] = {
     .name = "fs",
     .cli = "--fs",
@@ -449,6 +460,66 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .json_omit = 1,
   },
 };
+
+/* Two rows no face takes together, and the reason, spelled for each
+   face that can be given both: the CLI (both flags), a scene (both
+   keys), the object (both members set). NULL: that face cannot
+   carry one of the two, so it has nothing to refuse. */
+typedef struct
+{
+  int         a, b; /* WFM_SURFACE_<owner>_<name> */
+  const char *cli_why;
+  const char *json_why;
+  const char *obj_why;
+} wfm_surface_exclusive_t;
+
+#define WFM_SURFACE_N_EXCLUSIVE 1
+static const wfm_surface_exclusive_t
+    WFM_SURFACE_EXCLUSIVE[1] = {
+  {
+    .a = WFM_SURFACE_source_bits,
+    .b = WFM_SURFACE_source_frame,
+    .cli_why = "--bits and --frame cannot both be given: a frame "
+        "description is the whole frame, and carries its "
+        "payload as a field",
+    .json_why = "\"payload\" and \"frame\" cannot both be given: a frame "
+        "description is the whole frame, and carries its "
+        "payload as a field",
+    .obj_why = "a source's payload and frame cannot both be set: a "
+        "frame description is the whole frame, and carries its "
+        "payload as a field",
+  },
+};
+
+/* Whether a row's member holds a value: the object face's
+   "given". Only the kinds an exclusion may name (the generator
+   refuses any other) have an unset value to test for. */
+static inline int
+wfm_surface_row_is_set (const wfm_surface_row_t *r,
+                        const void              *base)
+{
+  const char *m = (const char *)base + r->off;
+  switch (r->kind)
+    {
+    case WFM_SV_FIELD:
+      return ((const wfm_seq_t *)m)->len != 0;
+    case WFM_SV_BESPOKE:
+      return *(const void *const *)m != NULL;
+    case WFM_SV_SYMBOLS:
+      return *(const size_t *)((const char *)base + r->len_off)
+             != 0;
+    default:
+      return 0;
+    }
+}
+
+/* A Field row with no repetition count refuses *REPS: only the
+   rows with `field_reps` repeat (a preamble). One reason per face.
+*/
+#define WFM_SURFACE_REPS_WHY_CLI \
+  "only --acq-code repeats (a preamble): drop the *REPS"
+#define WFM_SURFACE_REPS_WHY_JSON \
+  "only \"acq_code\" repeats (a preamble): drop the *REPS"
 
 /* --help option lines, one string per USAGE section. */
 #define WFM_SURFACE_HELP_SIGNAL \
@@ -512,7 +583,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
 
 #define WFM_SURFACE_HELP_BITS \
   "  --bits FIELD    The payload bits: a Field on the command line and in a scene,\n" \
-  "                  an array in Python.\n" \
+  "                  an array in Python. Not with --frame.\n" \
   "  --modulation M  Symbol mapping of a bits pattern. One of: none | bpsk | qpsk.\n" \
   "                  (default bpsk)\n"
 
@@ -552,6 +623,12 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
   "  --symbol-rate HZ\n" \
   "                  For type=dsss: > 0 selects CONTINUOUS asynchronous mode.\n" \
   "                  (default 0.0)\n"
+
+#define WFM_SURFACE_HELP_CODED \
+  "  --frame FILE    A frame DESCRIPTION, the whole frame: fields in wire order,\n" \
+  "                  and stages that each name the span they cover (crc16, rs,\n" \
+  "                  randomise, interleave, conv, or a kind of your own). Not with\n" \
+  "                  --bits.\n"
 
 #endif /* WFM_SURFACE_H */
 ```

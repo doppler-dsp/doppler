@@ -356,16 +356,18 @@ def test_an_unframed_record_stays_unframed(tmp_path):
 
 
 def _carried(with_frame: bool) -> np.ndarray:
-    """The same scene, differing only in whether it carries a description."""
+    """The same payload, carried flat or inside a description -- never both,
+    because a description is the whole frame (doppler#1683)."""
     seg = {
         "type": "bits",
         "fs": FS,
         "sps": SPS,
         "modulation": "bpsk",
-        "payload": _bits(PAYLOAD),
         "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
     }
-    if with_frame:
+    if not with_frame:
+        seg["payload"] = _bits(PAYLOAD)
+    else:
         seg["frame"] = {
             "fields": [
                 {"name": "sync", "spec": _bits(SYNC)},
@@ -404,9 +406,13 @@ def test_a_carried_frame_survives_the_python_round_trip():
         "fs": FS,
         "sps": SPS,
         "modulation": "bpsk",
-        "payload": _bits(PAYLOAD),
         "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
-        "frame": {"fields": [{"name": "sync", "spec": _bits(SYNC)}]},
+        "frame": {
+            "fields": [
+                {"name": "sync", "spec": _bits(SYNC)},
+                {"name": "payload", "spec": _bits(PAYLOAD)},
+            ]
+        },
     }
     once = Composer.from_json(json.dumps({"segments": [seg]})).to_json()
     got = json.loads(once)["segments"][0]["frame"]
@@ -441,7 +447,6 @@ def test_segment_takes_a_framedesc_directly():
         fs=FS,
         sps=SPS,
         modulation="bpsk",
-        bits=PAYLOAD.tobytes(),
         num_samples=(len(SYNC) + len(PAYLOAD)) * SPS,
         frame=desc,
     )
@@ -530,7 +535,6 @@ def test_frame_survives_the_composer_record():
         fs=FS,
         sps=SPS,
         modulation="bpsk",
-        bits=PAYLOAD.tobytes(),
         num_samples=(len(SYNC) + len(PAYLOAD) + 16) * SPS,
         frame=_desc(),
     )
@@ -565,7 +569,6 @@ def _derived_scene(derived_by):
                     "fs": FS,
                     "sps": SPS,
                     "modulation": "bpsk",
-                    "payload": _bits(PAYLOAD),
                     "num_samples": (len(PAYLOAD) + 16) * SPS,
                     "frame": {
                         "fields": [

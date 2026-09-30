@@ -59,7 +59,10 @@ ROWS = [
     for r in GEN.surface_rows(
         GEN.tomllib.loads(GEN.MANIFEST.read_text(encoding="utf-8"))
     )
-    if r["cli"] and r["json"]
+    # A bespoke row (the frame) is read by each face's own code, and its
+    # value is a whole object rather than one flag's text: pinned by
+    # test_frame_source.py, not driven here.
+    if r["cli"] and r["json"] and r["kind"] != "WFM_SV_BESPOKE"
 ]
 
 #: A non-default value per row where the kind's generic one will not do.

@@ -298,10 +298,12 @@ typedef struct {
                                because its cache renders each source
                                independently and concurrently; compose() and
                                stream() honour both. */
-    /* The FRAME, as a description, when the source carries one -- the only
-       way a source says anything but the common frame: a coding stage, a
-       field of the caller's own bits at a position of their choosing, a
-       stage covering a span they name. `wfmgen --frame FILE`, a scene's
+    /* A frame DESCRIPTION, the whole frame: fields in wire order, and
+       stages that each name the span they cover (crc16, rs, randomise,
+       interleave, conv, or a kind of your own). It is the only way a source
+       says anything but the common frame: a coding stage, a field of the
+       caller's own bits at a position of their choosing, a stage covering a
+       span they name. `wfmgen --frame FILE`, a scene's
        `frame` key and Python's `frame=` (a FrameDesc or a Frame) all land
        here. When it is set it IS the frame, and the common-frame
        fields below (acq_code/sync/crc/payload) do not frame this source.
@@ -718,6 +720,10 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
  *   5-bit register is a register with no feedback: the seed, then zeros,
  *   a constant waveform that still looks like a PN source (doppler#1636).
  *   0 selects the maximal-length polynomial and always fits.
+ * - No two members the surface table declares exclusive may both be set
+ *   (`WFM_SURFACE_EXCLUSIVE`, wfm_surface.h): a carried `frame` is the whole
+ *   frame, so a `payload` beside it would be dropped (doppler#1683). The
+ *   CLI and a scene refuse the same pair first, naming their own spelling.
  *
  * @param src  The source.
  * @return NULL if there is nothing wrong, else a static message.
@@ -739,6 +745,26 @@ const char *dp_wfm_source_error(const wfm_source_t *src);
  *        matching text.
  */
 extern const char dp_wfm_why_pn_poly[];
+
+/**
+ * @brief Why dp_wfm_source_to_synth() refused this source, or NULL.
+ *
+ * The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`,
+ * which takes the bridge's own arguments): dp_wfm_source_error(), so a
+ * refused Synth raises the same sentence as every other face. NULL leaves
+ * the binding's generic error, for a refusal that is not the source's.
+ *
+ * @param src  The source.
+ * @param fs   The sample rate (unused: no refusal depends on it).
+ * @return A static sentence, or NULL.
+ *
+ * @code
+ * wfm_source_t s = { .type = WFM_SYNTH_PN, .sps = 1, .pn_length = 5,
+ *                    .pn_poly = 0x40 };
+ * dp_wfm_source_to_synth_error (&s, 1e6);   // dp_wfm_why_pn_poly
+ * @endcode
+ */
+const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.

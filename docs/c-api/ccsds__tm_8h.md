@@ -10,6 +10,7 @@
 
 _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._ [More...](#detailed-description)
 
+* `#include "doppler/clib_common.h"`
 * `#include "doppler/conv/conv_core.h"`
 * `#include "doppler/dp_syncword.h"`
 * `#include "doppler/viterbi/viterbi_core.h"`
@@ -76,13 +77,13 @@ _CCSDS TM channel coding — the transforms a transfer frame passes through on i
 | ---: | :--- |
 |  void | [**dp\_ccsds\_tm\_asm\_bits**](#function-dp_ccsds_tm_asm_bits) (uint8\_t \* out) <br>_Write the ASM as_ [_**CCSDS\_TM\_ASM\_BITS**_](ccsds__tm_8h.md#define-ccsds_tm_asm_bits) _unpacked bits._ |
 |  int | [**dp\_ccsds\_tm\_asm\_find**](#function-dp_ccsds_tm_asm_find) (const uint8\_t \* bits, size\_t n\_bits, unsigned max\_errors, [**ccsds\_tm\_asm\_hit\_t**](ccsds__tm_8h.md#typedef-ccsds_tm_asm_hit_t) \* hit) <br>_Find the first ASM in a run of unpacked bits, either polarity._  |
-|  void | [**dp\_ccsds\_tm\_rand\_init**](#function-dp_ccsds_tm_rand_init) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s, const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r) <br>_Load_ `r's` _preset, ready to emit its first bit._ |
+|  int | [**dp\_ccsds\_tm\_rand\_init**](#function-dp_ccsds_tm_rand_init) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s, const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r) <br>_Load_ `r's` _preset, ready to emit its first bit._ |
 |  const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* | [**dp\_ccsds\_tm\_rand\_select**](#function-dp_ccsds_tm_rand_select) (unsigned which) <br>_The randomiser a numeric choice names: 2 is 10.4.2's legacy one._  |
 |  void | [**dp\_ccsds\_tm\_rand\_seq**](#function-dp_ccsds_tm_rand_seq) (uint8\_t \* out, size\_t n) <br>_Generate the first_ `n` _bits of the randomiser sequence._ |
-|  void | [**dp\_ccsds\_tm\_rand\_seq\_with**](#function-dp_ccsds_tm_rand_seq_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* out, size\_t n) <br>[_**dp\_ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq) _with a chosen randomiser._ |
+|  int | [**dp\_ccsds\_tm\_rand\_seq\_with**](#function-dp_ccsds_tm_rand_seq_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* out, size\_t n) <br>[_**dp\_ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq) _with a chosen randomiser._ |
 |  uint8\_t | [**dp\_ccsds\_tm\_rand\_step**](#function-dp_ccsds_tm_rand_step) ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md) \* s) <br>_Emit one bit and advance._  |
 |  void | [**dp\_ccsds\_tm\_randomise**](#function-dp_ccsds_tm_randomise) (uint8\_t \* bits, size\_t n) <br>_Apply the CCSDS pseudo-randomiser to a bit run, in place._  |
-|  void | [**dp\_ccsds\_tm\_randomise\_with**](#function-dp_ccsds_tm_randomise_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* bits, size\_t n) <br>[_**dp\_ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise) _with a chosen randomiser._ |
+|  int | [**dp\_ccsds\_tm\_randomise\_with**](#function-dp_ccsds_tm_randomise_with) (const [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md) \* r, uint8\_t \* bits, size\_t n) <br>[_**dp\_ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise) _with a chosen randomiser._ |
 
 
 ## Public Static Functions
@@ -392,7 +393,7 @@ if (dp_ccsds_tm_asm_find (cadu, sizeof cadu, 4u, &hit))
 
 _Load_ `r's` _preset, ready to emit its first bit._
 ```C++
-void dp_ccsds_tm_rand_init (
+int dp_ccsds_tm_rand_init (
     ccsds_tm_rand_state_t * s,
     const ccsds_tm_rand_t * r
 ) 
@@ -406,7 +407,14 @@ void dp_ccsds_tm_rand_init (
 
 
 * `s` Receives the state. 
-* `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
+* `r` The randomiser, e.g. [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). `NULL` is refused, never read as the default: it is what [**dp\_ccsds\_tm\_rand\_select**](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_select) returns for a generator B-6 does not define. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for `NULL` (`s` is not written). 
+
 
 
 
@@ -444,7 +452,7 @@ B-6 specifies two generators, so every place that carries the choice as a number
 
 
 
-NULL is a REFUSAL, and a caller must treat it as one: handing it on to [**dp\_ccsds\_tm\_randomise\_with**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise_with) would quietly select the default, which is exactly the reinterpretation this exists to stop. The description's randomise stage refuses its unit (so `dp_wfm_frame_assemble` and `dp_wfm_frame_check` refuse the frame), and dp\_ccsds\_tm\_frame\_layout refuses a cfg `randomise` outside 0..2 before asking.
+NULL is a REFUSAL, and it stays one downstream: [**dp\_ccsds\_tm\_randomise\_with**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise_with), [**dp\_ccsds\_tm\_rand\_seq\_with**](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq_with) and [**dp\_ccsds\_tm\_rand\_init**](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_init) refuse it too (DP\_ERR\_INVALID) rather than read it as the default, which would be exactly the reinterpretation this exists to stop (doppler#1633). The description's randomise stage refuses its unit (so `dp_wfm_frame_assemble` and `dp_wfm_frame_check` refuse the frame), and dp\_ccsds\_tm\_frame\_layout refuses a cfg `randomise` outside 0..2 before asking.
 
 
 
@@ -512,7 +520,7 @@ Exposed separately because the sequence itself is what CCSDS 131.0-B publishes (
 
 [_**dp\_ccsds\_tm\_rand\_seq**_](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq) _with a chosen randomiser._
 ```C++
-void dp_ccsds_tm_rand_seq_with (
+int dp_ccsds_tm_rand_seq_with (
     const ccsds_tm_rand_t * r,
     uint8_t * out,
     size_t n
@@ -526,9 +534,16 @@ void dp_ccsds_tm_rand_seq_with (
 **Parameters:**
 
 
-* `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
+* `r` The randomiser. `NULL` is refused, never read as the default  the default is [**dp\_ccsds\_tm\_rand\_seq**](ccsds__tm_8h.md#function-dp_ccsds_tm_rand_seq). 
 * `out` Receives `n` unpacked bits. 
 * `n` Number of bits to generate. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for `NULL` (`out` untouched). 
+
 
 
 
@@ -624,7 +639,7 @@ dp_ccsds_tm_randomise (frame, sizeof frame);   // ...and back to zeros
 
 [_**dp\_ccsds\_tm\_randomise**_](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise) _with a chosen randomiser._
 ```C++
-void dp_ccsds_tm_randomise_with (
+int dp_ccsds_tm_randomise_with (
     const ccsds_tm_rand_t * r,
     uint8_t * bits,
     size_t n
@@ -638,9 +653,16 @@ void dp_ccsds_tm_randomise_with (
 **Parameters:**
 
 
-* `r` The randomiser; `NULL` selects [**dp\_CCSDS\_TM\_RAND**](ccsds__tm_8h.md#variable-dp_ccsds_tm_rand). 
+* `r` The randomiser. `NULL` is refused, never read as the default  the default is [**dp\_ccsds\_tm\_randomise**](ccsds__tm_8h.md#function-dp_ccsds_tm_randomise). 
 * `bits` Unpacked bits (one per byte, LSB); modified in place. 
 * `n` Number of bits. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for `NULL` (`bits` untouched). 
+
 
 
 

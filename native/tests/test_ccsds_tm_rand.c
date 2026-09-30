@@ -222,5 +222,50 @@ main (void)
                   "randomiser about which generator it is");
   }
 
+  /* ── 8. NULL is REFUSED, never read as the default (#1633)
+   * ──────────────────
+   *
+   * dp_ccsds_tm_rand_select returns NULL for a generator B-6 does not
+   * define, and frame.c hands its answer straight to these three. If NULL
+   * meant "the default" here, a caller that skipped the layout check would
+   * get 10.4.1 for an out-of-range choice -- #1609's defect, back. The
+   * default has its own entry points (dp_ccsds_tm_randomise, _rand_seq), so
+   * NULL is refused and nothing is written.
+   */
+  {
+    uint8_t bits[40] = { 0 }, zeros[40] = { 0 };
+    DP_CHECK_MSG (dp_ccsds_tm_randomise_with (NULL, bits, sizeof bits)
+                      == DP_ERR_INVALID,
+                  "randomise_with (NULL) must be refused");
+    DP_CHECK_MSG (memcmp (bits, zeros, sizeof bits) == 0,
+                  "...and must leave the data untouched");
+
+    uint8_t seq[40], marked[40];
+    memset (seq, 0xA5, sizeof seq);
+    memset (marked, 0xA5, sizeof marked);
+    DP_CHECK_MSG (dp_ccsds_tm_rand_seq_with (NULL, seq, sizeof seq)
+                      == DP_ERR_INVALID,
+                  "rand_seq_with (NULL) must be refused");
+    DP_CHECK_MSG (memcmp (seq, marked, sizeof seq) == 0,
+                  "...and must write no sequence");
+
+    ccsds_tm_rand_state_t st, was;
+    memset (&st, 0xA5, sizeof st);
+    was = st;
+    DP_CHECK_MSG (dp_ccsds_tm_rand_init (&st, NULL) == DP_ERR_INVALID,
+                  "rand_init (NULL) must be refused");
+    DP_CHECK_MSG (memcmp (&st, &was, sizeof st) == 0,
+                  "...and must not load a state");
+
+    DP_CHECK_MSG (dp_ccsds_tm_randomise_with (dp_ccsds_tm_rand_select (7),
+                                              bits, sizeof bits)
+                      == DP_ERR_INVALID,
+                  "rand_select's refusal must stay a refusal downstream");
+    DP_CHECK_MSG (
+        dp_ccsds_tm_randomise_with (&dp_CCSDS_TM_RAND, bits, sizeof bits)
+            == DP_OK,
+        "a named generator is accepted");
+  }
+
   DP_TEST_END ("ccsds_tm_rand");
 }

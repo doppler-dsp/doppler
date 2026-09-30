@@ -12,6 +12,7 @@
 #ifndef CCSDS_TM_H
 #define CCSDS_TM_H
 
+#include "doppler/clib_common.h"
 #include "doppler/conv/conv_core.h"
 #include "doppler/dp_syncword.h"
 #include "doppler/viterbi/viterbi_core.h"
@@ -49,8 +50,8 @@ extern "C"
     unsigned stages;
   } ccsds_tm_rand_state_t;
 
-  void dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
-                           const ccsds_tm_rand_t *r);
+  int dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,
+                             const ccsds_tm_rand_t *r);
 
   uint8_t dp_ccsds_tm_rand_step (ccsds_tm_rand_state_t *s);
 
@@ -65,8 +66,8 @@ extern "C"
 
   void dp_ccsds_tm_randomise (uint8_t *bits, size_t n);
 
-  void dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
-                                size_t n);
+  int dp_ccsds_tm_randomise_with (const ccsds_tm_rand_t *r, uint8_t *bits,
+                                  size_t n);
 
   const ccsds_tm_rand_t *dp_ccsds_tm_rand_select (unsigned which);
 
@@ -80,8 +81,8 @@ extern "C"
 
   void dp_ccsds_tm_rand_seq (uint8_t *out, size_t n);
 
-  void dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
-                               size_t n);
+  int dp_ccsds_tm_rand_seq_with (const ccsds_tm_rand_t *r, uint8_t *out,
+                                 size_t n);
 
 #ifdef __cplusplus
 }

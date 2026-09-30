@@ -138,10 +138,12 @@ dp_ccsds_tm_frame_encode (const ccsds_tm_frame_cfg_t *cfg, conv_enc_t *conv,
      and that is the whole mechanism: the randomiser is given the block, the
      inner code is given the CADU. Nothing here depends on the order the two
      lines are written in. */
-  if (cfg->randomise)
-    dp_ccsds_tm_randomise_with (
-        dp_ccsds_tm_rand_select ((unsigned)cfg->randomise), block,
-        lay.block_bits);
+  if (cfg->randomise
+      && dp_ccsds_tm_randomise_with (
+             dp_ccsds_tm_rand_select ((unsigned)cfg->randomise), block,
+             lay.block_bits)
+             != DP_OK)
+    return 0; /* a choice naming no generator: refused, never defaulted */
 
   if (cfg->attach_asm)
     dp_ccsds_tm_asm_bits (cadu);
@@ -240,8 +242,10 @@ dp_ccsds_tm_frame_decode (const ccsds_tm_frame_cfg_t *cfg, const uint8_t *cadu,
   ccsds_tm_rand_state_t *pn = NULL;
   if (cfg->randomise)
     {
-      dp_ccsds_tm_rand_init (
-          &rand_state, dp_ccsds_tm_rand_select ((unsigned)cfg->randomise));
+      if (dp_ccsds_tm_rand_init (
+              &rand_state, dp_ccsds_tm_rand_select ((unsigned)cfg->randomise))
+          != DP_OK)
+        return 0; /* as encode: refused, never defaulted */
       pn = &rand_state;
     }
 

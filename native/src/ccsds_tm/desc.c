@@ -150,10 +150,10 @@ static int
 rand_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
 {
   (void)user;
-  const ccsds_tm_rand_t *r = rand_choice (st);
-  if (r == NULL)
-    return -1; /* a depth naming no generator: the frame is refused */
-  dp_ccsds_tm_randomise_with (r, bits, n);
+  /* A depth naming no generator is NULL, which randomise_with refuses: the
+     frame is refused with it. */
+  if (dp_ccsds_tm_randomise_with (rand_choice (st), bits, n) != DP_OK)
+    return -1;
   return 0;
 }
 
@@ -224,10 +224,8 @@ rand_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
            wfm_frame_stage_rx_t *rx, void *user)
 {
   (void)user;
-  const ccsds_tm_rand_t *r = rand_choice (st);
-  if (r == NULL)
+  if (dp_ccsds_tm_randomise_with (rand_choice (st), bits, n) != DP_OK)
     return -1; /* as rand_in_unit: never derandomise with a guess */
-  dp_ccsds_tm_randomise_with (r, bits, n);
   rx->units   = 1u;
   rx->ok      = 1u;
   rx->checked = 1;

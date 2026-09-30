@@ -1400,6 +1400,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ccsds-isolation-check instrumented-sweep-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
+                gallery-scripts-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
@@ -1480,7 +1481,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check \
-      design-pages-check drift-check doxygen-check
+      design-pages-check gallery-scripts-check drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1780,11 +1781,8 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 #
 # A characterization subject with a published page belongs here too, and is
 # invoked SEPARATELY below rather than joined to the two lists that follow.
-# Those lists are hand-maintained and must agree with each other — 35 script
-# paths, then 35 PNG names in one `mv` — so a subject added to them would be
-# two more edits that can silently disagree. It takes an explicit destination
-# instead (the argv its `__main__` accepts), which needs neither list and
-# writes straight to docs/assets/.
+# It takes an explicit destination (the argv its `__main__` accepts) and
+# writes straight to docs/assets/, so it needs no move.
 #
 # Why it is regenerated here at all: `docs/assets/dsss_acq_characterization.png`
 # was a hand-committed file from 2026-07-11 that NOTHING refreshed — not
@@ -1798,6 +1796,13 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 GALLERY_CHARACTERIZATIONS := \
     src/doppler/acquire/tests/characterization/burst_acquisition/characterize.py
 
+# ONE list. The PNGs `make gallery` moves into docs/assets/ are DERIVED from
+# it (`check_gallery_scripts.py --outputs`, each script's quoted "<name>.png").
+# A second, hand-kept list of those names used to sit in the recipe, and it
+# moved plan_background_demo.png on every run while its script was never here
+# -- so the plot went stale unseen and v0.59.0 shipped it (#1644).
+# `gallery-scripts-check` (on `lint`) closes the other direction: an example
+# whose plot is committed under docs/assets/ but which is missing from here.
 GALLERY_SCRIPTS := \
     src/doppler/examples/agc_demo.py \
     src/doppler/examples/ccsds_link_demo.py \
@@ -1822,6 +1827,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/wfm_composition_demo.py \
     src/doppler/examples/wcdma_carriers_demo.py \
     src/doppler/examples/plan_demo.py \
+    src/doppler/examples/plan_background_demo.py \
     src/doppler/examples/crowded_band_demo.py \
     src/doppler/examples/measure_demo.py \
     src/doppler/examples/measure_imd_npr_demo.py \
@@ -1845,6 +1851,13 @@ GALLERY_SCRIPTS := \
 plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness's telemetry
 	uv run python scripts/plot_rx_dynamics.py
 
+# The direction a derived move list cannot close: an example whose plot is
+# committed under docs/assets/ but which nothing re-renders, because it was
+# never added to GALLERY_SCRIPTS. Passed IN, like release-freshness-check.
+# Pre-existing orphans are a ratchet in scripts/.gallery-orphans-allow.
+gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
+	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)
+
 # EXAMPLES_SKIP is the same list src/doppler/tests/test_examples.py reads, and
 # it is read here rather than restated: a script the smoke gate deliberately
 # does not run is a script this target cannot run either, and two copies of
@@ -1867,7 +1880,8 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@for png in agc_convergence.png ccsds_link_demo.png agc_settling_design.png ber_awgn_demo.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png lockdet_demo.png telemetry_fanin_demo.png mpsk_telemetry_capture_demo.png rate_converter_demo.png ratesync_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png symbols_demo.png wfm_composition_demo.png wcdma_carriers_demo.png plan_demo.png plan_background_demo.png crowded_band_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png awgn_demo.png doppler_channel_demo.png wfm_io_demo.png dsss_burst_pipeline_demo.png dsss_burst_receiver_demo.png dsss_burst_ber_demo.png async_dsss_receiver_spec_demo.png dsss_receiver_demo.png carrier_acq_rrc_demo.png mpsk_receiver_demo.png mpsk_receiver_performance_demo.png; do \
+	@for png in $$($(UV) run python scripts/check_gallery_scripts.py \
+	        --outputs $(GALLERY_SCRIPTS)); do \
 	    [ -e "$$png" ] && mv -f "$$png" docs/assets/ || true; \
 	done
 	# The demos that WRITE a capture leave it in the repo root. burst.blue

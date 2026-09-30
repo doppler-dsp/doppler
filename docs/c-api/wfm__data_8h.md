@@ -119,6 +119,9 @@ A frame declares how many bits its payload carries, `data:LEN`, and a data sourc
 
 
 
+`--data none` is not a source: it means no data at all (continuous DSSS sends its code alone), so a face that reads `none` builds no source, and [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) refuses the word as text outside the grammar.
+
+
 A file and a pipe carry **packed** octets, unpacked MSB first by `dp_bytes_to_bin`. `LEN` need not be a multiple of 8: an octet can straddle two frames, and the source keeps the leftover bits for the next.
 
 
@@ -321,7 +324,7 @@ What a caller needs before the first sample: how many `LEN`-bit frames a finite 
 
 **Returns:**
 
-the bits of a literal or generated Field, or of a regular file; 0 for a stream (`pn:0:…`, `-`, a pipe), for text outside the grammar, and for a file that cannot be opened.
+the bits of a literal or generated Field, or of a regular file; 0 for a stream (`pn:0:…`, `-`, a pipe), for text outside the grammar, and for a file that cannot be opened. A 0 does not say which, so call this after a successful [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create), where the source is known to exist and its stats say whether it is a stream.
 
 
 

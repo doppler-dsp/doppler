@@ -353,6 +353,8 @@ test_refusals (void)
                 "nor a fill");
   DP_CHECK_MSG (dp_wfm_data_create ("0xAB", NULL, 8, "0x1*", &why) == NULL,
                 "a fill outside the grammar is the parser's refusal");
+  DP_CHECK_MSG (dp_wfm_data_create ("none", NULL, 8, NULL, &why) == NULL,
+                "`none` is no source: a face that reads it builds none");
   DP_CHECK_MSG (dp_wfm_data_create ("0xAG", NULL, 8, NULL, &why) == NULL,
                 "so is data outside it");
 

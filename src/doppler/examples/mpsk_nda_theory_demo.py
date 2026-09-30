@@ -53,6 +53,16 @@ ORDERS = [
 SPS, N = 8, 4
 ARM = SPS // N
 
+# The acquisition panel's loop, as a SPEC: 0.01 cycles/sample, zeta 0.707.
+# 911c9d01 (#300) redefined CarrierNda's bn from "per arm update" to
+# cycles/sample. This demo used to pass bn=0.02, which at ARM = 2 samples per
+# update WAS 0.01 cycles/sample. After #300 the same literal built a loop
+# twice as wide and ~3x as jittery, and nothing noticed (#1675). The jitter
+# assert in main() is derived from this spec, so the loop _acquire builds
+# must be this loop.
+BN_SPEC, ZETA = 0.01, 0.707
+SIGMA = 0.05  # per-component noise std on the unit-amplitude carrier
+
 
 def _disc(m, phi):
     # near-zero bn + NCO at 0 => identity wipe-off; one arm dump => last_error
@@ -61,7 +71,7 @@ def _disc(m, phi):
     return c.last_error
 
 
-def _acquire(m, f0, nsym=1200, seed=0, sigma=0.05):
+def _acquire(m, f0, nsym=1200, seed=0, sigma=SIGMA):
     rng = np.random.default_rng(seed)
     k = np.arange(nsym * SPS)
     rx = np.exp(2j * np.pi * f0 * k)  # unmodulated carrier (no data)
@@ -69,12 +79,43 @@ def _acquire(m, f0, nsym=1200, seed=0, sigma=0.05):
         rng.standard_normal(k.size) + 1j * rng.standard_normal(k.size)
     )
     rx = rx.astype(np.complex64)
-    c = CarrierNda(bn=0.02, zeta=0.707, init_norm_freq=0.0, sps=SPS, n=N, m=m)
+    c = CarrierNda(
+        bn=BN_SPEC, zeta=ZETA, init_norm_freq=0.0, sps=SPS, n=N, m=m
+    )
     freq = np.empty(nsym)
     for s in range(nsym):
         c.steps(rx[s * SPS : (s + 1) * SPS])
         freq[s] = c.norm_freq
     return freq
+
+
+def _jitter_bound(kd):
+    """Tail frequency-jitter bound (cycles/sample) for the BN_SPEC loop.
+
+    The linearised type-2 loop, driven by white phase noise of variance
+    ``SIGMA**2`` rad^2 per sample (a unit carrier with per-component noise
+    ``SIGMA``), leaves its integrator -- the tracked frequency -- with
+
+        sigma_f = SIGMA / (2 pi) * sqrt(Kd * wn**3 / (4 zeta))
+
+    where Kd is the discriminator's slope at lock (the S-curve's, measured
+    by the caller) and wn the loop's natural frequency. wn is not restated
+    here: it is read back from the library's own PI gains, which for the
+    bilinear design satisfy ki/kp = wn*t/(2 zeta), at t = 1 (this loop
+    updates every sample). A step-by-step simulation of the discrete loop
+    (the 2-sample boxcar arm included) agrees with this closed form to 1%.
+    The loop measures ~8% above it, because the model is linear and leaves
+    out the M-th power's higher-order noise terms and the arm AGC, and a
+    600-symbol std is itself uncertain by several percent. So the bound is
+    1.5x the theory: loose enough for both, and well below the ~2.8x that
+    doubling the bandwidth costs (sigma_f grows as bn**1.5).
+    """
+    from doppler.track import LoopFilter
+
+    lf = LoopFilter(BN_SPEC, ZETA, 1.0)
+    wn = 2.0 * ZETA * lf.ki / lf.kp
+    theory = SIGMA / (2 * np.pi) * np.sqrt(kd * wn**3 / (4 * ZETA))
+    return 1.5 * theory, theory
 
 
 def main(out_path="mpsk_nda_theory_demo.png"):
@@ -116,6 +157,16 @@ def main(out_path="mpsk_nda_theory_demo.png"):
         tail_err = abs(float(np.mean(freq[-300:])) - f0)
         print(f"{name}: tail freq err {tail_err:.2e} cycles/sample")
         assert tail_err < 1e-4, f"{name} failed to acquire the carrier"
+        # And it must sit on it with the jitter of the BN_SPEC loop: a
+        # loop built wider than the spec (bn=0.02 is ~2.8x) fails here.
+        kd = (_disc(m, 1e-3) - _disc(m, -1e-3)) / 2e-3  # slope at lock
+        bound, theory = _jitter_bound(kd)
+        jitter = float(np.std(freq[-600:]))
+        print(
+            f"{name}: tail freq jitter {jitter:.2e} (theory {theory:.2e}, "
+            f"bound {bound:.2e}) cycles/sample"
+        )
+        assert jitter < bound, f"{name} tracks with more jitter than BN_SPEC"
     b.axhline(f0, color="k", ls="--", lw=1.5, label=f"true f0 = {f0}")
     b.set_xlabel("symbol index")
     b.set_ylabel("tracked freq (cycles/sample)")

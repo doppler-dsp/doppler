@@ -499,7 +499,7 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   s->sym_idx      = dp_r_u64 (&_r);
   dp_r_bytes (&_r, &s->cur_data, 1);
   dp_r_bytes (&_r, &s->primed, 1);
-  uint8_t pres[5];
+  uint8_t pres[5] = { 0 };
   dp_r_bytes (&_r, pres, 5);
   /* the blob's child set must match this instance's config (same wtype). */
   if ((pres[0] != 0) != (s->fir != NULL)
@@ -626,7 +626,6 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
            * matched filter — identical machinery to the PN/PSK RRC path. */
           const uint8_t *bits = state->bits;
           size_t         nb   = state->n_bits;
-          int            bmod = state->bit_mod;
           if (state->fir)
             {
               for (size_t i = 0; i < m; i++)

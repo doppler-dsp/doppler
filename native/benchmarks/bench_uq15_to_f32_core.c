@@ -29,7 +29,8 @@ main (void)
   dp_uq15_to_f32_state_t *obj = dp_uq15_to_f32_create (32768.0f);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile float _sink;
+  volatile float _sink = 0;
+  (void)_sink; /* read once, or it is set-but-unused */
 
   /* warmup */
   for (int i = 0; i < 16; i++)

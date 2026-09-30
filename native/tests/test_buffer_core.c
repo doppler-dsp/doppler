@@ -24,9 +24,12 @@
     {                                                                         \
       type   _scratch[128] = { 0 }; /* 64 complex samples */                  \
       size_t _pos          = 0;                                               \
-      while (_pos < (target))                                                 \
+      /* Bound once: a literal 0 target in the comparison is the              \
+         "always false" -Wtype-limits reports, and warnings are errors. */    \
+      const size_t _target = (target);                                        \
+      while (_pos < _target)                                                  \
         {                                                                     \
-          size_t _chunk = (target) - _pos;                                    \
+          size_t _chunk = _target - _pos;                                     \
           if (_chunk > 64)                                                    \
             _chunk = 64;                                                      \
           dp_##name##_write ((buf), _scratch, _chunk);                        \

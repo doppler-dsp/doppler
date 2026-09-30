@@ -775,7 +775,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   unsigned char  *lc = NULL, *tk = NULL;
   double         *err        = NULL;
   dp_frame_meter_state_t *fm = NULL;
-  size_t                  lo = 0, hi = 0, settle = 0;
+  size_t                  lo = 0, settle = 0;
   int                     settled = 0;
 
   memset (&r, 0, sizeof r);
@@ -953,7 +953,6 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
             continue;
           }
         lo       = r.rep.window_lo;
-        hi       = r.rep.window_hi;
         r.bursts = burst + 1u;
 
         /* The fourth metric, over the SAME record — goal 4 asks for the four

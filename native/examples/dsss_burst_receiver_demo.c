@@ -75,8 +75,6 @@
 #define BURST_LEN ((REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC)
 #define CAP_MAX 200000u
 
-static const char SYNC_BITS[SYNC_LEN + 1] = "0000011001010";
-
 /** @brief `2^stages - 1` chips of an m-sequence, from wfm's PN generator.
  *
  * The same generator `doppler.wfm.PN` binds, so the C and Python examples

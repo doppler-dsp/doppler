@@ -205,7 +205,7 @@ bits_from_file (const char *path, size_t *n)
     }
   const size_t rd = fread (raw, 1, (size_t)len, f);
   (void)fclose (f);
-  uint8_t *bits = malloc (rd * 8u ? rd * 8u : 1u);
+  uint8_t *bits = malloc (rd ? rd * 8u : 1u);
   if (!bits)
     {
       free (raw);
@@ -693,33 +693,46 @@ typedef struct
 } retired_t;
 
 static const retired_t RETIRED[] = {
-  { "--bits-hex", "--bits 0x<HEX>" },
-  { "--payload-gen", "--bits <FIELD>, e.g. --bits pn:1024:10" },
-  { "--payload-len",
-    "--bits pn:<N>:<pn-length>[:<seed>[:<poly>]] -- the same bits" },
-  { "--acq-code-hex", "--acq-code 0x<HEX>" },
-  { "--acq-code-gen", "--acq-code <FIELD>, e.g. --acq-code pn:1023:10" },
-  { "--acq-reps", "--acq-code '<FIELD>*<N>', e.g. --acq-code 'pn:31:5*4'" },
-  { "--data-code-hex", "--data-code 0x<HEX>" },
-  { "--data-code-gen",
-    "--data-code <FIELD>, e.g. --data-code gold:64:10:..." },
-  { "--sync-gen", "--sync <FIELD>, e.g. --sync pn:63:6" },
+  { .flag = "--bits-hex", .instead = "--bits 0x<HEX>" },
+  { .flag    = "--payload-gen",
+    .instead = "--bits <FIELD>, e.g. --bits pn:1024:10" },
+  { .flag = "--payload-len",
+    .instead
+    = "--bits pn:<N>:<pn-length>[:<seed>[:<poly>]] -- the same bits" },
+  { .flag = "--acq-code-hex", .instead = "--acq-code 0x<HEX>" },
+  { .flag    = "--acq-code-gen",
+    .instead = "--acq-code <FIELD>, e.g. --acq-code pn:1023:10" },
+  { .flag    = "--acq-reps",
+    .instead = "--acq-code '<FIELD>*<N>', e.g. --acq-code 'pn:31:5*4'" },
+  { .flag = "--data-code-hex", .instead = "--data-code 0x<HEX>" },
+  { .flag    = "--data-code-gen",
+    .instead = "--data-code <FIELD>, e.g. --data-code gold:64:10:..." },
+  { .flag = "--sync-gen", .instead = "--sync <FIELD>, e.g. --sync pn:63:6" },
 /* The coding sugar (docs/design/frame-description.md R): a coded frame is
    a description, and a stage names the span it covers. */
 #define CODED "a coded frame is a description"
-  { "--rs-depth", "--frame FILE, with an \"rs\" stage over the data group",
-    CODED },
-  { "--randomise",
-    "--frame FILE, with a \"randomise\" stage over the data group", CODED },
-  { "--randomize",
-    "--frame FILE, with a \"randomise\" stage over the data group", CODED },
-  { "--asm", "--frame FILE, with the marker 0x1ACFFC1D as its first field",
-    CODED },
-  { "--conv", "--frame FILE, with a \"conv\" stage over every field", CODED },
-  { "--interleave",
-    "--frame FILE, with an \"interleave\" stage over the data group", CODED },
-  { "--interleave-unit", "--frame FILE: the interleave stage's \"unit_bits\"",
-    CODED },
+  { .flag    = "--rs-depth",
+    .instead = "--frame FILE, with an \"rs\" stage over the data group",
+    .why     = CODED },
+  { .flag    = "--randomise",
+    .instead = "--frame FILE, with a \"randomise\" stage over the data group",
+    .why     = CODED },
+  { .flag    = "--randomize",
+    .instead = "--frame FILE, with a \"randomise\" stage over the data group",
+    .why     = CODED },
+  { .flag    = "--asm",
+    .instead = "--frame FILE, with the marker 0x1ACFFC1D as its first field",
+    .why     = CODED },
+  { .flag    = "--conv",
+    .instead = "--frame FILE, with a \"conv\" stage over every field",
+    .why     = CODED },
+  { .flag = "--interleave",
+    .instead
+    = "--frame FILE, with an \"interleave\" stage over the data group",
+    .why = CODED },
+  { .flag    = "--interleave-unit",
+    .instead = "--frame FILE: the interleave stage's \"unit_bits\"",
+    .why     = CODED },
 #undef CODED
 };
 

@@ -1870,7 +1870,7 @@ main (void)
           {
             surf[k] = (float)(dp_xs32 (&rng) % 5);
           }
-        det_peak_t a, b;
+        det_peak_t a = { 0 }, b = { 0 };
         memset (mask, 0, sizeof mask);
         size_t na = det_peak_list (surf, NY, NX, -1.0f, 1, 1, mask, &a, 1);
         size_t nb = det_peak_list (surf, NY, NX, -1.0f, 1, 1, NULL, &b, 1);

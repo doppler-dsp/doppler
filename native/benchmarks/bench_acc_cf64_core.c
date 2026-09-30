@@ -70,7 +70,8 @@ main (void)
   /* bench: get() */
   {
     double _times_get[ITERATIONS];
-    volatile double _Complex get_sink;
+    volatile double _Complex get_sink = 0;
+    (void)get_sink; /* read once, or it is set-but-unused */
     for (int i = 0; i < 16; i++)
       get_sink = dp_acc_cf64_get (obj);
     for (int r = 0; r < ITERATIONS; r++)
@@ -94,7 +95,8 @@ main (void)
   /* bench: dump() */
   {
     double _times_dump[ITERATIONS];
-    volatile double _Complex dump_sink;
+    volatile double _Complex dump_sink = 0;
+    (void)dump_sink; /* read once, or it is set-but-unused */
     for (int i = 0; i < 16; i++)
       dump_sink = dp_acc_cf64_dump (obj);
     for (int r = 0; r < ITERATIONS; r++)

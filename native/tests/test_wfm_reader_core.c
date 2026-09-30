@@ -965,7 +965,7 @@ test_ext_header_at_end_of_attached_file (void)
   float _Complex xs[8];
   for (size_t i = 0; i < n; i++)
     xs[i] = (float)(i + 1) + 0.0f * I;
-  DP_REQUIRE_MSG (dp_wfm_writer_write (w, xs, n) == (int)n, "write samples");
+  DP_REQUIRE_MSG (dp_wfm_writer_write (w, xs, n) == n, "write samples");
   DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "close");
   fclose (fp);
 

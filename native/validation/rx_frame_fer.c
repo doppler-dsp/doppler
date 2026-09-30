@@ -228,7 +228,7 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
 
   for (size_t n = 0; n < nsamp; n++)
     {
-      float complex y;
+      float complex y = 0; /* written iff the step returns 1 */
       if (mpsk_receiver_step_ted (rx, x[n] * MPSK_BER_AMP, &y,
                                   RATESYNC_TED_GARDNER)
           && nout < nsym)
@@ -270,9 +270,9 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
   dp_frame_meter_state_t *fm   = NULL;
   size_t                  nsym = RX_FRAME_NSYM, nbits;
   uint8_t                *bits = NULL, *truth = NULL, *rxbits = NULL;
-  float complex          *out = NULL;
-  unsigned char          *lc  = NULL;
-  size_t                  lo = 0, hi = 0;
+  float complex          *out         = NULL;
+  unsigned char          *lc          = NULL;
+  size_t                  lo          = 0;
   int                     settled_any = 0;
 
   memset (&r, 0, sizeof r);
@@ -414,7 +414,6 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
          */
         r.rep       = rep;
         lo          = rep.window_lo;
-        hi          = rep.window_hi;
         settled_any = 1;
         if (r.framed)
           dp_rx_score_frames (c->m, &f, &l, out, n, truth, nsym, rep.lag,

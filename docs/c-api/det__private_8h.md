@@ -114,7 +114,7 @@ Not part of the public API. Include after the module's own header so that det\_n
 ### function det\_cmp\_f32\_asc 
 
 ```C++
-static int det_cmp_f32_asc (
+static inline int det_cmp_f32_asc (
     const void * a,
     const void * b
 ) 
@@ -131,7 +131,7 @@ static int det_cmp_f32_asc (
 
 _Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._ 
 ```C++
-static float det_noise_estimate (
+static inline float det_noise_estimate (
     const float * mag,
     size_t lo,
     size_t hi,
@@ -176,7 +176,7 @@ Aggregated noise estimate, or 0 if lo &gt; hi.
 
 _The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._
 ```C++
-static size_t det_peak_list (
+static inline size_t det_peak_list (
     const float * surf,
     size_t ny,
     size_t nx,
@@ -234,7 +234,7 @@ Peaks listed (0 when nothing exceeds the gate).
 
 _One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._
 ```C++
-static size_t det_peak_scan (
+static inline size_t det_peak_scan (
     const float * surf,
     const uint8_t * mask,
     size_t k0,
@@ -257,7 +257,7 @@ Returns the cell, or `k1` when no cell in the range is a candidate. The pick is 
 
 _The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._
 ```C++
-static void det_peak_zone (
+static inline void det_peak_zone (
     uint8_t * mask,
     size_t ny,
     size_t nx,
@@ -278,7 +278,7 @@ static void det_peak_zone (
 ### function det\_ring\_create 
 
 ```C++
-static dp_f32_t * det_ring_create (
+static inline dp_f32_t * det_ring_create (
     size_t cap_min
 ) 
 ```

@@ -544,7 +544,7 @@ mpsk_rx_steps_impl (dp_mpsk_receiver_state_t *state, const void *x,
     {
       for (size_t i = 0; i < x_len; i++)
         {
-          float _Complex y;
+          float _Complex y = 0; /* written iff the step returns 1 */
           if (mpsk_rx_step_at (state, x, i, &y, real) && emitted < max_out)
             out[emitted++] = y;
         }
@@ -553,7 +553,7 @@ mpsk_rx_steps_impl (dp_mpsk_receiver_state_t *state, const void *x,
     {
       for (size_t i = 0; i < x_len; i++)
         {
-          float _Complex y;
+          float _Complex y = 0; /* written iff the step returns 1 */
           if (mpsk_rx_step_at (state, x, i, &y, real))
             {
               if (emitted < max_out)

@@ -356,14 +356,79 @@ if(NOT WIN32)
         VERSION   ${PROJECT_VERSION}
         SOVERSION ${DOPPLER_SOVERSION})
 endif()
-# A Windows DLL exports NOTHING unless told to: doppler's headers carry no
-# __declspec(dllexport), so without this the DLL linked, installed and shipped
-# with an empty export table, and every consumer of doppler::doppler failed
-# with `undefined symbol: dp_lo_create` (found by package-c-smoke on its first
-# Windows run). CMake generates the .def from the objects. Functions only are
-# needed: the public headers declare no global data, which would additionally
-# need __declspec(dllimport) at the consumer. No effect off Windows.
-set_target_properties(doppler_lib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+# A shared library exports what the public headers promise and nothing else
+# (doppler#1164). It used to export every symbol with external linkage --
+# 1658 on Linux, among them all of vendored cJSON and PFFFT under their own
+# names, so a program that linked its own cJSON had the loader bind ONE copy
+# for both libraries and doppler called the program's parser
+# (`make vendored-collision-check` measured it). The static archives answer
+# the same collision by respelling (prefix_vendored.cmake, #1565); a shared
+# library answers it by not exporting the name at all.
+#
+# The headers are the one declaration of "public": scripts/
+# gen_public_symbols.py reads native/inc/** into cmake/public-symbols.txt
+# (committed, so a tarball build needs no Python; `make lint` holds it to the
+# headers), and cmake/export_list.cmake intersects that with what the
+# library's own archive defines -- the same objects -- into the linker's
+# export file: a version script on ELF, an -exported_symbols_list on macOS, a
+# .def on Windows. `make export-check` holds the built library to the headers
+# in both directions.
+#
+# On Windows the .def replaces WINDOWS_EXPORT_ALL_SYMBOLS. A DLL exports
+# nothing unless told to (doppler's headers carry no __declspec), which is why
+# that was on: without it every consumer failed on `undefined symbol:
+# dp_lo_create` (package-c-smoke's first Windows run). The list says the same
+# thing, minus everything that is not API. With no nm to read the archive the
+# old behaviour stays, loudly.
+if(CMAKE_NM)
+    set(DP_EXPORT_NM "${CMAKE_NM}")
+else()
+    find_program(DP_EXPORT_NM NAMES llvm-nm nm)
+endif()
+function(dp_export_public shared static)
+    if(APPLE)
+        set(_fmt darwin)
+        set(_ext exp)
+    elseif(WIN32)
+        set(_fmt def)
+        set(_ext def)
+    else()
+        set(_fmt gnu)
+        set(_ext map)
+    endif()
+    if(NOT DP_EXPORT_NM)
+        message(WARNING "doppler: no nm -- ${shared} exports every symbol "
+                        "(doppler#1164)")
+        set_target_properties(${shared} PROPERTIES
+            WINDOWS_EXPORT_ALL_SYMBOLS ON)
+        return()
+    endif()
+    set(_out "${CMAKE_BINARY_DIR}/${shared}.${_ext}")
+    set(_public "${CMAKE_SOURCE_DIR}/cmake/public-symbols.txt")
+    add_custom_command(OUTPUT "${_out}"
+        COMMAND ${CMAKE_COMMAND}
+            -DARCHIVE=$<TARGET_FILE:${static}>
+            -DNM=${DP_EXPORT_NM} -DPUBLIC=${_public}
+            -DFORMAT=${_fmt} -DOUT=${_out}
+            -P ${CMAKE_SOURCE_DIR}/cmake/export_list.cmake
+        DEPENDS ${static} "${_public}"
+                "${CMAKE_SOURCE_DIR}/cmake/export_list.cmake"
+        COMMENT "Writing ${shared}'s export list from the public headers"
+        VERBATIM)
+    add_custom_target(${shared}_exports DEPENDS "${_out}")
+    add_dependencies(${shared} ${shared}_exports)
+    set_property(TARGET ${shared} APPEND PROPERTY LINK_DEPENDS "${_out}")
+    if(_fmt STREQUAL "gnu")
+        target_link_options(${shared} PRIVATE
+            "LINKER:--version-script=${_out}")
+    elseif(_fmt STREQUAL "darwin")
+        target_link_options(${shared} PRIVATE
+            "LINKER:-exported_symbols_list,${_out}")
+    else()
+        target_sources(${shared} PRIVATE "${_out}")
+    endif()
+endfunction()
+dp_export_public(doppler_lib doppler_lib_static)
 set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # pocketfft (pure C99) is compiled into fft_core, which is folded into both libs
 # below with every other component — so no separate pocketfft target to wire here.
@@ -1384,11 +1449,11 @@ if(TARGET stream_core_obj)
         # nats.c's objects are folded INTO this archive (below), so its one
         # system library is the consumer's to link: winsock (#1575).
         target_link_libraries(doppler_stream_static PUBLIC ws2_32)
-        # A DLL exports nothing unless told to -- the same rule the core DLL
-        # follows (WINDOWS_EXPORT_ALL_SYMBOLS on doppler_lib).
-        set_target_properties(doppler_stream PROPERTIES
-            WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif()
+    # The core's export rule (dp_export_public above): the stream headers'
+    # symbols, and not nats.c's 600-odd -- which the shared library used to
+    # export under their own names, for the same collision as cJSON.
+    dp_export_public(doppler_stream doppler_stream_static)
     # The static form can't embed an archive through link rules, so fold the
     # vendored libnats.a objects in (the ar-merge the core used to use) —
     # leaving the static consumer with `-ldoppler_stream` + the C runtime,
@@ -1478,6 +1543,13 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/native/inc/doppler/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/doppler
     FILES_MATCHING PATTERN "*.h"
     PATTERN "pyex_common.h" EXCLUDE)
+# The configured version header, which declares dp_doppler_version(). It was
+# generated into the build tree and installed nowhere, so the function was
+# exported with no header a consumer could include -- and the header it was
+# generated from declared it under its pre-#1565 name, `doppler_version`
+# (doppler#1164).
+install(FILES ${CMAKE_BINARY_DIR}/native/inc/doppler/version.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/doppler)
 
 install(EXPORT doppler-targets
     FILE doppler-targets.cmake

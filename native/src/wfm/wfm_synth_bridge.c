@@ -91,6 +91,16 @@ dp_wfm_source_dsss_cps (const wfm_source_t *src, double fs)
   return (fs / (double)src->sps) / src->symbol_rate;
 }
 
+static int type_can_frame (const wfm_source_t *src);
+
+/* A carried frame of FIXED bits: no data:LEN field to fill, so no data
+   source -- a finite source of one frame, sent once (doppler#1718). */
+static int
+fixed_frame (const wfm_source_t *src)
+{
+  return src->frame && !has_data (src) && type_can_frame (src);
+}
+
 /* The index of a description's one data:LEN field, or -1. */
 static int
 data_field (const wfm_frame_desc_t *d)
@@ -115,7 +125,6 @@ common_data_len (const wfm_source_t *src)
   return (size_t)dp_wfm_data_length_bits (NULL, src->data_from_file);
 }
 
-static int         type_can_frame (const wfm_source_t *src);
 static int         source_frame (const wfm_source_t *src, wfm_frame_desc_t *d);
 static const char *data_error (const wfm_source_t *src);
 
@@ -166,9 +175,17 @@ dsss_error (const wfm_source_t *src)
   return NULL;
 }
 
+const char dp_wfm_why_retired_bits[]
+    = "bits is retired: a payload is drawn from a data source -- pass data= "
+      "(payload= and pattern= with it)";
+
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
 {
+  /* First: a retired spelling is refused as such, before anything it would
+     otherwise trip (doppler#1718). */
+  if (src->retired_bits.len)
+    return dp_wfm_why_retired_bits;
   /* Two members no face takes together (the manifest's `exclusive`). The
      CLI and a scene refuse the pair by flag and key, naming their own
      spelling; this is the object face's refusal -- a Python source or a C
@@ -181,25 +198,24 @@ dp_wfm_source_error (const wfm_source_t *src)
           && wfm_surface_row_is_set (&WFM_SURFACE[e->b], src))
         return e->obj_why;
     }
-  /* `data:LEN` is a frame's payload drawn from a data source
-     (docs/design/payload-data-source.md). In the payload slot nothing
-     connects that source yet; in any other slot it is a category error,
-     because a sync word, a preamble and a spreading code carry their own
-     bits. Checked here, where every face -- the CLI, a scene, the
-     composer -- asks about a source, so it is named once for all three. */
-  if (src->payload.kind == WFM_SEQ_DATA && src->payload.len)
-    return "a payload of data:LEN is drawn from a data source: give the "
-           "source with --data or --data-from-file, and its bits per frame "
-           "with --data-len";
-  if (src->dsss_code_only && (src->payload.len || has_data (src)))
-    return "--code-only sends a continuous-dsss code alone, so a payload "
-           "(--bits or --data) would be ignored: drop one";
+  if (src->dsss_code_only && has_data (src))
+    return "--code-only sends a continuous-dsss code alone, so a data "
+           "source (--data or --data-from-file) would be ignored: drop one";
+  /* A bits waveform sends its data source's bits -- or a carried frame of
+     fixed bits, once -- and nothing else: there is no pattern of its own to
+     cycle (doppler#1718). */
+  if (src->type == WFM_SYNTH_BITS && !has_data (src) && !src->frame)
+    return "type=bits sends a data source's bits: give --data FIELD or "
+           "--data-from-file PATH (and --data-len for its frames)";
   if (has_data (src))
     {
       const char *w = data_error (src);
       if (w)
         return w;
     }
+  /* `data:LEN` is filled from a data source, so in any slot but a frame's
+     payload it is a category error: a sync word, a preamble and a spreading
+     code carry their own bits. */
   if ((src->sync.kind == WFM_SEQ_DATA && src->sync.len)
       || (src->acq_code.kind == WFM_SEQ_DATA && src->acq_code.len)
       || (src->data_code.kind == WFM_SEQ_DATA && src->data_code.len))
@@ -265,15 +281,13 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
     return "--acq-code/--sync/--frame frame a waveform, and this type "
            "carries no bit stream to frame: use --type bits/bpsk/qpsk/pn, or "
            "--type dsss to spread it";
-  /* LENGTH, not the pointer: a generated payload has no array. #755 refused
-     the PN-sourced types outright here because their data is endless and
-     nothing bounded it; a generated payload Field is that bound, so the
-     question is the one BITS always answered -- is there a payload at all
-     (gh-762). */
-  else if (!src->frame && src->payload.len == 0 && !has_data (src))
-    return "a frame needs a payload: --bits <FIELD> (literal bits, or "
-           "generated, e.g. --bits pn:1024:<pn-length> over the waveform's "
-           "own register) or --bits-file";
+  /* The common frame's payload is its data:LEN field, filled frame by
+     frame from a data source (doppler#1718). A CARRIED description is the
+     whole frame and may be fixed bits throughout -- sent once, never
+     cycled -- or name a data:LEN field a data source fills. */
+  else if (!src->frame && !has_data (src))
+    return "a frame's payload is a data source: give --data FIELD or "
+           "--data-from-file PATH";
 
   /* Last, and deliberately last: does the description this source resolves to
      actually lay out? Every check above is about ONE flag's value, so it can
@@ -360,12 +374,14 @@ source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
       return 0;
     }
   const int spread = (src->type == WFM_SYNTH_DSSS);
-  /* With a data source the common frame's payload is `data:LEN`, its bits
-     drawn per frame; otherwise it is the payload sequence itself. */
+  /* The common frame's payload is `data:LEN`, its bits drawn per frame
+     from the data source; with none (a dsss burst of preamble and sync
+     only) it is empty. */
   const wfm_seq_t dq = { .kind = WFM_SEQ_DATA, .len = common_data_len (src) };
+  const wfm_seq_t none = { 0 };
   return dp_wfm_frame_fixed (d, spread ? NULL : &src->acq_code,
                              spread ? 0u : src->acq_reps, &src->sync,
-                             has_data (src) ? &dq : &src->payload, src->crc);
+                             has_data (src) ? &dq : &none, src->crc);
 }
 
 /* What a data source refuses before the first sample, named with its fix
@@ -526,8 +542,7 @@ dp_wfm_source_synth_type (const wfm_source_t *src)
      its LFSR and dropped the frame (doppler#1616). The mapping the type
      names still reaches the wire: attach_frame passes frame_modulation(). */
   if (src->type != WFM_SYNTH_BITS && type_can_frame (src)
-      && dp_wfm_source_has_frame (src)
-      && (src->payload.len || src->frame || has_data (src)))
+      && dp_wfm_source_has_frame (src) && (src->frame || has_data (src)))
     return WFM_SYNTH_BITS;
   return src->type;
 }
@@ -536,8 +551,7 @@ int
 dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
 {
   /* A data source: each frame is pulled from it, the description assembled
-     over its next chunk (dp_wfm_synth_attach_data), in place of the one
-     frame assembled here and cycled. */
+     over its next chunk (dp_wfm_synth_attach_data). */
   if (has_data (src) && type_can_frame (src))
     {
       wfm_frame_desc_t d;
@@ -556,58 +570,26 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
       return dp_wfm_synth_attach_data (syn, &d, &ops, ds, WFM_DATA_UNPACED,
                                        frame_modulation (src));
     }
-  /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
-     and reading it as "no payload" is how the generated kinds stayed
-     unreachable everywhere else in this file. */
-  if (!type_can_frame (src) || (src->payload.len == 0 && !src->frame))
+  if (!type_can_frame (src) || !src->frame)
     return 0; /* nothing to attach; mirrors dp_wfm_synth_set_bits */
-  if (!dp_wfm_source_has_frame (src))
-    {
-      /* Unframed. Only a BITS source transmits its payload directly -- for
-         the PN-sourced types an unframed payload is not a waveform they
-         have, so they keep emitting their own stream. */
-      if (src->type != WFM_SYNTH_BITS)
-        return 0;
-      size_t   n   = 0;
-      uint8_t *bts = seq_to_chips (&src->payload, &n);
-      if (!bts)
-        return -1;
-      const int rc = dp_wfm_synth_set_bits (syn, bts, n, src->modulation);
-      free (bts);
-      return rc;
-    }
 
-  /* Framed: the pattern is the whole frame, assembled by the one
-     descriptor, whatever waveform type carries it. */
-  wfm_frame_desc_t d;
-  if (source_frame (src, &d) != 0)
-    return -1;
-
+  /* A carried frame of FIXED bits: assembled once and sent once -- the
+     synth's cursor stops at its end (doppler#1718 deleted the cycle). The
+     CCSDS kernels, because the stages a source may select are CCSDS's
+     picks; wfm_frame.c cannot call them, so they arrive as a table, and
+     NULL for the inner encoder's state because this is one frame. */
+  wfm_frame_desc_t        d = *src->frame;
   wfm_frame_desc_layout_t lay;
   if (dp_wfm_frame_desc_layout (&d, &lay) != 0 || lay.out_bits == 0)
     return -1;
-
-  const size_t n    = lay.out_bits;
-  uint8_t     *bits = (uint8_t *)malloc (n);
-  if (!bits)
-    return -1;
-
-  /* The CCSDS kernels, because the stages a source may select are CCSDS's
-     picks. wfm_frame.c cannot call them — ccsds_tm depends on it — so they
-     arrive as a table, and NULL for the inner encoder's state because a
-     source describes one frame that is then CYCLED to fill the record. A
-     stream of frames sharing one register is a different waveform and would
-     need the cycle to be a coding decision rather than a length one. */
+  uint8_t        *bits = dp_xmalloc (lay.out_bits);
   wfm_frame_ops_t ops;
   dp_ccsds_tm_frame_ops (&ops, NULL);
-  if (dp_wfm_frame_assemble (&d, &ops, bits, n) != n)
-    {
-      free (bits);
-      return -1;
-    }
-  /* set_bits copies, so the frame buffer is ours to release. */
-  int rc = dp_wfm_synth_set_bits (syn, bits, n, frame_modulation (src));
-  free (bits);
+  int rc = -1;
+  if (dp_wfm_frame_assemble (&d, &ops, bits, lay.out_bits) == lay.out_bits)
+    rc = dp_wfm_synth_set_bits (syn, bits, lay.out_bits,
+                                frame_modulation (src));
+  free (bits); /* set_bits copies */
   return rc;
 }
 
@@ -690,7 +672,21 @@ pull_new (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
   p->pacing     = pacing;
   p->reps       = d->field[at].reps ? d->field[at].reps : 1u;
   p->chunk_bits = l.field_bits[at];
-  p->chunk      = dp_xmalloc (p->chunk_bits);
+  p->chunk      = dp_xcalloc (p->chunk_bits, 1);
+  /* The pull is lazy -- no frame is assembled until its first bit is due --
+     so a description that cannot assemble (a field that cannot be built, a
+     stage with no kernel) is found HERE, over a zero chunk, and refuses the
+     build. Found at the first bit, it would end the data in silence: a
+     refusal nobody is told about. */
+  uint8_t     *dry = dp_xmalloc (l.out_bits);
+  const size_t got
+      = dp_wfm_frame_assemble_data (d, ops, p->chunk, dry, l.out_bits);
+  free (dry);
+  if (got != l.out_bits)
+    {
+      data_pull_free (p);
+      return NULL;
+    }
   return p;
 }
 
@@ -739,8 +735,8 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       /* Continuous async: the data clock is independent of the code. sps is
          samples-per-CHIP for dsss, so chip_rate = fs/sps and chips/symbol =
          chip_rate/symbol_rate (non-integer — the asynchronicity). Data comes
-         from the payload when supplied, else the seeded PN a receiver can
-         regenerate. (Code-only, --data none, arrives with the CLI flag.) */
+         from a data source when one is given, else the seeded PN a receiver
+         can regenerate, or nothing at all with --code-only. */
       const double cps  = dp_wfm_source_dsss_cps (src, fs);
       size_t       dn   = 0;
       uint8_t     *dchp = seq_to_chips (&src->data_code, &dn);
@@ -772,27 +768,10 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
           p->raw         = 1;
           return pull_park (syn, p, 1, 0);
         }
-      /* LENGTH, not the pointer: a generated payload has no array, and
-         reading it as "none" sent the PRBS default in its place, silently
-         (doppler#1592). It is materialised the way every other sequence
-         here is. */
-      int      mode = src->dsss_code_only ? WFM_DSSS_DATA_NONE
-                      : src->payload.len  ? WFM_DSSS_DATA_BITS
-                                          : WFM_DSSS_DATA_PRBS;
-      size_t   pn   = 0;
-      uint8_t *pay  = NULL;
-      if (mode == WFM_DSSS_DATA_BITS)
-        {
-          pay = seq_to_chips (&src->payload, &pn);
-          if (!pay)
-            {
-              free (dchp);
-              return -1;
-            }
-        }
+      const int mode
+          = src->dsss_code_only ? WFM_DSSS_DATA_NONE : WFM_DSSS_DATA_PRBS;
       const int rc
-          = dp_wfm_synth_set_dsss_cont (syn, dchp, dn, cps, mode, pay, pn);
-      free (pay);
+          = dp_wfm_synth_set_dsss_cont (syn, dchp, dn, cps, mode, NULL, 0);
       free (dchp);
       return rc;
     }
@@ -884,16 +863,7 @@ dp_wfm_source_dsss_nchips (const wfm_source_t *src)
 dp_wfm_synth_state_t *
 dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
 {
-  /* A "bits" waveform with no pattern has nothing to transmit. Reject it here
-     so the generated Synth_ensure_gen turns this NULL into an error at first
-     generation (the old Synth.__init__ raised eagerly; standalone generation
-     is lazy, so the guard moves to first steps()/step()). A carried frame
-     IS the pattern -- its payload is a field of it, never beside it
-     (doppler#1683) -- so it needs none. */
-  if (src->type == WFM_SYNTH_BITS && src->payload.len == 0 && !src->frame
-      && !has_data (src))
-    return NULL;
-  /* Likewise a "symbols" waveform needs a constellation stream. */
+  /* A "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
     return NULL;
   /* A frame this waveform type cannot carry, a dsss source missing a code,
@@ -986,7 +956,7 @@ uint64_t
 dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
                             uint64_t frames)
 {
-  if (!src || !has_data (src))
+  if (!src || (!has_data (src) && !fixed_frame (src)))
     return 0;
   const uint64_t sps = src->sps > 0 ? (uint64_t)src->sps : 1u;
   if (is_cont_dsss (src))
@@ -1020,6 +990,8 @@ dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
 uint64_t
 dp_wfm_source_data_frames (const wfm_source_t *src)
 {
+  if (src && fixed_frame (src))
+    return 1; /* the frame itself, sent once */
   if (!src || !has_data (src) || dp_wfm_source_data_is_stream (src))
     return 0;
   const uint64_t total

@@ -745,7 +745,6 @@
 * **peak** ([**time\_stats\_t**](structtime__stats__t.md))
 * **proc\_gain\_db** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **pad\_bits** ([**wfm\_data\_stats\_t**](structwfm__data__stats__t.md))
-* **payload** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **pn\_length** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **pn\_poly** ([**wfm\_source\_t**](structwfm__source__t.md))
 
@@ -836,6 +835,7 @@
 * **ranged** ([**wfm\_segment\_t**](structwfm__segment__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **repeats** ([**wfm\_segment\_t**](structwfm__segment__t.md))
 * **reg\_bits** ([**wfm\_seq\_t**](structwfm__seq__t.md))
+* **retired\_bits** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **rrc\_beta** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **rrc\_span** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **range\_bit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))

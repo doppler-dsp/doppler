@@ -19,9 +19,10 @@ exact LCM of `chip_rate` and `symbol_rate`, so both the code's and the
 data's oversample factors are exact integers while their *ratio* stays
 non-integer -- the asynchronous phase walk this story needs):
 
-  1. ``Synth(type="bits", bits=<Gold code>, sps=CHIP_SPS)`` -- the
-     continuously-repeating spreading code (cycled automatically).
-  2. ``Synth(type="bits", bits=<random data>, sps=DATA_SPS)`` -- one
+  1. ``Synth(type="bits", data=<Gold code, tiled>, sps=CHIP_SPS)`` -- the
+     continuously-repeating spreading code (tiled to the span: a payload
+     is sent once).
+  2. ``Synth(type="bits", data=<random data>, sps=DATA_SPS)`` -- one
      trial's random data bits, held (not cycled -- the full sequence is
      supplied).
   3. Elementwise-multiply the two (plain array multiply, the only
@@ -118,16 +119,22 @@ def make_signal_wfmgen(cn0_dbhz, doppler_hz, seed, n_sym=N_SYM):
     data_bits = rng.integers(0, 2, n_sym).astype(np.uint8)
     n_total = n_sym * DATA_SPS
 
+    # Each stream is its bits sent ONCE (a payload no longer cycles), so
+    # the code is tiled to cover the span; crc="none" sends the bits as
+    # given rather than as a frame with a CRC-16 trailer.
+    n_codes = -(-n_total // (CODE.size * CHIP_SPS))
     chip_stream = Synth(
         type="bits",
-        bits=CODE.tobytes(),
+        data=np.tile(CODE, n_codes),
+        crc="none",
         modulation="bpsk",
         sps=CHIP_SPS,
         fs=FS_GEN,
     ).steps(n_total)
     data_stream = Synth(
         type="bits",
-        bits=data_bits.tobytes(),
+        data=data_bits,
+        crc="none",
         modulation="bpsk",
         sps=DATA_SPS,
         fs=FS_GEN,

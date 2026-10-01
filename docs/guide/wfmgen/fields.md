@@ -2,7 +2,7 @@
 
 Every place wfmgen takes a run of bits takes it the same way: as one
 **Field**, a short piece of text such as `0x1ACFFC1D` or `pn:1023:10`. The
-command line's `--bits`, `--sync`, `--acq-code` and `--data-code`, a scene's
+command line's `--data`, `--fill`, `--sync`, `--acq-code` and `--data-code`, a scene's
 `"spec"`, Python's `field_bits()` and C's `dp_wfm_field_parse()` all read it
 with **one** parser, so a Field means the same bits on every face. This page
 is the grammar; the reasoning behind it is the design's
@@ -84,15 +84,15 @@ and sync to nothing.
 
 ```sh
 # Each line exits 2 and says why.
-! wfmgen --type bits --bits 01a1 --count 16 -o x.cf32
-! wfmgen --type bits --bits pn:31:5:32 --count 16 -o x.cf32
-! wfmgen --type bits --bits pn:4000000000:5 --count 16 -o x.cf32
+! wfmgen --type bits --data 01a1 -o x.cf32
+! wfmgen --type bits --data pn:31:5:32 -o x.cf32
+! wfmgen --type bits --data pn:4000000000:5 -o x.cf32
 ```
 
 ```text
-error: --bits 01a1: a binary literal holds a character other than 0 or 1
-error: --bits pn:31:5:32: a pn SEED or POLY has a bit above its REG-bit register
-error: --bits pn:4000000000:5: LEN * REPS is past the Field bound of 261120 bits
+error: --data 01a1: a binary literal holds a character other than 0 or 1
+error: --data pn:31:5:32: a pn SEED or POLY has a bit above its REG-bit register
+error: --data pn:4000000000:5: LEN * REPS is past the Field bound of 261120 bits
 ```
 
 ## One way to write each Field
@@ -104,16 +104,16 @@ past one. `--record` writes that text, so a capture's metadata says what
 produced its bits:
 
 ```sh
-wfmgen --type bits --bits 0101010111001010 \
+wfmgen --type bits --data 0101010111001010 \
        --sync pn:0x1f:5:0:0:galois --acq-code '1111*2' \
-       --count 256 --record run.json -o framed.cf32
-grep -E '"(payload|acq_code|sync)"' run.json
+       --record run.json -o framed.cf32
+grep -E '"(data|acq_code|sync)"' run.json
 ```
 
 ```text
-			"payload":	"0x55ca",
 			"acq_code":	"0xf*2",
 			"sync":	"pn:31:5",
+			"data":	"0x55ca",
 ```
 
 ## From C

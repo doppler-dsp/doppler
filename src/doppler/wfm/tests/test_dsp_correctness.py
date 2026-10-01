@@ -264,14 +264,15 @@ class TestChirp:
 
 
 # --------------------------------------------------------------------------- #
-# Bits — user pattern, oversampled and cycled
+# Bits — user pattern, oversampled, sent once
 # --------------------------------------------------------------------------- #
 class TestBits:
     def test_bpsk_pattern_fidelity(self) -> None:
         pat = bytes([1, 0, 1, 1, 0, 0, 1, 0])
         x = w.Synth(
             type="bits",
-            bits=pat,
+            data=pat,
+            crc="none",
             modulation="bpsk",
             sps=1,
             snr=100.0,
@@ -281,17 +282,19 @@ class TestBits:
         assert np.allclose(x.real, expected, atol=1e-4)
         assert np.allclose(x.imag, 0.0, atol=1e-4)
 
-    def test_pattern_cycles(self) -> None:
+    def test_pattern_is_sent_once(self) -> None:
+        """Once, then silence: a pattern never cycles (doppler#1718)."""
         pat = bytes([1, 0])
         x = w.Synth(
             type="bits",
-            bits=pat,
+            data=pat,
+            crc="none",
             modulation="bpsk",
             sps=1,
             snr=100.0,
             freq=0.0,
         ).steps(6)
-        expected = np.array([-1, 1, -1, 1, -1, 1], dtype=np.float64)
+        expected = np.array([-1, 1, 0, 0, 0, 0], dtype=np.float64)
         assert np.allclose(x.real, expected, atol=1e-4)
 
 

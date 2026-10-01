@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """wfm_field_demo.py -- bits, written as text: the Field grammar from Python.
 
-Every place wfmgen takes a run of bits -- ``--bits``, ``--sync``,
+Every place wfmgen takes a run of bits -- ``--data``, ``--sync``,
 ``--acq-code``, ``--data-code``, a scene's ``"spec"`` -- reads it with ONE C
 parser, and ``field_bits()`` is that parser's Python door. This is the twin
 of ``native/examples/wfm_field_demo.c``.

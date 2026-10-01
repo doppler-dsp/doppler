@@ -462,7 +462,7 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
         acq_reps=reps,
         data_code=data_code().tobytes(),
         sync=sync.tobytes(),
-        payload=payload_bits.tobytes(),
+        data=payload_bits,
         gap_noise="auto",
         off_samples=0,
     )

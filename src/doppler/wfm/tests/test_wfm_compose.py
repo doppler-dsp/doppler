@@ -96,25 +96,26 @@ def test_multi_source_sum():
 
 
 def test_bits_qpsk_pattern():
-    pat = [1, 0, 1, 1, 0, 0, 1, 0]
+    # 1000 bits: 500 qpsk symbols x 4 sps = 2000 samples, the run
+    pat = np.tile(np.array([1, 0, 1, 1, 0, 0, 1, 0], np.uint8), 125)
     g = G.Composer(
         G.Segment(
             type="bits",
-            bits=bytes(pat),
+            data=bytes(pat),
+            crc="none",
             modulation="qpsk",
             sps=4,
             fs=1e6,
-            num_samples=2000,
         )
     )
     r = R.Composer(
         R.Segment(
             type="bits",
-            pattern=pat,
+            data=pat,
+            crc="none",
             modulation="qpsk",
             sps=4,
             fs=1e6,
-            num_samples=2000,
         )
     )
     assert _eq(g.compose(), r.compose())

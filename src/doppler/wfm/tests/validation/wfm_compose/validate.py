@@ -73,7 +73,7 @@ FACE_CASES = [
             "acq_code": CODE,
             "acq_reps": 3,
             "data_code": CODE,
-            "bits": PAY,
+            "data": PAY,  # one burst: the data source, whole
         },
     ),
 ]

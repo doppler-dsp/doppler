@@ -18,7 +18,7 @@ scene**, cross-checked:
      Python objects, no JSON at all.
 
 Each burst is one declarative ``Segment(type="dsss", acq_code=..., acq_reps=5,
-data_code=..., sync=..., payload=...)`` — the engine assembles the repeated
+data_code=..., sync=..., data=...)`` — the engine assembles the repeated
 preamble, XOR-spreads the ``sync | payload | CRC-16`` frame with the second
 code, sizes the segment to exactly one burst, and interprets
 ``snr_mode="esno"`` as the payload DATA-symbol Es/N0. Each burst's gap uses an
@@ -267,7 +267,7 @@ def build_scene():
             "acq_reps": REPS,
             "data_code": data_code.tobytes(),
             "sync": SYNC.tobytes(),
-            "payload": payload_bits.tobytes(),  # CRC-16 auto-appended
+            "data": payload_bits.tobytes(),  # one burst; CRC-16 appended
             "off_samples": GAPS[k],
             # Pinned silent gaps: this walkthrough's numbers (5/5 decoded,
             # every false alarm attributable) depend on exactly-known burst
@@ -290,7 +290,7 @@ def _scene_json(segment_kwargs):
     segments = []
     for kw in segment_kwargs:
         d = dict(kw)
-        for key in ("acq_code", "data_code", "sync", "payload"):
+        for key in ("acq_code", "data_code", "sync", "data"):
             d[key] = "".join(str(b) for b in d[key])
         d["acq_code"] += f"*{d.pop('acq_reps')}"
         segments.append(d)

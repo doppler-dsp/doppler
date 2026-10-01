@@ -393,7 +393,7 @@ before plan step 6 needs it.
 
 ### 8.3 The transmit side in Python waits for #1617
 
-`Source` takes `sync=`/`payload=`/`crc=` and has no `frame=` ([#1617][i1617],
+`Source` takes `sync=`/`data=`/`crc=` and has no `frame=` ([#1617][i1617],
 which needs a jm composer feature). Until it lands, a Python test builds the
 transmitter from its description in one of two ways that exist: feeding
 `Frame.bits()` as an unframed spread payload (the pattern at

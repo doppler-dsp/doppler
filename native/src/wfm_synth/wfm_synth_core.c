@@ -345,9 +345,12 @@ dp_wfm_synth_set_dsss_cont (dp_wfm_synth_state_t *state, const uint8_t *code,
   state->bits             = data_copy; /* NULL unless WFM_DSSS_DATA_BITS */
   state->n_bits           = (data_mode == WFM_DSSS_DATA_BITS) ? n_data : 0;
   state->bit_mod          = 1; /* chips are always BPSK (0 -> +1, 1 -> -1) */
-  state->chip_n           = 0;
-  state->sym_idx          = 0;
-  state->cur_data         = 0;
+  state->bit_idx          = 0; /* the payload is read through the cursor */
+  /* A new payload is a new source, as a new bits pattern is. */
+  (void)dp_wfm_synth_set_refill (state, NULL, NULL, NULL);
+  state->chip_n   = 0;
+  state->sym_idx  = 0;
+  state->cur_data = 0;
   return 0;
 }
 
@@ -426,8 +429,12 @@ dp_wfm_synth_reset (dp_wfm_synth_state_t *state)
       = (state->wtype == WFM_SYNTH_TONE || state->wtype == WFM_SYNTH_CHIRP)
             ? 1.0f
             : 0.0f;
-  state->cur_im       = 0.0f;
-  state->bit_idx      = 0;   /* rewind the bit pattern */
+  state->cur_im  = 0.0f;
+  state->bit_idx = 0; /* rewind the bit pattern */
+  /* A pattern with no refill is the whole of the data, so rewinding it
+     un-ends it; a pulled source cannot rewind what it has consumed. */
+  if (!state->refill)
+    state->data_ended = 0;
   state->sym_read_idx = 0;   /* rewind the complex-symbol stream */
   state->chirp_ph     = 0.0; /* rewind the sweep; span/slope stay locked */
   state->chirp_n      = 0;
@@ -546,6 +553,9 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   s->chip_n       = dp_r_u64 (&_r);
   s->sym_idx      = dp_r_u64 (&_r);
   dp_r_bytes (&_r, &s->cur_data, 1);
+  /* Derived, so not in the blob: a pattern's end is its cursor's, and the
+     next read past it latches it again (a refill refuses serialization). */
+  s->data_ended = 0;
   /* Derived, so not in the blob: the next symbol's edge, from the one
      symbol clock (chip 0 recomputes it in the kernel). */
   if (s->chips_per_symbol > 0.0 && s->chip_n)
@@ -688,8 +698,10 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                     {
                       if (is_cont)
                         {
-                          cre = wfm_synth_cont_dsss_chip (state);
-                          cim = 0.0f;
+                          /* a payload's cursor moves in the chip kernel */
+                          cre     = wfm_synth_cont_dsss_chip (state);
+                          bit_idx = state->bit_idx;
+                          cim     = 0.0f;
                         }
                       else if (bits && nb)
                         {
@@ -722,8 +734,10 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                   {
                     if (is_cont)
                       {
-                        cre = wfm_synth_cont_dsss_chip (state);
-                        cim = 0.0f;
+                        /* a payload's cursor moves in the chip kernel */
+                        cre     = wfm_synth_cont_dsss_chip (state);
+                        bit_idx = state->bit_idx;
+                        cim     = 0.0f;
                       }
                     else if (bits && nb)
                       {

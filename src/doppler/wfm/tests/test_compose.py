@@ -630,9 +630,11 @@ def test_stream_continuous_is_infinite():
     assert len(blocks) == 5 and all(len(b) == 512 for b in blocks)
 
 
-def _repeat_json(seg, n_periods, *, seed_advance="none"):
+def _repeat_json(seg, n_periods, *, seed_advance="none", n=0):
     """Render `n_periods` of a one-segment repeating spec via from_json (the
-    path that honours the `seed_advance` spec field: none/noise/all)."""
+    path that honours the `seed_advance` spec field: none/noise/all). A
+    segment's period is its `num_samples`, or `n` for a data source, whose
+    run is its own and carries no count."""
     import json
 
     spec = {
@@ -642,7 +644,7 @@ def _repeat_json(seg, n_periods, *, seed_advance="none"):
         "segments": [seg],
     }
     return Composer.from_json(json.dumps(spec)).execute(
-        n_periods * seg["num_samples"]
+        n_periods * (n or seg["num_samples"])
     )
 
 
@@ -671,8 +673,10 @@ def _bits(snr, n=64):
         "seed": 1,
         "sps": 1,
         "modulation": "bpsk",
-        "payload": "10110100",
-        "num_samples": n,
+        # n bits of data, sent as given: a data source sets its own run, so
+        # the segment carries no num_samples (it would be refused)
+        "data": f"pn:{n}:7",
+        "crc": "none",
         "off_samples": 0,
     }
 
@@ -680,7 +684,7 @@ def _bits(snr, n=64):
 def test_repeat_is_byte_identical_by_default():
     """seed_advance="none" (the default) → repeats are byte-identical."""
     n = 64
-    x = _repeat_json(_bits(6.0, n), 2)  # default none
+    x = _repeat_json(_bits(6.0, n), 2, n=n)  # default none
     assert np.array_equal(x[:n], x[n : 2 * n])
 
 
@@ -689,10 +693,10 @@ def test_seed_advance_noise_varies_noise_only():
     realization) while the signal stays fixed: a noisy source's loops differ, a
     clean one's are identical, and a PN source's *code* is unchanged."""
     n = 64
-    noisy = _repeat_json(_bits(6.0, n), 2, seed_advance="noise")
+    noisy = _repeat_json(_bits(6.0, n), 2, seed_advance="noise", n=n)
     assert not np.array_equal(noisy[:n], noisy[n : 2 * n])  # noise differs
 
-    clean = _repeat_json(_bits(100.0, n), 2, seed_advance="noise")
+    clean = _repeat_json(_bits(100.0, n), 2, seed_advance="noise", n=n)
     assert np.array_equal(clean[:n], clean[n : 2 * n])  # signal fixed
 
     # A clean PN source keeps its code bit-for-bit across repeats (only the
@@ -1423,16 +1427,16 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
             _wfmgen(),
             "--type",
             "bits",
-            "--bits",
-            "10110100",
+            "--data",
+            "0xb4b4b4b4",  # 32 bits: 16 qpsk symbols x 4 sps = n samples
+            "--crc",
+            "none",
             "--modulation",
             "qpsk",
             "--sps",
             "4",
             "--fs",
             "1e6",
-            "--count",
-            str(n),
             "--sample-type",
             "cf32",
             "-o",
@@ -1443,13 +1447,14 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
     x = Composer(
         Segment(
             "bits",
-            pattern=field_bits("10110100"),
+            data=field_bits("0xb4b4b4b4"),
+            crc="none",
             modulation="qpsk",
             sps=4,
             fs=1e6,
-            num_samples=n,
         )
     ).compose()
+    assert x.size == n
     py = tmp_path / "py.cf32"
     with Writer(py, fs=1e6, file_type="raw", sample_type="cf32") as w:
         w.write(x)
@@ -1457,25 +1462,25 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
 
 
 def test_bits_json_roundtrip():
-    """pattern + modulation survive the JSON spec round-trip; non-bits don't
+    """data + modulation survive the JSON spec round-trip; non-bits don't
     grow the keys (byte-stable)."""
 
     a = Composer(
         [
             Segment(
                 "bits",
-                pattern=field_bits("110100"),
+                data=field_bits("110100"),
+                crc="none",
                 modulation="bpsk",
                 sps=2,
-                num_samples=12,
             )
         ]
     )
     js = a.to_json()
-    assert '"payload"' in js and '"modulation"' in js
+    assert '"data"' in js and '"modulation"' in js
     b = Composer.from_json(js)
     assert np.array_equal(a.compose(), b.compose())
-    assert '"payload"' not in Composer([Segment("tone")]).to_json()
+    assert '"data"' not in Composer([Segment("tone")]).to_json()
 
 
 def test_bits_in_sum_scene():
@@ -1483,9 +1488,13 @@ def test_bits_in_sum_scene():
     from doppler.wfm import bits, tone
 
     mix = Segment.sum(
-        bits(pattern=field_bits("10110101"), modulation="bpsk", sps=4),
+        bits(
+            data=field_bits("0xb5b5b5b5"),  # 32 bits x 4 sps: the run
+            crc="none",
+            modulation="bpsk",
+            sps=4,
+        ),
         tone(freq=2e5, level=-6),
-        num_samples=128,
     )
     assert len(Composer(mix).compose()) == 128
 

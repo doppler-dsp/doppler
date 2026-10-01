@@ -195,6 +195,7 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
   dp_wfm_synth_state_t     *tx    = NULL;
   dp_mpsk_receiver_state_t *rx    = NULL;
   size_t                    nout  = 0;
+  uint8_t                  *rec   = NULL;
 
   *clipped = 0;
   if (!taps || !x)
@@ -211,12 +212,21 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
                             7, 0, 0, 0.0);
   if (!tx)
     goto done;
-  if (dp_wfm_synth_set_bits (tx, bits, nbits, 1 /* bpsk */) != 0
+  /* A multi-frame record from a one-frame descriptor: the frame tiled to
+     the record HERE, since a pattern is sent once (doppler#1718) -- the
+     repeat count the descriptor deliberately does not carry (section 7.5)
+     is this caller's, said once. One bit per symbol, and a filter span
+     past nsym: the shaper reads ahead of the samples it emits, and the
+     record's tail must be frames, not the silence after the data. */
+  const size_t nrec = nsym + 2u * RX_FRAME_SPAN + 2u;
+  rec               = malloc (nrec);
+  if (!rec)
+    goto done;
+  for (size_t i = 0; i < nrec; i++)
+    rec[i] = bits[i % nbits];
+  if (dp_wfm_synth_set_bits (tx, rec, nrec, 1 /* bpsk */) != 0
       || dp_wfm_synth_set_rrc (tx, taps, ntaps) != 0)
     goto done;
-  /* The pattern CYCLES, so one call yields a multi-frame record from a
-     one-frame descriptor — the repeat count the descriptor deliberately does
-     not carry (section 7.5) falls out of the generator instead. */
   dp_wfm_synth_steps (tx, x, nsamp);
 
   rx = dp_mpsk_receiver_create (c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC,
@@ -245,6 +255,7 @@ done:
     dp_mpsk_receiver_destroy (rx);
   if (tx)
     dp_wfm_synth_destroy (tx);
+  free (rec);
   free (taps);
   free (x);
   return nout;
@@ -317,10 +328,10 @@ rx_frame_measure (const rx_frame_cfg_t *c, double esn0_db, uint32_t seed0)
       || dp_wfm_frame_assemble (&f, NULL, bits, nbits) != nbits)
     goto done;
 
-  /* One bit per BPSK symbol, cycled exactly as `dp_wfm_synth_set_bits` cycles
-     it: `wfm_synth` maps bit 0 to +1 and bit 1 to -1, and `mpsk_constellation`
-     maps Gray label 0 to +1 and 1 to -1, so at M = 2 the truth symbol index
-     IS the bit. There is no mapping table here to drift. */
+  /* One bit per BPSK symbol, the frame tiled exactly as rx_frame_burst
+     tiles it: `wfm_synth` maps bit 0 to +1 and bit 1 to -1, and
+     `mpsk_constellation` maps Gray label 0 to +1 and 1 to -1, so at M = 2 the
+     truth symbol index IS the bit. There is no mapping table here to drift. */
   for (size_t i = 0; i < nsym; i++)
     truth[i] = bits[i % nbits];
 

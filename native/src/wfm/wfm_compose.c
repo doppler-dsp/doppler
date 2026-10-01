@@ -32,7 +32,6 @@ free_segment_sources (wfm_segment_t *seg)
   if (seg->sources)
     for (size_t k = 0; k < seg->n_sources; k++)
       {
-        free ((void *)seg->sources[k].payload.bits);
         free (seg->sources[k].symbols);
         free ((void *)seg->sources[k].acq_code.bits);
         free ((void *)seg->sources[k].data_code.bits);
@@ -79,7 +78,6 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
      both (dp_wfm_frame_copy). Without this a `--from-file` scene would be
      reading a description its parser had already freed. */
   dst->frame          = dp_wfm_frame_copy (src->frame);
-  dst->payload.bits   = dup_u8 (src->payload.bits, src->payload.len);
   dst->acq_code.bits  = dup_u8 (src->acq_code.bits, src->acq_code.len);
   dst->data_code.bits = dup_u8 (src->data_code.bits, src->data_code.len);
   dst->sync.bits      = dup_u8 (src->sync.bits, src->sync.len);

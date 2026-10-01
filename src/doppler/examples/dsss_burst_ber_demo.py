@@ -159,7 +159,7 @@ scene = Composer(
     acq_reps=REPS,
     data_code=DATA,
     sync=SYNC,
-    payload=PAYLOAD,  # PN data, and nothing after it
+    data=PAYLOAD,  # PN data, and nothing after it
     crc="none",
     delay_samples=LEAD,
     # the receiver holds a burst until it has seen refine_span past its

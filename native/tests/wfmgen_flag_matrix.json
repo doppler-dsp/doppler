@@ -3,15 +3,13 @@
     "argv": [
       "--type",
       "bits",
-      "--bits-file",
-      "bits.bin",
-      "--count",
-      "32"
+      "--data-from-file",
+      "bits.bin"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256
+        "bytes": 384
       }
     },
     "record": {
@@ -19,13 +17,13 @@
       "repeat": false,
       "segments": [
         {
+          "crc": "crc16",
+          "data_from_file": "bits.bin",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 32,
           "off_samples": 0,
-          "payload": "0xb25a0fff",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -46,10 +44,10 @@
       "bpsk",
       "--frame",
       "cadu.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--sps",
-      "1",
-      "--count",
-      "4144"
+      "1"
     ],
     "exit": 0,
     "outputs": {
@@ -62,6 +60,7 @@
       "repeat": false,
       "segments": [
         {
+          "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "frame": {
             "fields": [
               {
@@ -70,7 +69,7 @@
               },
               {
                 "name": "payload",
-                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                "spec": "data:1784"
               },
               {
                 "bits": 256,
@@ -103,7 +102,6 @@
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 4144,
           "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
@@ -125,10 +123,10 @@
       "bpsk",
       "--frame",
       "cadu_legacy.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--sps",
-      "1",
-      "--count",
-      "4144"
+      "1"
     ],
     "exit": 0,
     "outputs": {
@@ -141,6 +139,7 @@
       "repeat": false,
       "segments": [
         {
+          "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "frame": {
             "fields": [
               {
@@ -149,7 +148,7 @@
               },
               {
                 "name": "payload",
-                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                "spec": "data:1784"
               },
               {
                 "bits": 256,
@@ -182,7 +181,6 @@
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 4144,
           "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
@@ -204,10 +202,10 @@
       "bpsk",
       "--frame",
       "interleave_bits.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--sps",
-      "1",
-      "--count",
-      "1800"
+      "1"
     ],
     "exit": 0,
     "outputs": {
@@ -220,11 +218,12 @@
       "repeat": false,
       "segments": [
         {
+          "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "frame": {
             "fields": [
               {
                 "name": "payload",
-                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                "spec": "data:1784"
               },
               {
                 "bits": 16,
@@ -248,7 +247,6 @@
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 1800,
           "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
@@ -270,10 +268,10 @@
       "bpsk",
       "--frame",
       "interleave_rs.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--sps",
-      "1",
-      "--count",
-      "2040"
+      "1"
     ],
     "exit": 0,
     "outputs": {
@@ -286,11 +284,12 @@
       "repeat": false,
       "segments": [
         {
+          "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
           "frame": {
             "fields": [
               {
                 "name": "payload",
-                "spec": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                "spec": "data:1784"
               },
               {
                 "bits": 256,
@@ -316,7 +315,6 @@
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 2040,
           "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
@@ -336,7 +334,7 @@
       "bits",
       "--modulation",
       "bpsk",
-      "--bits",
+      "--data",
       "10110010",
       "--acq-code",
       "1010*2",
@@ -345,14 +343,12 @@
       "--crc",
       "crc16",
       "--sps",
-      "2",
-      "--count",
-      "64"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 512
+        "bytes": 720
       }
     },
     "record": {
@@ -362,13 +358,12 @@
         {
           "acq_code": "0xa*2",
           "crc": "crc16",
+          "data": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 64,
           "off_samples": 0,
-          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -386,17 +381,15 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "0xb2",
       "--modulation",
-      "none",
-      "--count",
-      "32"
+      "none"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256
+        "bytes": 192
       }
     },
     "record": {
@@ -404,13 +397,13 @@
       "repeat": false,
       "segments": [
         {
+          "crc": "crc16",
+          "data": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "none",
-          "num_samples": 32,
           "off_samples": 0,
-          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -427,19 +420,17 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--modulation",
       "qpsk",
       "--sps",
-      "2",
-      "--count",
-      "32"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 256
+        "bytes": 192
       }
     },
     "record": {
@@ -447,13 +438,13 @@
       "repeat": false,
       "segments": [
         {
+          "crc": "crc16",
+          "data": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "qpsk",
-          "num_samples": 32,
           "off_samples": 0,
-          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -472,19 +463,17 @@
       "bits",
       "--modulation",
       "bpsk",
-      "--bits",
+      "--data",
       "pn:64:7",
       "--sync",
       "1111100110101",
       "--sps",
-      "2",
-      "--count",
-      "512"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 4096
+        "bytes": 1488
       }
     },
     "record": {
@@ -493,13 +482,12 @@
       "segments": [
         {
           "crc": "crc16",
+          "data": "pn:64:7",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 512,
           "off_samples": 0,
-          "payload": "pn:64:7",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -519,19 +507,17 @@
       "bits",
       "--modulation",
       "bpsk",
-      "--bits",
+      "--data",
       "10110010",
       "--sync",
       "gold:64:10:0x3a6:0x15e:0x237:0x49",
       "--sps",
-      "2",
-      "--count",
-      "64"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 512
+        "bytes": 1408
       }
     },
     "record": {
@@ -540,13 +526,12 @@
       "segments": [
         {
           "crc": "crc16",
+          "data": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 64,
           "off_samples": 0,
-          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -566,19 +551,17 @@
       "bits",
       "--modulation",
       "bpsk",
-      "--bits",
+      "--data",
       "10110010",
       "--sync",
       "pn:31:5:3",
       "--sps",
-      "2",
-      "--count",
-      "64"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 512
+        "bytes": 880
       }
     },
     "record": {
@@ -587,13 +570,12 @@
       "segments": [
         {
           "crc": "crc16",
+          "data": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
           "modulation": "bpsk",
-          "num_samples": 64,
           "off_samples": 0,
-          "payload": "0xb2",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -613,19 +595,17 @@
       "bpsk",
       "--sync",
       "1111100110101",
-      "--bits",
+      "--data",
       "pn:64:7",
       "--pn-length",
       "7",
       "--sps",
-      "2",
-      "--count",
-      "512"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 4096
+        "bytes": 1488
       }
     },
     "record": {
@@ -634,12 +614,11 @@
       "segments": [
         {
           "crc": "crc16",
+          "data": "pn:64:7",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 512,
           "off_samples": 0,
-          "payload": "pn:64:7",
           "pn_length": 7,
           "pn_poly": 0,
           "seed": 0,
@@ -1058,7 +1037,7 @@
       "1111100110101",
       "--crc",
       "crc16",
-      "--bits",
+      "--data",
       "10101010",
       "--sps",
       "2"
@@ -1076,13 +1055,12 @@
         {
           "acq_code": "0xa*2",
           "crc": "crc16",
+          "data": "0xaa",
           "data_code": "0xb",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 312,
           "off_samples": 0,
-          "payload": "0xaa",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -1104,7 +1082,7 @@
       "0xa5",
       "--data-code",
       "0xb2",
-      "--bits",
+      "--data",
       "0x0f",
       "--crc",
       "none",
@@ -1124,13 +1102,12 @@
         {
           "acq_code": "0xa5",
           "crc": "none",
+          "data": "0x0f",
           "data_code": "0xb2",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 144,
           "off_samples": 0,
-          "payload": "0x0f",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -1192,7 +1169,7 @@
     "argv": [
       "--type",
       "dsss",
-      "--bits",
+      "--data",
       "1011",
       "--acq-code",
       "dotted:8*2",
@@ -1201,9 +1178,7 @@
       "--sync",
       "gold:16:10:934:350:567:73",
       "--sps",
-      "2",
-      "--count",
-      "512"
+      "2"
     ],
     "exit": 0,
     "outputs": {
@@ -1218,13 +1193,12 @@
         {
           "acq_code": "dotted:8*2",
           "crc": "crc16",
+          "data": "0xb",
           "data_code": "pn:7:3:0x1",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 536,
           "off_samples": 0,
-          "payload": "0xb",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -1334,6 +1308,8 @@
       "1011",
       "--frame",
       "dsss_coded.frame.json",
+      "--data",
+      "10110010101",
       "--sps",
       "2"
     ],
@@ -1349,6 +1325,7 @@
       "segments": [
         {
           "acq_code": "0xa*2",
+          "data": "10110010101",
           "data_code": "0xb",
           "frame": {
             "fields": [
@@ -1362,7 +1339,7 @@
               },
               {
                 "name": "payload",
-                "spec": "10110010101"
+                "spec": "data:11"
               },
               {
                 "bits": 16,
@@ -1393,7 +1370,6 @@
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 1168,
           "off_samples": 0,
           "pn_length": 15,
           "pn_poly": 0,
@@ -1413,16 +1389,14 @@
       "dsss",
       "--data-code",
       "0110",
-      "--bits",
+      "--data",
       "pn:31:5",
       "--sync",
       "10",
       "--acq-code",
       "10101010*2",
       "--sps",
-      "2",
-      "--count",
-      "4096"
+      "2"
     ],
     "exit": 0,
     "outputs": {
@@ -1437,13 +1411,12 @@
         {
           "acq_code": "0xaa*2",
           "crc": "crc16",
+          "data": "pn:31:5",
           "data_code": "0x6",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 424,
           "off_samples": 0,
-          "payload": "pn:31:5",
           "pn_length": 15,
           "pn_poly": 0,
           "seed": 0,
@@ -1545,7 +1518,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "pn:4000000000:5",
       "--count",
       "16"
@@ -1558,7 +1531,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "pn:18446744073709551615:5",
       "--count",
       "16"
@@ -1588,10 +1561,10 @@
       "bpsk",
       "--frame",
       "cadu_rand3.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--sps",
-      "1",
-      "--count",
-      "4144"
+      "1"
     ],
     "exit": 2,
     "outputs": {},
@@ -1604,23 +1577,8 @@
       "bits",
       "--frame",
       "rs_short.frame.json",
-      "--count",
-      "64"
-    ],
-    "exit": 2,
-    "outputs": {},
-    "record": null
-  },
-  "err_frame_with_bits": {
-    "argv": [
-      "--type",
-      "bits",
-      "--frame",
-      "cadu.frame.json",
-      "--bits",
-      "1011",
-      "--count",
-      "64"
+      "--data",
+      "10110010"
     ],
     "exit": 2,
     "outputs": {},
@@ -1632,10 +1590,10 @@
       "bits",
       "--frame",
       "cadu.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--crc",
-      "crc16",
-      "--count",
-      "64"
+      "crc16"
     ],
     "exit": 2,
     "outputs": {},
@@ -1658,10 +1616,10 @@
       "bits",
       "--frame",
       "cadu.frame.json",
+      "--data",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "--sync",
-      "1111100110101",
-      "--count",
-      "64"
+      "1111100110101"
     ],
     "exit": 2,
     "outputs": {},
@@ -1673,10 +1631,8 @@
       "chirp",
       "--sync",
       "1111100110101",
-      "--bits",
-      "pn:64:15",
-      "--count",
-      "64"
+      "--data",
+      "pn:64:15"
     ],
     "exit": 2,
     "outputs": {},
@@ -1990,7 +1946,7 @@
     "argv": [
       "--type",
       "dsss",
-      "--bits",
+      "--data",
       "1011",
       "--data-code",
       "0110",
@@ -2007,7 +1963,7 @@
     "argv": [
       "--type",
       "dsss",
-      "--bits",
+      "--data",
       "1011",
       "--data-code",
       "0110",
@@ -2024,7 +1980,7 @@
     "argv": [
       "--type",
       "dsss",
-      "--bits",
+      "--data",
       "1011",
       "--data-code",
       "0110",
@@ -2043,7 +1999,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--asm",
       "--count",
@@ -2052,6 +2008,32 @@
     "exit": 2,
     "outputs": {},
     "record": null
+  },
+  "err_retired_bits": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits",
+      "10110010",
+      "--count",
+      "32"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --bits is retired: a payload is drawn from a data source -- write --data <FIELD> --data-len <BITS>\n"
+  },
+  "err_retired_bits_file": {
+    "argv": [
+      "--type",
+      "bits",
+      "--bits-file",
+      "bits.bin"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null,
+    "stderr": "error: --bits-file is retired: a payload is drawn from a data source -- write --data-from-file <PATH> (- for stdin)\n"
   },
   "err_retired_bits_hex": {
     "argv": [
@@ -2070,7 +2052,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--conv",
       "--count",
@@ -2084,7 +2066,7 @@
     "argv": [
       "--type",
       "dsss",
-      "--bits",
+      "--data",
       "1011",
       "--data-code-gen",
       "pn:7:3:1",
@@ -2099,7 +2081,7 @@
     "argv": [
       "--type",
       "dsss",
-      "--bits",
+      "--data",
       "1011",
       "--data-code-hex",
       "b2",
@@ -2114,7 +2096,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--interleave",
       "4",
@@ -2129,7 +2111,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--interleave-unit",
       "8",
@@ -2157,7 +2139,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "1011",
       "--payload-len",
       "64",
@@ -2172,7 +2154,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--randomise",
       "--count",
@@ -2186,7 +2168,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--randomize",
       "--count",
@@ -2200,7 +2182,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--rs-depth",
       "1",
@@ -2215,7 +2197,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--sync-gen",
       "pn:31:5",
@@ -2245,7 +2227,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "1011",
       "--sync",
       "gold:16:10:934",
@@ -2260,7 +2242,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "1011",
       "--sync",
       "literal:8",
@@ -2275,7 +2257,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "1011",
       "--sync",
       "pn",
@@ -2290,7 +2272,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "1011",
       "--sync",
       "pn:31",
@@ -2305,7 +2287,7 @@
     "argv": [
       "--type",
       "bits",
-      "--bits",
+      "--data",
       "10110010",
       "--sync",
       "0110*2",
@@ -2845,19 +2827,17 @@
       "qpsk",
       "--sync",
       "1111100110101",
-      "--bits",
+      "--data",
       "pn:128:9",
       "--pn-length",
       "9",
       "--sps",
-      "2",
-      "--count",
-      "1024"
+      "2"
     ],
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 8192
+        "bytes": 1264
       }
     },
     "record": {
@@ -2866,12 +2846,11 @@
       "segments": [
         {
           "crc": "crc16",
+          "data": "pn:128:9",
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
-          "num_samples": 1024,
           "off_samples": 0,
-          "payload": "pn:128:9",
           "pn_length": 9,
           "pn_poly": 0,
           "seed": 0,

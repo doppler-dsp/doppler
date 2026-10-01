@@ -162,7 +162,7 @@ segments = [
         acq_reps=REPS,
         data_code=data_code.tobytes(),
         sync=SYNC.tobytes(),
-        payload=payload.tobytes(),  # CRC-16 appended by the engine
+        data=payload,  # one burst; CRC-16 appended by the engine
         gap_noise="auto",  # the floor runs through the gaps, as a real capture
         off_samples=GAP if k < N_BURSTS - 1 else RETAIN_SPAN * 2,
     )

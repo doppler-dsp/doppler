@@ -52,8 +52,11 @@ import sys  # noqa: E402
 
 def main() -> int:
     # 1. The frame reaches the samples.
-    unframed = Segment(**common, payload=field_bits("1010" * 6))
-    ok1 = not np.array_equal(x, np.asarray(Composer([unframed]).compose()))
+    # The same payload bits as a data source, sent as given: no frame.
+    bare = {k: v for k, v in common.items() if k != "num_samples"}
+    unframed = Segment(**bare, data=field_bits("1010" * 6), crc="none")
+    y0 = np.asarray(Composer([unframed]).compose())
+    ok1 = not np.array_equal(x[: y0.size], y0)
     print("framed != unframed:", ok1)
 
     # 2. Read back from the record; the scene rebuilds the same samples,

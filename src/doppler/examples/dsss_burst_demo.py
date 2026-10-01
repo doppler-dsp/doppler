@@ -176,7 +176,7 @@ def build_burst(
         acq_reps=acq_reps,
         data_code=bytes(DATA_CODE.tolist()),
         sync=b"",  # no frame sync word: this demo detects, it does not decode
-        payload=bytes(payload.tolist()),
+        data=payload,
         crc="none",
         off_samples=silence_chips * CHIP_SPS,
     )

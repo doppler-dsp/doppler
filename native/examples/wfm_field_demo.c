@@ -1,7 +1,7 @@
 /**
  * wfm_field_demo.c — bits, written as text: the Field grammar from C.
  *
- * Every place wfmgen takes a run of bits — `--bits`, `--sync`, `--acq-code`,
+ * Every place wfmgen takes a run of bits — `--data`, `--sync`, `--acq-code`,
  * `--data-code`, a scene's "spec", Python's field_bits() — reads it with ONE
  * parser, dp_wfm_field_parse(). This is that parser's C face, and the twin of
  * src/doppler/examples/wfm_field_demo.py.

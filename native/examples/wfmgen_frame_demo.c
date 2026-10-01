@@ -12,13 +12,15 @@
  * What this demonstrates, in order:
  *
  *   1. A layout no flag spells: 16 bits of the caller's own header, then the
- *      payload, then a CRC-16 a stage derives over a span it NAMES.
- *   2. The frame reaches the SAMPLES — a framed source and an otherwise
- *      identical unframed one do not compose to the same waveform.
- *   3. The samples carry the DESCRIPTION's bits: demodulated back, they are
- *      dp_wfm_frame_assemble() of the same description, bit for bit.
- *   4. The frame CYCLES, so one description fills whatever length is asked
- *      for and a one-frame description is a multi-frame record.
+ *      payload -- a data:LEN field the source's data fills -- then a CRC-16 a
+ *      stage derives over a span it NAMES.
+ *   2. The frame reaches the SAMPLES — a framed source and the same data
+ *      sent unframed do not compose to the same waveform.
+ *   3. The samples carry the DESCRIPTION's bits: demodulated back, the first
+ *      frame is dp_wfm_frame_assemble_data() over the first chunk.
+ *   4. One description, a multi-frame record: each frame carries the NEXT
+ *      chunk of the data, and the run is exactly those frames -- nothing is
+ *      cycled (doppler#1718).
  *   5. The common frame is a description too: a flag-spelled source and a
  *      second one carrying dp_wfm_frame_fixed() of the same fields compose
  *      BYTE-IDENTICALLY.
@@ -60,10 +62,8 @@
 #define PAYLOAD_BITS 24u
 #define FRAME_BITS (HDR_BITS + PAYLOAD_BITS + WFM_FRAME_CRC_BITS)
 
-/* Three whole frames, so section 4 has something to compare frame 2 against.
-   A partial frame would still be legal — the description cycles and the
-   record simply stops mid-frame — but it would make the cycling check read
-   as an accident of the length. */
+/* The data: three chunks, so the description makes three frames, each
+   carrying its own chunk (section 4). */
 #define FRAMES 3u
 #define TOTAL ((size_t)FRAME_BITS * SPS * FRAMES)
 
@@ -157,8 +157,9 @@ bits_source (const uint8_t *payload_bits)
      shifts the moment one is inserted. */
   wfm_source_t src = { 0 };
   src.type         = WFM_SYNTH_BITS;
-  src.payload      = literal (payload_bits, PAYLOAD_BITS);
-  src.modulation   = 1; /* bpsk */
+  src.data         = literal (payload_bits, FRAMES * PAYLOAD_BITS);
+  src.data_len     = PAYLOAD_BITS; /* a frame's data:LEN, one chunk */
+  src.modulation   = 1;            /* bpsk */
   src.sps          = SPS;
   src.snr          = WFM_SYNTH_SNR_CLEAN; /* >= 100 dB: AWGN skipped */
   src.snr_mode     = 1;                   /* fs */
@@ -255,10 +256,10 @@ main (void)
 
   /* Borrowed by everything below, so they outlive every compose call. */
   static uint8_t hdr_bits[HDR_BITS];
-  static uint8_t payload_bits[PAYLOAD_BITS];
+  static uint8_t payload_bits[FRAMES * PAYLOAD_BITS]; /* three chunks */
   unpack (0x5C5Cu, HDR_BITS, hdr_bits);
-  for (unsigned i = 0; i < PAYLOAD_BITS; i++)
-    payload_bits[i] = (uint8_t)((i * 7u + 1u) & 1u);
+  for (unsigned i = 0; i < FRAMES * PAYLOAD_BITS; i++)
+    payload_bits[i] = (uint8_t)(((i * 7u + 1u) ^ (i / 5u)) & 1u);
 
   /* ── 1. A layout no flag spells ─────────────────────────────────────── */
   printf ("--- 1. The description: named fields, a stage over a named span "
@@ -267,11 +268,13 @@ main (void)
   wfm_frame_desc_t d;
   memset (&d, 0, sizeof d);
   wfm_seq_t hdr = literal (hdr_bits, HDR_BITS);
-  wfm_seq_t pay = literal (payload_bits, PAYLOAD_BITS);
+  /* The payload is a data:LEN field: the description says WHERE the data
+     goes and how much of it a frame takes, never what it is. */
+  const wfm_seq_t dq = { .kind = WFM_SEQ_DATA, .len = PAYLOAD_BITS };
 
   int ok
       = dp_wfm_frame_add_field (&d, "hdr", &hdr, 0u) == 0
-        && dp_wfm_frame_add_field (&d, "payload", &pay, 0u) == 1
+        && dp_wfm_frame_add_field (&d, "payload", &dq, 0u) == 1
         && dp_wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 2
         /* The cover names its ends, and it REACHES the derived field:
            a code occupies its information and the check symbols it
@@ -314,25 +317,27 @@ main (void)
       return 1;
     }
 
+  /* The same data, sent as given: no frame, no check. */
   wfm_source_t plain = bits_source (payload_bits);
-  check (!dp_wfm_source_has_frame (&plain),
-         "the source is unframed before a description is attached");
+  plain.data_len     = 0;
+  plain.crc          = 0;
 
-  /* The description is the WHOLE frame, its payload one of its fields, so
-     the flat payload goes: a source with both is refused (doppler#1683). */
-  wfm_source_t src = plain;
-  memset (&src.payload, 0, sizeof src.payload);
-  src.frame = &d;
+  /* The description is the WHOLE frame; the source's data fills its
+     data:LEN field, one chunk a frame. */
+  wfm_source_t src = bits_source (payload_bits);
+  src.frame        = &d;
   check (dp_wfm_source_has_frame (&src),
          "carrying a description IS what makes a source framed");
   check (dp_wfm_source_error (&src) == NULL,
-         "this type can honour a frame (type=bits, payload a field of it)");
+         "this type can honour a frame (type=bits, its data in a field)");
 
   size_t n_framed   = compose_one (&src, framed, TOTAL);
   size_t n_unframed = compose_one (&plain, unframed, TOTAL);
-  check (n_framed == TOTAL && n_unframed == TOTAL,
-         "both scenes compose the length their geometry declares");
-  check (memcmp (framed, unframed, TOTAL * sizeof *framed) != 0,
+  check (n_framed == TOTAL
+             && n_unframed == (size_t)FRAMES * PAYLOAD_BITS * SPS,
+         "each composes the length its data declares: 3 frames, or the "
+         "bare 72 bits");
+  check (memcmp (framed, unframed, n_unframed * sizeof *framed) != 0,
          "framed and unframed are DIFFERENT waveforms");
   printf ("\n");
 
@@ -340,14 +345,16 @@ main (void)
   printf ("--- 3. The bits on the wire are the description's ---\n");
 
   uint8_t want[FRAME_BITS];
-  size_t  n_bits = dp_wfm_frame_assemble (&d, NULL, want, FRAME_BITS);
-  check (n_bits == FRAME_BITS,
-         "dp_wfm_frame_assemble materialises the description independently");
+  size_t  n_bits
+      = dp_wfm_frame_assemble_data (&d, NULL, payload_bits, want, FRAME_BITS);
+  check (n_bits == FRAME_BITS, "dp_wfm_frame_assemble_data materialises the "
+                               "first frame independently");
 
   uint8_t got[FRAME_BITS];
   demod (framed, FRAME_BITS, got);
   check (n_bits == FRAME_BITS && memcmp (got, want, FRAME_BITS) == 0,
-         "demodulated, the first frame IS dp_wfm_frame_assemble's output");
+         "demodulated, the first frame IS dp_wfm_frame_assemble_data's "
+         "output over the first chunk");
 
   /* The header is the half no flag could have placed, so name it. */
   check (memcmp (got, hdr_bits, HDR_BITS) == 0,
@@ -357,21 +364,26 @@ main (void)
     printf ("%u", got[i]);
   printf ("\n\n");
 
-  /* ── 4. One description, however long the record ────────────────────── */
-  printf ("--- 4. The frame cycles to fill the segment ---\n");
+  /* ── 4. One description, a multi-frame record ───────────────────────── */
+  printf ("--- 4. Each frame carries the next chunk of the data ---\n");
 
-  int cycles = 1;
+  int chunks = 1;
   for (unsigned f = 1; f < FRAMES; f++)
     {
-      uint8_t next[FRAME_BITS];
+      uint8_t next[FRAME_BITS], wantf[FRAME_BITS];
       demod (framed + (size_t)f * FRAME_BITS * SPS, FRAME_BITS, next);
-      if (memcmp (next, want, FRAME_BITS) != 0)
-        cycles = 0;
+      if (dp_wfm_frame_assemble_data (&d, NULL,
+                                      payload_bits + (size_t)f * PAYLOAD_BITS,
+                                      wantf, FRAME_BITS)
+              != FRAME_BITS
+          || memcmp (next, wantf, FRAME_BITS) != 0)
+        chunks = 0;
     }
-  check (cycles, "frames 1 and 2 repeat frame 0, bit for bit");
-  printf ("  %u frames x %u bits x %d sps = %zu samples from ONE "
-          "description\n\n",
-          FRAMES, FRAME_BITS, SPS, TOTAL);
+  check (chunks, "frames 1 and 2 are the description over chunks 1 and 2, "
+                 "each with its own CRC -- not frame 0 again");
+  printf ("  %u chunks -> %u frames x %u bits x %d sps = %zu samples from "
+          "ONE description\n\n",
+          FRAMES, FRAMES, FRAME_BITS, SPS, TOTAL);
 
   /* ── 5. The common frame is a description too ───────────────────────── */
   printf ("--- 5. The flags spell the common frame; so can you ---\n");
@@ -385,14 +397,12 @@ main (void)
   /* The same frame, as the description dp_wfm_frame_fixed() builds — the
      one function the flags go through, so there is no second layout. */
   wfm_frame_desc_t from_flags;
-  check (dp_wfm_frame_fixed (&from_flags, NULL, 0, &flags.sync, &flags.payload,
-                             flags.crc)
+  check (dp_wfm_frame_fixed (&from_flags, NULL, 0, &flags.sync, &dq, flags.crc)
              == 0,
          "dp_wfm_frame_fixed describes the common frame");
 
   wfm_source_t carried = bits_source (payload_bits);
-  memset (&carried.payload, 0, sizeof carried.payload); /* in the frame */
-  carried.frame = &from_flags;
+  carried.frame        = &from_flags;
 
   size_t n_sugar   = compose_one (&flags, sugar, TOTAL);
   size_t n_relayed = compose_one (&carried, relayed, TOTAL);
@@ -416,6 +426,9 @@ main (void)
   /* The same three fields and the same CRC cover, plus one stage of a kind
      no version of doppler will ever allocate. The description does not know
      what MY_WHITEN does and does not need to: it names a kind and a span. */
+  /* Its payload is chunk 0's bits written into the description: a frame of
+     fixed bits, which section 3's `want` is the plain assembly of. */
+  wfm_seq_t        pay = literal (payload_bits, PAYLOAD_BITS);
   wfm_frame_desc_t mine;
   memset (&mine, 0, sizeof mine);
   int built

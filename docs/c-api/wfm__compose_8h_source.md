@@ -133,18 +133,6 @@ typedef struct {
                           chunking of reads produce the same waveform;
                           generating one without it raises. Ignored by
                           non-chirp types. */
-    /* The payload, as a SEQUENCE like its three siblings below rather than
-       a bare array. A literal keeps its bits at `payload.bits`/`payload.len`
-       exactly as `bits`/`n_bits` did; a GENERATED payload (PN/Gold/Dotted)
-       carries its parameters instead, which is what lets a 100k-bit frame be
-       six numbers in a --record. The bridge used to flatten this to
-       WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
-       made the preamble's generated kinds unreachable (gh-762). */
-    wfm_seq_t payload; /* The payload bits: a Field on the command line and
-                          in a scene, an array in Python. For type=bits, the
-                          pattern, oversampled by sps and cycled to fill the
-                          request; for type=dsss, the payload bits of the
-                          burst frame. */
     int modulation;    /* Symbol mapping of a bits pattern. none: the
                           pattern shaped and output as-is (NRZ). bpsk: +/-1
                           symbols. qpsk: Gray-coded symbols from pairs of
@@ -242,7 +230,7 @@ typedef struct {
     const wfm_frame_desc_t *frame;
 
     /* type=dsss: the two-code burst geometry (dp_wfm_dsss_desc_chips). The
-       payload bits ride the shared `bits` field above (alias "payload"). */
+       payload is a data source (`data` / `data_from_file`, below). */
     /* The three sequences a framed source carries. `wfm_seq_t` already names
        "a run of bits, however produced" -- LITERAL plus the generated PN /
        GOLD / DOTTED kinds and their parameters -- so carrying it here is
@@ -336,6 +324,11 @@ typedef struct {
                           cvt.bytes_to_bin of its bytes, passed as data
                           (payload-data-source.md section 4.9). Borrowed,
                           so it must outlive the source. */
+    wfm_seq_t retired_bits; /* RETIRED (doppler#1718): nothing reads it but
+                          the refusal. A payload is drawn from a data
+                          source, so bits=, and its aliases payload= and
+                          pattern=, are refused naming data=; the CLI and a
+                          scene refuse --bits and "payload" the same way. */
 } wfm_source_t;
 
 typedef struct {
@@ -435,6 +428,8 @@ extern const char dp_wfm_why_pn_poly[];
 extern const char dp_wfm_why_dsss_frame_no_data_code[];
 extern const char dp_wfm_why_dsss_empty[];
 extern const char dp_wfm_why_dsss_cont_no_data_code[];
+
+extern const char dp_wfm_why_retired_bits[];
 
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 

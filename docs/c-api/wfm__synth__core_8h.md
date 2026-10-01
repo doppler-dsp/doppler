@@ -106,7 +106,7 @@ _Synth component API._ [More...](#detailed-description)
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**dp\_wfm\_synth\_steps**](#function-dp_wfm_synth_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_The next bit of the pattern, or none once the data has ended._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern, cycled — one mapping, every M._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern — one mapping, every M._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**wfm\_synth\_cont\_dsss\_chip**](#function-wfm_synth_cont_dsss_chip) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_One continuous-DSSS chip:_ `code[n % n_code] ^ data` _, as a BPSK sign._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_The MLS primitive polynomial table — pn's, reached by its old name._  |
@@ -145,6 +145,7 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**WFM\_DSSS\_ENDED**](wfm__synth__core_8h.md#define-wfm_dsss_ended)  `2u`<br> |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `2u /\* v2: + continuous-DSSS chip/symbol clocks \*/`<br> |
@@ -663,7 +664,7 @@ int dp_wfm_synth_set_bits (
 
 
 
-Copies `n` bits (each 0/1) into the synth; `modulation` maps them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2, two bits per symbol). The pattern is oversampled by the create-time `sps` and **cycled** to fill whatever length `dp_wfm_synth_steps()` requests, so one pass is `n * sps` samples (`2*ceil...` — `n/2 * sps` for qpsk). Replaces any previous pattern; resets the read position. Safe to call repeatedly.
+Copies `n` bits (each 0/1) into the synth; `modulation` maps them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2, two bits per symbol). The pattern is oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps` samples (`n/2 * sps` for qpsk), and the output is silent after it (doppler#1718 deleted the cycle; a payload that goes on is a data source, dp\_wfm\_synth\_set\_refill). Replaces any previous pattern; resets the read position. Safe to call repeatedly.
 
 
 
@@ -801,7 +802,7 @@ int dp_wfm_synth_set_dsss_chips (
 The burst is assembled from a frame DESCRIPTION by `dp_wfm_dsss_desc_chips()` (`wfm/wfm_frame.h`)  an unmodulated preamble (`acq_code` repeated `acq_reps` times, the coherent acquisition target) followed by every bit of the assembled frame XOR-spread by the distinct `data_code`  and installed here as the synth's BPSK chip stream, each chip held for the create-time `sps` samples, i.e. `sps` is samples per _chip_ here. The common frame `sync | payload | CRC-16` is `dp_wfm_frame_fixed()`; a coded burst is any other description. This is the transmit side of `BurstDemod`'s frame contract: the same codes, sync word, and payload length hand to `dp_burst_demod_set_preamble`/`set_sync` on receive.
 
 
-One pass of the pattern is one burst (`n_chips * sps` samples); like the bits pattern it cycles if more samples are requested — the composer sizes a dsss segment's on-time to exactly one burst. Replaces any previous pattern; resets the read position. Chips are copied; `chips` stays the caller's.
+One pass of the pattern is one burst (`n_chips * sps` samples), sent once like the bits pattern, and silence after it  the composer sizes a dsss segment's on-time to exactly one burst, or one per frame of a data source (dp\_wfm\_synth\_set\_refill). Replaces any previous pattern; resets the read position. Chips are copied; `chips` stays the caller's.
 
 
 NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to the _chip_ (the output symbol). The Segment/Synth faces convert a data-symbol Es/N0 (`snr_mode="esno"`) to the over-fs value with `10*log10(sf*sps)` before create; see `dp_wfm_snr_over_fs()`.
@@ -854,7 +855,7 @@ The continuous counterpart to [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synt
 
 **Lazy, not materialised.** Chips are generated per sample by `wfm_synth_cont_dsss_chip` off a running counter, so the stream is genuinely endless — there is no pattern length to pick and the standalone `Synth` face works unbounded. The data-symbol source is chosen by `data_mode:` 
 * `WFM_DSSS_DATA_NONE` — code-only: the pure spreading code, no data.
-* `WFM_DSSS_DATA_BITS` — `data`, cycled mod `n_data` (caller holds it).
+* `WFM_DSSS_DATA_BITS` — `data`, one bit per data symbol, sent ONCE: the chips are silent after its last bit (doppler#1718).
 * `WFM_DSSS_DATA_PRBS` — the synth's own seeded PN (create it in create(); a receiver regenerates the bits via `doppler.wfm.PN`).
 
 
@@ -1321,7 +1322,7 @@ JM_FORCEINLINE int wfm_synth_bit_next (
 
 
 
-With no refill the pattern cycles, as it always has, and the per-bit cost is the one bounds check the cursor already needs. With one, the cursor STOPS at `n_bits` instead of wrapping, so that same check finds the frame boundary: the next frame is drawn lazily, when its first bit is due  the source's counts are frames started, and a paced source is asked when the frame is due. A refill that reports the end latches `data_ended` and leaves the cursor at `n_bits`, so every later call is the slow path's immediate "no bit". The one place the cursor wraps, so the per-sample and block paths cannot disagree about a frame boundary.
+The cursor STOPS at `n_bits`; it never wraps (doppler#1718: the cycle that sent one pattern again and again is gone). With a refill, that one bounds check finds the frame boundary: the next frame is drawn lazily, when its first bit is due  the source's counts are frames started, and a paced source is asked when the frame is due. A refill that reports the end latches `data_ended`, and so does the end of a pattern with no refill: it was the whole of the data, sent once. Either way every later call is the slow path's immediate "no bit", and the caller sends silence  never a line nobody sent. The one place the cursor moves, so the per-sample and block paths cannot disagree about a frame boundary.
 
 
 
@@ -1350,7 +1351,7 @@ With no refill the pattern cycles, as it always has, and the per-bit cost is the
 
 ### function wfm\_synth\_bit\_symbol 
 
-_Next symbol from the user bit pattern, cycled — one mapping, every M._ 
+_Next symbol from the user bit pattern — one mapping, every M._ 
 ```C++
 JM_FORCEINLINE float _Complex wfm_synth_bit_symbol (
     dp_wfm_synth_state_t * s
@@ -1426,7 +1427,7 @@ JM_FORCEINLINE float wfm_synth_cont_dsss_chip (
 
 
 
-The per-chip kernel shared by `dp_wfm_synth_step` and `dp_wfm_synth_steps` (and the manifest `impl`), so the single-sample and block paths cannot diverge — they call the SAME function rather than each inlining the arithmetic. Advances the code clock (`n % n_code`) and the INDEPENDENT symbol clock (`floor(n / chips_per_symbol)`) off one running chip counter; at each symbol boundary it refreshes the data bit from the configured source (constant 0 for code-only, the cycled payload, or the next PN bit). Non-integer `chips_per_symbol` is what makes symbol edges land mid-epoch — the asynchronicity.
+The per-chip kernel shared by `dp_wfm_synth_step` and `dp_wfm_synth_steps` (and the manifest `impl`), so the single-sample and block paths cannot diverge — they call the SAME function rather than each inlining the arithmetic. Advances the code clock (`n % n_code`) and the INDEPENDENT symbol clock (`floor(n / chips_per_symbol)`) off one running chip counter; at each symbol boundary it refreshes the data bit from the configured source (constant 0 for code-only, the next payload bit, or the next PN bit). Non-integer `chips_per_symbol` is what makes symbol edges land mid-epoch — the asynchronicity.
 
 
 With a frame set (`dp_wfm_synth_set_dsss_window`), the frame lives on the SYMBOL clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry data 0 — the pure code — and the rest carry the payload, whose index counts data symbols only, so the bits run on across frames. The symbol clock never restarts: it is the same free-running `floor(n / chips_per_symbol)` with or without a window, so a frame edge falls at whatever chip phase that clock puts it — the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. `frame_symbols == 0` is the windowless stream, bit for bit.
@@ -1472,7 +1473,7 @@ JM_FORCEINLINE float _Complex wfm_synth_next_symbol (
 
 
 
-The single symbol-generation point the polyphase pulse shaper feeds from, dispatching on the waveform type exactly as `dp_wfm_synth_step`'s symbol latch does — the PN LFSR (pn/bpsk one chip, qpsk two Gray chips), the cycled user bit pattern (bits, per bit\_mod), the continuous asynchronous DSSS chip, or the cycled complex-symbol stream — and advancing that source's read cursor by one symbol. Only the shaped types (pn/bpsk/qpsk/bits/symbols/dsss, the set `dp_wfm_synth_set_rrc` accepts) reach here, so the shaper draws the _same_ symbol sequence the dense-FIR path would; only the pulse-shaping filter differs. 
+The single symbol-generation point the polyphase pulse shaper feeds from, dispatching on the waveform type exactly as `dp_wfm_synth_step`'s symbol latch does — the PN LFSR (pn/bpsk one chip, qpsk two Gray chips), the user bit pattern (bits, per bit\_mod, sent once), the continuous asynchronous DSSS chip, or the cycled complex-symbol stream — and advancing that source's read cursor by one symbol. Only the shaped types (pn/bpsk/qpsk/bits/symbols/dsss, the set `dp_wfm_synth_set_rrc` accepts) reach here, so the shaper draws the _same_ symbol sequence the dense-FIR path would; only the pulse-shaping filter differs. 
 
 
         
@@ -1588,6 +1589,23 @@ double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
 ## Macro Definition Documentation
 
 
+
+
+
+### define WFM\_DSSS\_ENDED 
+
+```C++
+#define WFM_DSSS_ENDED `2u`
+```
+
+
+
+`cur_data` once a continuous stream's data has ended: not a bit, so the chips are silent from then on, and it is a byte of the serialized state like the bit it replaces. 
+
+
+        
+
+<hr>
 
 
 

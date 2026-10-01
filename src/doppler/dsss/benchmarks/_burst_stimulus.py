@@ -89,7 +89,7 @@ def _segment(acq_code, data_code, payload, k, off):
         acq_reps=REPS,
         data_code=data_code.tobytes(),
         sync=SYNC.tobytes(),
-        payload=payload.tobytes(),  # CRC-16 auto-appended
+        data=payload,  # one burst; CRC-16 auto-appended
         gap_noise="auto",
         off_samples=off,
     )

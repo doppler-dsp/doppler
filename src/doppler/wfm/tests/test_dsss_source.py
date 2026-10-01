@@ -79,7 +79,7 @@ def _seg_kwargs(seed: int, off: int, acq, dat, pay) -> dict:
         "acq_reps": REPS,
         "data_code": dat.tobytes(),
         "sync": SYNC.tobytes(),
-        "payload": pay.tobytes(),
+        "data": pay.tobytes(),  # one burst: the data source, whole
         "off_samples": off,
     }
 
@@ -88,7 +88,7 @@ def _scene_json(kwargs_list) -> dict:
     segments = []
     for kw in kwargs_list:
         d = dict(kw)
-        for key in ("acq_code", "data_code", "sync", "payload"):
+        for key in ("acq_code", "data_code", "sync", "data"):
             d[key] = "".join(str(b) for b in d[key])
         # A scene carries the preamble's repetitions in its Field, *REPS.
         d["acq_code"] += f"*{d.pop('acq_reps')}"
@@ -102,15 +102,18 @@ def _scene_json(kwargs_list) -> dict:
 
 
 def test_intrinsic_on_time():
-    """A dsss segment's on-time is one burst — num_samples is derived (and
-    any caller-supplied value ignored), so to_json records the real span."""
+    """A dsss segment's on-time is its bursts, one per frame of its data --
+    here one -- so num_samples is derived and any caller-supplied value
+    ignored. The record leaves it out: a replay derives it again from the
+    data, and a recorded count beside a finite source is refused."""
     acq, dat, pay = _codes()
     seg = Segment(**_seg_kwargs(1, 500, acq, dat, pay), num_samples=17)
     comp = Composer([seg])
     x = comp.compose()
     assert len(x) == BURST_LEN + 500
     spec = json.loads(comp.to_json())
-    assert spec["segments"][0]["num_samples"] == BURST_LEN
+    assert "num_samples" not in spec["segments"][0]
+    assert len(Composer.from_json(comp.to_json()).compose()) == len(x)
 
 
 def test_three_faces_byte_identical(tmp_path):
@@ -172,7 +175,7 @@ def test_cli_bare_flags_match_kwargs(tmp_path):
             "".join(map(str, dat)),
             "--sync",
             "".join(map(str, SYNC)),
-            "--bits",
+            "--data",
             "".join(map(str, pay)),
             "--output",
             str(out),
@@ -311,7 +314,7 @@ def _burst(acq, dat, pay, stage=None):
 
     kw = _seg_kwargs(1, 0, acq, dat, pay)
     kw["snr"] = 99.0  # the stage is the only thing that may move a sample
-    kw["payload"] = np.asarray(d.bits()).tobytes()
+    kw["data"] = np.asarray(d.bits()).tobytes()
     del kw["sync"]
     kw["crc"] = "none"
     return np.asarray(Composer([Segment(**kw)]).compose())
@@ -379,7 +382,7 @@ def test_a_record_carries_the_stages_and_replays_them():
     }
     seg = _scene_json([_seg_kwargs(1, 0, acq, dat, pay)])["segments"][0]
     seg["snr"] = 99.0
-    del seg["sync"], seg["payload"]
+    del seg["sync"], seg["data"]
     seg["frame"] = frame
 
     c = Composer.from_json(json.dumps({**_scene_json([]), "segments": [seg]}))

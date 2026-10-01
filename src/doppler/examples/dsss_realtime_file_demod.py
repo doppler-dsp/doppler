@@ -162,7 +162,7 @@ def write_scene(path, *, snr_db=SNR_DB):
                 "acq_code": f"{_bitstr(_ACODE)}*{REPS}",
                 "data_code": _bitstr(_DCODE),
                 "sync": _bitstr(SYNC),
-                "payload": _bitstr(_PAYLOAD_BITS),
+                "data": _bitstr(_PAYLOAD_BITS),  # one burst's data, whole
                 "crc": "crc16",
                 # A dsss burst sizes itself (one burst = n_chips * sps), so
                 # num_samples is derived, not written here.

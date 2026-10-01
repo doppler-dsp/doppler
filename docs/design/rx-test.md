@@ -106,17 +106,17 @@ ______________________________________________________________________
 `wfm_synth_*` (`native/inc/doppler/wfm_synth/wfm_synth_core.h`) is the C generator.
 Nine waveform types:
 
-| type                | value | notes                                  |
-| ------------------- | ----- | -------------------------------------- |
-| `WFM_SYNTH_TONE`    | 0     | complex CW                             |
-| `WFM_SYNTH_NOISE`   | 1     | complex AWGN only                      |
-| `WFM_SYNTH_PN`      | 2     | BPSK-modulated PN chips                |
-| `WFM_SYNTH_BPSK`    | 3     | BPSK over PN-sourced data bits         |
-| `WFM_SYNTH_QPSK`    | 4     | Gray-coded QPSK over PN-sourced data   |
-| `WFM_SYNTH_CHIRP`   | 5     | linear FM, no symbols                  |
-| `WFM_SYNTH_BITS`    | 6     | user bit pattern, oversampled + cycled |
-| `WFM_SYNTH_SYMBOLS` | 7     | raw constellation points               |
-| `WFM_SYNTH_DSSS`    | 8     | two-code burst **or** continuous       |
+| type                | value | notes                                |
+| ------------------- | ----- | ------------------------------------ |
+| `WFM_SYNTH_TONE`    | 0     | complex CW                           |
+| `WFM_SYNTH_NOISE`   | 1     | complex AWGN only                    |
+| `WFM_SYNTH_PN`      | 2     | BPSK-modulated PN chips              |
+| `WFM_SYNTH_BPSK`    | 3     | BPSK over PN-sourced data bits       |
+| `WFM_SYNTH_QPSK`    | 4     | Gray-coded QPSK over PN-sourced data |
+| `WFM_SYNTH_CHIRP`   | 5     | linear FM, no symbols                |
+| `WFM_SYNTH_BITS`    | 6     | user bit pattern, oversampled, once  |
+| `WFM_SYNTH_SYMBOLS` | 7     | raw constellation points             |
+| `WFM_SYNTH_DSSS`    | 8     | two-code burst **or** continuous     |
 
 Attach functions: `dp_wfm_synth_set_bits`, `dp_wfm_synth_set_dsss_chips`,
 `dp_wfm_synth_set_dsss_cont`, `dp_wfm_synth_set_symbols`, `dp_wfm_synth_set_rrc`,
@@ -774,9 +774,10 @@ the sequence family differs — which is what makes the cross-correlation
 argument measurable via `runner_db` rather than asserted.
 
 A multi-frame record is still *not* here: it belongs to the accumulator
-(§2.5), not the descriptor. In practice the generator supplies it — a `bits`
-source **cycles** its pattern, so one frame description fills a record of any
-length and the repeat count never enters the struct.
+(§2.5), not the descriptor. In practice the generator supplies it — each
+frame carries the next chunk of the source's data, so one frame description
+fills a record as long as its data and the repeat count never enters the
+struct.
 
 **The named set stays in `native/tests/`, deliberately.** Goal 9 argues that
 anything reachable only from there is exercised by nobody but us, and that is

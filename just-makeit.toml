@@ -1391,29 +1391,6 @@ default = "per_instance"
 doc = "How long this source's Doppler channel lives. per_instance: the channel dies with each `repeats` instance, so the geometry restarts -- the repeated-trial shape, which composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position -- the only lifetime under which doppler_rate accumulates across a multi-burst scene. Plan.prepare() REFUSES a persist source, because its cache renders each source independently and concurrently; compose() and stream() honour both."
 
 [[module.wfm_compose.source.fields]]
-name = "bits"
-json = "payload"
-cli = "--bits"
-metavar = "FIELD"
-help_section = "BITS"
-type = "uint8_t*"
-bytes = true
-aliases = ["pattern", "payload"]
-coerce = "bit_pattern"
-# An object takes bits: a str is refused, naming field_bits() (owner,
-# 2026-09-30). The coercion stays because without it jm refuses arrays.
-coerce_str_fn = "dp_wfm_source_bits_refuse_text"
-# doppler#1683: ONE declaration; the CLI, a scene, the object, --help and
-# the schema all refuse the pair from the row it generates.
-exclusive = [{ with = "frame", why = "a frame description is the whole frame, and carries its payload as a field" }]
-# gh-762: the payload is a `wfm_seq_t` like its three siblings now, so it can
-# carry a GENERATED kind instead of only a literal array. The Python kwarg
-# and its aliases are unchanged -- only where the owned array lives moved.
-c_ptr = "payload.bits"
-c_len = "payload.len"
-doc = "The payload bits: a Field on the command line and in a scene, an array in Python. For type=bits, the pattern, oversampled by sps and cycled to fill the request; for type=dsss, the payload bits of the burst frame."
-
-[[module.wfm_compose.source.fields]]
 name = "modulation"
 json = "modulation"
 json_when = { type = "bits" }
@@ -1603,6 +1580,23 @@ doc = "A frame DESCRIPTION, the whole frame: fields in wire order, and stages th
 # so it is declared here, beside the field it excludes, rather than as a jm
 # field that would grow a Python kwarg. jm does not read inside `exclusive`,
 # so the row costs no jm diagnostic.
+#
+# RETIRED, not live (#1718): a tombstone that exists only to be REFUSED by
+# name. No cli and no json -- the CLI and a scene keep their own RETIRED
+# tables -- so it is no surface row; Python's bits= / payload= / pattern=
+# land here and dp_wfm_source_error() refuses them with one sentence,
+# dp_wfm_why_retired_bits, which create_why carries to Python.
+[[module.wfm_compose.source.fields]]
+name = "bits"
+type = "uint8_t*"
+bytes = true
+aliases = ["pattern", "payload"]
+coerce = "bit_pattern"
+coerce_str_fn = "dp_wfm_source_bits_refuse_text"
+c_ptr = "retired_bits.bits"
+c_len = "retired_bits.len"
+doc = "RETIRED (doppler#1718): nothing reads it but the refusal. A payload is drawn from a data source, so bits=, and its aliases payload= and pattern=, are refused naming data=; the CLI and a scene refuse --bits and \"payload\" the same way."
+
 [[module.wfm_compose.source.fields]]
 name = "data"
 json = "data"
@@ -1615,7 +1609,6 @@ coerce = "bit_pattern"
 coerce_str_fn = "dp_wfm_source_bits_refuse_text"
 exclusive = [
   { with = "data_from_file", why = "a payload has one data source", row = { member = "data_from_file", cli = "--data-from-file", json = "data_from_file", metavar = "PATH", help_section = "BITS" } },
-  { with = "bits", why = "the payload is one or the other: a data source drawn frame by frame, or one cycled pattern (bits is retired by #1718)" },
 ]
 c_ptr = "data.bits"
 c_len = "data.len"

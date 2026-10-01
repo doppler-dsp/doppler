@@ -36,7 +36,7 @@ dp_wfm_synth_state_t *dp_wfm_source_to_synth(const wfm_source_t *, double);
  * NULL (gh-1307). */
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *, double);
 
-/* Read a str as the bits of `bits`, `acq_code`, `data_code`, `sync`,
+/* Read a str as the bits of `acq_code`, `data_code`, `sync`, `bits`,
  * `data`, `fill` (coerce_str_fn, gh-1709): out NULL sizes; returns the bit
  * count, or 0 with *why set on a refusal. */
 size_t dp_wfm_source_bits_refuse_text(const char *, uint8_t *, size_t, const char **);

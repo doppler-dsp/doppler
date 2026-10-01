@@ -198,14 +198,13 @@ def test_the_generated_waveform_is_the_frames_own_bits():
     seg = Segment(
         type="bits",
         modulation="bpsk",
-        bits=PAYLOAD,
+        data=PAYLOAD,  # one frame: the data source, whole
         acq_code=ACQ,
         acq_reps=REPS,
         sync=SYNC,
         crc="crc16",
         sps=1,
         fs=1.0,
-        num_samples=f.nbits,
         snr=100.0,
     )
     y = np.asarray(Composer([seg]).compose()).real

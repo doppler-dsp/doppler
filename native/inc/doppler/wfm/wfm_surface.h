@@ -82,7 +82,6 @@ enum
   WFM_SURFACE_source_doppler_rate,
   WFM_SURFACE_source_carrier_hz,
   WFM_SURFACE_source_doppler_lifetime,
-  WFM_SURFACE_source_bits,
   WFM_SURFACE_source_modulation,
   WFM_SURFACE_source_pulse,
   WFM_SURFACE_source_rrc_beta,
@@ -277,14 +276,6 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .n_choices = (int)(sizeof DOPPLER_LIFETIME_NAMES / sizeof *DOPPLER_LIFETIME_NAMES),
     .json = "doppler_lifetime",
     .json_omit = 1,
-  },
-  [WFM_SURFACE_source_bits] = {
-    .name = "bits",
-    .cli = "--bits",
-    .owner = WFM_SURF_SOURCE,
-    .kind = WFM_SV_FIELD,
-    .off = offsetof (wfm_source_t, payload),
-    .json = "payload",
   },
   [WFM_SURFACE_source_modulation] = {
     .name = "modulation",
@@ -511,22 +502,9 @@ typedef struct
   const char *obj_why;
 } wfm_surface_exclusive_t;
 
-#define WFM_SURFACE_N_EXCLUSIVE 3
+#define WFM_SURFACE_N_EXCLUSIVE 1
 static const wfm_surface_exclusive_t
-    WFM_SURFACE_EXCLUSIVE[3] = {
-  {
-    .a = WFM_SURFACE_source_bits,
-    .b = WFM_SURFACE_source_frame,
-    .cli_why = "--bits and --frame cannot both be given: a frame "
-        "description is the whole frame, and carries its "
-        "payload as a field",
-    .json_why = "\"payload\" and \"frame\" cannot both be given: a frame "
-        "description is the whole frame, and carries its "
-        "payload as a field",
-    .obj_why = "a source's payload and frame cannot both be set: a "
-        "frame description is the whole frame, and carries its "
-        "payload as a field",
-  },
+    WFM_SURFACE_EXCLUSIVE[1] = {
   {
     .a = WFM_SURFACE_source_data,
     .b = WFM_SURFACE_source_data_from_file,
@@ -536,21 +514,6 @@ static const wfm_surface_exclusive_t
         "payload has one data source",
     .obj_why = "a source's data and data_from_file cannot both be set:"
         " a payload has one data source",
-  },
-  {
-    .a = WFM_SURFACE_source_data,
-    .b = WFM_SURFACE_source_bits,
-    .cli_why = "--data and --bits cannot both be given: the payload is"
-        " one or the other: a data source drawn frame by frame,"
-        " or one cycled pattern (bits is retired by #1718)",
-    .json_why = "\"data\" and \"payload\" cannot both be given: the payload"
-        " is one or the other: a data source drawn frame by "
-        "frame, or one cycled pattern (bits is retired by "
-        "#1718)",
-    .obj_why = "a source's data and payload cannot both be set: the "
-        "payload is one or the other: a data source drawn frame"
-        " by frame, or one cycled pattern (bits is retired by "
-        "#1718)",
   },
 };
 
@@ -645,8 +608,6 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  per_instance | persist. (default per_instance)\n"
 
 #define WFM_SURFACE_HELP_BITS \
-  "  --bits FIELD    The payload bits: a Field on the command line and in a scene,\n" \
-  "                  an array in Python. Not with --frame, --data.\n" \
   "  --modulation M  Symbol mapping of a bits pattern. One of: none | bpsk | qpsk.\n" \
   "                  (default bpsk)\n" \
   "  --data-from-file PATH\n" \
@@ -654,7 +615,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  or `-` for stdin, instead of data. Not with --data.\n" \
   "  --data FIELD    A frame's payload drawn from a data source: a Field on the\n" \
   "                  command line and in a scene, a bit array in Python. Not with\n" \
-  "                  --data-from-file, --bits.\n" \
+  "                  --data-from-file.\n" \
   "  --data-len BITS Bits of the data source per frame: the data:LEN of the common\n" \
   "                  frame [preamble x reps | sync | data:LEN | crc]. (default 0)\n" \
   "  --fill FIELD    The bits that pad a data source's last frame when it does not\n" \
@@ -704,8 +665,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
 #define WFM_SURFACE_HELP_CODED \
   "  --frame FILE    A frame DESCRIPTION, the whole frame: fields in wire order,\n" \
   "                  and stages that each name the span they cover (crc16, rs,\n" \
-  "                  randomise, interleave, conv, or a kind of your own). Not with\n" \
-  "                  --bits.\n"
+  "                  randomise, interleave, conv, or a kind of your own).\n"
 
 /* The keys each object of a scene takes, generated from the schema's
    `properties` (docs/schema/wfmgen.schema.json). The reader refuses any

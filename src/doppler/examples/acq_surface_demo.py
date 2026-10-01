@@ -61,9 +61,14 @@ CODE = Gold().generate(SF)
 def make_signal(n_samples: int) -> np.ndarray:
     """One emitter: the continuous-DSSS synth at DOPPLER_HZ, in AWGN at
     CN0_DBHZ, arriving PHASE_CHIPS chips into its code -- the phase is
-    the discarded prefix, exactly how the C harnesses place an emitter."""
-    payload = np.random.default_rng(SEED).integers(0, 2, 4096, np.uint8)
+    the discarded prefix, exactly how the C harnesses place an emitter.
+
+    The data is sent once and sets the run (one bit per data symbol), so
+    it is sized to cover the prefix plus ``n_samples`` and the tail of
+    its last symbol is cut off."""
     prefix = round(PHASE_CHIPS * SPC)
+    n_bits = int(np.ceil((n_samples + prefix) * SYM_RATE / FS)) + 1
+    payload = np.random.default_rng(SEED).integers(0, 2, n_bits, np.uint8)
     seg = Segment(
         type="dsss",
         fs=FS,
@@ -75,9 +80,8 @@ def make_signal(n_samples: int) -> np.ndarray:
         data_code=bytes(CODE.tolist()),
         symbol_rate=SYM_RATE,
         data=payload,
-        num_samples=n_samples + prefix,
     )
-    return Composer([seg]).compose()[prefix:]
+    return Composer([seg]).compose()[prefix : prefix + n_samples]
 
 
 # --8<-- [end:setup]

@@ -653,9 +653,14 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
        * (n_bits payload * data_code.len + a spurious CRC), which would pass
        * the `if (nchips)` guard and silently overwrite the user's num_samples.
        */
+      /* A burst over a DATA SOURCE is one burst per frame of it, and the
+         rule below sets that run -- a stream's included, whose length is
+         where its input ends, not one burst. */
       if (s->segs[i].n_sources == 1
           && s->segs[i].sources[0].type == WFM_SYNTH_DSSS
-          && s->segs[i].sources[0].symbol_rate <= 0.0)
+          && s->segs[i].sources[0].symbol_rate <= 0.0
+          && !s->segs[i].sources[0].data.len
+          && !s->segs[i].sources[0].data_from_file)
         {
           const wfm_source_t *d = &s->segs[i].sources[0];
           /* Through the source's own description, so a coding stage that

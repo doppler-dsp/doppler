@@ -294,7 +294,7 @@
         "data": {
           "type": "string",
           "minLength": 1,
-          "description": "A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, and bpsk/qpsk/pn framed; not with data_from_file."
+          "description": "A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, bpsk/qpsk/pn framed, and a dsss burst (one burst per frame); not with data_from_file."
         },
         "pulse": {
           "type": "string",

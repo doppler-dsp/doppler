@@ -84,7 +84,9 @@ A **data source** fills a frame's payload a chunk at a time: `--data-len`
 bits per frame, each frame carrying the **next** chunk with its own CRC,
 until the source ends. This is how a message, a file or a pipe is sent as a
 sequence of frames rather than as one pattern cycled. It works on the framed
-types (`bits`, `bpsk`, `qpsk`, `pn`); a DSSS payload is still `--bits`
+types (`bits`, `bpsk`, `qpsk`, `pn`) and on a DSSS burst, where each burst
+is the preamble then the next chunk's frame, spread. A continuous DSSS
+payload is still `--bits`
 ([#1719](https://github.com/doppler-dsp/doppler/issues/1719)).
 
 | flag (scene key)                             | what it is                                                                           |
@@ -119,6 +121,10 @@ printf '\001\043\105\147\211\253' \
   | wfmgen --type bpsk --data-from-file - --data-len 16 --fill 0 --sps 4 \
            -o stdin.cf32
 cmp frames.cf32 file.cf32 && cmp frames.cf32 stdin.cf32
+
+# A DSSS burst per frame: the same three chunks, three bursts.
+wfmgen --type dsss --acq-code 0x9 --data-code 0xd --data 0x0123456789AB \
+       --data-len 16 --sps 1 -o bursts.cf32
 ```
 
 From Python, `data=` takes the bits -- a file's bytes become bits through

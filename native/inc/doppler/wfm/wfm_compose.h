@@ -394,8 +394,9 @@ typedef struct {
                           Field on the command line and in a scene, a bit
                           array in Python. The source is split into
                           data_len-bit frames, one chunk per frame, and its
-                          last chunk is padded from fill. For type=bits, and
-                          bpsk/qpsk/pn framed; not with data_from_file. */
+                          last chunk is padded from fill. For type=bits,
+                          bpsk/qpsk/pn framed, and a dsss burst (one burst
+                          per frame); not with data_from_file. */
     size_t data_len;   /* Bits of the data source per frame: the data:LEN
                           of the common frame [preamble x reps | sync |
                           data:LEN | crc]. 0 takes a finite source whole, as

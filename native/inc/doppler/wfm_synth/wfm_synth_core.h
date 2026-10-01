@@ -140,7 +140,8 @@ wfm_synth_mls_poly(uint32_t n)
  * Allocate with dp_wfm_synth_create().
  */
 /**
- * @brief Where a BITS synth's next frame comes from, in place of the cycle.
+ * @brief Where a BITS synth's next frame (or a dsss burst's next burst)
+ *        comes from, in place of the cycle.
  *
  * Called when the synth has read the last of its `n` bits: write the next
  * frame's `n` bits into @p bits and return 0, or return non-zero when the
@@ -548,17 +549,24 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
  * latches it (dp_wfm_synth_data_ended()) and emits zero -- silence -- from
  * then on. A later dp_wfm_synth_set_bits() detaches the refill.
  *
+ * A dsss BURST plays its chips through the same cursor, so it takes a refill
+ * too: the pattern is the burst dp_wfm_synth_set_dsss_chips() installed, and
+ * @p fn writes the next burst's chips (doppler#1719). A later
+ * dp_wfm_synth_set_dsss_chips() detaches it.
+ *
  * A synth with a refill attached REFUSES serialization --
  * dp_wfm_synth_state_bytes() returns 0 and dp_wfm_synth_set_state() is
  * DP_ERR_INVALID -- because the pulled frame and the source's position are
  * state it cannot yet carry (doppler#1681).
  *
- * @param state      a type=bits synth with a pattern set.
+ * @param state      a type=bits synth with a pattern set, or a type=dsss
+ *                   burst with its chips set.
  * @param fn         the frame source; NULL detaches.
  * @param user       passed to @p fn; owned by the synth when @p free_user
  *                   is given, which it calls on detach or destroy.
  * @param free_user  frees @p user, or NULL.
- * @return 0, or -1 if the synth is not type=bits or has no pattern.
+ * @return 0, or -1 if the synth is neither type=bits nor a dsss burst, or
+ *         has no pattern.
  *
  * @code
  * #include "doppler/wfm_synth/wfm_synth_core.h"

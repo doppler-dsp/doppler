@@ -197,8 +197,8 @@ class Synth:
         A frame's payload drawn from a data source: a Field on the command line
         and in a scene, a bit array in Python. The source is split into
         data_len-bit frames, one chunk per frame, and its last chunk is padded
-        from fill. For type=bits, and bpsk/qpsk/pn framed; not with
-        data_from_file.
+        from fill. For type=bits, bpsk/qpsk/pn framed, and a dsss burst (one
+        burst per frame); not with data_from_file.
     data_len : int, default 0
         Bits of the data source per frame: the data:LEN of the common frame
         [preamble x reps | sync | data:LEN | crc]. 0 takes a finite source
@@ -533,8 +533,8 @@ class Segment:
         A frame's payload drawn from a data source: a Field on the command line
         and in a scene, a bit array in Python. The source is split into
         data_len-bit frames, one chunk per frame, and its last chunk is padded
-        from fill. For type=bits, and bpsk/qpsk/pn framed; not with
-        data_from_file.
+        from fill. For type=bits, bpsk/qpsk/pn framed, and a dsss burst (one
+        burst per frame); not with data_from_file.
     data_len : int, default 0
         Bits of the data source per frame: the data:LEN of the common frame
         [preamble x reps | sync | data:LEN | crc]. 0 takes a finite source

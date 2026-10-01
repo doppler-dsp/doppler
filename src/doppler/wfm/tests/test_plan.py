@@ -641,3 +641,30 @@ def test_a_finite_data_source_plans_like_compose() -> None:
     assert ref.size == 3 * (16 + 16) * 4  # 3 frames, derived
     np.testing.assert_array_equal(plan.at(6.0, plan.anchor_seed), ref)
     np.testing.assert_array_equal(plan.at(6.0), plan.at(6.0, plan.anchor_seed))
+
+
+def test_a_continuous_dsss_data_source_plans_like_compose() -> None:
+    """Continuous dsss over a finite data source: Plan derives the same
+    run and renders the compose byte for byte (doppler#1719)."""
+    code = np.array([1, 1, 0, 1, 0], np.uint8)
+    bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 3, np.uint8)
+
+    def scene(snr: float) -> Composer:
+        return Composer(
+            [
+                Segment(
+                    type="dsss",
+                    fs=1e6,
+                    sps=2,
+                    snr=snr,
+                    seed=5,
+                    data_code=code,
+                    symbol_rate=1e6 / 2 / 3.7,
+                    data=bits,
+                )
+            ]
+        )
+
+    plan = prepare(scene(12.0))
+    ref = scene(6.0).compose()
+    np.testing.assert_array_equal(plan.at(6.0, plan.anchor_seed), ref)

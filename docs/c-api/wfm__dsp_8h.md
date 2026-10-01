@@ -55,6 +55,7 @@ _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detail
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**dp\_wfm\_cont\_dsss\_chips**](#function-dp_wfm_cont_dsss_chips) (const uint8\_t \* code, size\_t code\_len, const uint8\_t \* data, size\_t n\_data, double chips\_per\_symbol, size\_t n\_chips, uint8\_t \* out) <br>_Build a CONTINUOUS, ASYNCHRONOUS DSSS chip pattern._  |
+|  uint64\_t | [**dp\_wfm\_dsss\_cont\_edge**](#function-dp_wfm_dsss_cont_edge) (uint64\_t k, double chips\_per\_symbol) <br>_The first chip of data symbol_ `k` _on a continuous DSSS stream: the ONE symbol clock._ |
 |  void | [**dp\_wfm\_dsss\_spread**](#function-dp_wfm_dsss_spread) (const float \_Complex \* syms, size\_t n\_sym, const uint8\_t \* code, size\_t sf, float \_Complex \* out) <br>_Spread_ `n_sym` _complex data symbols by a binary PN code._ |
 |  void | [**dp\_wfm\_polyphase\_bank**](#function-dp_wfm_polyphase_bank) (const float \* proto, size\_t proto\_len, size\_t num\_phases, size\_t num\_taps, float \* bank) <br>_Deal an arbitrary FIR prototype into a polyphase interpolation bank._  |
 |  void | [**dp\_wfm\_rrc\_polyphase\_bank**](#function-dp_wfm_rrc_polyphase_bank) (double beta, int sps, int span, float \* bank) <br>_Decompose the RRC pulse shape into a polyphase interpolation bank._  |
@@ -144,7 +145,7 @@ The continuous counterpart to `dp_wfm_dsss_desc_chips`. Two differences, both re
 
 
 
-Chip `i` carries `code[i % code_len] ^ data[floor(i / chips_per_symbol)]`, so both clocks advance independently off the same chip index. Because the symbol index is a floor of a fractional quotient, consecutive symbols legitimately span different numbers of chips (1136 or 1137 at SPEC.md's 3.069 Mcps / 2700 bps) — that jitter IS the asynchronicity, not an artifact.
+Chip `i` carries `code[i % code_len] ^ data[floor(i / chips_per_symbol)]`, so both clocks advance independently off the same chip index; the symbol edges are `dp_wfm_dsss_cont_edge`'s, the one symbol clock. Because the symbol index is a floor of a fractional quotient, consecutive symbols legitimately span different numbers of chips (1136 or 1137 at SPEC.md's 3.069 Mcps / 2700 bps) — that jitter IS the asynchronicity, not an artifact.
 
 
 Materialising the pattern up front, exactly as the burst builder does, is what lets the synth's existing cyclic chip latch play it back unchanged: no new per-sample branch, no new running state, no serialization change.
@@ -171,6 +172,63 @@ Chips written (== `n_chips`), or 0 on invalid geometry.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_dsss\_cont\_edge 
+
+_The first chip of data symbol_ `k` _on a continuous DSSS stream: the ONE symbol clock._
+```C++
+uint64_t dp_wfm_dsss_cont_edge (
+    uint64_t k,
+    double chips_per_symbol
+) 
+```
+
+
+
+Chip `n` belongs to data symbol `floor(n / chips_per_symbol)`, so symbol `k` opens at the smallest `n` whose quotient reaches `k`. Every place that needs the clock asks this function  the synth's per-chip kernel (`wfm_synth_cont_dsss_chip`) for each symbol edge, the run length of a data source (`dp_wfm_source_data_samples`) for the edge after the last symbol, and `dp_wfm_cont_dsss_chips`  so a waveform and its length cannot disagree about where a symbol starts.
+
+
+**Exact under -ffast-math, by construction.** The quotient is an IEEE division, never a multiply by the reciprocal: this tree builds with `-ffast-math`, whose reciprocal rewrite of a division by an invariant moved a symbol edge by a chip (at 6138000 / 2 / 2700 chips a symbol, symbol 51 opens on chip 57970; the reciprocal said 57971). The function turns that rewrite off for itself and is out of line, so no caller's loop can reshape it (doppler#1725).
+
+
+
+
+**Parameters:**
+
+
+* `k` data-symbol index. 
+* `chips_per_symbol` chips per data symbol (&gt;= 1; non-integer is the asynchronous case). 
+
+
+
+**Returns:**
+
+the first chip of symbol `k`; 0 for symbol 0.
+
+
+
+```C++
+#include <doppler/wfm/wfm_dsp.h>
+
+int
+main (void)
+{
+  const double cps = (6138000.0 / 2.0) / 2700.0; // 1136.67 chips/symbol
+  // symbol 1 opens on chip 1137 = ceil(1136.67); symbol 51 on 57970,
+  // where ceil(51 * cps) = 57971 is a chip late in floating point
+  return dp_wfm_dsss_cont_edge (0, cps) != 0
+         || dp_wfm_dsss_cont_edge (1, cps) != 1137
+         || dp_wfm_dsss_cont_edge (51, cps) != 57970;
+}
+```
+ 
 
 
         

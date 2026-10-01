@@ -129,7 +129,7 @@ A frame declares how many bits its payload carries, `data:LEN`, and a data sourc
 A file and a pipe carry **packed** octets, unpacked MSB first by `dp_bytes_to_bin`. `LEN` need not be a multiple of 8: an octet can straddle two frames, and the source keeps the leftover bits for the next.
 
 
-**Every refusal that can be decided before the first sample is decided at create** (§4.4): a finite source whose length is not a multiple of `LEN` needs a fill, a pipe always needs one (its length is unknowable up front), and an empty finite source is refused. The last frame of a finite source is padded with the fill, tiled from its first bit.
+**Every refusal that can be decided before the first sample is decided at create** (§4.4): a finite source whose length is not a multiple of `LEN` needs a fill, a pipe needs one (its length is unknowable up front) unless `LEN` is 1, and an empty finite source is refused. A one-bit frame has no remainder to pad, and an idle frame with no fill is an error that ends the run, so a one-bit pipe  continuous DSSS reads one bit per data symbol  is complete without one, as long as nothing paces it. The last frame of a finite source is padded with the fill, tiled from its first bit.
 
 
 **Each chunk has one of three outcomes** (§4.5): a frame of data, nothing yet, or the end. _Nothing yet_ happens only when a caller asks with a timeout and a pipe has not delivered; the bits already read are kept for the next frame, and it is the paced caller that decides to send an idle frame instead, all fill (§4.1). An unpaced caller asks with no timeout and waits, as `cat` does.
@@ -233,7 +233,7 @@ Exactly one of `data` and `path` is given: `--data` and `--data-from-file` are o
 
 **Returns:**
 
-the source, or NULL: text outside the grammar, a file that cannot be opened, an empty finite source, a finite source that does not divide into `LEN`-bit frames with no fill, or a pipe with no fill.
+the source, or NULL: text outside the grammar, a file that cannot be opened, an empty finite source, a finite source that does not divide into `LEN`-bit frames with no fill, or a pipe with no fill and a `LEN` above 1.
 
 
 

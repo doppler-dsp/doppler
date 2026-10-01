@@ -81,6 +81,8 @@ void dp_wfm_rrc_polyphase_bank(double beta, int sps, int span, float *bank);
 void dp_wfm_dsss_spread(const float _Complex *syms, size_t n_sym,
                      const uint8_t *code, size_t sf, float _Complex *out);
 
+uint64_t dp_wfm_dsss_cont_edge(uint64_t k, double chips_per_symbol);
+
 static inline size_t
 wfm_cont_dsss_nchips(size_t n_chips)
 {

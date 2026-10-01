@@ -152,11 +152,11 @@ struct wfm_compose_state
   size_t                      *pch_off; /* first slot of segment i */
   size_t                       pch_n;   /* total slots */
   /* Data sources (#1619): how a paced run pulls (WFM_DATA_PACED under
-     --realtime: nothing yet is an idle frame), and per live source the
-     samples per frame of a STREAM, 0 for anything else -- what the early
-     end at a frame boundary is measured in. Parallel to rend/gain. */
+     --realtime: nothing yet is an idle frame), and per live source whether
+     it is a STREAM -- the sources the early end at a frame boundary is
+     measured on. Parallel to rend/gain. */
   wfm_data_pacing_t pacing;
-  size_t           *stream_spf;
+  unsigned char    *stream;
 };
 
 /* Destroy the active segment's renderers (the rend[] array stays allocated).
@@ -484,9 +484,7 @@ start_segment (dp_wfm_compose_state_t *s)
         {
           s->n_syn = k + 1; /* track for stop_synths on partial failure */
           dp_wfm_synth_set_data_pacing (s->rend[k]->syn, s->pacing);
-          s->stream_spf[k] = dp_wfm_source_data_is_stream (src)
-                                 ? dp_wfm_source_data_frame_samples (src)
-                                 : 0;
+          s->stream[k] = (unsigned char)dp_wfm_source_data_is_stream (src);
         }
     }
   if (ok)
@@ -690,8 +688,8 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
           const wfm_source_t *d = &s->segs[i].sources[k];
           if (dp_wfm_source_data_is_stream (d))
             stream = 1;
-          const size_t n = (size_t)dp_wfm_source_data_frames (d)
-                           * dp_wfm_source_data_frame_samples (d);
+          const size_t n = (size_t)dp_wfm_source_data_samples (
+              d, s->segs[i].fs, dp_wfm_source_data_frames (d));
           if (n > finite)
             finite = n;
         }
@@ -719,10 +717,10 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
   for (size_t i = 0; i < n_segs; i++)
     if (s->segs[i].n_sources > max_src)
       max_src = s->segs[i].n_sources;
-  s->rend       = calloc (max_src, sizeof (*s->rend));
-  s->gain       = malloc (max_src * sizeof (*s->gain));
-  s->stream_spf = dp_xcalloc (max_src, sizeof (*s->stream_spf));
-  s->scratch    = malloc (SCRATCH_CAP * sizeof (*s->scratch));
+  s->rend    = calloc (max_src, sizeof (*s->rend));
+  s->gain    = malloc (max_src * sizeof (*s->gain));
+  s->stream  = dp_xcalloc (max_src, sizeof (*s->stream));
+  s->scratch = malloc (SCRATCH_CAP * sizeof (*s->scratch));
   /* PERSIST slots, allocated only when a source actually asks for one: a
      scene with no persisting Doppler carries no extra state at all. The
      offsets are a prefix sum over segments, so slot (seg, k) is one add. */
@@ -749,7 +747,7 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
       free (s->segs);
       free (s->rend);
       free (s->gain);
-      free (s->stream_spf);
+      free (s->stream);
       free (s->scratch);
       free (s->pch);
       free (s->pch_off);
@@ -816,14 +814,16 @@ stream_keep (const dp_wfm_compose_state_t *s, size_t k)
   int      any = 0;
   for (size_t sx = 0; sx < s->n_syn; sx++)
     {
-      if (!s->stream_spf[sx])
+      if (!s->stream[sx])
         continue;
       const dp_wfm_synth_state_t *syn = s->rend[sx]->syn;
       if (!dp_wfm_synth_data_ended (syn))
         return k;
       wfm_data_stats_t st;
       dp_wfm_data_stats (dp_wfm_synth_data_source (syn), &st);
-      const uint64_t b = (st.frames + st.idle_frames) * s->stream_spf[sx];
+      const wfm_segment_t *g = &s->segs[s->cur];
+      const uint64_t       b = dp_wfm_source_data_samples (
+          &g->sources[sx], g->fs, st.frames + st.idle_frames);
       if (b > end)
         end = b;
       any = 1;
@@ -977,7 +977,7 @@ dp_wfm_compose_destroy (dp_wfm_compose_state_t *state)
       free (state->segs);
       free (state->rend);
       free (state->gain);
-      free (state->stream_spf);
+      free (state->stream);
       free (state->scratch);
       free (state->pch);
       free (state->pch_off);

@@ -395,19 +395,23 @@ typedef struct {
                           array in Python. The source is split into
                           data_len-bit frames, one chunk per frame, and its
                           last chunk is padded from fill. For type=bits,
-                          bpsk/qpsk/pn framed, and a dsss burst (one burst
-                          per frame); not with data_from_file. */
+                          bpsk/qpsk/pn framed, a dsss burst (one burst per
+                          frame), and continuous dsss (one bit per data
+                          symbol, no frame); not with data_from_file. */
     size_t data_len;   /* Bits of the data source per frame: the data:LEN
                           of the common frame [preamble x reps | sync |
                           data:LEN | crc]. 0 takes a finite source whole, as
                           one frame. A carried frame names its own data
-                          field, and this is then 0 or that field's LEN. */
+                          field, and this is then 0 or that field's LEN.
+                          Continuous dsss has no frame, and refuses it. */
     wfm_seq_t fill;    /* The bits that pad a data source's last frame when
                           it does not divide into data_len-bit frames, tiled
-                          from their first bit; stdin always needs them.
-                          Without them such a source is refused before the
-                          first sample. A Field on the command line and in a
-                          scene, a bit array in Python. */
+                          from their first bit; stdin on a framed source
+                          always needs them. Without them such a source is
+                          refused before the first sample. A Field on the
+                          command line and in a scene, a bit array in
+                          Python. Continuous dsss has no frame to pad, and
+                          refuses it. */
     const char *data_from_file; /* A data source read from a file of packed
                           octets, MSB first, or `-` for stdin, instead of
                           data. Not on the Python face: there a file is
@@ -899,17 +903,31 @@ const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
 int dp_wfm_source_data_is_stream(const wfm_source_t *src);
 
 /**
- * @brief Samples one frame of a source's data occupies; 0 with no data.
+ * @brief Samples the first @p frames frames of a source's data occupy; 0
+ *        with no data.
  *
- * The frame's output bits, at its mapping's bits per symbol (rounded up),
- * times `sps`: what the synth emits per frame, and the unit a run with a
- * data source is measured in.
+ * The one length a run with a data source is measured in: a finite run is
+ * this over dp_wfm_source_data_frames(), and a stream ends at this over the
+ * frames it sent.
+ *
+ * - **A frame** (bits, bpsk/qpsk/pn): its output bits at the mapping's bits
+ *   per symbol (rounded up), times `sps`, per frame.
+ * - **A dsss burst**: its chips times `sps` (samples per chip), per burst.
+ * - **Continuous dsss** has no frame: a "frame" is one data bit, one per
+ *   data symbol, and the run is every chip of the first @p frames symbols
+ *   at `fs / sps / symbol_rate` chips per symbol -- not a whole number, so
+ *   not a product -- times `sps`.
+ *
+ * @param src     the source.
+ * @param fs      the segment's sample rate (only continuous dsss reads it).
+ * @param frames  frames (data bits, for continuous dsss) sent.
  */
-size_t dp_wfm_source_data_frame_samples(const wfm_source_t *src);
+uint64_t dp_wfm_source_data_samples(const wfm_source_t *src, double fs,
+                                    uint64_t frames);
 
 /**
  * @brief Frames a FINITE data source makes, `ceil(bits / LEN)`; 0 for a
- *        stream or none.
+ *        stream or none. On continuous dsss, which has no frame, its bits.
  *
  * Known before the first sample (a file's length from fstat), which is
  * what lets a finite run's length be derived rather than given (§4.6).
@@ -923,7 +941,7 @@ size_t dp_wfm_source_data_frame_samples(const wfm_source_t *src);
  * src.fill      = (wfm_seq_t){ .kind = WFM_SEQ_DOTTED, .len = 2 };
  * if (dp_wfm_source_data_frames (&src) != 3) // 40 bits in 16-bit frames
  *   return 1;
- * if (dp_wfm_source_data_frame_samples (&src) != 16 * 4) // bpsk, sps 4
+ * if (dp_wfm_source_data_samples (&src, 1e6, 3) != 3 * 16 * 4) // bpsk
  *   return 1;
  * @endcode
  */

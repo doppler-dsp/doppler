@@ -85,9 +85,12 @@ bits per frame, each frame carrying the **next** chunk with its own CRC,
 until the source ends. This is how a message, a file or a pipe is sent as a
 sequence of frames rather than as one pattern cycled. It works on the framed
 types (`bits`, `bpsk`, `qpsk`, `pn`) and on a DSSS burst, where each burst
-is the preamble then the next chunk's frame, spread. A continuous DSSS
-payload is still `--bits`
-([#1719](https://github.com/doppler-dsp/doppler/issues/1719)).
+is the preamble then the next chunk's frame, spread. **Continuous DSSS** has
+no frame: each data symbol carries the next bit, so `--data-len` and
+`--fill` do not apply and are refused, a finite source ends the run with its
+last data symbol, and `--realtime` over stdin is refused (there is no idle
+frame to send while the pipe pauses). With no data source it sends its
+seeded PRBS, as it always has.
 
 | flag (scene key)                             | what it is                                                                           |
 | -------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -125,6 +128,10 @@ cmp frames.cf32 file.cf32 && cmp frames.cf32 stdin.cf32
 # A DSSS burst per frame: the same three chunks, three bursts.
 wfmgen --type dsss --acq-code 0x9 --data-code 0xd --data 0x0123456789AB \
        --data-len 16 --sps 1 -o bursts.cf32
+
+# Continuous DSSS: the same 48 bits, one per data symbol, then the run ends.
+wfmgen --type dsss --data-code 0x1d --symbol-rate 2700 --sps 2 \
+       --fs 6138000 --data 0x0123456789AB -o cont.cf32
 ```
 
 From Python, `data=` takes the bits -- a file's bytes become bits through

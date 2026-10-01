@@ -61,6 +61,7 @@
 |  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
 |  size\_t | [**n\_code**](#variable-n_code)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
+|  uint64\_t | [**next\_edge**](#variable-next_edge)  <br> |
 |  int | [**nsps**](#variable-nsps)  <br> |
 |  [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* | [**pn**](#variable-pn)  <br> |
 |  uint8\_t | [**primed**](#variable-primed)  <br> |
@@ -438,6 +439,19 @@ size_t dp_wfm_synth_state_t::n_code;
 
 ```C++
 size_t dp_wfm_synth_state_t::n_symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable next\_edge 
+
+```C++
+uint64_t dp_wfm_synth_state_t::next_edge;
 ```
 
 

@@ -623,6 +623,7 @@
 * **nstate** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
 * **n\_bits** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **n\_code** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **next\_edge** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **nsps** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **n\_inband\_bins** ([**npr\_meas\_t**](structnpr__meas__t.md))
 * **n\_notch\_bins** ([**npr\_meas\_t**](structnpr__meas__t.md))

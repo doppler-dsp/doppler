@@ -112,9 +112,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for a source's bit field: an object takes bits._  |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
-|  size\_t | [**dp\_wfm\_source\_data\_frame\_samples**](#function-dp_wfm_source_data_frame_samples) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Samples one frame of a source's data occupies; 0 with no data._  |
-|  uint64\_t | [**dp\_wfm\_source\_data\_frames**](#function-dp_wfm_source_data_frames) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none._ |
+|  uint64\_t | [**dp\_wfm\_source\_data\_frames**](#function-dp_wfm_source_data_frames) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none. On continuous dsss, which has no frame, its bits._ |
 |  int | [**dp\_wfm\_source\_data\_is\_stream**](#function-dp_wfm_source_data_is_stream) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Whether a source's data is a stream:_ `data_from_file` _is_`-` _._ |
+|  uint64\_t | [**dp\_wfm\_source\_data\_samples**](#function-dp_wfm_source_data_samples) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint64\_t frames) <br>_Samples the first_ `frames` _frames of a source's data occupy; 0 with no data._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
@@ -1575,29 +1575,9 @@ The SNR in dB for create.
 
 
 
-### function dp\_wfm\_source\_data\_frame\_samples 
-
-_Samples one frame of a source's data occupies; 0 with no data._ 
-```C++
-size_t dp_wfm_source_data_frame_samples (
-    const wfm_source_t * src
-) 
-```
-
-
-
-The frame's output bits, at its mapping's bits per symbol (rounded up), times `sps`: what the synth emits per frame, and the unit a run with a data source is measured in. 
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_wfm\_source\_data\_frames 
 
-_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none._
+_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none. On continuous dsss, which has no frame, its bits._
 ```C++
 uint64_t dp_wfm_source_data_frames (
     const wfm_source_t * src
@@ -1619,7 +1599,7 @@ src.data_len  = 16;
 src.fill      = (wfm_seq_t){ .kind = WFM_SEQ_DOTTED, .len = 2 };
 if (dp_wfm_source_data_frames (&src) != 3) // 40 bits in 16-bit frames
   return 1;
-if (dp_wfm_source_data_frame_samples (&src) != 16 * 4) // bpsk, sps 4
+if (dp_wfm_source_data_samples (&src, 1e6, 3) != 3 * 16 * 4) // bpsk
   return 1;
 ```
  
@@ -1643,6 +1623,48 @@ int dp_wfm_source_data_is_stream (
 
 
 A stream has no length up front and no end to repeat, so a scene refuses it with `repeat`, `continuous` or `repeats > 1`, Plan refuses it, and a segment carrying one runs until it ends ([**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error)). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_samples 
+
+_Samples the first_ `frames` _frames of a source's data occupy; 0 with no data._
+```C++
+uint64_t dp_wfm_source_data_samples (
+    const wfm_source_t * src,
+    double fs,
+    uint64_t frames
+) 
+```
+
+
+
+The one length a run with a data source is measured in: a finite run is this over [**dp\_wfm\_source\_data\_frames()**](wfm__compose_8h.md#function-dp_wfm_source_data_frames), and a stream ends at this over the frames it sent.
+
+
+
+* **A frame** (bits, bpsk/qpsk/pn): its output bits at the mapping's bits per symbol (rounded up), times `sps`, per frame.
+* **A dsss burst**: its chips times `sps` (samples per chip), per burst.
+* **Continuous dsss** has no frame: a "frame" is one data bit, one per data symbol, and the run is every chip of the first `frames` symbols at `fs / sps / symbol_rate` chips per symbol  not a whole number, so not a product  times `sps`.
+
+
+
+
+
+
+**Parameters:**
+
+
+* `src` the source. 
+* `fs` the segment's sample rate (only continuous dsss reads it). 
+* `frames` frames (data bits, for continuous dsss) sent. 
+
+
 
 
         

@@ -24,8 +24,11 @@
  *
  * **Every refusal that can be decided before the first sample is decided at
  * create** (§4.4): a finite source whose length is not a multiple of `LEN`
- * needs a fill, a pipe always needs one (its length is unknowable up front),
- * and an empty finite source is refused. The last frame of a finite source
+ * needs a fill, a pipe needs one (its length is unknowable up front) unless
+ * `LEN` is 1, and an empty finite source is refused. A one-bit frame has no
+ * remainder to pad, and an idle frame with no fill is an error that ends
+ * the run, so a one-bit pipe -- continuous DSSS reads one bit per data
+ * symbol -- is complete without one, as long as nothing paces it. The last frame of a finite source
  * is padded with the fill, tiled from its first bit.
  *
  * **Each chunk has one of three outcomes** (§4.5): a frame of data, nothing
@@ -108,7 +111,7 @@ extern "C"
    * @return the source, or NULL: text outside the grammar, a file that
    *         cannot be opened, an empty finite source, a finite source that
    *         does not divide into `LEN`-bit frames with no fill, or a pipe
-   *         with no fill.
+   *         with no fill and a `LEN` above 1.
    *
    * @code
    * const char     *why;

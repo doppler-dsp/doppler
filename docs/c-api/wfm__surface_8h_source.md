@@ -669,7 +669,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  frame [preamble x reps | sync | data:LEN | crc]. (default 0)\n" \
   "  --fill FIELD    The bits that pad a data source's last frame when it does not\n" \
   "                  divide into data_len-bit frames, tiled from their first bit;\n" \
-  "                  stdin always needs them.\n"
+  "                  stdin on a framed source always needs them.\n"
 
 #define WFM_SURFACE_HELP_PULSE \
   "  --pulse SHAPE   Pulse shape per symbol or chip, for\n" \

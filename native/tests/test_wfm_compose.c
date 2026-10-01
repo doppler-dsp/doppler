@@ -1215,7 +1215,7 @@ test_a_dsss_burst_draws_a_chunk_per_burst (void)
   src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 48 };
   DP_REQUIRE_MSG (dp_wfm_source_error (&src) == NULL,
                   "a data source on a dsss burst is a source");
-  DP_REQUIRE_MSG (dp_wfm_source_data_frame_samples (&src) == NCH,
+  DP_REQUIRE_MSG (dp_wfm_source_data_samples (&src, 1e6, 1) == NCH,
                   "a burst's samples are its chips at sps 1");
 
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
@@ -1298,6 +1298,165 @@ test_a_dsss_burst_draws_a_chunk_per_burst (void)
                 "stream does, not after one burst");
   DP_CHECK_MSG (m == n && memcmp (piped, out, n * sizeof *out) == 0,
                 "and they are the bursts the same bits make as a Field");
+  return 0;
+}
+
+/* CONTINUOUS dsss over a data source: no frame, one bit per data symbol.
+   Chip n is the code XOR the data bit of symbol floor(n / cps), with cps
+   not a whole number, and the run ends with the last data symbol's chips
+   (doppler#1719). */
+static uint8_t
+cont_want (const uint8_t *code, size_t nc, const uint8_t *bits, double cps,
+           size_t n)
+{
+  return (uint8_t)(code[n % nc] ^ bits[(uint64_t)((double)n / cps)]);
+}
+
+static int
+test_continuous_dsss_draws_a_bit_per_symbol (void)
+{
+  static const uint8_t code[5] = { 1, 1, 0, 1, 0 };
+  uint8_t              bits[48];
+  six_bits (bits);
+  const double fs = 1e6, rate = fs / 3.7; /* 3.7 chips per data symbol */
+  const double cps = (fs / 1.0) / rate;   /* the kernel's own expression */
+  wfm_source_t src = data_line ();
+  src.type         = WFM_SYNTH_DSSS;
+  src.symbol_rate  = rate;
+  src.data_len     = 0;
+  src.data_code
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = code, .len = 5 };
+  src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 48 };
+  DP_REQUIRE_MSG (dp_wfm_source_error (&src) == NULL,
+                  "a data source on continuous dsss is a source");
+  /* 48 symbols of 3.7 chips: chips 0..177 (floor(177/3.7) = 47), 178 of
+     them, and chip 178 is symbol 48 -- ceil(48 * 3.7) = 178. */
+  const size_t len = 178;
+  DP_CHECK_MSG (dp_wfm_source_data_frames (&src) == 48
+                    && dp_wfm_source_data_samples (&src, fs, 48) == len,
+                "the run is every chip of the 48 data symbols, no more");
+
+  wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = fs };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "it composes");
+  float complex out[256];
+  size_t        n = 0, got;
+  while ((got = dp_wfm_compose_execute (c, out + n, 256 - n)) > 0)
+    n += got;
+  dp_wfm_compose_destroy (c);
+  DP_CHECK_MSG (n == len, "the run is derived from the data, not a count");
+  int same = 1;
+  for (size_t i = 0; i < len && i < n; i++)
+    if (fabsf (crealf (out[i])
+               - (cont_want (code, 5, bits, cps, i) ? -1.0f : 1.0f))
+        > 1e-3f)
+      same = 0;
+  DP_CHECK_MSG (same, "every chip is the code XOR its symbol's data bit, "
+                      "the bits in order, none cycled");
+
+  /* The same bits from stdin: a stream, ending where the input does. */
+  int p[2];
+  DP_REQUIRE (t_pipe (p) == 0);
+  DP_REQUIRE (t_write (p[1], SIX, 6) == 6);
+  t_close (p[1]);
+  const int saved = t_dup (0);
+  DP_REQUIRE (saved >= 0 && t_dup2 (p[0], 0) == 0);
+  t_close (p[0]);
+  src.data           = (wfm_seq_t){ 0 };
+  src.data_from_file = "-";
+  c                  = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "a continuous dsss source over stdin composes");
+  float complex piped[256];
+  size_t        m = 0;
+  while ((got = dp_wfm_compose_execute (c, piped + m, 256 - m)) > 0)
+    m += got;
+  dp_wfm_compose_destroy (c);
+  t_dup2 (saved, 0);
+  t_close (saved);
+  DP_CHECK_MSG (m == len && memcmp (piped, out, len * sizeof *out) == 0,
+                "stdin ends the run with its last data symbol, and sends "
+                "the chips the same bits make as a Field");
+
+  /* The length against the WAVEFORM: where the synth falls silent, the
+     first chip past its last data symbol. At the CLI's own geometry
+     (6138000 / 2 / 2700 chips a symbol) ceil(D * cps) overshoots at D = 51
+     and undershoots at D = 15, and a fast-math reciprocal put D = 51 one
+     chip long -- so the end is read from the chips the kernel sends, not
+     from an expression this test would compile its own way. */
+  {
+    wfm_source_t g     = src;
+    g.symbol_rate      = 2700.0;
+    g.data_from_file   = NULL;
+    const double   gfs = 6138000.0 / 2.0; /* sps 1: chips are samples */
+    static uint8_t alt[51];
+    for (size_t i = 0; i < 51; i++)
+      alt[i] = (uint8_t)(i & 1u);
+    const unsigned ds[2] = { 51, 15 };
+    for (size_t t = 0; t < 2; t++)
+      {
+        g.data              = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                           .bits = alt,
+                                           .len  = ds[t] };
+        const size_t   nmax = 60000;
+        float complex *x    = malloc (nmax * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        dp_wfm_synth_state_t *syn = dp_wfm_compose_build_synth (
+            &g, gfs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
+        DP_REQUIRE (syn != NULL);
+        dp_wfm_synth_steps (syn, x, nmax);
+        dp_wfm_synth_destroy (syn);
+        size_t k = 0;
+        while (k < nmax && cabsf (x[k]) > 0.5f)
+          k++;
+        free (x);
+        DP_CHECK_MSG (k < nmax
+                          && dp_wfm_source_data_samples (&g, gfs, ds[t]) == k,
+                      "the run ends on the chip where the waveform's data "
+                      "does, at both of ceil()'s errors");
+      }
+    /* And the clock itself is the EXACT quotient, under this tree's
+       -ffast-math: symbol 51 opens on 57970 (ceil, and a reciprocal, say
+       57971), symbol 15 on 17051 (ceil says 17050). */
+    const double ccps = gfs / 2700.0;
+    DP_CHECK_MSG (dp_wfm_dsss_cont_edge (51, ccps) == 57970
+                      && dp_wfm_dsss_cont_edge (15, ccps) == 17051,
+                  "the one symbol clock is the exact quotient, not a "
+                  "fast-math rewrite of it");
+    g.symbol_rate = 2.0 * fs; /* half a chip a symbol: no such geometry */
+    DP_CHECK_MSG (dp_wfm_source_data_samples (&g, fs, 4) == 0,
+                  "a geometry with under a chip a symbol has no length");
+    wfm_segment_t bad = { .sources = &g, .n_sources = 1, .fs = fs };
+    DP_CHECK_MSG (dp_wfm_compose_create (&bad, 1, 0, 0) == NULL,
+                  "and is not built");
+  }
+
+  /* What has no meaning without a frame is refused, each by name. */
+  static const uint8_t zero[1] = { 0 };
+  src.data_from_file           = NULL;
+  src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 48 };
+  src.data_len    = 8;
+  const char *why = dp_wfm_source_error (&src);
+  DP_CHECK_MSG (why && strstr (why, "data_len does not apply"),
+                "data_len on continuous dsss is refused by name");
+  src.data_len = 0;
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+  why      = dp_wfm_source_error (&src);
+  DP_CHECK_MSG (why && strstr (why, "fill does not apply"), "and fill");
+  src.fill           = (wfm_seq_t){ 0 };
+  src.dsss_code_only = 1;
+  why                = dp_wfm_source_error (&src);
+  DP_CHECK_MSG (why && strstr (why, "--code-only sends"),
+                "and code_only beside a data source");
+  src.dsss_code_only = 0;
+  src.data           = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 8 };
+  why                = dp_wfm_source_error (&src);
+  DP_CHECK_MSG (why && strstr (why, "no bits of its own"),
+                "and data:LEN as the data");
+  src.data           = (wfm_seq_t){ 0 };
+  src.data_from_file = "no-such-file.bin";
+  why                = dp_wfm_source_error (&src);
+  DP_CHECK_MSG (why && strstr (why, "cannot be opened"),
+                "and a file that cannot be read");
   return 0;
 }
 
@@ -1405,14 +1564,9 @@ test_every_data_refusal_names_its_fix (void)
     }                                                                         \
   while (0)
 
-  s             = data_line ();
-  s.data        = data;
-  s.type        = WFM_SYNTH_DSSS;
-  s.symbol_rate = 2700.0;
-  REFUSED ("doppler#1719",
-           "a data source on CONTINUOUS dsss: not built yet, by issue");
-  s.symbol_rate = 0.0;
-  s.type        = 0; /* a tone frames nothing */
+  s      = data_line ();
+  s.data = data;
+  s.type = 0; /* a tone frames nothing */
   REFUSED ("--type bits", "a type that cannot frame: names the types");
   s      = data_line ();
   s.data = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 8 };
@@ -1477,7 +1631,7 @@ test_every_data_refusal_names_its_fix (void)
   bad.field[bad.n_fields].bits = 16u; /* a derived field with no producer */
   bad.n_fields++;
   s.frame = &bad;
-  DP_CHECK_MSG (dp_wfm_source_data_frame_samples (&s) == 0,
+  DP_CHECK_MSG (dp_wfm_source_data_samples (&s, 1e6, 1) == 0,
                 "a frame that does not lay out has no samples per frame");
 
   /* The scene reader: a "data_from_file" is a non-empty path, and a count
@@ -4594,6 +4748,8 @@ main (void)
   if (test_a_data_stream_ends_the_run_on_a_frame ())
     return 1;
   if (test_a_dsss_burst_draws_a_chunk_per_burst ())
+    return 1;
+  if (test_continuous_dsss_draws_a_bit_per_symbol ())
     return 1;
   if (test_a_scene_refuses_what_a_stream_cannot_do ())
     return 1;

@@ -69,7 +69,19 @@ NOT_INSTALLED = {"pyex_common.h"}
 #: travel in the header and every TU gets its own copy, so they are not a
 #: published ABI and `nm` will never see them.
 _DECL = re.compile(
-    r"^\s*(?P<spec>[A-Za-z_][\w\s\*]*?)(?P<name>\w+)\s*\((?P<args>[^()]*)\)\s*$",
+    r"^\s*(?P<spec>[A-Za-z_][\w\s\*]*?)(?P<name>\w+)\s*"
+    # One level of nesting, so a function-pointer parameter -- `int (*fn)
+    # (void)` -- does not hide the declaration it sits in.
+    r"\((?P<args>(?:[^()]|\([^()]*\))*)\)\s*$",
+    re.S,
+)
+
+#: A global variable a header publishes: `extern <type> name;`, or an array
+#: `extern <type> name[N];`. Data is ABI as much as a function is -- a
+#: consumer that reads `dp_lo_sin_lut` links against it.
+_DATA = re.compile(
+    r"^\s*extern\s+(?P<type>[A-Za-z_][\w\s\*]*?)\b(?P<name>\w+)\s*"
+    r"(?:\[[^\]]*\])?\s*$",
     re.S,
 )
 
@@ -104,10 +116,21 @@ def _blank_comments(text: str) -> str:
 
 
 def _blank_preproc(text: str) -> str:
-    """Drop preprocessor lines, keeping the line count."""
-    return "\n".join(
-        "" if ln.lstrip().startswith("#") else ln for ln in text.split("\n")
-    )
+    """Drop preprocessor lines, keeping the line count.
+
+    A directive continued with a trailing backslash is dropped WHOLE. Only
+    its first line used to go, so the rest of a multi-line `#define` -- a
+    version number and its comment -- was read as the start of the next
+    declaration, and `size_t dp_carrier_nda_state_bytes (...)` behind one
+    was never seen.
+    """
+    out = []
+    continued = False
+    for ln in text.split("\n"):
+        directive = continued or ln.lstrip().startswith("#")
+        continued = directive and ln.rstrip().endswith("\\")
+        out.append("" if directive else ln)
+    return "\n".join(out)
 
 
 def _file_scope(text: str):
@@ -130,6 +153,74 @@ def _file_scope(text: str):
             start = i + 1
         if ch in "{};" and depth == 0 and ch != ";":
             start = i + 1
+
+
+def _file_scope_heads(text: str):
+    """Yield ``(head, line)`` for the text before every file-scope ``{``.
+
+    A function DEFINED in a header -- a `JM_FORCEINLINE` step, whose
+    out-of-line copy one .c emits with C99 `extern inline` -- ends in a
+    body, not a `;`, so `_file_scope` never yields it. Its head is what
+    precedes the brace. `extern "C" {` is blanked as it is there.
+    """
+    text = re.sub(r'extern\s+"C"\s*\{', "        ", text)
+    depth, start = 0, 0
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                yield text[start:i], text.count("\n", 0, start) + 1
+            depth += 1
+        elif ch == "}":
+            depth = max(0, depth - 1)
+            if depth == 0:
+                start = i + 1
+        elif ch == ";" and depth == 0:
+            start = i + 1
+
+
+def headers() -> list[pathlib.Path]:
+    """Every installed header, and the configured ones (`version.h.in`)."""
+    return [
+        h
+        for h in sorted([*INC.rglob("*.h"), *INC.rglob("*.h.in")])
+        if h.name not in NOT_INSTALLED
+    ]
+
+
+def public_symbols() -> dict[str, str]:
+    """name -> "function" | "data" for every symbol a header publishes.
+
+    What a shared library exports is exactly this, intersected with what it
+    defines (``scripts/gen_export_list.py``): a function declared at file
+    scope, a non-static function DEFINED in a header (its out-of-line copy
+    is a symbol a consumer may call), and `extern` data. `static` never
+    counts -- every translation unit has its own copy.
+    """
+    out: dict[str, str] = {}
+    for header in headers():
+        text = header.read_text(encoding="utf-8", errors="replace")
+        text = _blank_preproc(_blank_comments(text))
+        for stmt, _ in _file_scope(text):
+            m = _DATA.match(stmt)
+            if m is not None and "(" not in stmt:
+                out.setdefault(m.group("name"), "data")
+                continue
+            m = _DECL.match(stmt)
+            if m is None or m.group("name") in _KEYWORDS:
+                continue
+            spec = set(m.group("spec").split())
+            if spec & {"static", "typedef"}:
+                continue
+            out.setdefault(m.group("name"), "function")
+        for head, _ in _file_scope_heads(text):
+            m = _DECL.match(head)
+            if m is None or m.group("name") in _KEYWORDS:
+                continue
+            spec = set(m.group("spec").split())
+            if spec & {"static", "typedef", "struct", "union", "enum"}:
+                continue
+            out.setdefault(m.group("name"), "function")
+    return out
 
 
 def archives() -> list[pathlib.Path]:
@@ -159,9 +250,7 @@ def defined_symbols(libs: list[pathlib.Path]) -> set[str]:
 def declared() -> dict[str, list[tuple[pathlib.Path, int]]]:
     """function name -> [(header, line), …] over every installed header."""
     out: dict[str, list[tuple[pathlib.Path, int]]] = {}
-    for header in sorted(INC.rglob("*.h")):
-        if header.name in NOT_INSTALLED:
-            continue
+    for header in headers():
         text = header.read_text(encoding="utf-8", errors="replace")
         text = _blank_preproc(_blank_comments(text))
         for stmt, line in _file_scope(text):
@@ -260,7 +349,7 @@ def main() -> int:
 
     print(
         f"check_installed_headers: OK — {len(decls)} declaration(s) across "
-        f"{len(list(INC.rglob('*.h')))} installed header(s) all resolve in "
+        f"{len(headers())} installed header(s) all resolve in "
         f"{', '.join(p.name for p in libs)}, and none defines a "
         f"feature-test macro"
     )

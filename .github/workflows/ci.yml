@@ -278,9 +278,16 @@ jobs:
       # name, and only the consumer's link notices. Absolute since #1565.
       run: make symbol-prefix-check
 
+    - name: Verify the shared libraries export exactly the public API
+      # libdoppler.so exported every external symbol -- vendored cJSON and
+      # PFFFT included -- until its export list was written from the
+      # headers (#1164). Both directions: nothing leaks, nothing is missing.
+      run: make export-check
+
     - name: Verify a consumer's own cJSON / nats.c links beside doppler
-      # doppler embeds both; their symbols are respelled dp__v_* so a
-      # program bringing its own copy neither collides nor hijacks (#1565).
+      # doppler embeds both; the archives respell them dp__v_* and the
+      # shared libraries do not export them, so a program bringing its own
+      # copy neither collides nor hijacks, static or shared (#1565, #1164).
       run: make vendored-collision-check
 
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)

@@ -127,7 +127,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
-               why-param doc-claims
+               why-param doc-claims public-symbols
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -348,6 +348,15 @@ LINT_header-example-arity = \
 # every parameter named `why` or `*_why` must be exactly `const char **`.
 # Rule: docs/dev/contributing/error-convention.md. Plain python3: stdlib only.
 LINT_why-param = python3 scripts/check_why_param.py
+
+# The shared libraries export what native/inc/** publishes and nothing else
+# (doppler#1164). cmake/public-symbols.txt is that set, read by the build
+# without Python; this holds it to the headers. `make public-symbols`
+# rewrites it. Plain python3: stdlib only.
+LINT_public-symbols = python3 scripts/gen_public_symbols.py --check
+
+public-symbols: ## Rewrite cmake/public-symbols.txt from native/inc (the export list's source)
+	@python3 scripts/gen_public_symbols.py
 
 # The snippet runners execute every docs fence and test_examples.py every
 # example, so broken code is caught. Code that checks NOTHING is not: a bare
@@ -668,7 +677,8 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-all test-sweep test-stubs test-api-docs test-snippets \
                 test-rust \
                 abi-check link-check installed-headers-check \
-                exported-link-check symbol-prefix-check vendored-collision-check \
+                exported-link-check symbol-prefix-check export-check \
+                vendored-collision-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
@@ -1416,6 +1426,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gates-extra-home-check \
                 doc-sections-check \
                 installed-headers-check exported-link-check symbol-prefix-check \
+                export-check public-symbols \
                 vendored-collision-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
@@ -1596,6 +1607,13 @@ exported-link-check: build ## Verify the exported CMake link interface names no 
 # `nm`, so it needs the build; plain python3, standard library only.
 symbol-prefix-check: build ## Verify every exported symbol carries the dp_ prefix
 	@DOPPLER_BUILD_DIR=$(BUILD_DIR) python3 scripts/check_symbol_prefix.py
+
+# Each shared library exports exactly what a public header publishes and its
+# archive defines -- nothing leaks (vendored cJSON/PFFFT/nats.c, internals),
+# nothing is missing (doppler#1164). The static archives' half is
+# symbol-prefix-check above. Reads `nm -D`, so it needs the build.
+export-check: build ## Verify the shared libraries export exactly the public headers' symbols
+	@DOPPLER_BUILD_DIR=$(BUILD_DIR) python3 scripts/check_exports.py
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is
@@ -3460,12 +3478,20 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 # definition of 'cJSON_Parse'` -- which is exactly what it did when sabotaged
 # by reversing the rename on copies of the two archives. POSIX-only, like
 # libdoppler_stream (#1575).
-vendored-collision-check: build ## A consumer with its own cJSON/nats.c still links doppler statically
-	@t=$$(mktemp -d); \
+#
+# And SHARED (doppler#1164): there a clash is no link error at all -- the
+# loader binds one cJSON_Parse for the program and both libraries, and before
+# the export lists doppler called the consumer's (exit 2, measured).
+vendored-collision-check: build ## A consumer with its own cJSON/nats.c still links doppler, static and shared
+	@t=$$(mktemp -d); b=$$(cd $(BUILD_DIR) && pwd); \
 	 if cc tests/install/vendored-collision/app.c -Inative/inc \
 	       -I$(BUILD_DIR)/native/inc $(BUILD_DIR)/libdoppler_stream.a \
 	       $(BUILD_DIR)/libdoppler.a -lm -lpthread -o "$$t/vc" \
-	    && "$$t/vc"; then \
+	    && "$$t/vc" \
+	    && cc tests/install/vendored-collision/app.c -Inative/inc \
+	       -I$(BUILD_DIR)/native/inc -L"$$b" -ldoppler_stream -ldoppler \
+	       -Wl,-rpath,"$$b" -lm -lpthread -o "$$t/vc-shared" \
+	    && "$$t/vc-shared"; then \
 	     rm -rf "$$t"; \
 	 else \
 	     echo "vendored-collision-check: FAIL -- a consumer's own cJSON or" \

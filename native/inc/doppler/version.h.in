@@ -4,6 +4,6 @@
 
 #define DOPPLER_VERSION "@PROJECT_VERSION@"
 
-const char *doppler_version(void);
+const char *dp_doppler_version(void);
 
 #endif /* DOPPLER_VERSION_H */

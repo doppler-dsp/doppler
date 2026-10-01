@@ -1,12 +1,17 @@
 /*
- * A consumer that brings its OWN cJSON and nats.c must still link doppler
- * statically, and doppler must keep using its own copies (#1565).
+ * A consumer that brings its OWN cJSON and nats.c must still link doppler,
+ * statically or shared, and doppler must keep using its own copies (#1565,
+ * #1164).
  *
  * libdoppler.a embeds cJSON and libdoppler_stream.a embeds nats.c. Their
  * symbols used to be exported under their own names, so defining
  * cJSON_Parse here was a duplicate definition at this program's link -- or,
  * worse, doppler silently called this stub instead of its own parser. The
- * archives now carry them as dp__v_*, so this links and both halves hold:
+ * archives now carry them as dp__v_*, so this links and both halves hold.
+ * Shared, a clash is no link error at all: the loader binds one cJSON_Parse
+ * for the program and both libraries, and libdoppler.so exported its own
+ * under that name, so doppler called OURS (exit 2, measured). The shared
+ * libraries now export only the public headers' symbols (#1164):
  *
  *   exit 0  doppler parsed the scene with its own cJSON, ours was untouched
  *   exit 1  doppler could not parse a scene it documents as valid

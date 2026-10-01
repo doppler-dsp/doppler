@@ -86,6 +86,18 @@ jobs:
       # The Python matrix: the declared floor alone on a pull_request, every
       # supported version on a full run.
       pythons: ${{ steps.classify.outputs.pythons }}
+      # The `python` job's PRIMARY leg, by role rather than by number: the one
+      # interpreter that runs the steps worth running once. It is the floor
+      # (scripts/python_versions.py --primary states the rule), so it is in
+      # every matrix above and a PR runs those steps before the queue does.
+      # A step names its LANE by which of these two it compares against:
+      #   primary       the fast lane -- every run, so a PR's author sees it;
+      #   primary_full  the heavy lane -- the primary on a full run, and ''
+      #                 (no leg) on a pull_request.
+      # check_ci_aggregator.py refuses any other leg selector, a version
+      # literal above all, and holds docs/dev/ci.md's table of lanes to it.
+      primary: ${{ steps.classify.outputs.primary }}
+      primary_full: ${{ steps.classify.outputs.primary_full }}
     steps:
     - uses: actions/checkout@v7
       with:
@@ -95,13 +107,16 @@ jobs:
         # One place decides fast vs full; see the outputs above.
         # The Python matrix is read from pyproject.toml's classifiers, never
         # written here: the lowest on a pull_request, all of them otherwise.
+        primary=$(python3 scripts/python_versions.py --primary)
         if [ "${{ github.event_name }}" = pull_request ]; then
-          full=false; versions=floor
+          full=false; versions=floor; primary_full=
         else
-          full=true; versions=full
+          full=true; versions=full; primary_full=$primary
         fi
         pythons=$(python3 scripts/python_versions.py --matrix "$versions")
-        { echo "full=$full"; echo "pythons=$pythons"; } >> "$GITHUB_OUTPUT"
+        { echo "full=$full"; echo "pythons=$pythons"
+          echo "primary=$primary"; echo "primary_full=$primary_full"
+        } >> "$GITHUB_OUTPUT"
         case "${{ github.event_name }}" in
           # A PR is checked out as its merge commit: HEAD^ is the base tip.
           pull_request) base=HEAD^ ;;
@@ -634,25 +649,32 @@ jobs:
       # as a group -- a broken page usually breaks more than one fence class,
       # and `make test-snippets` reports all three instead of stopping at the
       # first, which is a whole CI round trip per class.
-      if: matrix.python-version == '3.12'
+      #
+      # Fast lane: the primary leg on EVERY run, a pull_request included, so a
+      # broken fence fails for the author before review rather than in the
+      # merge queue after it (doppler#1714).
+      if: matrix.python-version == needs.changes.outputs.primary
       run: make test-snippets
 
     - name: Test
       # The fence gates are version-independent and have their own step above
-      # (3.12 only); `make test-python` excludes those markers by definition, so
-      # local and CI select exactly the same tests.
+      # (the primary leg only); `make test-python` excludes those markers by
+      # definition, so local and CI select exactly the same tests.
       #
-      # No PYTEST_ARGS here: this is every version except the one that keeps a
+      # No PYTEST_ARGS here: this is every leg except the one that keeps a
       # report, and coverage that is computed and discarded is just a slower
-      # test run. The Python line coverage is uploaded from 3.12 (below), and
-      # the number the patch gate actually reads comes from the `coverage` job,
-      # which measures C ∪ Python ∪ Rust against one instrumented build.
-      if: matrix.python-version != '3.12'
+      # test run. The Python line coverage is uploaded from the primary leg on
+      # a full run (below), and the number the patch gate actually reads comes
+      # from the `coverage` job, which measures C ∪ Python ∪ Rust against one
+      # instrumented build. On a pull_request `primary_full` is empty, so every
+      # leg -- the primary included -- runs this step.
+      if: matrix.python-version != needs.changes.outputs.primary_full
       run: make test-python
 
     - name: Test with coverage
-      # 3.12 only -- the version whose coverage.xml is uploaded.
-      if: matrix.python-version == '3.12'
+      # Heavy lane: the primary leg on a full run only -- the coverage.xml it
+      # writes is uploaded below, and a pull_request has no use for it.
+      if: matrix.python-version == needs.changes.outputs.primary_full
       run: |
         make test-python PYTEST_ARGS="--cov \
           --cov-report=term-missing \
@@ -697,14 +719,18 @@ jobs:
       #
       # Verified against the toolchain that broke it -- gcc 13.3 / glibc 2.39
       # in a container, against this box's 15.2 / 2.43 -- where all eleven now
-      # pass. Version-independent, so once, like the fence gates; 23 s for all
-      # eleven.
-      if: matrix.python-version == '3.12'
+      # pass. Version-independent, so once, like the fence gates.
+      #
+      # Fast lane: a generated-report diff, deterministic, and it fails for
+      # the author before review. On the queue-only leg it ejected #1721 from
+      # the merge queue after every PR check had passed (run 36801286202).
+      if: matrix.python-version == needs.changes.outputs.primary
       run: make validate-check
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
-      if: matrix.python-version == '3.12'
+      # Heavy lane, with the run that wrote the file.
+      if: matrix.python-version == needs.changes.outputs.primary_full
       with:
         name: coverage-report
         path: coverage.xml

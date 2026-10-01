@@ -15,13 +15,34 @@ Modes
 ``--matrix floor``
     Print the lowest classifier version alone, as a JSON list. This is the
     matrix of a pull_request.
+``--primary``
+    Print the PRIMARY leg, as a bare version string: the one leg of the
+    ``python`` job that runs the steps worth running once rather than on
+    every interpreter (the doc-fence gates, the validation-report check, the
+    coverage run). CI's ``classify`` step emits it as an output and every
+    such step compares ``matrix.python-version`` against that output, so no
+    step names a version.
 (no argument)
     The gate. Exit 1 unless the lowest classifier equals the
     ``requires-python`` floor and every classifier satisfies every
     ``requires-python`` clause. Either drift means the matrix tests a set the
     package does not declare: a raised floor with the classifiers unchanged
     tests a version pip will refuse to install on, and a classifier below the
-    floor advertises one it will not.
+    floor advertises one it will not. Also exit 1 unless the primary leg is
+    in BOTH matrices: a primary missing from the floor matrix runs its steps
+    on no pull_request, and one missing from the full matrix runs them
+    nowhere -- either way they skip, and the job still ends green.
+
+The primary leg
+---------------
+The rule is: **the primary is the floor**, the lowest classifier. That is the
+reason the single-leg steps were first put on 3.12 -- it was the first leg of
+the original ``['3.12', '3.13', '3.14']`` matrix -- kept when the floor moved.
+The literal stayed at 3.12 when 3.9 was added below it, and once a
+pull_request ran the floor alone, no PR ran those steps: a stale validation
+report was found only by the merge queue (doppler#1714). The floor is the one
+version in every matrix the workflow builds, so a step on the primary leg
+runs on a pull_request and again in the queue, on the same interpreter.
 
 The script imports only what the floor Python has: ``tomllib`` is 3.11, so
 3.9 and 3.10 fall back to the ``tomli`` backport. CI's ``classify`` step runs
@@ -96,6 +117,57 @@ def classifier_versions(project: dict) -> list[str]:
     return sorted(found, key=_version)
 
 
+def matrix(project: dict, kind: str) -> list[str]:
+    """The Python matrix of a run: ``"full"`` every version, ``"floor"`` one.
+
+    Parameters
+    ----------
+    project : dict
+        The ``[project]`` table of a pyproject.toml.
+    kind : {"full", "floor"}
+        ``"full"`` is a merge_group or push run, ``"floor"`` a pull_request.
+
+    Returns
+    -------
+    list of str
+        The versions, sorted by version; empty when there is no classifier.
+
+    Examples
+    --------
+    >>> p = {
+    ...     "classifiers": [
+    ...         "Programming Language :: Python :: 3.10",
+    ...         "Programming Language :: Python :: 3.9",
+    ...     ]
+    ... }
+    >>> matrix(p, "full"), matrix(p, "floor")
+    (['3.9', '3.10'], ['3.9'])
+    """
+    versions = classifier_versions(project)
+    return versions[:1] if kind == "floor" else versions
+
+
+def primary(project: dict) -> str | None:
+    """The primary leg: the floor, so it is in every matrix (see module doc).
+
+    Returns ``None`` when there is no classifier; the gate reports that case.
+
+    Examples
+    --------
+    >>> primary(
+    ...     {
+    ...         "classifiers": [
+    ...             "Programming Language :: Python :: 3.12",
+    ...             "Programming Language :: Python :: 3.9",
+    ...         ]
+    ...     }
+    ... )
+    '3.9'
+    """
+    versions = classifier_versions(project)
+    return versions[0] if versions else None
+
+
 def check(project: dict) -> list[str]:
     """Every way the classifiers disagree with ``requires-python``."""
     versions = classifier_versions(project)
@@ -126,23 +198,36 @@ def check(project: dict) -> list[str]:
             errors.append(
                 f"classifier {v} is outside requires-python ({', '.join(bad)})"
             )
+    lead = primary(project)
+    for kind, run in (("floor", "pull_request"), ("full", "full")):
+        if lead not in matrix(project, kind):
+            errors.append(
+                f"primary leg {lead} is not in the {kind} matrix "
+                f"{matrix(project, kind)}, so its steps run on no {run} run"
+            )
     return errors
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--matrix", choices=("full", "floor"))
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--matrix", choices=("full", "floor"))
+    mode.add_argument("--primary", action="store_true")
     ap.add_argument("--pyproject", type=Path, default=ROOT / "pyproject.toml")
     args = ap.parse_args(argv)
     project = tomllib.loads(args.pyproject.read_text(encoding="utf-8"))[
         "project"
     ]
     if args.matrix:
-        versions = classifier_versions(project)
-        if args.matrix == "floor":
-            versions = versions[:1]
+        versions = matrix(project, args.matrix)
         print(json.dumps(versions))
         return 0 if versions else 1
+    if args.primary:
+        lead = primary(project)
+        if lead is None:
+            return 1
+        print(lead)
+        return 0
     errors = check(project)
     for e in errors:
         print(f"python-versions-check: {e}", file=sys.stderr)
@@ -151,7 +236,8 @@ def main(argv: list[str] | None = None) -> int:
     versions = classifier_versions(project)
     print(
         f"python-versions-check: OK -- {len(versions)} classifier(s), "
-        f"{versions[0]}..{versions[-1]}, floor matches requires-python"
+        f"{versions[0]}..{versions[-1]}, floor matches requires-python, "
+        f"primary leg {primary(project)} is in both matrices"
     )
     return 0
 

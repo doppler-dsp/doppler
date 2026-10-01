@@ -9,6 +9,7 @@ declare, so it fails if the gate cannot see it.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -95,3 +96,53 @@ def test_the_floor_matrix_is_the_lowest_classifier(tmp_path: Path) -> None:
     r = _run(tmp_path, ">=3.9", ["3.10", "3.9"], "--matrix", "floor")
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == ["3.9"]
+
+
+def test_the_primary_leg_is_the_floor(tmp_path: Path) -> None:
+    # Bare, not JSON: ci.yml compares it to matrix.python-version as a string.
+    r = _run(tmp_path, ">=3.10", ["3.12", "3.10", "3.11"], "--primary")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout == "3.10\n"
+
+
+def test_the_primary_follows_the_classifiers(tmp_path: Path) -> None:
+    """A floor raised past the old literal moves the primary with it."""
+    r = _run(tmp_path, ">=3.13", ["3.13", "3.14"], "--primary")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout == "3.13\n"
+
+
+def _module():
+    spec = importlib.util.spec_from_file_location("python_versions", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_PROJECT = {
+    "requires-python": ">=3.9",
+    "classifiers": [
+        f"Programming Language :: Python :: {v}" for v in ("3.9", "3.12")
+    ],
+}
+
+
+def test_a_primary_outside_the_pr_matrix_fails(monkeypatch) -> None:
+    """The #1714 shape: a leg no pull_request runs (e.g. the newest)."""
+    mod = _module()
+    monkeypatch.setattr(mod, "primary", lambda p: "3.12")
+    errors = mod.check(_PROJECT)
+    assert any(
+        "primary leg 3.12 is not in the floor matrix" in e
+        and "no pull_request run" in e
+        for e in errors
+    ), errors
+
+
+def test_a_primary_outside_every_matrix_fails(monkeypatch) -> None:
+    """A leg that left the classifiers: its steps would run nowhere."""
+    mod = _module()
+    monkeypatch.setattr(mod, "primary", lambda p: "3.11")
+    errors = mod.check(_PROJECT)
+    assert any("not in the full matrix" in e for e in errors), errors

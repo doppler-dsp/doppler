@@ -1435,6 +1435,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 export-check public-symbols \
                 vendored-collision-check \
                 ci-image ci-image-check ci-image-repin-check \
+                ci-image-repin-commit-check \
                 ccsds-isolation-check instrumented-sweep-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
@@ -3918,6 +3919,15 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 # blocks instead of fabricating a scratch repository and a remote.
 ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerged
 	@bash scripts/ci-image-repin-check.sh
+
+# What ci-image.yml's push step asserts before it pushes ci/repin-image: the
+# repin commit is exactly one file, .github/ci-images.env, on top of exactly
+# the commit the run built from. A human is told to land that branch, so
+# anything else it carried would land with it.
+REPIN_BASE ?= origin/main
+REPIN_HEAD ?= HEAD
+ci-image-repin-commit-check: ## Verify a repin commit is one file on its base
+	@bash scripts/ci-image-repin-commit-check.sh "$(REPIN_BASE)" "$(REPIN_HEAD)"
 
 # The layering `wfm/wfm_frame.h` states about itself -- "`ccsds_tm` must depend
 # on this file ... so this file must not call `ccsds_tm`'s kernels" -- is a

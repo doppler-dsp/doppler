@@ -620,7 +620,7 @@ def build(write: bool = True) -> Report:
     for sp, want, rc, err in refusals:
         R.limit(
             rc == 2 and want in err,
-            f"`wfmgen --bits {sp}` exits 2 with a sentence naming `{want}`",
+            f"`wfmgen --data {sp}` exits 2 with a sentence naming `{want}`",
         )
     R.limit(
         HARNESS.is_file(),

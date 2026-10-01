@@ -599,6 +599,19 @@ Keep the default when the *absolute* timeline is the truth (you are going to
 line the capture up against something else afterwards); use `--realtime-resync`
 when *staying current* matters more than the total elapsed count.
 
+**Segments at different rates.** `fs` is per segment, and a scene whose
+segments differ is legal, since no single rate is true of it. Each output either
+says so honestly or refuses
+([#1733](https://github.com/doppler-dsp/doppler/issues/1733)):
+
+| output                  | a scene whose segments differ in `fs`                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------- |
+| `--realtime`            | paces each segment at its own `fs`                                                            |
+| `nats://`               | each frame header states its own segment's `fs`                                               |
+| SigMF                   | leaves `core:sample_rate` out                                                                 |
+| raw, CSV                | written: neither format states a rate                                                         |
+| BLUE (and `--detached`) | **refused** by name: its header has one `xdelta`. Write SigMF, or give every segment one `fs` |
+
 !!! note "Software pacing is average-rate, not sample-accurate"
 
     On a non-realtime OS you get a drift-free *average* rate with bounded

@@ -68,6 +68,26 @@ extern "C"
    *  re-anchored when ``resync`` is set), with no sleep. */
   double dp_sample_clock_pace (dp_sample_clock_t *c, size_t count);
 
+  /** Change @p c's rate to @p fs from the next sample on, keeping the
+   *  schedule: the samples already paced keep their times, and the next
+   *  one is due exactly when it was. The epochs move forward to the
+   *  current position (``n/fs_old``) and ``n`` restarts at 0 at the new
+   *  rate, so pace() and stamp() continue seamlessly; stamp_at() of a
+   *  sample BEFORE the change no longer applies. A rate equal to the
+   *  current one changes nothing. This is how one clock paces a scene
+   *  whose segments run at different rates (doppler#1733).
+   *
+   *  @code
+   *  dp_sample_clock_t c;
+   *  dp_sample_clock_init (&c, 1e3, 0);
+   *  c.n = 500;                         // 0.5 s in, at 1 kHz
+   *  uint64_t due = dp_sample_clock_stamp (&c);
+   *  dp_sample_clock_set_rate (&c, 2e3);
+   *  int ok = c.n == 0 && c.fs == 2e3 && dp_sample_clock_stamp (&c) == due;
+   *  return ok ? 0 : 1;
+   *  @endcode */
+  void dp_sample_clock_set_rate (dp_sample_clock_t *c, double fs);
+
   /** Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample
    *  to be produced — sample index ``n``. Call it before pace() to tag the
    *  block you are about to emit, or after to tag the following block.

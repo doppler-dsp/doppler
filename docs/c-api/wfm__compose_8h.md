@@ -91,6 +91,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_compose\_destroy**](#function-dp_wfm_compose_destroy) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
 |  size\_t | [**dp\_wfm\_compose\_draws**](#function-dp_wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
 |  size\_t | [**dp\_wfm\_compose\_execute**](#function-dp_wfm_compose_execute) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
+|  size\_t | [**dp\_wfm\_compose\_execute\_rate**](#function-dp_wfm_compose_execute_rate) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max, double \* fs) <br>_Emit up to_ `max` _samples, all at ONE sample rate, and say which._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file**](#function-dp_wfm_compose_from_file) (const char \* path) <br> |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file\_why**](#function-dp_wfm_compose_from_file_why) (const char \* path, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_file**_](wfm__compose_8h.md#function-dp_wfm_compose_from_file) _, able to say why a scene was refused._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json**](#function-dp_wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
@@ -135,6 +136,11 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_synth\_set\_data\_pacing**](#function-dp_wfm_synth_set_data_pacing) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing) <br>_Pace a synth's data source: WFM\_DATA\_PACED for_ `--realtime` _._ |
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  double | [**dp\_wfm\_scene\_fs**](#function-dp_wfm_scene_fs) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_The ONE answer to "what is this stream's sample rate": the_ `fs` _every segment shares, or 0.0 when they differ._ |
 
 
 
@@ -709,6 +715,70 @@ size_t dp_wfm_compose_execute (
 **Returns:**
 
 Number of samples written: &lt; `max` (or 0) signals the sequence finished (never, when `continuous`). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_compose\_execute\_rate 
+
+_Emit up to_ `max` _samples, all at ONE sample rate, and say which._
+```C++
+size_t dp_wfm_compose_execute_rate (
+    dp_wfm_compose_state_t * state,
+    float _Complex * out,
+    size_t max,
+    double * fs
+) 
+```
+
+
+
+[**dp\_wfm\_compose\_execute()**](wfm__compose_8h.md#function-dp_wfm_compose_execute) for an output that states a rate per block: it stops early where the next segment's `fs` differs from the samples already written, so every block it returns has one rate. A scene whose segments share an `fs` never stops early, and its samples are the same, byte for byte, as [**dp\_wfm\_compose\_execute()**](wfm__compose_8h.md#function-dp_wfm_compose_execute)'s. A short return therefore does NOT mean the scene finished; 0 does.
+
+
+
+```C++
+wfm_source_t  src     = { .type = WFM_SYNTH_TONE, .snr = 100.0 };
+wfm_segment_t segs[2] = {
+  { .sources = &src, .n_sources = 1, .fs = 6e6, .num_samples = 8 },
+  { .sources = &src, .n_sources = 1, .fs = 2e6, .num_samples = 8 },
+};
+dp_wfm_compose_state_t *c = dp_wfm_compose_create (segs, 2, 0, 0);
+float _Complex buf[64];
+double         fs = 0.0;
+size_t a = dp_wfm_compose_execute_rate (c, buf, 64, &fs); // 8 at 6e6
+int    ok = a == 8 && fs == 6e6;
+size_t b = dp_wfm_compose_execute_rate (c, buf, 64, &fs); // 8 at 2e6
+ok = ok && b == 8 && fs == 2e6;
+ok = ok && dp_wfm_compose_execute_rate (c, buf, 64, &fs) == 0;
+dp_wfm_compose_destroy (c);
+return ok ? 0 : 1;
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` the composer. 
+* `out` destination, `max` samples. 
+* `max` capacity of `out`. 
+* `fs` receives the rate of the samples written (left untouched when none are). 
+
+
+
+**Returns:**
+
+samples written; 0 when the scene has finished. 
 
 
 
@@ -2290,6 +2360,58 @@ dp_wfm_synth_set_data_pacing (s, WFM_DATA_PACED); // no source: no-op
 dp_wfm_synth_destroy (s);
 ```
  
+
+
+        
+
+<hr>
+## Public Static Functions Documentation
+
+
+
+
+### function dp\_wfm\_scene\_fs 
+
+_The ONE answer to "what is this stream's sample rate": the_ `fs` _every segment shares, or 0.0 when they differ._
+```C++
+static inline double dp_wfm_scene_fs (
+    const wfm_segment_t * segs,
+    size_t n_segs
+) 
+```
+
+
+
+`fs` is per segment, and a scene whose segments differ is legal: no single rate is true of it. 0.0 is the library's "not stated" (a Writer opened at `fs=0.0`, a SigMF document without `core:sample_rate`), so an output asks this and either states the rate it returns or, given 0.0, says nothing  or refuses, if its format cannot say nothing (a BLUE header has one `xdelta`). Every output asks here rather than reading `segs[0].fs`, which is a rate only when they agree (doppler#1733).
+
+
+
+```C++
+wfm_segment_t s[2] = { { .fs = 6e6 }, { .fs = 6e6 } };
+int ok = dp_wfm_scene_fs (s, 2) == 6e6;
+s[1].fs = 2e6;
+ok = ok && dp_wfm_scene_fs (s, 2) == 0.0 && dp_wfm_scene_fs (s, 0) == 0.0;
+return ok ? 0 : 1;
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `segs` the segments; may be NULL when `n_segs` is 0. 
+* `n_segs` their count. 
+
+
+
+**Returns:**
+
+the shared fs, or 0.0 when the segments differ or there are none. 
+
+
+
 
 
         

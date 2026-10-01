@@ -977,17 +977,8 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
      An explicit `fs` always wins and is never second-guessed: a caller
      rendering the scene at a resampled rate is describing the FILE, and the
      file is what this document annotates. */
-  if (fs == 0.0 && segs && n_segs > 0)
-    {
-      double f = segs[0].fs;
-      for (size_t i = 1; i < n_segs; i++)
-        if (segs[i].fs != f)
-          {
-            f = 0.0;
-            break;
-          }
-      fs = f;
-    }
+  if (fs == 0.0)
+    fs = dp_wfm_scene_fs (segs, n_segs); /* the one rule (doppler#1733) */
 
   cJSON *g = cJSON_AddObjectToObject (root, "global");
   char   dt[16];

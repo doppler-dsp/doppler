@@ -1343,6 +1343,7 @@ dp_sample_clock_init function
 dp_sample_clock_pace function
 dp_sample_clock_reset function
 dp_sample_clock_resync function
+dp_sample_clock_set_rate function
 dp_sample_clock_stamp function
 dp_sample_clock_stamp_at function
 dp_sample_clock_stats function
@@ -1490,6 +1491,7 @@ dp_wfm_compose_create_why function
 dp_wfm_compose_destroy function
 dp_wfm_compose_draws function
 dp_wfm_compose_execute function
+dp_wfm_compose_execute_rate function
 dp_wfm_compose_from_file function
 dp_wfm_compose_from_file_why function
 dp_wfm_compose_from_json function

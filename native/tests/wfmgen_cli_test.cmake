@@ -174,6 +174,20 @@ file(MD5 wg_cono_b.cf32 nb)
 if(NOT na STREQUAL nb)
     message(FATAL_ERROR "continuous DSSS --from-file replay differs (none)")
 endif()
+# Frozen as MD5 goldens, rendered from main (d8f132fc) BEFORE #1619 F6a
+# moved code-only DSSS off `--data none` onto its own flag: the seeded
+# default and code-only must stay byte-identical across that change of
+# spelling (the #853 reviewer's condition on it).
+set(WG_CONT_PRBS_GOLDEN "b79a5a35832044c39de575465b6bbb81")
+set(WG_CONT_NONE_GOLDEN "090153f8140845efefd31f97bf05bb16")
+if(NOT ca STREQUAL WG_CONT_PRBS_GOLDEN)
+    message(FATAL_ERROR "continuous DSSS seeded default drifted: got ${ca}, "
+                        "want ${WG_CONT_PRBS_GOLDEN}")
+endif()
+if(NOT na STREQUAL WG_CONT_NONE_GOLDEN)
+    message(FATAL_ERROR "continuous DSSS code-only drifted: got ${na}, "
+                        "want ${WG_CONT_NONE_GOLDEN}")
+endif()
 # PRBS and code-only must differ (data modulation is present in one, not both).
 if(ca STREQUAL na)
     message(FATAL_ERROR "continuous DSSS: prbs and code-only produced same bytes")

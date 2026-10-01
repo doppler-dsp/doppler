@@ -208,7 +208,11 @@ jobs:
           # pinned by DIGEST so a run is reproducible: an image rebuild cannot
           # change what an in-flight PR was tested against. \`make
           # ci-image-check\` fails when bootstrap.toml or Dockerfile.ci move
-          # without a repin; the nightly build opens the PR that moves these.
+          # without a repin. A human lands each repin, not the nightly build:
+          # it pushes ci/repin-image and stops -- why is the "Push the repin
+          # branch" comment in .github/workflows/ci-image.yml. Until a repin
+          # lands, ci-image-repin-check is red on every PR, and so an unlanded
+          # repin ejects every PR in the merge queue.
           CI_IMAGE_2204=$IMAGE@$D2204
           CI_IMAGE_2404=$IMAGE@$D2404
           CI_IMAGE_FINGERPRINT_2204=$F2204

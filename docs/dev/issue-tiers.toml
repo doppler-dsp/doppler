@@ -516,11 +516,6 @@ tier = 0
 title = "wfmgen: --from-file <scene> --realtime never terminates on a finite scene"
 status = "open"
 
-[issue.1164]
-tier = 5
-title = "libdoppler exports 106 symbols that are not its API, including all of vendored cJSON and PFFFT"
-status = "in review ([#1735](https://github.com/doppler-dsp/doppler/pull/1735))"
-
 [issue.1173]
 tier = 3
 title = "BurstCapture: the per-burst window copy is measured only at a 20 kB window, and it scales with burst_len"
@@ -1095,3 +1090,9 @@ tier = 5
 title = "Dockerfile.ci: downloads use curl with no --fail and no retry, so a transient HTTP error fails the image build as 'not in gzip format'"
 status = "open"
 why = "The image build fetches with no --fail or --retry, so a transient error page fails later in tar, misnamed; red, not silently green, so harness hygiene rather than tier 1"
+
+[issue.1740]
+tier = 5
+title = "curl without --fail outside the image: install-deps pipes get-jb.sh into bash (Makefile, standard.mk), release-watch.sh"
+status = "open"
+why = "#1738's defect outside the image: install-deps pipes get-jb.sh into bash (Makefile, vendored standard.mk), release-watch.sh polls with curl -s; red when it bites, so hygiene like #1738"

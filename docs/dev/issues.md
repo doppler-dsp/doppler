@@ -15,7 +15,7 @@ Derived 2026-10-01 by `make issues`, which reads the live issue list; titles and
 | [4](#tier-4-cannot-be-reached)         | Cannot be reached         | 36   |
 | [5](#tier-5-convergence-and-hygiene)   | Convergence and hygiene   | 71   |
 
-6 of them have a pull request open against them; the **Status** column says which.
+5 of them have a pull request open against them; the **Status** column says which.
 
 ## Tier 0 — Breaks for a user
 
@@ -220,7 +220,6 @@ Duplication, stale pins, harness drift, and the long tail. Real, none of it urge
 | [#1034](https://github.com/doppler-dsp/doppler/issues/1034) | TestComposeUpLive::test_three_block_chain_spawns_and_moves_data fails locally: recv failed: Invalid argument                                      | open                                                                  |
 | [#1114](https://github.com/doppler-dsp/doppler/issues/1114) | noise_steps matches steps()'s AWGN chunking to defend against a path that no longer exists, and nothing would catch its return                    | open                                                                  |
 | [#1123](https://github.com/doppler-dsp/doppler/issues/1123) | wfm_reader_header_tag neither bounds-checks nor documents that it must not be — the only one of four enumerators that does neither                | open                                                                  |
-| [#1164](https://github.com/doppler-dsp/doppler/issues/1164) | libdoppler exports 106 symbols that are not its API, including all of vendored cJSON and PFFFT                                                    | in review ([#1735](https://github.com/doppler-dsp/doppler/pull/1735)) |
 | [#1186](https://github.com/doppler-dsp/doppler/issues/1186) | changelog.d fragments using reference-style links break mdformat once assembled next to another entry                                             | open                                                                  |
 | [#1188](https://github.com/doppler-dsp/doppler/issues/1188) | native/validation: move every validator's --check onto dp_test.h                                                                                  | open                                                                  |
 | [#1228](https://github.com/doppler-dsp/doppler/issues/1228) | docs(gallery): a page for acq_surface_demo — the searcher's surface and probes                                                                    | open                                                                  |
@@ -261,6 +260,7 @@ Duplication, stale pins, harness drift, and the long tail. Real, none of it urge
 | [#1723](https://github.com/doppler-dsp/doppler/issues/1723) | wfm: one copy/free pair for wfm_source_t's arrays (wfm_plan.c duplicates wfm_compose.c's)                                                         | open                                                                  |
 | [#1728](https://github.com/doppler-dsp/doppler/issues/1728) | ci: two jobs upload an artifact named coverage-report in the same run                                                                             | open                                                                  |
 | [#1738](https://github.com/doppler-dsp/doppler/issues/1738) | Dockerfile.ci: downloads use curl with no --fail and no retry, so a transient HTTP error fails the image build as 'not in gzip format'            | open                                                                  |
+| [#1740](https://github.com/doppler-dsp/doppler/issues/1740) | curl without --fail outside the image: install-deps pipes get-jb.sh into bash (Makefile, standard.mk), release-watch.sh                           | open                                                                  |
 
 ## How an issue gets its tier
 

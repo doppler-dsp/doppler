@@ -8,6 +8,7 @@
 #include "doppler/wfm/wfm_compose.h"
 
 #include "doppler/dp_complex.h"
+#include <stdarg.h>
 #include <stddef.h> /* offsetof — the frame key tables name members once */
 #include <stdio.h>
 #include <stdlib.h>
@@ -680,6 +681,25 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
    message, never in the check. */
 #define WFM_JSON_PATH_MAX 96
 
+/* Write a refusal's path, `segments[1].sum[0].frame`, into @p out. One
+   writer for every level: a nested path is its parent's plus a step, so it
+   can outgrow the buffer, and that is fine -- the path only NAMES where a
+   key sits, and a truncated one still does. Going through vsnprintf says
+   so once, instead of each call site tripping -Wformat-truncation; the
+   format attribute keeps every argument checked against its conversion
+   (-Werror=format), which is the half that matters (doppler#1741). */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((format (printf, 3, 4)))
+#endif
+static void
+json_path (char *out, size_t cap, const char *fmt, ...)
+{
+  va_list ap;
+  va_start (ap, fmt);
+  (void)vsnprintf (out, cap, fmt, ap);
+  va_end (ap);
+}
+
 /* Refuse a key object @p o's level does not take, naming it and where it
  * sits -- `segments[1].sum[0]: unknown key "nope"`. The level's keys are
  * the schema's own properties (WFM_JSON_KEYS, generated from it), so the
@@ -739,7 +759,7 @@ read_frame_desc (const cJSON *so, wfm_source_t *out, const char *where,
   wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
   out->frame          = d; /* owned from here; free_src_bits releases it */
   char path[WFM_JSON_PATH_MAX];
-  snprintf (path, sizeof path, "%s.frame", where);
+  json_path (path, sizeof path, "%s.frame", where);
   return read_frame_obj (fr, d, path, why);
 }
 
@@ -790,8 +810,8 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
                    "\"spec\": \"pn:31:5*4\"";
             return -1;
           }
-        snprintf (path, sizeof path, "%s.fields[%zu]", where,
-                  d->n_fields - 1u);
+        json_path (path, sizeof path, "%s.fields[%u]", where,
+                   d->n_fields - 1u);
         if (refuse_unknown_keys (it, WFM_JSON_FIELD, path, why) != 0)
           return -1;
         const cJSON *sp = cJSON_GetObjectItemCaseSensitive (it, "spec");
@@ -817,8 +837,8 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
         if (!cJSON_IsObject (it) || d->n_stages >= WFM_FRAME_MAX_STAGES)
           return -1;
         wfm_stage_t *s = &d->stage[d->n_stages++];
-        snprintf (path, sizeof path, "%s.stages[%zu]", where,
-                  d->n_stages - 1u);
+        json_path (path, sizeof path, "%s.stages[%u]", where,
+                   d->n_stages - 1u);
         if (refuse_unknown_keys (it, WFM_JSON_STAGE, path, why) != 0)
           return -1;
         if (read_stage_kind (it, &s->kind) != 0)
@@ -1147,7 +1167,7 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
     wfm_source_t *srcs = NULL;
     size_t        ns   = 0;
     char          where[WFM_JSON_PATH_MAX], at[WFM_JSON_PATH_MAX];
-    snprintf (where, sizeof where, "segments[%zu]", i);
+    json_path (where, sizeof where, "segments[%zu]", i);
     if (sum && ty)
       goto reject;
     if (cJSON_IsArray (sum))
@@ -1164,7 +1184,7 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
         const cJSON *so = NULL;
         cJSON_ArrayForEach (so, sum)
         {
-          snprintf (at, sizeof at, "%s.sum[%zu]", where, k);
+          json_path (at, sizeof at, "%s.sum[%zu]", where, k);
           if (parse_source_obj (so, &srcs[k], base, WFM_JSON_SOURCE, at, why)
               != 0)
             {

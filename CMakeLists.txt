@@ -175,6 +175,22 @@ if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
     endif()
 endif()
 
+# A printf-family argument that does not match its conversion is undefined
+# behaviour that reads right on one ABI and wrong on another: an `unsigned`
+# passed to `%zu` printed the right index on Linux x86-64 (the 32-bit value
+# arrives zero-extended) and garbage on Windows x64, where va_arg reads 8
+# bytes (doppler#1741, the scene reader's path messages). The compiler sees
+# it -- this tree compiled with no -Wformat at all, which is how it shipped.
+# An ERROR, not a warning, so it cannot be read past; at adoption the tree
+# had zero, so nothing needed a carve-out. One class of #1664's
+# -Wall -Wextra -Werror, landed early. Every target below inherits it: the
+# library, tests, examples and the Python extensions alike.
+if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(/clang:-Werror=format)
+elseif(NOT MSVC)
+    add_compile_options(-Werror=format)
+endif()
+
 # The same trap, per target. A validation binary asks for its own -O3,
 # -funroll-loops or -ffp-contract=off, and under clang-cl every one of those
 # was an `unknown argument ignored` warning -- the binary built at the

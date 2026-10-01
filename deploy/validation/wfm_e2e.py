@@ -19,10 +19,10 @@ Checks are chosen to pass on the shipped 0.17.0 — they deliberately steer
 around the three known bugs the repo's exhaustive suite pins as xfails
 (PN default polynomial, `wfmgen --output -`, and the `ZmqSink`/`StreamSink`
 cf32 stream decode), so this is a clean PASS/FAIL signal for the artifact
-itself. Features
-that landed *after* 0.17.0 (the `Synth(bits=...)` kwarg, `Composer.to_sigmf`)
-are **feature-detected** — exercised when the wheel has them, gracefully
-degraded (SigMF via the `wfmgen` CLI) otherwise — so this same script validates
+itself. Features that landed *after* 0.17.0 (the `bits` waveform's
+`Synth(data=...)`, `Composer.to_sigmf`) are **feature-detected** — exercised
+when the wheel has them, gracefully degraded (SigMF via the `wfmgen` CLI)
+otherwise — so this same script validates
 the current release and the next one. Prints a summary table and exits non-zero
 on any failure.
 
@@ -149,18 +149,21 @@ def _all_types() -> str:
         x = np.asarray(w.Synth(type=t, snr=100.0).steps(256))
         assert x.shape == (256,) and x.dtype == np.complex64
         assert np.all(np.isfinite(x.view(np.float32)))
-    # The `bits` waveform + its `Synth(bits=...)` kwarg landed after 0.17.0;
-    # exercise it only when the installed wheel supports it.
+    # The `bits` waveform landed after 0.17.0, and its payload is a data
+    # source, `data=` (doppler#1718 retired `bits=`, which now raises
+    # ValueError naming `data=`). Exercise it only when the installed wheel
+    # takes `data=`; a pattern is sent once, so the run past it is silence.
     try:
         xb = np.asarray(
-            w.Synth(type="bits", bits=bytes([1, 0, 1, 1]), snr=100.0).steps(
-                256
-            )
+            w.Synth(
+                type="bits", data=np.array([1, 0, 1, 1], np.uint8), snr=100.0
+            ).steps(256)
         )
         assert xb.shape == (256,)
+        assert np.all(np.abs(xb[:4]) > 0.5)  # the four bits, on the air
         return "7 types, finite cf32"
     except TypeError:
-        return "6 core types (bits kwarg not in this wheel)"
+        return "6 core types (data kwarg not in this wheel)"
 
 
 @check("tone FFT peak at the right bin")

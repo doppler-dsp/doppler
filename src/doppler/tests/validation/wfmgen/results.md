@@ -144,11 +144,11 @@ Claims a caller may rely on.
 | PASS | `qpsk`: the C struct API and Python render byte-identically |
 | PASS | the Field corpus (`--check`): every accepted text round-trips, formats canonically and renders the same bits as its canonical form |
 | PASS | the Field corpus holds its properties for EVERY text it accepts, not a subset |
-| PASS | `wfmgen --bits pn:12:1` exits 2 with a sentence naming `POLY` |
-| PASS | `wfmgen --bits pn:31:5:32` exits 2 with a sentence naming `REG` |
-| PASS | `wfmgen --bits 01a1` exits 2 with a sentence naming `0 or 1` |
-| PASS | `wfmgen --bits data:1024` exits 2 with a sentence naming `no bits of its own` |
-| PASS | `wfmgen --bits pn:4000000000:5` exits 2 with a sentence naming `261120` |
+| PASS | `wfmgen --data pn:12:1` exits 2 with a sentence naming `POLY` |
+| PASS | `wfmgen --data pn:31:5:32` exits 2 with a sentence naming `REG` |
+| PASS | `wfmgen --data 01a1` exits 2 with a sentence naming `0 or 1` |
+| PASS | `wfmgen --data data:1024` exits 2 with a sentence naming `no bits of its own` |
+| PASS | `wfmgen --data pn:4000000000:5` exits 2 with a sentence naming `261120` |
 | PASS | the C measurement harness is built (a missing one FAILS, never skips) |
 
 

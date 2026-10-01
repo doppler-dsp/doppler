@@ -62,18 +62,21 @@ depends_on = [
 name = "preamble"
 type = "uint8_t[]"
 default = "[]"
+str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()"
 doc = "Preamble bits, one per element, each 0 or 1. Omitted, there is no preamble. A repeated preamble is repeated in its bits: `field_bits(\"pn:31:5*4\")`."
 
 [[frame.init_params]]
 name = "sync"
 type = "uint8_t[]"
 default = "[]"
+str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()"
 doc = "Sync-word bits, one per element, each 0 or 1. Omitted, the frame is unsynced."
 
 [[frame.init_params]]
 name = "payload"
 type = "uint8_t[]"
 default = "[]"
+str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()"
 doc = "Payload bits, one per element, each 0 or 1. Omitted, the frame carries none."
 
 # ── the frame itself ────────────────────────────────────────────────────────
@@ -116,7 +119,9 @@ create_fn = "dp_frame_create_desc"
 name = "crc_ok"
 arg_type = "void"
 return_type = "int"
-params = [{ name = "rx_bits", type = "uint8_t[]" }]
+params = [
+    { name = "rx_bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
+]
 nogil = true
 
 [[frame.methods]]
@@ -129,7 +134,7 @@ error = "ValueError"
 error_message = "cannot append a field: the description is full or already built, the name is taken, the bits are empty, or an element is not a bit"
 params = [
     { name = "name", type = "const char *" },
-    { name = "bits", type = "uint8_t[]" },
+    { name = "bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
 ]
 
 [[frame.methods]]
@@ -217,7 +222,9 @@ arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
 pass_capacity = true
-params = [{ name = "rx_bits", type = "uint8_t[]" }]
+params = [
+    { name = "rx_bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
+]
 
 [[frame.properties]]
 name = "rx_ok"
@@ -252,7 +259,9 @@ single = true
 record_name = "FrameCheck"
 record_doc = "What checking one received frame found. `ok == units` is the verdict; `symbols` is what it cost, which is margin being spent and is visible before it is lost."
 record_module = "doppler.wfm"
-params = [{ name = "rx_bits", type = "uint8_t[]" }]
+params = [
+    { name = "rx_bits", type = "uint8_t[]", str_hint = "a bit field takes bits (a uint8 array); build them from text with field_bits()" },
+]
 result_fields = [
     { name = "passed", type = "int", doc = "Every check good: 1 yes, 0 no. Also 0 when nothing was checked -- see `checked`. Named `passed` rather than `pass` because the obvious name is a Python keyword and `r.pass` will not parse." },
     { name = "stages", type = "uint32_t", doc = "Stages in the description." },

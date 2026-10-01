@@ -21,6 +21,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
+import yaml
 
 from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
@@ -209,3 +210,57 @@ def test_a_softened_nightly_is_caught(old: str, new: str, why: str) -> None:
     text = NIGHTLY.read_text(encoding="utf-8")
     assert old in text, old
     assert any(why in p for p in _nightly_problems(text.replace(old, new, 1)))
+
+
+#: The refs a push must never rebuild the image on (#1748). Main already
+#: holds the pin the merged branch built; rebuilding re-resolves apt against
+#: a moved mirror and owes a repin for nothing. A merge-queue ref is a
+#: temporary candidate whose image nobody pins.
+NO_PUSH_REBUILD = ("main", "gh-readonly-queue/**")
+
+
+def _trigger_problems(text: str) -> list[str]:
+    """Why ci-image.yml's push trigger would rebuild on main or the queue."""
+    doc = yaml.safe_load(text)
+    push = (doc.get("on", doc.get(True)) or {}).get("push") or {}
+    if "branches" in push:
+        # A positive list cannot be audited against "everything but main":
+        # `['**']` was the shape that rebuilt on both.
+        return ["push names branches, not branches-ignore"]
+    ignored = push.get("branches-ignore") or []
+    return [
+        f"push rebuilds on {ref}"
+        for ref in NO_PUSH_REBUILD
+        if ref not in ignored
+    ]
+
+
+def test_a_push_to_main_or_the_queue_does_not_rebuild() -> None:
+    assert _trigger_problems(NIGHTLY.read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "why"),
+    [
+        (
+            "branches-ignore: [main, 'gh-readonly-queue/**']",
+            "branches: ['**']",
+            "names branches",
+        ),
+        (
+            "branches-ignore: [main, 'gh-readonly-queue/**']",
+            "branches-ignore: ['gh-readonly-queue/**']",
+            "rebuilds on main",
+        ),
+        (
+            "branches-ignore: [main, 'gh-readonly-queue/**']",
+            "branches-ignore: [main]",
+            "rebuilds on gh-readonly-queue",
+        ),
+    ],
+)
+def test_a_widened_trigger_is_caught(old: str, new: str, why: str) -> None:
+    """Sabotage, on a copy of ci-image.yml: each way back to the churn."""
+    text = NIGHTLY.read_text(encoding="utf-8")
+    assert old in text, old
+    assert any(why in p for p in _trigger_problems(text.replace(old, new, 1)))

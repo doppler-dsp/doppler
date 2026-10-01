@@ -15,7 +15,7 @@ Derived 2026-10-01 by `make issues`, which reads the live issue list; titles and
 | [4](#tier-4-cannot-be-reached)         | Cannot be reached         | 37   |
 | [5](#tier-5-convergence-and-hygiene)   | Convergence and hygiene   | 70   |
 
-7 of them have a pull request open against them; the **Status** column says which.
+8 of them have a pull request open against them; the **Status** column says which.
 
 ## Tier 0 — Breaks for a user
 
@@ -79,7 +79,7 @@ This repo's own doctrine turned on itself: *a claim nothing runs is prose*. Each
 | [#1658](https://github.com/doppler-dsp/doppler/issues/1658) | The C library builds with no warning flags: 0 of 691 compile lines carry -Wall                                                                                                                     | in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664)) |
 | [#1663](https://github.com/doppler-dsp/doppler/issues/1663) | DP_NODISCARD: an ignored refusal is invisible to every compiler flag                                                                                                                               | open                                                                  |
 | [#1671](https://github.com/doppler-dsp/doppler/issues/1671) | gallery-scripts-check cannot see a plot whose file name the script derives rather than quotes                                                                                                      | open                                                                  |
-| [#1716](https://github.com/doppler-dsp/doppler/issues/1716) | issues: nothing reconciles the tier map with the live issue list; 66 open issues untiered, 3 closed ones still listed                                                                              | open                                                                  |
+| [#1716](https://github.com/doppler-dsp/doppler/issues/1716) | issues: nothing reconciles the tier map with the live issue list; 66 open issues untiered, 3 closed ones still listed                                                                              | in review ([#1732](https://github.com/doppler-dsp/doppler/pull/1732)) |
 
 ## Tier 2 — A claim nothing measures
 
@@ -266,4 +266,4 @@ Duplication, stale pins, harness drift, and the long tail. Real, none of it urge
 
 By asking what goes wrong if it is never fixed, and nothing else. Age does not raise a tier and neither does effort — a one-line fix that stops a crash outranks a week of hygiene. The tiers are deliberately about *harm* rather than *cost*, so that the order to work in falls out of the table instead of being argued each time.
 
-`make issues` fails if an open issue has no tier, or if a tier names an issue that is closed, and the daily `make issues-check` run goes red on the same two — so this page cannot rot in either direction without saying so.
+The daily `make issues-check` run goes red if an open issue has no tier or a tier names an issue that is closed — so this page cannot rot in either direction without saying so. `make issues` refuses while an issue is untiered, and drops a closed issue's row itself.

@@ -2668,7 +2668,8 @@ endif
 # open issue with no tier or a tier naming a closed one; it runs daily in
 # .github/workflows/issues.yml. Until doppler#1716 nothing ran it, and the
 # map drifted to 66 untiered and 3 stale in ten days. The fix for a red run
-# is `make issues` after tiering.
+# is always: tier the new issues, then `make issues`, which drops a closed
+# issue's row itself (no judgement) and refuses while one is untiered.
 issues: ## Refresh docs/dev/issues.md from the live issue list (needs gh)
 	uv run python scripts/gen_issue_tracker.py --write
 
@@ -2678,7 +2679,9 @@ issues-check: ## Fail if the tier map has drifted from the live issues (needs gh
 # GATES_CI_EXTRA is a declaration gates-home-check takes on trust. This holds
 # it: each name must be a `make <name>` line -- comments stripped -- in some
 # workflow. WORKFLOW_DIR is overridable so the check can be sabotaged on a
-# copy of the workflows.
+# copy of the workflows. A PRIVATE copy of a check that belongs in the
+# vendored standard.mk: filed upstream as just-buildit/just-makeit#1768, and
+# deleted here on the re-vendor that carries it.
 WORKFLOW_DIR ?= .github/workflows
 gates-extra-home-check: ## Verify each GATES_CI_EXTRA target is run by a workflow
 	@rc=0; n=0; \

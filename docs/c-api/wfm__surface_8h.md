@@ -41,6 +41,7 @@
 | Type | Name |
 | ---: | :--- |
 | enum  | [**wfm\_\_surface\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388)  <br> |
+| enum  | [**wfm\_json\_level\_t**](#enum-wfm_json_level_t)  <br> |
 | enum  | [**wfm\_surf\_owner\_t**](#enum-wfm_surf_owner_t)  <br> |
 | enum  | [**wfm\_sv\_kind\_t**](#enum-wfm_sv_kind_t)  <br> |
 
@@ -53,6 +54,14 @@
 
 | Type | Name |
 | ---: | :--- |
+|  const char \*const  \*const | [**WFM\_JSON\_KEYS**](#variable-wfm_json_keys)   = `/* multi line expression */`<br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_FIELD**](#variable-wfm_json_keys_field)   = `/* multi line expression */`<br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_FRAME**](#variable-wfm_json_keys_frame)   = `/* multi line expression */`<br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_INLINE\_SEGMENT**](#variable-wfm_json_keys_inline_segment)  <br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_ROOT**](#variable-wfm_json_keys_root)   = `/* multi line expression */`<br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_SOURCE**](#variable-wfm_json_keys_source)  <br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_STAGE**](#variable-wfm_json_keys_stage)   = `/* multi line expression */`<br> |
+|  const char \*const | [**WFM\_JSON\_KEYS\_SUM\_SEGMENT**](#variable-wfm_json_keys_sum_segment)   = `/* multi line expression */`<br> |
 |  const [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md) | [**WFM\_SURFACE**](#variable-wfm_surface)  <br> |
 |  const [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md) | [**WFM\_SURFACE\_EXCLUSIVE**](#variable-wfm_surface_exclusive)  <br> |
 
@@ -181,6 +190,28 @@ enum wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388 {
 
 
 
+### enum wfm\_json\_level\_t 
+
+```C++
+enum wfm_json_level_t {
+    WFM_JSON_ROOT,
+    WFM_JSON_INLINE_SEGMENT,
+    WFM_JSON_SUM_SEGMENT,
+    WFM_JSON_SOURCE,
+    WFM_JSON_FRAME,
+    WFM_JSON_FIELD,
+    WFM_JSON_STAGE,
+    WFM_JSON_N_LEVELS
+};
+```
+
+
+
+
+<hr>
+
+
+
 ### enum wfm\_surf\_owner\_t 
 
 ```C++
@@ -219,6 +250,110 @@ enum wfm_sv_kind_t {
 <hr>
 ## Public Static Attributes Documentation
 
+
+
+
+### variable WFM\_JSON\_KEYS 
+
+```C++
+const char* const* const WFM_JSON_KEYS[WFM_JSON_N_LEVELS];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_FIELD 
+
+```C++
+const char* const WFM_JSON_KEYS_FIELD[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_FRAME 
+
+```C++
+const char* const WFM_JSON_KEYS_FRAME[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_INLINE\_SEGMENT 
+
+```C++
+const char* const WFM_JSON_KEYS_INLINE_SEGMENT[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_ROOT 
+
+```C++
+const char* const WFM_JSON_KEYS_ROOT[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_SOURCE 
+
+```C++
+const char* const WFM_JSON_KEYS_SOURCE[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_STAGE 
+
+```C++
+const char* const WFM_JSON_KEYS_STAGE[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable WFM\_JSON\_KEYS\_SUM\_SEGMENT 
+
+```C++
+const char* const WFM_JSON_KEYS_SUM_SEGMENT[];
+```
+
+
+
+
+<hr>
 
 
 

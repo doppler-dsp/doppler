@@ -1061,8 +1061,68 @@ def render_surface() -> str:
     out += render_exclusive(rows)
     out += render_reps(rows)
     out += render_help(rows)
+    out += render_json_keys(json.loads(render_schema()))
     out.append("#endif /* WFM_SURFACE_H */")
     return "\n".join(out) + "\n"
+
+
+#: Every object a scene is made of, in the order the reader meets them:
+#: (C level name, path to its `properties` in the schema). The reader
+#: refuses a key that is not in its level's table, and the table IS the
+#: schema's properties -- one declaration, both directions (doppler#1153,
+#: where a top-level "fs" was dropped in silence and every segment ran at
+#: fs = 1).
+JSON_LEVELS = (
+    ("ROOT", ()),
+    ("INLINE_SEGMENT", ("$defs", "inline_segment")),
+    ("SUM_SEGMENT", ("$defs", "sum_segment")),
+    ("SOURCE", ("$defs", "source")),
+    ("FRAME", ("$defs", "frame_desc")),
+    ("FIELD", ("$defs", "frame_desc", "properties", "fields", "items")),
+    ("STAGE", ("$defs", "frame_desc", "properties", "stages", "items")),
+)
+
+
+def render_json_keys(schema: dict) -> list[str]:
+    """`WFM_JSON_KEYS[]`: the keys each scene object takes, from the schema.
+
+    The schema says `additionalProperties: false` on every one of these
+    objects; this is what makes the reader agree. A level whose object
+    stops refusing extra keys is a schema change the reader cannot honour,
+    so it fails here rather than generating an open level.
+    """
+    out = [
+        "/* The keys each object of a scene takes, generated from the "
+        "schema's",
+        "   `properties` (docs/schema/wfmgen.schema.json). The reader "
+        "refuses any",
+        "   other key by name: the schema and the reader are one table "
+        "(#1153). */",
+        "typedef enum",
+        "{",
+    ]
+    out += [f"  WFM_JSON_{name}," for name, _ in JSON_LEVELS]
+    out += ["  WFM_JSON_N_LEVELS", "} wfm_json_level_t;", ""]
+    for name, path in JSON_LEVELS:
+        obj = schema
+        for k in path:
+            obj = obj[k]
+        if obj.get("additionalProperties") is not False:
+            raise SystemExit(
+                f"gen_wfm_defaults: schema object {'/'.join(path) or '$'} "
+                "does not set additionalProperties: false, so the reader "
+                "cannot refuse an unknown key there"
+            )
+        keys = sorted(obj["properties"])
+        out.append(f"static const char *const WFM_JSON_KEYS_{name}[] = {{")
+        out += [f"  {_c_lit(k)}," for k in keys]
+        out += ["  NULL", "};", ""]
+    out.append(
+        "static const char *const *const WFM_JSON_KEYS[WFM_JSON_N_LEVELS] = {"
+    )
+    out += [f"  WFM_JSON_KEYS_{name}," for name, _ in JSON_LEVELS]
+    out += ["};", ""]
+    return out
 
 
 def _c_lit(text: str | None) -> str:

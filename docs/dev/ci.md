@@ -285,6 +285,45 @@ On a PR, `python` runs only on 3.9 because that is the declared floor, and
 code that breaks on an older interpreter usually breaks there first. The
 other versions run in the queue.
 
+**The primary leg.** Some steps of the `python` job are worth running once,
+not on every interpreter. They run on the *primary* leg, which is named by
+role, never by version: `scripts/python_versions.py --primary` prints it, and
+the rule is that **the primary is the floor**. The floor is the one version
+in both matrices, so a primary-leg step runs on a PR and again in the queue,
+on the same interpreter. These steps used to select `'3.12'`, the first leg
+of the original matrix. When 3.9 was added below it the literal stayed, and
+once a PR ran the floor alone, no PR ran them. `make validate-check` then
+ejected #1721 from the queue after every PR check had passed (#1714).
+
+`changes` emits two outputs, and a step's `if:` compares
+`matrix.python-version` against exactly one of them. Which one is the step's
+*lane*:
+
+- `primary` — **fast**: the primary leg on every run, a PR included. For a
+    cheap, deterministic gate that should fail for the author before review.
+- `primary_full` — **heavy**: the primary leg on a full run only; empty on a
+    PR, so it matches no leg. For the coverage-producing run.
+- `!= primary_full` — **rest**: every other leg, and on a PR every leg.
+
+<!-- python-legs:start -->
+
+| step                                 | target                    | lane  | cost (merge-queue run 36820085885, 3.12) |
+| ------------------------------------ | ------------------------- | ----- | ---------------------------------------- |
+| Doc fence gates (python + C + shell) | `make test-snippets`      | fast  | 74 s                                     |
+| Test                                 | `make test-python`        | rest  | 264 s (3.9 leg)                          |
+| Test with coverage                   | `make test-python`        | heavy | 288 s                                    |
+| Validation reports are not stale     | `make validate-check`     | fast  | 233 s                                    |
+| Upload coverage report               | `actions/upload-artifact` | heavy | 1 s                                      |
+
+<!-- python-legs:end -->
+
+`make ci-aggregator-check` holds this table to `ci.yml`: same steps, same
+targets, same lanes. It refuses any other leg selector, a version literal
+above all, and a `changes` that does not derive `primary` from the
+classifiers. `make python-versions-check` refuses a primary leg missing from
+either matrix. To move a step between lanes, change the output it compares
+against and this table's row.
+
 **One declaration.** The `changes` job decides the split:
 
 - `full` is `false` on a `pull_request` and `true` for every other event, so

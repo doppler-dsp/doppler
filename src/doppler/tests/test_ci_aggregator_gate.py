@@ -203,3 +203,156 @@ def test_the_split_needs_changes_to_declare_full(tmp_path: Path) -> None:
     r = _check(tmp_path, body)
     assert r.returncode == 1
     assert "no `full` output" in r.stdout
+
+
+# A python job whose single-leg steps name their leg by role (doppler#1714).
+# The fence step's selector, `changes`' outputs and how it derives them are
+# the seams each case below breaks.
+_LEGS = """
+    jobs:
+      changes:
+        runs-on: ubuntu-latest
+        outputs:
+          OUTPUTS
+        steps:
+          - id: classify
+            run: DERIVE
+      python:
+        needs: changes
+        runs-on: ubuntu-latest
+        steps:
+          - name: Fences
+            if: SELECTOR
+            run: make test-snippets
+          - name: Test
+            if: matrix.python-version != needs.changes.outputs.primary_full
+            run: make test-python
+          - name: Test with coverage
+            if: >-
+              ${{ matrix.python-version ==
+                  needs.changes.outputs.primary_full }}
+            run: make test-python PYTEST_ARGS=--cov
+      ci-passed:
+        name: CI passed
+        needs: [changes, python]
+        if: always()
+        runs-on: ubuntu-latest
+"""
+_FAST_SEL = "matrix.python-version == needs.changes.outputs.primary"
+
+
+def _legs(
+    sel: str = _FAST_SEL,
+    outputs: str = "primary: x\n          primary_full: x",
+    derive: str = "p=$(python3 scripts/python_versions.py --primary)",
+) -> str:
+    return (
+        _LEGS.replace("SELECTOR", sel)
+        .replace("OUTPUTS", outputs)
+        .replace("DERIVE", derive)
+    )
+
+
+def test_steps_named_by_role_pass(tmp_path: Path) -> None:
+    r = _check(tmp_path, _legs())
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "3 single-leg step(s), named by role" in r.stdout
+    assert "fast   make test-snippets" in r.stdout
+    assert "heavy  make test-python" in r.stdout
+
+
+def test_a_version_literal_selector_is_refused(tmp_path: Path) -> None:
+    """The failure #1714 names: a leg that vanishes with its classifier."""
+    r = _check(tmp_path, _legs(sel="matrix.python-version == '3.12'"))
+    assert r.returncode == 1
+    assert "step `Fences` picks a Python leg" in r.stdout
+    assert "a version literal" in r.stdout
+
+
+def test_a_negated_version_literal_is_refused(tmp_path: Path) -> None:
+    r = _check(tmp_path, _legs(sel="matrix.python-version != '3.12'"))
+    assert r.returncode == 1
+    assert "a version literal" in r.stdout
+
+
+def test_an_undeclared_selector_is_refused(tmp_path: Path) -> None:
+    # Named by role, but in no lane LEG_SELECTORS declares.
+    sel = _FAST_SEL + " && github.event_name == 'push'"
+    r = _check(tmp_path, _legs(sel=sel))
+    assert r.returncode == 1
+    assert "an undeclared selector" in r.stdout
+
+
+def test_a_missing_primary_output_is_refused(tmp_path: Path) -> None:
+    r = _check(tmp_path, _legs(outputs="primary_full: x"))
+    assert r.returncode == 1
+    assert "declares no `primary` output" in r.stdout
+
+
+def test_a_primary_written_down_is_refused(tmp_path: Path) -> None:
+    # The literal moved out of the selector and into `changes`.
+    r = _check(tmp_path, _legs(derive="echo primary=3.9"))
+    assert r.returncode == 1
+    assert "does not derive the primary leg" in r.stdout
+
+
+def test_a_selecting_job_must_need_changes(tmp_path: Path) -> None:
+    body = _legs().replace("        needs: changes\n", "", 1)
+    r = _check(tmp_path, body)
+    assert r.returncode == 1
+    assert "does not need `changes`" in r.stdout
+
+
+_DOC = """\
+# CI
+
+<!-- python-legs:start -->
+
+| step | target | lane | cost |
+| --- | --- | --- | --- |
+| Fences | `make test-snippets` | FENCE_LANE | 1 s |
+| Test | `make test-python` | rest | 1 s |
+| Test with coverage | `make test-python` | heavy | 1 s |
+EXTRA
+<!-- python-legs:end -->
+"""
+
+
+def _check_doc(tmp_path: Path, doc: str):
+    f = tmp_path / "ci.yml"
+    f.write_text(textwrap.dedent(_legs()), encoding="utf-8")
+    d = tmp_path / "ci.md"
+    d.write_text(doc, encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), str(f), "--doc", str(d)],
+        capture_output=True,
+        text=True,
+    )
+
+
+def _doc(lane: str = "fast", extra: str = "") -> str:
+    return _DOC.replace("FENCE_LANE", lane).replace("EXTRA", extra)
+
+
+def test_a_doc_table_that_matches_passes(tmp_path: Path) -> None:
+    r = _check_doc(tmp_path, _doc())
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_doc_table_with_the_wrong_lane_is_refused(tmp_path: Path) -> None:
+    r = _check_doc(tmp_path, _doc(lane="heavy"))
+    assert r.returncode == 1
+    assert "lacks `Fences` | `make test-snippets` | fast" in r.stdout
+    assert "states `Fences` | `make test-snippets` | heavy" in r.stdout
+
+
+def test_a_doc_table_with_a_ghost_row_is_refused(tmp_path: Path) -> None:
+    r = _check_doc(tmp_path, _doc(extra="| Gone | `make gone` | fast | 1 |"))
+    assert r.returncode == 1
+    assert "states `Gone`" in r.stdout
+
+
+def test_a_doc_without_the_table_is_refused(tmp_path: Path) -> None:
+    r = _check_doc(tmp_path, "# CI\n")
+    assert r.returncode == 1
+    assert "python-legs:start" in r.stdout

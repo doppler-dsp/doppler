@@ -565,6 +565,65 @@ test_one_giant_push_finds_the_same_burst (void)
   return 0;
 }
 
+/* Two receivers fed the same input hand back byte-identical events() --
+ * padding included. A row ends in a uint8_t, so it carries trailing struct
+ * padding that no field writes; events() copies whole rows, so unzeroed
+ * padding reached Python as whatever the heap held, and the BER demo's
+ * `events().tobytes()` comparison failed on Python 3.9/3.10 while every
+ * field agreed (doppler#1699).
+ *
+ * Heap history is what decided it, so the test supplies one: each
+ * receiver's event buffer is pre-allocated and filled with a DIFFERENT
+ * pattern, which is what two allocations with different pasts look like.
+ * Only a row the receiver zeroes before filling can come back equal. */
+static dsss_br_event_t *
+dirty_events (dp_dsss_burst_receiver_state_t *s, unsigned char pattern)
+{
+  const size_t cap = 8u;
+  s->ev            = malloc (cap * sizeof *s->ev);
+  if (s->ev)
+    {
+      memset (s->ev, pattern, cap * sizeof *s->ev);
+      s->ev_cap = cap;
+    }
+  return s->ev;
+}
+
+static int
+test_events_are_byte_identical_across_receivers (void)
+{
+  dp_dsss_burst_receiver_state_t *a = make_rx (), *b = make_rx ();
+  DP_REQUIRE (a != NULL && b != NULL);
+  DP_REQUIRE (a->ev == NULL && b->ev == NULL); /* allocated lazily */
+  DP_REQUIRE (dirty_events (a, 0xA5) != NULL);
+  DP_REQUIRE (dirty_events (b, 0x5A) != NULL);
+
+  static float _Complex cap[40000];
+  build_capture (cap, 40000, 5000, 0.0, 0.02, 12345u);
+  size_t   nbits = dp_dsss_burst_receiver_push_max_out (a, 40000);
+  uint8_t *out   = malloc (nbits);
+  DP_REQUIRE (out != NULL);
+  dp_dsss_burst_receiver_push (a, cap, 40000, out, nbits);
+  dp_dsss_burst_receiver_push (b, cap, 40000, out, nbits);
+
+  size_t n = dp_dsss_burst_receiver_events_max_out (a);
+  DP_REQUIRE (n >= 1u);
+  DP_REQUIRE (dp_dsss_burst_receiver_events_max_out (b) == n);
+  dsss_br_event_t *ea = malloc (n * sizeof *ea), *eb = malloc (n * sizeof *eb);
+  DP_REQUIRE (ea != NULL && eb != NULL);
+  DP_REQUIRE (dp_dsss_burst_receiver_events (a, n, ea, n) == n);
+  DP_REQUIRE (dp_dsss_burst_receiver_events (b, n, eb, n) == n);
+  DP_CHECK_MSG (memcmp (ea, eb, n * sizeof *ea) == 0,
+                "two receivers, one input: byte-identical events()");
+
+  free (ea);
+  free (eb);
+  free (out);
+  dp_dsss_burst_receiver_destroy (a);
+  dp_dsss_burst_receiver_destroy (b);
+  return 0;
+}
+
 /* A burst near the START of the stream, where refine cannot back off its
  * full search span.
  *
@@ -1231,6 +1290,8 @@ main (void)
   if (test_push_max_out_scales_with_input ())
     return 1;
   if (test_reset_clears_the_event_but_not_the_counters ())
+    return 1;
+  if (test_events_are_byte_identical_across_receivers ())
     return 1;
   if (test_state_resumes_mid_burst ())
     return 1;

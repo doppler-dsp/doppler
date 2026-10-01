@@ -1024,12 +1024,6 @@ title = "wfm: Source.frame's getter returns JSON that its setter refuses; drop i
 status = "open"
 why = "Source.frame's getter returns JSON its setter refuses; waiting on just-makeit#1753 to drop it"
 
-[issue.1696]
-tier = 0
-title = "Composer(type=\"dsss\") with missing codes: 'dp_wfm_compose_create failed' names no fix; acq_code alone silently yields a 255-sample preamble"
-status = "in review ([#1730](https://github.com/doppler-dsp/doppler/pull/1730))"
-why = "A dsss Composer with only acq_code silently returns a 255-sample preamble and no burst"
-
 [issue.1697]
 tier = 3
 title = "DSSS burst receiver: TX/RX usability and speed findings (frame_syms, naming, refine_span, error drift, events padding, 4 MSa/s)"
@@ -1047,12 +1041,6 @@ tier = 0
 title = "wfm: a scene drops \"crc\" beside \"frame\" silently; the CLI refuses --crc beside --frame"
 status = "open"
 why = "A scene with crc beside frame is accepted and the crc dropped, while the CLI refuses the same pair"
-
-[issue.1706]
-tier = 4
-title = "wfm: a continuous dsss source whose symbol_rate exceeds its chip rate is refused with no reason"
-status = "in review ([#1709](https://github.com/doppler-dsp/doppler/pull/1709))"
-why = "The refusal's reason exists in the synth builder and no face reports it; the user gets 'create failed'"
 
 [issue.1717]
 tier = 4
@@ -1095,3 +1083,15 @@ tier = 0
 title = "wfmgen: a scene whose segments differ in fs is written, streamed and paced at segment 0's rate"
 status = "open"
 why = "A mixed-fs scene is written, streamed and paced at segment 0's rate: the SigMF/BLUE/stream rate is false for later segments and --realtime runs them at the wrong speed"
+
+[issue.1737]
+tier = 1
+title = "ci-image: the nightly is green while a repin is pending, so nobody learns the merge queue is jammed"
+status = "open"
+why = "The nightly ends green while ci/repin-image holds an unlanded repin, which makes the repin gate red on every PR and ejects every queued one; nothing notifies anyone"
+
+[issue.1738]
+tier = 5
+title = "Dockerfile.ci: downloads use curl with no --fail and no retry, so a transient HTTP error fails the image build as 'not in gzip format'"
+status = "open"
+why = "The image build fetches with no --fail or --retry, so a transient error page fails later in tar, misnamed; red, not silently green, so harness hygiene rather than tier 1"

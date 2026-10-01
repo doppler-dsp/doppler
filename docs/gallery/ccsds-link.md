@@ -84,7 +84,7 @@ outer code's parity `32 × 5`:
 
 ```sh
 wfmgen --type bits --modulation bpsk --frame cadu5.json \
-       --sps 1 --count 20464 -o cadu.cf32
+       --sps 1 -o cadu.cf32
 ```
 
 The randomiser's `depth` names **which** generator: `1` is 131.0-B-6

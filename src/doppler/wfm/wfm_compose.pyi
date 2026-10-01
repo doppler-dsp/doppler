@@ -193,6 +193,23 @@ class Synth:
         caller adding a genuinely new transform (convolutional interleaving,
         say) writes that kernel in C and hands it to `dp_wfm_frame_assemble`
         directly.
+    data : bytes | None, default None
+        A frame's payload drawn from a data source: a Field on the command line
+        and in a scene, a bit array in Python. The source is split into
+        data_len-bit frames, one chunk per frame, and its last chunk is padded
+        from fill. For type=bits, and bpsk/qpsk/pn framed; not with
+        data_from_file.
+    data_len : int, default 0
+        Bits of the data source per frame: the data:LEN of the common frame
+        [preamble x reps | sync | data:LEN | crc]. 0 takes a finite source
+        whole, as one frame. A carried frame names its own data field, and this
+        is then 0 or that field's LEN.
+    fill : bytes | None, default None
+        The bits that pad a data source's last frame when it does not divide
+        into data_len-bit frames, tiled from their first bit; stdin always
+        needs them. Without them such a source is refused before the first
+        sample. A Field on the command line and in a scene, a bit array in
+        Python.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -232,6 +249,9 @@ class Synth:
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         frame: FrameDesc | str | None = ...,
+        data: bytes | None = ...,
+        data_len: int = ...,
+        fill: bytes | None = ...,
         fs: float = ...,
     ) -> None: ...
     type: str
@@ -268,6 +288,9 @@ class Synth:
     def frame(self) -> str | None: ...
     @frame.setter
     def frame(self, value: FrameDesc | str | None) -> None: ...
+    data: bytes | None
+    data_len: int
+    fill: bytes | None
     fs: float
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate the next *n* samples of this source on its own.
@@ -506,6 +529,23 @@ class Segment:
         caller adding a genuinely new transform (convolutional interleaving,
         say) writes that kernel in C and hands it to `dp_wfm_frame_assemble`
         directly.
+    data : bytes | None, default None
+        A frame's payload drawn from a data source: a Field on the command line
+        and in a scene, a bit array in Python. The source is split into
+        data_len-bit frames, one chunk per frame, and its last chunk is padded
+        from fill. For type=bits, and bpsk/qpsk/pn framed; not with
+        data_from_file.
+    data_len : int, default 0
+        Bits of the data source per frame: the data:LEN of the common frame
+        [preamble x reps | sync | data:LEN | crc]. 0 takes a finite source
+        whole, as one frame. A carried frame names its own data field, and this
+        is then 0 or that field's LEN.
+    fill : bytes | None, default None
+        The bits that pad a data source's last frame when it does not divide
+        into data_len-bit frames, tiled from their first bit; stdin always
+        needs them. Without them such a source is refused before the first
+        sample. A Field on the command line and in a scene, a bit array in
+        Python.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -573,6 +613,9 @@ class Segment:
     symbol_rate: float
     dsss_code_only: int
     frame: str | None
+    data: bytes | None
+    data_len: int
+    fill: bytes | None
     def __init__(
         self,
         type: str = ...,
@@ -606,6 +649,9 @@ class Segment:
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         frame: FrameDesc | str | None = ...,
+        data: bytes | None = ...,
+        data_len: int = ...,
+        fill: bytes | None = ...,
         fs: float = ...,
         num_samples: int | tuple[int, int] = ...,
         off_samples: int | tuple[int, int] = ...,

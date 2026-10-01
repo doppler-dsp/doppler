@@ -296,6 +296,16 @@ parse_generated (const char *p, size_t n, wfm_seq_t *q, const char **why)
   field_tok_t  t[FIELD_MAX_TOKENS];
   const size_t k = split_colons (p, n, t);
 
+  /* The two words of the retired `--data prbs|none` choice (#1619 F6a),
+     refused by name: `--data` is the Field grammar and nothing else. */
+  if (k == 1 && tok_is (t[0], "none"))
+    return field_refuse (why, "none is not a Field: code-only continuous "
+                              "dsss is --code-only (\"code_only\" in a "
+                              "scene)");
+  if (k == 1 && tok_is (t[0], "prbs"))
+    return field_refuse (why, "prbs is not a Field: the seeded PN is "
+                              "continuous dsss's default, so omit --data "
+                              "(a seeded stream on --data is doppler#1717)");
   int kind = -1;
   for (int i = 0; i < (int)(sizeof SEQ_KIND_NAMES / sizeof *SEQ_KIND_NAMES);
        i++)

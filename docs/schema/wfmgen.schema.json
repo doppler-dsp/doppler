@@ -293,12 +293,8 @@
         },
         "data": {
           "type": "string",
-          "enum": [
-            "none",
-            "prbs"
-          ],
-          "default": "prbs",
-          "description": "Continuous dsss (symbol_rate > 0) data-symbol source: none = code-only (the pure spreading code, no data modulation); prbs = the synth's seeded PN, reproducible receiver-side via doppler.wfm.PN. A payload overrides both. Ignored in burst mode."
+          "minLength": 1,
+          "description": "A frame's payload drawn from a data source: a Field on the command line and in a scene, a bit array in Python. The source is split into data_len-bit frames, one chunk per frame, and its last chunk is padded from fill. For type=bits, and bpsk/qpsk/pn framed; not with data_from_file."
         },
         "pulse": {
           "type": "string",
@@ -329,6 +325,30 @@
           "type": "boolean",
           "default": false,
           "description": "Mark this source as part of the static background field (0/1). Plan.prepare() folds a contiguous leading run of background sources into ONE pre-summed cache entry instead of caching each separately, so a scene of many fixed emitters costs one buffer rather than hundreds. The composite is overridable as a unit: it takes a single slot in gains/phases/enable and counts as one in n_sources(), so scaling it trims the whole field while its members keep their relative levels. Background sources must come first in the segment (a non-prefix ordering is rejected by prepare, since the fold would no longer reproduce compose bit-for-bit). Ignored by compose() and by standalone Synth.steps(). Omitted from a record at its default."
+        },
+        "data_from_file": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "-"
+          },
+          "description": "A data source read from a file of packed octets, MSB first, instead of \"data\". A path; \"-\" (stdin) is refused in a scene, because a scene is replayed from its record and stdin cannot be: stdin is `wfmgen --data-from-file -` alone."
+        },
+        "code_only": {
+          "type": "boolean",
+          "default": false,
+          "description": "Continuous dsss data source: 1 = code-only (the pure spreading code, no data modulation); 0 = data-modulated (the payload when supplied, else the seeded PN). Ignored for burst dsss and non-dsss types. Omitted from a record at its default."
+        },
+        "data_len": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Bits of the data source per frame: the data:LEN of the common frame [preamble x reps | sync | data:LEN | crc]. 0 takes a finite source whole, as one frame. A carried frame names its own data field, and this is then 0 or that field's LEN. Omitted from a record at its default."
+        },
+        "fill": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bits that pad a data source's last frame when it does not divide into data_len-bit frames, tiled from their first bit; stdin always needs them. Without them such a source is refused before the first sample. A Field on the command line and in a scene, a bit array in Python."
         }
       },
       "allOf": [
@@ -340,6 +360,24 @@
             ]
           },
           "description": "\"payload\" and \"frame\" cannot both be given: a frame description is the whole frame, and carries its payload as a field"
+        },
+        {
+          "not": {
+            "required": [
+              "data",
+              "data_from_file"
+            ]
+          },
+          "description": "\"data\" and \"data_from_file\" cannot both be given: a payload has one data source"
+        },
+        {
+          "not": {
+            "required": [
+              "data",
+              "payload"
+            ]
+          },
+          "description": "\"data\" and \"payload\" cannot both be given: the payload is one or the other: a data source drawn frame by frame, or one cycled pattern (bits is retired by #1718)"
         }
       ]
     },
@@ -601,6 +639,18 @@
         },
         "background": {
           "$ref": "#/$defs/source/properties/background"
+        },
+        "data_from_file": {
+          "$ref": "#/$defs/source/properties/data_from_file"
+        },
+        "code_only": {
+          "$ref": "#/$defs/source/properties/code_only"
+        },
+        "data_len": {
+          "$ref": "#/$defs/source/properties/data_len"
+        },
+        "fill": {
+          "$ref": "#/$defs/source/properties/fill"
         }
       },
       "allOf": [
@@ -612,6 +662,24 @@
             ]
           },
           "description": "\"payload\" and \"frame\" cannot both be given: a frame description is the whole frame, and carries its payload as a field"
+        },
+        {
+          "not": {
+            "required": [
+              "data",
+              "data_from_file"
+            ]
+          },
+          "description": "\"data\" and \"data_from_file\" cannot both be given: a payload has one data source"
+        },
+        {
+          "not": {
+            "required": [
+              "data",
+              "payload"
+            ]
+          },
+          "description": "\"data\" and \"payload\" cannot both be given: the payload is one or the other: a data source drawn frame by frame, or one cycled pattern (bits is retired by #1718)"
         }
       ]
     },

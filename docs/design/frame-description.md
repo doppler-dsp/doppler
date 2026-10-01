@@ -341,13 +341,13 @@ cover are known without the data.
 same question. `--data-from-file` takes a path, or `-` for stdin. Both
 given is refused, naming the pair:
 
-| source                                                      | a              | frames                                                    |
-| ----------------------------------------------------------- | -------------- | --------------------------------------------------------- |
-| `--data-from-file PATH`                                     | finite source  | `ceil(bits / LEN)`, then the burst ends                   |
-| `--data`, a literal Field or a generated one with `LEN > 0` | finite source  | the same                                                  |
-| `--data-from-file -`                                        | stream — stdin | until the input ends                                      |
-| `--data`, a generated Field, `pn:0:REG[:SEED]`              | stream, seeded | until `--count`; a receiver regenerates it from the Field |
-| `--data none`                                               | no data        | code only — continuous DSSS, unchanged                    |
+| source                                                      | a              | frames                                             |
+| ----------------------------------------------------------- | -------------- | -------------------------------------------------- |
+| `--data-from-file PATH`                                     | finite source  | `ceil(bits / LEN)`, then the burst ends            |
+| `--data`, a literal Field or a generated one with `LEN > 0` | finite source  | the same                                           |
+| `--data-from-file -`                                        | stream — stdin | until the input ends                               |
+| `--data`, a generated Field, `pn:0:REG[:SEED]`              | stream, seeded | until `--count`; a receiver regenerates it (#1717) |
+| `--code-only` (not a source: `--data none` is refused)      | no data        | code only — continuous DSSS, unchanged             |
 
 A file and stdin carry **packed** octets, unpacked by the one primitive of
 §F.4.

@@ -416,6 +416,80 @@ def cases() -> list[tuple[str, list[str]]]:
             "bits_file",
             ["--type", "bits", "--bits-file", BITS_FILE, "--count", "32"],
         ),
+        # ---- #1619 F6a: the payload as a data source ----
+        # Code-only continuous dsss is its own switch; `--data` is the
+        # Field grammar, so the old `--data prbs|none` is refused naming it.
+        (
+            "dsss_code_only",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code",
+                "1011",
+                "--code-only",
+                "--fs",
+                "48000",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_data_prbs",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code",
+                "1011",
+                "--data",
+                "prbs",
+            ],
+        ),
+        # A finite source sets the run's length: 24 bits in 8-bit frames
+        # with a CRC, no --count.
+        (
+            "data_field",
+            ["--type", "bpsk", "--data", "0xABCDEF", "--data-len", "8"],
+        ),
+        # 12 bits do not divide into 8-bit frames: --fill pads the last.
+        (
+            "data_fill",
+            [
+                "--type",
+                "bpsk",
+                "--data",
+                "0xABC",
+                "--data-len",
+                "8",
+                "--fill",
+                "01",
+            ],
+        ),
+        (
+            "data_from_file",
+            [
+                "--type",
+                "bits",
+                "--data-from-file",
+                BITS_FILE,
+                "--data-len",
+                "8",
+            ],
+        ),
+        (
+            "err_data_and_data_from_file",
+            [
+                "--type",
+                "bpsk",
+                "--data",
+                "0xAB",
+                "--data-from-file",
+                BITS_FILE,
+            ],
+        ),
         (
             "symbols",
             [
@@ -745,8 +819,6 @@ def cases() -> list[tuple[str, list[str]]]:
                 "100",
                 "--data-code",
                 "1011",
-                "--data",
-                "prbs",
                 "--fs",
                 "48000",
                 "--count",
@@ -895,8 +967,6 @@ def cases() -> list[tuple[str, list[str]]]:
                 "100",
                 "--data-code",
                 "pn:15:4",
-                "--data",
-                "prbs",
                 "--fs",
                 "48000",
                 "--count",

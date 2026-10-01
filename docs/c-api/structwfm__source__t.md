@@ -41,7 +41,10 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**background**](#variable-background)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data**](#variable-data)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
+|  const char \* | [**data\_from\_file**](#variable-data_from_file)  <br> |
+|  size\_t | [**data\_len**](#variable-data_len)  <br> |
 |  double | [**doppler**](#variable-doppler)  <br> |
 |  double | [**doppler\_hi**](#variable-doppler_hi)  <br> |
 |  int | [**doppler\_lifetime**](#variable-doppler_lifetime)  <br> |
@@ -50,6 +53,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**dsss\_code\_only**](#variable-dsss_code_only)  <br> |
 |  double | [**f\_end**](#variable-f_end)  <br> |
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**fill**](#variable-fill)  <br> |
 |  const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**frame**](#variable-frame)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  double | [**freq\_hi**](#variable-freq_hi)  <br> |
@@ -199,10 +203,49 @@ int wfm_source_t::crc;
 
 
 
+### variable data 
+
+```C++
+wfm_seq_t wfm_source_t::data;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable data\_code 
 
 ```C++
 wfm_seq_t wfm_source_t::data_code;
+```
+
+
+
+
+<hr>
+
+
+
+### variable data\_from\_file 
+
+```C++
+const char* wfm_source_t::data_from_file;
+```
+
+
+
+
+<hr>
+
+
+
+### variable data\_len 
+
+```C++
+size_t wfm_source_t::data_len;
 ```
 
 
@@ -307,6 +350,19 @@ double wfm_source_t::f_end;
 
 ```C++
 double wfm_source_t::f_end_hi;
+```
+
+
+
+
+<hr>
+
+
+
+### variable fill 
+
+```C++
+wfm_seq_t wfm_source_t::fill;
 ```
 
 

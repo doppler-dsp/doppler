@@ -179,6 +179,8 @@ Synth_dealloc (SynthObject *self)
   free ((void *)self->src.acq_code.bits);
   free ((void *)self->src.data_code.bits);
   free ((void *)self->src.sync.bits);
+  free ((void *)self->src.data.bits);
+  free ((void *)self->src.fill.bits);
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -436,6 +438,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                     "symbol_rate",
                                     "dsss_code_only",
                                     "frame",
+                                    "data",
+                                    "data_len",
+                                    "fill",
                                     "fs",
                                     NULL };
   const char  *type             = "tone";
@@ -469,6 +474,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   double       symbol_rate      = 0.0;
   int          dsss_code_only   = 0;
   PyObject    *frame            = NULL;
+  PyObject    *data             = NULL;
+  size_t       data_len         = 0;
+  PyObject    *fill             = NULL;
   double       fs               = 1e6;
   PyObject    *_kw              = kwds;
   int          _kw_owned        = 0;
@@ -557,12 +565,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsdiOd", kwlist, &type, &freq,
-          &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level,
-          &background, &f_end, &span, &doppler, &doppler_rate, &carrier_hz,
-          &doppler_lifetime, &bits, &modulation, &pulse, &rrc_beta, &rrc_span,
-          &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
-          &symbol_rate, &dsss_code_only, &frame, &fs))
+          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsdiOOnOd", kwlist, &type,
+          &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
+          &level, &background, &f_end, &span, &doppler, &doppler_rate,
+          &carrier_hz, &doppler_lifetime, &bits, &modulation, &pulse,
+          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code,
+          &sync, &crc, &symbol_rate, &dsss_code_only, &frame, &data, &data_len,
+          &fill, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -807,6 +816,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
   if (!_attach_frame (&self->src, frame))
+    return -1;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.data.bits, &self->src.data.len, data))
+    return -1;
+  self->src.data_len = data_len;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.fill.bits, &self->src.fill.len, fill))
     return -1;
   return 0;
 }
@@ -1515,6 +1531,57 @@ Synth_set_frame (SynthObject *self, PyObject *value, void *closure)
   return _attach_frame (&self->src, value) ? 0 : -1;
 }
 static PyObject *
+Synth_get_data (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.data.bits && self->src.data.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.data.bits,
+                                      (Py_ssize_t)self->src.data.len);
+  Py_RETURN_NONE;
+}
+static int
+Synth_set_data (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.data.bits, &self->src.data.len, value)
+             ? 0
+             : -1;
+}
+static PyObject *
+Synth_get_data_len (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromSize_t ((size_t)self->src.data_len);
+}
+static int
+Synth_set_data_len (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.data_len = (size_t)PyLong_AsLong (value);
+  if (PyErr_Occurred ())
+    return -1;
+  return 0;
+}
+static PyObject *
+Synth_get_fill (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.fill.bits && self->src.fill.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.fill.bits,
+                                      (Py_ssize_t)self->src.fill.len);
+  Py_RETURN_NONE;
+}
+static int
+Synth_set_fill (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.fill.bits, &self->src.fill.len, value)
+             ? 0
+             : -1;
+}
+static PyObject *
 Synth_get_fs (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -1735,6 +1802,25 @@ static PyGetSetDef Synth_getset[] = {
     "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
     "(convolutional interleaving, say) writes that kernel in C and hands it "
     "to `dp_wfm_frame_assemble` directly.\n",
+    NULL },
+  { "data", (getter)Synth_get_data, (setter)Synth_set_data,
+    "A frame's payload drawn from a data source: a Field on the command line "
+    "and in a scene, a bit array in Python. The source is split into "
+    "data_len-bit frames, one chunk per frame, and its last chunk is padded "
+    "from fill. For type=bits, and bpsk/qpsk/pn framed; not with "
+    "data_from_file.\n",
+    NULL },
+  { "data_len", (getter)Synth_get_data_len, (setter)Synth_set_data_len,
+    "Bits of the data source per frame: the data:LEN of the common frame "
+    "[preamble x reps | sync | data:LEN | crc]. 0 takes a finite source "
+    "whole, as one frame. A carried frame names its own data field, and this "
+    "is then 0 or that field's LEN.\n",
+    NULL },
+  { "fill", (getter)Synth_get_fill, (setter)Synth_set_fill,
+    "The bits that pad a data source's last frame when it does not divide "
+    "into data_len-bit frames, tiled from their first bit; stdin always needs "
+    "them. Without them such a source is refused before the first sample. A "
+    "Field on the command line and in a scene, a bit array in Python.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -2803,6 +2889,43 @@ Segment_flat_frame (SegmentObject *self, void *closure)
     }
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "frame");
 }
+static PyObject *
+Segment_flat_data (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "data is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "data");
+}
+static PyObject *
+Segment_flat_data_len (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "data_len is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "data_len");
+}
+static PyObject *
+Segment_flat_fill (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "fill is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "fill");
+}
 
 static PyObject *
 Segment_add (SegmentObject *self, PyObject *args)
@@ -3063,6 +3186,25 @@ static PyGetSetDef Segment_getset[] = {
     "(convolutional interleaving, say) writes that kernel in C and hands it "
     "to `dp_wfm_frame_assemble` directly.\n",
     NULL },
+  { "data", (getter)Segment_flat_data, NULL,
+    "A frame's payload drawn from a data source: a Field on the command line "
+    "and in a scene, a bit array in Python. The source is split into "
+    "data_len-bit frames, one chunk per frame, and its last chunk is padded "
+    "from fill. For type=bits, and bpsk/qpsk/pn framed; not with "
+    "data_from_file.\n",
+    NULL },
+  { "data_len", (getter)Segment_flat_data_len, NULL,
+    "Bits of the data source per frame: the data:LEN of the common frame "
+    "[preamble x reps | sync | data:LEN | crc]. 0 takes a finite source "
+    "whole, as one frame. A carried frame names its own data field, and this "
+    "is then 0 or that field's LEN.\n",
+    NULL },
+  { "fill", (getter)Segment_flat_fill, NULL,
+    "The bits that pad a data source's last frame when it does not divide "
+    "into data_len-bit frames, tiled from their first bit; stdin always needs "
+    "them. Without them such a source is refused before the first sample. A "
+    "Field on the command line and in a scene, a bit array in Python.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -3319,6 +3461,30 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             {
               syn->src.sync.bits = NULL;
               syn->src.sync.len  = 0;
+            }
+          if (syn->src.data.bits && syn->src.data.len)
+            {
+              uint8_t *copy = (uint8_t *)malloc (syn->src.data.len);
+              if (copy)
+                memcpy (copy, syn->src.data.bits, syn->src.data.len);
+              syn->src.data.bits = copy;
+            }
+          else
+            {
+              syn->src.data.bits = NULL;
+              syn->src.data.len  = 0;
+            }
+          if (syn->src.fill.bits && syn->src.fill.len)
+            {
+              uint8_t *copy = (uint8_t *)malloc (syn->src.fill.len);
+              if (copy)
+                memcpy (copy, syn->src.fill.bits, syn->src.fill.len);
+              syn->src.fill.bits = copy;
+            }
+          else
+            {
+              syn->src.fill.bits = NULL;
+              syn->src.fill.len  = 0;
             }
           {
             wfm_frame_desc_t *_a0 = (wfm_frame_desc_t *)syn->src.frame;
@@ -3969,6 +4135,9 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "symbol_rate",
                                                   "dsss_code_only",
                                                   "frame",
+                                                  "data",
+                                                  "data_len",
+                                                  "fill",
                                                   NULL };
 
 static PyObject *

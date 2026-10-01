@@ -155,7 +155,7 @@ expect_exit(2 --type symbols --symbols-file)        # missing value
 
 # 14. Continuous async DSSS (--symbol-rate): a finite --count generates, and a
 #     --record → --from-file replay is byte-identical, for each data source
-#     (default PRBS and --data none code-only). The data code is a 0/1 string;
+#     (default PRBS and --code-only). The data code is a 0/1 string;
 #     symbol_rate independent of the chip clock is the asynchronicity.
 set(DC "1111100110101001000101111")   # 25-chip data code (arbitrary)
 run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
@@ -166,7 +166,7 @@ file(MD5 wg_cont_b.cf32 cb)
 if(NOT ca STREQUAL cb)
     message(FATAL_ERROR "continuous DSSS --from-file replay differs (prbs)")
 endif()
-run(--type dsss --data-code ${DC} --symbol-rate 2700 --data none --sps 2
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --code-only --sps 2
     --fs 6138000 --count 4096 --record wg_cono.json -o wg_cono_a.cf32)
 run(--from-file wg_cono.json -o wg_cono_b.cf32)
 file(MD5 wg_cono_a.cf32 na)
@@ -199,7 +199,7 @@ endif()
 run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
     --count 512 --file-type sigmf -o wg_cont_cap)
 expect_contains(wg_cont_cap.sigmf-meta "\"wfmgen:symbol_rate\":2700")
-run(--type dsss --data-code ${DC} --symbol-rate 2700 --data none --sps 2
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --code-only --sps 2
     --fs 6138000 --count 512 --file-type sigmf -o wg_cono_cap)
 expect_contains(wg_cono_cap.sigmf-meta "\"wfmgen:data\":\"none\"")
 
@@ -208,11 +208,24 @@ expect_contains(wg_cono_cap.sigmf-meta "\"wfmgen:data\":\"none\"")
 #     and --continuous with SigMF (the sidecar can't be written for an unbounded
 #     stream).
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --acq-code ${DC})
-expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --data none --bits 1011)
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --code-only --bits 1011)
 expect_exit(2 --type dsss --symbol-rate 2700 --sps 2)   # no --data-code
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 0)
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
     --continuous --file-type sigmf -o wg_bad_cont)
+
+# 17. #1619 F6a, a data source: every refusal a face can decide before the
+#     first sample exits 2. `--data` is the Field grammar only, so the old
+#     `--data none|prbs` is refused naming its fix; the pair is one
+#     exclusion; a finite source sets the run's length, so --count beside it
+#     is refused; stdin (`-`) needs --fill and cannot be repeated.
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --data none)
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --data prbs)
+expect_exit(2 --type bpsk --data 0xABCD --data-from-file wg_none.bin)
+expect_exit(2 --type bpsk --data 0xABCD --data-len 8 --count 64)
+expect_exit(2 --type bpsk --data-from-file - --data-len 8)
+expect_exit(2 --type bpsk --data-from-file - --data-len 8 --fill 0 --repeat)
+expect_exit(2 --type bpsk --data 0xABC --data-len 8)  # 12 bits, no --fill
 
 sweep_scratch()
 message(STATUS "wfmgen_cli: OK")

@@ -385,6 +385,34 @@ typedef struct {
                             data-modulated (the payload when supplied, else
                             the seeded PN). Ignored for burst dsss and
                             non-dsss types. */
+    /* The data source a frame's payload is drawn from, `data_len` bits per
+       frame (docs/design/payload-data-source.md; wfm/wfm_data.h is the one
+       table of what a source is). It is EITHER `data` (a Field, or a bit
+       array in Python) OR `data_from_file` (a file, or `-` for stdin):
+       one declaration makes the pair exclusive on every face. */
+    wfm_seq_t data;    /* A frame's payload drawn from a data source: a
+                          Field on the command line and in a scene, a bit
+                          array in Python. The source is split into
+                          data_len-bit frames, one chunk per frame, and its
+                          last chunk is padded from fill. For type=bits, and
+                          bpsk/qpsk/pn framed; not with data_from_file. */
+    size_t data_len;   /* Bits of the data source per frame: the data:LEN
+                          of the common frame [preamble x reps | sync |
+                          data:LEN | crc]. 0 takes a finite source whole, as
+                          one frame. A carried frame names its own data
+                          field, and this is then 0 or that field's LEN. */
+    wfm_seq_t fill;    /* The bits that pad a data source's last frame when
+                          it does not divide into data_len-bit frames, tiled
+                          from their first bit; stdin always needs them.
+                          Without them such a source is refused before the
+                          first sample. A Field on the command line and in a
+                          scene, a bit array in Python. */
+    const char *data_from_file; /* A data source read from a file of packed
+                          octets, MSB first, or `-` for stdin, instead of
+                          data. Not on the Python face: there a file is
+                          cvt.bytes_to_bin of its bytes, passed as data
+                          (payload-data-source.md section 4.9). Borrowed,
+                          so it must outlive the source. */
 } wfm_source_t;
 
 /**
@@ -826,6 +854,80 @@ int dp_wfm_synth_attach_data(dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *
                              const wfm_frame_ops_t *ops, wfm_data_src_t *src,
                              wfm_data_pacing_t pacing, int modulation);
 
+/**
+ * @brief Pace a synth's data source: WFM_DATA_PACED for `--realtime`.
+ *
+ * A synth attached by dp_wfm_source_attach_frame() pulls UNPACED -- it
+ * waits for its data, as `cat` does. A paced caller (the composer under
+ * `--realtime`) sets this after the build, so a source with nothing yet
+ * sends an idle frame instead (dp_wfm_data_frame, the one rule). A synth
+ * with no data source ignores it.
+ *
+ * @code
+ * dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+ *     WFM_SYNTH_BITS, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+ * dp_wfm_synth_set_data_pacing (s, WFM_DATA_PACED); // no source: no-op
+ * dp_wfm_synth_destroy (s);
+ * @endcode
+ */
+void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
+                                  wfm_data_pacing_t pacing);
+
+/**
+ * @brief Why a scene cannot be composed, or NULL: the one validator.
+ *
+ * Every source's dp_wfm_source_error(), then what only the whole scene
+ * can say about a data STREAM (`--data-from-file -`): it has no end to
+ * repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are
+ * refused, and stdin feeds at most one source. dp_wfm_compose_create()
+ * refuses exactly these; a face calls this to say why.
+ *
+ * @return a static sentence naming the fault and its fix, or NULL.
+ */
+const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
+                               int repeat, int continuous);
+
+
+/**
+ * @brief Whether a source's data is a stream: `data_from_file` is `-`.
+ *
+ * A stream has no length up front and no end to repeat, so a scene refuses
+ * it with `repeat`, `continuous` or `repeats > 1`, Plan refuses it, and a
+ * segment carrying one runs until it ends (dp_wfm_scene_error()).
+ */
+int dp_wfm_source_data_is_stream(const wfm_source_t *src);
+
+/**
+ * @brief Samples one frame of a source's data occupies; 0 with no data.
+ *
+ * The frame's output bits, at its mapping's bits per symbol (rounded up),
+ * times `sps`: what the synth emits per frame, and the unit a run with a
+ * data source is measured in.
+ */
+size_t dp_wfm_source_data_frame_samples(const wfm_source_t *src);
+
+/**
+ * @brief Frames a FINITE data source makes, `ceil(bits / LEN)`; 0 for a
+ *        stream or none.
+ *
+ * Known before the first sample (a file's length from fstat), which is
+ * what lets a finite run's length be derived rather than given (§4.6).
+ *
+ * @code
+ * static const uint8_t bits[40] = { 1 };
+ * wfm_source_t src = { .type = WFM_SYNTH_BPSK, .sps = 4 };
+ * src.data      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits,
+ *                              .len = 40 };
+ * src.data_len  = 16;
+ * src.fill      = (wfm_seq_t){ .kind = WFM_SEQ_DOTTED, .len = 2 };
+ * if (dp_wfm_source_data_frames (&src) != 3) // 40 bits in 16-bit frames
+ *   return 1;
+ * if (dp_wfm_source_data_frame_samples (&src) != 16 * 4) // bpsk, sps 4
+ *   return 1;
+ * @endcode
+ */
+uint64_t dp_wfm_source_data_frames(const wfm_source_t *src);
+
 /** @brief The data source a synth pulls from (dp_wfm_synth_attach_data), or
  *  NULL: its stats are the run's truth for scoring. */
 const wfm_data_src_t *dp_wfm_synth_data_source(const dp_wfm_synth_state_t *syn);
@@ -980,6 +1082,16 @@ dp_wfm_compose_state_t *dp_wfm_compose_create(
  * @param mode   A wfm_seed_advance_t value.
  */
 void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
+
+/**
+ * @brief Pace a composer's data sources: WFM_DATA_PACED under `--realtime`.
+ *
+ * Applied to every synth the composer builds from here on, so a data stream
+ * with nothing yet sends an idle frame of fill rather than waiting
+ * (dp_wfm_data_frame, the one rule). The default, WFM_DATA_UNPACED, waits.
+ */
+void dp_wfm_compose_set_data_pacing(dp_wfm_compose_state_t *state,
+                                    wfm_data_pacing_t pacing);
 
 /**
  * @brief The composer's current seed-advance mode (a `wfm_seed_advance_t`).
@@ -1240,6 +1352,33 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
  * @brief Build a composer from a JSON spec file.
  * @return Composer state, or NULL on read/parse error.
  */
+/**
+ * @brief dp_wfm_compose_from_json_why(), reading a scene that lives in @p base.
+ *
+ * A source's relative `"data_from_file"` is the scene's: it resolves against
+ * @p base, the directory the scene was read from, so a scene and its data
+ * move together and replay from anywhere. NULL (as from_json_why passes)
+ * leaves a relative path relative to the caller's working directory.
+ *
+ * @param json  the scene's text.
+ * @param base  the scene's directory, or NULL.
+ * @param why   optional; receives a static reason for a refusal.
+ * @return the composer, or NULL.
+ *
+ * @code
+ * const char *why = NULL;
+ * dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_at (
+ *     "{\"segments\":[{\"type\":\"tone\",\"num_samples\":8}]}", ".",
+ *     &why);
+ * if (!c)
+ *   return 1;
+ * dp_wfm_compose_destroy (c);
+ * @endcode
+ */
+dp_wfm_compose_state_t *dp_wfm_compose_from_json_at(const char *json,
+                                                    const char *base,
+                                                    const char **why);
+
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 
 /**

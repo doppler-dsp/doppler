@@ -303,6 +303,34 @@ typedef struct {
                             data-modulated (the payload when supplied, else
                             the seeded PN). Ignored for burst dsss and
                             non-dsss types. */
+    /* The data source a frame's payload is drawn from, `data_len` bits per
+       frame (docs/design/payload-data-source.md; wfm/wfm_data.h is the one
+       table of what a source is). It is EITHER `data` (a Field, or a bit
+       array in Python) OR `data_from_file` (a file, or `-` for stdin):
+       one declaration makes the pair exclusive on every face. */
+    wfm_seq_t data;    /* A frame's payload drawn from a data source: a
+                          Field on the command line and in a scene, a bit
+                          array in Python. The source is split into
+                          data_len-bit frames, one chunk per frame, and its
+                          last chunk is padded from fill. For type=bits, and
+                          bpsk/qpsk/pn framed; not with data_from_file. */
+    size_t data_len;   /* Bits of the data source per frame: the data:LEN
+                          of the common frame [preamble x reps | sync |
+                          data:LEN | crc]. 0 takes a finite source whole, as
+                          one frame. A carried frame names its own data
+                          field, and this is then 0 or that field's LEN. */
+    wfm_seq_t fill;    /* The bits that pad a data source's last frame when
+                          it does not divide into data_len-bit frames, tiled
+                          from their first bit; stdin always needs them.
+                          Without them such a source is refused before the
+                          first sample. A Field on the command line and in a
+                          scene, a bit array in Python. */
+    const char *data_from_file; /* A data source read from a file of packed
+                          octets, MSB first, or `-` for stdin, instead of
+                          data. Not on the Python face: there a file is
+                          cvt.bytes_to_bin of its bytes, passed as data
+                          (payload-data-source.md section 4.9). Borrowed,
+                          so it must outlive the source. */
 } wfm_source_t;
 
 typedef struct {
@@ -405,6 +433,19 @@ int dp_wfm_synth_attach_data(dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *
                              const wfm_frame_ops_t *ops, wfm_data_src_t *src,
                              wfm_data_pacing_t pacing, int modulation);
 
+void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
+                                  wfm_data_pacing_t pacing);
+
+const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
+                               int repeat, int continuous);
+
+
+int dp_wfm_source_data_is_stream(const wfm_source_t *src);
+
+size_t dp_wfm_source_data_frame_samples(const wfm_source_t *src);
+
+uint64_t dp_wfm_source_data_frames(const wfm_source_t *src);
+
 const wfm_data_src_t *dp_wfm_synth_data_source(const dp_wfm_synth_state_t *syn);
 
 int dp_wfm_source_synth_type(const wfm_source_t *src);
@@ -443,6 +484,9 @@ dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
 
 void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
+
+void dp_wfm_compose_set_data_pacing(dp_wfm_compose_state_t *state,
+                                    wfm_data_pacing_t pacing);
 
 int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
 
@@ -486,6 +530,10 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
                                                const char **why);
+
+dp_wfm_compose_state_t *dp_wfm_compose_from_json_at(const char *json,
+                                                    const char *base,
+                                                    const char **why);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 

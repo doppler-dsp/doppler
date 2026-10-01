@@ -375,6 +375,47 @@ test_refusals (void)
   return 0;
 }
 
+/* From a source's own members: a sequence (a bit array, or a generated
+   finite Field) and a fill sequence, rendered once. */
+static int
+test_from_a_sequence (void)
+{
+  static const uint8_t bits[12] = { 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0 };
+  const wfm_seq_t data = { .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 12 };
+  const wfm_seq_t fill = { .kind = WFM_SEQ_DOTTED, .len = 2 };
+  wfm_data_src_t *s    = dp_wfm_data_create_seq (&data, NULL, 8, &fill, &why);
+  DP_REQUIRE_MSG (s != NULL, why);
+  uint8_t b[8];
+  DP_CHECK (dp_wfm_data_next (s, 1, b, 8, -1) == WFM_DATA_FRAME
+            && memcmp (b, bits, 8) == 0);
+  DP_CHECK (dp_wfm_data_next (s, 1, b, 8, -1) == WFM_DATA_FRAME);
+  static const uint8_t last[8] = { 1, 1, 0, 0, 1, 0, 1, 0 };
+  DP_CHECK_MSG (memcmp (b, last, 8) == 0,
+                "the last frame padded from a GENERATED fill (dotted, 10...)");
+  dp_wfm_data_destroy (s);
+
+  /* A generated finite Field is the same bits as its text form. */
+  const wfm_seq_t pn = { .kind = WFM_SEQ_PN, .len = 20, .reg_bits = 5 };
+  uint8_t         want[20];
+  DP_REQUIRE (dp_wfm_field_bits ("pn:20:5", want, 20, NULL) == 20);
+  s = dp_wfm_data_create_seq (&pn, NULL, 20, NULL, &why);
+  DP_REQUIRE_MSG (s != NULL, why);
+  uint8_t g[20];
+  DP_CHECK (dp_wfm_data_next (s, 1, g, 20, -1) == WFM_DATA_FRAME
+            && memcmp (g, want, 20) == 0);
+  dp_wfm_data_destroy (s);
+
+  const wfm_seq_t dq = { .kind = WFM_SEQ_DATA, .len = 8 };
+  DP_CHECK_MSG (dp_wfm_data_create_seq (&dq, NULL, 8, NULL, &why) == NULL,
+                "data:LEN is not a source");
+  DP_CHECK_MSG (dp_wfm_data_create_seq (&data, "-", 8, &fill, &why) == NULL
+                    && strstr (why, "--data-from-file"),
+                "a sequence and a path together: refused");
+  DP_CHECK_MSG (dp_wfm_data_create_seq (&data, NULL, 8, NULL, &why) == NULL,
+                "12 bits in 8-bit frames with no fill: refused");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -393,6 +434,8 @@ main (void)
   if (test_pn_stream ())
     return 1;
   if (test_refusals ())
+    return 1;
+  if (test_from_a_sequence ())
     return 1;
   DP_TEST_END ("wfm_data");
 }

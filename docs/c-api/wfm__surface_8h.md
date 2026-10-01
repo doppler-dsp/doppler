@@ -54,7 +54,7 @@
 | Type | Name |
 | ---: | :--- |
 |  const [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md) | [**WFM\_SURFACE**](#variable-wfm_surface)  <br> |
-|  const [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md) | [**WFM\_SURFACE\_EXCLUSIVE**](#variable-wfm_surface_exclusive)   = `/* multi line expression */`<br> |
+|  const [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md) | [**WFM\_SURFACE\_EXCLUSIVE**](#variable-wfm_surface_exclusive)  <br> |
 
 
 
@@ -117,7 +117,7 @@
 | define  | [**WFM\_SURFACE\_HELP\_SIGNAL**](wfm__surface_8h.md#define-wfm_surface_help_signal)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_SYMBOLS**](wfm__surface_8h.md#define-wfm_surface_help_symbols)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_TYPE**](wfm__surface_8h.md#define-wfm_surface_help_type)  `/* multi line expression */`<br> |
-| define  | [**WFM\_SURFACE\_N\_EXCLUSIVE**](wfm__surface_8h.md#define-wfm_surface_n_exclusive)  `1`<br> |
+| define  | [**WFM\_SURFACE\_N\_EXCLUSIVE**](wfm__surface_8h.md#define-wfm_surface_n_exclusive)  `3`<br> |
 | define  | [**WFM\_SURFACE\_REPS\_WHY\_CLI**](wfm__surface_8h.md#define-wfm_surface_reps_why_cli)  `"only --acq-code repeats (a preamble): drop the \*REPS"`<br> |
 | define  | [**WFM\_SURFACE\_REPS\_WHY\_JSON**](wfm__surface_8h.md#define-wfm_surface_reps_why_json)  `"only \"acq\_code\" repeats (a preamble): drop the \*REPS"`<br> |
 
@@ -158,7 +158,12 @@ enum wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388 {
     WFM_SURFACE_source_sync,
     WFM_SURFACE_source_crc,
     WFM_SURFACE_source_symbol_rate,
+    WFM_SURFACE_source_dsss_code_only,
     WFM_SURFACE_source_frame,
+    WFM_SURFACE_source_data_from_file,
+    WFM_SURFACE_source_data,
+    WFM_SURFACE_source_data_len,
+    WFM_SURFACE_source_fill,
     WFM_SURFACE_segment_fs,
     WFM_SURFACE_segment_num_samples,
     WFM_SURFACE_segment_off_samples,
@@ -233,7 +238,7 @@ const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N];
 ### variable WFM\_SURFACE\_EXCLUSIVE 
 
 ```C++
-const wfm_surface_exclusive_t WFM_SURFACE_EXCLUSIVE[1];
+const wfm_surface_exclusive_t WFM_SURFACE_EXCLUSIVE[3];
 ```
 
 
@@ -423,7 +428,7 @@ static inline int wfm_surface_row_is_set (
 ### define WFM\_SURFACE\_N\_EXCLUSIVE 
 
 ```C++
-#define WFM_SURFACE_N_EXCLUSIVE `1`
+#define WFM_SURFACE_N_EXCLUSIVE `3`
 ```
 
 

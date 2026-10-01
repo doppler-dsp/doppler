@@ -78,6 +78,61 @@ wfmgen --type bits --bits-file frame.bin --modulation bpsk --sps 1 \
 
 ______________________________________________________________________
 
+## Data — a payload drawn frame by frame
+
+A **data source** fills a frame's payload a chunk at a time: `--data-len`
+bits per frame, each frame carrying the **next** chunk with its own CRC,
+until the source ends. This is how a message, a file or a pipe is sent as a
+sequence of frames rather than as one pattern cycled. It works on the framed
+types (`bits`, `bpsk`, `qpsk`, `pn`); a DSSS payload is still `--bits`
+([#1719](https://github.com/doppler-dsp/doppler/issues/1719)).
+
+| flag (scene key)                             | what it is                                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `--data FIELD` (`"data"`)                    | the source's bits, as a [Field](fields.md): `0x…`, `0101`, or a finite `pn:`/`gold:` |
+| `--data-from-file PATH` (`"data_from_file"`) | a file of packed octets, MSB first; `-` is stdin (the command line only)             |
+| `--data-len BITS` (`"data_len"`)             | bits per frame; `0` takes a finite source whole, as one frame                        |
+| `--fill FIELD` (`"fill"`)                    | pads the last frame when the data does not divide into frames, and an idle frame     |
+
+`--data` and `--data-from-file` are one exclusive pair. What each kind of
+source is -- finite or a stream, and how many frames it makes -- is the
+table in [`wfm/wfm_data.h`](../../c-api/wfm__data_8h.md), the one home of it.
+
+- **A finite source sets the run's length**: `ceil(bits / data_len)` frames,
+    so `--count` beside it is refused, and a `--record` replays it without one.
+- **A remainder needs a fill**, refused before the first sample otherwise,
+    naming the fix.
+- **stdin is a stream**: it always needs `--fill`, ends the run on the frame
+    boundary where the input ends, and cannot be repeated (`--repeat`,
+    `--repeats`, `--continuous`) or used in a scene. Under `--realtime`, a pause
+    in the input sends **idle frames** -- all fill -- so the carrier and the
+    frame timing never break.
+
+```sh
+# A message, three 16-bit frames, each with a CRC-16 over its own chunk.
+wfmgen --type bpsk --data 0x0123456789AB --data-len 16 --sps 4 -o frames.cf32
+
+# The same bytes from a file, then from stdin: the same waveform.
+printf '\001\043\105\147\211\253' > six.bin
+wfmgen --type bpsk --data-from-file six.bin --data-len 16 --sps 4 -o file.cf32
+printf '\001\043\105\147\211\253' \
+  | wfmgen --type bpsk --data-from-file - --data-len 16 --fill 0 --sps 4 \
+           -o stdin.cf32
+cmp frames.cf32 file.cf32 && cmp frames.cf32 stdin.cf32
+```
+
+From Python, `data=` takes the bits -- a file's bytes become bits through
+`cvt.bytes_to_bin` -- and there is no file face of its own. The message comes
+back frame by frame, each with its own CRC
+([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/wfmgen_data_source_demo.py),
+whose C twin is `native/examples/wfmgen_data_source_demo.c`):
+
+```python
+--8<-- "src/doppler/examples/wfmgen_data_source_demo.py:data"
+```
+
+______________________________________________________________________
+
 ## Symbols — bring your own constellation
 
 Where `bits` maps data through a *fixed* modulation, `symbols` skips the map
@@ -671,7 +726,7 @@ way on every face:
 | source             | selector                              | what it emits                                                                            |
 | ------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **PRBS** (default) | —                                     | bits from the source's seeded PN — endless, and a receiver regenerates them to score BER |
-| **code-only**      | `dsss_code_only=True` (`--data none`) | constant bit 0 → the pure spreading code, `+code` polarity, no data transitions          |
+| **code-only**      | `dsss_code_only=True` (`--code-only`) | constant bit 0 → the pure spreading code, `+code` polarity, no data transitions          |
 | **payload**        | `payload=` (`--bits`)                 | a caller bit pattern, cycled `mod len`                                                   |
 
 The default **PRBS** is the useful one for a stream with no finite truth
@@ -721,15 +776,17 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
 # The same stream with the data switched OFF -- the pure repeating code,
 # which is what you correlate against when bringing a receiver up.
 wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
-       --symbol-rate 2700 --data-code 111001010110011 --data none \
+       --symbol-rate 2700 --data-code 111001010110011 --code-only \
        --snr 10 --snr-mode esno --count 40000 -o code-only.cf32
 ```
 
-`--data none` selects code-only; a supplied `--bits`/`--bits-file` selects a
-payload. Incompatible combinations are rejected (exit 2), not silently
-ignored: `--symbol-rate` with the burst-frame flags (`--acq-code`, `--sync`,
-`--crc`), `--data` together with `--bits`/`--bits-file`, `--symbol-rate` without
-`--data-code`, and a non-positive `--symbol-rate`.
+`--code-only` selects code-only (a scene's `"code_only": true`); a supplied
+`--bits`/`--bits-file` selects a payload. Incompatible combinations are
+rejected (exit 2), not silently ignored: `--symbol-rate` with the burst-frame
+flags (`--acq-code`, `--sync`, `--crc`), `--code-only` together with a
+payload, `--symbol-rate` without `--data-code`, and a non-positive
+`--symbol-rate`. The old spelling `--data none` is refused naming
+`--code-only`: `--data` is now a frame's [data source](#data-a-payload-drawn-frame-by-frame).
 
 #### SigMF distinguishes the two modes
 

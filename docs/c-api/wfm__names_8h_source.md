@@ -98,14 +98,6 @@ static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
    SSOT: enum=gap_noise */
 static const char *const GAP_NOISE_NAMES[] = { "auto", "off" };
 
-/* --data's two sources, ordered to match wfm_source_t.dsss_code_only rather
-   than to match the usage text: "prbs" is the seeded PN (code_only 0) and
-   "none" is code-only (code_only 1), so the chosen index IS the field.
-   wfm_json.c held the REVERSE of this order until doppler#760, harmless only
-   because it compared the index instead of assigning it.
-   SSOT: enum=data_src */
-static const char *const DATA_SRC_NAMES[] = { "prbs", "none" };
-
 /* Where a frame field's bits come from.
    SSOT: enum=wfm_seq_kind, cenum=doppler/wfm/wfm_frame.h:wfm_seq_kind_t */
 static const char *const SEQ_KIND_NAMES[]

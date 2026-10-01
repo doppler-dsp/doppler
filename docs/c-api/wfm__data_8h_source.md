@@ -15,6 +15,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/wfm/wfm_frame.h" /* wfm_seq_t */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -57,6 +59,11 @@ extern "C"
                                          const char *fill, const char **why);
 
   uint64_t dp_wfm_data_length_bits (const char *data, const char *path);
+
+  wfm_data_src_t *dp_wfm_data_create_seq (const wfm_seq_t *data,
+                                          const char *path, size_t len,
+                                          const wfm_seq_t *fill,
+                                          const char **why);
 
   void dp_wfm_data_destroy (wfm_data_src_t *s);
 

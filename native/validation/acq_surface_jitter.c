@@ -154,8 +154,10 @@
 #define BN 0.002    /* the receiver\'s DLL bandwidth; held, so unused   */
 #define P_SYM ((double)SEGMENTS * CHIP_RATE / ((double)SF * SYM_RATE))
 #define DLL_SETTLE 6 /* blocks the symbol aid settles over, not scored   */
-#define N_BITS (1u << 16) /* the synth's payload, a harness PRBS, cycled  */
-#define RX_SPS 8u         /* the receiver's MpskReceiver samples per symbol */
+#define N_BITS                                                                \
+  (1u << 16)       /* the synth's payload, a harness PRBS, sent once          \
+                    */
+#define RX_SPS 8u  /* the receiver's MpskReceiver samples per symbol */
 #define DLL_U0 0.1 /* the coasting loop\'s seed offset from the cell    */
 /* The held tracker's correction gains: 1 puts the phase at the read; a
    first-order loop below it keeps g / (2 - g) of the read's variance
@@ -399,6 +401,10 @@ stim_close (stim_t *s)
   free (s->sig);
   dp_awgn_destroy (s->g);
   dp_doppler_channel_destroy (s->ch);
+  /* A payload is sent once (doppler#1718): N_BITS must cover every data
+     symbol a run reads, or the tail is silence scored as symbols. */
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (s->syn),
+                "the N_BITS payload covered the run");
   dp_wfm_synth_destroy (s->syn);
 }
 
@@ -1466,6 +1472,7 @@ truth_bit (const uint8_t *bits, uint64_t sym)
   const uint64_t F = F_SYM, W = W_SYM;
   if (sym % F < W)
     return 0u;
+  /* inside N_BITS by the teardown check, so the modulo never wraps */
   return bits[((sym / F) * (F - W) + (sym % F - W)) % N_BITS] & 1u;
 }
 

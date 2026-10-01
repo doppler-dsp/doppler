@@ -47,6 +47,17 @@ sample values are irrelevant. A ratchet that large is noise, and a noisy gate
 gets switched off. The level marker above already catches the case that
 actually bites, which is an invented amplitude convention.
 
+One more rule, file-level and with NO allowlist -- `once`. A synth sends a
+bit pattern (or a dsss chip burst, or a payload) ONCE and then emits
+silence (doppler#1718). A C harness that hands one a finite pattern must
+also name `dp_wfm_synth_data_ended`, i.e. assert the pattern covered the
+run. Measured cost, 2026-10-01: removing the cycle left a bench timing the
+silence, a validation record reporting `bits` at 0.6% power, and three acq
+validators scoring a silent tail, while two others went red with nothing
+pointing at the source -- `MpskReceiver: refused every point`. Tile a
+periodic stimulus with `dp_tx_bits_for_run` (native/tests/dp_tx_test.h).
+Python cannot reach `data_ended`; its consumers check the power they claim.
+
 **The allowlist is a RATCHET. It may only shrink.** A new occurrence fails the
 gate. Removing one means deleting its line, which the failure message shows.
 
@@ -354,6 +365,53 @@ def occurrences() -> list[tuple[str, str, int, str]]:
     return found
 
 
+#: The C layers that hand a synth a pattern: the `once` rule's scope. The
+#: synth's own unit tests are in it too -- they test the latch, so they
+#: name `data_ended` already.
+ONCE_DIRS = (
+    "native/tests",
+    "native/validation",
+    "native/benchmarks",
+    "native/examples",
+)
+
+#: A CALL that hands the synth a finite pattern, or the data mode that
+#: carries one. A bare symbol in a binding table (`(jm_any_fn)dp_...,`) is
+#: not a call.
+ONCE_SETS = re.compile(
+    r"\bdp_wfm_synth_set_(bits|dsss_chips)\s*\(|\bWFM_DSSS_DATA_BITS\b"
+)
+ONCE_CHECK = re.compile(r"\bdp_wfm_synth_data_ended\s*\(")
+
+
+def unchecked_patterns() -> list[tuple[str, int, str]]:
+    """Every C file that sets a finite pattern and never asks if it ended.
+
+    Returns the FIRST setting line of each such file, as (file, line-no,
+    line). Comment lines are skipped on both sides, as in `occurrences()`.
+    """
+    bad: list[tuple[str, int, str]] = []
+    for d in ONCE_DIRS:
+        base = ROOT / d
+        if not base.exists():
+            continue
+        for path in sorted(base.rglob("*")):
+            if path.suffix not in (".c", ".h"):
+                continue
+            code = [
+                (n, line)
+                for n, line in enumerate(
+                    path.read_text(errors="replace").splitlines(), 1
+                )
+                if not line.lstrip().startswith(("*", "//", "/*"))
+            ]
+            sets = [(n, ln) for n, ln in code if ONCE_SETS.search(ln)]
+            if sets and not any(ONCE_CHECK.search(ln) for _, ln in code):
+                n, ln = sets[0]
+                bad.append((path.relative_to(ROOT).as_posix(), n, ln.strip()))
+    return bad
+
+
 def load_allow() -> dict[str, str]:
     """Allowed `marker::file::snippet` keys mapped to their stated reason."""
     allowed: dict[str, str] = {}
@@ -374,6 +432,21 @@ def key_for(marker: str, rel: str, line: str) -> str:
 
 
 def main() -> int:
+    unchecked = unchecked_patterns()
+    if unchecked:
+        print(
+            "FAIL: a finite pattern with no check that it covered the run.\n"
+            "\n"
+            "A synth sends a pattern ONCE, then silence (doppler#1718). A\n"
+            "harness whose pattern runs dry measures the silence, and says\n"
+            "nothing. Tile a periodic stimulus with dp_tx_bits_for_run\n"
+            "(native/tests/dp_tx_test.h) and assert, after the run:\n"
+            "  DP_CHECK (!dp_wfm_synth_data_ended (syn));\n"
+        )
+        for rel, n, line in unchecked:
+            print(f"  [once] {rel}:{n}\n      {line}\n")
+        return 1
+
     found = occurrences()
     allowed = load_allow()
 

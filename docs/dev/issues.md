@@ -8,8 +8,8 @@ Derived 2026-10-01 by `make issues`, which reads the live issue list; titles and
 
 | Tier                                   | What it means             | Open |
 | -------------------------------------- | ------------------------- | ---- |
-| [0](#tier-0-breaks-for-a-user)         | Breaks for a user         | 16   |
-| [1](#tier-1-a-gate-that-does-not-gate) | A gate that does not gate | 34   |
+| [0](#tier-0-breaks-for-a-user)         | Breaks for a user         | 17   |
+| [1](#tier-1-a-gate-that-does-not-gate) | A gate that does not gate | 33   |
 | [2](#tier-2-a-claim-nothing-measures)  | A claim nothing measures  | 30   |
 | [3](#tier-3-measured-cost)             | Measured cost             | 16   |
 | [4](#tier-4-cannot-be-reached)         | Cannot be reached         | 37   |
@@ -39,6 +39,7 @@ Reproducible through an interface someone actually uses — a crash, a race, a l
 | [#1696](https://github.com/doppler-dsp/doppler/issues/1696) | Composer(type="dsss") with missing codes: 'dp_wfm_compose_create failed' names no fix; acq_code alone silently yields a 255-sample preamble                         | in review ([#1730](https://github.com/doppler-dsp/doppler/pull/1730)) |
 | [#1700](https://github.com/doppler-dsp/doppler/issues/1700) | wfm: a scene drops "crc" beside "frame" silently; the CLI refuses --crc beside --frame                                                                              | open                                                                  |
 | [#1729](https://github.com/doppler-dsp/doppler/issues/1729) | Composer face: num_samples beside a finite data source is silently dropped; retired bits=/payload=/pattern= need the Composer assertion                             | open                                                                  |
+| [#1733](https://github.com/doppler-dsp/doppler/issues/1733) | wfmgen: a scene whose segments differ in fs is written, streamed and paced at segment 0's rate                                                                      | open                                                                  |
 
 ## Tier 1 — A gate that does not gate
 
@@ -79,7 +80,6 @@ This repo's own doctrine turned on itself: *a claim nothing runs is prose*. Each
 | [#1658](https://github.com/doppler-dsp/doppler/issues/1658) | The C library builds with no warning flags: 0 of 691 compile lines carry -Wall                                                                                                                     | in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664)) |
 | [#1663](https://github.com/doppler-dsp/doppler/issues/1663) | DP_NODISCARD: an ignored refusal is invisible to every compiler flag                                                                                                                               | open                                                                  |
 | [#1671](https://github.com/doppler-dsp/doppler/issues/1671) | gallery-scripts-check cannot see a plot whose file name the script derives rather than quotes                                                                                                      | open                                                                  |
-| [#1716](https://github.com/doppler-dsp/doppler/issues/1716) | issues: nothing reconciles the tier map with the live issue list; 66 open issues untiered, 3 closed ones still listed                                                                              | in review ([#1732](https://github.com/doppler-dsp/doppler/pull/1732)) |
 
 ## Tier 2 — A claim nothing measures
 
@@ -221,7 +221,7 @@ Duplication, stale pins, harness drift, and the long tail. Real, none of it urge
 | [#1034](https://github.com/doppler-dsp/doppler/issues/1034) | TestComposeUpLive::test_three_block_chain_spawns_and_moves_data fails locally: recv failed: Invalid argument                                      | open                                                                  |
 | [#1114](https://github.com/doppler-dsp/doppler/issues/1114) | noise_steps matches steps()'s AWGN chunking to defend against a path that no longer exists, and nothing would catch its return                    | open                                                                  |
 | [#1123](https://github.com/doppler-dsp/doppler/issues/1123) | wfm_reader_header_tag neither bounds-checks nor documents that it must not be — the only one of four enumerators that does neither                | open                                                                  |
-| [#1164](https://github.com/doppler-dsp/doppler/issues/1164) | libdoppler exports 106 symbols that are not its API, including all of vendored cJSON and PFFFT                                                    | open                                                                  |
+| [#1164](https://github.com/doppler-dsp/doppler/issues/1164) | libdoppler exports 106 symbols that are not its API, including all of vendored cJSON and PFFFT                                                    | in review ([#1735](https://github.com/doppler-dsp/doppler/pull/1735)) |
 | [#1186](https://github.com/doppler-dsp/doppler/issues/1186) | changelog.d fragments using reference-style links break mdformat once assembled next to another entry                                             | open                                                                  |
 | [#1188](https://github.com/doppler-dsp/doppler/issues/1188) | native/validation: move every validator's --check onto dp_test.h                                                                                  | open                                                                  |
 | [#1228](https://github.com/doppler-dsp/doppler/issues/1228) | docs(gallery): a page for acq_surface_demo — the searcher's surface and probes                                                                    | open                                                                  |

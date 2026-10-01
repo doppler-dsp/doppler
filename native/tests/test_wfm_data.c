@@ -413,6 +413,21 @@ test_from_a_sequence (void)
                 "a sequence and a path together: refused");
   DP_CHECK_MSG (dp_wfm_data_create_seq (&data, NULL, 8, NULL, &why) == NULL,
                 "12 bits in 8-bit frames with no fill: refused");
+  DP_CHECK_MSG (dp_wfm_data_create_seq (NULL, NULL, 8, NULL, &why) == NULL
+                    && strstr (why, "no data source"),
+                "neither a sequence nor a path: refused by name");
+  DP_CHECK_MSG (dp_wfm_data_create_seq (&data, NULL, 0, &fill, &why) == NULL
+                    && strstr (why, "LEN must be > 0"),
+                "LEN 0: refused by name");
+  /* A 1-bit register has no m-sequence to default to: a fill that cannot
+     be built is refused, never rendered as zeros. */
+  const wfm_seq_t nopoly = { .kind = WFM_SEQ_PN, .len = 4, .reg_bits = 1 };
+  DP_CHECK_MSG (dp_wfm_data_create_seq (&data, NULL, 8, &nopoly, &why) == NULL
+                    && strstr (why, "cannot be built"),
+                "an unbuildable fill: refused by name");
+  DP_CHECK_MSG (dp_wfm_data_create_fd (-1, 8, "0", &why) == NULL
+                    && strstr (why, "cannot be read"),
+                "a bad fd: refused by name");
   return 0;
 }
 

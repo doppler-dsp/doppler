@@ -251,13 +251,15 @@ int
 dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
                          void *user, void (*free_user) (void *))
 {
-  /* A pattern the bit cursor plays: a bits frame, or a dsss burst's chips
-     (each burst one frame of the source). A continuous dsss stream has no
-     pattern to refill: its data symbols are its own clock's. */
-  const int burst
-      = state->wtype == WFM_SYNTH_DSSS && !(state->chips_per_symbol > 0.0);
+  /* A pattern the bit cursor plays: a bits frame, a dsss burst's chips
+     (each burst one frame of the source), or a continuous dsss stream's
+     payload, read a bit per data symbol. A continuous stream with no
+     payload (code-only, or its own PRBS) has nothing to refill. */
+  const int dsss = state->wtype == WFM_SYNTH_DSSS
+                   && (!(state->chips_per_symbol > 0.0)
+                       || state->data_mode == WFM_DSSS_DATA_BITS);
   if (fn
-      && ((state->wtype != WFM_SYNTH_BITS && !burst) || !state->bits
+      && ((state->wtype != WFM_SYNTH_BITS && !dsss) || !state->bits
           || !state->n_bits))
     return -1;
   if (state->refill_free)
@@ -544,6 +546,11 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   s->chip_n       = dp_r_u64 (&_r);
   s->sym_idx      = dp_r_u64 (&_r);
   dp_r_bytes (&_r, &s->cur_data, 1);
+  /* Derived, so not in the blob: the next symbol's edge, from the one
+     symbol clock (chip 0 recomputes it in the kernel). */
+  if (s->chips_per_symbol > 0.0 && s->chip_n)
+    s->next_edge
+        = dp_wfm_dsss_cont_edge (s->sym_idx + 1u, s->chips_per_symbol);
   dp_r_bytes (&_r, &s->primed, 1);
   uint8_t pres[5];
   dp_r_bytes (&_r, pres, 5);

@@ -1595,6 +1595,19 @@ check_source (wfmgen_opts_t *o)
         }
       if (!o->surf_seen[WFM_SURFACE_segment_num_samples])
         o->seg.num_samples = 0;
+      /* Paced, a pause in a pipe is an idle frame -- and continuous dsss
+         has no frame, so it has nothing to send while it waits: the output
+         would fall behind the clock it is paced to. */
+      if (o->realtime && o->src.type == WFM_SYNTH_DSSS
+          && o->src.symbol_rate > 0.0
+          && dp_wfm_source_data_is_stream (&o->src))
+        {
+          (void)fprintf (stderr,
+                         "error: --realtime: a continuous dsss source has "
+                         "no frame to send idle while stdin pauses: drop "
+                         "--realtime, or give a finite source\n");
+          return 2;
+        }
     }
   const char *why = dp_wfm_scene_error (&o->seg, 1, o->repeat, o->continuous);
   if (!why)

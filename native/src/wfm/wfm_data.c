@@ -195,7 +195,10 @@ check_length (wfm_data_src_t *s, const char **why)
 {
   if (s->st.stream)
     {
-      if (s->kind == SRC_FD && !s->fill)
+      /* A one-bit frame has no remainder to pad, and an idle frame with no
+         fill is an error that ends the run (dp_wfm_data_idle), so only a
+         wider frame needs one. */
+      if (s->kind == SRC_FD && !s->fill && s->len > 1)
         return refuse (s, why,
                        "a stream's length is unknown until it ends, so it "
                        "needs a fill (--fill) for its last frame and for "

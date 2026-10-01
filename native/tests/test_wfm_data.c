@@ -207,6 +207,15 @@ test_pipe_straddle (void)
   DP_CHECK (strstr (why, "fill") != NULL);
   close (p[0]);
   close (p[1]);
+
+  /* One bit a frame has no remainder to pad: a one-bit pipe (continuous
+     dsss reads a bit per data symbol) needs no fill. */
+  DP_REQUIRE (pipe (p) == 0);
+  s = dp_wfm_data_create_fd (p[0], 1, NULL, &why);
+  DP_CHECK_MSG (s != NULL, "a one-bit pipe with no fill is a source");
+  dp_wfm_data_destroy (s);
+  close (p[0]);
+  close (p[1]);
   return 0;
 }
 

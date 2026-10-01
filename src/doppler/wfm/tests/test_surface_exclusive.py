@@ -409,6 +409,33 @@ def test_python_data_on_a_dsss_burst_is_a_burst_per_chunk():
     assert Composer([seg]).compose().size == 2 * nch
 
 
+def test_python_data_on_continuous_dsss_is_a_bit_per_symbol():
+    """Continuous dsss has no frame: each data symbol carries the next bit,
+    chip n being the code XOR the bit of symbol floor(n / cps), and the run
+    ends with the last symbol (doppler#1719)."""
+    code = np.array([1, 1, 0, 1, 0], np.uint8)
+    bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 2, np.uint8)
+    fs, rate = 1e6, 1e6 / 3.7
+    cps = (fs / 1.0) / rate
+    kw = {
+        "type": "dsss",
+        "sps": 1,
+        "snr": 200.0,
+        "data_code": code,
+        "symbol_rate": rate,
+        "data": bits,
+    }
+    n = int(np.ceil(bits.size * cps))  # 60 chips: floor(59 / 3.7) = 15
+    k = np.arange(n)
+    want = code[k % code.size] ^ bits[(k / cps).astype(int)]
+    x = Synth(**kw, fs=fs).steps(n + 8).real
+    assert np.array_equal(x[:n], np.where(want, -1.0, 1.0))
+    assert not np.any(x[n:]), "silence once the data has ended"
+    assert Composer([Segment(**kw, fs=fs)]).compose().size == n
+    with pytest.raises(ValueError, match="data_len does not apply"):
+        Synth(**kw, fs=fs, data_len=8).steps(1)  # built at first use
+
+
 def test_python_data_refuses_text():
     with pytest.raises(ValueError, match="field_bits"):
         Synth(type="bits", data="0xAB", data_len=8)

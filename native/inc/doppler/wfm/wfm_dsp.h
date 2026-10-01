@@ -209,6 +209,48 @@ void dp_wfm_dsss_spread(const float _Complex *syms, size_t n_sym,
                      const uint8_t *code, size_t sf, float _Complex *out);
 
 /**
+ * @brief The first chip of data symbol @p k on a continuous DSSS stream:
+ *        the ONE symbol clock.
+ *
+ * Chip `n` belongs to data symbol `floor(n / chips_per_symbol)`, so symbol
+ * `k` opens at the smallest `n` whose quotient reaches `k`. Every place
+ * that needs the clock asks this function -- the synth's per-chip kernel
+ * (`wfm_synth_cont_dsss_chip`) for each symbol edge, the run length of a
+ * data source (`dp_wfm_source_data_samples`) for the edge after the last
+ * symbol, and `dp_wfm_cont_dsss_chips` -- so a waveform and its length
+ * cannot disagree about where a symbol starts.
+ *
+ * **Exact under -ffast-math, by construction.** The quotient is an IEEE
+ * division, never a multiply by the reciprocal: this tree builds with
+ * `-ffast-math`, whose reciprocal rewrite of a division by an invariant
+ * moved a symbol edge by a chip (at 6138000 / 2 / 2700 chips a symbol,
+ * symbol 51 opens on chip 57970; the reciprocal said 57971). The function
+ * turns that rewrite off for itself and is out of line, so no caller's
+ * loop can reshape it (doppler#1725).
+ *
+ * @param k                 data-symbol index.
+ * @param chips_per_symbol  chips per data symbol (>= 1; non-integer is the
+ *                          asynchronous case).
+ * @return the first chip of symbol @p k; 0 for symbol 0.
+ *
+ * @code
+ * #include <doppler/wfm/wfm_dsp.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   const double cps = (6138000.0 / 2.0) / 2700.0; // 1136.67 chips/symbol
+ *   // symbol 1 opens on chip 1137 = ceil(1136.67); symbol 51 on 57970,
+ *   // where ceil(51 * cps) = 57971 is a chip late in floating point
+ *   return dp_wfm_dsss_cont_edge (0, cps) != 0
+ *          || dp_wfm_dsss_cont_edge (1, cps) != 1137
+ *          || dp_wfm_dsss_cont_edge (51, cps) != 57970;
+ * }
+ * @endcode
+ */
+uint64_t dp_wfm_dsss_cont_edge(uint64_t k, double chips_per_symbol);
+
+/**
  * @brief Chip count for `dp_wfm_cont_dsss_chips`: exactly @p n_chips.
  *
  * Trivial, but present so the two continuous entry points mirror the burst
@@ -237,7 +279,8 @@ wfm_cont_dsss_nchips(size_t n_chips)
  *    full code period — synchronous by construction, integer always.
  *
  * Chip `i` carries `code[i % code_len] ^ data[floor(i / chips_per_symbol)]`,
- * so both clocks advance independently off the same chip index. Because the
+ * so both clocks advance independently off the same chip index; the symbol
+ * edges are `dp_wfm_dsss_cont_edge`'s, the one symbol clock. Because the
  * symbol index is a floor of a fractional quotient, consecutive symbols
  * legitimately span different numbers of chips (1136 or 1137 at SPEC.md's
  * 3.069 Mcps / 2700 bps) — that jitter IS the asynchronicity, not an artifact.

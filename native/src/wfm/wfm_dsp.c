@@ -88,6 +88,37 @@ dp_wfm_dsss_spread (const float _Complex *syms, size_t n_sym,
     }
 }
 
+/* The ONE continuous-DSSS symbol clock (wfm_dsp.h says why it is here and
+   exact). Fast math is off for this function alone -- GCC by an optimize
+   pragma around it, Clang (and clang-cl) by a block-scope float_control.
+   Measured at -O3 -ffast-math, symbol 51 at 6138000 / 2 / 2700 opens on
+   chip 57971 instead of 57970 under either compiler without them, and
+   GCC's narrower "no-reciprocal-math" alone does NOT restore it: some other
+   fast-math rewrite of the quotient comparison does the same damage. */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC optimize("no-fast-math")
+#endif
+uint64_t
+dp_wfm_dsss_cont_edge (uint64_t k, double chips_per_symbol)
+{
+#if defined(__clang__)
+#pragma float_control(precise, on)
+#endif
+  /* ceil(k * cps) is the edge in exact arithmetic and a chip either side
+     of it in floating point, so it only starts the search; the quotient
+     decides. cps >= 1 keeps each step one chip. */
+  uint64_t n = (uint64_t)ceil ((double)k * chips_per_symbol);
+  while (n && (uint64_t)((double)(n - 1u) / chips_per_symbol) >= k)
+    n--;
+  while ((uint64_t)((double)n / chips_per_symbol) < k)
+    n++;
+  return n;
+}
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC pop_options
+#endif
+
 size_t
 dp_wfm_cont_dsss_chips (const uint8_t *code, size_t code_len,
                         const uint8_t *data, size_t n_data,
@@ -97,15 +128,17 @@ dp_wfm_cont_dsss_chips (const uint8_t *code, size_t code_len,
       || !(chips_per_symbol > 0.0) || n_chips == 0)
     return 0;
   /* Both clocks advance off the same chip index, independently: the code by
-     integer modulo, the data by a floor of a FRACTIONAL quotient.  That floor
-     is the whole point -- it is what puts symbol boundaries inside code
+     integer modulo, the data by the one symbol clock's edges -- a floor of a
+     FRACTIONAL quotient, which is what puts symbol boundaries inside code
      epochs and makes consecutive symbols span different chip counts. */
+  size_t   si   = 0;
+  uint64_t next = dp_wfm_dsss_cont_edge (1, chips_per_symbol);
   for (size_t i = 0; i < n_chips; i++)
     {
-      size_t  ci = i % code_len;
-      size_t  si = (size_t)((double)i / chips_per_symbol);
-      uint8_t b  = data[si % n_data] & 1u;
-      out[i]     = (uint8_t)((code[ci] & 1u) ^ b);
+      if (i >= next)
+        next = dp_wfm_dsss_cont_edge (++si + 1u, chips_per_symbol);
+      const uint8_t b = data[si % n_data] & 1u;
+      out[i]          = (uint8_t)((code[i % code_len] & 1u) ^ b);
     }
   return n_chips;
 }

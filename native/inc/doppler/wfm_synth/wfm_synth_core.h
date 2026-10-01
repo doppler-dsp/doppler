@@ -24,6 +24,7 @@
 #include "doppler/resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
 #include "doppler/gold/gold_core.h"
+#include "doppler/wfm/wfm_dsp.h" /* dp_wfm_dsss_cont_edge: the symbol clock */
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE bit->symbol map */
 #include "doppler/cvt/cvt_core.h"
 #ifdef __cplusplus
@@ -179,6 +180,9 @@ typedef struct {
     size_t frame_symbols;     /* config: frame length in symbols; 0 = no window */
     uint64_t chip_n;         /* running: chips emitted so far                 */
     uint64_t sym_idx;        /* running: current data-symbol index            */
+    uint64_t next_edge;      /* derived: first chip of symbol sym_idx + 1
+                                (dp_wfm_dsss_cont_edge); not serialized --
+                                set_state recomputes it from sym_idx       */
     uint8_t cur_data;        /* running: data bit latched for this symbol      */
     dp_fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
     /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
@@ -319,15 +323,25 @@ wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
 JM_FORCEINLINE float
 wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
 {
-    uint64_t n   = s->chip_n;
-    uint64_t sym = (uint64_t)((double)n / s->chips_per_symbol);
-    if (n == 0 || sym != s->sym_idx) {
-        s->sym_idx = sym;
+    uint64_t n = s->chip_n;
+    /* The symbol clock is dp_wfm_dsss_cont_edge's, the one every caller
+       shares: a symbol opens on its edge chip, and cps >= 1 means at most
+       one edge per chip. One call per symbol, not a division per chip. */
+    if (n == 0 || n >= s->next_edge) {
+        const uint64_t sym = n ? s->sym_idx + 1u : 0u;
+        s->sym_idx         = sym;
+        s->next_edge = dp_wfm_dsss_cont_edge(sym + 1u, s->chips_per_symbol);
         const uint64_t F = s->frame_symbols, W = s->code_only_symbols;
         if (F && sym % F < W) {
             s->cur_data = 0u; /* the pure-code window: the code, +polarity */
         } else if (s->data_mode == WFM_DSSS_DATA_PRBS) {
             s->cur_data = s->pn ? pn_step(s->pn) : 0u; /* data symbols only */
+        } else if (s->data_mode == WFM_DSSS_DATA_BITS && s->refill) {
+            /* a data source (doppler#1719): the next bit through the one
+               cursor, one per data symbol -- the code-only window takes
+               none -- until the source ends, then silence below */
+            unsigned b  = 0u;
+            s->cur_data = wfm_synth_bit_next(s, &b) ? (uint8_t)b : 0u;
         } else if (s->data_mode == WFM_DSSS_DATA_BITS) {
             /* payload index = data symbols before this one, over every frame:
                derived from the clock, never latched, so nothing to serialize */
@@ -341,6 +355,8 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
     }
     uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
     s->chip_n        = n + 1;
+    if (s->data_ended)
+        return 0.0f; /* silence after a data source's last bit */
     return (code_bit ^ s->cur_data) ? -1.0f : 1.0f;
 }
 
@@ -552,21 +568,25 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
  * A dsss BURST plays its chips through the same cursor, so it takes a refill
  * too: the pattern is the burst dp_wfm_synth_set_dsss_chips() installed, and
  * @p fn writes the next burst's chips (doppler#1719). A later
- * dp_wfm_synth_set_dsss_chips() detaches it.
+ * dp_wfm_synth_set_dsss_chips() detaches it. A CONTINUOUS dsss stream set
+ * up with `WFM_DSSS_DATA_BITS` takes one as well: each data symbol reads the
+ * next bit through the cursor instead of cycling its payload, the refill
+ * writing the next `n` bits, and the chips are silent once it reports the
+ * end.
  *
  * A synth with a refill attached REFUSES serialization --
  * dp_wfm_synth_state_bytes() returns 0 and dp_wfm_synth_set_state() is
  * DP_ERR_INVALID -- because the pulled frame and the source's position are
  * state it cannot yet carry (doppler#1681).
  *
- * @param state      a type=bits synth with a pattern set, or a type=dsss
- *                   burst with its chips set.
+ * @param state      a type=bits synth with a pattern set, a type=dsss
+ *                   burst with its chips set, or a continuous one whose
+ *                   data_mode is `WFM_DSSS_DATA_BITS`.
  * @param fn         the frame source; NULL detaches.
  * @param user       passed to @p fn; owned by the synth when @p free_user
  *                   is given, which it calls on detach or destroy.
  * @param free_user  frees @p user, or NULL.
- * @return 0, or -1 if the synth is neither type=bits nor a dsss burst, or
- *         has no pattern.
+ * @return 0, or -1 if the synth is none of those, or has no pattern.
  *
  * @code
  * #include "doppler/wfm_synth/wfm_synth_core.h"

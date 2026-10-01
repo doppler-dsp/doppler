@@ -229,8 +229,7 @@ expect_exit(2 --type bpsk --data 0xABC --data-len 8)  # 12 bits, no --fill
 
 # 18. #1719, a data source on a dsss BURST: a burst per chunk, so "AB" in
 #     8-bit chunks is two bursts of 4 + (8 + 16) * 4 = 100 chips, whether the
-#     bits come as a Field or from a file; a continuous dsss source refuses it
-#     until it is built.
+#     bits come as a Field or from a file.
 file(WRITE wg_ab.bin "AB")
 run(--type dsss --acq-code 0x9 --data-code 0xd --data 0x4142 --data-len 8
     --sps 1 -o wg_dsss_field.cf32)
@@ -242,8 +241,28 @@ file(MD5 wg_dsss_file.cf32 dsg)
 if(NOT dsf STREQUAL dsg)
     message(FATAL_ERROR "a dsss burst over a file differs from the Field")
 endif()
+
+# 19. #1719, CONTINUOUS dsss over a data source: one bit per data symbol, no
+#     frame. 16 bits at 6138000 / 2 / 2700 = 1136.67 chips a symbol is
+#     ceil(16 * 1136.67) = 18187 chips, 2 samples each -- derived, with no
+#     --count -- and a file gives the same as the Field. What only a frame
+#     means is refused: --data-len, --fill, and --realtime over stdin.
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --data 0x4142 -o wg_cont_field.cf32)
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --data-from-file wg_ab.bin -o wg_cont_file.cf32)
+expect_size(wg_cont_field.cf32 290992)
+file(MD5 wg_cont_field.cf32 cnf)
+file(MD5 wg_cont_file.cf32 cng)
+if(NOT cnf STREQUAL cng)
+    message(FATAL_ERROR "continuous dsss over a file differs from the Field")
+endif()
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2
-    --fs 6138000 --data 0xAB)
+    --fs 6138000 --data 0x4142 --data-len 8)
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2
+    --fs 6138000 --data 0x4142 --fill 0)
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2
+    --fs 6138000 --data-from-file - --realtime)
 
 sweep_scratch()
 message(STATUS "wfmgen_cli: OK")

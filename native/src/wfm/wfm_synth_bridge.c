@@ -75,6 +75,21 @@ has_data (const wfm_source_t *src)
   return src->data.len || src->data_from_file;
 }
 
+/* Chips per data symbol of a CONTINUOUS dsss source at `fs`: sps is
+   samples per CHIP for dsss, so chip_rate = fs/sps, and the data clock is
+   symbol_rate -- non-integer, which is the asynchronicity. */
+static double
+cont_cps (const wfm_source_t *src, double fs)
+{
+  return src->sps > 0 ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
+}
+
+static int
+is_cont_dsss (const wfm_source_t *src)
+{
+  return src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0;
+}
+
 /* The index of a description's one data:LEN field, or -1. */
 static int
 data_field (const wfm_frame_desc_t *d)
@@ -312,9 +327,25 @@ source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 static const char *
 data_error (const wfm_source_t *src)
 {
-  if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0)
-    return "a data source on a continuous dsss source is not built yet "
-           "(doppler#1719): its payload is --bits until then";
+  if (is_cont_dsss (src))
+    {
+      /* No frame: one bit per data symbol, so the frame's rows have nothing
+         to mean here, and each says so rather than being ignored. */
+      if (src->data_len)
+        return "a continuous dsss source has no frame: its data is one bit "
+               "per data symbol, so data_len does not apply";
+      if (src->fill.len)
+        return "a continuous dsss source has no frame to pad: its data is "
+               "one bit per data symbol, so fill does not apply";
+      if (src->data.kind == WFM_SEQ_DATA)
+        return "data:LEN has no bits of its own: it is the frame's field "
+               "that --data fills, not a source or a fill";
+      if (!dp_wfm_source_data_is_stream (src) && !src->data.len
+          && dp_wfm_data_length_bits (NULL, src->data_from_file) == 0)
+        return "--data-from-file: a file that cannot be opened, is empty, "
+               "or is not a regular file (a stream is -, stdin)";
+      return NULL;
+    }
   if (!type_can_frame (src) && src->type != WFM_SYNTH_DSSS)
     return "a data source fills a frame's payload: use --type "
            "bits/bpsk/qpsk/pn/dsss";
@@ -547,6 +578,9 @@ typedef struct
      codes (dp_wfm_dsss_desc_chips_data). `dcode` NULL is a plain frame. */
   uint8_t *acq, *dcode;
   size_t   an, acq_reps, dn;
+  /* No frame at all (continuous dsss): the chunk IS the bits, copied as
+     drawn -- one data bit per pull. */
+  int raw;
 } data_pull_t;
 
 static void
@@ -571,6 +605,11 @@ data_pull_refill (void *u, uint8_t *bits, size_t n)
                                                   p->chunk, p->chunk_bits);
   if (st != WFM_DATA_FRAME && st != WFM_DATA_IDLE)
     return 1;
+  if (p->raw)
+    {
+      memcpy (bits, p->chunk, n);
+      return 0;
+    }
   const wfm_frame_ops_t *ops = p->has_ops ? &p->ops : NULL;
   const size_t           got
       = p->dcode ? dp_wfm_dsss_desc_chips_data (&p->d, ops, p->chunk, p->acq,
@@ -619,14 +658,18 @@ pull_new (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
 static int
 pull_park (dp_wfm_synth_state_t *syn, data_pull_t *p, size_t n, int modulation)
 {
-  uint8_t  *blank = dp_xcalloc (n, 1);
-  const int rc = p->dcode ? dp_wfm_synth_set_dsss_chips (syn, blank, n)
-                          : dp_wfm_synth_set_bits (syn, blank, n, modulation);
+  uint8_t *blank = dp_xcalloc (n, 1);
+  /* A raw pull's placeholder is the payload dp_wfm_synth_set_dsss_cont()
+     already installed; a frame's or a burst's is set here. */
+  const int rc = p->raw ? 0
+                 : p->dcode
+                     ? dp_wfm_synth_set_dsss_chips (syn, blank, n)
+                     : dp_wfm_synth_set_bits (syn, blank, n, modulation);
   free (blank);
   /* Only a bits synth is fed FRAMES (set_bits is a no-op on any other, so
-     the type is checked here, where both kinds of pull park); a dsss
-     burst's pull is checked by set_refill, which takes a burst. */
-  if (rc != 0 || (!p->dcode && syn->wtype != WFM_SYNTH_BITS)
+     the type is checked here, where every kind of pull parks); a dsss
+     pull is checked by set_refill, which takes a dsss synth. */
+  if (rc != 0 || (!p->dcode && !p->raw && syn->wtype != WFM_SYNTH_BITS)
       || dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free)
              != 0)
     {
@@ -650,8 +693,37 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
          chip_rate/symbol_rate (non-integer — the asynchronicity). Data comes
          from the payload when supplied, else the seeded PN a receiver can
          regenerate. (Code-only, --data none, arrives with the CLI flag.) */
-      double cps
-          = (src->sps > 0) ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
+      const double cps  = cont_cps (src, fs);
+      size_t       dn   = 0;
+      uint8_t     *dchp = seq_to_chips (&src->data_code, &dn);
+      if (!dchp)
+        return -1;
+      if (has_data (src))
+        {
+          /* A data source (doppler#1719): no frame, so one bit per pull,
+             one per data symbol -- a pull size of one needs no fill, and a
+             finite source ends exactly at its last bit. */
+          static const uint8_t one[1] = { 0 };
+          const int            rc     = dp_wfm_synth_set_dsss_cont (
+              syn, dchp, dn, cps, WFM_DSSS_DATA_BITS, one, 1);
+          free (dchp);
+          wfm_data_src_t *ds = dp_wfm_data_create_seq (
+              src->data_from_file ? NULL : &src->data, src->data_from_file, 1,
+              NULL, NULL);
+          if (rc != 0 || !ds)
+            {
+              dp_wfm_data_destroy (ds);
+              return -1;
+            }
+          data_pull_t *p = dp_xcalloc (1, sizeof *p);
+          p->src         = ds;
+          p->pacing      = WFM_DATA_UNPACED;
+          p->reps        = 1;
+          p->chunk_bits  = 1;
+          p->chunk       = dp_xmalloc (1);
+          p->raw         = 1;
+          return pull_park (syn, p, 1, 0);
+        }
       /* LENGTH, not the pointer: a generated payload has no array, and
          reading it as "none" sent the PRBS default in its place, silently
          (doppler#1592). It is materialised the way every other sequence
@@ -659,12 +731,8 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       int      mode = src->dsss_code_only ? WFM_DSSS_DATA_NONE
                       : src->payload.len  ? WFM_DSSS_DATA_BITS
                                           : WFM_DSSS_DATA_PRBS;
-      size_t   dn   = 0;
-      uint8_t *dchp = seq_to_chips (&src->data_code, &dn);
-      if (!dchp)
-        return -1;
-      size_t   pn  = 0;
-      uint8_t *pay = NULL;
+      size_t   pn   = 0;
+      uint8_t *pay  = NULL;
       if (mode == WFM_DSSS_DATA_BITS)
         {
           pay = seq_to_chips (&src->payload, &pn);
@@ -874,27 +942,39 @@ dp_wfm_source_data_is_stream (const wfm_source_t *src)
   return src && src->data_from_file && strcmp (src->data_from_file, "-") == 0;
 }
 
-size_t
-dp_wfm_source_data_frame_samples (const wfm_source_t *src)
+uint64_t
+dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
+                            uint64_t frames)
 {
   if (!src || !has_data (src))
     return 0;
+  const uint64_t sps = src->sps > 0 ? (uint64_t)src->sps : 1u;
+  if (is_cont_dsss (src))
+    {
+      /* A frame here is one data bit, one per data symbol, and the run is
+         every chip before the symbol after the last: that symbol's edge, on
+         the one symbol clock the synth's kernel runs on, so the run ends on
+         the chip where the waveform's data does by construction. */
+      const double cps = cont_cps (src, fs);
+      if (!(cps >= 1.0))
+        return 0;
+      return dp_wfm_dsss_cont_edge (frames, cps) * sps;
+    }
   wfm_frame_desc_t        d;
   wfm_frame_desc_layout_t l;
   if (source_frame (src, &d) != 0 || dp_wfm_frame_desc_layout (&d, &l) != 0)
     return 0;
-  const size_t sps = src->sps > 0 ? (size_t)src->sps : 1u;
   /* A dsss burst is a frame spread: its chips, sps samples each. */
   if (src->type == WFM_SYNTH_DSSS)
-    return dp_wfm_source_dsss_nchips (src) * sps;
+    return frames * dp_wfm_source_dsss_nchips (src) * sps;
   /* Symbols per frame at the frame's own mapping (a bpsk/pn frame is one
      bit per symbol, qpsk two, a bits pattern its `modulation`, 0 meaning
      one), then sps samples each -- what the synth emits per frame. A frame
      that does not divide into symbols ends on a symbol the next frame
      completes (wfm_synth_bit_symbol), so it rounds UP. */
-  const int    m   = frame_modulation (src);
-  const size_t bps = m > 0 ? (size_t)m : 1u;
-  return (l.out_bits + bps - 1u) / bps * sps;
+  const int      m   = frame_modulation (src);
+  const uint64_t bps = m > 0 ? (uint64_t)m : 1u;
+  return frames * ((l.out_bits + bps - 1u) / bps * sps);
 }
 
 uint64_t
@@ -902,14 +982,16 @@ dp_wfm_source_data_frames (const wfm_source_t *src)
 {
   if (!src || !has_data (src) || dp_wfm_source_data_is_stream (src))
     return 0;
+  const uint64_t total
+      = src->data.len ? (uint64_t)src->data.len
+                      : dp_wfm_data_length_bits (NULL, src->data_from_file);
+  if (is_cont_dsss (src))
+    return total; /* no frame: one bit per data symbol */
   wfm_frame_desc_t d;
   int              i = -1;
   if (source_frame (src, &d) != 0 || (i = data_field (&d)) < 0
       || d.field[i].seq.len == 0)
     return 0;
-  const uint64_t total
-      = src->data.len ? (uint64_t)src->data.len
-                      : dp_wfm_data_length_bits (NULL, src->data_from_file);
   const uint64_t len = d.field[i].seq.len;
   return (total + len - 1u) / len;
 }

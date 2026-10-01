@@ -20,6 +20,7 @@ _Synth component API._ [More...](#detailed-description)
 * `#include "doppler/resamp/resamp_core.h"`
 * `#include <math.h>`
 * `#include "doppler/gold/gold_core.h"`
+* `#include "doppler/wfm/wfm_dsp.h"`
 * `#include "doppler/mpsk/mpsk_core.h"`
 * `#include "doppler/cvt/cvt_core.h"`
 
@@ -978,7 +979,7 @@ int dp_wfm_synth_set_refill (
 The pattern set by [**dp\_wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_bits) is the FIRST frame; when its last bit has been read, `fn` writes the next frame's bits into the synth's buffer (the same `n`), and so on. When `fn` reports the end, the synth latches it ([**dp\_wfm\_synth\_data\_ended()**](wfm__synth__core_8h.md#function-dp_wfm_synth_data_ended)) and emits zero  silence  from then on. A later [**dp\_wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_bits) detaches the refill.
 
 
-A dsss BURST plays its chips through the same cursor, so it takes a refill too: the pattern is the burst [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) installed, and `fn` writes the next burst's chips (doppler#1719). A later [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) detaches it.
+A dsss BURST plays its chips through the same cursor, so it takes a refill too: the pattern is the burst [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) installed, and `fn` writes the next burst's chips (doppler#1719). A later [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) detaches it. A CONTINUOUS dsss stream set up with `WFM_DSSS_DATA_BITS` takes one as well: each data symbol reads the next bit through the cursor instead of cycling its payload, the refill writing the next `n` bits, and the chips are silent once it reports the end.
 
 
 A synth with a refill attached REFUSES serialization  [**dp\_wfm\_synth\_state\_bytes()**](wfm__synth__core_8h.md#function-dp_wfm_synth_state_bytes) returns 0 and [**dp\_wfm\_synth\_set\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_state) is DP\_ERR\_INVALID  because the pulled frame and the source's position are state it cannot yet carry (doppler#1681).
@@ -989,7 +990,7 @@ A synth with a refill attached REFUSES serialization  [**dp\_wfm\_synth\_state\_
 **Parameters:**
 
 
-* `state` a type=bits synth with a pattern set, or a type=dsss burst with its chips set. 
+* `state` a type=bits synth with a pattern set, a type=dsss burst with its chips set, or a continuous one whose data\_mode is `WFM_DSSS_DATA_BITS`. 
 * `fn` the frame source; NULL detaches. 
 * `user` passed to `fn`; owned by the synth when `free_user` is given, which it calls on detach or destroy. 
 * `free_user` frees `user`, or NULL. 
@@ -998,7 +999,7 @@ A synth with a refill attached REFUSES serialization  [**dp\_wfm\_synth\_state\_
 
 **Returns:**
 
-0, or -1 if the synth is neither type=bits nor a dsss burst, or has no pattern.
+0, or -1 if the synth is none of those, or has no pattern.
 
 
 

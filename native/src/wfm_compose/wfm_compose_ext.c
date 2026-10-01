@@ -1816,20 +1816,23 @@ static PyGetSetDef Synth_getset[] = {
     "A frame's payload drawn from a data source: a Field on the command line "
     "and in a scene, a bit array in Python. The source is split into "
     "data_len-bit frames, one chunk per frame, and its last chunk is padded "
-    "from fill. For type=bits, bpsk/qpsk/pn framed, and a dsss burst (one "
-    "burst per frame); not with data_from_file.\n",
+    "from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst "
+    "per frame), and continuous dsss (one bit per data symbol, no frame); not "
+    "with data_from_file.\n",
     NULL },
   { "data_len", (getter)Synth_get_data_len, (setter)Synth_set_data_len,
     "Bits of the data source per frame: the data:LEN of the common frame "
     "[preamble x reps | sync | data:LEN | crc]. 0 takes a finite source "
     "whole, as one frame. A carried frame names its own data field, and this "
-    "is then 0 or that field's LEN.\n",
+    "is then 0 or that field's LEN. Continuous dsss has no frame, and refuses "
+    "it.\n",
     NULL },
   { "fill", (getter)Synth_get_fill, (setter)Synth_set_fill,
     "The bits that pad a data source's last frame when it does not divide "
-    "into data_len-bit frames, tiled from their first bit; stdin always needs "
-    "them. Without them such a source is refused before the first sample. A "
-    "Field on the command line and in a scene, a bit array in Python.\n",
+    "into data_len-bit frames, tiled from their first bit; stdin on a framed "
+    "source always needs them. Without them such a source is refused before "
+    "the first sample. A Field on the command line and in a scene, a bit "
+    "array in Python. Continuous dsss has no frame to pad, and refuses it.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -3199,20 +3202,23 @@ static PyGetSetDef Segment_getset[] = {
     "A frame's payload drawn from a data source: a Field on the command line "
     "and in a scene, a bit array in Python. The source is split into "
     "data_len-bit frames, one chunk per frame, and its last chunk is padded "
-    "from fill. For type=bits, bpsk/qpsk/pn framed, and a dsss burst (one "
-    "burst per frame); not with data_from_file.\n",
+    "from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one burst "
+    "per frame), and continuous dsss (one bit per data symbol, no frame); not "
+    "with data_from_file.\n",
     NULL },
   { "data_len", (getter)Segment_flat_data_len, NULL,
     "Bits of the data source per frame: the data:LEN of the common frame "
     "[preamble x reps | sync | data:LEN | crc]. 0 takes a finite source "
     "whole, as one frame. A carried frame names its own data field, and this "
-    "is then 0 or that field's LEN.\n",
+    "is then 0 or that field's LEN. Continuous dsss has no frame, and refuses "
+    "it.\n",
     NULL },
   { "fill", (getter)Segment_flat_fill, NULL,
     "The bits that pad a data source's last frame when it does not divide "
-    "into data_len-bit frames, tiled from their first bit; stdin always needs "
-    "them. Without them such a source is refused before the first sample. A "
-    "Field on the command line and in a scene, a bit array in Python.\n",
+    "into data_len-bit frames, tiled from their first bit; stdin on a framed "
+    "source always needs them. Without them such a source is refused before "
+    "the first sample. A Field on the command line and in a scene, a bit "
+    "array in Python. Continuous dsss has no frame to pad, and refuses it.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };

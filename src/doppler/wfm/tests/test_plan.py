@@ -605,3 +605,39 @@ def test_a_noisy_scene_moves_its_floor() -> None:
     plan = prepare(Composer(type="tone", fs=1e6, num_samples=256, snr=10.0))
     lo, hi = plan.at(0.0, seed=1), plan.at(30.0, seed=1)
     assert np.mean(np.abs(lo - hi) ** 2) > 1e-3
+
+
+# ── #1619 F6a: a FINITE data source through Plan ─────────────────────────────
+
+
+def _data_scene(snr: float) -> Composer:
+    """One bpsk source whose payload is drawn from a 40-bit data source,
+    16 bits a frame with a CRC: its length is the frames', derived."""
+    bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 5, np.uint8)
+    return Composer(
+        [
+            Segment(
+                type="bpsk",
+                fs=1e6,
+                sps=4,
+                snr=snr,
+                seed=11,
+                data=bits,
+                data_len=16,
+                fill=np.array([0, 1], np.uint8),
+            )
+        ]
+    )
+
+
+def test_a_finite_data_source_plans_like_compose() -> None:
+    """Plan accepts a finite data source, and at(snr, anchor_seed) is the
+    compose at that SNR byte for byte. The noisy case is the BUNDLED path,
+    whose noise copy must not keep the data source's borrowed pointers
+    (wfm_plan.c drop_borrowed): they point into the composer plan_build
+    destroys, and a later render would read freed memory."""
+    plan = prepare(_data_scene(snr=12.0))
+    ref = _data_scene(snr=6.0).compose()
+    assert ref.size == 3 * (16 + 16) * 4  # 3 frames, derived
+    np.testing.assert_array_equal(plan.at(6.0, plan.anchor_seed), ref)
+    np.testing.assert_array_equal(plan.at(6.0), plan.at(6.0, plan.anchor_seed))

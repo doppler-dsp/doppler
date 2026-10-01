@@ -405,6 +405,20 @@ segment_slots (const wfm_segment_t *g, size_t *n_sig, size_t *n_bg)
  * SNR. Nothing is lost by dropping it: this copy exists only to draw AWGN
  * through dp_wfm_synth_noise_steps(), and the framed signal is what cache_sig
  * already holds. */
+/* What a noise copy must NOT keep: the members it borrows rather than owns
+ * and that copy_source_arrays() does not deep-copy -- the frame, and the data
+ * source (#1619: `data`, `fill`, `data_from_file`). Each points into the
+ * composer plan_build() destroys, and the noise copy only draws AWGN: the
+ * signal its frames carry is what cache_sig already holds. */
+static void
+drop_borrowed (wfm_source_t *s)
+{
+  s->frame          = NULL;
+  s->data           = (wfm_seq_t){ 0 };
+  s->fill           = (wfm_seq_t){ 0 };
+  s->data_from_file = NULL;
+}
+
 static int
 resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
 {
@@ -428,7 +442,7 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
       const wfm_source_t *nsrc = &g->sources[noise_idx];
       ps->noise_src            = *nsrc;
       /* Borrowed, and not ours to keep — see the note above. */
-      ps->noise_src.frame = NULL;
+      drop_borrowed (&ps->noise_src);
       if (copy_source_arrays (&ps->noise_src, nsrc) != 0)
         return -1;
       ps->explicit_floor = 1;
@@ -455,7 +469,7 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
     {
       ps->noise_src = g->sources[0];
       /* Borrowed, and not ours to keep — see the note above. */
-      ps->noise_src.frame = NULL;
+      drop_borrowed (&ps->noise_src);
       if (copy_source_arrays (&ps->noise_src, &g->sources[0]) != 0)
         return -1;
     }

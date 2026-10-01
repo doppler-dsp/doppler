@@ -51,96 +51,55 @@ free_segment_sources (wfm_segment_t *seg)
   seg->sources = NULL;
 }
 
-/* malloc+memcpy an owned byte array (NULL for an empty one). */
+/* An owned copy of a byte array whose size the caller already validated
+ * (a source's own `len`), so it can fail only on genuine OOM and aborts
+ * there (dp_xmalloc, clib_common.h): there is no unwind path a test could
+ * never reach. NULL for an empty one. */
 static uint8_t *
 dup_u8 (const uint8_t *src, size_t n)
 {
   if (!src || !n)
     return NULL;
-  uint8_t *copy = malloc (n);
-  if (copy)
-    memcpy (copy, src, n);
-  return copy;
-}
-
-/* An owned copy, aborting on OOM rather than returning NULL. */
-static uint8_t *
-dup_x (const uint8_t *src, size_t n)
-{
   uint8_t *copy = dp_xmalloc (n);
   memcpy (copy, src, n);
   return copy;
 }
 
 /* Replace dst's array pointers (struct-assigned from the caller's source)
- * with owned copies. On failure every pointer is already owned-or-NULL, so
- * free_segment_sources() on the partially-built list stays safe (it never
- * frees a caller's buffer). Returns 0, or -1 on allocation failure. */
-static int
+ * with owned copies. Every copy is of a size the source already states, so
+ * this cannot fail: OOM aborts in dup_u8/dp_xmalloc rather than unwinding
+ * a half-copied list. */
+static void
 copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
 {
-  dst->payload.bits   = NULL;
-  dst->symbols        = NULL;
-  dst->acq_code.bits  = NULL;
-  dst->data_code.bits = NULL;
-  dst->sync.bits      = NULL;
-  dst->data.bits      = NULL;
-  dst->fill.bits      = NULL;
-  dst->data_from_file = NULL;
-  dst->frame          = NULL;
   /* A CARRIED description is borrowed by a source -- the caller's own must
      outlive it -- but the composer deliberately outlives its caller's
      buffers, which is what every dup_u8 below is for. So it takes its own
      copy of the description AND of each field's literal bits, and owns
      both (dp_wfm_frame_copy). Without this a `--from-file` scene would be
      reading a description its parser had already freed. */
-  dst->frame = dp_wfm_frame_copy (src->frame);
-  if (src->payload.bits && src->payload.len)
-    {
-      dst->payload.bits = dup_u8 (src->payload.bits, src->payload.len);
-      if (!dst->payload.bits)
-        return -1;
-    }
+  dst->frame          = dp_wfm_frame_copy (src->frame);
+  dst->payload.bits   = dup_u8 (src->payload.bits, src->payload.len);
+  dst->acq_code.bits  = dup_u8 (src->acq_code.bits, src->acq_code.len);
+  dst->data_code.bits = dup_u8 (src->data_code.bits, src->data_code.len);
+  dst->sync.bits      = dup_u8 (src->sync.bits, src->sync.len);
+  dst->symbols        = NULL;
   if (src->symbols && src->n_symbols)
     {
       size_t nbytes = src->n_symbols * sizeof *src->symbols;
-      dst->symbols  = malloc (nbytes);
-      if (!dst->symbols)
-        return -1;
+      dst->symbols  = dp_xmalloc (nbytes);
       memcpy (dst->symbols, src->symbols, nbytes);
     }
-  if (src->acq_code.bits && src->acq_code.len)
-    {
-      dst->acq_code.bits = dup_u8 (src->acq_code.bits, src->acq_code.len);
-      if (!dst->acq_code.bits)
-        return -1;
-    }
-  if (src->data_code.bits && src->data_code.len)
-    {
-      dst->data_code.bits = dup_u8 (src->data_code.bits, src->data_code.len);
-      if (!dst->data_code.bits)
-        return -1;
-    }
-  if (src->sync.bits && src->sync.len)
-    {
-      dst->sync.bits = dup_u8 (src->sync.bits, src->sync.len);
-      if (!dst->sync.bits)
-        return -1;
-    }
-  /* The data source's members (#1619), copied with the abort-on-OOM
-     helper: an allocation that can fail only on genuine OOM carries no
-     unwind path a test could never reach (clib_common.h). A path is
-     borrowed by a source like everything above, so the composer owns a
-     copy of it too: the data source opens it at each build. */
-  if (src->data.bits && src->data.len)
-    dst->data.bits = dup_x (src->data.bits, src->data.len);
-  if (src->fill.bits && src->fill.len)
-    dst->fill.bits = dup_x (src->fill.bits, src->fill.len);
-  if (src->data_from_file)
-    dst->data_from_file
-        = (const char *)dup_x ((const uint8_t *)src->data_from_file,
-                               strlen (src->data_from_file) + 1u);
-  return 0;
+  /* The data source's members (#1619). A path is borrowed by a source like
+     everything above, so the composer owns a copy of it too: the data
+     source opens it at each build. */
+  dst->data.bits = dup_u8 (src->data.bits, src->data.len);
+  dst->fill.bits = dup_u8 (src->fill.bits, src->fill.len);
+  dst->data_from_file
+      = src->data_from_file
+            ? (const char *)dup_u8 ((const uint8_t *)src->data_from_file,
+                                    strlen (src->data_from_file) + 1u)
+            : NULL;
 }
 
 enum
@@ -678,15 +637,7 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
       for (size_t k = 0; k < ns; k++)
         {
           s->segs[i].sources[k] = segs[i].sources[k]; /* scalar fields */
-          if (copy_source_arrays (&s->segs[i].sources[k], &segs[i].sources[k])
-              != 0)
-            {
-              for (size_t j = 0; j <= i; j++)
-                free_segment_sources (&s->segs[j]);
-              free (s->segs);
-              free (s);
-              return NULL;
-            }
+          copy_source_arrays (&s->segs[i].sources[k], &segs[i].sources[k]);
         }
       /* A lone dsss BURST's on-time is intrinsic — exactly one burst
        * (n_chips * sps samples) — so num_samples is derived here, on the

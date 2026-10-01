@@ -76,7 +76,22 @@ else
     pinned=$PIN
 
     # A missing branch is the normal, healthy state: no repin is pending.
-    if ! git fetch --quiet --depth=1 origin "$BRANCH" 2>/dev/null; then
+    #
+    # --depth=1 ONLY in a clone that is already shallow (CI's checkout). In
+    # a full clone it writes the fetched commit into .git/shallow as a graft
+    # boundary, and from then on that repository -- and every worktree
+    # sharing its .git -- reports the repin commit as PARENTLESS:
+    # `rev-list --count` is 1, merge-base with main is empty, and the branch
+    # reads as an orphan snapshot that would revert main. That illusion was
+    # diagnosed as a real orphan twice (#1510 on 2026-09-24, ci/repin-image
+    # bc37092f on 2026-10-01); both were ordinary one-file children of main.
+    # A full fetch of one branch costs one commit's objects.
+    depth=
+    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+        depth=--depth=1
+    fi
+    # shellcheck disable=SC2086  # $depth is empty or one flag, unquoted
+    if ! git fetch --quiet $depth origin "$BRANCH" 2>/dev/null; then
         if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1
         then
             echo "ci-image-repin-check: $BRANCH exists but could not be"

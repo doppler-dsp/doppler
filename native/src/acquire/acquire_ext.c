@@ -21,16 +21,20 @@
  * it reads as text (gh-1700): a str is refused, never parsed as a number,
  * and for a one-byte element type a byte buffer (bytes, bytearray,
  * memoryview) is its bytes, one element per byte. `name` is the parameter,
- * for the message. Returns a new reference, or NULL with an exception. */
+ * for the message, and `hint` (NULL for none) is appended to a str's
+ * refusal. Returns a new reference, or NULL with an exception. */
 static inline PyArrayObject *
-jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+jm_array_arg_hint (PyObject *obj, int typenum, int requirements,
+                   const char *name, const char *hint)
 {
   int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
   if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
     {
+      /* `hint` (gh-1756) says where text goes instead: a str only. */
+      int say = hint && PyUnicode_Check (obj);
       PyErr_Format (PyExc_TypeError,
-                    "%s must be an array of numbers, not %.200s", name,
-                    Py_TYPE (obj)->tp_name);
+                    "%s must be an array of numbers, not %.200s%s%s", name,
+                    Py_TYPE (obj)->tp_name, say ? ": " : "", say ? hint : "");
       return NULL;
     }
   if (one_byte && !PyArray_Check (obj) && PyObject_CheckBuffer (obj))
@@ -52,6 +56,11 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
       Py_DECREF (view);
     }
   return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
+}
+static inline PyArrayObject *
+jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
+{
+  return jm_array_arg_hint (obj, typenum, requirements, name, NULL);
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 

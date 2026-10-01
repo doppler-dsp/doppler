@@ -1,0 +1,58 @@
+name: Issue tiers
+
+# Reconciles docs/dev/issue-tiers.toml against the LIVE issue list, daily,
+# and goes red on either kind of drift: an open issue with no tier, or a
+# tier row naming a closed issue (`make issues-check`). The red run's summary
+# page lists what to triage; the fix is to tier/delete in the map and run
+# `make issues`.
+#
+# WHY A SCHEDULE AND NOT A PULL-REQUEST GATE. The drift this finds is made by
+# filing or closing an issue, never by a diff. As a ci.yml job it would turn
+# every open PR red the moment anyone filed an issue, and green again only
+# when someone else tiered it -- a gate that judges the backlog, charged to
+# whichever PR happened to run next. On a schedule it judges the backlog,
+# once a day, where the person who owns it sees it.
+#
+# WHY FAIL RATHER THAN OPEN AN ISSUE. A tracking issue would itself be an
+# open issue the map must tier, and a stale row the day it closes: the
+# reconcile would report its own report. A red scheduled run notifies the
+# workflow's owner and stays red until the map is fixed, which is the signal.
+#
+# Before doppler#1716 nothing ran this half at all: `make issues` reconciled
+# and nothing ran `make issues`, so on 2026-09-30 the map had 66 open issues
+# untiered and 3 closed ones still listed, and docs-check -- which compares
+# the page with the map offline -- stayed green throughout.
+
+on:
+  schedule:
+    # 05:41 UTC: off the hour (the runner queue at :00 is the worst time to
+    # ask for a machine) and clear of ci-image.yml's 04:17.
+    - cron: '41 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  reconcile:
+    name: Tier map matches the live issue list
+    runs-on: ubuntu-latest
+    # Seconds of work; 25 because deps-budget-check holds every ceiling above
+    # the provisioning retry budget.
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v7
+
+    # The same provisioning as ci.yml's pre-commit job: uv, the dev group,
+    # not the project. The reconcile needs tomllib (3.11+) and `gh`.
+    - name: Install uv
+      uses: ./.github/actions/setup-uv
+      with:
+        python-version: '3.12'
+        sync: --group dev --no-install-project
+
+    - name: Reconcile the tier map with the live issue list
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: make issues-check

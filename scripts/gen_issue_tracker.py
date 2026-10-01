@@ -21,17 +21,27 @@ rendered, and `--write` reconciles the map against the live issue list and
 Neither is a warning. A tracker that quietly drops a new issue is worse than
 no tracker, because it reads as complete.
 
-The two halves, and why only one is in CI
-------------------------------------------
-``--write`` reads the live issue list through ``gh`` and needs the network.
+The three modes, and where each one runs
+----------------------------------------
 ``--check`` re-renders from the committed map alone and diffs the page, so
-it is deterministic, offline, and safe in CI — it catches a hand-edit of the
-generated page, which is the drift that happens without anybody noticing.
+it is deterministic, offline, and safe on every pull request -- it catches a
+hand-edit of the generated page (``docs-check``).
 
-What ``--check`` deliberately does NOT verify is freshness against GitHub.
-That cannot be done offline, so the page carries the date it was derived and
-the command that derives it, in the same shape this repo requires of any
-recorded live value. Run ``make issues`` to refresh it.
+``--reconcile`` reads the live issue list through ``gh`` and fails on either
+kind of drift, writing nothing. It is the half ``--check`` cannot do offline,
+and it runs DAILY in ``.github/workflows/issues.yml`` (``make issues-check``)
+rather than on pull requests: the drift it finds is made by filing or
+closing an issue, not by any diff, so as a PR gate it would turn every open
+PR red the moment anyone filed one. Until doppler#1716 nothing ran it at all
+-- only ``make issues`` reconciled, and nothing ran that, so on 2026-09-30
+the map had 66 open issues untiered and 3 closed ones still listed.
+
+``--write`` is ``--reconcile`` plus the refresh: on no drift it rewrites the
+map's titles and statuses and renders the page. ``make issues`` runs it.
+
+``--live FILE`` replaces the ``gh`` read with a JSON list of
+``{"number", "title"}`` rows, so the reconcile can be driven over a seeded
+list -- which is how its sabotage is proven.
 """
 
 from __future__ import annotations
@@ -39,6 +49,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -133,6 +144,75 @@ TIERS: dict[int, tuple[str, str]] = {
 ISSUE_URL = f"https://github.com/{REPO_SLUG}/issues"
 
 
+def drift(live: dict[int, str], issues: dict) -> tuple[list[int], list[int]]:
+    """The two ways the tier map disagrees with the live issue list.
+
+    Parameters
+    ----------
+    live : dict of int to str
+        Every OPEN issue: number -> title.
+    issues : dict
+        The map's ``[issue.N]`` tables, keyed by the number as a string.
+
+    Returns
+    -------
+    untiered : list of int
+        Open issues the map has no tier for, ascending.
+    stale : list of int
+        Map rows whose issue is no longer open, ascending.
+
+    Examples
+    --------
+    >>> drift({1: "a", 3: "c"}, {"1": {}, "2": {}})
+    ([3], [2])
+    """
+    untiered = sorted(n for n in live if str(n) not in issues)
+    stale = sorted(int(n) for n in issues if int(n) not in live)
+    return untiered, stale
+
+
+def report_drift(
+    live: dict[int, str], untiered: list[int], stale: list[int]
+) -> list[str]:
+    """Each drift as a line to print, naming the fix for each kind."""
+    lines: list[str] = []
+    if untiered:
+        lines.append(
+            "gen_issue_tracker: open issue(s) with no tier -- triage them"
+        )
+        lines.append(
+            "  in docs/dev/issue-tiers.toml before this page can render:"
+        )
+        lines += [f"    #{n}  {live[n]}" for n in untiered]
+    if stale:
+        lines.append(
+            "gen_issue_tracker: tier entry/entries naming a CLOSED issue --"
+        )
+        lines.append("  delete them from docs/dev/issue-tiers.toml:")
+        lines += [f"    #{n}" for n in stale]
+    return lines
+
+
+def _live_issues(path: pathlib.Path | None) -> dict[int, str]:
+    """Every open issue, from ``gh`` or from a seeded JSON list."""
+    if path is not None:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        rows = _gh(
+            "issue",
+            "list",
+            "--repo",
+            REPO_SLUG,
+            "--state",
+            "open",
+            "--limit",
+            "1000",
+            "--json",
+            "number,title",
+        )
+    return {int(d["number"]): d["title"] for d in rows}
+
+
 def _gh(*args: str) -> list[dict]:
     out = subprocess.run(
         ["gh", *args], capture_output=True, text=True, check=True
@@ -143,8 +223,13 @@ def _gh(*args: str) -> list[dict]:
 def load_map() -> dict:
     # Imported here, not at the top: tomllib is 3.11+ and the project floor is
     # 3.9, so a module-level import made pr_closes() unimportable -- and its
-    # test red -- on every CI Python below 3.11. Only `make issues` needs it.
-    import tomllib
+    # test red -- on every CI Python below 3.11. The reconcile's tests read
+    # the map on every leg, so below 3.11 it is the `tomli` backport (a dev
+    # dependency there), as in scripts/python_versions.py.
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:  # pragma: no cover - the 3.9/3.10 CI matrix legs
+        import tomli as tomllib
 
     if not MAP.is_file():
         return {"meta": {}, "issue": {}}
@@ -207,8 +292,10 @@ def render(data: dict) -> str:
     L.append("")
     L.append(
         f"Derived {meta.get('generated', 'unknown')} by "
-        "`make issues`, which reads the live issue list. Nothing re-reads it "
-        "for you, so treat the date as the age of this page — the tier "
+        "`make issues`, which reads the live issue list; titles and statuses "
+        "are as of that date. Whether every open issue still has a tier is "
+        "checked daily against the live list (`make issues-check`, in "
+        "`.github/workflows/issues.yml`). The tier "
         "assignments below are committed in "
         "[`issue-tiers.toml`](issue-tiers.toml) and reviewed like code."
     )
@@ -262,29 +349,51 @@ def render(data: dict) -> str:
     L.append("")
     L.append(
         "`make issues` fails if an open issue has no tier, or if a tier names "
-        "an issue that is closed — so this page cannot rot in either "
-        "direction without saying so."
+        "an issue that is closed, and the daily `make issues-check` run goes "
+        "red on the same two — so this page cannot rot in either direction "
+        "without saying so."
     )
     L.append("")
     return _mdformat("\n".join(L))
 
 
+def do_reconcile(live_path: pathlib.Path | None) -> int:
+    """Fail on drift between the map and the live list; write nothing.
+
+    The drift also goes to ``$GITHUB_STEP_SUMMARY`` when Actions sets it,
+    so a red scheduled run says what to triage on its summary page.
+    """
+    live = _live_issues(live_path)
+    if not live:
+        # An empty read is a failed read, not an empty backlog: a gate that
+        # compared against nothing would report every row stale, or -- worse
+        # -- pass a map that names nothing.
+        print("gen_issue_tracker: the live issue list came back empty")
+        return 1
+    untiered, stale = drift(live, load_map().get("issue", {}))
+    lines = report_drift(live, untiered, stale)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write("### Issue tier map vs the live issue list\n\n```\n")
+            f.write("\n".join(lines) if lines else "no drift")
+            f.write(
+                "\n```\n\nFix: tier/delete in docs/dev/issue-tiers.toml"
+                ", then `make issues`.\n"
+            )
+    for line in lines:
+        print(line)
+    if lines:
+        return 1
+    print(
+        f"gen_issue_tracker: OK -- {len(live)} open issue(s), every one "
+        "tiered, no closed issue listed"
+    )
+    return 0
+
+
 def do_write() -> int:
-    live = {
-        d["number"]: d["title"]
-        for d in _gh(
-            "issue",
-            "list",
-            "--repo",
-            REPO_SLUG,
-            "--state",
-            "open",
-            "--limit",
-            "300",
-            "--json",
-            "number,title",
-        )
-    }
+    live = _live_issues(None)
     prs = _gh(
         "pr",
         "list",
@@ -302,19 +411,11 @@ def do_write() -> int:
     data = load_map()
     issues = data.get("issue", {})
 
-    stale = sorted(int(n) for n in issues if int(n) not in live)
-    untiered = sorted(n for n in live if str(n) not in issues)
-    if untiered:
-        print("gen_issue_tracker: open issue(s) with no tier — triage them")
-        print("  in docs/dev/issue-tiers.toml before this page can render:")
-        for n in untiered:
-            print(f"    #{n}  {live[n]}")
-        return 1
-    if stale:
-        print("gen_issue_tracker: tier entry/entries naming a CLOSED issue —")
-        print("  delete them from docs/dev/issue-tiers.toml:")
-        for n in stale:
-            print(f"    #{n}")
+    untiered, stale = drift(live, issues)
+    lines = report_drift(live, untiered, stale)
+    if lines:
+        for line in lines:
+            print(line)
         return 1
 
     for n, title in live.items():
@@ -359,6 +460,10 @@ def _write_map(data: dict) -> None:
         L.append(f"tier = {rec['tier']}")
         L.append(f"title = {json.dumps(rec['title'])}")
         L.append(f"status = {json.dumps(rec['status'])}")
+        # Optional: the one-line reason for the tier, so the judgement can be
+        # argued with in review. Not rendered on the page.
+        if rec.get("why"):
+            L.append(f"why = {json.dumps(rec['why'])}")
         L.append("")
     MAP.write_text("\n".join(L), encoding="utf-8")
 
@@ -390,7 +495,22 @@ def main() -> int:
         action="store_true",
         help="re-render from the committed map and diff (offline)",
     )
+    g.add_argument(
+        "--reconcile",
+        action="store_true",
+        help="fail on drift from the live issue list; write nothing",
+    )
+    ap.add_argument(
+        "--live",
+        type=pathlib.Path,
+        help="with --reconcile: a JSON list of {number, title} rows to use "
+        "instead of `gh issue list`",
+    )
     a = ap.parse_args()
+    if a.live is not None and not a.reconcile:
+        ap.error("--live goes with --reconcile")
+    if a.reconcile:
+        return do_reconcile(a.live)
     return do_write() if a.write else do_check()
 
 

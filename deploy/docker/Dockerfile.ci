@@ -80,6 +80,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ubuntu.sources, and amd64's archive/security hosts as well as arm64's
 # ports host. An unset APT_SNAPSHOT is refused, never defaulted: a default
 # would be a second copy of the pin, and the stale one.
+#
+# The snapshot must NOT predate the base. A base image ships packages from
+# the day it was built; against an older snapshot apt cannot satisfy them
+# (measured: the 2026-09-11 noble base against a 2026-08-01 snapshot fails
+# with "perl : Depends: perl-base (= …0.3) but …0.4 is to be installed").
+# The weekly run picks both at the same moment, so it cannot hit this; a
+# hand-picked snapshot can, and fails here, loudly, rather than drifting.
 ARG APT_SNAPSHOT
 RUN set -eu; \
     case "$APT_SNAPSHOT" in \

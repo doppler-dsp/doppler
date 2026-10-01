@@ -46,7 +46,7 @@ int
 main (void)
 {
   /* docs/design/wfmgen-composition.md's scene, shortened. */
-  const char *scene = "{\"segments\":[{\"n\":1000,\"sum\":["
+  const char *scene = "{\"segments\":[{\"num_samples\":1000,\"sum\":["
                       "{\"type\":\"qpsk\",\"freq\":0,\"sps\":8,\"snr\":15,"
                       "\"snr_mode\":\"esno\"},"
                       "{\"type\":\"tone\",\"freq\":200000,\"level\":-12}]}],"

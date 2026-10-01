@@ -309,7 +309,7 @@ size_t dp_wfm_dsss_desc_chips_data (
 
 
 
-What [**dp\_wfm\_frame\_assemble\_data**](wfm__frame_8h.md#function-dp_wfm_frame_assemble_data) is to dp\_wfm\_frame\_assemble: the same burst as [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips), with the description's `data:LEN` field filled from `data` rather than refused. A data source on a dsss source builds one burst per chunk through this, at each burst boundary (payload-data-source.md). [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips) is this with `data` NULL, so there is one spreader.
+This is to [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips) what [**dp\_wfm\_frame\_assemble\_data**](wfm__frame_8h.md#function-dp_wfm_frame_assemble_data) is to [**dp\_wfm\_frame\_assemble**](wfm__frame_8h.md#function-dp_wfm_frame_assemble)  the same burst as [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips), with the description's `data:LEN` field filled from `data` rather than refused. A data source on a dsss source builds one burst per chunk through this, at each burst boundary (payload-data-source.md). [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips) is this with `data` NULL, so there is one spreader.
 
 
 

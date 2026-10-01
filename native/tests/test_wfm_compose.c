@@ -1252,6 +1252,24 @@ test_a_dsss_burst_draws_a_chunk_per_burst (void)
   DP_CHECK_MSG (same, "every burst is the preamble, then ITS chunk spread");
   DP_CHECK_MSG (differ, "and the bursts differ: no burst is cycled");
 
+  /* A C caller that skips dp_wfm_source_error: a carried frame with no
+     data:LEN field has nothing for the source to fill, so the attach
+     refuses rather than send a burst over nothing. */
+  {
+    wfm_frame_desc_t fd;
+    const wfm_seq_t  dotted = { .kind = WFM_SEQ_DOTTED, .len = 8 };
+    DP_REQUIRE (dp_wfm_frame_fixed (&fd, NULL, 0, NULL, &dotted, 0) == 0);
+    wfm_source_t bare         = src;
+    bare.frame                = &fd;
+    dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+        WFM_SYNTH_DSSS, 1e6, 0.0, 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+    DP_REQUIRE (syn != NULL);
+    DP_CHECK_MSG (dp_wfm_source_attach_dsss (syn, &bare, 1e6) == -1,
+                  "a dsss burst whose frame has no data field refuses a "
+                  "data source");
+    dp_wfm_synth_destroy (syn);
+  }
+
   /* The same burst from stdin: the run is where the stream ends, 3 bursts,
      not the one burst a lone dsss source is otherwise sized to. */
   int p[2];

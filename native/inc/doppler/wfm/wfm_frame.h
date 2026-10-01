@@ -957,8 +957,9 @@ extern "C"
   /**
    * @brief A DSSS burst over a data chunk: assemble, spread.
    *
-   * What @ref dp_wfm_frame_assemble_data is to @ref dp_wfm_frame_assemble:
-   * the same burst as @ref dp_wfm_dsss_desc_chips, with the description's
+   * This is to @ref dp_wfm_dsss_desc_chips what @ref
+   * dp_wfm_frame_assemble_data is to @ref dp_wfm_frame_assemble -- the same
+   * burst as @ref dp_wfm_dsss_desc_chips, with the description's
    * `data:LEN` field filled from @p data rather than refused. A data source
    * on a dsss source builds one burst per chunk through this, at each burst
    * boundary (payload-data-source.md). @ref dp_wfm_dsss_desc_chips is this

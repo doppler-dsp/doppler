@@ -553,8 +553,6 @@ static void
 data_pull_free (void *u)
 {
   data_pull_t *p = u;
-  if (!p)
-    return;
   dp_wfm_data_destroy (p->src);
   free (p->chunk);
   free (p->acq);
@@ -625,7 +623,10 @@ pull_park (dp_wfm_synth_state_t *syn, data_pull_t *p, size_t n, int modulation)
   const int rc = p->dcode ? dp_wfm_synth_set_dsss_chips (syn, blank, n)
                           : dp_wfm_synth_set_bits (syn, blank, n, modulation);
   free (blank);
-  if (rc != 0
+  /* Only a bits synth is fed FRAMES (set_bits is a no-op on any other, so
+     the type is checked here, where both kinds of pull park); a dsss
+     burst's pull is checked by set_refill, which takes a burst. */
+  if (rc != 0 || (!p->dcode && syn->wtype != WFM_SYNTH_BITS)
       || dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free)
              != 0)
     {
@@ -862,11 +863,6 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
   data_pull_t *p = pull_new (d, ops, src, pacing);
   if (!p)
     return -1;
-  if (!syn || syn->wtype != WFM_SYNTH_BITS)
-    {
-      data_pull_free (p);
-      return -1;
-    }
   wfm_frame_desc_layout_t l;
   (void)dp_wfm_frame_desc_layout (d, &l); /* pull_new has checked it */
   return pull_park (syn, p, l.out_bits, modulation);

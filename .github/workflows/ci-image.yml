@@ -311,7 +311,8 @@ jobs:
             echo "## A repin is pending"
             echo
             echo 'The `CI image repin pending` job in ci.yml is now RED on'
-            echo 'every PR until this lands. To land it:'
+            echo 'every PR until this lands, and so it ejects EVERY PR in the'
+            echo 'merge queue. This run ends red for the same reason. To land it:'
             echo
             echo '```sh'
             echo "gh pr create --head $branch --fill"
@@ -338,3 +339,34 @@ jobs:
           else
             echo "nothing owed and no $branch — clean"
           fi
+
+      # LAST, and the reason this run can end red with nothing broken. A
+      # pending repin used to leave the nightly GREEN: the summary above said
+      # so, but a green run notifies nobody, and since the merge queue went
+      # live an unlanded repin ejects every queued PR -- #1732 was ejected
+      # that way, an hour before anyone traced it (doppler#1737). So the run
+      # asks the ONE definition of "a repin is pending", the gate ci.yml
+      # already runs on every PR, and fails while it fails.
+      #
+      # Against main's pin, not the working tree's: the push step above
+      # checked out ci/repin-image with the NEW pin, and comparing that
+      # branch with itself would always pass. Main only, like the push: a
+      # branch build never pushes a repin, and must not go red over one main
+      # owes.
+      - name: A pending repin ends this run red
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch -q --depth=1 origin main
+          git checkout -q FETCH_HEAD -- .github/ci-images.env
+          rc=0
+          make -s ci-image-repin-check > /tmp/repin-check.txt 2>&1 || rc=$?
+          cat /tmp/repin-check.txt
+          {
+            echo "## Repin gate (exit $rc)"
+            echo '```'
+            cat /tmp/repin-check.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"

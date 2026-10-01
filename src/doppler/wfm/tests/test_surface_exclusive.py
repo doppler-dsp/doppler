@@ -375,6 +375,40 @@ def test_python_data_is_drawn_frame_by_frame():
     assert np.array_equal((x > 0.5).astype(np.uint8), bits)
 
 
+def test_python_data_on_a_dsss_burst_is_a_burst_per_chunk():
+    """On a dsss burst, each burst is the preamble then the NEXT chunk's
+    frame spread by the data code -- two chunks, two different bursts --
+    and the run is those bursts (doppler#1719)."""
+    acq = np.array([1, 0, 0, 1], np.uint8)
+    code = np.array([1, 1, 0, 1], np.uint8)
+    bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 4, np.uint8)  # 2 x 16
+    kw = {
+        "type": "dsss",
+        "sps": 1,
+        "snr": 200.0,
+        "acq_code": acq,
+        "acq_reps": 1,
+        "data_code": code,
+        "data": bits,
+        "data_len": 16,
+        "crc": "none",
+    }
+    nch = 4 + 16 * 4
+    x = Synth(**kw).steps(2 * nch + 8).real
+    want = np.concatenate(
+        [
+            np.concatenate(
+                [acq, (bits[b * 16 : (b + 1) * 16, None] ^ code).ravel()]
+            )
+            for b in range(2)
+        ]
+    )
+    assert np.array_equal(x[: 2 * nch], np.where(want, -1.0, 1.0))
+    assert not np.any(x[2 * nch :]), "silence once the data has ended"
+    seg = Segment(**kw, fs=1e6)
+    assert Composer([seg]).compose().size == 2 * nch
+
+
 def test_python_data_refuses_text():
     with pytest.raises(ValueError, match="field_bits"):
         Synth(type="bits", data="0xAB", data_len=8)

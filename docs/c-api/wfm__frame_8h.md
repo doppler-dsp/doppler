@@ -75,6 +75,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**dp\_wfm\_dsss\_desc\_chips**](#function-dp_wfm_dsss_desc_chips) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, uint8\_t \* out, size\_t max\_out) <br>_Build a two-code DSSS burst from a description: assemble, spread._  |
+|  size\_t | [**dp\_wfm\_dsss\_desc\_chips\_data**](#function-dp_wfm_dsss_desc_chips_data) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, const uint8\_t \* data, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, uint8\_t \* out, size\_t max\_out) <br>_A DSSS burst over a data chunk: assemble, spread._  |
 |  size\_t | [**dp\_wfm\_dsss\_desc\_nchips**](#function-dp_wfm_dsss_desc_nchips) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, size\_t acq\_len, size\_t acq\_reps, size\_t data\_len) <br>_Chip count of a DSSS burst built from a description._  |
 |  size\_t | [**dp\_wfm\_field\_bits**](#function-dp_wfm_field_bits) (const char \* spec, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_A Field's bits, straight from its text form. Returns the count._  |
 |  size\_t | [**dp\_wfm\_field\_format**](#function-dp_wfm_field_format) (const [**wfm\_field\_t**](structwfm__field__t.md) \* field, char \* buf, size\_t cap) <br>_Write a field's canonical text form. Returns its length._  |
@@ -280,6 +281,85 @@ chips written, or 0 if the geometry is refused, a stage has no kernel, or `max_o
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_dsss\_desc\_chips\_data 
+
+_A DSSS burst over a data chunk: assemble, spread._ 
+```C++
+size_t dp_wfm_dsss_desc_chips_data (
+    const wfm_frame_desc_t * d,
+    const wfm_frame_ops_t * ops,
+    const uint8_t * data,
+    const uint8_t * acq_code,
+    size_t acq_len,
+    size_t acq_reps,
+    const uint8_t * data_code,
+    size_t data_len,
+    uint8_t * out,
+    size_t max_out
+) 
+```
+
+
+
+What [**dp\_wfm\_frame\_assemble\_data**](wfm__frame_8h.md#function-dp_wfm_frame_assemble_data) is to dp\_wfm\_frame\_assemble: the same burst as [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips), with the description's `data:LEN` field filled from `data` rather than refused. A data source on a dsss source builds one burst per chunk through this, at each burst boundary (payload-data-source.md). [**dp\_wfm\_dsss\_desc\_chips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_chips) is this with `data` NULL, so there is one spreader.
+
+
+
+
+**Parameters:**
+
+
+* `d` description of the spread frame. 
+* `ops` kernels beyond the built-in CRC; may be NULL. 
+* `data` the `data:LEN` field's bits (0/1), one per byte, as many as the layout gives the field; NULL when the description has no data field. 
+* `acq_code` preamble chips (0/1); NULL when there is no preamble. 
+* `acq_len` preamble length in chips. 
+* `acq_reps` preamble repetitions. 
+* `data_code` spreading code (0/1), length `data_len`. 
+* `data_len` chips per frame bit. 
+* `out` receives the burst, one chip per byte. 
+* `max_out` capacity of `out`; must be at least [**dp\_wfm\_dsss\_desc\_nchips**](wfm__frame_8h.md#function-dp_wfm_dsss_desc_nchips). 
+
+
+
+**Returns:**
+
+chips written, or 0 if the geometry is refused, a stage has no kernel, a data field has no `data`, or `max_out` is too small.
+
+
+
+```C++
+#include <doppler/wfm/wfm_frame.h>
+
+int
+main (void)
+{
+  wfm_frame_desc_t d;
+  const wfm_seq_t  data = { .kind = WFM_SEQ_DATA, .len = 2 };
+  dp_wfm_frame_fixed (&d, NULL, 0, NULL, &data, 0); // [data:2]
+  const uint8_t chunk[2] = { 0, 1 }, code[3] = { 1, 1, 0 };
+  uint8_t       out[6];
+  // each data bit spreads the code: 0 sends it, 1 inverts it
+  if (dp_wfm_dsss_desc_chips_data (&d, NULL, chunk, NULL, 0, 0, code, 3,
+                                   out, sizeof out)
+          != 6
+      || out[0] != 1 || out[2] != 0 || out[3] != 0 || out[5] != 1)
+    return 1;
+  // with no chunk, the data field is refused
+  return dp_wfm_dsss_desc_chips_data (&d, NULL, NULL, NULL, 0, 0, code, 3,
+                                      out, sizeof out)
+         != 0;
+}
+```
+ 
 
 
         

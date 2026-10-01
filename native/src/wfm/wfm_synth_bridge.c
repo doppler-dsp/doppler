@@ -312,12 +312,12 @@ source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
 static const char *
 data_error (const wfm_source_t *src)
 {
-  if (src->type == WFM_SYNTH_DSSS)
-    return "a data source on a dsss source is not built yet "
+  if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0)
+    return "a data source on a continuous dsss source is not built yet "
            "(doppler#1719): its payload is --bits until then";
-  if (!type_can_frame (src))
+  if (!type_can_frame (src) && src->type != WFM_SYNTH_DSSS)
     return "a data source fills a frame's payload: use --type "
-           "bits/bpsk/qpsk/pn";
+           "bits/bpsk/qpsk/pn/dsss";
   if (src->data.kind == WFM_SEQ_DATA || src->fill.kind == WFM_SEQ_DATA)
     return "data:LEN has no bits of its own: it is the frame's field that "
            "--data fills, not a source or a fill";
@@ -532,6 +532,110 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
   return rc;
 }
 
+/* ── the pull: a frame per chunk of a data source ─────────────────────── */
+
+typedef struct
+{
+  wfm_frame_desc_t  d;
+  wfm_frame_ops_t   ops;
+  int               has_ops;
+  wfm_data_src_t   *src;
+  wfm_data_pacing_t pacing;
+  size_t            reps, chunk_bits;
+  uint8_t          *chunk;
+  /* A dsss burst: the frame is spread after it is assembled, by these
+     codes (dp_wfm_dsss_desc_chips_data). `dcode` NULL is a plain frame. */
+  uint8_t *acq, *dcode;
+  size_t   an, acq_reps, dn;
+} data_pull_t;
+
+static void
+data_pull_free (void *u)
+{
+  data_pull_t *p = u;
+  if (!p)
+    return;
+  dp_wfm_data_destroy (p->src);
+  free (p->chunk);
+  free (p->acq);
+  free (p->dcode);
+  free (p);
+}
+
+/* One frame: the next chunk under the pacing rule, assembled into `bits`.
+   Returns 0, or 1 when the data has ended (an error ends it too: a frame
+   that cannot be built is not sent). */
+static int
+data_pull_refill (void *u, uint8_t *bits, size_t n)
+{
+  data_pull_t            *p  = u;
+  const wfm_data_status_t st = dp_wfm_data_frame (p->src, p->pacing, p->reps,
+                                                  p->chunk, p->chunk_bits);
+  if (st != WFM_DATA_FRAME && st != WFM_DATA_IDLE)
+    return 1;
+  const wfm_frame_ops_t *ops = p->has_ops ? &p->ops : NULL;
+  const size_t           got
+      = p->dcode ? dp_wfm_dsss_desc_chips_data (&p->d, ops, p->chunk, p->acq,
+                                                p->an, p->acq_reps, p->dcode,
+                                                p->dn, bits, n)
+                 : dp_wfm_frame_assemble_data (&p->d, ops, p->chunk, bits, n);
+  return got == n ? 0 : 1;
+}
+
+/* A pull over description `d`, owning `src` from here, success or not:
+   NULL (and `src` destroyed) when `d` has no data:LEN field to fill. */
+static data_pull_t *
+pull_new (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+          wfm_data_src_t *src, wfm_data_pacing_t pacing)
+{
+  data_pull_t *p = dp_xcalloc (1, sizeof *p);
+  p->src         = src;
+  wfm_frame_desc_layout_t l;
+  int                     at = -1;
+  if (d && dp_wfm_frame_desc_layout (d, &l) == 0)
+    at = data_field (d);
+  if (!src || at < 0 || l.out_bits == 0)
+    {
+      data_pull_free (p);
+      return NULL;
+    }
+  p->d          = *d;
+  p->has_ops    = ops != NULL;
+  p->ops        = ops ? *ops : (wfm_frame_ops_t){ 0 };
+  p->pacing     = pacing;
+  p->reps       = d->field[at].reps ? d->field[at].reps : 1u;
+  p->chunk_bits = l.field_bits[at];
+  p->chunk      = dp_xmalloc (p->chunk_bits);
+  return p;
+}
+
+/* Hand `p` to the synth as its refill, the pattern `n` long -- a frame's
+   bits, or a burst's chips -- and PARK the cursor at its end.
+
+   NOTHING is drawn here, not even the first frame: the cursor is parked at
+   the frame boundary, so frame 1 is pulled at the first bit, like every
+   frame after it. That is what lets a composer build a source just to
+   validate it, and Plan or a repeat build it again, without reading a byte
+   of stdin (payload-data-source.md, D-c). The pattern set here is a
+   placeholder of the frame's length, never sent. */
+static int
+pull_park (dp_wfm_synth_state_t *syn, data_pull_t *p, size_t n, int modulation)
+{
+  uint8_t  *blank = dp_xcalloc (n, 1);
+  const int rc = p->dcode ? dp_wfm_synth_set_dsss_chips (syn, blank, n)
+                          : dp_wfm_synth_set_bits (syn, blank, n, modulation);
+  free (blank);
+  if (rc != 0
+      || dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free)
+             != 0)
+    {
+      data_pull_free (p);
+      return -1;
+    }
+  syn->bit_idx = syn->n_bits;
+  return 0;
+}
+
 int
 dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs)
@@ -602,6 +706,34 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
       free (dchp);
       free (chips);
       return -1;
+    }
+  /* A data source: one burst per chunk, assembled and spread when it is
+     due, in place of the one burst assembled below and cycled. The pull
+     owns the codes from here. */
+  if (has_data (src))
+    {
+      free (chips);
+      const int    i = data_field (&d);
+      data_pull_t *p = NULL;
+      if (i >= 0)
+        p = pull_new (
+            &d, &ops,
+            dp_wfm_data_create_seq (src->data_from_file ? NULL : &src->data,
+                                    src->data_from_file, d.field[i].seq.len,
+                                    &src->fill, NULL),
+            WFM_DATA_UNPACED);
+      if (!p)
+        {
+          free (achp);
+          free (dchp);
+          return -1;
+        }
+      p->acq      = achp;
+      p->an       = an;
+      p->acq_reps = src->acq_reps;
+      p->dcode    = dchp;
+      p->dn       = dn;
+      return pull_park (syn, p, n, 1);
     }
   const size_t got = dp_wfm_dsss_desc_chips (&d, &ops, achp, an, src->acq_reps,
                                              dchp, dn, chips, n);
@@ -722,99 +854,22 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   return eng;
 }
 
-/* ── the pull: a frame per chunk of a data source ─────────────────────── */
-
-typedef struct
-{
-  wfm_frame_desc_t  d;
-  wfm_frame_ops_t   ops;
-  int               has_ops;
-  wfm_data_src_t   *src;
-  wfm_data_pacing_t pacing;
-  size_t            reps, chunk_bits;
-  uint8_t          *chunk;
-} data_pull_t;
-
-static void
-data_pull_free (void *u)
-{
-  data_pull_t *p = u;
-  if (!p)
-    return;
-  dp_wfm_data_destroy (p->src);
-  free (p->chunk);
-  free (p);
-}
-
-/* One frame: the next chunk under the pacing rule, assembled into `bits`.
-   Returns 0, or 1 when the data has ended (an error ends it too: a frame
-   that cannot be built is not sent). */
-static int
-data_pull_refill (void *u, uint8_t *bits, size_t n)
-{
-  data_pull_t            *p  = u;
-  const wfm_data_status_t st = dp_wfm_data_frame (p->src, p->pacing, p->reps,
-                                                  p->chunk, p->chunk_bits);
-  if (st != WFM_DATA_FRAME && st != WFM_DATA_IDLE)
-    return 1;
-  return dp_wfm_frame_assemble_data (&p->d, p->has_ops ? &p->ops : NULL,
-                                     p->chunk, bits, n)
-                 == n
-             ? 0
-             : 1;
-}
-
 int
 dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
                           const wfm_frame_ops_t *ops, wfm_data_src_t *src,
                           wfm_data_pacing_t pacing, int modulation)
 {
-  data_pull_t *p = dp_xcalloc (1, sizeof *p);
-  p->src         = src; /* owned from here, success or not */
-  if (!syn || !d || !src || syn->wtype != WFM_SYNTH_BITS)
+  data_pull_t *p = pull_new (d, ops, src, pacing);
+  if (!p)
+    return -1;
+  if (!syn || syn->wtype != WFM_SYNTH_BITS)
     {
       data_pull_free (p);
       return -1;
     }
-
   wfm_frame_desc_layout_t l;
-  int                     at = -1;
-  if (dp_wfm_frame_desc_layout (d, &l) == 0)
-    for (unsigned i = 0; i < d->n_fields; i++)
-      if (!d->field[i].derived_by && d->field[i].seq.kind == WFM_SEQ_DATA
-          && d->field[i].seq.len)
-        at = (int)i;
-  if (at < 0 || l.out_bits == 0)
-    {
-      data_pull_free (p);
-      return -1;
-    }
-  p->d          = *d;
-  p->has_ops    = ops != NULL;
-  p->ops        = ops ? *ops : (wfm_frame_ops_t){ 0 };
-  p->pacing     = pacing;
-  p->reps       = d->field[at].reps ? d->field[at].reps : 1u;
-  p->chunk_bits = l.field_bits[at];
-  p->chunk      = dp_xmalloc (p->chunk_bits);
-
-  /* NOTHING is drawn here, not even the first frame: the cursor is PARKED
-     at the frame boundary, so frame 1 is pulled at the first bit, like
-     every frame after it. That is what lets a composer build a source just
-     to validate it, and Plan or a repeat build it again, without reading a
-     byte of stdin (payload-data-source.md, D-c). The pattern set here is a
-     placeholder of the frame's length, never sent. */
-  uint8_t  *blank = dp_xcalloc (l.out_bits, 1);
-  const int rc    = dp_wfm_synth_set_bits (syn, blank, l.out_bits, modulation);
-  free (blank);
-  if (rc != 0
-      || dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free)
-             != 0)
-    {
-      data_pull_free (p);
-      return -1;
-    }
-  syn->bit_idx = syn->n_bits;
-  return 0;
+  (void)dp_wfm_frame_desc_layout (d, &l); /* pull_new has checked it */
+  return pull_park (syn, p, l.out_bits, modulation);
 }
 
 int
@@ -832,6 +887,10 @@ dp_wfm_source_data_frame_samples (const wfm_source_t *src)
   wfm_frame_desc_layout_t l;
   if (source_frame (src, &d) != 0 || dp_wfm_frame_desc_layout (&d, &l) != 0)
     return 0;
+  const size_t sps = src->sps > 0 ? (size_t)src->sps : 1u;
+  /* A dsss burst is a frame spread: its chips, sps samples each. */
+  if (src->type == WFM_SYNTH_DSSS)
+    return dp_wfm_source_dsss_nchips (src) * sps;
   /* Symbols per frame at the frame's own mapping (a bpsk/pn frame is one
      bit per symbol, qpsk two, a bits pattern its `modulation`, 0 meaning
      one), then sps samples each -- what the synth emits per frame. A frame
@@ -839,7 +898,6 @@ dp_wfm_source_data_frame_samples (const wfm_source_t *src)
      completes (wfm_synth_bit_symbol), so it rounds UP. */
   const int    m   = frame_modulation (src);
   const size_t bps = m > 0 ? (size_t)m : 1u;
-  const size_t sps = src->sps > 0 ? (size_t)src->sps : 1u;
   return (l.out_bits + bps - 1u) / bps * sps;
 }
 

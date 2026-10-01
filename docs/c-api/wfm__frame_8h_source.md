@@ -206,6 +206,12 @@ extern "C"
                               size_t acq_reps, const uint8_t *data_code,
                               size_t data_len, uint8_t *out, size_t max_out);
 
+  size_t dp_wfm_dsss_desc_chips_data (
+      const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+      const uint8_t *data, const uint8_t *acq_code, size_t acq_len,
+      size_t acq_reps, const uint8_t *data_code, size_t data_len, uint8_t *out,
+      size_t max_out);
+
   int dp_wfm_frame_check (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
                        uint8_t *bits, wfm_frame_rx_t *rx);
 

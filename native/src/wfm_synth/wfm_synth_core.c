@@ -251,7 +251,14 @@ int
 dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
                          void *user, void (*free_user) (void *))
 {
-  if (fn && (state->wtype != WFM_SYNTH_BITS || !state->bits || !state->n_bits))
+  /* A pattern the bit cursor plays: a bits frame, or a dsss burst's chips
+     (each burst one frame of the source). A continuous dsss stream has no
+     pattern to refill: its data symbols are its own clock's. */
+  const int burst
+      = state->wtype == WFM_SYNTH_DSSS && !(state->chips_per_symbol > 0.0);
+  if (fn
+      && ((state->wtype != WFM_SYNTH_BITS && !burst) || !state->bits
+          || !state->n_bits))
     return -1;
   if (state->refill_free)
     state->refill_free (state->refill_user);
@@ -287,6 +294,8 @@ dp_wfm_synth_set_dsss_chips (dp_wfm_synth_state_t *state, const uint8_t *chips,
   state->n_bits  = n_chips;
   state->bit_idx = 0;
   state->bit_mod = 1; /* chips are always BPSK (0 → +1, 1 → −1) */
+  /* A new burst is a new source, as a new bits pattern is. */
+  (void)dp_wfm_synth_set_refill (state, NULL, NULL, NULL);
   return 0;
 }
 

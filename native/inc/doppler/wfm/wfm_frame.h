@@ -955,6 +955,62 @@ extern "C"
                               size_t data_len, uint8_t *out, size_t max_out);
 
   /**
+   * @brief A DSSS burst over a data chunk: assemble, spread.
+   *
+   * What @ref dp_wfm_frame_assemble_data is to @ref dp_wfm_frame_assemble:
+   * the same burst as @ref dp_wfm_dsss_desc_chips, with the description's
+   * `data:LEN` field filled from @p data rather than refused. A data source
+   * on a dsss source builds one burst per chunk through this, at each burst
+   * boundary (payload-data-source.md). @ref dp_wfm_dsss_desc_chips is this
+   * with @p data NULL, so there is one spreader.
+   *
+   * @param d         description of the spread frame.
+   * @param ops       kernels beyond the built-in CRC; may be NULL.
+   * @param data      the `data:LEN` field's bits (0/1), one per byte, as
+   *                  many as the layout gives the field; NULL when the
+   *                  description has no data field.
+   * @param acq_code  preamble chips (0/1); NULL when there is no preamble.
+   * @param acq_len   preamble length in chips.
+   * @param acq_reps  preamble repetitions.
+   * @param data_code spreading code (0/1), length @p data_len.
+   * @param data_len  chips per frame bit.
+   * @param out       receives the burst, one chip per byte.
+   * @param max_out   capacity of @p out; must be at least
+   *                  @ref dp_wfm_dsss_desc_nchips.
+   * @return chips written, or 0 if the geometry is refused, a stage has no
+   *         kernel, a data field has no @p data, or @p max_out is too small.
+   *
+   * @code
+   * #include <doppler/wfm/wfm_frame.h>
+   *
+   * int
+   * main (void)
+   * {
+   *   wfm_frame_desc_t d;
+   *   const wfm_seq_t  data = { .kind = WFM_SEQ_DATA, .len = 2 };
+   *   dp_wfm_frame_fixed (&d, NULL, 0, NULL, &data, 0); // [data:2]
+   *   const uint8_t chunk[2] = { 0, 1 }, code[3] = { 1, 1, 0 };
+   *   uint8_t       out[6];
+   *   // each data bit spreads the code: 0 sends it, 1 inverts it
+   *   if (dp_wfm_dsss_desc_chips_data (&d, NULL, chunk, NULL, 0, 0, code, 3,
+   *                                    out, sizeof out)
+   *           != 6
+   *       || out[0] != 1 || out[2] != 0 || out[3] != 0 || out[5] != 1)
+   *     return 1;
+   *   // with no chunk, the data field is refused
+   *   return dp_wfm_dsss_desc_chips_data (&d, NULL, NULL, NULL, 0, 0, code, 3,
+   *                                       out, sizeof out)
+   *          != 0;
+   * }
+   * @endcode
+   */
+  size_t dp_wfm_dsss_desc_chips_data (
+      const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
+      const uint8_t *data, const uint8_t *acq_code, size_t acq_len,
+      size_t acq_reps, const uint8_t *data_code, size_t data_len, uint8_t *out,
+      size_t max_out);
+
+  /**
    * @brief Undo a description's stages over a received frame, and report.
    *
    * The receive mirror of @ref dp_wfm_frame_assemble, reading the same

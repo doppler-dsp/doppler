@@ -1189,6 +1189,100 @@ test_a_finite_data_source_sets_the_run (void)
   return 0;
 }
 
+/* A dsss BURST over a data source: one burst per chunk, each the preamble
+   then that chunk's frame spread, so the bursts differ -- not one burst
+   cycled. The run is the bursts, derived (doppler#1719). */
+static int
+test_a_dsss_burst_draws_a_chunk_per_burst (void)
+{
+  enum
+  {
+    SF   = 4,             /* data-code chips per frame bit */
+    LEN  = 16,            /* data bits per burst           */
+    NCH  = SF + LEN * SF, /* preamble once, then the frame */
+    NBUR = 3              /* 48 bits / 16                  */
+  };
+  static const uint8_t acq[SF] = { 1, 0, 0, 1 }, code[SF] = { 1, 1, 0, 1 };
+  uint8_t              bits[48];
+  six_bits (bits);
+  wfm_source_t src = data_line ();
+  src.type         = WFM_SYNTH_DSSS;
+  src.acq_code
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = acq, .len = SF };
+  src.acq_reps = 1;
+  src.data_code
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = code, .len = SF };
+  src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 48 };
+  DP_REQUIRE_MSG (dp_wfm_source_error (&src) == NULL,
+                  "a data source on a dsss burst is a source");
+  DP_REQUIRE_MSG (dp_wfm_source_data_frame_samples (&src) == NCH,
+                  "a burst's samples are its chips at sps 1");
+
+  wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "it composes");
+  float complex out[NBUR * NCH + 64];
+  const size_t  n = dp_wfm_compose_execute (c, out, NBUR * NCH + 64);
+  dp_wfm_compose_destroy (c);
+  DP_CHECK_MSG (n == NBUR * NCH,
+                "the run is 3 bursts, derived from 48 bits in 16-bit "
+                "chunks -- not one burst, not a count");
+
+  /* Each burst against the one spreader, over ITS chunk. Chips are BPSK:
+     0 is +1, 1 is -1. */
+  wfm_frame_desc_t d;
+  const wfm_seq_t  dq = { .kind = WFM_SEQ_DATA, .len = LEN };
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, NULL, &dq, 0) == 0);
+  int same = 1, differ = 0;
+  for (size_t b = 0; b < NBUR; b++)
+    {
+      uint8_t want[NCH];
+      DP_REQUIRE (dp_wfm_dsss_desc_chips_data (&d, NULL, bits + b * LEN, acq,
+                                               SF, 1, code, SF, want, NCH)
+                  == NCH);
+      for (size_t i = 0; i < NCH; i++)
+        {
+          const float chip = crealf (out[b * NCH + i]);
+          if (fabsf (chip - (want[i] ? -1.0f : 1.0f)) > 1e-3f)
+            same = 0;
+          if (b && fabsf (chip - crealf (out[i])) > 1e-3f)
+            differ = 1;
+        }
+    }
+  DP_CHECK_MSG (same, "every burst is the preamble, then ITS chunk spread");
+  DP_CHECK_MSG (differ, "and the bursts differ: no burst is cycled");
+
+  /* The same burst from stdin: the run is where the stream ends, 3 bursts,
+     not the one burst a lone dsss source is otherwise sized to. */
+  int p[2];
+  DP_REQUIRE (t_pipe (p) == 0);
+  DP_REQUIRE (t_write (p[1], SIX, 6) == 6);
+  t_close (p[1]);
+  const int saved = t_dup (0);
+  DP_REQUIRE (saved >= 0 && t_dup2 (p[0], 0) == 0);
+  t_close (p[0]);
+  static const uint8_t zero[1] = { 0 };
+  src.data                     = (wfm_seq_t){ 0 };
+  src.data_from_file           = "-";
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+  c        = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "a dsss burst over stdin composes");
+  float complex piped[NBUR * NCH + 64];
+  size_t        m = 0, got;
+  while ((got = dp_wfm_compose_execute (c, piped + m, NBUR * NCH + 64 - m))
+         > 0)
+    m += got;
+  dp_wfm_compose_destroy (c);
+  t_dup2 (saved, 0);
+  t_close (saved);
+  DP_CHECK_MSG (m == NBUR * NCH,
+                "stdin's 48 bits are 3 bursts: the run ends where the "
+                "stream does, not after one burst");
+  DP_CHECK_MSG (m == n && memcmp (piped, out, n * sizeof *out) == 0,
+                "and they are the bursts the same bits make as a Field");
+  return 0;
+}
+
 /* stdin: the validation build reads nothing, and the run ends where the
    stream does -- on a frame boundary -- rather than at a count. */
 static int
@@ -1293,11 +1387,14 @@ test_every_data_refusal_names_its_fix (void)
     }                                                                         \
   while (0)
 
-  s      = data_line ();
-  s.data = data;
-  s.type = WFM_SYNTH_DSSS;
-  REFUSED ("doppler#1719", "a data source on dsss: not built yet, by issue");
-  s.type = 0; /* a tone frames nothing */
+  s             = data_line ();
+  s.data        = data;
+  s.type        = WFM_SYNTH_DSSS;
+  s.symbol_rate = 2700.0;
+  REFUSED ("doppler#1719",
+           "a data source on CONTINUOUS dsss: not built yet, by issue");
+  s.symbol_rate = 0.0;
+  s.type        = 0; /* a tone frames nothing */
   REFUSED ("--type bits", "a type that cannot frame: names the types");
   s      = data_line ();
   s.data = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 8 };
@@ -4477,6 +4574,8 @@ main (void)
   if (test_a_finite_data_source_sets_the_run ())
     return 1;
   if (test_a_data_stream_ends_the_run_on_a_frame ())
+    return 1;
+  if (test_a_dsss_burst_draws_a_chunk_per_burst ())
     return 1;
   if (test_a_scene_refuses_what_a_stream_cannot_do ())
     return 1;

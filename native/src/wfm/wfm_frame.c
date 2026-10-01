@@ -1109,6 +1109,18 @@ dp_wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
                         size_t acq_reps, const uint8_t *data_code,
                         size_t data_len, uint8_t *out, size_t max_out)
 {
+  return dp_wfm_dsss_desc_chips_data (d, ops, NULL, acq_code, acq_len,
+                                      acq_reps, data_code, data_len, out,
+                                      max_out);
+}
+
+size_t
+dp_wfm_dsss_desc_chips_data (const wfm_frame_desc_t *d,
+                             const wfm_frame_ops_t *ops, const uint8_t *data,
+                             const uint8_t *acq_code, size_t acq_len,
+                             size_t acq_reps, const uint8_t *data_code,
+                             size_t data_len, uint8_t *out, size_t max_out)
+{
   const size_t total
       = dp_wfm_dsss_desc_nchips (d, acq_len, acq_reps, data_len);
   if (total == 0 || total > max_out || !out)
@@ -1126,7 +1138,8 @@ dp_wfm_dsss_desc_chips (const wfm_frame_desc_t *d, const wfm_frame_ops_t *ops,
   uint8_t *bits = (l.out_bits > 0) ? malloc (l.out_bits) : NULL;
   if (l.out_bits > 0
       && (!bits
-          || dp_wfm_frame_assemble (d, ops, bits, l.out_bits) != l.out_bits))
+          || dp_wfm_frame_assemble_data (d, ops, data, bits, l.out_bits)
+                 != l.out_bits))
     {
       free (bits);
       return 0;

@@ -424,11 +424,17 @@ int dp_wfm_source_has_frame(const wfm_source_t *src);
 
 size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
 
+double dp_wfm_source_dsss_cps(const wfm_source_t *src, double fs);
+
 const char *dp_wfm_source_frame_error(const wfm_source_t *src);
 
 const char *dp_wfm_source_error(const wfm_source_t *src);
 
 extern const char dp_wfm_why_pn_poly[];
+
+extern const char dp_wfm_why_dsss_frame_no_data_code[];
+extern const char dp_wfm_why_dsss_empty[];
+extern const char dp_wfm_why_dsss_cont_no_data_code[];
 
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 
@@ -443,6 +449,8 @@ void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
 
 const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
                                int repeat, int continuous);
+
+extern const char dp_wfm_why_dsss_cont_rate[];
 
 
 int dp_wfm_source_data_is_stream(const wfm_source_t *src);
@@ -488,6 +496,11 @@ typedef struct wfm_compose_state dp_wfm_compose_state_t;
 
 dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+dp_wfm_compose_state_t *dp_wfm_compose_create_why(const wfm_segment_t *segs,
+                                                  size_t n_segs, int repeat,
+                                                  int continuous,
+                                                  const char **why);
 
 void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
 

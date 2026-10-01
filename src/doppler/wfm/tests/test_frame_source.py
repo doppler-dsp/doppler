@@ -35,7 +35,15 @@ import subprocess
 import numpy as np
 import pytest
 
-from doppler.wfm import Composer, FrameDesc, Segment, Synth, cli, crc16
+from doppler.wfm import (
+    Composer,
+    FrameDesc,
+    Segment,
+    Synth,
+    cli,
+    crc16,
+    field_bits,
+)
 from doppler.wfm.wfm import _SynthEngine
 
 SPS = 4
@@ -639,3 +647,133 @@ def test_a_pn_poly_above_its_register_is_refused(make):
     with pytest.raises((ValueError, RuntimeError, MemoryError)):
         make(0x40)
     make(0x12)
+
+
+# ── a dsss source missing a code (doppler#1696) ──────────────────────────────
+
+_ACQ = "pn:31:5"
+_DATA = "pn:15:4"
+
+
+def _scene_why(seg: dict) -> str:
+    """The reason a scene gives: dp_wfm_compose_from_json_why's sentence."""
+    with pytest.raises(ValueError) as scene:
+        Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    return str(scene.value)
+
+
+@pytest.mark.parametrize(
+    ("codes", "field"),
+    [
+        ({}, "give acq_code"),
+        ({"data_code": _DATA}, "give acq_code"),
+        ({"acq_code": _ACQ, "sync": "0101"}, "--data-code is required"),
+        ({"sync": "0101"}, "--data-code is required"),
+        ({"symbol_rate": 1e3}, "give data_code"),
+    ],
+    ids=[
+        "nothing",
+        "data-code-only",
+        "sync-no-data-code",
+        "sync-alone",
+        "continuous",
+    ],
+)
+def test_a_dsss_source_missing_a_code_names_it(codes, field):
+    """Each refusal names the code to give, and the composer, the
+    standalone Synth and a scene say the SAME sentence, because all three
+    ask dp_wfm_scene_error. The Composer's create carries it through
+    create_why (just-makeit gh-1755) instead of "<create> failed"."""
+    kw = {
+        k: field_bits(v) if isinstance(v, str) else v for k, v in codes.items()
+    }
+    why = _scene_why({"type": "dsss", "sps": 2, "fs": 1e6, **codes})
+    assert field in why, why
+
+    with pytest.raises(ValueError) as synth:
+        Synth(type="dsss", sps=2, fs=1e6, **kw).steps(8)
+    assert str(synth.value) == why
+
+    with pytest.raises(ValueError) as comp:
+        Composer([Segment(type="dsss", sps=2, fs=1e6, num_samples=64, **kw)])
+    assert str(comp.value) == why
+
+
+def test_a_preamble_alone_is_a_valid_dsss_burst():
+    """The documented edge (waveforms.md, "The burst anatomy"): acq_code with
+    no sync and no payload is an acquisition stimulus, reps x the code."""
+    acq = field_bits(_ACQ)
+    x = Composer(type="dsss", sps=2, acq_code=acq, acq_reps=3).compose()
+    assert len(x) == 3 * len(acq) * 2
+
+
+# ── a continuous dsss chip rate below its symbol rate (doppler#1706) ─────────
+
+
+def test_a_continuous_dsss_below_one_chip_per_symbol_is_named(tmp_path):
+    """At the default fs=1.0, symbol_rate=1000 leaves no chips per symbol.
+    The scene, the composer, the standalone Synth and the CLI name the
+    rate, one sentence on all four, and the same source at a real fs
+    composes."""
+    seg = {
+        "type": "dsss",
+        "sps": 2,
+        "symbol_rate": 1000.0,
+        "data_code": _DATA,
+        "num_samples": 64,
+    }
+    why = _scene_why(seg)
+    assert "chip rate fs / sps is below symbol_rate" in why, why
+
+    code = field_bits(_DATA)
+    with pytest.raises(ValueError) as comp:
+        Composer(
+            [
+                Segment(
+                    type="dsss",
+                    sps=2,
+                    symbol_rate=1000.0,
+                    data_code=code,
+                    num_samples=64,
+                )
+            ]
+        )
+    assert str(comp.value) == why
+    with pytest.raises(ValueError) as synth:
+        Synth(
+            type="dsss", sps=2, fs=1.0, symbol_rate=1000.0, data_code=code
+        ).steps(8)
+    assert str(synth.value) == why
+
+    p, _ = _cli(
+        [
+            "--type",
+            "dsss",
+            "--sps",
+            "2",
+            "--symbol-rate",
+            "1000",
+            "--data-code",
+            _DATA,
+            "--count",
+            "64",
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 2, p.stderr
+    assert f"error: --symbol-rate 1000, --fs 1, --sps 2: {why}" in p.stderr
+
+    seg["fs"] = 1e6
+    x = Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    assert len(x.compose()) == 64
+
+
+def test_the_composer_raises_any_scene_reason_verbatim():
+    """create_why is the scene validator's channel, not a dsss one: a
+    refusal from any rule reaches ValueError word for word -- here the
+    pn_poly rule (doppler#1636), the same sentence a scene gives."""
+    why = _scene_why({"type": "pn", "pn_length": 5, "pn_poly": 0x40})
+    assert why.startswith("pn_poly has a bit at or above bit pn_length"), why
+    with pytest.raises(ValueError) as comp:
+        Composer([Segment(type="pn", pn_length=5, pn_poly=0x40)])
+    assert str(comp.value) == why

@@ -75,19 +75,20 @@ has_data (const wfm_source_t *src)
   return src->data.len || src->data_from_file;
 }
 
-/* Chips per data symbol of a CONTINUOUS dsss source at `fs`: sps is
-   samples per CHIP for dsss, so chip_rate = fs/sps, and the data clock is
-   symbol_rate -- non-integer, which is the asynchronicity. */
-static double
-cont_cps (const wfm_source_t *src, double fs)
-{
-  return src->sps > 0 ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
-}
-
 static int
 is_cont_dsss (const wfm_source_t *src)
 {
   return src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0;
+}
+
+/* sps is samples per CHIP for dsss, so chip_rate = fs/sps, and the data
+   clock is symbol_rate -- non-integer, which is the asynchronicity. */
+double
+dp_wfm_source_dsss_cps (const wfm_source_t *src, double fs)
+{
+  if (!src || !is_cont_dsss (src) || src->sps <= 0)
+    return 0.0;
+  return (fs / (double)src->sps) / src->symbol_rate;
 }
 
 /* The index of a description's one data:LEN field, or -1. */
@@ -123,6 +124,46 @@ const char dp_wfm_why_pn_poly[]
       "it configures, and the generator would mask it away: give a pn_poly "
       "inside the pn_length-bit register, or 0 for its maximal-length "
       "polynomial";
+
+/* doppler#1696. A dsss source's two codes do different jobs, and each one
+   missing is its own sentence rather than a NULL from the builder:
+   `acq_code` is the preamble a receiver acquires on, and `data_code` is what
+   spreads the frame -- and, for a continuous stream, the only thing there
+   is. A burst of just the preamble (no sync, no payload, no data_code) is
+   valid: it is what an acquisition stimulus is, and waveforms.md says so. */
+const char dp_wfm_why_dsss_frame_no_data_code[]
+    = "a DSSS burst spreads its frame: --data-code is required whenever "
+      "there are frame bits (--sync/--bits) to spread";
+const char dp_wfm_why_dsss_empty[]
+    = "a dsss burst has nothing to send: give acq_code, the preamble a "
+      "receiver acquires on, or a payload spread by data_code, or both";
+const char dp_wfm_why_dsss_cont_no_data_code[]
+    = "a continuous dsss stream (symbol_rate > 0) is its spreading code, "
+      "and no data_code is given: give data_code, a code such as pn:31:5";
+
+/* The dsss half of dp_wfm_source_error: NULL, or which code is missing. A
+   frame that does not lay out is not decided here -- that is
+   dp_wfm_source_frame_error's, and it names its own reason. The frame's
+   LAYOUT decides whether there are bits to spread, so a payload with no
+   preamble, a sync word, a carried description and a data source are one
+   question rather than four flags. */
+static const char *
+dsss_error (const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_DSSS)
+    return NULL;
+  if (src->symbol_rate > 0.0)
+    return src->data_code.len ? NULL : dp_wfm_why_dsss_cont_no_data_code;
+  wfm_frame_desc_t        d;
+  wfm_frame_desc_layout_t l;
+  if (source_frame (src, &d) != 0 || dp_wfm_frame_desc_layout (&d, &l) != 0)
+    return NULL;
+  if (l.out_bits && !src->data_code.len)
+    return dp_wfm_why_dsss_frame_no_data_code;
+  if (!l.out_bits && !(src->acq_code.len && src->acq_reps))
+    return dp_wfm_why_dsss_empty;
+  return NULL;
+}
 
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
@@ -170,14 +211,19 @@ dp_wfm_source_error (const wfm_source_t *src)
   if (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK && src->pn_poly
       && !pn_fits_register (src->pn_poly, (uint32_t)src->pn_length))
     return dp_wfm_why_pn_poly;
-  return dp_wfm_source_frame_error (src);
+  const char *why = dsss_error (src);
+  return why ? why : dp_wfm_source_frame_error (src);
 }
 
 const char *
 dp_wfm_source_to_synth_error (const wfm_source_t *src, double fs)
 {
-  (void)fs;
-  return dp_wfm_source_error (src);
+  /* A standalone source is a scene of one segment at the bridge's fs, so
+     the rules that need a rate (dp_wfm_scene_error's) are asked too, by the
+     one validator rather than a second. */
+  wfm_segment_t g
+      = { .sources = (wfm_source_t *)src, .n_sources = 1, .fs = fs };
+  return dp_wfm_scene_error (&g, 1, 0, 0);
 }
 
 const char *
@@ -207,11 +253,12 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
         return NULL;
       /* A burst SPREADS its frame, so frame bits without a code are not a
          geometry this can build. It used to leave a zero-length capture and
-         exit 0 -- a refusal nobody was told about. */
-      if ((src->frame || src->sync.len || src->payload.len)
-          && src->data_code.len == 0)
-        return "a DSSS burst spreads its frame: --data-code is required "
-               "whenever there are frame bits (--sync/--bits) to spread";
+         exit 0 -- a refusal nobody was told about. The rule is dsss_error's,
+         by the frame's layout, asked here too so this function answers for
+         every frame it is shown. */
+      const char *why = dsss_error (src);
+      if (why)
+        return why;
     }
   else if (!type_can_frame (src))
     return "--acq-code/--sync/--frame frame a waveform, and this type "
@@ -693,7 +740,7 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
          chip_rate/symbol_rate (non-integer — the asynchronicity). Data comes
          from the payload when supplied, else the seeded PN a receiver can
          regenerate. (Code-only, --data none, arrives with the CLI flag.) */
-      const double cps  = cont_cps (src, fs);
+      const double cps  = dp_wfm_source_dsss_cps (src, fs);
       size_t       dn   = 0;
       uint8_t     *dchp = seq_to_chips (&src->data_code, &dn);
       if (!dchp)
@@ -848,27 +895,19 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
   /* Likewise a "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
     return NULL;
-  /* A "dsss" BURST needs valid frame geometry (a preamble and/or a data-coded
-     frame; frame bits require a data code). A CONTINUOUS stream (symbol_rate >
-     0) has no frame — it needs only a spreading code. */
-  /* Checked through the ONE compiler the render uses, so a carried frame and
-     its stages are what is validated -- not a four-field sum the render never
-     reads (doppler#1593). */
+  /* A frame this waveform type cannot carry, a dsss source missing a code,
+     a continuous one below a chip per symbol at this fs. Refusing is the
+     whole point: these fields used to be accepted and dropped, so the caller
+     got an unframed waveform and no way to find out. Asked through the one
+     validator, so Synth.steps() raises the sentence every face gives. */
+  if (dp_wfm_source_to_synth_error (src, fs) != NULL)
+    return NULL;
+  /* A "dsss" BURST needs valid frame geometry, checked through the ONE
+     compiler the render uses, so a carried frame and its stages are what is
+     validated -- not a four-field sum the render never reads
+     (doppler#1593). */
   if (src->type == WFM_SYNTH_DSSS && src->symbol_rate <= 0.0
       && dp_wfm_source_dsss_nchips (src) == 0)
-    return NULL;
-  /* LEN, not `bits`. A generated spreading code carries `bits == NULL` by
-     construction -- the parameters ARE the code -- so testing the pointer
-     refused every continuous `data_code_gen` before it could reach
-     seq_to_chips, on the one face a record restores through. A code that is
-     declared but cannot be built is caught below, where it can say so. */
-  if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
-      && src->data_code.len == 0)
-    return NULL;
-  /* A frame this waveform type cannot carry. Refusing is the whole point:
-     these fields used to be accepted and dropped, so the caller got an
-     unframed waveform and no way to find out. */
-  if (dp_wfm_source_error (src) != NULL)
     return NULL;
   /* A sweeping chirp needs its span, and standalone there is no segment to
      lend one. It used to lock to the length of the first read, so step(),
@@ -955,7 +994,7 @@ dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
          every chip before the symbol after the last: that symbol's edge, on
          the one symbol clock the synth's kernel runs on, so the run ends on
          the chip where the waveform's data does by construction. */
-      const double cps = cont_cps (src, fs);
+      const double cps = dp_wfm_source_dsss_cps (src, fs);
       if (!(cps >= 1.0))
         return 0;
       return dp_wfm_dsss_cont_edge (frames, cps) * sps;

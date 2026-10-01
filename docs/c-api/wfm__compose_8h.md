@@ -59,6 +59,10 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  const char | [**dp\_wfm\_why\_dsss\_cont\_no\_data\_code**](#variable-dp_wfm_why_dsss_cont_no_data_code)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
+|  const char | [**dp\_wfm\_why\_dsss\_cont\_rate**](#variable-dp_wfm_why_dsss_cont_rate)  <br>_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a continuous dsss source whose chip rate is below its symbol rate_ _exported so the wfmgen CLI can name the values beside it, by identity._ |
+|  const char | [**dp\_wfm\_why\_dsss\_empty**](#variable-dp_wfm_why_dsss_empty)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
+|  const char | [**dp\_wfm\_why\_dsss\_frame\_no\_data\_code**](#variable-dp_wfm_why_dsss_frame_no_data_code)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
 |  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
 
 
@@ -83,6 +87,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* | [**dp\_wfm\_compose\_build\_render**](#function-dp_wfm_compose_build_render) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, double doppler, double doppler\_rate, unsigned epoch, int seed\_advance, size\_t instance, [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* borrow) <br>_Build a source's renderer —_ `dp_wfm_compose_build_synth` _plus the clock-Doppler channel the source declares, if it declares one._ |
 |  [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* | [**dp\_wfm\_compose\_build\_synth**](#function-dp_wfm_compose_build_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, unsigned epoch, int seed\_advance, size\_t instance) <br>_Construct + configure the synth for one resolved source._  |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_create**](#function-dp_wfm_compose_create) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Build a composer over a copy of_ `segs` _._ |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_create\_why**](#function-dp_wfm_compose_create_why) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, const char \*\* why) <br>[_**dp\_wfm\_compose\_create()**_](wfm__compose_8h.md#function-dp_wfm_compose_create) _, able to say why the scene was refused._ |
 |  void | [**dp\_wfm\_compose\_destroy**](#function-dp_wfm_compose_destroy) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
 |  size\_t | [**dp\_wfm\_compose\_draws**](#function-dp_wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
 |  size\_t | [**dp\_wfm\_compose\_execute**](#function-dp_wfm_compose_execute) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
@@ -115,6 +120,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  uint64\_t | [**dp\_wfm\_source\_data\_frames**](#function-dp_wfm_source_data_frames) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none. On continuous dsss, which has no frame, its bits._ |
 |  int | [**dp\_wfm\_source\_data\_is\_stream**](#function-dp_wfm_source_data_is_stream) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Whether a source's data is a stream:_ `data_from_file` _is_`-` _._ |
 |  uint64\_t | [**dp\_wfm\_source\_data\_samples**](#function-dp_wfm_source_data_samples) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint64\_t frames) <br>_Samples the first_ `frames` _frames of a source's data occupy; 0 with no data._ |
+|  double | [**dp\_wfm\_source\_dsss\_cps**](#function-dp_wfm_source_dsss_cps) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Chips per data symbol of a CONTINUOUS dsss source at_ `fs` _._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
@@ -349,6 +355,62 @@ The scale a number in dB is quoted on is not a detail a caller can infer, and it
 
 
 
+### variable dp\_wfm\_why\_dsss\_cont\_no\_data\_code 
+
+_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._
+```C++
+const char dp_wfm_why_dsss_cont_no_data_code[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_dsss\_cont\_rate 
+
+_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a continuous dsss source whose chip rate is below its symbol rate_ _exported so the wfmgen CLI can name the values beside it, by identity._
+```C++
+const char dp_wfm_why_dsss_cont_rate[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_dsss\_empty 
+
+_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._
+```C++
+const char dp_wfm_why_dsss_empty[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_dsss\_frame\_no\_data\_code 
+
+_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._
+```C++
+const char dp_wfm_why_dsss_frame_no_data_code[];
+```
+
+
+
+
+<hr>
+
+
+
 ### variable dp\_wfm\_why\_pn\_poly 
 
 _The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._
@@ -493,6 +555,61 @@ Caller must [**dp\_wfm\_compose\_destroy()**](wfm__compose_8h.md#function-dp_wfm
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_compose\_create\_why 
+
+[_**dp\_wfm\_compose\_create()**_](wfm__compose_8h.md#function-dp_wfm_compose_create) _, able to say why the scene was refused._
+```C++
+dp_wfm_compose_state_t * dp_wfm_compose_create_why (
+    const wfm_segment_t * segs,
+    size_t n_segs,
+    int repeat,
+    int continuous,
+    const char ** why
+) 
+```
+
+
+
+The scene is asked [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) before anything is built, and its sentence is what `why` receives  the same sentence the wfmgen CLI, a scene read by [**dp\_wfm\_compose\_from\_json\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why) and the standalone `Synth` report, because it is the same validator. It is the create the generated `Composer([...])` calls (just-makeit's `create_why`), so a refused composer raises `ValueError(<the reason>)`.
+
+
+
+
+**Parameters:**
+
+
+* `segs` as for [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create). 
+* `n_segs` as for [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create). 
+* `repeat` as for [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create). 
+* `continuous` as for [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create). 
+* `why` optional; receives a STATIC reason when the scene is refused, and is left as it was in every other case (success, bad arguments, an allocation or synth failure). 
+
+
+
+**Returns:**
+
+Heap state, or NULL as for [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create).
+
+
+
+```C++
+wfm_source_t  src = { .type = WFM_SYNTH_DSSS, .sps = 2 };   // no codes
+wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6,
+                      .num_samples = 64 };
+const char   *why = NULL;
+dp_wfm_compose_state_t *c = dp_wfm_compose_create_why (&seg, 1, 0, 0, &why);
+if (c != NULL || why != dp_wfm_why_dsss_empty)   // refused, and says why
+  return 1;
+```
+ 
 
 
         
@@ -1328,7 +1445,17 @@ const char * dp_wfm_scene_error (
 
 
 
-Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error), then what only the whole scene can say about a data STREAM (`--data-from-file -`): it has no end to repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are refused, and stdin feeds at most one source. [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create) refuses exactly these; a face calls this to say why.
+Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error), then what only the scene can say:
+
+
+
+* A continuous dsss source's chip rate `fs / sps`, at its segment's `fs`, is at least its `symbol_rate`  one chip per data symbol, the synth's own floor ([**dp\_wfm\_source\_dsss\_cps()**](wfm__compose_8h.md#function-dp_wfm_source_dsss_cps)). The default `fs = 1.0` with a `symbol_rate` in Hz is the case that finds it (doppler#1706); the reason is dp\_wfm\_why\_dsss\_cont\_rate.
+* A data STREAM (`--data-from-file -`) has no end to repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are refused, and stdin feeds at most one source.
+
+
+
+
+[**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create) refuses exactly these, and [**dp\_wfm\_compose\_create\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_create_why) says which; a face calls this to say why.
 
 
 
@@ -1673,6 +1800,52 @@ The one length a run with a data source is measured in: a finite run is this ove
 
 
 
+### function dp\_wfm\_source\_dsss\_cps 
+
+_Chips per data symbol of a CONTINUOUS dsss source at_ `fs` _._
+```C++
+double dp_wfm_source_dsss_cps (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+`sps` is samples per CHIP for dsss, so the chip rate is `fs / sps`, and the data clock is `symbol_rate`: their ratio, non-integer in general, which is the asynchronicity. It is the number the builder hands [**dp\_wfm\_synth\_set\_dsss\_cont()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_cont), and the one [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) holds to `>= 1`  so the rule and the synth read the same value.
+
+
+
+
+**Parameters:**
+
+
+* `src` the source. 
+* `fs` its segment's sample rate, in Hz. 
+
+
+
+**Returns:**
+
+chips per data symbol, or 0 for a source that is not continuous dsss (or has no `sps`).
+
+
+
+```C++
+wfm_source_t s = { .type = WFM_SYNTH_DSSS, .sps = 2,
+                   .symbol_rate = 1000.0 };
+if (dp_wfm_source_dsss_cps (&s, 1e6) != 500.0)   // 500 chips per symbol
+  return 1;
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_dsss\_nchips 
 
 _Chips one DSSS BURST from this source occupies, description and all._ 
@@ -1727,8 +1900,12 @@ The question every face asks before it builds  the wfmgen CLI, a scene read by [
 
 * `pn_poly` must fit the `pn_length`-bit register ([**pn\_fits\_register()**](pn__core_8h.md#function-pn_fits_register)). The generator masks a wider one, silently, so `pn_poly = 0x40` on a 5-bit register is a register with no feedback: the seed, then zeros, a constant waveform that still looks like a PN source (doppler#1636). 0 selects the maximal-length polynomial and always fits.
 * No two members the surface table declares exclusive may both be set (`WFM_SURFACE_EXCLUSIVE`, [**wfm\_surface.h**](wfm__surface_8h.md)): a carried `frame` is the whole frame, so a `payload` beside it would be dropped (doppler#1683). The CLI and a scene refuse the same pair first, naming their own spelling.
+* A dsss source has the codes it needs (doppler#1696): a burst whose frame has bits to spread needs `data_code` (dp\_wfm\_why\_dsss\_frame\_no\_data\_code), a burst needs a preamble or a frame (dp\_wfm\_why\_dsss\_empty), and a continuous stream needs `data_code` (dp\_wfm\_why\_dsss\_cont\_no\_data\_code). A preamble alone is a valid burst: an acquisition stimulus.
 
 
+
+
+A rule that needs the segment's sample rate is not here  a source does not carry it  but in [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error), which asks this first.
 
 
 
@@ -1892,7 +2069,7 @@ const char * dp_wfm_source_to_synth_error (
 
 
 
-The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`, which takes the bridge's own arguments): [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error), so a refused Synth raises the same sentence as every other face. NULL leaves the binding's generic error, for a refusal that is not the source's.
+The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`, which takes the bridge's own arguments): [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) of a scene of one segment at `fs`, so a refused Synth raises the same sentence as every other face, including a rule that needs the rate. NULL leaves the binding's generic error, for a refusal that is not the source's.
 
 
 
@@ -1901,7 +2078,7 @@ The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`, which 
 
 
 * `src` The source. 
-* `fs` The sample rate (unused: no refusal depends on it). 
+* `fs` The sample rate the bridge was given. 
 
 
 

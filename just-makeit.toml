@@ -1091,6 +1091,12 @@ package      = "wfm"
 header       = "doppler/wfm/wfm_compose.h"
 composes     = ["wfm_synth"]
 sample_type  = true
+# doppler#1696: a refused scene raises its reason (just-makeit gh-1755/1758).
+# The create takes a trailing `const char **why`, filled from
+# dp_wfm_scene_error() -- the one validator every face asks -- so
+# `Composer([...])` raises ValueError(<the reason>), not "<create> failed".
+create_fn  = "dp_wfm_compose_create_why"
+create_why = true
 # link=true cores (jm appends _core): wfm_compose (composer + wfm_json + resolve),
 # wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir/resamp
 # (resamp backs the polyphase RRC pulse shaper). The

@@ -824,7 +824,28 @@ def render_schema() -> str:
 
 
 def _md(text: str) -> str:
+    """A table cell the generator wrote as markdown (a type's link): only
+    the cell separator is escaped, so its own links stay links."""
     return text.replace("|", "\\|")
+
+
+def _md_prose(text: str) -> str:
+    """A table cell of PROSE -- a field's doc, from its header comment.
+
+    Prose is literal: `[preamble x reps | sync | data:LEN | crc]` is frame
+    notation, not a link, and left bare markdown reads it as an unresolved
+    link reference (zensical --strict refused #1721 for exactly that). So
+    `[` and `]` are escaped outside code spans -- inside one they are
+    already literal -- and `|` everywhere, which a table cell needs even in
+    a code span. Fixed here, where every doc reaches the page, so no field
+    doc with brackets can break the build again.
+    """
+    out = []
+    for i, part in enumerate(text.split("`")):
+        if i % 2 == 0:  # outside a code span
+            part = part.replace("[", "\\[").replace("]", "\\]")
+        out.append(part.replace("|", "\\|"))
+    return "`".join(out)
 
 
 def render_reference() -> str:
@@ -886,6 +907,8 @@ def render_reference() -> str:
                 typ = (
                     "[Field](../../design/frame-description.md#f1-the-grammar)"
                 )
+            elif r.get("surface_only"):
+                typ = "path"  # a file, or - for stdin
             elif r["kind"] == "WFM_SV_BESPOKE":
                 typ = (
                     "[frame description](waveforms.md#coded-frames-frame-file)"
@@ -894,7 +917,9 @@ def render_reference() -> str:
                 typ = "integer"
             if r["range_bit"]:
                 typ += ", or a range"
-            cli = f"`{r['cli']} {r['metavar']}`" if r["cli"] else "—"
+            # A switch (a json_type bool row) takes no value on the CLI.
+            spell = f"{r['cli']} {r['metavar']}" if r["metavar"] else r["cli"]
+            cli = f"`{spell}`" if r["cli"] else "—"
             js = f"`{r['json']}`" if r["json"] else "—"
             dflt = f"`{r['default']}`" if r["default"] is not None else "—"
             doc = docs[owner][r["member"]]["doc"]
@@ -903,7 +928,7 @@ def render_reference() -> str:
                 doc += f" Not with `{o['name']}`: {e['why']}."
             out.append(
                 f"| `{r['name']}` | {cli} | {js} | {_md(typ)} | {dflt} | "
-                f"{_md(doc)} |"
+                f"{_md_prose(doc)} |"
             )
     return "\n".join(out) + "\n"
 

@@ -378,3 +378,18 @@ def test_python_data_is_drawn_frame_by_frame():
 def test_python_data_refuses_text():
     with pytest.raises(ValueError, match="field_bits"):
         Synth(type="bits", data="0xAB", data_len=8)
+
+
+def test_a_field_doc_renders_its_brackets_literally():
+    """options.md's doc cell is PROSE: brackets are notation, not a link.
+
+    #1721's `data_len` doc, `[preamble x reps | sync | data:LEN | crc]`,
+    rendered as an unresolved link reference and failed the strict docs
+    build. The reference renderer escapes `[`/`]` outside code spans (and
+    `|` everywhere, as a table cell needs), so no doc can do that again.
+    """
+    assert GEN._md_prose("x [a | b] y") == r"x \[a \| b\] y"
+    # Inside a code span the brackets are already literal: left alone.
+    assert GEN._md_prose("see `[a]` here") == "see `[a]` here"
+    # The generator's own links (a type cell) are NOT prose and stay links.
+    assert GEN._md("[Field](f.md)") == "[Field](f.md)"

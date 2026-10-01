@@ -173,7 +173,7 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int):
         sps=SPC,
         snr=100.0,  # clean -- noise is added below, after Doppler
         fs=FS,
-        bits=bytes(payload.tolist()),  # known payload = BER ground truth
+        data=payload,  # known payload = BER ground truth, one bit a symbol
         seed=seed,
     )
     clean = syn.steps(n).astype(np.complex64)

@@ -97,7 +97,7 @@ def test_malformed_text_raises_its_reason_never_returns_empty(spec):
 # ── a source's bit field takes bits, never text ──────────────────────────────
 #
 # An object takes bits; module helpers make them (docs/design/
-# frame-description.md, F.3). A composer source's bit fields (bits/payload,
+# frame-description.md, F.3). A composer source's bit fields (data, fill,
 # sync, acq_code, data_code) keep jm's `coerce = "bit_pattern"`, because
 # without it jm refuses arrays, and name `coerce_str_fn =
 # "dp_wfm_source_bits_refuse_text"`, which refuses every str with one reason
@@ -107,7 +107,7 @@ def test_malformed_text_raises_its_reason_never_returns_empty(spec):
 _REFUSED = re.escape("build them from text with field_bits()")
 
 #: Every source bit field, and a kwarg that reaches it.
-_FIELDS = ["payload", "pattern", "bits", "sync", "acq_code", "data_code"]
+_FIELDS = ["data", "fill", "sync", "acq_code", "data_code"]
 
 
 def _synth(**kw):
@@ -124,7 +124,7 @@ def test_a_source_bit_field_refuses_text_naming_field_bits(field, spec):
         _synth(**{field: spec})
 
 
-@pytest.mark.parametrize("field", ["bits", "sync", "acq_code", "data_code"])
+@pytest.mark.parametrize("field", ["data", "sync", "acq_code", "data_code"])
 def test_the_setter_refuses_text_and_keeps_the_bits(field):
     src = _synth(**{field: field_bits("0101")})
     with pytest.raises(ValueError, match=_REFUSED):
@@ -136,7 +136,7 @@ def test_a_segment_kwarg_refuses_text_too():
     from doppler.wfm import Segment
 
     with pytest.raises(ValueError, match=_REFUSED):
-        Segment(type="bits", payload="pn:31:5")
+        Segment(type="bits", data="pn:31:5")
 
 
 @pytest.mark.parametrize("spec", VALID)
@@ -144,7 +144,7 @@ def test_field_bits_output_is_what_a_source_takes(spec):
     """The door text goes through: its bits are taken as they are."""
     from doppler.wfm import Segment
 
-    got = Segment(type="bits", payload=field_bits(spec)).bits
+    got = Segment(type="bits", data=field_bits(spec)).data
     assert list(got) == field_bits(spec).tolist()
 
 

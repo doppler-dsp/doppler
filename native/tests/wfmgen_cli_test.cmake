@@ -208,7 +208,7 @@ expect_contains(wg_cono_cap.sigmf-meta "\"wfmgen:data\":\"none\"")
 #     and --continuous with SigMF (the sidecar can't be written for an unbounded
 #     stream).
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --acq-code ${DC})
-expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --code-only --bits 1011)
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --code-only --data 1011)
 expect_exit(2 --type dsss --symbol-rate 2700 --sps 2)   # no --data-code
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 0)
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
@@ -241,6 +241,14 @@ file(MD5 wg_dsss_file.cf32 dsg)
 if(NOT dsf STREQUAL dsg)
     message(FATAL_ERROR "a dsss burst over a file differs from the Field")
 endif()
+
+# 18b. #1718, a carried frame of FIXED bits is a finite source of one frame,
+#     sent once: its run is derived (4 bits, 4 samples at sps 1), and a
+#     --count beside it is refused, naming --repeats.
+file(WRITE wg_fixed.frame.json "{\"fields\":[{\"name\":\"a\",\"spec\":\"1010\"}]}")
+run(--type bits --frame wg_fixed.frame.json --sps 1 -o wg_fixed.cf32)
+expect_size(wg_fixed.cf32 32)
+expect_exit(2 --type bits --frame wg_fixed.frame.json --count 64)
 
 # 19. #1719, CONTINUOUS dsss over a data source: one bit per data symbol, no
 #     frame. 16 bits at 6138000 / 2 / 2700 = 1136.67 chips a symbol is

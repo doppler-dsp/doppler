@@ -164,10 +164,10 @@ size_t dp_frame_bits_max_out(dp_frame_state_t *state, size_t n);
  * @brief Materialise @p n consecutive frames, one bit per byte.
  *
  * @p n counts FRAMES, not bits: a descriptor describes one frame, and a
- * capture holds many. Repeating here rather than making the caller tile it is
- * what matches the generator, whose framed source cycles the same frame to
- * fill whatever length was asked for — so a stream compared against this
- * lines up with the one that was transmitted.
+ * capture holds many. It is the truth for a transmitter that sends the same
+ * frame n times -- a data source of n copies of the payload, one chunk a
+ * frame -- so a stream compared against this lines up with the one that was
+ * transmitted.
  *
  * @param state    The frame.
  * @param n        Frame repetitions.

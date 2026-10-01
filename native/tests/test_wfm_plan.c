@@ -260,9 +260,8 @@ compose_n (const char *json, float _Complex *out, size_t n)
   return total;
 }
 
-/* 240 payload bits, spelled once: the segment's `pattern` and the frame's
- * `payload` field are the same bits, and a framed source takes them from
- * the description. */
+/* 240 payload bits: the segment's data source, which fills the frame's
+ * `payload` field, data:240 -- one frame of it. */
 #define PAY_BITS_LIT                                                          \
   "1010101010101010101010101010101010101010101010101010101010101010101010101" \
   "0101010101010101010101010101010101010101010101010101010101010101010101010" \
@@ -293,10 +292,10 @@ test_framed_scene_matches_compose (void)
       = "{\"version\":1,\"segments\":[{"
         "\"type\":\"bits\",\"fs\":1000000,\"snr\":12,\"snr_mode\":\"fs\","
         "\"seed\":7,\"sps\":4,\"modulation\":\"bpsk\","
-        "\"num_samples\":1088,\"off_samples\":512,"
+        "\"off_samples\":512,\"data\":\"" PAY_BITS_LIT "\","
         "\"frame\":{\"fields\":["
         "{\"name\":\"hdr\",\"spec\":\"0101010101010101\"},"
-        "{\"name\":\"payload\",\"spec\":\"" PAY_BITS_LIT "\"},"
+        "{\"name\":\"payload\",\"spec\":\"data:240\"},"
         "{\"name\":\"crc\",\"bits\":16,\"derived_by\":1}],"
         "\"stages\":[{\"kind\":\"crc16\",\"first_field\":1,\"n_fields\":2}]"
         "}}]}";

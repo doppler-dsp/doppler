@@ -36,7 +36,7 @@ enum {
     WFM_SYNTH_BPSK = 3,  /* BPSK over PN-sourced data bits           */
     WFM_SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
     WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
-    WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
+    WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled, sent once  */
     WFM_SYNTH_SYMBOLS
     = 7,                /* user complex-symbol stream, oversampled + cycled */
     WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
@@ -50,9 +50,11 @@ enum {
 
 enum {
     WFM_DSSS_DATA_NONE = 0, /* code-only: constant bit 0 -> the pure code    */
-    WFM_DSSS_DATA_BITS = 1, /* a caller payload array, cycled mod n_bits      */
+    WFM_DSSS_DATA_BITS = 1, /* a payload sent once, or a data source's bits */
     WFM_DSSS_DATA_PRBS = 2, /* bits from the seeded PN LFSR (regenerable)     */
 };
+
+#define WFM_DSSS_ENDED 2u
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
  * — a clean waveform shouldn't pay the noise cost). 100 dB SNR is the default
@@ -127,8 +129,8 @@ typedef struct {
     dp_lo_state_t * lo;
     dp_awgn_state_t * awgn;
     dp_pn_state_t * pn;
-    /* A frame source (dp_wfm_synth_set_refill): NULL cycles `bits`. Once it
-       reports the end, `data_ended` latches and every symbol after is zero --
+    /* A frame source (dp_wfm_synth_set_refill): NULL sends `bits` once.
+       Once it reports the end, `data_ended` latches and every symbol after is zero --
        silence, never a held symbol (a line on the air nobody sent). */
     wfm_synth_refill_fn refill;
     void *refill_user;
@@ -139,18 +141,18 @@ typedef struct {
 JM_FORCEINLINE int
 wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
 {
-    if (s->bit_idx >= s->n_bits) { /* only with a refill: a frame is due */
+    if (s->bit_idx >= s->n_bits) { /* the pattern is spent */
         if (s->data_ended)
             return 0;
-        if (s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
+        /* No source to refill from: the pattern was the whole of the data,
+           sent once -- the same end as a source that reports one. */
+        if (!s->refill || s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
             s->data_ended = 1;
             return 0;
         }
         s->bit_idx = 0;
     }
-    *bit = s->bits[s->bit_idx] ? 1u : 0u;
-    if (++s->bit_idx >= s->n_bits && !s->refill)
-        s->bit_idx = 0;
+    *bit = s->bits[s->bit_idx++] ? 1u : 0u;
     return 1;
 }
 
@@ -191,31 +193,28 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
         s->sym_idx         = sym;
         s->next_edge = dp_wfm_dsss_cont_edge(sym + 1u, s->chips_per_symbol);
         const uint64_t F = s->frame_symbols, W = s->code_only_symbols;
-        if (F && sym % F < W) {
+        if (n && s->cur_data == WFM_DSSS_ENDED) {
+            /* the data has ended: silent for good, window or not */
+        } else if (F && sym % F < W) {
             s->cur_data = 0u; /* the pure-code window: the code, +polarity */
         } else if (s->data_mode == WFM_DSSS_DATA_PRBS) {
             s->cur_data = s->pn ? pn_step(s->pn) : 0u; /* data symbols only */
-        } else if (s->data_mode == WFM_DSSS_DATA_BITS && s->refill) {
-            /* a data source (doppler#1719): the next bit through the one
-               cursor, one per data symbol -- the code-only window takes
-               none -- until the source ends, then silence below */
-            unsigned b  = 0u;
-            s->cur_data = wfm_synth_bit_next(s, &b) ? (uint8_t)b : 0u;
         } else if (s->data_mode == WFM_DSSS_DATA_BITS) {
-            /* payload index = data symbols before this one, over every frame:
-               derived from the clock, never latched, so nothing to serialize */
-            uint64_t k = F ? (sym / F) * (F - W) + (sym % F - W) : sym;
-            s->cur_data = (s->bits && s->n_bits)
-                              ? (uint8_t)(s->bits[k % s->n_bits] & 1u)
-                              : 0u;
+            /* the next bit through the one cursor, one per data symbol --
+               the code-only window takes none -- from a data source
+               (doppler#1719) or a payload sent once (doppler#1718); once
+               there is none, WFM_DSSS_ENDED: silence, for good */
+            unsigned b  = 0u;
+            s->cur_data = wfm_synth_bit_next(s, &b) ? (uint8_t)b
+                                                    : WFM_DSSS_ENDED;
         } else {
             s->cur_data = 0u; /* code-only: the pure code, +code polarity */
         }
     }
     uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
     s->chip_n        = n + 1;
-    if (s->data_ended)
-        return 0.0f; /* silence after a data source's last bit */
+    if (s->cur_data == WFM_DSSS_ENDED)
+        return 0.0f; /* silence after the data's last bit */
     return (code_bit ^ s->cur_data) ? -1.0f : 1.0f;
 }
 

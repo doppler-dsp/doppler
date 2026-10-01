@@ -97,11 +97,11 @@ The five scenes produce **4 distinct waveforms**, not five: `pn` and `bpsk` hash
 
 | `--bits` | exit | stderr |
 |---|---|---|
-| `pn:12:1` | 2 | `error: --bits pn:12:1: a pn REG this narrow has no maximal-length polynomial: give POLY, or a wider REG` |
-| `pn:31:5:32` | 2 | `error: --bits pn:31:5:32: a pn SEED or POLY has a bit above its REG-bit register` |
-| `01a1` | 2 | `error: --bits 01a1: a binary literal holds a character other than 0 or 1` |
-| `data:1024` | 2 | `error: a payload of data:LEN is drawn from a data source: give the source with --data or --data-from-file, and its bits per frame with --data-len` |
-| `pn:4000000000:5` | 2 | `error: --bits pn:4000000000:5: LEN * REPS is past the Field bound of 261120 bits` |
+| `pn:12:1` | 2 | `error: --data pn:12:1: a pn REG this narrow has no maximal-length polynomial: give POLY, or a wider REG` |
+| `pn:31:5:32` | 2 | `error: --data pn:31:5:32: a pn SEED or POLY has a bit above its REG-bit register` |
+| `01a1` | 2 | `error: --data 01a1: a binary literal holds a character other than 0 or 1` |
+| `data:1024` | 2 | `error: data:LEN has no bits of its own: it is the frame's field that --data fills, not a source or a fill` |
+| `pn:4000000000:5` | 2 | `error: --data pn:4000000000:5: LEN * REPS is past the Field bound of 261120 bits` |
 
 
 ## 3. Review
@@ -147,7 +147,7 @@ Claims a caller may rely on.
 | PASS | `wfmgen --bits pn:12:1` exits 2 with a sentence naming `POLY` |
 | PASS | `wfmgen --bits pn:31:5:32` exits 2 with a sentence naming `REG` |
 | PASS | `wfmgen --bits 01a1` exits 2 with a sentence naming `0 or 1` |
-| PASS | `wfmgen --bits data:1024` exits 2 with a sentence naming `data source` |
+| PASS | `wfmgen --bits data:1024` exits 2 with a sentence naming `no bits of its own` |
 | PASS | `wfmgen --bits pn:4000000000:5` exits 2 with a sentence naming `261120` |
 | PASS | the C measurement harness is built (a missing one FAILS, never skips) |
 

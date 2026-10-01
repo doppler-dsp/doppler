@@ -222,7 +222,7 @@ class TestSynthLifecycle:
     def test_every_type_generates(self, wtype: str) -> None:
         kw: dict = {"type": wtype, "snr": 100.0}
         if wtype == "bits":
-            kw["bits"] = bytes([1, 0, 1, 1])
+            kw["data"] = bytes([1, 0, 1, 1])
         x = w.Synth(**kw).steps(64)
         assert x.shape == (64,)
         assert x.dtype == np.complex64
@@ -265,7 +265,7 @@ class TestFactories:
             "bpsk": w.bpsk(sps=4),
             "qpsk": w.qpsk(sps=4),
             "chirp": w.chirp(freq=0.0, f_end=1e5, span=16),
-            "bits": w.bits(bits=bytes([1, 0, 1])),
+            "bits": w.bits(data=bytes([1, 0, 1])),
         }
         for name, syn in facs.items():
             assert type(syn).__name__ == "Synth", name
@@ -678,7 +678,9 @@ class TestCLI:
             "cf32",
         ]
         if wtype == "bits":
-            args += ["--bits", "10110010"]
+            # a data source sets its own run: 128 bits, sent as given
+            args = [a for a in args if a not in ("--count", "128")]
+            args += ["--data", "pn:128:7", "--crc", "none"]
         x = self._run(args, tmp_path)
         assert len(x) == 128
 
@@ -757,14 +759,14 @@ class TestCLI:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "0xA5",
+                "--crc",
+                "none",
                 "--modulation",
                 "bpsk",
                 "--sps",
                 "1",
-                "--count",
-                "8",
                 "--snr",
                 "100",
                 "--sample-type",
@@ -776,14 +778,14 @@ class TestCLI:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10100101",
+                "--crc",
+                "none",
                 "--modulation",
                 "bpsk",
                 "--sps",
                 "1",
-                "--count",
-                "8",
                 "--snr",
                 "100",
                 "--sample-type",
@@ -806,10 +808,8 @@ class TestCLI:
                 WFMGEN,
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 spec,
-                "--count",
-                "16",
                 "-o",
                 str(tmp_path / "x.cf32"),
             ],

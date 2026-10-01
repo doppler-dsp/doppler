@@ -74,7 +74,7 @@ def make_signal(n_samples: int) -> np.ndarray:
         seed=SEED,
         data_code=bytes(CODE.tolist()),
         symbol_rate=SYM_RATE,
-        payload=bytes(payload.tolist()),
+        data=payload,
         num_samples=n_samples + prefix,
     )
     return Composer([seg]).compose()[prefix:]

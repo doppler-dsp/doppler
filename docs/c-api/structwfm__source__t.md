@@ -62,11 +62,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**lfsr**](#variable-lfsr)  <br> |
 |  int | [**modulation**](#variable-modulation)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
-|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**payload**](#variable-payload)  <br> |
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
 |  uint64\_t | [**pn\_poly**](#variable-pn_poly)  <br> |
 |  int | [**pulse**](#variable-pulse)  <br> |
 |  unsigned | [**ranged**](#variable-ranged)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**retired\_bits**](#variable-retired_bits)  <br> |
 |  double | [**rrc\_beta**](#variable-rrc_beta)  <br> |
 |  int | [**rrc\_span**](#variable-rrc_span)  <br> |
 |  uint32\_t | [**seed**](#variable-seed)  <br> |
@@ -476,19 +476,6 @@ size_t wfm_source_t::n_symbols;
 
 
 
-### variable payload 
-
-```C++
-wfm_seq_t wfm_source_t::payload;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable pn\_length 
 
 ```C++
@@ -532,6 +519,19 @@ int wfm_source_t::pulse;
 
 ```C++
 unsigned wfm_source_t::ranged;
+```
+
+
+
+
+<hr>
+
+
+
+### variable retired\_bits 
+
+```C++
+wfm_seq_t wfm_source_t::retired_bits;
 ```
 
 

@@ -64,6 +64,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char | [**dp\_wfm\_why\_dsss\_empty**](#variable-dp_wfm_why_dsss_empty)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
 |  const char | [**dp\_wfm\_why\_dsss\_frame\_no\_data\_code**](#variable-dp_wfm_why_dsss_frame_no_data_code)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
 |  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
+|  const char | [**dp\_wfm\_why\_retired\_bits**](#variable-dp_wfm_why_retired_bits)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_bits` _set: Python's retired_`bits=` _(and_`payload=` _,_`pattern=` _), named once. The CLI's and a scene's RETIRED tables say the same in their own spelling (doppler#1718)._ |
 
 
 
@@ -422,6 +423,20 @@ const char dp_wfm_why_dsss_frame_no_data_code[];
 _The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._
 ```C++
 const char dp_wfm_why_pn_poly[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_retired\_bits 
+
+_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_bits` _set: Python's retired_`bits=` _(and_`payload=` _,_`pattern=` _), named once. The CLI's and a scene's RETIRED tables say the same in their own spelling (doppler#1718)._
+```C++
+const char dp_wfm_why_retired_bits[];
 ```
 
 

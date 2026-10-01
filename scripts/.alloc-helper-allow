@@ -35,7 +35,7 @@ native/src/acc_trace/acc_trace_core.c 2
 native/src/acq/acq_core.c 12
 native/src/adc/adc_core.c 1
 native/src/agc/agc_core.c 1
-native/src/app/wfmgen.c 4  # caller-sized: --bits-file sizes both from ftell on a user-named path and already returns NULL (#1041)
+native/src/app/wfmgen.c 2  # caller-sized: --frame/--from-file and --symbols-file size theirs from ftell on a user-named path and already return NULL (#1041)
 native/src/awgn/awgn_core.c 1
 native/src/boxcar/boxcar_core.c 1
 native/src/burst_acq/burst_acq_core.c 1
@@ -117,7 +117,7 @@ native/src/wfm/wfm_keywords.c 1
 native/src/wfm/wfm_plan.c 23
 native/src/wfm/wfm_resolve.c 1
 native/src/wfm/wfm_sink.c 2
-native/src/wfm/wfm_synth_bridge.c 3
+native/src/wfm/wfm_synth_bridge.c 2
 native/src/wfm_reader/wfm_reader_core.c 8
 native/src/wfm_synth/wfm_synth_core.c 8
 native/src/wfm_writer/wfm_writer_core.c 5

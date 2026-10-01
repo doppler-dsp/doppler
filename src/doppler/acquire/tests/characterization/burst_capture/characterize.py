@@ -142,7 +142,7 @@ def burst() -> np.ndarray:
         acq_reps=REPS,
         data_code=data_code().tobytes(),
         sync=SYNC.tobytes(),
-        payload=PAYLOAD_BITS.tobytes(),  # CRC-16 auto-appended
+        data=PAYLOAD_BITS,  # one burst; CRC-16 auto-appended
         gap_noise="auto",
         off_samples=0,
     )

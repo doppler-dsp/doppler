@@ -209,7 +209,7 @@ def test_accepts_bundled_dsss_source_with_owned_arrays() -> None:
             acq_reps=4,
             data_code=dat,
             sync=sync,
-            payload=pay,
+            data=pay,
         )
 
     scene = Composer(_seg(10.0))

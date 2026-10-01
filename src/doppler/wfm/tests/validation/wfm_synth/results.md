@@ -38,9 +38,9 @@ What each type emits, and the truth it is scored against. Nothing here is a verd
 | bpsk | 1.0000 | 1.0000 | yes |
 | qpsk | 1.0000 | 1.0000 | yes |
 | chirp | 1.0000 | 1.0000 | yes |
-| bits | 1.0000 | 1.0000 | yes |
+| bits | 0.0059 | 1.0000 | yes |
 | symbols | 0.8750 | 1.0000 | yes |
-| dsss | 1.0000 | 1.0000 | yes |
+| dsss | 0.1777 | 1.0000 | yes |
 
 Every type produces finite samples at a sane level. `noise` sits at unit power by construction (the amplitude is 1/sqrt(2) per component); `tone` is exactly 1; the modulated types are 1 because their constellations are unit-modulus, which is what makes the SNR reference in §2.4 mean what it says.
 
@@ -245,7 +245,7 @@ The state triplet is the elastic-resume face: a mid-stream hand-off must resume 
 | dsss | 431 | bit-exact |
 
 
-The two user-supplied sources cycle at exactly `n * sps` samples -- a 6-bit pattern at sps 3 repeats every 18 (confirmed), a 4-symbol stream at sps 2 every 8 (confirmed).
+A user bit pattern is sent ONCE -- a 6-bit pattern at sps 3 is 18 samples and then silence, never cycled (doppler#1718) (confirmed) -- while a user symbol stream cycles at exactly `n * sps` samples, a 4-symbol stream at sps 2 every 8 (confirmed).
 
 ### 2.9 The accessors, and what Python cannot reach
 
@@ -296,7 +296,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | and a block read is independent of the block size on every type |
 | PASS | reset() rewinds every child, so all nine types repeat from sample 0 with noise on |
 | PASS | a mid-stream state hand-off resumes bit-for-bit in a fresh instance, for every type that has one |
-| PASS | a user bit pattern and a user symbol stream each cycle at exactly n * sps samples |
+| PASS | a user bit pattern is sent once (n * sps samples, then silence); a user symbol stream cycles at exactly n * sps samples |
 | PASS | all ten accessors are bound and behave: sym_pos counts and wraps, the held symbol reads back, an injected value survives |
 | PASS | four header entry points are not on the Python face and are certified in C instead -- counted, so one quietly appearing or vanishing is a change |
 

@@ -225,14 +225,12 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
         [
             "--type",
             "bits",
-            "--bits",
+            "--data",
             "10110010",
             "--modulation",
             "bpsk",
             "--sps",
             "4",
-            "--count",
-            "64",
         ],
     ),
     (
@@ -240,7 +238,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
         [
             "--type",
             "bits",
-            "--bits",
+            "--data",
             "10110010",
             "--modulation",
             "qpsk",
@@ -252,8 +250,6 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "0.35",
             "--rrc-span",
             "8",
-            "--count",
-            "64",
         ],
     ),
     (
@@ -261,14 +257,12 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
         [
             "--type",
             "bits",
-            "--bits",
+            "--data",
             "10110010",
             "--modulation",
             "none",
             "--sps",
             "4",
-            "--count",
-            "64",
         ],
     ),
     # ── dsss ────────────────────────────────────────────────────────────────
@@ -283,7 +277,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "0110",
             "--sync",
             "110",
-            "--bits",
+            "--data",
             "10011",
             "--sps",
             "2",
@@ -304,7 +298,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "0xb2*2",
             "--data-code",
             "0x6",
-            "--bits",
+            "--data",
             "10011",
             "--crc",
             "none",
@@ -321,7 +315,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "10110010*3",
             "--data-code",
             "0110",
-            "--bits",
+            "--data",
             "10011",
             "--sps",
             "2",
@@ -346,7 +340,7 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "10110010*3",
             "--data-code",
             "0110",
-            "--bits",
+            "--data",
             "10011",
             "--sps",
             "2",
@@ -494,7 +488,7 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         {"version": 1, "segments": [{**_SEG, "lfsr": "fibonacci"}]},
     ),
     (
-        "bits_with_payload",
+        "bits_with_data",
         {
             "version": 1,
             "segments": [
@@ -502,7 +496,7 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
                     **_SEG,
                     "type": "bits",
                     "modulation": "qpsk",
-                    "payload": "10110010",
+                    "data": "10110010",
                     "pulse": "rrc",
                     "rrc_beta": 0.35,
                     "rrc_span": 8,
@@ -548,8 +542,8 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         {"version": 1, "segments": [{**_SEG, "data_code": "dotted:16"}]},
     ),
     (
-        "generated_payload",
-        {"version": 1, "segments": [{**_SEG, "payload": "pn:1024:10"}]},
+        "generated_data",
+        {"version": 1, "segments": [{**_SEG, "data": "pn:1024:10"}]},
     ),
     (
         # The writer emits `background` and the reader reads it, but the
@@ -562,6 +556,12 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
 
 _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
     ("missing_version", {"segments": [_SEG]}),
+    # A payload is a data source, "data" (#1718): the retired key is not a
+    # key of the schema at all.
+    (
+        "retired_payload_key",
+        {"version": 1, "segments": [{**_SEG, "payload": "10110010"}]},
+    ),
     ("wrong_version", {"version": 2, "segments": [_SEG]}),
     ("empty_segments", {"version": 1, "segments": []}),
     (
@@ -702,9 +702,7 @@ def test_coded_record_validates_and_round_trips(validator, tmp_path):
         str(frame_path),
         "--sps",
         "1",
-        "--count",
-        "4144",
-    ]
+    ]  # a fixed frame is one frame, its run derived: no --count
     rec = _record(tmp_path, *args)
     validator.validate(rec)
 
@@ -740,9 +738,7 @@ def test_an_uncoded_record_carries_no_coding_keys(tmp_path):
     frame would satisfy the test above and silently change every record
     that existed before coding did.
     """
-    rec = _record(
-        tmp_path, "--type", "bits", "--bits", "10110010", "--count", "64"
-    )
+    rec = _record(tmp_path, "--type", "bits", "--data", "10110010")
     seg = rec["segments"][0]
     for key in ("frame", "rs_depth", "randomise", "asm", "conv"):
         assert key not in seg

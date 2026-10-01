@@ -159,7 +159,7 @@ main (void)
       }
   }
 
-  /* ── bits: user pattern, mapping, cycling, step()==steps() ────────────────
+  /* ── bits: user pattern, mapping, sent once, step()==steps() ─────────────
    */
   {
     const uint8_t pat[6] = { 1, 0, 1, 1, 0, 0 };
@@ -169,17 +169,18 @@ main (void)
     DP_CHECK (bs && bs->lo == NULL && bs->awgn == NULL && bs->pn == NULL);
     DP_CHECK (dp_wfm_synth_set_bits (bs, pat, 6, 1) == 0); /* 1 = bpsk */
     float _Complex y[24];
-    dp_wfm_synth_steps (bs, y, 24); /* two passes (cycled) */
+    dp_wfm_synth_steps (bs, y, 24); /* one pass, then past its end */
     /* bpsk: bit 1 -> -1, bit 0 -> +1; symbol centre at each sps-block */
     DP_CHECK (dp_nearf (crealf (y[0]), -1.0f, 1e-5f)); /* bit 1 */
     DP_CHECK (dp_nearf (crealf (y[2]), 1.0f, 1e-5f));  /* bit 0 */
-    DP_CHECK (
-        dp_nearf (crealf (y[12]), -1.0f, 1e-5f)); /* cycled: bit 1 again */
-    int cyc = 1;
-    for (int i = 0; i < 12; i++)
-      if (y[i] != y[i + 12])
-        cyc = 0;
-    DP_CHECK (cyc); /* the pattern repeats every 12 samples */
+    DP_CHECK (dp_nearf (crealf (y[11]), 1.0f, 1e-5f)); /* the last bit, 0 */
+    int quiet = 1;
+    for (int i = 12; i < 24; i++)
+      if (y[i] != 0.0f)
+        quiet = 0;
+    DP_CHECK (quiet); /* sent ONCE, then silence -- never cycled (#1718) */
+    /* the end of a pattern is the end of the data: latched, as a source's */
+    DP_CHECK (dp_wfm_synth_data_ended (bs));
 
     /* step() must match steps() bit-for-bit */
     dp_wfm_synth_state_t *bs2 = dp_wfm_synth_create (
@@ -191,8 +192,10 @@ main (void)
         match = 0;
     DP_CHECK (match);
 
-    /* reset rewinds the pattern */
+    /* reset rewinds the pattern, and un-ends it: with no source behind
+       it, the pattern IS the data, whole again */
     dp_wfm_synth_reset (bs);
+    DP_CHECK (!dp_wfm_synth_data_ended (bs));
     DP_CHECK (dp_wfm_synth_step (bs) == y[0]);
 
     /* set_bits is a no-op on a non-bits synth, and rejects bad args */
@@ -618,7 +621,13 @@ main (void)
     for (size_t i = 0; i < sf; i++)
       code[i] = (uint8_t)((i * 7 + 1) & 1u);
     const uint8_t pay[5] = { 1, 0, 1, 1, 0 };
-    const int     modes[3]
+    /* The windowed streams below carry 15 and 18 data symbols, and a
+       payload is sent ONCE (doppler#1718), so they read this: the same five
+       bits spelled out, long enough for every data symbol. */
+    uint8_t pay18[18];
+    for (size_t i = 0; i < 18; i++)
+      pay18[i] = pay[i % 5];
+    const int modes[3]
         = { WFM_DSSS_DATA_NONE, WFM_DSSS_DATA_BITS, WFM_DSSS_DATA_PRBS };
 
     for (int mi = 0; mi < 3; mi++)
@@ -727,13 +736,13 @@ main (void)
           WFM_SYNTH_DSSS, fs, 0.0, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
       DP_REQUIRE (plain && off && win);
       DP_CHECK (dp_wfm_synth_set_dsss_cont (plain, code, sf, cps,
-                                            WFM_DSSS_DATA_BITS, pay, 5)
+                                            WFM_DSSS_DATA_BITS, pay18, 18)
                 == 0);
       DP_CHECK (dp_wfm_synth_set_dsss_cont (off, code, sf, cps,
-                                            WFM_DSSS_DATA_BITS, pay, 5)
+                                            WFM_DSSS_DATA_BITS, pay18, 18)
                 == 0);
       DP_CHECK (dp_wfm_synth_set_dsss_cont (win, code, sf, cps,
-                                            WFM_DSSS_DATA_BITS, pay, 5)
+                                            WFM_DSSS_DATA_BITS, pay18, 18)
                 == 0);
       DP_CHECK (dp_wfm_synth_set_dsss_window (win, F + 1, F)
                 == -1); /* W > F */
@@ -781,7 +790,7 @@ main (void)
           size_t start = (size_t)ceil ((double)j * cps);
           if (start >= nchips)
             break;
-          uint8_t want = pay[seen % 5] & 1u;
+          uint8_t want = pay18[seen] & 1u;
           if (CHIP_BIT (start) != want)
             contiguous = 0;
           seen++;
@@ -799,7 +808,7 @@ main (void)
       dp_wfm_synth_state_t *c = dp_wfm_synth_create (
           WFM_SYNTH_DSSS, fs, 0.0, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
       DP_CHECK (dp_wfm_synth_set_dsss_cont (c, code, sf, cps,
-                                            WFM_DSSS_DATA_BITS, pay, 5)
+                                            WFM_DSSS_DATA_BITS, pay18, 18)
                 == 0);
       DP_CHECK (dp_wfm_synth_set_dsss_window (c, W, F) == 0);
       DP_CHECK (dp_wfm_synth_set_state (c, blob) == 0);
@@ -841,7 +850,7 @@ main (void)
       size_t  cur = 0;
       for (size_t f = 0; f < nfr; f++)
         for (size_t j = 0; j < F; j++)
-          spelled[f * F + j] = (j < W) ? 0u : (uint8_t)(pay[cur++ % 5] & 1u);
+          spelled[f * F + j] = (j < W) ? 0u : (uint8_t)(pay18[cur++] & 1u);
 
       dp_wfm_synth_state_t *win = dp_wfm_synth_create (
           WFM_SYNTH_DSSS, fs, 0.01 * fs, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
@@ -849,7 +858,7 @@ main (void)
           WFM_SYNTH_DSSS, fs, 0.01 * fs, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
       DP_REQUIRE (win && flat);
       DP_CHECK (dp_wfm_synth_set_dsss_cont (win, code, sf, cps,
-                                            WFM_DSSS_DATA_BITS, pay, 5)
+                                            WFM_DSSS_DATA_BITS, pay18, 18)
                 == 0);
       DP_CHECK (dp_wfm_synth_set_dsss_window (win, W, F) == 0);
       DP_CHECK (dp_wfm_synth_set_dsss_cont (

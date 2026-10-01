@@ -111,10 +111,6 @@ class Synth:
         renders each source independently and concurrently; compose() and
         stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
-    bits : bytes | None, default None
-        The payload bits: a Field on the command line and in a scene, an array
-        in Python. For type=bits, the pattern, oversampled by sps and cycled to
-        fill the request; for type=dsss, the payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
         as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
@@ -193,6 +189,11 @@ class Synth:
         caller adding a genuinely new transform (convolutional interleaving,
         say) writes that kernel in C and hands it to `dp_wfm_frame_assemble`
         directly.
+    bits : bytes | None, default None
+        RETIRED (doppler#1718): nothing reads it but the refusal. A payload is
+        drawn from a data source, so bits=, and its aliases payload= and
+        pattern=, are refused naming data=; the CLI and a scene refuse --bits
+        and "payload" the same way.
     data : bytes | None, default None
         A frame's payload drawn from a data source: a Field on the command line
         and in a scene, a bit array in Python. The source is split into
@@ -237,7 +238,6 @@ class Synth:
         doppler_rate: float | tuple[float, float] = ...,
         carrier_hz: float = ...,
         doppler_lifetime: str = ...,
-        bits: bytes | None = ...,
         modulation: str = ...,
         pulse: str = ...,
         rrc_beta: float = ...,
@@ -251,6 +251,7 @@ class Synth:
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         frame: FrameDesc | str | None = ...,
+        bits: bytes | None = ...,
         data: bytes | None = ...,
         data_len: int = ...,
         fill: bytes | None = ...,
@@ -273,7 +274,6 @@ class Synth:
     doppler_rate: float | tuple[float, float]
     carrier_hz: float
     doppler_lifetime: str
-    bits: bytes | None
     modulation: str
     pulse: str
     rrc_beta: float
@@ -290,6 +290,7 @@ class Synth:
     def frame(self) -> str | None: ...
     @frame.setter
     def frame(self, value: FrameDesc | str | None) -> None: ...
+    bits: bytes | None
     data: bytes | None
     data_len: int
     fill: bytes | None
@@ -449,10 +450,6 @@ class Segment:
         renders each source independently and concurrently; compose() and
         stream() honour both.
         One of ``"per_instance"``, ``"persist"``.
-    bits : bytes | None, default None
-        The payload bits: a Field on the command line and in a scene, an array
-        in Python. For type=bits, the pattern, oversampled by sps and cycled to
-        fill the request; for type=dsss, the payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
         as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of
@@ -531,6 +528,11 @@ class Segment:
         caller adding a genuinely new transform (convolutional interleaving,
         say) writes that kernel in C and hands it to `dp_wfm_frame_assemble`
         directly.
+    bits : bytes | None, default None
+        RETIRED (doppler#1718): nothing reads it but the refusal. A payload is
+        drawn from a data source, so bits=, and its aliases payload= and
+        pattern=, are refused naming data=; the CLI and a scene refuse --bits
+        and "payload" the same way.
     data : bytes | None, default None
         A frame's payload drawn from a data source: a Field on the command line
         and in a scene, a bit array in Python. The source is split into
@@ -603,7 +605,6 @@ class Segment:
     doppler_rate: float
     carrier_hz: float
     doppler_lifetime: str
-    bits: bytes | None
     modulation: str
     pulse: str
     rrc_beta: float
@@ -617,6 +618,7 @@ class Segment:
     symbol_rate: float
     dsss_code_only: int
     frame: str | None
+    bits: bytes | None
     data: bytes | None
     data_len: int
     fill: bytes | None
@@ -639,7 +641,6 @@ class Segment:
         doppler_rate: float | tuple[float, float] = ...,
         carrier_hz: float = ...,
         doppler_lifetime: str = ...,
-        bits: bytes | None = ...,
         modulation: str = ...,
         pulse: str = ...,
         rrc_beta: float = ...,
@@ -653,6 +654,7 @@ class Segment:
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         frame: FrameDesc | str | None = ...,
+        bits: bytes | None = ...,
         data: bytes | None = ...,
         data_len: int = ...,
         fill: bytes | None = ...,

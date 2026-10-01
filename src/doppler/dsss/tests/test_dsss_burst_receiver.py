@@ -338,7 +338,7 @@ def _link(payload_bits=96, *, crc=True, **stages):
         "acq_reps": _TX_REPS,
         "data_code": data.tobytes(),
         "sync": _TX_SYNC.tobytes(),
-        "payload": payload.tobytes(),
+        "data": payload.tobytes(),  # one burst: the data source, whole
         "gap_noise": "auto",
         "off_samples": 200_000,  # room for the receiver's retain span
         "crc": "crc16" if crc else "none",
@@ -348,7 +348,7 @@ def _link(payload_bits=96, *, crc=True, **stages):
         # otherwise unframed spread: the preamble stays on the source,
         # unspread, and everything after it is the description's bits.
         tx = _deframer(payload_bits, crc=crc, payload=payload, **stages)
-        seg["payload"] = np.asarray(tx.bits()).tobytes()
+        seg["data"] = np.asarray(tx.bits()).tobytes()
         del seg["sync"]
         seg["crc"] = "none"
     # The frame's LENGTH is all the receiver is told, and every stage that
@@ -540,7 +540,7 @@ def _link_at(esno_db, **stages):
         "acq_reps": _TX_REPS,
         "data_code": data.tobytes(),
         "sync": _TX_SYNC.tobytes(),
-        "payload": payload.tobytes(),
+        "data": payload.tobytes(),  # one burst: the data source, whole
         "gap_noise": "auto",
         "off_samples": 200_000,
     }

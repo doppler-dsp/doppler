@@ -77,7 +77,6 @@ VALUE = {
     "pn_poly": "24577",
     # Field rows take their CANONICAL text (dp_wfm_field_format), so the
     # record carries back exactly what was given.
-    "bits": "0x1acf",
     "acq_code": "pn:31:5*2",
     "sync": "pn:63:6",
     "data_code": "pn:7:3:0x1",
@@ -88,15 +87,14 @@ VALUE = {
 
 #: Flags a row needs beside its own for the run to be buildable at all.
 EXTRA = {
-    "modulation": ["--bits", "1011"],
+    "modulation": ["--type", "bits", "--data", "1011"],
     "symbol_rate": ["--data-code", "1011"],
     # A payload is written for a source that carries one; a preamble or a
     # sync word only for a FRAMED one, which needs a payload; a spreading
     # code only for dsss.
-    "bits": ["--type", "bits"],
-    "acq_code": ["--type", "bits", "--bits", "0x1acf"],
-    "sync": ["--type", "bits", "--bits", "0x1acf"],
-    "data_code": ["--type", "dsss", "--bits", "0x1acf"],
+    "acq_code": ["--type", "bits", "--data", "0x1acf"],
+    "sync": ["--type", "bits", "--data", "0x1acf"],
+    "data_code": ["--type", "dsss", "--data", "0x1acf"],
     # A data source fills a framed type's frames; code-only is continuous
     # dsss's switch.
     "data": ["--type", "bpsk", "--data-len", "8"],
@@ -116,7 +114,7 @@ EXTRA = {
 #: Rows whose run takes its length from a FINITE data source, so a --count
 #: beside them is refused (payload-data-source.md 4.6) and the record
 #: carries none.
-NO_COUNT = {"data", "fill"}
+NO_COUNT = {"data", "fill", "modulation", "acq_code", "sync", "data_code"}
 
 #: Rows this test cannot drive, each with the reason.
 SKIP: dict[str, str] = {}

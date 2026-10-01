@@ -132,7 +132,11 @@ SCENE_FILE = "scene.json"
 # covers -- `first_field` and `n_fields` -- in application order. A derived
 # field (a CRC trailer, the outer code's parity) is its length in bits and
 # the stage that produces it, `derived_by` = that stage's index plus one.
-_TF = "1" * (223 * 8)  # a 223-octet Transfer Frame, the RS(255,223) message
+# A 223-octet Transfer Frame, the RS(255,223) message: the frame's payload
+# is its data:LEN field (#1718), and the case gives the bits with --data.
+_TF_BITS = 223 * 8
+_TF = f"data:{_TF_BITS}"
+_TF_DATA = "0x" + "f" * (_TF_BITS // 4)  # the Transfer Frame: all ones
 _RS_PARITY = {"name": "rs_parity", "bits": 32 * 8, "derived_by": 1}
 FRAMES = {
     # payload + CRC-16, block-interleaved 8 deep over bits
@@ -191,7 +195,7 @@ FRAMES = {
         "fields": [
             {"name": "asm", "spec": "0x1ACFFC1D"},
             {"name": "sync", "spec": "1111100110101"},
-            {"name": "payload", "spec": "10110010101"},
+            {"name": "payload", "spec": "data:11"},
             {"name": "crc", "bits": 16, "derived_by": 1},
         ],
         "stages": [
@@ -209,7 +213,7 @@ FRAMES = {
     # an outer code over one octet: not 223*I octets, so refused
     "rs_short.frame.json": {
         "fields": [
-            {"name": "payload", "spec": "10110010"},
+            {"name": "payload", "spec": "data:8"},
             {"name": "crc", "bits": 16, "derived_by": 1},
             {"name": "rs_parity", "bits": 32 * 8, "derived_by": 2},
         ],
@@ -389,14 +393,12 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--modulation",
                 "qpsk",
                 "--sps",
                 "2",
-                "--count",
-                "32",
             ],
         ),
         (
@@ -404,17 +406,20 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "0xb2",
                 "--modulation",
                 "none",
-                "--count",
-                "32",
             ],
         ),
         (
             "bits_file",
-            ["--type", "bits", "--bits-file", BITS_FILE, "--count", "32"],
+            [
+                "--type",
+                "bits",
+                "--data-from-file",
+                BITS_FILE,
+            ],
         ),
         # ---- #1619 F6a: the payload as a data source ----
         # Code-only continuous dsss is its own switch; `--data` is the
@@ -515,7 +520,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
+                "--data",
                 "10110010",
                 "--acq-code",
                 "1010*2",
@@ -525,8 +530,6 @@ def cases() -> list[tuple[str, list[str]]]:
                 "crc16",
                 "--sps",
                 "2",
-                "--count",
-                "64",
             ],
         ),
         # ---- generated sequences: the kinds a face could not spell ----
@@ -544,14 +547,12 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
+                "--data",
                 "10110010",
                 "--sync",
                 "pn:31:5:3",
                 "--sps",
                 "2",
-                "--count",
-                "64",
             ],
         ),
         (
@@ -561,14 +562,12 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
+                "--data",
                 "10110010",
                 "--sync",
                 "gold:64:10:0x3a6:0x15e:0x237:0x49",
                 "--sps",
                 "2",
-                "--count",
-                "64",
             ],
         ),
         (
@@ -576,7 +575,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "dsss",
-                "--bits",
+                "--data",
                 "1011",
                 "--acq-code",
                 "dotted:8*2",
@@ -586,8 +585,6 @@ def cases() -> list[tuple[str, list[str]]]:
                 "gold:16:10:934:350:567:73",
                 "--sps",
                 "2",
-                "--count",
-                "512",
             ],
         ),
         # ---- coded frames: a description, `--frame FILE` (#853 item 11) ----
@@ -610,10 +607,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--frame",
                 "interleave_bits.frame.json",
+                "--data",
+                _TF_DATA,
                 "--sps",
                 "1",
-                "--count",
-                "1800",
             ],
         ),
         (
@@ -627,10 +624,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--frame",
                 "interleave_rs.frame.json",
+                "--data",
+                _TF_DATA,
                 "--sps",
                 "1",
-                "--count",
-                "2040",
             ],
         ),
         # A 223-octet Transfer Frame with the marker, the outer code, the
@@ -646,10 +643,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--frame",
                 "cadu.frame.json",
+                "--data",
+                _TF_DATA,
                 "--sps",
                 "1",
-                "--count",
-                "4144",
             ],
         ),
         # The SAME CADU with the legacy randomiser: "which generator" is the
@@ -664,10 +661,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--frame",
                 "cadu_legacy.frame.json",
+                "--data",
+                _TF_DATA,
                 "--sps",
                 "1",
-                "--count",
-                "4144",
             ],
         ),
         # A randomise stage naming no generator (depth 3) is refused, exit 2
@@ -681,10 +678,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--frame",
                 "cadu_rand3.frame.json",
+                "--data",
+                _TF_DATA,
                 "--sps",
                 "1",
-                "--count",
-                "4144",
             ],
         ),
         # A coded DSSS burst: the description is the SPREAD frame, and the
@@ -700,6 +697,8 @@ def cases() -> list[tuple[str, list[str]]]:
                 "1011",
                 "--frame",
                 "dsss_coded.frame.json",
+                "--data",
+                "10110010101",
                 "--sps",
                 "2",
             ],
@@ -714,8 +713,8 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--frame",
                 "rs_short.frame.json",
-                "--count",
-                "64",
+                "--data",
+                "10110010",
             ],
         ),
         # A carried frame is the whole frame: the common-frame flags beside
@@ -727,10 +726,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--frame",
                 "cadu.frame.json",
+                "--data",
+                _TF_DATA,
                 "--sync",
                 "1111100110101",
-                "--count",
-                "64",
             ],
         ),
         (
@@ -740,23 +739,10 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--frame",
                 "cadu.frame.json",
+                "--data",
+                _TF_DATA,
                 "--crc",
                 "crc16",
-                "--count",
-                "64",
-            ],
-        ),
-        (
-            "err_frame_with_bits",
-            [
-                "--type",
-                "bits",
-                "--frame",
-                "cadu.frame.json",
-                "--bits",
-                "1011",
-                "--count",
-                "64",
             ],
         ),
         (
@@ -787,7 +773,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "1111100110101",
                 "--crc",
                 "crc16",
-                "--bits",
+                "--data",
                 "10101010",
                 "--sps",
                 "2",
@@ -802,7 +788,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "0xa5",
                 "--data-code",
                 "0xb2",
-                "--bits",
+                "--data",
                 "0x0f",
                 "--crc",
                 "none",
@@ -1028,14 +1014,12 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bpsk",
                 "--sync",
                 "1111100110101",
-                "--bits",
+                "--data",
                 "pn:64:7",
                 "--pn-length",
                 "7",
                 "--sps",
                 "2",
-                "--count",
-                "512",
             ],
         ),
         # QPSK too: the frame's bits take the mapping the TYPE names, not a
@@ -1047,14 +1031,12 @@ def cases() -> list[tuple[str, list[str]]]:
                 "qpsk",
                 "--sync",
                 "1111100110101",
-                "--bits",
+                "--data",
                 "pn:128:9",
                 "--pn-length",
                 "9",
                 "--sps",
                 "2",
-                "--count",
-                "1024",
             ],
         ),
         (
@@ -1064,14 +1046,12 @@ def cases() -> list[tuple[str, list[str]]]:
                 "bits",
                 "--modulation",
                 "bpsk",
-                "--bits",
+                "--data",
                 "pn:64:7",
                 "--sync",
                 "1111100110101",
                 "--sps",
                 "2",
-                "--count",
-                "512",
             ],
         ),
         # A spread frame whose PAYLOAD is generated -- the descriptor's
@@ -1083,7 +1063,7 @@ def cases() -> list[tuple[str, list[str]]]:
                 "dsss",
                 "--data-code",
                 "0110",
-                "--bits",
+                "--data",
                 "pn:31:5",
                 "--sync",
                 "10",
@@ -1091,8 +1071,6 @@ def cases() -> list[tuple[str, list[str]]]:
                 "10101010*2",
                 "--sps",
                 "2",
-                "--count",
-                "4096",
             ],
         ),
         # A field takes ONE spelling. BOTH orders are cases, because they
@@ -1107,7 +1085,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--sync-gen",
                 "pn:31:5",
@@ -1120,7 +1098,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--sync",
                 "0110*2",
@@ -1136,7 +1114,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "dsss",
-                "--bits",
+                "--data",
                 "1011",
                 "--data-code",
                 "0110",
@@ -1172,7 +1150,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "pn:18446744073709551615:5",
                 "--count",
                 "16",
@@ -1183,7 +1161,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "pn:4000000000:5",
                 "--count",
                 "16",
@@ -1196,7 +1174,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "1011",
                 "--sync",
                 "literal:8",
@@ -1209,7 +1187,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "1011",
                 "--sync",
                 "pn",
@@ -1222,7 +1200,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "1011",
                 "--sync",
                 "pn:31",
@@ -1235,7 +1213,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "1011",
                 "--sync",
                 "gold:16:10:934",
@@ -1250,7 +1228,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "1011",
                 "--payload-len",
                 "64",
@@ -1271,10 +1249,8 @@ def cases() -> list[tuple[str, list[str]]]:
                 "chirp",
                 "--sync",
                 "1111100110101",
-                "--bits",
+                "--data",
                 "pn:64:15",
-                "--count",
-                "64",
             ],
         ),
         # Each retired spelling is REFUSED by name, pointing at the Field
@@ -1283,12 +1259,22 @@ def cases() -> list[tuple[str, list[str]]]:
             "err_retired_bits_hex",
             ["--type", "bits", "--bits-hex", "b2", "--count", "32"],
         ),
+        # The payload is a data source (#1718): --bits and --bits-file are
+        # refused by name, pointing at --data and --data-from-file.
+        (
+            "err_retired_bits",
+            ["--type", "bits", "--bits", "10110010", "--count", "32"],
+        ),
+        (
+            "err_retired_bits_file",
+            ["--type", "bits", "--bits-file", BITS_FILE],
+        ),
         (
             "err_retired_acq_code_gen",
             [
                 "--type",
                 "dsss",
-                "--bits",
+                "--data",
                 "1011",
                 "--data-code",
                 "0110",
@@ -1303,7 +1289,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "dsss",
-                "--bits",
+                "--data",
                 "1011",
                 "--data-code",
                 "0110",
@@ -1320,7 +1306,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "dsss",
-                "--bits",
+                "--data",
                 "1011",
                 "--data-code-hex",
                 "b2",
@@ -1333,7 +1319,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "dsss",
-                "--bits",
+                "--data",
                 "1011",
                 "--data-code-gen",
                 "pn:7:3:1",
@@ -1347,7 +1333,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--rs-depth",
                 "1",
@@ -1360,7 +1346,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--randomise",
                 "--count",
@@ -1372,7 +1358,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--randomize",
                 "--count",
@@ -1381,14 +1367,14 @@ def cases() -> list[tuple[str, list[str]]]:
         ),
         (
             "err_retired_asm",
-            ["--type", "bits", "--bits", "10110010", "--asm", "--count", "64"],
+            ["--type", "bits", "--data", "10110010", "--asm", "--count", "64"],
         ),
         (
             "err_retired_conv",
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--conv",
                 "--count",
@@ -1400,7 +1386,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--interleave",
                 "4",
@@ -1413,7 +1399,7 @@ def cases() -> list[tuple[str, list[str]]]:
             [
                 "--type",
                 "bits",
-                "--bits",
+                "--data",
                 "10110010",
                 "--interleave-unit",
                 "8",
@@ -1468,7 +1454,12 @@ NUMERIC = [
     ("err_num_off_fraction", "--off", "1.5"),
 ]
 STDERR_PINNED = {name for name, _, _ in NUMERIC} | {
-    "err_frame_randomise_depth3"
+    "err_frame_randomise_depth3",
+    # An unknown flag exits 2 as well, so a retirement's exit code alone
+    # cannot tell it from a deleted RETIRED row: the sentence naming the
+    # replacement is the claim (#1718).
+    "err_retired_bits",
+    "err_retired_bits_file",
 }
 
 
@@ -1641,8 +1632,8 @@ def relational_checks(exe: Path, problems: list[str]) -> None:
         # run of the same build, so no mantissa bit can differ. The record
         # cannot see this: it was identical while the wire carried the
         # type's own PN stream instead (doppler#1616).
-        frame = ["--sync", "1111100110101", "--bits", "10110011"]
-        frame += ["--crc", "crc16", "--sps", "2", "--count", "148"]
+        frame = ["--sync", "1111100110101", "--data", "10110011"]
+        frame += ["--crc", "crc16", "--sps", "2"]  # one frame: the data
         frame += ["--seed", "1"]
         for typ, mod in (("bpsk", "bpsk"), ("qpsk", "qpsk"), ("pn", "bpsk")):
             got = emit(f"{typ}.bin", ["--type", typ], frame)
@@ -1661,11 +1652,8 @@ def relational_checks(exe: Path, problems: list[str]) -> None:
 
 def fixtures(workdir: Path, exe: Path) -> None:
     """Inputs the cases read. Written per-case so runs stay independent."""
-    # A real binary payload: --bits-file consumes a file's BYTES,
-    # MSB first, which is what --help has always promised and what a
-    # transfer frame on disk actually is. It used to require a text
-    # 0/1 string, so this fixture made the case exit 2 -- the flag's
-    # only coverage was the failure it caused.
+    # A real binary payload: --data-from-file consumes a file's BYTES,
+    # MSB first, which is what a transfer frame on disk actually is.
     (workdir / BITS_FILE).write_bytes(bytes([0xB2, 0x5A, 0x0F, 0xFF]))
     # The --frame descriptions, as files.
     for name, frame in FRAMES.items():

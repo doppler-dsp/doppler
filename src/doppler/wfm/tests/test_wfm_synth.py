@@ -281,14 +281,25 @@ def test_rrc_only_modulated():
     assert np.array_equal(a, b)
 
 
+def _src(pat, n_bits=0, **kw):
+    """A ``bits`` source sending ``pat`` as given (``crc="none"``: no frame
+    check). A payload is sent ONCE (doppler#1718), so a test that reads more
+    than one pass tiles the pattern to ``n_bits`` itself -- the repeat is the
+    test's, said here, not the synth's."""
+    pat = np.asarray(pat, np.uint8)
+    if n_bits:
+        pat = np.resize(pat, n_bits)
+    return bits(data=pat, crc="none", **kw)
+
+
 def test_rrc_shapes_bits():
     """pulse='rrc' on a user bit pattern is NOT a no-op: it band-limits the
     stream just like the pn/bpsk/qpsk path. Guards the silent-ignore bug where
     --type bits accepted --pulse rrc but emitted rectangular pulses anyway."""
     pat = field_bits("1011001010110100")
-    rect = bits(pattern=pat, sps=8, modulation="bpsk").steps(8192)
-    rrc = bits(
-        pattern=pat, sps=8, modulation="bpsk", pulse="rrc", rrc_beta=0.22
+    rect = _src(pat, 1024, sps=8, modulation="bpsk").steps(8192)
+    rrc = _src(
+        pat, 1024, sps=8, modulation="bpsk", pulse="rrc", rrc_beta=0.22
     ).steps(8192)
     assert not np.array_equal(rrc, rect)
     assert _occupied_bw(rrc) < 0.5 * _occupied_bw(rect)
@@ -321,8 +332,9 @@ def test_rrc_bits_matches_matched_filter(sps):
     imp = np.zeros(nsym * sps, dtype=np.complex64)
     imp[::sps] = syms[np.arange(nsym) % len(syms)]
     ref = np.convolve(imp, taps * np.sqrt(sps))[:n]
-    got = bits(
-        pattern=pat,
+    got = _src(
+        pat,
+        nsym,
         sps=sps,
         modulation="bpsk",
         pulse="rrc",
@@ -337,8 +349,9 @@ def test_rrc_bits_matches_matched_filter(sps):
     impq = np.zeros(nsym * sps, dtype=np.complex64)
     impq[::sps] = qsym[np.arange(nsym) % len(qsym)]
     refq = np.convolve(impq, taps * np.sqrt(sps))[:n]
-    gotq = bits(
-        pattern=pat,
+    gotq = _src(
+        pat,
+        2 * nsym,
         sps=sps,
         modulation="qpsk",
         pulse="rrc",
@@ -349,8 +362,9 @@ def test_rrc_bits_matches_matched_filter(sps):
 
 
 def test_rrc_bits_reset_reproduces():
-    s = bits(
-        pattern=field_bits("11010010"),
+    s = _src(
+        field_bits("11010010"),
+        512,
         sps=4,
         modulation="bpsk",
         seed=5,
@@ -369,7 +383,8 @@ def test_rrc_bits_carrier_and_noise():
     the unmodulated (modulation='none') latch under the FIR."""
     pat = field_bits("1011001010110100")
     base = {
-        "pattern": pat,
+        "data": np.resize(pat, 4096),
+        "crc": "none",
         "sps": 8,
         "modulation": "bpsk",
         "pulse": "rrc",
@@ -391,8 +406,8 @@ def test_rrc_bits_carrier_and_noise():
     assert np.all(np.isfinite(both.view(np.float32)))
 
     # Unmodulated bits (0/1 amplitude) shaped by the RRC FIR.
-    none = bits(pattern=pat, sps=8, modulation="none", pulse="rrc").steps(4096)
-    rect = bits(pattern=pat, sps=8, modulation="none").steps(4096)
+    none = _src(pat, 512, sps=8, modulation="none", pulse="rrc").steps(4096)
+    rect = _src(pat, 512, sps=8, modulation="none").steps(4096)
     assert not np.array_equal(none, rect)
 
 
@@ -421,7 +436,7 @@ def test_rrc_bits_step_matches_steps():
 
 def test_bits_bpsk_mapping():
     """bpsk: bit 0 -> +1, bit 1 -> -1; each bit held sps samples."""
-    s = bits(pattern=field_bits("10110101"), sps=4, modulation="bpsk")
+    s = _src(field_bits("10110101"), sps=4, modulation="bpsk")
     y = s.steps(32)  # 8 bits * 4 sps = 32 samples / pass
     centers = y[2::4].real.round().astype(int).tolist()
     assert centers == [-1, 1, -1, -1, 1, -1, 1, -1]  # 1->-1, 0->+1
@@ -429,15 +444,13 @@ def test_bits_bpsk_mapping():
 
 def test_bits_none_amplitude():
     """none: bit 0 -> 0, bit 1 -> 1 amplitude."""
-    y = bits(pattern=field_bits("1100"), sps=1, modulation="none").steps(4)
+    y = _src(field_bits("1100"), sps=1, modulation="none").steps(4)
     assert y.real.round().astype(int).tolist() == [1, 1, 0, 0]
 
 
 def test_bits_qpsk_four_points():
     """qpsk consumes 2 bits/symbol → 4 Gray-mapped constellation points."""
-    q = bits(pattern=[0, 0, 0, 1, 1, 0, 1, 1], sps=1, modulation="qpsk").steps(
-        4
-    )
+    q = _src([0, 0, 0, 1, 1, 0, 1, 1], sps=1, modulation="qpsk").steps(4)
     assert np.allclose(np.abs(q), 1.0, atol=1e-3)  # unit power
     quad = {(int(np.sign(c.real)), int(np.sign(c.imag))) for c in q}
     assert len(quad) == 4
@@ -446,22 +459,24 @@ def test_bits_qpsk_four_points():
 def test_bits_hex_pattern():
     """field_bits("0x..") expands MSB-first to bits."""
     pattern = field_bits("0xA5")  # 1010 0101
-    y = bits(pattern=pattern, sps=1, modulation="none").steps(8)
+    y = _src(pattern, sps=1, modulation="none").steps(8)
     assert y.real.astype(int).tolist() == [1, 0, 1, 0, 0, 1, 0, 1]
 
 
-def test_bits_cycles_to_fill():
-    """The pattern repeats to fill a request longer than one pass."""
-    s = bits(pattern=field_bits("101"), sps=2, modulation="none")
+def test_bits_are_sent_once():
+    """The pattern is sent ONCE, then silence -- never cycled (doppler#1718).
+    A pattern that goes on is a data source that goes on."""
+    s = _src(field_bits("101"), sps=2, modulation="bpsk")
     period = 3 * 2  # 3 bits * 2 sps = 6 samples / pass
     one = s.steps(period)
     s.reset()
     two = s.steps(2 * period)
-    assert np.array_equal(two, np.tile(one, 2))
+    assert np.array_equal(two[:period], one)
+    assert not np.any(two[period:]), "past its end the source is silent"
 
 
 def test_bits_reset_reproduces():
-    s = bits(pattern=field_bits("11010010"), sps=3, modulation="bpsk", seed=5)
+    s = _src(field_bits("11010010"), sps=3, modulation="bpsk", seed=5)
     period = 8 * 3  # 8 bits * 3 sps
     a = s.steps(period)
     s.reset()
@@ -471,7 +486,7 @@ def test_bits_reset_reproduces():
 def test_bits_array_input():
     """A numpy 0/1 array is accepted directly."""
     arr = np.array([1, 0, 1, 1], dtype=np.uint8)
-    y = bits(pattern=arr, sps=1, modulation="bpsk").steps(4)
+    y = _src(arr, sps=1, modulation="bpsk").steps(4)
     assert y.real.round().astype(int).tolist() == [-1, 1, -1, -1]
 
 
@@ -525,18 +540,29 @@ def test_step_matches_steps_bit_exact():
     assert np.array_equal(got, ref)
 
 
-def test_bits_needs_pattern():
-    # A pattern-less bits Synth has nothing to transmit. Standalone generation
-    # is lazy, so the guard (in the C bridge) surfaces at first steps(): the
-    # generated ensure_gen raises when dp_wfm_source_to_synth returns NULL.
-    with pytest.raises(RuntimeError):
+def test_bits_needs_a_data_source():
+    # A bits Synth with no data source has nothing to transmit. Standalone
+    # generation is lazy, so the refusal (the C bridge's sentence) surfaces at
+    # first steps().
+    with pytest.raises(ValueError, match="sends a data source"):
         Synth(type="bits").steps(4)
+
+
+@pytest.mark.parametrize("kw", ["bits", "payload", "pattern"])
+def test_the_retired_payload_kwargs_are_refused_naming_data(kw):
+    """``bits=`` and its old aliases are RETIRED, not aliases of ``data=``:
+    a payload was a pattern cycled to fill the run, and a data source is
+    sent once, so remapping them would change every old caller's waveform
+    without a word. Each is refused with the one sentence that names the
+    replacement (doppler#1718)."""
+    with pytest.raises(ValueError, match=r"bits is retired.*pass data="):
+        Synth(type="bits", **{kw: np.array([1, 0, 1, 1], np.uint8)}).steps(4)
 
 
 def test_bits_text_is_refused_naming_field_bits():
     # An object takes bits; text becomes bits through field_bits().
     with pytest.raises(ValueError, match=r"field_bits\(\)"):
-        bits(pattern="1011")
+        bits(data="1011")
 
 
 # ── symbols (user complex constellation) ─────────────────────────────────────
@@ -854,7 +880,7 @@ def test_a_frame_changes_the_waveform():
         "type": "bits",
         "fs": 1e6,
         "sps": 4,
-        "bits": PAYLOAD,
+        "data": PAYLOAD,
         "modulation": "bpsk",
     }
     plain = np.asarray(Synth(**common).steps(512))
@@ -868,13 +894,14 @@ def test_a_framed_stream_carries_the_frames_bits():
 
     `[preamble x 4 | Barker-13 | payload | CRC-16]` at one sample per symbol,
     BPSK-mapped (0 -> +1, 1 -> -1). Checking the head pins the layout and the
-    order; checking the period pins that the frame is what cycles.
+    order; past the frame the stream is silent -- the data was one frame,
+    and a frame is never cycled (doppler#1718).
     """
     s = Synth(
         type="bits",
         fs=1.0,
         sps=1,
-        bits=PAYLOAD,
+        data=PAYLOAD,
         modulation="bpsk",
         **_framed_kwargs(),
     )
@@ -885,9 +912,8 @@ def test_a_framed_stream_carries_the_frames_bits():
     np.testing.assert_allclose(y[: len(head)], 1.0 - 2.0 * head, atol=1e-6)
     # The 16-bit CRC trailer occupies the rest of the frame...
     assert len(y[:nbits]) == nbits
-    # ...and then the whole frame repeats, which is what turns a one-frame
-    # description into a multi-frame record with no repeat count in it.
-    np.testing.assert_allclose(y[:nbits], y[nbits : 2 * nbits], atol=1e-6)
+    # ...and then nothing: more frames are more data, each pulled from it.
+    assert not np.any(y[nbits : 2 * nbits])
 
 
 def test_the_frame_survives_a_reset():
@@ -895,7 +921,7 @@ def test_the_frame_survives_a_reset():
         type="bits",
         fs=1.0,
         sps=1,
-        bits=PAYLOAD,
+        data=PAYLOAD,
         modulation="bpsk",
         **_framed_kwargs(),
     )
@@ -926,25 +952,23 @@ def test_a_frame_with_no_payload_is_refused():
         s.steps(64)
 
 
-def test_crc_alone_does_not_frame_an_unframed_pattern():
-    """`crc` defaults to crc16 on EVERY source.
-
-    So reading it as intent to frame would have appended a 16-bit trailer to
-    every unframed bit pattern anyone has ever generated — a silent change to
-    existing waveforms, which is the same class of failure as the one being
-    fixed. A preamble or a sync word is what says "framed".
-    """
+def test_a_data_source_is_a_frame_its_crc_is_on_by_default():
+    """A data source is a frame's payload, so ``crc`` -- crc16 by default --
+    applies to it: the bits go out with a CRC-16 trailer unless
+    ``crc="none"`` says to send them as given (doppler#1718 retired the
+    unframed pattern this used to leave alone)."""
     common = {
         "type": "bits",
         "fs": 1.0,
         "sps": 1,
-        "bits": PAYLOAD,
+        "data": PAYLOAD,
         "modulation": "bpsk",
     }
-    plain = np.asarray(Synth(**common).steps(64))
-    crc_only = np.asarray(Synth(**common, crc="crc16").steps(64))
-
-    np.testing.assert_array_equal(plain, crc_only)
+    as_given = np.asarray(Synth(**common, crc="none").steps(len(PAYLOAD)))
+    framed = np.asarray(Synth(**common).steps(len(PAYLOAD) + 16))
+    np.testing.assert_allclose(as_given.real, 1.0 - 2.0 * PAYLOAD, atol=1e-6)
+    np.testing.assert_array_equal(framed[: len(PAYLOAD)], as_given)
+    assert np.all(np.abs(framed[len(PAYLOAD) :]) > 0.5), "and its CRC-16"
 
 
 def test_dsss_window_opens_each_frame_with_the_pure_code():

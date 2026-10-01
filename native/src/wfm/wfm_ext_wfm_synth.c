@@ -274,7 +274,7 @@ _SynthEngine_set_dsss_chips (_SynthEngineObject *self, PyObject *arg)
  * `code` repeats endlessly, data rides on it at chips_per_symbol chips/symbol
  * (non-integer). `data` selects the source: "none" (code only), "prbs" (the
  * synth's seeded PN, regenerable via doppler.wfm.PN), or "bits" (the payload
- * array, cycled). A payload forces "bits". */
+ * array, sent once). A payload forces "bits". */
 static PyObject *
 _SynthEngine_set_dsss_cont (_SynthEngineObject *self, PyObject *args,
                             PyObject *kwds)
@@ -728,7 +728,7 @@ static PyMethodDef _SynthEngine_methods[] = {
     "\n"
     "Attach an already-assembled DSSS burst to a type=dsss synth: one chip\n"
     "per element, 0/1 (coerced to uint8), BPSK-mapped by the synth and\n"
-    "played cyclically. Assemble it from a frame description -- the\n"
+    "sent once, then silence. Assemble it from a frame description -- the\n"
     "unspread preamble, then every bit of a Frame's bits() spread by the\n"
     "data code. A no-op on any other waveform type.\n" },
   { "set_dsss_cont", (PyCFunction)_SynthEngine_set_dsss_cont,
@@ -741,7 +741,8 @@ static PyMethodDef _SynthEngine_methods[] = {
     "chips_per_symbol chips/symbol (non-integer -- the asynchronicity).\n"
     "data selects the symbol source: 'none' (code only, pure +code), 'prbs'\n"
     "(the synth's seeded PN, reproducible via doppler.wfm.PN), or 'bits'\n"
-    "(the payload array, cycled). Supplying payload forces 'bits'.\n" },
+    "(the payload array, one bit a data symbol, sent once). Supplying\n"
+    "payload forces 'bits'.\n" },
   { "set_dsss_window", (PyCFunction)_SynthEngine_set_dsss_window,
     METH_VARARGS | METH_KEYWORDS,
     "set_dsss_window(code_only_symbols, frame_symbols) -> None\n"

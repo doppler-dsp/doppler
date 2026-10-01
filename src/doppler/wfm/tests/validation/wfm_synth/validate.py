@@ -210,7 +210,7 @@ class Data:
     reset_all: bool = False
     state_rows: list[list[str]] = field(default_factory=list)
     state_all_exact: bool = False
-    cycle_bits: bool = False
+    once_bits: bool = False
     cycle_symbols: bool = False
     unreachable: list[str] = field(default_factory=list)
     accessors_ok: bool = False
@@ -779,14 +779,15 @@ def measure_state(d: Data) -> None:
     R.md()
     s = synth("bits", sps=3)
     y = s.steps(36).astype(np.complex128)
-    d.cycle_bits = bool(np.array_equal(y[:18], y[18:]))
+    d.once_bits = bool(np.all(np.abs(y[:18]) > 0.5) and not np.any(y[18:]))
     s = synth("symbols", sps=2)
     y = s.steps(16).astype(np.complex128)
     d.cycle_symbols = bool(np.array_equal(y[:8], y[8:]))
     R.md(
-        "The two user-supplied sources cycle at exactly `n * sps` samples "
-        f"-- a 6-bit pattern at sps 3 repeats every 18 "
-        f"({'confirmed' if d.cycle_bits else '**it does not**'}), a "
+        "A user bit pattern is sent ONCE -- a 6-bit pattern at sps 3 is 18 "
+        "samples and then silence, never cycled (doppler#1718) "
+        f"({'confirmed' if d.once_bits else '**it is not**'}) -- while a "
+        "user symbol stream cycles at exactly `n * sps` samples, a "
         f"4-symbol stream at sps 2 every 8 "
         f"({'confirmed' if d.cycle_symbols else '**it does not**'})."
     )
@@ -1075,9 +1076,9 @@ def limits(d: Data) -> None:
         "instance, for every type that has one",
     )
     R.limit(
-        d.cycle_bits and d.cycle_symbols,
-        "a user bit pattern and a user symbol stream each cycle at exactly "
-        "n * sps samples",
+        d.once_bits and d.cycle_symbols,
+        "a user bit pattern is sent once (n * sps samples, then silence); a "
+        "user symbol stream cycles at exactly n * sps samples",
     )
     R.limit(
         d.accessors_ok,

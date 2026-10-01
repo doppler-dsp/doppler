@@ -56,9 +56,9 @@ main (void)
       || dp_wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") < 0)
     return 1;
 
-  /* One source, carrying it. The description is the whole frame, payload
-     included, so the source has no payload of its own: one beside it is
-     refused (doppler#1683). */
+  /* One source, carrying it. The description is the whole frame -- fixed
+     bits here, sent once. A payload that changes frame to frame is a
+     data:LEN field instead, filled from the source's `data`. */
   wfm_source_t src = { 0 };
   src.type = WFM_SYNTH_BITS;
   src.modulation = 1; /* bpsk */
@@ -141,9 +141,10 @@ measurement rather than a claim.
 The worked version of that check, and of every claim above, is
 [`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/wfmgen_frame_demo.c):
 it composes framed against unframed, demodulates the frame back to the
-description's own bits, shows one description cycling to fill a three-frame
-record, proves the equivalence above, and ends on the caller's own stage
-kind. It self-validates and exits non-zero if any of it stops holding — which
+description's own bits, shows one description making a three-frame record
+from three chunks of data -- its payload a `data:LEN` field, each frame the
+next chunk with its own CRC -- proves the equivalence above, and ends on the
+caller's own stage kind. It self-validates and exits non-zero if any of it stops holding — which
 is why the sections are numbered here rather than counted.
 
 ```sh

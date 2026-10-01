@@ -19,7 +19,7 @@ are the **jm-generated** CPython types in ``doppler.wfm.wfm_compose`` (the
 composer lives entirely in the ``.so``; ``jm`` owns the binding). They are
 **re-exported verbatim** below — there is no Python wrapper layer: standalone
 sample generation
-(:meth:`Synth.steps`), the ``pattern`` / ``f_start`` input sugar, the flat
+(:meth:`Synth.steps`), the ``f_start`` input sugar, the flat
 single-source :class:`Segment` view, :meth:`Composer.stream`, and the resolved
 :meth:`Composer.to_dict` are all generated. The file type writers/readers
 (:class:`Writer` / :class:`Reader` / :class:`StreamSink`), the sample clock,
@@ -60,7 +60,7 @@ from .sample_clock import SampleClock  # noqa: F401  (re-export)
 
 # The composer OO surface IS the generated .so type — re-export it verbatim, no
 # Python wrapper. Synth/Segment/Timeline/Composer carry standalone generation,
-# the pattern/f_start aliases, the flat Segment view, stream() and to_dict().
+# the f_start alias, the flat Segment view, stream() and to_dict().
 from .wfm_compose import (  # noqa: F401  (re-export)
     Composer,
     Segment,

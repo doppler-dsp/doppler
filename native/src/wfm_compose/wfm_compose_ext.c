@@ -183,11 +183,11 @@ Synth_dealloc (SynthObject *self)
 {
   if (self->_gen)
     dp_wfm_synth_destroy (self->_gen);
-  free ((void *)self->src.payload.bits);
   free (self->src.symbols);
   free ((void *)self->src.acq_code.bits);
   free ((void *)self->src.data_code.bits);
   free ((void *)self->src.sync.bits);
+  free ((void *)self->src.retired_bits.bits);
   free ((void *)self->src.data.bits);
   free ((void *)self->src.fill.bits);
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
@@ -433,7 +433,6 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                     "doppler_rate",
                                     "carrier_hz",
                                     "doppler_lifetime",
-                                    "bits",
                                     "modulation",
                                     "pulse",
                                     "rrc_beta",
@@ -447,6 +446,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                     "symbol_rate",
                                     "dsss_code_only",
                                     "frame",
+                                    "bits",
                                     "data",
                                     "data_len",
                                     "fill",
@@ -469,7 +469,6 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject    *doppler_rate     = NULL;
   double       carrier_hz       = 0.0;
   const char  *doppler_lifetime = "per_instance";
-  PyObject    *bits             = NULL;
   const char  *modulation       = "bpsk";
   const char  *pulse            = "rect";
   double       rrc_beta         = 0.35;
@@ -483,6 +482,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   double       symbol_rate      = 0.0;
   int          dsss_code_only   = 0;
   PyObject    *frame            = NULL;
+  PyObject    *bits             = NULL;
   PyObject    *data             = NULL;
   size_t       data_len         = 0;
   PyObject    *fill             = NULL;
@@ -574,12 +574,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsdiOOnOd", kwlist, &type,
+          args, _kw, "|sOOsIiiKsOiOnOOdsssdiOOnOOsdiOOOnOd", kwlist, &type,
           &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
           &level, &background, &f_end, &span, &doppler, &doppler_rate,
-          &carrier_hz, &doppler_lifetime, &bits, &modulation, &pulse,
-          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code,
-          &sync, &crc, &symbol_rate, &dsss_code_only, &frame, &data, &data_len,
+          &carrier_hz, &doppler_lifetime, &modulation, &pulse, &rrc_beta,
+          &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
+          &symbol_rate, &dsss_code_only, &frame, &bits, &data, &data_len,
           &fill, &fs))
     {
       if (_kw_owned)
@@ -772,9 +772,6 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.doppler_lifetime = _i;
   }
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.payload.bits, &self->src.payload.len, bits))
-    return -1;
   {
     int _i = _enum_index (_enum_bitmod, modulation);
     if (_i < 0)
@@ -825,6 +822,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
   if (!_attach_frame (&self->src, frame))
+    return -1;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&self->src.retired_bits.bits,
+          &self->src.retired_bits.len, bits))
     return -1;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&self->src.data.bits, &self->src.data.len, data))
@@ -1249,25 +1250,6 @@ Synth_set_doppler_lifetime (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
-Synth_get_bits (SynthObject *self, void *closure)
-{
-  (void)closure;
-  if (self->src.payload.bits && self->src.payload.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.payload.bits,
-                                      (Py_ssize_t)self->src.payload.len);
-  Py_RETURN_NONE;
-}
-static int
-Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
-{
-  (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.payload.bits, &self->src.payload.len,
-             value)
-             ? 0
-             : -1;
-}
-static PyObject *
 Synth_get_modulation (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -1540,6 +1522,26 @@ Synth_set_frame (SynthObject *self, PyObject *value, void *closure)
   return _attach_frame (&self->src, value) ? 0 : -1;
 }
 static PyObject *
+Synth_get_bits (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.retired_bits.bits && self->src.retired_bits.len)
+    return PyBytes_FromStringAndSize (
+        (const char *)self->src.retired_bits.bits,
+        (Py_ssize_t)self->src.retired_bits.len);
+  Py_RETURN_NONE;
+}
+static int
+Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  return _coerce_dp_wfm_source_bits_refuse_text (
+             (uint8_t **)&self->src.retired_bits.bits,
+             &self->src.retired_bits.len, value)
+             ? 0
+             : -1;
+}
+static PyObject *
 Synth_get_data (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -1719,11 +1721,6 @@ static PyGetSetDef Synth_getset[] = {
     "renders each source independently and concurrently; compose() and "
     "stream() honour both.\n",
     NULL },
-  { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
-    "The payload bits: a Field on the command line and in a scene, an array "
-    "in Python. For type=bits, the pattern, oversampled by sps and cycled to "
-    "fill the request; for type=dsss, the payload bits of the burst frame.\n",
-    NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "
     "as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of "
@@ -1811,6 +1808,12 @@ static PyGetSetDef Synth_getset[] = {
     "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
     "(convolutional interleaving, say) writes that kernel in C and hands it "
     "to `dp_wfm_frame_assemble` directly.\n",
+    NULL },
+  { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
+    "RETIRED (doppler#1718): nothing reads it but the refusal. A payload is "
+    "drawn from a data source, so bits=, and its aliases payload= and "
+    "pattern=, are refused naming data=; the CLI and a scene refuse --bits "
+    "and \"payload\" the same way.\n",
     NULL },
   { "data", (getter)Synth_get_data, (setter)Synth_set_data,
     "A frame's payload drawn from a data source: a Field on the command line "
@@ -2725,18 +2728,6 @@ Segment_flat_doppler_lifetime (SegmentObject *self, void *closure)
                                  "doppler_lifetime");
 }
 static PyObject *
-Segment_flat_bits (SegmentObject *self, void *closure)
-{
-  (void)closure;
-  if (PyList_GET_SIZE (self->sources) != 1)
-    {
-      PyErr_SetString (PyExc_AttributeError,
-                       "bits is only on a single-source Segment");
-      return NULL;
-    }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "bits");
-}
-static PyObject *
 Segment_flat_modulation (SegmentObject *self, void *closure)
 {
   (void)closure;
@@ -2900,6 +2891,18 @@ Segment_flat_frame (SegmentObject *self, void *closure)
       return NULL;
     }
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "frame");
+}
+static PyObject *
+Segment_flat_bits (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "bits is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "bits");
 }
 static PyObject *
 Segment_flat_data (SegmentObject *self, void *closure)
@@ -3107,11 +3110,6 @@ static PyGetSetDef Segment_getset[] = {
     "renders each source independently and concurrently; compose() and "
     "stream() honour both.\n",
     NULL },
-  { "bits", (getter)Segment_flat_bits, NULL,
-    "The payload bits: a Field on the command line and in a scene, an array "
-    "in Python. For type=bits, the pattern, oversampled by sps and cycled to "
-    "fill the request; for type=dsss, the payload bits of the burst frame.\n",
-    NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "
     "as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from pairs of "
@@ -3197,6 +3195,12 @@ static PyGetSetDef Segment_getset[] = {
     "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
     "(convolutional interleaving, say) writes that kernel in C and hands it "
     "to `dp_wfm_frame_assemble` directly.\n",
+    NULL },
+  { "bits", (getter)Segment_flat_bits, NULL,
+    "RETIRED (doppler#1718): nothing reads it but the refusal. A payload is "
+    "drawn from a data source, so bits=, and its aliases payload= and "
+    "pattern=, are refused naming data=; the CLI and a scene refuse --bits "
+    "and \"payload\" the same way.\n",
     NULL },
   { "data", (getter)Segment_flat_data, NULL,
     "A frame's payload drawn from a data source: a Field on the command line "
@@ -3429,18 +3433,6 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             }
           syn->src = src[i].sources[k]; /* scalars + bytes ptrs */
           syn->fs  = src[i].fs;
-          if (syn->src.payload.bits && syn->src.payload.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.payload.len);
-              if (copy)
-                memcpy (copy, syn->src.payload.bits, syn->src.payload.len);
-              syn->src.payload.bits = copy;
-            }
-          else
-            {
-              syn->src.payload.bits = NULL;
-              syn->src.payload.len  = 0;
-            }
           if (syn->src.acq_code.bits && syn->src.acq_code.len)
             {
               uint8_t *copy = (uint8_t *)malloc (syn->src.acq_code.len);
@@ -3476,6 +3468,19 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             {
               syn->src.sync.bits = NULL;
               syn->src.sync.len  = 0;
+            }
+          if (syn->src.retired_bits.bits && syn->src.retired_bits.len)
+            {
+              uint8_t *copy = (uint8_t *)malloc (syn->src.retired_bits.len);
+              if (copy)
+                memcpy (copy, syn->src.retired_bits.bits,
+                        syn->src.retired_bits.len);
+              syn->src.retired_bits.bits = copy;
+            }
+          else
+            {
+              syn->src.retired_bits.bits = NULL;
+              syn->src.retired_bits.len  = 0;
             }
           if (syn->src.data.bits && syn->src.data.len)
             {
@@ -4140,7 +4145,6 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "doppler_rate",
                                                   "carrier_hz",
                                                   "doppler_lifetime",
-                                                  "bits",
                                                   "modulation",
                                                   "pulse",
                                                   "rrc_beta",
@@ -4154,6 +4158,7 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "symbol_rate",
                                                   "dsss_code_only",
                                                   "frame",
+                                                  "bits",
                                                   "data",
                                                   "data_len",
                                                   "fill",

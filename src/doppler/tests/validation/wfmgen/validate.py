@@ -163,7 +163,7 @@ CLI_REFUSALS = [
     ("pn:12:1", "POLY"),  # D12: a 1-bit register has no m-sequence
     ("pn:31:5:32", "REG"),  # #1624: a SEED wider than its register
     ("01a1", "0 or 1"),  # a typo in a literal is refused, not filtered
-    ("data:1024", "data source"),  # named, not a typo
+    ("data:1024", "no bits of its own"),  # named, not a typo
     ("pn:4000000000:5", "261120"),  # #1622: past the Field bound, named
 ]
 
@@ -174,10 +174,8 @@ def _cli_refusal(spec: str, tmp: Path) -> tuple[int, str]:
             _wfmgen_bin(),
             "--type",
             "bits",
-            "--bits",
+            "--data",
             spec,
-            "--count",
-            "16",
             "-o",
             str(tmp / "refused.cf32"),
         ],

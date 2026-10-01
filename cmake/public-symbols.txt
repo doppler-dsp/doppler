@@ -1673,6 +1673,7 @@ dp_wfm_why_dsss_cont_rate data
 dp_wfm_why_dsss_empty data
 dp_wfm_why_dsss_frame_no_data_code data
 dp_wfm_why_pn_poly data
+dp_wfm_why_retired_bits data
 dp_wfm_writer_add_keyword function
 dp_wfm_writer_clip_fraction function
 dp_wfm_writer_close function

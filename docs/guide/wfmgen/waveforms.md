@@ -21,7 +21,7 @@ engine produces nine types from one declarative core.
 | `bpsk`    | BPSK symbols (PN-sourced data), `--sps` samples/symbol         | `--sps`, `--snr`                    |
 | `qpsk`    | Gray-coded QPSK symbols (PN-sourced data)                      | `--sps`, `--snr`                    |
 | `chirp`   | linear-FM sweep `--freq` → `--f-end` over `--count`            | `--freq`, `--f-end`                 |
-| `bits`    | a user bit pattern, oversampled `--sps` and cycled             | `--bits`, `--modulation`, `--sps`   |
+| `bits`    | **your** bits (a data source), oversampled `--sps`, sent once  | `--data`, `--modulation`, `--sps`   |
 | `symbols` | **your** complex constellation, oversampled `--sps` and cycled | `--symbols-file`, `--sps`           |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
@@ -56,24 +56,26 @@ ______________________________________________________________________
 
 ## Bits — your bit pattern, mapped
 
-A `bits` waveform plays back **your** sequence — a preamble, sync word, or test
-vector — given as a [Field](../../design/frame-description.md#f1-the-grammar) — a 0/1
-string (`--bits 10110101`), hex (`--bits 0xAA55`, MSB first) or a generated
-sequence (`--bits pn:1024:15`) — or a **binary** file whose bytes are
-the bits, MSB first per byte (`--bits-file frame.bin`) — which is how a
-real transfer frame reaches the tool.
-`--modulation` (`none` / `bpsk` / `qpsk`) maps the bits to symbols (`none` →
-0/1 amplitude, `bpsk` → ±1, `qpsk` → two bits per symbol, Gray-coded). Each bit
-is held `--sps` samples and the pattern **cycles** to fill the requested length.
+A `bits` waveform sends **your** bits — a preamble, sync word, or test
+vector — from a [data source](#data-a-payload-drawn-frame-by-frame): a
+[Field](../../design/frame-description.md#f1-the-grammar) — a 0/1 string
+(`--data 10110101`), hex (`--data 0xAA55`, MSB first) or a generated sequence
+(`--data pn:1024:15`) — or a **binary** file whose bytes are the bits, MSB
+first per byte (`--data-from-file frame.bin`), which is how a real transfer
+frame reaches the tool. `--modulation` (`none` / `bpsk` / `qpsk`) maps the
+bits to symbols (`none` → 0/1 amplitude, `bpsk` → ±1, `qpsk` → two bits per
+symbol, Gray-coded). Each bit is held `--sps` samples, and the bits are sent
+**once**: the run is the data. A source is a frame's payload, so the default
+`--crc crc16` appends a CRC-16; `--crc none` sends the bits exactly as given.
 
 ```sh
-wfmgen --type bits --bits 10110101 --modulation bpsk --sps 8 --count 64 -o sync.cf32
-wfmgen --type bits --bits 0xAA55 --modulation none --sps 4 -o preamble.cf32
+wfmgen --type bits --data 10110101 --crc none --modulation bpsk --sps 8 -o sync.cf32
+wfmgen --type bits --data 0xAA55 --crc none --modulation none --sps 4 -o preamble.cf32
 
-# a frame on disk: 0xB2 0x5A is the same 16 bits as --bits 0xb25a
+# a frame on disk: 0xB2 0x5A is the same 16 bits as --data 0xb25a
 printf '\262\132' > frame.bin
-wfmgen --type bits --bits-file frame.bin --modulation bpsk --sps 1 \
-       --count 16 -o from-file.cf32
+wfmgen --type bits --data-from-file frame.bin --crc none --modulation bpsk \
+       --sps 1 -o from-file.cf32
 ```
 
 ______________________________________________________________________
@@ -184,7 +186,7 @@ trailer on every plain bit pattern ever generated.
 
 ### One Field per sequence
 
-`--acq-code`, `--data-code`, `--sync` and `--bits` each take **one Field** —
+`--acq-code`, `--data-code`, `--sync`, `--data` and `--fill` each take **one Field** —
 literal bits, hex, or a generated sequence — in the one grammar every face
 reads. Its forms, numbers, limits and refusals are
 [Fields: bits as text](fields.md).
@@ -193,13 +195,13 @@ A `*REPS` suffix repeats the **preamble** — `--acq-code 'pn:127:7*4'` — and 
 the preamble. Quote it, or the shell globs the `*`.
 
 ```sh
-wfmgen --type bits --bits 10110010 --sync pn:1023:10 \
-       --sps 4 --count 8192 --record run.json -o framed.cf32
+wfmgen --type bits --data 10110010 --sync pn:1023:10 \
+       --sps 4 --record run.json -o framed.cf32
 
 # A DSSS burst with BOTH of its codes generated: a 127-chip preamble a
 # receiver correlates against, and a 31-chip code spreading the payload.
 wfmgen --type dsss --acq-code 'pn:127:7*4' \
-       --data-code pn:31:5 --sync 1111100110101 --bits 0xa5c3 \
+       --data-code pn:31:5 --sync 1111100110101 --data 0xa5c3 \
        --sps 2 --snr 8 --snr-mode esno -o burst.cf32
 ```
 
@@ -216,55 +218,34 @@ the kinds, not a shorthand for them:
 "sync": "pn:1023:10"
 ```
 
-### The payload is a Field too
+### The payload is a data source
 
-The payload is a sequence like the other three, so `--bits` takes the same
-Field:
-
-```sh
-wfmgen --type bits --modulation bpsk --bits pn:65535:16 \
-       --sync 1111100110101 --sps 4 --count 65536 -o framed.cf32
-```
-
-On `--type bpsk`/`qpsk`/`pn` a generated payload over the waveform's **own**
-register (`--pn-length`, and `--seed`/`--pn-poly` when set) bounds it at `LEN`
-bits, so the bits a receiver regenerates are the ones this waveform would have
-transmitted anyway:
+The payload is `--data` — a Field like the other three — or
+`--data-from-file`, sent frame by frame as [Data](#data-a-payload-drawn-frame-by-frame)
+describes: each frame carries the next `--data-len` bits, so a long source is
+a multi-frame record whose length is the data's, and nothing is cycled.
 
 ```sh
-wfmgen --type bpsk --sync 1111100110101 --bits pn:1024:10 --pn-length 10 \
-       --sps 4 --count 16384 -o framed_bpsk.cf32
+wfmgen --type bits --modulation bpsk --data pn:65535:16 --data-len 4096 \
+       --fill 0 --sync 1111100110101 --sps 4 -o framed.cf32
 ```
 
-Those waveforms take their data from the synth's own endless LFSR, and the
-Field's length is what says where the payload stops, so a framed PN-sourced
-waveform is the same descriptor every other source builds, and a
-[coded frame](#coded-frames-frame-file) reaches it too. The frame's bits take
-the mapping the **type**
-names, so a framed `--type qpsk` is Gray-coded QPSK over the frame and there
-is no `--modulation` to disagree with it.
-
-A type that carries no bit stream at all — `tone`, `noise`, `chirp`,
-`symbols` — still cannot be framed, with or without a payload.
-
-For `--type bits` the payload is `--bits`/`--bits-file` and `--modulation` maps it to BPSK or
+`--type bpsk`/`qpsk`/`pn` frame the same data and map its bits as the **type**
+names, so a framed `--type qpsk` is Gray-coded QPSK over the frame and there is
+no `--modulation` to disagree with it; a [coded frame](#coded-frames-frame-file)
+reaches them too. For `--type bits`, `--modulation` maps the frame to BPSK or
 QPSK, so a framed unspread waveform is one command:
 
 ```sh
-wfmgen --type bits --modulation bpsk --bits 10110010 \
+wfmgen --type bits --modulation bpsk --data 10110010 \
        --acq-code '10101010*4' --sync 1111100110101 --crc crc16 \
-       --sps 4 --count 8192 -o framed.cf32
+       --sps 4 -o framed.cf32
 ```
 
-The frame then **cycles** to fill `--count`, exactly as a plain pattern does —
-so one description yields a multi-frame record and the repeat count stays out
-of the frame. (A `dsss` burst is the exception: its length is intrinsic and
-`--count` is derived.)
-
-A frame needs a payload. The types whose symbols come from the PN LFSR —
-`bpsk`, `qpsk`, `pn` — take one from that LFSR once a `--bits pn:…` Field bounds it
-(above), and **refuse** the framing flags without it, naming the replacement,
-rather than write an unframed waveform at exit 0.
+A frame needs a data source: the framing flags without one are **refused**,
+naming `--data`, rather than writing an unframed waveform at exit 0. A type
+that carries no bit stream at all — `tone`, `noise`, `chirp`, `symbols` —
+cannot be framed, with or without one.
 
 The same keywords work on the Python `Synth` and `Segment`
 (`sync=`, `acq_code=`, `acq_reps=`, `crc=`), and `--record` carries them, so
@@ -339,7 +320,7 @@ ______________________________________________________________________
 | `--pn-length`    | int (2..64)                                       | `15`     | LFSR register length → period `2ⁿ−1`                                                             |
 | `--pn-poly`      | uint64                                            | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                                              |
 | `--lfsr`         | `galois fibonacci`                                | `galois` | LFSR realization (same polynomial/period, different sequence)                                    |
-| `--bits`         | Field                                             | —        | `bits`: pattern, e.g. `10110101`, `0xAA55`, `pn:1024:15` (or `--bits-file`)                      |
+| `--data`         | Field                                             | —        | the payload's data source, e.g. `10110101`, `0xAA55`, `pn:1024:15` (or `--data-from-file`)       |
 | `--modulation`   | `none bpsk qpsk`                                  | `bpsk`   | `bits`: how the pattern maps to symbols                                                          |
 | `--symbols-file` | path (cf32)                                       | —        | `symbols`: raw interleaved-I/Q complex64 constellation stream                                    |
 | `--acq-code`     | Field                                             | —        | preamble code; `*REPS` repeats it, e.g. `'pn:127:7*4'`                                           |
@@ -545,7 +526,7 @@ burst = Segment(
     snr=10.0, snr_mode="esno",            # data-symbol Es/N0 (see below)
     acq_code=acq, acq_reps=4,             # preamble: code A x 4
     data_code=dat,                        # payload spread: code B
-    sync=BARKER13, payload=pay,           # CRC-16 auto-appended
+    sync=BARKER13, data=pay,              # one burst; CRC-16 auto-appended
     delay_samples=(2_000, 10_000),        # arrival jitter before each burst
     off_samples=(4_000, 12_000),          # trailing gap, min 4k samples
     repeats=5,                            # -> a 5-burst train
@@ -584,14 +565,14 @@ A `dsss` segment is one complete burst honouring the
     XOR-spread by the full `data_code`. The sync word is optional;
     `crc="none"` drops the trailer.
 - Codes are plain 0/1 arrays of **any length** — no `2^n - 1` restriction —
-    so the geometry matches whatever the receiver expects. The payload rides
-    the shared `bits` field (keyword `payload=`; JSON key `"payload"`,
-    `"pattern"` accepted).
+    so the geometry matches whatever the receiver expects. The payload is a
+    [data source](#data-a-payload-drawn-frame-by-frame) (keyword `data=`;
+    JSON key `"data"`): one burst per `data_len` chunk, the whole of it when
+    `data_len` is 0.
 - `sps` is samples per **chip**; the burst's span is intrinsic
-    (`n_chips x sps` samples), so `num_samples` is derived and
-    `--record`/`to_json()` always carry the real length. (A dsss source
-    inside a multi-source `sum()` keeps the segment's explicit
-    `num_samples`.)
+    (`n_chips x sps` samples a burst), so `num_samples` is derived and a
+    replay derives it again. (A dsss source inside a multi-source `sum()`
+    keeps the segment's explicit `num_samples`.)
 
 Either half may be absent, not both. A **preamble alone** (`acq_code`, no
 sync, no payload) is a valid burst, the stimulus for an acquisition test;
@@ -698,7 +679,7 @@ non-default), and the CLI single-segment face is:
 ```sh
 wfmgen --type dsss --fs 4e6 --sps 4 --seed 1 --snr 10 --snr-mode esno \
        --acq-code '0x<hexA>*4' --data-code 0x<hexB> \
-       --sync 1111100110101 --bits 0x<payload-hex> \
+       --sync 1111100110101 --data 0x<payload-hex> \
        --delay 2000:10000 --off 4000:12000 --repeats 5 \
        --record train.json -o train.cf32
 ```
@@ -755,11 +736,11 @@ intrinsic length, so `num_samples` (`--count`) is honoured verbatim.
 The data modulating the code has three legitimate origins, selected the same
 way on every face:
 
-| source             | selector                              | what it emits                                                                            |
-| ------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **PRBS** (default) | —                                     | bits from the source's seeded PN — endless, and a receiver regenerates them to score BER |
-| **code-only**      | `dsss_code_only=True` (`--code-only`) | constant bit 0 → the pure spreading code, `+code` polarity, no data transitions          |
-| **payload**        | `payload=` (`--bits`)                 | a caller bit pattern, cycled `mod len`                                                   |
+| source             | selector                               | what it emits                                                                            |
+| ------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **PRBS** (default) | —                                      | bits from the source's seeded PN — endless, and a receiver regenerates them to score BER |
+| **code-only**      | `dsss_code_only=True` (`--code-only`)  | constant bit 0 → the pure spreading code, `+code` polarity, no data transitions          |
+| **data**           | `data=` (`--data`, `--data-from-file`) | a data source, one bit per data symbol, sent once                                        |
 
 The default **PRBS** is the useful one for a stream with no finite truth
 array: the data is a pure function of `(pn_poly, seed, pn_length, lfsr)`, so a
@@ -813,10 +794,10 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
 ```
 
 `--code-only` selects code-only (a scene's `"code_only": true`); a supplied
-`--bits`/`--bits-file` selects a payload. Incompatible combinations are
-rejected (exit 2), not silently ignored: `--symbol-rate` with the burst-frame
-flags (`--acq-code`, `--sync`, `--crc`), `--code-only` together with a
-payload, `--symbol-rate` without `--data-code`, a non-positive
+`--data`/`--data-from-file` selects a data source. Incompatible combinations
+are rejected (exit 2), not silently ignored: `--symbol-rate` with the
+burst-frame flags (`--acq-code`, `--sync`, `--crc`), `--code-only` together
+with a data source, `--symbol-rate` without `--data-code`, a non-positive
 `--symbol-rate`, and a chip rate `fs / sps` below `--symbol-rate`. A stream
 sends at least one chip per data symbol, so the default `--fs 1.0` (a
 normalised rate) with a `--symbol-rate` in Hz is refused, naming the three
@@ -864,7 +845,7 @@ burst = Segment(
     snr=10.0, snr_mode="esno",
     acq_code=acq, acq_reps=4,
     data_code=dat,
-    sync=BARKER13, payload=pay,
+    sync=BARKER13, data=pay,
     delay_samples=(2_000, 10_000),
     off_samples=(4_000, 12_000),
     repeats=5,
@@ -958,17 +939,21 @@ a CADU. It is a configuration, not a mode `wfmgen` switches into:
 
 ```sh
 wfmgen --type bits --modulation bpsk --frame cadu.json \
-       --sps 1 --count 4144 --record cadu-run.json -o cadu.cf32
+       --sps 1 --record cadu-run.json -o cadu.cf32
 
 # the record carries the description, and replays it byte for byte
 wfmgen --from-file cadu-run.json -o replay.cf32
 python3 -c "print(open('cadu.cf32','rb').read()==open('replay.cf32','rb').read())"
 ```
 
-`--count 4144` is exactly one frame: 32 marker bits plus a 2040-bit data
-group (`223 + 32` octets under RS(255,223)) is 2072, doubled by the inner
-code, at one sample per symbol. The frame **cycles** to fill a longer
-`--count`, as every frame does.
+The run is exactly one frame, 4144 samples: 32 marker bits plus a 2040-bit
+data group (`223 + 32` octets under RS(255,223)) is 2072, doubled by the
+inner code, at one sample per symbol. A frame of fixed bits is a finite
+source of one frame, sent **once**: it sets the run's length, so `--count`
+beside it is refused. The same frame again is `--repeats N`, a gap after it
+`--off`, and different frames are more data: give the description a
+`data:LEN` field and a [data source](#data-a-payload-drawn-frame-by-frame)
+fills it, frame by frame.
 
 The gallery page renders what this repairs and what it refuses:
 [A CCSDS CADU, as a Frame Description](../../gallery/ccsds-link.md).
@@ -1008,7 +993,8 @@ frame-error rates that put a number on it, and
 
 A description is the **whole** frame, so the flags that spell the common
 frame are refused beside it rather than silently dropped: `--sync`,
-`--crc`, `--bits`/`--bits-file`, and — on an unspread type — `--acq-code`.
+`--crc` and — on an unspread type — `--acq-code`. A data source is not one
+of them: `--data` fills the description's own `data:LEN` field.
 A frame whose stages cannot run over the spans they are given is refused
 before anything is generated, with the reason, never padded: an `rs` stage
 needs exactly `223 × depth` octets (virtual fill is not implemented), and an
@@ -1026,8 +1012,8 @@ frame["stages"][2]["depth"] = 2   # 2040 / 16 does not divide
 json.dump(frame, open("bad.json", "w"))
 PY
 wfmgen --type bits --modulation bpsk --frame cadu-ilv.json \
-       --sps 1 --count 4144 -o cadu-ilv.cf32
-wfmgen --type bits --frame bad.json --count 4144 -o bad.cf32 \
+       --sps 1 -o cadu-ilv.cf32
+wfmgen --type bits --frame bad.json -o bad.cf32 \
   || echo "refused, as documented"
 ```
 
@@ -1035,9 +1021,10 @@ wfmgen --type bits --frame bad.json --count 4144 -o bad.cf32 \
 
 A scene carries the same description under a source's **`frame`** key, and
 `--frame FILE` reads exactly that value. The description is the whole frame,
-so the common frame's keys do not belong beside it: a `payload` (`--bits`,
-`payload=`) is refused on every face, from one declaration in the field
-table, and so is a `sync` or an unspread preamble.
+so the common frame's keys do not belong beside it: a `sync` or an
+unspread preamble is refused on every face. A data source (`"data"`,
+`data=`) is not a second spelling of anything in it — it fills the
+description's `data:LEN` field, when it has one.
 
 ```json title="frame.json"
 {
@@ -1045,7 +1032,7 @@ table, and so is a `sync` or an unspread preamble.
   "segments": [
     {
       "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
-      "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
+      "snr": 100.0, "snr_mode": "fs",
       "frame": {
         "fields": [
           { "name": "hdr", "spec": "0101110001011100" },
@@ -1069,9 +1056,9 @@ description too:
 
 ```sh
 wfmgen --from-file frame.json -o from_desc.cf32
-wfmgen --type bits --bits 101010101010101010101010 \
+wfmgen --type bits --data 101010101010101010101010 \
        --sync 0101110001011100 --crc crc16 \
-       --fs 1e6 --sps 4 --snr 100 --count 224 -o from_flags.cf32
+       --fs 1e6 --sps 4 --snr 100 -o from_flags.cf32
 python3 - <<'EOF'
 import pathlib
 import sys

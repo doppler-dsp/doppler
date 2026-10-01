@@ -271,11 +271,6 @@
           "minLength": 1,
           "description": "The frame-sync word (such as Barker-13) between the preamble and the payload -- what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
         },
-        "payload": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The payload bits: a Field on the command line and in a scene, an array in Python. For type=bits, the pattern, oversampled by sps and cycled to fill the request; for type=dsss, the payload bits of the burst frame."
-        },
         "crc": {
           "type": "string",
           "enum": [
@@ -355,29 +350,11 @@
         {
           "not": {
             "required": [
-              "payload",
-              "frame"
-            ]
-          },
-          "description": "\"payload\" and \"frame\" cannot both be given: a frame description is the whole frame, and carries its payload as a field"
-        },
-        {
-          "not": {
-            "required": [
               "data",
               "data_from_file"
             ]
           },
           "description": "\"data\" and \"data_from_file\" cannot both be given: a payload has one data source"
-        },
-        {
-          "not": {
-            "required": [
-              "data",
-              "payload"
-            ]
-          },
-          "description": "\"data\" and \"payload\" cannot both be given: the payload is one or the other: a data source drawn frame by frame, or one cycled pattern (bits is retired by #1718)"
         }
       ]
     },
@@ -613,9 +590,6 @@
         "sync": {
           "$ref": "#/$defs/source/properties/sync"
         },
-        "payload": {
-          "$ref": "#/$defs/source/properties/payload"
-        },
         "crc": {
           "$ref": "#/$defs/source/properties/crc"
         },
@@ -657,29 +631,11 @@
         {
           "not": {
             "required": [
-              "payload",
-              "frame"
-            ]
-          },
-          "description": "\"payload\" and \"frame\" cannot both be given: a frame description is the whole frame, and carries its payload as a field"
-        },
-        {
-          "not": {
-            "required": [
               "data",
               "data_from_file"
             ]
           },
           "description": "\"data\" and \"data_from_file\" cannot both be given: a payload has one data source"
-        },
-        {
-          "not": {
-            "required": [
-              "data",
-              "payload"
-            ]
-          },
-          "description": "\"data\" and \"payload\" cannot both be given: the payload is one or the other: a data source drawn frame by frame, or one cycled pattern (bits is retired by #1718)"
         }
       ]
     },

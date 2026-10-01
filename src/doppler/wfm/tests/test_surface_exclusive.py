@@ -1,14 +1,16 @@
 """Two surface rows no face takes together, refused from ONE declaration.
 
-doppler#1683: a scene with ``"payload"`` beside ``"frame"`` exited 0 and
-dropped the payload, while the CLI refused ``--bits`` beside ``--frame`` --
-the exclusion was written for one face only. It is now the manifest's
-``exclusive`` key on a surface row, rendered by ``gen_wfm_defaults.py`` into
+doppler#1683: a scene with two spellings of one thing beside each other
+exited 0 and dropped one, while the CLI refused it -- the exclusion was
+written for one face only. It is now the manifest's ``exclusive`` key on a
+surface row, rendered by ``gen_wfm_defaults.py`` into
 ``WFM_SURFACE_EXCLUSIVE`` (a reason per face, each a literal), and every
 face refuses from that one row: the CLI (both flags), the scene reader (both
-keys), the object (both members set, at ``dp_wfm_source_error``), ``--help``
-and the schema. Each test reads the declaration rather than restating it,
-so deleting the manifest row turns every face red at once.
+keys), the object (both members set, at ``dp_wfm_source_error``; pinned in
+C, since Python has no file face), ``--help`` and the schema. The pair is a
+payload's two data sources, ``data`` and ``data_from_file``. Each test
+reads the declaration rather than restating it, so deleting the manifest
+row turns every face red at once.
 
 The one ``*REPS`` sentence (the manifest's ``field_reps``) is pinned here
 too: the CLI and a scene refuse ``*REPS`` on a field that does not repeat
@@ -28,7 +30,7 @@ import numpy as np
 import pytest
 
 from doppler.tests._repo import repo_root
-from doppler.wfm import Composer, FrameDesc, Segment, Synth, cli, field_bits
+from doppler.wfm import Composer, Segment, Synth, cli
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -65,10 +67,9 @@ def _pair(a: str, b: str) -> dict:
     pytest.fail(f"no `exclusive` declaration between {a} and {b}")
 
 
-PAIR = _pair("bits", "frame")
-
-#: The description these tests carry: a 4-bit payload field of its own.
-FRAME = {"fields": [{"name": "payload", "spec": "1010"}]}
+#: The one exclusion a source row declares: a payload has one data source
+#: (doppler#1718 retired the bits/frame pair with --bits itself).
+PAIR = _pair("data", "data_from_file")
 
 
 def _run(args: list[str], tmp_path: Path) -> subprocess.CompletedProcess:
@@ -80,77 +81,31 @@ def _run(args: list[str], tmp_path: Path) -> subprocess.CompletedProcess:
     )
 
 
-def _frame_file(tmp_path: Path) -> Path:
-    f = tmp_path / "frame.json"
-    f.write_text(json.dumps(FRAME), encoding="utf-8")
-    return f
-
-
 def _scene(**src) -> str:
-    seg = {"type": "bits", "fs": 1e6, "sps": 4, "num_samples": 64, **src}
+    seg = {"type": "bits", "fs": 1e6, "sps": 4, **src}
     return json.dumps({"version": 1, "segments": [seg]})
-
-
-# ── the CLI ──────────────────────────────────────────────────────────────────
-
-
-def test_the_cli_refuses_bits_beside_frame(tmp_path):
-    p = _run(
-        [
-            "--type",
-            "bits",
-            "--bits",
-            "1100",
-            "--frame",
-            str(_frame_file(tmp_path)),
-        ],
-        tmp_path,
-    )
-    assert p.returncode == 2, p.stderr
-    assert PAIR["cli_why"] in p.stderr
-
-
-def test_the_cli_refuses_a_bits_file_beside_frame(tmp_path):
-    """--bits-file fills the member --bits names, so it is the same pair."""
-    bits = tmp_path / "p.bin"
-    bits.write_bytes(b"\xa5")
-    p = _run(
-        [
-            "--type",
-            "bits",
-            "--bits-file",
-            str(bits),
-            "--frame",
-            str(_frame_file(tmp_path)),
-        ],
-        tmp_path,
-    )
-    assert p.returncode == 2, p.stderr
-    assert PAIR["cli_why"] in p.stderr
-
-
-def test_the_cli_takes_either_alone(tmp_path):
-    f = _frame_file(tmp_path)
-    for args in (["--bits", "1100"], ["--frame", str(f)]):
-        p = _run(["--type", "bits", "--count", "64", *args], tmp_path)
-        assert p.returncode == 0, p.stderr
 
 
 # ── a scene ──────────────────────────────────────────────────────────────────
 
 
-def test_a_scene_refuses_payload_beside_frame(tmp_path):
-    """The #1683 defect itself: this exited 0 with the payload dropped."""
+def test_a_scene_refuses_both_data_sources(tmp_path):
+    payload = tmp_path / "p.bin"
+    payload.write_bytes(b"\xa5")
     scene = tmp_path / "scene.json"
-    scene.write_text(_scene(payload="1100", frame=FRAME), encoding="utf-8")
+    scene.write_text(
+        _scene(data="1100", data_from_file=str(payload)), encoding="utf-8"
+    )
     p = _run(["--from-file", str(scene)], tmp_path)
-    assert p.returncode != 0, "a scene silently dropped the payload again"
+    assert p.returncode != 0, "a scene took two data sources"
     assert PAIR["json_why"] in p.stderr
 
 
-def test_composer_from_json_refuses_with_the_scene_reason():
+def test_composer_from_json_refuses_with_the_scene_reason(tmp_path):
+    payload = tmp_path / "p.bin"
+    payload.write_bytes(b"\xa5")
     with pytest.raises(ValueError) as e:
-        Composer.from_json(_scene(payload="1100", frame=FRAME))
+        Composer.from_json(_scene(data="1100", data_from_file=str(payload)))
     assert str(e.value) == PAIR["json_why"]
 
 
@@ -161,40 +116,6 @@ def test_the_scene_and_the_cli_give_one_reason():
     assert PAIR["obj_why"].endswith(tail)
 
 
-# ── the object ───────────────────────────────────────────────────────────────
-
-
-def _desc() -> FrameDesc:
-    d = FrameDesc()
-    d.add_field("payload", field_bits("1010"))
-    return d
-
-
-def test_a_synth_refuses_payload_beside_frame():
-    s = Synth(type="bits", sps=4, payload=field_bits("1100"), frame=_desc())
-    with pytest.raises(ValueError) as e:
-        s.steps(8)
-    assert str(e.value) == PAIR["obj_why"]
-
-
-def test_a_composer_refuses_payload_beside_frame():
-    seg = Segment(
-        type="bits",
-        sps=4,
-        num_samples=64,
-        payload=field_bits("1100"),
-        frame=_desc(),
-    )
-    with pytest.raises(ValueError):
-        Composer([seg])
-
-
-def test_the_object_takes_either_alone():
-    for kw in ({"payload": field_bits("1100")}, {"frame": _desc()}):
-        x = Synth(type="bits", sps=4, **kw).steps(16)
-        assert np.asarray(x).size == 16
-
-
 # ── help and schema ──────────────────────────────────────────────────────────
 
 
@@ -203,10 +124,6 @@ def test_help_says_each_flag_is_not_with_the_other():
         [cli._runnable(), "--help"], capture_output=True, text=True
     ).stdout
     text = " ".join(h.split())
-    # A row excluded by several lists them all: --bits is not with --frame
-    # nor --data (#1619), so match the flag inside the list.
-    assert re.search(r"--bits FIELD .*? Not with [^.]*--frame[^.]*\.", text)
-    assert re.search(r"--frame FILE .*? Not with [^.]*--bits[^.]*\.", text)
     assert re.search(r"--data FIELD .*? Not with [^.]*--data-from-file", text)
 
 
@@ -218,9 +135,10 @@ def test_the_schema_refuses_both_keys():
             (ROOT / "docs/schema/wfmgen.schema.json").read_text("utf-8")
         )
     )
-    assert not v.is_valid(json.loads(_scene(payload="1100", frame=FRAME)))
-    assert v.is_valid(json.loads(_scene(frame=FRAME)))
-    assert v.is_valid(json.loads(_scene(payload="1100")))
+    both = _scene(data="1100", data_from_file="p.bin")
+    assert not v.is_valid(json.loads(both))
+    assert v.is_valid(json.loads(_scene(data="1100")))
+    assert v.is_valid(json.loads(_scene(data_from_file="p.bin")))
 
 
 # ── the one *REPS sentence ───────────────────────────────────────────────────
@@ -240,7 +158,7 @@ def test_the_cli_refuses_reps_off_the_preamble_with_the_generated_reason(
     tmp_path,
 ):
     p = _run(
-        ["--type", "bits", "--bits", "1100", "--sync", "0101*2"], tmp_path
+        ["--type", "bits", "--data", "1100", "--sync", "0101*2"], tmp_path
     )
     assert p.returncode == 2
     assert _macro("WFM_SURFACE_REPS_WHY_CLI") in p.stderr
@@ -248,7 +166,7 @@ def test_the_cli_refuses_reps_off_the_preamble_with_the_generated_reason(
 
 def test_a_scene_refuses_reps_off_the_preamble_with_the_generated_reason():
     with pytest.raises(ValueError) as e:
-        Composer.from_json(_scene(payload="1100", sync="0101*2"))
+        Composer.from_json(_scene(data="1100", sync="0101*2"))
     assert str(e.value) == _macro("WFM_SURFACE_REPS_WHY_JSON")
 
 
@@ -269,7 +187,7 @@ def test_the_reps_reason_names_the_field_that_repeats():
 # declared inside the exclusion and the generator checks it against the C
 # struct in both directions.
 
-DATA_PAIR = _pair("data", "data_from_file")
+DATA_PAIR = PAIR
 
 
 def test_the_data_pair_is_one_declaration_with_a_surface_only_row():

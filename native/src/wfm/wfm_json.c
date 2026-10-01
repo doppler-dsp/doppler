@@ -82,7 +82,6 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
   if (srcs)
     for (size_t k = 0; k < ns; k++)
       {
-        free ((void *)srcs[k].payload.bits);
         free (srcs[k].symbols);
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
@@ -879,10 +878,13 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
   {
     const char *key, *why;
   } RETIRED[] = {
-    { "pattern", "\"pattern\" is retired: the payload is \"payload\", a "
-                 "Field" },
-    { "payload_gen", "\"payload_gen\" is retired: write the generated "
-                     "payload as \"payload\", e.g. \"pn:1024:10\"" },
+    { "payload", "\"payload\" is retired: a payload is a data source, "
+                 "\"data\" (a Field) with \"data_len\" bits per frame "
+                 "(doppler#1718)" },
+    { "pattern", "\"pattern\" is retired: a payload is a data source, "
+                 "\"data\" (a Field)" },
+    { "payload_gen", "\"payload_gen\" is retired: a payload is a data "
+                     "source, \"data\", e.g. \"pn:1024:10\"" },
     { "acq_code_gen", "\"acq_code_gen\" is retired: write the generated "
                       "preamble as \"acq_code\", e.g. \"pn:1023:10\"" },
     { "acq_reps", "\"acq_reps\" is retired: repeat the preamble in its "
@@ -1007,13 +1009,12 @@ dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
          Both forms are the same rows in the same order, so a key cannot be
          written by one and missed by the other. */
       add_rows (s, WFM_SURF_SEGMENT, g);
-      /* A finite data source SETS the segment's length (its frames), so a
-         record omits the derived num_samples exactly as a scene must: the
-         reader refuses one given beside it, and a replay derives it again
-         from the same data. */
+      /* A finite source -- data, or a carried frame of fixed bits -- SETS
+         the segment's length (its frames), so a record omits the derived
+         num_samples exactly as a scene must: the reader refuses one given
+         beside it, and a replay derives it again. */
       for (size_t k = 0; k < g->n_sources; k++)
-        if ((g->sources[k].data.len || g->sources[k].data_from_file)
-            && !dp_wfm_source_data_is_stream (&g->sources[k]))
+        if (dp_wfm_source_data_frames (&g->sources[k]) > 0)
           {
             cJSON_DeleteItemFromObjectCaseSensitive (s, "num_samples");
             break;
@@ -1047,8 +1048,7 @@ dp_wfm_spec_template_json (void)
    * the `sum` segment's first snr-bearing source (bpsk) anchors the floor
    * while the tone is placed above it — neither over-specifies (no snr+level
    * on a non-anchor), so dp_wfm_resolve_noise() accepts it. */
-  static const uint8_t pattern[] = { 1, 0, 1, 1, 0, 0, 0, 1, 1, 0 };
-  wfm_source_t         tone      = {
+  wfm_source_t tone = {
     .type      = WFM_SYNTH_TONE,
     .freq      = 1e5,
     .snr       = 20.0,
@@ -1057,17 +1057,19 @@ dp_wfm_spec_template_json (void)
     .seed      = 1,
   };
   wfm_source_t bits = {
-    .type         = WFM_SYNTH_BITS,
-    .snr          = 30.0,
-    .sps          = 8,
-    .pn_length    = 7,
-    .seed         = 1,
-    .modulation   = 2, /* qpsk */
-    .payload.bits = (uint8_t *)pattern,
-    .payload.len  = sizeof (pattern),
-    .pulse        = 1, /* rrc */
-    .rrc_beta     = 0.35,
-    .rrc_span     = 8,
+    .type       = WFM_SYNTH_BITS,
+    .snr        = 30.0,
+    .sps        = 8,
+    .pn_length  = 7,
+    .seed       = 1,
+    .modulation = 2, /* qpsk */
+    /* A data source as a generated Field, sent as one frame with no check:
+       2000 PN bits are 1000 qpsk symbols, the segment's 8000 samples. */
+    .crc      = 0,
+    .data     = { .kind = WFM_SEQ_PN, .len = 2000, .reg_bits = 11 },
+    .pulse    = 1, /* rrc */
+    .rrc_beta = 0.35,
+    .rrc_span = 8,
   };
   wfm_source_t mix[2] = {
     { .type      = WFM_SYNTH_BPSK, /* anchor: sets the noise floor */
@@ -1087,10 +1089,10 @@ dp_wfm_spec_template_json (void)
   };
   wfm_segment_t segs[3] = {
     { .sources = &tone, .n_sources = 1, .fs = 1e6, .num_samples = 10000 },
+    /* No num_samples: a finite data source sets its own run (8000). */
     { .sources     = &bits,
       .n_sources   = 1,
       .fs          = 1e6,
-      .num_samples = 8000,
       .off_samples = 2000 }, /* a trailing gap of zeros */
     { .sources = mix, .n_sources = 2, .fs = 1e6, .num_samples = 10000 },
   };
@@ -1221,23 +1223,24 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
          than the 1024 default. */
       int has = 0, finite = 0;
       for (size_t k = 0; k < ns; k++)
-        if (srcs[k].data.len || srcs[k].data_from_file)
-          {
-            has = 1;
-            finite |= !dp_wfm_source_data_is_stream (&srcs[k]);
-          }
+        {
+          has |= srcs[k].data.len || srcs[k].data_from_file;
+          finite |= dp_wfm_source_data_frames (&srcs[k]) > 0;
+        }
       const int given
           = cJSON_GetObjectItemCaseSensitive (s, "num_samples") != NULL;
-      if (has && finite && given)
+      if (finite && given)
         {
           if (why)
-            *why = "\"num_samples\": a finite data source sets the "
-                   "segment's length (its frames); drop num_samples";
+            *why = "\"num_samples\": a finite source -- data, or a carried "
+                   "frame of fixed bits, sent once -- sets the segment's "
+                   "length (its frames); drop num_samples, and give "
+                   "\"repeats\" for more";
           free_src_bits (srcs, ns);
           free (srcs);
           goto reject;
         }
-      if (has && !given)
+      if ((has || finite) && !given)
         segs[i].num_samples = 0;
     }
     i++;

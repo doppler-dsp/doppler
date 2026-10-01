@@ -746,6 +746,15 @@ def row_schema(r: dict, doc: str) -> dict:
     return prop
 
 
+#: The schema keys their owner writes by hand, per object: every OTHER key
+#: on these objects is a surface row's, generated -- and removed with it.
+HAND_OWNED = {
+    "source": {"symbols", "crc"},
+    "inline_segment": {"symbols", "crc"},
+    "sum_segment": {"sum"},
+}
+
+
 def render_schema() -> str:
     """docs/schema/wfmgen.schema.json with every table row's property
     generated, and every other key -- the frame, the payload, the codes --
@@ -789,6 +798,23 @@ def render_schema() -> str:
             defs["sum_segment"]["properties"][key] = {
                 "$ref": f"#/$defs/inline_segment/properties/{key}"
             }
+    # A key no row owns and no owner declared is a row that was DELETED:
+    # its property goes with it, both directions from one table. Without
+    # this a retired key (doppler#1718's "payload") stayed in the schema,
+    # documented and accepted, after every face refused it.
+    owned = {
+        "source": {
+            r["json"] for r in rows if r["json"] and r["owner"] == "source"
+        },
+        "inline_segment": {r["json"] for r in rows if r["json"]},
+        "sum_segment": {
+            r["json"] for r in rows if r["json"] and r["owner"] != "source"
+        },
+    }
+    for name, keys in owned.items():
+        props = defs[name]["properties"]
+        for key in [k for k in props if k not in keys | HAND_OWNED[name]]:
+            del props[key]
     # Each exclusion, as "not both keys": on every object a source's keys
     # appear in (a source, and the inline one-source segment).
     targets = {

@@ -77,8 +77,9 @@ def make_signal(cn0_dbhz: float, seed: int):
         seed=seed,
         data_code=bytes(CODE.tolist()),
         symbol_rate=SYM_RATE,  # > 0 selects continuous async DSSS
-        payload=bytes(payload.tolist()),
-        num_samples=int(N_SYM * TSYM) + 2 * TE,
+        # one bit per data symbol, and the run ends with the last: its
+        # length is the data's, so no num_samples
+        data=payload,
         # The pre-signal silence is the segment's own LEADING gap, and
         # `gap_noise="auto"` runs the noise floor through it -- so the
         # receiver sweeps real noise before the signal starts, with no

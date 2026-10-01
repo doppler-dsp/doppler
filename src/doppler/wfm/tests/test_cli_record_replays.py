@@ -306,7 +306,7 @@ def test_interleave_survives_a_record_round_trip(
     kernel."""
     record = tmp_path / "record.json"
     frame = _frame_file(tmp_path, payload, depth, unit)
-    args = [*_ARGS, "--frame", str(frame), "--count", "4096"]
+    args = [*_ARGS, "--frame", str(frame)]  # a fixed frame sets its run
     first = _run_to(tmp_path, "a.iq", *args, "--record", str(record))
     again = _run_to(tmp_path, "b.iq", "--from-file", str(record))
 
@@ -331,8 +331,6 @@ def test_an_interleaved_run_differs_from_an_uninterleaved_one(tmp_path):
         *_ARGS,
         "--frame",
         str(_frame_file(tmp_path, payload, 0, 0)),
-        "--count",
-        "4096",
     )
     woven = _run_to(
         tmp_path,
@@ -340,8 +338,6 @@ def test_an_interleaved_run_differs_from_an_uninterleaved_one(tmp_path):
         *_ARGS,
         "--frame",
         str(_frame_file(tmp_path, payload, 4, 1)),
-        "--count",
-        "4096",
     )
     assert len(plain) == len(woven), "the interleaver is length-preserving"
     assert plain != woven, "the interleave stage changed nothing to record"

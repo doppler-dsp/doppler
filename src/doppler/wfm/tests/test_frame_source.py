@@ -70,14 +70,16 @@ def _field(a, reps: int = 1) -> str:
     return text + (f"*{reps}" if reps > 1 else "")
 
 
-def _seg_kwargs(framed: bool, num_samples: int) -> dict:
+def _seg_kwargs(framed: bool) -> dict:
+    """The payload as a data source, one frame of it: framed, it is
+    ``[preamble x reps | sync | payload | CRC-16]``; unframed, the bits as
+    given (``crc="none"``). The run is the data's, so no num_samples."""
     kw = {
         "type": "bits",
         "fs": FS,
         "sps": SPS,
-        "bits": PAYLOAD.tobytes(),
+        "data": PAYLOAD.tobytes(),
         "modulation": "bpsk",
-        "num_samples": num_samples,
     }
     if framed:
         kw |= {
@@ -86,13 +88,13 @@ def _seg_kwargs(framed: bool, num_samples: int) -> dict:
             "sync": SYNC.tobytes(),
             "crc": "crc16",
         }
+    else:
+        kw["crc"] = "none"
     return kw
 
 
-def _compose(framed: bool, num_samples: int) -> np.ndarray:
-    return np.asarray(
-        Composer([Segment(**_seg_kwargs(framed, num_samples))]).compose()
-    )
+def _compose(framed: bool) -> np.ndarray:
+    return np.asarray(Composer([Segment(**_seg_kwargs(framed))]).compose())
 
 
 def _cli(args, tmp_path, name="out.dat"):
@@ -106,21 +108,21 @@ def _cli(args, tmp_path, name="out.dat"):
     return p, out
 
 
-def _cli_frame_args(framed: bool, count: int) -> list[str]:
+def _cli_frame_args(framed: bool) -> list[str]:
     args = [
         "--type",
         "bits",
         "--modulation",
         "bpsk",
-        "--bits",
+        "--data",
         _bits(PAYLOAD),
         "--fs",
         str(FS),
         "--sps",
         str(SPS),
-        "--count",
-        str(count),
     ]
+    if not framed:
+        args += ["--crc", "none"]
     if framed:
         args += [
             "--acq-code",
@@ -138,8 +140,9 @@ def _cli_frame_args(framed: bool, count: int) -> list[str]:
 
 def test_a_frame_changes_the_composed_waveform():
     """The assertion whose absence was the defect, at the documented API."""
-    n = NBITS * SPS
-    assert not np.array_equal(_compose(False, n), _compose(True, n))
+    plain, framed = _compose(False), _compose(True)
+    assert plain.size == len(PAYLOAD) * SPS and framed.size == NBITS * SPS
+    assert not np.array_equal(plain, framed[: plain.size])
 
 
 def test_the_composed_frame_is_the_descriptors_bits():
@@ -150,7 +153,7 @@ def test_the_composed_frame_is_the_descriptors_bits():
     own ``crc16`` — the same kernel the frame assembler uses, so a wrong
     trailer position or bit order fails here rather than at a receiver.
     """
-    kw = _seg_kwargs(True, NBITS) | {"sps": 1, "fs": 1.0}
+    kw = _seg_kwargs(True) | {"sps": 1, "fs": 1.0}
     y = np.asarray(Composer([Segment(**kw)]).compose()).real
 
     crc = crc16(PAYLOAD)
@@ -161,16 +164,21 @@ def test_the_composed_frame_is_the_descriptors_bits():
     np.testing.assert_allclose(y[:NBITS], 1.0 - 2.0 * want, atol=1e-6)
 
 
-def test_the_frame_cycles_to_fill_the_segment():
-    """One descriptor, a multi-frame record — no repeat count in the frame.
-
-    This is what ``native/validation/rx_frame_fer.c`` relies on to score many
-    frames from a one-frame description, and it is why a framed unspread
-    source cycles rather than deriving its length the way a DSSS burst does.
-    """
-    kw = _seg_kwargs(True, 3 * NBITS) | {"sps": 1, "fs": 1.0}
+def test_more_frames_are_more_data():
+    """One descriptor, a multi-frame record: each frame is the next
+    ``data_len`` chunk of the data, so three chunks are three frames and the
+    run is exactly those -- nothing cycled (doppler#1718). Three copies of
+    one payload make three identical frames, which is what a frame error
+    rate scored over many frames of one description reads."""
+    kw = _seg_kwargs(True) | {
+        "sps": 1,
+        "fs": 1.0,
+        "data": np.tile(PAYLOAD, 3).tobytes(),
+        "data_len": len(PAYLOAD),
+    }
     y = np.asarray(Composer([Segment(**kw)]).compose())
 
+    assert y.size == 3 * NBITS
     np.testing.assert_allclose(y[:NBITS], y[NBITS : 2 * NBITS], atol=1e-6)
     np.testing.assert_allclose(y[:NBITS], y[2 * NBITS :], atol=1e-6)
 
@@ -184,8 +192,8 @@ def test_a_frame_the_type_cannot_carry_is_refused(wtype):
     build-time failure would have become a silent gap, so the check runs in
     ``dp_wfm_compose_create`` before anything exists.
     """
-    kw = _seg_kwargs(True, 256) | {"type": wtype}
-    kw.pop("bits")
+    kw = _seg_kwargs(True) | {"type": wtype}
+    kw.pop("data")
     kw.pop("modulation")
     with pytest.raises((ValueError, RuntimeError)):
         Composer([Segment(**kw)]).compose()
@@ -195,9 +203,8 @@ def test_a_frame_the_type_cannot_carry_is_refused(wtype):
 
 
 def test_the_cli_frame_flags_reach_the_samples(tmp_path):
-    n = NBITS * SPS
-    pf, framed = _cli(_cli_frame_args(True, n), tmp_path, "f.dat")
-    pu, plain = _cli(_cli_frame_args(False, n), tmp_path, "u.dat")
+    pf, framed = _cli(_cli_frame_args(True), tmp_path, "f.dat")
+    pu, plain = _cli(_cli_frame_args(False), tmp_path, "u.dat")
 
     assert pf.returncode == 0, pf.stderr
     assert pu.returncode == 0, pu.stderr
@@ -207,12 +214,11 @@ def test_the_cli_frame_flags_reach_the_samples(tmp_path):
 def test_the_cli_and_the_composer_agree(tmp_path):
     """Same description, same bytes. Two interfaces that disagree are worse
     than one that is wrong, because nothing says which to believe."""
-    n = NBITS * SPS
-    p, out = _cli(_cli_frame_args(True, n), tmp_path)
+    p, out = _cli(_cli_frame_args(True), tmp_path)
     assert p.returncode == 0, p.stderr
 
     from_cli = np.frombuffer(out.read_bytes(), np.complex64)
-    np.testing.assert_allclose(from_cli, _compose(True, n), atol=1e-6)
+    np.testing.assert_allclose(from_cli, _compose(True), atol=1e-6)
 
 
 def test_the_cli_frame_is_the_frame_objects_bits(tmp_path):
@@ -227,7 +233,7 @@ def test_the_cli_frame_is_the_frame_objects_bits(tmp_path):
     """
     from doppler.wfm import Frame
 
-    args = _cli_frame_args(True, NBITS)
+    args = _cli_frame_args(True)
     args[args.index("--sps") + 1] = "1"
     args[args.index("--fs") + 1] = "1"
     p, out = _cli(args, tmp_path)
@@ -246,35 +252,23 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
     """Exit 2 and a message naming the replacement — not exit 0 and silence,
     and not the generic 'could not build the waveform spec' either.
 
-    A framed `--type bpsk` is no longer refused for its TYPE: a generated
-    payload Field over the waveform's own register (`--bits pn:N:REG`) is
-    the bound the PN-sourced waveforms were missing, so what is left to
-    refuse is a frame with no payload at all -- which is the same thing
-    `--type bits` was always refused for.
+    A framed `--type bpsk` is not refused for its TYPE: a data source is the
+    payload every framed type takes, so what is left to refuse is a frame
+    with no data source at all -- which is the same thing `--type bits` is
+    refused for.
     """
     p, _ = _cli(
         ["--type", "bpsk", "--sync", _bits(SYNC), "--count", "256"], tmp_path
     )
     assert p.returncode == 2
     assert "payload" in p.stderr
-    assert "--bits" in p.stderr and "pn:" in p.stderr, (
-        "the refusal must name the Field that removes it"
+    assert "--data" in p.stderr, (
+        "the refusal must name the flag that removes it"
     )
 
-    # And with that bound supplied, the same command BUILDS.
+    # And with a data source, the same command BUILDS.
     ok, _ = _cli(
-        [
-            "--type",
-            "bpsk",
-            "--sync",
-            _bits(SYNC),
-            "--bits",
-            "pn:64:7",
-            "--pn-length",
-            "7",
-            "--count",
-            "256",
-        ],
+        ["--type", "bpsk", "--sync", _bits(SYNC), "--data", "pn:64:7"],
         tmp_path,
     )
     assert ok.returncode == 0, ok.stderr
@@ -286,15 +280,13 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
             "chirp",
             "--sync",
             _bits(SYNC),
-            "--bits",
+            "--data",
             "pn:64:15",
-            "--count",
-            "256",
         ],
         tmp_path,
     )
     assert ch.returncode == 2
-    assert "no bit stream" in ch.stderr
+    assert "--type bits/bpsk/qpsk/pn" in ch.stderr
 
     p2, _ = _cli(
         [
@@ -310,7 +302,7 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
         tmp_path,
     )
     assert p2.returncode == 2
-    assert "payload" in p2.stderr
+    assert "--data" in p2.stderr
 
 
 # ── the record round-trip ────────────────────────────────────────────────────
@@ -324,10 +316,9 @@ def test_the_record_carries_the_frame_and_rebuilds_it(tmp_path):
     an unframed stream from a file that looked complete. Both halves of
     ``wfm_json.c`` are checked here, because either one alone is silent.
     """
-    n = NBITS * SPS
     rec = tmp_path / "rec.json"
     p, out = _cli(
-        [*_cli_frame_args(True, n), "--record", str(rec)], tmp_path, "a.dat"
+        [*_cli_frame_args(True), "--record", str(rec)], tmp_path, "a.dat"
     )
     assert p.returncode == 0, p.stderr
 
@@ -343,17 +334,18 @@ def test_the_record_carries_the_frame_and_rebuilds_it(tmp_path):
 
 
 def test_an_unframed_record_stays_unframed(tmp_path):
-    """`crc` defaults to crc16 on every source, so a record that emitted it
-    unconditionally would frame every unframed pattern on the way back in."""
-    n = NBITS * SPS
+    """A run with no preamble or sync word records none, and its
+    ``crc="none"`` survives: a data source is a frame's payload, so a record
+    that dropped it would add a CRC-16 trailer on the way back in."""
     rec = tmp_path / "rec.json"
     p, out = _cli(
-        [*_cli_frame_args(False, n), "--record", str(rec)], tmp_path, "a.dat"
+        [*_cli_frame_args(False), "--record", str(rec)], tmp_path, "a.dat"
     )
     assert p.returncode == 0, p.stderr
 
     seg = json.loads(rec.read_text(encoding="utf-8"))["segments"][0]
-    assert "acq_code" not in seg and "sync" not in seg and "crc" not in seg
+    assert "acq_code" not in seg and "sync" not in seg
+    assert seg["crc"] == "none"
 
     p2, out2 = _cli(["--from-file", str(rec)], tmp_path, "b.dat")
     assert p2.returncode == 0, p2.stderr
@@ -371,10 +363,10 @@ def _carried(with_frame: bool) -> np.ndarray:
         "fs": FS,
         "sps": SPS,
         "modulation": "bpsk",
-        "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
     }
     if not with_frame:
-        seg["payload"] = _bits(PAYLOAD)
+        seg["data"] = _bits(PAYLOAD)  # the payload alone, as given
+        seg["crc"] = "none"
     else:
         seg["frame"] = {
             "fields": [
@@ -398,7 +390,8 @@ def test_python_reaches_a_carried_frame_with_no_new_binding():
     "the samples moved". A carried frame puts the sync word on the wire ahead
     of the payload, which an unframed scene does not.
     """
-    assert not np.array_equal(_carried(False), _carried(True))
+    flat, carried = _carried(False), _carried(True)
+    assert not np.array_equal(flat, carried[: flat.size])
 
 
 def test_a_carried_frame_survives_the_python_round_trip():
@@ -414,7 +407,6 @@ def test_a_carried_frame_survives_the_python_round_trip():
         "fs": FS,
         "sps": SPS,
         "modulation": "bpsk",
-        "num_samples": (len(SYNC) + len(PAYLOAD)) * SPS,
         "frame": {
             "fields": [
                 {"name": "sync", "spec": _bits(SYNC)},
@@ -455,7 +447,6 @@ def test_segment_takes_a_framedesc_directly():
         fs=FS,
         sps=SPS,
         modulation="bpsk",
-        num_samples=(len(SYNC) + len(PAYLOAD)) * SPS,
         frame=desc,
     )
     direct = np.asarray(Composer([seg]).compose())
@@ -480,8 +471,9 @@ def test_the_record_carries_the_description():
     got = _recorded(Synth(type="bits", sps=SPS, frame=_desc()))
     assert [f.get("name") for f in got["fields"]] == ["sync", "payload", "crc"]
     assert got["stages"][0]["kind"] == "crc16"
-    assert _recorded(Synth(type="bits", sps=SPS)) is None
-    assert _recorded(Synth(type="bits", sps=SPS, frame=None)) is None
+    # (bpsk: a bits source with no frame has nothing to send at all)
+    assert _recorded(Synth(type="bpsk", sps=SPS)) is None
+    assert _recorded(Synth(type="bpsk", sps=SPS, frame=None)) is None
 
 
 def test_a_frame_and_a_framedesc_are_one_description():
@@ -512,7 +504,7 @@ def test_frame_is_a_snapshot_not_a_reference():
 
 
 def test_a_refused_frame_keeps_the_old_one():
-    src = Synth(type="bits", sps=SPS, frame=_desc())
+    src = Synth(type="bpsk", sps=SPS, frame=_desc())
     before = _recorded(src)
     with pytest.raises(ValueError, match="FrameDesc"):
         src.frame = '{"fields": []}'
@@ -543,7 +535,6 @@ def test_frame_survives_the_composer_record():
         fs=FS,
         sps=SPS,
         modulation="bpsk",
-        num_samples=(len(SYNC) + len(PAYLOAD) + 16) * SPS,
         frame=_desc(),
     )
     text = Composer([seg]).to_json()
@@ -577,7 +568,6 @@ def _derived_scene(derived_by):
                     "fs": FS,
                     "sps": SPS,
                     "modulation": "bpsk",
-                    "num_samples": (len(PAYLOAD) + 16) * SPS,
                     "frame": {
                         "fields": [
                             {"name": "payload", "spec": _bits(PAYLOAD)},

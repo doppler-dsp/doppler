@@ -53,32 +53,35 @@ s = Synth(type="tone", freq=1000, fs=1e6).step()
 
 ### Bits (user-defined pattern)
 
-A `bits` waveform plays back a **specific bit sequence** — preambles, sync
-words, test vectors, exact packet structures. The pattern is bits: a `uint8`
-array, `bytes` or any sequence of 0/1. Text becomes bits through
-`field_bits()` — binary, `0x` hex (MSB first), or a generated field such as
-`pn:31:5` — and a `str` passed directly is refused, naming it.
-`modulation` maps the bits to symbols (`"none"` → 0/1 amplitude, `"bpsk"` → ±1,
-`"qpsk"` → two bits per symbol, Gray-coded). Each bit is held `sps` samples and
-the pattern **cycles** to fill the requested length, so one pass is
-`Synth.n_samples`.
+A `bits` waveform sends a **specific bit sequence** — preambles, sync
+words, test vectors, exact packet structures — from its data source,
+`data=`. The data is bits: a `uint8` array, `bytes` or any sequence of 0/1.
+Text becomes bits through `field_bits()` — binary, `0x` hex (MSB first), or a
+generated field such as `pn:31:5` — and a `str` passed directly is refused,
+naming it. `modulation` maps the bits to symbols (`"none"` → 0/1 amplitude,
+`"bpsk"` → ±1, `"qpsk"` → two bits per symbol, Gray-coded). Each bit is held
+`sps` samples and the bits are sent **once**, then silence. A data source is a
+frame's payload, so `crc="none"` sends them exactly as given; the default
+`crc16` appends a CRC-16 (see [Data](../guide/wfmgen/waveforms.md#data-a-payload-drawn-frame-by-frame)).
 
 ```python
 from doppler.wfm import Synth, bits, field_bits
 
-# 8-bit preamble, BPSK, 4 samples/bit → 32 samples for one pass
-s = bits(pattern=field_bits("10110101"), sps=4, modulation="bpsk")
+# 8-bit preamble, BPSK, 4 samples/bit → 32 samples, sent once
+s = bits(data=field_bits("10110101"), crc="none", sps=4, modulation="bpsk")
 preamble = s.steps(32)  # 8 bits * 4 sps
 
 # Hex sync word, unmodulated 0/1; direct construction is equivalent
 sync = Synth(
-    type="bits", pattern=field_bits("0xAA55"), modulation="none", sps=8
+    type="bits", data=field_bits("0xAA55"), crc="none", modulation="none",
+    sps=8,
 )
 
 # From a numpy array
 import numpy as np
 payload = bits(
-    pattern=np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk"
+    data=np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), crc="none",
+    modulation="qpsk",
 )
 ```
 
@@ -310,9 +313,9 @@ mls_poly(7)                               # 0x41 — the length-7 MLS polynomial
 ```
 
 The builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` /
-`chirp(f_start=…, f_end=…, span=…)` / `bits(pattern=…, modulation=…)` each return a `Synth` (a
+`chirp(f_start=…, f_end=…, span=…)` / `bits(data=…, modulation=…)` each return a `Synth` (a
 `noise(level=…)` is a bare AWGN floor at that level in dBFS; a `chirp` is an LFM
-sweep; a `bits(...)` plays a user pattern); or construct `Synth(...)` directly.
+sweep; a `bits(...)` sends its data source's bits); or construct `Synth(...)` directly.
 In a `Segment.sum` the per-synth `snr` resolves
 into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 

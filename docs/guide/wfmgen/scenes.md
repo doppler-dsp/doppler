@@ -273,7 +273,7 @@ instead of N copy-pasted segments:
 { "type": "dsss", "fs": 4e6, "sps": 4,
   "snr": 10.0, "snr_mode": "esno",
   "acq_code": "…*5", "data_code": "…",
-  "payload": "…",
+  "data": "…",
   "off_samples": [15000, 40000],   // jittered gap, min 15k — per instance
   "repeats": 5 }                    // → a 5-burst train
 ```

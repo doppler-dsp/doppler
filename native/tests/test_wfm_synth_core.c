@@ -829,6 +829,57 @@ main (void)
       dp_wfm_synth_destroy (c);
     }
 
+    /* The DIRECT-form shaper (sps not a power of two, so dp_wfm_synth_set_rrc
+     * builds a plain FIR, not the polyphase bank the spc=2 cases ride): its
+     * steps() reads the payload cursor through its own branch, so step() ==
+     * steps() is pinned there too, and a payload sent once ends in silence
+     * -- exact zeros once the FIR has flushed the last chip. */
+    {
+      const size_t  sps3     = 3;
+      const double  cps3     = (fs / (double)sps3) / 2100.0;
+      const float   taps[5]  = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+      const uint8_t bits3[3] = { 1, 0, 1 };
+      /* 3 data symbols, then well past the FIR's flush */
+      const size_t          ndata = (size_t)ceil (3.0 * cps3) * sps3;
+      const size_t          n     = ndata + 400;
+      dp_wfm_synth_state_t *a     = dp_wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 0, 9, (int)sps3, 7, 0, 0, 0.0);
+      dp_wfm_synth_state_t *b = dp_wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 0, 9, (int)sps3, 7, 0, 0, 0.0);
+      DP_REQUIRE (a && b);
+      DP_CHECK (dp_wfm_synth_set_dsss_cont (a, code, sf, cps3,
+                                            WFM_DSSS_DATA_BITS, bits3, 3)
+                == 0);
+      DP_CHECK (dp_wfm_synth_set_dsss_cont (b, code, sf, cps3,
+                                            WFM_DSSS_DATA_BITS, bits3, 3)
+                == 0);
+      DP_CHECK (dp_wfm_synth_set_rrc (a, taps, 5) == 0);
+      DP_CHECK (dp_wfm_synth_set_rrc (b, taps, 5) == 0);
+      float _Complex *blk = malloc (n * sizeof *blk);
+      DP_REQUIRE (blk);
+      /* in uneven blocks: the cursor is written back between calls, so a
+         stale block-local copy of it only shows across a call boundary */
+      for (size_t at = 0; at < n; at += 97)
+        dp_wfm_synth_steps (a, blk + at, n - at < 97 ? n - at : 97);
+      int same = 1, live = 0, silent = 1;
+      for (size_t i = 0; i < n; i++)
+        {
+          if (dp_wfm_synth_step (b) != blk[i])
+            same = 0;
+          if (i < ndata / 2 && blk[i] != 0.0f)
+            live = 1;
+          if (i >= ndata + 16 && blk[i] != 0.0f)
+            silent = 0;
+        }
+      DP_CHECK_MSG (same, "direct-FIR continuous dsss: step() == steps()");
+      DP_CHECK_MSG (live, "the payload is on the air before it ends");
+      DP_CHECK_MSG (silent, "a payload sent once ends in silence, through "
+                            "the direct FIR");
+      free (blk);
+      dp_wfm_synth_destroy (a);
+      dp_wfm_synth_destroy (b);
+    }
+
     /* No seam, at a NON-integer chips-per-symbol. On the data clock the frame
      * is nothing but a data pattern, so a windowed synth must equal, byte for
      * byte, a windowless synth whose payload spells the frame out -- W zeros

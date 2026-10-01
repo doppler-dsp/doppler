@@ -682,7 +682,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
 
       if (is_bits)
         {
-          /* User bit pattern: per-sample symbol latch from bits[], cycled,
+          /* User bit pattern: per-sample symbol latch from bits[], sent once,
            * with the *same* fused sym*carrier + noise as dp_wfm_synth_step()
            * so the two paths stay byte-identical. With an RRC FIR attached the
            * latched symbols become a symbol-rate impulse train shaped by the

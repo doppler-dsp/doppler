@@ -17,6 +17,7 @@ else — see doppler#1212.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -134,15 +135,15 @@ def test_the_failure_names_every_moved_value(tmp_path: Path) -> None:
     assert "CI_IMAGE_FINGERPRINT_2404" in r.stdout
 
 
-def test_the_failure_names_the_merge_queue_cost(tmp_path: Path) -> None:
-    """An unlanded repin ejects every queued PR; the gate says so.
+def test_the_failure_names_the_merge_cost(tmp_path: Path) -> None:
+    """An unlanded repin blocks every merge; the gate says so.
 
-    The nightly's step summary is this output (doppler#1737), so it is where
-    a reader learns why a pending repin is urgent.
+    The weekly run's step summary is this output (doppler#1737), so it is
+    where a reader learns why a pending repin is urgent.
     """
     r = _run(_pin(tmp_path, "a", src="9" * 64), _pin(tmp_path, "b"))
     assert r.returncode == 1
-    assert "EJECTS EVERY PR IN THE MERGE QUEUE" in r.stdout
+    assert "IT BLOCKS EVERY MERGE" in r.stdout
 
 
 #: The nightly's final step, as ci-image.yml must carry it.
@@ -264,3 +265,100 @@ def test_a_widened_trigger_is_caught(old: str, new: str, why: str) -> None:
     text = NIGHTLY.read_text(encoding="utf-8")
     assert old in text, old
     assert any(why in p for p in _trigger_problems(text.replace(old, new, 1)))
+
+
+DOCKERFILE = REPO / "deploy" / "docker" / "Dockerfile.ci"
+PIN = REPO / ".github" / "ci-images.env"
+
+
+def _reproducible_problems(
+    dockerfile: str, pin: str, workflow: str
+) -> list[str]:
+    """Why a rebuild of the CI image could drift off its pin (#1748).
+
+    The two inputs that move upstream -- the base image and the apt mirror
+    -- must be build arguments with NO default in Dockerfile.ci (a default
+    is a second, stale copy of the pin), their values must be pinned in
+    ``.github/ci-images.env``, the workflow must pass them, and only a
+    WEEKLY schedule may pick new ones.
+    """
+    out: list[str] = []
+    froms = re.findall(r"^FROM\s+(\S+)", dockerfile, re.M)
+    if froms != ["${BASE}"]:
+        out.append(f"Dockerfile.ci builds FROM {froms}, not the pinned BASE")
+    for arg in ("BASE", "APT_SNAPSHOT"):
+        if not re.search(rf"^ARG {arg}$", dockerfile, re.M):
+            out.append(f"ARG {arg} is missing or has a default")
+    lines = dockerfile.splitlines()
+    # Instructions only: the header comment names the snapshot host too.
+    code = [
+        (i, s) for i, s in enumerate(lines) if not s.lstrip().startswith("#")
+    ]
+    first_apt = next((i for i, s in code if "apt-get" in s), len(lines))
+    rewrite = next(
+        (i for i, s in code if "snapshot.ubuntu.com" in s), len(lines)
+    )
+    if rewrite > first_apt:
+        out.append("apt-get runs before the snapshot rewrite")
+    vals = dict(
+        ln.split("=", 1) for ln in pin.splitlines() if re.match(r"\w+=", ln)
+    )
+    if not re.fullmatch(r"\d{8}T\d{6}Z", vals.get("CI_APT_SNAPSHOT", "")):
+        out.append("pin has no CI_APT_SNAPSHOT timestamp")
+    for key in ("2204", "2404"):
+        ref = vals.get(f"CI_BASE_{key}", "")
+        if not re.fullmatch(r"ubuntu:\d\d\.\d\d@sha256:[0-9a-f]{64}", ref):
+            out.append(f"pin has no digest-pinned CI_BASE_{key}")
+    for arg in ('"BASE=$ref"', '"APT_SNAPSHOT=$snap"'):
+        if f"--build-arg {arg}" not in workflow:
+            out.append(f"ci-image.yml does not pass {arg}")
+    crons = re.findall(r"cron:\s*'([^']+)'", workflow)
+    if not crons or any(c.split()[4] == "*" for c in crons):
+        out.append(f"re-pin schedule is not weekly: {crons}")
+    return out
+
+
+def _sources() -> tuple[str, str, str]:
+    return (
+        DOCKERFILE.read_text(encoding="utf-8"),
+        PIN.read_text(encoding="utf-8"),
+        NIGHTLY.read_text(encoding="utf-8"),
+    )
+
+
+def test_the_image_rebuilds_from_its_pin() -> None:
+    assert _reproducible_problems(*_sources()) == []
+
+
+@pytest.mark.parametrize(
+    ("where", "old", "new", "why"),
+    [
+        (0, "ARG BASE\n", "ARG BASE=ubuntu:24.04\n", "ARG BASE"),
+        (0, "ARG APT_SNAPSHOT\n", "ARG APT_SNAPSHOT=x\n", "ARG APT_SNAPSHOT"),
+        (0, "FROM ${BASE}\n", "FROM ubuntu:24.04\n", "not the pinned BASE"),
+        (
+            0,
+            "ENV DEBIAN_FRONTEND=noninteractive\n",
+            "ENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update\n",
+            "before the snapshot",
+        ),
+        (1, "CI_APT_SNAPSHOT=", "CI_APT_SNAPSHOT_GONE=", "CI_APT_SNAPSHOT"),
+        (
+            1,
+            "CI_BASE_2204=ubuntu:22.04@",
+            "CI_BASE_2204=ubuntu:22.04#",
+            "2204",
+        ),
+        (2, '"APT_SNAPSHOT=$snap"', '"X=$snap"', "does not pass"),
+        (2, "'17 4 * * 1'", "'17 4 * * *'", "not weekly"),
+    ],
+)
+def test_an_unpinned_input_is_caught(
+    where: int, old: str, new: str, why: str
+) -> None:
+    """Sabotage, on copies: each way back to a drifting rebuild."""
+    srcs = list(_sources())
+    assert old in srcs[where], old
+    srcs[where] = srcs[where].replace(old, new, 1)
+    problems = _reproducible_problems(*srcs)
+    assert any(why in p for p in problems), problems

@@ -42,12 +42,67 @@
 #   make ci-image          # build both locally (doppler-ci:ubuntu-XX.04)
 #   make ci-image-check    # gate: is the pinned digest still current
 #   make ci-image-shell    # a shell in it, with the checkout bind-mounted
-ARG BASE=ubuntu:24.04
+#
+# REPRODUCIBLE, NOT JUST REBUILT (#1748). Two inputs used to move under an
+# unchanged file: the base TAG, which Canonical rebuilds, and the apt mirror,
+# which moves daily. Either one changed the package fingerprint, so every
+# rebuild -- the nightly, a branch push -- could owe a repin, and a pending
+# repin blocks every PR. On 2026-10-01 that was three repins in one day.
+#
+# Both are now build ARGUMENTS with no default, and their values live in the
+# pin file, .github/ci-images.env, beside the image digests they produced:
+#
+#   - BASE is a base image by DIGEST (CI_BASE_2204 / CI_BASE_2404);
+#   - APT_SNAPSHOT is a snapshot.ubuntu.com timestamp (CI_APT_SNAPSHOT):
+#     every apt source is rewritten to it before the first apt-get. The
+#     service serves arm64 from the same /ubuntu tree (ports is merged in),
+#     so one URL covers both platforms. It is https-only (http 301s) and a
+#     stock base has no CA bundle yet -- see the bootstrap apt-get below.
+#
+# ONE writer, many readers. Only the WEEKLY ci-image.yml run picks new values
+# (snapshot = now, bases = today's tag digests); every other build -- a
+# branch push, `make ci-image`, a manual dispatch -- reads the pinned ones
+# and so rebuilds the pinned image's package set exactly. A re-pin is still
+# the one file the weekly writes, and still lands by a human merging it.
+# What this does NOT pin: jbx itself (get-jb.sh always installs the latest);
+# it supplies the install mechanism, while bootstrap.toml supplies the list.
+ARG BASE
 FROM ${BASE}
 
 # Non-interactive apt for every layer below; a tzdata prompt in a build with
 # no tty hangs until the job ceiling rather than failing.
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Point apt at the snapshot, then PROVE it: the build fails if any active
+# source line names anything else, or if none was found at all (a rewrite
+# that matched nothing would otherwise leave the live mirror in place and
+# pass). Covers both layouts: 22.04's sources.list and 24.04's deb822
+# ubuntu.sources, and amd64's archive/security hosts as well as arm64's
+# ports host. An unset APT_SNAPSHOT is refused, never defaulted: a default
+# would be a second copy of the pin, and the stale one.
+ARG APT_SNAPSHOT
+RUN set -eu; \
+    case "$APT_SNAPSHOT" in \
+      [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;; \
+      *) echo "APT_SNAPSHOT='$APT_SNAPSHOT' is not YYYYMMDDTHHMMSSZ" >&2; \
+         exit 1 ;; \
+    esac; \
+    snap="https://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT}/"; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list \
+             /etc/apt/sources.list.d/*.sources; do \
+        [ -f "$f" ] || continue; \
+        sed -i -E \
+          "s#https?://(archive|security|ports)\.ubuntu\.com/ubuntu(-ports)?/?#${snap}#g" \
+          "$f"; \
+    done; \
+    srcs="$(cat /etc/apt/sources.list /etc/apt/sources.list.d/*.list \
+                /etc/apt/sources.list.d/*.sources 2>/dev/null \
+            | grep -E '^(deb |URIs:)' || true)"; \
+    [ -n "$srcs" ] || { echo "no apt sources found to pin" >&2; exit 1; }; \
+    if printf '%s\n' "$srcs" | grep -vF "$snap"; then \
+        echo "^ apt sources not on snapshot $APT_SNAPSHOT" >&2; exit 1; \
+    fi; \
+    echo "apt pinned to snapshot $APT_SNAPSHOT"
 
 # The bootstrap for the bootstrap. jbx installs with `sudo apt-get`, and a
 # stock ubuntu image has neither sudo nor ca-certificates, so its curl cannot
@@ -56,8 +111,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 # has no history — and `coverage` needs `fetch-depth: 0` to diff against
 # origin/main, so that fallback would break the patch gate rather than the
 # checkout, several steps later.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
+#
+# This is the ONE apt-get that runs without TLS peer verification, and only
+# because it is the one that installs the CA bundle: the snapshot is
+# https-only and a stock base has no certificates. Integrity does not rest
+# on TLS here -- apt verifies every InRelease against the archive keyring
+# the base image ships, which is why Ubuntu's own default sources are plain
+# http. Every apt-get after this one (jbx's included) verifies TLS normally.
+RUN apt-get -o Acquire::https::Verify-Peer=false update \
+ && apt-get -o Acquire::https::Verify-Peer=false \
+        install -y --no-install-recommends \
         ca-certificates curl git make sudo xz-utils \
  && rm -rf /var/lib/apt/lists/*
 

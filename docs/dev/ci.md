@@ -111,7 +111,7 @@ published.
     built in `manylinux_2_28`. A modern base cannot answer a floor question,
     and the CI image does not try to.
 
-### Pinning, and the nightly refresh
+### Pinning, and the weekly re-pin
 
 Jobs pin the image **by digest**, so an image rebuild cannot change what an
 in-flight PR was tested against.
@@ -134,13 +134,25 @@ A whole job for two `echo`s is the price of `container:` being resolved
 value must arrive from a job that already finished. The jobs still fan out in
 parallel behind it, so it costs one hop, not one per job.
 
-`ci-image.yml` rebuilds nightly, compares the *package fingerprint* baked into
-the image, and publishes and pushes the refreshed pin to `ci/repin-image` only
-when the content actually moved. Rebuilding nightly is not the same as
-consuming a nightly image: a run stays reproducible, while drift still
-surfaces within a day.
+**The image re-pins weekly, and only weekly**
+([#1748](https://github.com/doppler-dsp/doppler/issues/1748)). Two inputs move
+upstream under an unchanged Dockerfile: the base image tag and the apt mirror.
+Both are build arguments of `Dockerfile.ci` with no default, and both are
+pinned in the same file as the digests they produced: `CI_APT_SNAPSHOT` (a
+`snapshot.ubuntu.com` timestamp that every apt source is rewritten to) and
+`CI_BASE_2204`/`CI_BASE_2404` (the bases by digest).
 
-**The nightly pushes a branch; it does not open a PR.** It used to try, and
+The Monday `ci-image.yml` run is the only build that picks new values: the
+snapshot becomes now, and the bases become today's tag digests. A dispatch
+with `refresh` does the same off-cycle. It compares the *package fingerprint*
+baked into the image and pushes the refreshed pin to `ci/repin-image` only when
+the content moved. Every other build (a branch push, a plain dispatch,
+`make ci-image`) reads the pinned values, so it rebuilds the pinned package
+set exactly and owes no re-pin. Before this, the run rebuilt nightly and on
+every push to `main` against the live mirror, and on 2026-10-01 that meant
+three re-pins in one day, each one blocking every merge.
+
+**The weekly run pushes a branch; it does not open a PR.** It used to try, and
 could never succeed — the `doppler-dsp` org forbids GitHub Actions from
 creating pull requests, so the step force-pushed the branch and then died on
 `gh pr create`. That left the workflow red on every `main` run for three
@@ -165,7 +177,7 @@ lands, the tree's fingerprints equal the branch's and the gate goes green on
 its own.
 
 This is the half `ci-image-check` structurally cannot cover. That one is
-offline, so it compares *our* inputs; only the nightly learns that *upstream*
+offline, so it compares *our* inputs; only the weekly run learns that *upstream*
 moved under an unchanged Dockerfile. Blocking is the point: an unmerged repin
 means every Linux job is running in an image the repo no longer describes.
 

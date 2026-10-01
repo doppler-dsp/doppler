@@ -9,14 +9,14 @@ name: CI image
 # critical path, which is what gh-885 is about. Here it is off it: a failed
 # build publishes nothing and CI keeps using the last pinned digest.
 #
-# WHAT "REFRESH NIGHTLY" MEANS HERE. Rebuilding nightly is not the same as
-# USING a nightly image: the pin in .github/ci-images.env is what CI reads,
-# and it only moves when a human merges the bump PR this opens. So the
-# nightly asks a question -- "have the upstream packages moved?" -- and
-# answers it by comparing the package fingerprint baked into the image. When
-# nothing moved it publishes nothing and opens nothing. That keeps a run
-# reproducible while still noticing, once a day, that the environment the
-# repo describes is no longer the environment it pinned.
+# WHAT "RE-PIN WEEKLY" MEANS HERE. The pin in .github/ci-images.env is what
+# CI reads, and it only moves when a human merges the re-pin this pushes. The
+# weekly run asks "have the upstream packages moved?" against a NEW apt
+# snapshot and today's base digests, and answers it by comparing the package
+# fingerprint baked into the image. Every other run builds from the PINNED
+# snapshot and digests, so it cannot drift: before #1748 the run asked that
+# question nightly and on every push to main, against a live mirror, and
+# 2026-10-01 owed three re-pins in one day.
 #
 # ONE JOB, NOT A MATRIX, and that is deliberate. Both images are built here in
 # sequence because the pin is ONE file naming BOTH digests: a matrix would
@@ -58,10 +58,20 @@ on:
       - bootstrap.toml
       - .github/workflows/ci-image.yml
   schedule:
-    # 04:17 UTC — off the hour, because everyone schedules on the hour and
-    # the runner queue at :00 is the worst time to ask for a machine.
-    - cron: '17 4 * * *'
+    # WEEKLY, Monday 04:17 UTC -- off the hour, because everyone schedules on
+    # the hour and the runner queue at :00 is the worst time to ask for a
+    # machine. This is the ONLY run that picks a new apt snapshot and new
+    # base digests (#1748); every other build reads the pinned ones, so the
+    # image moves once a week, by one re-pin, and never in between.
+    - cron: '17 4 * * 1'
   workflow_dispatch:
+    inputs:
+      refresh:
+        description: >-
+          Pick a new apt snapshot and base digests now, as the weekly run
+          does (an off-cycle re-pin). Off: rebuild the pinned inputs.
+        type: boolean
+        default: false
 
 concurrency:
   # One build per ref. A push that lands while a build is running makes the
@@ -113,16 +123,46 @@ jobs:
       - name: Build, smoke, and push both bases
         id: publish
         shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REFRESH: ${{ inputs.refresh }}
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/doppler-ci"
           echo "image=$image" >> "$GITHUB_OUTPUT"
+
+          # The two inputs that move upstream (#1748): the apt snapshot and
+          # each base image's digest. The weekly run (or a dispatch with
+          # `refresh`) picks new ones; every other build reads the pin, so
+          # a branch rebuild reproduces the pinned package set and owes no
+          # re-pin. A pin with no value yet (the first build after this
+          # change) is the one other case that picks fresh.
+          pin=.github/ci-images.env
+          pinned() { grep "^$1=" "$pin" 2>/dev/null | cut -d= -f2 || true; }
+          refresh=0
+          if [ "$EVENT" = schedule ] || [ "$REFRESH" = true ]; then
+            refresh=1
+          fi
+          snap="$(pinned CI_APT_SNAPSHOT)"
+          if [ "$refresh" = 1 ] || [ -z "$snap" ]; then
+            snap="$(date -u +%Y%m%dT%H%M%SZ)"
+          fi
+          echo "apt_snapshot=$snap" >> "$GITHUB_OUTPUT"
+          echo "apt snapshot: $snap (refresh=$refresh)"
 
           for base in ubuntu:22.04 ubuntu:24.04; do
             slug="${base/:/-}"                        # ubuntu:24.04 -> ubuntu-24.04
             key="$(echo "$slug" | tr -dc '0-9')"      # -> 2404
             tag="$image:$slug"
             echo "::group::$base"
+
+            ref="$(pinned "CI_BASE_$key")"
+            if [ "$refresh" = 1 ] || [ -z "$ref" ]; then
+              ref="$base@$(docker buildx imagetools inspect "$base" \
+                             --format '{{json .Manifest}}' | jq -r .digest)"
+            fi
+            echo "base_$key=$ref" >> "$GITHUB_OUTPUT"
+            echo "base: $ref"
 
             # --provenance/--sbom off on purpose: the index this produces
             # names exactly the two platform manifests below and nothing
@@ -137,7 +177,8 @@ jobs:
             # pushing -- both happen below, against the pushed tag instead.
             meta="/tmp/meta-$key.json"
             docker buildx build -f deploy/docker/Dockerfile.ci \
-                --build-arg "BASE=$base" \
+                --build-arg "BASE=$ref" \
+                --build-arg "APT_SNAPSHOT=$snap" \
                 --platform linux/amd64,linux/arm64 \
                 --provenance=false --sbom=false \
                 --metadata-file "$meta" \
@@ -170,7 +211,7 @@ jobs:
             # Emulated (arm64): a full `make build` C compile under QEMU
             # would multiply this already-sequential, two-base workflow's
             # runtime for a leg nobody is waiting on -- doubly so on the
-            # nightly schedule. This still catches "the arm64 layer is
+            # weekly schedule. This still catches "the arm64 layer is
             # fundamentally broken" (every toolchain binary actually
             # executes for that platform) without paying for an emulated
             # compile on every run.
@@ -199,6 +240,9 @@ jobs:
           D2404: ${{ steps.publish.outputs.digest_2404 }}
           F2204: ${{ steps.publish.outputs.fingerprint_2204 }}
           F2404: ${{ steps.publish.outputs.fingerprint_2404 }}
+          SNAP: ${{ steps.publish.outputs.apt_snapshot }}
+          B2204: ${{ steps.publish.outputs.base_2204 }}
+          B2404: ${{ steps.publish.outputs.base_2404 }}
         run: |
           set -euo pipefail
           # ONE definition of this hash, in the Makefile, called from here.
@@ -219,11 +263,17 @@ jobs:
           # pinned by DIGEST so a run is reproducible: an image rebuild cannot
           # change what an in-flight PR was tested against. \`make
           # ci-image-check\` fails when bootstrap.toml or Dockerfile.ci move
-          # without a repin. A human lands each repin, not the nightly build:
+          # without a repin. A human lands each repin, not the weekly build:
           # it pushes ci/repin-image and stops -- why is the "Push the repin
           # branch" comment in .github/workflows/ci-image.yml. Until a repin
-          # lands, ci-image-repin-check is red on every PR, and so an unlanded
-          # repin ejects every PR in the merge queue.
+          # lands, ci-image-repin-check is red on every PR.
+          #
+          # CI_APT_SNAPSHOT and CI_BASE_* are what the images were built
+          # FROM, and every non-weekly build reads them back (#1748), so a
+          # rebuild reproduces this package set instead of drifting off it.
+          CI_APT_SNAPSHOT=$SNAP
+          CI_BASE_2204=$B2204
+          CI_BASE_2404=$B2404
           CI_IMAGE_2204=$IMAGE@$D2204
           CI_IMAGE_2404=$IMAGE@$D2404
           CI_IMAGE_FINGERPRINT_2204=$F2204
@@ -358,7 +408,7 @@ jobs:
           fi
 
       # LAST, and the reason this run can end red with nothing broken. A
-      # pending repin used to leave the nightly GREEN: the summary above said
+      # pending repin used to leave the scheduled run GREEN: the summary above said
       # so, but a green run notifies nobody, and since the merge queue went
       # live an unlanded repin ejects every queued PR -- #1732 was ejected
       # that way, an hour before anyone traced it (doppler#1737). So the run

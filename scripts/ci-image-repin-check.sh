@@ -122,7 +122,7 @@ else
     trap "rm -f '$pending'" EXIT
     if ! git show "FETCH_HEAD:$PIN" > "$pending" 2>/dev/null; then
         echo "ci-image-repin-check: $BRANCH carries no $PIN — FAIL"
-        echo "  The nightly writes that file and nothing else on that branch;"
+        echo "  The weekly re-pin writes that file and nothing else on that branch;"
         echo "  a branch without it was not written by ci-image.yml."
         exit 1
     fi
@@ -150,7 +150,7 @@ if [ "$rc" -eq 0 ]; then
 fi
 
 echo ""
-echo "  The nightly rebuilt the CI toolchain image and got a different"
+echo "  The weekly re-pin rebuilt the CI toolchain image and got a different"
 echo "  package set, so the image CI pins is no longer the environment"
 echo "  bootstrap.toml describes. The refreshed pin is already committed"
 echo "  on '$BRANCH'; it just needs to land."
@@ -158,11 +158,11 @@ echo ""
 echo "    gh pr create --head $BRANCH --fill"
 echo ""
 echo "  Merging that turns this gate green. Until then it is red on every"
-echo "  PR, so it EJECTS EVERY PR IN THE MERGE QUEUE, and the nightly"
-echo "  ci-image.yml run that pushed the branch ends red too (doppler#1737)."
+echo "  PR, so IT BLOCKS EVERY MERGE, and the weekly ci-image.yml run that"
+echo "  pushed the branch ends red too (doppler#1737)."
 echo ""
 echo "  This is deliberately BLOCKING:"
 echo "  an unmerged repin means every Linux job is running in an image the"
 echo "  repo no longer describes, and the previous delivery mechanism (a PR"
-echo "  the nightly opened) could not run at all — doppler#1212."
+echo "  the scheduled run opened) could not run at all — doppler#1212."
 exit 1

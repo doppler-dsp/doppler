@@ -41,7 +41,18 @@ on:
     # without this every release tag rebuilt and published the image -- 19.4
     # min on v0.51.0 for a tree that could not have changed it.
     # scripts/check_workflow_tag_triggers.py holds the rule.
-    branches: ['**']
+    #
+    # Feature branches only: main and the merge queue are ignored (#1748).
+    # A branch that touches these paths builds the image and carries its own
+    # pin (`make ci-image-check` refuses it otherwise), so rebuilding the
+    # same source on main after the merge only re-resolves apt against a
+    # mirror that has moved since -- a new fingerprint, and a repin owed for
+    # nothing. On 2026-10-01 that turned #1736 into #1742 and #1743 into
+    # #1747, and each pending repin ejected the whole queue. A
+    # `gh-readonly-queue/*` ref is a temporary merge candidate; publishing
+    # an image for it is pure cost. Main rebuilds from `schedule` and
+    # `workflow_dispatch` alone, which is where the repin steps below run.
+    branches-ignore: [main, 'gh-readonly-queue/**']
     paths:
       - deploy/docker/Dockerfile.ci
       - bootstrap.toml

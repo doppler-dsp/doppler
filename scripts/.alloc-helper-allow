@@ -110,7 +110,7 @@ native/src/timing/timing_core.c 1
 native/src/tonemeas/tonemeas_core.c 4
 native/src/uq15_to_f32/uq15_to_f32_core.c 1
 native/src/viterbi/viterbi_core.c 9
-native/src/wfm/wfm_compose.c 9
+native/src/wfm/wfm_compose.c 7
 native/src/wfm/wfm_frame.c 2
 native/src/wfm/wfm_json.c 5
 native/src/wfm/wfm_keywords.c 1

@@ -61,8 +61,10 @@ FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
   size_t         preamble_len = 0;
   if (preamble_obj && preamble_obj != Py_None)
     {
-      preamble_arr = jm_array_arg (preamble_obj, NPY_UINT8,
-                                   NPY_ARRAY_C_CONTIGUOUS, "preamble");
+      preamble_arr = jm_array_arg_hint (
+          preamble_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "preamble",
+          "a bit field takes bits (a uint8 array); build them from text with "
+          "field_bits()");
       if (!preamble_arr)
         {
           return -1;
@@ -73,8 +75,10 @@ FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
   size_t         sync_len = 0;
   if (sync_obj && sync_obj != Py_None)
     {
-      sync_arr
-          = jm_array_arg (sync_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sync");
+      sync_arr = jm_array_arg_hint (sync_obj, NPY_UINT8,
+                                    NPY_ARRAY_C_CONTIGUOUS, "sync",
+                                    "a bit field takes bits (a uint8 array); "
+                                    "build them from text with field_bits()");
       if (!sync_arr)
         {
           Py_XDECREF (preamble_arr);
@@ -86,8 +90,10 @@ FrameDescObj_init (FrameDescObject *self, PyObject *args, PyObject *kwds)
   size_t         payload_len = 0;
   if (payload_obj && payload_obj != Py_None)
     {
-      payload_arr = jm_array_arg (payload_obj, NPY_UINT8,
-                                  NPY_ARRAY_C_CONTIGUOUS, "payload");
+      payload_arr = jm_array_arg_hint (
+          payload_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "payload",
+          "a bit field takes bits (a uint8 array); build them from text with "
+          "field_bits()");
       if (!payload_arr)
         {
           Py_XDECREF (preamble_arr);
@@ -253,8 +259,10 @@ FrameDescObj_crc_ok (FrameDescObject *self, PyObject *args, PyObject *kwds)
   PyObject    *rx_bits_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rx_bits_obj))
     return NULL;
-  PyArrayObject *rx_bits_arr = jm_array_arg (
-      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits");
+  PyArrayObject *rx_bits_arr = jm_array_arg_hint (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
+      "a bit field takes bits (a uint8 array); build them from text with "
+      "field_bits()");
   if (!rx_bits_arr)
     {
       return NULL;
@@ -281,7 +289,9 @@ FrameDescObj_add_field (FrameDescObject *self, PyObject *args, PyObject *kwds)
                                     &bits_obj))
     return NULL;
   PyArrayObject *bits_arr
-      = jm_array_arg (bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits");
+      = jm_array_arg_hint (bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits",
+                           "a bit field takes bits (a uint8 array); build "
+                           "them from text with field_bits()");
   if (!bits_arr)
     {
       return NULL;
@@ -502,8 +512,10 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &rx_bits_obj,
                                     &out_obj))
     return NULL;
-  rx_bits_arr = jm_array_arg (rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS,
-                              "rx_bits");
+  rx_bits_arr = jm_array_arg_hint (rx_bits_obj, NPY_UINT8,
+                                   NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
+                                   "a bit field takes bits (a uint8 array); "
+                                   "build them from text with field_bits()");
   if (!rx_bits_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -640,8 +652,10 @@ FrameDescObj_check (FrameDescObject *self, PyObject *args, PyObject *kwds)
   PyObject    *rx_bits_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rx_bits_obj))
     return NULL;
-  PyArrayObject *rx_bits_arr = jm_array_arg (
-      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits");
+  PyArrayObject *rx_bits_arr = jm_array_arg_hint (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
+      "a bit field takes bits (a uint8 array); build them from text with "
+      "field_bits()");
   if (!rx_bits_arr)
     {
       return NULL;

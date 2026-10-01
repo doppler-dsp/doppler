@@ -13,17 +13,28 @@ This matrix is the gate, in the shape of ``test_out_param_dtype.py``: one
 entry per array parameter, each asserting both halves, so it cannot pass by
 refusing everything:
 
-1. **A ``str`` raises ``TypeError`` naming the parameter**, never a number.
+1. **A ``str`` raises ``TypeError`` naming the parameter**, never a number,
+   and **names ``field_bits()``**, the door text takes (doppler#1708). Each
+   parameter declares just-makeit#1756's ``str_hint`` in
+   ``objects/frame.toml``, which jm appends to the refusal.
 2. **The bits themselves are taken**: the same call with a ``uint8`` array
    (and with ``bytes``, which the stub promises) does not raise.
+
+The hint is the sentence a composer source's bit field refuses text with
+(``dp_wfm_source_bits_refuse_text``). A TOML string cannot point at a C
+string, so the manifest holds a copy. The test does not restate that
+sentence: it reads it from the composer's own refusal at runtime and
+requires each binding's message to end with it, so the copies cannot drift
+apart.
 
 Examples
 --------
 >>> from doppler.wfm import Frame
->>> Frame(sync="0101")
+>>> Frame(sync="0101")  # doctest: +NORMALIZE_WHITESPACE
 Traceback (most recent call last):
     ...
-TypeError: sync must be an array of numbers, not str
+TypeError: sync must be an array of numbers, not str: a bit field takes
+bits (a uint8 array); build them from text with field_bits()
 """
 
 from __future__ import annotations
@@ -89,12 +100,38 @@ def _good(label: str, cls: type) -> np.ndarray:
     return SYNC
 
 
+def _composer_reason() -> str:
+    """The reason a composer source's bit field refuses text: the C
+    sentence (``dp_wfm_source_bits_refuse_text``) each ``str_hint`` copies.
+    """
+    from doppler.wfm import Synth
+
+    with pytest.raises(ValueError) as exc:
+        Synth(type="dsss", sync="0101")
+    return str(exc.value)
+
+
 @pytest.mark.parametrize(
     ("label", "param", "call"), CASES, ids=[c[0] for c in CASES]
 )
 def test_a_str_is_refused_by_name(label, param, call):
     with pytest.raises(TypeError, match=rf"^{param} must be an array"):
         call("0101")
+
+
+@pytest.mark.parametrize(
+    ("label", "param", "call"), CASES, ids=[c[0] for c in CASES]
+)
+def test_the_refusal_names_field_bits(label, param, call):
+    """doppler#1708: the refusal says where text goes, in the composer's
+    words, so a str meets one reason whichever object it reaches."""
+    reason = _composer_reason()
+    assert "field_bits()" in reason
+    with pytest.raises(TypeError) as exc:
+        call("0101")
+    assert str(exc.value) == (
+        f"{param} must be an array of numbers, not str: {reason}"
+    )
 
 
 @pytest.mark.parametrize(

@@ -51,6 +51,45 @@ test_pace_waits (void)
   return 0;
 }
 
+/* A rate change keeps the schedule (doppler#1733): the next sample is due
+   exactly when it was, the samples after it follow the NEW rate, and the
+   same rate is a no-op. */
+static int
+test_set_rate_keeps_the_schedule (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0);
+  c.n          = 500; /* 0.5 s at 1 kHz */
+  uint64_t due = dp_sample_clock_stamp (&c);
+  dp_sample_clock_set_rate (&c, 1000.0);
+  DP_CHECK_MSG (c.n == 500, "the same rate changes nothing");
+  dp_sample_clock_set_rate (&c, 4000.0);
+  DP_CHECK_MSG (dp_sample_clock_stamp (&c) == due,
+                "the next sample is due when it was");
+  c.n = 2000; /* 2000 samples at 4 kHz = 0.5 s more */
+  DP_CHECK_MSG (dp_sample_clock_stamp (&c) - due == 500000000ULL,
+                "and what follows is at the new rate");
+  return 0;
+}
+
+/* Pacing across a change takes the sum of each run's own time: 5000 at
+   100 kS/s (0.05 s) then 5000 at 25 kS/s (0.2 s) is 0.25 s, where pacing
+   it all at the first rate would take 0.1 s. */
+static int
+test_pace_across_a_rate_change (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 100000.0, 0);
+  uint64_t start = dp_mono_ns ();
+  dp_sample_clock_pace (&c, 5000);
+  dp_sample_clock_set_rate (&c, 25000.0);
+  dp_sample_clock_pace (&c, 5000);
+  double elapsed = (double)(dp_mono_ns () - start) / 1e9;
+  DP_CHECK_MSG (elapsed > 0.23, "each run paced at its own rate");
+  DP_CHECK_MSG (elapsed < 0.7, "and not absurdly slow");
+  return 0;
+}
+
 /* An impossibly high rate makes every deadline already past → underruns,
    and the worst lateness is recorded. */
 static int
@@ -252,6 +291,10 @@ main (void)
   if (test_stamp_exact ())
     return 1;
   if (test_pace_waits ())
+    return 1;
+  if (test_set_rate_keeps_the_schedule ())
+    return 1;
+  if (test_pace_across_a_rate_change ())
     return 1;
   if (test_underrun_counted ())
     return 1;

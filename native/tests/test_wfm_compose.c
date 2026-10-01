@@ -1757,6 +1757,66 @@ test_a_scene_data_file_is_relative_to_the_scene (void)
   return 0;
 }
 
+/* doppler#1733: a scene whose segments differ in fs, read by rate. Every
+   block is at one rate and says which; together the blocks are the same
+   samples, byte for byte, as dp_wfm_compose_execute()'s; a run of
+   segments that SHARE a rate (here a repeated one, then the loop back to
+   segment 0 with --repeat) is never cut; and dp_wfm_scene_fs() answers 0.0
+   for the scene and the shared rate for one that agrees. */
+static int
+test_a_mixed_rate_scene_reads_one_rate_a_block (void)
+{
+  wfm_source_t  src = { .type = WFM_SYNTH_TONE, .freq = 1e3, .snr = 100.0 };
+  wfm_segment_t segs[3] = {
+    { .sources     = &src,
+      .n_sources   = 1,
+      .fs          = 6e6,
+      .num_samples = 300,
+      .repeats     = 2,
+      .off_samples = 7 },
+    { .sources = &src, .n_sources = 1, .fs = 2e6, .num_samples = 200 },
+    { .sources = &src, .n_sources = 1, .fs = 2e6, .num_samples = 100 },
+  };
+  DP_CHECK_MSG (dp_wfm_scene_fs (segs, 3) == 0.0, "a mixed scene: no fs");
+  DP_CHECK_MSG (dp_wfm_scene_fs (segs + 1, 2) == 2e6, "an agreeing one: it");
+
+  /* two passes (repeat): 2 x 307 at 6e6, then 300 at 2e6, then again */
+  const size_t    n = 2 * (2 * 307 + 300);
+  float _Complex *a = malloc (n * sizeof *a), *b = malloc (n * sizeof *b);
+  dp_wfm_compose_state_t *ca = dp_wfm_compose_create (segs, 3, 1, 0);
+  dp_wfm_compose_state_t *cb = dp_wfm_compose_create (segs, 3, 1, 0);
+  DP_REQUIRE (a && b && ca && cb);
+  DP_CHECK (dp_wfm_compose_execute (ca, a, n) == n);
+
+  static const struct
+  {
+    size_t n;
+    double fs;
+  } want[]   = { { 614, 6e6 }, { 300, 2e6 }, { 614, 6e6 }, { 300, 2e6 } };
+  size_t got = 0, k = 0;
+  int    blocks_ok = 1;
+  while (got < n)
+    {
+      double fs = -1.0;
+      size_t m  = dp_wfm_compose_execute_rate (cb, b + got, n - got, &fs);
+      if (m == 0 || k >= 4 || m != want[k].n || fs != want[k].fs)
+        blocks_ok = 0;
+      if (m == 0)
+        break;
+      got += m;
+      k++;
+    }
+  DP_CHECK_MSG (blocks_ok && k == 4,
+                "one rate a block, cut only where the rate changes");
+  DP_CHECK_MSG (got == n && memcmp (a, b, n * sizeof *a) == 0,
+                "the same samples as execute(), byte for byte");
+  free (a);
+  free (b);
+  dp_wfm_compose_destroy (ca);
+  dp_wfm_compose_destroy (cb);
+  return 0;
+}
+
 /* The early end, consumed a few samples at a time: the run stops on the
    frame boundary however the reads are chunked, and with an RRC shaper --
    which pulls symbols ahead of the output -- it still stops there. */
@@ -4972,6 +5032,8 @@ main (void)
   if (test_every_data_refusal_names_its_fix ())
     return 1;
   if (test_a_scene_data_file_is_relative_to_the_scene ())
+    return 1;
+  if (test_a_mixed_rate_scene_reads_one_rate_a_block ())
     return 1;
   if (test_a_stream_ends_on_its_frame_however_it_is_read ())
     return 1;

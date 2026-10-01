@@ -300,5 +300,33 @@ if(NOT rc EQUAL 0)
 endif()
 expect_size(wg_rt_seg.cf32 57344)
 
+# 21. doppler#1733: a scene whose segments differ in fs is legal, and each
+#     output either says so honestly or refuses. BLUE states one rate (one
+#     xdelta), so attached and detached both refuse, naming the two rates;
+#     SigMF leaves core:sample_rate out; raw states none and is written.
+file(WRITE wg_mixed.json "{\"segments\": [
+  {\"fs\": 6000000.0, \"num_samples\": 600,
+   \"sum\": [{\"type\": \"tone\", \"freq\": 1000.0}]},
+  {\"fs\": 2000000.0, \"num_samples\": 400,
+   \"sum\": [{\"type\": \"tone\", \"freq\": 1000.0}]}]}
+")
+foreach(_detached "" "--detached")
+    execute_process(COMMAND ${EXE} --from-file wg_mixed.json
+                    --file-type blue ${_detached} -o wg_mixed_blue
+                    RESULT_VARIABLE rc ERROR_VARIABLE err)
+    if(NOT rc EQUAL 2 OR NOT err MATCHES "different fs \\(6e\\+06, 2e\\+06\\)")
+        message(FATAL_ERROR "a mixed-fs scene as BLUE ${_detached}: exit "
+                            "${rc}, '${err}' -- expected 2, naming both")
+    endif()
+endforeach()
+run(--from-file wg_mixed.json --file-type sigmf -o wg_mixed)
+file(READ wg_mixed.sigmf-meta _meta)
+string(FIND "${_meta}" "core:sample_rate" _at)
+if(NOT _at EQUAL -1)
+    message(FATAL_ERROR "a mixed-fs scene's SigMF states a sample rate")
+endif()
+run(--from-file wg_mixed.json -o wg_mixed.cf32)
+expect_size(wg_mixed.cf32 8000)
+
 sweep_scratch()
 message(STATUS "wfmgen_cli: OK")

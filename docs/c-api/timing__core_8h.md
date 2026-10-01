@@ -66,6 +66,7 @@
 |  double | [**dp\_sample\_clock\_pace**](#function-dp_sample_clock_pace) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, size\_t count) <br> |
 |  void | [**dp\_sample\_clock\_reset**](#function-dp_sample_clock_reset) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  void | [**dp\_sample\_clock\_resync**](#function-dp_sample_clock_resync) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
+|  void | [**dp\_sample\_clock\_set\_rate**](#function-dp_sample_clock_set_rate) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, double fs) <br> |
 |  uint64\_t | [**dp\_sample\_clock\_stamp**](#function-dp_sample_clock_stamp) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  uint64\_t | [**dp\_sample\_clock\_stamp\_at**](#function-dp_sample_clock_stamp_at) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, uint64\_t n) <br> |
 |  void | [**dp\_sample\_clock\_stats**](#function-dp_sample_clock_stats) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* out) <br> |
@@ -251,6 +252,39 @@ void dp_sample_clock_resync (
 
 
 Re-anchor the pacing epoch to "now" without clearing `n` or counters, dropping any accumulated lateness so future blocks pace forward from the present. (pace() does this automatically when `resync` is set.) 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_sample\_clock\_set\_rate 
+
+```C++
+void dp_sample_clock_set_rate (
+    dp_sample_clock_t * c,
+    double fs
+) 
+```
+
+
+
+Change `c's` rate to `fs` from the next sample on, keeping the schedule: the samples already paced keep their times, and the next one is due exactly when it was. The epochs move forward to the current position (`n/fs_old`) and `n` restarts at 0 at the new rate, so pace() and stamp() continue seamlessly; stamp\_at() of a sample BEFORE the change no longer applies. A rate equal to the current one changes nothing. This is how one clock paces a scene whose segments run at different rates (doppler#1733).
+
+
+
+```C++
+dp_sample_clock_t c;
+dp_sample_clock_init (&c, 1e3, 0);
+c.n = 500;                         // 0.5 s in, at 1 kHz
+uint64_t due = dp_sample_clock_stamp (&c);
+dp_sample_clock_set_rate (&c, 2e3);
+int ok = c.n == 0 && c.fs == 2e3 && dp_sample_clock_stamp (&c) == due;
+return ok ? 0 : 1;
+```
+ 
 
 
         

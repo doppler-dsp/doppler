@@ -227,6 +227,22 @@ dp_sample_clock_pace (dp_sample_clock_t *c, size_t count)
   return slack;
 }
 
+void
+dp_sample_clock_set_rate (dp_sample_clock_t *c, double fs)
+{
+  if (fs == c->fs)
+    return;
+  /* Re-anchor at the current position: both epochs advance by the time
+     the paced samples took at the OLD rate, and the count restarts, so the
+     next deadline and stamp are unchanged and every later one follows the
+     new rate. */
+  const uint64_t done = offset_ns (c->n, c->fs);
+  c->epoch_mono_ns += done;
+  c->epoch_real_ns += done;
+  c->n  = 0;
+  c->fs = fs;
+}
+
 uint64_t
 dp_sample_clock_stamp_at (const dp_sample_clock_t *c, uint64_t n)
 {

@@ -1226,6 +1226,80 @@ int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
 size_t dp_wfm_compose_execute(
     dp_wfm_compose_state_t *state, float _Complex *out, size_t max);
 
+/**
+ * @brief Emit up to `max` samples, all at ONE sample rate, and say which.
+ *
+ * dp_wfm_compose_execute() for an output that states a rate per block: it
+ * stops early where the next segment's `fs` differs from the samples
+ * already written, so every block it returns has one rate. A scene whose
+ * segments share an `fs` never stops early, and its samples are the same,
+ * byte for byte, as dp_wfm_compose_execute()'s. A short return therefore
+ * does NOT mean the scene finished; 0 does.
+ *
+ * @code
+ * wfm_source_t  src     = { .type = WFM_SYNTH_TONE, .snr = 100.0 };
+ * wfm_segment_t segs[2] = {
+ *   { .sources = &src, .n_sources = 1, .fs = 6e6, .num_samples = 8 },
+ *   { .sources = &src, .n_sources = 1, .fs = 2e6, .num_samples = 8 },
+ * };
+ * dp_wfm_compose_state_t *c = dp_wfm_compose_create (segs, 2, 0, 0);
+ * float _Complex buf[64];
+ * double         fs = 0.0;
+ * size_t a = dp_wfm_compose_execute_rate (c, buf, 64, &fs); // 8 at 6e6
+ * int    ok = a == 8 && fs == 6e6;
+ * size_t b = dp_wfm_compose_execute_rate (c, buf, 64, &fs); // 8 at 2e6
+ * ok = ok && b == 8 && fs == 2e6;
+ * ok = ok && dp_wfm_compose_execute_rate (c, buf, 64, &fs) == 0;
+ * dp_wfm_compose_destroy (c);
+ * return ok ? 0 : 1;
+ * @endcode
+ *
+ * @param state the composer.
+ * @param out   destination, `max` samples.
+ * @param max   capacity of @p out.
+ * @param fs    receives the rate of the samples written (left untouched
+ *              when none are).
+ * @return samples written; 0 when the scene has finished.
+ */
+size_t dp_wfm_compose_execute_rate(dp_wfm_compose_state_t *state,
+                                   float _Complex *out, size_t max,
+                                   double *fs);
+
+/**
+ * @brief The ONE answer to "what is this stream's sample rate": the `fs`
+ *        every segment shares, or 0.0 when they differ.
+ *
+ * `fs` is per segment, and a scene whose segments differ is legal: no
+ * single rate is true of it. 0.0 is the library's "not stated" (a Writer
+ * opened at `fs=0.0`, a SigMF document without `core:sample_rate`), so an
+ * output asks this and either states the rate it returns or, given 0.0,
+ * says nothing -- or refuses, if its format cannot say nothing (a BLUE
+ * header has one `xdelta`). Every output asks here rather than reading
+ * `segs[0].fs`, which is a rate only when they agree (doppler#1733).
+ *
+ * @code
+ * wfm_segment_t s[2] = { { .fs = 6e6 }, { .fs = 6e6 } };
+ * int ok = dp_wfm_scene_fs (s, 2) == 6e6;
+ * s[1].fs = 2e6;
+ * ok = ok && dp_wfm_scene_fs (s, 2) == 0.0 && dp_wfm_scene_fs (s, 0) == 0.0;
+ * return ok ? 0 : 1;
+ * @endcode
+ *
+ * @param segs   the segments; may be NULL when @p n_segs is 0.
+ * @param n_segs their count.
+ * @return the shared fs, or 0.0 when the segments differ or there are none.
+ */
+static inline double dp_wfm_scene_fs(const wfm_segment_t *segs,
+                                     size_t n_segs)
+{
+    if (!segs || n_segs == 0)
+        return 0.0;
+    for (size_t i = 1; i < n_segs; i++)
+        if (segs[i].fs != segs[0].fs)
+            return 0.0;
+    return segs[0].fs;
+}
+
 /** @brief Destroy a composer and its active synth. @param state May be NULL. */
 void dp_wfm_compose_destroy(dp_wfm_compose_state_t *state);
 

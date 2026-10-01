@@ -861,11 +861,16 @@ stream_keep (const dp_wfm_compose_state_t *s, size_t k)
   return end > before ? (size_t)(end - before) : 0u;
 }
 
-size_t
-dp_wfm_compose_execute (dp_wfm_compose_state_t *state, float _Complex *out,
-                        size_t max)
+/* The one emit loop. With @p fs non-NULL it also stops where the rate
+   changes -- at the advance into a segment whose fs differs from the
+   samples already written -- and reports the rate of what it wrote. With
+   NULL it is dp_wfm_compose_execute(), unchanged. */
+static size_t
+execute (dp_wfm_compose_state_t *state, float _Complex *out, size_t max,
+         double *fs)
 {
-  size_t i = 0;
+  size_t i    = 0;
+  double rate = 0.0; /* the rate of the samples written so far */
   while (i < max)
     {
       if (state->phase == PHASE_DONE)
@@ -883,6 +888,7 @@ dp_wfm_compose_execute (dp_wfm_compose_state_t *state, float _Complex *out,
           size_t k = max - i;
           if (k > state->left)
             k = state->left;
+          rate = state->segs[state->cur].fs;
 
           if (state->n_syn == 1)
             {
@@ -944,7 +950,12 @@ dp_wfm_compose_execute (dp_wfm_compose_state_t *state, float _Complex *out,
                   state->left  = state->cur_num;
                 }
               else
-                advance (state);
+                {
+                  advance (state);
+                  if (fs && i > 0 && state->phase != PHASE_DONE
+                      && state->segs[state->cur].fs != rate)
+                    break; /* the next sample is at another rate */
+                }
               continue;
             }
           size_t k = max - i;
@@ -952,12 +963,31 @@ dp_wfm_compose_execute (dp_wfm_compose_state_t *state, float _Complex *out,
             k = state->left;
           if (k > (size_t)SCRATCH_CAP && state->n_syn > 1)
             k = SCRATCH_CAP; /* N-source gap accumulates via scratch */
+          rate = state->segs[state->cur].fs;
           render_gap (state, out + i, k);
           i += k;
           state->left -= k;
         }
     }
+  /* Every sample written is at `rate`: a rate change breaks out above
+     before the first sample at the next one. */
+  if (fs && i > 0)
+    *fs = rate;
   return i;
+}
+
+size_t
+dp_wfm_compose_execute (dp_wfm_compose_state_t *state, float _Complex *out,
+                        size_t max)
+{
+  return execute (state, out, max, NULL);
+}
+
+size_t
+dp_wfm_compose_execute_rate (dp_wfm_compose_state_t *state,
+                             float _Complex *out, size_t max, double *fs)
+{
+  return execute (state, out, max, fs);
 }
 
 const wfm_segment_t *

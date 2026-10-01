@@ -1092,14 +1092,19 @@ drain_to_writer (const emit_ctx_t *e, dp_wfm_writer_state_t *w, int paced)
 {
   float _Complex buf[BLK];
   size_t n, total = 0;
-  while ((n = dp_wfm_compose_execute (e->comp, buf, BLK)) > 0)
+  double rate = e->fs;
+  /* By rate: a block never spans two, so a scene whose segments differ is
+     paced at each one's own (doppler#1733). A short block is a rate
+     change, not the end -- 0 is the end. */
+  while ((n = dp_wfm_compose_execute_rate (e->comp, buf, BLK, &rate)) > 0)
     {
       dp_wfm_writer_write (w, buf, n);
       total += n;
       if (paced && e->clk)
-        dp_sample_clock_pace (e->clk, n);
-      if (n < BLK)
-        break;
+        {
+          dp_sample_clock_set_rate (e->clk, rate);
+          dp_sample_clock_pace (e->clk, n);
+        }
       /* An interrupted capture must still be a VALID capture. The BLUE
          header carries the final sample count and is written by
          dp_wfm_writer_close, so leaving the loop is what lets the file be
@@ -1165,13 +1170,18 @@ emit_to_stream (const emit_ctx_t *e)
 
   float _Complex buf[BLK];
   size_t n;
-  while ((n = dp_wfm_compose_execute (e->comp, buf, BLK)) > 0)
+  double rate = e->fs;
+  /* Each frame header carries its own fs, so a scene whose segments
+     differ is described honestly: a block never spans two rates, and each
+     frame states its own (doppler#1733). 0 is the end. */
+  while ((n = dp_wfm_compose_execute_rate (e->comp, buf, BLK, &rate)) > 0)
     {
-      dp_wfm_stream_sink_send (sink, buf, n, e->fs, o->fc);
+      dp_wfm_stream_sink_send (sink, buf, n, rate, o->fc);
       if (e->clk)
-        dp_sample_clock_pace (e->clk, n);
-      if (n < BLK)
-        break;
+        {
+          dp_sample_clock_set_rate (e->clk, rate);
+          dp_sample_clock_pace (e->clk, n);
+        }
       if (dp_interrupted ())
         break;
     }
@@ -1868,14 +1878,32 @@ wfmgen_run (int argc, char *argv[])
   size_t               n_segs = 0;
   int                  r = 0, c = 0;
   const wfm_segment_t *segs = dp_wfm_compose_segments (comp, &n_segs, &r, &c);
-  double               fs   = n_segs ? segs[0].fs : o.seg.fs;
+  /* The one answer for the whole stream: the shared fs, or 0.0 -- "not
+     stated" -- when segments differ, which SigMF says by omission and a
+     BLUE header cannot say at all (doppler#1733). */
+  double fs = n_segs ? dp_wfm_scene_fs (segs, n_segs) : o.seg.fs;
+  if (fs == 0.0 && n_segs && o.file_type == WFM_FT_BLUE
+      && !(o.out_path && !strncmp (o.out_path, "nats://", 7)))
+    {
+      size_t k = 1;
+      while (segs[k].fs == segs[0].fs)
+        k++;
+      (void)fprintf (stderr,
+                     "error: this scene's segments have different fs (%g, "
+                     "%g); a BLUE file states one sample rate -- write "
+                     "SigMF (--file-type sigmf), or give every segment one "
+                     "fs\n",
+                     segs[0].fs, segs[k].fs);
+      rc = 2;
+      goto done;
+    }
 
   /* Real-time pacing: throttle the emit loop to fs, mimicking a sample clock
      driving the output. Anchored once here so the schedule is drift-free; a
      NULL clk in the context below is what "not real-time" means downstream. */
   dp_sample_clock_t clk = { 0 }; /* the underrun report reads it either way */
   if (o.realtime)
-    dp_sample_clock_init (&clk, fs, o.realtime_resync);
+    dp_sample_clock_init (&clk, n_segs ? segs[0].fs : fs, o.realtime_resync);
 
   emit_ctx_t e = { .o       = &o,
                    .comp    = comp,

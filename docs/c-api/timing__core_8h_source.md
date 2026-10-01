@@ -60,6 +60,8 @@ extern "C"
 
   double dp_sample_clock_pace (dp_sample_clock_t *c, size_t count);
 
+  void dp_sample_clock_set_rate (dp_sample_clock_t *c, double fs);
+
   uint64_t dp_sample_clock_stamp (const dp_sample_clock_t *c);
 
   uint64_t dp_sample_clock_stamp_at (const dp_sample_clock_t *c, uint64_t n);

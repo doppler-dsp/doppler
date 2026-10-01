@@ -512,6 +512,21 @@ int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
 size_t dp_wfm_compose_execute(
     dp_wfm_compose_state_t *state, float _Complex *out, size_t max);
 
+size_t dp_wfm_compose_execute_rate(dp_wfm_compose_state_t *state,
+                                   float _Complex *out, size_t max,
+                                   double *fs);
+
+static inline double dp_wfm_scene_fs(const wfm_segment_t *segs,
+                                     size_t n_segs)
+{
+    if (!segs || n_segs == 0)
+        return 0.0;
+    for (size_t i = 1; i < n_segs; i++)
+        if (segs[i].fs != segs[0].fs)
+            return 0.0;
+    return segs[0].fs;
+}
+
 void dp_wfm_compose_destroy(dp_wfm_compose_state_t *state);
 
 const wfm_segment_t *dp_wfm_compose_segments(const dp_wfm_compose_state_t *state,

@@ -3740,7 +3740,7 @@ CI_IMAGE_PIN   := .github/ci-images.env
 # the gate offline and instant: it answers "has anyone changed the dependency
 # list or the image recipe since this digest was taken", which is the drift a
 # developer can actually cause. Whether UPSTREAM packages moved is a different
-# question, and the nightly rebuild in ci-image.yml is what asks it -- it
+# question, and the weekly re-pin in ci-image.yml is what asks it -- it
 # compares the package fingerprint baked into the image, not this.
 # Make the cache's effect VISIBLE. CI calls this after its build steps, so
 # the hit rate is in the log rather than being an assumption about a tool
@@ -3764,12 +3764,24 @@ ccache-stats: ## Print compiler-cache hit statistics (no-op without ccache)
 ci-image-source-hash: ## Print the hash of the CI image's inputs (plumbing)
 	@python3 scripts/ci_image_source_hash.py
 
+# From the PINNED apt snapshot and base digests (#1748), the same values every
+# non-weekly ci-image.yml build reads, so a local image reproduces the pinned
+# package set rather than whatever the mirror holds today.
 ci-image: ## Build the CI toolchain image locally, one per base
 	@for b in $(CI_IMAGE_BASES); do \
 	     tag="doppler-ci:$$(echo $$b | tr ':' '-')"; \
-	     echo "=== $$b -> $$tag"; \
-	     docker build -f $(CI_DOCKERFILE) --build-arg BASE=$$b -t "$$tag" . \
-	         || exit 1; \
+	     key="$$(echo $$b | tr -dc '0-9')"; \
+	     ref="$$(grep "^CI_BASE_$$key=" $(CI_IMAGE_PIN) | cut -d= -f2)"; \
+	     snap="$$(grep '^CI_APT_SNAPSHOT=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
+	     if [ -z "$$ref" ] || [ -z "$$snap" ]; then \
+	         echo "ci-image: $(CI_IMAGE_PIN) has no CI_BASE_$$key or"; \
+	         echo "  CI_APT_SNAPSHOT -- push a branch so ci-image.yml"; \
+	         echo "  builds and prints the pin block, and commit it."; \
+	         exit 1; \
+	     fi; \
+	     echo "=== $$ref @ apt $$snap -> $$tag"; \
+	     docker build -f $(CI_DOCKERFILE) --build-arg BASE=$$ref \
+	         --build-arg APT_SNAPSHOT=$$snap -t "$$tag" . || exit 1; \
 	 done
 
 # Run it like CI runs it, in the SAME image CI pins -- by digest, not by a
@@ -3910,7 +3922,7 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 # deliberately cannot answer: it is a no-network gate, so it compares OUR
 # inputs (CI_IMAGE_SOURCE_HASH) and never the package fingerprints the image
 # actually came out with. Upstream moving underneath an unchanged Dockerfile
-# is exactly the drift the nightly exists to find, and until doppler#1212
+# is exactly the drift the weekly re-pin exists to find, and until doppler#1212
 # nothing gated it -- the nightly's only delivery mechanism was a PR the org
 # forbids Actions from opening, so it force-pushed `ci/repin-image` and died.
 #

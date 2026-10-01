@@ -1029,7 +1029,7 @@ jobs:
       run: make lint
 
   # The pending-repin gate. `ci-image-check` (in `pre-commit`'s `make lint`)
-  # is a no-network check of OUR inputs; it cannot see that the nightly
+  # is a no-network check of OUR inputs; it cannot see that the weekly
   # rebuild produced a different PACKAGE SET under an unchanged Dockerfile.
   # That is the drift ci-image.yml exists to find, and it had no gate at all:
   # the nightly's only way to report it was a PR the org forbids Actions from

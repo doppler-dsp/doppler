@@ -16,10 +16,10 @@ the Makefile (the single driver — never a raw `docker build`):
 
 ## The two images that are not images *of* doppler
 
-| Image                  | For                                          | Dockerfile            | Built by                  | Published                        |
-| ---------------------- | -------------------------------------------- | --------------------- | ------------------------- | -------------------------------- |
-| **`doppler-glibc228`** | *gating* the glibc floor — a toolchain       | `Dockerfile.glibc228` | `make glibc-gate`         | never (local + CI)               |
-| **`doppler-ci`**       | *running* CI — the toolchain every job needs | `Dockerfile.ci`       | `make ci-image` / nightly | `ghcr.io/doppler-dsp/doppler-ci` |
+| Image                  | For                                          | Dockerfile            | Built by                 | Published                        |
+| ---------------------- | -------------------------------------------- | --------------------- | ------------------------ | -------------------------------- |
+| **`doppler-glibc228`** | *gating* the glibc floor — a toolchain       | `Dockerfile.glibc228` | `make glibc-gate`        | never (local + CI)               |
+| **`doppler-ci`**       | *running* CI — the toolchain every job needs | `Dockerfile.ci`       | `make ci-image` / weekly | `ghcr.io/doppler-dsp/doppler-ci` |
 
 Every image in the first table bakes doppler *in*. These two bake nothing in:
 they are a base plus a toolchain, and the checkout is bind-mounted into them.
@@ -79,7 +79,7 @@ Splitting it per job shape would shrink each pull further, and is deliberately
 not done: container startup measures 25–30 s against the ~120 s apt install it
 replaced, which does not buy back the cost of several images, several digests
 and several pins. See [`docs/dev/ci.md`](../../docs/dev/ci.md) for pinning,
-the nightly refresh, and the gates that watch CI itself.
+the weekly re-pin, and the gates that watch CI itself.
 
 ## Why one Dockerfile for three images
 

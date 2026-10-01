@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-09-16"
+generated = "2026-10-01"
 
 [issue.502]
 tier = 3
@@ -23,21 +23,6 @@ status = "open"
 [issue.545]
 tier = 4
 title = "Reading a capture is undiscoverable and undocumented \u2014 enriched view over wfm_reader + a guide"
-status = "open"
-
-[issue.568]
-tier = 5
-title = "RFC: Doxygen \u2192 docstring derivation \u2014 the jm-side plan, and where the F-series fits"
-status = "open"
-
-[issue.578]
-tier = 4
-title = "Container UX: pulled image ships no examples \u2014 split into a runtime (compose + Python demos) and a build (C/jm consuming projects) image"
-status = "open"
-
-[issue.615]
-tier = 5
-title = "CI: every action is on the node20 generation \u2014 bump to the node24 majors"
 status = "open"
 
 [issue.630]
@@ -67,17 +52,12 @@ status = "open"
 
 [issue.648]
 tier = 5
-title = "dp_resamp_execute_ctrl_push is ULP-sensitive: gcc 13 and gcc 15 disagree on the converged lock metric by 0.031"
+title = "resamp_execute_ctrl_push is ULP-sensitive: gcc 13 and gcc 15 disagree on the converged lock metric by 0.031"
 status = "open"
 
 [issue.651]
 tier = 5
 title = "Makefile diverges from the shared convention: no PYTEST command variable, and `make test` runs only ctest"
-status = "open"
-
-[issue.652]
-tier = 2
-title = "Matched pulse bank is laid out against the pre-fix resamp accumulator"
 status = "open"
 
 [issue.655]
@@ -103,11 +83,6 @@ status = "open"
 [issue.676]
 tier = 5
 title = "Telemetry: an over-long prefix silently aliases two probes onto one id, and the attach reports DP_OK"
-status = "open"
-
-[issue.677]
-tier = 5
-title = "C tests: 88 hand-rolled CHECK macros, 9 of which abort at the first failure"
 status = "open"
 
 [issue.678]
@@ -165,11 +140,6 @@ tier = 5
 title = "make docs-check gives a wall of false broken links when site/ is absent"
 status = "open"
 
-[issue.715]
-tier = 2
-title = "The DTTL-vs-Gardner tradeoff is measured only where DTTL wins: no SNR axis exists anywhere"
-status = "open"
-
 [issue.716]
 tier = 1
 title = "Validation figures and CSVs are gated by nothing \u2014 validate-check only compares rendered markdown"
@@ -207,7 +177,7 @@ status = "open"
 
 [issue.735]
 tier = 4
-title = "dp_carrier_nda_get_nco_freq is unreachable from Python and telemetry \u2014 both published frequency views are the same view"
+title = "carrier_nda_get_nco_freq is unreachable from Python and telemetry \u2014 both published frequency views are the same view"
 status = "open"
 
 [issue.736]
@@ -238,21 +208,6 @@ status = "open"
 [issue.756]
 tier = 5
 title = "Retire wfm_synth_mls_poly() in favour of pn_mls_poly()"
-status = "open"
-
-[issue.757]
-tier = 5
-title = "The docstring-coverage ratchet is slack in 24 of 26 modules"
-status = "open"
-
-[issue.780]
-tier = 1
-title = "The gallery has no gate: 21 committed assets are stale, one script is in no target, and `make gallery` is red"
-status = "open"
-
-[issue.781]
-tier = 5
-title = "mpsk_receiver_performance_demo: a BPSK trial declares lock with a clean constellation and SER 0.27, and .examples-skip's reason names a different failure"
 status = "open"
 
 [issue.802]
@@ -340,11 +295,6 @@ tier = 3
 title = "Multi-config C benchmarks charge the clock ramp to whichever config runs first"
 status = "open"
 
-[issue.898]
-tier = 3
-title = "make coverage: ddc_fn_scaling.py times out, and the more cores you have the worse it gets"
-status = "open"
-
 [issue.900]
 tier = 5
 title = "Audit: what is left to declare, and the capabilities with no Python path"
@@ -413,11 +363,6 @@ status = "open"
 [issue.967]
 tier = 1
 title = "check_doc_paths does not check build/ paths, so documented invocations can rot silently"
-status = "open"
-
-[issue.972]
-tier = 2
-title = "End-of-stream on the disk transport: the header's sample count cannot be the marker"
 status = "open"
 
 [issue.974]
@@ -495,6 +440,12 @@ tier = 1
 title = "Nothing enforces the UBSan alignment ratchet \u2014 it grew 821 \u2192 853 unnoticed"
 status = "open"
 
+[issue.1034]
+tier = 5
+title = "TestComposeUpLive::test_three_block_chain_spawns_and_moves_data fails locally: recv failed: Invalid argument"
+status = "open"
+why = "An undiagnosed load-dependent flake in a test, not a reproduced defect; re-tier 0 if the cause is compose up's own startup race"
+
 [issue.1035]
 tier = 4
 title = "The stream carries complex only; a real sample type is refused at the sink"
@@ -525,11 +476,6 @@ tier = 4
 title = "A Bits type with methods, rather than six free conversions threading out-parameters"
 status = "open"
 
-[issue.1082]
-tier = 1
-title = "Nothing compiles a header's @code example \u2014 a 16-argument call to a 15-parameter function shipped"
-status = "open"
-
 [issue.1109]
 tier = 4
 title = "Plan cannot cache a Doppler source: refused, because a cached on-time has no channel history"
@@ -547,7 +493,7 @@ status = "open"
 
 [issue.1123]
 tier = 5
-title = "dp_wfm_reader_header_tag neither bounds-checks nor documents that it must not be \u2014 the only one of four enumerators that does neither"
+title = "wfm_reader_header_tag neither bounds-checks nor documents that it must not be \u2014 the only one of four enumerators that does neither"
 status = "open"
 
 [issue.1128]
@@ -575,19 +521,9 @@ tier = 5
 title = "libdoppler exports 106 symbols that are not its API, including all of vendored cJSON and PFFFT"
 status = "open"
 
-[issue.1165]
-tier = 5
-title = "Four exported symbols carry no prefix: awgn, crc16, saturate, ciccompmf"
-status = "open"
-
 [issue.1173]
 tier = 3
 title = "BurstCapture: the per-burst window copy is measured only at a 20 kB window, and it scales with burst_len"
-status = "open"
-
-[issue.1177]
-tier = 3
-title = "refine discards coherent gain at deep searches: M <= coherent_bins/2 periods are integrable, and it integrates 1"
 status = "open"
 
 [issue.1186]
@@ -605,11 +541,6 @@ tier = 2
 title = "acq peak list: a strong emitter's same-code-phase sidelobes pass the two-epoch rule under long non-coherent integration"
 status = "open"
 
-[issue.1195]
-tier = 1
-title = "specan-check asks whether frames.json moved, and the recorder is unseeded -- so a behaviour-neutral specan edit can only pass by committing noise"
-status = "open"
-
 [issue.1201]
 tier = 1
 title = "Parallel make targets re-sync one shared venv against each other: a plain `uv run` removes the docs group under a running `docs-check`, and a `make pyext` sync broke a commit hook's mkdocs build"
@@ -623,16 +554,6 @@ status = "open"
 [issue.1206]
 tier = 4
 title = "wfm compose: sources in a segment cannot be shifted independently \u2014 add a per-source start offset"
-status = "open"
-
-[issue.1209]
-tier = 3
-title = "bench: lockdet steps_64k is 47% slower on the Python face between v0.46.0 and 0.47.0 \u2014 the C bench is flat and lockdet did not change"
-status = "open"
-
-[issue.1226]
-tier = 4
-title = "wfmgen/Plan: the DSSS window has no plan or CLI face \u2014 only the C and Python Synth API"
 status = "open"
 
 [issue.1228]
@@ -657,17 +578,12 @@ status = "open"
 
 [issue.1257]
 tier = 5
-title = "dsss.handoff.dll_init_chip_from_acq restates dp_acq_build_handoff()'s fold and will not carry the dwell advance"
+title = "dsss.handoff.dll_init_chip_from_acq restates acq_build_handoff()'s fold and will not carry the dwell advance"
 status = "open"
 
 [issue.1269]
 tier = 3
 title = "AsyncDsssReceiver builds its refine and track chains on every seed and hand-over \u2014 the pool's \"sized once at create\" holds for the pool, not its receivers"
-status = "open"
-
-[issue.1273]
-tier = 0
-title = "async_dsss_receiver: at 40 dB-Hz a data-block seed 650\u2013800 Hz off reports tracking at the seed's own frequency and never pulls in \u2014 two of 187 stints, each a 5\u20137 s double"
 status = "open"
 
 [issue.1275]
@@ -750,22 +666,432 @@ tier = 1
 title = "A spot check's budget is wall-clock; gate its WORK COUNT instead"
 status = "open"
 
-[issue.1330]
-tier = 5
-title = "jm's composer template emits a -Wcomment warning; fixed upstream, adopt on the next pin bump"
-status = "open"
-
 [issue.1342]
 tier = 3
 title = "wfm_writer integer writes are ~3x slower since #1117: every component goes through the single-sample converter step"
-status = "open"
-
-[issue.1346]
-tier = 5
-title = "I16Buffer.wait() returns 2-D (n,2) while its docstring promises a structured array and its siblings return 1-D"
 status = "open"
 
 [issue.1350]
 tier = 1
 title = "tests/install/rust-test.sh has no execution home \u2014 nothing runs it, which is why its broken make goal survived"
 status = "open"
+
+[issue.1364]
+tier = 4
+title = "Windows (clang-cl): what remains after #1360 \u2014 the C library compiles, the link and the benchmarks wait on jm"
+status = "open"
+why = "The Windows C library builds and links; the Python extensions, the interrupt test and the pool soak are still off on Windows"
+
+[issue.1366]
+tier = 1
+title = "bench: acc_f32's madd/madd2d/get/dump benchmarks measure a no-op"
+status = "open"
+why = "Four acc_f32 benchmarks call the kernel with NULL, 0, so they time call overhead under the kernel's name"
+
+[issue.1370]
+tier = 3
+title = "coverage: the sweep validators are excluded from instrumented ctest, then run again through pytest \u2014 28 of the job's 42 minutes"
+status = "open"
+why = "Measured: re-running the validators under pytest was 28 of coverage's 42 minutes; fixed but for the stated report delta"
+
+[issue.1372]
+tier = 4
+title = "Push.send_eos reports no transport detail, so a full store and a deleted stream are indistinguishable (send distinguishes them)"
+status = "open"
+why = "The transport detail that tells a full store from a deleted stream exists, and send_eos does not pass it to the caller"
+
+[issue.1377]
+tier = 1
+title = "tests-ssot's private-RNG check is blind to libc generators (rand_r, random, drand48)"
+status = "open"
+why = "tests-ssot reports no new private RNG over a libc rand_r call, which it cannot see"
+
+[issue.1380]
+tier = 5
+title = "cvt: two of twelve converters abort on OOM, the other ten raise MemoryError"
+status = "open"
+why = "Twelve sibling converters disagree on OOM; abort vs MemoryError is a convergence decision"
+
+[issue.1381]
+tier = 3
+title = "perf: three benchmarks flat for three releases moved in v0.51.0 (wfm_synth step 2.3x, acc_trace 1.5x, wfm_writer ci16 1.26x)"
+status = "open"
+why = "Benchmark moves measured across releases; one of three (wfm_writer ci16) is still slower"
+
+[issue.1388]
+tier = 1
+title = "Sanitizer jobs skip all 23 validators \u2014 a heap overflow in validate_receiver_pullin shipped because of it"
+status = "open"
+why = "The sanitizer jobs skip every validator, and a heap overflow in one shipped through them"
+
+[issue.1394]
+tier = 1
+title = "wheel-smoke --pypi: a successful dry-run resolve does not make the real install see the release"
+status = "open"
+why = "The PyPI wait proves one request saw the release, not the install that follows it"
+
+[issue.1396]
+tier = 5
+title = "test-snippets: the PAGE= usage example names a page that no longer exists"
+status = "open"
+why = "A failure message's usage example names a page that no longer exists"
+
+[issue.1398]
+tier = 5
+title = "validation: 28 private _csv helpers in 8 variants -- one Report.csv() that owns the write flag"
+status = "open"
+why = "28 copies of one CSV writer in 8 variants; whether each honours write=False was decided per copy"
+
+[issue.1405]
+tier = 4
+title = "vcpkg: a static triplet needs a single-linkage build"
+status = "open"
+why = "A vcpkg static triplet cannot be had: the port is dynamic-only until the build can export one linkage"
+
+[issue.1425]
+tier = 5
+title = "ring buffer: does burst_capture's position-addressed history belong in the ring? (at / pos / restore)"
+status = "open"
+why = "An open API question: burst_capture reaches into the ring's struct for position-addressed history"
+
+[issue.1426]
+tier = 5
+title = "ring buffer: move acq / detector / detector2d / burst_capture onto the ring's own API, and lint struct access"
+status = "open"
+why = "Four consumers rebuild the ring's API from its struct by hand; move them onto it and lint the struct access"
+
+[issue.1431]
+tier = 4
+title = "stream.Push.send_eos() is bound at runtime but absent from stream.pyi"
+status = "open"
+why = "Push.send_eos works at runtime and is missing from the stub, so a type checker and the docs site cannot see it"
+
+[issue.1443]
+tier = 0
+title = "Stub and extension disagree on a call signature in 10 sacred fragments (jm apply has been saying so)"
+status = "open"
+why = "Stubs document call signatures the extensions refuse, e.g. HalfbandDecimator.execute(out=) raises TypeError"
+
+[issue.1446]
+tier = 5
+title = "89 binding fragments have stopped receiving just-makeit's fixes \u2014 measure, re-render the clean ones, ratchet the rest"
+status = "open"
+why = "The umbrella plan for sacred fragments jm no longer re-renders; its user-visible instance is #1654"
+
+[issue.1463]
+tier = 5
+title = "stream: _ready_queue timed out after 10s on a server-acked probe (test_push_pull_header_all_fields, py3.13 CI)"
+status = "open"
+why = "One-off timeout in a stream readiness probe; instrumented and waiting for a second occurrence"
+
+[issue.1465]
+tier = 5
+title = "Windows: POSIX-only test carve-outs in the Python suite"
+status = "open"
+why = "The ratchet list of POSIX-only test skips on Windows, meant only to shrink"
+
+[issue.1475]
+tier = 2
+title = "30 serializable objects are outside the shared state round trip: blob determinism unchecked"
+status = "open"
+why = "30 serializable objects never checked for writing every byte of their state blob; #1471 was found by accident"
+
+[issue.1481]
+tier = 4
+title = "acq burst path: no code-Doppler (time compression) compensation, and it bites wideband preambles hardest"
+status = "open"
+why = "Code-Doppler compensation exists on the tiled acquisition path and the burst path cannot reach it"
+
+[issue.1489]
+tier = 5
+title = "test_compose: live three-block chain can miss its 10 s recv budget under a parallel suite"
+status = "open"
+why = "The same live compose-chain test as #1034, missing its 10 s budget under xdist load; undiagnosed"
+
+[issue.1495]
+tier = 5
+title = "Acquisition (continuous): take the samples model the burst engines now use"
+status = "open"
+why = "Continuous Acquisition keeps the analytic chip model the burst engines moved off; converge on the samples model"
+
+[issue.1496]
+tier = 5
+title = "Two library copies of the chip \u2192 \u00b11 rule: wfm.bpsk_map and cvt.bin_to_nrz"
+status = "open"
+why = "Two public primitives for one 0 -> +1, 1 -> -1 convention, and only one is gated against the constellation"
+
+[issue.1507]
+tier = 5
+title = "ilammy/msvc-dev-cmd is node20 with no newer release: adopt canonical scripts/msvc-env.sh (and the vendored dependabot.yml)"
+status = "open"
+why = "A node20 action with no newer release; the same deprecation as #630, with nothing to bump to"
+
+[issue.1510]
+tier = 5
+title = "CI image repin bot commits a parentless snapshot; .coverage and stream.blue are tracked"
+status = "open"
+why = "The repin bot's commit has no parent and two generated files are tracked; landed by hand meanwhile"
+
+[issue.1530]
+tier = 2
+title = "burst capture: min_gap is conservative once emission follows stream time -- re-derive or re-measure it"
+status = "open"
+why = "Bursts decode well inside min_gap once emission follows stream time; the bound is no longer derived or measured"
+
+[issue.1547]
+tier = 5
+title = "Packaging: the relocatable .pc defeats pkg-config's system-dir filtering, and jm can now own the install section (dry run attached)"
+status = "open"
+why = "Packaging: the relocatable .pc leaks system -I/-L, and jm can now own the install section"
+
+[issue.1550]
+tier = 5
+title = "carrier_acq's pfa is per-test while acq's is per-search: same name, two meanings"
+status = "open"
+why = "The same parameter name, pfa, means per-test on one acquisition object and per-search on the other; both documented"
+
+[issue.1559]
+tier = 0
+title = "ber_esn0_db_for_ser(m, 0) returns -10 dB, the \"worse than anything\" end"
+status = "open"
+why = "ber_esn0_db_for_ser(m, 0) returns the bottom of the range, so a clean run reads as a gain over theory"
+
+[issue.1562]
+tier = 0
+title = "make test-fast exits 2 outside a git checkout (check_test_leaks.py needs git status)"
+status = "open"
+why = "make test-fast exits 2 in a tarball or sdist, where packagers run the suite"
+
+[issue.1566]
+tier = 1
+title = "validate_capture_dwell_pd fails make validate: its full sweep asserts nothing"
+status = "open"
+why = "make validate fails: a C validator's full sweep runs no check, and CI's --check subset hides it"
+
+[issue.1570]
+tier = 5
+title = "docs: types.md and cvt/iq.py name RTL-SDR as a CF32 / int16 source (it streams cu8)"
+status = "open"
+why = "Docs name RTL-SDR as a CF32 / int16 source; it streams cu8"
+
+[issue.1571]
+tier = 4
+title = "ddc: the plain DDC's CIC is uncompensated and cannot be asked to compensate (flat only to ~0.1 fs_out)"
+status = "open"
+why = "CIC droop compensation exists (the matched flavour) and the plain DDC cannot ask for it"
+
+[issue.1577]
+tier = 5
+title = "Vendored symbols: extend the dp__v_ respell to macOS, Windows and the shared libraries' export tables"
+status = "open"
+why = "The vendored-symbol respell covers Linux static archives only; extend it to macOS, Windows and the shared libraries"
+
+[issue.1608]
+tier = 5
+title = "Docker image re-resolves the jm pin against PyPI instead of installing the locked wheel"
+status = "open"
+why = "The Docker image re-resolves the jm pin against PyPI instead of the locked wheel; it failed two PRs on a CDN lag"
+
+[issue.1617]
+tier = 5
+title = "wfm: move sync/crc/payload off wfm_source_t (#853 item 11 remainder)"
+status = "open"
+why = "Convergence for #853: sync/crc/payload still on wfm_source_t beside the frame= field"
+
+[issue.1619]
+tier = 4
+title = "wfm: the payload is a data source -- data:LEN, --data, --fill, idle frames (#853 F)"
+status = "open"
+why = "The payload as a data source (#853 F); built, with F6b, the state triplet and pn:0 left as #1718, #1681, #1717"
+
+[issue.1620]
+tier = 4
+title = "rx: BurstDemod/DsssBurstReceiver take a frame description (#853 E)"
+status = "open"
+why = "Receivers cannot take a frame description; callers compute frame_syms by hand"
+
+[issue.1637]
+tier = 1
+title = "wfm: the Field corpus cannot see a constant field (why it missed #1624)"
+status = "open"
+why = "The Field corpus holds three properties a constant field satisfies, so it could not see #1624"
+
+[issue.1638]
+tier = 5
+title = "check_wfmgen_flag_docs: the checker cannot see short flags, so -o is waived"
+status = "open"
+why = "A ratchet waiver for -o that only a checker change can retire; filed as tier 5"
+
+[issue.1642]
+tier = 5
+title = "wfm_json.c: -Wswitch on WFM_SV_FIELD in row_get/row_set"
+status = "in review ([#1655](https://github.com/doppler-dsp/doppler/pull/1655))"
+why = "A -Wswitch warning on an unreachable enum case; harmless today"
+
+[issue.1651]
+tier = 5
+title = "Header @code backlog: 79 C examples do not compile or run (ratchet from #1635)"
+status = "open"
+why = "A ratchet of 78 header @code examples that do not compile or run; burn it down"
+
+[issue.1654]
+tier = 0
+title = "Sacred fragments miss jm 0.94's binding fixes: 55 lack the #1710 size guard, ~40 still convert a str silently (#1700)"
+status = "open"
+why = "About 40 fragments still convert a str silently into a number while their stubs say bytes; 55 lack the size guard"
+
+[issue.1657]
+tier = 1
+title = "build: -Wswitch is never an error, so an unhandled enum value warns and ships"
+status = "in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664))"
+why = "Nothing turns -Wswitch into a failure, so an unhandled enum value warns and ships (#1642)"
+
+[issue.1658]
+tier = 1
+title = "The C library builds with no warning flags: 0 of 691 compile lines carry -Wall"
+status = "in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664))"
+why = "0 of 691 library compile lines carry any warning flag, so every warning-class defect is invisible"
+
+[issue.1663]
+tier = 1
+title = "DP_NODISCARD: an ignored refusal is invisible to every compiler flag"
+status = "open"
+why = "No function carries warn_unused_result, so -Wunused-result reports a dropped refusal as clean"
+
+[issue.1665]
+tier = 5
+title = "A failure message can name a make target that no longer exists"
+status = "open"
+why = "Nothing checks that a make target a failure message names still exists; filed as tier 5"
+
+[issue.1667]
+tier = 5
+title = "Patch-coverage gate has no way to name an unreachable enum case, so a -Wswitch fix alone is always red"
+status = "open"
+why = "Patch coverage has no way to excuse an unreachable enum case, so a -Wswitch fix alone is red"
+
+[issue.1670]
+tier = 2
+title = "track.Dll: async_despread_demo's lock statistic now decays over the run, and the noiseless envelope ripples ~5x more than the committed plot"
+status = "in review ([#1679](https://github.com/doppler-dsp/doppler/pull/1679))"
+why = "The gallery's Dll lock figure no longer matches the code: the statistic decays and the demo's bound still passes"
+
+[issue.1671]
+tier = 1
+title = "gallery-scripts-check cannot see a plot whose file name the script derives rather than quotes"
+status = "open"
+why = "gallery-scripts-check sees only quoted PNG names, so a derived name's plot is never refreshed"
+
+[issue.1676]
+tier = 5
+title = "package-linux sends the builder's dnf output to /dev/null, so a failed rpm-build install cannot be diagnosed"
+status = "open"
+why = "package-linux sends dnf's output to /dev/null, so a failed builder install cannot be diagnosed"
+
+[issue.1677]
+tier = 2
+title = "CarrierNda: the loop gains ignore the discriminator's slope of 2, so the realised noise bandwidth is ~1.67x the configured bn"
+status = "open"
+why = "CarrierNda's gains ignore the discriminator slope of 2: realised noise bandwidth ~1.67x the configured bn"
+
+[issue.1680]
+tier = 0
+title = "track.Dll: at segments=1 the code loop's realised Bn is 56-79x the configured bn, with zeta ~0.05 (the integral path is scaled by SF, the proportional path is not)"
+status = "open"
+why = "track.Dll at segments=1 realises 56-79x the configured bn with zeta ~0.05, so the code loop rings"
+
+[issue.1681]
+tier = 4
+title = "wfm: the data source and a synth pulling from it have no state triplet"
+status = "open"
+why = "The data source has no state triplet, so a synth pulling from one refuses checkpoint/restore (explicitly)"
+
+[issue.1682]
+tier = 5
+title = "wfmgen docs and Python examples: v0.60.0 coverage audit"
+status = "open"
+why = "The v0.60.0 audit of wfmgen docs and examples; part done, the rest is deletion and stale lines"
+
+[issue.1692]
+tier = 4
+title = "wfm: FrameDesc has no from_json constructor (a description is built from JSON only as a scene's \"frame\" key)"
+status = "open"
+why = "A FrameDesc can be built from JSON only as a scene's frame key; no from_json on the Python face"
+
+[issue.1694]
+tier = 5
+title = "wfm: Source.frame's getter returns JSON that its setter refuses; drop it when just-makeit#1753 lands"
+status = "open"
+why = "Source.frame's getter returns JSON its setter refuses; waiting on just-makeit#1753 to drop it"
+
+[issue.1696]
+tier = 0
+title = "Composer(type=\"dsss\") with missing codes: 'dp_wfm_compose_create failed' names no fix; acq_code alone silently yields a 255-sample preamble"
+status = "in review ([#1730](https://github.com/doppler-dsp/doppler/pull/1730))"
+why = "A dsss Composer with only acq_code silently returns a 255-sample preamble and no burst"
+
+[issue.1697]
+tier = 3
+title = "DSSS burst receiver: TX/RX usability and speed findings (frame_syms, naming, refine_span, error drift, events padding, 4 MSa/s)"
+status = "open"
+why = "Measured: DsssBurstReceiver handles ~4 MSa/s, 69% of a trial in the constructor's Pd solve; plus usability findings"
+
+[issue.1698]
+tier = 5
+title = "wfm_compose: 105 source/segment field docs are declared twice (header comment + manifest doc), gated equal; derive from the header only (jm#1703)"
+status = "open"
+why = "105 composer field docs declared twice, gated equal; derive them from the header"
+
+[issue.1700]
+tier = 0
+title = "wfm: a scene drops \"crc\" beside \"frame\" silently; the CLI refuses --crc beside --frame"
+status = "open"
+why = "A scene with crc beside frame is accepted and the crc dropped, while the CLI refuses the same pair"
+
+[issue.1706]
+tier = 4
+title = "wfm: a continuous dsss source whose symbol_rate exceeds its chip rate is refused with no reason"
+status = "in review ([#1709](https://github.com/doppler-dsp/doppler/pull/1709))"
+why = "The refusal's reason exists in the synth builder and no face reports it; the user gets 'create failed'"
+
+[issue.1716]
+tier = 1
+title = "issues: nothing reconciles the tier map with the live issue list; 66 open issues untiered, 3 closed ones still listed"
+status = "open"
+why = "The tier map promises to fail on drift and nothing ran the reconcile that does"
+
+[issue.1717]
+tier = 4
+title = "wfm: pn:0 (a seeded data stream) on the text faces"
+status = "open"
+why = "The C data source takes pn:0 as an endless seeded stream and no text face can say it"
+
+[issue.1718]
+tier = 5
+title = "wfm: delete --bits, --bits-file and the payload cycle (#1619 F6b)"
+status = "in review ([#1731](https://github.com/doppler-dsp/doppler/pull/1731))"
+why = "--data and --bits are two ways to say one thing until the old one is deleted (#1619 F6b)"
+
+[issue.1722]
+tier = 4
+title = "wfm: Plan's refusals carry no reason (const char **why, #1686)"
+status = "open"
+why = "Every Plan refusal is a silent NULL; the reasons exist only as code comments"
+
+[issue.1723]
+tier = 5
+title = "wfm: one copy/free pair for wfm_source_t's arrays (wfm_plan.c duplicates wfm_compose.c's)"
+status = "open"
+why = "wfm_plan.c duplicates wfm_compose.c's copy/free pair, and the two now differ on OOM"
+
+[issue.1728]
+tier = 5
+title = "ci: two jobs upload an artifact named coverage-report in the same run"
+status = "open"
+why = "Two artifacts named coverage-report in one run; which one a by-name fetch gets is not declared"
+
+[issue.1729]
+tier = 0
+title = "Composer face: num_samples beside a finite data source is silently dropped; retired bits=/payload=/pattern= need the Composer assertion"
+status = "open"
+why = "Composer silently drops num_samples beside a finite data source; the CLI and JSON faces refuse it"

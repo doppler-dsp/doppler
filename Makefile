@@ -672,7 +672,17 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
-                docker-examples ci-image-repin-check package-linux-smoke
+                docker-examples ci-image-repin-check package-linux-smoke \
+                issues-check
+
+# Gates whose execution home is a workflow other than ci.yml, which is all
+# gates-home-check scans. `issues-check` is the live tier-map reconcile; it
+# runs DAILY in .github/workflows/issues.yml and on no pull request, because
+# the drift it finds is made by filing or closing an issue rather than by a
+# diff (doppler#1716). Naming a target here is a CLAIM, so
+# gates-extra-home-check (on lint) holds it: every name must be a `make`
+# line in some workflow, or gates-home-check would pass on the declaration.
+GATES_CI_EXTRA = issues-check
 
 # ── Build ────────────────────────────────────────────────────────────────────
 # Compile through ccache when it is installed, and silently not when it is
@@ -1402,7 +1412,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
-                bench-coverage-check kwarg-parity-check issues \
+                bench-coverage-check kwarg-parity-check issues issues-check \
+                gates-extra-home-check \
                 doc-sections-check \
                 installed-headers-check exported-link-check symbol-prefix-check \
                 vendored-collision-check \
@@ -1487,6 +1498,7 @@ include standard.mk
 # run natively and skip Docker entirely.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
       workflow-syntax-check ci-aggregator-check python-versions-check \
+      gates-extra-home-check \
       release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
@@ -2643,20 +2655,50 @@ endif
 # docs/api/*.md, README.md's synced body from docs/index.md, the per-distro
 # install scripts from bootstrap.toml, and the release version stamped into
 # doc-version regions.
-# NOT part of docs-relink, and not in CI, for one reason: this is the only
-# generator whose input is off the machine. `--write` reads the live issue
-# list through `gh`, so it needs the network and an authenticated CLI, and a
-# CI job built on it would fail on a rate limit rather than on the tree.
+# NOT part of docs-relink, and not on any pull request, for one reason: this
+# is the only generator whose input is off the machine. `--write` reads the
+# live issue list through `gh`, and the drift it can find is made by filing
+# or closing an issue, not by any diff -- as a PR gate it would turn every
+# open PR red the moment anyone filed one.
 #
-# What IS gated is the half that can be: `--check` re-renders from the
+# Two halves are gated, each where it can be. `--check` re-renders from the
 # committed docs/dev/issue-tiers.toml and diffs the page, offline and
 # deterministic, so a hand-edit of a generated page is caught (docs-check).
-# Freshness against GitHub is not checkable offline, so the page carries the
-# date it was derived and the command that derives it -- the same
-# date-plus-derivation the rest of this repo requires of a recorded live
-# value.
+# `issues-check` reconciles the map against the live list and fails on an
+# open issue with no tier or a tier naming a closed one; it runs daily in
+# .github/workflows/issues.yml. Until doppler#1716 nothing ran it, and the
+# map drifted to 66 untiered and 3 stale in ten days. The fix for a red run
+# is `make issues` after tiering.
 issues: ## Refresh docs/dev/issues.md from the live issue list (needs gh)
 	uv run python scripts/gen_issue_tracker.py --write
+
+issues-check: ## Fail if the tier map has drifted from the live issues (needs gh)
+	uv run python scripts/gen_issue_tracker.py --reconcile $(if $(ISSUES_LIVE),--live $(ISSUES_LIVE),)
+
+# GATES_CI_EXTRA is a declaration gates-home-check takes on trust. This holds
+# it: each name must be a `make <name>` line -- comments stripped -- in some
+# workflow. WORKFLOW_DIR is overridable so the check can be sabotaged on a
+# copy of the workflows.
+WORKFLOW_DIR ?= .github/workflows
+gates-extra-home-check: ## Verify each GATES_CI_EXTRA target is run by a workflow
+	@rc=0; n=0; \
+	 for t in $(GATES_CI_EXTRA); do \
+	     n=$$((n+1)); home=""; \
+	     for w in $(WORKFLOW_DIR)/*.yml; do \
+	         if sed -E 's/(^|[[:space:]])#.*$$//' "$$w" \
+	            | grep -qE "(^|[[:space:];&|]|run:)[[:space:]]*make[[:space:]]+$$t([[:space:]]|$$)"; \
+	         then home="$$w"; break; fi; \
+	     done; \
+	     if [ -z "$$home" ]; then \
+	         echo "ERROR: GATES_CI_EXTRA names '$$t', and no workflow in $(WORKFLOW_DIR) runs 'make $$t'"; \
+	         rc=1; \
+	     else echo "  $$t <- $$home"; fi; \
+	 done; \
+	 if [ $$rc -ne 0 ]; then \
+	     echo "  gates-home-check counts it as having a home; it has none."; \
+	     exit 1; \
+	 fi; \
+	 echo "gates-extra-home-check: $$n declared home(s), each a real workflow line"
 
 # The wfmgen flag-matrix golden is GATED by ctest (`wfmgen_flag_matrix`,
 # native/src/wfmcompose/CMakeLists.txt, which runs the script with --check)

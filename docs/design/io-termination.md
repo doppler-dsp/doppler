@@ -175,14 +175,15 @@ ______________________________________________________________________
 
 No transport could say "I am done" when this was written. This is the
 genuinely new mechanism, and it is what kills the race in all three
-cases — two of them now, the third still owed:
+cases, and all three are built now:
 
 - **memory** *(built)* — a producer marks the ring closed; `wait()`
     returns end-of-stream instead of spinning when it is closed and
     drained.
-- **disk** *(not built —
-    [#972](https://github.com/doppler-dsp/doppler/issues/972); designed in
-    [Ending a Capture](end-of-capture.md))* — a reader distinguishes
+- **disk** *(built —
+    [#987](https://github.com/doppler-dsp/doppler/pull/987); see
+    [Ending a Capture](end-of-capture.md#9-what-is-built-and-what-is-proven))*
+    — a reader distinguishes
     "short read, writer still open" from "end of capture", which is what
     makes tail-following honest.
 - **network** *(built)* — an explicit end-of-stream frame, so a subscriber
@@ -405,8 +406,10 @@ became of it.
     runs the race repeatedly instead, which is a gate rather than a flake.
 
 - **A disk reader distinguishes "short read" from "end of capture"** —
-    *designed, not built* ([#972](https://github.com/doppler-dsp/doppler/issues/972);
-    [Ending a Capture](end-of-capture.md)). The third transport, and §1
+    *built* ([#987](https://github.com/doppler-dsp/doppler/pull/987);
+    [Ending a Capture §9](end-of-capture.md#9-what-is-built-and-what-is-proven)).
+    `wfm_follow_end_t` names the ending a follower reports. The third
+    transport, and §1
     ranks its failure the subtlest of the three because it does not hang
     — it reports a clean finish on a truncated capture. Designed and built
     for the case where **doppler owns both ends of the file**: an

@@ -3344,8 +3344,8 @@ typedef struct
 
 /* Build a transient wfm_segment_t[] from a list of Segment objects. Each
  * source's bits pointer ALIASES the Synth's owned buffer;
- * dp_wfm_compose_create deep-copies it, so we free only these transient arrays
- * afterwards. */
+ * dp_wfm_compose_create_why deep-copies it, so we free only these transient
+ * arrays afterwards. */
 static wfm_segment_t *
 _build_dp_wfm_compose_segments (PyObject *seglist, size_t *n_out)
 {
@@ -3681,12 +3681,16 @@ Composer_init (ComposerObject *self, PyObject *args, PyObject *kwds)
    * seglist must outlive the create call below (which deep-copies them) --
    * dropping it earlier would, in the single-segment-kwargs path where
    * seglist is the sole owner, free the bits out from under the read. */
-  self->state = dp_wfm_compose_create (segs, n, repeat, continuous);
+  const char *_why = NULL;
+  self->state = dp_wfm_compose_create_why (segs, n, repeat, continuous, &_why);
   _free_dp_wfm_compose_segments (segs, n);
   Py_DECREF (seglist);
   if (!self->state)
     {
-      PyErr_SetString (PyExc_ValueError, "dp_wfm_compose_create failed");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError, "dp_wfm_compose_create_why failed");
       return -1;
     }
   return 0;

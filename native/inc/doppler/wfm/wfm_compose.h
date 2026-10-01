@@ -718,6 +718,29 @@ int dp_wfm_source_has_frame(const wfm_source_t *src);
 size_t dp_wfm_source_dsss_nchips(const wfm_source_t *src);
 
 /**
+ * @brief Chips per data symbol of a CONTINUOUS dsss source at @p fs.
+ *
+ * `sps` is samples per CHIP for dsss, so the chip rate is `fs / sps`, and
+ * the data clock is `symbol_rate`: their ratio, non-integer in general,
+ * which is the asynchronicity. It is the number the builder hands
+ * dp_wfm_synth_set_dsss_cont(), and the one dp_wfm_scene_error() holds to
+ * `>= 1` -- so the rule and the synth read the same value.
+ *
+ * @param src  the source.
+ * @param fs   its segment's sample rate, in Hz.
+ * @return chips per data symbol, or 0 for a source that is not continuous
+ *         dsss (or has no `sps`).
+ *
+ * @code
+ * wfm_source_t s = { .type = WFM_SYNTH_DSSS, .sps = 2,
+ *                    .symbol_rate = 1000.0 };
+ * if (dp_wfm_source_dsss_cps (&s, 1e6) != 500.0)   // 500 chips per symbol
+ *   return 1;
+ * @endcode
+ */
+double dp_wfm_source_dsss_cps(const wfm_source_t *src, double fs);
+
+/**
  * @brief NULL when this source's frame fields can be honoured; else why not.
  *
  * ONE rule, asked by all three faces — the wfmgen CLI before it generates, the
@@ -757,6 +780,15 @@ const char *dp_wfm_source_frame_error(const wfm_source_t *src);
  *   (`WFM_SURFACE_EXCLUSIVE`, wfm_surface.h): a carried `frame` is the whole
  *   frame, so a `payload` beside it would be dropped (doppler#1683). The
  *   CLI and a scene refuse the same pair first, naming their own spelling.
+ * - A dsss source has the codes it needs (doppler#1696): a burst whose
+ *   frame has bits to spread needs `data_code`
+ *   (dp_wfm_why_dsss_frame_no_data_code), a burst needs a preamble or a
+ *   frame (dp_wfm_why_dsss_empty), and a continuous stream needs
+ *   `data_code` (dp_wfm_why_dsss_cont_no_data_code). A preamble alone is a
+ *   valid burst: an acquisition stimulus.
+ *
+ * A rule that needs the segment's sample rate is not here -- a source does
+ * not carry it -- but in dp_wfm_scene_error(), which asks this first.
  *
  * @param src  The source.
  * @return NULL if there is nothing wrong, else a static message.
@@ -780,15 +812,29 @@ const char *dp_wfm_source_error(const wfm_source_t *src);
 extern const char dp_wfm_why_pn_poly[];
 
 /**
+ * @brief The reasons dp_wfm_source_error() gives a dsss source missing a
+ *        code (doppler#1696): a burst whose frame has no data_code to
+ *        spread it, a burst with neither a preamble nor a frame, and a
+ *        continuous stream with no data_code. Exported so a test or a face
+ *        can hold a refusal to its reason by identity.
+ */
+extern const char dp_wfm_why_dsss_frame_no_data_code[];
+/** @copydoc dp_wfm_why_dsss_frame_no_data_code */
+extern const char dp_wfm_why_dsss_empty[];
+/** @copydoc dp_wfm_why_dsss_frame_no_data_code */
+extern const char dp_wfm_why_dsss_cont_no_data_code[];
+
+/**
  * @brief Why dp_wfm_source_to_synth() refused this source, or NULL.
  *
  * The standalone `Synth`'s reason channel (just-makeit's `bridge_error_fn`,
- * which takes the bridge's own arguments): dp_wfm_source_error(), so a
- * refused Synth raises the same sentence as every other face. NULL leaves
- * the binding's generic error, for a refusal that is not the source's.
+ * which takes the bridge's own arguments): dp_wfm_scene_error() of a scene
+ * of one segment at @p fs, so a refused Synth raises the same sentence as
+ * every other face, including a rule that needs the rate. NULL leaves the
+ * binding's generic error, for a refusal that is not the source's.
  *
  * @param src  The source.
- * @param fs   The sample rate (unused: no refusal depends on it).
+ * @param fs   The sample rate the bridge was given.
  * @return A static sentence, or NULL.
  *
  * @code
@@ -881,16 +927,31 @@ void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
 /**
  * @brief Why a scene cannot be composed, or NULL: the one validator.
  *
- * Every source's dp_wfm_source_error(), then what only the whole scene
- * can say about a data STREAM (`--data-from-file -`): it has no end to
- * repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are
- * refused, and stdin feeds at most one source. dp_wfm_compose_create()
- * refuses exactly these; a face calls this to say why.
+ * Every source's dp_wfm_source_error(), then what only the scene can say:
+ *
+ * - A continuous dsss source's chip rate `fs / sps`, at its segment's
+ *   `fs`, is at least its `symbol_rate` -- one chip per data symbol, the
+ *   synth's own floor (dp_wfm_source_dsss_cps()). The default `fs = 1.0`
+ *   with a `symbol_rate` in Hz is the case that finds it (doppler#1706);
+ *   the reason is dp_wfm_why_dsss_cont_rate.
+ * - A data STREAM (`--data-from-file -`) has no end to repeat, so
+ *   `repeat`, `continuous` and a segment's `repeats > 1` are refused, and
+ *   stdin feeds at most one source.
+ *
+ * dp_wfm_compose_create() refuses exactly these, and
+ * dp_wfm_compose_create_why() says which; a face calls this to say why.
  *
  * @return a static sentence naming the fault and its fix, or NULL.
  */
 const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
                                int repeat, int continuous);
+
+/**
+ * @brief The reason dp_wfm_scene_error() gives a continuous dsss source
+ *        whose chip rate is below its symbol rate -- exported so the wfmgen
+ *        CLI can name the values beside it, by identity.
+ */
+extern const char dp_wfm_why_dsss_cont_rate[];
 
 
 /**
@@ -1084,6 +1145,41 @@ typedef struct wfm_compose_state dp_wfm_compose_state_t;
  */
 dp_wfm_compose_state_t *dp_wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+/**
+ * @brief dp_wfm_compose_create(), able to say why the scene was refused.
+ *
+ * The scene is asked dp_wfm_scene_error() before anything is built, and its
+ * sentence is what @p why receives -- the same sentence the wfmgen CLI, a
+ * scene read by dp_wfm_compose_from_json_why() and the standalone `Synth`
+ * report, because it is the same validator. It is the create the generated
+ * `Composer([...])` calls (just-makeit's `create_why`), so a refused
+ * composer raises `ValueError(<the reason>)`.
+ *
+ * @param segs        as for dp_wfm_compose_create().
+ * @param n_segs      as for dp_wfm_compose_create().
+ * @param repeat      as for dp_wfm_compose_create().
+ * @param continuous  as for dp_wfm_compose_create().
+ * @param why         optional; receives a STATIC reason when the scene is
+ *                    refused, and is left as it was in every other case
+ *                    (success, bad arguments, an allocation or synth
+ *                    failure).
+ * @return Heap state, or NULL as for dp_wfm_compose_create().
+ *
+ * @code
+ * wfm_source_t  src = { .type = WFM_SYNTH_DSSS, .sps = 2 };   // no codes
+ * wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6,
+ *                       .num_samples = 64 };
+ * const char   *why = NULL;
+ * dp_wfm_compose_state_t *c = dp_wfm_compose_create_why (&seg, 1, 0, 0, &why);
+ * if (c != NULL || why != dp_wfm_why_dsss_empty)   // refused, and says why
+ *   return 1;
+ * @endcode
+ */
+dp_wfm_compose_state_t *dp_wfm_compose_create_why(const wfm_segment_t *segs,
+                                                  size_t n_segs, int repeat,
+                                                  int continuous,
+                                                  const char **why);
 
 /**
  * @brief Choose how the seed advances on each repeat of a looped/continuous

@@ -593,6 +593,25 @@ A `dsss` segment is one complete burst honouring the
     inside a multi-source `sum()` keeps the segment's explicit
     `num_samples`.)
 
+Either half may be absent, not both. A **preamble alone** (`acq_code`, no
+sync, no payload) is a valid burst, the stimulus for an acquisition test;
+a frame with no preamble is valid too. A frame with no `data_code` to spread
+it, a burst with neither half, and a continuous stream with no `data_code`
+are refused, each naming the code to give:
+
+```pycon
+>>> from doppler.wfm import Composer, field_bits
+>>> pre = Composer(type="dsss", sps=2, acq_code=field_bits("pn:31:5"),
+...                acq_reps=3)
+>>> len(pre.compose()) == 3 * 31 * 2           # the preamble, and only it
+True
+>>> try:
+...     Composer(type="dsss", sps=2, num_samples=64)
+... except ValueError as exc:
+...     print(str(exc).split(":")[0])
+a dsss burst has nothing to send
+```
+
 ### Es/N0 that means what the receiver measures
 
 `snr_mode="esno"` (and `auto`) targets the Es/N0 of the outer **data
@@ -797,8 +816,11 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
 `--bits`/`--bits-file` selects a payload. Incompatible combinations are
 rejected (exit 2), not silently ignored: `--symbol-rate` with the burst-frame
 flags (`--acq-code`, `--sync`, `--crc`), `--code-only` together with a
-payload, `--symbol-rate` without `--data-code`, and a non-positive
-`--symbol-rate`. The old spelling `--data none` is refused naming
+payload, `--symbol-rate` without `--data-code`, a non-positive
+`--symbol-rate`, and a chip rate `fs / sps` below `--symbol-rate`. A stream
+sends at least one chip per data symbol, so the default `--fs 1.0` (a
+normalised rate) with a `--symbol-rate` in Hz is refused, naming the three
+values; give the real `--fs`. The old spelling `--data none` is refused naming
 `--code-only`: `--data` is now a frame's [data source](#data-a-payload-drawn-frame-by-frame).
 
 #### SigMF distinguishes the two modes

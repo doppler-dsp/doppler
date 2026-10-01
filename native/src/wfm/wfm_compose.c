@@ -541,6 +541,12 @@ advance (dp_wfm_compose_state_t *s)
   start_segment (s);
 }
 
+const char dp_wfm_why_dsss_cont_rate[]
+    = "a continuous dsss stream sends at least one chip per data symbol, "
+      "and its chip rate fs / sps is below symbol_rate: give fs in Hz (a "
+      "segment's default 1.0 is a normalised rate), lower sps, or lower "
+      "symbol_rate";
+
 const char *
 dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
                     int continuous)
@@ -553,6 +559,13 @@ dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
         const char         *why = dp_wfm_source_error (src);
         if (why)
           return why;
+        /* A rate needs the segment's fs, which a source does not carry. The
+           synth refuses `!(chips_per_symbol >= 1)` with a bare NULL; this is
+           the same comparison on the same number the builder hands it, so
+           a NaN is refused too (doppler#1706). */
+        if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
+            && !(dp_wfm_source_dsss_cps (src, segs[i].fs) >= 1.0))
+          return dp_wfm_why_dsss_cont_rate;
         if (!dp_wfm_source_data_is_stream (src))
           continue;
         /* A stream has no end to repeat and its bytes are gone once read,
@@ -581,6 +594,13 @@ dp_wfm_compose_state_t *
 dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
                        int continuous)
 {
+  return dp_wfm_compose_create_why (segs, n_segs, repeat, continuous, NULL);
+}
+
+dp_wfm_compose_state_t *
+dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
+                           int repeat, int continuous, const char **why)
+{
   if (!segs || n_segs == 0)
     return NULL;
   /* Refuse a frame no source in this scene can carry, BEFORE anything is
@@ -588,8 +608,13 @@ dp_wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
      whose NULL the streaming path turns into a silent gap — and a silent gap
      is how the frame fields came to be accepted and dropped in the first
      place. */
-  if (dp_wfm_scene_error (segs, n_segs, repeat, continuous) != NULL)
-    return NULL;
+  const char *bad = dp_wfm_scene_error (segs, n_segs, repeat, continuous);
+  if (bad)
+    {
+      if (why)
+        *why = bad;
+      return NULL;
+    }
   /* The frame is not the only thing a source can get wrong: anything the
      synth itself refuses (a PN length with no m-sequence, doppler#1590) took
      the same silent-gap path. So build each source once, here, through the

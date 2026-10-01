@@ -2764,6 +2764,159 @@ main (void)
                     "a seed that masks to zero is not a source error");
     }
 
+    /* doppler#1696: a dsss source missing a code. The composer refused
+     * these with a bare NULL -- "dp_wfm_compose_create failed", naming no
+     * field -- and each now has its own reason, reported by
+     * dp_wfm_compose_create_why() and every face that asks
+     * dp_wfm_scene_error(). Compared by IDENTITY with the exported arrays,
+     * so a test cannot pass on another sentence that shares a word, and
+     * each new sentence is pinned word for word. A preamble alone is the
+     * documented valid edge, and must still compose. */
+    {
+      DP_CHECK_MSG (strcmp (dp_wfm_why_dsss_empty,
+                            "a dsss burst has nothing to send: give "
+                            "acq_code, the preamble a receiver acquires on, "
+                            "or a payload spread by data_code, or both")
+                        == 0,
+                    "the empty-burst sentence");
+      DP_CHECK_MSG (strcmp (dp_wfm_why_dsss_cont_no_data_code,
+                            "a continuous dsss stream (symbol_rate > 0) is "
+                            "its spreading code, and no data_code is given: "
+                            "give data_code, a code such as pn:31:5")
+                        == 0,
+                    "the continuous-no-data_code sentence");
+      static const uint8_t acq[7] = { 1, 1, 1, 0, 0, 1, 0 };
+      static const uint8_t dat[3] = { 1, 0, 1 };
+      static const uint8_t pay[4] = { 1, 0, 1, 1 };
+      const wfm_seq_t      A
+          = { .kind = WFM_SEQ_LITERAL, .bits = acq, .len = sizeof acq };
+      const wfm_seq_t D
+          = { .kind = WFM_SEQ_LITERAL, .bits = dat, .len = sizeof dat };
+      const wfm_seq_t P
+          = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = sizeof pay };
+      const wfm_seq_t Z = { 0 };
+      struct
+      {
+        const char *name;
+        wfm_seq_t   acq, data, payload;
+        double      symbol_rate;
+        const char *want; /* NULL: composes */
+      } cases[] = {
+        { "no codes, no frame", Z, Z, Z, 0.0, dp_wfm_why_dsss_empty },
+        { "data_code, no frame", Z, D, Z, 0.0, dp_wfm_why_dsss_empty },
+        { "a preamble and a payload, no data_code", A, Z, P, 0.0,
+          dp_wfm_why_dsss_frame_no_data_code },
+        { "a payload alone, no data_code", Z, Z, P, 0.0,
+          dp_wfm_why_dsss_frame_no_data_code },
+        { "continuous, no data_code", Z, Z, Z, 1e3,
+          dp_wfm_why_dsss_cont_no_data_code },
+        { "a preamble alone", A, Z, Z, 0.0, NULL },
+        { "a payload, no preamble", Z, D, P, 0.0, NULL },
+        { "the whole burst", A, D, P, 0.0, NULL },
+      };
+      for (size_t c = 0; c < sizeof cases / sizeof *cases; c++)
+        {
+          wfm_source_t  src = { .type        = WFM_SYNTH_DSSS,
+                                .sps         = 2,
+                                .acq_reps    = 2,
+                                .acq_code    = cases[c].acq,
+                                .data_code   = cases[c].data,
+                                .payload     = cases[c].payload,
+                                .symbol_rate = cases[c].symbol_rate };
+          wfm_segment_t g   = {
+            .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 64
+          };
+          const char             *why = "untouched";
+          dp_wfm_compose_state_t *st
+              = dp_wfm_compose_create_why (&g, 1, 0, 0, &why);
+          if (cases[c].want)
+            {
+              DP_CHECK_MSG (st == NULL, cases[c].name);
+              DP_CHECK_MSG (why == cases[c].want, cases[c].name);
+              DP_CHECK_MSG (dp_wfm_source_error (&src) == cases[c].want,
+                            cases[c].name);
+              DP_CHECK_MSG (dp_wfm_source_to_synth_error (&src, 1e6)
+                                == cases[c].want,
+                            cases[c].name);
+            }
+          else
+            {
+              DP_CHECK_MSG (st != NULL, cases[c].name);
+              DP_CHECK_MSG (strcmp (why, "untouched") == 0, cases[c].name);
+            }
+          dp_wfm_compose_destroy (st);
+        }
+    }
+
+    /* doppler#1706: a continuous dsss stream needs at least one chip per
+     * data symbol, fs / sps >= symbol_rate. At the default fs = 1.0 a
+     * symbol_rate in Hz was refused by the synth with a bare NULL. The rule
+     * needs the segment's fs, so it is dp_wfm_scene_error()'s, not the
+     * source's; the edge (exactly one chip per symbol) is allowed, and the
+     * same source at a real fs composes. */
+    {
+      DP_CHECK_MSG (strcmp (dp_wfm_why_dsss_cont_rate,
+                            "a continuous dsss stream sends at least one "
+                            "chip per data symbol, and its chip rate fs / "
+                            "sps is below symbol_rate: give fs in Hz (a "
+                            "segment's default 1.0 is a normalised rate), "
+                            "lower sps, or lower symbol_rate")
+                        == 0,
+                    "the chip-rate sentence");
+      static const uint8_t code[3] = { 1, 0, 1 };
+      wfm_source_t         cs      = { .type        = WFM_SYNTH_DSSS,
+                                       .sps         = 2,
+                                       .symbol_rate = 1000.0,
+                                       .pn_length   = 15, /* PRBS data */
+                                       .data_code   = { .kind = WFM_SEQ_LITERAL,
+                                                        .bits = code,
+                                                        .len  = sizeof code } };
+      wfm_segment_t        gc
+          = { .sources = &cs, .n_sources = 1, .fs = 1.0, .num_samples = 64 };
+      DP_CHECK_MSG (dp_wfm_source_error (&cs) == NULL,
+                    "the rate rule is not a source-only rule");
+      DP_CHECK_MSG (dp_wfm_scene_error (&gc, 1, 0, 0)
+                        == dp_wfm_why_dsss_cont_rate,
+                    "fs 1.0, sps 2, symbol_rate 1000: the rate reason");
+      const char *why = NULL;
+      DP_CHECK_MSG (dp_wfm_compose_create_why (&gc, 1, 0, 0, &why) == NULL
+                        && why == dp_wfm_why_dsss_cont_rate,
+                    "...and the composer refuses it, saying so");
+      DP_CHECK_MSG (dp_wfm_source_to_synth_error (&cs, 1.0)
+                        == dp_wfm_why_dsss_cont_rate,
+                    "...and so does the standalone bridge");
+      DP_CHECK_MSG (dp_wfm_source_to_synth (&cs, 1.0) == NULL,
+                    "...which refuses to build it");
+      gc.fs = 1999.0;
+      DP_CHECK_MSG (dp_wfm_scene_error (&gc, 1, 0, 0)
+                        == dp_wfm_why_dsss_cont_rate,
+                    "just under one chip per symbol is refused");
+      gc.fs = 2000.0;
+      DP_CHECK_MSG (dp_wfm_scene_error (&gc, 1, 0, 0) == NULL,
+                    "exactly one chip per symbol is allowed");
+      gc.fs                     = 1e6;
+      dp_wfm_compose_state_t *c = dp_wfm_compose_create (&gc, 1, 0, 0);
+      DP_CHECK_MSG (c != NULL, "the same source at fs 1e6 composes");
+      dp_wfm_compose_destroy (c);
+    }
+
+    /* create_why carries ANY scene refusal through unchanged, not only the
+     * dsss ones: it is the scene validator's sentence, whichever rule. */
+    {
+      wfm_source_t pn = {
+        .type = WFM_SYNTH_PN, .sps = 1, .pn_length = 5, .pn_poly = 0x40
+      };
+      wfm_segment_t gpn
+          = { .sources = &pn, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+      const char *why = NULL;
+      DP_CHECK_MSG (dp_wfm_compose_create_why (&gpn, 1, 0, 0, &why) == NULL
+                        && why == dp_wfm_why_pn_poly,
+                    "create_why passes the pn_poly reason through");
+      DP_CHECK_MSG (dp_wfm_compose_create_why (NULL, 0, 0, 0, &why) == NULL
+                        && why == dp_wfm_why_pn_poly,
+                    "bad arguments leave why as it was");
+    }
+
     /* Same answer inside a multi-source sum: one source that cannot be built
      * refuses the whole composition rather than summing the others and
      * quietly leaving this one out. */

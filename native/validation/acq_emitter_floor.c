@@ -48,6 +48,7 @@
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
+#include "dp_tx_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,11 +139,21 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   /* No data: one bit per code period (the pure code). A transition at
      mid-epoch, every epoch: the pattern {0,1} at two symbols per period. */
   static const uint8_t two_bits[2] = { 0, 1 };
+  /* A pattern is sent once (doppler#1718): tiled to every symbol the
+     TAU0 + nx samples below touch (a symbol is SF/2 chips, SF*SPC/2
+     samples), and checked after the render. */
+  const size_t sym_samples = (size_t)SF * SPC / 2u;
+  const size_t n_flips     = (TAU0 + nx + sym_samples - 1u) / sym_samples + 1u;
+  uint8_t     *flips
+      = data_flip ? dp_tx_bits_for_run (two_bits, 2, n_flips) : NULL;
   int rc = data_flip
-               ? dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF / 2.0,
-                                             WFM_DSSS_DATA_BITS, two_bits, 2)
+               ? (flips ? dp_wfm_synth_set_dsss_cont (
+                              syn, code, SF, (double)SF / 2.0,
+                              WFM_DSSS_DATA_BITS, flips, n_flips)
+                        : -1)
                : dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
                                              WFM_DSSS_DATA_NONE, NULL, 0);
+  free (flips);
   if (!syn || rc != 0)
     {
       fprintf (stderr, "wfm_synth continuous DSSS setup failed\n");
@@ -215,6 +226,8 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   out->max_other_db = db (mx_other / out->peak_mag);
 
   free (raw);
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
+                "the flip pattern covered the render");
   dp_wfm_synth_destroy (syn);
   dp_acq_destroy (a);
   return 0;

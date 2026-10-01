@@ -91,6 +91,11 @@ main (int argc, char **argv)
   if (check)
     fail |= dp_rx_witness_check (&witness);
 
+  /* A check the shared harness made itself -- that the tiled record
+     covered each burst -- fails the run, not just the line it prints. */
+  if (check && dp_test_fails_)
+    fail = 1;
+
   if (check)
     printf ("rx_battery: %s\n", fail ? "FAILED" : "OK");
   return fail;

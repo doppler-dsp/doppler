@@ -72,6 +72,18 @@ BIT_PATTERN = np.array([1, 0, 1, 1, 0, 0], np.uint8)
 SYMBOL_STREAM = np.array([1 + 0j, 1j, -1 + 0j, 0.5 - 0.5j], np.complex64)
 DSSS_CODE = np.array([1, 0, 0, 1, 1, 0, 1], np.uint8)
 
+# A pattern (and a dsss chip burst) is sent ONCE, then silence
+# (doppler#1718). Every sweep below reads at most 4096 samples, so the
+# sources are tiled to 4096 symbols -- one per sample, enough at any sps --
+# and a sweep measures the waveform, never the silence after it. Their
+# PERIOD is still the short pattern's, which is what the cycle-alignment
+# point above is about. §2.8 asks for the bare pattern to show the once.
+RUN_SYMBOLS = 4096
+
+# The types whose constellation is unit-modulus -- and so unit power over
+# a run the waveform fills -- which §2.1's prose and limit claim.
+UNIT_POWER_TYPES = ["tone", "pn", "bpsk", "qpsk", "chirp", "bits", "dsss"]
+
 # The SNR sweep §2.4 runs. 9 dB is the compose test's operating point, and
 # the rest spread far enough that a missing 10log10(span) term (the whole
 # failure mode) cannot hide inside the Monte-Carlo error.
@@ -96,7 +108,9 @@ def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
             fh.write(",".join(f"{v:.10g}" for v in r) + "\n")
 
 
-def synth(wtype: str, span: int = 4096, **kw) -> _SynthEngine:
+def synth(
+    wtype: str, span: int = 4096, once: bool = False, **kw
+) -> _SynthEngine:
     """One engine, with the attachments its type needs.
 
     Parameters
@@ -106,6 +120,10 @@ def synth(wtype: str, span: int = 4096, **kw) -> _SynthEngine:
     span : int, default 4096
         A chirp's sweep length, pinned through `set_chirp_span()` before
         any read. 0 leaves it unpinned. Ignored by the other types.
+    once : bool, default False
+        Give `bits` the bare `BIT_PATTERN`, sent once and then silent,
+        instead of the pattern tiled to `RUN_SYMBOLS`. Ignored by the other
+        types.
     **kw
         Overrides for the create arguments.
 
@@ -130,23 +148,25 @@ def synth(wtype: str, span: int = 4096, **kw) -> _SynthEngine:
     if wtype == "chirp":
         s.set_chirp_span(span)
     elif wtype == "bits":
-        s.set_bits(BIT_PATTERN, 1)
+        s.set_bits(
+            BIT_PATTERN if once else np.resize(BIT_PATTERN, RUN_SYMBOLS), 1
+        )
     elif wtype == "symbols":
         s.set_symbols(SYMBOL_STREAM)
     elif wtype == "dsss":
         # Three unspread preamble periods, then a Frame's bits -- sync 11010,
-        # payload 10, CRC-16 -- each spread by the same code.
+        # payload 10, CRC-16 -- each spread by the same code; the burst
+        # tiled to RUN_SYMBOLS chips, since it is sent once.
         frame = Frame(
             sync=np.array([1, 1, 0, 1, 0], np.uint8),
             payload=np.array([1, 0], np.uint8),
             crc="crc16",
         )
         bits = np.asarray(frame.bits())
-        s.set_dsss_chips(
-            np.concatenate(
-                [np.tile(DSSS_CODE, 3), (bits[:, None] ^ DSSS_CODE).ravel()]
-            )
+        burst = np.concatenate(
+            [np.tile(DSSS_CODE, 3), (bits[:, None] ^ DSSS_CODE).ravel()]
         )
+        s.set_dsss_chips(np.resize(burst, RUN_SYMBOLS))
     return s
 
 
@@ -177,6 +197,7 @@ class Data:
     """Everything measured, so review/limits read data rather than re-run."""
 
     type_rows: list[list[str]] = field(default_factory=list)
+    unit_power_worst: float = 0.0
     pn_rows: list[list[float]] = field(default_factory=list)
     pn_ideal_exact: bool = False
     qpsk_points: int = 0
@@ -254,6 +275,8 @@ def measure_types(d: Data) -> None:
         y = synth(t).steps(4096)
         z = y.astype(np.complex128)
         finite = bool(np.all(np.isfinite(z)))
+        if t in UNIT_POWER_TYPES:
+            d.unit_power_worst = max(d.unit_power_worst, abs(power(y) - 1.0))
         d.type_rows.append(
             [
                 t,
@@ -777,7 +800,7 @@ def measure_state(d: Data) -> None:
     d.state_all_exact = all_exact
     R.table(["type", "blob bytes", "resume"], rows)
     R.md()
-    s = synth("bits", sps=3)
+    s = synth("bits", sps=3, once=True)
     y = s.steps(36).astype(np.complex128)
     d.once_bits = bool(np.all(np.abs(y[:18]) > 0.5) and not np.any(y[18:]))
     s = synth("symbols", sps=2)
@@ -995,6 +1018,13 @@ def limits(d: Data) -> None:
     R.limit(
         all(r[3] == "yes" for r in d.type_rows),
         "every one of the nine waveform types produces finite samples",
+    )
+    R.limit(
+        d.unit_power_worst < 1e-3,
+        "the unit-modulus types ("
+        + ", ".join(UNIT_POWER_TYPES)
+        + f") deliver unit power over the whole run, to "
+        f"{d.unit_power_worst:.1e} -- a source that ran dry reads low",
     )
     R.limit(
         d.pn_ideal_exact,

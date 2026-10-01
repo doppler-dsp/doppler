@@ -62,6 +62,7 @@
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
+#include "dp_tx_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -109,6 +110,11 @@ gold_1023 (uint8_t *code)
 
 static const uint8_t two_bits[2] = { 0, 1 };
 
+/* The flip pattern's length: two symbols an epoch, for more epochs than any
+   scene here renders. A pattern is sent once (doppler#1718), so it is tiled
+   to this bound and scene_close asserts no source ran dry. */
+#define FLIP_EPOCHS 64u
+
 /* An emitter as a source: the shipped synth at the tile's frequency plus
    the fraction, clean (noise is added once, for the scene), its code phase
    set by rendering `tau` samples ahead of the first epoch. */
@@ -124,8 +130,14 @@ source_open (source_t *s, const uint8_t *code, const emitter_t *e, size_t W)
     return 1;
   int rc;
   if (e->data == WFM_DSSS_DATA_BITS) /* a transition mid-epoch, every epoch */
-    rc = dp_wfm_synth_set_dsss_cont (s->syn, code, SF, (double)SF / 2.0,
-                                     WFM_DSSS_DATA_BITS, two_bits, 2);
+    {
+      uint8_t *flips = dp_tx_bits_for_run (two_bits, 2, 2u * FLIP_EPOCHS);
+      rc             = flips ? dp_wfm_synth_set_dsss_cont (
+                                   s->syn, code, SF, (double)SF / 2.0, WFM_DSSS_DATA_BITS,
+                                   flips, 2u * FLIP_EPOCHS)
+                             : -1;
+      free (flips);
+    }
   else
     rc = dp_wfm_synth_set_dsss_cont (s->syn, code, SF, CHIP_RATE / SYM_RATE,
                                      e->data, NULL, 0);
@@ -213,7 +225,11 @@ static void
 scene_close (scene_t *sc)
 {
   for (size_t i = 0; i < sc->n_src; i++)
-    dp_wfm_synth_destroy (sc->src[i].syn);
+    {
+      DP_CHECK_MSG (!dp_wfm_synth_data_ended (sc->src[i].syn),
+                    "a source's data covered the scene (FLIP_EPOCHS)");
+      dp_wfm_synth_destroy (sc->src[i].syn);
+    }
   dp_awgn_destroy (sc->g);
   dp_acq_destroy (sc->a);
   free (sc->epoch);

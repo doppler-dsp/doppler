@@ -73,6 +73,7 @@
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
+#include "dp_tx_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -185,9 +186,20 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
                                        WFM_DSSS_DATA_NONE, NULL, 0);
       break;
     case BLK_FLIP_MID:
-      /* a "symbol" of half a block, bits {0,1}: one flip, mid-block */
-      rc = dp_wfm_synth_set_dsss_cont (syn, code, SF, (double)(D * SF) / 2.0,
-                                       WFM_DSSS_DATA_BITS, two_bits, 2);
+      /* a "symbol" of half a block, bits {0,1}: one flip, mid-block. A
+         pattern is sent once (doppler#1718), so it is tiled to every symbol
+         the TAU0 + block render touches (a symbol is D*nx/2 samples) and the
+         render below checks it never ran dry. */
+      {
+        const size_t sym = D * nx / 2u;
+        const size_t nb  = (TAU0 + D * nx + sym - 1u) / sym + 1u;
+        uint8_t     *fl  = dp_tx_bits_for_run (two_bits, 2, nb);
+        rc = fl ? dp_wfm_synth_set_dsss_cont (syn, code, SF,
+                                              (double)(D * SF) / 2.0,
+                                              WFM_DSSS_DATA_BITS, fl, nb)
+                : -1;
+        free (fl);
+      }
       break;
     case BLK_PRBS:
       rc = dp_wfm_synth_set_dsss_cont (syn, code, SF, cps, WFM_DSSS_DATA_PRBS,
@@ -214,6 +226,8 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
     dp_wfm_synth_noise_steps (syn, raw, discard + blk);
   else
     dp_wfm_synth_steps (syn, raw, discard + blk);
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
+                "the block's data covered the render");
   acq_result_t hit[4];
   dp_acq_reset (a);
   size_t nh = dp_acq_push (a, raw + discard, blk, hit, 4);

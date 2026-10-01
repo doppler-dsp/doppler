@@ -96,38 +96,55 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
 /* Bench a type=bits synth over a set pattern -- the path a framed bpsk/qpsk
  * source and, from #1619, a data source drive. `mod` 0 is the 0/1
  * amplitude line: at sps 1 every sample reads a bit, the tightest per-bit
- * loop the synth has. No source is attached, so this is the cycled
- * pattern's cost -- the path a frame pulled from a data source must not
- * slow down. */
+ * loop the synth has. No source is attached, so this is a set pattern's
+ * cost -- the path a frame pulled from a data source must not slow down.
+ *
+ * A pattern is sent ONCE, then silence (doppler#1718), and silence is a
+ * faster loop than bits: a pattern shorter than the block would time the
+ * silence. So the pattern covers a whole block, reset() rewinds it outside
+ * the timed region, and a block that ran dry aborts the bench rather than
+ * reporting the wrong loop's speed. */
 static void
 bench_cfg_bits (const char *name, int sps, int mod, float _Complex *out,
                 jm_bench_t *bench)
 {
   dp_wfm_synth_state_t *obj = dp_wfm_synth_create (
       6 /* bits */, 1e6, 0.0, 100.0, 0, 1, sps, 7, 0, 0, 0.0);
-  uint8_t pat[1023];
-  for (size_t i = 0, r = 0x5A5u; i < sizeof pat; i++)
+  /* every bit one block reads: BENCH_N / sps symbols, `mod` bits each (0,
+     the amplitude line, reads one) */
+  const size_t n_pat
+      = ((size_t)BENCH_N / (size_t)sps + 1u) * (size_t)(mod > 0 ? mod : 1);
+  uint8_t *pat = malloc (n_pat);
+  for (size_t i = 0, r = 0x5A5u; pat && i < n_pat; i++)
     {
       r      = r * 1103515245u + 12345u;
       pat[i] = (uint8_t)((r >> 16) & 1u);
     }
-  if (!obj || dp_wfm_synth_set_bits (obj, pat, sizeof pat, mod) != 0)
+  if (!obj || !pat || dp_wfm_synth_set_bits (obj, pat, n_pat, mod) != 0)
     {
       printf ("  %-26s   (create failed)\n", name);
       if (obj)
         dp_wfm_synth_destroy (obj);
+      free (pat);
       return;
     }
+  free (pat);                             /* the synth keeps its own copy */
   dp_wfm_synth_steps (obj, out, BENCH_N); /* warm up */
 
   uint64_t t0, t1;
   double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
+      dp_wfm_synth_reset (obj); /* the pattern from its first bit, untimed */
       t0 = jm_bench_now_ns ();
       dp_wfm_synth_steps (obj, out, BENCH_N);
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
+      if (dp_wfm_synth_data_ended (obj))
+        {
+          fprintf (stderr, "  %s: the pattern ran dry inside a block\n", name);
+          exit (1);
+        }
     }
   double mean = 0.0;
   for (int r = 0; r < ITERATIONS; r++)

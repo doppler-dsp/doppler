@@ -194,6 +194,47 @@ dp_tx_symbols (int8_t *out, size_t n, uint32_t seed)
 }
 
 /**
+ * @brief A short bit pattern, tiled to cover a run: `pat` repeated to `n`
+ * bits.
+ *
+ * `wfm_synth` sends a pattern ONCE and then emits silence (doppler#1718), so
+ * a harness that means a periodic stimulus -- `{0, 1}` for a data flip every
+ * symbol, a one-frame descriptor for a multi-frame record -- says how long
+ * here, once, rather than leaning on a cycle the generator no longer has.
+ * Size `n` to every bit the run reads, including what a shaper reads ahead
+ * of the samples it emits, and assert `!dp_wfm_synth_data_ended()` after the
+ * run: a pattern that ran dry is silence a receiver scores, and the harness
+ * would otherwise measure nothing without saying so.
+ *
+ * @code
+ * #include "dp_tx_test.h"
+ * #include <stdlib.h>
+ * int main (void) {
+ *   static const uint8_t flip[2] = { 0, 1 };
+ *   uint8_t *b  = dp_tx_bits_for_run (flip, 2, 5);
+ *   int      ok = b && b[0] == 0 && b[1] == 1 && b[2] == 0 && b[4] == 0;
+ *   free (b);
+ *   return ok ? 0 : 1;
+ * }
+ * @endcode
+ *
+ * @param pat   The pattern, `npat` bits, each 0 or 1.
+ * @param npat  Pattern length; non-zero.
+ * @param n     Bits to produce; non-zero.
+ * @return      Heap buffer of `n` bits, `pat[i % npat]` (caller frees), or
+ *              NULL on a zero length or a failed allocation.
+ */
+static inline uint8_t *
+dp_tx_bits_for_run (const uint8_t *pat, size_t npat, size_t n)
+{
+  uint8_t *b = (pat && npat && n) ? (uint8_t *)malloc (n) : NULL;
+  if (b)
+    for (size_t i = 0; i < n; i++)
+      b[i] = pat[i % npat];
+  return b;
+}
+
+/**
  * @brief Synthesize the stream `cfg` describes.
  *
  * Direct-form: every symbol's pulse is evaluated analytically at every sample

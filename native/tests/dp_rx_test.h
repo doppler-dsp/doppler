@@ -69,6 +69,7 @@
 #include "dp_ber_test.h"
 #include "dp_frame_test.h"
 #include "dp_test.h"
+#include "dp_tx_test.h" /* dp_tx_bits_for_run -- the record, tiled */
 
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
@@ -476,6 +477,7 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
   dp_wfm_synth_state_t       *tx   = NULL;
   dp_doppler_channel_state_t *ch   = NULL;
   void                       *r    = NULL;
+  uint8_t                    *rec  = NULL;
   size_t                      nout = 0, navail = nsamp;
   /* A real front end takes Re{}, halving signal AND noise, but its convention
      counts the real noise against the halved Es — 3 dB less noise. Asking the
@@ -496,11 +498,20 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
                             7, 0, 0, 0.0);
   if (!tx)
     goto done;
-  if (dp_wfm_synth_set_bits (tx, bits, nbits, mpsk_bps (pt->m)) != 0
+  /* Many frames from one descriptor: the frame tiled to the record here,
+     since a pattern is sent once (doppler#1718) -- the truth below indexes
+     `bits` modulo `nbits` the same way. A filter span past nsym, because
+     the shaper reads ahead of the samples it emits, and the record's tail
+     must be frames, not the silence after the data. */
+  const size_t bps  = (size_t)mpsk_bps (pt->m);
+  const size_t nrec = (nsym + 2u * (size_t)span + 2u) * bps;
+  rec               = dp_tx_bits_for_run (bits, nbits, nrec);
+  if (!rec || dp_wfm_synth_set_bits (tx, rec, nrec, (int)bps) != 0
       || dp_wfm_synth_set_rrc (tx, taps, ntaps) != 0)
     goto done;
-  dp_wfm_synth_steps (tx, x, nsamp); /* the pattern CYCLES: many frames, one
-                                     descriptor */
+  dp_wfm_synth_steps (tx, x, nsamp);
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (tx),
+                "the tiled record covers the burst");
 
   /* Stage 3 — IMPAIR. One parameter moves the carrier AND every clock,
      because a Doppler shift dilates the whole received time base. */
@@ -575,6 +586,7 @@ done:
     dp_doppler_channel_destroy (ch);
   if (tx)
     dp_wfm_synth_destroy (tx);
+  free (rec);
   free (taps);
   free (x);
   free (imp);
@@ -644,7 +656,7 @@ dp_rx_iface_missing (const dp_rx_iface_t *rx)
  * @param l      Its layout.
  * @param out    Recovered symbols.
  * @param n      How many.
- * @param truth  Transmitted symbol indices, the frame bits cycled.
+ * @param truth  Transmitted symbol indices, the frame bits tiled.
  * @param nsym   How many.
  * @param lag    The RECORD alignment; every frame's position follows from it.
  * @param phase  The record's residual constellation rotation, radians.

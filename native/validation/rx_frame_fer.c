@@ -219,15 +219,13 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
      past nsym: the shaper reads ahead of the samples it emits, and the
      record's tail must be frames, not the silence after the data. */
   const size_t nrec = nsym + 2u * RX_FRAME_SPAN + 2u;
-  rec               = malloc (nrec);
-  if (!rec)
-    goto done;
-  for (size_t i = 0; i < nrec; i++)
-    rec[i] = bits[i % nbits];
-  if (dp_wfm_synth_set_bits (tx, rec, nrec, 1 /* bpsk */) != 0
+  rec               = dp_tx_bits_for_run (bits, nbits, nrec);
+  if (!rec || dp_wfm_synth_set_bits (tx, rec, nrec, 1 /* bpsk */) != 0
       || dp_wfm_synth_set_rrc (tx, taps, ntaps) != 0)
     goto done;
   dp_wfm_synth_steps (tx, x, nsamp);
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (tx),
+                "the tiled record covers the burst");
 
   rx = dp_mpsk_receiver_create (c->m, c->sps, c->m_out, MPSK_RX_PULSE_RRC,
                                 RX_FRAME_BETA, RX_FRAME_SPAN, c->bn_carrier,
@@ -693,6 +691,10 @@ main (int argc, char **argv)
                   missed ? "accept" : "refuse", detected, missed);
           rc = 1;
         }
+      /* A check the harness made itself -- that the tiled record covered
+         each burst -- fails the run, not just the line it prints. */
+      if (dp_test_fails_)
+        rc = 1;
       printf (rc ? "rx_frame_fer FAILED\n" : "rx_frame_fer PASSED\n");
       return rc;
     }

@@ -176,6 +176,7 @@ def member_docs(text: str, struct: str) -> dict[str, dict]:
             "end": close,
             "col": col,
             "form": form,
+            "decl": m.group(0).strip(),
         }
     return out
 
@@ -325,6 +326,7 @@ def surface_rows(man: dict) -> list[dict]:
                     "CLI range kind; wfmgen ranges source doubles and "
                     "segment sizes only"
                 )
+            rows.extend(_surface_only(kind, f))
             rows.append(
                 {
                     "owner": kind,
@@ -352,6 +354,88 @@ def surface_rows(man: dict) -> list[dict]:
             )
     _resolve_when(rows)
     return rows
+
+
+def _surface_only(kind: str, f: dict) -> list[dict]:
+    """The SURFACE-ONLY rows a field's exclusions declare: `row = {...}`.
+
+    A surface-only row has a C member and every face but Python, and no jm
+    field -- a file path, which no jm composer type carries and which the
+    Python face deliberately lacks (`--data-from-file`, payload-data-source
+    .md section 4.9). It is declared inside the ONE exclusion that is its
+    reason to exist, beside the field it excludes, because jm does not read
+    inside `exclusive`: a table of its own would cost a jm diagnostic on
+    every apply. It is bespoke -- each face reads its value with its own
+    code -- and its doc is its member's header comment, like every row's.
+    `surface_only_errors` checks it against the struct both ways.
+    """
+    out = []
+    for e in f.get("exclusive", []):
+        r = e.get("row")
+        if r is None:
+            continue
+        if not r.get("member"):
+            raise SystemExit(
+                f"{kind}.{f['name']}: the surface-only row {e.get('with')!r} "
+                "needs `member`"
+            )
+        out.append(
+            {
+                "owner": kind,
+                "name": e["with"],
+                "member": r["member"],
+                "field_reps": None,
+                "cli": r.get("cli"),
+                "json": r.get("json"),
+                "json_required": False,
+                "json_omit": None,
+                "json_bool": False,
+                "json_when": None,
+                "json_schema": {},
+                "json_range": None,
+                "kind": "WFM_SV_BESPOKE",
+                "choices": None,
+                "range_bit": None,
+                "unit_interval": False,
+                "metavar": r.get("metavar"),
+                "section": r.get("help_section"),
+                "default": None,
+                "values": None,
+                "exclusive": [],
+                "surface_only": True,
+            }
+        )
+    return out
+
+
+def surface_only_errors(man: dict, header_text: str) -> list[str]:
+    """A surface-only row against its struct, BOTH ways.
+
+    Forward: its `member` is a documented member of the struct, so the row
+    reaches real storage and has the doc every row takes from the header.
+    Backward: a `const char *` member -- the one C type a surface-only row
+    exists for -- has a row, so a path member cannot be added that no face
+    can set.
+    """
+    bad = []
+    rows = [r for r in surface_rows(man) if r.get("surface_only")]
+    for kind, struct in STRUCTS.items():
+        docs = member_docs(header_text, struct)
+        mine = {r["member"] for r in rows if r["owner"] == kind}
+        for r in rows:
+            if r["owner"] == kind and r["member"] not in docs:
+                bad.append(
+                    f"{kind}.{r['name']}: surface-only row's member "
+                    f"{r['member']!r} is not a documented member of {struct}"
+                )
+        for name, d in docs.items():
+            if re.match(r"const\s+char\s*\*", d["decl"]) and name not in mine:
+                bad.append(
+                    f"{struct}.{name}: a `const char *` member with no "
+                    "surface-only row, so no face can set it; declare one in "
+                    "the exclusion that is its reason to exist"
+                )
+    return bad
 
 
 #: The kinds a struct can hold as "unset" (an empty sequence, a NULL
@@ -499,7 +583,7 @@ def help_lines(row: dict, doc: str) -> list[str]:
     mv = row["metavar"]
     if row["range_bit"]:
         mv = f"{mv}[:{mv}]"
-    head = f"  {row['cli']} {mv}"
+    head = f"  {row['cli']} {mv}" if mv else f"  {row['cli']}"
     text = first_sentence(doc)
     if row["values"]:
         text += " One of: " + " | ".join(row["values"]) + "."
@@ -548,10 +632,12 @@ def render_help(rows: list[dict]) -> list[str]:
     # Segment rows first: --fs and --count lead the signal section.
     cli_rows = [r for r in rows if r["cli"]]
     for r in sorted(cli_rows, key=lambda r: r["owner"] != "segment"):
-        if not r["section"] or not r["metavar"]:
+        # A bool row is a switch on the command line (wfmgen.c: OPT_SET),
+        # so it takes no value and has no metavar; every other row does.
+        if not r["section"] or (not r["metavar"] and not r["json_bool"]):
             raise SystemExit(
                 f"{r['owner']}.{r['name']}: a `cli` row needs `metavar` and "
-                "`help_section`"
+                "`help_section` (a json_type bool row, a switch, no metavar)"
             )
         doc = docs[r["owner"]].get(r["member"], {}).get("doc")
         if not doc:
@@ -1088,6 +1174,15 @@ def main() -> int:
         )
         for d in drift:
             print("  " + d, file=sys.stderr)
+        return 1
+
+    only = surface_only_errors(
+        tomllib.loads(MANIFEST.read_text(encoding="utf-8")),
+        COMPOSE_H.read_text(encoding="utf-8"),
+    )
+    if only:
+        for d in only:
+            print(f"gen_wfm_defaults: {d}", file=sys.stderr)
         return 1
 
     splice = help_splice_errors(

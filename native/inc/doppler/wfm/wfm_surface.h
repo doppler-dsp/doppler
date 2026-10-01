@@ -93,7 +93,12 @@ enum
   WFM_SURFACE_source_sync,
   WFM_SURFACE_source_crc,
   WFM_SURFACE_source_symbol_rate,
+  WFM_SURFACE_source_dsss_code_only,
   WFM_SURFACE_source_frame,
+  WFM_SURFACE_source_data_from_file,
+  WFM_SURFACE_source_data,
+  WFM_SURFACE_source_data_len,
+  WFM_SURFACE_source_fill,
   WFM_SURFACE_segment_fs,
   WFM_SURFACE_segment_num_samples,
   WFM_SURFACE_segment_off_samples,
@@ -382,6 +387,16 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .when_row = WFM_SURFACE_source_type,
     .when_value = 8,
   },
+  [WFM_SURFACE_source_dsss_code_only] = {
+    .name = "dsss_code_only",
+    .cli = "--code-only",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_INT,
+    .off = offsetof (wfm_source_t, dsss_code_only),
+    .json = "code_only",
+    .json_omit = 1,
+    .json_bool = 1,
+  },
   [WFM_SURFACE_source_frame] = {
     .name = "frame",
     .cli = "--frame",
@@ -389,6 +404,39 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .kind = WFM_SV_BESPOKE,
     .off = offsetof (wfm_source_t, frame),
     .json = "frame",
+  },
+  [WFM_SURFACE_source_data_from_file] = {
+    .name = "data_from_file",
+    .cli = "--data-from-file",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_BESPOKE,
+    .off = offsetof (wfm_source_t, data_from_file),
+    .json = "data_from_file",
+  },
+  [WFM_SURFACE_source_data] = {
+    .name = "data",
+    .cli = "--data",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, data),
+    .json = "data",
+  },
+  [WFM_SURFACE_source_data_len] = {
+    .name = "data_len",
+    .cli = "--data-len",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_SIZE,
+    .off = offsetof (wfm_source_t, data_len),
+    .json = "data_len",
+    .json_omit = 1,
+  },
+  [WFM_SURFACE_source_fill] = {
+    .name = "fill",
+    .cli = "--fill",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, fill),
+    .json = "fill",
   },
   [WFM_SURFACE_segment_fs] = {
     .name = "fs",
@@ -463,9 +511,9 @@ typedef struct
   const char *obj_why;
 } wfm_surface_exclusive_t;
 
-#define WFM_SURFACE_N_EXCLUSIVE 1
+#define WFM_SURFACE_N_EXCLUSIVE 3
 static const wfm_surface_exclusive_t
-    WFM_SURFACE_EXCLUSIVE[1] = {
+    WFM_SURFACE_EXCLUSIVE[3] = {
   {
     .a = WFM_SURFACE_source_bits,
     .b = WFM_SURFACE_source_frame,
@@ -478,6 +526,31 @@ static const wfm_surface_exclusive_t
     .obj_why = "a source's payload and frame cannot both be set: a "
         "frame description is the whole frame, and carries its "
         "payload as a field",
+  },
+  {
+    .a = WFM_SURFACE_source_data,
+    .b = WFM_SURFACE_source_data_from_file,
+    .cli_why = "--data and --data-from-file cannot both be given: a "
+        "payload has one data source",
+    .json_why = "\"data\" and \"data_from_file\" cannot both be given: a "
+        "payload has one data source",
+    .obj_why = "a source's data and data_from_file cannot both be set:"
+        " a payload has one data source",
+  },
+  {
+    .a = WFM_SURFACE_source_data,
+    .b = WFM_SURFACE_source_bits,
+    .cli_why = "--data and --bits cannot both be given: the payload is"
+        " one or the other: a data source drawn frame by frame,"
+        " or one cycled pattern (bits is retired by #1718)",
+    .json_why = "\"data\" and \"payload\" cannot both be given: the payload"
+        " is one or the other: a data source drawn frame by "
+        "frame, or one cycled pattern (bits is retired by "
+        "#1718)",
+    .obj_why = "a source's data and payload cannot both be set: the "
+        "payload is one or the other: a data source drawn frame"
+        " by frame, or one cycled pattern (bits is retired by "
+        "#1718)",
   },
 };
 
@@ -573,9 +646,20 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
 
 #define WFM_SURFACE_HELP_BITS \
   "  --bits FIELD    The payload bits: a Field on the command line and in a scene,\n" \
-  "                  an array in Python. Not with --frame.\n" \
+  "                  an array in Python. Not with --frame, --data.\n" \
   "  --modulation M  Symbol mapping of a bits pattern. One of: none | bpsk | qpsk.\n" \
-  "                  (default bpsk)\n"
+  "                  (default bpsk)\n" \
+  "  --data-from-file PATH\n" \
+  "                  A data source read from a file of packed octets, MSB first,\n" \
+  "                  or `-` for stdin, instead of data. Not with --data.\n" \
+  "  --data FIELD    A frame's payload drawn from a data source: a Field on the\n" \
+  "                  command line and in a scene, a bit array in Python. Not with\n" \
+  "                  --data-from-file, --bits.\n" \
+  "  --data-len BITS Bits of the data source per frame: the data:LEN of the common\n" \
+  "                  frame [preamble x reps | sync | data:LEN | crc]. (default 0)\n" \
+  "  --fill FIELD    The bits that pad a data source's last frame when it does not\n" \
+  "                  divide into data_len-bit frames, tiled from their first bit;\n" \
+  "                  stdin always needs them.\n"
 
 #define WFM_SURFACE_HELP_PULSE \
   "  --pulse SHAPE   Pulse shape per symbol or chip, for\n" \
@@ -612,7 +696,10 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
 #define WFM_SURFACE_HELP_DSSS_CONT \
   "  --symbol-rate HZ\n" \
   "                  For type=dsss: > 0 selects CONTINUOUS asynchronous mode.\n" \
-  "                  (default 0.0)\n"
+  "                  (default 0.0)\n" \
+  "  --code-only     Continuous dsss data source: 1 = code-only (the pure\n" \
+  "                  spreading code, no data modulation); 0 = data-modulated (the\n" \
+  "                  payload when supplied, else the seeded PN). (default 0)\n"
 
 #define WFM_SURFACE_HELP_CODED \
   "  --frame FILE    A frame DESCRIPTION, the whole frame: fields in wire order,\n" \

@@ -12,6 +12,7 @@
  * to the composed path.
  */
 #include <stdlib.h>
+#include <string.h>
 
 #include "doppler/ccsds_tm/ccsds_tm_frame.h" /* the kernels its coded stages run */
 #include "doppler/wfm/wfm_compose.h"         /* wfm_source_t */
@@ -62,11 +63,45 @@ dp_wfm_source_has_frame (const wfm_source_t *src)
      be refused there rather than be silently dropped here. */
   return src
          && (src->frame != NULL || (src->acq_code.len && src->acq_reps)
-             || src->sync.len);
+             || src->sync.len || src->data.len || src->data_from_file);
 }
 
-static int type_can_frame (const wfm_source_t *src);
-static int source_frame (const wfm_source_t *src, wfm_frame_desc_t *d);
+/* A data source -- `data` or `data_from_file` -- fills this source's frame
+   (docs/design/payload-data-source.md). Length, never the pointer: a
+   generated Field has no array. */
+static int
+has_data (const wfm_source_t *src)
+{
+  return src->data.len || src->data_from_file;
+}
+
+/* The index of a description's one data:LEN field, or -1. */
+static int
+data_field (const wfm_frame_desc_t *d)
+{
+  for (unsigned i = 0; i < d->n_fields; i++)
+    if (!d->field[i].derived_by && d->field[i].seq.kind == WFM_SEQ_DATA
+        && d->field[i].seq.len)
+      return (int)i;
+  return -1;
+}
+
+/* Bits per frame of a data source on the COMMON frame: `data_len`, or 0 to
+   take a finite source whole. 0 back means none could be decided -- stdin
+   with no data_len, or a file that cannot be opened. */
+static size_t
+common_data_len (const wfm_source_t *src)
+{
+  if (src->data_len)
+    return src->data_len;
+  if (src->data.len)
+    return src->data.len;
+  return (size_t)dp_wfm_data_length_bits (NULL, src->data_from_file);
+}
+
+static int         type_can_frame (const wfm_source_t *src);
+static int         source_frame (const wfm_source_t *src, wfm_frame_desc_t *d);
+static const char *data_error (const wfm_source_t *src);
 
 const char dp_wfm_why_pn_poly[]
     = "pn_poly has a bit at or above bit pn_length, outside the register "
@@ -96,8 +131,18 @@ dp_wfm_source_error (const wfm_source_t *src)
      bits. Checked here, where every face -- the CLI, a scene, the
      composer -- asks about a source, so it is named once for all three. */
   if (src->payload.kind == WFM_SEQ_DATA && src->payload.len)
-    return "a payload of data:LEN draws its bits from a data source, and "
-           "wfmgen does not connect one yet (doppler#1619)";
+    return "a payload of data:LEN is drawn from a data source: give the "
+           "source with --data or --data-from-file, and its bits per frame "
+           "with --data-len";
+  if (src->dsss_code_only && (src->payload.len || has_data (src)))
+    return "--code-only sends a continuous-dsss code alone, so a payload "
+           "(--bits or --data) would be ignored: drop one";
+  if (has_data (src))
+    {
+      const char *w = data_error (src);
+      if (w)
+        return w;
+    }
   if ((src->sync.kind == WFM_SEQ_DATA && src->sync.len)
       || (src->acq_code.kind == WFM_SEQ_DATA && src->acq_code.len)
       || (src->data_code.kind == WFM_SEQ_DATA && src->data_code.len))
@@ -162,7 +207,7 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
      nothing bounded it; a generated payload Field is that bound, so the
      question is the one BITS always answered -- is there a payload at all
      (gh-762). */
-  else if (!src->frame && src->payload.len == 0)
+  else if (!src->frame && src->payload.len == 0 && !has_data (src))
     return "a frame needs a payload: --bits <FIELD> (literal bits, or "
            "generated, e.g. --bits pn:1024:<pn-length> over the waveform's "
            "own register) or --bits-file";
@@ -188,15 +233,15 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
            "emitting stage must be the only one and must cover the whole "
            "frame";
 
-  /* A payload that is `data:LEN` lays out -- the description knows its
-     length -- but its bits are a data source's, and none is connected yet
-     (docs/design/payload-data-source.md §7, step 5). Named here, because
-     the assembler below can only report it as a field it could not build. */
-  for (unsigned i = 0; i < desc.n_fields; i++)
-    if (!desc.field[i].derived_by && desc.field[i].seq.kind == WFM_SEQ_DATA
-        && desc.field[i].seq.len)
-      return "this frame's payload is data:LEN, whose bits come from a data "
-             "source, and wfmgen does not connect one yet (doppler#1619)";
+  /* A frame with a data:LEN field lays out -- the description knows its
+     length -- and its bits are a data source's. Without one it is named
+     here, because the assembler below can only report it as a field it
+     could not build. With one, the probe assembles over a zero chunk:
+     geometry and kernels are what it asks, never the data. */
+  const int di = data_field (&desc);
+  if (di >= 0 && !has_data (src))
+    return "this frame's data:LEN field draws from a data source: give one "
+           "with --data or --data-from-file";
 
   /* And does it ASSEMBLE? A layout is geometry; each stage's kernel has
      rules of its own that only running it can ask -- an outer code takes
@@ -213,8 +258,10 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
       wfm_frame_ops_t ops;
       dp_ccsds_tm_frame_ops (&ops, NULL);
       uint8_t     *scratch = dp_xmalloc (lay.out_bits);
-      const size_t got
-          = dp_wfm_frame_assemble (&desc, &ops, scratch, lay.out_bits);
+      uint8_t     *chunk = di >= 0 ? dp_xcalloc (lay.field_bits[di], 1) : NULL;
+      const size_t got   = dp_wfm_frame_assemble_data (&desc, &ops, chunk,
+                                                       scratch, lay.out_bits);
+      free (chunk);
       free (scratch);
       if (got != lay.out_bits)
         return "this frame does not assemble: a stage's kernel refused its "
@@ -250,9 +297,71 @@ source_frame (const wfm_source_t *src, wfm_frame_desc_t *d)
       return 0;
     }
   const int spread = (src->type == WFM_SYNTH_DSSS);
+  /* With a data source the common frame's payload is `data:LEN`, its bits
+     drawn per frame; otherwise it is the payload sequence itself. */
+  const wfm_seq_t dq = { .kind = WFM_SEQ_DATA, .len = common_data_len (src) };
   return dp_wfm_frame_fixed (d, spread ? NULL : &src->acq_code,
                              spread ? 0u : src->acq_reps, &src->sync,
-                             &src->payload, src->crc);
+                             has_data (src) ? &dq : &src->payload, src->crc);
+}
+
+/* What a data source refuses before the first sample, named with its fix
+   (payload-data-source.md section 4.4). The source's own bits -- a remainder,
+   an empty file -- are dp_wfm_data_create_seq's to refuse at build; this is
+   the part a face can decide from the spec alone, without opening stdin. */
+static const char *
+data_error (const wfm_source_t *src)
+{
+  if (src->type == WFM_SYNTH_DSSS)
+    return "a data source on a dsss source is not built yet "
+           "(doppler#1719): its payload is --bits until then";
+  if (!type_can_frame (src))
+    return "a data source fills a frame's payload: use --type "
+           "bits/bpsk/qpsk/pn";
+  if (src->data.kind == WFM_SEQ_DATA || src->fill.kind == WFM_SEQ_DATA)
+    return "data:LEN has no bits of its own: it is the frame's field that "
+           "--data fills, not a source or a fill";
+  const int stdin_src
+      = src->data_from_file && strcmp (src->data_from_file, "-") == 0;
+  if (stdin_src && src->fill.len == 0)
+    return "stdin is a stream: its last frame, and an idle frame when "
+           "--realtime finds nothing yet, need --fill";
+  size_t len;
+  if (src->frame)
+    {
+      const int i = data_field (src->frame);
+      if (i < 0)
+        return "a data source fills a data:LEN field, and this carried "
+               "--frame has none: add one (the common frame has it)";
+      len = src->frame->field[i].seq.len;
+      if (src->data_len && src->data_len != len)
+        return "--data-len must be 0 or the carried frame's data:LEN";
+    }
+  else
+    {
+      len = common_data_len (src);
+      if (len == 0)
+        return stdin_src ? "stdin has no length to take whole as one "
+                           "frame: give --data-len"
+                         : "--data-from-file: a file that cannot be opened, "
+                           "is empty, or is not a regular file (a stream "
+                           "is -, stdin)";
+    }
+  /* The remainder rule (section 4.4), decided here for every finite source
+     whose length is known without reading it. */
+  const uint64_t total
+      = src->data.len
+            ? (uint64_t)src->data.len
+            : (stdin_src
+                   ? 0u
+                   : dp_wfm_data_length_bits (NULL, src->data_from_file));
+  if (!stdin_src && total == 0)
+    return "--data-from-file: a file that cannot be opened, is empty, or is "
+           "not a regular file (a stream is -, stdin)";
+  if (total % len && src->fill.len == 0)
+    return "the data does not fill its last frame and no --fill is "
+           "declared: give one, or a --data-len that divides it";
+  return NULL;
 }
 
 /* Expand a sequence into a caller-owned array, whatever produced it.
@@ -338,7 +447,8 @@ dp_wfm_source_synth_type (const wfm_source_t *src)
      its LFSR and dropped the frame (doppler#1616). The mapping the type
      names still reaches the wire: attach_frame passes frame_modulation(). */
   if (src->type != WFM_SYNTH_BITS && type_can_frame (src)
-      && dp_wfm_source_has_frame (src) && (src->payload.len || src->frame))
+      && dp_wfm_source_has_frame (src)
+      && (src->payload.len || src->frame || has_data (src)))
     return WFM_SYNTH_BITS;
   return src->type;
 }
@@ -346,6 +456,27 @@ dp_wfm_source_synth_type (const wfm_source_t *src)
 int
 dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
 {
+  /* A data source: each frame is pulled from it, the description assembled
+     over its next chunk (dp_wfm_synth_attach_data), in place of the one
+     frame assembled here and cycled. */
+  if (has_data (src) && type_can_frame (src))
+    {
+      wfm_frame_desc_t d;
+      if (source_frame (src, &d) != 0)
+        return -1;
+      const int i = data_field (&d);
+      if (i < 0)
+        return -1;
+      wfm_data_src_t *ds = dp_wfm_data_create_seq (
+          src->data_from_file ? NULL : &src->data, src->data_from_file,
+          d.field[i].seq.len, &src->fill, NULL);
+      if (!ds)
+        return -1;
+      wfm_frame_ops_t ops;
+      dp_ccsds_tm_frame_ops (&ops, NULL);
+      return dp_wfm_synth_attach_data (syn, &d, &ops, ds, WFM_DATA_UNPACED,
+                                       frame_modulation (src));
+    }
   /* Tested on LENGTH, not on the pointer: a GENERATED payload has no array,
      and reading it as "no payload" is how the generated kinds stayed
      unreachable everywhere else in this file. */
@@ -510,7 +641,8 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
      is lazy, so the guard moves to first steps()/step()). A carried frame
      IS the pattern -- its payload is a field of it, never beside it
      (doppler#1683) -- so it needs none. */
-  if (src->type == WFM_SYNTH_BITS && src->payload.len == 0 && !src->frame)
+  if (src->type == WFM_SYNTH_BITS && src->payload.len == 0 && !src->frame
+      && !has_data (src))
     return NULL;
   /* Likewise a "symbols" waveform needs a constellation stream. */
   if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
@@ -665,21 +797,15 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
   p->chunk_bits = l.field_bits[at];
   p->chunk      = dp_xmalloc (p->chunk_bits);
 
-  /* The first frame now; an empty stream is a synth that is silent from
-     its first sample, not a failure. */
-  uint8_t         *first = dp_xcalloc (l.out_bits, 1);
-  const int        ended = data_pull_refill (p, first, l.out_bits);
-  wfm_data_stats_t st;
-  dp_wfm_data_stats (src, &st);
-  if (ended && (st.frames || st.idle_frames || !st.stream))
-    {
-      /* a first frame that could not be built -- not an empty stream */
-      free (first);
-      data_pull_free (p);
-      return -1;
-    }
-  const int rc = dp_wfm_synth_set_bits (syn, first, l.out_bits, modulation);
-  free (first);
+  /* NOTHING is drawn here, not even the first frame: the cursor is PARKED
+     at the frame boundary, so frame 1 is pulled at the first bit, like
+     every frame after it. That is what lets a composer build a source just
+     to validate it, and Plan or a repeat build it again, without reading a
+     byte of stdin (payload-data-source.md, D-c). The pattern set here is a
+     placeholder of the frame's length, never sent. */
+  uint8_t  *blank = dp_xcalloc (l.out_bits, 1);
+  const int rc    = dp_wfm_synth_set_bits (syn, blank, l.out_bits, modulation);
+  free (blank);
   if (rc != 0
       || dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free)
              != 0)
@@ -687,14 +813,60 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
       data_pull_free (p);
       return -1;
     }
-  if (ended)
-    {
-      /* An empty stream: silent from the first sample. The cursor sits at
-         the boundary, where bit_next sees the latched end. */
-      syn->data_ended = 1;
-      syn->bit_idx    = syn->n_bits;
-    }
+  syn->bit_idx = syn->n_bits;
   return 0;
+}
+
+int
+dp_wfm_source_data_is_stream (const wfm_source_t *src)
+{
+  return src && src->data_from_file && strcmp (src->data_from_file, "-") == 0;
+}
+
+size_t
+dp_wfm_source_data_frame_samples (const wfm_source_t *src)
+{
+  if (!src || !has_data (src))
+    return 0;
+  wfm_frame_desc_t        d;
+  wfm_frame_desc_layout_t l;
+  if (source_frame (src, &d) != 0 || dp_wfm_frame_desc_layout (&d, &l) != 0)
+    return 0;
+  /* Symbols per frame at the frame's own mapping (a bpsk/pn frame is one
+     bit per symbol, qpsk two, a bits pattern its `modulation`, 0 meaning
+     one), then sps samples each -- what the synth emits per frame. A frame
+     that does not divide into symbols ends on a symbol the next frame
+     completes (wfm_synth_bit_symbol), so it rounds UP. */
+  const int    m   = frame_modulation (src);
+  const size_t bps = m > 0 ? (size_t)m : 1u;
+  const size_t sps = src->sps > 0 ? (size_t)src->sps : 1u;
+  return (l.out_bits + bps - 1u) / bps * sps;
+}
+
+uint64_t
+dp_wfm_source_data_frames (const wfm_source_t *src)
+{
+  if (!src || !has_data (src) || dp_wfm_source_data_is_stream (src))
+    return 0;
+  wfm_frame_desc_t d;
+  if (source_frame (src, &d) != 0)
+    return 0;
+  const int i = data_field (&d);
+  if (i < 0 || d.field[i].seq.len == 0)
+    return 0;
+  const uint64_t total
+      = src->data.len ? (uint64_t)src->data.len
+                      : dp_wfm_data_length_bits (NULL, src->data_from_file);
+  const uint64_t len = d.field[i].seq.len;
+  return (total + len - 1u) / len;
+}
+
+void
+dp_wfm_synth_set_data_pacing (dp_wfm_synth_state_t *syn,
+                              wfm_data_pacing_t     pacing)
+{
+  if (syn && syn->refill == data_pull_refill)
+    ((data_pull_t *)syn->refill_user)->pacing = pacing;
 }
 
 const wfm_data_src_t *

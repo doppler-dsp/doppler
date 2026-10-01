@@ -392,13 +392,11 @@ static const char USAGE[]
       "  chips/symbol -- the asynchronicity). No preamble/sync/CRC frame;\n"
       "  --count is honoured verbatim; --snr-mode esno is the Es/N0 of the\n"
       "  data symbol (fs/symbol_rate samples). Data source: default PRBS\n"
-      "  (seeded PN a receiver regenerates), --data none for code-only\n"
-      "  (the pure code), or --bits / --bits-file for a payload. Rejects\n"
-      "  the burst-frame flags (--acq-code/--sync/--crc/--frame) and --data\n"
+      "  (seeded PN a receiver regenerates), --code-only for the pure\n"
+      "  code, or --bits / --bits-file for a payload. Rejects the\n"
+      "  burst-frame flags (--acq-code/--sync/--crc/--frame) and --code-only\n"
       "  with a payload. --data-code (above) is "
-      "required.\n" WFM_SURFACE_HELP_DSSS_CONT
-      "  --data D             none | prbs data source (default prbs)\n"
-      "\n"
+      "required.\n" WFM_SURFACE_HELP_DSSS_CONT "\n"
       "CLOCK DOPPLER\n"
       "  Rescales the whole received time base, so the symbol and chip rates\n"
       "  move with the carrier -- what a real pass does, and what --freq\n"
@@ -484,6 +482,10 @@ source_free (wfm_source_t *s)
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
   free ((void *)s->sync.bits);
+  free ((void *)s->data.bits);
+  free ((void *)s->fill.bits);
+  s->data.bits = NULL;
+  s->fill.bits = NULL;
   /* Nulled individually, not chained: `symbols` is float _Complex * while the
      rest are uint8_t *, so a chain would be an incompatible assignment. */
   s->payload.bits   = NULL;
@@ -543,7 +545,6 @@ typedef struct
   int           clip_report, clip_error;
   int           headroom_set; /* explicit --headroom overrides a record */
   int           sample_type, file_type, endian;
-  int           data_flag_set; /* --data given (continuous dsss only) */
   /* Which surface rows were given, indexed WFM_SURFACE_<owner>_<name>.
      Presence matters where a value's default is not "absent": --crc
      defaults to crc16, so giving it is what frames a waveform, and a given
@@ -640,11 +641,6 @@ static const opt_t OPTS[] = {
     .off  = OFF (endian),
     CHOICES (ENDIAN_NAMES) },
   { .name = "--bits-file", .kind = OPT_BITS_FILE, .off = OFF (src.payload) },
-  { .name = "--data",
-    .kind = OPT_CHOICE,
-    .off  = OFF (src.dsss_code_only),
-    .seen = SEEN (data_flag_set),
-    CHOICES (DATA_SRC_NAMES) },
   { .name = "--fc", .kind = OPT_DOUBLE, .off = OFF (fc) },
   { .name = "--repeat", .kind = OPT_SET, .off = OFF (repeat) },
   { .name = "--continuous", .kind = OPT_SET, .off = OFF (continuous) },
@@ -768,7 +764,9 @@ find_opt (const char *a, opt_t *out)
           out->kind = r->range_bit ? OPT_RANGE_N : OPT_SIZE;
           break;
         case WFM_SV_INT:
-          out->kind = OPT_INT;
+          /* A row the scene writes as true/false is a switch on the
+             command line too: --code-only, not --code-only 1. */
+          out->kind = r->json_bool ? OPT_SET : OPT_INT;
           break;
         case WFM_SV_U32:
           out->kind = OPT_U32;
@@ -1461,11 +1459,10 @@ check_continuous_dsss (const wfmgen_opts_t *o)
     }
   if (o->src.symbol_rate <= 0.0)
     {
-      if (o->data_flag_set)
+      if (o->surf_seen[WFM_SURFACE_source_dsss_code_only])
         {
-          (void)fprintf (
-              stderr, "error: --data selects the continuous-dsss data source; "
-                      "it needs --symbol-rate\n");
+          (void)fprintf (stderr, "error: --code-only sends a continuous-dsss "
+                                 "code alone; it needs --symbol-rate\n");
           return 2;
         }
       return 0;
@@ -1491,12 +1488,6 @@ check_continuous_dsss (const wfmgen_opts_t *o)
       (void)fprintf (stderr, "error: --acq-code/--sync/--crc/--frame are "
                              "burst-frame flags, meaningless with "
                              "--symbol-rate\n");
-      return 2;
-    }
-  if (o->data_flag_set && o->src.payload.len)
-    {
-      (void)fprintf (stderr,
-                     "error: --data and --bits both set the data; use one\n");
       return 2;
     }
   return 0;
@@ -1584,9 +1575,28 @@ load_frame (wfmgen_opts_t *o)
  * produces. Both refuse; only one of them tells you what to do instead.
  */
 static int
-check_source (const wfmgen_opts_t *o)
+check_source (wfmgen_opts_t *o)
 {
-  const char *why = dp_wfm_source_error (&o->src);
+  /* A data source sets the run's length (payload-data-source.md 4.6): a
+     finite one is its frames, so a --count beside it is refused by name
+     -- the one face that can tell a count given from its default -- and
+     an absent count is 0 (the composer derives it, or runs a stream until
+     it ends). A stream may take a --count as an upper bound. */
+  const int has_data = o->src.data.len || o->src.data_from_file;
+  if (has_data)
+    {
+      if (o->surf_seen[WFM_SURFACE_segment_num_samples]
+          && !dp_wfm_source_data_is_stream (&o->src))
+        {
+          (void)fprintf (stderr, "error: --count: a finite data source sets "
+                                 "the run's length (its frames); drop "
+                                 "--count\n");
+          return 2;
+        }
+      if (!o->surf_seen[WFM_SURFACE_segment_num_samples])
+        o->seg.num_samples = 0;
+    }
+  const char *why = dp_wfm_scene_error (&o->seg, 1, o->repeat, o->continuous);
   if (!why)
     return 0;
   if (why == dp_wfm_why_pn_poly)
@@ -1595,6 +1605,59 @@ check_source (const wfmgen_opts_t *o)
   else
     (void)fprintf (stderr, "error: %s\n", why);
   return 2;
+}
+
+/* An absolute form of @p path, malloc'd, or NULL. */
+static char *
+absolute_path (const char *path)
+{
+#ifdef _WIN32
+  return _fullpath (NULL, path, 0);
+#else
+  return realpath (path, NULL);
+#endif
+}
+
+/* The directory part of @p path, malloc'd: "." when it has none. */
+static char *
+dir_of (const char *path)
+{
+  const char  *slash = strrchr (path, '/');
+  const size_t n     = slash ? (size_t)(slash - path) : 0u;
+  char        *d     = dp_xmalloc (n + 2u);
+  if (!slash)
+    (void)strcpy (d, ".");
+  else if (n == 0)
+    (void)strcpy (d, "/");
+  else
+    {
+      memcpy (d, path, n);
+      d[n] = '\0';
+    }
+  return d;
+}
+
+/* A --record replays from its own directory: a scene's relative
+ * "data_from_file" resolves against the scene (dp_wfm_compose_from_json_at).
+ * So when the record is written anywhere but the working directory, a
+ * relative --data-from-file is made absolute before the run, and the source
+ * and its record name the same file. Beside the working directory -- the
+ * common case -- the path is kept as typed, so a record stays portable.
+ * Returns a malloc'd absolute path to use instead, or NULL to keep it. */
+static char *
+data_path_for_record (const wfmgen_opts_t *o)
+{
+  const char *p = o->src.data_from_file;
+  if (!p || !o->record_path || p[0] == '/' || strcmp (p, "-") == 0)
+    return NULL;
+  char     *rdir = dir_of (o->record_path);
+  char     *ra   = rdir ? absolute_path (rdir) : NULL;
+  char     *ca   = absolute_path (".");
+  const int same = ra && ca && strcmp (ra, ca) == 0;
+  free (rdir);
+  free (ra);
+  free (ca);
+  return same ? NULL : absolute_path (p);
 }
 
 /* `wfmgen json-template [FILE]` — emit a ready-to-edit example spec in the
@@ -1643,8 +1706,9 @@ static int
 wfmgen_run (int argc, char *argv[])
 {
   dp_wfm_compose_state_t *comp
-      = NULL; /* dp_wfm_compose_destroy tolerates NULL */
-  int rc = 0;
+      = NULL;            /* dp_wfm_compose_destroy tolerates NULL */
+  char *data_abs = NULL; /* an absolute --data-from-file, when one was made */
+  int   rc       = 0;
 
   /* --help / --version short-circuit before any spec is built, so they work
    * regardless of the other flags and never leak a partially-parsed source. */
@@ -1702,6 +1766,15 @@ wfmgen_run (int argc, char *argv[])
   if (rc)
     goto done;
 
+  if (o.surf_text[WFM_SURFACE_source_data_from_file] && o.from_file)
+    {
+      (void)fprintf (stderr, "error: --data-from-file names the data of a "
+                             "run built from flags; a --from-file scene "
+                             "carries its own, as a source's "
+                             "\"data_from_file\"\n");
+      rc = 2;
+      goto done;
+    }
   if (FRAME_PATH (&o) && o.from_file)
     {
       (void)fprintf (stderr, "error: --frame describes the frame of a run "
@@ -1727,8 +1800,10 @@ wfmgen_run (int argc, char *argv[])
       /* A refused FRAME is the one spec failure with a sentence behind it,
          so it exits here rather than falling through to the generic line
          below — two messages for one fault reads as two faults. */
-      const char *why = NULL;
-      comp            = dp_wfm_compose_from_json_why (spec, &why);
+      const char *why  = NULL;
+      char       *sdir = dir_of (o.from_file);
+      comp             = dp_wfm_compose_from_json_at (spec, sdir, &why);
+      free (sdir);
       if (!comp && why)
         {
           (void)fprintf (stderr, "error: %s\n", why);
@@ -1745,6 +1820,12 @@ wfmgen_run (int argc, char *argv[])
       rc = load_frame (&o);
       if (rc)
         goto done;
+      /* The surface-only --data-from-file row: its text is the path, read
+         by the data source when the synth is built (wfm/wfm_data.h). */
+      o.src.data_from_file = o.surf_text[WFM_SURFACE_source_data_from_file];
+      data_abs             = data_path_for_record (&o);
+      if (data_abs)
+        o.src.data_from_file = data_abs;
       rc = check_continuous_dsss (&o);
       if (rc)
         goto done;
@@ -1753,6 +1834,10 @@ wfmgen_run (int argc, char *argv[])
         goto done;
       comp = dp_wfm_compose_create (&o.seg, 1, o.repeat, o.continuous);
       dp_wfm_compose_set_seed_advance (comp, o.seed_advance);
+      /* Paced, a data stream with nothing yet sends an idle frame of fill
+         so the carrier and the frame timing never break (section 4.5). */
+      if (o.realtime)
+        dp_wfm_compose_set_data_pacing (comp, WFM_DATA_PACED);
     }
   if (!comp)
     {
@@ -1805,6 +1890,7 @@ wfmgen_run (int argc, char *argv[])
 done:
   dp_wfm_compose_destroy (comp);
   source_free (&o.src);
+  free (data_abs);
   return rc;
 }
 

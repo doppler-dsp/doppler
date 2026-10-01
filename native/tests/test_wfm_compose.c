@@ -24,9 +24,39 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
 #include <process.h> /* getpid, under its POSIX name; the UCRT has no <unistd.h> */
+/* The pipe calls the data-source tests make, per platform (functions, not
+   function-like macros: a call may pass a compound literal). */
+static int
+t_pipe (int p[2])
+{
+  return _pipe (p, 4096, _O_BINARY);
+}
+static int
+t_write (int f, const void *b, size_t n)
+{
+  return _write (f, b, (unsigned)n);
+}
+#define t_close _close
+#define t_dup _dup
+#define t_dup2 _dup2
 #else
 #include <unistd.h>
+static int
+t_pipe (int p[2])
+{
+  return pipe (p);
+}
+static int
+t_write (int f, const void *b, size_t n)
+{
+  return (int)write (f, b, n);
+}
+#define t_close close
+#define t_dup dup
+#define t_dup2 dup2
 #endif
 
 /* The standalone-Synth half of the shared bridge. It has no header of its own
@@ -1079,6 +1109,167 @@ test_frame_to_json_copy (void)
     dp_wfm_frame_free (b);
   }
   printf ("  dp_wfm_frame_to_json/_copy round-trip and own\n");
+  return 0;
+}
+
+/* ── #1619 F6a: a frame's payload drawn from a data source ──────────────
+ *
+ * Every source here is type=bits at one sample per bit with no CRC, so the
+ * air IS the data: each output sample is a 0/1 bit and the frames can be
+ * read back against the source's own bits. */
+static const uint8_t SIX[6] = { 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB };
+
+static void
+six_bits (uint8_t *b)
+{
+  for (size_t i = 0; i < 48; i++)
+    b[i] = (uint8_t)((SIX[i / 8] >> (7 - i % 8)) & 1u);
+}
+
+static wfm_source_t
+data_line (void)
+{
+  wfm_source_t s = { 0 };
+  s.type         = WFM_SYNTH_BITS;
+  s.snr          = 200.0;
+  s.seed         = 1;
+  s.sps          = 1;
+  s.pn_length    = 7;
+  s.data_len     = 16;
+  return s;
+}
+
+/* Read n samples back as bits; -1 if any is not a clean 0 or 1. */
+static int
+as_bits (const float complex *x, size_t n, uint8_t *b)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      const float a = crealf (x[i]);
+      b[i]          = a > 0.5f;
+      if (fabsf (a - (float)b[i]) > 1e-3f)
+        return -1;
+    }
+  return 0;
+}
+
+static int
+test_a_finite_data_source_sets_the_run (void)
+{
+  uint8_t bits[48], got[48];
+  six_bits (bits);
+  wfm_source_t src = data_line ();
+  src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 48 };
+  wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "a source drawing from a Field composes");
+  float complex out[200];
+  const size_t  n = dp_wfm_compose_execute (c, out, 200);
+  DP_CHECK_MSG (n == 48,
+                "48 bits in 16-bit frames is 3 frames: the run's length is "
+                "DERIVED from the data, not the 1024 default");
+  DP_CHECK_MSG (as_bits (out, 48, got) == 0 && memcmp (got, bits, 48) == 0,
+                "and the frames carry the data, in order, each its own chunk");
+  dp_wfm_compose_destroy (c);
+
+  /* One 8-bit frame of 0xFF; the second frame's 4 bits padded from fill. */
+  static const uint8_t twelve[12] = { 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0 };
+  static const uint8_t f01[2]     = { 0, 1 };
+  src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = twelve, .len = 12 };
+  src.data_len = 8;
+  DP_CHECK_MSG (dp_wfm_source_error (&src) != NULL,
+                "12 bits in 8-bit frames with no fill: refused before a "
+                "sample");
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = f01, .len = 2 };
+  c        = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE (c != NULL);
+  DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 200) == 16,
+                "two 8-bit frames, the last padded");
+  dp_wfm_compose_destroy (c);
+  return 0;
+}
+
+/* stdin: the validation build reads nothing, and the run ends where the
+   stream does -- on a frame boundary -- rather than at a count. */
+static int
+test_a_data_stream_ends_the_run_on_a_frame (void)
+{
+  int p[2];
+  DP_REQUIRE (t_pipe (p) == 0);
+  DP_REQUIRE (t_write (p[1], SIX, 6) == 6);
+  t_close (p[1]);
+  const int saved = t_dup (0);
+  DP_REQUIRE (saved >= 0 && t_dup2 (p[0], 0) == 0);
+  t_close (p[0]);
+
+  static const uint8_t zero[1] = { 0 };
+  wfm_source_t         src     = data_line ();
+  src.data_from_file           = "-";
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+  wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+  /* compose_create builds every source once, just to validate it: with
+     stdin as the source, that build must not read a byte. */
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "a stdin source composes");
+
+  float complex out[400];
+  uint8_t       want[48], got[48];
+  six_bits (want);
+  const size_t n = dp_wfm_compose_execute (c, out, 400);
+  DP_CHECK_MSG (n == 48,
+                "the stream's 3 frames and no more: the run ends at the "
+                "frame boundary where stdin ends, with no count");
+  DP_CHECK_MSG (as_bits (out, 16, got) == 0 && memcmp (got, want, 16) == 0,
+                "the FIRST frame out is the pipe's first 16 bits: the "
+                "validation build consumed none of them");
+  DP_CHECK_MSG (as_bits (out, 48, got) == 0 && memcmp (got, want, 48) == 0,
+                "and every frame after it, in order");
+  DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 400) == 0,
+                "then the run is done");
+  dp_wfm_compose_destroy (c);
+
+  t_dup2 (saved, 0);
+  t_close (saved);
+  return 0;
+}
+
+/* What only the scene can say about a stream, and the pair's refusal on the
+   object face -- both decided before anything is built. */
+static int
+test_a_scene_refuses_what_a_stream_cannot_do (void)
+{
+  static const uint8_t zero[1] = { 0 };
+  wfm_source_t         src     = data_line ();
+  src.data_from_file           = "-";
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+  wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+  const char   *why = dp_wfm_scene_error (&seg, 1, 1, 0);
+  DP_CHECK_MSG (why && strstr (why, "--repeat"),
+                "a stream has no end to repeat: --repeat refused by name");
+  why = dp_wfm_scene_error (&seg, 1, 0, 1);
+  DP_CHECK_MSG (why && strstr (why, "--continuous"), "nor --continuous");
+  seg.repeats = 2;
+  why         = dp_wfm_scene_error (&seg, 1, 0, 0);
+  DP_CHECK_MSG (why && strstr (why, "--repeats"),
+                "nor a segment played twice");
+  seg.repeats         = 0;
+  wfm_source_t two[2] = { src, src };
+  seg.sources         = two;
+  seg.n_sources       = 2;
+  why                 = dp_wfm_scene_error (&seg, 1, 0, 0);
+  DP_CHECK_MSG (why && strstr (why, "stdin"), "stdin feeds one source");
+  seg.sources   = &src;
+  seg.n_sources = 1;
+  DP_CHECK_MSG (dp_wfm_scene_error (&seg, 1, 0, 0) == NULL,
+                "once, unrepeated, it is a scene");
+
+  /* The exclusive pair, on the object face: ONE declaration in the
+     manifest, refused here from the row it generates. */
+  uint8_t b[16] = { 1 };
+  src.data      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = b, .len = 16 };
+  why           = dp_wfm_source_error (&src);
+  DP_CHECK_MSG (why && strstr (why, "data_from_file"),
+                "data and data_from_file are refused together, by name");
   return 0;
 }
 
@@ -4077,6 +4268,12 @@ main (void)
   if (test_a_source_carries_the_frame_a_caller_built ())
     return 1;
   if (test_a_carried_frame_survives_the_scene_json ())
+    return 1;
+  if (test_a_finite_data_source_sets_the_run ())
+    return 1;
+  if (test_a_data_stream_ends_the_run_on_a_frame ())
+    return 1;
+  if (test_a_scene_refuses_what_a_stream_cannot_do ())
     return 1;
   if (test_a_framed_pn_type_sends_its_frame ())
     return 1;

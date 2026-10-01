@@ -203,8 +203,11 @@ def test_help_says_each_flag_is_not_with_the_other():
         [cli._runnable(), "--help"], capture_output=True, text=True
     ).stdout
     text = " ".join(h.split())
-    assert re.search(r"--bits FIELD .*? Not with --frame\.", text)
-    assert re.search(r"--frame FILE .*? Not with --bits\.", text)
+    # A row excluded by several lists them all: --bits is not with --frame
+    # nor --data (#1619), so match the flag inside the list.
+    assert re.search(r"--bits FIELD .*? Not with [^.]*--frame[^.]*\.", text)
+    assert re.search(r"--frame FILE .*? Not with [^.]*--bits[^.]*\.", text)
+    assert re.search(r"--data FIELD .*? Not with [^.]*--data-from-file", text)
 
 
 def test_the_schema_refuses_both_keys():
@@ -255,3 +258,123 @@ def test_the_reps_reason_names_the_field_that_repeats():
     assert [r["name"] for r in reps] == ["acq_code"]
     assert "--acq-code" in _macro("WFM_SURFACE_REPS_WHY_CLI")
     assert '"acq_code"' in _macro("WFM_SURFACE_REPS_WHY_JSON")
+
+
+# ── #1619 F6a: the data source's pair, and its surface-only row ──────────────
+#
+# `--data` (a Field, or a bit array in Python) and `--data-from-file` (a path,
+# or `-` for stdin) are ONE exclusion, declared on `data`. The file row is
+# SURFACE-ONLY: a path has no jm field type, and Python deliberately has no
+# file face (docs/design/payload-data-source.md section 4.9), so the row is
+# declared inside the exclusion and the generator checks it against the C
+# struct in both directions.
+
+DATA_PAIR = _pair("data", "data_from_file")
+
+
+def test_the_data_pair_is_one_declaration_with_a_surface_only_row():
+    file_row = next(r for r in ROWS if r["name"] == "data_from_file")
+    assert (
+        file_row.get("surface_only") and file_row["kind"] == "WFM_SV_BESPOKE"
+    )
+    assert (file_row["cli"], file_row["json"]) == (
+        "--data-from-file",
+        "data_from_file",
+    )
+    assert "--data" in DATA_PAIR["cli_why"]
+    assert '"data_from_file"' in DATA_PAIR["json_why"]
+
+
+def _man():
+    return GEN.tomllib.loads(GEN.MANIFEST.read_text(encoding="utf-8"))
+
+
+def test_a_surface_only_row_must_name_a_real_member():
+    """Forward: a row whose member is not in `wfm_source_t` is refused."""
+    header = GEN.COMPOSE_H.read_text(encoding="utf-8")
+    assert GEN.surface_only_errors(_man(), header) == []
+    man = _man()
+    for f in man["module"]["wfm_compose"]["source"]["fields"]:
+        for e in f.get("exclusive", []):
+            if "row" in e:
+                e["row"]["member"] = "no_such_member"
+    errs = GEN.surface_only_errors(man, header)
+    assert any("no_such_member" in e for e in errs), errs
+
+
+def test_a_path_member_must_have_a_surface_only_row():
+    """Backward: a `const char *` member no row sets is refused."""
+    header = GEN.COMPOSE_H.read_text(encoding="utf-8").replace(
+        "} wfm_source_t;",
+        "    const char *probe_path; /* A path no face can set. */\n"
+        "} wfm_source_t;",
+    )
+    errs = GEN.surface_only_errors(_man(), header)
+    assert any("probe_path" in e for e in errs), errs
+
+
+def test_python_has_no_data_from_file_kwarg():
+    """Section 4.9: a file is `cvt.bytes_to_bin` of its bytes, passed as
+    `data`. A Python file face would be a second route to the same bits, so
+    its absence is the design, pinned here so a "fix" that adds it goes red.
+    """
+    with pytest.raises(TypeError):
+        Synth(type="bits", data_from_file="x.bin")
+
+
+def test_a_scene_refuses_stdin_by_name():
+    """A scene replays from its record; stdin's bytes are gone once read."""
+    with pytest.raises(ValueError, match="stdin"):
+        Composer.from_json(
+            json.dumps(
+                {
+                    "version": 1,
+                    "segments": [
+                        {
+                            "type": "bpsk",
+                            "data_from_file": "-",
+                            "data_len": 8,
+                            "fill": "0",
+                        }
+                    ],
+                }
+            )
+        )
+
+
+def test_the_cli_refuses_the_data_pair_with_the_generated_reason(tmp_path):
+    (tmp_path / "d.bin").write_bytes(b"\xab")
+    p = _run(
+        [
+            "--type",
+            "bpsk",
+            "--data",
+            "0xAB",
+            "--data-from-file",
+            str(tmp_path / "d.bin"),
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 2
+    assert DATA_PAIR["cli_why"] in p.stderr
+
+
+def test_python_data_is_drawn_frame_by_frame():
+    """Python's `data=` is a bit array, split into data_len-bit frames."""
+    bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 4, np.uint8)  # 32 bits
+    s = Synth(
+        type="bits",
+        modulation="none",
+        sps=1,
+        snr=200.0,
+        data=bits,
+        data_len=16,
+        crc="none",
+    )
+    x = s.steps(32).real
+    assert np.array_equal((x > 0.5).astype(np.uint8), bits)
+
+
+def test_python_data_refuses_text():
+    with pytest.raises(ValueError, match="field_bits"):
+        Synth(type="bits", data="0xAB", data_len=8)

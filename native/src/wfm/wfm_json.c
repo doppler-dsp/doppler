@@ -86,6 +86,10 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
         free ((void *)srcs[k].sync.bits);
+        free ((void *)srcs[k].data.bits);
+        free ((void *)srcs[k].fill.bits);
+        free ((void *)srcs[k].data_from_file);
+        srcs[k].data_from_file = NULL;
         /* A CARRIED description, when it came from JSON. `wfm_source_t`
            borrows a frame -- a caller's own outlives the source -- but one
            this file parsed has no other owner, the same asymmetry the const
@@ -124,11 +128,7 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
       return;
     }
   if (src->symbol_rate > 0.0)
-    {
-      if (src->dsss_code_only) /* omit for the data-modulated default */
-        cJSON_AddStringToObject (o, "data", "none");
-      return;
-    }
+    return;        /* code-only is the table's "code_only" row */
   if (!src->frame) /* a carried description carries its own CRC stage */
     cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
@@ -344,6 +344,49 @@ add_frame_desc (cJSON *o, const wfm_source_t *src)
 {
   if (src->frame)
     cJSON_AddItemToObject (o, "frame", frame_desc_obj (src->frame));
+  /* The surface-only data_from_file row is bespoke: written as its path. */
+  if (src->data_from_file)
+    cJSON_AddStringToObject (o, "data_from_file", src->data_from_file);
+}
+
+/* A scene's "data_from_file": a path to a file of packed octets, owned by
+ * the source from here (free_src_bits). stdin is refused BY NAME: a scene
+ * is replayed from its record, and stdin's bytes are gone once read, so
+ * `-` belongs to `wfmgen --data-from-file -` alone (payload-data-source.md
+ * section 4.8). Returns 0, or -1 with the reason in @p why. */
+static int
+read_data_file (const cJSON *so, wfm_source_t *out, const char *base,
+                const char **why)
+{
+  const cJSON *it = cJSON_GetObjectItemCaseSensitive (so, "data_from_file");
+  if (!it)
+    return 0;
+  const char *path = cJSON_GetStringValue (it);
+  if (!path || !*path)
+    {
+      *why = "\"data_from_file\" is the path of a file of packed octets";
+      return -1;
+    }
+  if (strcmp (path, "-") == 0)
+    {
+      *why = "\"data_from_file\": \"-\" is stdin, a stream a scene cannot "
+             "replay from its record; give a file, or use wfmgen "
+             "--data-from-file - on the command line";
+      return -1;
+    }
+  /* A relative path is the SCENE's, resolved against the directory the
+     scene was read from (when the reader knows it): a scene is moved and
+     replayed as a unit with its data, not from wherever it is run. */
+  const int    rel = base && *base && path[0] != '/';
+  const size_t nb  = rel ? strlen (base) + 1u : 0u;
+  const size_t n   = nb + strlen (path) + 1u;
+  char        *p   = dp_xmalloc (n);
+  if (rel)
+    (void)snprintf (p, n, "%s/%s", base, path);
+  else
+    memcpy (p, path, n);
+  out->data_from_file = p;
+  return 0;
 }
 
 /* One frame object -- {"fields": [...], "stages": [...]} -- the inverse of
@@ -747,7 +790,8 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
-parse_source_obj (const cJSON *so, wfm_source_t *out, const char **why)
+parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
+                  const char **why)
 {
   /* Keys a Field replaced, refused by name with what replaced them -- never
      read as aliases (docs/design/frame-description.md F.3). */
@@ -812,7 +856,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char **why)
   /* A CARRIED description, if the record has one. It is the whole frame, so
    * a sync word or an unspread preamble read beside it above is refused by
    * dp_wfm_source_frame_error() rather than merged with it or dropped. */
-  if (read_frame_desc (so, out, why) != 0)
+  if (read_frame_desc (so, out, why) != 0
+      || read_data_file (so, out, base, why))
     {
       /* A refused description is still an ALLOCATED one -- it is reachable
          from `out->frame` the moment it exists, so that the partial-failure
@@ -822,20 +867,6 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char **why)
          tests exercise, which is how ASan found it. */
       free_src_bits (out, 1); /* drop this source's partials */
       return -1;
-    }
-  if (t == WFM_SYNTH_DSSS)
-    {
-      /* The spread half's one key the table does not own: the continuous
-       * data source. The codes and the payload are table rows. */
-      /* "data": "prbs" (default) / absent = the seeded PN; "none" = code-only
-         (pure code, no modulation); a payload overrides to itself. The
-         table's index IS dsss_code_only, so the lookup assigns rather than
-         compares -- absent or unrecognised gives -1, which falls to the
-         "prbs" default the same way the old `== 0` form did. */
-      const int data_src = name_index (
-          cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "data")),
-          DATA_SRC_NAMES, 2);
-      out->dsss_code_only = (data_src > 0) ? data_src : 0;
     }
   if (t == WFM_SYNTH_SYMBOLS)
     {
@@ -891,6 +922,17 @@ dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
          Both forms are the same rows in the same order, so a key cannot be
          written by one and missed by the other. */
       add_rows (s, WFM_SURF_SEGMENT, g);
+      /* A finite data source SETS the segment's length (its frames), so a
+         record omits the derived num_samples exactly as a scene must: the
+         reader refuses one given beside it, and a replay derives it again
+         from the same data. */
+      for (size_t k = 0; k < g->n_sources; k++)
+        if ((g->sources[k].data.len || g->sources[k].data_from_file)
+            && !dp_wfm_source_data_is_stream (&g->sources[k]))
+          {
+            cJSON_DeleteItemFromObjectCaseSensitive (s, "num_samples");
+            break;
+          }
       if (g->n_sources == 1)
         add_source_obj (s, &g->sources[0]);
       else
@@ -984,6 +1026,13 @@ dp_wfm_spec_headroom (const char *json)
 dp_wfm_compose_state_t *
 dp_wfm_compose_from_json_why (const char *json, const char **why)
 {
+  return dp_wfm_compose_from_json_at (json, NULL, why);
+}
+
+dp_wfm_compose_state_t *
+dp_wfm_compose_from_json_at (const char *json, const char *base,
+                             const char **why)
+{
   /* Every reader below names its refusal through `why`, so it always has
      somewhere to write -- the caller's, or this one when they pass NULL. */
   const char *unasked = NULL;
@@ -1041,7 +1090,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
         const cJSON *so = NULL;
         cJSON_ArrayForEach (so, sum)
         {
-          if (parse_source_obj (so, &srcs[k], why) != 0)
+          if (parse_source_obj (so, &srcs[k], base, why) != 0)
             {
               free_src_bits (srcs,
                              k); /* k sources parsed OK before this one */
@@ -1057,7 +1106,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
         srcs = malloc (sizeof (wfm_source_t));
         if (!srcs)
           goto reject;
-        if (parse_source_obj (s, &srcs[0], why) != 0)
+        if (parse_source_obj (s, &srcs[0], base, why) != 0)
           {
             free (srcs);
             goto reject;
@@ -1066,6 +1115,33 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
     segs[i] = (wfm_segment_t){ .sources = srcs, .n_sources = ns };
     /* A segment has no required row, so this cannot refuse. */
     (void)read_rows (s, WFM_SURF_SEGMENT, &segs[i], why);
+    {
+      /* A data source sets the segment's length (payload-data-source.md
+         4.6). A finite one is its frames, so a "num_samples" beside it is
+         refused by name; with any data source an absent one is 0 -- the
+         composer derives it, or runs a stream until it ends -- rather
+         than the 1024 default. */
+      int has = 0, finite = 0;
+      for (size_t k = 0; k < ns; k++)
+        if (srcs[k].data.len || srcs[k].data_from_file)
+          {
+            has = 1;
+            finite |= !dp_wfm_source_data_is_stream (&srcs[k]);
+          }
+      const int given
+          = cJSON_GetObjectItemCaseSensitive (s, "num_samples") != NULL;
+      if (has && finite && given)
+        {
+          if (why)
+            *why = "\"num_samples\": a finite data source sets the "
+                   "segment's length (its frames); drop num_samples";
+          free_src_bits (srcs, ns);
+          free (srcs);
+          goto reject;
+        }
+      if (has && !given)
+        segs[i].num_samples = 0;
+    }
     i++;
     continue;
   reject:
@@ -1086,10 +1162,7 @@ dp_wfm_compose_from_json_why (const char *json, const char **why)
      A spec is the interface most likely to be hand-written, so it is the one
      that most needs the sentence -- doppler#1155, where a derived field
      naming no producing stage generated a wrong record in silence. */
-  const char *bad = NULL;
-  for (size_t j = 0; j < n && !bad; j++)
-    for (size_t k = 0; k < segs[j].n_sources && !bad; k++)
-      bad = dp_wfm_source_error (&segs[j].sources[k]);
+  const char *bad = dp_wfm_scene_error (segs, n, repeat, cont);
 
   dp_wfm_compose_state_t *c = NULL;
   if (bad)
@@ -1145,8 +1218,22 @@ dp_wfm_compose_from_file_why (const char *path, const char **why)
     }
   size_t rd = fread (buf, 1, (size_t)len, f);
   fclose (f);
-  buf[rd]                   = '\0';
-  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_why (buf, why);
+  buf[rd] = '\0';
+  /* The scene's own directory, so a relative "data_from_file" is the
+     scene's, not the caller's working directory's. */
+  char       *dir   = dp_xmalloc (strlen (path) + 2u);
+  const char *slash = strrchr (path, '/');
+  if (slash)
+    {
+      memcpy (dir, path, (size_t)(slash - path));
+      dir[slash - path] = '\0';
+      if (slash == path)
+        (void)strcpy (dir, "/");
+    }
+  else
+    (void)strcpy (dir, ".");
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_at (buf, dir, why);
+  free (dir);
   free (buf);
   return c;
 }

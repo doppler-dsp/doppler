@@ -213,19 +213,89 @@ check_length (wfm_data_src_t *s, const char **why)
   return s;
 }
 
+/* A source with its fill already rendered to bits (owned from here). */
 static wfm_data_src_t *
-alloc_src (size_t len, const char *fill, const char **why)
+alloc_src_bits (size_t len, uint8_t *fill, size_t nfill)
 {
   wfm_data_src_t *s = dp_xcalloc (1, sizeof *s);
   s->len            = len;
   s->fd             = -1;
+  s->fill           = fill;
+  s->nfill          = nfill;
+  return s;
+}
+
+static wfm_data_src_t *
+alloc_src (size_t len, const char *fill, const char **why)
+{
+  uint8_t *f  = NULL;
+  size_t   nf = 0;
   if (fill)
     {
-      s->nfill = field_to_bits (fill, &s->fill, why);
-      if (s->nfill == 0)
-        return refuse (s, why, NULL);
+      nf = field_to_bits (fill, &f, why);
+      if (nf == 0)
+        return NULL;
     }
-  return s;
+  return alloc_src_bits (len, f, nf);
+}
+
+/* A sequence's bits through the one renderer, dp_wfm_seq_bits: a data
+   field is refused by name, since it has no bits of its own to supply. */
+static size_t
+seq_to_bits (const wfm_seq_t *q, uint8_t **out, const char **why)
+{
+  if (q->kind == WFM_SEQ_DATA)
+    {
+      say (why, "data:LEN has no bits of its own: it cannot be a data "
+                "source or a fill");
+      return 0;
+    }
+  uint8_t *b = dp_xmalloc (q->len);
+  if (dp_wfm_seq_bits (q, b, q->len) != q->len)
+    {
+      free (b);
+      say (why, "a data source or fill sequence that cannot be built");
+      return 0;
+    }
+  *out = b;
+  return q->len;
+}
+
+/* Make @p s a source over @p fd: a regular file is finite, its length from
+   fstat; anything else is a stream. Consumes @p s on refusal. */
+static wfm_data_src_t *
+src_on_fd (wfm_data_src_t *s, int fd, const char **why)
+{
+  int                regular;
+  unsigned long long bytes;
+  if (fd < 0 || fd_stat (fd, &regular, &bytes) != 0)
+    return refuse (s, why, "the data source cannot be read (errno says why)");
+  s->kind      = SRC_FD;
+  s->fd        = fd;
+  s->st.hashed = 1;
+  s->st.hash   = DP_HASH64_INIT;
+  s->res       = dp_xmalloc (s->len + 8u);
+  s->oct       = dp_xmalloc (s->len / 8u + 2u);
+  if (regular)
+    s->st.total_bits = (uint64_t)bytes * 8u;
+  else
+    s->st.stream = 1;
+  return check_length (s, why);
+}
+
+/* A source over @p path, `-` for stdin; the file is the source's to close.
+   Consumes @p s on refusal. */
+static wfm_data_src_t *
+src_on_path (wfm_data_src_t *s, const char *path, const char **why)
+{
+  if (strcmp (path, "-") == 0)
+    return src_on_fd (s, STDIN_FD, why);
+  const int fd = fd_open (path);
+  if (fd < 0)
+    return refuse (s, why, "the data file cannot be opened (errno says why)");
+  s->own_fd = 1;
+  s->fd     = fd; /* closed by destroy even if src_on_fd refuses */
+  return src_on_fd (s, fd, why);
 }
 
 /* Where `pn:0:` stops being LEN: the colon after a LEN that reads as 0, or
@@ -316,27 +386,11 @@ dp_wfm_data_create (const char *data, const char *path, size_t len,
       return NULL;
     }
 
-  if (path)
-    {
-      if (strcmp (path, "-") == 0)
-        return dp_wfm_data_create_fd (STDIN_FD, len, fill, why);
-      const int fd = fd_open (path);
-      if (fd < 0)
-        {
-          say (why, "the data file cannot be opened (errno says why)");
-          return NULL;
-        }
-      wfm_data_src_t *s = dp_wfm_data_create_fd (fd, len, fill, why);
-      if (!s)
-        fd_close (fd);
-      else
-        s->own_fd = 1;
-      return s;
-    }
-
   wfm_data_src_t *s = alloc_src (len, fill, why);
   if (!s)
     return NULL;
+  if (path)
+    return src_on_path (s, path, why);
   const int ps = pn_stream (s, data, why);
   if (ps < 0)
     return refuse (s, why, NULL);
@@ -359,26 +413,45 @@ dp_wfm_data_create_fd (int fd, size_t len, const char *fill, const char **why)
       say (why, "a data field carries bits: LEN must be > 0");
       return NULL;
     }
-  int                regular;
-  unsigned long long bytes;
-  if (fd < 0 || fd_stat (fd, &regular, &bytes) != 0)
-    {
-      say (why, "the data source cannot be read (errno says why)");
-      return NULL;
-    }
   wfm_data_src_t *s = alloc_src (len, fill, why);
   if (!s)
     return NULL;
-  s->kind      = SRC_FD;
-  s->fd        = fd;
-  s->st.hashed = 1;
-  s->st.hash   = DP_HASH64_INIT;
-  s->res       = dp_xmalloc (len + 8u);
-  s->oct       = dp_xmalloc (len / 8u + 2u);
-  if (regular)
-    s->st.total_bits = (uint64_t)bytes * 8u;
-  else
-    s->st.stream = 1;
+  return src_on_fd (s, fd, why);
+}
+
+wfm_data_src_t *
+dp_wfm_data_create_seq (const wfm_seq_t *data, const char *path, size_t len,
+                        const wfm_seq_t *fill, const char **why)
+{
+  const int have = data && data->len;
+  if (have == (path != NULL))
+    {
+      say (why, have ? "--data and --data-from-file both name the payload's "
+                       "source; give one"
+                     : "no data source: give --data or --data-from-file");
+      return NULL;
+    }
+  if (len == 0)
+    {
+      say (why, "a data field carries bits: LEN must be > 0");
+      return NULL;
+    }
+  uint8_t *f  = NULL;
+  size_t   nf = 0;
+  if (fill && fill->len)
+    {
+      nf = seq_to_bits (fill, &f, why);
+      if (nf == 0)
+        return NULL;
+    }
+  wfm_data_src_t *s = alloc_src_bits (len, f, nf);
+  if (path)
+    return src_on_path (s, path, why);
+  s->kind  = SRC_FIELD;
+  s->nbits = seq_to_bits (data, &s->bits, why);
+  if (s->nbits == 0)
+    return refuse (s, why, NULL);
+  s->st.total_bits = s->nbits;
   return check_length (s, why);
 }
 

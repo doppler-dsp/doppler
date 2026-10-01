@@ -48,6 +48,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/wfm/wfm_frame.h" /* wfm_seq_t */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -156,6 +158,43 @@ extern "C"
    * @endcode
    */
   uint64_t dp_wfm_data_length_bits (const char *data, const char *path);
+
+  /**
+   * @brief Build a data source from a source's own members. NULL on refusal.
+   *
+   * What @ref dp_wfm_data_create does from text, from the representation a
+   * `wfm_source_t` carries: @p data is a `wfm_seq_t` -- a literal (a bit
+   * array from Python, a parsed Field from the CLI or a scene) or a finite
+   * generated sequence -- and @p fill likewise, rendered once through
+   * `dp_wfm_seq_bits()`. Exactly one of @p data (with `len > 0`) and
+   * @p path; the refusals are @ref dp_wfm_data_create's.
+   *
+   * @param data  the data sequence, or NULL / `len == 0` with @p path.
+   * @param path  a file, or `-` for stdin; NULL with @p data.
+   * @param len   bits per frame; > 0.
+   * @param fill  the fill sequence, or NULL / `len == 0` for none.
+   * @param why   optional; receives a STATIC reason for a refusal.
+   *
+   * @code
+   * static const uint8_t bits[12] = { 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0 };
+   * const wfm_seq_t      data = { .kind = WFM_SEQ_LITERAL, .bits = bits,
+   *                               .len = 12 };
+   * const wfm_seq_t      fill = { .kind = WFM_SEQ_DOTTED, .len = 2 };
+   * const char          *why;
+   * wfm_data_src_t *s = dp_wfm_data_create_seq (&data, NULL, 8, &fill, &why);
+   * if (!s)
+   *   return 1;
+   * wfm_data_stats_t st;
+   * dp_wfm_data_stats (s, &st);
+   * if (st.total_bits != 12) // two 8-bit frames, the second padded
+   *   return 1;
+   * dp_wfm_data_destroy (s);
+   * @endcode
+   */
+  wfm_data_src_t *dp_wfm_data_create_seq (const wfm_seq_t *data,
+                                          const char *path, size_t len,
+                                          const wfm_seq_t *fill,
+                                          const char **why);
 
   /** @brief Free a source; closes a file it opened itself. NULL is a no-op. */
   void dp_wfm_data_destroy (wfm_data_src_t *s);

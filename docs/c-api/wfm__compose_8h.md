@@ -86,12 +86,14 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_compose\_destroy**](#function-dp_wfm_compose_destroy) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
 |  size\_t | [**dp\_wfm\_compose\_draws**](#function-dp_wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
 |  size\_t | [**dp\_wfm\_compose\_execute**](#function-dp_wfm_compose_execute) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
-|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file**](#function-dp_wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file**](#function-dp_wfm_compose_from_file) (const char \* path) <br> |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file\_why**](#function-dp_wfm_compose_from_file_why) (const char \* path, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_file**_](wfm__compose_8h.md#function-dp_wfm_compose_from_file) _, able to say why a scene was refused._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json**](#function-dp_wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_at**](#function-dp_wfm_compose_from_json_at) (const char \* json, const char \* base, const char \*\* why) <br>_Build a composer from a JSON spec file._  |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_why**](#function-dp_wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
 |  int | [**dp\_wfm\_compose\_seed\_advance**](#function-dp_wfm_compose_seed_advance) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._ |
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**dp\_wfm\_compose\_segments**](#function-dp_wfm_compose_segments) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
+|  void | [**dp\_wfm\_compose\_set\_data\_pacing**](#function-dp_wfm_compose_set_data_pacing) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing) <br>_Pace a composer's data sources: WFM\_DATA\_PACED under_ `--realtime` _._ |
 |  void | [**dp\_wfm\_compose\_set\_seed\_advance**](#function-dp_wfm_compose_set_seed_advance) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**dp\_wfm\_compose\_spans**](#function-dp_wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
 |  char \* | [**dp\_wfm\_draws\_json**](#function-dp_wfm_draws_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_The same rows_ [_**dp\_wfm\_compose\_draws()**_](wfm__compose_8h.md#function-dp_wfm_compose_draws) _reports, as a JSON array._ |
@@ -104,11 +106,15 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_render\_noise\_steps**](#function-dp_wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
 |  int | [**dp\_wfm\_resolve\_noise**](#function-dp_wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
+|  const char \* | [**dp\_wfm\_scene\_error**](#function-dp_wfm_scene_error) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Why a scene cannot be composed, or NULL: the one validator._  |
 |  double | [**dp\_wfm\_snr\_over\_fs**](#function-dp_wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for a source's bit field: an object takes bits._  |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
+|  size\_t | [**dp\_wfm\_source\_data\_frame\_samples**](#function-dp_wfm_source_data_frame_samples) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Samples one frame of a source's data occupies; 0 with no data._  |
+|  uint64\_t | [**dp\_wfm\_source\_data\_frames**](#function-dp_wfm_source_data_frames) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none._ |
+|  int | [**dp\_wfm\_source\_data\_is\_stream**](#function-dp_wfm_source_data_is_stream) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Whether a source's data is a stream:_ `data_from_file` _is_`-` _._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
@@ -120,6 +126,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  char \* | [**dp\_wfm\_spec\_to\_json**](#function-dp_wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, int seed\_advance, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
 |  int | [**dp\_wfm\_synth\_attach\_data**](#function-dp_wfm_synth_attach_data) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* src, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing, int modulation) <br>_Drive a type=bits synth from a frame whose payload is a data source._  |
 |  const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_synth\_data\_source**](#function-dp_wfm_synth_data_source) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn) <br>_The data source a synth pulls from (dp\_wfm\_synth\_attach\_data), or NULL: its stats are the run's truth for scoring._  |
+|  void | [**dp\_wfm\_synth\_set\_data\_pacing**](#function-dp_wfm_synth_set_data_pacing) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing) <br>_Pace a synth's data source: WFM\_DATA\_PACED for_ `--realtime` _._ |
 
 
 
@@ -598,7 +605,6 @@ Number of samples written: &lt; `max` (or 0) signals the sequence finished (neve
 
 ### function dp\_wfm\_compose\_from\_file 
 
-_Build a composer from a JSON spec file._ 
 ```C++
 dp_wfm_compose_state_t * dp_wfm_compose_from_file (
     const char * path
@@ -607,17 +613,6 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_file (
 
 
 
-
-
-**Returns:**
-
-Composer state, or NULL on read/parse error. 
-
-
-
-
-
-        
 
 <hr>
 
@@ -681,6 +676,67 @@ Composer state, or NULL on parse error / bad type / no segments.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_compose\_from\_json\_at 
+
+_Build a composer from a JSON spec file._ 
+```C++
+dp_wfm_compose_state_t * dp_wfm_compose_from_json_at (
+    const char * json,
+    const char * base,
+    const char ** why
+) 
+```
+
+
+
+
+
+**Returns:**
+
+Composer state, or NULL on read/parse error.
+
+
+[**dp\_wfm\_compose\_from\_json\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why), reading a scene that lives in `base`.
+
+
+A source's relative `"data_from_file"` is the scene's: it resolves against `base`, the directory the scene was read from, so a scene and its data move together and replay from anywhere. NULL (as from\_json\_why passes) leaves a relative path relative to the caller's working directory.
+
+
+
+
+**Parameters:**
+
+
+* `json` the scene's text. 
+* `base` the scene's directory, or NULL. 
+* `why` optional; receives a static reason for a refusal. 
+
+
+
+**Returns:**
+
+the composer, or NULL.
+
+
+
+```C++
+const char *why = NULL;
+dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_at (
+    "{\"segments\":[{\"type\":\"tone\",\"num_samples\":8}]}", ".",
+    &why);
+if (!c)
+  return 1;
+dp_wfm_compose_destroy (c);
+```
+ 
 
 
         
@@ -790,6 +846,27 @@ Pointer to the internal segments (owned by the composer; valid until dp\_wfm\_co
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_compose\_set\_data\_pacing 
+
+_Pace a composer's data sources: WFM\_DATA\_PACED under_ `--realtime` _._
+```C++
+void dp_wfm_compose_set_data_pacing (
+    dp_wfm_compose_state_t * state,
+    wfm_data_pacing_t pacing
+) 
+```
+
+
+
+Applied to every synth the composer builds from here on, so a data stream with nothing yet sends an idle frame of fill rather than waiting (dp\_wfm\_data\_frame, the one rule). The default, WFM\_DATA\_UNPACED, waits. 
 
 
         
@@ -1237,6 +1314,39 @@ No-op for 1-source segments (keeps the bundled-synth path byte-identical). For a
 
 
 
+### function dp\_wfm\_scene\_error 
+
+_Why a scene cannot be composed, or NULL: the one validator._ 
+```C++
+const char * dp_wfm_scene_error (
+    const wfm_segment_t * segs,
+    size_t n_segs,
+    int repeat,
+    int continuous
+) 
+```
+
+
+
+Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error), then what only the whole scene can say about a data STREAM (`--data-from-file -`): it has no end to repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are refused, and stdin feeds at most one source. [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create) refuses exactly these; a face calls this to say why.
+
+
+
+
+**Returns:**
+
+a static sentence naming the fault and its fix, or NULL. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_snr\_over\_fs 
 
 _SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._ 
@@ -1457,6 +1567,82 @@ The SNR in dB for create.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_frame\_samples 
+
+_Samples one frame of a source's data occupies; 0 with no data._ 
+```C++
+size_t dp_wfm_source_data_frame_samples (
+    const wfm_source_t * src
+) 
+```
+
+
+
+The frame's output bits, at its mapping's bits per symbol (rounded up), times `sps`: what the synth emits per frame, and the unit a run with a data source is measured in. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_frames 
+
+_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none._
+```C++
+uint64_t dp_wfm_source_data_frames (
+    const wfm_source_t * src
+) 
+```
+
+
+
+Known before the first sample (a file's length from fstat), which is what lets a finite run's length be derived rather than given (§4.6).
+
+
+
+```C++
+static const uint8_t bits[40] = { 1 };
+wfm_source_t src = { .type = WFM_SYNTH_BPSK, .sps = 4 };
+src.data      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits,
+                             .len = 40 };
+src.data_len  = 16;
+src.fill      = (wfm_seq_t){ .kind = WFM_SEQ_DOTTED, .len = 2 };
+if (dp_wfm_source_data_frames (&src) != 3) // 40 bits in 16-bit frames
+  return 1;
+if (dp_wfm_source_data_frame_samples (&src) != 16 * 4) // bpsk, sps 4
+  return 1;
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_is\_stream 
+
+_Whether a source's data is a stream:_ `data_from_file` _is_`-` _._
+```C++
+int dp_wfm_source_data_is_stream (
+    const wfm_source_t * src
+) 
+```
+
+
+
+A stream has no length up front and no end to repeat, so a scene refuses it with `repeat`, `continuous` or `repeats > 1`, Plan refuses it, and a segment carrying one runs until it ends ([**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error)). 
 
 
         
@@ -1877,6 +2063,37 @@ const wfm_data_src_t * dp_wfm_synth_data_source (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_set\_data\_pacing 
+
+_Pace a synth's data source: WFM\_DATA\_PACED for_ `--realtime` _._
+```C++
+void dp_wfm_synth_set_data_pacing (
+    dp_wfm_synth_state_t * syn,
+    wfm_data_pacing_t pacing
+) 
+```
+
+
+
+A synth attached by [**dp\_wfm\_source\_attach\_frame()**](wfm__compose_8h.md#function-dp_wfm_source_attach_frame) pulls UNPACED  it waits for its data, as `cat` does. A paced caller (the composer under `--realtime`) sets this after the build, so a source with nothing yet sends an idle frame instead (dp\_wfm\_data\_frame, the one rule). A synth with no data source ignores it.
+
+
+
+```C++
+dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+    WFM_SYNTH_BITS, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+dp_wfm_synth_set_data_pacing (s, WFM_DATA_PACED); // no source: no-op
+dp_wfm_synth_destroy (s);
+```
+ 
+
+
+        
 
 <hr>
 

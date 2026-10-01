@@ -131,3 +131,81 @@ def test_the_failure_names_every_moved_value(tmp_path: Path) -> None:
     assert r.returncode == 1
     assert "CI_IMAGE_FINGERPRINT_2204" in r.stdout
     assert "CI_IMAGE_FINGERPRINT_2404" in r.stdout
+
+
+def test_the_failure_names_the_merge_queue_cost(tmp_path: Path) -> None:
+    """An unlanded repin ejects every queued PR; the gate says so.
+
+    The nightly's step summary is this output (doppler#1737), so it is where
+    a reader learns why a pending repin is urgent.
+    """
+    r = _run(_pin(tmp_path, "a", src="9" * 64), _pin(tmp_path, "b"))
+    assert r.returncode == 1
+    assert "EJECTS EVERY PR IN THE MERGE QUEUE" in r.stdout
+
+
+#: The nightly's final step, as ci-image.yml must carry it.
+NIGHTLY = REPO / ".github" / "workflows" / "ci-image.yml"
+GATE_STEP = "A pending repin ends this run red"
+
+
+def _nightly_steps(text: str) -> list[dict]:
+    yaml = pytest.importorskip("yaml")
+    return yaml.safe_load(text)["jobs"]["build"]["steps"]
+
+
+def _nightly_problems(text: str) -> list[str]:
+    """Why ``text`` would NOT end red on a pending repin (empty: it would).
+
+    The decision is the gate's (cases above); this holds the nightly to
+    running it: on main, last, unsoftened, against main's pin.
+    """
+    steps = _nightly_steps(text)
+    names = [s.get("name") for s in steps]
+    if GATE_STEP not in names:
+        return ["no step runs the repin gate"]
+    step = steps[names.index(GATE_STEP)]
+    run = str(step.get("run", ""))
+    out = []
+    if names.index(GATE_STEP) != len(steps) - 1:
+        out.append("the gate is not the last step")
+    if "make -s ci-image-repin-check" not in run:
+        out.append("the step does not run make ci-image-repin-check")
+    if 'exit "$rc"' not in run:
+        out.append("the step does not exit with the gate's status")
+    if step.get("continue-on-error"):
+        out.append("continue-on-error softens the gate")
+    if str(step.get("if", "")) != "github.ref == 'refs/heads/main'":
+        out.append("the gate is not limited to main")
+    if "checkout -q FETCH_HEAD -- .github/ci-images.env" not in run:
+        out.append("the gate compares against the pushed pin, not main's")
+    return out
+
+
+def test_the_nightly_ends_red_on_a_pending_repin() -> None:
+    assert _nightly_problems(NIGHTLY.read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "why"),
+    [
+        ("make -s ci-image-repin-check", "true", "does not run make"),
+        ('exit "$rc"', "exit 0", "does not exit with the gate"),
+        (
+            "git checkout -q FETCH_HEAD -- .github/ci-images.env\n",
+            "",
+            "pushed pin, not main's",
+        ),
+        (
+            "      - name: A pending repin ends this run red\n",
+            "      - name: A pending repin ends this run red\n"
+            "        continue-on-error: true\n",
+            "softens the gate",
+        ),
+    ],
+)
+def test_a_softened_nightly_is_caught(old: str, new: str, why: str) -> None:
+    """Sabotage, on a copy of ci-image.yml: each way to lose the red."""
+    text = NIGHTLY.read_text(encoding="utf-8")
+    assert old in text, old
+    assert any(why in p for p in _nightly_problems(text.replace(old, new, 1)))

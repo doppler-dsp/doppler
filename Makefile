@@ -127,7 +127,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
-               why-param doc-claims public-symbols
+               why-param doc-claims public-symbols curl-fail
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -391,6 +391,12 @@ LINT_ci-pipefail = $(UV) run python scripts/check_workflow_pipelines.py
 # A push trigger with only `paths:` fires on every TAG push (GitHub ignores
 # paths for tags): ci-image.yml rebuilt the image on each release tag.
 LINT_workflow-tag-triggers = $(UV) run python scripts/check_workflow_tag_triggers.py
+
+# A curl without --fail saves an HTTP error page as the file and exits 0: the
+# CI image build failed in `tar`, naming the wrong thing, on a transient error
+# body, and `curl | bash` runs one (doppler#1738). Every curl in
+# deploy/docker/ and .github/ must say --fail.
+LINT_curl-fail = $(UV) run python scripts/check_curl_fail.py
 
 # ffi/rust/ is the one binding jm does not generate, so `jm status --check`
 # has nothing to say about it and an `extern "C"` block is a promise no

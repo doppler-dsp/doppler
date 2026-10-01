@@ -183,6 +183,16 @@ repos:
         pass_filenames: false
         files: ^\.github/workflows/
 
+      # A curl without --fail saves an HTTP error page as the file and exits
+      # 0, so the image build failed in `tar`, naming the wrong thing
+      # (doppler#1738).
+      - id: curl-fail
+        name: every curl fails on an HTTP error
+        entry: make -s lint-curl-fail
+        language: system
+        pass_filenames: false
+        files: ^(deploy/docker/|\.github/)
+
       # A wire format's full scale is dp_format_full_scale() and the
       # arithmetic around it is the cvt converters'; four private copies had
       # already drifted into truncating at the wrong constant (#1117).

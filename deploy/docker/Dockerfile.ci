@@ -64,9 +64,22 @@ RUN apt-get update \
 # The dependency list, from the one file that carries it. Both groups: `dev`
 # is what every build/test job needs, `docs` is doxygen + graphviz for the
 # doxygen job, and baking both means one image rather than one per job shape.
+#
+# Every fetch in this file is `curl -fsSL --retry 5 --retry-all-errors
+# --retry-delay 2` (doppler#1738), and `make lint-curl-fail` refuses a curl
+# here without --fail. Without -f, curl saves an HTTP error or rate-limit
+# page as if it were the file and exits 0, so the failure surfaces later and
+# names the wrong thing: the nats tarball below once failed as "gzip: stdin:
+# not in gzip format" on a URL that served a valid tarball before and after.
+# The installer is downloaded to a file and THEN run, never piped: a pipe
+# hands bash whatever body came back, and `| bash` reports bash's status,
+# not curl's.
 COPY bootstrap.toml /tmp/bootstrap.toml
 WORKDIR /tmp
-RUN curl -sSL https://just-buildit.github.io/get-jb.sh | bash \
+RUN curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+      -o /tmp/get-jb.sh https://just-buildit.github.io/get-jb.sh \
+ && bash /tmp/get-jb.sh \
+ && rm -f /tmp/get-jb.sh \
  && PATH="$HOME/.local/bin:$PATH" jbx install-deps \
  && PATH="$HOME/.local/bin:$PATH" jbx install-deps -g docs \
  && rm -f /tmp/bootstrap.toml \
@@ -118,7 +131,8 @@ RUN clang_major="$(clang --version | grep -oE 'version [0-9]+' | head -1 \
 # one without docker gains the tests rather than skipping them.
 ARG NATS_VERSION=2.10.22
 RUN arch="$(dpkg --print-architecture)" \
- && curl -sSLo /tmp/nats.tar.gz \
+ && curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+      -o /tmp/nats.tar.gz \
       "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-${arch}.tar.gz" \
  && tar -xzf /tmp/nats.tar.gz -C /tmp \
  && install -m 755 "/tmp/nats-server-v${NATS_VERSION}-linux-${arch}/nats-server" \

@@ -675,11 +675,57 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
  * free_src_bits() releases all of it, including on the partial-failure paths
  * below: every slot is counted into n_fields/n_stages as it is claimed, so a
  * description abandoned half-built still frees completely. */
+/* The longest path a refusal names: "segments[N].sum[N].frame.fields[N]".
+   A segment or field index past this many digits is truncated in the
+   message, never in the check. */
+#define WFM_JSON_PATH_MAX 96
+
+/* Refuse a key object @p o's level does not take, naming it and where it
+ * sits -- `segments[1].sum[0]: unknown key "nope"`. The level's keys are
+ * the schema's own properties (WFM_JSON_KEYS, generated from it), so the
+ * reader and the schema cannot disagree about what a scene may say.
+ *
+ * Before this, every level read the keys it knew and dropped the rest in
+ * silence: a top-level "fs" -- not a key; fs is per segment -- left every
+ * segment at fs = 1, and `--realtime` then paced a 7 ms scene for two
+ * hours (doppler#1153). A misspelled key is the same defect, quieter.
+ *
+ * The reason is formatted into a thread-local buffer, valid until this
+ * thread parses again: the key is the caller's text, so no static string
+ * can name it. Call it AFTER a level's retired-key check, so a retired key
+ * keeps the reason that names its replacement. Returns 0, or -1. */
+static int
+refuse_unknown_keys (const cJSON *o, wfm_json_level_t lvl, const char *where,
+                     const char **why)
+{
+  static _Thread_local char buf[WFM_JSON_PATH_MAX + 96];
+  const cJSON              *it;
+  cJSON_ArrayForEach (it, o)
+  {
+    int known = 0;
+    for (const char *const *k = WFM_JSON_KEYS[lvl]; *k && !known; k++)
+      known = strcmp (*k, it->string) == 0;
+    if (known)
+      continue;
+    /* The one misplaced key worth its own sentence: the one #1153 was. */
+    if (lvl == WFM_JSON_ROOT && strcmp (it->string, "fs") == 0)
+      {
+        *why = "\"fs\" is per segment: set segments[].fs";
+        return -1;
+      }
+    snprintf (buf, sizeof buf, "%s: unknown key \"%.64s\"", where, it->string);
+    *why = buf;
+    return -1;
+  }
+  return 0;
+}
+
 static int read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d,
-                           const char **why);
+                           const char *where, const char **why);
 
 static int
-read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
+read_frame_desc (const cJSON *so, wfm_source_t *out, const char *where,
+                 const char **why)
 {
   const cJSON *fr = cJSON_GetObjectItemCaseSensitive (so, "frame");
   if (!fr)
@@ -692,7 +738,9 @@ read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
      branch no test can reach. */
   wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
   out->frame          = d; /* owned from here; free_src_bits releases it */
-  return read_frame_obj (fr, d, why);
+  char path[WFM_JSON_PATH_MAX];
+  snprintf (path, sizeof path, "%s.frame", where);
+  return read_frame_obj (fr, d, path, why);
 }
 
 /* Read one frame object -- {"fields": [...], "stages": [...]} -- into @p d,
@@ -700,9 +748,13 @@ read_frame_desc (const cJSON *so, wfm_source_t *out, const char **why)
  * outcome. The one reader of the form: a scene's "frame" key and
  * `wfmgen --frame FILE` both come through here. */
 static int
-read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char **why)
+read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
+                const char **why)
 {
   const cJSON *it;
+  char         path[WFM_JSON_PATH_MAX];
+  if (refuse_unknown_keys (fr, WFM_JSON_FRAME, where, why) != 0)
+    return -1;
   const cJSON *fields = cJSON_GetObjectItemCaseSensitive (fr, "fields");
   if (fields)
     {
@@ -738,6 +790,10 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char **why)
                    "\"spec\": \"pn:31:5*4\"";
             return -1;
           }
+        snprintf (path, sizeof path, "%s.fields[%zu]", where,
+                  d->n_fields - 1u);
+        if (refuse_unknown_keys (it, WFM_JSON_FIELD, path, why) != 0)
+          return -1;
         const cJSON *sp = cJSON_GetObjectItemCaseSensitive (it, "spec");
         if (sp)
           {
@@ -761,6 +817,10 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char **why)
         if (!cJSON_IsObject (it) || d->n_stages >= WFM_FRAME_MAX_STAGES)
           return -1;
         wfm_stage_t *s = &d->stage[d->n_stages++];
+        snprintf (path, sizeof path, "%s.stages[%zu]", where,
+                  d->n_stages - 1u);
+        if (refuse_unknown_keys (it, WFM_JSON_STAGE, path, why) != 0)
+          return -1;
         if (read_stage_kind (it, &s->kind) != 0)
           return -1;
         read_num_keys (it, s, STAGE_KEYS, N_STAGE_KEYS);
@@ -791,7 +851,7 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
 parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
-                  const char **why)
+                  wfm_json_level_t lvl, const char *where, const char **why)
 {
   /* Keys a Field replaced, refused by name with what replaced them -- never
      read as aliases (docs/design/frame-description.md F.3). */
@@ -836,6 +896,11 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
         *why = RETIRED[k].why;
         return -1;
       }
+  /* After the retired keys, so each keeps the reason naming its
+     replacement. An inline segment is a source and a segment at once, so
+     its level's keys are both. */
+  if (refuse_unknown_keys (so, lvl, where, why) != 0)
+    return -1;
 
   /* Every field outside the table starts at zero, except acq_reps, whose
      default is not "absent"; every table row is read -- or defaulted -- by
@@ -856,7 +921,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
   /* A CARRIED description, if the record has one. It is the whole frame, so
    * a sync word or an unspread preamble read beside it above is refused by
    * dp_wfm_source_frame_error() rather than merged with it or dropped. */
-  if (read_frame_desc (so, out, why) != 0
+  if (read_frame_desc (so, out, where, why) != 0
       || read_data_file (so, out, base, why))
     {
       /* A refused description is still an ALLOCATED one -- it is reachable
@@ -1042,6 +1107,11 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
   cJSON *root = cJSON_Parse (json);
   if (!root)
     return NULL;
+  if (refuse_unknown_keys (root, WFM_JSON_ROOT, "the scene", why) != 0)
+    {
+      cJSON_Delete (root);
+      return NULL;
+    }
   const cJSON *arr = cJSON_GetObjectItemCaseSensitive (root, "segments");
   if (!cJSON_IsArray (arr) || cJSON_GetArraySize (arr) == 0)
     {
@@ -1076,10 +1146,14 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
     const cJSON  *ty   = cJSON_GetObjectItemCaseSensitive (s, "type");
     wfm_source_t *srcs = NULL;
     size_t        ns   = 0;
+    char          where[WFM_JSON_PATH_MAX], at[WFM_JSON_PATH_MAX];
+    snprintf (where, sizeof where, "segments[%zu]", i);
     if (sum && ty)
       goto reject;
     if (cJSON_IsArray (sum))
       {
+        if (refuse_unknown_keys (s, WFM_JSON_SUM_SEGMENT, where, why) != 0)
+          goto reject;
         ns = (size_t)cJSON_GetArraySize (sum);
         if (ns < 1)
           goto reject;
@@ -1090,7 +1164,9 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
         const cJSON *so = NULL;
         cJSON_ArrayForEach (so, sum)
         {
-          if (parse_source_obj (so, &srcs[k], base, why) != 0)
+          snprintf (at, sizeof at, "%s.sum[%zu]", where, k);
+          if (parse_source_obj (so, &srcs[k], base, WFM_JSON_SOURCE, at, why)
+              != 0)
             {
               free_src_bits (srcs,
                              k); /* k sources parsed OK before this one */
@@ -1106,7 +1182,9 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
         srcs = malloc (sizeof (wfm_source_t));
         if (!srcs)
           goto reject;
-        if (parse_source_obj (s, &srcs[0], base, why) != 0)
+        if (parse_source_obj (s, &srcs[0], base, WFM_JSON_INLINE_SEGMENT,
+                              where, why)
+            != 0)
           {
             free (srcs);
             goto reject;
@@ -1313,7 +1391,7 @@ dp_wfm_frame_from_json (const char *json, const char **why)
       return NULL;
     }
   wfm_frame_desc_t *d = dp_xcalloc (1, sizeof *d);
-  if (read_frame_obj (root, d, why) != 0)
+  if (read_frame_obj (root, d, "the frame", why) != 0)
     {
       if (!*why)
         *why = not_obj;

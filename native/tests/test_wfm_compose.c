@@ -1658,6 +1658,61 @@ test_every_data_refusal_names_its_fix (void)
                         == NULL
                     && why && strstr (why, "num_samples"),
                 "a scene's count beside a finite source is refused by name");
+
+  /* doppler#1153: a key no level takes is refused by name and place, at
+     each of the seven objects a scene is made of. Before, every level
+     dropped it in silence -- a top-level "fs" left every segment at 1.0. */
+  {
+    static const struct
+    {
+      const char *json, *says;
+    } UNKNOWN[] = {
+      { "{\"bogus\":1,\"segments\":[{\"type\":\"tone\"}]}",
+        "the scene: unknown key \"bogus\"" },
+      { "{\"segments\":[{\"type\":\"tone\",\"bogus\":1}]}",
+        "segments[0]: unknown key \"bogus\"" },
+      { "{\"segments\":[{\"type\":\"tone\"},{\"bogus\":1,"
+        "\"sum\":[{\"type\":\"tone\"}]}]}",
+        "segments[1]: unknown key \"bogus\"" },
+      { "{\"segments\":[{\"sum\":[{\"type\":\"tone\"},"
+        "{\"type\":\"tone\",\"bogus\":1}]}]}",
+        "segments[0].sum[1]: unknown key \"bogus\"" },
+      { "{\"segments\":[{\"type\":\"bits\",\"frame\":{\"bogus\":1,"
+        "\"fields\":[{\"spec\":\"0x5\"}]}}]}",
+        "segments[0].frame: unknown key \"bogus\"" },
+      { "{\"segments\":[{\"type\":\"bits\",\"frame\":{\"fields\":"
+        "[{\"spec\":\"0x5\"},{\"spec\":\"0x3\",\"bogus\":1}]}}]}",
+        "segments[0].frame.fields[1]: unknown key \"bogus\"" },
+      { "{\"segments\":[{\"sum\":[{\"type\":\"bits\",\"frame\":{\"fields\":"
+        "[{\"spec\":\"0x5\"}],\"stages\":[{\"kind\":\"crc16\","
+        "\"first_field\":0,\"n_fields\":1,\"bogus\":1}]}}]}]}",
+        "segments[0].sum[0].frame.stages[0]: unknown key \"bogus\"" },
+    };
+    for (size_t k = 0; k < sizeof UNKNOWN / sizeof *UNKNOWN; k++)
+      {
+        why = NULL;
+        dp_wfm_compose_state_t *c
+            = dp_wfm_compose_from_json_why (UNKNOWN[k].json, &why);
+        DP_CHECK_MSG (c == NULL && why && strstr (why, UNKNOWN[k].says),
+                      UNKNOWN[k].says);
+        dp_wfm_compose_destroy (c);
+      }
+    /* The same reader under `--frame FILE`: the frame is its root. */
+    wfm_frame_desc_t *fd = dp_wfm_frame_from_json (
+        "{\"fields\":[{\"spec\":\"0x5\"}],\"bogus\":1}", &why);
+    DP_CHECK_MSG (fd == NULL && why
+                      && strstr (why, "the frame: unknown key \"bogus\""),
+                  "a frame file's unknown key is refused by name");
+    dp_wfm_frame_free (fd);
+
+    /* The one #1153 was: a top-level "fs" names where fs goes. */
+    why = NULL;
+    DP_CHECK_MSG (dp_wfm_compose_from_json_why (
+                      "{\"fs\":1e6,\"segments\":[{\"type\":\"tone\"}]}", &why)
+                          == NULL
+                      && why && strstr (why, "set segments[].fs"),
+                  "a top-level fs is refused, naming segments[].fs");
+  }
 #undef REFUSED
   return 0;
 }

@@ -707,4 +707,157 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  randomise, interleave, conv, or a kind of your own). Not with\n" \
   "                  --bits.\n"
 
+/* The keys each object of a scene takes, generated from the schema's
+   `properties` (docs/schema/wfmgen.schema.json). The reader refuses any
+   other key by name: the schema and the reader are one table (#1153). */
+typedef enum
+{
+  WFM_JSON_ROOT,
+  WFM_JSON_INLINE_SEGMENT,
+  WFM_JSON_SUM_SEGMENT,
+  WFM_JSON_SOURCE,
+  WFM_JSON_FRAME,
+  WFM_JSON_FIELD,
+  WFM_JSON_STAGE,
+  WFM_JSON_N_LEVELS
+} wfm_json_level_t;
+
+static const char *const WFM_JSON_KEYS_ROOT[] = {
+  "continuous",
+  "headroom",
+  "repeat",
+  "seed_advance",
+  "segments",
+  "version",
+  NULL
+};
+
+static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
+  "acq_code",
+  "background",
+  "carrier_hz",
+  "code_only",
+  "crc",
+  "data",
+  "data_code",
+  "data_from_file",
+  "data_len",
+  "delay_samples",
+  "doppler",
+  "doppler_lifetime",
+  "doppler_rate",
+  "f_end",
+  "fill",
+  "frame",
+  "freq",
+  "fs",
+  "gap_noise",
+  "level",
+  "lfsr",
+  "modulation",
+  "num_samples",
+  "off_samples",
+  "payload",
+  "pn_length",
+  "pn_poly",
+  "pulse",
+  "repeats",
+  "rrc_beta",
+  "rrc_span",
+  "seed",
+  "snr",
+  "snr_mode",
+  "span",
+  "sps",
+  "symbol_rate",
+  "symbols",
+  "sync",
+  "type",
+  NULL
+};
+
+static const char *const WFM_JSON_KEYS_SUM_SEGMENT[] = {
+  "delay_samples",
+  "fs",
+  "gap_noise",
+  "num_samples",
+  "off_samples",
+  "repeats",
+  "sum",
+  NULL
+};
+
+static const char *const WFM_JSON_KEYS_SOURCE[] = {
+  "acq_code",
+  "background",
+  "carrier_hz",
+  "code_only",
+  "crc",
+  "data",
+  "data_code",
+  "data_from_file",
+  "data_len",
+  "doppler",
+  "doppler_lifetime",
+  "doppler_rate",
+  "f_end",
+  "fill",
+  "frame",
+  "freq",
+  "level",
+  "lfsr",
+  "modulation",
+  "payload",
+  "pn_length",
+  "pn_poly",
+  "pulse",
+  "rrc_beta",
+  "rrc_span",
+  "seed",
+  "snr",
+  "snr_mode",
+  "span",
+  "sps",
+  "symbol_rate",
+  "symbols",
+  "sync",
+  "type",
+  NULL
+};
+
+static const char *const WFM_JSON_KEYS_FRAME[] = {
+  "fields",
+  "stages",
+  NULL
+};
+
+static const char *const WFM_JSON_KEYS_FIELD[] = {
+  "bits",
+  "derived_by",
+  "name",
+  "spec",
+  NULL
+};
+
+static const char *const WFM_JSON_KEYS_STAGE[] = {
+  "depth",
+  "emit_den",
+  "emit_num",
+  "first_field",
+  "kind",
+  "n_fields",
+  "unit_bits",
+  NULL
+};
+
+static const char *const *const WFM_JSON_KEYS[WFM_JSON_N_LEVELS] = {
+  WFM_JSON_KEYS_ROOT,
+  WFM_JSON_KEYS_INLINE_SEGMENT,
+  WFM_JSON_KEYS_SUM_SEGMENT,
+  WFM_JSON_KEYS_SOURCE,
+  WFM_JSON_KEYS_FRAME,
+  WFM_JSON_KEYS_FIELD,
+  WFM_JSON_KEYS_STAGE,
+};
+
 #endif /* WFM_SURFACE_H */

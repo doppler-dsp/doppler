@@ -264,5 +264,41 @@ expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2
     --fs 6138000 --data-from-file - --realtime)
 
+# 20. doppler#1153: a scene's top-level "fs" is not a key -- fs is per
+#     segment -- and it used to be dropped in silence, leaving every segment
+#     at fs = 1, so --realtime paced this 7 ms scene for two hours. It is
+#     refused by name now, and the same scene with fs where it belongs
+#     finishes under --realtime: 4096 + 1024 off + 2048 = 7168 samples,
+#     8 bytes each. The TIMEOUT is the regression: a hang fails it.
+set(_seg_fs "")
+set(_top_fs "\"fs\": 1000000.0, ")
+foreach(_where top seg)
+    if(_where STREQUAL "seg")
+        set(_seg_fs "\"fs\": 1000000.0, ")
+        set(_top_fs "")
+    endif()
+    file(WRITE wg_rt_${_where}.json "{${_top_fs}\"segments\": [
+  {${_seg_fs}\"num_samples\": 4096, \"off_samples\": 1024,
+   \"sum\": [{\"type\": \"bpsk\", \"sps\": 4, \"snr\": 10.0}]},
+  {${_seg_fs}\"num_samples\": 2048,
+   \"sum\": [{\"type\": \"tone\", \"freq\": 100000.0}]}]}
+")
+endforeach()
+execute_process(COMMAND ${EXE} --from-file wg_rt_top.json --realtime
+                -o wg_rt_top.cf32
+                RESULT_VARIABLE rc ERROR_VARIABLE err TIMEOUT 20)
+if(NOT rc EQUAL 2 OR NOT err MATCHES "set segments\\[\\]\\.fs")
+    message(FATAL_ERROR "a top-level fs: exit ${rc}, '${err}' -- expected "
+                        "exit 2 naming segments[].fs")
+endif()
+execute_process(COMMAND ${EXE} --from-file wg_rt_seg.json --realtime
+                -o wg_rt_seg.cf32
+                RESULT_VARIABLE rc TIMEOUT 20)
+if(NOT rc EQUAL 0)
+    message(FATAL_ERROR "a finite scene under --realtime: exit '${rc}' "
+                        "(a hang reads as a timeout) -- expected 0")
+endif()
+expect_size(wg_rt_seg.cf32 57344)
+
 sweep_scratch()
 message(STATUS "wfmgen_cli: OK")

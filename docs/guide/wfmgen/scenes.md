@@ -125,6 +125,13 @@ The schema itself is published alongside these pages:
 template shows one valid spec, the schema says what the whole space of them
 is, which is what an editor or a validator needs.
 
+`wfmgen` reads a scene by the same rules. A key the schema does not list is
+**refused by name and place** (`segments[1].sum[0]: unknown key "nope"`), never
+skipped, because a skipped key is a setting that silently did nothing. `fs`
+is a **segment** key, so a top-level `"fs"` is refused, naming
+`segments[].fs`
+([#1153](https://github.com/doppler-dsp/doppler/issues/1153)).
+
 ______________________________________________________________________
 
 ## Mixing sources (`sum`) and sequencing them (`add`)

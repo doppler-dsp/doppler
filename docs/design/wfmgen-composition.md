@@ -259,7 +259,7 @@ array of sources (the JSON face of `Segment.sum`):
 {
   "segments": [
     {
-      "n": 1000000,
+      "num_samples": 1000000,
       "sum": [
         { "type": "qpsk", "freq": 0,      "sps": 8, "snr": 15, "snr_mode": "esno" },
         { "type": "tone", "freq": 200000, "level": -12 },

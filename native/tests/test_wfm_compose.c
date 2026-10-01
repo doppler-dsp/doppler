@@ -3027,7 +3027,7 @@ main (void)
                                 .acq_reps    = 2,
                                 .acq_code    = cases[c].acq,
                                 .data_code   = cases[c].data,
-                                .payload     = cases[c].payload,
+                                .data        = cases[c].payload,
                                 .symbol_rate = cases[c].symbol_rate };
           wfm_segment_t g   = {
             .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 64

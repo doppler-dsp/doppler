@@ -10,7 +10,17 @@ import pytest
 
 from doppler.mpsk import mpsk_map
 from doppler.snr import snr_data_aided_db
-from doppler.wfm import PN, Synth, bits, chirp, field_bits, mls_poly, rrc_taps
+from doppler.wfm import (
+    PN,
+    Composer,
+    Segment,
+    Synth,
+    bits,
+    chirp,
+    field_bits,
+    mls_poly,
+    rrc_taps,
+)
 
 
 def _inst_freq(x, fs):
@@ -557,6 +567,18 @@ def test_the_retired_payload_kwargs_are_refused_naming_data(kw):
     replacement (doppler#1718)."""
     with pytest.raises(ValueError, match=r"bits is retired.*pass data="):
         Synth(type="bits", **{kw: np.array([1, 0, 1, 1], np.uint8)}).steps(4)
+
+
+@pytest.mark.parametrize("kw", ["bits", "payload", "pattern"])
+def test_the_composer_refuses_the_retired_payload_kwargs_too(kw):
+    """The same refusal on the Composer face, through its create-time reason
+    (doppler#1696's create_why): one sentence, whichever face is used
+    (doppler#1729)."""
+    seg = Segment(
+        type="bits", num_samples=16, **{kw: np.array([1, 0], np.uint8)}
+    )
+    with pytest.raises(ValueError, match=r"bits is retired.*pass data="):
+        Composer([seg]).compose()
 
 
 def test_bits_text_is_refused_naming_field_bits():

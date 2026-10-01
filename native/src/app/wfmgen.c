@@ -1615,6 +1615,8 @@ check_source (wfmgen_opts_t *o)
   if (why == dp_wfm_why_pn_poly)
     (void)fprintf (stderr, "error: --pn-poly 0x%llx, --pn-length %d: %s\n",
                    (unsigned long long)o->src.pn_poly, o->src.pn_length, why);
+  else if (why == dp_wfm_why_dsss_frame_no_data_code)
+    (void)fprintf (stderr, "error: --data-code: %s\n", why);
   else if (why == dp_wfm_why_dsss_cont_rate)
     (void)fprintf (stderr, "error: --symbol-rate %g, --fs %g, --sps %d: %s\n",
                    o->src.symbol_rate, o->seg.fs, o->src.sps, why);

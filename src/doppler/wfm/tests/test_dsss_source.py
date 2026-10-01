@@ -416,7 +416,7 @@ def test_invalid_geometry_raises_or_degrades():
     kw.pop("data_code")
     kw.pop("off_samples")
     s = Synth(**kw)
-    with pytest.raises(ValueError, match="--data-code is required"):
+    with pytest.raises(ValueError, match="give data_code"):
         s.steps(64)
 
 

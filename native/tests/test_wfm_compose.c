@@ -2779,6 +2779,14 @@ main (void)
                             "or a payload spread by data_code, or both")
                         == 0,
                     "the empty-burst sentence");
+      DP_CHECK_MSG (strcmp (dp_wfm_why_dsss_frame_no_data_code,
+                            "a dsss burst spreads its frame (sync, payload, "
+                            "crc) with data_code, and none is given: give "
+                            "data_code, a spreading code such as pn:31:5 -- "
+                            "or no sync and no payload, for a preamble-only "
+                            "burst")
+                        == 0,
+                    "the frame-no-data_code sentence");
       DP_CHECK_MSG (strcmp (dp_wfm_why_dsss_cont_no_data_code,
                             "a continuous dsss stream (symbol_rate > 0) is "
                             "its spreading code, and no data_code is given: "

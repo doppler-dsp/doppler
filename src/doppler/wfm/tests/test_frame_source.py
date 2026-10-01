@@ -667,8 +667,8 @@ def _scene_why(seg: dict) -> str:
     [
         ({}, "give acq_code"),
         ({"data_code": _DATA}, "give acq_code"),
-        ({"acq_code": _ACQ, "sync": "0101"}, "--data-code is required"),
-        ({"sync": "0101"}, "--data-code is required"),
+        ({"acq_code": _ACQ, "sync": "0101"}, "give data_code"),
+        ({"sync": "0101"}, "give data_code"),
         ({"symbol_rate": 1e3}, "give data_code"),
     ],
     ids=[
@@ -777,3 +777,26 @@ def test_the_composer_raises_any_scene_reason_verbatim():
     with pytest.raises(ValueError) as comp:
         Composer([Segment(type="pn", pn_length=5, pn_poly=0x40)])
     assert str(comp.value) == why
+
+
+def test_the_cli_prefixes_its_flag_to_the_frame_sentence(tmp_path):
+    """The sentence names the FIELD on every face; the CLI adds its own
+    flag context in front, as it does for the rate refusal."""
+    why = _scene_why(
+        {"type": "dsss", "sps": 2, "acq_code": _ACQ, "sync": "0101"}
+    )
+    p, _ = _cli(
+        [
+            "--type",
+            "dsss",
+            "--sps",
+            "2",
+            "--acq-code",
+            _ACQ,
+            "--sync",
+            "0101",
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 2, p.stderr
+    assert f"error: --data-code: {why}" in p.stderr, p.stderr

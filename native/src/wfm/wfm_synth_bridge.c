@@ -132,8 +132,9 @@ const char dp_wfm_why_pn_poly[]
    is. A burst of just the preamble (no sync, no payload, no data_code) is
    valid: it is what an acquisition stimulus is, and waveforms.md says so. */
 const char dp_wfm_why_dsss_frame_no_data_code[]
-    = "a DSSS burst spreads its frame: --data-code is required whenever "
-      "there are frame bits (--sync/--bits) to spread";
+    = "a dsss burst spreads its frame (sync, payload, crc) with data_code, "
+      "and none is given: give data_code, a spreading code such as pn:31:5 "
+      "-- or no sync and no payload, for a preamble-only burst";
 const char dp_wfm_why_dsss_empty[]
     = "a dsss burst has nothing to send: give acq_code, the preamble a "
       "receiver acquires on, or a payload spread by data_code, or both";

@@ -314,6 +314,10 @@ jobs:
           # be the one that exits non-zero.
           if [ "$changed" -eq 0 ]; then echo "nothing moved — no repin needed"; fi
           cat /tmp/ci-images.env >> "$GITHUB_STEP_SUMMARY"
+          # And to the LOG: a branch that changes the image commits this
+          # block by hand (`make ci-image-check` says so), and a job summary
+          # is not readable through the API -- the log is.
+          echo "--- pin block ---"; cat /tmp/ci-images.env; echo "--- end ---"
 
       # Push the refreshed pin to a branch and STOP. Opening a PR from here
       # is not possible: the `doppler-dsp` org forbids GitHub Actions from

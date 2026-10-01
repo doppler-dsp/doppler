@@ -294,7 +294,13 @@ def test_json_roundtrip():
 #: Keys a Field or a frame description replaced. The C reader refuses each
 #: with a sentence naming it (wfm_json.c); both JSON readers must raise that
 #: sentence, not "<fn> failed" (doppler#1614, just-makeit#1706).
-_RETIRED = [("sync_gen", "pn:63:6"), ("rs_depth", 1), ("pattern", "0101")]
+_RETIRED = [
+    ("sync_gen", "pn:63:6"),
+    ("rs_depth", 1),
+    ("pattern", "0101"),
+    ("payload", "0101"),
+    ("payload_gen", "pn:31:5"),
+]
 
 
 def _scene_with(key, value):
@@ -315,6 +321,18 @@ def test_from_file_names_a_retired_key(key, value, tmp_path):
     path.write_text(_scene_with(key, value), encoding="utf-8")
     with pytest.raises(ValueError, match=f'"{key}" is retired'):
         Composer.from_file(str(path))
+
+
+@pytest.mark.parametrize("key", ["payload", "pattern", "payload_gen"])
+def test_a_retired_payload_key_names_data_not_unknown(key):
+    """#1718's retired payload keys are refused with the sentence naming
+    their replacement, "data" -- and that refusal runs BEFORE #1741's
+    unknown-key check, which would otherwise answer first with a bare
+    `unknown key` now that the key tables no longer list them."""
+    with pytest.raises(ValueError) as e:
+        Composer.from_json(_scene_with(key, "0101"))
+    assert "is retired" in str(e.value) and "data" in str(e.value)
+    assert "unknown key" not in str(e.value)
 
 
 def test_from_file_an_unreadable_path_is_still_oserror(tmp_path):
